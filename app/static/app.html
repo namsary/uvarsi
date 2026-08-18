@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Uvar.si</title>
+<meta name="theme-color" content="#FFD400">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600&family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#FFFCF5;--paper-2:#F7F1E3;--ink:#14231C;--ink-soft:#5C6B62;
+  --yellow:#FFD400;--red:#E23A26;--green:#1F7A4C;--line:#E4DED0}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:var(--paper);color:var(--ink);font-family:"Manrope",system-ui,sans-serif;
+  line-height:1.55;padding-bottom:78px}
+.display{font-family:"Anton",sans-serif;font-weight:400;text-transform:uppercase;line-height:1}
+.mono{font-family:"IBM Plex Mono",monospace}
+.wrap{max-width:640px;margin:0 auto;padding:0 18px}
+header{position:sticky;top:0;background:var(--paper);border-bottom:2px solid var(--ink);
+  padding:14px 0;z-index:20}
+.brand{font-family:"Anton",sans-serif;font-size:1.3rem;letter-spacing:.04em;text-transform:uppercase}
+.brand em{font-style:normal;color:var(--red)}
+.btn{font-family:"IBM Plex Mono",monospace;font-weight:600;letter-spacing:.05em;
+  text-transform:uppercase;font-size:.84rem;padding:15px 20px;border:2px solid var(--ink);
+  background:var(--yellow);color:var(--ink);cursor:pointer;display:block;width:100%;
+  box-shadow:3px 3px 0 var(--ink);text-align:center;text-decoration:none}
+.btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+.btn--ghost{background:transparent;box-shadow:none}
+input,select{width:100%;padding:14px;border:2px solid var(--ink);background:#fff;
+  font-family:"IBM Plex Mono",monospace;font-size:1rem;color:var(--ink)}
+label{font-family:"IBM Plex Mono",monospace;font-size:.76rem;font-weight:600;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);display:block;margin-bottom:7px}
+.card{background:#fff;border:2px solid var(--ink);padding:18px;margin-bottom:14px}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.7rem;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--red)}
+.muted{color:var(--ink-soft);font-size:.9rem}
+.center{text-align:center}
+.hidden{display:none!important}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{font-family:"IBM Plex Mono",monospace;font-size:.8rem;font-weight:600;padding:11px 15px;
+  border:2px solid var(--ink);background:#fff;cursor:pointer}
+.chip.on{background:var(--yellow)}
+/* plán */
+.meal{border:2px solid var(--ink);background:#fff;margin-bottom:12px}
+.meal-h{display:flex;align-items:center;gap:12px;padding:15px;cursor:pointer}
+.meal-d{font-family:"Anton",sans-serif;font-size:1.5rem;color:var(--yellow);
+  -webkit-text-stroke:1.5px var(--ink);min-width:42px}
+.meal-n{font-weight:800;font-size:1.02rem;line-height:1.25;flex:1}
+.meal-b{border-top:2px dashed var(--line);padding:15px;display:none}
+.meal.open .meal-b{display:block}
+.ing{display:flex;justify-content:space-between;gap:10px;font-family:"IBM Plex Mono",monospace;
+  font-size:.82rem;padding:7px 0;border-bottom:1px dashed var(--line)}
+.ing .r{white-space:nowrap;font-weight:600}
+.ing .off{color:var(--red);margin-left:7px}
+.steps{list-style:none;counter-reset:s;margin-top:14px}
+.steps li{counter-increment:s;position:relative;padding-left:28px;margin-bottom:11px;font-size:.94rem}
+.steps li::before{content:counter(s) ".";position:absolute;left:0;color:var(--red);
+  font-weight:700;font-family:"IBM Plex Mono",monospace}
+.rest{font-style:italic;color:var(--ink-soft);font-size:.88rem;padding:9px 15px;
+  border:2px dashed var(--line);margin-bottom:12px}
+.save{display:flex;justify-content:space-between;align-items:baseline;background:var(--yellow);
+  border:2px solid var(--ink);padding:14px;margin:16px 0}
+.save b{font-family:"Anton",sans-serif;font-weight:400;font-size:1.7rem}
+/* nákupný zoznam */
+.shop-h{font-family:"Anton",sans-serif;font-size:1.1rem;text-transform:uppercase;
+  background:var(--ink);color:var(--paper);padding:9px 14px;margin-top:14px}
+.item{display:flex;align-items:center;gap:12px;padding:13px 14px;border:2px solid var(--ink);
+  border-top:0;background:#fff;cursor:pointer}
+.item.done{opacity:.45;text-decoration:line-through}
+.box{width:22px;height:22px;border:2px solid var(--ink);flex-shrink:0;display:grid;place-items:center;
+  font-weight:800;font-size:.9rem}
+.item.done .box{background:var(--green);color:#fff}
+.item .nm{flex:1;font-size:.94rem}
+.item .pr{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:.86rem;white-space:nowrap}
+/* nav */
+nav{position:fixed;bottom:0;left:0;right:0;background:var(--paper);border-top:2px solid var(--ink);
+  display:flex;z-index:30;padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;border:0;padding:11px 4px;font-family:"IBM Plex Mono",monospace;
+  font-size:.64rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-soft);cursor:pointer}
+nav button.on{color:var(--ink)}
+nav .ico{display:block;font-size:1.25rem;margin-bottom:2px}
+.spin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--red);
+  border-radius:50%;animation:sp .8s linear infinite;margin:34px auto}
+@keyframes sp{to{transform:rotate(360deg)}}
+.tag{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:.68rem;font-weight:600;
+  background:var(--yellow);border:1.5px solid var(--ink);padding:2px 7px;margin-left:6px}
+</style>
+</head>
+<body>
+
+<header><div class="wrap" style="display:flex;justify-content:space-between;align-items:center">
+  <span class="brand">Uvar<em>.si</em></span>
+  <span id="hdr" class="mono" style="font-size:.72rem;color:var(--ink-soft)"></span>
+</div></header>
+
+<main class="wrap" id="main"><div class="spin"></div></main>
+
+<nav id="nav" class="hidden">
+  <button data-t="plan" class="on"><span class="ico">🍽️</span>Plán</button>
+  <button data-t="zoznam"><span class="ico">🛒</span>Nákup</button>
+  <button data-t="spajza"><span class="ico">🥫</span>Špajza</button>
+  <button data-t="nastavenia"><span class="ico">⚙️</span>Ja</button>
+</nav>
+
+<script>
+const $ = s => document.querySelector(s);
+const M = $('#main');
+let ME = null, PLAN = null, TAB = 'plan';
+const done = JSON.parse(localStorage.getItem('uvarsi_done') || '{}');
+
+async function api(url, opts) {
+  const r = await fetch(url, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
+  if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || 'Chyba');
+  return r.json();
+}
+const esc = s => String(s??'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- prihlásenie ---------- */
+function viewLogin(sent) {
+  $('#nav').classList.add('hidden');
+  M.innerHTML = sent ? `
+    <div class="card center" style="margin-top:40px">
+      <div style="font-size:2.4rem">📬</div>
+      <h2 class="display" style="font-size:1.5rem;margin:10px 0">Pozri si e-mail</h2>
+      <p class="muted">Poslali sme ti prihlasovací odkaz. Klikni naň a si dnu — žiadne heslo netreba.</p>
+    </div>` : `
+    <div style="margin-top:36px">
+      <span class="eyebrow">Vitaj</span>
+      <h1 class="display" style="font-size:2.1rem;margin:8px 0 14px">Z letáka<br>rovno na tanier.</h1>
+      <p class="muted" style="margin-bottom:22px">Zadaj e-mail a pošleme ti odkaz na prihlásenie.</p>
+      <div class="card">
+        <label>E-mail</label>
+        <input id="em" type="email" placeholder="tvoj@email.sk" autocomplete="email">
+        <div style="height:12px"></div>
+        <button class="btn" id="go">Poslať odkaz →</button>
+        <p id="err" class="muted" style="color:var(--red);margin-top:10px"></p>
+      </div>
+    </div>`;
+  if (sent) return;
+  $('#go').onclick = async () => {
+    const email = $('#em').value.trim();
+    $('#err').textContent = '';
+    try { await api('/api/auth/request', {method:'POST', body:JSON.stringify({email})}); viewLogin(true); }
+    catch(e) { $('#err').textContent = 'Skontroluj e-mail a skús znova.'; }
+  };
+}
+
+/* ---------- onboarding ---------- */
+function viewOnboarding() {
+  $('#nav').classList.add('hidden');
+  M.innerHTML = `
+    <div style="margin-top:26px">
+      <span class="eyebrow">Nastavenie · 30 sekúnd</span>
+      <h1 class="display" style="font-size:1.8rem;margin:8px 0 18px">Povedz mi tri veci.</h1>
+      <div class="card">
+        <label>Pre koľko ľudí varíš?</label>
+        <div class="chips" id="c-osoby">
+          ${[1,2,3,4,5,6].map(n=>`<div class="chip${n===4?' on':''}" data-v="${n}">${n}</div>`).join('')}
+        </div>
+      </div>
+      <div class="card">
+        <label>Ako často chceš variť?</label>
+        <div class="chips" id="c-frek">
+          <div class="chip" data-v="1">Každý deň</div>
+          <div class="chip on" data-v="2">Raz za 2 dni</div>
+          <div class="chip" data-v="3">Raz za 3 dni</div>
+        </div>
+      </div>
+      <div class="card">
+        <label>Kde nakupuješ?</label>
+        <div class="chips" id="c-obch">
+          ${['Kaufland','Tesco','Lidl'].map(o=>`<div class="chip on" data-v="${o}">${o}</div>`).join('')}
+        </div>
+      </div>
+      <button class="btn" id="save">Hotovo, ukáž mi plán →</button>
+    </div>`;
+  const single = id => $(id).onclick = e => {
+    if (!e.target.dataset.v) return;
+    [...$(id).children].forEach(c=>c.classList.remove('on'));
+    e.target.classList.add('on');
+  };
+  single('#c-osoby'); single('#c-frek');
+  $('#c-obch').onclick = e => { if (e.target.dataset.v) e.target.classList.toggle('on'); };
+  $('#save').onclick = async () => {
+    const val = id => $(id).querySelector('.on')?.dataset.v;
+    const obchody = [...$('#c-obch').querySelectorAll('.on')].map(c=>c.dataset.v);
+    if (!obchody.length) return alert('Vyber aspoň jeden obchod.');
+    await api('/api/profil', {method:'POST', body:JSON.stringify(
+      {osoby:+val('#c-osoby'), frekvencia:+val('#c-frek'), obchody})});
+    ME = await api('/api/me');
+    await nacitajPlan(true);
+  };
+}
+
+/* ---------- plán ---------- */
+async function nacitajPlan(gen) {
+  M.innerHTML = `<div class="spin"></div><p class="center muted mono" style="font-size:.8rem">
+    ${gen?'Skladám ti jedálniček z aktuálnych akcií…':'Načítavam…'}</p>`;
+  try {
+    PLAN = gen ? await api('/api/plan/generuj', {method:'POST'}) : await api('/api/plan');
+    if (PLAN.prazdny) PLAN = await api('/api/plan/generuj', {method:'POST'});
+  } catch(e) { M.innerHTML = `<div class="card center" style="margin-top:30px">
+      <p>${esc(e.message)}</p><div style="height:12px"></div>
+      <button class="btn" onclick="nacitajPlan(true)">Skúsiť znova</button></div>`; return; }
+  render();
+}
+
+function render() {
+  $('#nav').classList.remove('hidden');
+  [...$('#nav').children].forEach(b => b.classList.toggle('on', b.dataset.t === TAB));
+  ({plan:vPlan, zoznam:vZoznam, spajza:vSpajza, nastavenia:vNast})[TAB]();
+}
+
+function vPlan() {
+  if (!PLAN || !PLAN.jedla) return nacitajPlan(true);
+  const dni = ['PO','UT','ST','ŠT','PI','SO','NE'];
+  const map = {}; PLAN.jedla.forEach(j => map[j.den] = j);
+  let h = `<div style="margin:18px 0 6px"><span class="eyebrow">Tvoj týždeň</span>
+    <h1 class="display" style="font-size:1.5rem;margin-top:4px">Navarené z akcií</h1></div>`;
+  let posledne = null;
+  dni.forEach(d => {
+    const j = map[d];
+    if (j) {
+      posledne = d;
+      h += `<div class="meal" data-d="${d}"><div class="meal-h">
+        <span class="meal-d">${d}</span><span class="meal-n">${esc(j.nazov)}</span>
+        <span class="mono" style="font-size:.72rem;color:var(--ink-soft)">${j.recept?.min||''} min ▾</span>
+      </div><div class="meal-b">
+        ${(j.suroviny||[]).map(s=>`<div class="ing"><span>${esc(s.nazov)} · ${esc(s.obchod)}</span>
+          <span class="r">${s.cena?Number(s.cena).toFixed(2).replace('.',',')+' €':''}
+          ${s.zlava?`<span class="off">${esc(s.zlava)}</span>`:''}</span></div>`).join('')}
+        <ol class="steps">${(j.recept?.kroky||[]).map(k=>`<li>${esc(k)}</li>`).join('')}</ol>
+      </div></div>`;
+    } else if (posledne && ['UT','ŠT','SO'].includes(d)) {
+      h += `<div class="rest">${d} · zvyšok z predošlého dňa</div>`;
+    }
+  });
+  h += `<div class="save"><span class="mono" style="font-size:.8rem;font-weight:600">UŠETRÍŠ</span>
+    <b>${esc(PLAN.usetris||'0,00')} €</b></div>
+    <p class="muted center mono" style="font-size:.74rem">Nákup ${esc(PLAN.nakup_spolu)} € ·
+    bežne ${esc(PLAN.bezne)} €</p>
+    <div style="height:14px"></div>
+    <button class="btn btn--ghost" onclick="nacitajPlan(true)">Chcem iný plán ↻</button>`;
+  M.innerHTML = h;
+  M.querySelectorAll('.meal-h').forEach(el =>
+    el.onclick = () => el.parentElement.classList.toggle('open'));
+}
+
+function vZoznam() {
+  if (!PLAN || !PLAN.nakupny_zoznam) { M.innerHTML = '<p class="muted">Najprv si vygeneruj plán.</p>'; return; }
+  let h = `<div style="margin:18px 0 6px"><span class="eyebrow">Nákupný zoznam</span>
+    <h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo kúpiť a kde</h1></div>`;
+  PLAN.nakupny_zoznam.forEach((s, si) => {
+    h += `<div class="shop-h">${esc(s.obchod)}</div>`;
+    (s.polozky||[]).forEach((p, pi) => {
+      const k = `${si}-${pi}`;
+      h += `<div class="item${done[k]?' done':''}" data-k="${k}">
+        <span class="box">${done[k]?'✓':''}</span>
+        <span class="nm">${esc(p.nazov)}${p.mnozstvo?`<span class="tag">${esc(p.mnozstvo)}</span>`:''}</span>
+        <span class="pr">${p.cena?Number(p.cena).toFixed(2).replace('.',',')+' €':''}</span></div>`;
+    });
+  });
+  M.innerHTML = h;
+  M.querySelectorAll('.item').forEach(el => el.onclick = () => {
+    const k = el.dataset.k;
+    done[k] = !done[k];
+    localStorage.setItem('uvarsi_done', JSON.stringify(done));
+    el.classList.toggle('done'); el.querySelector('.box').textContent = done[k] ? '✓' : '';
+  });
+}
+
+function vSpajza() {
+  const sp = ME.spajza || [];
+  M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Špajza</span>
+    <h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo už máš doma</h1>
+    <p class="muted" style="margin:8px 0 16px">Zarátame to do plánu — nekúpiš zbytočne a menej vyhodíš.</p></div>
+    <div class="card"><label>Pridať surovinu</label>
+      <div style="display:flex;gap:8px"><input id="sp-new" placeholder="napr. ryža, vajcia, cibuľa">
+      <button class="btn" style="width:auto;padding:14px 18px" id="sp-add">+</button></div></div>
+    <div id="sp-list">${sp.map((s,i)=>`<div class="item"><span class="nm">${esc(s)}</span>
+      <span class="pr" data-i="${i}" style="color:var(--red);cursor:pointer">✕</span></div>`).join('')
+      || '<p class="muted center" style="padding:18px">Zatiaľ prázdna.</p>'}</div>`;
+  const uloz = async list => {
+    await api('/api/spajza', {method:'POST', body:JSON.stringify({polozky:list})});
+    ME = await api('/api/me'); vSpajza();
+  };
+  $('#sp-add').onclick = () => {
+    const v = $('#sp-new').value.trim(); if (!v) return;
+    uloz([...(ME.spajza||[]), v]);
+  };
+  $('#sp-new').onkeydown = e => { if (e.key === 'Enter') $('#sp-add').click(); };
+  M.querySelectorAll('[data-i]').forEach(el => el.onclick = () => {
+    const l = [...ME.spajza]; l.splice(+el.dataset.i, 1); uloz(l);
+  });
+}
+
+function vNast() {
+  M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Nastavenia</span>
+    <h1 class="display" style="font-size:1.5rem;margin-top:4px">Tvoj profil</h1></div>
+    <div class="card"><div class="ing"><span>E-mail</span><span class="r">${esc(ME.email)}</span></div>
+      <div class="ing"><span>Varím pre</span><span class="r">${ME.osoby} os.</span></div>
+      <div class="ing"><span>Varím raz za</span><span class="r">${ME.frekvencia} dni</span></div>
+      <div class="ing" style="border:0"><span>Obchody</span><span class="r">${ME.obchody.join(' · ')}</span></div>
+    </div>
+    <button class="btn btn--ghost" id="zmen">Zmeniť nastavenie</button>
+    <div style="height:10px"></div>
+    <button class="btn btn--ghost" id="odhl" style="color:var(--red)">Odhlásiť sa</button>`;
+  $('#zmen').onclick = viewOnboarding;
+  $('#odhl').onclick = async () => { await api('/api/auth/logout',{method:'POST'}); location.reload(); };
+}
+
+$('#nav').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  TAB = b.dataset.t; render();
+};
+
+/* ---------- štart ---------- */
+(async () => {
+  try { ME = await api('/api/me'); } catch(e) { return viewLogin(); }
+  if (!ME.prihlaseny) return viewLogin();
+  $('#hdr').textContent = ME.email.split('@')[0];
+  if (!ME.onboarding) return viewOnboarding();
+  await nacitajPlan(false);
+})();
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/static/sw.js').catch(()=>{});
+</script>
+</body>
+</html>

@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Uvar.si — z letáka rovno na tanier</title>
+<meta name="description" content="Povedz, ako často chceš variť. Uvar.si vyskladá jedálniček a recepty z toho, čo je práve v akcii v obchodoch u teba — a z toho, čo už máš doma v špajze.">
+<link rel="canonical" href="https://uvar.si/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600&family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FFFCF5; --paper-2:#F7F1E3; --ink:#14231C; --ink-soft:#5C6B62;
+    --yellow:#FFD400; --red:#E23A26; --green:#1F7A4C; --green-deep:#0E3F2E;
+    --line:#E4DED0; --maxw:1080px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--paper);color:var(--ink);font-family:"Manrope",system-ui,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .shell{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  .display{font-family:"Anton",Impact,sans-serif;font-weight:400;line-height:.98;text-transform:uppercase}
+  a{color:inherit}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.72rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--red)}
+
+  .btn{font-family:"IBM Plex Mono",monospace;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:.84rem;
+    padding:15px 22px;border:2px solid var(--ink);border-radius:0;background:var(--yellow);color:var(--ink);
+    cursor:pointer;text-decoration:none;display:inline-block;box-shadow:4px 4px 0 var(--ink);
+    transition:transform .1s ease,box-shadow .1s ease;white-space:nowrap}
+  .btn:hover{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--ink)}
+  .btn:focus-visible{outline:3px solid var(--red);outline-offset:3px}
+
+  .nav{display:flex;align-items:center;justify-content:space-between;padding:22px 0}
+  .brand{font-family:"Anton",sans-serif;font-size:1.45rem;letter-spacing:.02em;text-transform:uppercase}
+  .brand em{font-style:normal;color:var(--red)}
+  .nav-link{font-family:"IBM Plex Mono",monospace;font-size:.78rem;font-weight:600;letter-spacing:.1em;
+    text-transform:uppercase;text-decoration:none;border-bottom:2px solid var(--yellow);padding-bottom:2px}
+
+  .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;padding:34px 0 76px}
+  .hero-h1{font-size:clamp(2.8rem,6.2vw,4.6rem);margin:16px 0 20px}
+  .hero-h1 .hl{background:linear-gradient(180deg,transparent 62%,var(--yellow) 62%,var(--yellow) 94%,transparent 94%);padding:0 .06em}
+  .hero-lead{font-size:1.16rem;color:var(--ink-soft);max-width:44ch;margin-bottom:30px}
+  .hero-lead b{color:var(--ink);font-weight:800}
+  .hero-note{font-family:"IBM Plex Mono",monospace;font-size:.75rem;color:var(--ink-soft);margin-top:14px;letter-spacing:.03em}
+
+  /* receipt */
+  .rcpt-wrap{display:flex;flex-direction:column;align-items:center;gap:22px}
+  .rcpt-proof{font-family:"IBM Plex Mono",monospace;font-size:.72rem;line-height:1.5;color:var(--ink-soft);
+    text-align:center;max-width:340px;border-top:2px solid var(--ink);padding-top:12px}
+  .rcpt-proof b{color:var(--ink)}
+  .rcpt{position:relative;background:#fff;width:100%;max-width:360px;padding:26px 24px 34px;
+    box-shadow:0 18px 44px rgba(20,35,28,.16);transform:rotate(-1.6deg);
+    font-family:"IBM Plex Mono",monospace;font-size:.82rem;line-height:1.5;
+    animation:print .95s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes print{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}
+  .rcpt::after{content:"";position:absolute;left:0;right:0;bottom:-10px;height:10px;
+    background:linear-gradient(45deg,transparent 33.333%,#fff 33.333%,#fff 66.667%,transparent 66.667%),
+               linear-gradient(-45deg,transparent 33.333%,#fff 33.333%,#fff 66.667%,transparent 66.667%);
+    background-size:14px 20px}
+  .rcpt-head{text-align:center;padding-bottom:12px}
+  .rcpt-logo{font-family:"Anton",sans-serif;font-size:1.35rem;letter-spacing:.06em;text-transform:uppercase}
+  .rcpt-sub{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin-top:3px}
+  .rule{border:0;border-top:1px dashed #C9C2B4;margin:12px 0}
+  .rule-solid{border:0;border-top:2px solid var(--ink);margin:12px 0}
+  .row{display:flex;justify-content:space-between;gap:12px}
+  .day{display:flex;gap:10px;margin-bottom:2px}
+  .day b{font-weight:600;min-width:22px}
+  .item{display:flex;justify-content:space-between;gap:10px;color:var(--ink-soft);font-size:.74rem;padding-left:32px;margin-bottom:9px}
+  .off{color:var(--red);font-weight:600;white-space:nowrap}
+  .item-r{white-space:nowrap;display:flex;gap:8px;align-items:baseline;flex-shrink:0}
+  .price{color:var(--ink);font-weight:600}
+  .day--rest{color:var(--ink-soft);font-style:italic;margin-bottom:9px}
+  .tot{font-weight:600}
+  .save{display:flex;justify-content:space-between;align-items:baseline;gap:12px;background:var(--yellow);margin:10px -8px 0;padding:9px 8px}
+  .save span:first-child{font-weight:600;letter-spacing:.06em}
+  .save span:last-child{font-family:"Anton",sans-serif;font-size:1.5rem}
+  .rcpt-foot{text-align:center;font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);margin-top:14px}
+
+  .band{padding:82px 0;border-top:2px solid var(--ink)}
+  .band--tint{background:var(--paper-2)}
+  .band-h2{font-size:clamp(1.9rem,3.6vw,2.7rem);margin:12px 0 14px}
+  .band-sub{color:var(--ink-soft);max-width:56ch;font-size:1.05rem}
+
+  .probs{display:grid;grid-template-columns:repeat(3,1fr);margin-top:44px;border:2px solid var(--ink);background:#fff}
+  .prob{padding:26px 22px;border-right:2px solid var(--ink)}
+  .prob:last-child{border-right:0}
+  .prob-n{font-family:"Anton",sans-serif;font-size:2.2rem;color:var(--yellow);-webkit-text-stroke:1.5px var(--ink);line-height:1}
+  .prob h3{font-size:1.05rem;margin:10px 0 5px;font-weight:800}
+  .prob p{color:var(--ink-soft);font-size:.94rem}
+
+  /* modelový príklad */
+  .ex-lead{color:var(--ink-soft);max-width:56ch;font-size:1.05rem;margin:8px 0 36px}
+  .ex-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  .ex-card{border:2px solid var(--ink);background:#fff;padding:22px 20px;font-family:"IBM Plex Mono",monospace}
+  .ex-k{font-size:.72rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--red);
+    border-bottom:1px dashed #C9C2B4;padding-bottom:12px;margin-bottom:16px}
+  .ex-row{display:flex;justify-content:space-between;gap:14px;font-size:.82rem;margin-bottom:12px;color:var(--ink-soft)}
+  .ex-row b{color:var(--ink);text-align:right}
+  .ex-note{font-size:.72rem;color:var(--ink-soft);font-style:italic;margin-top:6px}
+  .deal{display:flex;justify-content:space-between;gap:10px;align-items:center;background:var(--yellow);
+    border:2px solid var(--ink);padding:9px 11px;font-size:.78rem;font-weight:600;margin-bottom:10px}
+  .deal .d-off{color:var(--ink);white-space:nowrap;text-align:right}
+  .deal .d-off em{color:var(--red);font-style:normal;margin-left:5px}
+  .check{list-style:none;font-size:.84rem}
+  .check li{padding-left:22px;position:relative;margin-bottom:10px;color:var(--ink)}
+  .check li::before{content:"✓";position:absolute;left:0;color:var(--green);font-weight:700}
+  .ex-save{display:flex;justify-content:space-between;align-items:baseline;background:var(--yellow);
+    border:2px solid var(--ink);padding:10px 12px;margin-top:16px}
+  .ex-save span:first-child{font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+  .ex-save b{font-family:"Anton",sans-serif;font-weight:400;font-size:1.5rem}
+  .cost-band{background:var(--red);color:#fff;border:2px solid var(--ink);padding:20px 24px;margin:24px 0 46px;
+    font-family:"IBM Plex Mono",monospace;font-size:.9rem;line-height:1.6;display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}
+  .cost-band .c-lbl{font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:.74rem}
+  .cost-band b{color:var(--yellow);font-family:"Anton",sans-serif;font-size:1.5rem;font-weight:400}
+  .rec-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:20px}
+  .rec-card{border:2px solid var(--ink);background:#fff;padding:20px;font-family:"IBM Plex Mono",monospace}
+  .rec-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .rec-card h3{font-family:"Anton",sans-serif;font-weight:400;font-size:1.15rem;line-height:1.05;text-transform:uppercase}
+  .rec-day{color:var(--red);font-size:.72rem;font-weight:600;letter-spacing:.08em}
+  .rec-meta{font-size:.7rem;color:var(--ink-soft);letter-spacing:.04em;text-transform:uppercase;
+    border-bottom:1px dashed #C9C2B4;padding-bottom:12px;margin:8px 0 14px}
+  .rec-steps{list-style:none;counter-reset:s}
+  .rec-steps li{counter-increment:s;position:relative;padding-left:26px;margin-bottom:11px;font-size:.82rem;color:var(--ink)}
+  .rec-steps li::before{content:counter(s) ".";position:absolute;left:0;color:var(--red);font-weight:700}
+  .rec-more{font-size:.78rem;color:var(--ink-soft);font-style:italic;padding-left:26px}
+
+  .steps{margin-top:44px;border-top:2px solid var(--ink)}
+  .step{display:grid;grid-template-columns:auto 1fr auto;gap:20px;align-items:start;padding:24px 0;border-bottom:1px dashed #C9C2B4}
+  .step:last-child{border-bottom:2px solid var(--ink)}
+  .step-k{font-family:"IBM Plex Mono",monospace;font-size:.74rem;font-weight:600;letter-spacing:.12em;color:var(--red);padding-top:5px}
+  .step h3{font-size:1.22rem;font-weight:800;margin-bottom:4px}
+  .step p{color:var(--ink-soft);max-width:52ch}
+  .step-tag{font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);white-space:nowrap;padding-top:6px}
+
+  .feats{display:grid;grid-template-columns:repeat(2,1fr);gap:2px;margin-top:44px;background:var(--ink);border:2px solid var(--ink)}
+  .feat{background:var(--paper);padding:26px 24px}
+  .feat h3{font-size:1.05rem;font-weight:800;margin-bottom:5px}
+  .feat h3::before{content:"✓";color:var(--green);font-weight:800;margin-right:8px}
+  .feat p{color:var(--ink-soft);font-size:.94rem}
+
+  .shops{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+  .shop{font-family:"IBM Plex Mono",monospace;font-size:.8rem;font-weight:600;letter-spacing:.06em;
+    border:2px solid var(--ink);padding:7px 14px;background:#fff;text-transform:uppercase}
+  .shop--soon{border-style:dashed;color:var(--ink-soft);background:transparent}
+  .disclaim{font-size:.76rem;color:var(--ink-soft);margin-top:16px;max-width:60ch}
+
+  /* ---- PLÁNY (Buffer test) ---- */
+  .plans-band{background:var(--green-deep);color:#fff;border-top:2px solid var(--ink);padding:86px 0}
+  .plans-band .eyebrow{color:var(--yellow)}
+  .plans-band h2{font-size:clamp(1.9rem,3.6vw,2.7rem);margin:12px 0 14px}
+  .plans-band .band-sub{color:#BFD8CC}
+  .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:44px;align-items:stretch}
+  .plan{background:var(--paper);color:var(--ink);border:3px solid var(--ink);padding:26px 22px;display:flex;flex-direction:column}
+  .plan--hot{background:var(--yellow);position:relative}
+  .plan-tag{font-family:"IBM Plex Mono",monospace;font-size:.68rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--red)}
+  .plan--hot .plan-tag{color:var(--ink)}
+  .plan-name{font-family:"Anton",sans-serif;font-size:1.5rem;text-transform:uppercase;margin:6px 0 2px}
+  .plan-price{font-family:"Anton",sans-serif;font-size:2.6rem;line-height:1;margin:8px 0 2px}
+  .plan-price s{font-family:"IBM Plex Mono",monospace;font-size:.85rem;color:var(--ink-soft);margin-right:8px;font-weight:400}
+  .plan-per{font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:14px}
+  .plan--hot .plan-per{color:#6B5A00}
+  .plan ul{list-style:none;margin:0 0 20px;font-size:.92rem}
+  .plan li{padding:5px 0;border-bottom:1px dashed rgba(20,35,28,.18)}
+  .plan li::before{content:"✓";color:var(--green);font-weight:800;margin-right:8px}
+  .plan .btn{margin-top:auto;width:100%;text-align:center;background:var(--ink);color:var(--yellow);box-shadow:4px 4px 0 rgba(0,0,0,.35)}
+  .plan--hot .btn{background:var(--ink);color:var(--yellow)}
+  .plan-counter{margin:10px 0 4px;font-family:"IBM Plex Mono",monospace;font-size:.72rem}
+  .pc-row{display:flex;justify-content:space-between;margin-bottom:5px;font-weight:600}
+  .pc-bar{height:10px;border:2px solid var(--ink);background:#fff}
+  .pc-bar span{display:block;height:100%;background:var(--ink);width:0}
+
+  /* ---- MODAL ---- */
+  .modal{position:fixed;inset:0;background:rgba(14,31,26,.75);display:none;align-items:center;justify-content:center;padding:24px;z-index:50}
+  .modal[open]{display:flex}
+  .modal-box{background:var(--paper);border:3px solid var(--ink);box-shadow:10px 10px 0 rgba(0,0,0,.4);max-width:460px;width:100%;padding:32px 28px;position:relative}
+  .modal-close{position:absolute;top:8px;right:12px;background:none;border:0;font-size:1.6rem;cursor:pointer;line-height:1;color:var(--ink-soft)}
+  .modal-box h3{font-family:"Anton",sans-serif;font-size:1.7rem;text-transform:uppercase;margin:6px 0 8px}
+  .modal-box p{color:var(--ink-soft);font-size:.95rem;margin-bottom:18px}
+  .chosen{font-family:"IBM Plex Mono",monospace;font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;
+    background:var(--yellow);border:2px solid var(--ink);padding:5px 10px;display:inline-block}
+  .f-row{display:flex;flex-direction:column;gap:10px}
+  .f-row input{padding:15px 16px;border:2px solid var(--ink);font-family:inherit;font-size:1rem;background:#fff;color:var(--ink);width:100%}
+  .f-row input:focus{outline:3px solid var(--yellow);outline-offset:1px}
+  .fineprint{font-size:.75rem;color:var(--ink-soft);margin-top:12px}
+  .success{display:none;text-align:center}
+  .success .big{font-family:"Anton",sans-serif;font-size:2rem;text-transform:uppercase;margin-bottom:8px}
+  .success .mail{background:var(--yellow);border:2px solid var(--ink);padding:10px;font-family:"IBM Plex Mono",monospace;font-size:.8rem;margin-top:14px}
+
+  .faq{max-width:760px}
+  .faq details{border-bottom:1px dashed #C9C2B4;padding:18px 0}
+  .faq details:first-of-type{border-top:2px solid var(--ink)}
+  .faq summary{font-weight:800;cursor:pointer;font-size:1.05rem;list-style:none;display:flex;justify-content:space-between;gap:16px}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary::after{content:"+";font-family:"Anton",sans-serif;color:var(--red);font-size:1.3rem;line-height:1}
+  .faq details[open] summary::after{content:"–"}
+  .faq summary:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
+  .faq p{color:var(--ink-soft);margin-top:10px;max-width:64ch}
+
+  .foot{border-top:2px solid var(--ink);padding:34px 0;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center}
+  .foot-meta{font-family:"IBM Plex Mono",monospace;font-size:.76rem;color:var(--ink-soft)}
+
+  @media(max-width:900px){
+    .hero{grid-template-columns:1fr;gap:40px;padding:16px 0 56px}
+    .probs,.feats,.plans,.ex-grid,.rec-grid{grid-template-columns:1fr}
+    .prob{border-right:0;border-bottom:2px solid var(--ink)}
+    .prob:last-child{border-bottom:0}
+    .band,.plans-band{padding:60px 0}
+    .btn{width:100%;text-align:center}
+    .step{grid-template-columns:auto 1fr;gap:14px}
+    .step-tag{display:none}
+  }
+  @media(prefers-reduced-motion:reduce){.rcpt{animation:none}.btn{transition:none}}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <nav class="nav">
+    <div class="brand">Uvar<em>.si</em></div>
+    <a class="nav-link" href="#plany">Skorý prístup</a>
+  </nav>
+
+  <section class="hero">
+    <div>
+      <span class="eyebrow">Akcie v tvojich obchodoch → hotový plán</span>
+      <h1 class="display hero-h1">Z letáka<br><span class="hl">rovno na tanier.</span></h1>
+      <p class="hero-lead">Povedz, ako často chceš variť. Uvar.si vyskladá jedálniček a recepty z toho, čo je <b>práve v akcii</b> v obchodoch u teba — a z toho, čo už <b>máš doma v špajze</b>.</p>
+      <a class="btn" href="#plany">Chcem skorý prístup →</a>
+      <p class="hero-note">Spúšťame po mestách. Ešte nie sme live — pozri si plány a nechaj nám e-mail.</p>
+    </div>
+
+    <div class="rcpt-wrap">
+      <div class="rcpt" role="img" aria-label="Skutočný týždenný jedálniček z letáka platného 30. júla až 5. augusta 2026: pondelok bravčové karé so zemiakmi a bielou paprikou, streda cestoviny s mletým mäsom a cherry paradajkami, piatok kuracie stehná so šampiňónmi a cibuľou. Nákup surovín 15,19 eur namiesto bežných 25,11 eur, ušetríš 9,92 eur.">
+        <!-- RCPT:START -->
+        <div class="rcpt-head">
+          <div class="rcpt-logo">Uvar.si</div>
+          <div class="rcpt-sub">Tvoj týždeň · varíš 3×</div>
+          <div class="rcpt-sub">30. 7. – 5. 8. 2026</div>
+        </div>
+        <hr class="rule-solid">
+
+        <div class="day"><b>PO</b><span>Bravčové karé so zemiakmi a paprikou</span></div>
+        <div class="item"><span>Bravčové karé, 1 kg · Kaufland</span><span class="item-r"><b class="price">2,89 €</b><span class="off">−42 %</span></span></div>
+        <div class="item"><span>Zemiaky konzumné, 1 kg · Kaufland</span><span class="item-r"><b class="price">0,65 €</b><span class="off">−45 %</span></span></div>
+        <div class="item"><span>Paprika biela, 1 kg · Kaufland</span><span class="item-r"><b class="price">1,29 €</b><span class="off">−56 %</span></span></div>
+
+        <div class="day day--rest"><b>UT</b><span>Zvyšok z pondelka</span></div>
+
+        <div class="day"><b>ST</b><span>Cestoviny s mletým a cherry paradajkami</span></div>
+        <div class="item"><span>Mleté bravčové, 1 kg · Kaufland</span><span class="item-r"><b class="price">3,39 €</b><span class="off">−34 %</span></span></div>
+        <div class="item"><span>Cestoviny dvojvaječné, 1 kg · Kaufland</span><span class="item-r"><b class="price">1,99 €</b><span class="off">−33 %</span></span></div>
+        <div class="item"><span>Paradajky cherry, 250 g · Kaufland</span><span class="item-r"><b class="price">1,19 €</b><span class="off">−37 %</span></span></div>
+
+        <div class="day day--rest"><b>ŠT</b><span>Zvyšok zo stredy</span></div>
+
+        <div class="day"><b>PI</b><span>Kuracie stehná so šampiňónmi</span></div>
+        <div class="item"><span>Kuracie dolné stehná, 1 kg · Kaufland</span><span class="item-r"><b class="price">2,55 €</b><span class="off">−36 %</span></span></div>
+        <div class="item"><span>Šampiňóny biele, 250 g · Kaufland</span><span class="item-r"><b class="price">0,75 €</b><span class="off">−24 %</span></span></div>
+        <div class="item"><span>Cibuľa žltá, 1 kg · Kaufland</span><span class="item-r"><b class="price">0,49 €</b><span class="off">−44 %</span></span></div>
+
+        <hr class="rule">
+        <div class="row"><span>Nákup spolu</span><span>15,19 €</span></div>
+        <div class="row"><span>Bežne by stál</span><span>25,11 €</span></div>
+        <div class="save"><span>Ušetríš</span><span>9,92 €</span></div>
+        <div class="rcpt-foot">Dobrú chuť</div>
+        <!-- RCPT:END -->
+      </div>
+      <p class="rcpt-proof">Toto nie je ukážka. Sú to <b>skutočné ceny</b> z letáka Kaufland platného 30. 7. – 5. 8. 2026. Skontroluj si ich.</p>
+    </div>
+  </section>
+</div>
+
+<section class="band band--tint">
+  <div class="shell">
+    <span class="eyebrow">Ako to dnes vyzerá</span>
+    <h2 class="display band-h2">Akcie sú. Len ich nikto nespojí s večerou.</h2>
+    <p class="band-sub">Na Slovensku už <b>42 % výdavkov za potraviny a drogériu ide cez akcie</b> — rekord (YouGov 2025). Problém nie je, že o zľavách nevieme. Problém je, že sa z nich nedá poskladať večera.</p>
+    <div class="probs">
+      <div class="prob"><div class="prob-n">?</div><h3>„Čo dnes navarím?"</h3><p>Stojíš pri chladničke a nápad neprichádza. Zase skončíš pri tom istom.</p></div>
+      <div class="prob"><div class="prob-n">€</div><h3>Nakúpiš draho</h3><p>Bez plánu berieš, čo padne pod ruku — a zľavy ti utečú pomedzi prsty.</p></div>
+      <div class="prob"><div class="prob-n">5×</div><h3>Letáky nikto nečíta</h3><p>Prejsť päť letákov a hľadať k nim recepty? Na to nemá čas nikto.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="shell">
+    <span class="eyebrow">Ako to funguje</span>
+    <h2 class="display band-h2">Tri veci. Potom už len varíš.</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-k">01</div>
+        <div><h3>Nastavíš si to raz</h3><p>Ako často chceš variť (raz za 1, 2 alebo 3 dni), pre koľko ľudí, ktoré obchody máš v okolí — a čo už máš doma v špajze.</p></div>
+        <div class="step-tag">~2 minúty</div>
+      </div>
+      <div class="step">
+        <div class="step-k">02</div>
+        <div><h3>Dostaneš jedálniček aj recepty</h3><p>Konkrétne jedlá s receptom krok za krokom, poskladané z aktuálnych akcií a z toho, čo ti doma leží.</p></div>
+        <div class="step-tag">každý týždeň</div>
+      </div>
+      <div class="step">
+        <div class="step-k">03</div>
+        <div><h3>Nakúpiš a navaríš</h3><p>Nákupný zoznam rozdelený podľa obchodov. Dokúpiš len to, čo naozaj chýba.</p></div>
+        <div class="step-tag">bez rozmýšľania</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band band--tint">
+  <div class="shell">
+    <span class="eyebrow">Modelový príklad</span>
+    <h2 class="display band-h2">Štvorčlenná rodina, varí každé dva dni.</h2>
+    <p class="ex-lead">Takto to vyzerá naozaj — od zadania po nákupný zoznam.</p>
+    <!-- EX:START -->
+    <div class="ex-grid">
+      <div class="ex-card">
+        <div class="ex-k">01 · Ty zadáš</div>
+        <div class="ex-row"><span>varím</span><b>každé 2 dni</b></div>
+        <div class="ex-row"><span>porcie</span><b>4</b></div>
+        <div class="ex-row"><span>obchody</span><b>Lidl · Kaufland</b></div>
+        <div class="ex-row"><span>v špajze</span><b>ryža 1 kg · vajcia 10 ks · cibuľa</b></div>
+        <div class="ex-note">Nastavíš raz, zmeníš kedykoľvek.</div>
+      </div>
+      <div class="ex-card">
+        <div class="ex-k">02 · Appka nájde akcie</div>
+        <div class="deal"><span>kur. stehná · Lidl</span><span class="d-off">2,69 €/kg <em>−33 %</em></span></div>
+        <div class="deal"><span>šošovica 500 g · Kaufland</span><span class="d-off">1,19 € <em>−30 %</em></span></div>
+        <div class="deal"><span>eidam 400 g · Kaufland</span><span class="d-off">2,89 € <em>−25 %</em></span></div>
+        <div class="deal"><span>brav. plecko · Lidl</span><span class="d-off">3,29 €/kg <em>−40 %</em></span></div>
+        <div class="ex-note">Z aktuálnych letákov tvojich obchodov.</div>
+      </div>
+      <div class="ex-card">
+        <div class="ex-k">03 · Ty dostaneš</div>
+        <ul class="check">
+          <li>jedálniček na celý týždeň</li>
+          <li>3 recepty krok za krokom</li>
+          <li>nákupný zoznam: Lidl 6 · Kaufland 4</li>
+          <li>zvyšky zarátané do ďalších dní</li>
+        </ul>
+        <div class="ex-save"><span>Ušetrí</span><b>8,20 €</b></div>
+      </div>
+    </div>
+    <div class="cost-band"><span class="c-lbl">Ak takto varíš celý rok:</span> <b>~36 € mesačne</b> späť — za rok <b>približne 430 €</b> ušetrené oproti plným cenám.</div>
+    <span class="eyebrow">A tie 3 recepty? Napríklad takto:</span>
+    <div class="rec-grid">
+      <div class="rec-card">
+        <div class="rec-head"><h3>Kuracie stehná na paprike</h3><span class="rec-day">PO</span></div>
+        <div class="rec-meta">45 min · 4 porcie · 6 krokov</div>
+        <ol class="rec-steps">
+          <li>Stehná (1,2 kg) osoľ a opeč na masti.</li>
+          <li>Pridaj 2 cibule a lyžicu mletej papriky.</li>
+          <li>Podlej 200 ml vody a duste 35 minút.</li>
+        </ol>
+        <div class="rec-more">…+3 kroky v appke</div>
+      </div>
+      <div class="rec-card">
+        <div class="rec-head"><h3>Šošovicový prívarok</h3><span class="rec-day">ST</span></div>
+        <div class="rec-meta">35 min · 4 porcie · 5 krokov</div>
+        <ol class="rec-steps">
+          <li>Šošovicu (500 g) prepláchni a uvar.</li>
+          <li>Z 50 g masla a 2 lyžíc múky sprav zápražku.</li>
+          <li>Spoj a dochuť octom a smotanou.</li>
+        </ol>
+        <div class="rec-more">…+2 kroky v appke</div>
+      </div>
+      <div class="rec-card">
+        <div class="rec-head"><h3>Zapekané cestoviny</h3><span class="rec-day">PI</span></div>
+        <div class="rec-meta">40 min · 4 porcie · 4 kroky</div>
+        <ol class="rec-steps">
+          <li>Cestoviny (500 g) uvar na skus.</li>
+          <li>Zmiešaj s 3 vajcami a 200 g eidamu.</li>
+          <li>Zapekaj 25 minút na 180 °C.</li>
+        </ol>
+        <div class="rec-more">…+1 krok v appke</div>
+      </div>
+    </div>
+    <!-- EX:END -->
+  </div>
+</section>
+
+<section class="band">
+  <div class="shell">
+    <span class="eyebrow">Čo dostaneš</span>
+    <h2 class="display band-h2">Postavené pre slovenské obchody a slovenskú kuchyňu.</h2>
+    <div class="feats">
+      <div class="feat"><h3>Jedálniček z akcií</h3><p>Plán jedál postavený na zľavách, ktoré práve bežia u teba v okolí.</p></div>
+      <div class="feat"><h3>Recepty krok za krokom</h3><p>Ku každému jedlu presný postup. Nemusíš nič dohľadávať.</p></div>
+      <div class="feat"><h3>Použi, čo máš doma</h3><p>Zadáš, čo máš v špajze a chladničke — appka to zaráta a menej vyhodíš.</p></div>
+      <div class="feat"><h3>Nákupný zoznam podľa obchodov</h3><p>Vieš, čo kúpiť a kde. Bez behania po piatich predajniach.</p></div>
+      <div class="feat"><h3>Povie ti aj KEDY nakúpiť</h3><p>Akcie sa prekrývajú len pár dní v týždni. Povieme ti, ktorý deň ti dá najviac.</p></div>
+      <div class="feat"><h3>Podľa teba</h3><p>Počet ľudí, chute, alergie aj koľko času máš na varenie.</p></div>
+    </div>
+    <div class="shops" aria-label="Podporované obchody">
+      <span class="shop">Lidl</span><span class="shop">Kaufland</span><span class="shop">Tesco</span>
+      <span class="shop shop--soon">COOP Jednota · čoskoro</span><span class="shop shop--soon">Billa · čoskoro</span>
+    </div>
+    <p class="disclaim">Názvy obchodov uvádzame len pre informáciu o tom, ktoré akcie sledujeme. Nie sme s uvedenými reťazcami nijako prepojení ani nimi podporovaní.</p>
+  </div>
+</section>
+
+<!-- ============ PLÁNY ============ -->
+<section class="plans-band" id="plany">
+  <div class="shell">
+    <span class="eyebrow">Plány a ceny</span>
+    <h2 class="display">Ktorý plán by si si vybral?</h2>
+    <p class="band-sub">Ešte nespúšťame. Klikni na plán, ktorý by si chcel, a nechaj e-mail. Podľa toho vieme, čo staviať a pre koho.</p>
+
+    <div class="plans">
+      <div class="plan">
+        <span class="plan-tag">Zadarmo</span>
+        <div class="plan-name">Free</div>
+        <div class="plan-price">0 €</div>
+        <div class="plan-per">navždy</div>
+        <ul>
+          <li>1 obchod podľa výberu</li>
+          <li>Jedálniček na 3 dni</li>
+          <li>Nákupný zoznam</li>
+        </ul>
+        <button class="btn js-plan" data-plan="Free (0 €)">Vyberám Free</button>
+      </div>
+
+      <div class="plan plan--hot">
+        <span class="plan-tag">★ Prvých 250 · cena natrvalo</span>
+        <div class="plan-counter" id="planCounter" style="display:none">
+          <div class="pc-row"><span>Obsadených <b id="pcNum">0</b> z 250</span><span>zostáva <b id="pcLeft">250</b></span></div>
+          <div class="pc-bar"><span id="pcFill"></span></div>
+        </div>
+        <div class="plan-name">Zakladajúci</div>
+        <div class="plan-price"><s>29 €</s>19 €</div>
+        <div class="plan-per">za rok · zamknuté natrvalo</div>
+        <ul>
+          <li>Všetko z Pro</li>
+          <li>19 € aj o päť rokov</li>
+          <li>Prístup pred ostatnými</li>
+        </ul>
+        <button class="btn js-plan" data-plan="Zakladajuci (19 €/rok)">Vyberám Zakladajúci</button>
+      </div>
+
+      <div class="plan">
+        <span class="plan-tag">Po spustení</span>
+        <div class="plan-name">Pro</div>
+        <div class="plan-price">29 €</div>
+        <div class="plan-per">za rok · 2,42 € / mes</div>
+        <ul>
+          <li>Až 3 obchody, vyberáš ty</li>
+          <li>Celý týždeň jedál</li>
+          <li>Špajza a plytvanie</li>
+        </ul>
+        <button class="btn js-plan" data-plan="Pro (29 €/rok)">Vyberám Pro</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="shell faq">
+    <span class="eyebrow">Otázky</span>
+    <h2 class="display band-h2">Čo sa najčastejšie pýtate</h2>
+    <div style="margin-top:34px">
+      <details><summary>Kedy to spustíte?</summary><p>Pracujeme na tom. Spúšťame po mestách a ozveme sa ti hneď, ako budeme u teba. Zatiaľ nič neplatíš — zbierame záujem, aby sme vedeli, čo staviať ako prvé.</p></details>
+      <details><summary>Platím teraz niečo?</summary><p>Nie. Nič sa neúčtuje. Klikneš na plán, ktorý by ťa zaujímal, necháš e-mail a tým nám povieš, o čo je záujem. Platiť sa bude až vtedy, keď appka reálne pobeží — a rozhodneš sa sám.</p></details>
+      <details><summary>Odkiaľ beriete akcie?</summary><p>Z aktuálnych akciových letákov obchodov v tvojom okolí. Začíname vybranými reťazcami a mestami a postupne pridávame ďalšie.</p></details>
+      <details><summary>Môžem zadať, čo už mám doma?</summary><p>Áno, to je jedna z hlavných vecí. Zadáš, čo máš v špajze či chladničke, a Uvar.si to zaráta do jedálnička — menej plytváš a dokúpiš len to, čo naozaj chýba.</p></details>
+      <details><summary>Nechcem variť každý deň. Zvládne to?</summary><p>Presne na to je to stavané. Povieš, že varíš raz za dva alebo tri dni, a plán s tým počíta — zvyšky zaráta do ďalších dní.</p></details>
+      <details><summary>Koľko reálne ušetrím?</summary><p>Reálnu úsporu vidíš priamo na bločku vyššie — je to z aktuálnych letákov a môžeš si ju overiť. Za rok to vie byť pokojne pár stoviek eur, ale rátaj konzervatívne: nie každý týždeň sú akcie rovnako hlboké a časť nákupu (chlieb, olej, korenie) kupuješ za bežnú cenu tak či tak. Radšej sľúbime menej.</p></details>
+    </div>
+  </div>
+</section>
+
+<div class="shell">
+  <footer class="foot">
+    <div class="brand">Uvar<em>.si</em></div>
+    <div class="foot-meta">© 2026 Uvar.si · <a href="#plany">Skorý prístup</a> · <a href="mailto:pumaragency@gmail.com">pumaragency@gmail.com</a></div>
+  </footer>
+</div>
+
+<!-- ============ MODAL ============ -->
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+  <div class="modal-box">
+    <button class="modal-close" id="mClose" aria-label="Zavrieť">×</button>
+
+    <div id="formState">
+      <span class="chosen" id="chosen">—</span>
+      <h3 id="mTitle">Ešte nespúšťame</h3>
+      <p>Nechaj e-mail a ozveme sa ti ako prvému, keď spustíme u teba v meste. Nič teraz neplatíš.</p>
+      <form class="f-row" id="wf"
+            action="https://assets.mailerlite.com/jsonp/2513849/forms/193159378287724436/subscribe"
+            method="post" target="ml_sink">
+        <input type="hidden" name="fields[plan]" id="planField" value="">
+        <input type="email" name="fields[email]" placeholder="tvoj@email.sk" aria-label="E-mailová adresa" required>
+        <input type="hidden" name="ml-submit" value="1">
+        <input type="hidden" name="anticsrf" value="true">
+        <button class="btn" type="submit">Zapíš ma</button>
+      </form>
+      <p class="fineprint">Žiadny spam. Odhlásiš sa jedným klikom. Dodržiavame GDPR.</p>
+    </div>
+
+    <div class="success" id="successState">
+      <div class="big">Zapísali sme ťa</div>
+      <p>Ozveme sa, keď spustíme u teba v meste.</p>
+      <div class="mail">⚠️ Pozri si e-mail a <b>potvrď prihlásenie</b> — inak ti nebudeme vedieť napísať.</div>
+    </div>
+  </div>
+</div>
+<iframe name="ml_sink" id="ml_sink" style="display:none" title="odosielanie"></iframe>
+
+<script>
+(function(){
+  var modal=document.getElementById('modal'),
+      chosen=document.getElementById('chosen'),
+      planField=document.getElementById('planField'),
+      formState=document.getElementById('formState'),
+      successState=document.getElementById('successState'),
+      form=document.getElementById('wf');
+
+  function open(plan){
+    planField.value=plan;
+    chosen.textContent='Vybral si: '+plan;
+    formState.style.display='block';
+    successState.style.display='none';
+    modal.setAttribute('open','');
+    setTimeout(function(){ form.querySelector('input[type=email]').focus(); },50);
+  }
+  function close(){ modal.removeAttribute('open'); }
+
+  document.querySelectorAll('.js-plan').forEach(function(b){
+    b.addEventListener('click',function(){ open(b.dataset.plan); });
+  });
+  document.getElementById('mClose').addEventListener('click',close);
+  modal.addEventListener('click',function(e){ if(e.target===modal) close(); });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape') close(); });
+
+  form.addEventListener('submit',function(){
+    setTimeout(function(){
+      formState.style.display='none';
+      successState.style.display='block';
+    },400);
+  });
+})();
+</script>
+<script>
+/* Reálne počítadlo zakladajúcich členov.
+   Ťahá skutočný počet z count.json (aktualizuje ho týždenná úloha z MailerLite).
+   Zobrazí sa AŽ pri dostatočnom reálnom čísle — nikdy neukáže fejk ani mŕtvu nulu. */
+(function(){
+  var CAP=250, THRESHOLD=15;
+  fetch('count.json?v='+Date.now()).then(function(r){return r.json();}).then(function(d){
+    var n=parseInt(d.count,10)||0;
+    if(n<THRESHOLD) return;               // málo reálnych → počítadlo skryté
+    var box=document.getElementById('planCounter');
+    document.getElementById('pcNum').textContent=n;
+    document.getElementById('pcLeft').textContent=Math.max(0,CAP-n);
+    document.getElementById('pcFill').style.width=Math.min(100,n/CAP*100)+'%';
+    box.style.display='block';
+  }).catch(function(){});
+})();
+</script>
+</body>
+</html>
