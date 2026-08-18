@@ -16,6 +16,7 @@ from fastapi import FastAPI, Request, HTTPException, Response
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from config import public_base_url
+from weekly_data import offers_for_current_week
 
 DB = os.environ.get("UVARSI_DB", "/opt/uvarsi/uvarsi.db")
 STATIC = os.environ.get("UVARSI_STATIC", "/opt/uvarsi/app/static")
@@ -282,15 +283,15 @@ konkrétne (množstvá, čas, teplota)."""
 
 
 def akcie_pre(obchody, limit=140):
-    tyz = monday()
-    q = ("SELECT nazov,obchod,cena,povodna,zlava,jednotka,kategoria FROM akcie "
-         "WHERE tyzden=? AND obchod IN (%s) ORDER BY "
-         "CASE kategoria WHEN 'maso' THEN 1 WHEN 'zelenina' THEN 2 "
-         "WHEN 'mliecne' THEN 3 WHEN 'trvanlive' THEN 4 ELSE 5 END, cena LIMIT ?"
-         % ",".join("?" * len(obchody)))
+    if not obchody:
+        return []
+
+    today = datetime.date.fromisoformat(monday())
     with closing(db()) as con:
-        rows = con.execute(q, (tyz, *obchody, limit)).fetchall()
-    return rows
+        rows = offers_for_current_week(con, obchody, today)
+
+    category_order = {"maso": 1, "zelenina": 2, "mliecne": 3, "trvanlive": 4}
+    return sorted(rows, key=lambda row: (category_order.get(row["kategoria"], 5), row["cena"]))[:limit]
 
 
 @app.post("/api/plan/generuj")
