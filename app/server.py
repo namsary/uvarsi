@@ -290,11 +290,6 @@ def akcie_pre(obchody, limit=140):
          % ",".join("?" * len(obchody)))
     with closing(db()) as con:
         rows = con.execute(q, (tyz, *obchody, limit)).fetchall()
-        if len(rows) < 15:      # tento týždeň ešte nenazbierané → posledný dostupný
-            last = con.execute(
-                "SELECT tyzden FROM akcie ORDER BY tyzden DESC LIMIT 1").fetchone()
-            if last:
-                rows = con.execute(q, (last["tyzden"], *obchody, limit)).fetchall()
     return rows
 
 
@@ -314,7 +309,7 @@ def generuj_plan(req: Request, force: int = 0):
     obchody = u["obchody"].split(",")
     rows = akcie_pre(obchody)
     if len(rows) < 15:
-        raise HTTPException(503, "Zatiaľ nemám dosť akcií na tento týždeň. Skús neskôr.")
+        raise HTTPException(503, "Aktuálne letákové dáta sa obnovujú. Skús to o chvíľu.")
 
     zoznam = "\n".join(
         f"- {r['nazov']} | {r['obchod']} | {r['cena']:.2f} € | "
