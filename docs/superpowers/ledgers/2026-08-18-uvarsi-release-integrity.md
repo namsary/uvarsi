@@ -14,3 +14,5 @@ Plan: `docs/superpowers/plans/2026-08-18-uvarsi-release-integrity.md`
 
 - Task 1: fix round 1/5 — strict production URL wiring and non-canonical URL coverage added; scoped re-review clean (commit `65e0376`).
 - Task 1: complete (commits `9912c76..65e0376`, review clean).
+- Task 2: fix round 1/5 — reálna HTTP regresia používa SQLite reláciu, preukazuje 503 bez konštrukcie Anthropic a produkčný výber je napojený na helper aktuálneho týždňa; scoped re-review clean (commit `a8f8eca`).
+- Task 2: complete (commits `ad0e30e..a8f8eca`, review clean).
