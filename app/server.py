@@ -15,10 +15,11 @@ from contextlib import closing
 from fastapi import FastAPI, Request, HTTPException, Response
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from config import public_base_url
 
 DB = os.environ.get("UVARSI_DB", "/opt/uvarsi/uvarsi.db")
 STATIC = os.environ.get("UVARSI_STATIC", "/opt/uvarsi/app/static")
-BASE_URL = os.environ.get("UVARSI_URL", "https://uvarsi.89.167.72.159.sslip.io")
+BASE_URL = public_base_url()
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 COOKIE = "uvarsi_session"
 
