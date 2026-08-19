@@ -12,9 +12,18 @@ except ImportError:  # spúšťané FastAPI modulom priamo z /opt/uvarsi/app
 
 def _amount(value: object) -> Decimal:
     try:
-        return Decimal(str(value).strip().replace(",", "."))
+        amount = Decimal(str(value).strip().replace(",", "."))
     except (InvalidOperation, ValueError) as error:
         raise ValueError("Neplatná suma v bločku.") from error
+    if not amount.is_finite() or amount < 0:
+        raise ValueError("Neplatná suma v bločku.")
+    return amount
+
+
+def _required_text(value: object, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"Chýba {field} v bločku.")
+    return value
 
 
 def validate_landing_data(payload: dict, today: date | None = None) -> dict:
@@ -36,8 +45,22 @@ def validate_landing_data(payload: dict, today: date | None = None) -> dict:
         raise ValueError("Letákové dáta musia obsahovať sources.")
 
     receipt = payload.get("receipt")
-    if not isinstance(receipt, dict) or not receipt.get("meals"):
+    if not isinstance(receipt, dict) or not isinstance(receipt.get("meals"), list) or not receipt["meals"]:
         raise ValueError("Bloček musí obsahovať aspoň jedno jedlo.")
+    for meal in receipt["meals"]:
+        if not isinstance(meal, dict):
+            raise ValueError("Jedlo v bločku musí byť objekt.")
+        _required_text(meal.get("day"), "day")
+        _required_text(meal.get("name"), "name")
+        if not isinstance(meal.get("items"), list):
+            raise ValueError("Položky jedla musia byť zoznam.")
+        for item in meal["items"]:
+            if not isinstance(item, dict):
+                raise ValueError("Položka jedla musí byť objekt.")
+            _required_text(item.get("name"), "name")
+            _required_text(item.get("store"), "store")
+            if "price" in item:
+                _amount(item["price"])
 
     total = _amount(receipt.get("nakup_spolu"))
     regular = _amount(receipt.get("bezne"))

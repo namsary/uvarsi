@@ -42,6 +42,25 @@ def test_rejects_wrong_savings_math():
         validate_landing_data(data, date(2026, 8, 18))
 
 
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda data: data["receipt"].update(meals="not-a-list"),
+        lambda data: data["receipt"].update(meals=[{"day": "PO", "name": "", "items": []}]),
+        lambda data: data["receipt"]["meals"][0].update(items="not-a-list"),
+        lambda data: data["receipt"]["meals"][0].update(items=["not-an-item"]),
+        lambda data: data["receipt"]["meals"][0].update(items=[{"name": "Mlieko", "store": "Lidl", "price": "-1,00"}]),
+        lambda data: data["receipt"].update(nakup_spolu="NaN"),
+    ],
+)
+def test_rejects_semantically_invalid_receipt_schema(mutate):
+    data = payload()
+    mutate(data)
+
+    with pytest.raises(ValueError):
+        validate_landing_data(data, date(2026, 8, 18))
+
+
 def test_rejects_payload_without_required_public_metadata():
     data = payload()
     del data["generated_at"]

@@ -28,3 +28,5 @@ def test_index_hides_receipt_and_savings_claims_until_current_data_arrives():
     assert 'id="landing-data" aria-live="polite" hidden' in html
     assert 'id="landing-model" hidden' in html
     assert 'fetch("/api/public/landing")' in html
+    assert "Reálnu úsporu vidíš priamo na bločku vyššie" not in html
+    assert "Za rok to vie byť pokojne pár stoviek eur" not in html

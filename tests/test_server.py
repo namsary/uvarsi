@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.landing_data import write_landing_data_atomic
+from app.weekly_data import current_monday
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,11 +38,11 @@ def load_server(monkeypatch, tmp_path, rows, landing_data=None):
     return importlib.import_module("server")
 
 
-def landing_payload(week="2026-08-17"):
+def landing_payload(week=None):
     return {
         "schema_version": 1,
         "generated_at": "2026-08-18T05:02:20+02:00",
-        "week": week,
+        "week": week or current_monday(),
         "week_label": "17.–23. 8. 2026",
         "sources": [],
         "receipt": {
@@ -111,7 +112,7 @@ def test_public_landing_serves_only_valid_current_data(monkeypatch, tmp_path):
     response = TestClient(server.app).get("/api/public/landing")
 
     assert response.status_code == 200
-    assert response.json()["week"] == "2026-08-17"
+    assert response.json()["week"] == current_monday()
 
 
 def test_public_landing_is_503_for_stale_data(monkeypatch, tmp_path):
