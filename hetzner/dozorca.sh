@@ -14,9 +14,9 @@
 #   0 5-21 * * * /opt/uvarsi/dozorca.sh >> /var/log/uvarsi.log 2>&1
 
 set -u
-DIR=/opt/uvarsi
-PAGE=/var/www/uvarsi/index.html
-PY="$DIR/venv/bin/python"
+DIR="${UVARSI_DIR:-/opt/uvarsi}"
+LANDING_DATA="${UVARSI_LANDING_DATA:-/var/lib/uvarsi/landing_data.json}"
+PY="${UVARSI_PY:-$DIR/venv/bin/python}"
 STATE="$DIR/.dozorca_state"          # formát: "RRRR-MM-DD pocet_neuspechov"
 MAX_TRIES=6                          # max pokusov za jeden deň
 NOTIFY_AT=2                          # po koľkých neúspechoch upozorniť
@@ -25,19 +25,16 @@ NTFY_TOPIC="uvarsi-jarvis-8f3a2c"    # notifikácie: ntfy.sh/<topic>
 log(){ echo "[$(date '+%F %T')] DOZORCA: $*"; }
 notify(){ curl -s --max-time 15 -H "Title: $1" -d "$2" "https://ntfy.sh/${NTFY_TOPIC}" >/dev/null 2>&1 || true; }
 
-TODAY=$(date +%F)
+TODAY="${UVARSI_TODAY:-$(date +%F)}"
 
-# --- aký týždeň má byť na bločku (pondelok–nedeľa, presne ako v Pythone) ---
-DOW=$(date +%u)                                   # 1=pondelok … 7=nedeľa
-MON_D=$(date -d "-$((DOW-1)) days" +%-d)
-SUN_D=$(date -d "+$((7-DOW)) days" +%-d)
-SUN_M=$(date -d "+$((7-DOW)) days" +%-m)
-SUN_Y=$(date -d "+$((7-DOW)) days" +%Y)
-WANT="${MON_D}.–${SUN_D}. ${SUN_M}. ${SUN_Y}"
+MON_ISO=$("$PY" -c 'from datetime import date, timedelta; import sys; d=date.fromisoformat(sys.argv[1]); print((d-timedelta(days=d.weekday())).isoformat())' "$TODAY")
+
+landing_data_is_current() {
+  (cd "$DIR" && "$PY" -c 'from app.landing_data import landing_data_is_current; from datetime import date; import sys; raise SystemExit(0 if landing_data_is_current(sys.argv[1], date.fromisoformat(sys.argv[2])) else 1)' "$LANDING_DATA" "$TODAY")
+}
 
 # --- 0. Databáza akcií pre appku: má aktuálny týždeň? ---
 # (appka skladá osobné plány z tejto DB; bez nej ľuďom nič nevygeneruje)
-MON_ISO=$(date -d "-$((DOW-1)) days" +%F)
 POCET=$(sqlite3 "$DIR/uvarsi.db" \
         "SELECT COUNT(*) FROM akcie WHERE tyzden='$MON_ISO'" 2>/dev/null || echo 0)
 if [ "${POCET:-0}" -lt 30 ]; then
@@ -45,12 +42,12 @@ if [ "${POCET:-0}" -lt 30 ]; then
   if cd "$DIR/app" && "$PY" -u zbierac_akcii.py; then
     log "zbierač OK"
   else
-    log "zbierač zlyhal — appka zatiaľ použije minulý týždeň"
+    log "zbierač zlyhal — appka zatiaľ nemá aktuálne dáta"
   fi
 fi
 
-# --- 1. Už je bloček na landingu čerstvý? ---
-if grep -qF "$WANT" "$PAGE" 2>/dev/null; then
+# --- 1. Už je aktuálny landing JSON pripravený? ---
+if landing_data_is_current; then
   rm -f "$STATE"
   exit 0
 fi
@@ -67,13 +64,13 @@ if [ "$FAILS" -ge "$MAX_TRIES" ]; then
   exit 1
 fi
 
-log "bloček nesedí na '$WANT' — pokus $((FAILS+1))/$MAX_TRIES…"
+log "landing JSON nie je aktuálny — pokus $((FAILS+1))/$MAX_TRIES…"
 
 # --- 3. Skús obnoviť ---
-if cd "$DIR" && "$PY" -u refresh_blocek.py "$PAGE" && grep -qF "$WANT" "$PAGE" 2>/dev/null; then
-  log "OK — bloček obnovený na '$WANT'."
+if cd "$DIR" && "$PY" -u refresh_blocek.py "$LANDING_DATA" && landing_data_is_current; then
+  log "OK — landing JSON obnovený na týždeň $MON_ISO."
   if [ "$FAILS" -gt 0 ]; then
-    notify "Uvar.si opravené" "Bloček sa obnovil na týždeň $WANT (po $FAILS neúspešných pokusoch)."
+    notify "Uvar.si opravené" "Landing JSON sa obnovil na týždeň $MON_ISO (po $FAILS neúspešných pokusoch)."
   fi
   rm -f "$STATE"
   exit 0
@@ -87,6 +84,6 @@ log "pokus $FAILS zlyhal — skúsim znova o hodinu."
 if [ "$FAILS" -eq "$NOTIFY_AT" ]; then
   TAIL=$(tail -12 /var/log/uvarsi.log 2>/dev/null | tr '\n' ' ' | tail -c 400)
   notify "Uvar.si: bloček sa neobnovuje" \
-    "Týždeň $WANT — $FAILS neúspešné pokusy, skúšam ďalej každú hodinu. Log: $TAIL"
+    "Týždeň $MON_ISO — $FAILS neúspešné pokusy, skúšam ďalej každú hodinu. Log: $TAIL"
 fi
 exit 1

@@ -16,10 +16,12 @@ from fastapi import FastAPI, Request, HTTPException, Response
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from config import public_base_url
+from landing_data import load_landing_data, validate_landing_data
 from weekly_data import offers_for_current_week
 
 DB = os.environ.get("UVARSI_DB", "/opt/uvarsi/uvarsi.db")
 STATIC = os.environ.get("UVARSI_STATIC", "/opt/uvarsi/app/static")
+LANDING_DATA = os.environ.get("UVARSI_LANDING_DATA", "/var/lib/uvarsi/landing_data.json")
 BASE_URL = public_base_url()
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 COOKIE = "uvarsi_session"
@@ -357,6 +359,14 @@ def pocet_akcii():
         r = con.execute("SELECT COUNT(*) c FROM akcie WHERE tyzden=?",
                         (monday(),)).fetchone()
     return {"tyzden": monday(), "pocet": r["c"]}
+
+
+@app.get("/api/public/landing")
+def public_landing():
+    try:
+        return validate_landing_data(load_landing_data(LANDING_DATA), datetime.date.today())
+    except (FileNotFoundError, ValueError):
+        raise HTTPException(503, "Aktuálne letákové dáta sa obnovujú.")
 
 
 # ---------------------------------------------------------------- statické

@@ -7,18 +7,21 @@ Obchody blokujú dátacentrum a letáky sú OBRÁZKOVÉ. Riešenie (robustné vo
                   obsahujú potraviny v akcii (funguje aj pri rozhádzanom/vianočnom letáku).
   FÁZA 2 (presná): vzorka potravinových strán v plnom rozlíšení -> Sonnet prečíta ceny
                   a poskladá 3 večere (najlacnejší obchod / surovinu).
-Zápis medzi <!-- RCPT:START/END --> v index.html. Chyba => NEPREPÍŠE (starý ostáva).
+Zápis do samostatného JSON súboru. Chyba => posledný platný JSON ostáva.
 
 Rýchlosť/stabilita: náhľady posielame ako base64 (nie URL — to sa zasekávalo),
 klientský timeout 120 s, priebežný výpis (spúšťaj s python -u).
 
 Závislosti (venv): pip install requests anthropic pillow
 Kľúč: /opt/uvarsi/uvarsi.env -> ANTHROPIC_API_KEY=sk-ant-...
-Beh:  ./venv/bin/python -u refresh_blocek.py /var/www/uvarsi/index.html
-Cron: 0 7 * * 4 cd /opt/uvarsi && ./venv/bin/python -u refresh_blocek.py /var/www/uvarsi/index.html >> /var/log/uvarsi.log 2>&1
+Beh:  ./venv/bin/python -u refresh_blocek.py /var/lib/uvarsi/landing_data.json
+Cron: 0 7 * * 4 cd /opt/uvarsi && ./venv/bin/python -u refresh_blocek.py /var/lib/uvarsi/landing_data.json >> /var/log/uvarsi.log 2>&1
 """
 import sys, os, re, json, html, base64, datetime, requests
 from io import BytesIO
+from pathlib import Path
+
+from app.landing_data import validate_landing_data, write_landing_data_atomic
 
 # Opus 5 = najsilnejšia vision (dokumenty/letáky) → presné ceny = dôveryhodný bloček.
 # Thinking je uňho ZAPNUTÝ by default a max_tokens je strop na thinking+odpoveď dokopy,
@@ -37,6 +40,7 @@ SKIP_SLUG = ("nova-predajna", "nová-predajna", "brozura", "brožúra",
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 H = {"User-Agent": UA}
+LANDING_DATA_PATH = Path("/var/lib/uvarsi/landing_data.json")
 
 
 def log(*a):
@@ -307,6 +311,41 @@ def week_range():
     return f"{mon.day}.–{sun.day}. {sun.month}. {sun.year}"
 
 
+def landing_payload(data, items):
+    today = datetime.date.today()
+    monday = today - datetime.timedelta(days=today.weekday())
+    sunday = monday + datetime.timedelta(days=6)
+    stores = []
+    for store, _ in items:
+        name = store.title()
+        if name not in stores:
+            stores.append(name)
+    return {
+        "schema_version": 1,
+        "generated_at": datetime.datetime.now(datetime.timezone.utc).astimezone().isoformat(),
+        "week": monday.isoformat(),
+        "week_label": week_range(),
+        "sources": [
+            {
+                "store": store,
+                "url": f"https://www.kupino.sk/letaky/{store.lower()}",
+                "valid_from": monday.isoformat(),
+                "valid_to": sunday.isoformat(),
+            }
+            for store in stores
+        ],
+        "receipt": data,
+    }
+
+
+def landing_data_output_path(arguments):
+    if not arguments:
+        return LANDING_DATA_PATH
+    if len(arguments) == 1 and Path(arguments[0]) == LANDING_DATA_PATH:
+        return LANDING_DATA_PATH
+    raise SystemExit("Použitie: refresh_blocek.py /var/lib/uvarsi/landing_data.json")
+
+
 def render(data):
     date_str = week_range()
     meals = {m["day"]: m for m in data["meals"]}
@@ -443,9 +482,7 @@ def render_example(data):
 
 
 def main():
-    if len(sys.argv) < 2:
-        raise SystemExit("Použitie: refresh_blocek.py /cesta/k/index.html")
-    path = sys.argv[1]
+    path = landing_data_output_path(sys.argv[1:])
     import anthropic
     client = anthropic.Anthropic(api_key=load_key(), timeout=120.0, max_retries=1)
     items = collect(client)
@@ -455,14 +492,8 @@ def main():
     data = compose(client, items)
     if not data.get("meals") or len(data["meals"]) < 3:
         raise SystemExit("Vision nevrátil 3 jedlá — nechávam starý bloček.")
-    block = render(data)
-    ex = render_example(data)
-    page = open(path, encoding="utf-8").read()
-    new = re.sub(r"<!-- RCPT:START.*?<!-- RCPT:END -->", lambda m: block, page, flags=re.S)
-    if new == page:
-        raise SystemExit("Značky RCPT som v index.html nenašiel.")
-    new = re.sub(r"<!-- EX:START -->.*?<!-- EX:END -->", lambda m: ex, new, flags=re.S)
-    open(path, "w", encoding="utf-8").write(new)
+    payload = validate_landing_data(landing_payload(data, items), datetime.date.today())
+    write_landing_data_atomic(path, payload)
     log(f"[OK] Bloček {week_range()}: nákup {data['nakup_spolu']} €, "
         f"ušetríš {data['usetris']} € (z {len(items)} potravinových strán).")
 

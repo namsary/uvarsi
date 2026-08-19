@@ -229,7 +229,7 @@
       <p class="hero-note">Spúšťame po mestách. Ešte nie sme live — pozri si plány a nechaj nám e-mail.</p>
     </div>
 
-    <div class="rcpt-wrap">
+    <div class="rcpt-wrap" id="landing-data" aria-live="polite" hidden>
       <div class="rcpt" role="img" aria-label="Skutočný týždenný jedálniček z letáka platného 30. júla až 5. augusta 2026: pondelok bravčové karé so zemiakmi a bielou paprikou, streda cestoviny s mletým mäsom a cherry paradajkami, piatok kuracie stehná so šampiňónmi a cibuľou. Nákup surovín 15,19 eur namiesto bežných 25,11 eur, ušetríš 9,92 eur.">
         <!-- RCPT:START -->
         <div class="rcpt-head">
@@ -267,6 +267,7 @@
       </div>
       <p class="rcpt-proof">Toto nie je ukážka. Sú to <b>skutočné ceny</b> z letáka Kaufland platného 30. 7. – 5. 8. 2026. Skontroluj si ich.</p>
     </div>
+    <p class="rcpt-proof" id="landing-status" aria-live="polite">Aktuálne letákové dáta práve obnovujeme.</p>
   </section>
 </div>
 
@@ -307,7 +308,7 @@
   </div>
 </section>
 
-<section class="band band--tint">
+<section class="band band--tint" id="landing-model" hidden>
   <div class="shell">
     <span class="eyebrow">Modelový príklad</span>
     <h2 class="display band-h2">Štvorčlenná rodina, varí každé dva dni.</h2>
@@ -505,6 +506,65 @@
 </div>
 <iframe name="ml_sink" id="ml_sink" style="display:none" title="odosielanie"></iframe>
 
+<script>
+/* Dynamické letákové údaje sa zobrazia až po úspešnom načítaní aktuálneho JSONu. */
+(function(){
+  var landing=document.getElementById('landing-data');
+  var status=document.getElementById('landing-status');
+
+  function node(tag, className, text){
+    var element=document.createElement(tag);
+    if(className) element.className=className;
+    if(text!==undefined) element.textContent=text;
+    return element;
+  }
+
+  function amount(value){ return String(value)+' €'; }
+
+  function render(data){
+    var receipt=node('div','rcpt');
+    var head=node('div','rcpt-head');
+    head.append(node('div','rcpt-logo','Uvar.si'));
+    head.append(node('div','rcpt-sub','Tvoj týždeň · varíš '+data.receipt.meals.length+'×'));
+    head.append(node('div','rcpt-sub',data.week_label));
+    receipt.append(head,node('hr','rule-solid'));
+
+    data.receipt.meals.forEach(function(meal){
+      var day=node('div','day');
+      day.append(node('b','',meal.day),node('span','',meal.name));
+      receipt.append(day);
+      (meal.items||[]).forEach(function(item){
+        var row=node('div','item');
+        var label=[item.name,item.store].filter(Boolean).join(' · ');
+        var details=node('span','item-r');
+        if(item.price) details.append(node('b','price',amount(item.price)));
+        if(item.off) details.append(node('span','off',item.off));
+        row.append(node('span','',label),details);
+        receipt.append(row);
+      });
+    });
+    receipt.append(node('hr','rule'));
+    [['Nákup spolu',data.receipt.nakup_spolu,'row'],['Bežne by stál',data.receipt.bezne,'row'],['Ušetríš',data.receipt.usetris,'save']].forEach(function(entry){
+      var row=node('div',entry[2]);
+      row.append(node('span','',entry[0]),node('span','',amount(entry[1])));
+      receipt.append(row);
+    });
+    receipt.append(node('div','rcpt-foot','Dobrú chuť'));
+    landing.replaceChildren(receipt,node('p','rcpt-proof','Aktuálne údaje pre týždeň '+data.week_label+'.'));
+    landing.hidden=false;
+    status.hidden=true;
+  }
+
+  fetch("/api/public/landing").then(function(response){
+    if(!response.ok) throw new Error('landing data unavailable');
+    return response.json();
+  }).then(render).catch(function(){
+    landing.hidden=true;
+    status.hidden=false;
+    status.textContent='Aktuálne letákové dáta práve obnovujeme.';
+  });
+})();
+</script>
 <script>
 (function(){
   var modal=document.getElementById('modal'),

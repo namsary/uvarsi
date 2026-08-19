@@ -7,11 +7,13 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from app.landing_data import write_landing_data_atomic
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def load_server(monkeypatch, tmp_path, rows):
+def load_server(monkeypatch, tmp_path, rows, landing_data=None):
     database = tmp_path / "uvarsi.db"
     con = sqlite3.connect(database)
     con.execute(
@@ -26,9 +28,29 @@ def load_server(monkeypatch, tmp_path, rows):
 
     monkeypatch.setenv("UVARSI_DB", str(database))
     monkeypatch.setenv("UVARSI_URL", "https://uvar.si")
+    if landing_data is not None:
+        landing_path = tmp_path / "landing_data.json"
+        write_landing_data_atomic(landing_path, landing_data)
+        monkeypatch.setenv("UVARSI_LANDING_DATA", str(landing_path))
     monkeypatch.syspath_prepend(str(ROOT / "app"))
     sys.modules.pop("server", None)
     return importlib.import_module("server")
+
+
+def landing_payload(week="2026-08-17"):
+    return {
+        "schema_version": 1,
+        "generated_at": "2026-08-18T05:02:20+02:00",
+        "week": week,
+        "week_label": "17.–23. 8. 2026",
+        "sources": [],
+        "receipt": {
+            "meals": [{"day": "PO", "name": "Test", "items": []}],
+            "nakup_spolu": "1,00",
+            "bezne": "2,00",
+            "usetris": "1,00",
+        },
+    }
 
 
 def test_akcie_pre_never_returns_previous_week_prices(monkeypatch, tmp_path):
@@ -81,3 +103,21 @@ def test_plan_is_503_when_only_previous_week_exists(monkeypatch, tmp_path):
     assert response.status_code == 503
     assert response.json()["detail"] == "Aktuálne letákové dáta sa obnovujú. Skús to o chvíľu."
     assert constructors == []
+
+
+def test_public_landing_serves_only_valid_current_data(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [], landing_payload())
+
+    response = TestClient(server.app).get("/api/public/landing")
+
+    assert response.status_code == 200
+    assert response.json()["week"] == "2026-08-17"
+
+
+def test_public_landing_is_503_for_stale_data(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [], landing_payload("2026-08-10"))
+
+    response = TestClient(server.app).get("/api/public/landing")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Aktuálne letákové dáta sa obnovujú."
