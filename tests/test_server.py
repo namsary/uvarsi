@@ -2,6 +2,7 @@ import importlib
 import sqlite3
 import sys
 import types
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -20,10 +21,14 @@ def load_server(monkeypatch, tmp_path, rows, landing_data=None):
     con.execute(
         """CREATE TABLE akcie (
             tyzden TEXT, nazov TEXT, obchod TEXT, cena REAL, povodna REAL,
-            zlava TEXT, jednotka TEXT, kategoria TEXT
+            zlava TEXT, jednotka TEXT, kategoria TEXT, source_url TEXT,
+            source_page INTEGER, valid_from TEXT, valid_to TEXT
         )"""
     )
-    con.executemany("INSERT INTO akcie VALUES (?, ?, ?, ?, ?, ?, ?, ?)", rows)
+    con.executemany(
+        "INSERT INTO akcie VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [tuple(row) + (None,) * (12 - len(row)) for row in rows],
+    )
     con.commit()
     con.close()
 
@@ -77,6 +82,7 @@ def test_akcie_pre_delegates_selection_to_current_week_helper(monkeypatch, tmp_p
     server.akcie_pre(["Lidl"])
 
     assert calls[0][1] == ["Lidl"]
+    assert calls[0][2] == date.today()
 
 
 def test_plan_is_503_when_only_previous_week_exists(monkeypatch, tmp_path):
@@ -103,6 +109,37 @@ def test_plan_is_503_when_only_previous_week_exists(monkeypatch, tmp_path):
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Aktuálne letákové dáta sa obnovujú. Skús to o chvíľu."
+    assert constructors == []
+
+
+def test_plan_is_503_without_constructing_anthropic_when_current_week_offers_are_expired(monkeypatch, tmp_path):
+    today = date.today()
+    week = current_monday(today)
+    server = load_server(
+        monkeypatch,
+        tmp_path,
+        [(week, "Mlieko", "Lidl", 1.0, 1.5, "-33 %", "1 l", "mliecne",
+          "https://example.test/lidl.jpg", 1, (today - timedelta(days=7)).isoformat(),
+          (today - timedelta(days=1)).isoformat())],
+    )
+    with server.db() as con:
+        con.execute("INSERT INTO pouzivatelia (id, email, obchody) VALUES (1, 'test@uvar.si', 'Lidl')")
+        con.execute("INSERT INTO sedenia (token, user_id) VALUES ('session-token', 1)")
+        con.commit()
+
+    constructors = []
+
+    class ForbiddenAnthropic:
+        def __init__(self, *args, **kwargs):
+            constructors.append((args, kwargs))
+
+    monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace(Anthropic=ForbiddenAnthropic))
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "session-token")
+
+    response = client.post("/api/plan/generuj?force=1")
+
+    assert response.status_code == 503
     assert constructors == []
 
 

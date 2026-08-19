@@ -13,6 +13,11 @@ Beh:  /opt/uvarsi/venv/bin/python -u zbierac_akcii.py
 import os, re, json, base64, datetime, sqlite3, requests
 from io import BytesIO
 
+try:
+    from offer_data import migrate_akcie_schema, replace_store_week
+except ImportError:
+    from app.offer_data import migrate_akcie_schema, replace_store_week
+
 DB = os.environ.get("UVARSI_DB", "/opt/uvarsi/uvarsi.db")
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 
@@ -58,6 +63,10 @@ CREATE TABLE IF NOT EXISTS akcie (
   povodna    REAL,                -- bežná cena
   zlava      TEXT,                -- "−52 %" alebo "1+1"
   jednotka   TEXT,                -- ks|kg|l|balenie
+  source_url TEXT,
+  source_page INTEGER,
+  valid_from TEXT,
+  valid_to TEXT,
   created    TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_akcie_tyzden ON akcie(tyzden);
@@ -69,6 +78,7 @@ def db():
     con = sqlite3.connect(DB)
     con.row_factory = sqlite3.Row
     con.executescript(SCHEMA)
+    migrate_akcie_schema(con)
     return con
 
 
@@ -299,14 +309,11 @@ def main():
         akcie = zbieraj(client, store)
         if not akcie:
             continue
-        con.execute("DELETE FROM akcie WHERE tyzden=? AND obchod=?",
-                    (tyz, store.capitalize()))
-        con.executemany(
-            "INSERT INTO akcie (tyzden,obchod,nazov,kategoria,cena,povodna,zlava,jednotka)"
-            " VALUES (?,?,?,?,?,?,?,?)",
-            [(tyz, a["obchod"], a["nazov"], a["kategoria"], a["cena"],
-              a["povodna"], a["zlava"], a["jednotka"]) for a in akcie])
-        con.commit()
+        try:
+            replace_store_week(con, tyz, store.capitalize(), akcie)
+        except ValueError as e:
+            log(f"[WARN] {store}: neoverené akcie neboli uložené ({e})")
+            continue
         total += len(akcie)
     n = con.execute("SELECT COUNT(*) c FROM akcie WHERE tyzden=?", (tyz,)).fetchone()["c"]
     con.close()

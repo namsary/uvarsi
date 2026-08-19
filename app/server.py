@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from config import public_base_url
 from landing_data import load_landing_data, validate_landing_data
 from weekly_data import offers_for_current_week
+from offer_data import migrate_akcie_schema
 
 DB = os.environ.get("UVARSI_DB", "/opt/uvarsi/uvarsi.db")
 STATIC = os.environ.get("UVARSI_STATIC", "/opt/uvarsi/app/static")
@@ -89,6 +90,7 @@ def db():
     con = sqlite3.connect(DB, timeout=20)
     con.row_factory = sqlite3.Row
     con.executescript(SCHEMA)
+    migrate_akcie_schema(con)
     return con
 
 
@@ -288,7 +290,7 @@ def akcie_pre(obchody, limit=140):
     if not obchody:
         return []
 
-    today = datetime.date.fromisoformat(monday())
+    today = datetime.date.today()
     with closing(db()) as con:
         rows = offers_for_current_week(con, obchody, today)
 
