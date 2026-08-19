@@ -14,6 +14,15 @@ def test_refresh_writes_validated_json_instead_of_landing_html():
     assert 'open(path, "w", encoding="utf-8").write(new)' not in source
 
 
+def test_refresh_has_no_flyer_discovery_or_download_dependencies():
+    source = Path("hetzner/refresh_blocek.py").read_text(encoding="utf-8")
+
+    assert "requests" not in source
+    assert "kupino" not in source
+    assert "mletaky" not in source
+    assert "PIL" not in source
+
+
 def test_refresh_rejects_any_output_path_except_the_landing_json():
     assert landing_data_output_path([]) == Path("/var/lib/uvarsi/landing_data.json")
     assert landing_data_output_path(["/var/lib/uvarsi/landing_data.json"]) == Path("/var/lib/uvarsi/landing_data.json")
