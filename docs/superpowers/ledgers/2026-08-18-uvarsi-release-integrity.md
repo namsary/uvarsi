@@ -16,3 +16,10 @@ Plan: `docs/superpowers/plans/2026-08-18-uvarsi-release-integrity.md`
 - Task 1: complete (commits `9912c76..65e0376`, review clean).
 - Task 2: fix round 1/5 — reálna HTTP regresia používa SQLite reláciu, preukazuje 503 bez konštrukcie Anthropic a produkčný výber je napojený na helper aktuálneho týždňa; scoped re-review clean (commit `a8f8eca`).
 - Task 2: complete (commits `ad0e30e..a8f8eca`, review clean).
+
+## Production evidence and active release gate
+
+- Evidence (2026-08-19): `uvarsi.service` was active after the branded-link hotfix. The hotfix’s first health probe raced Uvicorn startup; journal evidence showed startup completed one second later. The local hotfix contract now requires a conditional 30-second API readiness retry. Status: LOCAL PASS only; the revised helper has not been deployed because production is already running.
+- Evidence (2026-08-19): public `/api/akcie/pocet` reported zero offers for current Monday `2026-08-17`. The resulting 503 on plan generation is correct current-data protection, not a Pro-plan entitlement failure.
+- Ruling: Legacy `dozorca.sh` HTML-text freshness detection and its last-week fallback wording are release blockers. The file must be replaced by the structured current-week landing-data health path before any paid-beta claim. Cost if wrong: the release takes longer, but customers cannot be shown an obsolete receipt as current.
+- Ruling: Payments and paid entitlements remain out of scope until login, pantry, recipes, shopping list and three real weekly beta cycles are production verified. Cost if wrong: revenue is delayed; the alternative risks charging for an unverified product.
