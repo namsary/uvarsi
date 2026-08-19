@@ -1,5 +1,8 @@
+import hashlib
+import json
 import math
 from datetime import date
+from decimal import Decimal
 from urllib.parse import urlparse
 
 
@@ -10,6 +13,7 @@ _MIGRATION_COLUMNS = {
     "source_page": "INTEGER",
     "valid_from": "TEXT",
     "valid_to": "TEXT",
+    "offer_key": "TEXT",
 }
 
 _INSERT_COLUMNS = (
@@ -25,6 +29,22 @@ _INSERT_COLUMNS = (
     "source_page",
     "valid_from",
     "valid_to",
+    "offer_key",
+)
+
+_OFFER_KEY_FIELDS = (
+    "tyzden",
+    "obchod",
+    "source_url",
+    "source_page",
+    "valid_from",
+    "valid_to",
+    "nazov",
+    "jednotka",
+    "cena",
+    "povodna",
+    "kategoria",
+    "zlava",
 )
 
 
@@ -88,16 +108,32 @@ def validate_offer(offer):
             raise ValueError("povodna must be at least cena")
 
 
+def offer_key_for(week, offer):
+    """Build a stable opaque identity from every trusted offer fact."""
+    _validated_iso_date(week, "tyzden")
+    validate_offer(offer)
+    facts = {field: (week if field == "tyzden" else offer.get(field)) for field in _OFFER_KEY_FIELDS}
+    for field in ("cena", "povodna"):
+        if facts[field] is not None:
+            facts[field] = format(Decimal(str(facts[field])).normalize(), "f")
+    canonical = json.dumps(facts, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return "offer_" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def replace_store_week(con, week, store, offers):
     """Atomically replace a single store's captured-week offers after validation."""
     if store not in ALLOWED_STORES:
         raise ValueError("store must be Lidl, Kaufland, or Tesco")
 
     offers = list(offers)
+    prepared = []
     for offer in offers:
         if offer.get("obchod") != store:
             raise ValueError("offer store must match replacement store")
         validate_offer(offer)
+        record = {"tyzden": week, **offer}
+        record["offer_key"] = offer_key_for(week, offer)
+        prepared.append(record)
 
     migrate_akcie_schema(con)
     placeholders = ", ".join("?" for _ in _INSERT_COLUMNS)
@@ -110,7 +146,7 @@ def replace_store_week(con, week, store, offers):
         con.execute("DELETE FROM akcie WHERE tyzden=? AND obchod=?", (week, store))
         con.executemany(
             f"INSERT INTO akcie ({', '.join(_INSERT_COLUMNS)}) VALUES ({placeholders})",
-            [tuple([week] + [offer.get(column) for column in _INSERT_COLUMNS[1:]]) for offer in offers],
+            [tuple(offer.get(column) for column in _INSERT_COLUMNS) for offer in prepared],
         )
     except Exception:
         if use_savepoint:

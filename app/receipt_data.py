@@ -14,7 +14,7 @@ CENT = Decimal("0.01")
 MIN_ELIGIBLE_OFFERS = 3
 _MODEL_TOP_LEVEL = frozenset({"meals"})
 _MODEL_MEAL = frozenset({"day", "name", "instructions", "items"})
-_MODEL_ITEM = frozenset({"offer_id", "quantity"})
+_MODEL_ITEM = frozenset({"offer_key", "quantity"})
 
 
 def _text(value, field):
@@ -54,18 +54,18 @@ def eligible_offers(rows):
 def composition_prompt(rows):
     """Give the model food content and opaque identifiers, never commercial facts."""
     offers = "\n".join(
-        f"- offer_id: {row['id']}; názov: {row['nazov']}; kategória: {row['kategoria'] or 'iné'}"
+        f"- offer_key: {row['offer_key']}; názov: {row['nazov']}; kategória: {row['kategoria'] or 'iné'}"
         for row in rows
     )
     return f"""Navrhni jedlá z týchto overených surovín. Vráť iba JSON.
 
 Povolený formát:
-{{"meals":[{{"day":"PO","name":"...","instructions":["..."],"items":[{{"offer_id":123,"quantity":1}}]}}]}}
+{{"meals":[{{"day":"PO","name":"...","instructions":["..."],"items":[{{"offer_key":"offer_...","quantity":1}}]}}]}}
 
 Pravidlá:
-- Každá položka smie obsahovať iba offer_id a celé quantity.
+- Každá položka smie obsahovať iba offer_key a celé quantity.
 - Nesmieš uvádzať ani meniť obchod, názov položky, jednotku, cenu, bežnú cenu, úsporu ani zdroj.
-- Každý offer_id použi najviac raz.
+- Každý offer_key použi najviac raz.
 
 Ponuky:
 {offers}"""
@@ -98,16 +98,16 @@ def _model_selection(model_output, offered_ids):
             raise ValueError("Jedlo nemá vybrané ponuky.")
         for item in items:
             _reject_extra(item, _MODEL_ITEM)
-            offer_id = item.get("offer_id")
+            offer_key = item.get("offer_key")
             quantity = item.get("quantity", 1)
-            if isinstance(offer_id, bool) or not isinstance(offer_id, int) or offer_id not in offered_ids:
-                raise ValueError("Návrh obsahuje neznáme alebo nevybrané offer_id.")
+            if not isinstance(offer_key, str) or offer_key not in offered_ids:
+                raise ValueError("Návrh obsahuje neznáme alebo nevybrané offer_key.")
             if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0:
                 raise ValueError("Množstvo musí byť kladné celé číslo.")
-            if offer_id in seen:
-                raise ValueError("Návrh obsahuje duplicitné offer_id.")
-            seen.add(offer_id)
-            selected.append((meal, offer_id, quantity))
+            if offer_key in seen:
+                raise ValueError("Návrh obsahuje duplicitné offer_key.")
+            seen.add(offer_key)
+            selected.append((meal, offer_key, quantity))
     return selected
 
 
@@ -123,8 +123,8 @@ def build_public_receipt(con, model_output, today=None, generated_at=None):
     offers = eligible_offers(current_verified_offers(con, ALLOWED_STORES, today))
     if len(offers) < MIN_ELIGIBLE_OFFERS:
         raise SystemExit("Málo overených ponúk s bežnou cenou — nechávam starý bloček.")
-    offers_by_id = {row["id"]: row for row in offers}
-    selected = _model_selection(model_output, offers_by_id)
+    offers_by_key = {row["offer_key"]: row for row in offers}
+    selected = _model_selection(model_output, offers_by_key)
 
     meals = []
     sources = []
@@ -133,16 +133,16 @@ def build_public_receipt(con, model_output, today=None, generated_at=None):
     regular = Decimal("0")
     for meal in model_output["meals"]:
         items = []
-        for selected_meal, offer_id, quantity in selected:
+        for selected_meal, offer_key, quantity in selected:
             if selected_meal is not meal:
                 continue
-            row = offers_by_id[offer_id]
+            row = offers_by_key[offer_key]
             price = _cents(row["cena"], "akciová cena") * quantity
             original = _cents(row["povodna"], "bežná cena") * quantity
             total += price
             regular += original
             items.append({
-                "offer_id": offer_id,
+                "offer_key": offer_key,
                 "name": row["nazov"],
                 "store": row["obchod"],
                 "unit": row["jednotka"],

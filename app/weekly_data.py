@@ -1,9 +1,9 @@
 from datetime import date, timedelta
 
 try:
-    from .offer_data import ALLOWED_STORES, migrate_akcie_schema, validate_offer
+    from .offer_data import ALLOWED_STORES, migrate_akcie_schema, offer_key_for, validate_offer
 except ImportError:
-    from offer_data import ALLOWED_STORES, migrate_akcie_schema, validate_offer
+    from offer_data import ALLOWED_STORES, migrate_akcie_schema, offer_key_for, validate_offer
 
 
 def current_monday(today: date | None = None) -> str:
@@ -20,7 +20,7 @@ def current_verified_offers(con, stores, today: date | None = None):
     today = today or date.today()
     marks = ",".join("?" for _ in stores)
     cursor = con.execute(
-        f"""SELECT rowid AS id, * FROM akcie
+        f"""SELECT * FROM akcie
             WHERE tyzden=? AND obchod IN ({marks})
             ORDER BY cena""",
         (current_monday(today), *stores),
@@ -31,6 +31,8 @@ def current_verified_offers(con, stores, today: date | None = None):
         offer = dict(row) if hasattr(row, "keys") else dict(zip(columns, row))
         try:
             validate_offer(offer)
+            if offer.get("offer_key") != offer_key_for(offer["tyzden"], offer):
+                continue
         except ValueError:
             continue
         if offer["valid_from"] <= today.isoformat() <= offer["valid_to"]:

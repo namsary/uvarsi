@@ -9,6 +9,7 @@ import pytest
 
 from hetzner import refresh_blocek
 from hetzner.refresh_blocek import compose_with_llm, landing_data_output_path, refresh_from_db
+from app.offer_data import migrate_akcie_schema, offer_key_for
 
 
 TODAY = date(2026, 8, 18)
@@ -34,6 +35,14 @@ def verified_database(path):
              "https://source.test/lidl", 3, "2026-08-17", "2026-08-23"),
         ],
     )
+    migrate_akcie_schema(con)
+    con.row_factory = sqlite3.Row
+    for row in con.execute("SELECT rowid, * FROM akcie").fetchall():
+        offer = dict(row)
+        con.execute(
+            "UPDATE akcie SET offer_key=? WHERE rowid=?",
+            (offer_key_for(offer["tyzden"], offer), row[0]),
+        )
     con.commit()
     con.close()
 
@@ -44,9 +53,27 @@ def model_selection():
             "day": "PO",
             "name": "Raňajky",
             "instructions": ["Podávaj čerstvé."],
-            "items": [{"offer_id": 1}, {"offer_id": 2}, {"offer_id": 3}],
+            "items": [{"offer_key": refresh_key(1)}, {"offer_key": refresh_key(2)}, {"offer_key": refresh_key(3)}],
         }]
     }
+
+
+def refresh_key(offer_id):
+    rows = [
+        {"tyzden": "2026-08-17", "obchod": "Lidl", "nazov": "Mlieko", "kategoria": "mliecne",
+         "cena": 1.0, "povodna": 1.5, "zlava": "-33 %", "jednotka": "1 l",
+         "source_url": "https://source.test/lidl", "source_page": 2,
+         "valid_from": "2026-08-17", "valid_to": "2026-08-23"},
+        {"tyzden": "2026-08-17", "obchod": "Tesco", "nazov": "Chlieb", "kategoria": "pecivo",
+         "cena": 1.2, "povodna": 1.8, "zlava": "-33 %", "jednotka": "500 g",
+         "source_url": "https://source.test/tesco", "source_page": 4,
+         "valid_from": "2026-08-17", "valid_to": "2026-08-23"},
+        {"tyzden": "2026-08-17", "obchod": "Lidl", "nazov": "Maslo", "kategoria": "mliecne",
+         "cena": 2.0, "povodna": 2.5, "zlava": "-20 %", "jednotka": "250 g",
+         "source_url": "https://source.test/lidl", "source_page": 3,
+         "valid_from": "2026-08-17", "valid_to": "2026-08-23"},
+    ]
+    return offer_key_for(rows[offer_id - 1]["tyzden"], rows[offer_id - 1])
 
 
 def test_refresh_publishes_from_verified_db_without_http(monkeypatch, tmp_path):

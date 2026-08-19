@@ -128,6 +128,12 @@ function setPlan(plan) {
   DONE = loadCheckedState(ME, PLAN);
 }
 
+function shoppingQuantityLabel(item) {
+  var quantity = item && item.mnozstvo;
+  var unit = item && item.jednotka;
+  return quantity && unit ? String(quantity) + ' × ' + String(unit) : '';
+}
+
 async function api(url, opts) {
   const r = await fetch(url, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
   if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || 'Chyba');
@@ -277,7 +283,7 @@ function vZoznam() {
       const k = `${si}-${pi}`;
       h += `<div class="item${DONE[k]?' done':''}" data-k="${k}">
         <span class="box">${DONE[k]?'✓':''}</span>
-        <span class="nm">${esc(p.nazov)}${p.mnozstvo?`<span class="tag">${esc(p.mnozstvo)}</span>`:''}</span>
+        <span class="nm">${esc(p.nazov)}${shoppingQuantityLabel(p)?`<span class="tag">${esc(shoppingQuantityLabel(p))}</span>`:''}</span>
         <span class="pr">${p.cena?esc(p.cena)+' €':''}</span></div>`;
     });
   });

@@ -307,7 +307,7 @@ def generuj_plan(req: Request, force: int = 0):
 
     import anthropic
     client = anthropic.Anthropic(api_key=env("ANTHROPIC_API_KEY"), timeout=120.0)
-    prompt = personal_plan_prompt(rows, u["frekvencia"], sp)
+    prompt = personal_plan_prompt(rows, u["frekvencia"], sp, household_size=u["osoby"])
     msg = client.messages.create(model=MODEL_PLAN, max_tokens=PLAN_TOKENS,
                                  messages=[{"role": "user", "content": prompt}])
     txt = "".join(b.text for b in msg.content
@@ -320,7 +320,9 @@ def generuj_plan(req: Request, force: int = 0):
 
     with closing(db()) as con:
         try:
-            plan = build_personal_plan(con, model_output, obchody, u["frekvencia"], pantry=sp)
+            plan = build_personal_plan(
+                con, model_output, obchody, u["frekvencia"], u["osoby"], pantry=sp
+            )
         except ValueError:
             raise HTTPException(500, "Plán sa nepodarilo bezpečne overiť, skús to znova.")
         con.execute("INSERT OR REPLACE INTO plany (user_id,tyzden,json) VALUES (?,?,?)",

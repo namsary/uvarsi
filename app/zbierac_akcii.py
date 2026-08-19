@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS akcie (
   source_page INTEGER,
   valid_from TEXT,
   valid_to TEXT,
+  offer_key TEXT,
   created    TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_akcie_tyzden ON akcie(tyzden);

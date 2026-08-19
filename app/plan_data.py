@@ -12,12 +12,18 @@ CENT = Decimal("0.01")
 DAY_ORDER = ("PO", "UT", "ST", "ŠT", "PI", "SO", "NE")
 STORE_ORDER = ("Kaufland", "Lidl", "Tesco")
 _MODEL_TOP_LEVEL = frozenset({"meals"})
-_MODEL_MEAL = frozenset({"day", "name", "instructions", "items", "pantry_ingredients"})
-_MODEL_ITEM = frozenset({"offer_id", "quantity"})
+_MODEL_MEAL = frozenset({"day", "name", "minutes", "instructions", "items", "pantry_ingredients"})
+_MODEL_ITEM = frozenset({"offer_key", "quantity"})
 
 
 def meal_count_for_frequency(frequency):
     return {1: 5, 2: 3, 3: 2}.get(frequency, 3)
+
+
+def _validated_household_size(value):
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 12:
+        raise ValueError("Počet osôb musí byť celé číslo od 1 do 12.")
+    return value
 
 
 def _text(value, field):
@@ -45,7 +51,7 @@ def _reject_extra(mapping, allowed):
         raise ValueError("Návrh obsahuje nepovolené obchodné údaje.")
 
 
-def _model_meals(model_output, offers_by_id, frequency, pantry):
+def _model_meals(model_output, offers_by_key, frequency, pantry):
     _reject_extra(model_output, _MODEL_TOP_LEVEL)
     meals = model_output.get("meals")
     if not isinstance(meals, list) or len(meals) != meal_count_for_frequency(frequency):
@@ -62,6 +68,9 @@ def _model_meals(model_output, offers_by_id, frequency, pantry):
             raise ValueError("Návrh obsahuje duplicitný alebo neplatný deň.")
         seen_days.add(day)
         name = _text(meal.get("name"), "názov jedla")
+        minutes = meal.get("minutes")
+        if isinstance(minutes, bool) or not isinstance(minutes, int) or minutes <= 0:
+            raise ValueError("Počet minút musí byť kladné celé číslo.")
         instructions = meal.get("instructions")
         if not isinstance(instructions, list) or not instructions:
             raise ValueError("Chýbajú pokyny k jedlu.")
@@ -81,64 +90,67 @@ def _model_meals(model_output, offers_by_id, frequency, pantry):
         selected_items = []
         for item in items:
             _reject_extra(item, _MODEL_ITEM)
-            offer_id = item.get("offer_id")
+            offer_key = item.get("offer_key")
             quantity = item.get("quantity")
-            if isinstance(offer_id, bool) or not isinstance(offer_id, int) or offer_id not in offers_by_id:
-                raise ValueError("Návrh obsahuje neznáme alebo neaktuálne offer_id.")
+            if not isinstance(offer_key, str) or offer_key not in offers_by_key:
+                raise ValueError("Návrh obsahuje neznáme alebo neaktuálne offer_key.")
             if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0:
                 raise ValueError("Množstvo musí byť kladné celé číslo.")
-            if offer_id in seen_offers:
-                raise ValueError("Návrh obsahuje duplicitné offer_id.")
-            seen_offers.add(offer_id)
-            selected_items.append((offers_by_id[offer_id], quantity))
-        parsed.append((day, name, steps, selected_items, [pantry_by_name[item] for item in selected_pantry]))
+            if offer_key in seen_offers:
+                raise ValueError("Návrh obsahuje duplicitné offer_key.")
+            seen_offers.add(offer_key)
+            selected_items.append((offers_by_key[offer_key], quantity))
+        parsed.append((day, name, minutes, steps, selected_items, [pantry_by_name[item] for item in selected_pantry]))
     return parsed
 
 
-def personal_plan_prompt(rows, frequency, pantry):
+def personal_plan_prompt(rows, frequency, pantry, household_size):
     """Expose only food content and opaque offer references to the model."""
+    household_size = _validated_household_size(household_size)
     offers = "\n".join(
-        f"- offer_id: {row['id']}; názov: {row['nazov']}; kategória: {row['kategoria'] or 'iné'}"
+        f"- offer_key: {row['offer_key']}; názov: {row['nazov']}; kategória: {row['kategoria'] or 'iné'}"
         for row in rows
     )
     pantry_text = ", ".join(pantry) or "nič"
     return f"""Navrhni presne {meal_count_for_frequency(frequency)} jedlá. Vráť iba JSON.
 
 Povolený formát:
-{{"meals":[{{"day":"PO","name":"...","instructions":["..."],"items":[{{"offer_id":123,"quantity":1}}],"pantry_ingredients":["..."]}}]}}
+{{"meals":[{{"day":"PO","name":"...","minutes":30,"instructions":["..."],"items":[{{"offer_key":"offer_...","quantity":1}}],"pantry_ingredients":["..."]}}]}}
 
 Pravidlá:
-- Každá položka smie obsahovať iba offer_id a celé kladné quantity.
+- Jedlá sú pre {household_size} osôb; množstvá aj porcie prispôsob presne tejto domácnosti.
+- minutes musí byť kladný celý počet minút prípravy.
+- Každá položka smie obsahovať iba offer_key a celé kladné quantity.
 - Suroviny zo špajze uveď výlučne v pantry_ingredients a len z ponuky používateľa.
 - Nesmieš uvádzať ani meniť obchod, názov položky, jednotku, cenu, bežnú cenu, úsporu, zdroj ani súčty.
-- Každý offer_id a deň použi najviac raz. Pokyny musia byť neprázdne.
+- Každý offer_key a deň použi najviac raz. Pokyny musia byť neprázdne.
 
 Špajza používateľa: {pantry_text}
 Ponuky:
 {offers}"""
 
 
-def build_personal_plan(con, model_output, stores, frequency, pantry=(), today=None):
+def build_personal_plan(con, model_output, stores, frequency, household_size, pantry=(), today=None):
     """Validate selection content and deterministically derive all purchasable data."""
+    _validated_household_size(household_size)
     today = today or date.today()
     offers = current_verified_offers(con, stores, today)
-    offers_by_id = {row["id"]: row for row in offers}
-    meals = _model_meals(model_output, offers_by_id, frequency, pantry)
+    offers_by_key = {row["offer_key"]: row for row in offers}
+    meals = _model_meals(model_output, offers_by_key, frequency, pantry)
 
     plan_meals = []
     purchases = []
     total = Decimal("0")
     regular = Decimal("0")
-    for day, name, instructions, selected_items, pantry_names in meals:
+    for day, name, minutes, instructions, selected_items, pantry_names in meals:
         ingredients = []
         for row, quantity in selected_items:
             price = _price(row["cena"], "akciová cena") * quantity
             original = _price(row["povodna"], "bežná cena") * quantity if row["povodna"] is not None else None
             total += price
-            if original is not None:
-                regular += original
+            regular += original if original is not None else price
             ingredient = {
-                "offer_id": row["id"], "nazov": row["nazov"], "obchod": row["obchod"],
+                "offer_key": row["offer_key"], "nazov": row["nazov"], "obchod": row["obchod"],
                 "jednotka": row["jednotka"], "mnozstvo": quantity, "cena": _format(price),
                 "povodna": _format(original) if original is not None else None,
                 "zlava": row["zlava"] or "",
@@ -147,33 +159,35 @@ def build_personal_plan(con, model_output, stores, frequency, pantry=(), today=N
             purchases.append(ingredient)
         ingredients.extend({"spajza": item} for item in pantry_names)
         plan_meals.append({
-            "den": day, "nazov": name, "recept": {"kroky": instructions}, "suroviny": ingredients,
+            "den": day, "nazov": name, "recept": {"min": minutes, "kroky": instructions},
+            "suroviny": ingredients,
         })
 
     grouped = {}
     for item in purchases:
         grouped.setdefault(item["obchod"], []).append({
-            key: item[key] for key in ("offer_id", "nazov", "jednotka", "mnozstvo", "cena", "povodna", "zlava")
+            key: item[key] for key in ("offer_key", "nazov", "jednotka", "mnozstvo", "cena", "povodna", "zlava")
         })
     shopping = [
-        {"obchod": store, "polozky": sorted(items, key=lambda item: (item["nazov"].casefold(), item["offer_id"]))}
+        {"obchod": store, "polozky": sorted(items, key=lambda item: (item["nazov"].casefold(), item["offer_key"]))}
         for store, items in sorted(grouped.items(), key=lambda pair: STORE_ORDER.index(pair[0]))
     ]
     return {
         "tyzden": current_monday(today), "jedla": plan_meals, "nakupny_zoznam": shopping,
-        "nakup_spolu": _format(total), "bezne": _format(regular), "usetris": _format(regular - total),
+        "nakup_spolu": _format(total), "bezne": _format(regular),
+        "usetris": _format(max(Decimal("0"), regular - total)),
     }
 
 
-def cached_offer_ids(plan):
-    """Return the verified offer IDs a reconstructed cached plan depends on."""
+def cached_offer_keys(plan):
+    """Return the stable offer keys a reconstructed cached plan depends on."""
     try:
-        ids = [ingredient["offer_id"] for meal in plan["jedla"] for ingredient in meal["suroviny"] if "offer_id" in ingredient]
+        keys = [ingredient["offer_key"] for meal in plan["jedla"] for ingredient in meal["suroviny"] if "offer_key" in ingredient]
     except (KeyError, TypeError):
         return None
-    return set(ids) if ids and all(isinstance(item, int) and not isinstance(item, bool) for item in ids) else None
+    return set(keys) if keys and all(isinstance(item, str) and item for item in keys) else None
 
 
 def cached_plan_is_current(plan, rows):
-    selected = cached_offer_ids(plan)
-    return selected is not None and selected.issubset({row["id"] for row in rows})
+    selected = cached_offer_keys(plan)
+    return selected is not None and selected.issubset({row["offer_key"] for row in rows})

@@ -3,13 +3,14 @@ from datetime import date
 
 import pytest
 
+from app.offer_data import offer_key_for
 from app.weekly_data import current_monday, offers_for_current_week
 
 
 FULL_SCHEMA = """CREATE TABLE akcie (
     id INTEGER PRIMARY KEY, tyzden TEXT, obchod TEXT, nazov TEXT, kategoria TEXT,
     cena REAL, povodna REAL, zlava TEXT, jednotka TEXT, source_url TEXT,
-    source_page INTEGER, valid_from TEXT, valid_to TEXT
+    source_page INTEGER, valid_from TEXT, valid_to TEXT, offer_key TEXT
 )"""
 
 
@@ -17,7 +18,7 @@ def full_connection(rows):
     con = sqlite3.connect(":memory:")
     con.row_factory = sqlite3.Row
     con.execute(FULL_SCHEMA)
-    con.executemany("INSERT INTO akcie VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
+    con.executemany("INSERT INTO akcie VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
     return con
 
 
@@ -37,10 +38,21 @@ def offer(offer_id, name, store="Lidl", **overrides):
         "valid_to": "2026-08-23",
     }
     values.update(overrides)
+    trusted = {
+        "tyzden": values["tyzden"], "obchod": values["obchod"], "nazov": values["nazov"],
+        "kategoria": values["kategoria"], "cena": values["cena"], "povodna": values["povodna"],
+        "zlava": values["zlava"], "jednotka": values["jednotka"], "source_url": values["source_url"],
+        "source_page": values["source_page"], "valid_from": values["valid_from"], "valid_to": values["valid_to"],
+    }
+    key = None
+    try:
+        key = offer_key_for(values["tyzden"], trusted)
+    except ValueError:
+        pass
     return (
         offer_id, values["tyzden"], values["obchod"], values["nazov"], values["kategoria"],
         values["cena"], values["povodna"], values["zlava"], values["jednotka"],
-        values["source_url"], values["source_page"], values["valid_from"], values["valid_to"],
+        values["source_url"], values["source_page"], values["valid_from"], values["valid_to"], key,
     )
 
 
@@ -54,6 +66,25 @@ def test_never_falls_back_to_last_weeks_prices():
     con.execute("INSERT INTO akcie VALUES ('2026-08-10', 'Lidl', 'Mlieko', 1.0)")
 
     assert offers_for_current_week(con, ["Lidl"], date(2026, 8, 18)) == []
+
+
+def test_reused_legacy_rowid_with_null_offer_key_is_not_eligible():
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.execute(FULL_SCHEMA)
+    con.execute(
+        "INSERT INTO akcie VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (*offer(1, "Pôvodné mlieko")[:-1], None),
+    )
+    con.execute("DELETE FROM akcie WHERE id=1")
+    con.execute(
+        "INSERT INTO akcie VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (*offer(1, "Iný výrobok", source_url="https://example.test/reused.jpg")[:-1], None),
+    )
+
+    rows = offers_for_current_week(con, ["Lidl"], date(2026, 8, 18))
+
+    assert rows == []
 
 
 def test_returns_only_offers_from_current_week_and_selected_stores():

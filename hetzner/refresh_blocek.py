@@ -59,7 +59,7 @@ def load_api_key():
 
 
 def compose_with_llm(prompt):
-    """The model may choose IDs and write meal content; it never supplies prices."""
+    """The model may choose stable keys and write meal content; it never supplies prices."""
     api_key = load_api_key()
     import anthropic
 

@@ -26,3 +26,22 @@ def test_checked_shopping_state_is_namespaced_by_authenticated_user_and_plan_wee
     result = subprocess.run([str(CSCRIPT), "//nologo", str(script)], capture_output=True, text=True)
 
     assert result.returncode == 0, result.stderr
+
+
+def test_shopping_quantity_label_combines_quantity_with_verified_unit(tmp_path):
+    html = Path("app/static/app.html").read_text(encoding="utf-8")
+    match = re.search(r"function shoppingQuantityLabel\(item\) \{.*?\n\}", html, re.S)
+    assert match, "app must provide shoppingQuantityLabel(item)"
+    script = tmp_path / "shopping-quantity-contract.js"
+    script.write_text(
+        match.group(0)
+        + "\nif (shoppingQuantityLabel({mnozstvo:2,jednotka:'500 g'}) !== '2 × 500 g') WScript.Quit(1);\n"
+        + "if (shoppingQuantityLabel({mnozstvo:1,jednotka:'1 l'}) !== '1 × 1 l') WScript.Quit(2);\n"
+        + "WScript.Quit(0);\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run([str(CSCRIPT), "//nologo", str(script)], capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stderr
+    assert "esc(shoppingQuantityLabel(p))" in html
