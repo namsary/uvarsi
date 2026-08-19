@@ -134,26 +134,50 @@ function shoppingQuantityLabel(item) {
   return quantity && unit ? String(quantity) + ' × ' + String(unit) : '';
 }
 
+function handleApiUnauthorized(response) {
+  if (!response || response.status !== 401) return false;
+  ME = null;
+  PLAN = null;
+  DONE = {};
+  viewLogin();
+  return true;
+}
+
 async function api(url, opts) {
   const r = await fetch(url, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
+  if (handleApiUnauthorized(r)) {
+    const authError = new Error('Prihlásenie vypršalo. Prihlás sa znova.');
+    authError.authRequired = true;
+    throw authError;
+  }
   if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || 'Chyba');
   return r.json();
 }
 const esc = s => String(s??'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 /* ---------- prihlásenie ---------- */
-function viewLogin(sent) {
+function armAuthResend(button, schedule) {
+  button.disabled = true;
+  button.textContent = 'Poslať znova o 60 sekúnd';
+  (schedule || setTimeout)(function() {
+    button.disabled = false;
+    button.textContent = 'Poslať odkaz znova';
+  }, 60000);
+}
+
+function viewLogin(sent, previousEmail) {
   $('#nav').classList.add('hidden');
   M.innerHTML = sent ? `
     <div class="card center" style="margin-top:40px">
       <div style="font-size:2.4rem">📬</div>
-      <h2 class="display" style="font-size:1.5rem;margin:10px 0">Pozri si e-mail</h2>
-      <p class="muted">Poslali sme ti prihlasovací odkaz. Klikni naň a si dnu — žiadne heslo netreba.</p>
+      <h2 class="display" style="font-size:1.5rem;margin:10px 0">Žiadosť je prijatá</h2>
+      <p class="muted">Poskytovateľ prijal žiadosť o prihlasovací e-mail. Odkaz platí 60 minút.</p>
+      <button class="btn btn--ghost" id="again">Poslať znova o 60 sekúnd</button>
     </div>` : `
     <div style="margin-top:36px">
       <span class="eyebrow">Vitaj</span>
       <h1 class="display" style="font-size:2.1rem;margin:8px 0 14px">Z letáka<br>rovno na tanier.</h1>
-      <p class="muted" style="margin-bottom:22px">Zadaj e-mail a pošleme ti odkaz na prihlásenie.</p>
+      <p class="muted" style="margin-bottom:22px">Zadaj e-mail. Prihlasovací odkaz platí 60 minút.</p>
       <div class="card">
         <label>E-mail</label>
         <input id="em" type="email" placeholder="tvoj@email.sk" autocomplete="email">
@@ -162,12 +186,23 @@ function viewLogin(sent) {
         <p id="err" class="muted" style="color:var(--red);margin-top:10px"></p>
       </div>
     </div>`;
-  if (sent) return;
+  if (sent) {
+    const resend = $('#again');
+    armAuthResend(resend);
+    resend.onclick = () => { if (!resend.disabled) viewLogin(false, previousEmail); };
+    return;
+  }
+  if (previousEmail) $('#em').value = previousEmail;
   $('#go').onclick = async () => {
     const email = $('#em').value.trim();
     $('#err').textContent = '';
-    try { await api('/api/auth/request', {method:'POST', body:JSON.stringify({email})}); viewLogin(true); }
-    catch(e) { $('#err').textContent = 'Skontroluj e-mail a skús znova.'; }
+    $('#go').disabled = true;
+    try { await api('/api/auth/request', {method:'POST', body:JSON.stringify({email})}); viewLogin(true, email); }
+    catch(e) {
+      if (e.authRequired) return;
+      $('#err').textContent = e.message || 'Žiadosť sa nepodarila. Skús to znova.';
+      $('#go').disabled = false;
+    }
   };
 }
 
@@ -226,7 +261,7 @@ async function nacitajPlan(gen) {
     let plan = gen ? await api('/api/plan/generuj?force=1', {method:'POST'}) : await api('/api/plan');
     if (plan.prazdny) plan = await api('/api/plan/generuj?force=1', {method:'POST'});
     setPlan(plan);
-  } catch(e) { M.innerHTML = `<div class="card center" style="margin-top:30px">
+  } catch(e) { if (e.authRequired) return; M.innerHTML = `<div class="card center" style="margin-top:30px">
       <p>${esc(e.message)}</p><div style="height:12px"></div>
       <button class="btn" onclick="nacitajPlan(true)">Skúsiť znova</button></div>`; return; }
   render();

@@ -1,4 +1,5 @@
 import importlib
+import hashlib
 import json
 import sqlite3
 import sys
@@ -127,6 +128,15 @@ def fake_anthropic(model_output, constructors, message_calls=None):
     return types.SimpleNamespace(Anthropic=Anthropic)
 
 
+def insert_hashed_session(server, con, raw_token, user_id):
+    now = server.AUTH_CLOCK()
+    con.execute(
+        """INSERT INTO sessions_v2 (token_hash, user_id, expires_at, created_at)
+           VALUES (?, ?, ?, ?)""",
+        (hashlib.sha256(raw_token.encode()).hexdigest(), user_id, now + 30 * 24 * 60 * 60, now),
+    )
+
+
 def test_akcie_pre_never_returns_previous_week_prices(monkeypatch, tmp_path):
     server = load_server(
         monkeypatch,
@@ -161,7 +171,7 @@ def test_plan_is_503_when_only_previous_week_exists(monkeypatch, tmp_path):
     )
     with server.db() as con:
         con.execute("INSERT INTO pouzivatelia (id, email, obchody) VALUES (1, 'test@uvar.si', 'Lidl')")
-        con.execute("INSERT INTO sedenia (token, user_id) VALUES ('session-token', 1)")
+        insert_hashed_session(server, con, "session-token", 1)
         con.commit()
 
     constructors = []
@@ -192,7 +202,7 @@ def test_plan_is_503_without_constructing_anthropic_when_current_week_offers_are
     )
     with server.db() as con:
         con.execute("INSERT INTO pouzivatelia (id, email, obchody) VALUES (1, 'test@uvar.si', 'Lidl')")
-        con.execute("INSERT INTO sedenia (token, user_id) VALUES ('session-token', 1)")
+        insert_hashed_session(server, con, "session-token", 1)
         con.commit()
 
     constructors = []
@@ -227,7 +237,7 @@ def test_cached_plan_is_503_when_current_week_has_no_verified_offers(monkeypatch
     server = load_server(monkeypatch, tmp_path, rows)
     with server.db() as con:
         con.execute("INSERT INTO pouzivatelia (id, email, obchody) VALUES (1, 'test@uvar.si', 'Lidl')")
-        con.execute("INSERT INTO sedenia (token, user_id) VALUES ('session-token', 1)")
+        insert_hashed_session(server, con, "session-token", 1)
         con.execute(
             "INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)",
             (1, week, '{"cached": true}'),
@@ -296,7 +306,7 @@ def test_material_profile_change_invalidates_only_that_users_current_cached_plan
             "INSERT INTO pouzivatelia (id, email, osoby, frekvencia, obchody) VALUES (?, ?, ?, ?, ?)",
             [(1, "first@uvar.si", 4, 2, "Lidl"), (2, "second@uvar.si", 4, 2, "Lidl")],
         )
-        con.execute("INSERT INTO sedenia (token, user_id) VALUES ('first-session', 1)")
+        insert_hashed_session(server, con, "first-session", 1)
         con.executemany("INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)", [
             (1, week, '{"cached":"first"}'), (2, week, '{"cached":"second"}'),
         ])
@@ -317,7 +327,7 @@ def test_material_pantry_change_invalidates_only_that_users_current_cached_plan(
     week = current_monday()
     with server.db() as con:
         con.executemany("INSERT INTO pouzivatelia (id, email) VALUES (?, ?)", [(1, "first@uvar.si"), (2, "second@uvar.si")])
-        con.execute("INSERT INTO sedenia (token, user_id) VALUES ('first-session', 1)")
+        insert_hashed_session(server, con, "first-session", 1)
         con.executemany("INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)", [
             (1, week, '{"cached":"first"}'), (2, week, '{"cached":"second"}'),
         ])
@@ -337,7 +347,7 @@ def test_plan_route_persists_only_reconstructed_server_commerce(monkeypatch, tmp
     server = load_server(monkeypatch, tmp_path, current_plan_rows())
     with server.db() as con:
         con.execute("INSERT INTO pouzivatelia (id, email, obchody) VALUES (1, 'test@uvar.si', 'Lidl')")
-        con.execute("INSERT INTO sedenia (token, user_id) VALUES ('session-token', 1)")
+        insert_hashed_session(server, con, "session-token", 1)
         con.execute("INSERT INTO spajza (user_id, nazov) VALUES (1, 'soľ')")
         con.commit()
     constructors = []
@@ -366,7 +376,7 @@ def test_plan_generation_passes_profile_household_size_to_prompt_and_builder(mon
         con.execute(
             "INSERT INTO pouzivatelia (id, email, osoby, obchody) VALUES (1, 'family@uvar.si', 12, 'Lidl')"
         )
-        con.execute("INSERT INTO sedenia (token, user_id) VALUES ('session-token', 1)")
+        insert_hashed_session(server, con, "session-token", 1)
         con.execute("INSERT INTO spajza (user_id, nazov) VALUES (1, 'soľ')")
         con.commit()
     constructors = []
@@ -387,7 +397,7 @@ def test_invalid_model_plan_does_not_replace_existing_valid_cache(monkeypatch, t
     server = load_server(monkeypatch, tmp_path, current_plan_rows())
     with server.db() as con:
         con.execute("INSERT INTO pouzivatelia (id, email, obchody) VALUES (1, 'test@uvar.si', 'Lidl')")
-        con.execute("INSERT INTO sedenia (token, user_id) VALUES ('session-token', 1)")
+        insert_hashed_session(server, con, "session-token", 1)
         con.execute("INSERT INTO spajza (user_id, nazov) VALUES (1, 'soľ')")
         current = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4, pantry=["soľ"])
         con.execute("INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)", (1, current_monday(), json.dumps(current)))
@@ -409,7 +419,7 @@ def test_cached_plan_is_503_when_one_selected_offer_is_no_longer_current(monkeyp
     server = load_server(monkeypatch, tmp_path, current_plan_rows())
     with server.db() as con:
         con.execute("INSERT INTO pouzivatelia (id, email, obchody) VALUES (1, 'test@uvar.si', 'Lidl')")
-        con.execute("INSERT INTO sedenia (token, user_id) VALUES ('session-token', 1)")
+        insert_hashed_session(server, con, "session-token", 1)
         con.execute("INSERT INTO spajza (user_id, nazov) VALUES (1, 'soľ')")
         cached = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4, pantry=["soľ"])
         con.execute("INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)", (1, current_monday(), json.dumps(cached)))
