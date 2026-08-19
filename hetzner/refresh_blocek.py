@@ -8,10 +8,14 @@ from datetime import date
 from pathlib import Path
 
 from app.landing_data import validate_landing_data, write_landing_data_atomic
-from app.receipt_data import build_public_receipt, composition_prompt, current_verified_offers, eligible_offers
+from app.offer_data import ALLOWED_STORES
+from app.receipt_data import build_public_receipt, composition_prompt, eligible_offers
+from app.weekly_data import current_verified_offers
 
 
 LANDING_DATA_PATH = Path("/var/lib/uvarsi/landing_data.json")
+DATABASE_PATH = "/opt/uvarsi/uvarsi.db"
+ENV_FILE = "/opt/uvarsi/uvarsi.env"
 
 
 def landing_data_output_path(arguments):
@@ -27,7 +31,7 @@ def refresh_from_db(path, database, compose, today=None):
     today = today or date.today()
     with sqlite3.connect(database) as con:
         con.row_factory = sqlite3.Row
-        offers = eligible_offers(current_verified_offers(con, today))
+        offers = eligible_offers(current_verified_offers(con, ALLOWED_STORES, today))
         if len(offers) < 3:
             raise SystemExit("Málo overených ponúk s bežnou cenou — nechávam starý bloček.")
         model_output = compose(composition_prompt(offers))
@@ -37,11 +41,29 @@ def refresh_from_db(path, database, compose, today=None):
     return payload
 
 
+def load_api_key():
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if key:
+        return key
+    try:
+        with open(ENV_FILE, encoding="utf-8") as env_file:
+            for line in env_file:
+                name, separator, value = line.partition("=")
+                if separator and name.strip() == "ANTHROPIC_API_KEY":
+                    key = value.strip().strip('"').strip("'")
+                    if key:
+                        return key
+    except FileNotFoundError:
+        pass
+    raise SystemExit("Chýba ANTHROPIC_API_KEY — nechávam starý bloček.")
+
+
 def compose_with_llm(prompt):
     """The model may choose IDs and write meal content; it never supplies prices."""
+    api_key = load_api_key()
     import anthropic
 
-    client = anthropic.Anthropic(timeout=120.0, max_retries=1)
+    client = anthropic.Anthropic(api_key=api_key, timeout=120.0, max_retries=1)
     message = client.messages.create(
         model="claude-sonnet-5", max_tokens=4000,
         messages=[{"role": "user", "content": prompt}],
@@ -55,9 +77,7 @@ def compose_with_llm(prompt):
 
 def main():
     path = landing_data_output_path(sys.argv[1:])
-    database = os.environ.get("UVARSI_DB")
-    if not database:
-        raise SystemExit("Chýba UVARSI_DB — nechávam starý bloček.")
+    database = os.environ.get("UVARSI_DB", DATABASE_PATH)
     refresh_from_db(path, database, compose_with_llm, today=date.today())
 
 

@@ -3,9 +3,11 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
 try:
-    from .weekly_data import current_monday
+    from .offer_data import ALLOWED_STORES
+    from .weekly_data import current_monday, current_verified_offers
 except ImportError:
-    from weekly_data import current_monday
+    from offer_data import ALLOWED_STORES
+    from weekly_data import current_monday, current_verified_offers
 
 
 CENT = Decimal("0.01")
@@ -26,7 +28,7 @@ def _cents(value, field):
         amount = Decimal(str(value).strip().replace(",", "."))
     except (InvalidOperation, ValueError) as error:
         raise ValueError(f"Neplatná {field} v overenej ponuke.") from error
-    if not amount.is_finite() or amount < 0 or amount != amount.quantize(CENT):
+    if not amount.is_finite() or amount <= 0 or amount != amount.quantize(CENT):
         raise ValueError(f"Neplatná {field} v overenej ponuke.")
     return amount
 
@@ -35,28 +37,15 @@ def _format(amount):
     return format(amount.quantize(CENT), "f").replace(".", ",")
 
 
-def current_verified_offers(con, today=None):
-    """Return only rows whose own evidence proves they are current today."""
-    today = today or date.today()
-    return con.execute(
-        """SELECT id, obchod, nazov, kategoria, cena, povodna, zlava, jednotka,
-                  source_url, valid_from, valid_to
-             FROM akcie
-             WHERE tyzden=?
-               AND source_url IS NOT NULL AND source_page IS NOT NULL
-               AND valid_from IS NOT NULL AND valid_to IS NOT NULL
-               AND valid_from<=? AND valid_to>=?
-             ORDER BY id""",
-        (current_monday(today), today.isoformat(), today.isoformat()),
-    ).fetchall()
-
-
 def eligible_offers(rows):
     """Only offers with an auditable regular price may substantiate savings."""
     eligible = []
     for row in rows:
-        price = _cents(row["cena"], "akciová cena")
-        original = _cents(row["povodna"], "bežná cena") if row["povodna"] is not None else None
+        try:
+            price = _cents(row["cena"], "akciová cena")
+            original = _cents(row["povodna"], "bežná cena") if row["povodna"] is not None else None
+        except ValueError:
+            continue
         if original is not None and original >= price:
             eligible.append(row)
     return eligible
@@ -131,7 +120,7 @@ def _week_label(today):
 def build_public_receipt(con, model_output, today=None, generated_at=None):
     """Validate model content then derive every commercial value from the DB."""
     today = today or date.today()
-    offers = eligible_offers(current_verified_offers(con, today))
+    offers = eligible_offers(current_verified_offers(con, ALLOWED_STORES, today))
     if len(offers) < MIN_ELIGIBLE_OFFERS:
         raise SystemExit("Málo overených ponúk s bežnou cenou — nechávam starý bloček.")
     offers_by_id = {row["id"]: row for row in offers}

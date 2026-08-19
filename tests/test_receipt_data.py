@@ -3,7 +3,7 @@ from datetime import date
 
 import pytest
 
-from app.receipt_data import build_public_receipt, composition_prompt
+from app.receipt_data import build_public_receipt, composition_prompt, eligible_offers
 from hetzner.refresh_blocek import refresh_from_db
 
 
@@ -84,6 +84,19 @@ def test_model_prompt_exposes_only_food_content_and_offer_references():
     assert "Lidl" not in prompt
     assert "1.0" not in prompt
     assert "source.test" not in prompt
+
+
+@pytest.mark.parametrize(
+    "price, original",
+    [(0, 1.5), (1.0, 0)],
+)
+def test_zero_prices_cannot_be_receipt_eligible(price, original):
+    row = {
+        "cena": price,
+        "povodna": original,
+    }
+
+    assert eligible_offers([row]) == []
 
 
 @pytest.mark.parametrize(

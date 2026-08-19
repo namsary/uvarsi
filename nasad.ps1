@@ -1,9 +1,10 @@
 # Uvar.si — nasadenie jedným príkazom.
 # Použitie:  cd "$env:USERPROFILE\OneDrive\Online produkt"; .\nasad.ps1
 # Nahrá súbory na jarvis, reštartuje službu, nastaví Caddy a overí, že všetko beží.
+# BLOKOVANÉ: nepoužívať pred Task 5; staré Caddy a error-handling správanie ostáva nebezpečné.
 
 $ErrorActionPreference = "Continue"
-$B = "$env:USERPROFILE\OneDrive\Online produkt"
+$B = $PSScriptRoot
 function Krok($t) { Write-Host "`n=== $t" -ForegroundColor Cyan }
 function Ok($t)   { Write-Host "  OK  $t" -ForegroundColor Green }
 function Zle($t)  { Write-Host "  !!  $t" -ForegroundColor Red }
@@ -14,6 +15,11 @@ Ok "pripravené"
 
 Krok "2/6  Nahrávam súbory"
 $subory = @(
+  @{ l = "$B\app\config.py";            r = "/opt/uvarsi/app/config.py" },
+  @{ l = "$B\app\weekly_data.py";       r = "/opt/uvarsi/app/weekly_data.py" },
+  @{ l = "$B\app\offer_data.py";        r = "/opt/uvarsi/app/offer_data.py" },
+  @{ l = "$B\app\landing_data.py";      r = "/opt/uvarsi/app/landing_data.py" },
+  @{ l = "$B\app\receipt_data.py";      r = "/opt/uvarsi/app/receipt_data.py" },
   @{ l = "$B\app\server.py";            r = "/opt/uvarsi/app/server.py" },
   @{ l = "$B\app\zbierac_akcii.py";     r = "/opt/uvarsi/app/zbierac_akcii.py" },
   @{ l = "$B\hetzner\refresh_blocek.py"; r = "/opt/uvarsi/refresh_blocek.py" },
