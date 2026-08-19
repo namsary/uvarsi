@@ -20,6 +20,7 @@ $subory = @(
   @{ l = "$B\app\offer_data.py";        r = "/opt/uvarsi/app/offer_data.py" },
   @{ l = "$B\app\landing_data.py";      r = "/opt/uvarsi/app/landing_data.py" },
   @{ l = "$B\app\receipt_data.py";      r = "/opt/uvarsi/app/receipt_data.py" },
+  @{ l = "$B\app\plan_data.py";         r = "/opt/uvarsi/app/plan_data.py" },
   @{ l = "$B\app\server.py";            r = "/opt/uvarsi/app/server.py" },
   @{ l = "$B\app\zbierac_akcii.py";     r = "/opt/uvarsi/app/zbierac_akcii.py" },
   @{ l = "$B\hetzner\refresh_blocek.py"; r = "/opt/uvarsi/refresh_blocek.py" },

@@ -1,4 +1,5 @@
 import importlib
+import json
 import sqlite3
 import sys
 import types
@@ -9,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.landing_data import write_landing_data_atomic
+from app.plan_data import build_personal_plan
 from app.weekly_data import current_monday
 
 
@@ -26,7 +28,10 @@ def load_server(monkeypatch, tmp_path, rows, landing_data=None):
         )"""
     )
     con.executemany(
-        "INSERT INTO akcie VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        """INSERT INTO akcie
+           (tyzden, nazov, obchod, cena, povodna, zlava, jednotka, kategoria,
+            source_url, source_page, valid_from, valid_to)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         [tuple(row) + (None,) * (12 - len(row)) for row in rows],
     )
     con.commit()
@@ -57,6 +62,43 @@ def landing_payload(week=None):
             "usetris": "1,00",
         },
     }
+
+
+def current_plan_rows(count=16):
+    today = date.today()
+    week = current_monday(today)
+    return [
+        (week, f"Ponuka {index}", "Lidl", 1.0 + index / 100, 2.0 + index / 100,
+         "-50 %", "1 ks", "trvanlive", f"https://example.test/{index}.jpg", index,
+         (today - timedelta(days=1)).isoformat(), (today + timedelta(days=1)).isoformat())
+        for index in range(1, count + 1)
+    ]
+
+
+def model_plan(first_offer_id=1):
+    return {
+        "meals": [
+            {"day": "PO", "name": "Prvé jedlo", "instructions": ["Uvar prvé jedlo."],
+             "items": [{"offer_id": first_offer_id, "quantity": 2}], "pantry_ingredients": ["soľ"]},
+            {"day": "ST", "name": "Druhé jedlo", "instructions": ["Uvar druhé jedlo."],
+             "items": [{"offer_id": 2, "quantity": 1}]},
+            {"day": "PI", "name": "Tretie jedlo", "instructions": ["Uvar tretie jedlo."],
+             "items": [{"offer_id": 3, "quantity": 1}]},
+        ]
+    }
+
+
+def fake_anthropic(model_output, constructors):
+    class Messages:
+        def create(self, **kwargs):
+            return types.SimpleNamespace(content=[types.SimpleNamespace(type="text", text=json.dumps(model_output))])
+
+    class Anthropic:
+        def __init__(self, **kwargs):
+            constructors.append(kwargs)
+            self.messages = Messages()
+
+    return types.SimpleNamespace(Anthropic=Anthropic)
 
 
 def test_akcie_pre_never_returns_previous_week_prices(monkeypatch, tmp_path):
@@ -218,3 +260,118 @@ def test_public_landing_is_503_for_stale_data(monkeypatch, tmp_path):
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Aktuálne letákové dáta sa obnovujú."
+
+
+def test_material_profile_change_invalidates_only_that_users_current_cached_plan(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [])
+    week = current_monday()
+    with server.db() as con:
+        con.executemany(
+            "INSERT INTO pouzivatelia (id, email, osoby, frekvencia, obchody) VALUES (?, ?, ?, ?, ?)",
+            [(1, "first@uvar.si", 4, 2, "Lidl"), (2, "second@uvar.si", 4, 2, "Lidl")],
+        )
+        con.execute("INSERT INTO sedenia (token, user_id) VALUES ('first-session', 1)")
+        con.executemany("INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)", [
+            (1, week, '{"cached":"first"}'), (2, week, '{"cached":"second"}'),
+        ])
+        con.commit()
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "first-session")
+
+    response = client.post("/api/profil", json={"osoby": 5, "frekvencia": 2, "obchody": ["Lidl"]})
+
+    assert response.status_code == 200
+    with server.db() as con:
+        rows = con.execute("SELECT user_id FROM plany WHERE tyzden=? ORDER BY user_id", (week,)).fetchall()
+        assert [row[0] for row in rows] == [2]
+
+
+def test_material_pantry_change_invalidates_only_that_users_current_cached_plan(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [])
+    week = current_monday()
+    with server.db() as con:
+        con.executemany("INSERT INTO pouzivatelia (id, email) VALUES (?, ?)", [(1, "first@uvar.si"), (2, "second@uvar.si")])
+        con.execute("INSERT INTO sedenia (token, user_id) VALUES ('first-session', 1)")
+        con.executemany("INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)", [
+            (1, week, '{"cached":"first"}'), (2, week, '{"cached":"second"}'),
+        ])
+        con.commit()
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "first-session")
+
+    response = client.post("/api/spajza", json={"polozky": ["soľ"]})
+
+    assert response.status_code == 200
+    with server.db() as con:
+        rows = con.execute("SELECT user_id FROM plany WHERE tyzden=? ORDER BY user_id", (week,)).fetchall()
+        assert [row[0] for row in rows] == [2]
+
+
+def test_plan_route_persists_only_reconstructed_server_commerce(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, current_plan_rows())
+    with server.db() as con:
+        con.execute("INSERT INTO pouzivatelia (id, email, obchody) VALUES (1, 'test@uvar.si', 'Lidl')")
+        con.execute("INSERT INTO sedenia (token, user_id) VALUES ('session-token', 1)")
+        con.execute("INSERT INTO spajza (user_id, nazov) VALUES (1, 'soľ')")
+        con.commit()
+    constructors = []
+    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), constructors))
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "session-token")
+
+    response = client.post("/api/plan/generuj?force=1")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["jedla"][0]["suroviny"] == [
+        {"offer_id": 1, "nazov": "Ponuka 1", "obchod": "Lidl", "jednotka": "1 ks",
+         "mnozstvo": 2, "cena": "2,02", "povodna": "4,02", "zlava": "-50 %"},
+        {"spajza": "soľ"},
+    ]
+    assert payload["nakupny_zoznam"][0]["polozky"][0]["nazov"] == "Ponuka 1"
+    assert constructors
+    with server.db() as con:
+        assert json.loads(con.execute("SELECT json FROM plany WHERE user_id=1").fetchone()[0]) == payload
+
+
+def test_invalid_model_plan_does_not_replace_existing_valid_cache(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, current_plan_rows())
+    with server.db() as con:
+        con.execute("INSERT INTO pouzivatelia (id, email, obchody) VALUES (1, 'test@uvar.si', 'Lidl')")
+        con.execute("INSERT INTO sedenia (token, user_id) VALUES ('session-token', 1)")
+        con.execute("INSERT INTO spajza (user_id, nazov) VALUES (1, 'soľ')")
+        current = build_personal_plan(con, model_plan(), ["Lidl"], 2, pantry=["soľ"])
+        con.execute("INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)", (1, current_monday(), json.dumps(current)))
+        con.commit()
+    constructors = []
+    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(first_offer_id=999), constructors))
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "session-token")
+
+    response = client.post("/api/plan/generuj?force=1")
+
+    assert response.status_code == 500
+    with server.db() as con:
+        assert json.loads(con.execute("SELECT json FROM plany WHERE user_id=1").fetchone()[0]) == current
+
+
+@pytest.mark.parametrize("method, path", [("get", "/api/plan"), ("post", "/api/plan/generuj")])
+def test_cached_plan_is_503_when_one_selected_offer_is_no_longer_current(monkeypatch, tmp_path, method, path):
+    server = load_server(monkeypatch, tmp_path, current_plan_rows())
+    with server.db() as con:
+        con.execute("INSERT INTO pouzivatelia (id, email, obchody) VALUES (1, 'test@uvar.si', 'Lidl')")
+        con.execute("INSERT INTO sedenia (token, user_id) VALUES ('session-token', 1)")
+        con.execute("INSERT INTO spajza (user_id, nazov) VALUES (1, 'soľ')")
+        cached = build_personal_plan(con, model_plan(), ["Lidl"], 2, pantry=["soľ"])
+        con.execute("INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)", (1, current_monday(), json.dumps(cached)))
+        con.execute("DELETE FROM akcie WHERE rowid=1")
+        con.commit()
+    constructors = []
+    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), constructors))
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "session-token")
+
+    response = getattr(client, method)(path)
+
+    assert response.status_code == 503
+    assert constructors == []

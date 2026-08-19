@@ -11,6 +11,7 @@ def test_deploy_manifest_is_worktree_rooted_and_runtime_complete():
         "app\\offer_data.py",
         "app\\landing_data.py",
         "app\\receipt_data.py",
+        "app\\plan_data.py",
         "app\\server.py",
         "app\\zbierac_akcii.py",
         "hetzner\\refresh_blocek.py",

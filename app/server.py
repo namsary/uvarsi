@@ -19,6 +19,7 @@ from config import public_base_url
 from landing_data import load_landing_data, validate_landing_data
 from weekly_data import offers_for_current_week
 from offer_data import migrate_akcie_schema
+from plan_data import build_personal_plan, cached_plan_is_current, personal_plan_prompt
 
 DB = os.environ.get("UVARSI_DB", "/opt/uvarsi/uvarsi.db")
 STATIC = os.environ.get("UVARSI_STATIC", "/opt/uvarsi/app/static")
@@ -221,7 +222,7 @@ def me(req: Request):
     with closing(db()) as con:
         sp = [r["nazov"] for r in con.execute(
             "SELECT nazov FROM spajza WHERE user_id=? ORDER BY id", (u["id"],))]
-    return {"prihlaseny": True, "email": u["email"], "osoby": u["osoby"],
+    return {"prihlaseny": True, "id": u["id"], "email": u["email"], "osoby": u["osoby"],
             "frekvencia": u["frekvencia"], "obchody": u["obchody"].split(","),
             "onboarding": bool(u["onboarding"]), "platiaci": bool(u["platiaci"]),
             "spajza": sp}
@@ -233,12 +234,17 @@ async def uloz_profil(req: Request):
     d = await req.json()
     osoby = max(1, min(12, int(d.get("osoby", 4))))
     frek = max(1, min(7, int(d.get("frekvencia", 2))))
-    obchody = [o for o in d.get("obchody", []) if o in ("Kaufland", "Tesco", "Lidl")]
+    allowed_stores = ("Kaufland", "Tesco", "Lidl")
+    obchody = [store for store in allowed_stores if store in d.get("obchody", [])]
     if not obchody:
         obchody = ["Kaufland", "Tesco", "Lidl"]
     with closing(db()) as con:
+        old = con.execute("SELECT osoby, frekvencia, obchody FROM pouzivatelia WHERE id=?", (u["id"],)).fetchone()
+        changed = old is None or (old["osoby"], old["frekvencia"], old["obchody"]) != (osoby, frek, ",".join(obchody))
         con.execute("UPDATE pouzivatelia SET osoby=?,frekvencia=?,obchody=?,onboarding=1"
                     " WHERE id=?", (osoby, frek, ",".join(obchody), u["id"]))
+        if changed:
+            con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], monday()))
         con.commit()
     return {"ok": True}
 
@@ -249,43 +255,18 @@ async def uloz_spajzu(req: Request):
     d = await req.json()
     polozky = [str(x).strip()[:40] for x in d.get("polozky", []) if str(x).strip()][:60]
     with closing(db()) as con:
-        con.execute("DELETE FROM spajza WHERE user_id=?", (u["id"],))
-        con.executemany("INSERT INTO spajza (user_id,nazov) VALUES (?,?)",
-                        [(u["id"], p) for p in polozky])
+        old = [row["nazov"] for row in con.execute(
+            "SELECT nazov FROM spajza WHERE user_id=? ORDER BY id", (u["id"],))]
+        if old != polozky:
+            con.execute("DELETE FROM spajza WHERE user_id=?", (u["id"],))
+            con.executemany("INSERT INTO spajza (user_id,nazov) VALUES (?,?)",
+                            [(u["id"], p) for p in polozky])
+            con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], monday()))
         con.commit()
     return {"ok": True, "pocet": len(polozky)}
 
 
 # ---------------------------------------------------------------- plán
-PLAN_PROMPT = """Si kuchár-plánovač slovenskej appky Uvar.si. Z DOSTUPNÝCH AKCIÍ \
-poskladaj týždenný jedálniček.
-
-Zadanie používateľa:
-- varí pre {osoby} osôb
-- varí raz za {frekvencia} dni → {pocet_jedal} varené jedlá na týždeň
-- nakupuje v: {obchody}
-- doma už má: {spajza}
-
-DOSTUPNÉ AKCIE (nazov | obchod | cena | pôvodná | zľava | jednotka):
-{akcie}
-
-Pravidlá:
-- Použi IBA suroviny z akcií hore (+ to, čo má doma — tie sa nekupujú).
-- Každé jedlo = 2–4 suroviny, ktoré spolu dávajú zmysel ako slovenské jedlo.
-- Ak je tá istá surovina vo viacerých obchodoch, vyber NAJLACNEJŠIU.
-- Medzi varenými dňami sú dni "zvyšok z…".
-- Množstvá prispôsob počtu osôb.
-- Nákupný zoznam zoskup podľa obchodov.
-
-Vráť IBA čistý JSON:
-{{"jedla":[{{"den":"PO","nazov":"...","suroviny":[{{"nazov":"...","obchod":"...","cena":2.15,"zlava":"−52 %"}}],
-"recept":{{"min":45,"kroky":["Krok 1.","Krok 2.","Krok 3.","Krok 4."]}}}}],
-"nakupny_zoznam":[{{"obchod":"Kaufland","polozky":[{{"nazov":"...","cena":2.15,"mnozstvo":"1 kg"}}]}}],
-"nakup_spolu":"18,40","bezne":"29,10","usetris":"10,70"}}
-Ceny ako reťazec s desatinnou čiarkou. Slovenčina s diakritikou. Kroky receptu \
-konkrétne (množstvá, čas, teplota)."""
-
-
 def akcie_pre(obchody, limit=140):
     if not obchody:
         return []
@@ -312,34 +293,36 @@ def generuj_plan(req: Request, force: int = 0):
             r = con.execute("SELECT json FROM plany WHERE user_id=? AND tyzden=?",
                             (u["id"], tyz)).fetchone()
             if r:
-                return json.loads(r["json"])
+                try:
+                    cached = json.loads(r["json"])
+                except json.JSONDecodeError:
+                    cached = None
+                if cached and cached_plan_is_current(cached, rows):
+                    return cached
+                con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], tyz))
+                con.commit()
+                raise HTTPException(503, "Aktuálny plán už obsahuje neplatnú ponuku. Skús to o chvíľu.")
         sp = [x["nazov"] for x in con.execute(
             "SELECT nazov FROM spajza WHERE user_id=?", (u["id"],))]
 
-    zoznam = "\n".join(
-        f"- {r['nazov']} | {r['obchod']} | {r['cena']:.2f} € | "
-        f"{('%.2f €' % r['povodna']) if r['povodna'] else '?'} | "
-        f"{r['zlava'] or ''} | {r['jednotka'] or ''}" for r in rows)
-    pocet = {1: 5, 2: 3, 3: 2}.get(u["frekvencia"], 3)
-
     import anthropic
     client = anthropic.Anthropic(api_key=env("ANTHROPIC_API_KEY"), timeout=120.0)
-    prompt = PLAN_PROMPT.format(
-        osoby=u["osoby"], frekvencia=u["frekvencia"], pocet_jedal=pocet,
-        obchody=", ".join(obchody), spajza=", ".join(sp) or "nič",
-        akcie=zoznam)
+    prompt = personal_plan_prompt(rows, u["frekvencia"], sp)
     msg = client.messages.create(model=MODEL_PLAN, max_tokens=PLAN_TOKENS,
                                  messages=[{"role": "user", "content": prompt}])
     txt = "".join(b.text for b in msg.content
                   if getattr(b, "type", None) == "text").strip()
     txt = re.sub(r"^```(?:json)?|```$", "", txt, flags=re.M).strip()
     try:
-        plan = json.loads(txt)
+        model_output = json.loads(txt)
     except json.JSONDecodeError:
         raise HTTPException(500, "Plán sa nepodarilo poskladať, skús to znova.")
 
-    plan["tyzden"] = tyz
     with closing(db()) as con:
+        try:
+            plan = build_personal_plan(con, model_output, obchody, u["frekvencia"], pantry=sp)
+        except ValueError:
+            raise HTTPException(500, "Plán sa nepodarilo bezpečne overiť, skús to znova.")
         con.execute("INSERT OR REPLACE INTO plany (user_id,tyzden,json) VALUES (?,?,?)",
                     (u["id"], tyz, json.dumps(plan, ensure_ascii=False)))
         con.commit()
@@ -352,7 +335,18 @@ def daj_plan(req: Request):
     with closing(db()) as con:
         r = con.execute("SELECT json FROM plany WHERE user_id=? AND tyzden=?",
                         (u["id"], monday())).fetchone()
-    return json.loads(r["json"]) if r else {"prazdny": True}
+        if not r:
+            return {"prazdny": True}
+        try:
+            cached = json.loads(r["json"])
+        except json.JSONDecodeError:
+            cached = None
+        rows = offers_for_current_week(con, u["obchody"].split(","), datetime.date.today())
+        if cached and cached_plan_is_current(cached, rows):
+            return cached
+        con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], monday()))
+        con.commit()
+    raise HTTPException(503, "Aktuálny plán už obsahuje neplatnú ponuku. Skús to o chvíľu.")
 
 
 @app.get("/api/akcie/pocet")

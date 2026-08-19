@@ -109,7 +109,24 @@ nav .ico{display:block;font-size:1.25rem;margin-bottom:2px}
 const $ = s => document.querySelector(s);
 const M = $('#main');
 let ME = null, PLAN = null, TAB = 'plan';
-const done = JSON.parse(localStorage.getItem('uvarsi_done') || '{}');
+let DONE = {};
+
+function checkedStateKey(user, plan) {
+  var identity = user && (user.id || user.email);
+  var week = plan && plan.tyzden;
+  return 'uvarsi_done:' + encodeURIComponent(String(identity || 'unknown')) + ':' +
+    encodeURIComponent(String(week || 'unknown'));
+}
+
+function loadCheckedState(user, plan) {
+  try { return JSON.parse(localStorage.getItem(checkedStateKey(user, plan)) || '{}'); }
+  catch(e) { return {}; }
+}
+
+function setPlan(plan) {
+  PLAN = plan;
+  DONE = loadCheckedState(ME, PLAN);
+}
 
 async function api(url, opts) {
   const r = await fetch(url, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
@@ -200,8 +217,9 @@ async function nacitajPlan(gen) {
   M.innerHTML = `<div class="spin"></div><p class="center muted mono" style="font-size:.8rem">
     ${gen?'Skladám ti jedálniček z aktuálnych akcií…':'Načítavam…'}</p>`;
   try {
-    PLAN = gen ? await api('/api/plan/generuj', {method:'POST'}) : await api('/api/plan');
-    if (PLAN.prazdny) PLAN = await api('/api/plan/generuj', {method:'POST'});
+    let plan = gen ? await api('/api/plan/generuj?force=1', {method:'POST'}) : await api('/api/plan');
+    if (plan.prazdny) plan = await api('/api/plan/generuj?force=1', {method:'POST'});
+    setPlan(plan);
   } catch(e) { M.innerHTML = `<div class="card center" style="margin-top:30px">
       <p>${esc(e.message)}</p><div style="height:12px"></div>
       <button class="btn" onclick="nacitajPlan(true)">Skúsiť znova</button></div>`; return; }
@@ -229,8 +247,8 @@ function vPlan() {
         <span class="meal-d">${d}</span><span class="meal-n">${esc(j.nazov)}</span>
         <span class="mono" style="font-size:.72rem;color:var(--ink-soft)">${j.recept?.min||''} min ▾</span>
       </div><div class="meal-b">
-        ${(j.suroviny||[]).map(s=>`<div class="ing"><span>${esc(s.nazov)} · ${esc(s.obchod)}</span>
-          <span class="r">${s.cena?Number(s.cena).toFixed(2).replace('.',',')+' €':''}
+        ${(j.suroviny||[]).map(s=>`<div class="ing"><span>${s.spajza?esc(s.spajza)+' · zo špajze':esc(s.nazov)+' · '+esc(s.obchod)}</span>
+          <span class="r">${s.cena?esc(s.cena)+' €':''}
           ${s.zlava?`<span class="off">${esc(s.zlava)}</span>`:''}</span></div>`).join('')}
         <ol class="steps">${(j.recept?.kroky||[]).map(k=>`<li>${esc(k)}</li>`).join('')}</ol>
       </div></div>`;
@@ -257,18 +275,18 @@ function vZoznam() {
     h += `<div class="shop-h">${esc(s.obchod)}</div>`;
     (s.polozky||[]).forEach((p, pi) => {
       const k = `${si}-${pi}`;
-      h += `<div class="item${done[k]?' done':''}" data-k="${k}">
-        <span class="box">${done[k]?'✓':''}</span>
+      h += `<div class="item${DONE[k]?' done':''}" data-k="${k}">
+        <span class="box">${DONE[k]?'✓':''}</span>
         <span class="nm">${esc(p.nazov)}${p.mnozstvo?`<span class="tag">${esc(p.mnozstvo)}</span>`:''}</span>
-        <span class="pr">${p.cena?Number(p.cena).toFixed(2).replace('.',',')+' €':''}</span></div>`;
+        <span class="pr">${p.cena?esc(p.cena)+' €':''}</span></div>`;
     });
   });
   M.innerHTML = h;
   M.querySelectorAll('.item').forEach(el => el.onclick = () => {
     const k = el.dataset.k;
-    done[k] = !done[k];
-    localStorage.setItem('uvarsi_done', JSON.stringify(done));
-    el.classList.toggle('done'); el.querySelector('.box').textContent = done[k] ? '✓' : '';
+    DONE[k] = !DONE[k];
+    localStorage.setItem(checkedStateKey(ME, PLAN), JSON.stringify(DONE));
+    el.classList.toggle('done'); el.querySelector('.box').textContent = DONE[k] ? '✓' : '';
   });
 }
 
@@ -285,7 +303,8 @@ function vSpajza() {
       || '<p class="muted center" style="padding:18px">Zatiaľ prázdna.</p>'}</div>`;
   const uloz = async list => {
     await api('/api/spajza', {method:'POST', body:JSON.stringify({polozky:list})});
-    ME = await api('/api/me'); vSpajza();
+    ME = await api('/api/me');
+    await nacitajPlan(true);
   };
   $('#sp-add').onclick = () => {
     const v = $('#sp-new').value.trim(); if (!v) return;

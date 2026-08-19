@@ -20,7 +20,7 @@ def current_verified_offers(con, stores, today: date | None = None):
     today = today or date.today()
     marks = ",".join("?" for _ in stores)
     cursor = con.execute(
-        f"""SELECT * FROM akcie
+        f"""SELECT rowid AS id, * FROM akcie
             WHERE tyzden=? AND obchod IN ({marks})
             ORDER BY cena""",
         (current_monday(today), *stores),
