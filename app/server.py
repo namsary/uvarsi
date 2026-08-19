@@ -8,6 +8,7 @@ týždenného plánu z databázy akcií (naplní ju zbierac_akcii.py raz týžde
 Beh:  /opt/uvarsi/venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8090
 Závislosti: fastapi uvicorn itsdangerous
 """
+import asyncio
 import os, re, json, sqlite3, datetime, time
 from contextlib import closing
 
@@ -23,13 +24,17 @@ from auth_data import (
     ClientIpRateLimiter,
     DeliveryError,
     EmailCooldown,
+    EmailRequestInProgress,
     MagicTokenExpired,
     MagicTokenInvalid,
+    ReservationInvalid,
+    cancel_magic_token_reservation,
     consume_magic_token,
     delete_session,
-    issue_magic_token,
     migrate_auth_schema,
     normalize_email,
+    promote_magic_token,
+    reserve_magic_token,
     send_resend_message,
     user_for_session,
 )
@@ -42,7 +47,10 @@ ENV_FILE = "/opt/uvarsi/uvarsi.env"
 COOKIE = "uvarsi_session"
 SESSION_MAX_AGE = 30 * 24 * 60 * 60
 AUTH_CLOCK = time.time
-IP_REQUEST_LIMITER = ClientIpRateLimiter(max_requests=5, window_seconds=10 * 60)
+# Single-worker beta guard only; the deployed edge still needs a shared limiter.
+IP_REQUEST_LIMITER = ClientIpRateLimiter(
+    max_requests=5, window_seconds=10 * 60, max_clients=10_000
+)
 
 AUTH_SUCCESS_MESSAGE = (
     "Poskytovateľ prijal žiadosť o prihlasovací e-mail. "
@@ -158,10 +166,12 @@ async def auth_request(req: Request):
     client_ip = req.client.host if req.client else "unknown"
     if not IP_REQUEST_LIMITER.allow(client_ip, now):
         raise HTTPException(429, "Priveľa pokusov. Skús to znova o 10 minút.")
-    data = await req.json()
     try:
+        data = await req.json()
+        if not isinstance(data, dict):
+            raise ValueError("JSON body must be an object")
         email = normalize_email(data.get("email"))
-    except ValueError:
+    except (ValueError, UnicodeDecodeError):
         raise HTTPException(400, "Zadaj platnú e-mailovú adresu.")
 
     def deliver(tok):
@@ -190,11 +200,27 @@ background:#FFFCF5;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#1
 
     try:
         with closing(db()) as con:
-            issue_magic_token(con, email=email, now=now, deliver=deliver)
-    except EmailCooldown:
+            reservation = reserve_magic_token(con, email=email, now=now)
+    except (EmailCooldown, EmailRequestInProgress):
         raise HTTPException(429, "Nový odkaz môžeš vyžiadať po 60 sekundách.")
-    except DeliveryError:
+
+    try:
+        accepted = await asyncio.to_thread(deliver, reservation.raw_token)
+        with closing(db()) as con:
+            promote_magic_token(
+                con,
+                reservation=reservation,
+                now=AUTH_CLOCK(),
+                accepted=accepted,
+            )
+    except (DeliveryError, ReservationInvalid):
+        with closing(db()) as con:
+            cancel_magic_token_reservation(con, reservation)
         raise HTTPException(503, AUTH_PROVIDER_FAILURE_MESSAGE)
+    except BaseException:
+        with closing(db()) as con:
+            cancel_magic_token_reservation(con, reservation)
+        raise
     return {"ok": True, "message": AUTH_SUCCESS_MESSAGE}
 
 

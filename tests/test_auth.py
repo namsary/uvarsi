@@ -1,12 +1,15 @@
+import asyncio
 import hashlib
 import importlib
 import re
 import sqlite3
 import sys
+import threading
 import types
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -121,6 +124,31 @@ def test_resend_non_2xx_returns_truthful_503_without_printing_provider_body(caps
     assert "https://uvar.si/prihlasenie" not in captured.out + captured.err
 
 
+@pytest.mark.parametrize("redirect_status", [301, 302, 307, 308])
+def test_resend_never_follows_redirect_with_token_bearing_body(
+    capsys, monkeypatch, tmp_path, redirect_status
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    forwarded_payloads = []
+
+    def post(url, **kwargs):
+        if kwargs.get("allow_redirects", True):
+            forwarded_payloads.append(kwargs["json"])
+            return ProviderResponse(status_code=202)
+        return ProviderResponse(status_code=redirect_status)
+
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
+
+    response = request_link(server)
+
+    captured = capsys.readouterr()
+    assert response.status_code == 503
+    assert response.json()["detail"] == PROVIDER_FAILURE_MESSAGE
+    assert forwarded_payloads == []
+    assert "https://uvar.si/prihlasenie" not in captured.out + captured.err
+
+
 def test_malformed_resend_success_response_returns_truthful_503(monkeypatch, tmp_path):
     server, _ = load_auth_server(monkeypatch, tmp_path)
     monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
@@ -199,6 +227,55 @@ def test_email_validation_uses_the_full_normalized_address(monkeypatch, tmp_path
     assert calls == []
 
 
+def test_malformed_json_body_returns_the_same_safe_400(monkeypatch, tmp_path):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    response = TestClient(server.app, raise_server_exceptions=False).post(
+        "/api/auth/request",
+        content="{",
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Zadaj platnú e-mailovú adresu."
+
+
+@pytest.mark.parametrize("body", [[], ["cook@example.com"], "cook@example.com", 7, None])
+def test_non_object_json_body_returns_the_same_safe_400(monkeypatch, tmp_path, body):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    response = TestClient(server.app, raise_server_exceptions=False).post(
+        "/api/auth/request", json=body
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Zadaj platnú e-mailovú adresu."
+
+
+@pytest.mark.parametrize(
+    "email, expected_status",
+    [
+        ("a" * 64 + "@example.com", 200),
+        ("a" * 65 + "@example.com", 400),
+        ("a" * 64 + "@" + "b" * 63 + "." + "c" * 63 + "." + "d" * 61, 200),
+        ("a" * 64 + "@" + "b" * 63 + "." + "c" * 63 + "." + "d" * 62, 400),
+        ("user@" + "a" * 63 + ".com", 200),
+        ("user@" + "a" * 64 + ".com", 400),
+        ("user@example..com", 400),
+        ("tést@example.com", 400),
+        ("test@exämple.com", 400),
+    ],
+)
+def test_ascii_email_length_and_label_boundaries(monkeypatch, tmp_path, email, expected_status):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    calls = []
+    install_provider(monkeypatch, calls=calls)
+
+    response = request_link(server, email)
+
+    assert response.status_code == expected_status
+    assert len(calls) == (1 if expected_status == 200 else 0)
+
+
 def test_failed_resend_preserves_the_older_unexpired_token(monkeypatch, tmp_path):
     server, database = load_auth_server(monkeypatch, tmp_path)
     monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
@@ -216,7 +293,169 @@ def test_failed_resend_preserves_the_older_unexpired_token(monkeypatch, tmp_path
     assert response.status_code == 503
     with sqlite3.connect(database) as con:
         rows = con.execute("SELECT token_hash, email FROM magic_tokens_v2").fetchall()
+        reservations = con.execute("SELECT COUNT(*) FROM magic_token_reservations").fetchone()[0]
     assert rows == [(hashlib.sha256(first_token.encode()).hexdigest(), "cook@example.com")]
+    assert reservations == 0
+
+
+def test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_800_000_000.0)
+    entered = threading.Event()
+    release = threading.Event()
+    calls = []
+
+    def post(url, **kwargs):
+        calls.append((url, kwargs))
+        entered.set()
+        if not release.wait(2):
+            raise TimeoutError("test provider was not released")
+        return ProviderResponse()
+
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        request = pool.submit(request_link, server)
+        assert entered.wait(1), "provider was not reached"
+        try:
+            with sqlite3.connect(database, timeout=0.05) as con:
+                con.execute("INSERT INTO pouzivatelia (email) VALUES ('unrelated@example.com')")
+                con.commit()
+                reservation = con.execute(
+                    "SELECT email, token_hash FROM magic_token_reservations"
+                ).fetchone()
+            raw_token = outbound_token(calls)
+            assert reservation == (
+                "cook@example.com",
+                hashlib.sha256(raw_token.encode()).hexdigest(),
+            )
+            assert raw_token not in repr(reservation)
+        finally:
+            release.set()
+        response = request.result(timeout=2)
+
+    assert response.status_code == 200
+
+
+def test_paused_provider_does_not_delay_async_event_loop_heartbeat(monkeypatch, tmp_path):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_800_000_000.0)
+    entered = threading.Event()
+    release = threading.Event()
+    provider_timed_out = threading.Event()
+
+    def post(url, **kwargs):
+        entered.set()
+        if not release.wait(1):
+            provider_timed_out.set()
+        return ProviderResponse()
+
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
+
+    async def scenario():
+        transport = httpx.ASGITransport(app=server.app)
+        async with httpx.AsyncClient(transport=transport, base_url="https://testserver") as client:
+            request = asyncio.create_task(
+                client.post("/api/auth/request", json={"email": "cook@example.com"})
+            )
+            assert await asyncio.to_thread(entered.wait, 2)
+            heartbeat = asyncio.Event()
+            asyncio.get_running_loop().call_soon(heartbeat.set)
+            await asyncio.wait_for(heartbeat.wait(), timeout=0.2)
+            assert not provider_timed_out.is_set()
+            release.set()
+            return await request
+
+    try:
+        response = asyncio.run(scenario())
+    finally:
+        release.set()
+
+    assert response.status_code == 200
+
+
+def test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_800_000_000.0)
+    entered = threading.Event()
+    release = threading.Event()
+    second_done = threading.Event()
+    calls = []
+
+    def post(url, **kwargs):
+        calls.append((url, kwargs))
+        entered.set()
+        if not release.wait(2):
+            raise TimeoutError("test provider was not released")
+        return ProviderResponse()
+
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(request_link, server)
+        assert entered.wait(1), "first provider call was not reached"
+        second = pool.submit(request_link, server, "COOK@example.com")
+        second.add_done_callback(lambda _: second_done.set())
+        try:
+            assert second_done.wait(1), "second request waited for provider I/O"
+            second_response = second.result()
+            assert second_response.status_code == 429
+        finally:
+            release.set()
+        first_response = first.result(timeout=2)
+
+    assert first_response.status_code == 200
+    assert len(calls) == 1
+
+
+def test_cancelled_request_removes_only_its_pending_reservation(monkeypatch, tmp_path):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_800_000_000.0)
+    entered = threading.Event()
+    release = threading.Event()
+
+    def post(url, **kwargs):
+        entered.set()
+        release.wait(1)
+        return ProviderResponse()
+
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
+
+    async def scenario():
+        transport = httpx.ASGITransport(app=server.app)
+        async with httpx.AsyncClient(transport=transport, base_url="https://testserver") as client:
+            request = asyncio.create_task(
+                client.post("/api/auth/request", json={"email": "cook@example.com"})
+            )
+            assert await asyncio.to_thread(entered.wait, 2)
+            request.cancel()
+            try:
+                await request
+            except asyncio.CancelledError:
+                cancelled = True
+            else:
+                cancelled = False
+            with sqlite3.connect(database) as con:
+                reservations = con.execute(
+                    "SELECT COUNT(*) FROM magic_token_reservations"
+                ).fetchone()[0]
+                active_tokens = con.execute("SELECT COUNT(*) FROM magic_tokens_v2").fetchone()[0]
+            return cancelled, reservations, active_tokens
+
+    try:
+        cancelled, reservations, active_tokens = asyncio.run(scenario())
+    finally:
+        release.set()
+
+    assert cancelled
+    assert reservations == 0
+    assert active_tokens == 0
 
 
 def test_successful_resend_invalidates_the_prior_token(monkeypatch, tmp_path):
@@ -267,6 +506,34 @@ def test_normalized_email_has_a_db_backed_60_second_cooldown(monkeypatch, tmp_pa
     assert cooldown == [("cook@example.com", 1_800_000_060.0)]
 
 
+def test_stale_reservations_are_pruned_even_when_current_email_is_on_cooldown(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_800_000_000.0)
+    with server.db() as con:
+        con.execute(
+            """INSERT INTO magic_token_reservations
+               (email, reservation_id, token_hash, expires_at, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            ("stale@example.com", "reservation_stale", "a" * 64, 1_799_999_999.0, 0),
+        )
+        con.execute(
+            "INSERT INTO auth_email_cooldowns (email, sent_at) VALUES (?, ?)",
+            ("cooldown@example.com", 1_800_000_000.0),
+        )
+        con.commit()
+
+    response = request_link(server, "cooldown@example.com")
+
+    assert response.status_code == 429
+    with sqlite3.connect(database) as con:
+        stale_count = con.execute(
+            "SELECT COUNT(*) FROM magic_token_reservations WHERE email='stale@example.com'"
+        ).fetchone()[0]
+    assert stale_count == 0
+
+
 def test_client_ip_is_limited_to_five_requests_per_ten_minutes(monkeypatch, tmp_path):
     server, _ = load_auth_server(monkeypatch, tmp_path)
     monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
@@ -289,6 +556,29 @@ def test_client_ip_is_limited_to_five_requests_per_ten_minutes(monkeypatch, tmp_
     assert limited.status_code == 429
     assert limited.json()["detail"] == "Priveľa pokusov. Skús to znova o 10 minút."
     assert len(calls) == 5
+
+
+def test_ip_limiter_globally_prunes_expired_clients_before_applying_cardinality_bound(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    limiter = server.ClientIpRateLimiter(max_requests=1, window_seconds=10, max_clients=2)
+
+    assert limiter.allow("198.51.100.1", 0)
+    assert limiter.allow("198.51.100.2", 0)
+    assert not limiter.allow("198.51.100.3", 0)
+    assert limiter.allow("198.51.100.3", 10)
+    assert limiter.allow("198.51.100.1", 10)
+
+
+def test_ip_limiter_rolls_each_client_window_at_exact_boundary(monkeypatch, tmp_path):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    limiter = server.ClientIpRateLimiter(max_requests=2, window_seconds=600, max_clients=10)
+
+    assert limiter.allow("198.51.100.1", 0)
+    assert limiter.allow("198.51.100.1", 0)
+    assert not limiter.allow("198.51.100.1", 599.999)
+    assert limiter.allow("198.51.100.1", 600)
 
 
 def test_auth_request_response_does_not_enumerate_existing_accounts(monkeypatch, tmp_path):

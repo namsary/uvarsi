@@ -134,11 +134,16 @@ function shoppingQuantityLabel(item) {
   return quantity && unit ? String(quantity) + ' × ' + String(unit) : '';
 }
 
-function handleApiUnauthorized(response) {
-  if (!response || response.status !== 401) return false;
+function clearAuthenticatedState() {
   ME = null;
   PLAN = null;
   DONE = {};
+  $('#hdr').textContent = '';
+}
+
+function handleApiUnauthorized(response) {
+  if (!response || response.status !== 401) return false;
+  clearAuthenticatedState();
   viewLogin();
   return true;
 }
@@ -166,6 +171,7 @@ function armAuthResend(button, schedule) {
 }
 
 function viewLogin(sent, previousEmail) {
+  clearAuthenticatedState();
   $('#nav').classList.add('hidden');
   M.innerHTML = sent ? `
     <div class="card center" style="margin-top:40px">

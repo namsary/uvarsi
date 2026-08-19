@@ -49,16 +49,22 @@ def test_shopping_quantity_label_combines_quantity_with_verified_unit(tmp_path):
 
 def test_later_api_401_clears_user_state_and_returns_to_login(tmp_path):
     html = Path("app/static/app.html").read_text(encoding="utf-8")
+    clear_match = re.search(r"function clearAuthenticatedState\(\) \{.*?\n\}", html, re.S)
+    assert clear_match, "all login transitions must clear authenticated visible state"
     match = re.search(r"function handleApiUnauthorized\(response\) \{.*?\n\}", html, re.S)
     assert match, "the shared API wrapper must expose its 401 state transition"
     script = tmp_path / "api-401-contract.js"
     script.write_text(
         "var ME={id:7}, PLAN={tyzden:'2026-08-17'}, DONE={'0-0':true}, loginCalls=0;\n"
+        + "var header={textContent:'cook'};\n"
+        + "function $(selector){if(selector==='#hdr')return header;throw new Error(selector);}\n"
         + "function viewLogin(){loginCalls++;}\n"
+        + clear_match.group(0)
+        + "\n"
         + match.group(0)
         + "\nif (handleApiUnauthorized({status:500}) !== false) WScript.Quit(1);\n"
         + "if (handleApiUnauthorized({status:401}) !== true) WScript.Quit(2);\n"
-        + "if (ME !== null || PLAN !== null || loginCalls !== 1) WScript.Quit(3);\n"
+        + "if (ME !== null || PLAN !== null || loginCalls !== 1 || header.textContent !== '') WScript.Quit(3);\n"
         + "for (var key in DONE) WScript.Quit(4);\n"
         + "WScript.Quit(0);\n",
         encoding="utf-8",
@@ -69,6 +75,7 @@ def test_later_api_401_clears_user_state_and_returns_to_login(tmp_path):
     assert result.returncode == 0, result.stderr
     assert "handleApiUnauthorized(r)" in html
     assert "if (e.authRequired) return" in html
+    assert "function viewLogin(sent, previousEmail) {\n  clearAuthenticatedState();" in html
 
 
 def test_resend_control_unlocks_after_exact_cooldown_without_sleeping(tmp_path):

@@ -8,6 +8,7 @@ import threading
 
 
 MAGIC_TOKEN_TTL_SECONDS = 60 * 60
+MAGIC_RESERVATION_TTL_SECONDS = 5 * 60
 EMAIL_COOLDOWN_SECONDS = 60
 SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 
@@ -25,6 +26,13 @@ CREATE TABLE IF NOT EXISTS magic_tokens_v2 (
 );
 CREATE INDEX IF NOT EXISTS magic_tokens_v2_email_idx
   ON magic_tokens_v2(email);
+CREATE TABLE IF NOT EXISTS magic_token_reservations (
+  email TEXT PRIMARY KEY,
+  reservation_id TEXT UNIQUE NOT NULL,
+  token_hash TEXT UNIQUE NOT NULL,
+  expires_at REAL NOT NULL,
+  created_at REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS auth_email_cooldowns (
   email TEXT PRIMARY KEY,
   sent_at REAL NOT NULL
@@ -48,6 +56,14 @@ class EmailCooldown(RuntimeError):
     """A normalized address received an accepted message too recently."""
 
 
+class EmailRequestInProgress(RuntimeError):
+    """A normalized address already has an active provider request."""
+
+
+class ReservationInvalid(RuntimeError):
+    """A pending token reservation is missing, stale, or replaced."""
+
+
 class MagicTokenInvalid(RuntimeError):
     """A token is unknown or was already consumed."""
 
@@ -62,21 +78,37 @@ class DeliveryAccepted:
     request_id: str | None = None
 
 
-class ClientIpRateLimiter:
-    """Bound one-worker request bursts; proxy-edge rate limiting is still recommended."""
+@dataclass(frozen=True)
+class MagicTokenReservation:
+    email: str
+    reservation_id: str
+    token_hash: str
+    raw_token: str
 
-    def __init__(self, max_requests=5, window_seconds=10 * 60):
+
+class ClientIpRateLimiter:
+    """Bound one-worker beta memory/requests; shared proxy-edge limiting is still required."""
+
+    def __init__(self, max_requests=5, window_seconds=10 * 60, max_clients=10_000):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
+        self.max_clients = max_clients
         self._requests = {}
         self._lock = threading.Lock()
 
     def allow(self, client_ip: str, now: float) -> bool:
         cutoff = now - self.window_seconds
         with self._lock:
-            recent = [stamp for stamp in self._requests.get(client_ip, ()) if stamp > cutoff]
+            for tracked_ip, stamps in tuple(self._requests.items()):
+                active = [stamp for stamp in stamps if stamp > cutoff]
+                if active:
+                    self._requests[tracked_ip] = active
+                else:
+                    del self._requests[tracked_ip]
+            if client_ip not in self._requests and len(self._requests) >= self.max_clients:
+                return False
+            recent = self._requests.get(client_ip, [])
             if len(recent) >= self.max_requests:
-                self._requests[client_ip] = recent
                 return False
             recent.append(now)
             self._requests[client_ip] = recent
@@ -96,7 +128,18 @@ def normalize_email(value) -> str:
     if not isinstance(value, str):
         raise ValueError("invalid email")
     normalized = value.strip().lower()
-    if len(normalized) > 254 or _EMAIL.fullmatch(normalized) is None:
+    if not normalized.isascii() or len(normalized) > 254 or normalized.count("@") != 1:
+        raise ValueError("invalid email")
+    local_part, domain = normalized.split("@")
+    labels = domain.split(".")
+    if (
+        not local_part
+        or len(local_part) > 64
+        or not domain
+        or len(domain) > 253
+        or any(not label or len(label) > 63 for label in labels)
+        or _EMAIL.fullmatch(normalized) is None
+    ):
         raise ValueError("invalid email")
     return normalized
 
@@ -126,6 +169,7 @@ def send_resend_message(*, api_key, sender, recipient, subject, text, html):
                 "html": html,
             },
             timeout=20,
+            allow_redirects=False,
         )
     except Exception as exc:
         raise DeliveryError("provider unavailable") from exc
@@ -145,9 +189,17 @@ def send_resend_message(*, api_key, sender, recipient, subject, text, html):
     return DeliveryAccepted(provider_id=provider_id, request_id=request_id)
 
 
-def issue_magic_token(con, *, email: str, now: float, deliver):
-    """Publish one hashed token only after the provider accepts its raw link."""
+def reserve_magic_token(con, *, email: str, now: float) -> MagicTokenReservation:
+    """Commit a short-lived hashed reservation without touching an older active token."""
+    raw_token = secrets.token_urlsafe(32)
+    reservation = MagicTokenReservation(
+        email=email,
+        reservation_id=secrets.token_urlsafe(24),
+        token_hash=token_hash(raw_token),
+        raw_token=raw_token,
+    )
     con.execute("DELETE FROM magic_tokens_v2 WHERE expires_at <= ?", (now,))
+    con.execute("DELETE FROM magic_token_reservations WHERE expires_at <= ?", (now,))
     con.commit()
     con.execute("BEGIN IMMEDIATE")
     try:
@@ -156,26 +208,87 @@ def issue_magic_token(con, *, email: str, now: float, deliver):
         ).fetchone()
         if cooldown is not None and float(cooldown[0]) > now - EMAIL_COOLDOWN_SECONDS:
             raise EmailCooldown("email cooldown active")
-        raw_token = secrets.token_urlsafe(32)
-        accepted = deliver(raw_token)
-        if not isinstance(accepted, DeliveryAccepted):
-            raise DeliveryError("provider acceptance was not typed")
-        con.execute("DELETE FROM magic_tokens_v2 WHERE email=?", (email,))
+        if con.execute(
+            "SELECT 1 FROM magic_token_reservations WHERE email=?", (email,)
+        ).fetchone():
+            raise EmailRequestInProgress("email request in progress")
+        con.execute(
+            """INSERT INTO magic_token_reservations
+               (email, reservation_id, token_hash, expires_at, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (
+                email,
+                reservation.reservation_id,
+                reservation.token_hash,
+                now + MAGIC_RESERVATION_TTL_SECONDS,
+                now,
+            ),
+        )
+        con.commit()
+        return reservation
+    except Exception:
+        con.rollback()
+        raise
+
+
+def promote_magic_token(con, *, reservation: MagicTokenReservation, now: float, accepted):
+    """Atomically replace prior links only for the still-current accepted reservation."""
+    if not isinstance(accepted, DeliveryAccepted):
+        raise DeliveryError("provider acceptance was not typed")
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        pending = con.execute(
+            """SELECT 1 FROM magic_token_reservations
+               WHERE email=? AND reservation_id=? AND token_hash=? AND expires_at>?""",
+            (
+                reservation.email,
+                reservation.reservation_id,
+                reservation.token_hash,
+                now,
+            ),
+        ).fetchone()
+        if pending is None:
+            con.execute(
+                "DELETE FROM magic_token_reservations WHERE reservation_id=?",
+                (reservation.reservation_id,),
+            )
+            con.commit()
+            raise ReservationInvalid("reservation missing or stale")
+        con.execute("DELETE FROM magic_tokens_v2 WHERE email=?", (reservation.email,))
         con.execute(
             """INSERT INTO magic_tokens_v2
                (token_hash, email, expires_at, created_at) VALUES (?, ?, ?, ?)""",
-            (token_hash(raw_token), email, now + MAGIC_TOKEN_TTL_SECONDS, now),
+            (
+                reservation.token_hash,
+                reservation.email,
+                now + MAGIC_TOKEN_TTL_SECONDS,
+                now,
+            ),
         )
         con.execute(
             """INSERT INTO auth_email_cooldowns (email, sent_at) VALUES (?, ?)
                ON CONFLICT(email) DO UPDATE SET sent_at=excluded.sent_at""",
-            (email, now),
+            (reservation.email, now),
+        )
+        con.execute(
+            "DELETE FROM magic_token_reservations WHERE reservation_id=?",
+            (reservation.reservation_id,),
         )
         con.commit()
     except Exception:
-        con.rollback()
+        if con.in_transaction:
+            con.rollback()
         raise
-    return accepted
+
+
+def cancel_magic_token_reservation(con, reservation: MagicTokenReservation) -> None:
+    """Remove only the matching pending request; active links are never touched."""
+    con.execute(
+        """DELETE FROM magic_token_reservations
+           WHERE email=? AND reservation_id=? AND token_hash=?""",
+        (reservation.email, reservation.reservation_id, reservation.token_hash),
+    )
+    con.commit()
 
 
 def consume_magic_token(con, *, raw_token: str, now: float) -> str:
