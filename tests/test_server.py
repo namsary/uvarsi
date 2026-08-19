@@ -143,6 +143,65 @@ def test_plan_is_503_without_constructing_anthropic_when_current_week_offers_are
     assert constructors == []
 
 
+@pytest.mark.parametrize("offer_kind", ["expired", "legacy"])
+def test_cached_plan_is_503_when_current_week_has_no_verified_offers(monkeypatch, tmp_path, offer_kind):
+    today = date.today()
+    week = current_monday(today)
+    if offer_kind == "expired":
+        rows = [
+            (week, "Mlieko", "Lidl", 1.0, 1.5, "-33 %", "1 l", "mliecne",
+             "https://example.test/lidl.jpg", 1, (today - timedelta(days=7)).isoformat(),
+             (today - timedelta(days=1)).isoformat()),
+        ]
+    else:
+        rows = [(week, "Mlieko", "Lidl", 1.0, 1.5, "-33 %", "1 l", "mliecne")]
+
+    server = load_server(monkeypatch, tmp_path, rows)
+    with server.db() as con:
+        con.execute("INSERT INTO pouzivatelia (id, email, obchody) VALUES (1, 'test@uvar.si', 'Lidl')")
+        con.execute("INSERT INTO sedenia (token, user_id) VALUES ('session-token', 1)")
+        con.execute(
+            "INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)",
+            (1, week, '{"cached": true}'),
+        )
+        con.commit()
+
+    constructors = []
+
+    class ForbiddenAnthropic:
+        def __init__(self, *args, **kwargs):
+            constructors.append((args, kwargs))
+
+    monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace(Anthropic=ForbiddenAnthropic))
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "session-token")
+
+    response = client.post("/api/plan/generuj")
+
+    assert response.status_code == 503
+    assert constructors == []
+
+
+def test_offer_count_includes_only_current_verified_offers(monkeypatch, tmp_path):
+    today = date.today()
+    week = current_monday(today)
+    rows = [
+        (week, "Overené mlieko", "Lidl", 1.0, 1.5, "-33 %", "1 l", "mliecne",
+         "https://example.test/current.jpg", 1, (today - timedelta(days=1)).isoformat(),
+         (today + timedelta(days=1)).isoformat()),
+        (week, "Expirované mlieko", "Lidl", 1.0, 1.5, "-33 %", "1 l", "mliecne",
+         "https://example.test/expired.jpg", 2, (today - timedelta(days=8)).isoformat(),
+         (today - timedelta(days=1)).isoformat()),
+        (week, "Legacy mlieko", "Lidl", 1.0, 1.5, "-33 %", "1 l", "mliecne"),
+    ]
+    server = load_server(monkeypatch, tmp_path, rows)
+
+    response = TestClient(server.app).get("/api/akcie/pocet")
+
+    assert response.status_code == 200
+    assert response.json() == {"tyzden": week, "pocet": 1}
+
+
 def test_public_landing_serves_only_valid_current_data(monkeypatch, tmp_path):
     server = load_server(monkeypatch, tmp_path, [], landing_payload())
 

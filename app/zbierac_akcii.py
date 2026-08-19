@@ -10,13 +10,14 @@ neobmedzený počet používateľov.
 Zdroje strán letákov: kupino.sk (primárne), mletaky.sk (záložné).
 Beh:  /opt/uvarsi/venv/bin/python -u zbierac_akcii.py
 """
-import os, re, json, base64, datetime, sqlite3, requests
+import os, re, json, base64, datetime, hashlib, sqlite3, requests
 from io import BytesIO
+from urllib.parse import urlparse
 
 try:
-    from offer_data import migrate_akcie_schema, replace_store_week
+    from offer_data import migrate_akcie_schema, replace_store_week, validate_offer
 except ImportError:
-    from app.offer_data import migrate_akcie_schema, replace_store_week
+    from app.offer_data import migrate_akcie_schema, replace_store_week, validate_offer
 
 DB = os.environ.get("UVARSI_DB", "/opt/uvarsi/uvarsi.db")
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
@@ -27,8 +28,8 @@ READ_TOKENS = 16000
 MODEL_SCAN = "claude-haiku-4-5-20251001"     # lacné triedenie strán
 
 STORES = ["kaufland", "tesco", "lidl"]
-MAX_PAGES = 60
-FOOD_CAP = 14            # koľko potravinových strán na obchod čítať
+SCAN_BATCH_SIZE = 12
+READ_BATCH_SIZE = 4
 READ_PX = 1500
 SCAN_PX = 320
 SKIP_SLUG = ("nova-predajna", "brozura", "back-to-school", "special",
@@ -88,6 +89,32 @@ def monday():
 
 
 # ---------------------------------------------------------------- zdroje strán
+def parse_finite_validity(text):
+    if not isinstance(text, str):
+        raise ValueError("zdroj nemá konečnú platnosť")
+
+    iso = re.search(r"(\d{4}-\d{2}-\d{2}).{0,40}?(\d{4}-\d{2}-\d{2})", text)
+    european = re.search(
+        r"(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4}).{0,40}?"
+        r"(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})",
+        text,
+    )
+    try:
+        if iso:
+            valid_from = datetime.date.fromisoformat(iso.group(1))
+            valid_to = datetime.date.fromisoformat(iso.group(2))
+        elif european:
+            valid_from = datetime.date(int(european.group(3)), int(european.group(2)), int(european.group(1)))
+            valid_to = datetime.date(int(european.group(6)), int(european.group(5)), int(european.group(4)))
+        else:
+            raise ValueError("zdroj nemá konečnú platnosť")
+    except ValueError as exc:
+        raise ValueError("zdroj má nečitateľnú platnosť") from exc
+    if valid_from > valid_to:
+        raise ValueError("začiatok platnosti je po konci platnosti")
+    return valid_from.isoformat(), valid_to.isoformat()
+
+
 def kupino_meta(store):
     base = "https://www.kupino.sk"
     idx = requests.get(f"{base}/letaky/{store}", headers=H, timeout=20).text
@@ -98,7 +125,16 @@ def kupino_meta(store):
         return None
     pg = requests.get(f"{base}{slug}/strana-2", headers=H, timeout=20).text
     om = re.search(r'img\.kupino\.sk/letaky/(\d+)/thumbs/([a-z0-9-]+)-1_320\.jpg', pg)
-    return (om.group(1), om.group(2), slug) if om else None
+    if not om:
+        return None
+    valid_from, valid_to = parse_finite_validity(" ".join((slug, idx, pg)))
+    return {
+        "flyer_id": om.group(1),
+        "image_name": om.group(2),
+        "source_url": f"{base}{slug}",
+        "valid_from": valid_from,
+        "valid_to": valid_to,
+    }
 
 
 def mletaky_base(store):
@@ -109,59 +145,107 @@ def mletaky_base(store):
     for vto, vfrom, h in cands:
         try:
             d_from = datetime.datetime.strptime(vfrom, "%y%m%d").date()
+            d_to = datetime.datetime.strptime(vto, "%y%m%d").date()
         except ValueError:
             continue
-        if d_from <= today and (best is None or d_from > best[0]):
-            best = (d_from, f"https://app.mletaky.sk/{vto}_{vfrom}_{store}_{h}")
-    return best[1] if best else None
+        if d_from > d_to:
+            continue
+        if d_from <= today and (best is None or d_from > best["sort_date"]):
+            best = {
+                "sort_date": d_from,
+                "source_url": f"https://app.mletaky.sk/{vto}_{vfrom}_{store}_{h}",
+                "valid_from": d_from.isoformat(),
+                "valid_to": d_to.isoformat(),
+            }
+    if best:
+        best.pop("sort_date")
+    return best
 
 
 def page_exists(url):
     try:
         r = requests.get(url, headers=H, timeout=25, stream=True, allow_redirects=False)
         ok = r.status_code == 200 and r.headers.get("content-type", "").startswith("image")
+        marker = hashlib.sha256(r.content).hexdigest() if ok else None
         r.close()
-        return ok
+        return marker
     except Exception:
-        return False
+        return None
+
+
+def _page_marker(marker, url):
+    return url if marker is True else marker
+
+
+def _manifest(source, page_rows):
+    return {
+        "source_url": source["source_url"],
+        "valid_from": source["valid_from"],
+        "valid_to": source["valid_to"],
+        "pages": page_rows,
+    }
 
 
 def store_pages(store):
-    """(list[(thumb|None, full)], popis_zdroja)"""
+    """Return all sequential pages plus their exact finite-validity manifest."""
     try:
         meta = kupino_meta(store)
     except Exception as e:
         log(f"[WARN] {store}: kupino zlyhalo ({e})")
         meta = None
     if meta:
-        lid, name, slug = meta
-        pages = []
-        for n in range(1, MAX_PAGES + 1):
+        if isinstance(meta, tuple):
+            lid, name, slug = meta
+            valid_from, valid_to = parse_finite_validity(slug)
+            meta = {
+                "flyer_id": lid,
+                "image_name": name,
+                "source_url": f"https://www.kupino.sk{slug}",
+                "valid_from": valid_from,
+                "valid_to": valid_to,
+            }
+        lid, name = meta["flyer_id"], meta["image_name"]
+        pages, page_rows, seen, n = [], [], set(), 1
+        while True:
             t = f"https://img.kupino.sk/letaky/{lid}/thumbs/{name}-{n}_320.jpg"
-            if page_exists(t):
-                pages.append((t, f"https://img.kupino.sk/letaky/{lid}/{name}-{n}.jpg"))
-            else:
+            marker = page_exists(t)
+            if not marker:
                 break
+            marker = _page_marker(marker, t)
+            if marker in seen:
+                break
+            seen.add(marker)
+            full = f"https://img.kupino.sk/letaky/{lid}/{name}-{n}.jpg"
+            pages.append((t, full))
+            page_rows.append({"source_page": n, "thumbnail_url": t, "image_url": full})
+            n += 1
         if pages:
-            return pages, f"kupino{slug}"
+            return pages, _manifest(meta, page_rows)
     try:
         base = mletaky_base(store)
     except Exception as e:
         log(f"[WARN] {store}: mletaky zlyhalo ({e})")
         base = None
     if base:
-        pages, misses = [], 0
-        for n in range(0, MAX_PAGES + 1):
-            u = f"{base}/image{n:02d}.webp"
-            if page_exists(u):
+        pages, page_rows, seen, misses, n = [], [], set(), 0, 0
+        while True:
+            u = f"{base['source_url']}/image{n:02d}.webp"
+            marker = page_exists(u)
+            if marker:
+                marker = _page_marker(marker, u)
+                if marker in seen:
+                    break
+                seen.add(marker)
                 pages.append((None, u))
+                page_rows.append({"source_page": n + 1, "thumbnail_url": None, "image_url": u})
                 misses = 0
             else:
                 misses += 1
-                if misses >= 2 and pages:
+                if misses >= 2:
                     break
+            n += 1
         if pages:
-            return pages, f"mletaky/{base.rsplit('/', 1)[-1]}"
+            return pages, _manifest(base, page_rows)
     return [], None
 
 
@@ -183,6 +267,47 @@ def get_b64(url, max_px):
 def img_block(b):
     return {"type": "image", "source": {
         "type": "base64", "media_type": "image/jpeg", "data": b}}
+
+
+def validate_flyer_manifest(pages, manifest):
+    if not pages or not isinstance(manifest, dict):
+        raise ValueError("leták nemá úplný manifest")
+    source_url = manifest.get("source_url")
+    if not isinstance(source_url, str) or not source_url or source_url != source_url.strip():
+        raise ValueError("manifest nemá presnú URL zdroja")
+    parsed_url = urlparse(source_url)
+    if parsed_url.scheme not in ("http", "https") or not parsed_url.netloc:
+        raise ValueError("manifest nemá presnú URL zdroja")
+
+    valid_from = manifest.get("valid_from")
+    valid_to = manifest.get("valid_to")
+    try:
+        from_date = datetime.date.fromisoformat(valid_from)
+        to_date = datetime.date.fromisoformat(valid_to)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("manifest nemá čitateľnú konečnú platnosť") from exc
+    if valid_from != from_date.isoformat() or valid_to != to_date.isoformat() or from_date > to_date:
+        raise ValueError("manifest nemá čitateľnú konečnú platnosť")
+
+    page_rows = manifest.get("pages")
+    if not isinstance(page_rows, list) or len(page_rows) != len(pages):
+        raise ValueError("manifest nepokrýva všetky strany")
+    seen = set()
+    for page, urls in zip(page_rows, pages):
+        source_page = page.get("source_page") if isinstance(page, dict) else None
+        if isinstance(source_page, bool) or not isinstance(source_page, int) or source_page <= 0:
+            raise ValueError("manifest má neplatné číslo strany")
+        if source_page in seen:
+            raise ValueError("manifest opakuje číslo strany")
+        if page.get("thumbnail_url") != urls[0] or page.get("image_url") != urls[1]:
+            raise ValueError("manifest nesedí so zdrojovými obrázkami")
+        seen.add(source_page)
+    return {page["source_page"]: page for page in page_rows}
+
+
+def batches(items, size):
+    for start in range(0, len(items), size):
+        yield items[start:start + size]
 
 
 # ---------------------------------------------------------------- Claude
@@ -213,8 +338,9 @@ Formát: [1,2,5,6]"""
 
 EXTRACT_PROMPT = """Toto sú potravinové strany letáku obchodu {store}. Vypíš VŠETKY \
 potraviny s uvedenou cenou, ktoré na stranách vidíš. Vráť IBA čistý JSON pole:
-[{{"nazov":"Bravčové plecko","kategoria":"maso","cena":2.15,"povodna":4.49,"zlava":"−52 %","jednotka":"kg"}}]
+[{{"source_page":12,"nazov":"Bravčové plecko","kategoria":"maso","cena":2.15,"povodna":4.49,"zlava":"−52 %","jednotka":"kg"}}]
 Pravidlá:
+- source_page = presné číslo označené pri obrázku; každá položka ho MUSÍ zopakovať
 - kategoria: jedno z maso|zelenina|ovocie|mliecne|trvanlive|pecivo|ine
 - cena = cena na cenovke ako číslo s bodkou; povodna = pôvodná cena (ak nie je, daj null)
 - zlava: "−52 %" alebo "1+1" alebo null (ak zľava nie je uvedená)
@@ -233,68 +359,90 @@ Sú to najdôležitejšie suroviny na varenie.
 
 
 def zbieraj(client, store):
-    pages, src = store_pages(store)
+    pages, manifest = store_pages(store)
     if not pages:
-        log(f"[WARN] {store}: leták nenájdený")
-        return []
+        raise ValueError(f"{store}: leták s konečnou platnosťou nebol nájdený")
+    page_manifest = validate_flyer_manifest(pages, manifest)
+
     # 1) lacný sken náhľadov → ktoré strany sú potravinové
     thumbs = []
-    for i, (turl, furl) in enumerate(pages, start=1):
+    for source_page, page in page_manifest.items():
         try:
-            b = get_b64(turl or furl, SCAN_PX)
-        except Exception:
-            b = None
-        if b:
-            thumbs.append((i, b))
-    log(f"[INFO] {store}: {len(thumbs)} strán ({src}), skenujem…")
-    if not thumbs:
-        return []
-    content = []
-    for n, b in thumbs:
-        content.append({"type": "text", "text": f"Strana {n}:"})
-        content.append(img_block(b))
-    content.append({"type": "text", "text": SCAN_PROMPT})
-    try:
-        food = [n for n in claude_json(client, MODEL_SCAN, content, 500)
-                if 1 <= n <= len(pages)]
-    except Exception as e:
-        log(f"[WARN] {store}: sken zlyhal ({e}) — beriem prvých {FOOD_CAP}")
-        food = [t[0] for t in thumbs][:FOOD_CAP]
-    if len(food) > FOOD_CAP:                     # rovnomerná vzorka naprieč letákom
-        step = len(food) / FOOD_CAP
-        food = [food[int(i * step)] for i in range(FOOD_CAP)]
+            encoded = get_b64(page["thumbnail_url"] or page["image_url"], SCAN_PX)
+        except Exception as exc:
+            raise ValueError(f"{store}: náhľad strany {source_page} sa nepodarilo načítať") from exc
+        if not encoded:
+            raise ValueError(f"{store}: náhľad strany {source_page} sa nepodarilo načítať")
+        thumbs.append((source_page, encoded))
+    log(f"[INFO] {store}: {len(thumbs)} strán ({manifest['source_url']}), skenujem…")
+
+    food = set()
+    for batch in batches(thumbs, SCAN_BATCH_SIZE):
+        content = []
+        batch_pages = {source_page for source_page, _ in batch}
+        for source_page, encoded in batch:
+            content.append({"type": "text", "text": f"Strana {source_page}:"})
+            content.append(img_block(encoded))
+        content.append({"type": "text", "text": SCAN_PROMPT})
+        try:
+            selected = claude_json(client, MODEL_SCAN, content, 500)
+        except Exception as exc:
+            raise ValueError(f"{store}: sken strán zlyhal") from exc
+        if not isinstance(selected, list):
+            raise ValueError(f"{store}: sken nevrátil zoznam strán")
+        for source_page in selected:
+            if isinstance(source_page, bool) or not isinstance(source_page, int) or source_page not in batch_pages:
+                raise ValueError(f"{store}: sken vrátil neznámu stranu")
+            food.add(source_page)
+    food = sorted(food)
+    if not food:
+        raise ValueError(f"{store}: v letáku neboli potvrdené potravinové strany")
     log(f"[INFO] {store}: potravinové strany {food} — čítam…")
 
     # 2) presné čítanie cien (Opus 5 vision)
-    content = []
-    for n in food:
-        try:
-            b = get_b64(pages[n - 1][1], READ_PX)
-        except Exception:
-            b = None
-        if b:
-            content.append(img_block(b))
-    if not content:
-        return []
-    content.append({"type": "text", "text": EXTRACT_PROMPT.format(store=store.upper())})
-    try:
-        items = claude_json(client, MODEL_READ, content, READ_TOKENS, effort=READ_EFFORT)
-    except Exception as e:
-        log(f"[WARN] {store}: extrakcia zlyhala ({e})")
-        return []
     out = []
-    for it in items:
-        if not it.get("nazov") or it.get("cena") is None:
-            continue
-        out.append({
-            "obchod": store.capitalize(),
-            "nazov": str(it["nazov"])[:40],
-            "kategoria": (it.get("kategoria") or "ine")[:20],
-            "cena": float(it["cena"]),
-            "povodna": float(it["povodna"]) if it.get("povodna") else None,
-            "zlava": it.get("zlava"),
-            "jednotka": (it.get("jednotka") or "")[:12],
-        })
+    for batch_pages in batches(food, READ_BATCH_SIZE):
+        content = []
+        for source_page in batch_pages:
+            try:
+                encoded = get_b64(page_manifest[source_page]["image_url"], READ_PX)
+            except Exception as exc:
+                raise ValueError(f"{store}: strana {source_page} sa nepodarilo načítať") from exc
+            if not encoded:
+                raise ValueError(f"{store}: strana {source_page} sa nepodarilo načítať")
+            content.append({"type": "text", "text": f"Zdrojová strana {source_page}:"})
+            content.append(img_block(encoded))
+        content.append({"type": "text", "text": EXTRACT_PROMPT.format(store=store.upper())})
+        try:
+            items = claude_json(client, MODEL_READ, content, READ_TOKENS, effort=READ_EFFORT)
+        except Exception as exc:
+            raise ValueError(f"{store}: extrakcia strán zlyhala") from exc
+        if not isinstance(items, list):
+            raise ValueError(f"{store}: extrakcia nevrátila zoznam akcií")
+        for item in items:
+            source_page = item.get("source_page") if isinstance(item, dict) else None
+            if source_page not in batch_pages:
+                raise ValueError(f"{store}: akcia odkazuje na nevybranú zdrojovú stranu")
+            try:
+                offer = {
+                    "obchod": store.capitalize(),
+                    "nazov": str(item["nazov"])[:40],
+                    "kategoria": (item.get("kategoria") or "ine")[:20],
+                    "cena": float(item["cena"]),
+                    "povodna": float(item["povodna"]) if item.get("povodna") is not None else None,
+                    "zlava": item.get("zlava"),
+                    "jednotka": (item.get("jednotka") or "")[:12],
+                    "source_url": manifest["source_url"],
+                    "source_page": source_page,
+                    "valid_from": manifest["valid_from"],
+                    "valid_to": manifest["valid_to"],
+                }
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError(f"{store}: extrakcia obsahuje neplatnú akciu") from exc
+            validate_offer(offer)
+            out.append(offer)
+    if not out:
+        raise ValueError(f"{store}: extrakcia nevrátila žiadne overené akcie")
     log(f"[INFO] {store}: {len(out)} akcií")
     return out
 
@@ -304,19 +452,22 @@ def main():
     client = anthropic.Anthropic(api_key=load_key(), timeout=180.0, max_retries=1)
     tyz = monday()
     con = db()
-    total = 0
-    for store in STORES:
-        akcie = zbieraj(client, store)
-        if not akcie:
-            continue
-        try:
-            replace_store_week(con, tyz, store.capitalize(), akcie)
-        except ValueError as e:
-            log(f"[WARN] {store}: neoverené akcie neboli uložené ({e})")
-            continue
-        total += len(akcie)
-    n = con.execute("SELECT COUNT(*) c FROM akcie WHERE tyzden=?", (tyz,)).fetchone()["c"]
-    con.close()
+    total, failures = 0, []
+    try:
+        for store in STORES:
+            try:
+                akcie = zbieraj(client, store)
+                replace_store_week(con, tyz, store.capitalize(), akcie)
+            except Exception as exc:
+                failures.append(store)
+                log(f"[ERROR] {store}: zber zlyhal ({exc})")
+                continue
+            total += len(akcie)
+        n = con.execute("SELECT COUNT(*) c FROM akcie WHERE tyzden=?", (tyz,)).fetchone()["c"]
+    finally:
+        con.close()
+    if failures:
+        raise SystemExit(f"Zber zlyhal pre obchody: {', '.join(failures)}")
     log(f"[OK] Týždeň {tyz}: uložených {total} akcií (v DB spolu {n}).")
     if n < 20:
         raise SystemExit("Málo akcií — niečo je zle.")

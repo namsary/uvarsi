@@ -302,6 +302,11 @@ def akcie_pre(obchody, limit=140):
 def generuj_plan(req: Request, force: int = 0):
     u = require_user(req)
     tyz = monday()
+    obchody = u["obchody"].split(",")
+    rows = akcie_pre(obchody)
+    if len(rows) < 15:
+        raise HTTPException(503, "Aktuálne letákové dáta sa obnovujú. Skús to o chvíľu.")
+
     with closing(db()) as con:
         if not force:
             r = con.execute("SELECT json FROM plany WHERE user_id=? AND tyzden=?",
@@ -310,11 +315,6 @@ def generuj_plan(req: Request, force: int = 0):
                 return json.loads(r["json"])
         sp = [x["nazov"] for x in con.execute(
             "SELECT nazov FROM spajza WHERE user_id=?", (u["id"],))]
-
-    obchody = u["obchody"].split(",")
-    rows = akcie_pre(obchody)
-    if len(rows) < 15:
-        raise HTTPException(503, "Aktuálne letákové dáta sa obnovujú. Skús to o chvíľu.")
 
     zoznam = "\n".join(
         f"- {r['nazov']} | {r['obchod']} | {r['cena']:.2f} € | "
@@ -357,10 +357,10 @@ def daj_plan(req: Request):
 
 @app.get("/api/akcie/pocet")
 def pocet_akcii():
+    today = datetime.date.today()
     with closing(db()) as con:
-        r = con.execute("SELECT COUNT(*) c FROM akcie WHERE tyzden=?",
-                        (monday(),)).fetchone()
-    return {"tyzden": monday(), "pocet": r["c"]}
+        rows = offers_for_current_week(con, ["Kaufland", "Tesco", "Lidl"], today)
+    return {"tyzden": monday(today), "pocet": len(rows)}
 
 
 @app.get("/api/public/landing")

@@ -32,8 +32,10 @@ def legacy_connection():
             tyzden TEXT NOT NULL,
             obchod TEXT NOT NULL,
             nazov TEXT NOT NULL,
+            kategoria TEXT,
             cena REAL,
             povodna REAL,
+            zlava TEXT,
             jednotka TEXT
         )"""
     )
@@ -104,4 +106,31 @@ def test_invalid_replacement_leaves_previous_store_week_rows_untouched():
         )
 
     rows = con.execute("SELECT nazov FROM akcie WHERE tyzden=? AND obchod=?", ("2026-08-17", "Lidl")).fetchall()
+    assert rows == [("Predchádzajúce mlieko",)]
+
+
+def test_autocommit_insertion_failure_restores_previous_store_week_rows():
+    con = legacy_connection()
+    migrate_akcie_schema(con)
+    con.execute(
+        """INSERT INTO akcie
+           (tyzden, obchod, nazov, cena, povodna, jednotka, source_url, source_page, valid_from, valid_to)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        ("2026-08-17", "Lidl", "Predchádzajúce mlieko", 1.19, 1.49, "1 l",
+         "https://example.test/old.jpg", 1, "2026-08-17", "2026-08-23"),
+    )
+    con.execute(
+        """CREATE TRIGGER reject_new_offer
+           BEFORE INSERT ON akcie WHEN NEW.nazov = 'Nové mlieko'
+           BEGIN SELECT RAISE(FAIL, 'simulated insertion failure'); END"""
+    )
+    con.isolation_level = None
+
+    with pytest.raises(sqlite3.IntegrityError, match="simulated insertion failure"):
+        replace_store_week(con, "2026-08-17", "Lidl", [valid_offer(nazov="Nové mlieko")])
+
+    rows = con.execute(
+        "SELECT nazov FROM akcie WHERE tyzden=? AND obchod=?",
+        ("2026-08-17", "Lidl"),
+    ).fetchall()
     assert rows == [("Predchádzajúce mlieko",)]

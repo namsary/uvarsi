@@ -101,9 +101,26 @@ def replace_store_week(con, week, store, offers):
 
     migrate_akcie_schema(con)
     placeholders = ", ".join("?" for _ in _INSERT_COLUMNS)
-    with con:
+    use_savepoint = con.in_transaction
+    if use_savepoint:
+        con.execute("SAVEPOINT replace_store_week")
+    else:
+        con.execute("BEGIN")
+    try:
         con.execute("DELETE FROM akcie WHERE tyzden=? AND obchod=?", (week, store))
         con.executemany(
             f"INSERT INTO akcie ({', '.join(_INSERT_COLUMNS)}) VALUES ({placeholders})",
             [tuple([week] + [offer.get(column) for column in _INSERT_COLUMNS[1:]]) for offer in offers],
         )
+    except Exception:
+        if use_savepoint:
+            con.execute("ROLLBACK TO SAVEPOINT replace_store_week")
+            con.execute("RELEASE SAVEPOINT replace_store_week")
+        else:
+            con.rollback()
+        raise
+    else:
+        if use_savepoint:
+            con.execute("RELEASE SAVEPOINT replace_store_week")
+        else:
+            con.commit()
