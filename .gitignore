@@ -1,23 +1,11 @@
-# Python build and test artifacts
 __pycache__/
+*.pyc
 .pytest_cache/
 .venv/
-*.py[cod]
-
-# Local secrets and production data
+venv/
 *.env
 uvarsi.env
-*.db
-*.sqlite
-*.sqlite3
-landing_data.json
-
-# Local operational and generated files
+samopull.env
 count.json
-_*.jpg
-*.log
-kluc.ps1
-odkaz.ps1
-
-# Isolated development workspaces
-.worktrees/
+*.zaloha*
+vsetko_log.txt

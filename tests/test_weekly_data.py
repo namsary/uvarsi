@@ -4,7 +4,12 @@ from datetime import date
 import pytest
 
 from app.offer_data import offer_key_for
-from app.weekly_data import current_monday, offers_for_current_week
+from app.weekly_data import (
+    collection_outcomes,
+    current_monday,
+    offers_for_current_week,
+    stores_missing_this_week,
+)
 
 
 FULL_SCHEMA = """CREATE TABLE akcie (
@@ -106,12 +111,83 @@ def test_current_query_excludes_unproven_and_outside_validity_offers():
         offer(3, "Bez strany", source_page=None),
         offer(4, "Po platnosti", valid_from="2026-08-10", valid_to="2026-08-17"),
         offer(5, "Pred platnosťou", valid_from="2026-08-19", valid_to="2026-08-25"),
-        offer(6, "Minulý týždeň", tyzden="2026-08-10", valid_from="2026-08-10"),
+        offer(6, "Skončený minulý týždeň", tyzden="2026-08-10",
+              valid_from="2026-08-10", valid_to="2026-08-16"),
     ])
 
     rows = offers_for_current_week(con, ["Lidl"], date(2026, 8, 18))
 
     assert [row["nazov"] for row in rows] == ["Overená"]
+
+
+def test_thursday_flyer_stays_readable_after_the_monday_week_flip():
+    """Slovak flyers run Thu–Wed: the Mon–Wed tail must survive the bucket flip."""
+    con = full_connection([
+        offer(1, "Štvrtkový leták", tyzden="2026-08-17",
+              valid_from="2026-08-20", valid_to="2026-08-26"),
+    ])
+
+    rows = offers_for_current_week(con, ["Lidl"], date(2026, 8, 24))
+
+    assert [row["nazov"] for row in rows] == ["Štvrtkový leták"]
+
+
+def test_offer_whose_validity_ended_is_dropped_even_inside_its_own_week():
+    con = full_connection([
+        offer(1, "Skončená", tyzden="2026-08-24",
+              valid_from="2026-08-24", valid_to="2026-08-25"),
+    ])
+
+    assert offers_for_current_week(con, ["Lidl"], date(2026, 8, 26)) == []
+
+
+def test_same_flyer_recollected_into_two_week_buckets_is_returned_once():
+    same_flyer = {
+        "source_url": "https://example.test/lidl-flyer.jpg",
+        "valid_from": "2026-08-20",
+        "valid_to": "2026-08-26",
+    }
+    con = full_connection([
+        offer(1, "Mlieko", tyzden="2026-08-17", **same_flyer),
+        offer(2, "Mlieko", tyzden="2026-08-24", **same_flyer),
+    ])
+
+    rows = offers_for_current_week(con, ["Lidl"], date(2026, 8, 24))
+
+    assert [row["nazov"] for row in rows] == ["Mlieko"]
+    assert [row["tyzden"] for row in rows] == ["2026-08-24"]
+
+
+def test_collection_outcomes_expose_a_partial_run():
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.execute(FULL_SCHEMA)
+    con.execute(
+        """CREATE TABLE zber_stav (
+            tyzden TEXT NOT NULL, obchod TEXT NOT NULL, stav TEXT NOT NULL,
+            pocet INTEGER NOT NULL DEFAULT 0, detail TEXT, updated TEXT,
+            PRIMARY KEY (tyzden, obchod))"""
+    )
+    con.executemany(
+        "INSERT INTO zber_stav (tyzden, obchod, stav, pocet) VALUES (?, ?, ?, ?)",
+        [("2026-08-17", "Lidl", "ok", 40), ("2026-08-17", "Tesco", "fail", 0)],
+    )
+
+    outcomes = collection_outcomes(con, date(2026, 8, 18))
+
+    assert outcomes["Lidl"]["stav"] == "ok"
+    assert outcomes["Tesco"]["stav"] == "fail"
+    assert stores_missing_this_week(con, ["Lidl", "Tesco", "Kaufland"], date(2026, 8, 18)) == [
+        "Kaufland",
+        "Tesco",
+    ]
+
+
+def test_collection_outcomes_tolerate_a_database_without_the_status_table():
+    con = full_connection([offer(1, "Overená")])
+
+    assert collection_outcomes(con, date(2026, 8, 18)) == {}
+    assert stores_missing_this_week(con, ["Lidl"], date(2026, 8, 18)) == ["Lidl"]
 
 
 @pytest.mark.parametrize(

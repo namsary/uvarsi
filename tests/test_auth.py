@@ -413,16 +413,24 @@ def test_concurrent_same_email_request_gets_in_progress_response_without_second_
     assert len(calls) == 1
 
 
-def test_cancelled_request_removes_only_its_pending_reservation(monkeypatch, tmp_path):
+def test_cancelled_request_keeps_exclusive_reservation_until_delivery_finalizes(
+    monkeypatch, tmp_path
+):
     server, database = load_auth_server(monkeypatch, tmp_path)
     monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
     monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_800_000_000.0)
     entered = threading.Event()
     release = threading.Event()
+    retry_observed = threading.Event()
+    calls = []
 
     def post(url, **kwargs):
+        calls.append((url, kwargs))
         entered.set()
-        release.wait(1)
+        if len(calls) > 1:
+            retry_observed.set()
+        if not release.wait(2):
+            raise TimeoutError("test provider was not released")
         return ProviderResponse()
 
     monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
@@ -435,27 +443,154 @@ def test_cancelled_request_removes_only_its_pending_reservation(monkeypatch, tmp
             )
             assert await asyncio.to_thread(entered.wait, 2)
             request.cancel()
-            try:
-                await request
-            except asyncio.CancelledError:
-                cancelled = True
-            else:
-                cancelled = False
+            retry = asyncio.create_task(
+                client.post("/api/auth/request", json={"email": "COOK@example.com"})
+            )
+            retry.add_done_callback(lambda _: retry_observed.set())
+            assert await asyncio.to_thread(retry_observed.wait, 2)
+            calls_before_release = len(calls)
             with sqlite3.connect(database) as con:
-                reservations = con.execute(
-                    "SELECT COUNT(*) FROM magic_token_reservations"
-                ).fetchone()[0]
-                active_tokens = con.execute("SELECT COUNT(*) FROM magic_tokens_v2").fetchone()[0]
-            return cancelled, reservations, active_tokens
+                reserved_hash_before_release = con.execute(
+                    "SELECT token_hash FROM magic_token_reservations WHERE email=?",
+                    ("cook@example.com",),
+                ).fetchone()
+            request.cancel()
+            release.set()
+            request_result, retry_result = await asyncio.gather(
+                request, retry, return_exceptions=True
+            )
+            return (
+                request_result,
+                getattr(retry_result, "status_code", None),
+                calls_before_release,
+                reserved_hash_before_release,
+            )
 
     try:
-        cancelled, reservations, active_tokens = asyncio.run(scenario())
+        request_result, retry_status, calls_before_release, reserved_before = asyncio.run(
+            scenario()
+        )
     finally:
         release.set()
 
-    assert cancelled
+    raw_token = outbound_token(calls)
+    raw_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    assert isinstance(request_result, asyncio.CancelledError)
+    assert retry_status == 429
+    assert calls_before_release == len(calls) == 1
+    assert reserved_before == (raw_hash,)
+    with sqlite3.connect(database) as con:
+        active = con.execute("SELECT token_hash, email FROM magic_tokens_v2").fetchall()
+        reservations = con.execute("SELECT COUNT(*) FROM magic_token_reservations").fetchone()[0]
+    assert active == [(raw_hash, "cook@example.com")]
     assert reservations == 0
-    assert active_tokens == 0
+    assert TestClient(server.app).post(
+        "/api/auth/verify", json={"token": raw_token}
+    ).status_code == 200
+
+
+def test_provider_failure_after_cancellation_cleans_only_pending_reservation(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_800_000_000.0)
+    old_token = "older-still-valid-token"
+    old_hash = hashlib.sha256(old_token.encode()).hexdigest()
+    with server.db() as con:
+        con.execute(
+            """INSERT INTO magic_tokens_v2
+               (token_hash, email, expires_at, created_at) VALUES (?, ?, ?, ?)""",
+            (old_hash, "cook@example.com", 1_800_003_600.0, 1_799_999_000.0),
+        )
+        con.commit()
+    entered = threading.Event()
+    release = threading.Event()
+    retry_observed = threading.Event()
+    calls = []
+
+    def post(url, **kwargs):
+        calls.append((url, kwargs))
+        entered.set()
+        if len(calls) > 1:
+            retry_observed.set()
+        if not release.wait(2):
+            raise TimeoutError("test provider was not released")
+        raise TimeoutError("provider failed after cancellation")
+
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
+
+    async def scenario():
+        transport = httpx.ASGITransport(app=server.app)
+        async with httpx.AsyncClient(transport=transport, base_url="https://testserver") as client:
+            request = asyncio.create_task(
+                client.post("/api/auth/request", json={"email": "cook@example.com"})
+            )
+            assert await asyncio.to_thread(entered.wait, 2)
+            request.cancel()
+            retry = asyncio.create_task(
+                client.post("/api/auth/request", json={"email": "COOK@example.com"})
+            )
+            retry.add_done_callback(lambda _: retry_observed.set())
+            assert await asyncio.to_thread(retry_observed.wait, 2)
+            calls_before_release = len(calls)
+            request.cancel()
+            release.set()
+            request_result, retry_result = await asyncio.gather(
+                request, retry, return_exceptions=True
+            )
+            return request_result, getattr(retry_result, "status_code", None), calls_before_release
+
+    try:
+        request_result, retry_status, calls_before_release = asyncio.run(scenario())
+    finally:
+        release.set()
+
+    assert isinstance(request_result, asyncio.CancelledError)
+    assert retry_status == 429
+    assert calls_before_release == len(calls) == 1
+    with sqlite3.connect(database) as con:
+        active = con.execute("SELECT token_hash, email FROM magic_tokens_v2").fetchall()
+        reservations = con.execute("SELECT COUNT(*) FROM magic_token_reservations").fetchone()[0]
+    assert active == [(old_hash, "cook@example.com")]
+    assert reservations == 0
+    assert TestClient(server.app).post(
+        "/api/auth/verify", json={"token": old_token}
+    ).status_code == 200
+
+
+def test_provider_acceptance_finalize_failure_preserves_reservation_for_recovery(
+    capsys, monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_800_000_000.0)
+    calls = []
+    install_provider(monkeypatch, calls=calls)
+
+    def fail_finalize(*args, **kwargs):
+        raise sqlite3.OperationalError("injected finalize failure")
+
+    monkeypatch.setattr(server, "promote_magic_token", fail_finalize)
+
+    response = TestClient(server.app, raise_server_exceptions=False).post(
+        "/api/auth/request", json={"email": "cook@example.com"}
+    )
+
+    raw_token = outbound_token(calls)
+    captured = capsys.readouterr()
+    with sqlite3.connect(database) as con:
+        reservations = con.execute(
+            "SELECT email, token_hash FROM magic_token_reservations"
+        ).fetchall()
+        active_count = con.execute("SELECT COUNT(*) FROM magic_tokens_v2").fetchone()[0]
+    assert response.status_code == 500
+    assert reservations == [
+        ("cook@example.com", hashlib.sha256(raw_token.encode()).hexdigest())
+    ]
+    assert active_count == 0
+    assert raw_token not in captured.out + captured.err
+    assert "https://uvar.si/prihlasenie" not in captured.out + captured.err
 
 
 def test_successful_resend_invalidates_the_prior_token(monkeypatch, tmp_path):

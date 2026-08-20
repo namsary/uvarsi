@@ -2,11 +2,44 @@ import re
 import sqlite3
 import sys
 import types
+from datetime import date
 
 import pytest
 
 from app import zbierac_akcii as collector
 from app.offer_data import replace_store_week
+
+
+TODAY = date(2026, 8, 20)
+
+
+def kupino_flyer(slug="/letak/lidl-letak-2026-08-17-2026-08-23", flyer_id="42", image_name="lidl-letak"):
+    """Dict shape that the real kupino_meta returns."""
+    return {
+        "flyer_id": flyer_id,
+        "image_name": image_name,
+        "source_url": f"https://www.kupino.sk{slug}",
+        "valid_from": "2026-08-17",
+        "valid_to": "2026-08-23",
+    }
+
+
+def fake_kupino_site(monkeypatch, index_html, page_html):
+    """Serve the store index and the selected flyer's own page separately."""
+    requested = []
+
+    def get(url, **kwargs):
+        requested.append(url)
+        body = page_html if "/strana-2" in url else index_html
+        return types.SimpleNamespace(text=body)
+
+    monkeypatch.setattr(collector.requests, "get", get)
+    return requested
+
+
+FLYER_PAGE = (
+    '<img src="https://img.kupino.sk/letaky/42/thumbs/lidl-letak-1_320.jpg">'
+)
 
 
 def flyer_fixture(page_count):
@@ -85,11 +118,7 @@ def install_pipeline_fakes(monkeypatch, page_count, food_pages, extracted_pages=
 
 
 def test_discovers_ninety_sequential_pages_until_terminal_miss(monkeypatch):
-    monkeypatch.setattr(
-        collector,
-        "kupino_meta",
-        lambda store: ("42", "lidl-letak", "/letak/lidl-2026-08-17-2026-08-23"),
-    )
+    monkeypatch.setattr(collector, "kupino_meta", lambda store: kupino_flyer())
 
     def page_marker(url):
         page = int(re.search(r"-(\d+)_320\.jpg$", url).group(1))
@@ -97,21 +126,17 @@ def test_discovers_ninety_sequential_pages_until_terminal_miss(monkeypatch):
 
     monkeypatch.setattr(collector, "page_exists", page_marker)
 
-    pages, manifest = collector.store_pages("lidl")
+    pages, manifest = collector.store_pages("lidl", today=TODAY)
 
     assert len(pages) == 90
-    assert manifest["source_url"] == "https://www.kupino.sk/letak/lidl-2026-08-17-2026-08-23"
+    assert manifest["source_url"] == "https://www.kupino.sk/letak/lidl-letak-2026-08-17-2026-08-23"
     assert manifest["valid_from"] == "2026-08-17"
     assert manifest["valid_to"] == "2026-08-23"
     assert manifest["pages"][-1]["source_page"] == 90
 
 
 def test_page_discovery_stops_when_provider_repeats_a_page(monkeypatch):
-    monkeypatch.setattr(
-        collector,
-        "kupino_meta",
-        lambda store: ("42", "lidl-letak", "/letak/lidl-2026-08-17-2026-08-23"),
-    )
+    monkeypatch.setattr(collector, "kupino_meta", lambda store: kupino_flyer())
 
     def page_marker(url):
         page = int(re.search(r"-(\d+)_320\.jpg$", url).group(1))
@@ -119,7 +144,7 @@ def test_page_discovery_stops_when_provider_repeats_a_page(monkeypatch):
 
     monkeypatch.setattr(collector, "page_exists", page_marker)
 
-    pages, manifest = collector.store_pages("lidl")
+    pages, manifest = collector.store_pages("lidl", today=TODAY)
 
     assert len(pages) == 2
     assert [page["source_page"] for page in manifest["pages"]] == [1, 2]
@@ -138,7 +163,7 @@ def test_mletaky_selects_latest_finite_validity_source(monkeypatch):
         lambda *args, **kwargs: types.SimpleNamespace(text=html),
     )
     try:
-        manifest = collector.mletaky_base("lidl")
+        manifest = collector.mletaky_base("lidl", today=date(2026, 8, 14))
     except Exception as exc:
         pytest.fail(f"multiple finite candidates could not be compared: {exc}")
 
@@ -154,7 +179,7 @@ def test_mletaky_discovery_stops_after_two_terminal_misses_without_pages(monkeyp
     monkeypatch.setattr(
         collector,
         "mletaky_base",
-        lambda store: {
+        lambda store, today=None: {
             "source_url": "https://app.mletaky.sk/260823_260817_lidl_current",
             "valid_from": "2026-08-17",
             "valid_to": "2026-08-23",
@@ -171,7 +196,7 @@ def test_mletaky_discovery_stops_after_two_terminal_misses_without_pages(monkeyp
     monkeypatch.setattr(collector, "page_exists", missing_page)
 
     try:
-        pages, manifest = collector.store_pages("lidl")
+        pages, manifest = collector.store_pages("lidl", today=TODAY)
     except AssertionError as exc:
         pytest.fail(str(exc))
 
@@ -317,3 +342,250 @@ def test_failed_store_run_exits_nonzero_without_replacing_prior_rows(monkeypatch
     assert len(names) == 20
     assert names[0] == ("Predchádzajúca položka 1",)
     assert "[OK]" not in capsys.readouterr().out
+
+
+# --------------------------------------------------------- validity provenance
+def test_kupino_never_takes_validity_from_another_flyer_in_the_index(monkeypatch):
+    """The store index lists competing leaflets; their dates are not ours."""
+    index = (
+        '<a href="/letak/lidl-brozura-2026-01-05-2026-01-11">brožúra</a>'
+        '<a href="/letak/lidl-letak-tyzden">aktuálny leták</a>'
+    )
+    fake_kupino_site(monkeypatch, index, FLYER_PAGE)
+
+    with pytest.raises(ValueError):
+        collector.kupino_meta("lidl")
+
+
+def test_kupino_reads_validity_from_the_selected_flyer_own_slug(monkeypatch):
+    index = (
+        '<a href="/letak/lidl-brozura-2026-01-05-2026-01-11">brožúra</a>'
+        '<a href="/letak/lidl-letak-2026-08-17-2026-08-23">aktuálny leták</a>'
+    )
+    page = FLYER_PAGE + '<aside><a href="/letak/tesco-letak-2026-02-02-2026-02-08">iný</a></aside>'
+    fake_kupino_site(monkeypatch, index, page)
+
+    meta = collector.kupino_meta("lidl")
+
+    assert meta["valid_from"] == "2026-08-17"
+    assert meta["valid_to"] == "2026-08-23"
+    assert meta["source_url"] == "https://www.kupino.sk/letak/lidl-letak-2026-08-17-2026-08-23"
+
+
+def test_kupino_accepts_one_unambiguous_labelled_validity_on_the_flyer_page(monkeypatch):
+    index = '<a href="/letak/lidl-letak-tyzden">aktuálny leták</a>'
+    page = FLYER_PAGE + '"validFrom":"2026-08-17","validThrough":"2026-08-23"'
+    fake_kupino_site(monkeypatch, index, page)
+
+    meta = collector.kupino_meta("lidl")
+
+    assert (meta["valid_from"], meta["valid_to"]) == ("2026-08-17", "2026-08-23")
+
+
+def test_kupino_refuses_when_the_flyer_page_lists_competing_validities(monkeypatch):
+    index = '<a href="/letak/lidl-letak-tyzden">aktuálny leták</a>'
+    page = (
+        FLYER_PAGE
+        + '"validFrom":"2026-08-17","validThrough":"2026-08-23"'
+        + '"validFrom":"2026-08-24","validThrough":"2026-08-30"'
+    )
+    fake_kupino_site(monkeypatch, index, page)
+
+    with pytest.raises(ValueError):
+        collector.kupino_meta("lidl")
+
+
+def test_kupino_validity_is_never_scraped_from_the_store_index_html(monkeypatch):
+    """Even a fully dated index must not supply the selected flyer's validity."""
+    index = (
+        '<a href="/letak/lidl-brozura-2026-01-05-2026-01-11">brožúra</a>'
+        '<a href="/letak/lidl-letak-tyzden">aktuálny leták</a>'
+    )
+    fake_kupino_site(monkeypatch, index, FLYER_PAGE)
+
+    try:
+        meta = collector.kupino_meta("lidl")
+    except ValueError:
+        return
+    assert meta["valid_from"] != "2026-01-05"
+    assert meta["valid_to"] != "2026-01-11"
+
+
+def test_store_pages_skips_a_kupino_flyer_that_is_not_valid_today(monkeypatch, capsys):
+    expired = kupino_flyer()
+    expired.update(valid_from="2026-08-03", valid_to="2026-08-09")
+    monkeypatch.setattr(collector, "kupino_meta", lambda store: expired)
+    monkeypatch.setattr(collector, "mletaky_base", lambda store, today=None: None)
+    monkeypatch.setattr(collector, "page_exists", lambda url: "marker")
+
+    pages, manifest = collector.store_pages("lidl", today=TODAY)
+
+    assert pages == []
+    assert manifest is None
+    assert "2026-08-09" in capsys.readouterr().out
+
+
+# ------------------------------------------------------------ mletaky currency
+def test_mletaky_never_selects_a_flyer_that_has_already_ended(monkeypatch):
+    """The latest-started flyer may already be over; it must not be chosen."""
+    html = " ".join(
+        [
+            "https://app.mletaky.sk/260819_260813_lidl_ended",
+            "https://app.mletaky.sk/260826_260812_lidl_running",
+        ]
+    )
+    monkeypatch.setattr(
+        collector.requests,
+        "get",
+        lambda *args, **kwargs: types.SimpleNamespace(text=html),
+    )
+
+    manifest = collector.mletaky_base("lidl", today=TODAY)
+
+    assert manifest == {
+        "source_url": "https://app.mletaky.sk/260826_260812_lidl_running",
+        "valid_from": "2026-08-12",
+        "valid_to": "2026-08-26",
+    }
+
+
+def test_mletaky_returns_nothing_when_every_candidate_has_expired(monkeypatch):
+    html = "https://app.mletaky.sk/260819_260813_lidl_ended"
+    monkeypatch.setattr(
+        collector.requests,
+        "get",
+        lambda *args, **kwargs: types.SimpleNamespace(text=html),
+    )
+
+    assert collector.mletaky_base("lidl", today=TODAY) is None
+
+
+# -------------------------------------------------------------- page discovery
+def test_page_discovery_bridges_a_single_missing_page_on_the_cdn(monkeypatch):
+    monkeypatch.setattr(collector, "kupino_meta", lambda store: kupino_flyer())
+
+    def page_marker(url):
+        page = int(re.search(r"-(\d+)_320\.jpg$", url).group(1))
+        if page == 5 or page > 12:
+            return None
+        return f"page-{page}"
+
+    monkeypatch.setattr(collector, "page_exists", page_marker)
+
+    pages, manifest = collector.store_pages("lidl", today=TODAY)
+
+    assert [page["source_page"] for page in manifest["pages"]] == [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12]
+    assert len(pages) == 11
+
+
+def test_page_discovery_warns_when_the_page_count_is_implausibly_low(monkeypatch, capsys):
+    monkeypatch.setattr(collector, "kupino_meta", lambda store: kupino_flyer())
+
+    def page_marker(url):
+        page = int(re.search(r"-(\d+)_320\.jpg$", url).group(1))
+        return f"page-{page}" if page <= 3 else None
+
+    monkeypatch.setattr(collector, "page_exists", page_marker)
+
+    pages, _ = collector.store_pages("lidl", today=TODAY)
+
+    assert len(pages) == 3
+    output = capsys.readouterr().out
+    assert "[WARN]" in output
+    assert "3" in output
+
+
+# --------------------------------------------------- per-store run bookkeeping
+def valid_offer(store, index):
+    return {
+        "obchod": store.capitalize(),
+        "nazov": f"Položka {index}",
+        "kategoria": "trvanlive",
+        "cena": 1.0 + index / 100,
+        "povodna": 2.0,
+        "zlava": "-50 %",
+        "jednotka": "ks",
+        "source_url": f"https://flyers.example/{store}",
+        "source_page": index,
+        "valid_from": "2026-08-17",
+        "valid_to": "2026-08-23",
+    }
+
+
+def run_main_over_stores(monkeypatch, tmp_path, outcomes):
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setattr(collector, "DB", str(database))
+    monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    monkeypatch.setattr(collector, "STORES", list(outcomes))
+    monkeypatch.setattr(collector, "load_key", lambda: "unused-test-value")
+
+    def zbieraj(client, store):
+        if not outcomes[store]:
+            raise ValueError(f"{store}: leták sa nepodarilo prečítať")
+        return [valid_offer(store, index) for index in range(1, 21)]
+
+    monkeypatch.setattr(collector, "zbieraj", zbieraj)
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        types.SimpleNamespace(Anthropic=lambda **kwargs: object()),
+    )
+    return database
+
+
+def test_partial_run_records_which_stores_succeeded_for_the_week(monkeypatch, tmp_path):
+    database = run_main_over_stores(
+        monkeypatch, tmp_path, {"kaufland": True, "tesco": True, "lidl": False}
+    )
+
+    with pytest.raises(SystemExit, match="lidl"):
+        collector.main()
+
+    con = sqlite3.connect(database)
+    con.row_factory = sqlite3.Row
+    outcomes = {
+        row["obchod"]: row["stav"]
+        for row in con.execute("SELECT obchod, stav FROM zber_stav WHERE tyzden=?", ("2026-08-17",))
+    }
+    con.close()
+
+    assert outcomes == {"Kaufland": "ok", "Tesco": "ok", "Lidl": "fail"}
+
+
+def test_successful_run_marks_every_store_as_collected(monkeypatch, tmp_path):
+    database = run_main_over_stores(
+        monkeypatch, tmp_path, {"kaufland": True, "tesco": True, "lidl": True}
+    )
+
+    collector.main()
+
+    con = sqlite3.connect(database)
+    con.row_factory = sqlite3.Row
+    rows = con.execute(
+        "SELECT obchod, stav, pocet FROM zber_stav WHERE tyzden=? ORDER BY obchod", ("2026-08-17",)
+    ).fetchall()
+    con.close()
+
+    assert [(row["obchod"], row["stav"], row["pocet"]) for row in rows] == [
+        ("Kaufland", "ok", 20),
+        ("Lidl", "ok", 20),
+        ("Tesco", "ok", 20),
+    ]
+
+
+def test_a_stores_stale_success_is_replaced_by_a_later_failure(monkeypatch, tmp_path):
+    database = run_main_over_stores(monkeypatch, tmp_path, {"lidl": True})
+    collector.main()
+
+    monkeypatch.setattr(
+        collector, "zbieraj", lambda client, store: (_ for _ in ()).throw(ValueError("prázdny leták"))
+    )
+    with pytest.raises(SystemExit, match="lidl"):
+        collector.main()
+
+    con = sqlite3.connect(database)
+    con.row_factory = sqlite3.Row
+    row = con.execute("SELECT stav, pocet FROM zber_stav WHERE tyzden=?", ("2026-08-17",)).fetchone()
+    con.close()
+
+    assert (row["stav"], row["pocet"]) == ("fail", 0)

@@ -114,8 +114,26 @@ let DONE = {};
 function checkedStateKey(user, plan) {
   var identity = user && (user.id || user.email);
   var week = plan && plan.tyzden;
+  var parts = [String(week || 'unknown')];
+  var groups = (plan && plan.nakupny_zoznam) || [];
+  for (var g = 0; g < groups.length; g++) {
+    var group = groups[g] || {};
+    parts.push(String(group.obchod || ''));
+    var items = group.polozky || [];
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i] || {};
+      parts.push(String(item.offer_key || item.nazov || ''));
+    }
+  }
+  var signature = parts.join('|');
+  var fingerprint = 2166136261;
+  for (var c = 0; c < signature.length; c++) {
+    fingerprint = (fingerprint ^ signature.charCodeAt(c)) >>> 0;
+    fingerprint = (fingerprint + ((fingerprint << 1) + (fingerprint << 4) +
+      (fingerprint << 7) + (fingerprint << 8) + (fingerprint << 24))) >>> 0;
+  }
   return 'uvarsi_done:' + encodeURIComponent(String(identity || 'unknown')) + ':' +
-    encodeURIComponent(String(week || 'unknown'));
+    encodeURIComponent(String(week || 'unknown')) + ':' + fingerprint.toString(36);
 }
 
 function loadCheckedState(user, plan) {
@@ -148,15 +166,79 @@ function handleApiUnauthorized(response) {
   return true;
 }
 
+function apiErrorMessage(status, payload) {
+  var detail = payload && payload.detail;
+  if (Object.prototype.toString.call(detail) === '[object Array]') {
+    var reasons = [];
+    for (var i = 0; i < detail.length; i++) {
+      var entry = detail[i];
+      var reason = typeof entry === 'string' ? entry : (entry && (entry.msg || entry.message)) || '';
+      if (reason) reasons.push(String(reason));
+    }
+    detail = reasons.join(' · ');
+  } else if (detail && typeof detail === 'object') {
+    detail = detail.msg || detail.message || '';
+  }
+  if (typeof detail === 'string' && detail.replace(/\s/g, '')) {
+    detail = detail.trim();
+    return /[.!?…]$/.test(detail) ? detail : detail + '.';
+  }
+  if (status === 422 || status === 400) return 'Zadané údaje nesedia. Skontroluj ich a skús to znova.';
+  if (status === 404) return 'Toto sa nenašlo. Skús to znova alebo napíš na pomoc@uvar.si.';
+  if (status === 429) return 'Priveľa pokusov za sebou. Skús to prosím o minútu.';
+  if (status >= 500) return 'Server má krátkodobý problém. Skús to prosím o chvíľu znova.';
+  return 'Niečo sa pokazilo. Skús to prosím znova.';
+}
+
+function networkErrorMessage(online) {
+  return online === false
+    ? 'Vyzerá to, že si offline. Zapni internet a skús to znova.'
+    : 'Nepodarilo sa spojiť so serverom. Skontroluj pripojenie a skús to znova.';
+}
+
 async function api(url, opts) {
-  const r = await fetch(url, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
+  let r;
+  try {
+    r = await fetch(url, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
+  } catch (networkError) {
+    const offlineError = new Error(networkErrorMessage(
+      typeof navigator === 'undefined' ? true : navigator.onLine));
+    offlineError.offline = true;
+    throw offlineError;
+  }
   if (handleApiUnauthorized(r)) {
     const authError = new Error('Prihlásenie vypršalo. Prihlás sa znova.');
     authError.authRequired = true;
     throw authError;
   }
-  if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || 'Chyba');
+  if (!r.ok) throw new Error(apiErrorMessage(r.status, await r.json().catch(()=>null)));
   return r.json();
+}
+
+async function runGuardedAction(button, errorNode, action) {
+  if (!button || button.disabled) return false;
+  const label = button.textContent;
+  if (errorNode) errorNode.textContent = '';
+  button.disabled = true;
+  button.textContent = 'Pracujem…';
+  try {
+    await action();
+    return true;
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = label;
+    if (error && error.authRequired) return false;
+    const message = (error && error.message) || 'Nepodarilo sa to uložiť. Skús to prosím znova.';
+    if (errorNode) errorNode.textContent = message; else alert(message);
+    return false;
+  }
+}
+
+function weekLabel(tyzden) {
+  var text = String(tyzden == null ? '' : tyzden).trim();
+  var parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  if (!parts) return text ? 'Týždeň ' + text : 'Aktuálny týždeň';
+  return 'Týždeň od ' + Number(parts[3]) + '. ' + Number(parts[2]) + '. ' + parts[1];
 }
 const esc = s => String(s??'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -215,31 +297,40 @@ function viewLogin(sent, previousEmail) {
 /* ---------- onboarding ---------- */
 function viewOnboarding() {
   $('#nav').classList.add('hidden');
+  const profil = ME || {};
+  const osoby = profil.osoby || 4;
+  const frekvencia = profil.frekvencia || 2;
+  const obchody = (profil.obchody && profil.obchody.length) ? profil.obchody : ['Kaufland','Tesco','Lidl'];
+  const uzMaProfil = !!profil.onboarding;
   M.innerHTML = `
     <div style="margin-top:26px">
       <span class="eyebrow">Nastavenie · 30 sekúnd</span>
-      <h1 class="display" style="font-size:1.8rem;margin:8px 0 18px">Povedz mi tri veci.</h1>
+      <h1 class="display" style="font-size:1.8rem;margin:8px 0 18px">${uzMaProfil?'Uprav si nastavenie.':'Povedz mi tri veci.'}</h1>
+      ${uzMaProfil?`<p class="muted" style="margin:-8px 0 18px">Máš tu svoje doterajšie nastavenie. Zmeň, čo chceš — plán prepočítame nanovo.</p>`:''}
       <div class="card">
         <label>Pre koľko ľudí varíš?</label>
         <div class="chips" id="c-osoby">
-          ${[1,2,3,4,5,6].map(n=>`<div class="chip${n===4?' on':''}" data-v="${n}">${n}</div>`).join('')}
+          ${[1,2,3,4,5,6].map(n=>`<div class="chip${n===osoby?' on':''}" data-v="${n}">${n}</div>`).join('')}
         </div>
       </div>
       <div class="card">
         <label>Ako často chceš variť?</label>
         <div class="chips" id="c-frek">
-          <div class="chip" data-v="1">Každý deň</div>
-          <div class="chip on" data-v="2">Raz za 2 dni</div>
-          <div class="chip" data-v="3">Raz za 3 dni</div>
+          ${[[1,'Každý deň'],[2,'Raz za 2 dni'],[3,'Raz za 3 dni']].map(([v,t])=>
+            `<div class="chip${v===frekvencia?' on':''}" data-v="${v}">${t}</div>`).join('')}
         </div>
       </div>
       <div class="card">
         <label>Kde nakupuješ?</label>
         <div class="chips" id="c-obch">
-          ${['Kaufland','Tesco','Lidl'].map(o=>`<div class="chip on" data-v="${o}">${o}</div>`).join('')}
+          ${['Kaufland','Tesco','Lidl'].map(o=>
+            `<div class="chip${obchody.indexOf(o)>=0?' on':''}" data-v="${o}">${o}</div>`).join('')}
         </div>
       </div>
-      <button class="btn" id="save">Hotovo, ukáž mi plán →</button>
+      <button class="btn" id="save">${uzMaProfil?'Uložiť a prepočítať plán →':'Hotovo, ukáž mi plán →'}</button>
+      <p id="ob-err" class="muted" style="color:var(--red);margin-top:10px"></p>
+      ${uzMaProfil?`<div style="height:8px"></div>
+      <button class="btn btn--ghost" id="spat">Späť bez zmeny</button>`:''}
     </div>`;
   const single = id => $(id).onclick = e => {
     if (!e.target.dataset.v) return;
@@ -248,15 +339,16 @@ function viewOnboarding() {
   };
   single('#c-osoby'); single('#c-frek');
   $('#c-obch').onclick = e => { if (e.target.dataset.v) e.target.classList.toggle('on'); };
-  $('#save').onclick = async () => {
+  if (uzMaProfil) $('#spat').onclick = () => { TAB = 'nastavenia'; render(); };
+  $('#save').onclick = () => runGuardedAction($('#save'), $('#ob-err'), async () => {
     const val = id => $(id).querySelector('.on')?.dataset.v;
-    const obchody = [...$('#c-obch').querySelectorAll('.on')].map(c=>c.dataset.v);
-    if (!obchody.length) return alert('Vyber aspoň jeden obchod.');
+    const vybrane = [...$('#c-obch').querySelectorAll('.on')].map(c=>c.dataset.v);
+    if (!vybrane.length) throw new Error('Vyber aspoň jeden obchod.');
     await api('/api/profil', {method:'POST', body:JSON.stringify(
-      {osoby:+val('#c-osoby'), frekvencia:+val('#c-frek'), obchody})});
+      {osoby:+val('#c-osoby'), frekvencia:+val('#c-frek'), obchody:vybrane})});
     ME = await api('/api/me');
     await nacitajPlan(true);
-  };
+  });
 }
 
 /* ---------- plán ---------- */
@@ -267,15 +359,33 @@ async function nacitajPlan(gen) {
     let plan = gen ? await api('/api/plan/generuj?force=1', {method:'POST'}) : await api('/api/plan');
     if (plan.prazdny) plan = await api('/api/plan/generuj?force=1', {method:'POST'});
     setPlan(plan);
-  } catch(e) { if (e.authRequired) return; M.innerHTML = `<div class="card center" style="margin-top:30px">
-      <p>${esc(e.message)}</p><div style="height:12px"></div>
-      <button class="btn" onclick="nacitajPlan(true)">Skúsiť znova</button></div>`; return; }
+  } catch(e) {
+    if (e.authRequired) return;
+    showNav();
+    M.innerHTML = `<div class="card center" style="margin-top:30px">
+      <span class="eyebrow">Plán sa nepodaril</span>
+      <p style="margin-top:8px">${esc(e.message)}</p><div style="height:14px"></div>
+      <button class="btn" onclick="nacitajPlan(true)">Skúsiť znova</button>
+      <div style="height:10px"></div>
+      <button class="btn btn--ghost" id="plan-err-nast">Zmeniť obchody v nastaveniach</button>
+      <div style="height:10px"></div>
+      <button class="btn btn--ghost" id="plan-err-spajza">Otvoriť špajzu</button>
+      <p class="muted" style="margin-top:12px;font-size:.82rem">Dole v menu sa dostaneš aj na Špajzu a na Ja.</p>
+      </div>`;
+    $('#plan-err-nast').onclick = () => { TAB = 'nastavenia'; render(); };
+    $('#plan-err-spajza').onclick = () => { TAB = 'spajza'; render(); };
+    return;
+  }
   render();
 }
 
-function render() {
+function showNav() {
   $('#nav').classList.remove('hidden');
   [...$('#nav').children].forEach(b => b.classList.toggle('on', b.dataset.t === TAB));
+}
+
+function render() {
+  showNav();
   ({plan:vPlan, zoznam:vZoznam, spajza:vSpajza, nastavenia:vNast})[TAB]();
 }
 
@@ -284,7 +394,9 @@ function vPlan() {
   const dni = ['PO','UT','ST','ŠT','PI','SO','NE'];
   const map = {}; PLAN.jedla.forEach(j => map[j.den] = j);
   let h = `<div style="margin:18px 0 6px"><span class="eyebrow">Tvoj týždeň</span>
-    <h1 class="display" style="font-size:1.5rem;margin-top:4px">Navarené z akcií</h1></div>`;
+    <h1 class="display" style="font-size:1.5rem;margin-top:4px">Navarené z akcií</h1>
+    <p class="mono" style="font-size:.74rem;color:var(--ink-soft);margin-top:6px">
+      ${esc(weekLabel(PLAN.tyzden))} · ceny z letákov na tento týždeň</p></div>`;
   let posledne = null;
   dni.forEach(d => {
     const j = map[d];
@@ -344,15 +456,16 @@ function vSpajza() {
     <p class="muted" style="margin:8px 0 16px">Zarátame to do plánu — nekúpiš zbytočne a menej vyhodíš.</p></div>
     <div class="card"><label>Pridať surovinu</label>
       <div style="display:flex;gap:8px"><input id="sp-new" placeholder="napr. ryža, vajcia, cibuľa">
-      <button class="btn" style="width:auto;padding:14px 18px" id="sp-add">+</button></div></div>
+      <button class="btn" style="width:auto;padding:14px 18px" id="sp-add">+</button></div>
+      <p id="sp-err" class="muted" style="color:var(--red);margin-top:10px"></p></div>
     <div id="sp-list">${sp.map((s,i)=>`<div class="item"><span class="nm">${esc(s)}</span>
       <span class="pr" data-i="${i}" style="color:var(--red);cursor:pointer">✕</span></div>`).join('')
       || '<p class="muted center" style="padding:18px">Zatiaľ prázdna.</p>'}</div>`;
-  const uloz = async list => {
+  const uloz = list => runGuardedAction($('#sp-add'), $('#sp-err'), async () => {
     await api('/api/spajza', {method:'POST', body:JSON.stringify({polozky:list})});
     ME = await api('/api/me');
     await nacitajPlan(true);
-  };
+  });
   $('#sp-add').onclick = () => {
     const v = $('#sp-new').value.trim(); if (!v) return;
     uloz([...(ME.spajza||[]), v]);
@@ -373,9 +486,13 @@ function vNast() {
     </div>
     <button class="btn btn--ghost" id="zmen">Zmeniť nastavenie</button>
     <div style="height:10px"></div>
-    <button class="btn btn--ghost" id="odhl" style="color:var(--red)">Odhlásiť sa</button>`;
+    <button class="btn btn--ghost" id="odhl" style="color:var(--red)">Odhlásiť sa</button>
+    <p id="nast-err" class="muted" style="color:var(--red);margin-top:10px"></p>`;
   $('#zmen').onclick = viewOnboarding;
-  $('#odhl').onclick = async () => { await api('/api/auth/logout',{method:'POST'}); location.reload(); };
+  $('#odhl').onclick = () => runGuardedAction($('#odhl'), $('#nast-err'), async () => {
+    await api('/api/auth/logout',{method:'POST'});
+    location.reload();
+  });
 }
 
 $('#nav').onclick = e => {
@@ -384,13 +501,30 @@ $('#nav').onclick = e => {
 };
 
 /* ---------- štart ---------- */
-(async () => {
-  try { ME = await api('/api/me'); } catch(e) { return viewLogin(); }
+function viewOffline(message) {
+  $('#nav').classList.add('hidden');
+  M.innerHTML = `<div class="card center" style="margin-top:40px">
+    <div style="font-size:2.4rem">📡</div>
+    <h2 class="display" style="font-size:1.4rem;margin:10px 0">Bez spojenia</h2>
+    <p class="muted">${esc(message)}</p><div style="height:14px"></div>
+    <button class="btn" id="znova">Skúsiť znova</button></div>`;
+  $('#znova').onclick = () => start();
+}
+
+async function start() {
+  M.innerHTML = '<div class="spin"></div>';
+  try { ME = await api('/api/me'); }
+  catch(e) {
+    if (e.offline) return viewOffline(e.message);
+    return viewLogin();
+  }
   if (!ME.prihlaseny) return viewLogin();
   $('#hdr').textContent = ME.email.split('@')[0];
   if (!ME.onboarding) return viewOnboarding();
   await nacitajPlan(false);
-})();
+}
+
+start();
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/static/sw.js').catch(()=>{});
 </script>

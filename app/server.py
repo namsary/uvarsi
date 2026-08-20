@@ -15,7 +15,7 @@ from contextlib import closing
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from config import public_base_url
+from config import public_base_url, release_id
 from landing_data import load_landing_data, validate_landing_data
 from weekly_data import offers_for_current_week
 from offer_data import migrate_akcie_schema
@@ -117,6 +117,29 @@ CREATE TABLE IF NOT EXISTS sedenia (
   user_id INTEGER NOT NULL,
   vytvorene TEXT DEFAULT CURRENT_TIMESTAMP
 );
+-- Zhodné so SCHEMA v zbierac_akcii.py. db() je jediný vstupný bod appky a volá
+-- migrate_akcie_schema(); na chýbajúcej tabuľke vráti PRAGMA table_info(akcie)
+-- nula riadkov (bez chyby) a ALTER TABLE potom padne na `no such table` —
+-- na čerstvej databáze by 500-kovalo úplne všetko vrátane prihlásenia.
+CREATE TABLE IF NOT EXISTS akcie (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  tyzden     TEXT NOT NULL,       -- ISO pondelok, napr. 2026-08-10
+  obchod     TEXT NOT NULL,
+  nazov      TEXT NOT NULL,
+  kategoria  TEXT,                -- maso|zelenina|ovocie|mliecne|trvanlive|pecivo|ine
+  cena       REAL,                -- akciová cena
+  povodna    REAL,                -- bežná cena
+  zlava      TEXT,                -- "−52 %" alebo "1+1"
+  jednotka   TEXT,                -- ks|kg|l|balenie
+  source_url TEXT,
+  source_page INTEGER,
+  valid_from TEXT,
+  valid_to TEXT,
+  offer_key TEXT,
+  created    TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_akcie_tyzden ON akcie(tyzden);
+CREATE INDEX IF NOT EXISTS idx_akcie_kat ON akcie(tyzden, kategoria);
 """
 
 
@@ -204,23 +227,43 @@ background:#FFFCF5;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#1
     except (EmailCooldown, EmailRequestInProgress):
         raise HTTPException(429, "Nový odkaz môžeš vyžiadať po 60 sekundách.")
 
+    def deliver_and_finalize():
+        """Own the reservation until delivery is decided, independent of the client."""
+        try:
+            accepted = deliver(reservation.raw_token)
+        except BaseException:
+            # Nothing was handed over, so the pending reservation is worthless.
+            with closing(db()) as con:
+                cancel_magic_token_reservation(con, reservation)
+            raise
+        try:
+            with closing(db()) as con:
+                promote_magic_token(
+                    con,
+                    reservation=reservation,
+                    now=AUTH_CLOCK(),
+                    accepted=accepted,
+                )
+        except ReservationInvalid:
+            with closing(db()) as con:
+                cancel_magic_token_reservation(con, reservation)
+            raise
+        # Any other finalize failure keeps the accepted reservation: the provider
+        # already carries that link, so it stays exclusive until recovery.
+
+    def drop_unobserved_outcome(task):
+        """Delivery outcome is already persisted; retrieve it so nothing is logged."""
+        if not task.cancelled():
+            task.exception()
+
+    delivery = asyncio.ensure_future(asyncio.to_thread(deliver_and_finalize))
+    delivery.add_done_callback(drop_unobserved_outcome)
     try:
-        accepted = await asyncio.to_thread(deliver, reservation.raw_token)
-        with closing(db()) as con:
-            promote_magic_token(
-                con,
-                reservation=reservation,
-                now=AUTH_CLOCK(),
-                accepted=accepted,
-            )
+        # Shielded: a disconnected client must neither abort delivery nor free the
+        # reservation early, otherwise a retry would slip past the per-email limit.
+        await asyncio.shield(delivery)
     except (DeliveryError, ReservationInvalid):
-        with closing(db()) as con:
-            cancel_magic_token_reservation(con, reservation)
         raise HTTPException(503, AUTH_PROVIDER_FAILURE_MESSAGE)
-    except BaseException:
-        with closing(db()) as con:
-            cancel_magic_token_reservation(con, reservation)
-        raise
     return {"ok": True, "message": AUTH_SUCCESS_MESSAGE}
 
 
@@ -451,6 +494,20 @@ def pocet_akcii():
     with closing(db()) as con:
         rows = offers_for_current_week(con, ["Kaufland", "Tesco", "Lidl"], today)
     return {"tyzden": monday(today), "pocet": len(rows)}
+
+
+@app.get("/api/health")
+def health():
+    """Čo naozaj beží: vydanie, týždeň a počet akcií.
+
+    Nasadenie porovná `vydanie` s lokálnym súborom VERSION — tým odhalí
+    čiastočne prenesený scp (trieda chyby, ktorá zhodila auth_data.py).
+    Žiadne tajomstvá sa sem nedostanú.
+    """
+    today = datetime.date.today()
+    with closing(db()) as con:
+        rows = offers_for_current_week(con, ["Kaufland", "Tesco", "Lidl"], today)
+    return {"vydanie": release_id(), "tyzden": monday(today), "pocet": len(rows)}
 
 
 @app.get("/api/public/landing")

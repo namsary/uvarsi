@@ -34,6 +34,9 @@ READ_PX = 1500
 SCAN_PX = 320
 SKIP_SLUG = ("nova-predajna", "brozura", "back-to-school", "special",
              "shop", "nabytok", "zahrada")
+PAGE_GAP_TOLERANCE = 3      # koľko po sebe chýbajúcich strán ešte preklenieme
+MIN_PLAUSIBLE_PAGES = 8     # menej strán je podozrivé — zdroj je asi neúplný
+MAX_PAGES = 200             # poistka proti nekonečnému prechádzaniu
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 H = {"User-Agent": UA}
@@ -73,6 +76,19 @@ CREATE TABLE IF NOT EXISTS akcie (
 );
 CREATE INDEX IF NOT EXISTS idx_akcie_tyzden ON akcie(tyzden);
 CREATE INDEX IF NOT EXISTS idx_akcie_kat ON akcie(tyzden, kategoria);
+
+-- Výsledok zberu PRE KAŽDÝ OBCHOD ZVLÁŠŤ. Bez toho sa čiastočný beh
+-- (2 z 3 obchodov) nedá odlíšiť od úspešného: riadkov je dosť, dozorca
+-- nič nespustí a appka celý týždeň ticho plánuje bez chýbajúceho obchodu.
+CREATE TABLE IF NOT EXISTS zber_stav (
+  tyzden  TEXT NOT NULL,
+  obchod  TEXT NOT NULL,
+  stav    TEXT NOT NULL,           -- 'ok' | 'fail'
+  pocet   INTEGER NOT NULL DEFAULT 0,
+  detail  TEXT,
+  updated TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tyzden, obchod)
+);
 """
 
 
@@ -116,6 +132,41 @@ def parse_finite_validity(text):
     return valid_from.isoformat(), valid_to.isoformat()
 
 
+_LABELLED_FROM = re.compile(
+    r'(?:validFrom|valid_from|valid-from|platnost_od|platnost-od|dateFrom)"?\s*[:=]\s*"?'
+    r'(\d{4}-\d{2}-\d{2})',
+    re.I,
+)
+_LABELLED_TO = re.compile(
+    r'(?:validThrough|validTo|valid_to|valid-to|validUntil|platnost_do|platnost-do|dateTo)"?\s*[:=]\s*"?'
+    r'(\d{4}-\d{2}-\d{2})',
+    re.I,
+)
+
+
+def kupino_flyer_validity(slug, page_html):
+    """Platnosť VYBRANÉHO letáku — nikdy nie z indexu obchodu.
+
+    kupino uvádza rozsah platnosti v slugu samotného letáku. To je jediné
+    miesto, ktoré preukázateľne patrí TOMUTO letáku; index obchodu aj samotná
+    stránka obsahujú aj konkurenčné letáky, takže dátum nájdený kdekoľvek v
+    HTML môže patriť inému letáku. Keď slug rozsah nenesie, prijmeme iba
+    explicitne označenú (strojovo čitateľnú) platnosť na stránke letáku, a to
+    len vtedy, keď je na stránke JEDINÁ — inak leták odmietneme.
+    Radšej žiadny leták než leták s cudzími dátumami.
+    """
+    try:
+        return parse_finite_validity(slug)
+    except ValueError:
+        pass
+
+    starts = set(_LABELLED_FROM.findall(page_html or ""))
+    ends = set(_LABELLED_TO.findall(page_html or ""))
+    if len(starts) != 1 or len(ends) != 1:
+        raise ValueError("leták nemá jednoznačnú vlastnú platnosť")
+    return parse_finite_validity(f"{starts.pop()} {ends.pop()}")
+
+
 def kupino_meta(store):
     base = "https://www.kupino.sk"
     idx = requests.get(f"{base}/letaky/{store}", headers=H, timeout=20).text
@@ -128,7 +179,7 @@ def kupino_meta(store):
     om = re.search(r'img\.kupino\.sk/letaky/(\d+)/thumbs/([a-z0-9-]+)-1_320\.jpg', pg)
     if not om:
         return None
-    valid_from, valid_to = parse_finite_validity(" ".join((slug, idx, pg)))
+    valid_from, valid_to = kupino_flyer_validity(slug, pg)
     return {
         "flyer_id": om.group(1),
         "image_name": om.group(2),
@@ -138,11 +189,17 @@ def kupino_meta(store):
     }
 
 
-def mletaky_base(store):
+def flyer_is_current(valid_from, valid_to, today):
+    """Leták je použiteľný, len ak DNES spadá do jeho platnosti."""
+    return valid_from <= today.isoformat() <= valid_to
+
+
+def mletaky_base(store, today=None):
+    today = today or datetime.date.today()
     html_ = requests.get(f"https://mletaky.sk/obchody/{store}", headers=H, timeout=20).text
     cands = set(re.findall(r'https?://app\.mletaky\.sk/(\d{6})_(\d{6})_'
                            + store + r'_([a-z0-9]+)', html_))
-    today, best = datetime.date.today(), None
+    best = None
     for vto, vfrom, h in cands:
         try:
             d_from = datetime.datetime.strptime(vfrom, "%y%m%d").date()
@@ -151,7 +208,11 @@ def mletaky_base(store):
             continue
         if d_from > d_to:
             continue
-        if d_from <= today and (best is None or d_from > best["sort_date"]):
+        # Nestačí, že leták začal — musí aj STÁLE platiť. Najneskôr začatý
+        # leták môže byť už skončený a jeho ceny by sa ticho zahodili.
+        if not flyer_is_current(d_from.isoformat(), d_to.isoformat(), today):
+            continue
+        if best is None or d_from > best["sort_date"]:
             best = {
                 "sort_date": d_from,
                 "source_url": f"https://app.mletaky.sk/{vto}_{vfrom}_{store}_{h}",
@@ -187,66 +248,91 @@ def _manifest(source, page_rows):
     }
 
 
-def store_pages(store):
+def _usable_flyer(store, source, meta, today):
+    """Zahoď leták, ktorý dnes neplatí — jeho ceny by sa aj tak ticho zahodili."""
+    if not meta:
+        return None
+    if not flyer_is_current(meta["valid_from"], meta["valid_to"], today):
+        log(f"[WARN] {store}: {source} leták dnes neplatí "
+            f"({meta['valid_from']} – {meta['valid_to']}) — preskakujem")
+        return None
+    return meta
+
+
+def discover_pages(store, page_urls, start):
+    """Prejdi strany letáka po sebe a preklen malé diery na CDN.
+
+    Jedna chýbajúca strana na CDN nesmie ukončiť celý leták — 48-stranový
+    leták sa inak prečíta ako 8-stranový a nikto sa to nedozvie.
+    """
+    pages, page_rows, seen, misses, gaps, n = [], [], set(), 0, [], start
+    while n < start + MAX_PAGES:
+        thumb, full = page_urls(n)
+        probe = thumb or full
+        marker = page_exists(probe)
+        if marker:
+            marker = _page_marker(marker, probe)
+            if marker in seen:
+                break                       # zdroj opakuje stranu → koniec letáka
+            seen.add(marker)
+            pages.append((thumb, full))
+            page_rows.append({
+                "source_page": n - start + 1,
+                "thumbnail_url": thumb,
+                "image_url": full,
+            })
+            if misses:
+                gaps.append(n - start + 1)
+            misses = 0
+        else:
+            # Kým sme nenašli ani jednu stranu, dve chyby znamenajú, že leták
+            # tam nie je. Potom už preklenujeme diery.
+            misses += 1
+            if misses >= (PAGE_GAP_TOLERANCE if pages else 2):
+                break
+        n += 1
+    if gaps:
+        log(f"[WARN] {store}: preklenuté chýbajúce strany pred {gaps} — CDN má diery")
+    if pages and len(pages) < MIN_PLAUSIBLE_PAGES:
+        log(f"[WARN] {store}: leták má len {len(pages)} strán — "
+            f"to je nepravdepodobne málo, zdroj môže byť neúplný")
+    return pages, page_rows
+
+
+def store_pages(store, today=None):
     """Return all sequential pages plus their exact finite-validity manifest."""
+    today = today or datetime.date.today()
     try:
         meta = kupino_meta(store)
     except Exception as e:
-        log(f"[WARN] {store}: kupino zlyhalo ({e})")
+        log(f"[WARN] {store}: kupino leták odmietnutý ({e})")
         meta = None
+    meta = _usable_flyer(store, "kupino", meta, today)
     if meta:
-        if isinstance(meta, tuple):
-            lid, name, slug = meta
-            valid_from, valid_to = parse_finite_validity(slug)
-            meta = {
-                "flyer_id": lid,
-                "image_name": name,
-                "source_url": f"https://www.kupino.sk{slug}",
-                "valid_from": valid_from,
-                "valid_to": valid_to,
-            }
         lid, name = meta["flyer_id"], meta["image_name"]
-        pages, page_rows, seen, n = [], [], set(), 1
-        while True:
-            t = f"https://img.kupino.sk/letaky/{lid}/thumbs/{name}-{n}_320.jpg"
-            marker = page_exists(t)
-            if not marker:
-                break
-            marker = _page_marker(marker, t)
-            if marker in seen:
-                break
-            seen.add(marker)
-            full = f"https://img.kupino.sk/letaky/{lid}/{name}-{n}.jpg"
-            pages.append((t, full))
-            page_rows.append({"source_page": n, "thumbnail_url": t, "image_url": full})
-            n += 1
+        pages, page_rows = discover_pages(
+            store,
+            lambda n: (f"https://img.kupino.sk/letaky/{lid}/thumbs/{name}-{n}_320.jpg",
+                       f"https://img.kupino.sk/letaky/{lid}/{name}-{n}.jpg"),
+            start=1,
+        )
         if pages:
             return pages, _manifest(meta, page_rows)
     try:
-        base = mletaky_base(store)
+        base = mletaky_base(store, today)
     except Exception as e:
         log(f"[WARN] {store}: mletaky zlyhalo ({e})")
         base = None
+    base = _usable_flyer(store, "mletaky", base, today)
     if base:
-        pages, page_rows, seen, misses, n = [], [], set(), 0, 0
-        while True:
-            u = f"{base['source_url']}/image{n:02d}.webp"
-            marker = page_exists(u)
-            if marker:
-                marker = _page_marker(marker, u)
-                if marker in seen:
-                    break
-                seen.add(marker)
-                pages.append((None, u))
-                page_rows.append({"source_page": n + 1, "thumbnail_url": None, "image_url": u})
-                misses = 0
-            else:
-                misses += 1
-                if misses >= 2:
-                    break
-            n += 1
+        pages, page_rows = discover_pages(
+            store,
+            lambda n: (None, f"{base['source_url']}/image{n:02d}.webp"),
+            start=0,
+        )
         if pages:
             return pages, _manifest(base, page_rows)
+    log(f"[WARN] {store}: žiadny leták s dôveryhodnou platnosťou — obchod preskakujem")
     return [], None
 
 
@@ -448,12 +534,25 @@ def zbieraj(client, store):
     return out
 
 
+def record_store_outcome(con, week, store, status, count=0, detail=None):
+    """Zapíš výsledok zberu jedného obchodu, aby bol čiastočný beh viditeľný."""
+    con.execute(
+        """INSERT INTO zber_stav (tyzden, obchod, stav, pocet, detail, updated)
+           VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+           ON CONFLICT(tyzden, obchod) DO UPDATE SET
+             stav=excluded.stav, pocet=excluded.pocet,
+             detail=excluded.detail, updated=excluded.updated""",
+        (week, store, status, count, detail),
+    )
+    con.commit()
+
+
 def main():
     import anthropic
     client = anthropic.Anthropic(api_key=load_key(), timeout=180.0, max_retries=1)
     tyz = monday()
     con = db()
-    total, failures = 0, []
+    total, failures, collected = 0, [], []
     try:
         for store in STORES:
             try:
@@ -461,12 +560,20 @@ def main():
                 replace_store_week(con, tyz, store.capitalize(), akcie)
             except Exception as exc:
                 failures.append(store)
+                record_store_outcome(con, tyz, store.capitalize(), "fail", 0, str(exc)[:300])
                 log(f"[ERROR] {store}: zber zlyhal ({exc})")
                 continue
             total += len(akcie)
+            collected.append(store)
+            record_store_outcome(con, tyz, store.capitalize(), "ok", len(akcie))
         n = con.execute("SELECT COUNT(*) c FROM akcie WHERE tyzden=?", (tyz,)).fetchone()["c"]
     finally:
         con.close()
+    # Strojovo čitateľný súhrn: dozorca sa nesmie spoliehať na počet riadkov,
+    # dva zdravé obchody ho vždy prevýšia a tretí sa už nikdy nedozberá.
+    log("[SUMMARY] " + json.dumps(
+        {"tyzden": tyz, "ok": collected, "fail": failures, "akcie": total},
+        ensure_ascii=False, sort_keys=True))
     if failures:
         raise SystemExit(f"Zber zlyhal pre obchody: {', '.join(failures)}")
     log(f"[OK] Týždeň {tyz}: uložených {total} akcií (v DB spolu {n}).")
