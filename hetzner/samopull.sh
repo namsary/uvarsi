@@ -39,6 +39,9 @@ RELEASE_URL=$(sed -n 's/^[[:space:]]*RELEASE_URL=//p' "$CFG" | head -1 \
               | sed -e 's/^["'"'"']//' -e 's/["'"'"']$//' -e 's/[[:space:]]*$//')
 [ -n "$RELEASE_URL" ] || { log "v $CFG chýba RELEASE_URL"; exit 1; }
 
+TMP=$(mktemp -d /tmp/uvarsi-pull.XXXXXX) || exit 1
+trap 'rm -rf "$TMP"' EXIT
+
 # --- 1. stiahni najnovší kód (git) ---
 ZDROJ="$DIR/zdroj"
 VETVA="${RELEASE_BRANCH:-main}"
