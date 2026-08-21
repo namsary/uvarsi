@@ -5,6 +5,7 @@ import pytest
 
 from app.plan_data import build_personal_plan, meal_count_for_frequency, personal_plan_prompt
 from app.plan_data import DAY_ORDER, cached_plan_is_current, cooking_days_for_frequency
+from app.plan_data import days_covered_by_meal, example_recipe
 from app.plan_data import offers_catalog, personal_plan_messages, plan_signature, plan_variant_for
 from app.offer_data import migrate_akcie_schema, offer_key_for, replace_store_week
 from app.weekly_data import current_verified_offers
@@ -54,41 +55,92 @@ def verified_key(offer_id):
     return offer_key_for(row["tyzden"], row)
 
 
-PONDELOK_KROKY = [
-    "V hrnci zohrej 1 l mlieka na strednom ohni 5 minút, nesmie zovrieť.",
-    "Pridaj štipku soli a 2 lyžice medu, miešaj 2 minúty metličkou.",
-    "Nakrájaj 4 hrubé krajce chleba a podávaj ich k horúcemu mlieku.",
-]
-STREDA_KROKY = [
-    "Nakrájaj 500 g chleba na 8 krajcov hrubých približne 1 cm.",
-    "Na každý krajec natri 20 g mäkkého masla a osoľ štipkou soli.",
-    "Opeč krajce na panvici na strednom ohni 3 minúty z každej strany.",
-]
-PIATOK_KROKY = [
-    "Rúru predhrej na 200 °C a plech vylož papierom na pečenie.",
-    "Nakrájaj 250 g masla na 8 plátkov a rozlož ich na 8 krajcov chleba.",
-    "Peč 6 minút, potom posyp mletým korením a hneď podávaj na stôl.",
-]
+# ---------------------------------------------------------------- množstvá
+# Recept je pre konkrétnu domácnosť: model povie množstvo na jednu porciu,
+# počet porcií a všetky súčty dopočíta Python. Test si ich preto počíta sám,
+# nezávisle od appky — inak by overoval len to, že kód sa rovná sám sebe.
+MLIEKO_NA_OSOBU = 250   # ml
+CHLIEB_NA_OSOBU = 60    # g
+MASLO_NA_OSOBU = 30     # g
 
 
-def model_output(items=None):
+def portions(household=4, frequency=2):
+    return household * {1: 1, 2: 2, 3: 3, 7: 3}[frequency]
+
+
+def amount(per_person, unit, household=4, frequency=2):
+    total = per_person * portions(household, frequency)
+    if unit == "g" and total >= 1000:
+        return _number(total / 1000) + " kg"
+    if unit == "ml" and total >= 1000:
+        return _number(total / 1000) + " l"
+    return _number(total) + " " + unit
+
+
+def _number(value):
+    return f"{value:.3f}".rstrip("0").rstrip(".").replace(".", ",")
+
+
+def item(offer_key, per_person, unit, quantity=1):
+    return {
+        "offer_key": offer_key, "quantity": quantity,
+        "amount_per_person": per_person, "unit": unit,
+    }
+
+
+def pondelok_kroky(household=4, frequency=2):
+    mlieko = amount(MLIEKO_NA_OSOBU, "ml", household, frequency)
+    return [
+        f"V hrnci zohrej {mlieko} mlieka na strednom ohni 5 minút, kým sa nezačne pariť.",
+        "Vsyp 400 g krupice, osoľ štipkou soli a metličkou miešaj 3 minúty, kým kaša nezhustne.",
+        "Kašu rozdeľ na taniere, posyp 2 lyžičkami škorice a hneď podávaj.",
+    ]
+
+
+def streda_kroky(household=4, frequency=2):
+    chlieb = amount(CHLIEB_NA_OSOBU, "g", household, frequency)
+    return [
+        f"{chlieb} chleba nakrájaj na krajce hrubé 1 cm a jemne ich osoľ z oboch strán.",
+        "Na suchej panvici opekaj krajce na strednom ohni 3 minúty z každej strany, kým nie sú zlatisté.",
+        "Opečené krajce potri 2 lyžicami oleja, posyp mletým korením a podávaj teplé.",
+    ]
+
+
+def piatok_kroky(household=4, frequency=2):
+    maslo = amount(MASLO_NA_OSOBU, "g", household, frequency)
+    return [
+        "Rúru predhrej na 200 °C a plech vylož papierom na pečenie.",
+        f"1 kg zemiakov ošúp, nakrájaj na kolieska hrubé 1 cm, rozlož na plech a poukladaj"
+        f" navrch {maslo} masla pokrájaného na plátky.",
+        "Peč 25 minút, kým zemiaky nezmäknú a nie sú dozlata, potom ich rozdeľ na taniere a podávaj.",
+    ]
+
+
+PONDELOK_KROKY = pondelok_kroky()
+STREDA_KROKY = streda_kroky()
+PIATOK_KROKY = piatok_kroky()
+
+
+def model_output(items=None, household=4, frequency=2):
     return {
         "meals": [
             {
-                "day": "PO", "name": "Mliečna večera", "minutes": 25,
-                "instructions": list(PONDELOK_KROKY),
-                "items": items if items is not None else [{"offer_key": verified_key(1), "quantity": 2}],
+                "day": "PO", "name": "Mliečna kaša", "minutes": 25,
+                "instructions": pondelok_kroky(household, frequency),
+                "items": items if items is not None else [
+                    item(verified_key(1), MLIEKO_NA_OSOBU, "ml", quantity=2)
+                ],
                 "pantry_ingredients": ["soľ"],
             },
             {
-                "day": "ST", "name": "Chlieb s maslom", "minutes": 15,
-                "instructions": list(STREDA_KROKY),
-                "items": [{"offer_key": verified_key(2), "quantity": 1}],
+                "day": "ST", "name": "Opekaný chlieb", "minutes": 15,
+                "instructions": streda_kroky(household, frequency),
+                "items": [item(verified_key(2), CHLIEB_NA_OSOBU, "g")],
             },
             {
-                "day": "PI", "name": "Maslový toast", "minutes": 20,
-                "instructions": list(PIATOK_KROKY),
-                "items": [{"offer_key": verified_key(3), "quantity": 1}],
+                "day": "PI", "name": "Maslové zemiaky", "minutes": 20,
+                "instructions": piatok_kroky(household, frequency),
+                "items": [item(verified_key(3), MASLO_NA_OSOBU, "g")],
             },
         ]
     }
@@ -104,32 +156,36 @@ def test_reconstructs_grouped_purchases_and_totals_only_from_verified_offers():
         "tyzden": "2026-08-17",
         "jedla": [
             {
-                "den": "PO", "nazov": "Mliečna večera",
-                "recept": {"min": 25, "kroky": PONDELOK_KROKY},
+                "den": "PO", "nazov": "Mliečna kaša",
+                "recept": {"min": 25, "porcie": 8, "pre": "4 osoby × 2 dni",
+                           "davky": ["Mlieko – 2 l", "soľ zo špajze"],
+                           "kroky": PONDELOK_KROKY},
                 "suroviny": [
                     {"offer_key": verified_key(1), "nazov": "Mlieko", "obchod": "Lidl", "jednotka": "1 l",
-                     "mnozstvo": 2, "cena": "2,20", "povodna": "3,00", "zlava": "-27 %",
+                     "mnozstvo": 2, "davka": "2 l", "cena": "2,20", "povodna": "3,00", "zlava": "-27 %",
                      "source_url": "https://source.test/lidl", "source_page": 1,
                      "valid_from": "2026-08-17", "valid_to": "2026-08-23"},
                     {"spajza": "soľ"},
                 ],
             },
             {
-                "den": "ST", "nazov": "Chlieb s maslom",
-                "recept": {"min": 15, "kroky": STREDA_KROKY},
+                "den": "ST", "nazov": "Opekaný chlieb",
+                "recept": {"min": 15, "porcie": 8, "pre": "4 osoby × 2 dni",
+                           "davky": ["Chlieb – 480 g"], "kroky": STREDA_KROKY},
                 "suroviny": [
                     {"offer_key": verified_key(2), "nazov": "Chlieb", "obchod": "Tesco", "jednotka": "500 g",
-                     "mnozstvo": 1, "cena": "1,20", "povodna": "1,80", "zlava": "-33 %",
+                     "mnozstvo": 1, "davka": "480 g", "cena": "1,20", "povodna": "1,80", "zlava": "-33 %",
                      "source_url": "https://source.test/tesco", "source_page": 2,
                      "valid_from": "2026-08-17", "valid_to": "2026-08-23"},
                 ],
             },
             {
-                "den": "PI", "nazov": "Maslový toast",
-                "recept": {"min": 20, "kroky": PIATOK_KROKY},
+                "den": "PI", "nazov": "Maslové zemiaky",
+                "recept": {"min": 20, "porcie": 8, "pre": "4 osoby × 2 dni",
+                           "davky": ["Maslo – 240 g"], "kroky": PIATOK_KROKY},
                 "suroviny": [
                     {"offer_key": verified_key(3), "nazov": "Maslo", "obchod": "Lidl", "jednotka": "250 g",
-                     "mnozstvo": 1, "cena": "2,00", "povodna": "2,50", "zlava": "-20 %",
+                     "mnozstvo": 1, "davka": "240 g", "cena": "2,00", "povodna": "2,50", "zlava": "-20 %",
                      "source_url": "https://source.test/lidl", "source_page": 3,
                      "valid_from": "2026-08-17", "valid_to": "2026-08-23"},
                 ],
@@ -182,9 +238,9 @@ def test_provenance_comes_from_the_database_row_and_never_from_the_model():
     con = connection(rows)
     keys = {row["nazov"]: row["offer_key"] for row in current_verified_offers(con, ["Lidl", "Tesco"], TODAY)}
     payload = model_output()
-    payload["meals"][0]["items"] = [{"offer_key": keys["Mlieko"], "quantity": 2}]
-    payload["meals"][1]["items"] = [{"offer_key": keys["Chlieb"], "quantity": 1}]
-    payload["meals"][2]["items"] = [{"offer_key": keys["Maslo"], "quantity": 1}]
+    payload["meals"][0]["items"] = [item(keys["Mlieko"], MLIEKO_NA_OSOBU, "ml", quantity=2)]
+    payload["meals"][1]["items"] = [item(keys["Chlieb"], CHLIEB_NA_OSOBU, "g")]
+    payload["meals"][2]["items"] = [item(keys["Maslo"], MASLO_NA_OSOBU, "g")]
 
     plan = build_personal_plan(con, payload, ["Lidl", "Tesco"], 2, 4, pantry=["soľ"], today=TODAY)
 
@@ -204,9 +260,9 @@ def test_missing_original_price_contributes_sale_price_and_never_negative_saving
     con = connection(rows)
     keys = {row["nazov"]: row["offer_key"] for row in current_verified_offers(con, ["Lidl", "Tesco"], TODAY)}
     payload = model_output()
-    payload["meals"][0]["items"] = [{"offer_key": keys["Mlieko"], "quantity": 2}]
-    payload["meals"][1]["items"] = [{"offer_key": keys["Chlieb"], "quantity": 1}]
-    payload["meals"][2]["items"] = [{"offer_key": keys["Maslo"], "quantity": 1}]
+    payload["meals"][0]["items"] = [item(keys["Mlieko"], MLIEKO_NA_OSOBU, "ml", quantity=2)]
+    payload["meals"][1]["items"] = [item(keys["Chlieb"], CHLIEB_NA_OSOBU, "g")]
+    payload["meals"][2]["items"] = [item(keys["Maslo"], MASLO_NA_OSOBU, "g")]
 
     plan = build_personal_plan(
         con, payload, ["Lidl", "Tesco"], 2, 4, pantry=["soľ"], today=TODAY
@@ -249,7 +305,8 @@ def test_invalid_recipe_minutes_are_rejected(minutes):
         (lambda plan: plan["meals"][0]["items"][0].update(price="0,01"), "nepovolené"),
         (lambda plan: plan["meals"][0].update(instructions=[""]), "pokyn"),
         (lambda plan: plan["meals"][0]["items"][0].update(quantity=0), "Množstvo"),
-        (lambda plan: plan["meals"][1]["items"].__setitem__(0, {"offer_key": verified_key(1), "quantity": 1}), "duplicitné"),
+        (lambda plan: plan["meals"][1]["items"].__setitem__(
+            0, item(verified_key(1), MLIEKO_NA_OSOBU, "ml")), "duplicitné"),
         (lambda plan: plan["meals"][0]["items"][0].update(offer_key=verified_key(4)), "neznáme"),
     ],
 )
@@ -286,20 +343,22 @@ def test_personal_prompt_changes_quantities_and_servings_context_for_household_s
     for_twelve = personal_plan_prompt(rows, 2, ["soľ"], household_size=12)
 
     assert for_one != for_twelve
-    assert "1 osôb" in for_one
+    # Zadanie musí byť po slovensky: 1 osoba, 4 osoby, 12 osôb.
+    assert "1 osoba" in for_one and "osôb" not in for_one
     assert "12 osôb" in for_twelve
     assert "množstvá aj porcie" in for_one
+    assert "2 porcie" in for_one and "24 porcií" in for_twelve
 
 
 def test_personal_plan_build_requires_validated_household_size():
     con = connection(verified_rows())
 
     plan = build_personal_plan(
-        con, model_output(), ["Lidl", "Tesco"], 2, pantry=["soľ"],
+        con, model_output(household=12), ["Lidl", "Tesco"], 2, pantry=["soľ"],
         household_size=12, today=TODAY,
     )
 
-    assert plan["jedla"][0]["nazov"] == "Mliečna večera"
+    assert plan["jedla"][0]["nazov"] == "Mliečna kaša"
     for invalid in (0, 13, True):
         with pytest.raises(ValueError, match="Počet osôb"):
             build_personal_plan(
@@ -330,6 +389,14 @@ def test_cooking_days_are_spaced_by_the_requested_frequency():
     assert cooking_days_for_frequency(None) == ("PO", "ST", "PI")
     for frequency in (0, -3, "2", None):
         assert cooking_days_for_frequency(frequency) == ("PO", "ST", "PI")
+
+
+def test_one_meal_covers_exactly_the_days_until_the_next_cooking_day():
+    """Dávka musí pokryť aj dni so zvyškami — inak sa navarí málo."""
+    assert days_covered_by_meal(1) == 1
+    assert days_covered_by_meal(2) == 2
+    assert days_covered_by_meal(3) == 3
+    assert days_covered_by_meal(None) == 2
 
 
 def test_prompt_names_the_exact_cooking_days_instead_of_only_a_count():
@@ -370,7 +437,7 @@ def test_meals_come_back_in_calendar_order_whatever_order_the_model_sent():
 
 
 def test_cooking_every_third_day_is_accepted_only_on_its_own_two_days():
-    payload = {"meals": [dict(meal) for meal in model_output()["meals"][:2]]}
+    payload = {"meals": [dict(meal) for meal in model_output(frequency=3)["meals"][:2]]}
     payload["meals"][1]["day"] = "ŠT"
 
     plan = build_personal_plan(
@@ -387,12 +454,234 @@ def test_cooking_every_third_day_is_accepted_only_on_its_own_two_days():
         )
 
 
-def with_steps(steps):
+# ------------------------------------------------- koľko čoho pre počet osôb
+def build(payload, household=4, frequency=2, rows=None):
+    return build_personal_plan(
+        connection(rows or verified_rows()), payload, ["Lidl", "Tesco"], frequency,
+        household, pantry=["soľ"], today=TODAY,
+    )
+
+
+def test_recipe_states_how_much_of_everything_the_household_needs():
+    """Majiteľ: „dobre by bolo napočítať, že koľko čoho pre počet osôb."""
+    plan = build(model_output())
+
+    recept = plan["jedla"][0]["recept"]
+    assert recept["porcie"] == 8, "4 osoby × 2 dni, druhý deň sa jedia zvyšky"
+    assert recept["pre"] == "4 osoby × 2 dni"
+    assert recept["davky"] == ["Mlieko – 2 l", "soľ zo špajze"]
+    assert plan["jedla"][0]["suroviny"][0]["davka"] == "2 l"
+
+
+def test_amounts_are_recomputed_for_every_household_size():
+    """Rovnaký recept, iná domácnosť: 250 ml na porciu musí dať iné litre."""
+    for household, expected in ((1, "500 ml"), (2, "1 l"), (4, "2 l"), (6, "3 l")):
+        plan = build(model_output(household=household), household=household)
+        assert plan["jedla"][0]["suroviny"][0]["davka"] == expected
+        assert plan["jedla"][0]["recept"]["porcie"] == household * 2
+
+    solo = build(model_output(household=1), household=1)
+    assert solo["jedla"][0]["recept"]["pre"] == "1 osoba × 2 dni"
+
+
+def test_shopping_quantity_is_derived_from_what_the_recipe_actually_uses():
+    """Nákupný zoznam nesmie byť odhad modelu — počíta sa z veľkosti balenia."""
+    payload = model_output()
+    payload["meals"][0]["items"] = [item(verified_key(1), MLIEKO_NA_OSOBU, "ml", quantity=9)]
+
+    plan = build(payload)
+
+    mlieko = plan["jedla"][0]["suroviny"][0]
+    assert mlieko["mnozstvo"] == 2, "2 l receptu = 2 balenia po 1 l, nech model tvrdí čokoľvek"
+    assert mlieko["cena"] == "2,20"
+    assert plan["nakupny_zoznam"][0]["polozky"][1]["mnozstvo"] == 2
+
+
+def test_partly_used_package_is_still_bought_whole():
+    """480 g chleba z 500 g balenia je jedno balenie — nie 0,96."""
+    plan = build(model_output())
+
+    chlieb = plan["jedla"][1]["suroviny"][0]
+    assert (chlieb["davka"], chlieb["mnozstvo"], chlieb["jednotka"]) == ("480 g", 1, "500 g")
+
+    velka_rodina = build(model_output(household=6), household=6)
+    chlieb = velka_rodina["jedla"][1]["suroviny"][0]
+    assert (chlieb["davka"], chlieb["mnozstvo"]) == ("720 g", 2)
+
+
+def test_rejects_a_recipe_whose_steps_contradict_the_amount_that_is_bought():
+    """Recept hovorí 1 l, nakúpi sa 2 l — presne tá nedôvera, ktorú appka nesmie vyrobiť."""
+    payload = model_output()
+    payload["meals"][0]["instructions"] = [
+        "V hrnci zohrej 1 l mlieka na strednom ohni 5 minút, kým sa nezačne pariť.",
+        "Vsyp 400 g krupice, osoľ štipkou soli a metličkou miešaj 3 minúty, kým kaša nezhustne.",
+        "Kašu rozdeľ na taniere, posyp 2 lyžičkami škorice a hneď podávaj.",
+    ]
+
+    with pytest.raises(ValueError, match="nesúhlas"):
+        build(payload)
+
+
+def test_requires_an_amount_per_person_for_every_bought_ingredient():
+    payload = model_output()
+    payload["meals"][0]["items"] = [{"offer_key": verified_key(1), "quantity": 2}]
+
+    with pytest.raises(ValueError, match="na osobu"):
+        build(payload)
+
+    payload["meals"][0]["items"] = [item(verified_key(1), 250, "hrsť", quantity=2)]
+    with pytest.raises(ValueError, match="jednotk"):
+        build(payload)
+
+
+def test_a_typo_in_the_unit_can_never_buy_a_hundred_kilos():
+    """150 kg namiesto 150 g je nákup za stovky eur — to sa nesmie stať."""
+    payload = model_output()
+    payload["meals"][0]["items"] = [item(verified_key(1), 150, "l", quantity=1)]
+
+    with pytest.raises(ValueError, match="nereálne"):
+        build(payload)
+
+
+@pytest.mark.parametrize("amount_per_person", [0, -5, True, "250", float("inf")])
+def test_rejects_nonsense_amounts_per_person(amount_per_person):
+    payload = model_output()
+    payload["meals"][0]["items"] = [
+        {"offer_key": verified_key(1), "quantity": 2,
+         "amount_per_person": amount_per_person, "unit": "ml"}
+    ]
+
+    with pytest.raises(ValueError, match="na osobu"):
+        build(payload)
+
+
+def test_unparsable_package_size_falls_back_to_the_quantity_the_model_asked_for():
+    """Pri balení „bal." sa počet kusov dopočítať nedá — tam model rozhoduje."""
+    rows = verified_rows()
+    rows[0] = tuple(list(rows[0][:8]) + ["bal."] + list(rows[0][9:]))
+    con = connection(rows)
+    keys = {row["nazov"]: row["offer_key"] for row in current_verified_offers(con, ["Lidl", "Tesco"], TODAY)}
+    payload = model_output()
+    payload["meals"][0]["items"] = [item(keys["Mlieko"], MLIEKO_NA_OSOBU, "ml", quantity=3)]
+    payload["meals"][1]["items"] = [item(keys["Chlieb"], CHLIEB_NA_OSOBU, "g")]
+    payload["meals"][2]["items"] = [item(keys["Maslo"], MASLO_NA_OSOBU, "g")]
+
+    plan = build_personal_plan(
+        con, payload, ["Lidl", "Tesco"], 2, 4, pantry=["soľ"], today=TODAY
+    )
+
+    mlieko = plan["jedla"][0]["suroviny"][0]
+    assert (mlieko["mnozstvo"], mlieko["davka"]) == (3, "2 l")
+
+
+# ------------------------------------------------- názov musí sedieť na recept
+def with_steps(steps, name="Dusená cibuľa"):
     payload = model_output()
     payload["meals"][0]["instructions"] = list(steps)
+    payload["meals"][0]["name"] = name
     return payload
 
 
+def test_rejects_a_dish_name_that_promises_an_ingredient_the_steps_never_use():
+    """„Kuracie prsia na ryži" bez ryže v postupe je klamstvo v názve."""
+    payload = model_output()
+    payload["meals"][0]["name"] = "Mliečna kaša s hruškami"
+
+    with pytest.raises(ValueError, match="Názov"):
+        build(payload)
+
+
+def test_rejects_rice_that_is_stirred_in_when_the_name_promises_it_underneath():
+    """Presne majiteľova sťažnosť: „na ryži", ale recept je „s ryžou"."""
+    mixed_in = [
+        "V hrnci zohrej 2 l mlieka na strednom ohni 5 minút, kým sa nezačne pariť.",
+        "Vsyp 400 g ryže, osoľ štipkou soli a na miernom ohni ju var 12 minút, kým nezmäkne.",
+        "Kašu dôkladne premiešaj vareškou a povar ju ešte 3 minúty, kým nezhustne.",
+        "Kašu rozdeľ na taniere, posyp 2 lyžičkami škorice a hneď podávaj.",
+    ]
+
+    with pytest.raises(ValueError, match="Názov"):
+        build(with_steps(mixed_in, name="Mliečna kaša na ryži"))
+
+    served_on_top = mixed_in[:3] + [
+        "Ryžu rozdeľ na taniere, prelej ju horúcou kašou a hneď podávaj.",
+    ]
+    plan = build(with_steps(served_on_top, name="Mliečna kaša na ryži"))
+    assert plan["jedla"][0]["nazov"] == "Mliečna kaša na ryži"
+
+
+def test_the_recipe_the_owner_complained_about_is_rejected_even_when_it_looks_complete():
+    """Doslova to, čo appka vygenerovala: názov „na ryži", ale ryža sa vmieša.
+
+    Kroky majú množstvá, časy aj teplotu — staršia kontrola ich prepustila.
+    """
+    payload = with_steps([
+        "1,2 kg kuracích pŕs nakrájaj na plátky hrubé 1 cm a osoľ ich štipkou soli.",
+        "Na 2 lyžiciach oleja ich opekaj na strednom ohni 5 minút z každej strany do zlatista.",
+        "Pridaj 600 g ryže, zalej 1,2 l vody a na miernom ohni var 20 minút, kým sa voda nevsiakne.",
+        "Všetko dôkladne premiešaj vareškou, dochuť soľou a rozdeľ na štyri hlboké taniere.",
+        "Podávaj hneď a každú porciu posyp nasekanou petržlenovou vňaťou.",
+    ], name="Kuracie prsné plátky na ryži")
+
+    with pytest.raises(ValueError, match="Názov sľubuje jedlo podávané na ryži"):
+        build(payload)
+
+
+def test_a_garnish_may_be_cut_without_naming_its_shape():
+    """Tvar rezu pýtame pri surovine, ktorá tvorí jedlo — nie pri vňati na ozdobu."""
+    payload = with_steps([
+        "600 g mrkvy nakrájaj na kolieska hrubé 1 cm a daj ich do hrnca.",
+        "Prilej 200 ml vody, osoľ a na miernom ohni duste 20 minút, kým mrkva nezmäkne.",
+        "Rozdeľ na taniere, nakrájaj petržlenovú vňať, posyp ňou porcie a podávaj.",
+    ], name="Dusená mrkva")
+
+    plan = build(payload)
+
+    assert len(plan["jedla"][0]["recept"]["kroky"]) == 3
+
+
+def test_a_tip_about_leftovers_may_follow_the_serving_step():
+    """Varí sa na dva dni, takže rada o zvyškoch je namieste — nesmie plán zhodiť."""
+    payload = with_steps([
+        "600 g mrkvy nakrájaj na kolieska hrubé 1 cm a daj ich do hrnca.",
+        "Prilej 200 ml vody, osoľ a na miernom ohni duste 20 minút, kým mrkva nezmäkne.",
+        "Rozdeľ na štyri taniere a podávaj s krajcom chleba.",
+        "Zvyšok nechaj vychladnúť, v chladničke vydrží do ďalšieho dňa.",
+    ], name="Dusená mrkva")
+
+    plan = build(payload)
+
+    assert len(plan["jedla"][0]["recept"]["kroky"]) == 4
+
+
+def test_a_cold_dish_served_with_bread_is_not_asked_for_an_oven_temperature():
+    """„Podávaj s pečivom" nie je pečenie — studený šalát nemá čo zohrievať."""
+    payload = with_steps([
+        "400 g paradajok nakrájaj na osminy a 200 g uhoriek na kolieska hrubé 1 cm.",
+        "Do misy pridaj 2 konzervy tuniaka, 1 cibuľu nakrájanú najemno a premiešaj.",
+        "Zalej 4 lyžicami oleja, osoľ a nechaj 10 minút odstáť, kým sa chute nespoja.",
+        "Šalát rozdeľ do štyroch misiek a podávaj s pečivom.",
+    ], name="Zeleninový šalát s tuniakom")
+
+    plan = build(payload)
+
+    assert len(plan["jedla"][0]["recept"]["kroky"]) == 4
+
+
+def test_a_plain_dish_name_needs_no_serving_base_in_the_last_step():
+    """„Bravčové na cibuľke" nie je jedlo podávané na cibuli — nesmieme ho odmietnuť."""
+    steps = [
+        "Cibuľu nakrájaj na kolieska a opeč ju na 2 lyžiciach oleja 5 minút do sklovita.",
+        "Prilej 200 ml vody, osoľ štipkou soli a na miernom ohni duste 25 minút, kým nezmäkne.",
+        "Rozdeľ na taniere a podávaj, každú porciu posyp 1 lyžičkou mletého korenia.",
+    ]
+
+    plan = build(with_steps(steps, name="Dusená cibuľa na oleji"))
+
+    assert plan["jedla"][0]["nazov"] == "Dusená cibuľa na oleji"
+
+
+# ------------------------------------------------------------ skutočný postup
 def test_rejects_recipe_steps_too_generic_to_cook_from():
     """„Pridaj cibuľu a opeč" nepovie koľko, ako dlho ani na čom."""
     payload = with_steps([
@@ -402,23 +691,17 @@ def test_rejects_recipe_steps_too_generic_to_cook_from():
     ])
 
     with pytest.raises(ValueError, match="všeobecn"):
-        build_personal_plan(
-            connection(verified_rows()), payload, ["Lidl", "Tesco"], 2, 4,
-            pantry=["soľ"], today=TODAY,
-        )
+        build(payload)
 
 
 def test_accepts_the_same_step_once_it_says_how_much_how_long_and_how_hot():
     payload = with_steps([
-        "Na 2 lyžiciach oleja opeč 2 nakrájané cibule 5 minút do sklovita.",
-        "Prilej 200 ml vody, osoľ štipkou soli a duste 15 minút pod pokrievkou.",
-        "Na miernom ohni prevar ešte 3 minúty a rozdeľ na 4 taniere.",
+        "Na 2 lyžiciach oleja opeč 2 cibule nakrájané na kocky 5 minút do sklovita.",
+        "Prilej 200 ml vody, osoľ štipkou soli a duste 15 minút pod pokrievkou, kým nezmäknú.",
+        "Na miernom ohni prevar ešte 3 minúty a rozdeľ na 4 taniere a podávaj.",
     ])
 
-    plan = build_personal_plan(
-        connection(verified_rows()), payload, ["Lidl", "Tesco"], 2, 4,
-        pantry=["soľ"], today=TODAY,
-    )
+    plan = build(payload)
 
     assert plan["jedla"][0]["recept"]["kroky"][0].startswith("Na 2 lyžiciach oleja opeč")
 
@@ -432,7 +715,7 @@ def test_accepts_the_same_step_once_it_says_how_much_how_long_and_how_hot():
         ),
         (
             [
-                "Na 2 lyžiciach oleja opeč 2 nakrájané cibule 5 minút do sklovita.",
+                "Na 2 lyžiciach oleja opeč 2 cibule nakrájané na kocky 5 minút do sklovita.",
                 "Pridaj cibuľu a opeč.",
                 "Na miernom ohni duste 15 minút a rozdeľ na 4 taniere.",
             ],
@@ -442,31 +725,31 @@ def test_accepts_the_same_step_once_it_says_how_much_how_long_and_how_hot():
             [
                 "Cibuľu nakrájaj najemno a opeč ju na strednom ohni 5 minút do sklovita.",
                 "Prilej vodu, osoľ podľa chuti a všetko poriadne premiešaj vareškou.",
-                "Duste pod pokrievkou 20 minút a potom nechaj chvíľu odstáť.",
+                "Duste pod pokrievkou 20 minút a potom rozdeľ na taniere a podávaj.",
             ],
             "množstv",
         ),
         (
             [
-                "Na 2 lyžiciach oleja opeč 2 nakrájané cibule na strednom ohni.",
+                "Na 2 lyžiciach oleja opeč 2 cibule nakrájané na kocky na strednom ohni.",
                 "Pridaj 400 g ryže, 800 ml vody a štipku soli, potom premiešaj.",
-                "Duste pod pokrievkou, kým sa voda nevsiakne, a podávaj s petržlenom.",
+                "Duste pod pokrievkou, kým sa voda nevsiakne, a rozdeľ na taniere.",
             ],
             "čas",
         ),
         (
             [
-                "Nakrájaj 2 cibule najemno a opeč ich na panvici 5 minút do sklovita.",
+                "Nakrájaj 2 cibule na kocky a opeč ich na panvici 5 minút do sklovita.",
                 "Pridaj 400 g ryže a 800 ml vody, osoľ štipkou soli a premiešaj.",
-                "Nechaj odstáť 15 minút, potom rozdeľ na 4 taniere a podávaj.",
+                "Nechaj odstáť 15 minút, kým nezmäkne, potom rozdeľ na 4 taniere a podávaj.",
             ],
             "teplot",
         ),
         (
             [
-                "Na 2 lyžiciach oleja opeč nakrájanú cibuľu na strednom ohni 5 minút.",
-                "Pridaj nakrájanú mrkvu a zeler, premiešaj a duste pod pokrievkou.",
-                "Osoľ, okoreň a nechaj odstáť, potom podávaj s petržlenovou vňaťou.",
+                "Na 2 lyžiciach oleja opeč cibuľu nakrájanú na kocky na strednom ohni 5 minút.",
+                "Pridaj nakrájanú mrkvu na kolieska, premiešaj a duste pod pokrievkou do mäkka.",
+                "Osoľ, okoreň a rozdeľ na taniere, potom podávaj s petržlenovou vňaťou.",
             ],
             "Väčšina krokov",
         ),
@@ -474,10 +757,41 @@ def test_accepts_the_same_step_once_it_says_how_much_how_long_and_how_hot():
 )
 def test_rejects_recipes_that_do_not_say_how_much_how_long_or_how_hot(steps, message):
     with pytest.raises(ValueError, match=message):
-        build_personal_plan(
-            connection(verified_rows()), with_steps(steps), ["Lidl", "Tesco"], 2, 4,
-            pantry=["soľ"], today=TODAY,
-        )
+        build(with_steps(steps))
+
+
+def test_rejects_cutting_that_does_not_say_into_what_shape():
+    """„Nakrájaj mäso" nevie zopakovať nikto, kto nevaril: na kocky? na plátky?"""
+    payload = with_steps([
+        "Nakrájaj 2 cibule a opeč ich na 2 lyžiciach oleja 5 minút do sklovita.",
+        "Prilej 200 ml vody, osoľ štipkou soli a na miernom ohni duste 15 minút, kým nezmäknú.",
+        "Rozdeľ na 4 taniere, posyp 1 lyžičkou korenia a hneď podávaj.",
+    ])
+
+    with pytest.raises(ValueError, match="krája"):
+        build(payload)
+
+
+def test_requires_the_last_step_to_put_the_finished_dish_on_the_table():
+    payload = with_steps([
+        "Nakrájaj 2 cibule na kocky a opeč ich na 2 lyžiciach oleja 5 minút do sklovita.",
+        "Prilej 200 ml vody, osoľ štipkou soli a na miernom ohni duste 15 minút, kým nezmäknú.",
+        "Nakoniec všetko ešte raz premiešaj vareškou a 2 minúty povar bez pokrievky.",
+    ])
+
+    with pytest.raises(ValueError, match="podáv"):
+        build(payload)
+
+
+def test_requires_the_recipe_to_say_what_the_result_should_look_like():
+    payload = with_steps([
+        "Nakrájaj 2 cibule na kocky a opeč ich na 2 lyžiciach oleja presne 5 minút.",
+        "Prilej 200 ml vody, osoľ štipkou soli a na miernom ohni duste 15 minút.",
+        "Rozdeľ na 4 taniere, posyp 1 lyžičkou korenia a hneď podávaj.",
+    ])
+
+    with pytest.raises(ValueError, match="vyzerať"):
+        build(payload)
 
 
 def test_cold_recipe_needs_no_temperature_when_nothing_is_heated():
@@ -485,28 +799,22 @@ def test_cold_recipe_needs_no_temperature_when_nothing_is_heated():
     payload = with_steps([
         "Nakrájaj 2 cibule najemno a 400 g mrkvy na kolieska hrubé 1 cm.",
         "Zmiešaj v mise 200 ml vody, 2 lyžice oleja a štipku soli s korením.",
-        "Nechaj odstáť 15 minút a potom šalát ešte raz dôkladne premiešaj.",
-    ])
+        "Nechaj odstáť 15 minút, kým zelenina nepustí šťavu, potom šalát rozdeľ na taniere a podávaj.",
+    ], name="Cibuľový šalát")
 
-    plan = build_personal_plan(
-        connection(verified_rows()), payload, ["Lidl", "Tesco"], 2, 4,
-        pantry=["soľ"], today=TODAY,
-    )
+    plan = build(payload)
 
     assert len(plan["jedla"][0]["recept"]["kroky"]) == 3
 
 
 def test_staples_stay_in_the_steps_and_never_reach_the_shopping_list():
     payload = with_steps([
-        "Na 2 lyžiciach oleja opeč 2 nakrájané cibule 5 minút do sklovita.",
+        "Na 2 lyžiciach oleja opeč 2 cibule nakrájané na kocky 5 minút do sklovita.",
         "Prilej 200 ml vody, osoľ štipkou soli a okoreň mletým čiernym korením.",
-        "Duste na miernom ohni 15 minút a nakoniec ešte raz dochuť soľou.",
+        "Duste na miernom ohni 15 minút, dochuť soľou a rozdeľ na taniere a podávaj.",
     ])
 
-    plan = build_personal_plan(
-        connection(verified_rows()), payload, ["Lidl", "Tesco"], 2, 4,
-        pantry=["soľ"], today=TODAY,
-    )
+    plan = build(payload)
 
     kroky = " ".join(plan["jedla"][0]["recept"]["kroky"])
     assert all(zakladna in kroky for zakladna in ("oleja", "vody", "soli", "korením"))
@@ -514,19 +822,78 @@ def test_staples_stay_in_the_steps_and_never_reach_the_shopping_list():
     assert sorted(nakup) == ["chlieb", "maslo", "mlieko"]
     assert not any(zakladna in nazov for nazov in nakup for zakladna in ("soľ", "olej", "vod", "koren"))
     assert plan["nakup_spolu"] == "5,40"
+    assert all("davka" not in polozka
+               for store in plan["nakupny_zoznam"] for polozka in store["polozky"])
+
+
+# ------------------------------------------------------------------- prompt
+def full_prompt(frequency=2, pantry=("soľ",), household_size=4):
+    """Všetko, čo model naozaj dostane: cachovaná predpona aj osobný chvost."""
+    blocks = personal_plan_messages(
+        offers_connection(), frequency, list(pantry), household_size=household_size
+    )
+    return "\n\n".join(block["text"] for block in blocks)
 
 
 def test_prompt_demands_cookable_steps_with_quantities_temperatures_and_times():
-    prompt = personal_plan_prompt(offers_connection(), 2, ["soľ"], household_size=4)
+    prompt = full_prompt()
 
     assert "aspoň 3 kroky" in prompt
     assert "°C" in prompt and "minút" in prompt
-    assert "Na 2 lyžiciach oleja opeč 2 nakrájané cibule 5 minút do sklovita" in prompt
+    assert "Na 2 lyžiciach oleja opeč 2 cibule nakrájané na kocky 5 minút do sklovita" in prompt
     assert "Pridaj cibuľu a opeč" in prompt
 
 
+def test_prompt_demands_a_shape_a_temperature_and_a_finished_plate():
+    prompt = full_prompt()
+
+    assert "na kocky, na plátky, na prúžky, na kolieska, najemno" in prompt
+    assert "Recept sa končí na stole." in prompt
+    assert "do sklovita, dozlata, kým nezmäkne" in prompt
+
+
+def test_prompt_spells_out_the_portion_arithmetic_instead_of_hoping_the_model_guesses():
+    prompt = full_prompt()
+    tail = personal_plan_prompt(offers_connection(), 2, ["soľ"], household_size=4)
+
+    assert "amount_per_person" in prompt and "unit = g, ml alebo ks" in prompt
+    assert "8 porcií" in tail, "4 osoby × 2 dni"
+    assert "× 8" in tail, "prepočet na celú dávku musí byť v zadaní ukázaný"
+
+
+def test_prompt_shows_a_whole_worked_recipe_that_passes_our_own_validation():
+    """Vzor v prompte je jediný spoľahlivý spôsob, ako opraviť formulácie —
+    a nesmie byť taký, aký by nám vlastná kontrola vrátila."""
+    prompt = full_prompt()
+    example = example_recipe()
+
+    assert example["name"] in prompt
+    for step in example["instructions"]:
+        assert step in prompt
+    plan = build(with_steps(example["instructions"], name=example["name"]))
+    assert plan["jedla"][0]["recept"]["kroky"] == example["instructions"]
+
+
+def test_prompt_demands_a_name_that_matches_what_the_steps_do():
+    prompt = full_prompt()
+
+    assert "na ryži" in prompt and "s ryžou" in prompt
+    assert "Názov musí opisovať presne to, čo kroky naozaj urobia." in prompt
+
+
+def test_recipe_rules_ride_in_the_cached_prefix_and_never_in_the_personal_tail():
+    """Pravidlá sú pre každého rovnaké — platiť ich pri každom prepočte je zbytočné."""
+    rows = offers_connection()
+
+    blocks = personal_plan_messages(rows, 2, ["soľ"], household_size=4)
+
+    assert "na kocky" in blocks[0]["text"], "pravidlá receptu patria do cachovanej predpony"
+    assert len(blocks[1]["text"]) < len(blocks[0]["text"]), "osobný chvost musí ostať malý"
+    assert blocks[0] == personal_plan_messages(rows, 3, [], household_size=9)[0]
+
+
 def test_prompt_allows_household_staples_but_keeps_them_out_of_the_offers():
-    prompt = personal_plan_prompt(offers_connection(), 2, ["soľ"], household_size=4)
+    prompt = full_prompt()
 
     assert "soľ, korenie, olej, voda" in prompt
     assert "Nikdy ich neuvádzaj v items" in prompt
@@ -576,7 +943,7 @@ def test_delayed_model_keys_are_rejected_after_legacy_rowids_are_reused():
     old_keys = [row["offer_key"] for row in current_verified_offers(con, ["Lidl"], TODAY)]
     delayed = model_output()
     for meal, offer_key in zip(delayed["meals"], old_keys):
-        meal["items"] = [{"offer_key": offer_key, "quantity": 1}]
+        meal["items"] = [item(offer_key, 100, "g")]
     ingest_three(con, "new")
 
     with pytest.raises(ValueError, match="neznáme"):
@@ -648,7 +1015,7 @@ def test_personal_task_carries_no_offer_catalogue_so_the_catalogue_can_be_cached
     task = personal_plan_prompt(rows, 2, ["soľ"], household_size=4)
 
     assert all(row["offer_key"] not in task for row in rows)
-    assert "4 osôb" in task
+    assert "4 osoby" in task
 
 
 def test_messages_put_the_cached_catalogue_before_anything_personal():
@@ -660,7 +1027,7 @@ def test_messages_put_the_cached_catalogue_before_anything_personal():
     assert blocks[0]["cache_control"] == {"type": "ephemeral"}, "prefix must be cached"
     assert "cache_control" not in blocks[1], "the personal tail must never be cached"
     assert rows[0]["offer_key"] in blocks[0]["text"]
-    assert "4 osôb" in blocks[1]["text"]
+    assert "4 osoby" in blocks[1]["text"]
     # Predpona sa nesmie hýbať s profilom, inak sa cache nikdy netrafí.
     assert blocks[0] == personal_plan_messages(rows, 3, [], household_size=9)[0]
 

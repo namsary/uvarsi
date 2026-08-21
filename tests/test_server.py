@@ -101,24 +101,30 @@ def plan_key(index):
     return offer_key_for(offer["tyzden"], offer)
 
 
-# Plán prejde overením len s krokmi, podľa ktorých sa dá naozaj variť.
+# Plán prejde overením len s krokmi, podľa ktorých sa dá naozaj variť: tvar
+# rezu, teplota, čas, ako to má vyzerať a na konci jedlo na tanieri.
 COOKABLE_STEPS = [
-    "Na 2 lyžiciach oleja opeč 2 nakrájané cibule 5 minút do sklovita.",
+    "Na 2 lyžiciach oleja opeč 2 cibule nakrájané na kocky 5 minút do sklovita.",
     "Prilej 200 ml vody, osoľ štipkou soli a duste 15 minút pod pokrievkou.",
-    "Na miernom ohni prevar ešte 3 minúty a rozdeľ na 4 hlboké taniere.",
+    "Na miernom ohni prevar polievku ešte 3 minúty a rozdeľ na 4 hlboké taniere.",
 ]
+COOKABLE_NAME = "Dusená cibuľová polievka"
 
 
 def model_plan(first_offer_key=None):
     first_offer_key = first_offer_key or plan_key(1)
     return {
         "meals": [
-            {"day": "PO", "name": "Prvé jedlo", "minutes": 30, "instructions": COOKABLE_STEPS,
-             "items": [{"offer_key": first_offer_key, "quantity": 2}], "pantry_ingredients": ["soľ"]},
-            {"day": "ST", "name": "Druhé jedlo", "minutes": 35, "instructions": COOKABLE_STEPS,
-             "items": [{"offer_key": plan_key(2), "quantity": 1}]},
-            {"day": "PI", "name": "Tretie jedlo", "minutes": 40, "instructions": COOKABLE_STEPS,
-             "items": [{"offer_key": plan_key(3), "quantity": 1}]},
+            {"day": "PO", "name": COOKABLE_NAME, "minutes": 30, "instructions": COOKABLE_STEPS,
+             "items": [{"offer_key": first_offer_key, "quantity": 2,
+                        "amount_per_person": 150, "unit": "g"}],
+             "pantry_ingredients": ["soľ"]},
+            {"day": "ST", "name": COOKABLE_NAME, "minutes": 35, "instructions": COOKABLE_STEPS,
+             "items": [{"offer_key": plan_key(2), "quantity": 1,
+                        "amount_per_person": 150, "unit": "g"}]},
+            {"day": "PI", "name": COOKABLE_NAME, "minutes": 40, "instructions": COOKABLE_STEPS,
+             "items": [{"offer_key": plan_key(3), "quantity": 1,
+                        "amount_per_person": 150, "unit": "g"}]},
         ]
     }
 
@@ -446,7 +452,7 @@ def test_plan_route_persists_only_reconstructed_server_commerce(monkeypatch, tmp
     offer = plan_offer(1)
     assert payload["jedla"][0]["suroviny"] == [
         {"offer_key": plan_key(1), "nazov": "Ponuka 1", "obchod": "Lidl", "jednotka": "1 ks",
-         "mnozstvo": 2, "cena": "2,02", "povodna": "4,02", "zlava": "-50 %",
+         "mnozstvo": 2, "davka": "1,2 kg", "cena": "2,02", "povodna": "4,02", "zlava": "-50 %",
          "source_url": offer["source_url"], "source_page": offer["source_page"],
          "valid_from": offer["valid_from"], "valid_to": offer["valid_to"]},
         {"spajza": "soľ"},
