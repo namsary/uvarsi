@@ -272,11 +272,25 @@ SPRAVA_SPAJZA_PREMIUM = (
     "Špajza je súčasťou Premium. V bezplatnej verzii skladáme jedálniček "
     "z akcií v tvojich obchodoch — bez toho, čo máš doma."
 )
+# Veta je pre človeka, kód pre appku. Bez kódu by sa obrazovka rozhodovala podľa
+# reťazca, ktorý raz preformulujeme — a zámok by prestal fungovať potichu.
+KOD_SPAJZA_PREMIUM = "spajza_premium"
+KOD_LIMIT_PREPOCTOV = "limit_prepoctov"
 
 
 def je_premium(con, user_id) -> bool:
     """Odvodené na každej požiadavke nanovo: vrátená platba platí okamžite."""
     return ma_narok(con, user_id)
+
+
+def odmietni(status: int, sprava: str, kod: str, **navyse) -> JSONResponse:
+    """Odmietnutie, ktoré rozumie človek aj appka.
+
+    `detail` ostáva obyčajná veta na tom istom mieste, kde ju appka čaká pri
+    každej inej chybe; `kod` je stále rovnaký identifikátor, podľa ktorého sa dá
+    vykresliť zamknutý stav bez hádania z textu.
+    """
+    return JSONResponse({"detail": sprava, "kod": kod, **navyse}, status_code=status)
 
 
 def limit_prepoctov(premium: bool) -> int:
@@ -295,8 +309,41 @@ def spajza_pouzivatela(con, user_id, premium: bool):
         "SELECT nazov FROM spajza WHERE user_id=? ORDER BY id", (user_id,))]
 
 
+def pocet_ulozenej_spajze(con, user_id) -> int:
+    """Koľko riadkov v špajzi naozaj leží — aj keď do plánu práve nevstupujú."""
+    row = con.execute("SELECT COUNT(*) FROM spajza WHERE user_id=?", (user_id,)).fetchone()
+    return int(row[0]) if row else 0
+
+
+def sprava_o_uspanej_spajze(pocet: int):
+    """Čo sa stalo so špajzou, ktorú si človek napísal ešte pred Premium.
+
+    Nemažeme ju a netvárime sa, že tam nie je. Iba povieme pravdu: leží
+    nedotknutá a do jedálnička dočasne nevstupuje. Po Premium sa vráti presne
+    taká, aká bola.
+    """
+    if pocet <= 0:
+        return None
+    if pocet == 1:
+        polozky = "1 položku"
+    elif pocet < 5:
+        polozky = f"{pocet} položky"
+    else:
+        polozky = f"{pocet} položiek"
+    return (
+        f"V špajzi máš uložených {polozky} z minulosti. Nemažeme ich — len do "
+        "jedálnička teraz nevstupujú. S Premium sa zapoja späť presne tak, ako si ich napísal."
+    )
+
+
 def dnesok(dnes=None) -> str:
     return (dnes or datetime.date.today()).isoformat()
+
+
+def zajtrajsok(den=None) -> str:
+    """Kedy sa denný strop obnoví. ISO dátum, aby si to appka nemusela rátať."""
+    zaklad = datetime.date.fromisoformat(den) if isinstance(den, str) else (den or datetime.date.today())
+    return (zaklad + datetime.timedelta(days=1)).isoformat()
 
 
 def pouzite_prepocty(con, user_id, den) -> int:
@@ -550,16 +597,24 @@ def me(req: Request):
     with closing(db()) as con:
         premium = je_premium(con, u["id"])
         sp = spajza_pouzivatela(con, u["id"], premium)
+        ulozenych = pocet_ulozenej_spajze(con, u["id"])
         limit = limit_prepoctov(premium)
         zostava = max(0, limit - pouzite_prepocty(con, u["id"], den))
+    # Špajza uspatá koncom Premium sa nezamlčí: appka vie, koľko riadkov leží
+    # a prečo do plánu nevstupujú. Ich názvy sem nepatria — obrazovka o platbe
+    # nemá zobrazovať údaje, ktoré práve nič neovplyvňujú.
+    uspana = bool(not premium and ulozenych)
     return {"prihlaseny": True, "id": u["id"], "email": u["email"], "osoby": u["osoby"],
             "frekvencia": u["frekvencia"], "obchody": u["obchody"].split(","),
             "onboarding": bool(u["onboarding"]),
             # `platiaci` je len stĺpec; pravdu o platbe drží tabuľka nárokov.
             "platiaci": premium, "premium": premium,
             "platby_zapnute": platby_su_zapnute(),
-            "spajza": sp, "spajza_premium": premium,
-            "limit_prepoctov": limit, "zostava_prepoctov": zostava}
+            "spajza": sp, "spajza_premium": premium, "spajza_dostupna": premium,
+            "spajza_ulozenych": ulozenych, "spajza_uspana": uspana,
+            "spajza_sprava": sprava_o_uspanej_spajze(ulozenych) if uspana else None,
+            "limit_prepoctov": limit, "zostava_prepoctov": zostava,
+            "prepocty_obnova": zajtrajsok(den)}
 
 
 @app.post("/api/profil")
@@ -599,7 +654,12 @@ async def uloz_spajzu(req: Request):
     # tu vždy nanovo — nárok, ktorý medzitým zanikol, platí okamžite.
     with closing(db()) as con:
         if not je_premium(con, u["id"]):
-            raise HTTPException(403, SPRAVA_SPAJZA_PREMIUM)
+            # Uložené riadky ostávajú ležať — odmietnutie nie je mazanie.
+            return odmietni(
+                403, SPRAVA_SPAJZA_PREMIUM, KOD_SPAJZA_PREMIUM,
+                premium=False, spajza_dostupna=False,
+                spajza_ulozenych=pocet_ulozenej_spajze(con, u["id"]),
+            )
     d = await req.json()
     polozky = [str(x).strip()[:40] for x in d.get("polozky", []) if str(x).strip()][:60]
     # Špajza je oddelený systém: uloží sa okamžite a plán sa jej NIKDY nedotkne.
@@ -802,7 +862,11 @@ def generuj_plan(req: Request, force: int = 0):
     den = dnesok()
     strop = limit_prepoctov(premium)
     if rezervuj_prepocet(u["id"], strop, den) is None:
-        raise HTTPException(429, sprava_o_limite(strop, premium))
+        return odmietni(
+            429, sprava_o_limite(strop, premium), KOD_LIMIT_PREPOCTOV,
+            premium=premium, limit_prepoctov=strop, zostava_prepoctov=0,
+            obnova=zajtrajsok(den),
+        )
     try:
         return poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant)
     except BaseException:

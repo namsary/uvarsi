@@ -9,10 +9,9 @@
 <link rel="preload" as="font" type="font/woff2" href="/static/fonts/manrope-400-800.7101939e.woff2" crossorigin>
 <link rel="preload" as="font" type="font/woff2" href="/static/fonts/anton-400.6d2997e3.woff2" crossorigin>
 <style>
-/* Písma si servírujeme sami. Predtým čakalo prvé vykreslenie na Google Fonts:
-   cudzí DNS, cudzí TLS, cudzie CSS a až potom sa smelo objaviť písmeno.
-   Zároveň to znamená, že IP každého návštevníka už neodchádza tretej strane.
-   Subset, licencia a pôvod originálov: /static/fonts/LICENSE.txt */
+/* Písma si servírujeme sami: prvé vykreslenie už nečaká na cudzí DNS a TLS
+   a IP návštevníka neodchádza tretej strane. Subset a licencia:
+   /static/fonts/LICENSE.txt */
 @font-face{font-family:"Anton";font-style:normal;font-weight:400;font-display:swap;
   src:url("/static/fonts/anton-400.6d2997e3.woff2") format("woff2")}
 @font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:400;font-display:swap;
@@ -133,31 +132,29 @@ const $ = s => document.querySelector(s);
 const M = $('#main');
 let ME = null, PLAN = null, TAB = 'plan';
 let DONE = {};
-/* Návrh na prepočet po zmene špajze si používateľ smie odklepnúť preč. */
 let PANTRY_HINT_HIDDEN = false;
-/* Odpoveď servera na vyžiadaný prepočet (napr. denný strop) — ukáže sa nad
-   jedálničkom, ktorý si používateľ práve číta, a nezmaže ho. */
+/* Odpoveď servera na vyžiadaný prepočet — ukáže sa nad jedálničkom, nezmaže ho. */
 let PLAN_NOTE = '';
-/* Suroviny v ukážke zamknutej špajze. Sú to zámerne bežné veci a je pri nich
-   napísané, že je to ukážka — nikdy sa netvárime, že sú to jeho údaje. */
+/* Suroviny v ukážke: zámerne bežné veci, vždy označené ako ukážka. */
 const SPAJZA_UKAZKA = ['ryža', 'vajcia', 'cibuľa'];
-/* Skladanie plánu je jediné dlhé volanie. Bez stropu by sa koliesko točilo
-   donekonečna; server má strop 120 s, klient mu necháva rezervu na sieť. */
+/* Bežné regálové ceny, nech je v ukážke vidieť, o koľko nákup klesne. */
+const SPAJZA_UKAZKA_CENY = {'ryža': '1,29', 'vajcia': '2,49', 'cibuľa': '0,89'};
+/* Jediné dlhé volanie. Bez stropu by sa koliesko točilo donekonečna; server
+   má 120 s, klient necháva rezervu na sieť. */
 const PLAN_TIMEOUT_MS = 150000;
 const PLAN_TIMEOUT_TEXT = 'Jedálniček sa nestihol poskladať do dvoch a pol minúty. Skús to prosím znova.';
 
 /* ---------- štart bez čakania v rade ----------
-   Profil a plán na sebe nezávisia, takže nemá zmysel pýtať si ich za sebou —
-   dve obrátky k serveru sú na mobilných dátach pol sekundy prázdnej obrazovky.
-   Obe požiadavky teda odchádzajú naraz, ešte kým sa dokresľuje hlavička. */
+   Profil a plán na sebe nezávisia. Dve obrátky za sebou sú na mobilných dátach
+   pol sekundy prázdnej obrazovky, tak odchádzajú naraz. */
 function startupRequests(request) {
   return {me: request('/api/me'), plan: request('/api/plan')};
 }
 
 let STARTUP = null, PLAN_PREFETCH = null;
 
-/* Odpoveď sa dá prečítať raz a zamietnutý sľub ostane zamietnutý navždy —
-   pri opakovaní po výpadku siete teda musia vzniknúť úplne nové požiadavky. */
+/* Odpoveď sa dá prečítať raz a zamietnutý sľub ostane zamietnutý — po výpadku
+   siete teda musia vzniknúť nové požiadavky. */
 function beginStartup() {
   STARTUP = startupRequests(url =>
     fetch(url, {headers: {'Content-Type': 'application/json'}}));
@@ -177,9 +174,8 @@ function takePlanPrefetch() {
 
 /* ---------- zapamätaný profil ----------
    Ukladá sa VÝHRADNE to, čo sa nekazí časom: meno v hlavičke a nastavenie.
-   Ceny ani nákupný zoznam sem nikdy nepatria — zastaraná akcia by poprela
-   celý sľub produktu. Vďaka tomu vidí vracajúci sa človek hlavičku a menu
-   okamžite, nie až po odpovedi servera. */
+   Ceny ani nákupný zoznam sem nepatria — zastaraná akcia by poprela sľub
+   produktu. Vracajúci sa človek tak vidí škrupinu hneď, nie až po serveri. */
 const PROFILE_KEY = 'uvarsi_profil';
 
 function rememberProfile(me) {
@@ -301,8 +297,7 @@ function offlineError() {
   return failure;
 }
 
-/* Spoločné vyhodnotenie odpovede — nezáleží, či ju spustil api() alebo
-   predbežná požiadavka zo štartu. */
+/* Spoločné vyhodnotenie odpovede: api() aj predbežná požiadavka zo štartu. */
 async function readApiResponse(r) {
   if (handleApiUnauthorized(r)) {
     const authError = new Error('Prihlásenie vypršalo. Prihlás sa znova.');
@@ -365,9 +360,17 @@ async function runGuardedAction(button, errorNode, action) {
   }
 }
 
+/* Nárok hovorí server. Staršia odpoveď pole nemá — vtedy platí premium. */
+function pantryUnlocked(me) {
+  if (!me) return false;
+  if (typeof me.spajza_dostupna === 'boolean') return me.spajza_dostupna;
+  if (typeof me.spajza_premium === 'boolean') return me.spajza_premium;
+  return !!me.premium;
+}
+
 /* ---------- špajza vs. plán ----------
-   Špajza sa ukladá sama za seba. Plán si pri skladaní zapamätal, z akej špajze
-   vznikol — rozdiel je len dôvod na tichý návrh, nikdy nie na prepočet. */
+   Plán si pri skladaní zapamätal, z akej špajze vznikol. Rozdiel je dôvod na
+   tichý návrh, nikdy nie na prepočet. */
 function pantryDiffers(planPantry, currentPantry) {
   if (Object.prototype.toString.call(planPantry) !== '[object Array]') return false;
   var tidy = function(list) {
@@ -386,8 +389,8 @@ function pantryDiffers(planPantry, currentPantry) {
 }
 
 /* ---------- týždeň ----------
-   Každý deň musí mať riadok: navarené, zvyšok alebo výslovné voľno. Kým sa
-   zvyšky brali z pevného zoznamu dní, dni mimo neho z týždňa ticho zmizli. */
+   Každý deň musí mať riadok: navarené, zvyšok alebo výslovné voľno. Z pevného
+   zoznamu dní dni mimo neho ticho zmizli. */
 function dayGenitive(day) {
   var forms = {'PO':'pondelka', 'UT':'utorka', 'ST':'stredy', 'ŠT':'štvrtka',
     'PI':'piatku', 'SO':'soboty', 'NE':'nedele'};
@@ -446,8 +449,8 @@ function weekLabel(tyzden) {
 const esc = s => String(s??'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 /* ---------- pôvod ceny ----------
-   Backend ku každej surovine posiela leták, stranu a platnosť. Bez nich by
-   sľub „skutočné ceny, skontroluj si ich" nemal používateľ ako overiť. */
+   Ku každej surovine chodí leták, strana a platnosť. Bez nich sa sľub
+   „skutočné ceny" nedá overiť. */
 function isoDay(value) {
   var parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value == null ? '' : value).trim());
   if (!parts) return null;
@@ -644,21 +647,51 @@ function stopPlanProgress() {
   if (PLAN_PROGRESS) { clearInterval(PLAN_PROGRESS); PLAN_PROGRESS = null; }
 }
 
-/* Prvé poskladanie smie prevziať hotový plán rovnakého profilu — je okamžité
-   a nikoho nič nestojí. Preto tu NIE je force. */
+/* Prvé poskladanie smie prevziať hotový plán rovnakého profilu — preto tu
+   NIE je force. */
 function generujPlan() {
   return api('/api/plan/generuj', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS});
 }
 
 /* „Chcem iný plán" sa musí cache vyhnúť, inak by nič nezmenilo. Je to jediné
-   miesto v appke, ktoré si naozaj vyžiada nové platené skladanie — a server ho
-   preto ráta do denného stropu (zadarmo 1×, s Premium 5× za deň). */
+   platené skladanie v appke — server ho ráta do denného stropu (1×, s Premium 5×). */
 function preskladajPlan() {
   return api('/api/plan/generuj?force=1', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS});
 }
 
-/* Koľko nových jedálničkov dnes ešte ide. Čísla hovorí server, appka ich len
-   prepíše — aby strop nebol prekvapením až v hláške o chybe. */
+/* Koľko pokusov dnes zostáva. Keď server mlčí, je to null — „neviem" nie je
+   „nula" a tlačidlo vtedy ostáva tam, kde bolo. */
+function regenerationsLeft(me) {
+  var raw = me ? me.zostava_prepoctov : null;
+  if (typeof raw !== 'number' && typeof raw !== 'string') return null;
+  var left = Math.round(Number(raw));
+  return isFinite(left) && String(raw).trim() ? Math.max(0, left) : null;
+}
+
+/* Strop sa vracia o polnoci — nech je napísané, ktorý deň. */
+function nextDayLabel(today) {
+  var base = isoDay(today);
+  if (base === null) return 'zajtra';
+  var next = new Date(base + 86400000);
+  return 'zajtra ' + next.getUTCDate() + '. ' + (next.getUTCMonth() + 1) + '.';
+}
+
+/* Vyčerpaný strop je bežný stav, nie chyba: koľko, dokedy a že jedálniček
+   zostáva. Znenie sedí s tým, čo na to isté odpovedá server. */
+function regenerationBlockedNote(me, today) {
+  var limit = Math.round(Number(me && me.limit_prepoctov));
+  var kolko = isFinite(limit) && limit > 0
+    ? (limit === 1 ? 'raz za deň' : limit + '× za deň') : '';
+  var text = kolko
+    ? 'Nový jedálniček ide ' + kolko + ' a dnešok už máš vyčerpaný.'
+    : 'Nový jedálniček dnes už nejde.';
+  text += ' Ďalší si vyžiadaj ' + nextDayLabel(today) +
+    ' po polnoci — ten, ktorý máš teraz, ti zostáva.';
+  if (!(me && me.premium)) text += ' S Premium je to 5× denne.';
+  return text;
+}
+
+/* Koľko nových jedálničkov dnes ešte ide — aby strop nebol prekvapením. */
 function regenerationNote(me) {
   var limit = Math.round(Number(me && me.limit_prepoctov));
   if (!isFinite(limit) || limit <= 0) return '';
@@ -667,10 +700,15 @@ function regenerationNote(me) {
   return 'Nový jedálniček: dnes ešte ' + Math.min(left, limit) + ' z ' + limit;
 }
 
-/* Prepočet na vyžiadanie. Keď ho server odmietne (napr. denný strop), jedálniček
-   na obrazovke zostáva a hláška sa objaví nad ním — nikdy prázdna chybová stena. */
+/* Prepočet na vyžiadanie. Keď server odmietne, jedálniček zostáva a hláška je
+   nad ním — nikdy prázdna chybová stena. */
 async function novyPlan() {
   if (!PLAN || !PLAN.jedla) return nacitajPlan(true);
+  /* Keď dnes už nič nejde, povie sa to rovno — bez volania do odmietnutia. */
+  if (regenerationsLeft(ME) === 0) {
+    PLAN_NOTE = regenerationBlockedNote(ME, todayIso());
+    return render();
+  }
   startPlanProgress();
   try {
     setPlan(await preskladajPlan());
@@ -729,8 +767,9 @@ function render() {
 function vPlan() {
   if (!PLAN || !PLAN.jedla) return nacitajPlan(true);
   const dnes = todayIso();
-  /* Špajzu má len Premium, takže nikoho iného návrh na prepočet neosloví. */
-  const spajzaSaZmenila = !PANTRY_HINT_HIDDEN && !!(ME && ME.premium) &&
+  /* Návrh na prepočet osloví len toho, kto špajzu naozaj má. Na staršom
+     serveri bez vlastného poľa o tom rozhoduje ME.premium ako doteraz. */
+  const spajzaSaZmenila = !PANTRY_HINT_HIDDEN && pantryUnlocked(ME) &&
     pantryDiffers(PLAN.spajza, ME && ME.spajza);
   let h = `<div style="margin:18px 0 6px"><span class="eyebrow">Tvoj týždeň</span>
     <h1 class="display" style="font-size:1.5rem;margin-top:4px">Navarené z akcií</h1>
@@ -773,9 +812,17 @@ function vPlan() {
     <b>${esc(PLAN.usetris||'0,00')} €</b></div>
     <p class="muted center mono" style="font-size:.74rem">Nákup ${esc(PLAN.nakup_spolu)} € ·
     bežne ${esc(PLAN.bezne)} €</p>
-    <div style="height:14px"></div>
-    <button class="btn btn--ghost" onclick="novyPlan()">Chcem iný plán ↻</button>
-    <p class="muted center mono" style="font-size:.7rem;margin-top:8px">${esc(regenerationNote(ME))}</p>`;
+    <div style="height:14px"></div>`;
+  /* Keď pokusy dôjdu, namiesto tlačidla je veta, kedy sa strop vráti. */
+  const zostava = regenerationsLeft(ME);
+  if (zostava === 0) {
+    h += `<div class="hint" id="rg-strop">
+      <span class="eyebrow">Nový jedálniček dnes už nejde</span>
+      <p style="margin:6px 0 0">${esc(regenerationBlockedNote(ME, dnes))}</p></div>`;
+  } else {
+    h += `<button class="btn btn--ghost" onclick="novyPlan()">Chcem iný plán ↻</button>
+      <p class="muted center mono" style="font-size:.7rem;margin-top:8px">${esc(regenerationNote(ME))}</p>`;
+  }
   M.innerHTML = h;
   if (spajzaSaZmenila) {
     $('#sp-hint-go').onclick = () => novyPlan();
@@ -809,36 +856,37 @@ function vZoznam() {
 }
 
 /* ---------- zamknutá špajza (bezplatný účet) ----------
-   Špajza je platená, ale nesmie to byť prázdna stena s výzvou na platbu.
-   Ukážeme na konkrétnom príklade, čo sa s plánom stane, keď ju človek má:
-   tri bežné suroviny, ktoré vypadnú z nákupu, a jedlo poskladané okolo nich.
-   Je pri tom napísané, že je to ukážka, nie jeho údaje. Žiadne odpočty,
-   žiadna umelá vzácnosť, jedna veta o Premium a jedno tlačidlo. */
+   Nie prázdna stena s výzvou na platbu: na príklade je vidieť, čo sa stane
+   s nákupom aj s jedlami, a je napísané, že je to ukážka. Žiadne odpočty, jedna
+   veta o Premium, jedno tlačidlo. Čísla sú statické, ale sedia — stráži to test. */
 function vSpajzaZamknuta() {
   const platbyIdu = !!(ME && ME.platby_zapnute);
   const tlacidlo = platbyIdu
     ? {popis: 'Chcem Premium →', zamknute: ''}
     : {popis: 'Premium sa zatiaľ nedá kúpiť', zamknute: ' disabled'};
   const poznamka = platbyIdu ? '' :
-    `<p class="muted" style="margin-top:10px">Platby ešte nie sú spustené, takže si ho
-       teraz nekúpiš ani omylom. Keď ich zapneme, nájdeš ho presne tu.</p>`;
+    `<p class="muted" style="margin-top:10px">Platby ešte nie sú spustené. Keď ich
+       zapneme, nájdeš Premium presne tu.</p>`;
   M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Špajza · Premium</span>
     <h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo už máš doma</h1>
     <p class="muted" style="margin:8px 0 16px">Zapíšeš, čo máš doma, a jedálniček aj nákupný
-      zoznam s tým rátajú. Zatiaľ ti skladáme plán len z akcií v tvojich obchodoch —
-      funguje to, len nevie o tvojej špajzi.</p></div>
+      zoznam s tým rátajú. Zatiaľ skladáme plán len z akcií — o tvojej špajzi nevie.</p></div>
     <div class="card">
-      <label>Pridať surovinu</label>
+      <label>Pridať surovinu · zamknuté 🔒</label>
       <input placeholder="napr. ${esc(SPAJZA_UKAZKA.join(', '))}" disabled>
-      <p class="muted" style="margin-top:10px">V bezplatnej verzii je zápis zamknutý.</p>
+      <p class="muted" style="margin-top:10px">V bezplatnej verzii je zápis zamknutý —
+        hneď, nie až pri ukladaní.</p>
     </div>
     <div class="hint">
       <span class="eyebrow">Ukážka — nie tvoje údaje</span>
-      <p style="margin:6px 0 12px">Povedzme, že doma máš
+      <p style="margin:6px 0 12px">Povedzme, že doma máš toto —
         <b>${esc(SPAJZA_UKAZKA.join(', '))}</b>. Potom sa stanú dve veci:</p>
       <p class="mono" style="font-size:.72rem;font-weight:600;margin-bottom:6px">1 · Vypadnú z nákupného zoznamu</p>
       ${SPAJZA_UKAZKA.map(item => `<div class="item done"><span class="box">✓</span>
-        <span class="nm">${esc(item)}</span><span class="pr">máš doma</span></div>`).join('')}
+        <span class="nm">${esc(item)}</span>
+        <span class="pr">${esc(SPAJZA_UKAZKA_CENY[item])} € · máš doma</span></div>`).join('')}
+      <div class="save"><span class="mono" style="font-size:.74rem;font-weight:600">NÁKUP KLESNE O<br>
+        24,90 € → 20,23 €</span><b>4,67 €</b></div>
       <p class="mono" style="font-size:.72rem;font-weight:600;margin:14px 0 6px">2 · Jedlá sa poskladajú okolo nich</p>
       <div class="meal"><div class="meal-h"><span class="meal-d">ST</span>
         <span class="meal-n">Rizoto z ryže a cibule</span>
@@ -846,7 +894,8 @@ function vSpajzaZamknuta() {
         <div class="meal-b" style="display:block">
           ${SPAJZA_UKAZKA.map(item => ingredientRow({spajza: item})).join('')}
         </div></div>
-      <p class="muted" style="margin-top:12px">Dokupuješ už len to, čo k tomu chýba — a to z akcií.</p>
+      <p class="muted" style="margin-top:12px">Dokupuješ už len to, čo k tomu chýba — a to
+        z akcií. Nekúpiš druhýkrát to, čo doma máš, a menej jedla skončí v koši.</p>
     </div>
     <p style="margin:16px 0 12px"><b>Premium</b> skladá jedálniček z toho, čo máš doma,
       a nákupný zoznam bez toho, čo už máš.</p>
@@ -861,8 +910,8 @@ function vSpajzaZamknuta() {
 }
 
 function vSpajza() {
-  /* O nároku rozhoduje server; klient si Premium neodvodzuje ani nezapamätá. */
-  if (!(ME && ME.premium)) return vSpajzaZamknuta();
+  /* O nároku rozhoduje server (spajza_dostupna, inak premium). */
+  if (!pantryUnlocked(ME)) return vSpajzaZamknuta();
   const sp = ME.spajza || [];
   M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Špajza</span>
     <h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo už máš doma</h1>
@@ -949,8 +998,8 @@ async function start() {
 start();
 
 /* Service worker musí sedieť v koreni webu, inak jeho scope končí na /static/
-   a appku na /app nikdy neovláda — presne preto PWA doteraz nemala offline
-   škrupinu. Starú registráciu treba menovite zrušiť, sama by neodišla. */
+   a /app nikdy neovláda — preto PWA nemala offline škrupinu. Starú registráciu
+   treba zrušiť menovite, sama by neodišla. */
 if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
   navigator.serviceWorker.getRegistrations().then(registrations => {
     registrations.forEach(registration => {

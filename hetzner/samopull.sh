@@ -93,6 +93,9 @@ done
 nasad_z() {   # $1 = adresár s vydaním
   cp -a "$1/app/." "$DIR/app/" || return 1
   cp -a "$1/VERSION" "$DIR/VERSION" 2>/dev/null || true
+  # webový koreň — landing a service worker (bez toho sa stránka nikdy neobnoví)
+  [ -f "$1/index.html" ] && cp -a "$1/index.html" /var/www/uvarsi/index.html
+  [ -f "$1/sw.js" ] && cp -a "$1/sw.js" /var/www/uvarsi/sw.js
   [ -f "$1/hetzner/refresh_blocek.py" ] && cp -a "$1/hetzner/refresh_blocek.py" "$DIR/refresh_blocek.py"
   [ -f "$1/hetzner/recepty.py" ] && cp -a "$1/hetzner/recepty.py" "$DIR/recepty.py"
   [ -f "$1/hetzner/dozorca.sh" ] && { cp -a "$1/hetzner/dozorca.sh" "$DIR/dozorca.sh"; chmod +x "$DIR/dozorca.sh"; }

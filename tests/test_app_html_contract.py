@@ -634,3 +634,204 @@ def test_a_plan_that_never_arrives_times_out_in_slovak_instead_of_spinning_forev
     assert "generujPlan()" in load_plan, "every generation goes through the bounded call"
     failure = load_plan.split("catch", 1)[1]
     assert "Skúsiť znova" in failure, "a timeout must offer a retry, not a dead end"
+
+
+# ------------------------------------------- špajza je Premium (majiteľ, 21. 8.)
+# „zamknuté, že je v premium a nejaký náhľad, že ako to funguje“
+#
+# Zámok musí byť vidieť skôr, než človek čokoľvek napíše, a ukážka musí byť
+# konkrétna: nie prázdny rámček, ale tie isté tri suroviny, ktoré vypadnú
+# z nákupného zoznamu, a súčet, ktorý o ne klesne.
+@needs_node
+def test_the_pantry_lock_follows_the_server_and_falls_back_on_an_older_server(tmp_path):
+    """O nároku rozhoduje server. Staršia verzia servera pole nemá — vtedy premium."""
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "pantry-unlocked-contract.js",
+        declaration(html, "function pantryUnlocked(me) ")
+        + """
+if (pantryUnlocked({spajza_dostupna: true, premium: false}) !== true) process.exit(1);
+if (pantryUnlocked({spajza_dostupna: false, premium: true}) !== false) process.exit(2);
+if (pantryUnlocked({spajza_premium: true, premium: false}) !== true) process.exit(3);
+if (pantryUnlocked({spajza_premium: false, premium: true}) !== false) process.exit(4);
+if (pantryUnlocked({premium: true}) !== true) process.exit(5);
+if (pantryUnlocked({premium: false}) !== false) process.exit(6);
+if (pantryUnlocked({}) !== false) process.exit(7);
+if (pantryUnlocked(null) !== false) process.exit(8);
+if (pantryUnlocked(undefined) !== false) process.exit(9);
+if (pantryUnlocked({premium: 1}) !== true) process.exit(10);
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "pantryUnlocked(ME)" in declaration(html, "function vSpajza() "), (
+        "the pantry screen has to ask the server answer, not guess"
+    )
+    assert "pantryUnlocked(ME)" in declaration(html, "function vPlan() "), (
+        "the recompute hint belongs to whoever actually owns a pantry"
+    )
+
+
+def eur(text):
+    """'24,90' -> 2490 centov. V centoch, aby sa sčítanie nedalo pokaziť floatom."""
+    cele, _, halier = text.partition(",")
+    return int(cele) * 100 + int(halier.ljust(2, "0"))
+
+
+def test_the_locked_preview_shows_the_shopping_total_dropping_by_what_is_at_home():
+    """Ukážka musí byť merateľná — pred, po, rozdiel — a čísla musia sedieť.
+
+    Čísla sú v stránke napísané staticky (je to ukážka, nie jeho nákup), takže
+    ich nestráži žiadny výpočet za behu. Stráži ich tento test: keby niekto
+    prepísal cenu ryže a zabudol na súčet, ukážka by klamala.
+    """
+    html = app_html()
+    zamknuta = declaration(html, "function vSpajzaZamknuta() ")
+    ceny = dict(re.findall(r"'([^']+)': '(\d+,\d\d)'",
+                           re.search(r"const SPAJZA_UKAZKA_CENY = \{([^}]*)\};", html).group(1)))
+    suma = re.search(r"(\d+,\d\d) € → (\d+,\d\d) €", zamknuta)
+    klesne = re.search(r"<b>(\d+,\d\d) €</b>", zamknuta)
+
+    assert ceny, "sample prices belong in one named place"
+    assert suma, "before and after have to be readable at a glance"
+    assert klesne, "the drop itself is the number worth showing big"
+    for surovina, cena in ceny.items():
+        assert f"{cena} € · máš doma" in zamknuta or "SPAJZA_UKAZKA_CENY[item]" in zamknuta, (
+            f"the removed item {surovina} must show what it would have cost"
+        )
+
+    pred, po = eur(suma.group(1)), eur(suma.group(2))
+    assert sum(eur(c) for c in ceny.values()) == eur(klesne.group(1)), (
+        "the drop must be exactly the sample pantry, not a nicer number"
+    )
+    assert pred - eur(klesne.group(1)) == po, "before minus the drop has to be after"
+    assert 0 < po < pred, "a pantry lowers the bill, it does not empty it"
+
+
+def test_the_locked_pantry_says_it_saves_money_and_food_without_pushing():
+    """Konkrétne a poctivo: nekúpiš druhýkrát to, čo máš, a menej vyhodíš."""
+    zamknuta = declaration(app_html(), "function vSpajzaZamknuta() ")
+
+    assert "máš doma" in zamknuta
+    assert "nákup" in zamknuta.casefold(), "the shopping list is where the money shows up"
+    assert re.search(r"nekúpi|nekupuj", zamknuta.casefold()), (
+        "say plainly that you stop buying it twice"
+    )
+    assert re.search(r"koš|nevyhod|menej vyhod", zamknuta.casefold()), (
+        "the second benefit is less waste"
+    )
+    assert "zdarma" not in zamknuta.casefold() or "Premium" in zamknuta
+
+
+def test_the_locked_pantry_is_locked_before_the_first_keystroke_not_after_saving():
+    """Bait and switch je nechať človeka písať a odmietnuť ho až pri ukladaní."""
+    zamknuta = declaration(app_html(), "function vSpajzaZamknuta() ")
+
+    inputs = re.findall(r"<input[^>]*>", zamknuta)
+    assert inputs, "the locked screen still shows the field, so the feature is understandable"
+    for field in inputs:
+        assert "disabled" in field, "every field on the locked screen is visibly locked"
+    assert "sp-add" not in zamknuta and "sp-new" not in zamknuta, (
+        "no editing wiring may exist on the locked screen"
+    )
+    assert "/api/spajza" not in zamknuta, "nothing on the locked screen may try to save"
+    assert "zamknut" in zamknuta.casefold(), "the lock has to be said out loud, in Slovak"
+
+
+# --------------------------------------------- denný strop prepočtov v rozhraní
+@needs_node
+def test_remaining_regenerations_are_unknown_on_an_older_server_and_never_guessed(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "regenerations-left-contract.js",
+        declaration(html, "function regenerationsLeft(me) ")
+        + """
+if (regenerationsLeft({zostava_prepoctov: 3}) !== 3) process.exit(1);
+if (regenerationsLeft({zostava_prepoctov: 0}) !== 0) process.exit(2);
+if (regenerationsLeft({zostava_prepoctov: -4}) !== 0) process.exit(3);
+if (regenerationsLeft({}) !== null) process.exit(4);
+if (regenerationsLeft(null) !== null) process.exit(5);
+if (regenerationsLeft(undefined) !== null) process.exit(6);
+if (regenerationsLeft({zostava_prepoctov: 'veľa'}) !== null) process.exit(7);
+if (regenerationsLeft({limit_prepoctov: 5}) !== null) process.exit(8);
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
+def test_an_exhausted_daily_limit_says_in_slovak_when_it_resets(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "regeneration-blocked-contract.js",
+        declaration(html, "function nextDayLabel(today) ")
+        + "\n"
+        + declaration(html, "function isoDay(value) ")
+        + "\n"
+        + declaration(html, "function regenerationBlockedNote(me, today) ")
+        + """
+function bad(text) {
+  return typeof text !== 'string' || text.length < 20 ||
+    text.indexOf('undefined') !== -1 || text.indexOf('NaN') !== -1;
+}
+var zdarma = regenerationBlockedNote(
+  {limit_prepoctov: 1, zostava_prepoctov: 0, premium: false}, '2026-08-21');
+if (bad(zdarma)) process.exit(1);
+if (zdarma.indexOf('zajtra 22. 8.') === -1) process.exit(2);
+if (zdarma.indexOf('po polnoci') === -1) process.exit(3);
+if (zdarma.indexOf('Premium') === -1) process.exit(4);
+
+var platene = regenerationBlockedNote(
+  {limit_prepoctov: 5, zostava_prepoctov: 0, premium: true}, '2026-08-21');
+if (bad(platene)) process.exit(5);
+if (platene.indexOf('5') === -1) process.exit(6);
+if (platene.indexOf('Premium') !== -1) process.exit(7);
+
+var mesiac = regenerationBlockedNote({limit_prepoctov: 1, premium: true}, '2026-08-31');
+if (mesiac.indexOf('zajtra 1. 9.') === -1) process.exit(8);
+var rok = regenerationBlockedNote({limit_prepoctov: 1, premium: true}, '2026-12-31');
+if (rok.indexOf('zajtra 1. 1.') === -1) process.exit(9);
+
+var neznamy = regenerationBlockedNote({}, '');
+if (bad(neznamy) || neznamy.indexOf('zajtra') === -1) process.exit(10);
+if (bad(regenerationBlockedNote(null, null))) process.exit(11);
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_the_plan_screen_drops_the_regeneration_button_once_the_limit_is_spent():
+    """Vyčerpaný strop nesmie byť tlačidlo, ktoré vedie do chyby."""
+    plan_view = declaration(app_html(), "function vPlan() ")
+    branches = re.search(
+        r"if \(zostava === 0\) \{(.*?)\n *\} else \{(.*?)\n *\}", plan_view, re.S
+    )
+
+    assert branches, "the plan screen has to branch on the remaining daily attempts"
+    vycerpane, zostava = branches.group(1), branches.group(2)
+    assert "<button" not in vycerpane, "a spent limit shows a sentence, never a dead button"
+    assert "Chcem iný plán" not in vycerpane
+    assert "regenerationBlockedNote(" in vycerpane, "it must say when it resets"
+    assert "Chcem iný plán" in zostava and "novyPlan()" in zostava
+    assert "regenerationNote(ME)" in zostava, "before the click, say honestly how many are left"
+    assert "regenerationsLeft(ME)" in plan_view
+
+
+def test_a_spent_daily_limit_never_reaches_the_paid_endpoint():
+    html = app_html()
+    novy = declaration(html, "async function novyPlan() ")
+    guard = novy.find("regenerationsLeft(ME) === 0")
+    work = novy.find("preskladajPlan()")
+
+    assert guard != -1, "the click has to be stopped before it costs anything"
+    assert work != -1 and guard < work, "the guard belongs before the paid call"
+    assert "regenerationBlockedNote(" in novy, "the refusal explains itself in Slovak"
+    assert "PLAN = null" not in novy, "the plan on screen survives a refused recompute"

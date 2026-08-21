@@ -5,9 +5,11 @@ Tri pravidlá, ktoré tento modul drží:
 1. Vypínač. `PLATBY_ZAPNUTE` je v predvolenom stave vypnutý. Kým ho majiteľ
    vedome nezapne, žiadna platba nevznikne a žiadna adresa poskytovateľa sa ani
    nezostaví.
-2. Nárok sa odvodzuje výhradne z uložených udalostí poskytovateľa. Klient
-   nemôže o svojej platbe povedať nič, čomu by sa verilo — jediný vstup je
-   podpísaný webhook.
+2. Nárok je vždy riadok v tabuľke `naroky` a nikde inde. Z internetu ho vie
+   vytvoriť jedine podpísaný webhook; druhá — a jediná ďalšia — cesta je
+   `udel_narok_rucne()`, ktorú spustí majiteľ pri databáze, keď si potrebuje
+   Premium vyskúšať s vypnutými platbami. Klient o svojom nároku nepovie nič,
+   čomu by sa verilo.
 3. Tajomstvá sa sem odovzdávajú z prostredia ako argumenty, nikdy sa neukladajú
    ani nevypisujú. Modul zámerne neobsahuje žiadny výstup.
 
@@ -20,6 +22,10 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
 POSKYTOVATEL = "lemonsqueezy"
+# Nárok, ktorý neudelila platba, ale majiteľ pri databáze. Kým je vypínač
+# vypnutý, je to jediná cesta k Premium — a v tabuľke je na prvý pohľad vidieť,
+# že sa zaň neplatilo (nulová suma, žiadna mena).
+POSKYTOVATEL_RUCNE = "rucne"
 PRODUKT_ZAKLADAJUCI = "zakladajuci_clen"
 KAPACITA_ZAKLADAJUCICH = 250
 
@@ -383,6 +389,90 @@ def _udel(con, payload, now, ocakavany_variant):
         return AKCIA_NAD_KAPACITU
     con.execute("UPDATE pouzivatelia SET platiaci=1 WHERE id=?", (user_id,))
     return AKCIA_UDELENE
+
+
+# ---------------------------------------------------------------- ručný nárok
+# Premium sa musí dať vyskúšať aj s vypnutým vypínačom — inak by majiteľ svoj
+# vlastný produkt neotestoval. Odpoveď je zámerne tá istá ako pri platbe: riadok
+# v `naroky`. Žiadna premenná prostredia, žiadny zoznam e-mailov, žiadna cesta
+# z internetu. Kto nemá prístup k databáze, Premium si neudelí.
+def udel_narok_rucne(con, *, user_id, now) -> dict:
+    """Udelí nárok bez platby. Volá sa ručne, nikdy nie z požiadavky."""
+    _over_id_pouzivatela(user_id)
+    if con.in_transaction:
+        con.commit()
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        if con.execute("SELECT 1 FROM pouzivatelia WHERE id=?", (user_id,)).fetchone() is None:
+            raise UdalostNepouzitelna("neznámy účet")
+        if ma_narok(con, user_id):
+            con.commit()
+            return {"akcia": AKCIA_UZ_UDELENE}
+        vypredane = pocet_zakladajucich(con) >= KAPACITA_ZAKLADAJUCICH
+        stav = STAV_NAD_KAPACITU if vypredane else STAV_AKTIVNY
+        con.execute(
+            """INSERT INTO naroky (user_id, produkt, poskytovatel, objednavka_id,
+                                   suma_centy, mena, stav, ziskany_o, zmeneny_o)
+               VALUES (?, ?, ?, ?, 0, NULL, ?, ?, ?)""",
+            (user_id, PRODUKT_ZAKLADAJUCI, POSKYTOVATEL_RUCNE,
+             _dalsie_rucne_id(con, user_id), stav, now, now),
+        )
+        if not vypredane:
+            con.execute("UPDATE pouzivatelia SET platiaci=1 WHERE id=?", (user_id,))
+        con.commit()
+    except Exception:
+        if con.in_transaction:
+            con.rollback()
+        raise
+    # Ani majiteľ nedostane 251. miesto: kapacita platí pre všetkých rovnako.
+    return {"akcia": AKCIA_NAD_KAPACITU if vypredane else AKCIA_UDELENE}
+
+
+def zrus_narok_rucne(con, *, user_id, now) -> dict:
+    """Vezme späť ručne udelený nárok — aby sa dala vyskúšať aj bezplatná verzia.
+
+    Zaplateného nároku sa nedotkne. Preklep v konzole tak nemôže zobrať Premium
+    človeku, ktorý zaň poslal peniaze; na to slúži vrátenie cez poskytovateľa.
+    """
+    _over_id_pouzivatela(user_id)
+    if con.in_transaction:
+        con.commit()
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        riadok = con.execute(
+            """SELECT id FROM naroky
+               WHERE user_id=? AND produkt=? AND poskytovatel=? AND stav=?
+               ORDER BY id DESC""",
+            (user_id, PRODUKT_ZAKLADAJUCI, POSKYTOVATEL_RUCNE, STAV_AKTIVNY),
+        ).fetchone()
+        if riadok is None:
+            con.commit()
+            return {"akcia": AKCIA_IGNOROVANE}
+        con.execute(
+            "UPDATE naroky SET stav=?, zmeneny_o=? WHERE id=?", (STAV_ZRUSENY, now, riadok[0])
+        )
+        if not ma_narok(con, user_id):
+            con.execute("UPDATE pouzivatelia SET platiaci=0 WHERE id=?", (user_id,))
+        con.commit()
+    except Exception:
+        if con.in_transaction:
+            con.rollback()
+        raise
+    return {"akcia": AKCIA_ZRUSENE}
+
+
+def _over_id_pouzivatela(user_id) -> None:
+    if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
+        raise ValueError("neplatné id používateľa")
+
+
+def _dalsie_rucne_id(con, user_id) -> str:
+    """Vlastné číslo pre každé udelenie, aby po zrušení šlo udeliť znova."""
+    poradie = con.execute(
+        "SELECT COUNT(*) FROM naroky WHERE user_id=? AND poskytovatel=?",
+        (user_id, POSKYTOVATEL_RUCNE),
+    ).fetchone()[0]
+    return f"rucne-{user_id}-{poradie + 1}"
 
 
 def _odober(con, payload, now, typ):

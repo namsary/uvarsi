@@ -3,6 +3,8 @@ import hashlib
 import json
 import sqlite3
 import sys
+import threading
+import time
 import types
 from datetime import date, timedelta
 from pathlib import Path
@@ -157,7 +159,7 @@ def insert_hashed_session(server, con, raw_token, user_id):
     )
 
 
-def grant_premium(server, user_id):
+def grant_premium(server, user_id, order_id=None):
     """Aktívny nárok v `naroky` — jediný dôkaz o Premium, ktorý server uzná.
 
     Špajza aj vyšší denný strop prepočtov visia na tomto zázname, nie na
@@ -168,7 +170,7 @@ def grant_premium(server, user_id):
             """INSERT INTO naroky (user_id, produkt, poskytovatel, objednavka_id,
                                    suma_centy, mena, stav, ziskany_o, zmeneny_o)
                VALUES (?, 'zakladajuci_clen', 'lemonsqueezy', ?, 1900, 'EUR', 'aktivny', 1, 1)""",
-            (user_id, f"ord-{user_id}"),
+            (user_id, order_id or f"ord-{user_id}"),
         )
         con.commit()
 
@@ -1214,6 +1216,196 @@ def test_the_limit_message_names_the_limit_and_the_next_chance(monkeypatch, tmp_
     assert "Premium" not in platene, "a paying customer must never be sold to again"
     for sprava in (zadarmo, platene):
         assert sprava == sprava.strip() and sprava.endswith(".")
+
+
+def test_two_tabs_clicking_at_the_same_moment_never_buy_two_plans(monkeypatch, tmp_path):
+    """Strop drží server, nie appka — dve otvorené záložky ho neobídu."""
+    server = premium_user_server(monkeypatch, tmp_path)
+    calls = []
+    pomaly = fake_anthropic(model_plan_without_pantry(), [], calls)
+    povodne = pomaly.Anthropic
+
+    class Pomaly(povodne):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            create = self.messages.create
+            self.messages.create = lambda **kw: (time.sleep(0.4), create(**kw))[1]
+
+    pomaly.Anthropic = Pomaly
+    monkeypatch.setitem(sys.modules, "anthropic", pomaly)
+    start = threading.Barrier(2)
+    odpovede = []
+
+    def klik():
+        client = plan_client(server, 1)
+        start.wait(timeout=5)
+        odpovede.append(client.post("/api/plan/generuj?force=1").status_code)
+
+    vlakna = [threading.Thread(target=klik) for _ in range(2)]
+    for vlakno in vlakna:
+        vlakno.start()
+    for vlakno in vlakna:
+        vlakno.join(timeout=30)
+
+    assert sorted(odpovede) == [200, 429]
+    assert len(calls) == 1, "súbežné kliknutia nesmú zaplatiť dva modely"
+
+
+def test_premium_never_depends_on_the_payments_switch(monkeypatch, tmp_path):
+    """Rozhodnutie: vypnuté platby neznamenajú Premium zadarmo ani zákaz testovať.
+
+    Vypínač riadi len to, či sa dá zaplatiť. Kto nárok v `naroky` má (kúpou
+    alebo ručne od majiteľa), ten Premium má; kto ho nemá, je bezplatný — a to
+    aj vtedy, keď je vypínač vypnutý.
+    """
+    first, second = SHARED_VARIANT_USERS
+    server = shared_plan_server(monkeypatch, tmp_path, premium=False)
+    grant_premium(server, first)
+
+    platiaci = plan_client(server, first).get("/api/me").json()
+    bezplatny = plan_client(server, second).get("/api/me").json()
+
+    assert platiaci["platby_zapnute"] is False and bezplatny["platby_zapnute"] is False
+    assert platiaci["premium"] is True and platiaci["spajza_dostupna"] is True
+    assert bezplatny["premium"] is False and bezplatny["spajza_dostupna"] is False
+
+
+# ------------------------------------------------- značky pre appku
+# Odmietnutie musí appka rozoznať bez čítania slovenskej vety: text je pre
+# človeka, `kod` pre kód. Bez neho by sa obrazovka rozhodovala podľa reťazca,
+# ktorý sa raz preformuluje — a zámok by prestal fungovať potichu.
+def test_a_refused_pantry_save_carries_a_machine_readable_marker(monkeypatch, tmp_path):
+    server = premium_user_server(monkeypatch, tmp_path)
+
+    telo = plan_client(server, 1).post("/api/spajza", json={"polozky": ["ryža"]}).json()
+
+    assert telo["kod"] == server.KOD_SPAJZA_PREMIUM == "spajza_premium"
+    assert telo["detail"] == server.SPRAVA_SPAJZA_PREMIUM
+    assert telo["premium"] is False and telo["spajza_dostupna"] is False
+
+
+def test_a_refused_regeneration_carries_the_marker_and_the_numbers(monkeypatch, tmp_path):
+    server = premium_user_server(monkeypatch, tmp_path)
+    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan_without_pantry(), []))
+    client = plan_client(server, 1)
+    assert client.post("/api/plan/generuj?force=1").status_code == 200
+
+    telo = client.post("/api/plan/generuj?force=1").json()
+
+    assert telo["kod"] == server.KOD_LIMIT_PREPOCTOV == "limit_prepoctov"
+    assert telo["limit_prepoctov"] == server.LIMIT_PREPOCTOV_ZDARMA
+    assert telo["zostava_prepoctov"] == 0
+    assert telo["obnova"] == (date.today() + timedelta(days=1)).isoformat()
+    assert telo["premium"] is False
+    assert "zajtra" in telo["detail"]
+
+
+def test_the_markers_are_stable_identifiers_not_sentences(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [])
+
+    kody = (server.KOD_SPAJZA_PREMIUM, server.KOD_LIMIT_PREPOCTOV)
+
+    assert len(set(kody)) == 2
+    for kod in kody:
+        assert kod.isascii() and kod == kod.lower() and " " not in kod
+
+
+# ------------------------------------------------- špajza, ktorá ostala z minulosti
+# Majiteľ (a ktokoľvek z bety) má v tabuľke `spajza` riadky spred tohto
+# rozhodnutia. Nemažú sa a nikto sa netvári, že tam nie sú: server povie, koľko
+# ich je a že do jedálnička dočasne nevstupujú. Po Premium sa vrátia presne tak,
+# ako boli.
+def test_an_older_pantry_is_kept_even_when_the_account_is_free(monkeypatch, tmp_path):
+    server = premium_user_server(monkeypatch, tmp_path, pantry=["ryža", "vajcia", "cibuľa"])
+    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan_without_pantry(), []))
+    client = plan_client(server, 1)
+
+    client.get("/api/me")
+    client.post("/api/spajza", json={"polozky": []})
+    client.post("/api/plan/generuj?force=1")
+
+    with server.db() as con:
+        ulozene = [row[0] for row in con.execute("SELECT nazov FROM spajza WHERE user_id=1 ORDER BY id")]
+    assert ulozene == ["ryža", "vajcia", "cibuľa"], "nič sa nezmazalo potichu"
+
+
+def test_a_free_account_is_told_its_pantry_is_only_sleeping(monkeypatch, tmp_path):
+    server = premium_user_server(monkeypatch, tmp_path, pantry=["ryža", "vajcia", "cibuľa"])
+
+    profil = plan_client(server, 1).get("/api/me").json()
+
+    assert profil["spajza"] == [], "do plánu nevstupuje nič"
+    assert profil["spajza_dostupna"] is False
+    assert profil["spajza_ulozenych"] == 3
+    assert profil["spajza_uspana"] is True
+    sprava = profil["spajza_sprava"]
+    assert "3" in sprava and "Premium" in sprava
+    assert "nemažeme" in sprava.casefold(), "musí povedať, že dáta zostávajú"
+    assert sprava == sprava.strip() and sprava.endswith(".")
+
+
+def test_an_empty_pantry_says_nothing_at_all(monkeypatch, tmp_path):
+    server = premium_user_server(monkeypatch, tmp_path)
+
+    profil = plan_client(server, 1).get("/api/me").json()
+
+    assert profil["spajza_ulozenych"] == 0
+    assert profil["spajza_uspana"] is False
+    assert profil["spajza_sprava"] is None
+
+
+def test_a_premium_pantry_is_active_and_never_called_sleeping(monkeypatch, tmp_path):
+    server = premium_user_server(monkeypatch, tmp_path, pantry=["ryža", "vajcia"], premium=True)
+
+    profil = plan_client(server, 1).get("/api/me").json()
+
+    assert profil["spajza"] == ["ryža", "vajcia"]
+    assert profil["spajza_dostupna"] is True
+    assert profil["spajza_ulozenych"] == 2
+    assert profil["spajza_uspana"] is False and profil["spajza_sprava"] is None
+
+
+def test_a_pantry_survives_the_end_of_premium_and_comes_back_untouched(monkeypatch, tmp_path):
+    server = premium_user_server(monkeypatch, tmp_path, premium=True)
+    client = plan_client(server, 1)
+    client.post("/api/spajza", json={"polozky": ["ryža", "vajcia"]})
+
+    with server.db() as con:
+        con.execute("UPDATE naroky SET stav='vrateny' WHERE user_id=1")
+        con.commit()
+    uspana = client.get("/api/me").json()
+
+    assert uspana["spajza"] == [] and uspana["spajza_ulozenych"] == 2
+    grant_premium(server, 1, order_id="ord-1-znova")
+    assert client.get("/api/me").json()["spajza"] == ["ryža", "vajcia"]
+
+
+def test_the_plan_a_free_user_is_reading_is_never_taken_away_by_the_lock(monkeypatch, tmp_path):
+    """Stará špajza plán nezhodí — plán zostáva, kým si človek sám nevyžiada nový."""
+    server = premium_user_server(monkeypatch, tmp_path, pantry=["soľ"])
+    with server.db() as con:
+        plan = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4, pantry=["soľ"])
+        plan["spajza"] = ["soľ"]
+        con.execute("INSERT INTO plany (user_id, tyzden, json) VALUES (1, ?, ?)",
+                    (current_monday(), json.dumps(plan)))
+        con.commit()
+    client = plan_client(server, 1)
+
+    ulozeny = client.get("/api/plan")
+
+    assert ulozeny.status_code == 200
+    assert ulozeny.json()["spajza"] == ["soľ"], "plán si drží špajzu, z ktorej vznikol"
+    assert client.get("/api/me").json()["spajza_uspana"] is True, "a server to povie rovno"
+
+
+@pytest.mark.parametrize("pocet, tvar", [(1, "položku"), (2, "položky"), (4, "položky"), (5, "položiek")])
+def test_the_sleeping_pantry_message_speaks_natural_slovak(monkeypatch, tmp_path, pocet, tvar):
+    server = load_server(monkeypatch, tmp_path, [])
+
+    sprava = server.sprava_o_uspanej_spajze(pocet)
+
+    assert f"{pocet} {tvar}" in sprava
+    assert server.sprava_o_uspanej_spajze(0) is None
 
 
 def test_the_pantry_endpoint_reads_the_entitlement_on_every_single_request(monkeypatch, tmp_path):

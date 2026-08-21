@@ -679,3 +679,159 @@ def test_opakovane_otvorenie_databazy_je_idempotentne(monkeypatch, tmp_path):
         pass
     with closing(server.db()) as con:
         assert con.execute("SELECT COUNT(*) FROM naroky").fetchone()[0] == 0
+
+
+# ------------------------------------------------------------ ručný nárok
+# Platby sú vypnuté, ale Premium (špajza, vyšší denný strop) treba vedieť
+# vyskúšať. Odpoveď je jediná a tá istá ako pri platbe: riadok v `naroky`.
+# Žiadna premenná prostredia, žiadny zoznam e-mailov, žiadna cesta z appky —
+# nárok udelí majiteľ pri databáze a je poznať, že sa zaň neplatilo.
+def platby_modul():
+    return importlib.import_module("platby")
+
+
+def test_rucny_narok_odomkne_premium_aj_ked_su_platby_vypnute(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path)
+    platby = platby_modul()
+    vytvor_pouzivatela(server)
+
+    with closing(server.db()) as con:
+        vysledok = platby.udel_narok_rucne(con, user_id=1, now=server.AUTH_CLOCK())
+
+    assert vysledok == {"akcia": platby.AKCIA_UDELENE}
+    assert server.platby_su_zapnute() is False, "vypínač ostáva vypnutý"
+    assert prihlaseny(server).get("/api/me").json()["premium"] is True
+
+
+def test_rucny_narok_je_v_uctovnictve_poznat_ze_nebol_zaplateny(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path)
+    platby = platby_modul()
+    vytvor_pouzivatela(server)
+
+    with closing(server.db()) as con:
+        platby.udel_narok_rucne(con, user_id=1, now=1234.0)
+
+    riadok = aktivne(server)[0]
+    assert riadok["poskytovatel"] == platby.POSKYTOVATEL_RUCNE == "rucne"
+    assert riadok["suma_centy"] == 0 and riadok["mena"] is None
+    assert riadok["produkt"] == platby.PRODUKT_ZAKLADAJUCI
+
+
+def test_rucny_narok_neodomkne_nikoho_ineho(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path)
+    platby = platby_modul()
+    vytvor_pouzivatela(server)
+    vytvor_pouzivatela(server, user_id=2, email="druhy@uvar.si", session="session-2")
+
+    with closing(server.db()) as con:
+        platby.udel_narok_rucne(con, user_id=1, now=server.AUTH_CLOCK())
+        assert platby.ma_narok(con, 2) is False
+
+    assert prihlaseny(server, "session-2").get("/api/me").json()["premium"] is False
+
+
+def test_rucny_narok_druhykrat_nevytvori_druhy_zaznam(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path)
+    platby = platby_modul()
+    vytvor_pouzivatela(server)
+
+    with closing(server.db()) as con:
+        platby.udel_narok_rucne(con, user_id=1, now=1.0)
+        opakovanie = platby.udel_narok_rucne(con, user_id=1, now=2.0)
+
+    assert opakovanie == {"akcia": platby.AKCIA_UZ_UDELENE}
+    assert len(naroky(server)) == 1
+
+
+def test_rucny_narok_pre_neexistujuci_ucet_neudeli_nic(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path)
+    platby = platby_modul()
+
+    with closing(server.db()) as con:
+        with pytest.raises(platby.UdalostNepouzitelna):
+            platby.udel_narok_rucne(con, user_id=77, now=server.AUTH_CLOCK())
+
+    assert naroky(server) == []
+
+
+@pytest.mark.parametrize("hodnota", [0, -1, True, "1", None, 1.0])
+def test_rucny_narok_odmietne_nezmyselne_id(monkeypatch, tmp_path, hodnota):
+    server = load_server(monkeypatch, tmp_path)
+    platby = platby_modul()
+
+    with closing(server.db()) as con:
+        with pytest.raises(ValueError):
+            platby.udel_narok_rucne(con, user_id=hodnota, now=server.AUTH_CLOCK())
+
+    assert naroky(server) == []
+
+
+def test_rucny_narok_nevyda_miesto_nad_kapacitu(monkeypatch, tmp_path):
+    """Ani majiteľ si nevypýta 251. miesto — kapacita je kapacita."""
+    server = load_server(monkeypatch, tmp_path)
+    platby = platby_modul()
+    vytvor_pouzivatela(server)
+    naplnit_miesta(server, 250)
+
+    with closing(server.db()) as con:
+        vysledok = platby.udel_narok_rucne(con, user_id=1, now=server.AUTH_CLOCK())
+        assert platby.ma_narok(con, 1) is False
+
+    assert vysledok == {"akcia": platby.AKCIA_NAD_KAPACITU}
+
+
+def test_rucny_narok_sa_da_zase_odobrat(monkeypatch, tmp_path):
+    """Majiteľ si musí vedieť vyskúšať aj bezplatnú verziu, nielen Premium."""
+    server = load_server(monkeypatch, tmp_path)
+    platby = platby_modul()
+    vytvor_pouzivatela(server)
+
+    with closing(server.db()) as con:
+        platby.udel_narok_rucne(con, user_id=1, now=1.0)
+        vysledok = platby.zrus_narok_rucne(con, user_id=1, now=2.0)
+        assert platby.ma_narok(con, 1) is False
+        assert con.execute("SELECT platiaci FROM pouzivatelia WHERE id=1").fetchone()[0] == 0
+
+    assert vysledok == {"akcia": platby.AKCIA_ZRUSENE}
+    assert prihlaseny(server).get("/api/me").json()["premium"] is False
+
+
+def test_odobratie_sa_nikdy_nedotkne_zaplateneho_naroku(monkeypatch, tmp_path):
+    """Preklep v konzole nesmie zobrať Premium človeku, ktorý zaň zaplatil."""
+    server = zapnute_platby(monkeypatch, tmp_path)
+    platby = platby_modul()
+    vytvor_pouzivatela(server)
+    posli_webhook(prihlaseny(server), objednavka())
+
+    with closing(server.db()) as con:
+        vysledok = platby.zrus_narok_rucne(con, user_id=1, now=server.AUTH_CLOCK())
+        assert platby.ma_narok(con, 1) is True
+
+    assert vysledok == {"akcia": platby.AKCIA_IGNOROVANE}
+    assert aktivne(server)[0]["poskytovatel"] == "lemonsqueezy"
+
+
+def test_udeleny_a_odobraty_narok_sa_da_udelit_znova(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path)
+    platby = platby_modul()
+    vytvor_pouzivatela(server)
+
+    with closing(server.db()) as con:
+        platby.udel_narok_rucne(con, user_id=1, now=1.0)
+        platby.zrus_narok_rucne(con, user_id=1, now=2.0)
+        znova = platby.udel_narok_rucne(con, user_id=1, now=3.0)
+        assert platby.ma_narok(con, 1) is True
+
+    assert znova == {"akcia": platby.AKCIA_UDELENE}
+    assert len(naroky(server)) == 2, "história zostáva dohľadateľná"
+
+
+def test_do_appky_nevedie_ziadna_cesta_k_rucnemu_naroku(monkeypatch, tmp_path):
+    """Nárok udeľuje človek pri databáze, nie požiadavka z internetu."""
+    server = load_server(monkeypatch, tmp_path)
+    zdroj = (ROOT / "app" / "server.py").read_text(encoding="utf-8")
+
+    assert "udel_narok_rucne" not in zdroj
+    assert "zrus_narok_rucne" not in zdroj
+    cesty = {getattr(route, "path", "") for route in server.app.routes}
+    assert not any("narok" in cesta or "admin" in cesta or "premium" in cesta for cesta in cesty)
