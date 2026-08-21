@@ -78,6 +78,77 @@ def test_dozorca_refreshes_stale_json_using_only_json_destination(tmp_path):
     assert landing_data_is_current(landing_data, date(2026, 8, 18))
 
 
+def run_dozorca(tmp_path, landing_data):
+    return subprocess.run(
+        [str(BASH), bash_path(ROOT / "hetzner" / "dozorca.sh")],
+        cwd=str(ROOT),
+        env=os.environ | {
+            "UVARSI_DIR": bash_path(tmp_path),
+            "UVARSI_LANDING_DATA": bash_path(landing_data),
+            "UVARSI_PY": bash_path(tmp_path / "python"),
+            "UVARSI_TODAY": "2026-08-18",
+            "PATH": f"{bash_path(tmp_path)}:/usr/bin",
+        },
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+
+
+def test_dozorca_stops_retrying_a_structural_failure_until_the_data_changes(tmp_path):
+    landing_data = tmp_path / "landing_data.json"
+    write_landing_data_atomic(landing_data, payload("2026-08-10"))
+    calls = tmp_path / "calls.txt"
+    fake_python = tmp_path / "python"
+    fake_python.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"-c\" ]; then exit 1; fi\n"
+        f"printf '%s\\n' \"$*\" >> '{bash_path(calls)}'\n"
+        "exit 3\n",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+    fake_sqlite = tmp_path / "sqlite3"
+    fake_sqlite.write_text("#!/bin/sh\necho 431\n", encoding="utf-8")
+    fake_sqlite.chmod(0o755)
+
+    first = run_dozorca(tmp_path, landing_data)
+    second = run_dozorca(tmp_path, landing_data)
+
+    assert first.returncode == 3
+    assert second.returncode == 3
+    assert "ŠTRUKTURÁLNA" in first.stdout
+    assert calls.read_text(encoding="utf-8").count("refresh_blocek.py") == 1
+    assert (tmp_path / ".dozorca_state").read_text(encoding="utf-8").split() == ["2026-08-18", "0", "431"]
+
+
+def test_dozorca_keeps_retrying_a_transient_failure(tmp_path):
+    landing_data = tmp_path / "landing_data.json"
+    write_landing_data_atomic(landing_data, payload("2026-08-10"))
+    calls = tmp_path / "calls.txt"
+    fake_python = tmp_path / "python"
+    fake_python.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"-c\" ]; then exit 1; fi\n"
+        f"printf '%s\\n' \"$*\" >> '{bash_path(calls)}'\n"
+        "exit 1\n",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+    fake_sqlite = tmp_path / "sqlite3"
+    fake_sqlite.write_text("#!/bin/sh\necho 431\n", encoding="utf-8")
+    fake_sqlite.chmod(0o755)
+
+    first = run_dozorca(tmp_path, landing_data)
+    second = run_dozorca(tmp_path, landing_data)
+
+    assert (first.returncode, second.returncode) == (1, 1)
+    assert calls.read_text(encoding="utf-8").count("refresh_blocek.py") == 2
+    assert (tmp_path / ".dozorca_state").read_text(encoding="utf-8").split() == ["2026-08-18", "2", "-"]
+
+
 def test_dozorca_does_not_refresh_current_json(tmp_path):
     landing_data = tmp_path / "landing_data.json"
     write_landing_data_atomic(landing_data, payload("2026-08-17"))

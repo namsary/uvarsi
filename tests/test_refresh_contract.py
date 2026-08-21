@@ -10,6 +10,7 @@ import pytest
 from hetzner import refresh_blocek
 from hetzner.refresh_blocek import compose_with_llm, landing_data_output_path, refresh_from_db
 from app.offer_data import migrate_akcie_schema, offer_key_for
+from app.receipt_data import StructuralFailure
 
 
 TODAY = date(2026, 8, 18)
@@ -193,6 +194,32 @@ def test_main_uses_default_or_explicit_database_path(monkeypatch, configured, ex
 
     assert calls[0][0] == Path("/var/lib/uvarsi/landing_data.json")
     assert calls[0][1] == expected
+
+
+def failing_main(monkeypatch, error):
+    def explode(path, database, compose, today):
+        raise error
+
+    monkeypatch.setattr(sys, "argv", ["refresh_blocek.py"])
+    monkeypatch.setattr(refresh_blocek, "refresh_from_db", explode)
+    with pytest.raises(SystemExit) as exit_info:
+        refresh_blocek.main()
+    return exit_info.value.code
+
+
+def test_structural_failure_exits_with_a_code_that_stops_further_retries(monkeypatch):
+    code = failing_main(monkeypatch, StructuralFailure("Málo overených ponúk — nechávam starý bloček."))
+
+    assert code == StructuralFailure.EXIT_CODE
+    assert code != refresh_blocek.EXIT_RETRY
+
+
+@pytest.mark.parametrize(
+    "error",
+    [ValueError("Model nevrátil platný JSON."), sqlite3.OperationalError("database is locked")],
+)
+def test_transient_failure_exits_with_the_retryable_code(monkeypatch, error):
+    assert failing_main(monkeypatch, error) == refresh_blocek.EXIT_RETRY
 
 
 def test_refresh_rejects_any_output_path_except_the_landing_json():

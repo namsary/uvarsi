@@ -26,6 +26,38 @@ def _required_text(value: object, field: str) -> str:
     return value
 
 
+def _optional_amount(value: object) -> Decimal | None:
+    return None if value is None else _amount(value)
+
+
+def _validate_item_saving(item: dict) -> bool:
+    """Úsporu smie tvrdiť len položka s overenou prečiarknutou cenou.
+
+    Vráti True, keď položka bežnú cenu naozaj má. Cenovka bez prečiarknutej
+    ceny je bežná — taká položka je platná, len nesmie nič ušetriť.
+    """
+    regular = _optional_amount(item.get("original_price"))
+    savings = _optional_amount(item.get("savings"))
+    if regular is None:
+        if savings not in (None, Decimal("0")):
+            raise ValueError("Položka bločku tvrdí úsporu bez overenej bežnej ceny.")
+        return False
+    if "price" not in item:
+        raise ValueError("Položka s bežnou cenou musí mať aj akciovú cenu.")
+    price = _amount(item["price"])
+    if regular < price:
+        raise ValueError("Bežná cena položky nesmie byť nižšia ako akciová.")
+    if savings is None or savings != regular - price:
+        raise ValueError("Nesedí úspora položky v bločku.")
+    return True
+
+
+def _validate_count(value: object, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"Neplatný počet {field} v bločku.")
+    return value
+
+
 def validate_landing_data(payload: dict, today: date | None = None) -> dict:
     if not isinstance(payload, dict):
         raise ValueError("Letákové dáta musia byť objekt.")
@@ -47,6 +79,8 @@ def validate_landing_data(payload: dict, today: date | None = None) -> dict:
     receipt = payload.get("receipt")
     if not isinstance(receipt, dict) or not isinstance(receipt.get("meals"), list) or not receipt["meals"]:
         raise ValueError("Bloček musí obsahovať aspoň jedno jedlo.")
+    items_seen = 0
+    items_with_regular_price = 0
     for meal in receipt["meals"]:
         if not isinstance(meal, dict):
             raise ValueError("Jedlo v bločku musí byť objekt.")
@@ -61,12 +95,24 @@ def validate_landing_data(payload: dict, today: date | None = None) -> dict:
             _required_text(item.get("store"), "store")
             if "price" in item:
                 _amount(item["price"])
+            items_seen += 1
+            items_with_regular_price += _validate_item_saving(item)
 
     total = _amount(receipt.get("nakup_spolu"))
     regular = _amount(receipt.get("bezne"))
     savings = _amount(receipt.get("usetris"))
     if (regular - total).quantize(Decimal("0.01")) != savings.quantize(Decimal("0.01")):
         raise ValueError("Nesedí úspora v bločku.")
+
+    # Nepovinné počítadlá — keď ich bloček nesie, musia sedieť s položkami,
+    # aby sa úspora nedala tvrdiť bez jedinej doloženej prečiarknutej ceny.
+    if "polozky" in receipt or "polozky_s_beznou_cenou" in receipt:
+        counted = _validate_count(receipt.get("polozky"), "položiek")
+        substantiated = _validate_count(receipt.get("polozky_s_beznou_cenou"), "bežných cien")
+        if counted != items_seen or substantiated != items_with_regular_price:
+            raise ValueError("Nesedí počet položiek s overenou bežnou cenou v bločku.")
+        if substantiated == 0 and savings != Decimal("0"):
+            raise ValueError("Bloček tvrdí úsporu bez overenej bežnej ceny.")
 
     return payload
 

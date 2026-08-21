@@ -303,3 +303,144 @@ process.exit(0);
     plan_view = declaration(html, "function vPlan() ")
     assert "esc(weekLabel(PLAN.tyzden))" in plan_view, "the plan must say which week it is for"
     assert "letákov" in plan_view, "the promise is prices from this week's flyers"
+
+
+def escape_helper(html):
+    match = re.search(r"const esc = .*", html)
+    assert match, "app must define esc()"
+    return match.group(0)
+
+
+def provenance_helpers(html):
+    return "\n".join([
+        escape_helper(html),
+        declaration(html, "function isoDay(value) "),
+        declaration(html, "function dayMonthLabel(iso) "),
+        declaration(html, "function offerValidity(validTo, today) "),
+        declaration(html, "function leafletLabel(item) "),
+        declaration(html, "function sourceHref(url) "),
+        declaration(html, "function ingredientProvenance(item, today) "),
+        declaration(html, "function ingredientRow(item, today) "),
+    ])
+
+
+@needs_node
+def test_every_meal_price_states_its_leaflet_page_validity_and_linkable_source(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "ingredient-provenance-contract.js",
+        provenance_helpers(html)
+        + """
+var TODAY = '2026-08-18';
+var item = {offer_key: 'offer_a', nazov: 'Mlieko', obchod: 'Lidl', jednotka: '1 l', mnozstvo: 2,
+  cena: '2,20', povodna: '3,00', zlava: '-27 %', source_url: 'https://letak.test/lidl/32',
+  source_page: 3, valid_from: '2026-08-17', valid_to: '2026-08-23'};
+var row = ingredientRow(item, TODAY);
+if (row.indexOf('Mlieko') === -1) process.exit(1);
+if (row.indexOf('Lidl') === -1) process.exit(2);
+if (row.indexOf('strana 3') === -1) process.exit(3);
+if (row.indexOf('Platí do 23. 8.') === -1) process.exit(4);
+if (row.indexOf('href="https://letak.test/lidl/32"') === -1) process.exit(5);
+if (row.indexOf('rel="noopener noreferrer nofollow"') === -1) process.exit(6);
+if (row.indexOf('target="_blank"') === -1) process.exit(7);
+if (row.indexOf('2,20 €') === -1) process.exit(8);
+if (row.indexOf('undefined') !== -1) process.exit(9);
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    plan_view = declaration(html, "function vPlan() ")
+    assert "ingredientRow(" in plan_view, "the meal view must render the checkable ingredient row"
+
+
+@needs_node
+def test_last_valid_day_is_announced_and_an_expired_price_is_never_shown_as_current(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "offer-validity-contract.js",
+        provenance_helpers(html)
+        + """
+var TODAY = '2026-08-18';
+var item = {offer_key: 'offer_a', nazov: 'Mlieko', obchod: 'Lidl', jednotka: '1 l', mnozstvo: 1,
+  cena: '2,20', zlava: '-27 %', source_url: 'https://letak.test/lidl/32', source_page: 3,
+  valid_from: '2026-08-17', valid_to: '2026-08-23'};
+function withValidTo(value) {
+  var copy = {}; for (var k in item) copy[k] = item[k]; copy.valid_to = value; return copy;
+}
+if (offerValidity('2026-08-18', TODAY).text !== 'Platí len dnes') process.exit(1);
+if (offerValidity('2026-08-19', TODAY).text !== 'Platí do zajtra') process.exit(2);
+if (offerValidity('2026-08-23', TODAY).text !== 'Platí do 23. 8.') process.exit(3);
+if (offerValidity('2026-08-17', TODAY).stav !== 'neplatna') process.exit(4);
+if (offerValidity(null, TODAY).text !== '') process.exit(5);
+if (offerValidity('nezmysel', TODAY).text !== '') process.exit(6);
+
+var today = ingredientRow(withValidTo('2026-08-18'), TODAY);
+if (today.indexOf('Platí len dnes') === -1) process.exit(7);
+var tomorrow = ingredientRow(withValidTo('2026-08-19'), TODAY);
+if (tomorrow.indexOf('Platí do zajtra') === -1) process.exit(8);
+
+var expired = ingredientRow(withValidTo('2026-08-17'), TODAY);
+if (expired.indexOf('Cena už neplatí') === -1) process.exit(9);
+if (expired.indexOf('ing--neplatna') === -1) process.exit(10);
+if (expired.indexOf('Platí do') !== -1) process.exit(11);
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert ".ing--neplatna" in html, "an expired price needs a visibly non-current style"
+
+
+@needs_node
+def test_provenance_degrades_safely_for_pantry_items_stale_plans_and_hostile_urls(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "provenance-safety-contract.js",
+        provenance_helpers(html)
+        + """
+var TODAY = '2026-08-18';
+if (sourceHref('javascript:alert(1)') !== '') process.exit(1);
+if (sourceHref('  https://letak.test/x  ') !== 'https://letak.test/x') process.exit(2);
+if (sourceHref(null) !== '') process.exit(3);
+var hostile = ingredientRow({offer_key: 'o', nazov: 'X', obchod: 'Lidl', cena: '1,00',
+  source_url: 'javascript:alert(1)', source_page: 2, valid_to: '2026-08-23'}, TODAY);
+if (hostile.indexOf('javascript:') !== -1) process.exit(4);
+if (hostile.indexOf('strana 2') === -1) process.exit(5);
+
+if (ingredientProvenance({spajza: 'soľ'}, TODAY) !== '') process.exit(6);
+var pantry = ingredientRow({spajza: 'soľ'}, TODAY);
+if (pantry.indexOf('zo špajze') === -1) process.exit(7);
+if (pantry.indexOf('Platí') !== -1) process.exit(8);
+
+var stale = ingredientRow({offer_key: 'o', nazov: 'Chlieb', obchod: 'Tesco', cena: '1,20'}, TODAY);
+if (stale.indexOf('Chlieb') === -1) process.exit(9);
+if (stale.indexOf('undefined') !== -1) process.exit(10);
+if (stale.indexOf('null') !== -1) process.exit(11);
+if (stale.indexOf('Platí') !== -1) process.exit(12);
+if (stale.indexOf('href') !== -1) process.exit(13);
+if (stale.indexOf('class="prov"') !== -1) process.exit(14);
+if (ingredientProvenance({offer_key: 'o', nazov: 'Chlieb', obchod: 'Tesco'}, TODAY) !== '') process.exit(15);
+
+var quoted = ingredientRow({offer_key: 'o', nazov: 'X', obchod: 'Lidl', cena: '1,00',
+  source_url: 'https://letak.test/a"onmouseover="alert(1)', source_page: 1,
+  valid_to: '2026-08-23'}, TODAY);
+if (quoted.indexOf('onmouseover="') !== -1) process.exit(16);
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_plan_screen_promises_only_what_the_leaflet_actually_proves():
+    html = app_html()
+    plan_view = declaration(html, "function vPlan() ")
+
+    assert "over" in plan_view.lower(), "the plan must invite the user to check the price"
+    for overstated in ("overené u obchodníka", "overujeme priamo v obchode", "garantujeme",
+                       "nezávisle overené", "potvrdené obchodom"):
+        assert overstated not in html, "the app must not claim more than reading a leaflet page"

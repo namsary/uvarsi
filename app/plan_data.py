@@ -154,6 +154,10 @@ def build_personal_plan(con, model_output, stores, frequency, household_size, pa
                 "jednotka": row["jednotka"], "mnozstvo": quantity, "cena": _format(price),
                 "povodna": _format(original) if original is not None else None,
                 "zlava": row["zlava"] or "",
+                # Sľub „skontroluj si ich" platí len vtedy, keď zdroj ceny dôjde
+                # až na obrazovku: ktorý leták, ktorá strana a dokedy cena platí.
+                "source_url": row["source_url"], "source_page": row["source_page"],
+                "valid_from": row["valid_from"], "valid_to": row["valid_to"],
             }
             ingredients.append(ingredient)
             purchases.append(ingredient)

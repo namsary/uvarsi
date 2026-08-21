@@ -11,10 +11,24 @@ except ImportError:
 
 
 CENT = Decimal("0.01")
-MIN_ELIGIBLE_OFFERS = 3
+# Koľko overených ponúk treba, aby sa z nich vôbec dal poskladať týždeň jedál.
+# Prah sa týka ponúk s overiteľnou AKCIOVOU cenou — bežná cena je nepovinná,
+# lebo väčšina cenoviek v letáku prečiarknutú bežnú cenu vôbec neuvádza.
+MIN_COMPOSABLE_OFFERS = 3
+TOO_FEW_OFFERS = "Málo overených ponúk pre aktuálny týždeň — nechávam starý bloček."
 _MODEL_TOP_LEVEL = frozenset({"meals"})
 _MODEL_MEAL = frozenset({"day", "name", "instructions", "items"})
 _MODEL_ITEM = frozenset({"offer_key", "quantity"})
+
+
+class StructuralFailure(SystemExit):
+    """Deterministický pád: rovnaké vstupy zlyhajú znova, opakovanie je zbytočné.
+
+    Dozorca podľa toho odlíši dočasnú chybu (sieť, model, zamknutá DB), ktorú
+    má zmysel skúsiť o hodinu, od štrukturálnej, ktorá len páli kredit.
+    """
+
+    EXIT_CODE = 3
 
 
 def _text(value, field):
@@ -37,18 +51,39 @@ def _format(amount):
     return format(amount.quantize(CENT), "f").replace(".", ",")
 
 
-def eligible_offers(rows):
-    """Only offers with an auditable regular price may substantiate savings."""
-    eligible = []
+def _regular_price(row):
+    """Bežná cena len vtedy, keď ju leták naozaj niesol — inak None."""
+    original = row["povodna"]
+    if original is None:
+        return None
+    return _cents(original, "bežná cena")
+
+
+def priceable_offers(rows):
+    """Offers the receipt may be built from: an auditable promo price is enough.
+
+    A leaflet price without a crossed-out regular price is normal and common.
+    Such an offer is real merchandise at a real price — it simply may not
+    substantiate any saving, so it is kept here and excluded from
+    `eligible_offers`. An offer whose stated regular price is unusable is
+    dropped entirely; we never guess what it should have been.
+    """
+    usable = []
     for row in rows:
         try:
             price = _cents(row["cena"], "akciová cena")
-            original = _cents(row["povodna"], "bežná cena") if row["povodna"] is not None else None
+            original = _regular_price(row)
         except ValueError:
             continue
-        if original is not None and original >= price:
-            eligible.append(row)
-    return eligible
+        if original is not None and original < price:
+            continue
+        usable.append(row)
+    return usable
+
+
+def eligible_offers(rows):
+    """Only offers with an auditable regular price may substantiate savings."""
+    return [row for row in priceable_offers(rows) if row["povodna"] is not None]
 
 
 def composition_prompt(rows):
@@ -120,9 +155,9 @@ def _week_label(today):
 def build_public_receipt(con, model_output, today=None, generated_at=None):
     """Validate model content then derive every commercial value from the DB."""
     today = today or date.today()
-    offers = eligible_offers(current_verified_offers(con, ALLOWED_STORES, today))
-    if len(offers) < MIN_ELIGIBLE_OFFERS:
-        raise SystemExit("Málo overených ponúk s bežnou cenou — nechávam starý bloček.")
+    offers = priceable_offers(current_verified_offers(con, ALLOWED_STORES, today))
+    if len(offers) < MIN_COMPOSABLE_OFFERS:
+        raise StructuralFailure(TOO_FEW_OFFERS)
     offers_by_key = {row["offer_key"]: row for row in offers}
     selected = _model_selection(model_output, offers_by_key)
 
@@ -131,6 +166,8 @@ def build_public_receipt(con, model_output, today=None, generated_at=None):
     source_keys = set()
     total = Decimal("0")
     regular = Decimal("0")
+    counted = 0
+    substantiated = 0
     for meal in model_output["meals"]:
         items = []
         for selected_meal, offer_key, quantity in selected:
@@ -138,9 +175,13 @@ def build_public_receipt(con, model_output, today=None, generated_at=None):
                 continue
             row = offers_by_key[offer_key]
             price = _cents(row["cena"], "akciová cena") * quantity
-            original = _cents(row["povodna"], "bežná cena") * quantity
+            verified = _regular_price(row)
+            original = verified * quantity if verified is not None else None
             total += price
-            regular += original
+            # Bez overenej bežnej ceny položka do úspory neprispieva ničím.
+            regular += original if original is not None else price
+            counted += 1
+            substantiated += original is not None
             items.append({
                 "offer_key": offer_key,
                 "name": row["nazov"],
@@ -148,8 +189,8 @@ def build_public_receipt(con, model_output, today=None, generated_at=None):
                 "unit": row["jednotka"],
                 "quantity": quantity,
                 "price": _format(price),
-                "original_price": _format(original),
-                "savings": _format(original - price),
+                "original_price": _format(original) if original is not None else None,
+                "savings": _format(original - price) if original is not None else None,
                 "off": row["zlava"] or "",
             })
             source = {
@@ -181,5 +222,8 @@ def build_public_receipt(con, model_output, today=None, generated_at=None):
             "nakup_spolu": _format(total),
             "bezne": _format(regular),
             "usetris": _format(regular - total),
+            # Koľko položiek bločku vie úsporu doložiť prečiarknutou cenou.
+            "polozky": counted,
+            "polozky_s_beznou_cenou": substantiated,
         },
     }

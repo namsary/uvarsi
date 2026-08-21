@@ -20,6 +20,27 @@ from landing_data import load_landing_data, validate_landing_data
 from weekly_data import offers_for_current_week
 from offer_data import migrate_akcie_schema
 from plan_data import build_personal_plan, cached_plan_is_current, personal_plan_prompt
+from platby import (
+    MAX_TELO_WEBHOOKU,
+    PlatbyNenastavene,
+    SPRAVA_NEPLATNY_PODPIS,
+    SPRAVA_VELKE_TELO,
+    SPRAVA_NENASTAVENE,
+    SPRAVA_NEPRIRADITELNA,
+    SPRAVA_POKAZENE_TELO,
+    SPRAVA_UZ_MAS,
+    SPRAVA_VYPNUTE,
+    SPRAVA_VYPREDANE,
+    UdalostNepouzitelna,
+    checkout_url,
+    ma_narok,
+    migrate_platby_schema,
+    overit_podpis,
+    platby_zapnute,
+    spracuj_udalost,
+    stav_platieb,
+    volne_miesta,
+)
 from auth_data import (
     ClientIpRateLimiter,
     DeliveryError,
@@ -149,6 +170,7 @@ def db():
     con.executescript(SCHEMA)
     migrate_auth_schema(con)
     migrate_akcie_schema(con)
+    migrate_platby_schema(con)
     return con
 
 
@@ -516,6 +538,69 @@ def public_landing():
         return validate_landing_data(load_landing_data(LANDING_DATA), datetime.date.today())
     except (FileNotFoundError, ValueError):
         raise HTTPException(503, "Aktuálne letákové dáta sa obnovujú.")
+
+
+# ---------------------------------------------------------------- platby
+# Vypnuté, kým majiteľ nenastaví PLATBY_ZAPNUTE=1. Dovtedy sa nikomu nič
+# neúčtuje a adresa poskytovateľa sa ani nezostaví.
+def platby_su_zapnute() -> bool:
+    return platby_zapnute(env("PLATBY_ZAPNUTE"))
+
+
+def vyzaduj_zapnute_platby():
+    if not platby_su_zapnute():
+        raise HTTPException(503, SPRAVA_VYPNUTE)
+
+
+@app.get("/api/platba/stav")
+def platba_stav(req: Request):
+    u = require_user(req)
+    with closing(db()) as con:
+        return stav_platieb(con, user_id=u["id"], zapnute=platby_su_zapnute())
+
+
+@app.post("/api/platba/start")
+def platba_start(req: Request):
+    u = require_user(req)
+    vyzaduj_zapnute_platby()
+    with closing(db()) as con:
+        if ma_narok(con, u["id"]):
+            raise HTTPException(409, SPRAVA_UZ_MAS)
+        volne = volne_miesta(con)
+    if volne <= 0:
+        raise HTTPException(409, SPRAVA_VYPREDANE)
+    try:
+        url = checkout_url(env("LEMON_CHECKOUT_URL"), user_id=u["id"], email=u["email"])
+    except (PlatbyNenastavene, ValueError):
+        raise HTTPException(503, SPRAVA_NENASTAVENE)
+    return {"ok": True, "url": url, "volne_miesta": volne}
+
+
+@app.post("/api/platba/webhook")
+async def platba_webhook(req: Request):
+    """Jediný vstup, ktorý smie udeliť nárok — a to len s platným podpisom."""
+    vyzaduj_zapnute_platby()
+    telo = await req.body()
+    if len(telo) > MAX_TELO_WEBHOOKU:
+        raise HTTPException(413, SPRAVA_VELKE_TELO)
+    if not overit_podpis(
+        tajomstvo=env("LEMON_WEBHOOK_SECRET"),
+        telo=telo,
+        podpis=req.headers.get("X-Signature"),
+    ):
+        raise HTTPException(401, SPRAVA_NEPLATNY_PODPIS)
+    try:
+        payload = json.loads(telo)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        raise HTTPException(400, SPRAVA_POKAZENE_TELO)
+    try:
+        with closing(db()) as con:
+            vysledok = spracuj_udalost(
+                con, payload=payload, now=AUTH_CLOCK(), variant_id=env("LEMON_VARIANT_ID")
+            )
+    except UdalostNepouzitelna:
+        raise HTTPException(400, SPRAVA_NEPRIRADITELNA)
+    return {"ok": True, **vysledok}
 
 
 # ---------------------------------------------------------------- statické

@@ -3,13 +3,24 @@ from datetime import date
 
 import pytest
 
-from app.receipt_data import build_public_receipt, composition_prompt, eligible_offers
+from app.landing_data import landing_data_is_current, load_landing_data
+from app.receipt_data import (
+    StructuralFailure,
+    build_public_receipt,
+    composition_prompt,
+    eligible_offers,
+    priceable_offers,
+)
 from app.offer_data import migrate_akcie_schema, offer_key_for, replace_store_week
 from app.weekly_data import current_verified_offers
 from hetzner.refresh_blocek import refresh_from_db
 
 
 TODAY = date(2026, 8, 18)
+ROW_FIELDS = (
+    "id", "tyzden", "obchod", "nazov", "kategoria", "cena", "povodna", "zlava",
+    "jednotka", "source_url", "source_page", "valid_from", "valid_to",
+)
 
 
 def connection(rows):
@@ -54,12 +65,39 @@ def add_verified_keys(con):
 
 
 def verified_key(offer_id):
-    fields = (
-        "id", "tyzden", "obchod", "nazov", "kategoria", "cena", "povodna", "zlava",
-        "jednotka", "source_url", "source_page", "valid_from", "valid_to",
-    )
-    row = dict(zip(fields, verified_rows()[offer_id - 1]))
-    return offer_key_for(row["tyzden"], row)
+    return key_of(verified_rows()[offer_id - 1])
+
+
+def key_of(row):
+    offer = dict(zip(ROW_FIELDS, row))
+    return offer_key_for(offer["tyzden"], offer)
+
+
+def leaflet_rows(with_regular_price=0, count=3):
+    """Reálny leták: väčšina cenoviek nemá prečiarknutú bežnú cenu."""
+    rows = []
+    for index in range(count):
+        price = 1.0 + index / 10
+        rows.append((
+            index + 1, "2026-08-17", "Lidl", f"Potravina {index + 1}", "trvanlive",
+            round(price, 2), round(price + 0.5, 2) if index < with_regular_price else None,
+            "-33 %" if index < with_regular_price else None, "1 ks",
+            "https://source.test/lidl", index + 1, "2026-08-16", "2026-08-19",
+        ))
+    return rows
+
+
+def disk_database(path, rows):
+    disk = sqlite3.connect(path)
+    disk.execute("""CREATE TABLE akcie (
+        id INTEGER PRIMARY KEY, tyzden TEXT, obchod TEXT, nazov TEXT, kategoria TEXT,
+        cena REAL, povodna REAL, zlava TEXT, jednotka TEXT, source_url TEXT,
+        source_page INTEGER, valid_from TEXT, valid_to TEXT)""")
+    disk.executemany("INSERT INTO akcie VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
+    add_verified_keys(disk)
+    disk.commit()
+    disk.close()
+    return path
 
 
 def selection(items=None):
@@ -243,3 +281,72 @@ def test_delayed_receipt_keys_are_rejected_after_legacy_rowids_are_reused():
 
     with pytest.raises(ValueError, match="neznáme"):
         build_public_receipt(con, delayed, today=TODAY)
+
+
+# --- bežná cena chýba: bloček musí vzniknúť, len bez vymyslenej úspory -------
+
+def test_offer_without_regular_price_is_receipt_material_but_claims_no_saving():
+    rows = leaflet_rows(with_regular_price=1, count=3)
+    items = [{"offer_key": key_of(row), "quantity": 1} for row in rows]
+
+    payload = build_public_receipt(connection(rows), selection(items), today=TODAY,
+                                   generated_at="2026-08-18T06:00:00+00:00")
+
+    receipt_items = payload["receipt"]["meals"][0]["items"]
+    assert [item["price"] for item in receipt_items] == ["1,00", "1,10", "1,20"]
+    assert [item["original_price"] for item in receipt_items] == ["1,50", None, None]
+    assert [item["savings"] for item in receipt_items] == ["0,50", None, None]
+    assert payload["receipt"]["nakup_spolu"] == "3,30"
+    assert payload["receipt"]["bezne"] == "3,80"
+    assert payload["receipt"]["usetris"] == "0,50"
+    assert payload["receipt"]["polozky"] == 3
+    assert payload["receipt"]["polozky_s_beznou_cenou"] == 1
+
+
+def test_receipt_without_any_regular_price_publishes_a_truthful_zero_saving():
+    rows = leaflet_rows(with_regular_price=0, count=3)
+    items = [{"offer_key": key_of(row), "quantity": 1} for row in rows]
+
+    payload = build_public_receipt(connection(rows), selection(items), today=TODAY,
+                                   generated_at="2026-08-18T06:00:00+00:00")
+
+    assert payload["receipt"]["nakup_spolu"] == "3,30"
+    assert payload["receipt"]["bezne"] == "3,30"
+    assert payload["receipt"]["usetris"] == "0,00"
+    assert payload["receipt"]["polozky_s_beznou_cenou"] == 0
+
+
+def test_offers_without_regular_price_stay_composable_but_not_saving_eligible():
+    rows = connection(leaflet_rows(with_regular_price=1, count=3)).execute(
+        "SELECT * FROM akcie ORDER BY id").fetchall()
+
+    assert len(priceable_offers(rows)) == 3
+    assert len(eligible_offers(rows)) == 1
+
+
+def test_refresh_publishes_when_leaflets_carry_no_crossed_out_prices(tmp_path):
+    """Živý pád: 431 platných ponúk bez bežnej ceny nesmie znamenať 503 navždy."""
+    database = disk_database(tmp_path / "uvarsi.db", leaflet_rows(with_regular_price=0, count=8))
+    output = tmp_path / "landing_data.json"
+    keys = [key_of(row) for row in leaflet_rows(with_regular_price=0, count=8)[:3]]
+
+    refresh_from_db(
+        output, database,
+        lambda prompt: selection([{"offer_key": key, "quantity": 1} for key in keys]),
+        today=TODAY,
+    )
+
+    assert landing_data_is_current(output, TODAY) is True
+    assert load_landing_data(output)["receipt"]["usetris"] == "0,00"
+
+
+def test_too_few_verified_offers_is_structural_and_must_not_be_retried(tmp_path):
+    database = disk_database(tmp_path / "uvarsi.db", leaflet_rows(with_regular_price=0, count=2))
+    called = []
+
+    with pytest.raises(StructuralFailure, match="overených"):
+        refresh_from_db(tmp_path / "landing_data.json", database,
+                        lambda prompt: called.append(prompt), today=TODAY)
+
+    assert called == []
+    assert StructuralFailure.EXIT_CODE == 3

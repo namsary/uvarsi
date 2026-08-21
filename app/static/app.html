@@ -54,6 +54,15 @@ label{font-family:"IBM Plex Mono",monospace;font-size:.76rem;font-weight:600;
   font-size:.82rem;padding:7px 0;border-bottom:1px dashed var(--line)}
 .ing .r{white-space:nowrap;font-weight:600}
 .ing .off{color:var(--red);margin-left:7px}
+/* pôvod ceny — tichý riadok pod surovinou, aby sa dala cena skontrolovať */
+.ing-b{border-bottom:1px dashed var(--line)}
+.ing-b .ing{border-bottom:0;padding-bottom:2px}
+.prov{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;font-family:"IBM Plex Mono",monospace;
+  font-size:.68rem;line-height:1.45;color:var(--ink-soft);padding:0 0 8px}
+.prov a{color:var(--ink-soft);text-decoration:underline;text-underline-offset:2px}
+.prov a:active{color:var(--ink)}
+.prov .vld--dnes,.prov .vld--zajtra,.prov .vld--neplatna{color:var(--red);font-weight:600}
+.ing--neplatna .r{color:var(--ink-soft);text-decoration:line-through}
 .steps{list-style:none;counter-reset:s;margin-top:14px}
 .steps li{counter-increment:s;position:relative;padding-left:28px;margin-bottom:11px;font-size:.94rem}
 .steps li::before{content:counter(s) ".";position:absolute;left:0;color:var(--red);
@@ -242,6 +251,79 @@ function weekLabel(tyzden) {
 }
 const esc = s => String(s??'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+/* ---------- pôvod ceny ----------
+   Backend ku každej surovine posiela leták, stranu a platnosť. Bez nich by
+   sľub „skutočné ceny, skontroluj si ich" nemal používateľ ako overiť. */
+function isoDay(value) {
+  var parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value == null ? '' : value).trim());
+  if (!parts) return null;
+  return Date.UTC(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]));
+}
+
+function dayMonthLabel(iso) {
+  var parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso == null ? '' : iso).trim());
+  return parts ? Number(parts[3]) + '. ' + Number(parts[2]) + '.' : '';
+}
+
+function offerValidity(validTo, today) {
+  var end = isoDay(validTo), now = isoDay(today);
+  if (end === null || now === null) return {stav: 'neznama', text: ''};
+  var days = Math.round((end - now) / 86400000);
+  if (days < 0) return {stav: 'neplatna', text: 'Cena už neplatí'};
+  if (days === 0) return {stav: 'dnes', text: 'Platí len dnes'};
+  if (days === 1) return {stav: 'zajtra', text: 'Platí do zajtra'};
+  return {stav: 'plati', text: 'Platí do ' + dayMonthLabel(validTo)};
+}
+
+function leafletLabel(item) {
+  var store = String((item && item.obchod) || '').trim();
+  var page = Number(item && item.source_page);
+  var parts = [];
+  if (store) parts.push('Leták ' + store);
+  if (isFinite(page) && page > 0) parts.push('strana ' + page);
+  return parts.join(' · ');
+}
+
+function sourceHref(url) {
+  var text = String(url == null ? '' : url).trim();
+  return /^https?:\/\//i.test(text) ? text : '';
+}
+
+function todayIso() {
+  var now = new Date();
+  var pad = n => (n < 10 ? '0' : '') + n;
+  return now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+}
+
+function ingredientProvenance(item, today) {
+  if (!item || item.spajza || !item.offer_key) return '';
+  var validity = offerValidity(item.valid_to, today);
+  var href = sourceHref(item.source_url);
+  var page = Number(item.source_page);
+  var hasPage = isFinite(page) && page > 0;
+  /* Starší uložený plán zdroj nemá — vtedy radšej nič, než holé zopakovanie obchodu. */
+  if (!validity.text && !href && !hasPage) return '';
+  var parts = [];
+  var leaflet = leafletLabel(item);
+  if (leaflet) parts.push(`<span>${esc(leaflet)}</span>`);
+  if (validity.text) parts.push(`<span class="vld vld--${validity.stav}">${esc(validity.text)}</span>`);
+  if (href) parts.push(`<a href="${esc(href)}" target="_blank" rel="noopener noreferrer nofollow">Otvoriť leták ↗</a>`);
+  return parts.length ? `<div class="prov">${parts.join('')}</div>` : '';
+}
+
+function ingredientRow(item, today) {
+  if (!item) return '';
+  if (item.spajza) {
+    return `<div class="ing-b"><div class="ing"><span>${esc(item.spajza)} · zo špajze</span>
+      <span class="r"></span></div></div>`;
+  }
+  var stav = offerValidity(item.valid_to, today).stav;
+  return `<div class="ing-b${stav === 'neplatna' ? ' ing--neplatna' : ''}">
+    <div class="ing"><span>${esc(item.nazov)}${item.obchod ? ' · ' + esc(item.obchod) : ''}</span>
+    <span class="r">${item.cena ? esc(item.cena) + ' €' : ''}${item.zlava ? `<span class="off">${esc(item.zlava)}</span>` : ''}</span></div>
+    ${ingredientProvenance(item, today)}</div>`;
+}
+
 /* ---------- prihlásenie ---------- */
 function armAuthResend(button, schedule) {
   button.disabled = true;
@@ -393,10 +475,13 @@ function vPlan() {
   if (!PLAN || !PLAN.jedla) return nacitajPlan(true);
   const dni = ['PO','UT','ST','ŠT','PI','SO','NE'];
   const map = {}; PLAN.jedla.forEach(j => map[j.den] = j);
+  const dnes = todayIso();
   let h = `<div style="margin:18px 0 6px"><span class="eyebrow">Tvoj týždeň</span>
     <h1 class="display" style="font-size:1.5rem;margin-top:4px">Navarené z akcií</h1>
     <p class="mono" style="font-size:.74rem;color:var(--ink-soft);margin-top:6px">
-      ${esc(weekLabel(PLAN.tyzden))} · ceny z letákov na tento týždeň</p></div>`;
+      ${esc(weekLabel(PLAN.tyzden))} · ceny odčítané z letákov platných v tomto týždni</p>
+    <p class="mono" style="font-size:.7rem;color:var(--ink-soft);margin-top:4px">
+      Pri každej surovine je leták, strana a dokedy cena platí — otvor si ho a over si ju.</p></div>`;
   let posledne = null;
   dni.forEach(d => {
     const j = map[d];
@@ -406,9 +491,7 @@ function vPlan() {
         <span class="meal-d">${d}</span><span class="meal-n">${esc(j.nazov)}</span>
         <span class="mono" style="font-size:.72rem;color:var(--ink-soft)">${j.recept?.min||''} min ▾</span>
       </div><div class="meal-b">
-        ${(j.suroviny||[]).map(s=>`<div class="ing"><span>${s.spajza?esc(s.spajza)+' · zo špajze':esc(s.nazov)+' · '+esc(s.obchod)}</span>
-          <span class="r">${s.cena?esc(s.cena)+' €':''}
-          ${s.zlava?`<span class="off">${esc(s.zlava)}</span>`:''}</span></div>`).join('')}
+        ${(j.suroviny||[]).map(s=>ingredientRow(s, dnes)).join('')}
         <ol class="steps">${(j.recept?.kroky||[]).map(k=>`<li>${esc(k)}</li>`).join('')}</ol>
       </div></div>`;
     } else if (posledne && ['UT','ŠT','SO'].includes(d)) {

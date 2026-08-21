@@ -359,9 +359,12 @@ def test_plan_route_persists_only_reconstructed_server_commerce(monkeypatch, tmp
 
     assert response.status_code == 200
     payload = response.json()
+    offer = plan_offer(1)
     assert payload["jedla"][0]["suroviny"] == [
         {"offer_key": plan_key(1), "nazov": "Ponuka 1", "obchod": "Lidl", "jednotka": "1 ks",
-         "mnozstvo": 2, "cena": "2,02", "povodna": "4,02", "zlava": "-50 %"},
+         "mnozstvo": 2, "cena": "2,02", "povodna": "4,02", "zlava": "-50 %",
+         "source_url": offer["source_url"], "source_page": offer["source_page"],
+         "valid_from": offer["valid_from"], "valid_to": offer["valid_to"]},
         {"spajza": "soľ"},
     ]
     assert payload["nakupny_zoznam"][0]["polozky"][0]["nazov"] == "Ponuka 1"

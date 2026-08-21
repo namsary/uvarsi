@@ -90,7 +90,9 @@ def test_reconstructs_grouped_purchases_and_totals_only_from_verified_offers():
                 "recept": {"min": 25, "kroky": ["Ohrej mlieko a podávaj s chlebom."]},
                 "suroviny": [
                     {"offer_key": verified_key(1), "nazov": "Mlieko", "obchod": "Lidl", "jednotka": "1 l",
-                     "mnozstvo": 2, "cena": "2,20", "povodna": "3,00", "zlava": "-27 %"},
+                     "mnozstvo": 2, "cena": "2,20", "povodna": "3,00", "zlava": "-27 %",
+                     "source_url": "https://source.test/lidl", "source_page": 1,
+                     "valid_from": "2026-08-17", "valid_to": "2026-08-23"},
                     {"spajza": "soľ"},
                 ],
             },
@@ -99,7 +101,9 @@ def test_reconstructs_grouped_purchases_and_totals_only_from_verified_offers():
                 "recept": {"min": 15, "kroky": ["Natieraj maslo na chlieb."]},
                 "suroviny": [
                     {"offer_key": verified_key(2), "nazov": "Chlieb", "obchod": "Tesco", "jednotka": "500 g",
-                     "mnozstvo": 1, "cena": "1,20", "povodna": "1,80", "zlava": "-33 %"},
+                     "mnozstvo": 1, "cena": "1,20", "povodna": "1,80", "zlava": "-33 %",
+                     "source_url": "https://source.test/tesco", "source_page": 2,
+                     "valid_from": "2026-08-17", "valid_to": "2026-08-23"},
                 ],
             },
             {
@@ -107,7 +111,9 @@ def test_reconstructs_grouped_purchases_and_totals_only_from_verified_offers():
                 "recept": {"min": 20, "kroky": ["Opeč chlieb s maslom."]},
                 "suroviny": [
                     {"offer_key": verified_key(3), "nazov": "Maslo", "obchod": "Lidl", "jednotka": "250 g",
-                     "mnozstvo": 1, "cena": "2,00", "povodna": "2,50", "zlava": "-20 %"},
+                     "mnozstvo": 1, "cena": "2,00", "povodna": "2,50", "zlava": "-20 %",
+                     "source_url": "https://source.test/lidl", "source_page": 3,
+                     "valid_from": "2026-08-17", "valid_to": "2026-08-23"},
                 ],
             },
         ],
@@ -125,6 +131,53 @@ def test_reconstructs_grouped_purchases_and_totals_only_from_verified_offers():
         ],
         "nakup_spolu": "5,40", "bezne": "7,30", "usetris": "1,90",
     }
+
+
+def test_every_meal_ingredient_carries_the_leaflet_provenance_of_its_price():
+    """Bez zdroja, strany a platnosti sa cena na obrazovke nedá skontrolovať."""
+    plan = build_personal_plan(
+        connection(verified_rows()), model_output(), ["Lidl", "Tesco"], 2, 4,
+        pantry=["soľ"], today=TODAY,
+    )
+
+    mlieko = plan["jedla"][0]["suroviny"][0]
+    assert mlieko["source_url"] == "https://source.test/lidl"
+    assert mlieko["source_page"] == 1
+    assert mlieko["valid_from"] == "2026-08-17"
+    assert mlieko["valid_to"] == "2026-08-23"
+
+    checked = 0
+    for meal in plan["jedla"]:
+        for ingredient in meal["suroviny"]:
+            if "offer_key" not in ingredient:
+                continue
+            checked += 1
+            assert ingredient["source_url"].startswith("https://")
+            assert isinstance(ingredient["source_page"], int) and ingredient["source_page"] > 0
+            assert ingredient["valid_from"] <= TODAY.isoformat() <= ingredient["valid_to"]
+    assert checked == 3
+
+
+def test_provenance_comes_from_the_database_row_and_never_from_the_model():
+    rows = verified_rows()
+    rows[0] = tuple(list(rows[0][:9]) + ["https://letak.test/lidl/32", 7] + list(rows[0][11:]))
+    con = connection(rows)
+    keys = {row["nazov"]: row["offer_key"] for row in current_verified_offers(con, ["Lidl", "Tesco"], TODAY)}
+    payload = model_output()
+    payload["meals"][0]["items"] = [{"offer_key": keys["Mlieko"], "quantity": 2}]
+    payload["meals"][1]["items"] = [{"offer_key": keys["Chlieb"], "quantity": 1}]
+    payload["meals"][2]["items"] = [{"offer_key": keys["Maslo"], "quantity": 1}]
+
+    plan = build_personal_plan(con, payload, ["Lidl", "Tesco"], 2, 4, pantry=["soľ"], today=TODAY)
+
+    mlieko = plan["jedla"][0]["suroviny"][0]
+    assert mlieko["source_url"] == "https://letak.test/lidl/32"
+    assert mlieko["source_page"] == 7
+    assert mlieko["cena"] == "2,20"
+
+    payload["meals"][0]["items"][0]["source_url"] = "https://podvrh.test/"
+    with pytest.raises(ValueError, match="nepovolené"):
+        build_personal_plan(con, payload, ["Lidl", "Tesco"], 2, 4, pantry=["soľ"], today=TODAY)
 
 
 def test_missing_original_price_contributes_sale_price_and_never_negative_savings():

@@ -48,6 +48,13 @@
   .rcpt-proof{font-family:"IBM Plex Mono",monospace;font-size:.72rem;line-height:1.5;color:var(--ink-soft);
     text-align:center;max-width:340px;border-top:2px solid var(--ink);padding-top:12px}
   .rcpt-proof b{color:var(--ink)}
+  .rcpt-src{width:100%;max-width:360px;border:2px solid var(--ink);background:#fff;padding:13px 15px;
+    font-family:"IBM Plex Mono",monospace;font-size:.72rem;line-height:1.6;color:var(--ink-soft)}
+  .rcpt-src-h{font-size:.66rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--red);margin-bottom:7px}
+  .rcpt-src-row{margin-bottom:4px}
+  .rcpt-src-row:last-child{margin-bottom:0}
+  .rcpt-src-link{color:var(--ink);text-decoration:underline;text-underline-offset:2px}
   .rcpt{position:relative;background:#fff;width:100%;max-width:360px;padding:26px 24px 34px;
     box-shadow:0 18px 44px rgba(20,35,28,.16);transform:rotate(-1.6deg);
     font-family:"IBM Plex Mono",monospace;font-size:.82rem;line-height:1.5;
@@ -521,6 +528,54 @@
 
   function amount(value){ return String(value)+' €'; }
 
+  function dayMonth(iso){
+    var parts=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso==null?'':iso).trim());
+    return parts?Number(parts[3])+'. '+Number(parts[2])+'.':'';
+  }
+
+  function dayMonthYear(iso){
+    var parts=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso==null?'':iso).trim());
+    return parts?Number(parts[3])+'. '+Number(parts[2])+'. '+parts[1]:'';
+  }
+
+  function sourceUrl(url){
+    var text=String(url==null?'':url).trim();
+    return /^https?:\/\//i.test(text)?text:'';
+  }
+
+  function sourceLabel(source){
+    var store=String((source&&source.store)||'').trim();
+    var from=dayMonth(source&&source.valid_from);
+    var to=dayMonthYear(source&&source.valid_to);
+    var label=store?'Leták '+store:'Leták';
+    if(from&&to) label+=' · platný '+from+' – '+to;
+    else if(to) label+=' · platný do '+to;
+    return label;
+  }
+
+  /* „Skontroluj si ich" je sľub len vtedy, keď je čo otvoriť. */
+  function sourcesNode(sources){
+    var list=(sources||[]).filter(function(source){ return source&&source.store; });
+    if(!list.length) return null;
+    var box=node('div','rcpt-src');
+    box.append(node('div','rcpt-src-h','Odkiaľ sú tieto ceny'));
+    list.forEach(function(source){
+      var row=node('div','rcpt-src-row');
+      var href=sourceUrl(source.url);
+      if(href){
+        var link=node('a','rcpt-src-link',sourceLabel(source)+' ↗');
+        link.href=href;
+        link.target='_blank';
+        link.rel='noopener noreferrer nofollow';
+        row.append(link);
+      } else {
+        row.append(node('span','',sourceLabel(source)));
+      }
+      box.append(row);
+    });
+    return box;
+  }
+
   function render(data){
     var receipt=node('div','rcpt');
     var head=node('div','rcpt-head');
@@ -550,7 +605,12 @@
       receipt.append(row);
     });
     receipt.append(node('div','rcpt-foot','Dobrú chuť'));
-    landing.replaceChildren(receipt,node('p','rcpt-proof','Aktuálne údaje pre týždeň '+data.week_label+'.'));
+    var sources=sourcesNode(data.sources);
+    var proof=node('p','rcpt-proof',sources
+      ?'Toto nie je ukážka. Ceny sme odčítali z týchto letákov, platných pre týždeň '+data.week_label+'. Otvor si ich a skontroluj.'
+      :'Toto nie je ukážka. Sú to ceny z letákov platných pre týždeň '+data.week_label+'.');
+    landing.replaceChildren(receipt,proof);
+    if(sources) landing.append(sources);
     landing.hidden=false;
     status.hidden=true;
   }

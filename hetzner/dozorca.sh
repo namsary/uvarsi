@@ -10,6 +10,12 @@
 # Ochrana proti míňaniu kreditu: max 6 pokusov za deň. Po 2 neúspechoch
 # pošle upozornenie (vieš o tom do ~2 h, nie o 3 dni).
 #
+# DOČASNÁ vs. ŠTRUKTURÁLNA chyba: refresh_blocek.py končí kódom 1, keď má
+# zmysel skúsiť to o hodinu znova (sieť, model, zamknutá DB), a kódom 3, keď
+# je pád deterministický (napr. v DB nie je dosť overených ponúk). Kód 3 sa
+# neopakuje, kým sa vstupné dáta nezmenia — inak by hodinové pokusy pálili
+# kredit za výsledok, ktorý je vopred známy.
+#
 # Inštalácia (cron):
 #   0 5-21 * * * /opt/uvarsi/dozorca.sh >> /var/log/uvarsi.log 2>&1
 
@@ -17,9 +23,10 @@ set -u
 DIR="${UVARSI_DIR:-/opt/uvarsi}"
 LANDING_DATA="${UVARSI_LANDING_DATA:-/var/lib/uvarsi/landing_data.json}"
 PY="${UVARSI_PY:-$DIR/venv/bin/python}"
-STATE="$DIR/.dozorca_state"          # formát: "RRRR-MM-DD pocet_neuspechov"
+STATE="$DIR/.dozorca_state"          # formát: "RRRR-MM-DD pocet_neuspechov blok"
 MAX_TRIES=6                          # max pokusov za jeden deň
 NOTIFY_AT=2                          # po koľkých neúspechoch upozorniť
+EXIT_STRUCTURAL=3                    # kód, ktorým refresh_blocek hlási "neopakuj"
 NTFY_TOPIC="uvarsi-jarvis-8f3a2c"    # notifikácie: ntfy.sh/<topic>
 
 log(){ echo "[$(date '+%F %T')] DOZORCA: $*"; }
@@ -44,6 +51,9 @@ if [ "${POCET:-0}" -lt 30 ]; then
   else
     log "zbierač zlyhal — appka zatiaľ nemá aktuálne dáta"
   fi
+  # Zber mohol dáta doplniť; bez prečítania by starý blok platil na starý počet.
+  POCET=$(sqlite3 "$DIR/uvarsi.db" \
+          "SELECT COUNT(*) FROM akcie WHERE tyzden='$MON_ISO'" 2>/dev/null || echo 0)
 fi
 
 # --- 1. Už je aktuálny landing JSON pripravený? ---
@@ -52,11 +62,21 @@ if landing_data_is_current; then
   exit 0
 fi
 
-# --- 2. Načítaj dnešný počet neúspechov ---
+# --- 2. Načítaj dnešný počet neúspechov a prípadný štrukturálny blok ---
 FAILS=0
+BLOKNUTE_NA="-"                      # "-" = žiadny blok; inak počet ponúk pri páde
 if [ -f "$STATE" ]; then
-  read -r SDATE SFAILS < "$STATE" || true
-  [ "${SDATE:-}" = "$TODAY" ] && FAILS=${SFAILS:-0}
+  read -r SDATE SFAILS SBLOK < "$STATE" || true
+  if [ "${SDATE:-}" = "$TODAY" ]; then
+    FAILS=${SFAILS:-0}
+    BLOKNUTE_NA=${SBLOK:--}
+  fi
+fi
+
+# Štrukturálny pád sa opakuje len vtedy, keď sa vstupné dáta odvtedy zmenili.
+if [ "$BLOKNUTE_NA" != "-" ] && [ "$BLOKNUTE_NA" = "${POCET:-0}" ]; then
+  log "ŠTRUKTURÁLNA chyba pri ${POCET:-0} ponukách a dáta sa odvtedy nezmenili — nespúšťam ďalší pokus (šetrím kredit)."
+  exit "$EXIT_STRUCTURAL"
 fi
 
 if [ "$FAILS" -ge "$MAX_TRIES" ]; then
@@ -67,7 +87,9 @@ fi
 log "landing JSON nie je aktuálny — pokus $((FAILS+1))/$MAX_TRIES…"
 
 # --- 3. Skús obnoviť ---
-if cd "$DIR" && "$PY" -u refresh_blocek.py "$LANDING_DATA" && landing_data_is_current; then
+cd "$DIR" && "$PY" -u refresh_blocek.py "$LANDING_DATA"
+RC=$?
+if [ "$RC" -eq 0 ] && landing_data_is_current; then
   log "OK — landing JSON obnovený na týždeň $MON_ISO."
   if [ "$FAILS" -gt 0 ]; then
     notify "Uvar.si opravené" "Landing JSON sa obnovil na týždeň $MON_ISO (po $FAILS neúspešných pokusoch)."
@@ -76,10 +98,20 @@ if cd "$DIR" && "$PY" -u refresh_blocek.py "$LANDING_DATA" && landing_data_is_cu
   exit 0
 fi
 
-# --- 4. Neúspech: zapíš, upozorni ak treba, o hodinu skúsi znova ---
+# --- 4a. Štrukturálny pád: opakovanie nepomôže, kým sa dáta nezmenia ---
+if [ "$RC" -eq "$EXIT_STRUCTURAL" ]; then
+  echo "$TODAY $FAILS ${POCET:-0}" > "$STATE"
+  log "ŠTRUKTURÁLNA chyba (kód $RC) pri ${POCET:-0} ponukách — ďalšie pokusy nespúšťam, kým sa dáta nezmenia."
+  TAIL=$(tail -12 /var/log/uvarsi.log 2>/dev/null | tr '\n' ' ' | tail -c 400)
+  notify "Uvar.si: bloček sa nedá zostaviť" \
+    "Týždeň $MON_ISO — refresh_blocek skončil štrukturálnou chybou pri ${POCET:-0} ponukách v DB. Opakovanie nepomôže, treba zásah. Log: $TAIL"
+  exit "$EXIT_STRUCTURAL"
+fi
+
+# --- 4b. Dočasný neúspech: zapíš, upozorni ak treba, o hodinu skúsi znova ---
 FAILS=$((FAILS+1))
-echo "$TODAY $FAILS" > "$STATE"
-log "pokus $FAILS zlyhal — skúsim znova o hodinu."
+echo "$TODAY $FAILS -" > "$STATE"
+log "pokus $FAILS zlyhal (kód $RC) — skúsim znova o hodinu."
 
 if [ "$FAILS" -eq "$NOTIFY_AT" ]; then
   TAIL=$(tail -12 /var/log/uvarsi.log 2>/dev/null | tr '\n' ' ' | tail -c 400)
