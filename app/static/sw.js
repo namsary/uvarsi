@@ -1,26 +1,19 @@
-// Uvar.si — service worker.
-// Cachuje len statickú škrupinu appky. Dáta (plán, akcie) idú vždy zo siete,
-// aby ceny nikdy neboli zastarané — to je celý zmysel produktu.
-const CACHE = 'uvarsi-v1';
-const SHELL = ['/app', '/static/manifest.json'];
+// Uvar.si — zrušený service worker.
+//
+// Ostrý worker je teraz /sw.js v koreni webu. Worker načítaný odtiaľto mal
+// scope /static/, takže /app nikdy neovládal — PWA nemala offline škrupinu.
+//
+// Tento súbor tu ostáva len ako cesta von: prehliadače, ktoré starú registráciu
+// ešte majú, si ju pri kontrole aktualizácie stiahnu, zmažú po nej cache
+// a registráciu samy zrušia. Cache /sw.js (uvarsi-v2) sa nedotkne.
+self.addEventListener('install', () => self.skipWaiting());
 
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
-});
+self.addEventListener('activate', e => e.waitUntil(
+  caches.delete('uvarsi-v1')
+    .catch(() => {})
+    .then(() => self.registration.unregister())
+    .catch(() => {})
+));
 
-self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(ks =>
-    Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
-});
-
-self.addEventListener('fetch', e => {
-  const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.pathname.startsWith('/api/')) return;  // dáta vždy zo siete
-  e.respondWith(
-    fetch(e.request).then(r => {
-      const copy = r.clone();
-      caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
-      return r;
-    }).catch(() => caches.match(e.request))
-  );
-});
+// Kým sa registrácia zruší, nesmie nič podržať: všetko ide priamo zo siete.
+self.addEventListener('fetch', () => {});

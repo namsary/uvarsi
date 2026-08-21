@@ -6,10 +6,21 @@
 <title>Uvar.si</title>
 <meta name="theme-color" content="#FFD400">
 <link rel="manifest" href="/static/manifest.json">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600&family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/manrope-400-800.7101939e.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/anton-400.6d2997e3.woff2" crossorigin>
 <style>
+/* Písma si servírujeme sami. Predtým čakalo prvé vykreslenie na Google Fonts:
+   cudzí DNS, cudzí TLS, cudzie CSS a až potom sa smelo objaviť písmeno.
+   Zároveň to znamená, že IP každého návštevníka už neodchádza tretej strane.
+   Subset, licencia a pôvod originálov: /static/fonts/LICENSE.txt */
+@font-face{font-family:"Anton";font-style:normal;font-weight:400;font-display:swap;
+  src:url("/static/fonts/anton-400.6d2997e3.woff2") format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:400;font-display:swap;
+  src:url("/static/fonts/ibmplexmono-400.c55d055f.woff2") format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:600;font-display:swap;
+  src:url("/static/fonts/ibmplexmono-600.f4faf2fe.woff2") format("woff2")}
+@font-face{font-family:"Manrope";font-style:normal;font-weight:400 800;font-display:swap;
+  src:url("/static/fonts/manrope-400-800.7101939e.woff2") format("woff2")}
 :root{--paper:#FFFCF5;--paper-2:#F7F1E3;--ink:#14231C;--ink-soft:#5C6B62;
   --yellow:#FFD400;--red:#E23A26;--green:#1F7A4C;--line:#E4DED0}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -69,6 +80,9 @@ label{font-family:"IBM Plex Mono",monospace;font-size:.76rem;font-weight:600;
   font-weight:700;font-family:"IBM Plex Mono",monospace}
 .rest{font-style:italic;color:var(--ink-soft);font-size:.88rem;padding:9px 15px;
   border:2px dashed var(--line);margin-bottom:12px}
+/* voľný deň — nikdy tichá diera v týždni, vždy viditeľný riadok */
+.rest--volno{font-style:normal;border-style:dotted}
+.hint{background:var(--paper-2);border:2px dashed var(--ink);padding:16px;margin-bottom:14px}
 .save{display:flex;justify-content:space-between;align-items:baseline;background:var(--yellow);
   border:2px solid var(--ink);padding:14px;margin:16px 0}
 .save b{font-family:"Anton",sans-serif;font-weight:400;font-size:1.7rem}
@@ -119,6 +133,81 @@ const $ = s => document.querySelector(s);
 const M = $('#main');
 let ME = null, PLAN = null, TAB = 'plan';
 let DONE = {};
+/* Návrh na prepočet po zmene špajze si používateľ smie odklepnúť preč. */
+let PANTRY_HINT_HIDDEN = false;
+/* Odpoveď servera na vyžiadaný prepočet (napr. denný strop) — ukáže sa nad
+   jedálničkom, ktorý si používateľ práve číta, a nezmaže ho. */
+let PLAN_NOTE = '';
+/* Suroviny v ukážke zamknutej špajze. Sú to zámerne bežné veci a je pri nich
+   napísané, že je to ukážka — nikdy sa netvárime, že sú to jeho údaje. */
+const SPAJZA_UKAZKA = ['ryža', 'vajcia', 'cibuľa'];
+/* Skladanie plánu je jediné dlhé volanie. Bez stropu by sa koliesko točilo
+   donekonečna; server má strop 120 s, klient mu necháva rezervu na sieť. */
+const PLAN_TIMEOUT_MS = 150000;
+const PLAN_TIMEOUT_TEXT = 'Jedálniček sa nestihol poskladať do dvoch a pol minúty. Skús to prosím znova.';
+
+/* ---------- štart bez čakania v rade ----------
+   Profil a plán na sebe nezávisia, takže nemá zmysel pýtať si ich za sebou —
+   dve obrátky k serveru sú na mobilných dátach pol sekundy prázdnej obrazovky.
+   Obe požiadavky teda odchádzajú naraz, ešte kým sa dokresľuje hlavička. */
+function startupRequests(request) {
+  return {me: request('/api/me'), plan: request('/api/plan')};
+}
+
+let STARTUP = null, PLAN_PREFETCH = null;
+
+/* Odpoveď sa dá prečítať raz a zamietnutý sľub ostane zamietnutý navždy —
+   pri opakovaní po výpadku siete teda musia vzniknúť úplne nové požiadavky. */
+function beginStartup() {
+  STARTUP = startupRequests(url =>
+    fetch(url, {headers: {'Content-Type': 'application/json'}}));
+  STARTUP.me.catch(() => {});
+  STARTUP.plan.catch(() => {});
+  PLAN_PREFETCH = STARTUP.plan;
+  return STARTUP;
+}
+
+beginStartup();
+/* Response sa dá prečítať iba raz, tak si ju smie vziať len prvý žiadateľ. */
+function takePlanPrefetch() {
+  const pending = PLAN_PREFETCH;
+  PLAN_PREFETCH = null;
+  return pending;
+}
+
+/* ---------- zapamätaný profil ----------
+   Ukladá sa VÝHRADNE to, čo sa nekazí časom: meno v hlavičke a nastavenie.
+   Ceny ani nákupný zoznam sem nikdy nepatria — zastaraná akcia by poprela
+   celý sľub produktu. Vďaka tomu vidí vracajúci sa človek hlavičku a menu
+   okamžite, nie až po odpovedi servera. */
+const PROFILE_KEY = 'uvarsi_profil';
+
+function rememberProfile(me) {
+  try {
+    localStorage.setItem(PROFILE_KEY, JSON.stringify({
+      email: me.email, osoby: me.osoby, frekvencia: me.frekvencia,
+      obchody: me.obchody, onboarding: !!me.onboarding}));
+  } catch (e) {}
+}
+
+function forgetProfile() {
+  try { localStorage.removeItem(PROFILE_KEY); } catch (e) {}
+}
+
+function cachedProfile() {
+  try {
+    const known = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null');
+    return known && known.email && known.onboarding ? known : null;
+  } catch (e) { return null; }
+}
+
+function paintKnownShell() {
+  const known = cachedProfile();
+  if (!known) return false;
+  $('#hdr').textContent = String(known.email).split('@')[0];
+  showNav();
+  return true;
+}
 
 function checkedStateKey(user, plan) {
   var identity = user && (user.id || user.email);
@@ -205,16 +294,16 @@ function networkErrorMessage(online) {
     : 'Nepodarilo sa spojiť so serverom. Skontroluj pripojenie a skús to znova.';
 }
 
-async function api(url, opts) {
-  let r;
-  try {
-    r = await fetch(url, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
-  } catch (networkError) {
-    const offlineError = new Error(networkErrorMessage(
-      typeof navigator === 'undefined' ? true : navigator.onLine));
-    offlineError.offline = true;
-    throw offlineError;
-  }
+function offlineError() {
+  const failure = new Error(networkErrorMessage(
+    typeof navigator === 'undefined' ? true : navigator.onLine));
+  failure.offline = true;
+  return failure;
+}
+
+/* Spoločné vyhodnotenie odpovede — nezáleží, či ju spustil api() alebo
+   predbežná požiadavka zo štartu. */
+async function readApiResponse(r) {
   if (handleApiUnauthorized(r)) {
     const authError = new Error('Prihlásenie vypršalo. Prihlás sa znova.');
     authError.authRequired = true;
@@ -222,6 +311,39 @@ async function api(url, opts) {
   }
   if (!r.ok) throw new Error(apiErrorMessage(r.status, await r.json().catch(()=>null)));
   return r.json();
+}
+
+async function readStartupResponse(pending) {
+  let r;
+  try { r = await pending; }
+  catch (networkFailure) { throw offlineError(); }
+  return readApiResponse(r);
+}
+
+async function api(url, opts) {
+  const options = Object.assign({headers:{'Content-Type':'application/json'}}, opts||{});
+  const limit = options.timeoutMs;
+  delete options.timeoutMs;
+  let controller = null, timer = null;
+  if (limit && typeof AbortController !== 'undefined') {
+    controller = new AbortController();
+    options.signal = controller.signal;
+    timer = setTimeout(() => controller.abort(), limit);
+  }
+  let r;
+  try {
+    r = await fetch(url, options);
+  } catch (networkError) {
+    if (controller && controller.signal.aborted) {
+      const timeoutError = new Error(PLAN_TIMEOUT_TEXT);
+      timeoutError.timeout = true;
+      throw timeoutError;
+    }
+    throw offlineError();
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+  return readApiResponse(r);
 }
 
 async function runGuardedAction(button, errorNode, action) {
@@ -241,6 +363,78 @@ async function runGuardedAction(button, errorNode, action) {
     if (errorNode) errorNode.textContent = message; else alert(message);
     return false;
   }
+}
+
+/* ---------- špajza vs. plán ----------
+   Špajza sa ukladá sama za seba. Plán si pri skladaní zapamätal, z akej špajze
+   vznikol — rozdiel je len dôvod na tichý návrh, nikdy nie na prepočet. */
+function pantryDiffers(planPantry, currentPantry) {
+  if (Object.prototype.toString.call(planPantry) !== '[object Array]') return false;
+  var tidy = function(list) {
+    var out = [];
+    var source = Object.prototype.toString.call(list) === '[object Array]' ? list : [];
+    for (var i = 0; i < source.length; i++) {
+      var name = String(source[i] == null ? '' : source[i]).trim().toLowerCase();
+      if (name) out.push(name);
+    }
+    return out.sort();
+  };
+  var before = tidy(planPantry), now = tidy(currentPantry);
+  if (before.length !== now.length) return true;
+  for (var i = 0; i < before.length; i++) if (before[i] !== now[i]) return true;
+  return false;
+}
+
+/* ---------- týždeň ----------
+   Každý deň musí mať riadok: navarené, zvyšok alebo výslovné voľno. Kým sa
+   zvyšky brali z pevného zoznamu dní, dni mimo neho z týždňa ticho zmizli. */
+function dayGenitive(day) {
+  var forms = {'PO':'pondelka', 'UT':'utorka', 'ST':'stredy', 'ŠT':'štvrtka',
+    'PI':'piatku', 'SO':'soboty', 'NE':'nedele'};
+  var key = String(day == null ? '' : day);
+  return Object.prototype.hasOwnProperty.call(forms, key) ? forms[key] : 'predošlého dňa';
+}
+
+function planWeekDays(plan, frequency) {
+  var dni = ['PO', 'UT', 'ST', 'ŠT', 'PI', 'SO', 'NE'];
+  var meals = (plan && plan.jedla) || [];
+  var map = {};
+  for (var m = 0; m < meals.length; m++) if (meals[m] && meals[m].den) map[meals[m].den] = meals[m];
+  var span = Math.round(Number(frequency));
+  if (!isFinite(span) || span < 1) span = 1;
+  if (span > 7) span = 7;
+  var rows = [], cooked = null, since = 0;
+  for (var i = 0; i < dni.length; i++) {
+    var den = dni[i];
+    if (map[den]) { cooked = den; since = 0; rows.push({den: den, typ: 'jedlo', jedlo: map[den]}); continue; }
+    since += 1;
+    if (cooked && since <= span - 1) rows.push({den: den, typ: 'zvysok', zdroj: cooked});
+    else rows.push({den: den, typ: 'volno'});
+  }
+  return rows;
+}
+
+/* ---------- čakanie na plán ----------
+   Skladanie trvá 60–120 s. Bez slova o tom, čo sa deje, to vyzerá zamrznuto. */
+function planWaitMessage(seconds) {
+  var s = Math.max(0, Math.floor(Number(seconds) || 0));
+  if (s < 20) return 'Čítam letáky z tvojich obchodov…';
+  if (s < 60) return 'Skladám jedlá tak, aby ti suroviny nezostali navyše…';
+  if (s < 120) return 'Dopočítavam ceny a nákupný zoznam…';
+  return 'Trvá to dlhšie ako zvyčajne. Ešte chvíľu to skúšam…';
+}
+
+function planWaitFootnote(seconds) {
+  var s = Math.max(0, Math.floor(Number(seconds) || 0));
+  var minutes = Math.floor(s / 60), rest = s % 60;
+  return 'Beží ' + minutes + ':' + (rest < 10 ? '0' : '') + rest +
+    ' · zvyčajne to trvá 60 až 120 sekúnd';
+}
+
+function planProgressHtml(seconds) {
+  return `<div class="spin"></div>
+    <p class="center mono" style="font-size:.82rem;font-weight:600">${esc(planWaitMessage(seconds))}</p>
+    <p class="center muted mono" style="font-size:.72rem;margin-top:6px">${esc(planWaitFootnote(seconds))}</p>`;
 }
 
 function weekLabel(tyzden) {
@@ -336,6 +530,7 @@ function armAuthResend(button, schedule) {
 
 function viewLogin(sent, previousEmail) {
   clearAuthenticatedState();
+  forgetProfile();
   $('#nav').classList.add('hidden');
   M.innerHTML = sent ? `
     <div class="card center" style="margin-top:40px">
@@ -434,18 +629,78 @@ function viewOnboarding() {
 }
 
 /* ---------- plán ---------- */
-async function nacitajPlan(gen) {
-  M.innerHTML = `<div class="spin"></div><p class="center muted mono" style="font-size:.8rem">
-    ${gen?'Skladám ti jedálniček z aktuálnych akcií…':'Načítavam…'}</p>`;
+let PLAN_PROGRESS = null;
+
+function startPlanProgress() {
+  stopPlanProgress();
+  const zaciatok = Date.now();
+  M.innerHTML = planProgressHtml(0);
+  PLAN_PROGRESS = setInterval(() => {
+    M.innerHTML = planProgressHtml(Math.floor((Date.now() - zaciatok) / 1000));
+  }, 1000);
+}
+
+function stopPlanProgress() {
+  if (PLAN_PROGRESS) { clearInterval(PLAN_PROGRESS); PLAN_PROGRESS = null; }
+}
+
+/* Prvé poskladanie smie prevziať hotový plán rovnakého profilu — je okamžité
+   a nikoho nič nestojí. Preto tu NIE je force. */
+function generujPlan() {
+  return api('/api/plan/generuj', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS});
+}
+
+/* „Chcem iný plán" sa musí cache vyhnúť, inak by nič nezmenilo. Je to jediné
+   miesto v appke, ktoré si naozaj vyžiada nové platené skladanie — a server ho
+   preto ráta do denného stropu (zadarmo 1×, s Premium 5× za deň). */
+function preskladajPlan() {
+  return api('/api/plan/generuj?force=1', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS});
+}
+
+/* Koľko nových jedálničkov dnes ešte ide. Čísla hovorí server, appka ich len
+   prepíše — aby strop nebol prekvapením až v hláške o chybe. */
+function regenerationNote(me) {
+  var limit = Math.round(Number(me && me.limit_prepoctov));
+  if (!isFinite(limit) || limit <= 0) return '';
+  var left = Math.round(Number(me && me.zostava_prepoctov));
+  if (!isFinite(left) || left < 0) left = 0;
+  return 'Nový jedálniček: dnes ešte ' + Math.min(left, limit) + ' z ' + limit;
+}
+
+/* Prepočet na vyžiadanie. Keď ho server odmietne (napr. denný strop), jedálniček
+   na obrazovke zostáva a hláška sa objaví nad ním — nikdy prázdna chybová stena. */
+async function novyPlan() {
+  if (!PLAN || !PLAN.jedla) return nacitajPlan(true);
+  startPlanProgress();
   try {
-    let plan = gen ? await api('/api/plan/generuj?force=1', {method:'POST'}) : await api('/api/plan');
-    if (plan.prazdny) plan = await api('/api/plan/generuj?force=1', {method:'POST'});
+    setPlan(await preskladajPlan());
+    PLAN_NOTE = '';
+    try { ME = await api('/api/me'); } catch (ignored) {}
+  } catch (error) {
+    if (error && error.authRequired) { stopPlanProgress(); return; }
+    PLAN_NOTE = (error && error.message) || 'Nový jedálniček sa teraz nepodaril. Skús to prosím znova.';
+  }
+  stopPlanProgress();
+  render();
+}
+
+async function nacitajPlan(gen) {
+  if (gen) startPlanProgress();
+  else M.innerHTML = `<div class="spin"></div><p class="center muted mono" style="font-size:.8rem">Načítavam…</p>`;
+  try {
+    /* Pri prvom otvorení je plán už na ceste zo štartu — netreba druhú obrátku. */
+    const prefetched = gen ? null : takePlanPrefetch();
+    let plan = gen ? await generujPlan()
+      : (prefetched ? await readStartupResponse(prefetched) : await api('/api/plan'));
+    if (plan.prazdny) { startPlanProgress(); plan = await generujPlan(); }
+    stopPlanProgress();
     setPlan(plan);
   } catch(e) {
+    stopPlanProgress();
     if (e.authRequired) return;
     showNav();
     M.innerHTML = `<div class="card center" style="margin-top:30px">
-      <span class="eyebrow">Plán sa nepodaril</span>
+      <span class="eyebrow">${e.timeout?'Skladanie trvalo pridlho':'Plán sa nepodaril'}</span>
       <p style="margin-top:8px">${esc(e.message)}</p><div style="height:14px"></div>
       <button class="btn" onclick="nacitajPlan(true)">Skúsiť znova</button>
       <div style="height:10px"></div>
@@ -473,29 +728,45 @@ function render() {
 
 function vPlan() {
   if (!PLAN || !PLAN.jedla) return nacitajPlan(true);
-  const dni = ['PO','UT','ST','ŠT','PI','SO','NE'];
-  const map = {}; PLAN.jedla.forEach(j => map[j.den] = j);
   const dnes = todayIso();
+  /* Špajzu má len Premium, takže nikoho iného návrh na prepočet neosloví. */
+  const spajzaSaZmenila = !PANTRY_HINT_HIDDEN && !!(ME && ME.premium) &&
+    pantryDiffers(PLAN.spajza, ME && ME.spajza);
   let h = `<div style="margin:18px 0 6px"><span class="eyebrow">Tvoj týždeň</span>
     <h1 class="display" style="font-size:1.5rem;margin-top:4px">Navarené z akcií</h1>
     <p class="mono" style="font-size:.74rem;color:var(--ink-soft);margin-top:6px">
       ${esc(weekLabel(PLAN.tyzden))} · ceny odčítané z letákov platných v tomto týždni</p>
     <p class="mono" style="font-size:.7rem;color:var(--ink-soft);margin-top:4px">
       Pri každej surovine je leták, strana a dokedy cena platí — otvor si ho a over si ju.</p></div>`;
-  let posledne = null;
-  dni.forEach(d => {
-    const j = map[d];
-    if (j) {
-      posledne = d;
-      h += `<div class="meal" data-d="${d}"><div class="meal-h">
-        <span class="meal-d">${d}</span><span class="meal-n">${esc(j.nazov)}</span>
+  if (PLAN_NOTE) {
+    h += `<div class="hint"><p style="margin:0">${esc(PLAN_NOTE)}</p></div>`;
+  }
+  if (spajzaSaZmenila) {
+    h += `<div class="hint" id="sp-hint">
+      <span class="eyebrow">Špajza sa zmenila</span>
+      <p style="margin:6px 0 4px">Tento jedálniček je poskladaný ešte podľa staršej špajze.
+        Chceš ho prepočítať?</p>
+      <p class="muted" style="margin-bottom:12px">Kým to nepovieš, nechávam ho tak, ako je.
+        Prepočet trvá 60 až 120 sekúnd.</p>
+      <button class="btn" id="sp-hint-go">Prepočítať jedálniček ↻</button>
+      <div style="height:8px"></div>
+      <button class="btn btn--ghost" id="sp-hint-off">Nechať tak</button></div>`;
+  }
+  /* Každý deň dostane riadok — navarené, zvyšok alebo výslovné voľno. */
+  planWeekDays(PLAN, ME && ME.frekvencia).forEach(row => {
+    if (row.typ === 'jedlo') {
+      const j = row.jedlo;
+      h += `<div class="meal" data-d="${esc(row.den)}"><div class="meal-h">
+        <span class="meal-d">${esc(row.den)}</span><span class="meal-n">${esc(j.nazov)}</span>
         <span class="mono" style="font-size:.72rem;color:var(--ink-soft)">${j.recept?.min||''} min ▾</span>
       </div><div class="meal-b">
         ${(j.suroviny||[]).map(s=>ingredientRow(s, dnes)).join('')}
         <ol class="steps">${(j.recept?.kroky||[]).map(k=>`<li>${esc(k)}</li>`).join('')}</ol>
       </div></div>`;
-    } else if (posledne && ['UT','ŠT','SO'].includes(d)) {
-      h += `<div class="rest">${d} · zvyšok z predošlého dňa</div>`;
+    } else if (row.typ === 'zvysok') {
+      h += `<div class="rest">${esc(row.den)} · zvyšok z ${esc(dayGenitive(row.zdroj))}</div>`;
+    } else {
+      h += `<div class="rest rest--volno">${esc(row.den)} · voľno — nič naplánované</div>`;
     }
   });
   h += `<div class="save"><span class="mono" style="font-size:.8rem;font-weight:600">UŠETRÍŠ</span>
@@ -503,8 +774,13 @@ function vPlan() {
     <p class="muted center mono" style="font-size:.74rem">Nákup ${esc(PLAN.nakup_spolu)} € ·
     bežne ${esc(PLAN.bezne)} €</p>
     <div style="height:14px"></div>
-    <button class="btn btn--ghost" onclick="nacitajPlan(true)">Chcem iný plán ↻</button>`;
+    <button class="btn btn--ghost" onclick="novyPlan()">Chcem iný plán ↻</button>
+    <p class="muted center mono" style="font-size:.7rem;margin-top:8px">${esc(regenerationNote(ME))}</p>`;
   M.innerHTML = h;
+  if (spajzaSaZmenila) {
+    $('#sp-hint-go').onclick = () => novyPlan();
+    $('#sp-hint-off').onclick = () => { PANTRY_HINT_HIDDEN = true; render(); };
+  }
   M.querySelectorAll('.meal-h').forEach(el =>
     el.onclick = () => el.parentElement.classList.toggle('open'));
 }
@@ -532,22 +808,80 @@ function vZoznam() {
   });
 }
 
+/* ---------- zamknutá špajza (bezplatný účet) ----------
+   Špajza je platená, ale nesmie to byť prázdna stena s výzvou na platbu.
+   Ukážeme na konkrétnom príklade, čo sa s plánom stane, keď ju človek má:
+   tri bežné suroviny, ktoré vypadnú z nákupu, a jedlo poskladané okolo nich.
+   Je pri tom napísané, že je to ukážka, nie jeho údaje. Žiadne odpočty,
+   žiadna umelá vzácnosť, jedna veta o Premium a jedno tlačidlo. */
+function vSpajzaZamknuta() {
+  const platbyIdu = !!(ME && ME.platby_zapnute);
+  const tlacidlo = platbyIdu
+    ? {popis: 'Chcem Premium →', zamknute: ''}
+    : {popis: 'Premium sa zatiaľ nedá kúpiť', zamknute: ' disabled'};
+  const poznamka = platbyIdu ? '' :
+    `<p class="muted" style="margin-top:10px">Platby ešte nie sú spustené, takže si ho
+       teraz nekúpiš ani omylom. Keď ich zapneme, nájdeš ho presne tu.</p>`;
+  M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Špajza · Premium</span>
+    <h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo už máš doma</h1>
+    <p class="muted" style="margin:8px 0 16px">Zapíšeš, čo máš doma, a jedálniček aj nákupný
+      zoznam s tým rátajú. Zatiaľ ti skladáme plán len z akcií v tvojich obchodoch —
+      funguje to, len nevie o tvojej špajzi.</p></div>
+    <div class="card">
+      <label>Pridať surovinu</label>
+      <input placeholder="napr. ${esc(SPAJZA_UKAZKA.join(', '))}" disabled>
+      <p class="muted" style="margin-top:10px">V bezplatnej verzii je zápis zamknutý.</p>
+    </div>
+    <div class="hint">
+      <span class="eyebrow">Ukážka — nie tvoje údaje</span>
+      <p style="margin:6px 0 12px">Povedzme, že doma máš
+        <b>${esc(SPAJZA_UKAZKA.join(', '))}</b>. Potom sa stanú dve veci:</p>
+      <p class="mono" style="font-size:.72rem;font-weight:600;margin-bottom:6px">1 · Vypadnú z nákupného zoznamu</p>
+      ${SPAJZA_UKAZKA.map(item => `<div class="item done"><span class="box">✓</span>
+        <span class="nm">${esc(item)}</span><span class="pr">máš doma</span></div>`).join('')}
+      <p class="mono" style="font-size:.72rem;font-weight:600;margin:14px 0 6px">2 · Jedlá sa poskladajú okolo nich</p>
+      <div class="meal"><div class="meal-h"><span class="meal-d">ST</span>
+        <span class="meal-n">Rizoto z ryže a cibule</span>
+        <span class="mono" style="font-size:.72rem;color:var(--ink-soft)">30 min</span></div>
+        <div class="meal-b" style="display:block">
+          ${SPAJZA_UKAZKA.map(item => ingredientRow({spajza: item})).join('')}
+        </div></div>
+      <p class="muted" style="margin-top:12px">Dokupuješ už len to, čo k tomu chýba — a to z akcií.</p>
+    </div>
+    <p style="margin:16px 0 12px"><b>Premium</b> skladá jedálniček z toho, čo máš doma,
+      a nákupný zoznam bez toho, čo už máš.</p>
+    <button class="btn" id="sp-premium"${tlacidlo.zamknute}>${esc(tlacidlo.popis)}</button>
+    ${poznamka}
+    <p id="sp-err" class="muted" style="color:var(--red);margin-top:10px"></p>`;
+  if (!platbyIdu) return;
+  $('#sp-premium').onclick = () => runGuardedAction($('#sp-premium'), $('#sp-err'), async () => {
+    const platba = await api('/api/platba/start', {method:'POST'});
+    location.href = platba.url;
+  });
+}
+
 function vSpajza() {
+  /* O nároku rozhoduje server; klient si Premium neodvodzuje ani nezapamätá. */
+  if (!(ME && ME.premium)) return vSpajzaZamknuta();
   const sp = ME.spajza || [];
   M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Špajza</span>
     <h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo už máš doma</h1>
-    <p class="muted" style="margin:8px 0 16px">Zarátame to do plánu — nekúpiš zbytočne a menej vyhodíš.</p></div>
+    <p class="muted" style="margin:8px 0 6px">Ukladá sa hneď a sama za seba.
+      Jedálniček sa tým nemení — prepočítame ho, až keď si povieš.</p>
+    <p class="muted" style="margin:0 0 16px">Pri najbližšom skladaní to zarátame — nekúpiš zbytočne a menej vyhodíš.</p></div>
     <div class="card"><label>Pridať surovinu</label>
-      <div style="display:flex;gap:8px"><input id="sp-new" placeholder="napr. ryža, vajcia, cibuľa">
+      <div style="display:flex;gap:8px"><input id="sp-new" placeholder="napr. ${esc(SPAJZA_UKAZKA.join(', '))}">
       <button class="btn" style="width:auto;padding:14px 18px" id="sp-add">+</button></div>
       <p id="sp-err" class="muted" style="color:var(--red);margin-top:10px"></p></div>
     <div id="sp-list">${sp.map((s,i)=>`<div class="item"><span class="nm">${esc(s)}</span>
       <span class="pr" data-i="${i}" style="color:var(--red);cursor:pointer">✕</span></div>`).join('')
       || '<p class="muted center" style="padding:18px">Zatiaľ prázdna.</p>'}</div>`;
+  /* Uloží a hneď prekreslí špajzu. Žiadne skladanie plánu na pozadí. */
   const uloz = list => runGuardedAction($('#sp-add'), $('#sp-err'), async () => {
     await api('/api/spajza', {method:'POST', body:JSON.stringify({polozky:list})});
     ME = await api('/api/me');
-    await nacitajPlan(true);
+    PANTRY_HINT_HIDDEN = false;
+    vSpajza();
   });
   $('#sp-add').onclick = () => {
     const v = $('#sp-new').value.trim(); if (!v) return;
@@ -591,25 +925,42 @@ function viewOffline(message) {
     <h2 class="display" style="font-size:1.4rem;margin:10px 0">Bez spojenia</h2>
     <p class="muted">${esc(message)}</p><div style="height:14px"></div>
     <button class="btn" id="znova">Skúsiť znova</button></div>`;
-  $('#znova').onclick = () => start();
+  $('#znova').onclick = () => { beginStartup(); start(); };
 }
 
 async function start() {
-  M.innerHTML = '<div class="spin"></div>';
-  try { ME = await api('/api/me'); }
+  /* Kto sa už raz prihlásil, uvidí hlavičku aj menu okamžite — čaká len na plán. */
+  const known = paintKnownShell();
+  M.innerHTML = known
+    ? `<div class="spin"></div><p class="center muted mono" style="font-size:.8rem">Načítavam…</p>`
+    : '<div class="spin"></div>';
+  try { ME = await readStartupResponse(STARTUP.me); }
   catch(e) {
     if (e.offline) return viewOffline(e.message);
     return viewLogin();
   }
   if (!ME.prihlaseny) return viewLogin();
   $('#hdr').textContent = ME.email.split('@')[0];
+  rememberProfile(ME);
   if (!ME.onboarding) return viewOnboarding();
   await nacitajPlan(false);
 }
 
 start();
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/static/sw.js').catch(()=>{});
+/* Service worker musí sedieť v koreni webu, inak jeho scope končí na /static/
+   a appku na /app nikdy neovláda — presne preto PWA doteraz nemala offline
+   škrupinu. Starú registráciu treba menovite zrušiť, sama by neodišla. */
+if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+  navigator.serviceWorker.getRegistrations().then(registrations => {
+    registrations.forEach(registration => {
+      const script = (registration.active || registration.installing ||
+        registration.waiting || {}).scriptURL || '';
+      if (script.indexOf('/static/sw.js') !== -1) registration.unregister();
+    });
+  }).catch(()=>{});
+}
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 </script>
 </body>
 </html>

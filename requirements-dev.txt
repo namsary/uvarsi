@@ -1,3 +1,7 @@
 pytest==8.3.5
 httpx==0.28.1
 fastapi==0.115.12
+# Kontrola self-hostovaných písiem: bez nich sa test diakritiky preskočí a
+# chýbajúce ľ/š/č by sa ukázalo až návštevníkovi.
+fonttools==4.63.0
+Brotli==1.2.0

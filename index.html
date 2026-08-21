@@ -6,10 +6,21 @@
 <title>Uvar.si — z letáka rovno na tanier</title>
 <meta name="description" content="Povedz, ako často chceš variť. Uvar.si vyskladá jedálniček a recepty z toho, čo je práve v akcii v obchodoch u teba — a z toho, čo už máš doma v špajze.">
 <link rel="canonical" href="https://uvar.si/">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600&family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/manrope-400-800.7101939e.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/anton-400.6d2997e3.woff2" crossorigin>
 <style>
+  /* Písma si servírujeme sami. Landing sa otvára z Facebooku na mobilných
+     dátach — čakať na DNS a TLS k Google Fonts pred prvým písmenom bolo to
+     najdrahšie, čo tu bolo. Navyše už nikomu neposielame IP návštevníka.
+     Subset, licencia a pôvod originálov: /static/fonts/LICENSE.txt */
+  @font-face{font-family:"Anton";font-style:normal;font-weight:400;font-display:swap;
+    src:url("/static/fonts/anton-400.6d2997e3.woff2") format("woff2")}
+  @font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:400;font-display:swap;
+    src:url("/static/fonts/ibmplexmono-400.c55d055f.woff2") format("woff2")}
+  @font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:600;font-display:swap;
+    src:url("/static/fonts/ibmplexmono-600.f4faf2fe.woff2") format("woff2")}
+  @font-face{font-family:"Manrope";font-style:normal;font-weight:400 800;font-display:swap;
+    src:url("/static/fonts/manrope-400-800.7101939e.woff2") format("woff2")}
   :root{
     --paper:#FFFCF5; --paper-2:#F7F1E3; --ink:#14231C; --ink-soft:#5C6B62;
     --yellow:#FFD400; --red:#E23A26; --green:#1F7A4C; --green-deep:#0E3F2E;
@@ -236,44 +247,11 @@
       <p class="hero-note">Spúšťame po mestách. Ešte nie sme live — pozri si plány a nechaj nám e-mail.</p>
     </div>
 
-    <div class="rcpt-wrap" id="landing-data" aria-live="polite" hidden>
-      <div class="rcpt" role="img" aria-label="Skutočný týždenný jedálniček z letáka platného 30. júla až 5. augusta 2026: pondelok bravčové karé so zemiakmi a bielou paprikou, streda cestoviny s mletým mäsom a cherry paradajkami, piatok kuracie stehná so šampiňónmi a cibuľou. Nákup surovín 15,19 eur namiesto bežných 25,11 eur, ušetríš 9,92 eur.">
-        <!-- RCPT:START -->
-        <div class="rcpt-head">
-          <div class="rcpt-logo">Uvar.si</div>
-          <div class="rcpt-sub">Tvoj týždeň · varíš 3×</div>
-          <div class="rcpt-sub">30. 7. – 5. 8. 2026</div>
-        </div>
-        <hr class="rule-solid">
-
-        <div class="day"><b>PO</b><span>Bravčové karé so zemiakmi a paprikou</span></div>
-        <div class="item"><span>Bravčové karé, 1 kg · Kaufland</span><span class="item-r"><b class="price">2,89 €</b><span class="off">−42 %</span></span></div>
-        <div class="item"><span>Zemiaky konzumné, 1 kg · Kaufland</span><span class="item-r"><b class="price">0,65 €</b><span class="off">−45 %</span></span></div>
-        <div class="item"><span>Paprika biela, 1 kg · Kaufland</span><span class="item-r"><b class="price">1,29 €</b><span class="off">−56 %</span></span></div>
-
-        <div class="day day--rest"><b>UT</b><span>Zvyšok z pondelka</span></div>
-
-        <div class="day"><b>ST</b><span>Cestoviny s mletým a cherry paradajkami</span></div>
-        <div class="item"><span>Mleté bravčové, 1 kg · Kaufland</span><span class="item-r"><b class="price">3,39 €</b><span class="off">−34 %</span></span></div>
-        <div class="item"><span>Cestoviny dvojvaječné, 1 kg · Kaufland</span><span class="item-r"><b class="price">1,99 €</b><span class="off">−33 %</span></span></div>
-        <div class="item"><span>Paradajky cherry, 250 g · Kaufland</span><span class="item-r"><b class="price">1,19 €</b><span class="off">−37 %</span></span></div>
-
-        <div class="day day--rest"><b>ŠT</b><span>Zvyšok zo stredy</span></div>
-
-        <div class="day"><b>PI</b><span>Kuracie stehná so šampiňónmi</span></div>
-        <div class="item"><span>Kuracie dolné stehná, 1 kg · Kaufland</span><span class="item-r"><b class="price">2,55 €</b><span class="off">−36 %</span></span></div>
-        <div class="item"><span>Šampiňóny biele, 250 g · Kaufland</span><span class="item-r"><b class="price">0,75 €</b><span class="off">−24 %</span></span></div>
-        <div class="item"><span>Cibuľa žltá, 1 kg · Kaufland</span><span class="item-r"><b class="price">0,49 €</b><span class="off">−44 %</span></span></div>
-
-        <hr class="rule">
-        <div class="row"><span>Nákup spolu</span><span>15,19 €</span></div>
-        <div class="row"><span>Bežne by stál</span><span>25,11 €</span></div>
-        <div class="save"><span>Ušetríš</span><span>9,92 €</span></div>
-        <div class="rcpt-foot">Dobrú chuť</div>
-        <!-- RCPT:END -->
-      </div>
-      <p class="rcpt-proof">Toto nie je ukážka. Sú to <b>skutočné ceny</b> z letáka Kaufland platného 30. 7. – 5. 8. 2026. Skontroluj si ich.</p>
-    </div>
+    <!-- Bloček kreslí render() z /api/public/landing, až keď dorazia aktuálne dáta.
+         Zamrznutá kópia tu kedysi bola, no nikdy sa nezobrazila (kontajner je
+         hidden a replaceChildren ju aj tak zahodí) — boli to len bajty navyše
+         a ceny z dávno neplatného letáka v zdrojáku. -->
+    <div class="rcpt-wrap" id="landing-data" aria-live="polite" hidden><!-- RCPT:START --><!-- RCPT:END --></div>
     <p class="rcpt-proof" id="landing-status" aria-live="polite">Aktuálne letákové dáta práve obnovujeme.</p>
   </section>
 </div>

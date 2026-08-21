@@ -9,6 +9,7 @@ Beh:  /opt/uvarsi/venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 
 Závislosti: fastapi uvicorn itsdangerous
 """
 import asyncio
+import logging
 import os, re, json, sqlite3, datetime, time
 from contextlib import closing
 
@@ -19,7 +20,13 @@ from config import public_base_url, release_id
 from landing_data import load_landing_data, validate_landing_data
 from weekly_data import offers_for_current_week
 from offer_data import migrate_akcie_schema
-from plan_data import build_personal_plan, cached_plan_is_current, personal_plan_prompt
+from plan_data import (
+    build_personal_plan,
+    cached_plan_is_current,
+    personal_plan_messages,
+    plan_signature,
+    plan_variant_for,
+)
 from platby import (
     MAX_TELO_WEBHOOKU,
     PlatbyNenastavene,
@@ -82,8 +89,49 @@ AUTH_PROVIDER_FAILURE_MESSAGE = (
     "Skús to znova o chvíľu."
 )
 
+LOG = logging.getLogger("uvarsi.plan")
+
 MODEL_PLAN = "claude-sonnet-5"     # skladanie plánu = text, lacné
+# Nameraný najhorší prípad odpovede: 5 jedál × 6 podrobných krokov × 4 položky
+# ≈ 1 950 tokenov. max_tokens ohraničuje uvažovanie AJ odpoveď dokopy, takže
+# strop musí nechať odpovedi dvojnásobnú rezervu — orezaný JSON už raz appku
+# zhodil a stálo to platené volanie navyše.
+PLAN_ODPOVED_TOKENY = 2600
 PLAN_TOKENS = 8000
+# Koľko model nad výberom jedál uvažuje. None = doterajšie správanie, teda
+# východisková námaha modelu. Je to posledná veľká páka na dĺžku volania, ale
+# meria sa len naživo: nižšia námaha síce skracuje čakanie, no plán musí stále
+# prejsť overením receptov, inak si používateľ počká na opakovanie. Zmeň až
+# podľa čísel z LOG-u nižšie ("plán poskladaný, tokeny: ...").
+PLAN_EFFORT = None
+# Najhorší prípad čakania musí byť jedno číslo, nie súčin skrytých pokusov:
+# samotný timeout bez max_retries nechá SDK opakovať volanie (default 2×), takže
+# jedno zaseknuté spojenie drží používateľa aj vyše šesť minút pri točiacom sa
+# koliesku. Preto: žiadne tiché opakovanie, jeden pokus a jasná hláška.
+PLAN_TIMEOUT_SECONDS = 120.0
+PLAN_MAX_RETRIES = 0
+PLAN_WORST_CASE_SECONDS = PLAN_TIMEOUT_SECONDS * (PLAN_MAX_RETRIES + 1)
+SPRAVA_PLAN_TRVA_PRIDLHO = (
+    "Jedálniček sa nestihol poskladať do dvoch minút. Skús to prosím znova."
+)
+SPRAVA_PLAN_NEDOKONCENY = (
+    "Jedálniček sa nestihol dopísať do konca. Skús to prosím znova."
+)
+
+# Koľko ponúk vidí model a ako sa medzi ne delí miesto. Zoradenie podľa
+# kategórie a až potom ceny znamenalo, že do promptu sa zmestilo 89 mias a
+# 51 zelenín — a ani jedna mliečna, trvanlivá či pekárenská ponuka. Z toho sa
+# týždenný jedálniček zložiť nedá, tak si každá kategória drží svoj podiel.
+PLAN_OFFER_LIMIT = 140
+CATEGORY_QUOTA = (
+    ("maso", 3), ("zelenina", 3), ("mliecne", 2),
+    ("trvanlive", 2), ("ovocie", 1), ("pecivo", 1), ("ine", 1),
+)
+MIN_OFFERS_FOR_PLAN = 15
+# Rovnaký profil dostane rovnaký plán, takže sa počíta raz pre všetkých. Aby
+# však susedia s rovnakou domácnosťou nemali bajt na bajt to isté menu, podpis
+# sa delí na túto malú sadu variantov. PLAN_VARIANTS=1 = maximálne zdieľanie.
+PLAN_VARIANTS = 3
 
 
 # ---------------------------------------------------------------- env / util
@@ -127,6 +175,26 @@ CREATE TABLE IF NOT EXISTS plany (
   json TEXT NOT NULL,
   vytvoreny TEXT DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(user_id, tyzden)
+);
+-- Plán závisí len od (týždeň, obchody, osoby, frekvencia, špajza, ponuky).
+-- Dvaja ľudia s rovnakým podpisom dostanú ten istý plán, tak sa skladá raz.
+-- Kľúč JE pravidlom neplatnosti: iný týždeň či iná ponuková sada = iný podpis.
+CREATE TABLE IF NOT EXISTS plany_zdielane (
+  podpis  TEXT NOT NULL,
+  variant INTEGER NOT NULL,
+  tyzden  TEXT NOT NULL,
+  json    TEXT NOT NULL,
+  vytvoreny TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (podpis, variant)
+);
+-- Denný strop skladania plánov. Jeden riadok = jeden účet a jeden deň; drží sa
+-- len dnešok, staršie riadky sa pri prvej rezervácii zmažú. Bez neho je každé
+-- kliknutie na „Chcem iný plán" neohraničené platené volanie modelu.
+CREATE TABLE IF NOT EXISTS prepocty (
+  user_id INTEGER NOT NULL,
+  den     TEXT NOT NULL,
+  pocet   INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, den)
 );
 CREATE TABLE IF NOT EXISTS tokeny (
   token TEXT PRIMARY KEY,
@@ -190,6 +258,106 @@ def require_user(req: Request):
     if not u:
         raise HTTPException(status_code=401, detail="Neprihlásený")
     return u
+
+
+# ---------------------------------------------------------------- Premium
+# Špajza a vyšší denný strop prepočtov sú platené. Rozhoduje o nich výhradne
+# server, a to z tabuľky `naroky` (platby.py) — teda z podpísanej udalosti
+# poskytovateľa. Ani cookie, ani telo požiadavky, ani stĺpec `platiaci` nie sú
+# dôkazom o platbe. Kým sú platby vypnuté, nárok nemá nikto a všetci sú zadarmo.
+LIMIT_PREPOCTOV_ZDARMA = 1
+LIMIT_PREPOCTOV_PREMIUM = 5
+
+SPRAVA_SPAJZA_PREMIUM = (
+    "Špajza je súčasťou Premium. V bezplatnej verzii skladáme jedálniček "
+    "z akcií v tvojich obchodoch — bez toho, čo máš doma."
+)
+
+
+def je_premium(con, user_id) -> bool:
+    """Odvodené na každej požiadavke nanovo: vrátená platba platí okamžite."""
+    return ma_narok(con, user_id)
+
+
+def limit_prepoctov(premium: bool) -> int:
+    return LIMIT_PREPOCTOV_PREMIUM if premium else LIMIT_PREPOCTOV_ZDARMA
+
+
+def spajza_pouzivatela(con, user_id, premium: bool):
+    """Špajza vstupuje do plánu len platiacim.
+
+    Zadarmo sa vracia prázdno, aj keď v tabuľke riadky sú (napr. po skončenom
+    Premium). Vďaka tomu ostáva podpis plánu bez špajze — a teda zdieľaný.
+    """
+    if not premium:
+        return []
+    return [row["nazov"] for row in con.execute(
+        "SELECT nazov FROM spajza WHERE user_id=? ORDER BY id", (user_id,))]
+
+
+def dnesok(dnes=None) -> str:
+    return (dnes or datetime.date.today()).isoformat()
+
+
+def pouzite_prepocty(con, user_id, den) -> int:
+    row = con.execute(
+        "SELECT pocet FROM prepocty WHERE user_id=? AND den=?", (user_id, den)
+    ).fetchone()
+    return int(row[0]) if row else 0
+
+
+def rezervuj_prepocet(user_id, limit, den):
+    """Zaber jedno miesto z dnešného stropu. Vráti zostatok, alebo None.
+
+    Rezervuje sa tesne pred volaním modelu, lebo práve to volanie stojí peniaze.
+    BEGIN IMMEDIATE serializuje súbežné kliknutia, takže dve otvorené záložky
+    nevedia strop obísť. Plán podaný z cache sa sem vôbec nedostane.
+    """
+    with closing(db()) as con:
+        if con.in_transaction:
+            con.commit()
+        con.execute("BEGIN IMMEDIATE")
+        try:
+            pouzite = pouzite_prepocty(con, user_id, den)
+            if pouzite >= limit:
+                con.rollback()
+                return None
+            con.execute(
+                "INSERT INTO prepocty (user_id, den, pocet) VALUES (?,?,1)"
+                " ON CONFLICT(user_id, den) DO UPDATE SET pocet=pocet+1",
+                (user_id, den),
+            )
+            con.execute("DELETE FROM prepocty WHERE den<>?", (den,))
+            con.commit()
+        except Exception:
+            if con.in_transaction:
+                con.rollback()
+            raise
+    return limit - pouzite - 1
+
+
+def vrat_prepocet(user_id, den):
+    """Neúspešné skladanie sa neúčtuje — kto nedostal plán, o pokus neprišiel."""
+    with closing(db()) as con:
+        con.execute(
+            "UPDATE prepocty SET pocet=pocet-1 WHERE user_id=? AND den=? AND pocet>0",
+            (user_id, den),
+        )
+        con.commit()
+
+
+def sprava_o_limite(limit: int, premium: bool, dnes=None) -> str:
+    """Nikdy holá chyba: povie koľko, prečo a odkedy to ide znova."""
+    zajtra = (dnes or datetime.date.today()) + datetime.timedelta(days=1)
+    kolko = "raz za deň" if limit == 1 else f"{limit}× za deň"
+    text = (
+        f"Nový jedálniček si môžeš dať poskladať {kolko} a dnešok už máš vyčerpaný."
+        f" Ďalší si vyžiadaj zajtra {zajtra.day}. {zajtra.month}. po polnoci —"
+        " jedálniček, ktorý máš teraz, ti zostáva."
+    )
+    if not premium:
+        text += f" S Premium je to {LIMIT_PREPOCTOV_PREMIUM}× denne."
+    return text
 
 
 # ---------------------------------------------------------------- e-mail
@@ -378,13 +546,20 @@ def me(req: Request):
     u = user_from_request(req)
     if not u:
         return {"prihlaseny": False}
+    den = dnesok()
     with closing(db()) as con:
-        sp = [r["nazov"] for r in con.execute(
-            "SELECT nazov FROM spajza WHERE user_id=? ORDER BY id", (u["id"],))]
+        premium = je_premium(con, u["id"])
+        sp = spajza_pouzivatela(con, u["id"], premium)
+        limit = limit_prepoctov(premium)
+        zostava = max(0, limit - pouzite_prepocty(con, u["id"], den))
     return {"prihlaseny": True, "id": u["id"], "email": u["email"], "osoby": u["osoby"],
             "frekvencia": u["frekvencia"], "obchody": u["obchody"].split(","),
-            "onboarding": bool(u["onboarding"]), "platiaci": bool(u["platiaci"]),
-            "spajza": sp}
+            "onboarding": bool(u["onboarding"]),
+            # `platiaci` je len stĺpec; pravdu o platbe drží tabuľka nárokov.
+            "platiaci": premium, "premium": premium,
+            "platby_zapnute": platby_su_zapnute(),
+            "spajza": sp, "spajza_premium": premium,
+            "limit_prepoctov": limit, "zostava_prepoctov": zostava}
 
 
 @app.post("/api/profil")
@@ -405,14 +580,32 @@ async def uloz_profil(req: Request):
         if changed:
             con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], monday()))
         con.commit()
+    # Až po commite, na vlastnom spojení: hotový plán pre nový profil sa
+    # prevezme hneď, takže na obrazovke s jedálničkom sa už nečaká. Zlyhanie
+    # zahriatia nesmie zhodiť uloženie profilu — je to len bonus navyše.
+    if changed:
+        try:
+            zahrej_plan_pre_pouzivatela(u["id"])
+        except Exception:
+            LOG.info("zahriatie plánu preskočené", exc_info=True)
     return {"ok": True}
 
 
 @app.post("/api/spajza")
 async def uloz_spajzu(req: Request):
     u = require_user(req)
+    # Špajza je platená vlastnosť, tak sa zadarmo neuloží ani sa nezahodí ticho:
+    # odmietnutie je jasné a appka ju bezplatnému účtu ani neponúkne. Kontrola je
+    # tu vždy nanovo — nárok, ktorý medzitým zanikol, platí okamžite.
+    with closing(db()) as con:
+        if not je_premium(con, u["id"]):
+            raise HTTPException(403, SPRAVA_SPAJZA_PREMIUM)
     d = await req.json()
     polozky = [str(x).strip()[:40] for x in d.get("polozky", []) if str(x).strip()][:60]
+    # Špajza je oddelený systém: uloží sa okamžite a plán sa jej NIKDY nedotkne.
+    # Predtým tu bolo DELETE FROM plany — jedno pridané vajíčko tak zahodilo
+    # jedálniček, ktorý si používateľ práve čítal, a vynútilo platené volanie
+    # modelu bez vyzvania. Rozdiel oproti plánu ukáže appka ako tichý návrh.
     with closing(db()) as con:
         old = [row["nazov"] for row in con.execute(
             "SELECT nazov FROM spajza WHERE user_id=? ORDER BY id", (u["id"],))]
@@ -420,13 +613,12 @@ async def uloz_spajzu(req: Request):
             con.execute("DELETE FROM spajza WHERE user_id=?", (u["id"],))
             con.executemany("INSERT INTO spajza (user_id,nazov) VALUES (?,?)",
                             [(u["id"], p) for p in polozky])
-            con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], monday()))
         con.commit()
     return {"ok": True, "pocet": len(polozky)}
 
 
 # ---------------------------------------------------------------- plán
-def akcie_pre(obchody, limit=140):
+def akcie_pre(obchody, limit=PLAN_OFFER_LIMIT):
     if not obchody:
         return []
 
@@ -434,8 +626,129 @@ def akcie_pre(obchody, limit=140):
     with closing(db()) as con:
         rows = offers_for_current_week(con, obchody, today)
 
-    category_order = {"maso": 1, "zelenina": 2, "mliecne": 3, "trvanlive": 4}
-    return sorted(rows, key=lambda row: (category_order.get(row["kategoria"], 5), row["cena"]))[:limit]
+    return vyvazene_ponuky(rows, limit)
+
+
+def _kategoria(row):
+    known = {name for name, _ in CATEGORY_QUOTA}
+    return row["kategoria"] if row["kategoria"] in known else "ine"
+
+
+def vyvazene_ponuky(rows, limit=PLAN_OFFER_LIMIT):
+    """Najlacnejšie ponuky, ale zo všetkých kategórií naraz.
+
+    V každom kole si kategória vezme svoj podiel od najlacnejšej ďalej. Mäso
+    stále vedie, no už nevytlačí mliečne a pečivo úplne z promptu. Keď obchod
+    v niektorej kategórii nič nemá, miesto pripadne ostatným — chudobný týždeň
+    sa tým nezmenší. Výber je deterministický, aby zdieľaný podpis sedel.
+    """
+    buckets = {name: [] for name, _ in CATEGORY_QUOTA}
+    for row in rows:
+        buckets[_kategoria(row)].append(row)
+    for bucket in buckets.values():
+        bucket.sort(key=lambda row: (row["cena"], row["offer_key"]))
+
+    order = {name: index for index, (name, _) in enumerate(CATEGORY_QUOTA)}
+    cursors = {name: 0 for name in buckets}
+    taken = []
+    while len(taken) < limit:
+        before = len(taken)
+        for name, quota in CATEGORY_QUOTA:
+            bucket = buckets[name]
+            for _ in range(quota):
+                if len(taken) >= limit or cursors[name] >= len(bucket):
+                    break
+                taken.append(bucket[cursors[name]])
+                cursors[name] += 1
+        if len(taken) == before:
+            break
+    return sorted(taken, key=lambda row: (order[_kategoria(row)], row["cena"]))
+
+
+def pouzitie_modelu(usage):
+    """Spotreba tokenov z odpovede — dôkaz, že prompt caching naozaj chytá.
+
+    Bez tohto sa dá cachovanie iba predpokladať: `cache_read` väčší ako nula
+    znamená, že blok ponúk sa nečítal nanovo.
+    """
+    if usage is None:
+        return {}
+    return {
+        "input": getattr(usage, "input_tokens", None),
+        "output": getattr(usage, "output_tokens", None),
+        "cache_write": getattr(usage, "cache_creation_input_tokens", None),
+        "cache_read": getattr(usage, "cache_read_input_tokens", None),
+    }
+
+
+def podpis_planu(tyzden, obchody, osoby, frekvencia, rows, spajza):
+    return plan_signature(
+        tyzden, obchody, osoby, frekvencia, [row["offer_key"] for row in rows], spajza
+    )
+
+
+def nacitaj_zdielany_plan(con, podpis, variant):
+    row = con.execute(
+        "SELECT json FROM plany_zdielane WHERE podpis=? AND variant=?", (podpis, variant)
+    ).fetchone()
+    if not row:
+        return None
+    try:
+        return json.loads(row["json"])
+    except json.JSONDecodeError:
+        return None
+
+
+def uloz_zdielany_plan(con, podpis, variant, tyzden, plan):
+    """Ulož plán bez špajze — tú si každý čitateľ opečiatkuje vlastnú."""
+    zdielany = {key: value for key, value in plan.items() if key != "spajza"}
+    con.execute(
+        "INSERT OR REPLACE INTO plany_zdielane (podpis,variant,tyzden,json) VALUES (?,?,?,?)",
+        (podpis, variant, tyzden, json.dumps(zdielany, ensure_ascii=False)),
+    )
+    con.execute("DELETE FROM plany_zdielane WHERE tyzden<>?", (tyzden,))
+
+
+def prevezmi_zdielany_plan(con, user_id, tyzden, zdielany, spajza):
+    plan = dict(zdielany)
+    plan["spajza"] = list(spajza)
+    con.execute(
+        "INSERT OR REPLACE INTO plany (user_id,tyzden,json) VALUES (?,?,?)",
+        (user_id, tyzden, json.dumps(plan, ensure_ascii=False)),
+    )
+    return plan
+
+
+def zahrej_plan_pre_pouzivatela(user_id):
+    """Po zmene profilu prevezmi hotový plán, ak už pre ten profil existuje.
+
+    Zahriatie zadarmo: model sa nevolá, takže onboarding nikdy nespustí platené
+    volanie bez vyzvania. Keď plán pre daný podpis ešte nikto nevygeneroval,
+    ticho sa nestane nič a používateľ si ho vyžiada sám.
+    """
+    tyzden = monday()
+    with closing(db()) as con:
+        profil = con.execute(
+            "SELECT osoby, frekvencia, obchody FROM pouzivatelia WHERE id=?", (user_id,)
+        ).fetchone()
+        if profil is None:
+            return None
+        spajza = spajza_pouzivatela(con, user_id, je_premium(con, user_id))
+
+    obchody = profil["obchody"].split(",")
+    rows = akcie_pre(obchody)
+    if len(rows) < MIN_OFFERS_FOR_PLAN:
+        return None
+    podpis = podpis_planu(
+        tyzden, obchody, profil["osoby"], profil["frekvencia"], rows, spajza
+    )
+    with closing(db()) as con:
+        zdielany = nacitaj_zdielany_plan(con, podpis, plan_variant_for(user_id, PLAN_VARIANTS))
+        if not zdielany or not cached_plan_is_current(zdielany, rows):
+            return None
+        plan = prevezmi_zdielany_plan(con, user_id, tyzden, zdielany, spajza)
+        con.commit()
+    return plan
 
 
 @app.post("/api/plan/generuj")
@@ -444,10 +757,11 @@ def generuj_plan(req: Request, force: int = 0):
     tyz = monday()
     obchody = u["obchody"].split(",")
     rows = akcie_pre(obchody)
-    if len(rows) < 15:
+    if len(rows) < MIN_OFFERS_FOR_PLAN:
         raise HTTPException(503, "Aktuálne letákové dáta sa obnovujú. Skús to o chvíľu.")
 
     with closing(db()) as con:
+        premium = je_premium(con, u["id"])
         if not force:
             r = con.execute("SELECT json FROM plany WHERE user_id=? AND tyzden=?",
                             (u["id"], tyz)).fetchone()
@@ -461,14 +775,76 @@ def generuj_plan(req: Request, force: int = 0):
                 con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], tyz))
                 con.commit()
                 raise HTTPException(503, "Aktuálny plán už obsahuje neplatnú ponuku. Skús to o chvíľu.")
-        sp = [x["nazov"] for x in con.execute(
-            "SELECT nazov FROM spajza WHERE user_id=?", (u["id"],))]
+        sp = spajza_pouzivatela(con, u["id"], premium)
 
+    # Plán závisí len od profilu, špajze a ponúk. Keď ho pre presne tú istú
+    # kombináciu už niekto vygeneroval, čaká sa milisekundy namiesto minút.
+    # „Vygeneruj mi iný" (force) sa cache musí vyhnúť, inak by nič nezmenilo.
+    podpis = podpis_planu(tyz, obchody, u["osoby"], u["frekvencia"], rows, sp)
+    variant = plan_variant_for(u["id"], PLAN_VARIANTS)
+    if not force:
+        with closing(db()) as con:
+            zdielany = nacitaj_zdielany_plan(con, podpis, variant)
+            if zdielany is not None:
+                if cached_plan_is_current(zdielany, rows):
+                    plan = prevezmi_zdielany_plan(con, u["id"], tyz, zdielany, sp)
+                    con.commit()
+                    return plan
+                con.execute(
+                    "DELETE FROM plany_zdielane WHERE podpis=? AND variant=?", (podpis, variant)
+                )
+                con.commit()
+
+    # Odtiaľto ďalej sa platí. Každé skladanie, ktoré sa naozaj dostane k modelu,
+    # zaberie jedno miesto z dnešného stropu — zadarmo raz, s Premium päťkrát.
+    # Plán podaný z cache (osobnej či zdieľanej) sa sem nikdy nedostane, takže
+    # čítanie hotového jedálnička nie je ničím obmedzené.
+    den = dnesok()
+    strop = limit_prepoctov(premium)
+    if rezervuj_prepocet(u["id"], strop, den) is None:
+        raise HTTPException(429, sprava_o_limite(strop, premium))
+    try:
+        return poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant)
+    except BaseException:
+        vrat_prepocet(u["id"], den)
+        raise
+
+
+def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant):
+    """Jediné platené volanie v celej appke — volá sa až po rezervácii miesta."""
     import anthropic
-    client = anthropic.Anthropic(api_key=env("ANTHROPIC_API_KEY"), timeout=120.0)
-    prompt = personal_plan_prompt(rows, u["frekvencia"], sp, household_size=u["osoby"])
-    msg = client.messages.create(model=MODEL_PLAN, max_tokens=PLAN_TOKENS,
-                                 messages=[{"role": "user", "content": prompt}])
+    client = anthropic.Anthropic(
+        api_key=env("ANTHROPIC_API_KEY"),
+        timeout=PLAN_TIMEOUT_SECONDS,
+        max_retries=PLAN_MAX_RETRIES,
+    )
+    # Blok ponúk je pre celý týždeň rovnaký a tvorí ~92 % promptu, tak ide
+    # dopredu a s cache_control — inak sa ako predpona cachovať nedá.
+    blocks = personal_plan_messages(
+        rows, u["frekvencia"], sp, household_size=u["osoby"], variant=variant
+    )
+    plan_timeout = getattr(anthropic, "APITimeoutError", None)
+    nastavenie = {"output_config": {"effort": PLAN_EFFORT}} if PLAN_EFFORT else {}
+
+    def poskladaj(**navyse):
+        return client.messages.create(model=MODEL_PLAN, max_tokens=PLAN_TOKENS,
+                                      messages=[{"role": "user", "content": blocks}], **navyse)
+
+    try:
+        try:
+            msg = poskladaj(**nastavenie)
+        except TypeError:
+            # Staršie SDK output_config nepozná; plán je dôležitejší než námaha.
+            msg = poskladaj()
+    except Exception as error:
+        if plan_timeout is not None and isinstance(error, plan_timeout):
+            raise HTTPException(504, SPRAVA_PLAN_TRVA_PRIDLHO)
+        raise
+    LOG.info("plán poskladaný, tokeny: %s", pouzitie_modelu(getattr(msg, "usage", None)))
+    # Orezanú odpoveď nemá zmysel skladať: JSON by nedával zmysel a používateľ
+    # by dostal iba nezrozumiteľnú chybu z parsovania.
+    if getattr(msg, "stop_reason", None) == "max_tokens":
+        raise HTTPException(500, SPRAVA_PLAN_NEDOKONCENY)
     txt = "".join(b.text for b in msg.content
                   if getattr(b, "type", None) == "text").strip()
     txt = re.sub(r"^```(?:json)?|```$", "", txt, flags=re.M).strip()
@@ -484,8 +860,12 @@ def generuj_plan(req: Request, force: int = 0):
             )
         except ValueError:
             raise HTTPException(500, "Plán sa nepodarilo bezpečne overiť, skús to znova.")
+        # Odtlačok špajze, z ktorej je plán poskladaný. Vďaka nemu appka vie
+        # ticho upozorniť, že sa špajza medzitým zmenila — bez prepočtu.
+        plan["spajza"] = sp
         con.execute("INSERT OR REPLACE INTO plany (user_id,tyzden,json) VALUES (?,?,?)",
                     (u["id"], tyz, json.dumps(plan, ensure_ascii=False)))
+        uloz_zdielany_plan(con, podpis, variant, tyz, plan)
         con.commit()
     return plan
 

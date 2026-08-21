@@ -66,7 +66,8 @@ $subory = @(
   @{ l = "$B\hetzner\recepty.py";       r = "/opt/uvarsi/recepty.py" },
   @{ l = "$B\hetzner\dozorca.sh";       r = "/opt/uvarsi/dozorca.sh" },
   @{ l = "$B\VERSION";                  r = "/opt/uvarsi/VERSION" },
-  @{ l = "$B\index.html";               r = "/var/www/uvarsi/index.html" }
+  @{ l = "$B\index.html";               r = "/var/www/uvarsi/index.html" },
+  @{ l = "$B\sw.js";                    r = "/var/www/uvarsi/sw.js" }
 )
 foreach ($s in $subory) {
   if (-not (Test-Path $s.l)) { Zlyhaj "chyba lokalny subor $($s.l)" }
@@ -136,6 +137,10 @@ blok = """uvar.si, www.uvar.si, uvarsi.sk, www.uvarsi.sk, uvarsi.89.167.72.159.s
 		reverse_proxy 127.0.0.1:8090
 	}
 	handle /prihlasenie* {
+		reverse_proxy 127.0.0.1:8090
+	}
+	handle /static/fonts/* {
+		header Cache-Control "public, max-age=31536000, immutable"
 		reverse_proxy 127.0.0.1:8090
 	}
 	handle /static/* {

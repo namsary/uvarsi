@@ -444,3 +444,193 @@ def test_plan_screen_promises_only_what_the_leaflet_actually_proves():
     for overstated in ("overené u obchodníka", "overujeme priamo v obchode", "garantujeme",
                        "nezávisle overené", "potvrdené obchodom"):
         assert overstated not in html, "the app must not claim more than reading a leaflet page"
+
+
+# --------------------------------------------------------------- špajza (defekt 1)
+def test_editing_the_pantry_saves_instantly_and_never_regenerates_the_plan():
+    """Majiteľ: „pridám vajíčka a zrazu mi preskladá celý jedálniček bez vyzvania"."""
+    html = app_html()
+    pantry_view = declaration(html, "function vSpajza() ")
+
+    assert "/api/spajza" in pantry_view, "the pantry still has to save"
+    assert "nacitajPlan" not in pantry_view, (
+        "a pantry edit must never trigger a paid regeneration as a side effect"
+    )
+    assert "api('/api/plan" not in pantry_view, "the pantry must not touch the plan endpoints"
+    assert "vSpajza()" in pantry_view, "the pantry redraws itself, so the edit feels instant"
+
+
+@needs_node
+def test_a_changed_pantry_is_only_a_dismissible_hint_with_an_explicit_recompute(tmp_path):
+    html = app_html()
+    differs = declaration(html, "function pantryDiffers(planPantry, currentPantry) ")
+    result = run_node(
+        tmp_path,
+        "pantry-hint-contract.js",
+        differs
+        + """
+if (pantryDiffers(['ryža'], ['ryža']) !== false) process.exit(1);
+if (pantryDiffers(['ryža', 'soľ'], ['soľ', 'ryža']) !== false) process.exit(2);
+if (pantryDiffers([' Ryža '], ['ryža']) !== false) process.exit(3);
+if (pantryDiffers(['ryža'], ['ryža', 'vajcia']) !== true) process.exit(4);
+if (pantryDiffers(['ryža', 'vajcia'], ['ryža']) !== true) process.exit(5);
+if (pantryDiffers([], ['vajcia']) !== true) process.exit(6);
+if (pantryDiffers(undefined, ['vajcia']) !== false) process.exit(7);
+if (pantryDiffers(null, []) !== false) process.exit(8);
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    plan_view = declaration(html, "function vPlan() ")
+    assert "pantryDiffers(" in plan_view, "the plan screen decides whether the hint is warranted"
+    assert "Špajza sa zmenila" in plan_view, "the hint has to say what happened, calmly"
+    assert "Prepočítať jedálniček" in plan_view, "regeneration needs its own explicit button"
+    assert "sp-hint-off" in plan_view, "the hint must be dismissible"
+    assert "PANTRY_HINT_HIDDEN" in html, "a dismissed hint must stay dismissed"
+    assert "$('#sp-hint-go').onclick" in plan_view
+    assert "$('#sp-hint-off').onclick" in plan_view
+
+
+# --------------------------------------------------------------- týždeň (defekt 2)
+@needs_node
+def test_every_day_of_the_week_is_a_meal_leftovers_or_explicit_free_day(tmp_path):
+    """Majiteľ videl PO/UT/ST navarené, ŠT zvyšok — a PI aj SO úplne prázdne."""
+    html = app_html()
+    week_days = declaration(html, "function planWeekDays(plan, frequency) ")
+    result = run_node(
+        tmp_path,
+        "week-days-contract.js",
+        week_days
+        + """
+var DNI = ['PO', 'UT', 'ST', 'ŠT', 'PI', 'SO', 'NE'];
+function plan(days) {
+  return {jedla: days.map(function (d) { return {den: d, nazov: 'Jedlo ' + d}; })};
+}
+function covered(rows) {
+  if (rows.length !== 7) return false;
+  for (var i = 0; i < 7; i++) {
+    if (rows[i].den !== DNI[i]) return false;
+    if (['jedlo', 'zvysok', 'volno'].indexOf(rows[i].typ) === -1) return false;
+  }
+  return true;
+}
+var owner = planWeekDays(plan(['PO', 'UT', 'ST']), 2);
+if (!covered(owner)) process.exit(1);
+if (owner[3].typ !== 'zvysok' || owner[3].zdroj !== 'ST') process.exit(2);
+if (owner[4].typ !== 'volno') process.exit(3);
+if (owner[5].typ !== 'volno') process.exit(4);
+if (owner[6].typ !== 'volno') process.exit(5);
+if (owner[0].typ !== 'jedlo' || !owner[0].jedlo || owner[0].jedlo.nazov !== 'Jedlo PO') process.exit(6);
+
+var spread = planWeekDays(plan(['PO', 'ST', 'PI']), 2);
+if (!covered(spread)) process.exit(7);
+if (spread[1].typ !== 'zvysok' || spread[1].zdroj !== 'PO') process.exit(8);
+if (spread[3].typ !== 'zvysok' || spread[3].zdroj !== 'ST') process.exit(9);
+if (spread[5].typ !== 'zvysok' || spread[5].zdroj !== 'PI') process.exit(10);
+if (spread[6].typ !== 'volno') process.exit(11);
+
+var everyThird = planWeekDays(plan(['UT', 'PI']), 3);
+if (!covered(everyThird)) process.exit(12);
+if (everyThird[0].typ !== 'volno') process.exit(13);
+if (everyThird[2].typ !== 'zvysok' || everyThird[3].typ !== 'zvysok') process.exit(14);
+if (everyThird[5].typ !== 'zvysok' || everyThird[6].typ !== 'zvysok') process.exit(15);
+if (everyThird[6].zdroj !== 'PI') process.exit(16);
+
+if (!covered(planWeekDays({}, 2))) process.exit(17);
+if (!covered(planWeekDays(null, undefined))) process.exit(18);
+if (!covered(planWeekDays(plan(['NE']), 7))) process.exit(19);
+var empty = planWeekDays({jedla: []}, 2);
+for (var e = 0; e < 7; e++) if (empty[e].typ !== 'volno') process.exit(20);
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    plan_view = declaration(html, "function vPlan() ")
+    assert "planWeekDays(" in plan_view, "the week must be derived from the plan, not guessed"
+    assert "['UT','ŠT','SO']" not in html, "the hardcoded leftovers days are the bug"
+    assert '"UT", "ŠT", "SO"' not in html
+    assert "voľno" in plan_view, "a day without food must say so instead of disappearing"
+
+
+@needs_node
+def test_leftover_days_name_the_day_the_food_was_cooked_in_natural_slovak(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "day-genitive-contract.js",
+        declaration(html, "function dayGenitive(day) ")
+        + """
+var expected = {PO: 'pondelka', UT: 'utorka', ST: 'stredy', 'ŠT': 'štvrtka',
+  PI: 'piatku', SO: 'soboty', NE: 'nedele'};
+for (var day in expected) if (dayGenitive(day) !== expected[day]) process.exit(1);
+if (dayGenitive(null).length < 3) process.exit(2);
+if (dayGenitive('XX').indexOf('undefined') !== -1) process.exit(3);
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "dayGenitive(" in declaration(html, "function vPlan() ")
+
+
+# --------------------------------------------------------------- čakanie (defekt 3)
+@needs_node
+def test_plan_generation_says_what_it_does_and_how_long_it_honestly_takes(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "plan-progress-contract.js",
+        declaration(html, "function planWaitMessage(seconds) ")
+        + "\n"
+        + declaration(html, "function planWaitFootnote(seconds) ")
+        + """
+var seen = {};
+var stages = [0, 25, 70, 200].map(function (s) { return planWaitMessage(s); });
+for (var i = 0; i < stages.length; i++) {
+  if (typeof stages[i] !== 'string' || stages[i].length < 12) process.exit(1);
+  if (seen[stages[i]]) process.exit(2);
+  seen[stages[i]] = true;
+}
+if (planWaitFootnote(0).indexOf('0:00') === -1) process.exit(3);
+if (planWaitFootnote(95).indexOf('1:35') === -1) process.exit(4);
+if (planWaitFootnote(5).indexOf('60') === -1) process.exit(5);
+if (planWaitFootnote(5).indexOf('120') === -1) process.exit(6);
+if (planWaitFootnote(-3).indexOf('0:00') === -1) process.exit(7);
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    load_plan = declaration(html, "async function nacitajPlan(gen) ")
+    assert "startPlanProgress()" in load_plan, "generation must show progress, not a bare spinner"
+    assert "stopPlanProgress()" in load_plan, "the ticking progress must always be stopped"
+    assert "planWaitMessage" in declaration(html, "function planProgressHtml(seconds) ")
+
+
+def test_a_plan_that_never_arrives_times_out_in_slovak_instead_of_spinning_forever():
+    html = app_html()
+    api_wrapper = declaration(html, "async function api(url, opts) ")
+
+    assert "AbortController" in api_wrapper, "an unbounded fetch is the infinite spinner"
+    assert "timeoutMs" in api_wrapper
+    assert "catch (networkError)" in api_wrapper, "network failures stay distinguishable"
+    assert "clearTimeout" in api_wrapper, "a finished request must not fire a late abort"
+    assert "error.timeout" in html or ".timeout = true" in html
+
+    assert re.search(r"const PLAN_TIMEOUT_MS = \d+", html), "the wait has to be bounded"
+    assert "PLAN_TIMEOUT_TEXT" in html
+    match = re.search(r"const PLAN_TIMEOUT_TEXT = '([^']+)'", html)
+    assert match, "the timeout message must be a single Slovak sentence"
+    assert "Skús to" in match.group(1)
+
+    generate = declaration(html, "function generujPlan() ")
+    assert "timeoutMs: PLAN_TIMEOUT_MS" in generate, "generation is the call that can hang"
+    load_plan = declaration(html, "async function nacitajPlan(gen) ")
+    assert "generujPlan()" in load_plan, "every generation goes through the bounded call"
+    failure = load_plan.split("catch", 1)[1]
+    assert "Skúsiť znova" in failure, "a timeout must offer a retry, not a dead end"
