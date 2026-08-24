@@ -154,3 +154,12 @@
 [2026-08-24 15:59:02] TESTY ZLYHALI - nepushujem. FAILED tests/test_auth.py::test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call 2 failed, 611 passed, 8 skipped, 36 deselected in 189.72s (0:03:09)
 [2026-08-24 16:00:37] zmenenych suborov: 8
 [2026-08-24 16:03:01] testy OK: ........................................................................ [ 92%] .............................................                            [100%] 613 passed, 8 skipped, 36 deselected in 134.55s (0:02:14)
+[2026-08-24 16:03:33] pushnute e4faaa7 - server si to vezme do 10 minut
+[2026-08-24 16:05:41] zmenenych suborov: 1
+[2026-08-24 16:09:25] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call 1 failed, 612 passed, 8 skipped, 36 deselected in 207.54s (0:03:27)
+[2026-08-24 16:10:38] zmenenych suborov: 1
+[2026-08-24 16:13:15] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write 1 failed, 612 passed, 8 skipped, 36 deselected in 149.68s (0:02:29)
+[2026-08-24 16:15:36] zmenenych suborov: 1
+[2026-08-24 16:17:34] TESTY ZLYHALI - nepushujem. FAILED tests/test_auth.py::test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call 2 failed, 611 passed, 8 skipped, 36 deselected in 109.31s (0:01:49)
+[2026-08-24 16:20:37] zmenenych suborov: 1
+[2026-08-24 16:22:51] testy OK: ........................................................................ [ 92%] .............................................                            [100%] 613 passed, 8 skipped, 36 deselected in 124.79s (0:02:04)
