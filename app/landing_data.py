@@ -52,6 +52,29 @@ def _validate_item_saving(item: dict) -> bool:
     return True
 
 
+def _validate_recipe(meal: dict) -> None:
+    """Recept je nepovinný — keď tam je, musí sa dať zobraziť bez dopočítavania.
+
+    Kroky píše model (recepty.py). Komerčné údaje sa doňho nikdy nedostanú:
+    ceny, obchody aj úspora žijú v položkách a pochádzajú výhradne z DB.
+    """
+    recipe = meal.get("recipe")
+    if recipe is None:
+        return
+    if not isinstance(recipe, dict) or set(recipe) - {"min", "steps", "steps_total"}:
+        raise ValueError("Recept v bločku obsahuje nepovolené polia.")
+    steps = recipe.get("steps")
+    if not isinstance(steps, list) or not steps:
+        raise ValueError("Recept v bločku musí mať kroky.")
+    for step in steps:
+        _required_text(step, "krok receptu")
+    total = _validate_count(recipe.get("steps_total", len(steps)), "krokov receptu")
+    if total < len(steps):
+        raise ValueError("Recept tvrdí menej krokov, než sám vypisuje.")
+    if "min" in recipe and _validate_count(recipe["min"], "minút receptu") <= 0:
+        raise ValueError("Neplatný počet minút receptu.")
+
+
 def _validate_count(value: object, field: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f"Neplatný počet {field} v bločku.")
@@ -86,6 +109,7 @@ def validate_landing_data(payload: dict, today: date | None = None) -> dict:
             raise ValueError("Jedlo v bločku musí byť objekt.")
         _required_text(meal.get("day"), "day")
         _required_text(meal.get("name"), "name")
+        _validate_recipe(meal)
         if not isinstance(meal.get("items"), list):
             raise ValueError("Položky jedla musia byť zoznam.")
         for item in meal["items"]:
@@ -115,6 +139,35 @@ def validate_landing_data(payload: dict, today: date | None = None) -> dict:
             raise ValueError("Bloček tvrdí úsporu bez overenej bežnej ceny.")
 
     return payload
+
+
+def model_example_is_publishable(payload: object, today: date | None = None) -> bool:
+    """Smie modelový príklad na landingu vôbec ísť von?
+
+    Sekcia tvrdí konkrétnu týždennú úsporu a z nej odvodenú ročnú projekciu.
+    Nedoložené tvrdenie o úspore je klamlivá obchodná praktika, takže stačí
+    jediná diera a nesmie sa vykresliť nič:
+
+    * dáta neprejdú `validate_landing_data` (starý týždeň, rozbitá matematika),
+    * ani jedna položka nemá overenú prečiarknutú bežnú cenu,
+    * úspora vyjde nula — vtedy niet čo tvrdiť.
+
+    Rovnaké pravidlo drží aj prehliadač (`modelIsPublishable` v index.html),
+    aby odobratie atribútu `hidden` nikdy nestačilo na zverejnenie čísel.
+    """
+    if not isinstance(payload, dict):
+        return False
+    try:
+        validate_landing_data(payload, today)
+    except ValueError:
+        return False
+    meals = payload["receipt"]["meals"]
+    substantiated = any(
+        item.get("original_price") is not None
+        for meal in meals
+        for item in meal["items"]
+    )
+    return substantiated and _amount(payload["receipt"]["usetris"]) > 0
 
 
 def write_landing_data_atomic(path: str | Path, payload: dict) -> None:

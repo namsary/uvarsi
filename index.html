@@ -112,8 +112,6 @@
   .ex-card{border:2px solid var(--ink);background:#fff;padding:22px 20px;font-family:"IBM Plex Mono",monospace}
   .ex-k{font-size:.72rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--red);
     border-bottom:1px dashed #C9C2B4;padding-bottom:12px;margin-bottom:16px}
-  .ex-row{display:flex;justify-content:space-between;gap:14px;font-size:.82rem;margin-bottom:12px;color:var(--ink-soft)}
-  .ex-row b{color:var(--ink);text-align:right}
   .ex-note{font-size:.72rem;color:var(--ink-soft);font-style:italic;margin-top:6px}
   .deal{display:flex;justify-content:space-between;gap:10px;align-items:center;background:var(--yellow);
     border:2px solid var(--ink);padding:9px 11px;font-size:.78rem;font-weight:600;margin-bottom:10px}
@@ -293,75 +291,14 @@
   </div>
 </section>
 
+<!-- Kreslí renderModel() z /api/public/landing, z tých istých overených ponúk
+     ako bloček vyššie. V zdrojáku preto nie je ani jedna cena — ani placeholder. -->
 <section class="band band--tint" id="landing-model" hidden>
   <div class="shell">
     <span class="eyebrow">Modelový príklad</span>
-    <h2 class="display band-h2">Štvorčlenná rodina, varí každé dva dni.</h2>
-    <p class="ex-lead">Takto to vyzerá naozaj — od zadania po nákupný zoznam.</p>
-    <!-- EX:START -->
-    <div class="ex-grid">
-      <div class="ex-card">
-        <div class="ex-k">01 · Ty zadáš</div>
-        <div class="ex-row"><span>varím</span><b>každé 2 dni</b></div>
-        <div class="ex-row"><span>porcie</span><b>4</b></div>
-        <div class="ex-row"><span>obchody</span><b>Lidl · Kaufland</b></div>
-        <div class="ex-row"><span>v špajze</span><b>ryža 1 kg · vajcia 10 ks · cibuľa</b></div>
-        <div class="ex-note">Nastavíš raz, zmeníš kedykoľvek.</div>
-      </div>
-      <div class="ex-card">
-        <div class="ex-k">02 · Appka nájde akcie</div>
-        <div class="deal"><span>kur. stehná · Lidl</span><span class="d-off">2,69 €/kg <em>−33 %</em></span></div>
-        <div class="deal"><span>šošovica 500 g · Kaufland</span><span class="d-off">1,19 € <em>−30 %</em></span></div>
-        <div class="deal"><span>eidam 400 g · Kaufland</span><span class="d-off">2,89 € <em>−25 %</em></span></div>
-        <div class="deal"><span>brav. plecko · Lidl</span><span class="d-off">3,29 €/kg <em>−40 %</em></span></div>
-        <div class="ex-note">Z aktuálnych letákov tvojich obchodov.</div>
-      </div>
-      <div class="ex-card">
-        <div class="ex-k">03 · Ty dostaneš</div>
-        <ul class="check">
-          <li>jedálniček na celý týždeň</li>
-          <li>3 recepty krok za krokom</li>
-          <li>nákupný zoznam: Lidl 6 · Kaufland 4</li>
-          <li>zvyšky zarátané do ďalších dní</li>
-        </ul>
-        <div class="ex-save"><span>Ušetrí</span><b>8,20 €</b></div>
-      </div>
-    </div>
-    <div class="cost-band"><span class="c-lbl">Ak takto varíš celý rok:</span> <b>~36 € mesačne</b> späť — za rok <b>približne 430 €</b> ušetrené oproti plným cenám.</div>
-    <span class="eyebrow">A tie 3 recepty? Napríklad takto:</span>
-    <div class="rec-grid">
-      <div class="rec-card">
-        <div class="rec-head"><h3>Kuracie stehná na paprike</h3><span class="rec-day">PO</span></div>
-        <div class="rec-meta">45 min · 4 porcie · 6 krokov</div>
-        <ol class="rec-steps">
-          <li>Stehná (1,2 kg) osoľ a opeč na masti.</li>
-          <li>Pridaj 2 cibule a lyžicu mletej papriky.</li>
-          <li>Podlej 200 ml vody a duste 35 minút.</li>
-        </ol>
-        <div class="rec-more">…+3 kroky v appke</div>
-      </div>
-      <div class="rec-card">
-        <div class="rec-head"><h3>Šošovicový prívarok</h3><span class="rec-day">ST</span></div>
-        <div class="rec-meta">35 min · 4 porcie · 5 krokov</div>
-        <ol class="rec-steps">
-          <li>Šošovicu (500 g) prepláchni a uvar.</li>
-          <li>Z 50 g masla a 2 lyžíc múky sprav zápražku.</li>
-          <li>Spoj a dochuť octom a smotanou.</li>
-        </ol>
-        <div class="rec-more">…+2 kroky v appke</div>
-      </div>
-      <div class="rec-card">
-        <div class="rec-head"><h3>Zapekané cestoviny</h3><span class="rec-day">PI</span></div>
-        <div class="rec-meta">40 min · 4 porcie · 4 kroky</div>
-        <ol class="rec-steps">
-          <li>Cestoviny (500 g) uvar na skus.</li>
-          <li>Zmiešaj s 3 vajcami a 200 g eidamu.</li>
-          <li>Zapekaj 25 minút na 180 °C.</li>
-        </ol>
-        <div class="rec-more">…+1 krok v appke</div>
-      </div>
-    </div>
-    <!-- EX:END -->
+    <h2 class="display band-h2">Takto vyzerá týždeň z akcií, ktoré práve bežia.</h2>
+    <p class="ex-lead">Od zadania po nákupný zoznam — s cenami z toho istého bločku, aký vidíš hore.</p>
+    <div id="landing-model-body"></div>
   </div>
 </section>
 
@@ -449,7 +386,7 @@
       <details><summary>Odkiaľ beriete akcie?</summary><p>Z aktuálnych akciových letákov obchodov v tvojom okolí. Začíname vybranými reťazcami a mestami a postupne pridávame ďalšie.</p></details>
       <details><summary>Môžem zadať, čo už mám doma?</summary><p>Áno, to je jedna z hlavných vecí. Zadáš, čo máš v špajze či chladničke, a Uvar.si to zaráta do jedálnička — menej plytváš a dokúpiš len to, čo naozaj chýba.</p></details>
       <details><summary>Nechcem variť každý deň. Zvládne to?</summary><p>Presne na to je to stavané. Povieš, že varíš raz za dva alebo tri dni, a plán s tým počíta — zvyšky zaráta do ďalších dní.</p></details>
-      <details><summary>Koľko reálne ušetrím?</summary><p>Presnú úsporu ukážeme až pri dostupných aktuálnych letákových dátach. Závisí od vybraných jedál, obchodov a cien v danom týždni.</p></details>
+      <details><summary>Koľko reálne ušetrím?</summary><p>Závisí to od vybraných jedál, obchodov a cien v danom týždni. Keď máme aktuálne letákové dáta, ukážeme presnú týždennú úsporu priamo v modelovom príklade — aj s odkazmi na letáky, z ktorých sme ceny odčítali. Ročná suma pri nej je len projekcia z toho týždňa, nie sľub, a mení sa každý týždeň spolu s akciami.</p></details>
     </div>
   </div>
 </section>
@@ -496,6 +433,11 @@
 (function(){
   var landing=document.getElementById('landing-data');
   var status=document.getElementById('landing-status');
+  var model=document.getElementById('landing-model');
+  var modelBody=document.getElementById('landing-model-body');
+  /* Druhý zámok: aj keby niekto atribút hidden zo zdrojáka zmazal, sekcia
+     ostane skrytá, kým dáta neprejdú kontrolou v modelIsPublishable(). */
+  model.hidden=true;
 
   function node(tag, className, text){
     var element=document.createElement(tag);
@@ -505,6 +447,30 @@
   }
 
   function amount(value){ return String(value)+' €'; }
+
+  function money(value){
+    var number=Number(String(value==null?'':value).replace(/\s/g,'').replace(',','.'));
+    return isFinite(number)?number:0;
+  }
+
+  function itemsOf(data){
+    var all=[];
+    (data.receipt.meals||[]).forEach(function(meal){
+      (meal.items||[]).forEach(function(item){ all.push(item); });
+    });
+    return all;
+  }
+
+  function mondayIso(now){
+    var day=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+    day.setDate(day.getDate()-((day.getDay()+6)%7));
+    var month=String(day.getMonth()+1), date=String(day.getDate());
+    return day.getFullYear()+'-'+(month.length<2?'0':'')+month+'-'+(date.length<2?'0':'')+date;
+  }
+
+  function plural(count, one, few, many){
+    return count===1?one:(count>=2&&count<=4?few:many);
+  }
 
   function dayMonth(iso){
     var parts=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso==null?'':iso).trim());
@@ -593,11 +559,95 @@
     status.hidden=true;
   }
 
+  /* Modelový príklad tvrdí konkrétnu úsporu, tak sa smie vykresliť len z dát,
+     ktoré ju vedia doložiť: aktuálny týždeň a aspoň jedna overená prečiarknutá
+     cena. To isté pravidlo v Pythone: app/landing_data.py. */
+  function modelIsPublishable(data, now){
+    if(!data||!data.receipt||!(data.receipt.meals||[]).length) return false;
+    if(String(data.week||'')!==mondayIso(now)) return false;
+    return itemsOf(data).some(function(item){
+      return item&&item.original_price!=null&&String(item.original_price).trim()!=='';
+    })&&money(data.receipt.usetris)>0;
+  }
+
+  function checkCard(key, lines, tail){
+    var card=node('div','ex-card'), list=node('ul','check');
+    card.append(node('div','ex-k',key));
+    lines.forEach(function(text){ list.append(node('li','',text)); });
+    card.append(list,tail);
+    return card;
+  }
+
+  function renderModel(data, now){
+    if(!modelIsPublishable(data, now)) return;
+    var items=itemsOf(data), meals=data.receipt.meals, order=[], counts={};
+    items.forEach(function(item){
+      var store=String(item.store||'').trim();
+      if(!store) return;
+      if(counts[store]===undefined){ order.push(store); counts[store]=0; }
+      counts[store]++;
+    });
+
+    var deals=node('div','ex-card');
+    deals.append(node('div','ex-k','02 · Appka nájde akcie'));
+    items.slice(0,6).forEach(function(item){
+      var deal=node('div','deal'), right=node('span','d-off',item.price?amount(item.price)+' ':'');
+      if(item.off) right.append(node('em','',item.off));
+      deal.append(node('span','',[item.name,item.store].filter(Boolean).join(' · ')),right);
+      deals.append(deal);
+    });
+    deals.append(node('div','ex-note','Tie isté ceny ako na bločku — z letákov, na ktoré odkazujeme.'));
+
+    var save=node('div','ex-save');
+    save.append(node('span','','Ušetrí'),node('b','',amount(data.receipt.usetris)));
+    var grid=node('div','ex-grid');
+    grid.append(checkCard('01 · Ty zadáš',['ako často chceš variť','pre koľko ľudí',
+        'čo už máš doma v špajze','obchody: '+order.join(' · ')],
+        node('div','ex-note','Nastavíš raz, zmeníš kedykoľvek.')),deals,
+      checkCard('03 · Ty dostaneš',['jedálniček na '+meals.length+' '+plural(meals.length,'jedlo','jedlá','jedál'),
+        'recepty krok za krokom','nákupný zoznam: '+order.map(function(store){ return store+' '+counts[store]; }).join(' · '),
+        'zvyšky zarátané do ďalších dní'],save));
+
+    /* Týždenná úspora je odčítaná z letákov — to je fakt. Ročná nie je: je to
+       tento týždeň krát 52. Preto vždy podmienené „ak by si" a vždy dopočítané
+       z aktuálneho čísla, nikdy zamrznutá konštanta v zdrojáku. */
+    var weekly=money(data.receipt.usetris), band=node('div','cost-band');
+    band.append(node('span','c-lbl','Tento týždeň'),node('b','',amount(data.receipt.usetris)),
+      node('span','',' ušetrené oproti bežným cenám. Ak by si takto nakupoval každý týždeň, vyšlo by to približne na '),
+      node('b','',Math.max(10,Math.round(weekly*52/10)*10)+' € ročne'),
+      node('span','',' — projekcia z tohto týždňa, nie sľub.'));
+
+    var parts=[grid,band], recipes=node('div','rec-grid');
+    meals.forEach(function(meal){
+      var recipe=meal.recipe||{};
+      var steps=(recipe.steps||meal.instructions||[]).filter(function(step){
+        return String(step==null?'':step).trim();
+      });
+      if(!steps.length) return;
+      var shown=Math.min(3,steps.length), total=Math.max(Number(recipe.steps_total)||0,steps.length);
+      var card=node('div','rec-card'), head=node('div','rec-head'), ol=node('ol','rec-steps');
+      head.append(node('h3','',meal.name),node('span','rec-day',meal.day));
+      steps.slice(0,shown).forEach(function(step){ ol.append(node('li','',step)); });
+      card.append(head,node('div','rec-meta',(recipe.min?recipe.min+' min · ':'')
+        +total+' '+plural(total,'krok','kroky','krokov')),ol);
+      if(total>shown) card.append(node('div','rec-more','…+'+(total-shown)+' '
+        +plural(total-shown,'krok','kroky','krokov')+' v appke'));
+      recipes.append(card);
+    });
+    if(recipes.children.length) parts.push(node('span','eyebrow','A tie recepty? Napríklad takto:'),recipes);
+    modelBody.replaceChildren.apply(modelBody,parts);
+    model.hidden=false;
+  }
+
   fetch("/api/public/landing").then(function(response){
     if(!response.ok) throw new Error('landing data unavailable');
     return response.json();
-  }).then(render).catch(function(){
+  }).then(function(data){
+    render(data);
+    renderModel(data,new Date());
+  }).catch(function(){
     landing.hidden=true;
+    model.hidden=true;
     status.hidden=false;
     status.textContent='Aktuálne letákové dáta práve obnovujeme.';
   });

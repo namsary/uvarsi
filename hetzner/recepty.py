@@ -1,25 +1,60 @@
 #!/usr/bin/env python3
 """
-Uvar.si — doplní sekciu 'Modelový príklad' (recepty) z UŽ hotového bločku.
+Uvar.si — doplní recepty k jedlám v už overených letákových dátach.
 
-NESCRAPUJE letáky. Prečíta jedlá + ceny z RCPT bloku v index.html a jedným lacným
-TEXTOVÝM callom (bez obrázkov) vygeneruje k nim recepty. Rýchle (~5 s), pár centov,
-žiadny rate-limit. Sekcia tak vždy sedí s aktuálnym bločkom.
+NESCRAPUJE letáky a NEPÍŠE do HTML. Jedlá aj ceny zostavuje refresh_blocek.py
+z overených ponúk v databáze do /var/lib/uvarsi/landing_data.json; ten súbor je
+jediná pravda a prehliadač si ho ťahá cez /api/public/landing. Tento nástroj
+do neho jedným lacným TEXTOVÝM callom (bez obrázkov) dopíše k jedlám len
+recepty — čas a kroky. Ceny, obchody, zdroje ani úsporu sa nedotkne.
 
-Beh: ./venv/bin/python recepty.py /var/www/uvarsi/index.html
+Kedysi tu bol regex, ktorý jedlá a ceny lúskal z bloku RCPT v index.html a
+prepísaným HTML nahrádzal sekciu „Modelový príklad". Odkedy bloček kreslí
+JavaScript z JSONu, je ten blok prázdny a nástroj vždy skončil hláškou
+„V bločku som nenašiel jedlá.". Bola to druhá cesta k tej istej pravde — a
+horšia: zapísané HTML by po skončení týždňa ostalo na disku aj s cenami, ktoré
+už neplatia. Preto je preč.
+
+Je to NEPOVINNÁ nadstavba: keď nebeží, sekcia sa vykreslí z krokov, ktoré k
+jedlám priložil už refresh_blocek.py (`instructions`). Recepty k nim pridajú
+len čas varenia a kratší, čitateľnejší postup.
+
+Beh (ručne, alebo cronom po dozorcovi — `30 6 * * *`):
+  cd /opt/uvarsi && ./venv/bin/python recepty.py /var/lib/uvarsi/landing_data.json
 """
-import sys, os, re, json, html
-from collections import Counter
+import json
+import os
+import re
+import sys
 from contextlib import closing
+from datetime import date
+from pathlib import Path
 
 try:
     from app import naklady
-except ImportError:
+    from app.landing_data import (
+        load_landing_data,
+        model_example_is_publishable,
+        validate_landing_data,
+        write_landing_data_atomic,
+    )
+except ImportError:  # spúšťané priamo z /opt/uvarsi
     import naklady
+    from landing_data import (
+        load_landing_data,
+        model_example_is_publishable,
+        validate_landing_data,
+        write_landing_data_atomic,
+    )
 
 MODEL = "claude-sonnet-5"
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 DATABASE_PATH = "/opt/uvarsi/uvarsi.db"
+LANDING_DATA_PATH = Path("/var/lib/uvarsi/landing_data.json")
+# Na kartu sa vojdú tri kroky; zvyšok je dôvod otvoriť appku.
+MAX_STEPS = 3
+NEPUBLIKOVATELNE = ("Letákové dáta nie sú pre aktuálny týždeň alebo nedokladajú "
+                    "úsporu overenou bežnou cenou — recepty nedopĺňam.")
 
 
 def load_key():
@@ -34,32 +69,13 @@ def load_key():
     raise SystemExit("Chýba ANTHROPIC_API_KEY.")
 
 
-def parse_blocek(page):
-    m = re.search(r"<!-- RCPT:START.*?<!-- RCPT:END -->", page, re.S)
-    if not m:
-        raise SystemExit("RCPT blok nenájdený.")
-    blk = m.group(0)
-    meals, cur = [], None
-    for line in blk.splitlines():
-        d = re.search(r'class="day"><b>([^<]+)</b><span>([^<]+)</span>', line)
-        if d:
-            cur = {"day": d.group(1).strip(),
-                   "name": html.unescape(d.group(2)).strip(), "items": []}
-            meals.append(cur)
-            continue
-        it = re.search(r'class="item"><span>(.+?)\s*·\s*(.+?)</span>'
-                       r'(?:.*?<b class="price">(.+?)</b>)?'
-                       r'<span class="off">(.+?)</span>', line)
-        if it and cur is not None:
-            cur["items"].append({
-                "name": html.unescape(it.group(1)).strip(),
-                "store": html.unescape(it.group(2)).strip(),
-                "price": (it.group(3) or "").replace("€", "").strip(),
-                "off": html.unescape(it.group(4)).strip()})
-    meals = [x for x in meals if x["items"]]
-    us = re.search(r'class="save"><span>Ušetríš</span><span>(.+?)\s*€', blk)
-    usetris = us.group(1).strip() if us else "0,00"
-    return meals, usetris
+def landing_data_input_path(arguments):
+    """Nástroj má právo siahnuť na jediný súbor — na overený landing JSON."""
+    if not arguments:
+        return LANDING_DATA_PATH
+    if len(arguments) == 1 and Path(arguments[0]) == LANDING_DATA_PATH:
+        return LANDING_DATA_PATH
+    raise SystemExit("Použitie: recepty.py /var/lib/uvarsi/landing_data.json")
 
 
 def gen_recipes(meals, key):
@@ -73,7 +89,7 @@ def gen_recipes(meals, key):
         '{"min":45,"steps_total":6,"steps":["Krok 1.","Krok 2.","Krok 3."]}. '
         "min = čas v minútach (číslo), steps_total = celkový počet krokov, "
         "steps = prvé 3 kroky, krátke vety v rozkazovacom spôsobe, slovenčina s "
-        "diakritikou. Jedlá:\n" + lst)
+        "diakritikou. Ceny, obchody ani zľavy neuvádzaj. Jedlá:\n" + lst)
     # Aj lacné volanie ide cez strop: „pár centov“ krát rozbehnutá slučka je
     # presne tá aritmetika, ktorá minule vynulovala kredit.
     with closing(naklady.pripoj(os.environ.get("UVARSI_DB", DATABASE_PATH))) as ucty:
@@ -90,104 +106,72 @@ def gen_recipes(meals, key):
     return json.loads(txt)
 
 
-def _kroky(n):
-    return "krok" if n == 1 else "kroky" if 2 <= n <= 4 else "krokov"
-
-
-def render_example(meals, usetris):
-    esc = html.escape
-    items = [it for m in meals for it in m["items"]]
-    stores = []
-    for it in items:
-        if it["store"] not in stores:
-            stores.append(it["store"])
-    obchody = " · ".join(stores) or "Kaufland · Tesco"
-    cnt = Counter(it["store"] for it in items)
-    zoznam = " · ".join(f"{s} {cnt[s]}" for s in stores) or "—"
-    deals = ""
-    for it in items[:6]:
-        pr = f'{esc(it["price"])} € ' if it.get("price") else ""
-        deals += (f'        <div class="deal"><span>{esc(it["name"])} · '
-                  f'{esc(it["store"])}</span><span class="d-off">{pr}'
-                  f'<em>{esc(it["off"])}</em></span></div>\n')
-    recs = ""
-    for m in meals:
-        r = m.get("recipe") or {}
-        steps = (r.get("steps") or [])[:3]
-        try:
-            total = int(r.get("steps_total") or len(steps))
-        except (ValueError, TypeError):
-            total = len(steps)
-        more = max(0, total - len(steps))
-        steps_html = "".join(f"<li>{esc(s)}</li>" for s in steps)
-        more_html = (f'<div class="rec-more">…+{more} {_kroky(more)} v appke</div>'
-                     if more > 0 else "")
-        recs += (f'      <div class="rec-card"><div class="rec-head">'
-                 f'<h3>{esc(m["name"])}</h3><span class="rec-day">{esc(m["day"])}</span>'
-                 f'</div><div class="rec-meta">{esc(str(r.get("min", "")))} min · '
-                 f'4 porcie · {total} {_kroky(total)}</div>'
-                 f'<ol class="rec-steps">{steps_html}</ol>{more_html}</div>\n')
+def _pocet(value):
     try:
-        u = float(usetris.replace(",", ".").replace(" ", "").strip())
-    except Exception:
-        u = 0.0
-    if u > 0:
-        cost = (f'<span class="c-lbl">Ak takto varíš celý rok:</span> '
-                f'<b>~{round(u * 52 / 12)} € mesačne</b> späť — za rok '
-                f'<b>približne {int(u * 52 // 10 * 10)} €</b> ušetrené oproti plným cenám.')
-    else:
-        cost = ('<span class="c-lbl">Nakupovať v akciách sa oplatí:</span> '
-                'na každom týždennom pláne ušetríš — za rok sa to poriadne nazbiera.')
-    return f"""<!-- EX:START -->
-    <div class="ex-grid">
-      <div class="ex-card">
-        <div class="ex-k">01 · Ty zadáš</div>
-        <div class="ex-row"><span>varím</span><b>každé 2 dni</b></div>
-        <div class="ex-row"><span>porcie</span><b>4</b></div>
-        <div class="ex-row"><span>obchody</span><b>{obchody}</b></div>
-        <div class="ex-row"><span>v špajze</span><b>ryža · vajcia · cibuľa</b></div>
-        <div class="ex-note">Nastavíš raz, zmeníš kedykoľvek.</div>
-      </div>
-      <div class="ex-card">
-        <div class="ex-k">02 · Appka nájde akcie</div>
-{deals}        <div class="ex-note">Z aktuálnych letákov tvojich obchodov.</div>
-      </div>
-      <div class="ex-card">
-        <div class="ex-k">03 · Ty dostaneš</div>
-        <ul class="check">
-          <li>jedálniček na celý týždeň</li>
-          <li>3 recepty krok za krokom</li>
-          <li>nákupný zoznam: {zoznam}</li>
-          <li>zvyšky zarátané do ďalších dní</li>
-        </ul>
-        <div class="ex-save"><span>Ušetrí</span><b>{esc(usetris)} €</b></div>
-      </div>
-    </div>
-    <div class="cost-band">{cost}</div>
-    <span class="eyebrow">A tie 3 recepty? Napríklad takto:</span>
-    <div class="rec-grid">
-{recs}    </div>
-    <!-- EX:END -->"""
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
 
 
-def main():
-    if len(sys.argv) < 2:
-        raise SystemExit("Použitie: recepty.py /cesta/k/index.html")
-    path = sys.argv[1]
-    page = open(path, encoding="utf-8").read()
-    meals, usetris = parse_blocek(page)
-    if len(meals) < 1:
-        raise SystemExit("V bločku som nenašiel jedlá.")
-    print(f"[INFO] jedlá z bločku: {[m['name'] for m in meals]}", flush=True)
-    recipes = gen_recipes(meals, load_key())
-    for m in meals:
-        m["recipe"] = recipes.get(m["day"], {})
-    ex = render_example(meals, usetris)
-    new = re.sub(r"<!-- EX:START -->.*?<!-- EX:END -->", lambda _: ex, page, flags=re.S)
-    if new == page:
-        raise SystemExit("Značky EX:START/END som v index.html nenašiel.")
-    open(path, "w", encoding="utf-8").write(new)
-    print(f"[OK] Recepty doplnené k {len(meals)} jedlám.", flush=True)
+def normalized_recipe(raw):
+    """Z odpovede modelu prijmi len to, čo vieme zobraziť — nič nedopĺňaj.
+
+    Model dostáva iba názvy jedál a surovín. Keby aj tak poslal cenu či obchod,
+    tu to spadne pod stôl: do JSONu prejdú výhradne minúty, kroky a ich počet.
+    """
+    if not isinstance(raw, dict):
+        return None
+    steps = [step.strip() for step in raw.get("steps") or []
+             if isinstance(step, str) and step.strip()][:MAX_STEPS]
+    if not steps:
+        return None
+    recipe = {"steps": steps, "steps_total": max(_pocet(raw.get("steps_total")) or 0, len(steps))}
+    minutes = _pocet(raw.get("min"))
+    if minutes is not None:
+        recipe["min"] = minutes
+    return recipe
+
+
+def meals_without_recipe(payload):
+    return [meal for meal in payload["receipt"]["meals"] if not meal.get("recipe")]
+
+
+def add_recipes(payload, generate, today=None):
+    """Doplň recepty do dát, ktoré už smú ísť von — inak sa nezaplatí nič.
+
+    Recepty patria k modelovému príkladu. Keď ten nesmie byť zverejnený (starý
+    týždeň, žiadna overená bežná cena), platené volanie by bolo za výsledok,
+    ktorý nikto neuvidí.
+    """
+    if not model_example_is_publishable(payload, today):
+        raise SystemExit(NEPUBLIKOVATELNE)
+    chybajuce = meals_without_recipe(payload)
+    if not chybajuce:
+        return payload, 0
+    recipes = generate(chybajuce) or {}
+    added = 0
+    for meal in chybajuce:
+        recipe = normalized_recipe(recipes.get(meal["day"]) if isinstance(recipes, dict) else None)
+        if recipe:
+            meal["recipe"] = recipe
+            added += 1
+    # Zapisujeme do súboru, ktorý servíruje landing — nech ho validácia uvidí
+    # skôr než návštevník.
+    validate_landing_data(payload, today)
+    return payload, added
+
+
+def main(today=None):
+    path = landing_data_input_path(sys.argv[1:])
+    payload = load_landing_data(path)
+    payload, added = add_recipes(
+        payload, lambda meals: gen_recipes(meals, load_key()), today=today or date.today())
+    if not added:
+        print("[OK] Recepty už sedia — nič nedopĺňam.", flush=True)
+        return
+    write_landing_data_atomic(path, payload)
+    print(f"[OK] Recepty doplnené k {added} jedlám.", flush=True)
 
 
 if __name__ == "__main__":

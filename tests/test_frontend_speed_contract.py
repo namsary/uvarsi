@@ -518,7 +518,7 @@ def test_the_landing_ships_no_second_copy_of_the_receipt():
 
 @pytest.mark.parametrize(
     "page,budget",
-    [(APP, 15_400), (LANDING, 11_600)],
+    [(APP, 15_400), (LANDING, 12_400)],
     ids=lambda value: getattr(value, "name", str(value)),
 )
 def test_pages_stay_within_their_transfer_budget(page, budget):
@@ -532,6 +532,12 @@ def test_pages_stay_within_their_transfer_budget(page, budget):
     denný strop prepočtov: app.html 14 909 B. Strop appky sa raz zdvihol na
     15 400 B — vedome a s číslom, nie potichu. Ďalší rast musí opäť obhájiť
     vlastná obrazovka, nie pár riadkov navyše.
+
+    24. 8. 2026: modelový príklad prestal byť zamrznutou fikciou v HTML a kreslí
+    ho renderModel() z overených letákových dát. Odišlo 66 riadkov opakujúceho
+    sa markupu (gzip ich stláčal takmer na nič), prišiel generátor — index.html
+    11 161 → 12 183 B. Za tých ~1 kB sa kupuje to, že sekcia buď ukáže doložené
+    čísla aktuálneho týždňa, alebo sa nevykreslí vôbec. Strop 12 400 B.
     """
     compressed = len(gzip.compress(page.read_bytes(), 9))
     assert compressed <= budget, (

@@ -20,6 +20,11 @@ except ImportError:
     from app.offer_data import migrate_akcie_schema, replace_store_week, validate_offer
 
 try:
+    import db_rezim
+except ImportError:
+    from app import db_rezim
+
+try:
     import naklady
 except ImportError:
     from app import naklady
@@ -98,8 +103,10 @@ CREATE TABLE IF NOT EXISTS zber_stav (
 
 
 def db():
-    con = sqlite3.connect(DB)
-    con.row_factory = sqlite3.Row
+    # Zberač píše dlhé dávky, kým appka číta. Bez WAL by si navzájom blokovali
+    # databázu a bez timeoutu (default 5 s) by sa zberač vzdal skôr, než appka
+    # stihne dokončiť transakciu — týždenný beh za 0,37 € by padol nadarmo.
+    con = db_rezim.otvor(DB)
     con.executescript(SCHEMA)
     migrate_akcie_schema(con)
     naklady.migrate_naklady_schema(con)

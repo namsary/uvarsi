@@ -53,6 +53,7 @@ Ok "env ma oba kluce"
 Krok "3/8  Nahravam subory"
 $subory = @(
   @{ l = "$B\app\config.py";            r = "/opt/uvarsi/app/config.py" },
+  @{ l = "$B\app\db_rezim.py";          r = "/opt/uvarsi/app/db_rezim.py" },
   @{ l = "$B\app\naklady.py";           r = "/opt/uvarsi/app/naklady.py" },
   @{ l = "$B\app\auth_data.py";         r = "/opt/uvarsi/app/auth_data.py" },
   @{ l = "$B\app\weekly_data.py";       r = "/opt/uvarsi/app/weekly_data.py" },
@@ -67,6 +68,7 @@ $subory = @(
   @{ l = "$B\hetzner\refresh_blocek.py"; r = "/opt/uvarsi/refresh_blocek.py" },
   @{ l = "$B\hetzner\recepty.py";       r = "/opt/uvarsi/recepty.py" },
   @{ l = "$B\hetzner\dozorca.sh";       r = "/opt/uvarsi/dozorca.sh" },
+  @{ l = "$B\hetzner\zaloha.sh";        r = "/opt/uvarsi/zaloha.sh" },
   @{ l = "$B\VERSION";                  r = "/opt/uvarsi/VERSION" },
   @{ l = "$B\index.html";               r = "/var/www/uvarsi/index.html" },
   @{ l = "$B\sw.js";                    r = "/var/www/uvarsi/sw.js" }
@@ -220,13 +222,20 @@ $caddy | ssh jarvis "tr -d '\r' > /tmp/caddy_nasad.sh; bash /tmp/caddy_nasad.sh"
 Vyzaduj "Caddy config nepresiel validaciou alebo reload zlyhal - ostry Caddyfile ostal nezmeneny"
 Ok "web nastaveny (obe appky na serveri overene)"
 
-Krok "7/8  Cron pre dozorcu (bez neho appka nikdy nedostane akcie)"
+Krok "7/8  Cron: dozorca (akcie) a nocna zaloha databazy"
+# Tabulka `naroky` je jediny zaznam o tom, kto zaplatil - bez nocnej zalohy by
+# ju strata disku zmazala nenavratne. Cron sa NEPREPISUJE naslepo: berie sa
+# existujuci crontab a vyhadzuju sa z neho len nase dva riadky, takze zaznamy
+# druhej appky na serveri (taktik-mapa) ostavaju nedotknute.
 $cron = @'
 set -eu
 RIADOK='0 5-21 * * * /opt/uvarsi/dozorca.sh >> /var/log/uvarsi.log 2>&1'
-touch /var/log/uvarsi.log
-crontab -l 2>/dev/null | grep -v 'dozorca.sh' > /tmp/uvarsi_cron.txt || true
+RIADOK_ZALOHA='30 3 * * * /opt/uvarsi/zaloha.sh >> /var/log/uvarsi-zaloha.log 2>&1'
+touch /var/log/uvarsi.log /var/log/uvarsi-zaloha.log
+mkdir -p /var/backups/uvarsi
+crontab -l 2>/dev/null | grep -v 'dozorca.sh' | grep -v 'zaloha.sh' > /tmp/uvarsi_cron.txt || true
 printf '%s\n' "$RIADOK" >> /tmp/uvarsi_cron.txt
+printf '%s\n' "$RIADOK_ZALOHA" >> /tmp/uvarsi_cron.txt
 crontab /tmp/uvarsi_cron.txt
 rm -f /tmp/uvarsi_cron.txt
 POCET=$(crontab -l 2>/dev/null | grep -c 'dozorca.sh' || true)
@@ -234,11 +243,22 @@ if [ "${POCET:-0}" -ne 1 ]; then
   echo "CHYBA: v crontabe je $POCET riadkov s dozorcom, ocakavam presne 1"
   exit 1
 fi
-crontab -l | grep 'dozorca.sh'
+POCET_ZALOH=$(crontab -l 2>/dev/null | grep -c 'zaloha.sh' || true)
+if [ "${POCET_ZALOH:-0}" -ne 1 ]; then
+  echo "CHYBA: v crontabe je $POCET_ZALOH riadkov so zalohou, ocakavam presne 1"
+  exit 1
+fi
+crontab -l | grep -E 'dozorca.sh|zaloha.sh'
 '@ -replace "`r`n", "`n"
 $cron | ssh jarvis "tr -d '\r' > /tmp/uvarsi_cron.sh; bash /tmp/uvarsi_cron.sh"
-Vyzaduj "cron pre dozorcu sa nepodarilo nainstalovat"
-Ok "dozorca v crone (presne jeden riadok)"
+Vyzaduj "cron pre dozorcu a zalohu sa nepodarilo nainstalovat"
+Ok "dozorca aj nocna zaloha v crone (po jednom riadku)"
+
+# Prva zaloha hned pri nasadeni - nema zmysel cakat do 03:30 na overenie, ze to
+# vobec funguje. Zaroven je to jediny okamih, kedy o pripadnom zlyhani vieme.
+ssh jarvis "/opt/uvarsi/zaloha.sh"
+Vyzaduj "prva zaloha databazy zlyhala - tabulka naroky by ostala bez zalohy"
+Ok "prva zaloha databazy overena"
 
 Krok "8/8  Kontrola (caka na sluzbu; 500 a 502 su chyba, nie uspech)"
 $verzia = (Get-Content "$B\VERSION" -Raw).Trim()

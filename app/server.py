@@ -10,12 +10,14 @@ Závislosti: fastapi uvicorn itsdangerous
 """
 import asyncio
 import logging
-import os, re, json, sqlite3, datetime, time
-from contextlib import closing
+import os, re, json, sqlite3, datetime, threading, time
+from contextlib import asynccontextmanager, closing
 
+import anyio.to_thread
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+import db_rezim
 import naklady
 from config import public_base_url, release_id
 from landing_data import load_landing_data, validate_landing_data
@@ -233,18 +235,74 @@ CREATE INDEX IF NOT EXISTS idx_akcie_kat ON akcie(tyzden, kategoria);
 """
 
 
-def db():
-    con = sqlite3.connect(DB, timeout=20)
-    con.row_factory = sqlite3.Row
+# Databázy, ktoré už v tomto procese prešli migráciami. `db()` sa volá 5–6× za
+# jedno generovanie plánu a predtým zakaždým prehnalo celú schému plus štyri
+# migračné funkcie — teda desiatky príkazov navyše na KAŽDEJ požiadavke.
+_SCHEMA_HOTOVA: set[str] = set()
+
+
+def migruj_schemu(con) -> None:
+    """Celá schéma a všetky migrácie. Idempotentné, ale drahé — nie na požiadavku."""
     con.executescript(SCHEMA)
     migrate_auth_schema(con)
     migrate_akcie_schema(con)
     migrate_platby_schema(con)
     naklady.migrate_naklady_schema(con)
-    return con
+    con.commit()
 
 
-app = FastAPI(title="Uvar.si")
+def priprav_databazu(cesta=None) -> None:
+    """Zmigruj databázu práve raz za proces.
+
+    Appka to spraví pri štarte (lifespan). Poistka tu ostáva zámerne: CLI
+    (`premium_cli.py`), zberač aj testy volajú `db()` bez toho, aby ktokoľvek
+    lifespan spustil — a na čerstvej databáze by inak spadli na chýbajúcich
+    tabuľkách. Po prvom behu je to obyčajný pohľad do množiny.
+    """
+    cesta = cesta or DB
+    if cesta in _SCHEMA_HOTOVA:
+        return
+    with closing(db_rezim.otvor(cesta)) as con:
+        migruj_schemu(con)
+    _SCHEMA_HOTOVA.add(cesta)
+
+
+def db():
+    """Lacné pripojenie. Žiadne migrácie — tie prebehli raz pri štarte."""
+    priprav_databazu()
+    return db_rezim.otvor(DB)
+
+
+# anyio má vo východiskovom stave 40 vlákien a `generuj_plan` je synchronné
+# `def`, takže jedno skladanie drží vlákno až PLAN_TIMEOUT_SECONDS. Pri 40
+# súbežných plánoch nemal pool voľné vlákno ani pre `/api/me` či prihlásenie —
+# zamrzla celá appka. Vlákien je preto viac a plány si z nich smú vziať len časť.
+PLAN_VLAKNA_STROP = 160
+PLAN_SUBEZNE_MAX = 12
+PLAN_MIESTA = threading.BoundedSemaphore(PLAN_SUBEZNE_MAX)
+SPRAVA_PLAN_ZANEPRAZDNENY = (
+    "Momentálne skladáme veľa jedálničkov naraz. Skús to prosím o minútu — "
+    "dnešný prepočet ti zostáva."
+)
+KOD_PLAN_ZANEPRAZDNENY = "plan_zaneprazdneny"
+
+
+def zvys_strop_vlakien() -> None:
+    """Zdvihni anyio threadpool. Volá sa zo štartu appky, kde beží event loop."""
+    try:
+        anyio.to_thread.current_default_thread_limiter().total_tokens = PLAN_VLAKNA_STROP
+    except Exception:                      # strop nesmie zabrániť štartu appky
+        LOG.warning("strop vlákien sa nepodarilo zdvihnúť", exc_info=True)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    priprav_databazu()
+    zvys_strop_vlakien()
+    yield
+
+
+app = FastAPI(title="Uvar.si", lifespan=lifespan)
 
 
 def user_from_request(req: Request):
@@ -877,19 +935,29 @@ def generuj_plan(req: Request, force: int = 0):
     # zaberie jedno miesto z dnešného stropu — zadarmo raz, s Premium päťkrát.
     # Plán podaný z cache (osobnej či zdieľanej) sa sem nikdy nedostane, takže
     # čítanie hotového jedálnička nie je ničím obmedzené.
-    den = dnesok()
-    strop = limit_prepoctov(premium)
-    if rezervuj_prepocet(u["id"], strop, den) is None:
-        return odmietni(
-            429, sprava_o_limite(strop, premium), KOD_LIMIT_PREPOCTOV,
-            premium=premium, limit_prepoctov=strop, zostava_prepoctov=0,
-            obnova=zajtrajsok(den),
-        )
+    # Miesto v poole sa berie EŠTE PRED rezerváciou prepočtu. Kto sa nedostane
+    # dnu, nesiahol na model ani na svoj denný strop — odchádza s hláškou a
+    # s nedotknutým nárokom. Opačné poradie by ľuďom bralo prepočty za našu
+    # záťaž. `blocking=False`: radšej úprimné „o minútu" než tiché visenie.
+    if not PLAN_MIESTA.acquire(blocking=False):
+        LOG.warning("plán odmietnutý — plno (%d súbežných)", PLAN_SUBEZNE_MAX)
+        return odmietni(503, SPRAVA_PLAN_ZANEPRAZDNENY, KOD_PLAN_ZANEPRAZDNENY)
     try:
-        return poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant)
-    except BaseException:
-        vrat_prepocet(u["id"], den)
-        raise
+        den = dnesok()
+        strop = limit_prepoctov(premium)
+        if rezervuj_prepocet(u["id"], strop, den) is None:
+            return odmietni(
+                429, sprava_o_limite(strop, premium), KOD_LIMIT_PREPOCTOV,
+                premium=premium, limit_prepoctov=strop, zostava_prepoctov=0,
+                obnova=zajtrajsok(den),
+            )
+        try:
+            return poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant)
+        except BaseException:
+            vrat_prepocet(u["id"], den)
+            raise
+    finally:
+        PLAN_MIESTA.release()
 
 
 def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant):

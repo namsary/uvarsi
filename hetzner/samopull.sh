@@ -86,7 +86,7 @@ PRED="$REL/predosle"
 rm -rf "$PRED"; mkdir -p "$PRED"
 cp -a "$DIR/app" "$PRED/app" 2>/dev/null || true
 cp -a "$DIR/VERSION" "$PRED/VERSION" 2>/dev/null || true
-for f in refresh_blocek.py recepty.py dozorca.sh; do
+for f in refresh_blocek.py recepty.py dozorca.sh zaloha.sh; do
   cp -a "$DIR/$f" "$PRED/$f" 2>/dev/null || true
 done
 
@@ -99,6 +99,7 @@ nasad_z() {   # $1 = adresár s vydaním
   [ -f "$1/hetzner/refresh_blocek.py" ] && cp -a "$1/hetzner/refresh_blocek.py" "$DIR/refresh_blocek.py"
   [ -f "$1/hetzner/recepty.py" ] && cp -a "$1/hetzner/recepty.py" "$DIR/recepty.py"
   [ -f "$1/hetzner/dozorca.sh" ] && { cp -a "$1/hetzner/dozorca.sh" "$DIR/dozorca.sh"; chmod +x "$DIR/dozorca.sh"; }
+  [ -f "$1/hetzner/zaloha.sh" ] && { cp -a "$1/hetzner/zaloha.sh" "$DIR/zaloha.sh"; chmod +x "$DIR/zaloha.sh"; }
   [ -f "$1/hetzner/samopull.sh" ] && { cp -a "$1/hetzner/samopull.sh" "$DIR/samopull.sh.novy"; }
   systemctl restart uvarsi
 }
@@ -127,7 +128,7 @@ log "appka po nasadení neodpovedá — VRACIAM predošlú verziu"
 rm -f "$DIR/samopull.sh.novy"
 cp -a "$PRED/app/." "$DIR/app/" 2>/dev/null || true
 cp -a "$PRED/VERSION" "$DIR/VERSION" 2>/dev/null || true
-for f in refresh_blocek.py recepty.py dozorca.sh; do
+for f in refresh_blocek.py recepty.py dozorca.sh zaloha.sh; do
   cp -a "$PRED/$f" "$DIR/$f" 2>/dev/null || true
 done
 systemctl restart uvarsi
