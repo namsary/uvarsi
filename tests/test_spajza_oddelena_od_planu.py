@@ -143,6 +143,41 @@ def test_the_shared_row_itself_carries_no_pantry_at_all(monkeypatch, tmp_path):
             assert all("offer_key" in item for item in meal["suroviny"])
 
 
+def test_uloz_zdielany_plan_strips_the_pantry_before_it_touches_the_database(
+        monkeypatch, tmp_path):
+    """Priama kontrola tej jedinej funkcie, ktorá do zdieľanej tabuľky zapisuje."""
+    server = load_server(monkeypatch, tmp_path, current_plan_rows())
+    plan = {
+        "tyzden": "2026-08-17", "nakup_spolu": "6,49", "spajza": ["tajná surovina"],
+        "spajza_pokryte": [{"nazov": "Ryža", "spajza": "tajná surovina"}],
+        "spajza_usetri": "1,49", "nakup_bez_spajze": "5,00",
+        "jedla": [{
+            "den": "PO", "nazov": "Rizoto",
+            "recept": {"davky": ["Ryža – 600 g", "tajná surovina zo špajze"], "kroky": ["krok"]},
+            "suroviny": [{"offer_key": "offer_aaa", "nazov": "Ryža"}, {"spajza": "tajná surovina"}],
+        }],
+        "nakupny_zoznam": [{"obchod": "Lidl", "polozky": [
+            {"offer_key": "offer_aaa", "nazov": "Ryža", "cena": "1,49",
+             "mas_doma": True, "spajza": "tajná surovina"},
+        ]}],
+    }
+
+    with server.db() as con:
+        server.uloz_zdielany_plan(con, "podpis", 0, "2026-08-17", plan)
+        con.commit()
+        ulozene = con.execute("SELECT json FROM plany_zdielane").fetchone()[0]
+
+    assert "tajná surovina" not in ulozene
+    zdielany = json.loads(ulozene)
+    assert "spajza" not in zdielany and "spajza_pokryte" not in zdielany
+    assert zdielany["jedla"][0]["suroviny"] == [{"offer_key": "offer_aaa", "nazov": "Ryža"}]
+    assert zdielany["jedla"][0]["recept"]["davky"] == ["Ryža – 600 g"]
+    assert zdielany["nakupny_zoznam"][0]["polozky"][0] == {
+        "offer_key": "offer_aaa", "nazov": "Ryža", "cena": "1,49"}
+    # A pôvodný plán ostal nedotknutý — volajúci ho ešte podáva používateľovi.
+    assert plan["spajza"] == ["tajná surovina"]
+
+
 def test_the_pantry_view_is_recomputed_per_request_not_stored(monkeypatch, tmp_path):
     """Zmena špajze musí byť vidieť okamžite — bez prepočtu a bez volania modelu."""
     server = shared_plan_server(monkeypatch, tmp_path, users=(1,), pantry={1: []})

@@ -60,6 +60,9 @@ def current_verified_offers(con, stores, today: date | None = None):
         offer = dict(row) if hasattr(row, "keys") else dict(zip(columns, row))
         try:
             validate_offer(offer)
+            # Predobraz kľúča si necháme — o chvíľu z neho ide kontrola kolízie
+            # a rátať ho druhýkrát by bol hash navyše pri každej požiadavke.
+            facts = _offer_facts(offer["tyzden"], offer)
             # Uznávame krátky aj starý celý kľúč. Riadky pozbierané pred
             # skrátením tak neprestanú platiť zo dňa na deň, a keďže sa `akcie`
             # aj tak prepisujú každý týždeň, samy dobehnú na krátky tvar.
@@ -75,18 +78,16 @@ def current_verified_offers(con, stores, today: date | None = None):
         identity = tuple(offer.get(field) for field in _DEDUP_FIELDS)
         previous = newest.get(identity)
         if previous is None:
-            newest[identity] = (offer["tyzden"], offer)
+            newest[identity] = (offer["tyzden"], offer, facts)
             order.append(identity)
         elif offer["tyzden"] > previous[0]:
-            newest[identity] = (offer["tyzden"], offer)
-    offers = [newest[identity][1] for identity in order]
+            newest[identity] = (offer["tyzden"], offer, facts)
+    survivors = [newest[identity] for identity in order]
     # Posledná záchranná sieť tesne pred promptom: keby sa dva rôzne výrobky
     # predsa len stretli na jednom kľúči, model by dostal dvojznačný katalóg a
     # používateľ reálnu cenu pri cudzom výrobku. Radšej hlasno spadnúť.
-    detect_offer_key_collision(
-        (offer["offer_key"], _offer_facts(offer["tyzden"], offer)) for offer in offers
-    )
-    return offers
+    detect_offer_key_collision((offer["offer_key"], facts) for _, offer, facts in survivors)
+    return [offer for _, offer, _ in survivors]
 
 
 def offers_for_current_week(con, stores: list[str], today: date | None = None):

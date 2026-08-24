@@ -314,3 +314,8 @@
 [2026-08-24 21:51:55] TESTY ZLYHALI - nepushujem. FAILED tests/test_spajza_oddelena_od_planu.py::test_cooking_from_the_pantry_consumes_one_of_the_daily_recomputes FAILED tests/test_spajza_oddelena_od_planu.py::test_the_daily_ceiling_stops_cooking_from_the_pantry_too 29 failed, 710 passed, 17 skipped, 36 deselected in 73.97s (0:01:13)
 [2026-08-24 21:55:39] zmenenych suborov: 7
 [2026-08-24 21:56:52] testy OK: ........................................................................ [ 94%] ..........ssss.........................                                  [100%] 742 passed, 17 skipped, 36 deselected in 67.39s (0:01:07)
+[2026-08-24 21:57:50] pushnute 89f824a - server si to vezme do 10 minut
+[2026-08-24 22:00:38] zmenenych suborov: 3
+[2026-08-24 22:02:42] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_frontend_speed_contract.py::test_pages_stay_within_their_transfer_budget[app.html-15400] 1 failed, 750 passed, 20 skipped, 36 deselected in 118.58s (0:01:58)
+[2026-08-24 22:05:39] zmenenych suborov: 6
+[2026-08-24 22:07:39] testy OK: ...ss......s............................................................ [ 93%] .......................ssss.........................                     [100%] 752 passed, 20 skipped, 36 deselected in 108.65s (0:01:48)

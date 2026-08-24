@@ -486,7 +486,12 @@ process.exit(0);
     plan_view = declaration(html, "function vPlan() ")
     assert "pantryDiffers(" in plan_view, "the plan screen decides whether the hint is warranted"
     assert "Špajza sa zmenila" in plan_view, "the hint has to say what happened, calmly"
-    assert "Prepočítať jedálniček" in plan_view, "regeneration needs its own explicit button"
+    # Špajza sama jedálniček nepreskladá — dopočíta sa len nad nákupným zoznamom.
+    # Tlačidlo preto neponúka „prepočítaj", ale výslovné skladanie zo špajze.
+    assert "Navrhni jedlá z toho, čo mám doma" in plan_view, (
+        "cooking from the pantry needs its own explicit button"
+    )
+    assert "navrhniZoSpajze()" in plan_view
     assert "sp-hint-off" in plan_view, "the hint must be dismissible"
     assert "PANTRY_HINT_HIDDEN" in html, "a dismissed hint must stay dismissed"
     assert "$('#sp-hint-go').onclick" in plan_view

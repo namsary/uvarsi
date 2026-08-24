@@ -518,7 +518,7 @@ def test_the_landing_ships_no_second_copy_of_the_receipt():
 
 @pytest.mark.parametrize(
     "page,budget",
-    [(APP, 15_400), (LANDING, 12_400)],
+    [(APP, 17_400), (LANDING, 12_400)],
     ids=lambda value: getattr(value, "name", str(value)),
 )
 def test_pages_stay_within_their_transfer_budget(page, budget):
@@ -538,6 +538,14 @@ def test_pages_stay_within_their_transfer_budget(page, budget):
     sa markupu (gzip ich stláčal takmer na nič), prišiel generátor — index.html
     11 161 → 12 183 B. Za tých ~1 kB sa kupuje to, že sekcia buď ukáže doložené
     čísla aktuálneho týždňa, alebo sa nevykreslí vôbec. Strop 12 400 B.
+
+    24. 8. 2026: špajza sa oddelila od skladania plánu. Nákupný zoznam dostal
+    celý nový režim — položky „máš doma", zhrnutie „zaplatíš X namiesto Y" a
+    zrušenie zle spárovanej zhody, ktoré si pamätá localStorage; k tomu pribudla
+    vyhradená cesta „navrhni jedlá z toho, čo mám doma" a recept konečne ukazuje
+    dávky, porcie a pre koho sa varí. app.html 14 909 → 17 165 B. Strop appky sa
+    druhýkrát dvíha vedome a s číslom: 17 400 B. Toto je posledný raz, čo sa
+    zmestí do jedného kroku — ďalší rast už chce revíziu, nie zdvihnutie stropu.
     """
     compressed = len(gzip.compress(page.read_bytes(), 9))
     assert compressed <= budget, (

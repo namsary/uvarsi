@@ -96,6 +96,15 @@ label{font-family:"IBM Plex Mono",monospace;font-size:.76rem;font-weight:600;
 .item.done .box{background:var(--green);color:#fff}
 .item .nm{flex:1;font-size:.94rem}
 .item .pr{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:.86rem;white-space:nowrap}
+/* položka zo špajze — nie je odškrtnutá, je odložená nabok a jedno ťuknutie
+   ju vráti do nákupu */
+.item--doma{background:var(--paper-2);cursor:default}
+.item--doma .nm,.item--doma .pr{color:var(--ink-soft)}
+.undo{display:block;font-family:"IBM Plex Mono",monospace;font-size:.68rem;font-weight:600;
+  text-decoration:underline;cursor:pointer;color:var(--ink)}
+.item .doma-note{display:block;font-family:"IBM Plex Mono",monospace;font-size:.68rem}
+/* dávky receptu — koľko čoho sa naozaj použije, nie koľko sa kupuje */
+.davky{margin:10px 0 2px;color:var(--ink-soft)}
 /* nav */
 nav{position:fixed;bottom:0;left:0;right:0;background:var(--paper);border-top:2px solid var(--ink);
   display:flex;z-index:30;padding-bottom:env(safe-area-inset-bottom)}
@@ -132,6 +141,10 @@ const $ = s => document.querySelector(s);
 const M = $('#main');
 let ME = null, PLAN = null, TAB = 'plan';
 let DONE = {};
+/* Zhody so špajzou, ktoré používateľ zrušil („predsa to kúpim"). Párovanie
+   voľného textu na názvy z letáku je odhad; keď sa netrafí, musí sa dať vrátiť
+   jedným ťuknutím — a to rozhodnutie musí prežiť prekreslenie aj zatvorenie. */
+let PANTRY_OVERRIDE = {};
 let PANTRY_HINT_HIDDEN = false;
 /* Odpoveď servera na vyžiadaný prepočet — ukáže sa nad jedálničkom, nezmaže ho. */
 let PLAN_NOTE = '';
@@ -238,6 +251,61 @@ function loadCheckedState(user, plan) {
 function setPlan(plan) {
   PLAN = plan;
   DONE = loadCheckedState(ME, PLAN);
+  PANTRY_OVERRIDE = loadPantryOverride(ME, PLAN);
+}
+
+/* ---------- špajza nad nákupným zoznamom ----------
+   Server označí, čo už používateľ doma má, a povie, ktorá položka špajze sa
+   naň chytila. Párovanie voľného textu nie je neomylné, preto sa tu nič
+   nemaže: položka je len odložená a jedno ťuknutie ju vráti do nákupu. */
+function pantryOverrideKey(user, plan) {
+  return 'uvarsi_kupim:' + checkedStateKey(user, plan).slice(12);
+}
+
+function loadPantryOverride(user, plan) {
+  try { return JSON.parse(localStorage.getItem(pantryOverrideKey(user, plan)) || '{}'); }
+  catch(e) { return {}; }
+}
+
+function pantryOwned(item, overrides) {
+  if (!item || !item.mas_doma) return false;
+  return !(overrides || {})[String(item.offer_key || item.nazov || '')];
+}
+
+function moneyValue(text) {
+  var amount = Number(String(text == null ? '' : text).replace(',', '.'));
+  return isFinite(amount) ? amount : 0;
+}
+
+function moneyText(amount) {
+  return (isFinite(Number(amount)) ? Number(amount) : 0).toFixed(2).replace('.', ',');
+}
+
+function shoppingItems(plan) {
+  var groups = (plan && plan.nakupny_zoznam) || [];
+  var out = [];
+  for (var g = 0; g < groups.length; g++) {
+    out = out.concat((groups[g] || {}).polozky || []);
+  }
+  return out;
+}
+
+/* Koľko sa po odrátaní špajze naozaj zaplatí. Ráta sa na klientovi, lebo
+   zrušenie zhody nesmie čakať na server — číslo musí sedieť okamžite. */
+function remainingTotal(plan, overrides) {
+  return moneyText(shoppingItems(plan).reduce(function(sum, item) {
+    return pantryOwned(item, overrides) ? sum : sum + moneyValue(item.cena);
+  }, 0));
+}
+
+function pantryOwnedCount(plan, overrides) {
+  return shoppingItems(plan).filter(function(item) {
+    return pantryOwned(item, overrides);
+  }).length;
+}
+
+function itemsWord(count) {
+  return count === 1 ? 'položku' : count < 5 ? 'položky' : 'položiek';
 }
 
 function shoppingQuantityLabel(item) {
@@ -700,6 +768,49 @@ function regenerationNote(me) {
   return 'Nový jedálniček: dnes ešte ' + Math.min(left, limit) + ' z ' + limit;
 }
 
+/* Výslovné „navrhni jedlá z toho, čo mám doma". Jediná cesta, ktorou špajza
+   ovplyvní JEDLÁ; inak sa dotýka len nákupného zoznamu. Je to platené volanie,
+   preto sa spúšťa len na kliknutie a berie jeden prepočet z denného stropu. */
+function planZoSpajze() {
+  return api('/api/plan/zo-spajze', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS});
+}
+
+async function navrhniZoSpajze() {
+  TAB = 'plan';
+  if (regenerationsLeft(ME) === 0) {
+    PLAN_NOTE = regenerationBlockedNote(ME, todayIso());
+    return render();
+  }
+  startPlanProgress();
+  try {
+    setPlan(await planZoSpajze());
+    PLAN_NOTE = '';
+    PANTRY_HINT_HIDDEN = true;
+    try { ME = await api('/api/me'); } catch (ignored) {}
+  } catch (error) {
+    if (error && error.authRequired) { stopPlanProgress(); return; }
+    PLAN_NOTE = (error && error.message) ||
+      'Jedálniček zo špajze sa teraz nepodaril. Skús to prosím znova.';
+  }
+  stopPlanProgress();
+  render();
+}
+
+/* Server posiela recept.davky, recept.pre a recept.porcie od začiatku;
+   obrazovka ich zamlčiavala, takže z jedla nebolo vidieť, na koľko dní sa varí. */
+function portionLine(recept) {
+  if (!recept) return '';
+  var parts = [];
+  var portions = Math.round(Number(recept.porcie));
+  if (isFinite(portions) && portions > 0) {
+    var word = portions === 1 ? 'porcia' : portions < 5 ? 'porcie' : 'porcií';
+    parts.push(portions + ' ' + word);
+  }
+  var forWhom = String(recept.pre == null ? '' : recept.pre).trim();
+  if (forWhom) parts.push('pre ' + forWhom);
+  return parts.join(' · ');
+}
+
 /* Prepočet na vyžiadanie. Keď server odmietne, jedálniček zostáva a hláška je
    nad ním — nikdy prázdna chybová stena. */
 async function novyPlan() {
@@ -783,11 +894,11 @@ function vPlan() {
   if (spajzaSaZmenila) {
     h += `<div class="hint" id="sp-hint">
       <span class="eyebrow">Špajza sa zmenila</span>
-      <p style="margin:6px 0 4px">Tento jedálniček je poskladaný ešte podľa staršej špajze.
-        Chceš ho prepočítať?</p>
-      <p class="muted" style="margin-bottom:12px">Kým to nepovieš, nechávam ho tak, ako je.
-        Prepočet trvá 60 až 120 sekúnd.</p>
-      <button class="btn" id="sp-hint-go">Prepočítať jedálniček ↻</button>
+      <p style="margin:6px 0 4px">Nákupný zoznam to už zarátal. Chceš aj jedlá poskladať
+        okolo toho, čo máš doma?</p>
+      <p class="muted" style="margin-bottom:12px">Tento jedálniček nechávam tak, ako je,
+        kým to nepovieš. Nový sa skladá 60 až 120 sekúnd a berie jeden prepočet.</p>
+      <button class="btn" id="sp-hint-go">Navrhni jedlá z toho, čo mám doma →</button>
       <div style="height:8px"></div>
       <button class="btn btn--ghost" id="sp-hint-off">Nechať tak</button></div>`;
   }
@@ -800,6 +911,8 @@ function vPlan() {
         <span class="mono" style="font-size:.72rem;color:var(--ink-soft)">${j.recept?.min||''} min ▾</span>
       </div><div class="meal-b">
         ${(j.suroviny||[]).map(s=>ingredientRow(s, dnes)).join('')}
+        ${portionLine(j.recept)?`<p class="mono" style="font-size:.72rem;color:var(--ink-soft);margin-top:10px">${esc(portionLine(j.recept))}</p>`:''}
+        ${(j.recept?.davky||[]).length?`<div class="davky">${(j.recept?.davky||[]).map(d=>`<div class="d"><span>${esc(d)}</span></div>`).join('')}</div>`:''}
         <ol class="steps">${(j.recept?.kroky||[]).map(k=>`<li>${esc(k)}</li>`).join('')}</ol>
       </div></div>`;
     } else if (row.typ === 'zvysok') {
@@ -825,7 +938,7 @@ function vPlan() {
   }
   M.innerHTML = h;
   if (spajzaSaZmenila) {
-    $('#sp-hint-go').onclick = () => novyPlan();
+    $('#sp-hint-go').onclick = () => navrhniZoSpajze();
     $('#sp-hint-off').onclick = () => { PANTRY_HINT_HIDDEN = true; render(); };
   }
   M.querySelectorAll('.meal-h').forEach(el =>
@@ -834,20 +947,47 @@ function vPlan() {
 
 function vZoznam() {
   if (!PLAN || !PLAN.nakupny_zoznam) { M.innerHTML = '<p class="muted">Najprv si vygeneruj plán.</p>'; return; }
+  const doma = pantryOwnedCount(PLAN, PANTRY_OVERRIDE);
+  const zaplatis = remainingTotal(PLAN, PANTRY_OVERRIDE);
   let h = `<div style="margin:18px 0 6px"><span class="eyebrow">Nákupný zoznam</span>
     <h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo kúpiť a kde</h1></div>`;
+  /* Zhrnutie špajze: koľko toho netreba kupovať a koľko sa naozaj zaplatí.
+     Ráta sa z aktuálnej špajzy pri každom otvorení, nič sa neukladá. */
+  if (doma) {
+    h += `<div class="hint" id="doma-suhrn"><span class="eyebrow">Zo špajze</span>
+      <p style="margin:6px 0 4px">${doma} ${esc(itemsWord(doma))} už máš doma, tak ich
+        nekupuješ. Zaplatíš <b>${esc(zaplatis)} €</b> namiesto ${esc(PLAN.nakup_spolu||'')} €.</p>
+      <p class="muted" style="margin:0">Keď zhoda nesedí, ťukni na „Predsa kúpiť".</p></div>`;
+  }
   PLAN.nakupny_zoznam.forEach((s, si) => {
     h += `<div class="shop-h">${esc(s.obchod)}</div>`;
     (s.polozky||[]).forEach((p, pi) => {
       const k = `${si}-${pi}`;
+      const id = String(p.offer_key || p.nazov || '');
+      const mnozstvo = shoppingQuantityLabel(p) ? `<span class="tag">${esc(shoppingQuantityLabel(p))}</span>` : '';
+      if (pantryOwned(p, PANTRY_OVERRIDE)) {
+        h += `<div class="item item--doma">
+          <span class="box">🥫</span>
+          <span class="nm">${esc(p.nazov)}${mnozstvo}
+            <span class="doma-note">máš doma · zo špajze: ${esc(p.spajza || '')}</span></span>
+          <span class="pr">${p.cena?esc(p.cena)+' €':''}<br>
+            <span class="undo" data-doma="${esc(id)}">Predsa kúpiť</span></span></div>`;
+        return;
+      }
       h += `<div class="item${DONE[k]?' done':''}" data-k="${k}">
         <span class="box">${DONE[k]?'✓':''}</span>
-        <span class="nm">${esc(p.nazov)}${shoppingQuantityLabel(p)?`<span class="tag">${esc(shoppingQuantityLabel(p))}</span>`:''}</span>
+        <span class="nm">${esc(p.nazov)}${mnozstvo}</span>
         <span class="pr">${p.cena?esc(p.cena)+' €':''}</span></div>`;
     });
   });
   M.innerHTML = h;
-  M.querySelectorAll('.item').forEach(el => el.onclick = () => {
+  M.querySelectorAll('[data-doma]').forEach(el => el.onclick = event => {
+    event.stopPropagation();
+    PANTRY_OVERRIDE[el.dataset.doma] = true;
+    localStorage.setItem(pantryOverrideKey(ME, PLAN), JSON.stringify(PANTRY_OVERRIDE));
+    vZoznam();
+  });
+  M.querySelectorAll('.item[data-k]').forEach(el => el.onclick = () => {
     const k = el.dataset.k;
     DONE[k] = !DONE[k];
     localStorage.setItem(checkedStateKey(ME, PLAN), JSON.stringify(DONE));
@@ -916,15 +1056,22 @@ function vSpajza() {
   M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Špajza</span>
     <h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo už máš doma</h1>
     <p class="muted" style="margin:8px 0 6px">Ukladá sa hneď a sama za seba.
-      Jedálniček sa tým nemení — prepočítame ho, až keď si povieš.</p>
-    <p class="muted" style="margin:0 0 16px">Pri najbližšom skladaní to zarátame — nekúpiš zbytočne a menej vyhodíš.</p></div>
+      Jedálniček sa tým nemení — v nákupnom zozname sa hneď odloží nabok to,
+      čo už doma máš.</p>
+    <p class="muted" style="margin:0 0 16px">Keď chceš aj jedlá poskladať okolo špajze,
+      povedz si o to tlačidlom dole.</p></div>
     <div class="card"><label>Pridať surovinu</label>
       <div style="display:flex;gap:8px"><input id="sp-new" placeholder="napr. ${esc(SPAJZA_UKAZKA.join(', '))}">
       <button class="btn" style="width:auto;padding:14px 18px" id="sp-add">+</button></div>
       <p id="sp-err" class="muted" style="color:var(--red);margin-top:10px"></p></div>
     <div id="sp-list">${sp.map((s,i)=>`<div class="item"><span class="nm">${esc(s)}</span>
       <span class="pr" data-i="${i}" style="color:var(--red);cursor:pointer">✕</span></div>`).join('')
-      || '<p class="muted center" style="padding:18px">Zatiaľ prázdna.</p>'}</div>`;
+      || '<p class="muted center" style="padding:18px">Zatiaľ prázdna.</p>'}</div>
+    <div style="height:16px"></div>
+    <button class="btn btn--ghost" id="sp-navrhni"${sp.length ? '' : ' disabled'}>Navrhni jedlá z toho, čo mám doma →</button>
+    <p class="muted center mono" style="font-size:.7rem;margin-top:8px">${sp.length
+      ? 'Skladá sa 60 až 120 sekúnd a berie jeden prepočet z dnešného stropu.'
+      : 'Najprv napíš, čo máš doma.'}</p>`;
   /* Uloží a hneď prekreslí špajzu. Žiadne skladanie plánu na pozadí. */
   const uloz = list => runGuardedAction($('#sp-add'), $('#sp-err'), async () => {
     await api('/api/spajza', {method:'POST', body:JSON.stringify({polozky:list})});
@@ -937,6 +1084,7 @@ function vSpajza() {
     uloz([...(ME.spajza||[]), v]);
   };
   $('#sp-new').onkeydown = e => { if (e.key === 'Enter') $('#sp-add').click(); };
+  $('#sp-navrhni').onclick = () => { if (!$('#sp-navrhni').disabled) navrhniZoSpajze(); };
   M.querySelectorAll('[data-i]').forEach(el => el.onclick = () => {
     const l = [...ME.spajza]; l.splice(+el.dataset.i, 1); uloz(l);
   });
