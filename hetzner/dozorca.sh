@@ -44,8 +44,21 @@ landing_data_is_current() {
 # (appka skladá osobné plány z tejto DB; bez nej ľuďom nič nevygeneruje)
 POCET=$(sqlite3 "$DIR/uvarsi.db" \
         "SELECT COUNT(*) FROM akcie WHERE tyzden='$MON_ISO'" 2>/dev/null || echo 0)
-if [ "${POCET:-0}" -lt 30 ]; then
-  log "akcie pre týždeň $MON_ISO chýbajú ($POCET) — spúšťam zbierač…"
+
+# Celkový počet nestačí: keď zlyhá JEDEN obchod, ostatné dva ľahko prekročia
+# prah a chýbajúci reťazec sa už nikdy nedobehne — používateľ potom dostane
+# plán bez Lidlu a nedozvie sa to. (21. 8. 2026: 431 akcií, ale bez Lidlu.)
+CHYBA_OBCHOD=$(sqlite3 "$DIR/uvarsi.db" \
+  "SELECT COUNT(*) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
+   WHERE v.o NOT IN (SELECT DISTINCT obchod FROM akcie WHERE tyzden='$MON_ISO')" \
+  2>/dev/null || echo 0)
+
+if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_OBCHOD:-0}" -gt 0 ]; then
+  if [ "${CHYBA_OBCHOD:-0}" -gt 0 ]; then
+    log "týždeň $MON_ISO: chýba $CHYBA_OBCHOD obchod(ov) — dobiehám zber…"
+  else
+    log "akcie pre týždeň $MON_ISO chýbajú ($POCET) — spúšťam zbierač…"
+  fi
   if cd "$DIR/app" && "$PY" -u zbierac_akcii.py; then
     log "zbierač OK"
   else
