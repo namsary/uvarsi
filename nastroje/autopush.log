@@ -197,3 +197,8 @@
 [2026-08-24 17:22:27] pushnute d8420a8 - server si to vezme do 10 minut
 [2026-08-24 17:25:35] zmenenych suborov: 1
 [2026-08-24 17:27:50] testy OK: ........................................................................ [ 92%] .............................................                            [100%] 613 passed, 8 skipped, 36 deselected in 130.58s (0:02:10)
+[2026-08-24 17:27:56] pushnute 5d4e4a5 - server si to vezme do 10 minut
+[2026-08-24 17:30:35] zmenenych suborov: 1
+[2026-08-24 17:32:05] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call 1 failed, 612 passed, 8 skipped, 36 deselected in 85.88s (0:01:25)
+[2026-08-24 17:35:37] zmenenych suborov: 1
+[2026-08-24 17:37:10] testy OK: ........................................................................ [ 92%] .............................................                            [100%] 613 passed, 8 skipped, 36 deselected in 87.45s (0:01:27)
