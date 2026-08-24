@@ -264,3 +264,18 @@
 [2026-08-24 19:37:48] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write 1 failed, 612 passed, 8 skipped, 36 deselected in 123.42s (0:02:03)
 [2026-08-24 19:40:36] zmenenych suborov: 1
 [2026-08-24 19:43:10] testy OK: ........................................................................ [ 92%] .............................................                            [100%] 613 passed, 8 skipped, 36 deselected in 143.05s (0:02:23)
+[2026-08-24 19:43:18] pushnute d2cc919 - server si to vezme do 10 minut
+[2026-08-24 19:45:37] zmenenych suborov: 1
+[2026-08-24 19:47:47] TESTY ZLYHALI - nepushujem. FAILED tests/test_auth.py::test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call 2 failed, 611 passed, 8 skipped, 36 deselected in 120.08s (0:02:00)
+[2026-08-24 19:50:38] zmenenych suborov: 1
+[2026-08-24 19:53:17] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write 1 failed, 612 passed, 8 skipped, 36 deselected in 149.83s (0:02:29)
+[2026-08-24 19:55:40] zmenenych suborov: 1
+[2026-08-24 19:58:07] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write 1 failed, 612 passed, 8 skipped, 36 deselected in 137.42s (0:02:17)
+[2026-08-24 20:00:36] zmenenych suborov: 1
+[2026-08-24 20:02:51] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call 1 failed, 612 passed, 8 skipped, 36 deselected in 123.85s (0:02:03)
+[2026-08-24 20:05:40] zmenenych suborov: 1
+[2026-08-24 20:08:11] TESTY ZLYHALI - nepushujem. FAILED tests/test_auth.py::test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call 2 failed, 611 passed, 8 skipped, 36 deselected in 138.84s (0:02:18)
+[2026-08-24 20:10:38] zmenenych suborov: 1
+[2026-08-24 20:12:42] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call 1 failed, 612 passed, 8 skipped, 36 deselected in 114.60s (0:01:54)
+[2026-08-24 20:15:38] zmenenych suborov: 1
+[2026-08-24 20:17:34] testy OK: ........................................................................ [ 92%] .............................................                            [100%] 613 passed, 8 skipped, 36 deselected in 109.05s (0:01:49)
