@@ -232,3 +232,12 @@
 [2026-08-24 18:32:59] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write 1 failed, 612 passed, 8 skipped, 36 deselected in 130.23s (0:02:10)
 [2026-08-24 18:35:36] zmenenych suborov: 1
 [2026-08-24 18:37:42] testy OK: ........................................................................ [ 92%] .............................................                            [100%] 613 passed, 8 skipped, 36 deselected in 119.49s (0:01:59)
+[2026-08-24 18:37:48] pushnute 6ef0b96 - server si to vezme do 10 minut
+[2026-08-24 18:40:36] zmenenych suborov: 1
+[2026-08-24 18:42:55] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call 1 failed, 612 passed, 8 skipped, 36 deselected in 132.32s (0:02:12)
+[2026-08-24 18:45:36] zmenenych suborov: 1
+[2026-08-24 18:47:55] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call 1 failed, 612 passed, 8 skipped, 36 deselected in 133.47s (0:02:13)
+[2026-08-24 18:50:39] zmenenych suborov: 1
+[2026-08-24 18:52:58] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write 1 failed, 612 passed, 8 skipped, 36 deselected in 133.74s (0:02:13)
+[2026-08-24 18:55:44] zmenenych suborov: 1
+[2026-08-24 18:57:50] testy OK: ........................................................................ [ 92%] .............................................                            [100%] 613 passed, 8 skipped, 36 deselected in 121.63s (0:02:01)
