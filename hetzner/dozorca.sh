@@ -100,9 +100,17 @@ if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_OBCHOD:-0}" -gt 0 ]; then
     # `|| log` je zámerné: predpočet je zrýchlenie, nie povinnosť. Keď zlyhá,
     # appka skladá plány naživo presne ako doteraz a dozorca ide ďalej —
     # bloček je dôležitejší než zahriata cache.
-    UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$DIR/VERSION" \
-      "$PY" -u predpocet.py --zahrej \
-      || log "predpočet neprešiel — appka bude skladať plány naživo ako doteraz"
+    #
+    # Nastavenie (koľko profilov, rezerva, vypnutie) číta predpočet z prostredia.
+    # Trvalé miesto preň je NEPOVINNÝ /opt/uvarsi/predpocet.env — rovnako ako
+    # uvarsi.env patrí serveru, nikdy sa nenahráva z PC a žiadne nasadenie ho
+    # neprepíše. Napr.:  echo 'UVARSI_PREDPOCET_PROFILOV=12' > /opt/uvarsi/predpocet.env
+    # Načítava sa v podškrupine, aby premenné neovplyvnili zvyšok dozorcu.
+    (
+      if [ -f "$DIR/predpocet.env" ]; then set -a; . "$DIR/predpocet.env"; set +a; fi
+      UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$DIR/VERSION" \
+        "$PY" -u predpocet.py --zahrej
+    ) || log "predpočet neprešiel — appka bude skladať plány naživo ako doteraz"
   else
     log "zbierač zlyhal — appka zatiaľ nemá aktuálne dáta"
   fi

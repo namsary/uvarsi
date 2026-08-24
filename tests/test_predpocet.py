@@ -516,6 +516,17 @@ def test_zlyhanie_predpoctu_nesmie_zmenit_navratovy_kod_dozorcu():
     )
 
 
+def test_nastavenie_predpoctu_ma_na_serveri_trvale_miesto():
+    """Bez toho by sa `UVARSI_PREDPOCET_PROFILOV` stratilo pri každom nasadení."""
+    text = (ROOT / "hetzner" / "dozorca.sh").read_text(encoding="utf-8")
+    assert "predpocet.env" in text
+    nasad = (ROOT / "nasad.ps1").read_text(encoding="utf-8")
+    samopull = (ROOT / "hetzner" / "samopull.sh").read_text(encoding="utf-8")
+    assert "predpocet.env" not in nasad and "predpocet.env" not in samopull, (
+        "nastavenie patrí serveru — nasadenie ho nesmie prenášať ani prepisovať"
+    )
+
+
 def test_predpocet_sa_nasadzuje():
     nasad = (ROOT / "nasad.ps1").read_text(encoding="utf-8")
     samopull = (ROOT / "hetzner" / "samopull.sh").read_text(encoding="utf-8")
