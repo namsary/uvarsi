@@ -36,3 +36,10 @@
 [2026-08-24 11:10:49] pushnute 0c22eea - server si to vezme do 10 minut
 [2026-08-24 11:14:17] zmenenych suborov: 1
 [2026-08-24 11:15:57] testy OK: ........................................................................ [ 98%] ..........                                                               [100%] 578 passed, 8 skipped, 33 deselected in 96.59s (0:01:36)
+[2026-08-24 11:16:01] pushnute 8ea9743 - server si to vezme do 10 minut
+[2026-08-24 11:19:16] zmenenych suborov: 1
+[2026-08-24 11:21:10] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write 1 failed, 577 passed, 8 skipped, 33 deselected in 107.08s (0:01:47)
+[2026-08-24 11:24:16] zmenenych suborov: 1
+[2026-08-24 11:27:01] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call 1 failed, 577 passed, 8 skipped, 33 deselected in 154.42s (0:02:34)
+[2026-08-24 11:29:17] zmenenych suborov: 1
+[2026-08-24 11:31:15] testy OK: ........................................................................ [ 98%] ..........                                                               [100%] 578 passed, 8 skipped, 33 deselected in 107.96s (0:01:47)
