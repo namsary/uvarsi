@@ -349,7 +349,7 @@ def test_strazeny_klient_zauctuje_kazde_volanie(con):
 
 
 def test_strazeny_klient_nepustí_volanie_cez_vycerpany_strop(con, monkeypatch):
-    monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "0.10")
+    monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "0.01")
     klient = FalosnyKlient()
     strazeny = naklady.strazeny_klient(con, klient, "zber_letakov", teraz=PONDELOK)
 
@@ -360,7 +360,12 @@ def test_strazeny_klient_nepustí_volanie_cez_vycerpany_strop(con, monkeypatch):
 
 
 def test_strazeny_klient_zastavi_slucku_volani(con, monkeypatch):
-    """Ten istý incident, ale cez rozhranie, ktoré appka naozaj používa."""
+    """Ten istý incident, ale cez rozhranie, ktoré appka naozaj používa.
+
+    Strop sa smie prekročiť nanajvýš o JEDNO volanie: kontrola pozná len odhad
+    ceny, skutočná cena je známa až z odpovede. Podstatné je, že míňanie sa
+    zastaví — nie že sa trafí presne na cent.
+    """
     monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "1.00")
     monkeypatch.setenv("UVARSI_MESACNY_STROP_EUR", "5.00")
     klient = FalosnyKlient()
@@ -374,7 +379,8 @@ def test_strazeny_klient_zastavi_slucku_volani(con, monkeypatch):
 
     assert len(klient.volania) <= 3
     minute = con.execute("SELECT COALESCE(SUM(eur), 0) FROM naklady").fetchone()[0]
-    assert minute <= 1.00
+    cena_volania = naklady.cena_eur("claude-opus-5", vstup=80_000, vystup=2_000)
+    assert minute <= 1.00 + cena_volania, "presah smie byť nanajvýš o jedno volanie"
 
 
 # ------------------------------------------------------------------ prehľad
@@ -472,6 +478,40 @@ def test_vychodzie_stropy_su_bezpecne():
     assert 0 < stropy.denny <= 2.00
     assert 0 < stropy.mesacny <= 10.00
     assert stropy.denny < stropy.mesacny
+
+
+POCTIVY_TYZDENNY_ZBER_EUR = 1.11      # 3 obchody × ~0,37 € vision beh
+
+
+def test_vychodzie_stropy_prezijú_poctivu_prevadzku():
+    """Strop, ktorý zastaví aj poctivý beh, je výpadok — nie ochrana."""
+    limity = naklady.stropy()
+    assert limity.denny > POCTIVY_TYZDENNY_ZBER_EUR, "riadny zber sa musí zmestiť do dňa"
+    assert limity.tyzdenny_ucel["zber_letakov"] > POCTIVY_TYZDENNY_ZBER_EUR
+    assert limity.mesacny > POCTIVY_TYZDENNY_ZBER_EUR * 4.5, "mesiac má 4–5 zberov"
+
+
+def test_odhad_jedneho_volania_nezastavi_poctivy_beh():
+    """Príliš vysoký odhad na volanie by strop spustil dávno pred útratou."""
+    assert naklady.ODHAD_EUR["zber_letakov"] < naklady.stropy().denny / 5
+
+
+def test_incident_by_s_vychodzimi_stropmi_nevynuloval_kredit(con):
+    """Bez jediného prestavenia v prostredí musí incident skončiť lacno."""
+    volania = 0
+    for hodina in range(12):
+        teraz = PONDELOK + datetime.timedelta(hours=hodina)
+        try:
+            naklady.skontroluj(con, "zber_letakov", teraz=teraz)
+        except naklady.RozpocetVycerpany:
+            continue
+        naklady.zapis(con, "zber_letakov", "claude-opus-5", VISION_USAGE,
+                      teraz=teraz, notifikuj=lambda sprava: None)
+        volania += 1
+
+    minute = con.execute("SELECT COALESCE(SUM(eur), 0) FROM naklady").fetchone()[0]
+    assert minute < 4.60, f"incident stál 4,60 €; s východzími stropmi {minute:.2f} €"
+    assert volania < 12
 
 
 def test_stropy_sa_daju_prestavit_z_prostredia(monkeypatch):

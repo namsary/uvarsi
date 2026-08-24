@@ -10,9 +10,16 @@ Beh: ./venv/bin/python recepty.py /var/www/uvarsi/index.html
 """
 import sys, os, re, json, html
 from collections import Counter
+from contextlib import closing
+
+try:
+    from app import naklady
+except ImportError:
+    import naklady
 
 MODEL = "claude-sonnet-5"
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
+DATABASE_PATH = "/opt/uvarsi/uvarsi.db"
 
 
 def load_key():
@@ -57,7 +64,6 @@ def parse_blocek(page):
 
 def gen_recipes(meals, key):
     import anthropic
-    client = anthropic.Anthropic(api_key=key, timeout=60.0, max_retries=1)
     lst = "\n".join(
         f'{m["day"]}: {m["name"]} — suroviny: '
         + ", ".join(i["name"] for i in m["items"]) for m in meals)
@@ -68,8 +74,16 @@ def gen_recipes(meals, key):
         "min = čas v minútach (číslo), steps_total = celkový počet krokov, "
         "steps = prvé 3 kroky, krátke vety v rozkazovacom spôsobe, slovenčina s "
         "diakritikou. Jedlá:\n" + lst)
-    msg = client.messages.create(model=MODEL, max_tokens=4000,
-                                 messages=[{"role": "user", "content": prompt}])
+    # Aj lacné volanie ide cez strop: „pár centov“ krát rozbehnutá slučka je
+    # presne tá aritmetika, ktorá minule vynulovala kredit.
+    with closing(naklady.pripoj(os.environ.get("UVARSI_DB", DATABASE_PATH))) as ucty:
+        client = naklady.strazeny_klient(
+            ucty,
+            anthropic.Anthropic(api_key=key, timeout=60.0, max_retries=1),
+            "recepty",
+        )
+        msg = client.messages.create(model=MODEL, max_tokens=4000,
+                                     messages=[{"role": "user", "content": prompt}])
     txt = "".join(b.text for b in msg.content
                   if getattr(b, "type", None) == "text").strip()
     txt = re.sub(r"^```(?:json)?|```$", "", txt.strip(), flags=re.M).strip()

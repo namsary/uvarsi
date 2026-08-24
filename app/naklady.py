@@ -71,14 +71,20 @@ NTFY_TOPIC = "uvarsi-jarvis-8f3a2c"
 PRAHY_UPOZORNENIA = (50, 80)
 
 # ---------------------------------------------------------------- východzie stropy
-# Kredit, ktorý incident vynuloval, bol 4,60 €. Mesačný strop 5 € je teda
-# „celý doterajší rozpočet za mesiac“ — nie svojvoľné číslo. Denný strop 1 €
-# drží najhorší deň na pätine mesiaca: incident míňal ~2,20 €/deň, takže by ho
-# bol zastavil hneď v prvý deň. Týždenné 2 behy zberu = jeden riadny beh plus
-# jedno opakovanie, keď zdroj letákov vypadne.
-VYCHODZI_DENNY_STROP_EUR = 1.00
-VYCHODZI_MESACNY_STROP_EUR = 5.00
-VYCHODZI_TYZDENNY_STROP_ZBER_EUR = 1.50
+# Čísla nie sú vycucané z prsta, vychádzajú zo skutočnej prevádzky:
+#   • jeden vision beh nad letákom JEDNÉHO obchodu ≈ 0,37 €
+#   • zber beží nad tromi obchodmi (Kaufland, Tesco, Lidl) ≈ 1,11 € za týždeň
+#   • skladanie plánu a bločku sú Sonnet volania rádovo za centy
+# Strop musí byť NAD poctivou prevádzkou, inak z neho je výpadok, nie ochrana:
+#   denný 1,50 €  = riadny týždenný zber (1,11 €) sa v pohode zmestí do dňa
+#   mesačný 8,00 € = 4–5 zberov (~5,5 €) plus plány, s rezervou
+#   týždenný zber 2,50 € = jeden riadny beh plus jedno opakovanie
+#   2 behy zberu za týždeň = riadny beh + jedno opakovanie, keď zdroj vypadne
+# Pre incident to znamená: namiesto 4,60 € za dva dni sa minie nanajvýš
+# ~1,5 € za deň a nanajvýš 2 vision behy za týždeň.
+VYCHODZI_DENNY_STROP_EUR = 1.50
+VYCHODZI_MESACNY_STROP_EUR = 8.00
+VYCHODZI_TYZDENNY_STROP_ZBER_EUR = 2.50
 VYCHODZI_LIMIT_BEHOV = {"zber_letakov": 2}
 
 PREMENNE_PROSTREDIA = (
@@ -304,6 +310,11 @@ def skontroluj(con, ucel, *, odhad_eur=None, teraz=None):
 
     Započítava sa aj odhad ceny volania, ktoré sa práve chystá — inak by sa
     strop dal prekročiť vždy práve o jedno (a to najdrahšie) volanie.
+
+    Presnú cenu volania vopred nikto nepozná (vie sa až z `usage` v odpovedi),
+    takže strop sa smie prekročiť nanajvýš o rozdiel medzi odhadom a skutočnou
+    cenou JEDNÉHO volania. Zaručené je zastavenie míňania, nie trafenie sa na
+    cent — a presne to incidentu chýbalo.
     """
     if ucel not in UCELY:
         raise RozpocetVycerpany(

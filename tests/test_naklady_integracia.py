@@ -182,6 +182,26 @@ def test_blocek_pri_vycerpanom_rozpocte_neprepise_stary_json(monkeypatch, tmp_pa
     assert "rozpo" in chyby.lower(), "dôvod musí byť v logu, nie skrytý"
 
 
+# ------------------------------------------------------------------ recepty
+def test_recepty_idu_tiez_cez_strop(monkeypatch, tmp_path):
+    """Žiadne platené volanie nesmie ostať mimo evidencie — ani to lacné."""
+    from hetzner import recepty
+
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setenv("UVARSI_DB", str(database))
+    vycerpaj_denny_strop(database, ucel="recepty")
+
+    class ZakazaneSpravy:
+        def create(self, **kw):
+            raise AssertionError("po vyčerpaní rozpočtu sa nesmie volať model")
+
+    monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace(
+        Anthropic=lambda **kw: types.SimpleNamespace(messages=ZakazaneSpravy())))
+
+    with pytest.raises(naklady.RozpocetVycerpany):
+        recepty.gen_recipes([{"day": "PO", "name": "Guláš", "items": [{"name": "mäso"}]}], "kluc")
+
+
 # ------------------------------------------------------------------ osobný plán
 def test_plan_sa_neposklada_ked_je_rozpocet_vycerpany(monkeypatch, tmp_path):
     server = load_server(monkeypatch, tmp_path, current_plan_rows())
