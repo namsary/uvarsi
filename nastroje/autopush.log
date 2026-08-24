@@ -43,3 +43,8 @@
 [2026-08-24 11:27:01] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call 1 failed, 577 passed, 8 skipped, 33 deselected in 154.42s (0:02:34)
 [2026-08-24 11:29:17] zmenenych suborov: 1
 [2026-08-24 11:31:15] testy OK: ........................................................................ [ 98%] ..........                                                               [100%] 578 passed, 8 skipped, 33 deselected in 107.96s (0:01:47)
+[2026-08-24 11:31:20] pushnute 0fcc552 - server si to vezme do 10 minut
+[2026-08-24 11:34:17] zmenenych suborov: 1
+[2026-08-24 11:35:47] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write 1 failed, 577 passed, 8 skipped, 33 deselected in 84.90s (0:01:24)
+[2026-08-24 11:39:18] zmenenych suborov: 1
+[2026-08-24 11:41:08] testy OK: ........................................................................ [ 98%] ..........                                                               [100%] 578 passed, 8 skipped, 33 deselected in 103.64s (0:01:43)
