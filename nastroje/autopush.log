@@ -213,3 +213,14 @@
 [2026-08-24 17:52:20] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call 1 failed, 612 passed, 8 skipped, 36 deselected in 95.66s (0:01:35)
 [2026-08-24 17:55:36] zmenenych suborov: 1
 [2026-08-24 17:57:03] testy OK: ........................................................................ [ 92%] .............................................                            [100%] 613 passed, 8 skipped, 36 deselected in 84.67s (0:01:24)
+[2026-08-24 17:57:09] pushnute 222b6de - server si to vezme do 10 minut
+[2026-08-24 18:00:37] zmenenych suborov: 1
+[2026-08-24 18:02:40] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write 1 failed, 612 passed, 8 skipped, 36 deselected in 115.41s (0:01:55)
+[2026-08-24 18:05:39] zmenenych suborov: 1
+[2026-08-24 18:08:27] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write 1 failed, 612 passed, 8 skipped, 36 deselected in 156.34s (0:02:36)
+[2026-08-24 18:10:36] zmenenych suborov: 1
+[2026-08-24 18:13:32] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write 1 failed, 612 passed, 8 skipped, 36 deselected in 160.33s (0:02:40)
+[2026-08-24 18:15:35] zmenenych suborov: 1
+[2026-08-24 18:17:54] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call 1 failed, 612 passed, 8 skipped, 36 deselected in 132.20s (0:02:12)
+[2026-08-24 18:20:36] zmenenych suborov: 1
+[2026-08-24 18:22:45] testy OK: ........................................................................ [ 92%] .............................................                            [100%] 613 passed, 8 skipped, 36 deselected in 121.91s (0:02:01)
