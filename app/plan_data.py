@@ -820,7 +820,9 @@ _PANTRY_ENDINGS = ("ami", "ach", "och", "iam", "om", "ov", "mi", "ou", "ia", "ej
 _PANTRY_IRREGULAR = {}
 for _canonical, _forms in (
     ("vajc", ("vajce", "vajcia", "vajec", "vajca", "vajíčko", "vajíčka", "vajíčok", "vajíčkami")),
-    ("chleb", ("chlieb", "chleba", "chleby", "pecivo")),
+    # „pečivo" tu zámerne NIE je: je to kategória, nie surovina, a spárovať ho
+    # s konkrétnym chlebom by človeka poslalo do obchodu bez toho, čo chcel.
+    ("chleb", ("chlieb", "chleba", "chleby")),
 ):
     for _form in _forms:
         _PANTRY_IRREGULAR[_fold(_form)] = _canonical
