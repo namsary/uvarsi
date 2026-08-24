@@ -237,6 +237,27 @@ def test_rekonciliacia_upozorni_majitela_ked_nieco_dobehla(monkeypatch, tmp_path
     assert "@" not in text, "na verejný ntfy kanál nepatrí e-mail zákazníka"
 
 
+def test_rekonciliacia_ohlasi_aj_platbu_nad_kapacitu(monkeypatch, tmp_path):
+    """Keď webhook nedorazil a miesto už nie je, mlčať sa nedá ani teraz."""
+    server = zapnute_platby(monkeypatch, tmp_path)
+    rek = rekonciliacia_modul()
+    vytvor_pouzivatela(server, user_id=1, email="neskoro@uvar.si")
+    naplnit_miesta(server, 250)
+    poslane, maily = [], []
+
+    with closing(server.db()) as con:
+        suhrn = rek.rekonciluj(
+            con, objednavky=[objednavka_z_api(order_id="ord-251", email="neskoro@uvar.si")],
+            now=server.AUTH_CLOCK(), notifikuj=poslane.append,
+            mailuj=lambda komu, predmet, text: maily.append((komu, text)),
+        )
+
+    assert suhrn["nad_kapacitu"] == 1
+    assert "ord-251" in " ".join(s["sprava"] for s in poslane)
+    assert [m[0] for m in maily] == ["neskoro@uvar.si"]
+    assert "vrát" in maily[0][1].lower()
+
+
 def test_rekonciliacia_nikdy_nesiaha_na_kluc_z_repozitara(monkeypatch, tmp_path):
     """Prístup k API poskytovateľa smie prísť len z env súboru, nikdy z kódu."""
     zdroj = (ROOT / "app" / "rekonciliacia.py").read_text(encoding="utf-8")

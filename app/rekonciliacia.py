@@ -123,13 +123,18 @@ def stiahni_objednavky(api_key, *, store_id=None, max_stran=MAX_STRAN, otvor=Non
 
 
 # ---------------------------------------------------------------- porovnanie
-def rekonciluj(con, *, objednavky, now, variant_id=None, notifikuj=None) -> dict:
+def rekonciluj(con, *, objednavky, now, variant_id=None, notifikuj=None,
+               mailuj=None) -> dict:
     """Doplň, čo webhook nepriniesol. Nič neobchádza — všetko ide cez spracuj_udalost."""
     suhrn = {
         "videne": 0, "udelene": 0, "uz_spracovane": 0, "vratene": 0,
         "bez_uctu": 0, "ignorovane": 0, "nad_kapacitu": 0, "duplicitne": 0,
         "nepouzitelne": 0,
     }
+    # Platby, za ktoré zákazník nič nedostal. Keď ich objaví rekonciliácia (a nie
+    # webhook), musí povedať to isté, čo by povedal webhook: majiteľovi na ntfy,
+    # zákazníkovi e-mailom.
+    nevybavene = []
     for objednavka in objednavky or ():
         suhrn["videne"] += 1
         ref = platby._bezpecne_id(
@@ -171,12 +176,64 @@ def rekonciluj(con, *, objednavky, now, variant_id=None, notifikuj=None) -> dict
             suhrn["uz_spracovane"] += 1
         elif akcia == platby.AKCIA_NAD_KAPACITU:
             suhrn["nad_kapacitu"] += 1
+            nevybavene.append((platby.DRUH_NAD_KAPACITU, vysledok))
         elif akcia == platby.AKCIA_IGNOROVANE:
             suhrn["ignorovane"] += 1
         elif vysledok.get("stav") == platby.STAV_DUPLICITNY:
             suhrn["duplicitne"] += 1
+            nevybavene.append((platby.DRUH_DUPLICITA, vysledok))
     _ohlas(con, suhrn, now=now, notifikuj=notifikuj)
+    for druh, vysledok in nevybavene:
+        _bez_protihodnoty(con, druh, vysledok, now=now, notifikuj=notifikuj,
+                          mailuj=mailuj)
     return suhrn
+
+
+TEXTY_BEZ_PROTIHODNOTY = {
+    platby.DRUH_NAD_KAPACITU: (platby.MAIL_PREDMET_NAD_KAPACITU,
+                               platby.SPRAVA_NAD_KAPACITU_ZAKAZNIK),
+    platby.DRUH_DUPLICITA: (platby.MAIL_PREDMET_DUPLICITA,
+                            platby.SPRAVA_DUPLICITA_ZAKAZNIK),
+}
+
+
+def _bez_protihodnoty(con, druh, vysledok, *, now, notifikuj=None, mailuj=None) -> None:
+    """Zaplatil a nič nedostal. Povie to majiteľovi aj jemu — presne raz."""
+    sprava = platby.upozornenie_raz(
+        con, druh, now=now, objednavka=vysledok.get("objednavka")
+    )
+    if sprava is None:
+        return
+    posli = naklady.posli_ntfy if notifikuj is None else notifikuj
+    try:
+        posli(sprava)
+    except Exception:
+        pass
+    predmet, text = TEXTY_BEZ_PROTIHODNOTY[druh]
+    napis = _posli_mail if mailuj is None else mailuj
+    komu = platby.email_uctu(con, vysledok.get("user_id"))
+    if not komu:
+        return
+    try:
+        napis(komu, predmet, text)
+    except Exception:
+        # E-mail je najlepšia snaha. Aj keď neodíde, správa čaká na zákazníka
+        # v appke (/api/platba/stav) a majiteľ o prípade vie z ntfy.
+        pass
+
+
+def _posli_mail(komu, predmet, text) -> None:
+    import auth_data
+
+    telo = f"Ahoj!\n\n{text}\n\nUvar.si — z letáka rovno na tanier\nhttps://uvar.si"
+    auth_data.send_resend_message(
+        api_key=env("RESEND_API_KEY"),
+        sender=env("MAIL_FROM", "Uvar.si <info@uvar.si>"),
+        recipient=komu,
+        subject=predmet,
+        text=telo,
+        html="<p>" + text.replace("\n", "<br>") + "</p>",
+    )
 
 
 def _vrat(con, objednavka, ref, *, now, suhrn) -> None:
