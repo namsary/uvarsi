@@ -116,3 +116,12 @@
 [2026-08-24 13:51:17] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call 1 failed, 577 passed, 8 skipped, 33 deselected in 111.78s (0:01:51)
 [2026-08-24 13:54:16] zmenenych suborov: 1
 [2026-08-24 13:56:17] testy OK: ........................................................................ [ 98%] ..........                                                               [100%] 578 passed, 8 skipped, 33 deselected in 114.72s (0:01:54)
+[2026-08-24 13:56:21] pushnute 1f50802 - server si to vezme do 10 minut
+[2026-08-24 13:59:17] zmenenych suborov: 1
+[2026-08-24 14:02:14] TESTY ZLYHALI - nepushujem. FAILED tests/test_auth.py::test_paused_provider_does_not_delay_async_event_loop_heartbeat FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call 3 failed, 575 passed, 8 skipped, 33 deselected in 169.71s (0:02:49)
+[2026-08-24 14:04:22] zmenenych suborov: 1
+[2026-08-24 14:07:27] TESTY ZLYHALI - nepushujem. FAILED tests/test_auth.py::test_paused_provider_does_not_delay_async_event_loop_heartbeat FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call 3 failed, 575 passed, 8 skipped, 33 deselected in 174.59s (0:02:54)
+[2026-08-24 14:09:15] zmenenych suborov: 1
+[2026-08-24 14:11:12] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write 1 failed, 577 passed, 8 skipped, 33 deselected in 108.48s (0:01:48)
+[2026-08-24 14:14:20] zmenenych suborov: 1
+[2026-08-24 14:16:58] testy OK: ........................................................................ [ 98%] ..........                                                               [100%] 578 passed, 8 skipped, 33 deselected in 138.90s (0:02:18)
