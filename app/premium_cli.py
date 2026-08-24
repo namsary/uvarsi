@@ -12,9 +12,9 @@ Použitie na serveri:
 Vždy zároveň zahodí uložený plán, aby sa vygeneroval nový podľa aktuálneho kódu.
 """
 import argparse
-import datetime
 import sqlite3
 import sys
+import time
 from contextlib import closing
 
 sys.path.insert(0, "/opt/uvarsi/app")
@@ -72,7 +72,10 @@ def main() -> int:
         if a.stav:
             return 0
 
-        teraz = datetime.datetime.now()
+        # Stĺpce ziskany_o/zmeneny_o su REAL — patri do nich epocha. `datetime`
+        # tam doteraz preslo len cez zastaraly adapter (v novsom Pythone zmizne)
+        # a ulozilo sa ako ISO text, takze v jednom stlpci boli dva typy naraz.
+        teraz = time.time()
         if a.zrus:
             platby.zrus_narok_rucne(con, user_id=uid, now=teraz)
         else:

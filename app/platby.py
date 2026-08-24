@@ -141,10 +141,34 @@ CREATE TABLE IF NOT EXISTS platobne_udalosti (
   udalost_kluc TEXT PRIMARY KEY,
   event_id TEXT,
   typ TEXT NOT NULL,
-  prijate_o REAL NOT NULL
+  prijate_o REAL NOT NULL,
+  zdroj TEXT
 );
 CREATE UNIQUE INDEX IF NOT EXISTS platobne_udalosti_event_idx
   ON platobne_udalosti(event_id) WHERE event_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS platobne_udalosti_cas_idx ON platobne_udalosti(prijate_o);
+-- Sklad tiel, ktoré sa (zatiaľ) nedali spracovať. Podpis sa NEOVERUJE pri
+-- ukladaní — na to treba tajomstvo, ktoré pri vypnutých platbách zámerne
+-- nečítame — ale overí sa pred každým spracovaním. Kľúčom je hash tela, takže
+-- opakované doručenie tej istej udalosti sklad nezaplní.
+CREATE TABLE IF NOT EXISTS platobne_odlozene (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  telo_hash TEXT NOT NULL UNIQUE,
+  telo BLOB NOT NULL,
+  podpis TEXT,
+  dovod TEXT NOT NULL,
+  prijate_o REAL NOT NULL,
+  spracovane_o REAL,
+  vysledok TEXT
+);
+CREATE INDEX IF NOT EXISTS platobne_odlozene_cakajuce_idx
+  ON platobne_odlozene(spracovane_o, id);
+-- „Práve raz“ pre upozornenia majiteľovi. Primárny kľúč je celá záruka:
+-- druhý pokus o ten istý kľúč sa ticho zahodí a notifikácia už neodíde.
+CREATE TABLE IF NOT EXISTS platobne_upozornenia (
+  kluc TEXT PRIMARY KEY,
+  poslane_o REAL NOT NULL
+);
 """
 
 
@@ -159,6 +183,63 @@ class UdalostNepouzitelna(RuntimeError):
 def migrate_platby_schema(con) -> None:
     """Aditívne vytvorí platobné tabuľky; na existujúcej databáze nič neprepíše."""
     con.executescript(PLATBY_SCHEMA)
+    _doplni_stlpec(con, "platobne_udalosti", "zdroj", "TEXT")
+    _zjednot_casy(con)
+
+
+def _doplni_stlpec(con, tabulka, stlpec, typ) -> None:
+    existujuce = {row[1] for row in con.execute(f"PRAGMA table_info({tabulka})")}
+    if stlpec not in existujuce:
+        con.execute(f"ALTER TABLE {tabulka} ADD COLUMN {stlpec} {typ}")
+
+
+# Historická diera: premium_cli.py posielal do REAL stĺpca `datetime`, ktoré
+# SQLite prijalo len cez zastaraný adaptér (v novšom Pythone zmizne) a uložilo
+# ako ISO text. V jednom stĺpci tak boli float aj text a `ORDER BY ziskany_o`
+# ich radil vedľa seba nezmyselne. Prepis je jednorazový a bezpečný: prepisuje
+# sa len to, čo SQLite vie prečítať ako čas.
+_TEXTOVE_CASY = (
+    ("naroky", "ziskany_o"),
+    ("naroky", "zmeneny_o"),
+    ("platobne_udalosti", "prijate_o"),
+)
+
+
+def _zjednot_casy(con) -> None:
+    for tabulka, stlpec in _TEXTOVE_CASY:
+        con.execute(
+            f"""UPDATE {tabulka}
+                   SET {stlpec} = CAST(strftime('%s', {stlpec}) AS REAL)
+                 WHERE typeof({stlpec}) = 'text'
+                   AND strftime('%s', {stlpec}) IS NOT NULL"""
+        )
+
+
+def _cas(hodnota) -> float:
+    """Jeden typ času pre celý modul: sekundy od epochy ako float.
+
+    Volajúci smie poslať epochu aj `datetime` — do databázy ide vždy číslo.
+    """
+    if isinstance(hodnota, bool):
+        raise ValueError("neplatný čas")
+    if isinstance(hodnota, (int, float)):
+        return float(hodnota)
+    if isinstance(hodnota, datetime.datetime):
+        return hodnota.timestamp()
+    if isinstance(hodnota, datetime.date):
+        return datetime.datetime(hodnota.year, hodnota.month, hodnota.day).timestamp()
+    if isinstance(hodnota, str):
+        try:
+            return datetime.datetime.fromisoformat(hodnota.strip()).timestamp()
+        except ValueError:
+            raise ValueError("neplatný čas")
+    raise ValueError("neplatný čas")
+
+
+def _den(cas: float) -> str:
+    return datetime.datetime.fromtimestamp(
+        cas, datetime.timezone.utc
+    ).date().isoformat()
 
 
 # ---------------------------------------------------------------- vypínač
@@ -230,10 +311,28 @@ def ma_narok(con, user_id: int) -> bool:
     return riadok is not None
 
 
+def platba_bez_protihodnoty(con, user_id: int):
+    """Zaplatil, ale nárok z toho nie je. Vráti stav takého riadku, alebo None.
+
+    Presne toto je situácia, o ktorej sa zákazník MUSÍ dozvedieť: peniaze odišli
+    a služba za ne nie je. Riadok existuje práve preto, aby sa dala dohľadať a
+    vrátiť — a aby appka vedela povedať pravdu namiesto mlčania.
+    """
+    riadok = con.execute(
+        """SELECT stav FROM naroky
+           WHERE user_id=? AND produkt=? AND poskytovatel<>? AND stav IN (?, ?)
+           ORDER BY id DESC LIMIT 1""",
+        (user_id, PRODUKT_ZAKLADAJUCI, POSKYTOVATEL_RUCNE,
+         STAV_NAD_KAPACITU, STAV_DUPLICITNY),
+    ).fetchone()
+    return riadok[0] if riadok else None
+
+
 def stav_platieb(con, *, user_id: int, zapnute: bool) -> dict:
     obsadene = pocet_zakladajucich(con)
     volne = max(0, KAPACITA_ZAKLADAJUCICH - obsadene)
     narok = ma_narok(con, user_id)
+    bez_protihodnoty = platba_bez_protihodnoty(con, user_id)
     if not zapnute:
         sprava = SPRAVA_VYPNUTE
     elif narok:
@@ -242,6 +341,14 @@ def stav_platieb(con, *, user_id: int, zapnute: bool) -> dict:
         sprava = SPRAVA_VYPREDANE
     else:
         sprava = f"Zostáva {volne} z {KAPACITA_ZAKLADAJUCICH} zakladajúcich miest."
+    # Kto zaplatil a nič nedostal, nesmie na obrazovke vidieť „vypredané“ ako
+    # ktokoľvek iný. Jeho situácia je iná a text to musí povedať priamo.
+    upozornenie = None
+    if bez_protihodnoty == STAV_NAD_KAPACITU and not narok:
+        upozornenie = SPRAVA_NAD_KAPACITU_ZAKAZNIK
+        sprava = SPRAVA_NAD_KAPACITU_ZAKAZNIK
+    elif bez_protihodnoty == STAV_DUPLICITNY:
+        upozornenie = SPRAVA_DUPLICITA_ZAKAZNIK
     return {
         "platby_zapnute": zapnute,
         "ma_narok": narok,
@@ -250,6 +357,8 @@ def stav_platieb(con, *, user_id: int, zapnute: bool) -> dict:
         "obsadene": obsadene,
         "volne_miesta": volne,
         "sprava": sprava,
+        "platba_bez_miesta": bez_protihodnoty == STAV_NAD_KAPACITU and not narok,
+        "upozornenie": upozornenie,
     }
 
 
@@ -357,14 +466,26 @@ def _variant(payload):
 
 
 # ---------------------------------------------------------------- spracovanie
-def spracuj_udalost(con, *, payload, now, variant_id=None) -> dict:
+def spracuj_udalost(con, *, payload, now, variant_id=None, zdroj=ZDROJ_WEBHOOK) -> dict:
     """Jedna udalosť = jedna transakcia. Idempotentné a bezpečné voči pretekom.
 
     Celý beh je v BEGIN IMMEDIATE, takže dve súbežné doručenia sa serializujú a
     kontrola kapacity vidí vždy skutočný počet udelených miest.
+
+    Idempotencia stojí na `udalost_kluc()`, a ten sa pre udeľujúcu udalosť
+    skladá z typu a **id objednávky** — nie z id doručenia. Tá istá objednávka
+    má preto ten istý kľúč, nech príde webhookom, opakovaným webhookom alebo
+    rekonciliáciou z API. Druhý pokus skončí na `_uz_spracovane` a keby aj
+    neskončil (napr. po upratovaní starých kľúčov), `_udel` narazí na UNIQUE
+    (poskytovatel, objednavka_id). Dve poistky, nie jedna.
+
+    Vracia okrem akcie aj to, čoho sa týkala — volajúci z toho skladá
+    upozornenie majiteľovi a správu zákazníkovi. Von z appky sa z tohto slovníka
+    posiela len `akcia`.
     """
     if not isinstance(payload, dict):
         raise UdalostNepouzitelna("telo nie je objekt")
+    now = _cas(now)
     typ = typ_udalosti(payload)
     kluc = udalost_kluc(payload)
     surove = surove_id_udalosti(payload)
@@ -375,20 +496,29 @@ def spracuj_udalost(con, *, payload, now, variant_id=None) -> dict:
     try:
         if _uz_spracovane(con, kluc, surove):
             con.commit()
-            return {"akcia": AKCIA_UZ_SPRACOVANE}
+            return {"akcia": AKCIA_UZ_SPRACOVANE, "typ": typ,
+                    "objednavka": objednavka_ref(payload), "user_id": None,
+                    "stav": None, "zdroj": zdroj}
         con.execute(
-            """INSERT INTO platobne_udalosti (udalost_kluc, event_id, typ, prijate_o)
-               VALUES (?, ?, ?, ?)""",
-            (kluc, surove, typ, now),
+            """INSERT INTO platobne_udalosti (udalost_kluc, event_id, typ, prijate_o, zdroj)
+               VALUES (?, ?, ?, ?, ?)""",
+            (kluc, surove, typ, now, zdroj),
         )
         if typ == UDALOST_UDELUJUCA:
-            akcia = _udel(con, payload, now, variant_id)
+            vysledok = _udel(con, payload, now, variant_id)
         elif typ in UDALOSTI_ODOBERAJUCE:
-            akcia = _odober(con, payload, now, typ)
+            vysledok = _odober(con, payload, now, typ)
         else:
-            akcia = AKCIA_IGNOROVANE
+            vysledok = {"akcia": AKCIA_IGNOROVANE}
         con.commit()
-        return {"akcia": akcia}
+        return {
+            "akcia": vysledok["akcia"],
+            "typ": typ,
+            "objednavka": vysledok.get("objednavka", objednavka_ref(payload)),
+            "user_id": vysledok.get("user_id"),
+            "stav": vysledok.get("stav"),
+            "zdroj": zdroj,
+        }
     except Exception:
         if con.in_transaction:
             con.rollback()
@@ -408,11 +538,11 @@ def _uz_spracovane(con, kluc, surove) -> bool:
 
 
 def _udel(con, payload, now, ocakavany_variant):
+    objednavka = objednavka_ref(payload)
     if ocakavany_variant:
         if _variant(payload) != _bezpecne_id(ocakavany_variant):
-            return AKCIA_IGNOROVANE
+            return {"akcia": AKCIA_IGNOROVANE, "objednavka": objednavka}
 
-    objednavka = objednavka_ref(payload)
     if not objednavka:
         raise UdalostNepouzitelna("chýba id objednávky")
     user_id = custom_user_id(payload)
@@ -425,11 +555,25 @@ def _udel(con, payload, now, ocakavany_variant):
         "SELECT 1 FROM naroky WHERE poskytovatel=? AND objednavka_id=?",
         (POSKYTOVATEL, objednavka),
     ).fetchone():
-        return AKCIA_UZ_UDELENE
-    if ma_narok(con, user_id):
-        return AKCIA_UZ_UDELENE
+        # Tá istá objednávka už riadok má — nič nového sa nestalo.
+        return {"akcia": AKCIA_UZ_UDELENE, "objednavka": objednavka, "user_id": user_id}
 
     suma, mena = _suma(payload)
+    if ma_narok(con, user_id):
+        # Ten istý človek zaplatil druhýkrát. Doteraz sa nezapísalo nič, takže
+        # peniaze navyše v účtovníctve neexistovali a nemal ich kto vrátiť.
+        # Riadok je celá oprava: druhý aktívny nárok by aj tak neprešiel cez
+        # UNIQUE index, ale platba musí byť vidieť.
+        con.execute(
+            """INSERT INTO naroky (user_id, produkt, poskytovatel, objednavka_id,
+                                   suma_centy, mena, stav, ziskany_o, zmeneny_o)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, PRODUKT_ZAKLADAJUCI, POSKYTOVATEL, objednavka, suma, mena,
+             STAV_DUPLICITNY, now, now),
+        )
+        return {"akcia": AKCIA_UZ_UDELENE, "objednavka": objednavka,
+                "user_id": user_id, "stav": STAV_DUPLICITNY}
+
     vypredane = pocet_zakladajucich(con) >= KAPACITA_ZAKLADAJUCICH
     stav = STAV_NAD_KAPACITU if vypredane else STAV_AKTIVNY
     con.execute(
@@ -440,9 +584,11 @@ def _udel(con, payload, now, ocakavany_variant):
     )
     if vypredane:
         # Peniaze prišli, miesto už nie je. Záznam ostáva dohľadateľný na vrátenie.
-        return AKCIA_NAD_KAPACITU
+        return {"akcia": AKCIA_NAD_KAPACITU, "objednavka": objednavka,
+                "user_id": user_id, "stav": STAV_NAD_KAPACITU}
     con.execute("UPDATE pouzivatelia SET platiaci=1 WHERE id=?", (user_id,))
-    return AKCIA_UDELENE
+    return {"akcia": AKCIA_UDELENE, "objednavka": objednavka, "user_id": user_id,
+            "stav": STAV_AKTIVNY}
 
 
 # ---------------------------------------------------------------- ručný nárok
@@ -453,6 +599,7 @@ def _udel(con, payload, now, ocakavany_variant):
 def udel_narok_rucne(con, *, user_id, now) -> dict:
     """Udelí nárok bez platby. Volá sa ručne, nikdy nie z požiadavky."""
     _over_id_pouzivatela(user_id)
+    now = _cas(now)
     if con.in_transaction:
         con.commit()
     con.execute("BEGIN IMMEDIATE")
@@ -489,6 +636,7 @@ def zrus_narok_rucne(con, *, user_id, now) -> dict:
     človeku, ktorý zaň poslal peniaze; na to slúži vrátenie cez poskytovateľa.
     """
     _over_id_pouzivatela(user_id)
+    now = _cas(now)
     if con.in_transaction:
         con.commit()
     con.execute("BEGIN IMMEDIATE")
@@ -542,13 +690,18 @@ def _odober(con, payload, now, typ):
     if riadok is None:
         user_id = custom_user_id(payload)
         if user_id is not None:
+            # Záložné dohľadanie podľa účtu MUSÍ byť obmedzené na poskytovateľa.
+            # Bez toho by vrátenie jednej objednávky zobralo nárok, ktorý udelil
+            # majiteľ ručne (poskytovateľ "rucne") — teda niečo, čo s tou
+            # platbou nemá nič spoločné.
             riadok = con.execute(
                 """SELECT id, user_id FROM naroky
-                   WHERE user_id=? AND produkt=? AND stav=? ORDER BY id DESC""",
-                (user_id, PRODUKT_ZAKLADAJUCI, STAV_AKTIVNY),
+                   WHERE user_id=? AND produkt=? AND poskytovatel=? AND stav=?
+                   ORDER BY id DESC""",
+                (user_id, PRODUKT_ZAKLADAJUCI, POSKYTOVATEL, STAV_AKTIVNY),
             ).fetchone()
     if riadok is None:
-        return AKCIA_IGNOROVANE
+        return {"akcia": AKCIA_IGNOROVANE, "objednavka": objednavka}
 
     narok_id, user_id = riadok[0], riadok[1]
     con.execute(
@@ -556,4 +709,381 @@ def _odober(con, payload, now, typ):
     )
     if not ma_narok(con, user_id):
         con.execute("UPDATE pouzivatelia SET platiaci=0 WHERE id=?", (user_id,))
-    return akcia
+    return {"akcia": akcia, "objednavka": objednavka, "user_id": user_id,
+            "stav": novy_stav}
+
+
+# ---------------------------------------------------------------- sklad tiel
+# Vypnutý (alebo len zle nastavený) vypínač nesmie znamenať stratené peniaze.
+# Poskytovateľ pri 503 doručenie pár ráz zopakuje a potom ho ZAHODÍ — zákazník
+# zaplatil, appka sa to nikdy nedozvie a majiteľ sa o tom dozvie z reklamácie.
+# Telo sa preto uloží tak, ako prišlo, aj s podpisom. Podpis sa overí až pri
+# spracovaní, takže sa neoslabuje nič: z odloženého tela nemôže vzniknúť nárok
+# skôr, než HMAC sadne.
+def hodnoverny_podpis(podpis) -> bool:
+    """Vyzerá to ako hlavička od poskytovateľa? (nie overenie, len filter smetí)"""
+    if not isinstance(podpis, str):
+        return False
+    podpis = podpis.strip()
+    return 32 <= len(podpis) <= _MAX_PODPIS and set(podpis) <= _HEX
+
+
+def odloz_webhook(con, *, telo, podpis, now, dovod="platby_vypnute") -> dict:
+    """Ulož surové telo na neskôr. Vracia, či pribudlo niečo nové.
+
+    Kľúčom je hash tela: opakované doručenie tej istej udalosti sklad nezaplní.
+    Strop `MAX_ODLOZENYCH` je tam preto, že telo sa ukladá NEOVERENÉ — nikto
+    nesmie appke zaplniť disk tým, že jej pošle smeti.
+    """
+    telo = bytes(telo)
+    now = _cas(now)
+    if not telo or len(telo) > MAX_TELO_ODLOZENE:
+        return {"ulozene": False, "nove": False, "dovod": "velke_telo"}
+    cakajucich = con.execute(
+        "SELECT COUNT(*) FROM platobne_odlozene WHERE spracovane_o IS NULL"
+    ).fetchone()[0]
+    if cakajucich >= MAX_ODLOZENYCH:
+        return {"ulozene": False, "nove": False, "dovod": "plno",
+                "cakajucich": cakajucich}
+    kurzor = con.execute(
+        """INSERT OR IGNORE INTO platobne_odlozene
+               (telo_hash, telo, podpis, dovod, prijate_o)
+           VALUES (?, ?, ?, ?, ?)""",
+        (hashlib.sha256(telo).hexdigest(), telo,
+         podpis if isinstance(podpis, str) else None, str(dovod), now),
+    )
+    con.commit()
+    return {"ulozene": True, "nove": kurzor.rowcount == 1, "dovod": str(dovod),
+            "cakajucich": cakajucich + (1 if kurzor.rowcount == 1 else 0)}
+
+
+def pocet_cakajucich(con) -> int:
+    return int(con.execute(
+        "SELECT COUNT(*) FROM platobne_odlozene WHERE spracovane_o IS NULL"
+    ).fetchone()[0])
+
+
+def stav_dozoru(con) -> dict:
+    """Čísla pre /api/health: čo visí a čaká na zásah. Žiadne osobné údaje.
+
+    `nevybavene` je počet platieb, za ktoré zákazník nič nedostal a peniaze mu
+    ešte neboli vrátené. Kým to číslo nie je nula, niekomu dlhujeme peniaze —
+    a majiteľ to musí vidieť bez SSH.
+    """
+    nevybavene = con.execute(
+        "SELECT COUNT(*) FROM naroky WHERE stav IN (?, ?)",
+        (STAV_NAD_KAPACITU, STAV_DUPLICITNY),
+    ).fetchone()[0]
+    return {
+        "obsadene": pocet_zakladajucich(con),
+        "kapacita": KAPACITA_ZAKLADAJUCICH,
+        "cakajucich_tiel": pocet_cakajucich(con),
+        "nevybavene_vratky": int(nevybavene),
+    }
+
+
+def spracuj_odlozene(con, *, tajomstvo, now, variant_id=None, limit=MAX_ODLOZENYCH) -> dict:
+    """Dobehni telá, ktoré čakali. Každé prejde overením podpisu, ako by prišlo teraz.
+
+    Beží mimo requestu (rekonciliačný skript), takže tu už tajomstvo k dispozícii
+    je. Telo s podpisom, ktorý nesedí, sa neudelí a označí sa — je to buď smeť
+    z internetu, alebo majiteľ nastavil iné tajomstvo, než akým poskytovateľ
+    podpisuje.
+    """
+    now = _cas(now)
+    suhrn = {"spracovane": 0, "udelene": 0, "neplatny_podpis": 0,
+             "nepouzitelne": 0, "pokazene": 0, "akcie": {}, "udalosti": []}
+    riadky = con.execute(
+        """SELECT id, telo, podpis FROM platobne_odlozene
+           WHERE spracovane_o IS NULL ORDER BY id LIMIT ?""",
+        (int(limit),),
+    ).fetchall()
+    for riadok in riadky:
+        telo = bytes(riadok[1])
+        vysledok = None
+        if not overit_podpis(tajomstvo=tajomstvo, telo=telo, podpis=riadok[2]):
+            vysledok = "neplatny_podpis"
+            suhrn["neplatny_podpis"] += 1
+        else:
+            try:
+                payload = json.loads(telo)
+            except (ValueError, UnicodeDecodeError):
+                vysledok = "pokazene_telo"
+                suhrn["pokazene"] += 1
+            else:
+                try:
+                    udalost = spracuj_udalost(
+                        con, payload=payload, now=now, variant_id=variant_id,
+                        zdroj=ZDROJ_ODLOZENE,
+                    )
+                except UdalostNepouzitelna:
+                    vysledok = "nepouzitelna"
+                    suhrn["nepouzitelne"] += 1
+                else:
+                    vysledok = udalost["akcia"]
+                    suhrn["akcie"][vysledok] = suhrn["akcie"].get(vysledok, 0) + 1
+                    suhrn["udalosti"].append(udalost)
+                    if vysledok == AKCIA_UDELENE:
+                        suhrn["udelene"] += 1
+        con.execute(
+            "UPDATE platobne_odlozene SET spracovane_o=?, vysledok=? WHERE id=?",
+            (now, vysledok, riadok[0]),
+        )
+        con.commit()
+        suhrn["spracovane"] += 1
+    return suhrn
+
+
+# ---------------------------------------------------------------- upratovanie
+def uprac_udalosti(con, *, now, ponechaj_dni=UDALOSTI_PONECHAJ_DNI) -> int:
+    """Zmaže staré kľúče udalostí a vybavené odložené telá. Nárokov sa nedotkne.
+
+    `platobne_udalosti` inak rastie navždy. Mazať sa smie preto, že idempotencia
+    nestojí len na tejto tabuľke: `_udel` narazí na UNIQUE (poskytovatel,
+    objednavka_id) aj vtedy, keď kľúč udalosti už neexistuje.
+    """
+    hranica = _cas(now) - max(1, int(ponechaj_dni)) * 24 * 3600
+    zmazane = con.execute(
+        "DELETE FROM platobne_udalosti WHERE prijate_o < ?", (hranica,)
+    ).rowcount
+    con.execute(
+        "DELETE FROM platobne_odlozene WHERE spracovane_o IS NOT NULL AND spracovane_o < ?",
+        (hranica,),
+    )
+    con.execute("DELETE FROM platobne_upozornenia WHERE poslane_o < ?", (hranica,))
+    con.commit()
+    return int(zmazane or 0)
+
+
+# ---------------------------------------------------------------- upozornenia
+# Modul text len POSKLADÁ; odosiela ho volajúci (naklady.posli_ntfy). Ntfy topic
+# je natvrdo v repozitári, teda verejne čitateľný — do týchto správ preto nesmie
+# prísť e-mail, token, ani úryvok logu. Číslo objednávky áno: bez neho majiteľ
+# nevie, čo má vrátiť, a samo o sebe o nikom nič neprezradí.
+DRUH_NAD_KAPACITU = "nad_kapacitu"
+DRUH_DUPLICITA = "duplicita"
+DRUH_IGNOROVANE = "ignorovane"
+DRUH_NEPOUZITELNA = "nepouzitelna"
+DRUH_ODLOZENE = "odlozene"
+DRUH_REKONCILIACIA = "rekonciliacia"
+DRUH_BEZ_UCTU = "bez_uctu"
+DRUHY_UPOZORNENI = (
+    DRUH_NAD_KAPACITU, DRUH_DUPLICITA, DRUH_IGNOROVANE, DRUH_NEPOUZITELNA,
+    DRUH_ODLOZENE, DRUH_REKONCILIACIA, DRUH_BEZ_UCTU,
+)
+
+
+def _cislo(hodnota) -> str:
+    return str(_bezpecne_id(hodnota) or "?")
+
+
+def _pocet(hodnota) -> int:
+    try:
+        return max(0, int(hodnota))
+    except (TypeError, ValueError):
+        return 0
+
+
+def priprav_upozornenie(druh, *, den=None, objednavka=None, typ=None, pocet=None) -> dict:
+    """Zloží titul, text a kľúč „práve raz“. Žiadne osobné údaje, žiadny log."""
+    objednavka = _cislo(objednavka)
+    typ = _cislo(typ)
+    pocet = _pocet(pocet)
+    den = den if isinstance(den, str) and den else "?"
+    if druh == DRUH_NAD_KAPACITU:
+        return {
+            "kluc": f"{DRUH_NAD_KAPACITU}:{objednavka}",
+            "titul": "Uvar.si: platba nad kapacitu — treba vrátiť peniaze",
+            "sprava": (
+                f"Objednávka {objednavka}: zákazník zaplatil, ale všetkých "
+                f"{KAPACITA_ZAKLADAJUCICH} zakladajúcich miest je obsadených, "
+                "takže členstvo nedostal. V appke aj e-mailom sme mu napísali, "
+                "že sumu vrátime. Vráť platbu v LemonSqueezy (Orders → Refund). "
+                "Riadok je v tabuľke naroky so stavom 'nad_kapacitu'."
+            ),
+        }
+    if druh == DRUH_DUPLICITA:
+        return {
+            "kluc": f"{DRUH_DUPLICITA}:{objednavka}",
+            "titul": "Uvar.si: druhá platba toho istého účtu",
+            "sprava": (
+                f"Objednávka {objednavka}: účet zakladajúce členstvo už mal, "
+                "takže druhá platba je navyše. Zákazníkovi sme napísali, že mu "
+                "ju vrátime. Vráť ju v LemonSqueezy (Orders → Refund); riadok "
+                "je v tabuľke naroky so stavom 'duplicitny'."
+            ),
+        }
+    if druh == DRUH_IGNOROVANE:
+        return {
+            "kluc": f"{DRUH_IGNOROVANE}:{typ}:{den}",
+            "titul": "Uvar.si: platobná udalosť sa nespracovala",
+            "sprava": (
+                f"Udalosť typu '{typ}' prišla, ale appka s ňou nič neurobila "
+                "(neznámy typ alebo cudzí variant). Ak to bola objednávka "
+                "zakladajúceho členstva, sedí LEMON_VARIANT_ID? Podrobnosti sú "
+                "v tabuľke platobne_udalosti. Ďalšie udalosti toho istého typu "
+                "dnes už neohlásim."
+            ),
+        }
+    if druh == DRUH_NEPOUZITELNA:
+        return {
+            "kluc": f"{DRUH_NEPOUZITELNA}:{den}",
+            "titul": "Uvar.si: podpísaná platba sa nedá priradiť k účtu",
+            "sprava": (
+                "Prišla platba s platným podpisom, ktorú appka nevie priradiť "
+                "k žiadnemu účtu (chýbajúce custom_data alebo neznáme id). "
+                "Peniaze teda prišli a nikto za ne nič nedostal. Telo je "
+                "uložené v tabuľke platobne_odlozene — pozri sa naň a nárok "
+                "priraď ručne cez premium_cli.py, alebo platbu vráť."
+            ),
+        }
+    if druh == DRUH_ODLOZENE:
+        return {
+            "kluc": f"{DRUH_ODLOZENE}:{den}",
+            "titul": "Uvar.si: platba prišla s vypnutými platbami",
+            "sprava": (
+                f"Odložených tiel čaká na spracovanie: {pocet}. Poskytovateľ "
+                "posiela udalosti, ale PLATBY_ZAPNUTE je vypnuté, takže sa nič "
+                "neudeľuje. Nič sa nestratilo — po zapnutí to rekonciliácia "
+                "dobehne. Skontroluj PLATBY_ZAPNUTE v /opt/uvarsi/uvarsi.env."
+            ),
+        }
+    if druh == DRUH_BEZ_UCTU:
+        return {
+            "kluc": f"{DRUH_BEZ_UCTU}:{den}",
+            "titul": "Uvar.si: zaplatené objednávky bez účtu",
+            "sprava": (
+                f"Rekonciliácia našla {pocet} zaplatených objednávok, ktoré sa "
+                "nedajú priradiť k žiadnemu účtu (iná e-mailová adresa pri "
+                "platbe než pri prihlásení). Nájdi ich v LemonSqueezy a nárok "
+                "prideľ ručne: premium_cli.py <email>."
+            ),
+        }
+    if druh == DRUH_REKONCILIACIA:
+        return {
+            "kluc": f"{DRUH_REKONCILIACIA}:{den}:{pocet}",
+            "titul": "Uvar.si: rekonciliácia dobehla chýbajúce platby",
+            "sprava": (
+                f"Doplnených nárokov: {pocet}. Toľkokrát platba prišla, ale "
+                "webhook nie — appka by sa o nej sama nedozvedela. Ak sa to "
+                "opakuje, skontroluj v LemonSqueezy nastavenie webhooku "
+                "(adresa https://uvar.si/api/platba/webhook a jeho históriu)."
+            ),
+        }
+    raise ValueError("neznámy druh upozornenia")
+
+
+def zaznamenaj_upozornenie(con, *, kluc, now) -> bool:
+    """True práve raz pre daný kľúč. Druhý pokus je ticho — bez lavíny správ."""
+    kurzor = con.execute(
+        "INSERT OR IGNORE INTO platobne_upozornenia (kluc, poslane_o) VALUES (?, ?)",
+        (str(kluc), _cas(now)),
+    )
+    con.commit()
+    return kurzor.rowcount == 1
+
+
+def upozornenie_raz(con, druh, *, now, **kw):
+    """Poskladá upozornenie a vráti ho len vtedy, keď ešte neodišlo. Inak None."""
+    sprava = priprav_upozornenie(druh, den=_den(_cas(now)), **kw)
+    if not zaznamenaj_upozornenie(con, kluc=sprava["kluc"], now=now):
+        return None
+    return sprava
+
+
+# ------------------------------------------------------- objednávka z API
+# Rekonciliácia nesmie mať vlastnú cestu k udeleniu nároku — mala by vlastné
+# chyby a vlastné diery. Objednávku z API preto len prepíšeme do tvaru, v akom
+# chodí webhook, a pošleme ju tou istou `spracuj_udalost`.
+def _atributy_objednavky(objednavka):
+    atributy = objednavka.get("attributes") if isinstance(objednavka, dict) else None
+    return atributy if isinstance(atributy, dict) else {}
+
+
+def email_z_objednavky(objednavka):
+    email = _atributy_objednavky(objednavka).get("user_email")
+    if not isinstance(email, str):
+        return None
+    email = email.strip().lower()
+    return email if 3 <= len(email) <= 254 and "@" in email else None
+
+
+def user_id_z_objednavky(objednavka):
+    """Id účtu z custom data, ak ho poskytovateľ v API vôbec vráti."""
+    atributy = _atributy_objednavky(objednavka)
+    kandidati = [atributy.get("custom_data")]
+    polozka = atributy.get("first_order_item")
+    if isinstance(polozka, dict):
+        kandidati.append(polozka.get("custom_data"))
+    for custom in kandidati:
+        if isinstance(custom, dict):
+            user_id = custom_user_id({"meta": {"custom_data": custom}})
+            if user_id is not None:
+                return user_id
+    return None
+
+
+def stav_objednavky(objednavka) -> str:
+    atributy = _atributy_objednavky(objednavka)
+    if atributy.get("refunded") is True:
+        return "refunded"
+    stav = atributy.get("status")
+    return stav.strip().lower() if isinstance(stav, str) else ""
+
+
+def payload_z_objednavky(objednavka, *, user_id=None, typ=UDALOST_UDELUJUCA):
+    """Objednávka z API → presne ten tvar, v akom chodí webhook. Alebo None.
+
+    Prepisujú sa len polia, ktoré appka naozaj číta. Čokoľvek iné, čo API vráti
+    alebo v budúcnosti pridá, sa do spracovania nedostane.
+    """
+    if not isinstance(objednavka, dict):
+        return None
+    ref = _bezpecne_id(objednavka.get("id"))
+    if not ref:
+        return None
+    atributy = _atributy_objednavky(objednavka)
+    polozka = atributy.get("first_order_item")
+    prepis = {
+        "total": atributy.get("total"),
+        "currency": atributy.get("currency"),
+        "status": atributy.get("status"),
+    }
+    if isinstance(polozka, dict) and polozka.get("variant_id") is not None:
+        prepis["first_order_item"] = {"variant_id": polozka.get("variant_id")}
+    meta = {"event_name": typ}
+    if user_id is not None:
+        meta["custom_data"] = {"user_id": str(int(user_id)),
+                               "produkt": PRODUKT_ZAKLADAJUCI}
+    return {"meta": meta,
+            "data": {"id": ref, "type": "orders", "attributes": prepis}}
+
+
+def narok_objednavky(con, objednavka_id):
+    """Riadok nároku pre danú objednávku poskytovateľa, ak nejaký je."""
+    ref = _bezpecne_id(objednavka_id)
+    if not ref:
+        return None
+    riadok = con.execute(
+        "SELECT id, user_id, stav FROM naroky WHERE poskytovatel=? AND objednavka_id=?",
+        (POSKYTOVATEL, ref),
+    ).fetchone()
+    return dict(zip(("id", "user_id", "stav"), riadok)) if riadok else None
+
+
+def ucet_podla_emailu(con, email):
+    """Práve jeden účet, alebo nič. Dva zhodné e-maily radšej neriešime hádaním."""
+    if not isinstance(email, str) or "@" not in email:
+        return None
+    riadky = con.execute(
+        "SELECT id FROM pouzivatelia WHERE lower(email)=lower(?) LIMIT 2",
+        (email.strip(),),
+    ).fetchall()
+    return int(riadky[0][0]) if len(riadky) == 1 else None
+
+
+def email_uctu(con, user_id):
+    riadok = con.execute(
+        "SELECT email FROM pouzivatelia WHERE id=?", (user_id,)
+    ).fetchone()
+    return riadok[0] if riadok else None

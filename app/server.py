@@ -34,8 +34,20 @@ from plan_data import (
     plan_without_pantry,
 )
 from platby import (
+    AKCIA_IGNOROVANE,
+    AKCIA_NAD_KAPACITU,
+    AKCIA_ODLOZENE,
+    DRUH_DUPLICITA,
+    DRUH_IGNOROVANE,
+    DRUH_NAD_KAPACITU,
+    DRUH_NEPOUZITELNA,
+    DRUH_ODLOZENE,
+    MAIL_PREDMET_DUPLICITA,
+    MAIL_PREDMET_NAD_KAPACITU,
     MAX_TELO_WEBHOOKU,
     PlatbyNenastavene,
+    SPRAVA_DUPLICITA_ZAKAZNIK,
+    SPRAVA_NAD_KAPACITU_ZAKAZNIK,
     SPRAVA_NEPLATNY_PODPIS,
     SPRAVA_VELKE_TELO,
     SPRAVA_NENASTAVENE,
@@ -44,14 +56,20 @@ from platby import (
     SPRAVA_UZ_MAS,
     SPRAVA_VYPNUTE,
     SPRAVA_VYPREDANE,
+    STAV_DUPLICITNY,
     UdalostNepouzitelna,
     checkout_url,
+    email_uctu,
+    hodnoverny_podpis,
     ma_narok,
     migrate_platby_schema,
+    odloz_webhook,
     overit_podpis,
     platby_zapnute,
+    pocet_cakajucich,
     spracuj_udalost,
     stav_platieb,
+    upozornenie_raz,
     volne_miesta,
 )
 from auth_data import (
@@ -1270,31 +1288,139 @@ def platba_start(req: Request):
     return {"ok": True, "url": url, "volne_miesta": volne}
 
 
+# Upozornenia majiteľovi idú tým istým ntfy kanálom, ktorý už sleduje (naklady.py
+# a dozorca.sh). Text skladá platby.py a zámerne v ňom nie je e-mail, token ani
+# úryvok logu: kanál je natvrdo v repozitári, teda verejne čitateľný.
+def posli_upozornenie_majitelovi(sprava: dict) -> None:
+    """Najlepšia snaha — upozornenie nikdy nesmie zhodiť spracovanie platby."""
+    try:
+        naklady.posli_ntfy(sprava)
+    except Exception:
+        pass
+
+
+def _ohlas_majitelovi(con, druh, *, now, **kw) -> None:
+    try:
+        sprava = upozornenie_raz(con, druh, now=now, **kw)
+    except (sqlite3.Error, OSError, ValueError):
+        return
+    if sprava is not None:
+        posli_upozornenie_majitelovi(sprava)
+
+
+def _napis_zakaznikovi(con, user_id, predmet: str, text: str) -> None:
+    """Zákazník, ktorý zaplatil a nič nedostal, sa to musí dozvedieť od nás.
+
+    Mlčať a peniaze si nechať nie je možnosť ani ľudsky, ani podľa európskych
+    pravidiel. E-mail je najlepšia snaha: keď mailer nefunguje, správa ostáva
+    v appke (`/api/platba/stav`) a majiteľ o prípade aj tak vie z ntfy.
+    """
+    if user_id is None:
+        return
+    try:
+        komu = email_uctu(con, user_id)
+    except (sqlite3.Error, OSError):
+        return
+    if not komu:
+        return
+    telo = f"Ahoj!\n\n{text}\n\nUvar.si — z letáka rovno na tanier\nhttps://uvar.si"
+    html = (
+        '<!DOCTYPE html><html lang="sk"><body style="margin:0;padding:28px;'
+        'background:#FFFCF5;font-family:-apple-system,Segoe UI,Roboto,sans-serif;'
+        'color:#14231C"><div style="max-width:460px;margin:0 auto;background:#fff;'
+        'border:2px solid #14231C;padding:30px"><p>Ahoj!</p><p>'
+        + text.replace("\n", "<br>")
+        + '</p><p style="margin-top:24px">Uvar.si — z letáka rovno na tanier</p>'
+        "</div></body></html>"
+    )
+    try:
+        posli_mail(komu, predmet, telo, html)
+    except Exception:
+        pass
+
+
+def _doriesit_udalost(con, vysledok: dict, now: float) -> None:
+    """Čo sa musí stať navyše: upozorniť majiteľa a povedať pravdu zákazníkovi."""
+    akcia = vysledok.get("akcia")
+    objednavka = vysledok.get("objednavka")
+    if akcia == AKCIA_NAD_KAPACITU:
+        _ohlas_majitelovi(con, DRUH_NAD_KAPACITU, now=now, objednavka=objednavka)
+        _napis_zakaznikovi(con, vysledok.get("user_id"), MAIL_PREDMET_NAD_KAPACITU,
+                           SPRAVA_NAD_KAPACITU_ZAKAZNIK)
+    elif vysledok.get("stav") == STAV_DUPLICITNY:
+        _ohlas_majitelovi(con, DRUH_DUPLICITA, now=now, objednavka=objednavka)
+        _napis_zakaznikovi(con, vysledok.get("user_id"), MAIL_PREDMET_DUPLICITA,
+                           SPRAVA_DUPLICITA_ZAKAZNIK)
+    elif akcia == AKCIA_IGNOROVANE:
+        # Podpis sedel, ale appka s udalosťou nič neurobila. Buď je to cudzí
+        # produkt v tom istom obchode, alebo nesedí LEMON_VARIANT_ID — a to
+        # druhé znamená, že sa práve zahadzujú skutočné objednávky.
+        _ohlas_majitelovi(con, DRUH_IGNOROVANE, now=now, typ=vysledok.get("typ"))
+
+
 @app.post("/api/platba/webhook")
 async def platba_webhook(req: Request):
-    """Jediný vstup, ktorý smie udeliť nárok — a to len s platným podpisom."""
-    vyzaduj_zapnute_platby()
+    """Jediný vstup, ktorý smie udeliť nárok — a to len s platným podpisom.
+
+    Vypnuté platby už NEZNAMENAJÚ 503. Poskytovateľ pri 503 doručenie pár ráz
+    zopakuje a potom ho zahodí; jeden preklep v PLATBY_ZAPNUTE tak stál celú
+    platbu. Telo sa preto odloží tak, ako prišlo, a spracuje sa neskôr —
+    aj s overením podpisu, ktoré sa neobchádza ani o kúsok.
+    """
     telo = await req.body()
     if len(telo) > MAX_TELO_WEBHOOKU:
         raise HTTPException(413, SPRAVA_VELKE_TELO)
+    podpis = req.headers.get("X-Signature")
+    if not platby_su_zapnute():
+        # Tajomstvo sa tu zámerne NEČÍTA — vypnuté platby nesiahajú na LEMON_*.
+        # Podpis sa overí až pri spracovaní (platby.spracuj_odlozene).
+        if not hodnoverny_podpis(podpis):
+            raise HTTPException(503, SPRAVA_VYPNUTE)
+        return await anyio.to_thread.run_sync(_odloz_na_neskor, bytes(telo), podpis)
     if not overit_podpis(
         tajomstvo=env("LEMON_WEBHOOK_SECRET"),
         telo=telo,
-        podpis=req.headers.get("X-Signature"),
+        podpis=podpis,
     ):
         raise HTTPException(401, SPRAVA_NEPLATNY_PODPIS)
     try:
         payload = json.loads(telo)
     except (json.JSONDecodeError, UnicodeDecodeError):
         raise HTTPException(400, SPRAVA_POKAZENE_TELO)
-    try:
+    now = AUTH_CLOCK()
+    variant = env("LEMON_VARIANT_ID")
+
+    def spracuj():
         with closing(db()) as con:
-            vysledok = spracuj_udalost(
-                con, payload=payload, now=AUTH_CLOCK(), variant_id=env("LEMON_VARIANT_ID")
-            )
+            try:
+                vysledok = spracuj_udalost(
+                    con, payload=payload, now=now, variant_id=variant
+                )
+            except UdalostNepouzitelna:
+                # Podpis sedel, teda peniaze sú skutočné — len ich nemáme komu
+                # priradiť. Telo si odložíme, aby sa dalo dohľadať, a majiteľ
+                # sa to musí dozvedieť; inak tá platba mlčky zmizne.
+                odloz_webhook(con, telo=bytes(telo), podpis=podpis, now=now,
+                              dovod="nepouzitelna")
+                _ohlas_majitelovi(con, DRUH_NEPOUZITELNA, now=now)
+                raise
+            _doriesit_udalost(con, vysledok, now)
+            return {"ok": True, "akcia": vysledok["akcia"]}
+
+    try:
+        return await anyio.to_thread.run_sync(spracuj)
     except UdalostNepouzitelna:
         raise HTTPException(400, SPRAVA_NEPRIRADITELNA)
-    return {"ok": True, **vysledok}
+
+
+def _odloz_na_neskor(telo: bytes, podpis) -> dict:
+    now = AUTH_CLOCK()
+    with closing(db()) as con:
+        stav = odloz_webhook(con, telo=telo, podpis=podpis, now=now)
+        if stav["nove"]:
+            _ohlas_majitelovi(con, DRUH_ODLOZENE, now=now,
+                              pocet=pocet_cakajucich(con))
+    return {"ok": True, "akcia": AKCIA_ODLOZENE}
 
 
 # ---------------------------------------------------------------- statické

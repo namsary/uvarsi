@@ -65,6 +65,7 @@ $subory = @(
   @{ l = "$B\app\server.py";            r = "/opt/uvarsi/app/server.py" },
   @{ l = "$B\app\platby.py";            r = "/opt/uvarsi/app/platby.py" },
   @{ l = "$B\app\premium_cli.py";       r = "/opt/uvarsi/app/premium_cli.py" },
+  @{ l = "$B\app\rekonciliacia.py";     r = "/opt/uvarsi/app/rekonciliacia.py" },
   @{ l = "$B\app\zbierac_akcii.py";     r = "/opt/uvarsi/app/zbierac_akcii.py" },
   @{ l = "$B\hetzner\refresh_blocek.py"; r = "/opt/uvarsi/refresh_blocek.py" },
   @{ l = "$B\hetzner\recepty.py";       r = "/opt/uvarsi/recepty.py" },
@@ -223,20 +224,24 @@ $caddy | ssh jarvis "tr -d '\r' > /tmp/caddy_nasad.sh; bash /tmp/caddy_nasad.sh"
 Vyzaduj "Caddy config nepresiel validaciou alebo reload zlyhal - ostry Caddyfile ostal nezmeneny"
 Ok "web nastaveny (obe appky na serveri overene)"
 
-Krok "7/8  Cron: dozorca (akcie) a nocna zaloha databazy"
+Krok "7/8  Cron: dozorca (akcie), nocna zaloha a rekonciliacia platieb"
 # Tabulka `naroky` je jediny zaznam o tom, kto zaplatil - bez nocnej zalohy by
-# ju strata disku zmazala nenavratne. Cron sa NEPREPISUJE naslepo: berie sa
-# existujuci crontab a vyhadzuju sa z neho len nase dva riadky, takze zaznamy
-# druhej appky na serveri (taktik-mapa) ostavaju nedotknute.
+# ju strata disku zmazala nenavratne. Rekonciliacia dobehne platby, o ktorych sa
+# appka z webhooku nikdy nedozvedela; bez nej je kazdy neprijaty webhook
+# natrvalo strateny narok. Cron sa NEPREPISUJE naslepo: berie sa existujuci
+# crontab a vyhadzuju sa z neho len nase riadky, takze zaznamy druhej appky na
+# serveri (taktik-mapa) ostavaju nedotknute.
 $cron = @'
 set -eu
 RIADOK='0 5-21 * * * /opt/uvarsi/dozorca.sh >> /var/log/uvarsi.log 2>&1'
 RIADOK_ZALOHA='30 3 * * * /opt/uvarsi/zaloha.sh >> /var/log/uvarsi-zaloha.log 2>&1'
-touch /var/log/uvarsi.log /var/log/uvarsi-zaloha.log
+RIADOK_PLATBY='5 * * * * cd /opt/uvarsi/app && /opt/uvarsi/venv/bin/python rekonciliacia.py >> /var/log/uvarsi-platby.log 2>&1'
+touch /var/log/uvarsi.log /var/log/uvarsi-zaloha.log /var/log/uvarsi-platby.log
 mkdir -p /var/backups/uvarsi
-crontab -l 2>/dev/null | grep -v 'dozorca.sh' | grep -v 'zaloha.sh' > /tmp/uvarsi_cron.txt || true
+crontab -l 2>/dev/null | grep -v 'dozorca.sh' | grep -v 'zaloha.sh' | grep -v 'rekonciliacia.py' > /tmp/uvarsi_cron.txt || true
 printf '%s\n' "$RIADOK" >> /tmp/uvarsi_cron.txt
 printf '%s\n' "$RIADOK_ZALOHA" >> /tmp/uvarsi_cron.txt
+printf '%s\n' "$RIADOK_PLATBY" >> /tmp/uvarsi_cron.txt
 crontab /tmp/uvarsi_cron.txt
 rm -f /tmp/uvarsi_cron.txt
 POCET=$(crontab -l 2>/dev/null | grep -c 'dozorca.sh' || true)
@@ -249,11 +254,49 @@ if [ "${POCET_ZALOH:-0}" -ne 1 ]; then
   echo "CHYBA: v crontabe je $POCET_ZALOH riadkov so zalohou, ocakavam presne 1"
   exit 1
 fi
-crontab -l | grep -E 'dozorca.sh|zaloha.sh'
+POCET_PLATIEB=$(crontab -l 2>/dev/null | grep -c 'rekonciliacia.py' || true)
+if [ "${POCET_PLATIEB:-0}" -ne 1 ]; then
+  echo "CHYBA: v crontabe je $POCET_PLATIEB riadkov s rekonciliaciou, ocakavam presne 1"
+  exit 1
+fi
+crontab -l | grep -E 'dozorca.sh|zaloha.sh|rekonciliacia.py'
 '@ -replace "`r`n", "`n"
 $cron | ssh jarvis "tr -d '\r' > /tmp/uvarsi_cron.sh; bash /tmp/uvarsi_cron.sh"
-Vyzaduj "cron pre dozorcu a zalohu sa nepodarilo nainstalovat"
-Ok "dozorca aj nocna zaloha v crone (po jednom riadku)"
+Vyzaduj "cron pre dozorcu, zalohu a rekonciliaciu platieb sa nepodarilo nainstalovat"
+Ok "dozorca, nocna zaloha aj rekonciliacia platieb v crone (po jednom riadku)"
+
+# Rekonciliacia bez kluca len ticho nic nerobi - to by sa dalo prehliadnut az do
+# prvej reklamacie. Preto to nasadenie povie nahlas (a hodnoty klucov NEVYPISUJE).
+# Zapnute platby BEZ LEMON_API_KEY su najhorsi mozny stav: zakaznici platia,
+# webhook moze vypadnut a rekonciliacia nema cim dobehnut. Vtedy nasadenie
+# zlyha. Kym su platby vypnute, chybajuce kluce su len poznamka.
+$platbyCheck = @'
+set -u
+F=/opt/uvarsi/uvarsi.env
+CHYBAJU=0
+for k in LEMON_API_KEY LEMON_WEBHOOK_SECRET LEMON_VARIANT_ID; do
+  if grep -Eq "^[[:space:]]*(export[[:space:]]+)?${k}=[^[:space:]]" "$F"; then
+    echo "  $k: pritomny"
+  else
+    echo "  $k: chyba"
+    CHYBAJU=1
+  fi
+done
+if grep -Eqi "^[[:space:]]*(export[[:space:]]+)?PLATBY_ZAPNUTE=[[:space:]]*[\"']?(1|true|ano|yes|on)" "$F"; then
+  echo "  PLATBY_ZAPNUTE: zapnute"
+  if [ "$CHYBAJU" -ne 0 ]; then
+    echo "CHYBA: platby su zapnute, ale chyba niektory LEMON_* kluc - neprijaty"
+    echo "       webhook by sa uz nemal ako dobehnut a platba by sa stratila."
+    exit 1
+  fi
+else
+  echo "  PLATBY_ZAPNUTE: vypnute (rekonciliacia zatial nic nerobi)"
+fi
+exit 0
+'@ -replace "`r`n", "`n"
+$platbyCheck | ssh jarvis "tr -d '\r' > /tmp/uvarsi_platby_check.sh; bash /tmp/uvarsi_platby_check.sh"
+Vyzaduj "platby su zapnute, ale v uvarsi.env chyba niektory LEMON_* kluc"
+Ok "platobne kluce overene"
 
 # Prva zaloha hned pri nasadeni - nema zmysel cakat do 03:30 na overenie, ze to
 # vobec funguje. Zaroven je to jediny okamih, kedy o pripadnom zlyhani vieme.
