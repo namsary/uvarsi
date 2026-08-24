@@ -8,8 +8,10 @@ from decimal import Decimal, InvalidOperation, ROUND_CEILING
 
 try:
     from .weekly_data import current_monday, current_verified_offers
+    from .offer_data import canonical_offer_key
 except ImportError:
     from weekly_data import current_monday, current_verified_offers
+    from offer_data import canonical_offer_key
 
 
 CENT = Decimal("0.01")
@@ -473,8 +475,10 @@ PLAN_VARIANT_HINTS = (
 
 
 # Zvýš pri KAŽDEJ zmene, ktorá mení podobu vygenerovaného plánu.
-# 1 = pôvodný, 2 = rozvrh dní podľa frekvencie + konkrétne recepty s dávkami.
-PLAN_ALGO_VERSION = 2
+# 1 = pôvodný, 2 = rozvrh dní podľa frekvencie + konkrétne recepty s dávkami,
+# 3 = plán bez špajze (špajza sa dopočíta až nad nákupným zoznamom) + krátky
+#     `offer_key`, teda iný katalóg ponúk v prompte.
+PLAN_ALGO_VERSION = 3
 
 
 def plan_variant_for(user_id, variants):
@@ -484,13 +488,23 @@ def plan_variant_for(user_id, variants):
     return int(user_id) % variants
 
 
-def plan_signature(week, stores, household_size, frequency, offer_keys, pantry=()):
+def plan_signature(week, stores, household_size, frequency, offer_keys, pantry=(),
+                   pantry_driven=False):
     """Všetko, od čoho plán závisí, v jednom kľúči — a nič iné.
 
-    Podpis je zároveň pravidlo neplatnosti: keď sa zmení týždeň, profil, špajza
-    alebo ponuková sada, zmení sa kľúč a starý plán sa už nikdy netrafí. Preto
-    sa do neho dávajú `offer_keys` — obsahujú overené fakty aj týždeň, takže
-    nový leták či vypršaná ponuka zdieľaný plán automaticky odstavia.
+    Podpis je zároveň pravidlo neplatnosti: keď sa zmení týždeň, profil alebo
+    ponuková sada, zmení sa kľúč a starý plán sa už nikdy netrafí. Preto sa do
+    neho dávajú `offer_keys` — obsahujú overené fakty aj týždeň, takže nový
+    leták či vypršaná ponuka zdieľaný plán automaticky odstavia.
+
+    Špajza v podpise ZÁMERNE nie je. Kým tam bola, mal každý platiaci účet
+    vlastný podpis, nikdy sa netrafil do zdieľanej cache a čakal 60–120 sekúnd
+    — čakali teda najdlhšie práve tí, ktorí platia. Špajza sa dopočíta až nad
+    hotovým nákupným zoznamom (`apply_pantry_to_shopping_list`).
+
+    Jediná výnimka je výslovné „navrhni jedlá z toho, čo mám doma"
+    (`pantry_driven=True`). Ten plán je z podstaty osobný, preto dostane iný
+    podpis — a do zdieľanej tabuľky sa neukladá vôbec.
     """
     facts = {
         # Verzia generátora. MUSÍ sa zvýšiť pri každej zmene, ktorá mení podobu
@@ -502,9 +516,11 @@ def plan_signature(week, stores, household_size, frequency, offer_keys, pantry=(
         "stores": sorted({str(store) for store in stores}),
         "household_size": household_size,
         "frequency": frequency,
-        "pantry": sorted({item.strip().casefold() for item in map(str, pantry) if item.strip()}),
         "offers": sorted({str(key) for key in offer_keys}),
     }
+    if pantry_driven:
+        facts["pantry"] = sorted(
+            {item.strip().casefold() for item in map(str, pantry) if item.strip()})
     canonical = json.dumps(facts, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
@@ -621,7 +637,8 @@ TAKTO VYZERÁ DOBRÉ JEDLO (vzor je na {example['portions']} porcie, ty rátaj s
 - Každý offer_key a deň použi najviac raz. Pokyny musia byť neprázdne."""
 
 
-def personal_plan_messages(rows, frequency, pantry, household_size, variant=0):
+def personal_plan_messages(rows, frequency, pantry, household_size, variant=0,
+                           pantry_driven=False):
     """Správa pre model: cachovaná predpona + osobný zvyšok.
 
     Do predpony patrí všetko, čo je pre celý týždeň rovnaké — ponuky aj
@@ -635,15 +652,22 @@ def personal_plan_messages(rows, frequency, pantry, household_size, variant=0):
         },
         {
             "type": "text",
-            "text": personal_plan_prompt(rows, frequency, pantry, household_size, variant),
+            "text": personal_plan_prompt(
+                rows, frequency, pantry, household_size, variant, pantry_driven),
         },
     ]
 
 
-def personal_plan_prompt(rows, frequency, pantry, household_size, variant=0):
-    """Expose only food content and opaque offer references to the model."""
+def personal_plan_prompt(rows, frequency, pantry, household_size, variant=0,
+                         pantry_driven=False):
+    """Expose only food content and opaque offer references to the model.
+
+    Špajza sa do promptu dostane VÝHRADNE pri `pantry_driven=True`, teda po
+    výslovnom „navrhni jedlá z toho, čo mám doma". Bežný plán je zdieľaný medzi
+    ľuďmi s rovnakým profilom, takže by v ňom osobná špajza bola aj únikom, aj
+    dôvodom, prečo by sa taký plán nedal zdieľať.
+    """
     household_size = _validated_household_size(household_size)
-    pantry_text = ", ".join(pantry) or "nič"
     style = PLAN_VARIANT_HINTS[variant % len(PLAN_VARIANT_HINTS)] if PLAN_VARIANT_HINTS else ""
     days = cooking_days_for_frequency(frequency)
     days_text = _day_list(days)
@@ -656,6 +680,14 @@ def personal_plan_prompt(rows, frequency, pantry, household_size, variant=0):
         f" (pre {people} na deň), ďalšie dni sa jedia zvyšky.\n"
         if covered > 1 else ""
     )
+    pantry_text = ", ".join(str(item).strip() for item in pantry if str(item).strip())
+    pantry_task = (
+        f"\n\nČO MÁ POUŽÍVATEĽ DOMA (ŠPAJZA)\n{pantry_text}\n"
+        "- Postav jedlá okolo týchto surovín: čo najviac ich zapoj, aby sa dokupovalo málo.\n"
+        "- Použité suroviny zo špajze vymenuj v pantry_ingredients presne tak, ako sú"
+        " napísané vyššie, a nikdy ich neuvádzaj v items."
+        if pantry_driven and pantry_text else ""
+    )
     return f"""ZADANIE TEJTO DOMÁCNOSTI
 Navrhni presne {len(days)} {_meals_word(len(days))} na dni {days_text}. Vráť iba JSON, nič iné.
 
@@ -667,9 +699,7 @@ Navrhni presne {len(days)} {_meals_word(len(days))} na dni {days_text}. Vráť i
   Napríklad 150 g na porciu × {portions} = {_amount_text("g", Decimal(150) * portions)} v kroku.
 - minutes musí byť kladný celý počet minút prípravy.
 - Vyberaj výhradne z {len(rows)} overených ponúk uvedených vyššie a drž sa pravidiel nad týmto zadaním.
-- Smerovanie tohto jedálnička: {style}
-
-Špajza používateľa: {pantry_text}"""
+- Smerovanie tohto jedálnička: {style}{pantry_task}"""
 
 
 def build_personal_plan(con, model_output, stores, frequency, household_size, pantry=(), today=None):
@@ -744,9 +774,209 @@ def cached_offer_keys(plan):
         keys = [ingredient["offer_key"] for meal in plan["jedla"] for ingredient in meal["suroviny"] if "offer_key" in ingredient]
     except (KeyError, TypeError):
         return None
-    return set(keys) if keys and all(isinstance(item, str) and item for item in keys) else None
+    if not keys or not all(isinstance(item, str) and item for item in keys):
+        return None
+    # Plán uložený pred skrátením kľúčov nesie dlhé kľúče. Porovnanie na
+    # kanonickom (krátkom) tvare zabráni tomu, aby ľuďom po nasadení naraz
+    # „zneplatnel" úplne v poriadku poskladaný jedálniček.
+    return {canonical_offer_key(key) for key in keys}
 
 
 def cached_plan_is_current(plan, rows):
     selected = cached_offer_keys(plan)
-    return selected is not None and selected.issubset({row["offer_key"] for row in rows})
+    if selected is None:
+        return False
+    return selected.issubset({canonical_offer_key(row["offer_key"]) for row in rows})
+
+
+# ------------------------------------------------------- špajza nad zoznamom
+# Špajza je oddelený systém. Do skladania jedálnička nevstupuje (to robí len
+# výslovné „navrhni jedlá z toho, čo mám doma"); tu sa iba dopočíta nad hotovým
+# nákupným zoznamom. Je to čistý Python bez volania modelu, takže sa prepočíta
+# pri každom načítaní a zmena špajze je vidieť okamžite.
+#
+# Párovanie voľného textu na názvy z letáku je zámerne opatrné. Falošná zhoda
+# znamená, že človek príde do obchodu a surovinu nemá — to je horšie než mať
+# v zozname niečo, čo už doma leží. Preto sa tu radšej nespáruje, a čo sa
+# spárovalo, sa používateľovi vypíše, aby to vedel zrušiť.
+PANTRY_MIN_TERM = 3
+
+# Slová, ktoré o surovine nehovoria nič: jednotky, obaly a výplň.
+PANTRY_STOPWORDS = frozenset(_fold(word) for word in (
+    "kg", "dkg", "ml", "dl", "ks", "kus", "kusy", "kusov", "gram", "gramy", "gramov",
+    "liter", "litra", "litre", "litrov", "balenie", "balenia", "balení", "balík",
+    "téglik", "tégliky", "pohár", "poháre", "konzerva", "konzervy", "vrecko", "vrecká",
+    "cca", "asi", "zopár", "trochu", "kúsok", "kúsky", "ešte", "mám", "doma", "nejaké",
+    "trvanlivé", "čerstvé", "čerstvý", "chladené", "mrazené", "bio", "domáce", "domáci",
+))
+
+# Slovenčina ohýba konce slov. Odseknutie pádovej koncovky spojí „ryža/ryže",
+# „zemiaky/zemiakov" aj „mlieko/mlieka" — a nechá „maslo" a „mäso" oddelené.
+_PANTRY_ENDINGS = ("ami", "ach", "och", "iam", "om", "ov", "mi", "ou", "ia", "ej", "im", "ym",
+                   "y", "u", "e", "a", "i", "o")
+
+# Nepravidelné tvary, ktoré odseknutie koncovky nespojí. Zoznam je zámerne
+# krátky: každý riadok navyše je ďalšia príležitosť na falošnú zhodu.
+_PANTRY_IRREGULAR = {}
+for _canonical, _forms in (
+    ("vajc", ("vajce", "vajcia", "vajec", "vajca", "vajíčko", "vajíčka", "vajíčok", "vajíčkami")),
+    ("chleb", ("chlieb", "chleba", "chleby", "pecivo")),
+):
+    for _form in _forms:
+        _PANTRY_IRREGULAR[_fold(_form)] = _canonical
+
+
+def _pantry_stem(folded):
+    if folded in _PANTRY_IRREGULAR:
+        return _PANTRY_IRREGULAR[folded]
+    for ending in _PANTRY_ENDINGS:
+        if folded.endswith(ending) and len(folded) - len(ending) >= PANTRY_MIN_TERM:
+            return folded[:-len(ending)]
+    return folded
+
+
+def _pantry_terms(text):
+    """Slová, ktoré o surovine naozaj niečo hovoria, zredukované na kmeň."""
+    terms = []
+    for word in _WORD.findall(str(text or "")):
+        folded = _fold(word)
+        if len(folded) < PANTRY_MIN_TERM or folded in PANTRY_STOPWORDS:
+            continue
+        terms.append(_pantry_stem(folded))
+    return terms
+
+
+def pantry_matches_offer(pantry_item, offer_name):
+    """Je táto položka špajze tá istá surovina ako táto ponuka z letáku?
+
+    Pravidlo je jednosmerné a prísne: KAŽDÉ slovo zo špajze musí sedieť na
+    nejaké slovo v názve ponuky. „Kuracie prsia" sa preto nechytia na „Kuracie
+    stehná" — a práve to je zmyslom, lebo taká zhoda by človeka poslala do
+    obchodu bez mäsa. Opačný smer sa nekontroluje: leták si k názvu pridáva
+    značku, hmotnosť aj „chladené", a to o surovine nič nemení.
+    """
+    wanted = _pantry_terms(pantry_item)
+    if not wanted:
+        return False
+    available = set(_pantry_terms(offer_name))
+    if not available:
+        return False
+    return all(term in available for term in wanted)
+
+
+def _pantry_owner(pantry, offer_name):
+    """Prvá položka špajze (v poradí používateľa), ktorá na ponuku sedí."""
+    for item in pantry:
+        text = str(item).strip()
+        if text and pantry_matches_offer(text, offer_name):
+            return text
+    return None
+
+
+def apply_pantry_to_shopping_list(plan, pantry):
+    """Označ v nákupnom zozname to, čo používateľ už doma má.
+
+    Vracia NOVÝ plán; ten pôvodný sa nesmie dotknúť, lebo je to zdieľaný objekt
+    načítaný z cache a číta ho viac ľudí naraz. Jedlá ostávajú presne také, aké
+    boli — špajza nikdy nepreskladá jedálniček.
+    """
+    pantry = [str(item).strip() for item in (pantry or []) if str(item).strip()]
+    upraveny = dict(plan)
+    zoznam = []
+    pokryte = []
+    usetrene = Decimal("0")
+    claimed = set()
+    for group in plan.get("nakupny_zoznam") or []:
+        polozky = []
+        for item in group.get("polozky") or []:
+            owner = None
+            nazov = item.get("nazov")
+            for candidate in pantry:
+                if candidate in claimed:
+                    continue
+                if pantry_matches_offer(candidate, nazov):
+                    owner = candidate
+                    break
+            oznaceny = dict(item, mas_doma=owner is not None, spajza=owner)
+            polozky.append(oznaceny)
+            if owner is None:
+                continue
+            claimed.add(owner)
+            pokryte.append({
+                "offer_key": item.get("offer_key"), "nazov": nazov,
+                "spajza": owner, "cena": item.get("cena"),
+            })
+            try:
+                usetrene += _price(item.get("cena"), "cena položky")
+            except ValueError:
+                pass
+        zoznam.append(dict(group, polozky=polozky))
+
+    try:
+        spolu = _price(plan.get("nakup_spolu"), "sumu nákupu")
+    except ValueError:
+        spolu = usetrene
+    upraveny["nakupny_zoznam"] = zoznam
+    upraveny["spajza_pokryte"] = pokryte
+    upraveny["spajza_usetri"] = _format(usetrene)
+    upraveny["nakup_bez_spajze"] = _format(max(Decimal("0"), spolu - usetrene))
+    return upraveny
+
+
+# Kľúče, ktoré vznikli zo špajze konkrétneho človeka. Do zdieľaného riadku
+# nesmie prísť ani jeden — odkedy podpis špajzu neobsahuje, je to jediné, čo
+# bráni tomu, aby sa špajza jedného používateľa ukázala druhému.
+PANTRY_PLAN_KEYS = ("spajza", "spajza_pokryte", "spajza_usetri", "nakup_bez_spajze")
+PANTRY_ITEM_KEYS = ("spajza", "mas_doma")
+PANTRY_DOSE_SUFFIX = "zo špajze"
+
+
+def plan_without_pantry(plan):
+    """Plán zbavený všetkého, čo pochádza zo špajze jedného používateľa.
+
+    Doteraz stačilo odstrániť vrchný kľúč `spajza`, lebo špajza bola v podpise
+    a zdieľaný plán tak nikdy neprešiel medzi dvoma rôznymi špajzami. Odkedy
+    v podpise nie je, musí to odstrihnúť tento kód — vrátane surovín a dávok
+    vnútri jedál.
+    """
+    if not isinstance(plan, dict):
+        return plan
+    ocisteny = {key: value for key, value in plan.items() if key not in PANTRY_PLAN_KEYS}
+
+    jedla = []
+    for meal in plan.get("jedla") or []:
+        if not isinstance(meal, dict):
+            jedla.append(meal)
+            continue
+        upravene = dict(meal)
+        suroviny = meal.get("suroviny")
+        if isinstance(suroviny, list):
+            upravene["suroviny"] = [
+                item for item in suroviny
+                if not (isinstance(item, dict) and "spajza" in item and "offer_key" not in item)
+            ]
+        recept = meal.get("recept")
+        if isinstance(recept, dict) and isinstance(recept.get("davky"), list):
+            upravene["recept"] = dict(
+                recept,
+                davky=[dose for dose in recept["davky"]
+                       if not str(dose).endswith(PANTRY_DOSE_SUFFIX)],
+            )
+        jedla.append(upravene)
+    if "jedla" in ocisteny:
+        ocisteny["jedla"] = jedla
+
+    zoznam = []
+    for group in plan.get("nakupny_zoznam") or []:
+        if not isinstance(group, dict):
+            zoznam.append(group)
+            continue
+        polozky = [
+            {key: value for key, value in item.items() if key not in PANTRY_ITEM_KEYS}
+            if isinstance(item, dict) else item
+            for item in group.get("polozky") or []
+        ]
+        zoznam.append(dict(group, polozky=polozky))
+    if "nakupny_zoznam" in ocisteny:
+        ocisteny["nakupny_zoznam"] = zoznam
+    return ocisteny

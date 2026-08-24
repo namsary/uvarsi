@@ -216,3 +216,49 @@ def test_the_collision_error_is_loud_and_says_which_key_clashed(monkeypatch):
 
     assert "offer_kolizia0000" in str(zachytene.value)
     assert isinstance(zachytene.value, ValueError), "volajúci chytajú ValueError"
+
+
+# ------------------------------------ starý riadok a starý plán po nasadení
+def test_a_week_of_legacy_rows_still_reaches_the_plan_in_the_short_form():
+    """`akcie` sa prepisujú každý týždeň, ale medzitým nesmie appka onemieť."""
+    from datetime import date, timedelta
+
+    from app.weekly_data import current_verified_offers
+
+    dnes = date.today()
+    con = legacy_connection()
+    con.row_factory = sqlite3.Row
+    stary = valid_offer(
+        valid_from=(dnes - timedelta(days=1)).isoformat(),
+        valid_to=(dnes + timedelta(days=1)).isoformat(),
+    )
+    tyzden = (dnes - timedelta(days=dnes.weekday())).isoformat()
+    con.execute(
+        """INSERT INTO akcie (tyzden, obchod, nazov, kategoria, cena, povodna, zlava,
+                              jednotka, source_url, source_page, valid_from, valid_to, offer_key)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (tyzden, stary["obchod"], stary["nazov"], stary["kategoria"], stary["cena"],
+         stary["povodna"], stary["zlava"], stary["jednotka"], stary["source_url"],
+         stary["source_page"], stary["valid_from"], stary["valid_to"],
+         legacy_offer_key_for(tyzden, stary)),
+    )
+
+    rows = current_verified_offers(con, ["Lidl"], dnes)
+
+    assert [row["nazov"] for row in rows] == ["Plnotučné mlieko"]
+    assert rows[0]["offer_key"] == offer_key_for(tyzden, stary), (
+        "von ide vždy krátky tvar, aby prompt neplatil za dlhý kľúč"
+    )
+
+
+def test_a_plan_cached_with_long_keys_is_not_declared_stale_by_the_shortening():
+    """Používateľ nesmie po nasadení vidieť „plán obsahuje neplatnú ponuku"."""
+    from app.plan_data import cached_plan_is_current
+
+    offer = valid_offer()
+    plan = {"jedla": [{"suroviny": [{"offer_key": legacy_offer_key_for(TYZDEN, offer)}]}]}
+
+    assert cached_plan_is_current(plan, [{"offer_key": offer_key_for(TYZDEN, offer)}])
+    # A naopak: zmenená cena plán zneplatní aj cez starý kľúč.
+    assert not cached_plan_is_current(
+        plan, [{"offer_key": offer_key_for(TYZDEN, valid_offer(cena=1.29))}])

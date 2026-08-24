@@ -111,14 +111,19 @@ COOKABLE_STEPS = [
 COOKABLE_NAME = "Dusená cibuľová polievka"
 
 
-def model_plan(first_offer_key=None):
+def model_plan(first_offer_key=None, pantry=None):
+    """Odpoveď modelu. Bez špajze — bežný plán sa skladá len z ponúk.
+
+    Špajza vstupuje do skladania výhradne pri výslovnom „navrhni jedlá z toho,
+    čo mám doma"; na to slúži parameter `pantry`.
+    """
     first_offer_key = first_offer_key or plan_key(1)
     return {
         "meals": [
             {"day": "PO", "name": COOKABLE_NAME, "minutes": 30, "instructions": COOKABLE_STEPS,
              "items": [{"offer_key": first_offer_key, "quantity": 2,
                         "amount_per_person": 150, "unit": "g"}],
-             "pantry_ingredients": ["soľ"]},
+             "pantry_ingredients": list(pantry or [])},
             {"day": "ST", "name": COOKABLE_NAME, "minutes": 35, "instructions": COOKABLE_STEPS,
              "items": [{"offer_key": plan_key(2), "quantity": 1,
                         "amount_per_person": 150, "unit": "g"}]},
@@ -405,7 +410,14 @@ def test_saving_the_pantry_keeps_the_current_plan_and_never_regenerates_it(monke
         assert saved == ["vajcia"], "the pantry itself still saves instantly"
 
 
-def test_plan_records_the_pantry_it_was_built_from_so_a_later_edit_is_visible(monkeypatch, tmp_path):
+def test_the_served_plan_always_reports_the_readers_current_pantry(monkeypatch, tmp_path):
+    """Špajza sa dopočítava pri každom čítaní, takže zmena je vidieť okamžite.
+
+    Predtým si plán niesol odtlačok špajze, z ktorej vznikol — musel, lebo
+    špajza bola v podpise a plán sa ňou skladal. Odkedy sa jedálniček skladá
+    bez špajze, je jediná pravda tá aktuálna: nákupný zoznam sa ňou preznačí
+    hneď a bez plateného prepočtu.
+    """
     server = load_server(monkeypatch, tmp_path, current_plan_rows())
     with server.db() as con:
         con.execute("INSERT INTO pouzivatelia (id, email, obchody) VALUES (1, 'test@uvar.si', 'Lidl')")
@@ -413,7 +425,8 @@ def test_plan_records_the_pantry_it_was_built_from_so_a_later_edit_is_visible(mo
         con.execute("INSERT INTO spajza (user_id, nazov) VALUES (1, 'soľ')")
         con.commit()
     grant_premium(server, 1)
-    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), []))
+    constructors = []
+    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), constructors))
     client = TestClient(server.app)
     client.cookies.set(server.COOKIE, "session-token")
 
@@ -422,14 +435,15 @@ def test_plan_records_the_pantry_it_was_built_from_so_a_later_edit_is_visible(mo
     assert generated.status_code == 200
     assert generated.json()["spajza"] == ["soľ"]
 
-    client.post("/api/spajza", json={"polozky": ["soľ", "vajcia"]})
+    client.post("/api/spajza", json={"polozky": ["soľ", "Ponuka 1"]})
     cached = client.get("/api/plan")
 
     assert cached.status_code == 200
-    assert cached.json()["spajza"] == ["soľ"], (
-        "the served plan must still report the pantry it was actually built from"
-    )
-    assert client.get("/api/me").json()["spajza"] == ["soľ", "vajcia"]
+    assert cached.json()["spajza"] == ["soľ", "Ponuka 1"]
+    assert [item["nazov"] for item in cached.json()["spajza_pokryte"]] == ["Ponuka 1"]
+    assert len(constructors) == 1, "prepočítanie špajze nesmie stáť volanie modelu"
+    assert cached.json()["jedla"] == generated.json()["jedla"], "menu ostáva nedotknuté"
+    assert client.get("/api/me").json()["spajza"] == ["soľ", "Ponuka 1"]
 
 
 def test_plan_route_persists_only_reconstructed_server_commerce(monkeypatch, tmp_path):
@@ -455,12 +469,15 @@ def test_plan_route_persists_only_reconstructed_server_commerce(monkeypatch, tmp
          "mnozstvo": 2, "davka": "1,2 kg", "cena": "2,02", "povodna": "4,02", "zlava": "-50 %",
          "source_url": offer["source_url"], "source_page": offer["source_page"],
          "valid_from": offer["valid_from"], "valid_to": offer["valid_to"]},
-        {"spajza": "soľ"},
     ]
     assert payload["nakupny_zoznam"][0]["polozky"][0]["nazov"] == "Ponuka 1"
     assert constructors
+    # Do `plany` sa ukladá plán BEZ špajze; pohľad so špajzou sa dopočíta pri
+    # každom čítaní, aby nikdy nezostarol.
     with server.db() as con:
-        assert json.loads(con.execute("SELECT json FROM plany WHERE user_id=1").fetchone()[0]) == payload
+        ulozeny = json.loads(con.execute("SELECT json FROM plany WHERE user_id=1").fetchone()[0])
+    assert ulozeny == server.plan_without_pantry(payload)
+    assert "spajza" not in ulozeny and "spajza_pokryte" not in ulozeny
 
 
 def test_plan_generation_passes_profile_household_size_to_prompt_and_builder(monkeypatch, tmp_path):
@@ -673,16 +690,25 @@ def test_shared_plan_is_not_handed_to_a_different_household_or_frequency(monkeyp
     assert len(calls) == 2, "a six-person household must not eat a four-person plan"
 
 
-def test_a_pantry_keeps_a_plan_personal_instead_of_shared(monkeypatch, tmp_path):
-    """Špajza plán personalizuje, takže sa smie zdieľať len s rovnakou špajzou."""
+def test_a_different_pantry_no_longer_forces_its_own_generation(monkeypatch, tmp_path):
+    """Práve toto bolo najdrahšie: platiaci nikdy netrafil zdieľanú cache.
+
+    Špajza jedálniček neskladá, takže dve rovnaké domácnosti s rôznou špajzou
+    dostanú ten istý plán — a líšia sa len tým, čo majú v nákupnom zozname
+    odškrtnuté ako „máš doma".
+    """
     first, second = SHARED_VARIANT_USERS
     server = shared_plan_server(monkeypatch, tmp_path, pantry={first: ["soľ"], second: ["soľ", "ryža"]})
     calls = []
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), [], calls))
-    plan_client(server, first).post("/api/plan/generuj")
+    prvy = plan_client(server, first).post("/api/plan/generuj")
 
-    assert plan_client(server, second).post("/api/plan/generuj").status_code == 200
-    assert len(calls) == 2, "a different pantry must get its own plan"
+    druhy = plan_client(server, second).post("/api/plan/generuj")
+
+    assert druhy.status_code == 200
+    assert len(calls) == 1, "iná špajza už nesmie stáť druhé platené volanie"
+    assert druhy.json()["jedla"] == prvy.json()["jedla"]
+    assert druhy.json()["spajza"] == ["soľ", "ryža"]
 
 
 def test_matching_pantries_still_share_and_each_user_sees_his_own_pantry(monkeypatch, tmp_path):
@@ -1035,7 +1061,9 @@ def test_a_free_users_stored_pantry_never_reaches_the_model_or_the_plan(monkeypa
     prompt = prompt_text(calls[0])
     for item in ("ryža", "vajcia", "cibuľa"):
         assert item not in prompt, "a free user's pantry must never be paid for"
-    assert "Špajza používateľa: nič" in prompt
+    assert "Špajza používateľa" not in prompt, (
+        "bežný plán je zdieľaný, takže sa v ňom o špajze vôbec nehovorí"
+    )
 
 
 def test_free_users_share_one_plan_no_matter_what_their_pantry_rows_say(monkeypatch, tmp_path):
@@ -1061,11 +1089,11 @@ def test_free_users_share_one_plan_no_matter_what_their_pantry_rows_say(monkeypa
     assert len(calls) == 1, "two free accounts must never pay for two plans"
 
 
-def test_a_premium_pantry_is_what_makes_the_plan_personal(monkeypatch, tmp_path):
-    """Ten istý profil, iná špajza — Premium dostane vlastný plán, a preto sa platí."""
+def test_a_premium_pantry_shows_up_in_the_shopping_list_not_in_the_generation(monkeypatch, tmp_path):
+    """Za čo Premium platí: nekúpiš druhýkrát to, čo doma máš — a nečakáš na to."""
     first, second = SHARED_VARIANT_USERS
     server = shared_plan_server(
-        monkeypatch, tmp_path, pantry={first: ["soľ"], second: ["soľ", "ryža"]}
+        monkeypatch, tmp_path, pantry={first: ["soľ"], second: ["soľ", "Ponuka 1"]}
     )
     calls = []
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), [], calls))
@@ -1073,8 +1101,14 @@ def test_a_premium_pantry_is_what_makes_the_plan_personal(monkeypatch, tmp_path)
     assert plan_client(server, first).post("/api/plan/generuj").status_code == 200
     assert plan_client(server, second).post("/api/plan/generuj").status_code == 200
 
-    assert len(calls) == 2
-    assert plan_client(server, second).get("/api/plan").json()["spajza"] == ["soľ", "ryža"]
+    assert len(calls) == 1, "rovnaký profil sa má trafiť do zdieľanej cache aj s Premium"
+    druhy = plan_client(server, second).get("/api/plan").json()
+    assert druhy["spajza"] == ["soľ", "Ponuka 1"]
+    assert [item["nazov"] for item in druhy["spajza_pokryte"]] == ["Ponuka 1"]
+    assert druhy["nakup_bez_spajze"] != druhy["nakup_spolu"]
+    # A prvý používateľ vidí ten istý plán, ale bez cudzej špajze.
+    prvy = plan_client(server, first).get("/api/plan").json()
+    assert prvy["spajza_pokryte"] == [] and prvy["jedla"] == druhy["jedla"]
 
 
 # ------------------------------------------------- denný strop prepočtov
@@ -1400,7 +1434,9 @@ def test_the_plan_a_free_user_is_reading_is_never_taken_away_by_the_lock(monkeyp
     ulozeny = client.get("/api/plan")
 
     assert ulozeny.status_code == 200
-    assert ulozeny.json()["spajza"] == ["soľ"], "plán si drží špajzu, z ktorej vznikol"
+    assert ulozeny.json()["jedla"], "jedálniček zostáva na obrazovke, nič sa nezhodí"
+    # Uspatá špajza do zoznamu nevstupuje — a server to povie rovno, nezamlčí.
+    assert ulozeny.json()["spajza"] == [] and ulozeny.json()["spajza_pokryte"] == []
     assert client.get("/api/me").json()["spajza_uspana"] is True, "a server to povie rovno"
 
 

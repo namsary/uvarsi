@@ -22,13 +22,15 @@ import naklady
 from config import public_base_url, release_id
 from landing_data import load_landing_data, validate_landing_data
 from weekly_data import offers_for_current_week
-from offer_data import migrate_akcie_schema
+from offer_data import OfferKeyCollision, migrate_akcie_schema
 from plan_data import (
+    apply_pantry_to_shopping_list,
     build_personal_plan,
     cached_plan_is_current,
     personal_plan_messages,
     plan_signature,
     plan_variant_for,
+    plan_without_pantry,
 )
 from platby import (
     MAX_TELO_WEBHOOKU,
@@ -303,6 +305,22 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Uvar.si", lifespan=lifespan)
+
+
+# Skrátený `offer_key` je zrážka rizika s cenou promptu. Zrážku sme vyhrali,
+# ale zvyškové riziko sa nesmie prehltnúť: keby dva rôzne výrobky predsa len
+# vyšli na jeden kľúč, appka by ukázala reálnu cenu pri cudzom výrobku — presne
+# to, čo si tento produkt nemôže dovoliť. Radšej úprimné odmietnutie.
+SPRAVA_KOLIZIA_KLUCOV = (
+    "Ceny z letákov sa práve nedajú spoľahlivo priradiť k výrobkom, tak ti "
+    "radšej nič neukážeme, než by sme ukázali nesprávnu cenu. Pracujeme na tom."
+)
+
+
+@app.exception_handler(OfferKeyCollision)
+def kolizia_offer_key(req: Request, chyba: OfferKeyCollision):
+    LOG.error("kolízia offer_key: %s", chyba)
+    return JSONResponse({"detail": SPRAVA_KOLIZIA_KLUCOV}, status_code=503)
 
 
 def user_from_request(req: Request):
@@ -801,10 +819,29 @@ def pouzitie_modelu(usage):
     }
 
 
-def podpis_planu(tyzden, obchody, osoby, frekvencia, rows, spajza):
+def podpis_planu(tyzden, obchody, osoby, frekvencia, rows, spajza, zo_spajze=False):
+    """Podpis zdieľaného plánu. Špajza doň vstupuje len pri výslovnom vyžiadaní.
+
+    Bežný plán sa skladá bez špajze, takže ho zdieľajú aj platiace účty a
+    nečakajú 60–120 sekúnd na to isté menu. `zo_spajze=True` je jediná cesta,
+    ktorá špajzu do kľúča (a do promptu) pustí — a taký plán sa neukladá
+    zdieľane vôbec.
+    """
     return plan_signature(
-        tyzden, obchody, osoby, frekvencia, [row["offer_key"] for row in rows], spajza
+        tyzden, obchody, osoby, frekvencia, [row["offer_key"] for row in rows], spajza,
+        pantry_driven=zo_spajze,
     )
+
+
+def so_spajzou(plan, spajza):
+    """Plán tak, ako ho má vidieť TENTO čitateľ: s vlastnou špajzou nad zoznamom.
+
+    Počíta sa pri každej odpovedi nanovo a nikam sa neukladá. Vďaka tomu sa
+    zmena špajze prejaví okamžite a do zdieľaného riadku sa nemá ako dostať.
+    """
+    upraveny = apply_pantry_to_shopping_list(plan, spajza)
+    upraveny["spajza"] = list(spajza)
+    return upraveny
 
 
 def nacitaj_zdielany_plan(con, podpis, variant):
@@ -820,8 +857,15 @@ def nacitaj_zdielany_plan(con, podpis, variant):
 
 
 def uloz_zdielany_plan(con, podpis, variant, tyzden, plan):
-    """Ulož plán bez špajze — tú si každý čitateľ opečiatkuje vlastnú."""
-    zdielany = {key: value for key, value in plan.items() if key != "spajza"}
+    """Ulož plán bez špajze — tú si každý čitateľ dopočíta vlastnú.
+
+    Kým bola špajza v podpise, zdieľaný riadok sa nikdy nedostal k človeku
+    s inou špajzou a stačilo odstrániť vrchný kľúč. Odkedy v podpise nie je,
+    je toto orezanie jediná ochrana proti tomu, aby špajza jedného človeka
+    pretiekla druhému — preto ide cez `plan_without_pantry`, ktorý odstráni
+    aj suroviny a dávky zo špajze vnútri jedál.
+    """
+    zdielany = plan_without_pantry(plan)
     con.execute(
         "INSERT OR REPLACE INTO plany_zdielane (podpis,variant,tyzden,json) VALUES (?,?,?,?)",
         (podpis, variant, tyzden, json.dumps(zdielany, ensure_ascii=False)),
@@ -830,13 +874,18 @@ def uloz_zdielany_plan(con, podpis, variant, tyzden, plan):
 
 
 def prevezmi_zdielany_plan(con, user_id, tyzden, zdielany, spajza):
-    plan = dict(zdielany)
-    plan["spajza"] = list(spajza)
+    """Prevezmi zdieľaný plán do vlastného riadku a podaj ho so svojou špajzou.
+
+    Do `plany` sa ukladá plán BEZ špajze: pohľad so špajzou sa dopočíta pri
+    každom čítaní, takže sa nikdy nestane zastaraným a nezaklincuje sa do
+    databázy niečo, čo pri ďalšej zmene špajze prestane platiť.
+    """
+    plan = plan_without_pantry(zdielany)
     con.execute(
         "INSERT OR REPLACE INTO plany (user_id,tyzden,json) VALUES (?,?,?)",
         (user_id, tyzden, json.dumps(plan, ensure_ascii=False)),
     )
-    return plan
+    return so_spajzou(plan, spajza)
 
 
 def zahrej_plan_pre_pouzivatela(user_id):
@@ -907,14 +956,15 @@ def generuj_plan(req: Request, force: int = 0):
                 except json.JSONDecodeError:
                     cached = None
                 if cached and cached_plan_is_current(cached, rows):
-                    return cached
+                    return so_spajzou(cached, spajza_pouzivatela(con, u["id"], premium))
                 con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], tyz))
                 con.commit()
                 raise HTTPException(503, "Aktuálny plán už obsahuje neplatnú ponuku. Skús to o chvíľu.")
         sp = spajza_pouzivatela(con, u["id"], premium)
 
-    # Plán závisí len od profilu, špajze a ponúk. Keď ho pre presne tú istú
-    # kombináciu už niekto vygeneroval, čaká sa milisekundy namiesto minút.
+    # Plán závisí len od profilu a ponúk — špajza doň nevstupuje, takže sa
+    # rovnaká domácnosť trafí do zdieľanej cache aj s plnou špajzou a čaká
+    # milisekundy namiesto minút. Špajza sa dopočíta až nad nákupným zoznamom.
     # „Vygeneruj mi iný" (force) sa cache musí vyhnúť, inak by nič nezmenilo.
     podpis = podpis_planu(tyz, obchody, u["osoby"], u["frekvencia"], rows, sp)
     variant = plan_variant_for(u["id"], PLAN_VARIANTS)
@@ -931,14 +981,23 @@ def generuj_plan(req: Request, force: int = 0):
                 )
                 con.commit()
 
-    # Odtiaľto ďalej sa platí. Každé skladanie, ktoré sa naozaj dostane k modelu,
-    # zaberie jedno miesto z dnešného stropu — zadarmo raz, s Premium päťkrát.
-    # Plán podaný z cache (osobnej či zdieľanej) sa sem nikdy nedostane, takže
-    # čítanie hotového jedálnička nie je ničím obmedzené.
-    # Miesto v poole sa berie EŠTE PRED rezerváciou prepočtu. Kto sa nedostane
-    # dnu, nesiahol na model ani na svoj denný strop — odchádza s hláškou a
-    # s nedotknutým nárokom. Opačné poradie by ľuďom bralo prepočty za našu
-    # záťaž. `blocking=False`: radšej úprimné „o minútu" než tiché visenie.
+    return zaplat_a_poskladaj(u, tyz, obchody, rows, sp, podpis, variant, premium)
+
+
+def zaplat_a_poskladaj(u, tyz, obchody, rows, sp, podpis, variant, premium, zo_spajze=False):
+    """Odtiaľto ďalej sa platí — spoločná brána pre obe cesty ku skladaniu.
+
+    Každé skladanie, ktoré sa naozaj dostane k modelu, zaberie jedno miesto
+    z dnešného stropu — zadarmo raz, s Premium päťkrát. Platí to aj pre
+    výslovné „navrhni jedlá z toho, čo mám doma": je to rovnako drahé volanie.
+    Plán podaný z cache (osobnej či zdieľanej) sa sem nikdy nedostane, takže
+    čítanie hotového jedálnička nie je ničím obmedzené.
+
+    Miesto v poole sa berie EŠTE PRED rezerváciou prepočtu. Kto sa nedostane
+    dnu, nesiahol na model ani na svoj denný strop — odchádza s hláškou a
+    s nedotknutým nárokom. Opačné poradie by ľuďom bralo prepočty za našu
+    záťaž. `blocking=False`: radšej úprimné „o minútu" než tiché visenie.
+    """
     if not PLAN_MIESTA.acquire(blocking=False):
         LOG.warning("plán odmietnutý — plno (%d súbežných)", PLAN_SUBEZNE_MAX)
         return odmietni(503, SPRAVA_PLAN_ZANEPRAZDNENY, KOD_PLAN_ZANEPRAZDNENY)
@@ -952,7 +1011,7 @@ def generuj_plan(req: Request, force: int = 0):
                 obnova=zajtrajsok(den),
             )
         try:
-            return poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant)
+            return poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant, zo_spajze)
         except BaseException:
             vrat_prepocet(u["id"], den)
             raise
@@ -960,7 +1019,50 @@ def generuj_plan(req: Request, force: int = 0):
         PLAN_MIESTA.release()
 
 
-def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant):
+SPRAVA_SPAJZA_PRAZDNA = (
+    "Špajza je prázdna, takže z čoho variť? Napíš do nej, čo máš doma, "
+    "a skús to znova."
+)
+KOD_SPAJZA_PRAZDNA = "spajza_prazdna"
+
+
+@app.post("/api/plan/zo-spajze")
+def plan_zo_spajze(req: Request):
+    """Výslovné „Navrhni jedlá z toho, čo mám doma".
+
+    Toto je JEDINÁ cesta, ktorou sa špajza dostane do promptu a do podpisu.
+    Bežný plán ju ignoruje práve preto, aby sa dal zdieľať a aby pridané
+    vajíčko nikomu nepreskladalo týždeň bez vyzvania. Tento plán je z podstaty
+    osobný, takže sa do zdieľanej tabuľky neukladá vôbec a stojí jeden prepočet
+    z denného stropu.
+    """
+    u = require_user(req)
+    tyz = monday()
+    obchody = u["obchody"].split(",")
+
+    with closing(db()) as con:
+        premium = je_premium(con, u["id"])
+        if not premium:
+            return odmietni(
+                403, SPRAVA_SPAJZA_PREMIUM, KOD_SPAJZA_PREMIUM,
+                premium=False, spajza_dostupna=False,
+                spajza_ulozenych=pocet_ulozenej_spajze(con, u["id"]),
+            )
+        sp = spajza_pouzivatela(con, u["id"], premium)
+    if not sp:
+        return odmietni(400, SPRAVA_SPAJZA_PRAZDNA, KOD_SPAJZA_PRAZDNA)
+
+    rows = akcie_pre(obchody)
+    if len(rows) < MIN_OFFERS_FOR_PLAN:
+        raise HTTPException(503, sprava_o_chybajucich_akciach())
+
+    podpis = podpis_planu(tyz, obchody, u["osoby"], u["frekvencia"], rows, sp, zo_spajze=True)
+    variant = plan_variant_for(u["id"], PLAN_VARIANTS)
+    return zaplat_a_poskladaj(
+        u, tyz, obchody, rows, sp, podpis, variant, premium, zo_spajze=True)
+
+
+def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant, zo_spajze=False):
     """Jediné platené volanie v celej appke — volá sa až po rezervácii miesta."""
     # Rozpočet sa overuje EŠTE PRED vyrobením klienta. Keď je vyčerpaný, appka
     # to povie rovno a pravdivo — nikdy nepodstrčí starý či vymyslený plán.
@@ -982,8 +1084,11 @@ def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant):
         )
         # Blok ponúk je pre celý týždeň rovnaký a tvorí ~92 % promptu, tak ide
         # dopredu a s cache_control — inak sa ako predpona cachovať nedá.
+        # `pantry_driven` rozhoduje, či sa špajza vôbec dostane do promptu.
+        # Pri bežnom pláne nie — je zdieľaný, takže by tam bola aj únikom.
         blocks = personal_plan_messages(
-            rows, u["frekvencia"], sp, household_size=u["osoby"], variant=variant
+            rows, u["frekvencia"], sp if zo_spajze else (), household_size=u["osoby"],
+            variant=variant, pantry_driven=zo_spajze,
         )
         plan_timeout = getattr(anthropic, "APITimeoutError", None)
         nastavenie = {"output_config": {"effort": PLAN_EFFORT}} if PLAN_EFFORT else {}
@@ -1028,18 +1133,19 @@ def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant):
     with closing(db()) as con:
         try:
             plan = build_personal_plan(
-                con, model_output, obchody, u["frekvencia"], u["osoby"], pantry=sp
+                con, model_output, obchody, u["frekvencia"], u["osoby"],
+                pantry=sp if zo_spajze else (),
             )
         except ValueError:
             raise HTTPException(500, "Plán sa nepodarilo bezpečne overiť, skús to znova.")
-        # Odtlačok špajze, z ktorej je plán poskladaný. Vďaka nemu appka vie
-        # ticho upozorniť, že sa špajza medzitým zmenila — bez prepočtu.
-        plan["spajza"] = sp
         con.execute("INSERT OR REPLACE INTO plany (user_id,tyzden,json) VALUES (?,?,?)",
                     (u["id"], tyz, json.dumps(plan, ensure_ascii=False)))
-        uloz_zdielany_plan(con, podpis, variant, tyz, plan)
+        # Plán poskladaný z osobnej špajze sa nesmie zdieľať s nikým: nesie
+        # v sebe, čo má konkrétny človek doma. Preto sa ukladá len do `plany`.
+        if not zo_spajze:
+            uloz_zdielany_plan(con, podpis, variant, tyz, plan)
         con.commit()
-    return plan
+    return so_spajzou(plan, sp)
 
 
 @app.get("/api/plan")
@@ -1056,7 +1162,9 @@ def daj_plan(req: Request):
             cached = None
         rows = offers_for_current_week(con, u["obchody"].split(","), datetime.date.today())
         if cached and cached_plan_is_current(cached, rows):
-            return cached
+            # Špajza sa dopočíta až tu, pri každom čítaní nanovo — preto sa
+            # zmena v špajzi prejaví okamžite a bez plateného prepočtu.
+            return so_spajzou(cached, spajza_pouzivatela(con, u["id"], je_premium(con, u["id"])))
         con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], monday()))
         con.commit()
     raise HTTPException(503, "Aktuálny plán už obsahuje neplatnú ponuku. Skús to o chvíľu.")

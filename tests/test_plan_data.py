@@ -979,8 +979,19 @@ def test_signature_changes_whenever_the_plan_could_legitimately_differ():
     assert signature(stores=["Lidl"]) != signature()
     assert signature(household_size=2) != signature()
     assert signature(frequency=3) != signature()
-    assert signature(pantry=["soľ", "vajcia"]) != signature()
-    assert signature(pantry=[]) != signature()
+
+
+def test_the_pantry_deliberately_stays_out_of_the_shared_signature():
+    """Špajza plán neskladá, tak ho ani nesmie rozdeliť na neZdieľateľné kusy.
+
+    Kým v podpise bola, mal každý platiaci účet vlastný kľúč, nikdy sa netrafil
+    do zdieľanej cache a čakal 60–120 sekúnd. Špajza sa teraz dopočíta až nad
+    nákupným zoznamom (`apply_pantry_to_shopping_list`).
+    """
+    assert signature(pantry=["soľ", "vajcia"]) == signature()
+    assert signature(pantry=[]) == signature()
+    # Jediná výnimka: výslovné „navrhni jedlá z toho, čo mám doma".
+    assert signature(pantry=["soľ"], pantry_driven=True) != signature()
 
 
 def test_signature_changes_when_the_underlying_offers_change():
