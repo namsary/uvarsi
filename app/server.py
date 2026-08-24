@@ -813,6 +813,22 @@ def zahrej_plan_pre_pouzivatela(user_id):
     return plan
 
 
+def sprava_o_chybajucich_akciach() -> str:
+    """Prečo appka nemá z čoho skladať — a to pravdivo.
+
+    „Obnovujú sa, skús to o chvíľu“ platí len vtedy, keď sa naozaj obnovujú.
+    Keď API odmieta pre nulový kredit, zber letákov nemá ako dobehnúť a ten
+    sľub je klamstvo — človek by čakal na niečo, čo samo od seba nepríde.
+    """
+    try:
+        with closing(db()) as con:
+            if naklady.kredit_stav(con)["vycerpany"]:
+                return naklady.SPRAVA_KREDIT_AKCIE
+    except Exception:                      # diagnostika nesmie zhodiť odpoveď
+        pass
+    return "Aktuálne letákové dáta sa obnovujú. Skús to o chvíľu."
+
+
 @app.post("/api/plan/generuj")
 def generuj_plan(req: Request, force: int = 0):
     u = require_user(req)
@@ -820,7 +836,7 @@ def generuj_plan(req: Request, force: int = 0):
     obchody = u["obchody"].split(",")
     rows = akcie_pre(obchody)
     if len(rows) < MIN_OFFERS_FOR_PLAN:
-        raise HTTPException(503, "Aktuálne letákové dáta sa obnovujú. Skús to o chvíľu.")
+        raise HTTPException(503, sprava_o_chybajucich_akciach())
 
     with closing(db()) as con:
         premium = je_premium(con, u["id"])
@@ -914,6 +930,14 @@ def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant):
             except TypeError:
                 # Staršie SDK output_config nepozná; plán je dôležitejší než námaha.
                 msg = poskladaj()
+        except naklady.KreditVycerpany as odmietnutie:
+            # Došiel kredit na API. Nie je to náš výpadok ani chyba používateľa,
+            # tak sa to povie rovno a po slovensky: 503 s pravdivým dôvodom.
+            # Nikdy nie 500 („server má krátkodobý problém") — to by človeka
+            # posielalo skúšať znova do niečoho, čo samo od seba neprejde, a
+            # nikdy nie starý či vymyslený jedálniček.
+            LOG.warning("plán sa neposkladal: %s", naklady.KOD_KREDIT)
+            raise HTTPException(503, str(odmietnutie))
         except naklady.RozpocetVycerpany as odmietnutie:
             raise HTTPException(503, str(odmietnutie))
         except Exception as error:

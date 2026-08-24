@@ -27,6 +27,10 @@ DATABASE_PATH = "/opt/uvarsi/uvarsi.db"
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 # Dohoda s dozorcom: 1 = skús o hodinu znova, 3 = opakovanie nemá zmysel.
 EXIT_RETRY = 1
+# Strojovo čitateľná značka v stderr. Dozorca podľa nej pozná, že pád nebol
+# o dátach, ale o účte — a že si o tom nemá pýtať ďalšie pokusy ani posielať
+# vlastnú notifikáciu (upozornenie posiela naklady.py, práve raz za deň).
+MARKER_KREDIT = "KREDIT_VYCERPANY"
 
 
 def landing_data_output_path(arguments):
@@ -103,6 +107,13 @@ def main():
     database = os.environ.get("UVARSI_DB", DATABASE_PATH)
     try:
         refresh_from_db(path, database, compose_with_llm, today=date.today())
+    except naklady.KreditVycerpany as odmietnutie:
+        # Nulový kredit NIE JE dočasná chyba: o hodinu bude presne taký istý,
+        # kým človek nezasiahne. Preto štrukturálny kód (dozorca prestane
+        # skúšať) a značka, podľa ktorej vie, že ide o účet, nie o dáta.
+        # Starý JSON ostáva na disku — radšej priznane starý bloček než vymyslený.
+        print(f"{MARKER_KREDIT}: {odmietnutie}", file=sys.stderr)
+        raise SystemExit(StructuralFailure.EXIT_CODE) from None
     except naklady.RozpocetVycerpany as odmietnutie:
         # Opakovanie by nič nezmenilo a majiteľ musí vedieť, že sa minul rozpočet,
         # nie len že „bloček je starý“. Starý JSON ostáva na disku nedotknutý —

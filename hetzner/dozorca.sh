@@ -16,6 +16,14 @@
 # neopakuje, kým sa vstupné dáta nezmenia — inak by hodinové pokusy pálili
 # kredit za výsledok, ktorý je vopred známy.
 #
+# TRETÍ prípad — NULOVÝ KREDIT (incident 24. 8. 2026): API odmieta každé
+# volanie, kým majiteľ nedobije účet. Dáta s tým nemajú nič spoločné, takže
+# blok viazaný na počet ponúk by sa uvoľnil pri prvej zmene v DB a pokusy by
+# bežali ďalej. refresh_blocek to preto hlási značkou KREDIT_VYCERPANY a
+# dozorca zapíše blok "KREDIT" — dnes už nespustí nič, zajtra to skúsi znova.
+# Upozornenie na ntfy posiela naklady.py (práve raz za deň), dozorca ho
+# zámerne NEZDVOJUJE.
+#
 # Inštalácia (cron):
 #   0 5-21 * * * /opt/uvarsi/dozorca.sh >> /var/log/uvarsi.log 2>&1
 
@@ -35,6 +43,28 @@ notify(){ curl -s --max-time 15 -H "Title: $1" -d "$2" "https://ntfy.sh/${NTFY_T
 TODAY="${UVARSI_TODAY:-$(date +%F)}"
 
 MON_ISO=$("$PY" -c 'from datetime import date, timedelta; import sys; d=date.fromisoformat(sys.argv[1]); print((d-timedelta(days=d.weekday())).isoformat())' "$TODAY")
+
+# --- Stav z predošlých dnešných pokusov (formát: "deň neúspechy blok") ---
+# Číta sa hneď na začiatku, aby sa kreditový blok stihol uplatniť EŠTE PRED
+# zbieračom — inak by hodinový beh zbytočne búchal na API, ktoré odmieta všetko.
+FAILS=0
+BLOKNUTE_NA="-"                      # "-" = žiadny blok; "KREDIT" = došiel kredit;
+                                     # inak počet ponúk pri štrukturálnom páde
+if [ -f "$STATE" ]; then
+  read -r SDATE SFAILS SBLOK < "$STATE" || true
+  if [ "${SDATE:-}" = "$TODAY" ]; then
+    FAILS=${SFAILS:-0}
+    BLOKNUTE_NA=${SBLOK:--}
+  fi
+fi
+
+# Nulový kredit sa dnes už zistil. Opakovať sa nedá „kým sa dáta nezmenia" —
+# tu sa musí zmeniť účet. Upozornenie už odišlo z naklady.py (práve raz),
+# dozorca teda mlčí a len nespúšťa ďalšie pokusy. Zajtra sa skúsi znova.
+if [ "$BLOKNUTE_NA" = "KREDIT" ]; then
+  log "KREDIT VYČERPANÝ — dnes už nič nespúšťam. Treba dobiť kredit na Anthropic API."
+  exit "$EXIT_STRUCTURAL"
+fi
 
 landing_data_is_current() {
   (cd "$DIR" && "$PY" -c 'from app.landing_data import landing_data_is_current; from datetime import date; import sys; raise SystemExit(0 if landing_data_is_current(sys.argv[1], date.fromisoformat(sys.argv[2])) else 1)' "$LANDING_DATA" "$TODAY")
@@ -75,17 +105,7 @@ if landing_data_is_current; then
   exit 0
 fi
 
-# --- 2. Načítaj dnešný počet neúspechov a prípadný štrukturálny blok ---
-FAILS=0
-BLOKNUTE_NA="-"                      # "-" = žiadny blok; inak počet ponúk pri páde
-if [ -f "$STATE" ]; then
-  read -r SDATE SFAILS SBLOK < "$STATE" || true
-  if [ "${SDATE:-}" = "$TODAY" ]; then
-    FAILS=${SFAILS:-0}
-    BLOKNUTE_NA=${SBLOK:--}
-  fi
-fi
-
+# --- 2. Uplatni dnešný štrukturálny blok ---
 # Štrukturálny pád sa opakuje len vtedy, keď sa vstupné dáta odvtedy zmenili.
 if [ "$BLOKNUTE_NA" != "-" ] && [ "$BLOKNUTE_NA" = "${POCET:-0}" ]; then
   log "ŠTRUKTURÁLNA chyba pri ${POCET:-0} ponukách a dáta sa odvtedy nezmenili — nespúšťam ďalší pokus (šetrím kredit)."
@@ -100,8 +120,24 @@ fi
 log "landing JSON nie je aktuálny — pokus $((FAILS+1))/$MAX_TRIES…"
 
 # --- 3. Skús obnoviť ---
-cd "$DIR" && "$PY" -u refresh_blocek.py "$LANDING_DATA"
+# Výstup ide do premennej aj do logu: dozorca z neho musí prečítať, ČI bol pád
+# o dátach alebo o účte. Bez toho by nulový kredit vyzeral ako hocijaká iná
+# štrukturálna chyba a majiteľ by dostal hlášku, ktorá mu nepovie, čo urobiť.
+VYSTUP=$(cd "$DIR" && "$PY" -u refresh_blocek.py "$LANDING_DATA" 2>&1)
 RC=$?
+[ -n "$VYSTUP" ] && printf '%s\n' "$VYSTUP"
+
+# --- 3a. Došiel kredit: opakovanie nepomôže, kým ho majiteľ nedobije ---
+# Notifikáciu posiela naklady.py práve raz za deň — dozorca ju NEZDVOJUJE
+# (notify_kredit_preskoc), inak by majiteľ dostal to isté dvakrát za hodinu.
+case "$VYSTUP" in
+  *KREDIT_VYCERPANY*)
+    echo "$TODAY $FAILS KREDIT" > "$STATE"
+    log "KREDIT VYČERPANÝ — refresh_blocek hlási, že Anthropic API odmieta volania pre nulový kredit. Ďalšie pokusy dnes nespúšťam, treba dobiť kredit."
+    exit "$EXIT_STRUCTURAL"
+    ;;
+esac
+
 if [ "$RC" -eq 0 ] && landing_data_is_current; then
   log "OK — landing JSON obnovený na týždeň $MON_ISO."
   if [ "$FAILS" -gt 0 ]; then

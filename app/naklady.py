@@ -20,6 +20,17 @@ Tri vrstvy ochrany, v tomto poradí:
 
 Zásada: FAIL CLOSED. Keď sa evidencia nedá prečítať alebo strop určiť, drahé
 volanie sa NEUSKUTOČNÍ. Radšej appka chvíľu nefunguje, než aby ticho míňala.
+
+Druhý incident (24. 8. 2026) ukázal opačnú dieru: majiteľovi došiel kredit a
+API začalo každé volanie odmietať HTTP chybou 400 ešte pred vykonaním práce.
+`s_rozpoctom` to bral ako obyčajné spadnuté volanie a zaúčtoval konzervatívny
+odhad — takže oba týždňové behy zbierača padli na volania, ktoré nikdy
+nebežali, a /api/naklady hlásilo 0,66 € „minutých", ktoré nikto nezaplatil.
+Odtiaľ štvrtá vrstva:
+  4. `je_nedostatok_kreditu` — odmietnutie pre nulový kredit je VLASTNÝ druh
+     zlyhania (`KreditVycerpany`). Neúčtuje sa, nezoberie miesto v týždennom
+     počte behov, upozorní práve raz za deň a je vidieť na /api/health.
+     Ostatné spadnuté volania sa účtujú ďalej — timeout tokeny minúť mohol.
 """
 import datetime
 import math
@@ -99,10 +110,33 @@ KOD_MESACNY = "rozpocet_mesacny"
 KOD_UCEL = "rozpocet_ucel"
 KOD_BEHY = "rozpocet_behy"
 KOD_NECITATELNY = "rozpocet_necitatelny"
+KOD_KREDIT = "kredit_vycerpany"
 
 SPRAVA_NECITATELNY = (
     "Rozpočet sa nedá overiť, tak sme platené volanie nespustili. "
     "Radšej nič než tiché míňanie."
+)
+
+# Text pre používateľa. Žiadne euro číslo — nič sa neminulo a číslo by klamalo.
+SPRAVA_KREDIT = (
+    "Nový jedálniček sa teraz nedá poskladať: prístup k AI je pozastavený, "
+    "lebo na účte došiel kredit. Kým ho majiteľ nedobije, appka radšej nič "
+    "nevygeneruje, než by si vymýšľala jedlá alebo ukazovala staré ceny."
+)
+# Prečo v appke nie sú akcie na tento týždeň. Sľub „skús to o chvíľu" platí len
+# vtedy, keď sa zber naozaj obnovuje — pri nulovom kredite nemá ako dobehnúť.
+SPRAVA_KREDIT_AKCIE = (
+    "Akcie z letákov sa tento týždeň nenačítali: prístup k AI je pozastavený, "
+    "lebo na účte došiel kredit. Staré ceny ti radšej neukazujeme ako dnešné. "
+    "Ozveme sa, len čo bude appka opäť plne funkčná."
+)
+# Text pre majiteľa na ntfy — musí povedať, čo má urobiť.
+TITUL_KREDIT = "Uvar.si: došiel kredit na Anthropic API"
+SPRAVA_KREDIT_NTFY = (
+    "API odmieta všetky volania — na účte je nulový kredit. Appka nevie "
+    "generovať jedálničky ani landing bloček, kým kredit nedobiješ. "
+    "Nič sa neúčtovalo (odmietnuté volania nespotrebovali ani token) a "
+    "opakované pokusy sú zastavené, aby log nezaplavili."
 )
 
 
@@ -119,6 +153,80 @@ class RozpocetVycerpany(Exception):
         self.ucel = ucel
         self.minute_eur = minute_eur
         self.strop_eur = strop_eur
+
+
+class KreditVycerpany(RozpocetVycerpany):
+    """API odmietlo volanie pre nulový kredit — NIČ sa nevykonalo.
+
+    Tretí druh zlyhania, odlišný od oboch existujúcich:
+      • nie je to dočasná chyba — opakovanie nepomôže, kým človek nedobije
+        kredit, takže hodinové pokusy sú čistá strata (a zaplavia log);
+      • nie je to ani normálne spadnuté volanie — to mohlo tokeny minúť
+        a preto sa konzervatívne účtuje. Odmietnutie pre kredit príde skôr,
+        než API čokoľvek prečíta, takže účtovať niet čo.
+    Dedí z RozpocetVycerpany zámerne: každé miesto, ktoré už vie „platené
+    volanie sa neuskutočnilo, degraduj pravdivo", sa zachová správne aj tu.
+    """
+
+    def __init__(self, sprava=SPRAVA_KREDIT, *, ucel=None):
+        super().__init__(sprava, kod=KOD_KREDIT, ucel=ucel)
+
+
+# Anthropic pre „došiel kredit" NEMÁ vlastný kód chyby: vráti HTTP 400 a v tele
+# generický `error.type = "invalid_request_error"`, ktorý používa aj pre pokazené
+# parametre (max_tokens, neznámy model…). Štruktúra teda stav zúži, ale sama ho
+# neurčí. Preto:
+#   1. povinne overíme, čo sa overiť dá — stavový kód 400 a typ chyby,
+#   2. až potom hľadáme kanonickú anglickú vetu z API. Je to jediné rozlíšenie,
+#      ktoré existuje. Zhoda je úmyselne úzka („credit balance is too low") a
+#      hľadá sa v `error.message` z rozparsovaného tela, nie v texte výnimky.
+# Vlastná lokalizácia sa tu nikdy neobjaví — je to odpoveď API, nie naša hláška.
+FRAZY_KREDIT = ("credit balance is too low",)
+
+
+def _stavovy_kod(chyba):
+    for zdroj in (chyba, getattr(chyba, "response", None)):
+        kod = getattr(zdroj, "status_code", None)
+        if isinstance(kod, int) and not isinstance(kod, bool):
+            return kod
+    return None
+
+
+def _telo_chyby(chyba):
+    """Rozparsované telo odpovede z SDK: {'type':'error','error':{...}}."""
+    telo = getattr(chyba, "body", None)
+    if not isinstance(telo, dict):
+        return None
+    vnutro = telo.get("error")
+    return vnutro if isinstance(vnutro, dict) else telo
+
+
+def je_nedostatok_kreditu(chyba) -> bool:
+    """Je to odmietnutie pre nulový kredit — teda volanie, ktoré nič nespotrebovalo?
+
+    Fail closed opačným smerom než zvyšok modulu: keď si nie sme istí, vrátime
+    False a volanie sa zaúčtuje ako každé iné spadnuté. Radšej zaúčtovať niečo,
+    čo bolo zadarmo, než prestať účtovať skutočnú spotrebu.
+    """
+    if isinstance(chyba, KreditVycerpany):
+        return True
+    kod = _stavovy_kod(chyba)
+    if kod is not None and kod != 400:
+        return False
+    vnutro = _telo_chyby(chyba)
+    if vnutro is not None:
+        typ = vnutro.get("type")
+        if typ is not None and typ != "invalid_request_error":
+            return False
+        text = str(vnutro.get("message") or "")
+    elif kod == 400:
+        # Staršie SDK telo nerozparsuje; v texte výnimky je celý JSON od API.
+        text = str(chyba)
+    else:
+        # Obyčajná výnimka bez akejkoľvek stopy po HTTP odpovedi — netipujeme.
+        return False
+    text = text.lower()
+    return any(fraza in text for fraza in FRAZY_KREDIT)
 
 
 @dataclass(frozen=True)
@@ -258,6 +366,24 @@ CREATE TABLE IF NOT EXISTS naklady_upozornenia (
   poslane TEXT,
   PRIMARY KEY (mesiac, prah)
 );
+
+-- Posledný známy stav „API odmieta pre nulový kredit". Slúži na dve veci:
+-- /api/health a /api/naklady z nej hovoria pravdu namiesto falošného eura,
+-- a primárny kľúč na DNI zaručuje jedno upozornenie za deň, nie za pokus.
+-- Riadky sa mažú, keď volanie preukázateľne prejde — kredit teda zase je.
+CREATE TABLE IF NOT EXISTS naklady_kredit (
+  den     TEXT NOT NULL PRIMARY KEY,
+  zistene TEXT,
+  ucel    TEXT
+);
+
+-- Protizápisy: ktoré riadky evidencie už boli stornované ako „zaúčtované za
+-- prácu, ktorá sa nevykonala". Primárny kľúč robí opravu idempotentnou.
+CREATE TABLE IF NOT EXISTS naklady_storna (
+  naklady_id INTEGER PRIMARY KEY,
+  cas        TEXT,
+  dovod      TEXT
+);
 """
 
 
@@ -393,6 +519,93 @@ def rezervuj_beh(con, ucel, *, teraz=None):
     return pocet + 1
 
 
+def uvolni_beh(con, ucel, *, teraz=None):
+    """Vráť miesto v týždennom počte behov — beh sa NEUSKUTOČNIL.
+
+    Volá sa jedine vtedy, keď je preukázané, že sa nespotreboval ani token
+    (API odmietlo volanie pre nulový kredit). Strop tým neslabne: miesto sa
+    vracia len za prácu, ktorá sa nikdy nezačala. Nikdy nejde pod nulu, takže
+    dvojité zavolanie počítadlo nerozbije — oprava smie bežať opakovane.
+    """
+    teraz = _teraz(teraz)
+    _, _, tyzden = _obdobia(teraz)
+    try:
+        with con:
+            con.execute(
+                "UPDATE naklady_behy SET pocet = MAX(pocet - 1, 0), updated = ? "
+                "WHERE tyzden = ? AND ucel = ?",
+                (teraz.isoformat(timespec="seconds"), tyzden, ucel),
+            )
+            riadok = con.execute(
+                "SELECT pocet FROM naklady_behy WHERE tyzden=? AND ucel=?", (tyzden, ucel)
+            ).fetchone()
+    except (sqlite3.Error, OSError):
+        # Uvoľnenie je náprava, nie platba — nesmie prebiť pôvodnú chybu.
+        return None
+    return int(riadok["pocet"]) if riadok else 0
+
+
+# ---------------------------------------------------------------- nulový kredit
+def zapamataj_kredit(con, *, ucel=None, teraz=None) -> bool:
+    """Zapíš, že API odmieta pre nulový kredit. True = je to novinka.
+
+    Kľúčom je DEŇ. Hodinový dozorca aj desiatky pokusov používateľov tak
+    spustia jedno jediné upozornenie namiesto lavíny — presne ako pri prahoch
+    mesačného rozpočtu. Nový deň sa ozve znova, aby sa na to nezabudlo.
+    """
+    teraz = _teraz(teraz)
+    den, _, _ = _obdobia(teraz)
+    kurzor = con.execute(
+        "INSERT OR IGNORE INTO naklady_kredit (den, zistene, ucel) VALUES (?, ?, ?)",
+        (den, teraz.isoformat(timespec="seconds"), None if ucel is None else str(ucel)),
+    )
+    con.commit()
+    return kurzor.rowcount == 1
+
+
+def zabudni_kredit(con) -> None:
+    """Volanie prešlo → kredit zjavne je. Príznak sa zmaže, appka mlčí."""
+    try:
+        con.execute("DELETE FROM naklady_kredit")
+        con.commit()
+    except (sqlite3.Error, OSError):
+        pass
+
+
+def kredit_stav(con) -> dict:
+    """Čo o kredite povedať na /api/health a /api/naklady."""
+    try:
+        riadok = con.execute(
+            "SELECT den, zistene FROM naklady_kredit ORDER BY den DESC LIMIT 1"
+        ).fetchone()
+    except (sqlite3.Error, OSError):
+        return {"vycerpany": False, "od": None, "sprava": None}
+    if riadok is None:
+        return {"vycerpany": False, "od": None, "sprava": None}
+    return {
+        "vycerpany": True,
+        "od": riadok["zistene"] or riadok["den"],
+        "sprava": SPRAVA_KREDIT_NTFY,
+    }
+
+
+def _ohlas_kredit(con, ucel, teraz, notifikuj) -> KreditVycerpany:
+    """Zaznamenaj stav, upozorni NAJVIAC RAZ za deň a vráť typované odmietnutie."""
+    posli = posli_ntfy if notifikuj is None else notifikuj
+    try:
+        nove = zapamataj_kredit(con, ucel=ucel, teraz=teraz)
+    except (sqlite3.Error, OSError):
+        # Bez evidencie sa „práve raz" nedá zaručiť; lavína notifikácií by bola
+        # horšia než ticho. Pokazená evidencia sa aj tak hlási cez /api/health.
+        nove = False
+    if nove:
+        try:
+            posli({"titul": TITUL_KREDIT, "sprava": SPRAVA_KREDIT_NTFY})
+        except Exception:
+            pass
+    return KreditVycerpany(ucel=ucel)
+
+
 # ---------------------------------------------------------------- zápis spotreby
 def zapis(con, ucel, model, usage=None, *, detail=None, teraz=None,
           odhad_eur=None, notifikuj=None) -> float:
@@ -412,6 +625,9 @@ def zapis(con, ucel, model, usage=None, *, detail=None, teraz=None,
     else:
         eur = cena_eur(model, **tokeny)
         je_odhad = 0
+        # Skutočná spotreba je dôkaz, že API zase účtuje — príznak „došiel
+        # kredit" preto padá sám, bez zásahu a bez rizika trvalého zaseknutia.
+        zabudni_kredit(con)
 
     con.execute(
         """INSERT INTO naklady
@@ -441,6 +657,12 @@ def s_rozpoctom(con, ucel, model, volanie, *, odhad_eur=None, detail=None,
     try:
         odpoved = volanie()
     except BaseException as chyba:
+        if je_nedostatok_kreditu(chyba):
+            # Jediná výnimka z pravidla „spadnuté volanie sa účtuje": API tu
+            # request odmietlo EŠTE PRED akoukoľvek prácou, takže spotreba je
+            # preukázateľne nulová. Zaúčtovať odhad by minulo týždenný rozpočet
+            # za behy, ktoré nikdy nebežali — presne to sa 24. 8. 2026 stalo.
+            raise _ohlas_kredit(con, ucel, teraz, notifikuj) from chyba
         zapis(con, ucel, model, None, teraz=teraz, odhad_eur=odhad_eur,
               detail=f"zlyhalo: {type(chyba).__name__}", notifikuj=notifikuj)
         raise
@@ -542,7 +764,10 @@ def stav(con, teraz=None, limit_poslednych=5) -> dict:
     """
     teraz = _teraz(teraz)
     den, mesiac, tyzden = _obdobia(teraz)
-    zaklad = {"den": den, "mesiac": mesiac, "tyzden": tyzden, "chyba": None}
+    # Príznak kreditu ide do základu: keď API odmieta, je to najdôležitejšia
+    # informácia v celom prehľade a nesmie zmiznúť ani pri pokazenej evidencii.
+    zaklad = {"den": den, "mesiac": mesiac, "tyzden": tyzden, "chyba": None,
+              "kredit": kredit_stav(con)}
     try:
         limity = stropy()
         dnes_eur = round(spolu_za_den(con, den), 6)
@@ -584,3 +809,156 @@ def stav(con, teraz=None, limit_poslednych=5) -> dict:
         "behy": behy,
         "posledne": posledne,
     }
+
+
+# ---------------------------------------------------------------- oprava evidencie
+# Chyby, pri ktorých API request odmietlo EŠTE PRED prácou, takže spotreba je
+# nulová. HTTP 400 je z definície odmietnutý request — model sa nespustil.
+# Timeout (APITimeoutError) tu zámerne NIE JE: ten mohol tokeny minúť a jeho
+# konzervatívne zaúčtovanie je správne.
+CHYBY_BEZ_SPOTREBY = ("BadRequestError",)
+DOVOD_STORNO = "storno: volanie odmietnuté pre nulový kredit (nič nespotrebovalo)"
+
+
+def _kandidati_na_storno(con, tyzden):
+    """Riadky zaúčtované odhadom za volanie, ktoré API odmietlo bez práce."""
+    podmienky = " OR ".join(["detail LIKE ?"] * len(CHYBY_BEZ_SPOTREBY))
+    parametre = [tyzden] + [f"zlyhalo: {nazov}%" for nazov in CHYBY_BEZ_SPOTREBY]
+    return con.execute(
+        "SELECT id, cas, den, mesiac, tyzden, ucel, model, eur, detail FROM naklady "
+        f"WHERE tyzden = ? AND odhad = 1 AND ({podmienky}) AND eur > 0 "
+        "  AND id NOT IN (SELECT naklady_id FROM naklady_storna) "
+        "ORDER BY id",
+        parametre,
+    ).fetchall()
+
+
+def oprav_kredit(con, *, teraz=None, tyzden=None, vykonaj=False) -> dict:
+    """Naprav evidenciu po volaniach, ktoré API odmietlo pre nulový kredit.
+
+    NIČ SA NEMAŽE. Pôvodné riadky ostávajú — sú to skutočné pokusy a patria do
+    histórie incidentu. Ku každému sa dopíše protizápis so zápornou sumou a
+    poznámkou prečo, takže súčet vyjde na nulu, ale stopa je čitateľná.
+
+    Miesto v týždennom počte behov sa vráti len vtedy, keď po stornách v tom
+    týždni na daný účel neostala ŽIADNA skutočná útrata — teda keď je dokázané,
+    že ani jeden beh nič nespotreboval. Keď sa v týždni čokoľvek naozaj minulo,
+    počítadlo sa nechá tak: strop sa opravou nikdy neuvoľní omylom.
+
+    Idempotentné vďaka tabuľke `naklady_storna`: čo je raz stornované, sa
+    druhýkrát preskočí. `vykonaj=False` je iba náhľad a nič nemení.
+    """
+    teraz = _teraz(teraz)
+    _, _, tyz = _obdobia(teraz)
+    tyz = tyzden or tyz
+    kandidati = _kandidati_na_storno(con, tyz)
+    suma = round(sum(float(r["eur"]) for r in kandidati), 6)
+    vysledok = {
+        "tyzden": tyz,
+        "vykonane": bool(vykonaj),
+        "stornovanych": len(kandidati),
+        "vratene_eur": suma,
+        "vratene_behy": {},
+        "riadky": [
+            {"id": r["id"], "cas": r["cas"], "ucel": r["ucel"],
+             "eur": round(float(r["eur"]), 6), "detail": r["detail"]}
+            for r in kandidati
+        ],
+    }
+    if not kandidati or not vykonaj:
+        return vysledok
+
+    cas = teraz.isoformat(timespec="seconds")
+    with con:
+        for riadok in kandidati:
+            con.execute(
+                """INSERT INTO naklady
+                   (cas, den, mesiac, tyzden, ucel, model,
+                    vstup, vystup, cache_write, cache_read, eur, odhad, detail)
+                   VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?, 1, ?)""",
+                (cas, riadok["den"], riadok["mesiac"], riadok["tyzden"], riadok["ucel"],
+                 riadok["model"], -float(riadok["eur"]),
+                 f"{DOVOD_STORNO} — pôvodný záznam #{riadok['id']}"),
+            )
+            con.execute(
+                "INSERT OR IGNORE INTO naklady_storna (naklady_id, cas, dovod) VALUES (?, ?, ?)",
+                (riadok["id"], cas, DOVOD_STORNO),
+            )
+        for ucel in sorted({r["ucel"] for r in kandidati}):
+            if not limit_behov(ucel):
+                continue
+            zostatok = con.execute(
+                "SELECT COALESCE(SUM(eur), 0) FROM naklady WHERE ucel = ? AND tyzden = ?",
+                (ucel, tyz),
+            ).fetchone()[0]
+            if float(zostatok) > 1e-9:
+                continue                     # v týždni sa naozaj míňalo — strop platí
+            riadok = con.execute(
+                "SELECT pocet FROM naklady_behy WHERE tyzden=? AND ucel=?", (tyz, ucel)
+            ).fetchone()
+            if riadok and int(riadok["pocet"]):
+                vysledok["vratene_behy"][ucel] = int(riadok["pocet"])
+                con.execute(
+                    "UPDATE naklady_behy SET pocet = 0, updated = ? WHERE tyzden=? AND ucel=?",
+                    (cas, tyz, ucel),
+                )
+    return vysledok
+
+
+# ---------------------------------------------------------------- príkazový riadok
+NAPOVEDA = """Oprava evidencie po výpadku kreditu na Anthropic API.
+
+Použitie na serveri:
+    cd /opt/uvarsi/app
+    ../venv/bin/python naklady.py --oprav-kredit             # iba náhľad
+    ../venv/bin/python naklady.py --oprav-kredit --vykonaj   # naozaj opraviť
+"""
+
+
+def cli(argv=None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="naklady.py", description=NAPOVEDA,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--oprav-kredit", action="store_true", dest="oprav",
+                        help="storno volaní odmietnutých pre nulový kredit")
+    parser.add_argument("--vykonaj", action="store_true",
+                        help="bez tohto prepínača je to iba náhľad, nič sa nemení")
+    parser.add_argument("--tyzden", default=None,
+                        help="ISO pondelok, napr. 2026-08-17 (východzí: tento týždeň)")
+    parser.add_argument("--db", default=None, help="cesta k uvarsi.db")
+    argumenty = parser.parse_args(argv)
+
+    if not argumenty.oprav:
+        parser.print_help()
+        return 2
+
+    con = pripoj(argumenty.db)
+    try:
+        vysledok = oprav_kredit(con, tyzden=argumenty.tyzden, vykonaj=argumenty.vykonaj)
+    finally:
+        con.close()
+
+    rezim = "OPRAVENÉ" if vysledok["vykonane"] else "NÁHĽAD (nič sa nezmenilo)"
+    print(f"Týždeň {vysledok['tyzden']} — {rezim}")
+    print(f"  volaní zaúčtovaných omylom: {vysledok['stornovanych']}")
+    print(f"  vrátené do rozpočtu:        {vysledok['vratene_eur']:.2f} €")
+    for riadok in vysledok["riadky"]:
+        print(f"    #{riadok['id']}  {riadok['cas']}  {riadok['ucel']}  "
+              f"{riadok['eur']:.4f} €  ({riadok['detail']})")
+    if vysledok["vratene_behy"]:
+        for ucel, pocet in vysledok["vratene_behy"].items():
+            print(f"  vrátené behy „{ucel}“:      {pocet}× (počítadlo nastavené na 0)")
+    elif not vysledok["stornovanych"]:
+        print("  nič na opravu — evidencia je v poriadku.")
+    elif vysledok["vykonane"]:
+        print("  behy: nemenené (v týždni ostala skutočná útrata)")
+    if not vysledok["vykonane"] and vysledok["stornovanych"]:
+        print("\nSpusti znova s --vykonaj, keď to takto sedí.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(cli())

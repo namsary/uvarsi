@@ -149,6 +149,87 @@ def test_dozorca_keeps_retrying_a_transient_failure(tmp_path):
     assert (tmp_path / ".dozorca_state").read_text(encoding="utf-8").split() == ["2026-08-18", "2", "-"]
 
 
+def _credit_exhausted_environment(tmp_path):
+    """Presne to, čo produkcia hlásila 24. 8. 2026: kód 3 + značka o kredite."""
+    landing_data = tmp_path / "landing_data.json"
+    write_landing_data_atomic(landing_data, payload("2026-08-10"))
+    calls = tmp_path / "calls.txt"
+    notifications = tmp_path / "notify.txt"
+    fake_python = tmp_path / "python"
+    fake_python.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"-c\" ]; then exit 1; fi\n"
+        f"printf '%s\\n' \"$*\" >> '{bash_path(calls)}'\n"
+        "echo 'KREDIT_VYCERPANY: na účte došiel kredit' >&2\n"
+        "exit 3\n",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+    fake_sqlite = tmp_path / "sqlite3"
+    fake_sqlite.write_text("#!/bin/sh\necho 431\n", encoding="utf-8")
+    fake_sqlite.chmod(0o755)
+    fake_curl = tmp_path / "curl"
+    fake_curl.write_text(
+        "#!/bin/sh\n"
+        f"printf '%s\\n' \"$*\" >> '{bash_path(notifications)}'\n",
+        encoding="utf-8",
+    )
+    fake_curl.chmod(0o755)
+    return landing_data, calls, notifications
+
+
+def test_dozorca_stops_attempting_when_the_api_credit_ran_out(tmp_path):
+    """Nulový kredit nie je dočasná chyba — hodinové pokusy nemajú čo skúšať."""
+    landing_data, calls, _ = _credit_exhausted_environment(tmp_path)
+
+    first = run_dozorca(tmp_path, landing_data)
+    second = run_dozorca(tmp_path, landing_data)
+    third = run_dozorca(tmp_path, landing_data)
+
+    assert (first.returncode, second.returncode, third.returncode) == (3, 3, 3)
+    assert calls.read_text(encoding="utf-8").count("refresh_blocek.py") == 1, (
+        "po zistení nulového kreditu sa refresh nesmie spustiť znova"
+    )
+    assert (tmp_path / ".dozorca_state").read_text(encoding="utf-8").split() == [
+        "2026-08-18", "0", "KREDIT"
+    ]
+    assert "KREDIT" in first.stdout
+
+
+def test_dozorca_does_not_send_a_second_credit_notification(tmp_path):
+    """Upozornenie posiela naklady.py práve raz — dozorca ho nesmie zdvojiť."""
+    landing_data, _, notifications = _credit_exhausted_environment(tmp_path)
+
+    for _ in range(3):
+        run_dozorca(tmp_path, landing_data)
+
+    assert not notifications.exists(), (
+        "dozorca pri nulovom kredite neposiela vlastnú notifikáciu"
+    )
+
+
+def test_dozorca_credit_block_does_not_leak_into_the_next_day(tmp_path):
+    """Zajtra sa to skúsi znova — kredit mohol medzitým pribudnúť."""
+    landing_data, calls, _ = _credit_exhausted_environment(tmp_path)
+    run_dozorca(tmp_path, landing_data)
+
+    subprocess.run(
+        [str(BASH), bash_path(ROOT / "hetzner" / "dozorca.sh")],
+        cwd=str(ROOT),
+        env=os.environ | {
+            "UVARSI_DIR": bash_path(tmp_path),
+            "UVARSI_LANDING_DATA": bash_path(landing_data),
+            "UVARSI_PY": bash_path(tmp_path / "python"),
+            "UVARSI_TODAY": "2026-08-19",
+            "PATH": f"{bash_path(tmp_path)}:/usr/bin",
+        },
+        text=True, encoding="utf-8", errors="replace",
+        capture_output=True, check=False,
+    )
+
+    assert calls.read_text(encoding="utf-8").count("refresh_blocek.py") == 2
+
+
 def test_dozorca_does_not_refresh_current_json(tmp_path):
     landing_data = tmp_path / "landing_data.json"
     write_landing_data_atomic(landing_data, payload("2026-08-17"))

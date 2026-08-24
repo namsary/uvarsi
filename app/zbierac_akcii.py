@@ -479,6 +479,10 @@ def zbieraj(client, store):
         content.append({"type": "text", "text": SCAN_PROMPT})
         try:
             selected = claude_json(client, MODEL_SCAN, content, 500)
+        except naklady.KreditVycerpany:
+            # Nie je to chyba OBCHODU, ale celého účtu: ďalšie obchody by len
+            # zopakovali to isté odmietnutie. Preto ide von nezabalené.
+            raise
         except Exception as exc:
             raise ValueError(f"{store}: sken strán zlyhal") from exc
         if not isinstance(selected, list):
@@ -508,6 +512,8 @@ def zbieraj(client, store):
         content.append({"type": "text", "text": EXTRACT_PROMPT.format(store=store.upper())})
         try:
             items = claude_json(client, MODEL_READ, content, READ_TOKENS, effort=READ_EFFORT)
+        except naklady.KreditVycerpany:
+            raise
         except Exception as exc:
             raise ValueError(f"{store}: extrakcia strán zlyhala") from exc
         if not isinstance(items, list):
@@ -578,6 +584,14 @@ def main():
             try:
                 akcie = zbieraj(client, store)
                 replace_store_week(con, tyz, store.capitalize(), akcie)
+            except naklady.KreditVycerpany as odmietnutie:
+                # API odmietlo request EŠTE PRED prácou — nespotreboval sa ani
+                # token, takže zabraté miesto v týždennom počte behov patrí
+                # späť. Inak by zbierač po dobití kreditu ostal zablokovaný do
+                # konca týždňa za behy, ktoré nikdy nebežali (incident 24. 8.).
+                naklady.uvolni_beh(con, "zber_letakov")
+                log(f"[ERROR] {store}: {odmietnutie}")
+                raise SystemExit(f"Zber zastavený — {odmietnutie}") from None
             except Exception as exc:
                 failures.append(store)
                 record_store_outcome(con, tyz, store.capitalize(), "fail", 0, str(exc)[:300])
