@@ -16,6 +16,7 @@ from contextlib import closing
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+import naklady
 from config import public_base_url, release_id
 from landing_data import load_landing_data, validate_landing_data
 from weekly_data import offers_for_current_week
@@ -239,6 +240,7 @@ def db():
     migrate_auth_schema(con)
     migrate_akcie_schema(con)
     migrate_platby_schema(con)
+    naklady.migrate_naklady_schema(con)
     return con
 
 
@@ -876,34 +878,48 @@ def generuj_plan(req: Request, force: int = 0):
 
 def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant):
     """Jediné platené volanie v celej appke — volá sa až po rezervácii miesta."""
-    import anthropic
-    client = anthropic.Anthropic(
-        api_key=env("ANTHROPIC_API_KEY"),
-        timeout=PLAN_TIMEOUT_SECONDS,
-        max_retries=PLAN_MAX_RETRIES,
-    )
-    # Blok ponúk je pre celý týždeň rovnaký a tvorí ~92 % promptu, tak ide
-    # dopredu a s cache_control — inak sa ako predpona cachovať nedá.
-    blocks = personal_plan_messages(
-        rows, u["frekvencia"], sp, household_size=u["osoby"], variant=variant
-    )
-    plan_timeout = getattr(anthropic, "APITimeoutError", None)
-    nastavenie = {"output_config": {"effort": PLAN_EFFORT}} if PLAN_EFFORT else {}
-
-    def poskladaj(**navyse):
-        return client.messages.create(model=MODEL_PLAN, max_tokens=PLAN_TOKENS,
-                                      messages=[{"role": "user", "content": blocks}], **navyse)
-
-    try:
+    # Rozpočet sa overuje EŠTE PRED vyrobením klienta. Keď je vyčerpaný, appka
+    # to povie rovno a pravdivo — nikdy nepodstrčí starý či vymyslený plán.
+    with closing(db()) as ucty:
         try:
-            msg = poskladaj(**nastavenie)
-        except TypeError:
-            # Staršie SDK output_config nepozná; plán je dôležitejší než námaha.
-            msg = poskladaj()
-    except Exception as error:
-        if plan_timeout is not None and isinstance(error, plan_timeout):
-            raise HTTPException(504, SPRAVA_PLAN_TRVA_PRIDLHO)
-        raise
+            naklady.skontroluj(ucty, "plan")
+        except naklady.RozpocetVycerpany as odmietnutie:
+            raise HTTPException(503, str(odmietnutie))
+
+        import anthropic
+        client = naklady.strazeny_klient(
+            ucty,
+            anthropic.Anthropic(
+                api_key=env("ANTHROPIC_API_KEY"),
+                timeout=PLAN_TIMEOUT_SECONDS,
+                max_retries=PLAN_MAX_RETRIES,
+            ),
+            "plan",
+        )
+        # Blok ponúk je pre celý týždeň rovnaký a tvorí ~92 % promptu, tak ide
+        # dopredu a s cache_control — inak sa ako predpona cachovať nedá.
+        blocks = personal_plan_messages(
+            rows, u["frekvencia"], sp, household_size=u["osoby"], variant=variant
+        )
+        plan_timeout = getattr(anthropic, "APITimeoutError", None)
+        nastavenie = {"output_config": {"effort": PLAN_EFFORT}} if PLAN_EFFORT else {}
+
+        def poskladaj(**navyse):
+            return client.messages.create(model=MODEL_PLAN, max_tokens=PLAN_TOKENS,
+                                          messages=[{"role": "user", "content": blocks}], **navyse)
+
+        try:
+            try:
+                msg = poskladaj(**nastavenie)
+            except TypeError:
+                # Staršie SDK output_config nepozná; plán je dôležitejší než námaha.
+                msg = poskladaj()
+        except naklady.RozpocetVycerpany as odmietnutie:
+            raise HTTPException(503, str(odmietnutie))
+        except Exception as error:
+            if plan_timeout is not None and isinstance(error, plan_timeout):
+                raise HTTPException(504, SPRAVA_PLAN_TRVA_PRIDLHO)
+            raise
     LOG.info("plán poskladaný, tokeny: %s", pouzitie_modelu(getattr(msg, "usage", None)))
     # Orezanú odpoveď nemá zmysel skladať: JSON by nedával zmysel a používateľ
     # by dostal iba nezrozumiteľnú chybu z parsovania.
@@ -969,11 +985,24 @@ def health():
     Nasadenie porovná `vydanie` s lokálnym súborom VERSION — tým odhalí
     čiastočne prenesený scp (trieda chyby, ktorá zhodila auth_data.py).
     Žiadne tajomstvá sa sem nedostanú.
+
+    `naklady` ukazuje, koľko appka dnes a tento mesiac minula na AI a koľko
+    z rozpočtu zostáva. Majiteľ tak vidí míňanie bez SSH — presne to mu
+    chýbalo, keď mu kredit ticho zmizol za dva dni.
     """
     today = datetime.date.today()
     with closing(db()) as con:
         rows = offers_for_current_week(con, ["Kaufland", "Tesco", "Lidl"], today)
-    return {"vydanie": release_id(), "tyzden": monday(today), "pocet": len(rows)}
+        utrata = naklady.stav(con)
+    return {"vydanie": release_id(), "tyzden": monday(today), "pocet": len(rows),
+            "naklady": utrata}
+
+
+@app.get("/api/naklady")
+def prehlad_nakladov():
+    """Podrobnejší pohľad na to, kam išli peniaze. Bez tajomstiev, bez SSH."""
+    with closing(db()) as con:
+        return naklady.stav(con, limit_poslednych=20)
 
 
 @app.get("/api/public/landing")

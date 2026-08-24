@@ -140,6 +140,9 @@ def fake_anthropic(constructors):
 def test_model_adapter_uses_api_key_from_environment(monkeypatch, tmp_path):
     constructors = []
     monkeypatch.setenv("ANTHROPIC_API_KEY", "environment-test-key")
+    # Volanie prechádza cez evidenciu nákladov (app/naklady.py); v teste musí
+    # ísť do tmp_path, nie do produkčnej /opt/uvarsi/uvarsi.db.
+    monkeypatch.setenv("UVARSI_DB", str(tmp_path / "uvarsi.db"))
     monkeypatch.setattr(refresh_blocek, "ENV_FILE", str(tmp_path / "missing.env"), raising=False)
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(constructors))
 
@@ -153,6 +156,7 @@ def test_model_adapter_uses_api_key_from_env_file(monkeypatch, tmp_path):
     env_file = tmp_path / "uvarsi.env"
     env_file.write_text("IGNORED=x\nANTHROPIC_API_KEY=file-test-key\n", encoding="utf-8")
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("UVARSI_DB", str(tmp_path / "uvarsi.db"))
     monkeypatch.setattr(refresh_blocek, "ENV_FILE", str(env_file), raising=False)
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(constructors))
 

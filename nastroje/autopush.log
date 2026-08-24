@@ -1,0 +1,4 @@
+﻿[2026-08-24 09:34:40] zmenenych suborov: 2
+[2026-08-24 09:42:05] TESTY ZLYHALI - nepushujem. FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call FAILED tests/test_deploy_covers_all_modules.py::test_every_app_module_is_in_deploy_manifest 3 failed, 554 passed, 8 skipped, 33 deselected in 427.22s (0:07:07)
+[2026-08-24 09:44:17] zmenenych suborov: 9
+[2026-08-24 09:45:37] testy OK: ........................................................................ [ 99%] ..                                                                       [100%] 570 passed, 8 skipped, 33 deselected in 74.79s (0:01:14)

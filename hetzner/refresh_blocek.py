@@ -4,9 +4,11 @@ import json
 import os
 import sqlite3
 import sys
+from contextlib import closing
 from datetime import date
 from pathlib import Path
 
+from app import naklady
 from app.landing_data import validate_landing_data, write_landing_data_atomic
 from app.offer_data import ALLOWED_STORES
 from app.receipt_data import (
@@ -67,16 +69,27 @@ def load_api_key():
     raise StructuralFailure("Chýba ANTHROPIC_API_KEY — nechávam starý bloček.")
 
 
+MODEL_BLOCEK = "claude-sonnet-5"
+
+
 def compose_with_llm(prompt):
     """The model may choose stable keys and write meal content; it never supplies prices."""
     api_key = load_api_key()
     import anthropic
 
-    client = anthropic.Anthropic(api_key=api_key, timeout=120.0, max_retries=1)
-    message = client.messages.create(
-        model="claude-sonnet-5", max_tokens=4000,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    # Strop sa overuje TU, tesne pri platenom volaní — nie o poschodie vyššie,
+    # kde by sa na neho dalo zabudnúť. Keď rozpočet nestačí, volanie sa vôbec
+    # neuskutoční a starý bloček ostáva nedotknutý.
+    with closing(naklady.pripoj(os.environ.get("UVARSI_DB", DATABASE_PATH))) as ucty:
+        client = naklady.strazeny_klient(
+            ucty,
+            anthropic.Anthropic(api_key=api_key, timeout=120.0, max_retries=1),
+            "blocek",
+        )
+        message = client.messages.create(
+            model=MODEL_BLOCEK, max_tokens=4000,
+            messages=[{"role": "user", "content": prompt}],
+        )
     text = "".join(block.text for block in message.content if getattr(block, "type", None) == "text").strip()
     try:
         return json.loads(text.removeprefix("```json").removesuffix("```").strip())
@@ -90,6 +103,12 @@ def main():
     database = os.environ.get("UVARSI_DB", DATABASE_PATH)
     try:
         refresh_from_db(path, database, compose_with_llm, today=date.today())
+    except naklady.RozpocetVycerpany as odmietnutie:
+        # Opakovanie by nič nezmenilo a majiteľ musí vedieť, že sa minul rozpočet,
+        # nie len že „bloček je starý“. Starý JSON ostáva na disku nedotknutý —
+        # nič sa nevymýšľa a landing radšej prizná, že dáta nie sú aktuálne.
+        print(f"ROZPOČET VYČERPANÝ: {odmietnutie}", file=sys.stderr)
+        raise SystemExit(StructuralFailure.EXIT_CODE) from None
     except StructuralFailure as failure:
         print(f"ŠTRUKTURÁLNA CHYBA: {failure}", file=sys.stderr)
         raise SystemExit(StructuralFailure.EXIT_CODE) from None

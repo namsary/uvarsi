@@ -19,6 +19,11 @@ try:
 except ImportError:
     from app.offer_data import migrate_akcie_schema, replace_store_week, validate_offer
 
+try:
+    import naklady
+except ImportError:
+    from app import naklady
+
 DB = os.environ.get("UVARSI_DB", "/opt/uvarsi/uvarsi.db")
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 
@@ -97,6 +102,7 @@ def db():
     con.row_factory = sqlite3.Row
     con.executescript(SCHEMA)
     migrate_akcie_schema(con)
+    naklady.migrate_naklady_schema(con)
     return con
 
 
@@ -549,9 +555,23 @@ def record_store_outcome(con, week, store, status, count=0, detail=None):
 
 def main():
     import anthropic
-    client = anthropic.Anthropic(api_key=load_key(), timeout=180.0, max_retries=1)
     tyz = monday()
     con = db()
+    # Vision beh je najdrahšia operácia v celej appke (~0,37 € za obchod). Miesto
+    # v týždennom počte behov sa berie EŠTE PRED prvým volaním — vďaka tomu je
+    # rozbehnutá slučka štrukturálne nemožná, nie iba nepravdepodobná. Presne
+    # toto chýbalo, keď dozorca 12× po sebe zaplatil za ten istý márny beh.
+    try:
+        naklady.rezervuj_beh(con, "zber_letakov")
+    except naklady.RozpocetVycerpany as odmietnutie:
+        con.close()
+        raise SystemExit(f"Zber nespúšťam — {odmietnutie}")
+    # Cez strážený klient sa nedá zavolať model bez zaúčtovania a bez stropu.
+    client = naklady.strazeny_klient(
+        con,
+        anthropic.Anthropic(api_key=load_key(), timeout=180.0, max_retries=1),
+        "zber_letakov",
+    )
     total, failures, collected = 0, [], []
     try:
         for store in STORES:

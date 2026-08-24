@@ -53,6 +53,7 @@ Ok "env ma oba kluce"
 Krok "3/8  Nahravam subory"
 $subory = @(
   @{ l = "$B\app\config.py";            r = "/opt/uvarsi/app/config.py" },
+  @{ l = "$B\app\naklady.py";           r = "/opt/uvarsi/app/naklady.py" },
   @{ l = "$B\app\auth_data.py";         r = "/opt/uvarsi/app/auth_data.py" },
   @{ l = "$B\app\weekly_data.py";       r = "/opt/uvarsi/app/weekly_data.py" },
   @{ l = "$B\app\offer_data.py";        r = "/opt/uvarsi/app/offer_data.py" },
