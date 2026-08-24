@@ -300,3 +300,6 @@
 [2026-08-24 21:27:06] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_frontend_speed_contract.py::test_pages_stay_within_their_transfer_budget[index.html-11600] 1 failed, 662 passed, 16 skipped, 36 deselected in 80.18s (0:01:20)
 [2026-08-24 21:30:38] zmenenych suborov: 15
 [2026-08-24 21:32:04] testy OK: ........................................................................ [ 95%] ...ssss.........................                                         [100%] 663 passed, 17 skipped, 36 deselected in 81.04s (0:01:21)
+[2026-08-24 21:32:15] pushnute 809ff87 - server si to vezme do 10 minut
+[2026-08-24 21:35:39] zmenenych suborov: 1
+[2026-08-24 21:37:22] testy OK: ........................................................................ [ 95%] ...ssss.........................                                         [100%] 663 passed, 17 skipped, 36 deselected in 93.10s (0:01:33)
