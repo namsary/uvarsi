@@ -108,16 +108,108 @@ def validate_offer(offer):
             raise ValueError("povodna must be at least cena")
 
 
-def offer_key_for(week, offer):
-    """Build a stable opaque identity from every trusted offer fact."""
+OFFER_KEY_PREFIX = "offer_"
+
+# Koľko hexa znakov odtlačku sa v kľúči nechá. Celých 64 znakov stálo v prompte
+# 35 tokenov z 60 — dve tretiny riadku ponuky boli identifikátor, ktorý model iba
+# zopakoval späť. 12 znakov = 48 bitov: pri pár tisíc riadkoch v `akcie` je
+# narodeninová pravdepodobnosť kolízie rádovo 10⁻⁹ za týždeň, a aj tá jediná
+# možná kolízia sa dole hlasno odmietne, nikdy nepodá ako cudziu cenu.
+# Kratšie (8–10 znakov) už tokeny nešetrí — tokenizér ich zlomí rovnako —
+# takže by sa riziko zvyšovalo zadarmo.
+OFFER_KEY_DIGEST_CHARS = 12
+
+
+class OfferKeyCollision(ValueError):
+    """Dva rôzne overené výrobky vyšli na ten istý kľúč.
+
+    Toto je jediná chyba, ktorú si tento produkt nesmie dovoliť prehltnúť:
+    znamenala by reálnu cenu pripísanú k inému výrobku. Preto je to výnimka,
+    nie logovaný varovný riadok — dávka sa odmietne celá a stará ostane ležať.
+    """
+
+
+def _offer_facts(week, offer):
+    """Kanonický predobraz kľúča: presne tie fakty, za ktoré appka ručí."""
     _validated_iso_date(week, "tyzden")
     validate_offer(offer)
     facts = {field: (week if field == "tyzden" else offer.get(field)) for field in _OFFER_KEY_FIELDS}
     for field in ("cena", "povodna"):
         if facts[field] is not None:
             facts[field] = format(Decimal(str(facts[field])).normalize(), "f")
-    canonical = json.dumps(facts, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return "offer_" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return json.dumps(facts, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _digest(canonical):
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def offer_key_for(week, offer):
+    """Build a stable opaque identity from every trusted offer fact."""
+    return OFFER_KEY_PREFIX + _digest(_offer_facts(week, offer))[:OFFER_KEY_DIGEST_CHARS]
+
+
+def legacy_offer_key_for(week, offer):
+    """Kľúč v pôvodnej celej dĺžke — tvar, ktorý leží v starých riadkoch `akcie`."""
+    return OFFER_KEY_PREFIX + _digest(_offer_facts(week, offer))
+
+
+def canonical_offer_key(key):
+    """Zjednoť starý dlhý aj nový krátky kľúč na jeden tvar.
+
+    Krátky kľúč je predponou dlhého, takže orezanie stačí. Vďaka tomu sa
+    uložený plán s dlhými kľúčmi trafí na tie isté ponuky a používateľovi
+    neprasknú jedlá len preto, že sme skrátili identifikátor.
+    """
+    if not isinstance(key, str):
+        return key
+    return key[:len(OFFER_KEY_PREFIX) + OFFER_KEY_DIGEST_CHARS]
+
+
+def offer_key_matches(stored, week, offer):
+    """Sedí uložený kľúč na overené fakty riadku? Uzná oba formáty.
+
+    Zhovievavosť je len k dĺžke, nie k obsahu: zmenená cena neprejde ani
+    v jednom tvare, takže kontrola proti zásahu do databázy ostáva celá.
+    """
+    if not isinstance(stored, str) or not stored:
+        return False
+    try:
+        canonical = _offer_facts(week, offer)
+    except (ValueError, KeyError, TypeError):
+        return False
+    digest = _digest(canonical)
+    return stored in (OFFER_KEY_PREFIX + digest[:OFFER_KEY_DIGEST_CHARS], OFFER_KEY_PREFIX + digest)
+
+
+def detect_offer_key_collision(records):
+    """Zdvihni `OfferKeyCollision`, keď jeden kľúč nesie dva rôzne výrobky.
+
+    `records` sú dvojice (kľúč, kanonický predobraz). Rovnaký predobraz pod
+    rovnakým kľúčom je obyčajný duplikát riadku a je v poriadku; dva rôzne
+    predobrazy pod jedným kľúčom sú kolízia.
+    """
+    seen = {}
+    for key, canonical in records:
+        previous = seen.setdefault(key, canonical)
+        if previous != canonical:
+            raise OfferKeyCollision(
+                f"offer_key {key} pripadol dvom rôznym ponukám; dávka sa neuloží. "
+                f"Prvá: {previous}. Druhá: {canonical}."
+            )
+
+
+def _stored_offer_records(con):
+    """Kľúč a predobraz pre každý riadok `akcie`, ktorý sa dá overiť."""
+    cursor = con.execute("SELECT * FROM akcie")
+    columns = [column[0] for column in cursor.description]
+    for row in cursor.fetchall():
+        offer = dict(row) if hasattr(row, "keys") else dict(zip(columns, row))
+        try:
+            canonical = _offer_facts(offer.get("tyzden"), offer)
+        except (ValueError, KeyError, TypeError):
+            continue
+        yield canonical_offer_key(offer.get("offer_key")), canonical
 
 
 def replace_store_week(con, week, store, offers):
@@ -127,6 +219,7 @@ def replace_store_week(con, week, store, offers):
 
     offers = list(offers)
     prepared = []
+    batch = []
     for offer in offers:
         if offer.get("obchod") != store:
             raise ValueError("offer store must match replacement store")
@@ -134,6 +227,11 @@ def replace_store_week(con, week, store, offers):
         record = {"tyzden": week, **offer}
         record["offer_key"] = offer_key_for(week, offer)
         prepared.append(record)
+        batch.append((canonical_offer_key(record["offer_key"]), _offer_facts(week, offer)))
+
+    # Kolízia v samotnej dávke sa musí chytiť ešte pred tým, než sa čokoľvek
+    # zmaže — inak by odmietnutá dávka stála predošlý týždeň obchodu.
+    detect_offer_key_collision(batch)
 
     migrate_akcie_schema(con)
     placeholders = ", ".join("?" for _ in _INSERT_COLUMNS)
@@ -148,6 +246,10 @@ def replace_store_week(con, week, store, offers):
             f"INSERT INTO akcie ({', '.join(_INSERT_COLUMNS)}) VALUES ({placeholders})",
             [tuple(offer.get(column) for column in _INSERT_COLUMNS) for offer in prepared],
         )
+        # A ešte raz proti celej tabuľke: kolízia sa nemusí zrodiť v jednej
+        # dávke, môže vzniknúť až voči riadku iného obchodu či týždňa. Beží to
+        # vnútri transakcie, takže odmietnutie vráti tabuľku do pôvodného stavu.
+        detect_offer_key_collision(_stored_offer_records(con))
     except Exception:
         if use_savepoint:
             con.execute("ROLLBACK TO SAVEPOINT replace_store_week")

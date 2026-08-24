@@ -1,9 +1,17 @@
 from datetime import date, timedelta
 
 try:
-    from .offer_data import ALLOWED_STORES, migrate_akcie_schema, offer_key_for, validate_offer
+    from .offer_data import (
+        ALLOWED_STORES, canonical_offer_key, detect_offer_key_collision, migrate_akcie_schema,
+        offer_key_matches, validate_offer,
+    )
+    from .offer_data import _offer_facts as _offer_facts
 except ImportError:
-    from offer_data import ALLOWED_STORES, migrate_akcie_schema, offer_key_for, validate_offer
+    from offer_data import (
+        ALLOWED_STORES, canonical_offer_key, detect_offer_key_collision, migrate_akcie_schema,
+        offer_key_matches, validate_offer,
+    )
+    from offer_data import _offer_facts as _offer_facts
 
 
 STATUS_TABLE = "zber_stav"
@@ -52,20 +60,33 @@ def current_verified_offers(con, stores, today: date | None = None):
         offer = dict(row) if hasattr(row, "keys") else dict(zip(columns, row))
         try:
             validate_offer(offer)
-            if offer.get("offer_key") != offer_key_for(offer["tyzden"], offer):
+            # Uznávame krátky aj starý celý kľúč. Riadky pozbierané pred
+            # skrátením tak neprestanú platiť zo dňa na deň, a keďže sa `akcie`
+            # aj tak prepisujú každý týždeň, samy dobehnú na krátky tvar.
+            if not offer_key_matches(offer.get("offer_key"), offer["tyzden"], offer):
                 continue
         except ValueError:
             continue
         if not offer["valid_from"] <= stamp <= offer["valid_to"]:
             continue
+        # Von ide vždy krátky tvar, nech je v databáze čokoľvek — prompt aj plán
+        # tak vidia jeden jediný tvar identifikátora.
+        offer["offer_key"] = canonical_offer_key(offer["offer_key"])
         identity = tuple(offer.get(field) for field in _DEDUP_FIELDS)
         previous = newest.get(identity)
         if previous is None:
-            newest[identity] = (offer["tyzden"], row)
+            newest[identity] = (offer["tyzden"], offer)
             order.append(identity)
         elif offer["tyzden"] > previous[0]:
-            newest[identity] = (offer["tyzden"], row)
-    return [newest[identity][1] for identity in order]
+            newest[identity] = (offer["tyzden"], offer)
+    offers = [newest[identity][1] for identity in order]
+    # Posledná záchranná sieť tesne pred promptom: keby sa dva rôzne výrobky
+    # predsa len stretli na jednom kľúči, model by dostal dvojznačný katalóg a
+    # používateľ reálnu cenu pri cudzom výrobku. Radšej hlasno spadnúť.
+    detect_offer_key_collision(
+        (offer["offer_key"], _offer_facts(offer["tyzden"], offer)) for offer in offers
+    )
+    return offers
 
 
 def offers_for_current_week(con, stores: list[str], today: date | None = None):
