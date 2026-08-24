@@ -83,3 +83,10 @@
 [2026-08-24 12:40:48] pushnute 4da53f1 - server si to vezme do 10 minut
 [2026-08-24 12:44:20] zmenenych suborov: 1
 [2026-08-24 12:46:59] testy OK: ........................................................................ [ 98%] ..........                                                               [100%] 578 passed, 8 skipped, 33 deselected in 137.43s (0:02:17)
+[2026-08-24 12:47:06] pushnute 4dd93f1 - server si to vezme do 10 minut
+[2026-08-24 12:49:16] zmenenych suborov: 1
+[2026-08-24 12:52:42] TESTY ZLYHALI - nepushujem. FAILED tests/test_auth.py::test_paused_provider_does_not_delay_async_event_loop_heartbeat FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call 3 failed, 575 passed, 8 skipped, 33 deselected in 193.50s (0:03:13)
+[2026-08-24 12:54:32] zmenenych suborov: 1
+[2026-08-24 12:59:10] TESTY ZLYHALI - nepushujem. FAILED tests/test_auth.py::test_concurrent_same_email_request_gets_in_progress_response_without_second_provider_call FAILED tests/test_auth.py::test_cancelled_request_keeps_exclusive_reservation_until_delivery_finalizes 3 failed, 575 passed, 8 skipped, 33 deselected in 259.61s (0:04:19)
+[2026-08-24 12:59:16] zmenenych suborov: 1
+[2026-08-24 13:01:30] testy OK: ........................................................................ [ 98%] ..........                                                               [100%] 578 passed, 8 skipped, 33 deselected in 128.87s (0:02:08)
