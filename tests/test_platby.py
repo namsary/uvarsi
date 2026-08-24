@@ -143,7 +143,12 @@ def test_start_je_503_a_nikdy_nesiaha_na_poskytovatela_ked_su_platby_vypnute(mon
     assert naroky(server) == []
 
 
-def test_webhook_je_503_a_nemeni_stav_ked_su_platby_vypnute(monkeypatch, tmp_path):
+def test_webhook_s_vypnutymi_platbami_neudeli_nic_a_nesiahne_na_kluce(monkeypatch, tmp_path):
+    """Vypínač drží: žiadny nárok a žiadne čítanie LEMON_* premenných.
+
+    Telo sa pritom nezahodí — odloží sa a spracuje neskôr (aj s overením
+    podpisu). Podrobne to drží tests/test_platby_rekonciliacia.py.
+    """
     server = load_server(monkeypatch, tmp_path, LEMON_WEBHOOK_SECRET=TAJOMSTVO)
     vytvor_pouzivatela(server)
 
@@ -155,8 +160,8 @@ def test_webhook_je_503_a_nemeni_stav_ked_su_platby_vypnute(monkeypatch, tmp_pat
     client = TestClient(server.app, raise_server_exceptions=False)
     response = posli_webhook(client, objednavka())
 
-    assert response.status_code == 503
-    assert response.json()["detail"] == "Platby zatiaľ nie sú spustené."
+    assert response.status_code == 200
+    assert response.json()["akcia"] == "odlozene"
     assert naroky(server) == []
 
 

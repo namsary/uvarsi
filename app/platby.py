@@ -15,9 +15,26 @@ Tri pravidlá, ktoré tento modul drží:
 
 LemonSqueezy je merchant of record, takže EU DPH/OSS rieši on. Uvar.si si drží
 len záznam o tom, kto má nárok a prečo.
+
+Štvrté pravidlo pribudlo po audite pred spustením platieb: **peniaze sa nesmú
+stratiť ani vtedy, keď zlyhá doručenie.** Webhook, ktorý nedorazí, je bežná vec
+a doteraz znamenal natrvalo stratený nárok. Odpoveďou sú tri veci v tomto module:
+
+  * `odloz_webhook()` / `spracuj_odlozene()` — telo požiadavky sa uloží tak, ako
+    prišlo (aj s podpisom), aj keď je vypínač vypnutý. Podpis sa overuje až pri
+    spracovaní, takže odloženie nič neoslabuje.
+  * `payload_z_objednavky()` — objednávka z API poskytovateľa sa prepíše do
+    presne toho istého tvaru, v akom chodí webhook, a spracuje sa tou istou
+    cestou. Rekonciliácia tak dedí idempotenciu, kontrolu kapacity aj UNIQUE
+    obmedzenia; nič sa neobchádza (skript app/rekonciliacia.py).
+  * `priprav_upozornenie()` — text pre majiteľa. Modul ho len **poskladá**;
+    odosiela ho volajúci. Ntfy kanál je natvrdo v repozitári, takže do týchto
+    správ nesmie prísť e-mail, token ani iný osobný údaj.
 """
+import datetime
 import hashlib
 import hmac
+import json
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
@@ -33,6 +50,10 @@ STAV_AKTIVNY = "aktivny"
 STAV_VRATENY = "vrateny"
 STAV_ZRUSENY = "zruseny"
 STAV_NAD_KAPACITU = "nad_kapacitu"
+# Druhá platba toho istého človeka. Nárok už má, takže druhý aktívny riadok by
+# neprešiel ani cez UNIQUE index — ale peniaze prišli a musí ich byť vidieť,
+# inak ich nemá kto vrátiť.
+STAV_DUPLICITNY = "duplicitny"
 
 AKCIA_UDELENE = "udelene"
 AKCIA_UZ_UDELENE = "uz_udelene"
@@ -41,6 +62,14 @@ AKCIA_VRATENE = "vratene"
 AKCIA_ZRUSENE = "zrusene"
 AKCIA_NAD_KAPACITU = "nad_kapacitu"
 AKCIA_IGNOROVANE = "ignorovane"
+AKCIA_ODLOZENE = "odlozene"
+
+# Odkiaľ udalosť prišla. Bez toho sa v účtovníctve nedá odlíšiť, čo dorazilo
+# webhookom a čo muselo dobehnúť rekonciliáciou — a práve to je miera toho,
+# ako spoľahlivo doručovanie funguje.
+ZDROJ_WEBHOOK = "webhook"
+ZDROJ_ODLOZENE = "odlozene"
+ZDROJ_REKONCILIACIA = "rekonciliacia"
 
 UDALOST_UDELUJUCA = "order_created"
 UDALOSTI_ODOBERAJUCE = {
@@ -57,14 +86,39 @@ SPRAVA_VELKE_TELO = "Telo požiadavky je príliš veľké."
 SPRAVA_POKAZENE_TELO = "Neplatné telo požiadavky."
 SPRAVA_NEPRIRADITELNA = "Udalosť sa nedá priradiť k účtu."
 SPRAVA_AKTIVNE = "Máš aktívne zakladajúce členstvo."
+# Čo sa dozvie ZÁKAZNÍK, ktorý zaplatil a miesto už nebolo. Peniaze bez
+# protihodnoty sú aj podľa európskych pravidiel problém, takže mlčať sa nedá:
+# vieme o tom, vraciame to a človek nemusí nič robiť.
+SPRAVA_NAD_KAPACITU_ZAKAZNIK = (
+    "Tvoja platba dorazila, ale posledné zakladajúce miesto medzitým obsadil "
+    "niekto iný. Členstvo ti preto nevieme dať a celú sumu ti vrátime späť na "
+    "ten istý spôsob platby — nemusíš nič robiť, ozveme sa ti e-mailom. "
+    "Mrzí nás to."
+)
+SPRAVA_DUPLICITA_ZAKAZNIK = (
+    "Zakladajúce členstvo už máš aktívne, no zaevidovali sme od teba ďalšiu "
+    "platbu. Je to omyl, ktorý ideme napraviť: sumu navyše ti vrátime späť na "
+    "ten istý spôsob platby. Nemusíš nič robiť."
+)
+MAIL_PREDMET_NAD_KAPACITU = "Uvar.si: platbu ti vraciame"
+MAIL_PREDMET_DUPLICITA = "Uvar.si: platbu navyše ti vraciame"
 
 _PRAVDIVE = frozenset({"1", "true", "ano", "áno", "yes", "on", "zapnute", "zapnuté"})
 _MAX_PODPIS = 256
 # LemonSqueezy posiela desiatky kB; nad týmto je to buď omyl, alebo útok.
 MAX_TELO_WEBHOOKU = 256 * 1024
+# Do skladu odložených tiel sa ukladá aj neoverené telo (podpis sa dá overiť až
+# vtedy, keď majiteľ tajomstvo nastaví), takže strop musí byť prísnejší: nikto
+# nesmie vedieť zaplniť disk tým, že appke pošle 256 kB smetí.
+MAX_TELO_ODLOZENE = 64 * 1024
+MAX_ODLOZENYCH = 200
+# Ako dlho sa držia kľúče spracovaných udalostí. Pol roka pokryje každú
+# reklamáciu; nárok samotný sa nemaže NIKDY.
+UDALOSTI_PONECHAJ_DNI = 180
 _ID_ZNAKY = frozenset(
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
 )
+_HEX = frozenset("0123456789abcdefABCDEF")
 
 PLATBY_SCHEMA = """
 CREATE TABLE IF NOT EXISTS naroky (
