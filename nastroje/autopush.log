@@ -48,3 +48,6 @@
 [2026-08-24 11:35:47] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write 1 failed, 577 passed, 8 skipped, 33 deselected in 84.90s (0:01:24)
 [2026-08-24 11:39:18] zmenenych suborov: 1
 [2026-08-24 11:41:08] testy OK: ........................................................................ [ 98%] ..........                                                               [100%] 578 passed, 8 skipped, 33 deselected in 103.64s (0:01:43)
+[2026-08-24 11:41:13] pushnute 4276122 - server si to vezme do 10 minut
+[2026-08-24 11:44:18] zmenenych suborov: 1
+[2026-08-24 11:45:42] testy OK: ........................................................................ [ 98%] ..........                                                               [100%] 578 passed, 8 skipped, 33 deselected in 78.81s (0:01:18)
