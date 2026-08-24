@@ -76,7 +76,7 @@ if ! (cd "$CIEL/app" && UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$CIEL/VE
   exit 1
 fi
 # b) povinné súbory
-for f in app/server.py app/auth_data.py app/static/app.html VERSION; do
+for f in app/server.py app/auth_data.py app/predpocet.py app/static/app.html VERSION; do
   [ -s "$CIEL/$f" ] || { log "vo vydaní chýba $f — NEPREPÍNAM"; \
     notify "Uvar.si: neúplné vydanie" "Chýba $f."; exit 1; }
 done

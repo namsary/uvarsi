@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import db_rezim
 import naklady
+import predpocet
 from config import public_base_url, release_id
 from landing_data import load_landing_data, validate_landing_data
 from weekly_data import offers_for_current_week
@@ -250,6 +251,7 @@ def migruj_schemu(con) -> None:
     migrate_akcie_schema(con)
     migrate_platby_schema(con)
     naklady.migrate_naklady_schema(con)
+    predpocet.migrate_predpocet_schema(con)
     con.commit()
 
 
@@ -856,8 +858,13 @@ def nacitaj_zdielany_plan(con, podpis, variant):
         return None
 
 
-def uloz_zdielany_plan(con, podpis, variant, tyzden, plan):
+def uloz_zdielany_plan(con, podpis, variant, tyzden, plan, predpocitany=False):
     """Ulož plán bez špajze — tú si každý čitateľ dopočíta vlastnú.
+
+    `predpocitany=True` označí riadok, ktorý vznikol v noci (predpocet.py).
+    Bez tej značky by sa nedalo povedať, koľko čakania nočné zahrievanie naozaj
+    ušetrilo — a to je jediné číslo, podľa ktorého sa dá rozhodnúť, či ho
+    rozšíriť alebo zúžiť.
 
     Kým bola špajza v podpise, zdieľaný riadok sa nikdy nedostal k človeku
     s inou špajzou a stačilo odstrániť vrchný kľúč. Odkedy v podpise nie je,
@@ -867,8 +874,10 @@ def uloz_zdielany_plan(con, podpis, variant, tyzden, plan):
     """
     zdielany = plan_without_pantry(plan)
     con.execute(
-        "INSERT OR REPLACE INTO plany_zdielane (podpis,variant,tyzden,json) VALUES (?,?,?,?)",
-        (podpis, variant, tyzden, json.dumps(zdielany, ensure_ascii=False)),
+        "INSERT OR REPLACE INTO plany_zdielane (podpis,variant,tyzden,json,predpocitany)"
+        " VALUES (?,?,?,?,?)",
+        (podpis, variant, tyzden, json.dumps(zdielany, ensure_ascii=False),
+         1 if predpocitany else 0),
     )
     con.execute("DELETE FROM plany_zdielane WHERE tyzden<>?", (tyzden,))
 
@@ -912,9 +921,11 @@ def zahrej_plan_pre_pouzivatela(user_id):
         tyzden, obchody, profil["osoby"], profil["frekvencia"], rows, spajza
     )
     with closing(db()) as con:
-        zdielany = nacitaj_zdielany_plan(con, podpis, plan_variant_for(user_id, PLAN_VARIANTS))
+        variant = plan_variant_for(user_id, PLAN_VARIANTS)
+        zdielany = nacitaj_zdielany_plan(con, podpis, variant)
         if not zdielany or not cached_plan_is_current(zdielany, rows):
             return None
+        predpocet.zapocitaj_zasah(con, podpis, variant, tyzden)
         plan = prevezmi_zdielany_plan(con, user_id, tyzden, zdielany, spajza)
         con.commit()
     return plan
@@ -968,18 +979,23 @@ def generuj_plan(req: Request, force: int = 0):
     # „Vygeneruj mi iný" (force) sa cache musí vyhnúť, inak by nič nezmenilo.
     podpis = podpis_planu(tyz, obchody, u["osoby"], u["frekvencia"], rows, sp)
     variant = plan_variant_for(u["id"], PLAN_VARIANTS)
-    if not force:
-        with closing(db()) as con:
+    with closing(db()) as con:
+        # Agregovaná evidencia dopytu: KOĽKO ráz taký profil niekto chcel.
+        # Bez user_id a bez e-mailu — je to podklad pre nočné zahrievanie
+        # (predpocet.py), nie záznam o človeku. Nikdy nesmie zhodiť požiadavku.
+        predpocet.zaznamenaj_dopyt(con, tyz, obchody, u["osoby"], u["frekvencia"], variant)
+        if not force:
             zdielany = nacitaj_zdielany_plan(con, podpis, variant)
             if zdielany is not None:
                 if cached_plan_is_current(zdielany, rows):
+                    predpocet.zapocitaj_zasah(con, podpis, variant, tyz)
                     plan = prevezmi_zdielany_plan(con, u["id"], tyz, zdielany, sp)
                     con.commit()
                     return plan
                 con.execute(
                     "DELETE FROM plany_zdielane WHERE podpis=? AND variant=?", (podpis, variant)
                 )
-                con.commit()
+        con.commit()
 
     return zaplat_a_poskladaj(u, tyz, obchody, rows, sp, podpis, variant, premium)
 
@@ -1189,20 +1205,25 @@ def health():
     `naklady` ukazuje, koľko appka dnes a tento mesiac minula na AI a koľko
     z rozpočtu zostáva. Majiteľ tak vidí míňanie bez SSH — presne to mu
     chýbalo, keď mu kredit ticho zmizol za dva dni.
+
+    `predpocet` hovorí, či nočné zahrievanie plánov beží: koľko profilov sa
+    zahrialo, koľko to stálo a koľko živých generovaní sa vďaka tomu vôbec
+    nekonalo. Bez toho čísla sa nedá rozhodnúť, či zahrievať viac alebo menej.
     """
     today = datetime.date.today()
     with closing(db()) as con:
         rows = offers_for_current_week(con, ["Kaufland", "Tesco", "Lidl"], today)
         utrata = naklady.stav(con)
+        zahrievanie = predpocet.stav(con)
     return {"vydanie": release_id(), "tyzden": monday(today), "pocet": len(rows),
-            "naklady": utrata}
+            "naklady": utrata, "predpocet": zahrievanie}
 
 
 @app.get("/api/naklady")
 def prehlad_nakladov():
     """Podrobnejší pohľad na to, kam išli peniaze. Bez tajomstiev, bez SSH."""
     with closing(db()) as con:
-        return naklady.stav(con, limit_poslednych=20)
+        return {**naklady.stav(con, limit_poslednych=20), "predpocet": predpocet.stav(con)}
 
 
 @app.get("/api/public/landing")

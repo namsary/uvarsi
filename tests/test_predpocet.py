@@ -197,6 +197,32 @@ def test_predpocet_respektuje_tyzdenny_pocet_behov(monkeypatch, tmp_path):
     assert len(volania) == 1
 
 
+def test_beh_ktory_nic_neminul_nezabera_miesto_v_tyzdennom_pocte(monkeypatch, tmp_path):
+    """Strop počtu behov je poistka proti míňaniu — nie proti zbytočnému behu.
+
+    Keď je všetko zahriate, druhý beh nespotrebuje ani token, takže by bola
+    chyba nechať ho zožrať týždňový počet behov: po zmene letáku by sa už
+    nemalo čím dohriať.
+    """
+    server, predpocet = priprav(monkeypatch, tmp_path)
+    zapis_dopyt(server, predpocet, minuly_tyzden())
+    monkeypatch.setenv("UVARSI_TYZDENNE_BEHY_PREDPOCET", "2")
+    volania = []
+    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), [], volania))
+
+    predpocet.zahrej(pocet=1)                      # zaberie miesto, lebo minul
+    for _ in range(4):
+        predpocet.zahrej(pocet=1)                  # zadarmo, miesto nezaberá
+
+    with closing(server.db()) as con:
+        con.execute("DELETE FROM plany_zdielane")  # leták sa zmenil
+        con.commit()
+    posledny = predpocet.zahrej(pocet=1)
+
+    assert posledny["zahriatych"] == 1, posledny
+    assert len(volania) == 2
+
+
 def test_predpocet_ma_vlastny_tyzdenny_strop_v_eurach(monkeypatch, tmp_path):
     server, predpocet = priprav(monkeypatch, tmp_path)
     zapis_dopyt(server, predpocet, minuly_tyzden())
@@ -428,6 +454,10 @@ def test_prehlad_nakladov_ukazuje_ako_sa_predpoctu_darilo(monkeypatch, tmp_path)
     assert p["zahriatych"] == 2
     assert p["eur"] > 0
     assert p["cena_za_profil_eur"] > 0
+    assert p["skutocna_cena_za_profil_eur"] == pytest.approx(p["eur"] / 2), (
+        "majiteľ musí vidieť NAMERANÚ cenu za profil, nie len odhad"
+    )
+    assert p["odhad_plneho_behu_eur"] > 0
     assert p["usetrenych_generovani"] == 0
     assert p["dovod"] == "hotovo"
 

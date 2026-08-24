@@ -64,7 +64,11 @@ CENNIK_USD = {
 # spôsobiť, že sa jeho spotreba ticho zaeviduje ako lacnejšia, než naozaj je.
 NAJDRAHSIA_TARIFA = CENNIK_USD["claude-opus-5"]
 
-UCELY = ("zber_letakov", "blocek", "plan", "recepty")
+# `predpocet` je ten istý model a tá istá práca ako `plan`, len ju nikto
+# nečaká — v noci sa dopredu poskladajú najžiadanejšie zdieľané jedálničky.
+# Vlastný účel má preto, aby bolo v /api/naklady vidieť zvlášť, koľko stálo
+# zahrievanie a koľko plány, ktoré si vypýtali ľudia.
+UCELY = ("zber_letakov", "blocek", "plan", "recepty", "predpocet")
 
 # Koľko typicky stojí JEDNO volanie (nie celý beh). Používa sa na dve veci: ako
 # odhad PRED volaním, aby sa strop nedal prekročiť ani o jedno volanie, a ako
@@ -75,6 +79,7 @@ ODHAD_EUR = {
     "blocek": 0.02,
     "plan": 0.02,
     "recepty": 0.02,
+    "predpocet": 0.02,        # to isté volanie ako „plan", len v noci
 }
 
 # Ten istý kanál, ktorý už sleduje dozorca (hetzner/dozorca.sh).
@@ -93,16 +98,29 @@ PRAHY_UPOZORNENIA = (50, 80)
 #   2 behy zberu za týždeň = riadny beh + jedno opakovanie, keď zdroj vypadne
 # Pre incident to znamená: namiesto 4,60 € za dva dni sa minie nanajvýš
 # ~1,5 € za deň a nanajvýš 2 vision behy za týždeň.
+# Predpočet (nočné zahrievanie zdieľaných plánov) má vlastný týždenný strop:
+#   9 plánov × ~0,02 € = ~0,18 € za riadny beh, strop 0,40 € = beh plus jedno
+#   opakovanie, keď prvý narazí na denný zvyšok rozpočtu. Viac ako 2 behy za
+#   týždeň nemá čo robiť — ponuky týždňa sa poskladajú raz.
 VYCHODZI_DENNY_STROP_EUR = 1.50
 VYCHODZI_MESACNY_STROP_EUR = 8.00
 VYCHODZI_TYZDENNY_STROP_ZBER_EUR = 2.50
-VYCHODZI_LIMIT_BEHOV = {"zber_letakov": 2}
+VYCHODZI_TYZDENNY_STROP_PREDPOCET_EUR = 0.40
+VYCHODZI_LIMIT_BEHOV = {"zber_letakov": 2, "predpocet": 2}
+
+# Ktorý účel si strop počtu behov berie z ktorej premennej prostredia.
+PREMENNA_BEHOV = {
+    "zber_letakov": "UVARSI_TYZDENNE_BEHY_ZBER",
+    "predpocet": "UVARSI_TYZDENNE_BEHY_PREDPOCET",
+}
 
 PREMENNE_PROSTREDIA = (
     "UVARSI_DENNY_STROP_EUR",
     "UVARSI_MESACNY_STROP_EUR",
     "UVARSI_TYZDENNY_STROP_ZBER_EUR",
     "UVARSI_TYZDENNE_BEHY_ZBER",
+    "UVARSI_TYZDENNY_STROP_PREDPOCET_EUR",
+    "UVARSI_TYZDENNE_BEHY_PREDPOCET",
 )
 
 KOD_DENNY = "rozpocet_denny"
@@ -315,14 +333,18 @@ def stropy() -> Stropy:
             "zber_letakov": _euro_z_prostredia(
                 "UVARSI_TYZDENNY_STROP_ZBER_EUR", VYCHODZI_TYZDENNY_STROP_ZBER_EUR
             ),
+            "predpocet": _euro_z_prostredia(
+                "UVARSI_TYZDENNY_STROP_PREDPOCET_EUR", VYCHODZI_TYZDENNY_STROP_PREDPOCET_EUR
+            ),
         },
     )
 
 
 def limit_behov(ucel) -> int:
     """Koľkokrát za ISO týždeň sa smie drahá operácia vôbec spustiť."""
-    if ucel == "zber_letakov":
-        return _cele_z_prostredia("UVARSI_TYZDENNE_BEHY_ZBER", VYCHODZI_LIMIT_BEHOV[ucel])
+    premenna = PREMENNA_BEHOV.get(ucel)
+    if premenna is not None:
+        return _cele_z_prostredia(premenna, VYCHODZI_LIMIT_BEHOV[ucel])
     return VYCHODZI_LIMIT_BEHOV.get(ucel, 0)
 
 

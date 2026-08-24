@@ -91,6 +91,18 @@ if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_OBCHOD:-0}" -gt 0 ]; then
   fi
   if cd "$DIR/app" && "$PY" -u zbierac_akcii.py; then
     log "zbierač OK"
+    # Ponuky týždňa sú od tejto chvíle dané, takže sa najžiadanejšie zdieľané
+    # jedálničky dajú poskladať DOPREDU — o tretej ráno na ne nikto nečaká.
+    # Predpočet si stráži vlastný strop aj rezervu pre živých používateľov
+    # (app/predpocet.py) a je bezpečné spustiť ho opakovane: hotové podpisy
+    # preskočí bez volania modelu.
+    #
+    # `|| log` je zámerné: predpočet je zrýchlenie, nie povinnosť. Keď zlyhá,
+    # appka skladá plány naživo presne ako doteraz a dozorca ide ďalej —
+    # bloček je dôležitejší než zahriata cache.
+    UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$DIR/VERSION" \
+      "$PY" -u predpocet.py --zahrej \
+      || log "predpočet neprešiel — appka bude skladať plány naživo ako doteraz"
   else
     log "zbierač zlyhal — appka zatiaľ nemá aktuálne dáta"
   fi

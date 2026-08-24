@@ -328,3 +328,8 @@
 [2026-08-24 22:17:48] pushnute 22b1fc3 - server si to vezme do 10 minut
 [2026-08-24 22:20:39] zmenenych suborov: 1
 [2026-08-24 22:22:31] testy OK: ...ss......s............................................................ [ 93%] .......................ssss.........................                     [100%] 752 passed, 20 skipped, 36 deselected in 96.77s (0:01:36)
+[2026-08-24 22:22:38] pushnute 685be82 - server si to vezme do 10 minut
+[2026-08-24 22:25:41] zmenenych suborov: 3
+[2026-08-24 22:28:11] TESTY ZLYHALI - nepushujem. FAILED tests/test_predpocet.py::test_dozorca_spusta_predpocet_az_po_uspesnom_zbere FAILED tests/test_predpocet.py::test_zlyhanie_predpoctu_nesmie_zmenit_navratovy_kod_dozorcu 13 failed, 771 passed, 20 skipped, 36 deselected in 138.68s (0:02:18)
+[2026-08-24 22:30:38] zmenenych suborov: 7
+[2026-08-24 22:33:10] testy OK: .......................................................ssss............. [ 98%] ............                                                             [100%] 784 passed, 20 skipped, 36 deselected in 140.64s (0:02:20)

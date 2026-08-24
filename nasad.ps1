@@ -61,6 +61,7 @@ $subory = @(
   @{ l = "$B\app\landing_data.py";      r = "/opt/uvarsi/app/landing_data.py" },
   @{ l = "$B\app\receipt_data.py";      r = "/opt/uvarsi/app/receipt_data.py" },
   @{ l = "$B\app\plan_data.py";         r = "/opt/uvarsi/app/plan_data.py" },
+  @{ l = "$B\app\predpocet.py";         r = "/opt/uvarsi/app/predpocet.py" },
   @{ l = "$B\app\server.py";            r = "/opt/uvarsi/app/server.py" },
   @{ l = "$B\app\platby.py";            r = "/opt/uvarsi/app/platby.py" },
   @{ l = "$B\app\premium_cli.py";       r = "/opt/uvarsi/app/premium_cli.py" },
