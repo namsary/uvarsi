@@ -68,6 +68,7 @@ from platby import (
     platby_zapnute,
     pocet_cakajucich,
     spracuj_udalost,
+    stav_dozoru,
     stav_platieb,
     upozornenie_raz,
     volne_miesta,
@@ -1227,14 +1228,20 @@ def health():
     `predpocet` hovorí, či nočné zahrievanie plánov beží: koľko profilov sa
     zahrialo, koľko to stálo a koľko živých generovaní sa vďaka tomu vôbec
     nekonalo. Bez toho čísla sa nedá rozhodnúť, či zahrievať viac alebo menej.
+
+    `platby` sú dve čísla, ktoré musia byť nula: koľko surových tiel webhookov
+    čaká na spracovanie a za koľko platieb dlhujeme zákazníkom vrátenie peňazí.
+    Kým sú nenulové, niekto zaplatil a nedostal nič — a to sa nesmie dať
+    prehliadnuť len preto, že sa majiteľ nemá ako prihlásiť na server.
     """
     today = datetime.date.today()
     with closing(db()) as con:
         rows = offers_for_current_week(con, ["Kaufland", "Tesco", "Lidl"], today)
         utrata = naklady.stav(con)
         zahrievanie = predpocet.stav(con)
+        platby_stav = stav_dozoru(con)
     return {"vydanie": release_id(), "tyzden": monday(today), "pocet": len(rows),
-            "naklady": utrata, "predpocet": zahrievanie}
+            "naklady": utrata, "predpocet": zahrievanie, "platby": platby_stav}
 
 
 @app.get("/api/naklady")

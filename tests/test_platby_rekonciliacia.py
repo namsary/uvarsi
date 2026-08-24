@@ -19,8 +19,10 @@ kontrola kapacity a tie isté UNIQUE obmedzenia.
 """
 import datetime
 import importlib
+import io
 import json
 import sys
+import urllib.error
 from contextlib import closing
 from pathlib import Path
 
@@ -243,6 +245,90 @@ def test_rekonciliacia_nikdy_nesiaha_na_kluc_z_repozitara(monkeypatch, tmp_path)
         assert zakazane not in zdroj
 
 
+class _Odpoved(io.BytesIO):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *chyba):
+        return False
+
+
+def test_stahovanie_prejde_strankovanie_a_filtruje_obchod(monkeypatch, tmp_path):
+    rek = rekonciliacia_modul()
+    adresy, hlavicky = [], []
+
+    def otvor(ziadost, timeout=None):
+        adresy.append(ziadost.full_url)
+        hlavicky.append(dict(ziadost.headers))
+        strana = len(adresy)
+        return _Odpoved(json.dumps({
+            "data": [{"type": "orders", "id": str(strana), "attributes": {}}],
+            "links": {"next": strana < 3},
+        }).encode())
+
+    objednavky = rek.stiahni_objednavky("TAJNY-KLUC", store_id="42", otvor=otvor)
+
+    assert [o["id"] for o in objednavky] == ["1", "2", "3"]
+    assert "filter%5Bstore_id%5D=42" in adresy[0]
+    assert hlavicky[0]["Authorization"] == "Bearer TAJNY-KLUC"
+
+
+def test_stahovanie_ma_strop_poctu_stran(monkeypatch, tmp_path):
+    """Hodinový beh nesmie donekonečna búchať do API poskytovateľa."""
+    rek = rekonciliacia_modul()
+    strany = []
+
+    def otvor(ziadost, timeout=None):
+        strany.append(ziadost.full_url)
+        return _Odpoved(json.dumps({
+            "data": [{"type": "orders", "id": str(len(strany)), "attributes": {}}],
+            "links": {"next": True},
+        }).encode())
+
+    rek.stiahni_objednavky("KLUC", otvor=otvor)
+
+    assert len(strany) == rek.MAX_STRAN
+
+
+def test_bez_klucov_rekonciliacia_nic_neurobi(monkeypatch, tmp_path):
+    """Vypínač strážia kľúče v uvarsi.env, nie premenná v kóde."""
+    monkeypatch.setenv("UVARSI_DB", str(tmp_path / "uvarsi.db"))
+    monkeypatch.setenv("UVARSI_ENV_FILE", str(tmp_path / "neexistuje.env"))
+    for meno in ("LEMON_API_KEY", "LEMON_WEBHOOK_SECRET", "LEMON_VARIANT_ID"):
+        monkeypatch.delenv(meno, raising=False)
+    rek = rekonciliacia_modul()
+    monkeypatch.setattr(rek, "DB", str(tmp_path / "uvarsi.db"))
+    monkeypatch.setattr(rek, "ENV_FILE", str(tmp_path / "neexistuje.env"))
+
+    def zakazane(*args, **kwargs):
+        raise AssertionError("bez kľúča sa nesmie siahnuť na API poskytovateľa")
+
+    monkeypatch.setattr(rek, "stiahni_objednavky", zakazane)
+
+    assert rek.main() == 0
+    assert not (tmp_path / "uvarsi.db").exists(), "bez kľúčov sa ani databáza neotvára"
+
+
+def test_nedostupne_api_je_dovod_skusit_o_hodinu_znova(monkeypatch, tmp_path):
+    """Výpadok siete nesmie vyzerať ako úspech — cron to musí vidieť."""
+    monkeypatch.setenv("UVARSI_DB", str(tmp_path / "uvarsi.db"))
+    env_subor = tmp_path / "uvarsi.env"
+    env_subor.write_text("LEMON_API_KEY=abc\nLEMON_WEBHOOK_SECRET=def\n", encoding="utf-8")
+    monkeypatch.setenv("UVARSI_ENV_FILE", str(env_subor))
+    for meno in ("LEMON_API_KEY", "LEMON_WEBHOOK_SECRET", "LEMON_VARIANT_ID"):
+        monkeypatch.delenv(meno, raising=False)
+    rek = rekonciliacia_modul()
+    monkeypatch.setattr(rek, "DB", str(tmp_path / "uvarsi.db"))
+    monkeypatch.setattr(rek, "ENV_FILE", str(env_subor))
+
+    def padne(*args, **kwargs):
+        raise urllib.error.URLError("sieť nefunguje")
+
+    monkeypatch.setattr(rek, "stiahni_objednavky", padne)
+
+    assert rek.main() == 1
+
+
 # --------------------------------------------- 2. webhook s vypnutými platbami
 def test_webhook_s_vypnutymi_platbami_sa_odlozi_a_nestrati(monkeypatch, tmp_path):
     """503 by poskytovateľ po pár pokusoch vzdal a peniaze by zmizli."""
@@ -447,6 +533,32 @@ def test_druha_platba_upozorni_majitela(monkeypatch, tmp_path):
 
     assert poslane
     assert "ord-2" in " ".join(s["sprava"] for s in poslane)
+
+
+def test_health_ukaze_ze_niekomu_dlzime_vratenie(monkeypatch, tmp_path):
+    """Bez SSH sa majiteľ inak nedozvie, že drží peniaze bez protihodnoty."""
+    server = zapnute_platby(monkeypatch, tmp_path)
+    vytvor_pouzivatela(server)
+    naplnit_miesta(server, 250)
+    client = TestClient(server.app, raise_server_exceptions=False)
+    assert client.get("/api/health").json()["platby"]["nevybavene_vratky"] == 0
+
+    posli_webhook(client, objednavka(order_id="ord-251"))
+
+    platby_stav = client.get("/api/health").json()["platby"]
+    assert platby_stav["nevybavene_vratky"] == 1
+    assert platby_stav["cakajucich_tiel"] == 0
+    assert platby_stav["obsadene"] == 250
+
+
+def test_health_ukaze_kolko_tiel_caka_s_vypnutymi_platbami(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path)
+    vytvor_pouzivatela(server)
+    client = TestClient(server.app, raise_server_exceptions=False)
+
+    posli_webhook(client, objednavka(order_id="ord-1"))
+
+    assert client.get("/api/health").json()["platby"]["cakajucich_tiel"] == 1
 
 
 # ------------------------------------------------- 4. upozornenia na udalosti
