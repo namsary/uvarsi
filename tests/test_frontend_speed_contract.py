@@ -394,6 +394,55 @@ def test_the_prefetched_plan_is_used_instead_of_a_second_round_trip():
     assert "= null" in take.group(0)
 
 
+def test_every_plan_generation_path_uses_one_shared_in_flight_guard():
+    html = read(APP)
+    assert "let PLAN_REQUEST_IN_FLIGHT = null" in html
+    assert "function onePlanRequest(request)" in html
+
+    for name in ("generujPlan", "preskladajPlan", "planZoSpajze"):
+        fn = re.search(rf"function {name}\(\) \{{.*?\n\}}", html, re.S)
+        assert fn, f"chýba {name}()"
+        assert "onePlanRequest" in fn.group(0), f"{name} obchádza spoločný guard"
+
+
+@needs_node
+def test_plan_generation_requests_share_one_in_flight_promise(tmp_path):
+    """Štart a rýchle dvojkliknutie nesmú spustiť dva platené modelové behy."""
+    html = read(APP)
+    guard = re.search(r"function onePlanRequest\(request\) \{.*?\n\}", html, re.S)
+    assert guard, "všetky generatívne cesty potrebujú jeden spoločný in-flight guard"
+
+    script = tmp_path / "one-plan-request.js"
+    script.write_text(
+        "var PLAN_REQUEST_IN_FLIGHT = null;\n"
+        + guard.group(0)
+        + """
+var calls = 0, finish;
+function request() {
+  calls++;
+  return new Promise(function(resolve) { finish = resolve; });
+}
+(async function() {
+  var first = onePlanRequest(request);
+  var second = onePlanRequest(request);
+  if (calls !== 1 || first !== second) process.exit(1);
+  finish('ok');
+  if (await first !== 'ok') process.exit(2);
+  await new Promise(function(resolve) { setTimeout(resolve, 0); });
+  var third = onePlanRequest(request);
+  if (calls !== 2 || third === first) process.exit(3);
+  finish('again');
+  await third;
+  process.exit(0);
+})().catch(function(error) { console.error(error); process.exit(99); });
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run([NODE, str(script)], capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 @needs_node
 def test_a_known_returning_user_sees_the_shell_before_the_network_answers(tmp_path):
     """Meno v hlavičke a spodné menu vieme nakresliť z pamäte, bez čakania."""

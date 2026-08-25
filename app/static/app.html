@@ -140,6 +140,7 @@ nav .ico{display:block;font-size:1.25rem;margin-bottom:2px}
 const $ = s => document.querySelector(s);
 const M = $('#main');
 let ME = null, PLAN = null, TAB = 'plan';
+let APP_READY = false;
 let DONE = {};
 /* Zhody so špajzou, ktoré používateľ zrušil („predsa to kúpim"). Párovanie
    voľného textu na názvy z letáku je odhad; keď sa netrafí, musí sa dať vrátiť
@@ -159,17 +160,12 @@ const SPAJZA_UKAZKA_CENY = {'ryža': '1,29', 'vajcia': '2,49', 'cibuľa': '0,89'
 const PLAN_TIMEOUT_MS = 150000;
 const PLAN_TIMEOUT_TEXT = 'Jedálniček sa nestihol poskladať do dvoch a pol minúty. Skús to prosím znova.';
 
-/* ---------- štart bez čakania v rade ----------
-   Profil a plán na sebe nezávisia. Dve obrátky za sebou sú na mobilných dátach
-   pol sekundy prázdnej obrazovky, tak odchádzajú naraz. */
 function startupRequests(request) {
   return {me: request('/api/me'), plan: request('/api/plan')};
 }
 
 let STARTUP = null, PLAN_PREFETCH = null;
 
-/* Odpoveď sa dá prečítať raz a zamietnutý sľub ostane zamietnutý — po výpadku
-   siete teda musia vzniknúť nové požiadavky. */
 function beginStartup() {
   STARTUP = startupRequests(url =>
     fetch(url, {headers: {'Content-Type': 'application/json'}}));
@@ -180,17 +176,12 @@ function beginStartup() {
 }
 
 beginStartup();
-/* Response sa dá prečítať iba raz, tak si ju smie vziať len prvý žiadateľ. */
 function takePlanPrefetch() {
   const pending = PLAN_PREFETCH;
   PLAN_PREFETCH = null;
   return pending;
 }
 
-/* ---------- zapamätaný profil ----------
-   Ukladá sa VÝHRADNE to, čo sa nekazí časom: meno v hlavičke a nastavenie.
-   Ceny ani nákupný zoznam sem nepatria — zastaraná akcia by poprela sľub
-   produktu. Vracajúci sa človek tak vidí škrupinu hneď, nie až po serveri. */
 const PROFILE_KEY = 'uvarsi_profil';
 
 function rememberProfile(me) {
@@ -217,6 +208,7 @@ function paintKnownShell() {
   if (!known) return false;
   $('#hdr').textContent = String(known.email).split('@')[0];
   showNav();
+  setNavigationReady(false);
   return true;
 }
 
@@ -701,12 +693,19 @@ function viewOnboarding() {
     await api('/api/profil', {method:'POST', body:JSON.stringify(
       {osoby:+val('#c-osoby'), frekvencia:+val('#c-frek'), obchody:vybrane})});
     ME = await api('/api/me');
-    await nacitajPlan(true);
+    await refreshPlanAfterProfileSave();
   });
 }
 
 /* ---------- plán ---------- */
 let PLAN_PROGRESS = null;
+let PLAN_REQUEST_IN_FLIGHT = null;
+
+function onePlanRequest(request) {
+  if (PLAN_REQUEST_IN_FLIGHT) return PLAN_REQUEST_IN_FLIGHT;
+  PLAN_REQUEST_IN_FLIGHT = request().finally(() => { PLAN_REQUEST_IN_FLIGHT = null; });
+  return PLAN_REQUEST_IN_FLIGHT;
+}
 
 function startPlanProgress() {
   stopPlanProgress();
@@ -721,16 +720,14 @@ function stopPlanProgress() {
   if (PLAN_PROGRESS) { clearInterval(PLAN_PROGRESS); PLAN_PROGRESS = null; }
 }
 
-/* Prvé poskladanie smie prevziať hotový plán rovnakého profilu — preto tu
-   NIE je force. */
 function generujPlan() {
-  return api('/api/plan/generuj', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS});
+  return onePlanRequest(() =>
+    api('/api/plan/generuj', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS}));
 }
 
-/* „Chcem iný plán" sa musí cache vyhnúť, inak by nič nezmenilo. Je to jediné
-   platené skladanie v appke — server ho ráta do denného stropu (1×, s Premium 5×). */
 function preskladajPlan() {
-  return api('/api/plan/generuj?force=1', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS});
+  return onePlanRequest(() =>
+    api('/api/plan/generuj?force=1', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS}));
 }
 
 /* Koľko pokusov dnes zostáva. Keď server mlčí, je to null — „neviem" nie je
@@ -778,7 +775,8 @@ function regenerationNote(me) {
    ovplyvní JEDLÁ; inak sa dotýka len nákupného zoznamu. Je to platené volanie,
    preto sa spúšťa len na kliknutie a berie jeden prepočet z denného stropu. */
 function planZoSpajze() {
-  return api('/api/plan/zo-spajze', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS});
+  return onePlanRequest(() =>
+    api('/api/plan/zo-spajze', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS}));
 }
 
 async function navrhniZoSpajze() {
@@ -892,6 +890,15 @@ async function refreshPlanAfterPantrySave() {
   render();
 }
 
+async function refreshPlanAfterProfileSave() {
+  const plan = await api('/api/plan'), empty = !!(plan && plan.prazdny);
+  setPlan(empty ? null : plan);
+  PLAN_NEEDS_REGEN = empty;
+  PLAN_RESUME_ENDPOINT = empty ? (plan.obnovit_cez || '') : '';
+  TAB = 'plan';
+  render();
+}
+
 async function resumeInvalidatedPlan() {
   if (PLAN_RESUME_ENDPOINT === '/api/plan/zo-spajze') return navrhniZoSpajze();
   return nacitajPlan(true);
@@ -900,6 +907,11 @@ async function resumeInvalidatedPlan() {
 function showNav() {
   $('#nav').classList.remove('hidden');
   [...$('#nav').children].forEach(b => b.classList.toggle('on', b.dataset.t === TAB));
+}
+
+function setNavigationReady(ready) {
+  APP_READY = !!ready;
+  [...$('#nav').children].forEach(button => { button.disabled = !APP_READY; });
 }
 
 function render() {
@@ -1153,6 +1165,7 @@ function vNast() {
 }
 
 $('#nav').onclick = e => {
+  if (!APP_READY) return;
   const b = e.target.closest('button'); if (!b) return;
   TAB = b.dataset.t; render();
 };
@@ -1180,6 +1193,7 @@ async function start() {
     return viewLogin();
   }
   if (!ME.prihlaseny) return viewLogin();
+  setNavigationReady(true);
   $('#hdr').textContent = ME.email.split('@')[0];
   rememberProfile(ME);
   if (!ME.onboarding) return viewOnboarding();

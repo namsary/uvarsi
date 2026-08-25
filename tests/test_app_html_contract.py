@@ -28,6 +28,37 @@ def run_node(tmp_path, name, source):
     return subprocess.run([NODE, str(script)], capture_output=True, text=True)
 
 
+def test_saving_profile_never_generates_a_plan_implicitly():
+    """Zmena nastavení nesmie potichu minúť prepočet ani zavolať model."""
+    html = app_html()
+    onboarding = declaration(html, "function viewOnboarding() ")
+
+    assert "nacitajPlan(true)" not in onboarding
+    assert "/api/plan/generuj" not in onboarding
+    assert "refreshPlanAfterProfileSave" in onboarding
+
+    refresh = declaration(html, "async function refreshPlanAfterProfileSave() ")
+    assert "api('/api/plan')" in refresh
+    assert "/api/plan/generuj" not in refresh
+    assert "nacitajPlan(true)" not in refresh
+
+
+def test_cached_shell_navigation_stays_locked_until_authoritative_profile_arrives():
+    """Zapamätané meno je iba skeleton, nie oprávnenie klikať do appky."""
+    html = app_html()
+    shell = declaration(html, "function paintKnownShell() ")
+    nav_click = re.search(r"\$\('#nav'\)\.onclick = e => \{.*?\n\};", html, re.S)
+    start = declaration(html, "async function start() ")
+
+    assert nav_click, "spodná navigácia musí mať jeden strážený click handler"
+    assert "setNavigationReady(false)" in shell
+    assert "if (!APP_READY) return" in nav_click.group(0)
+    assert "ME = await readStartupResponse(STARTUP.me)" in start
+    authoritative = start.index("ME = await readStartupResponse(STARTUP.me)")
+    unlock = start.index("setNavigationReady(true)")
+    assert unlock > authoritative, "menu sa smie odomknúť až po odpovedi /api/me"
+
+
 def test_checked_shopping_state_is_namespaced_by_authenticated_user_and_plan_week(tmp_path):
     html = Path("app/static/app.html").read_text(encoding="utf-8")
     match = re.search(r"function checkedStateKey\(user, plan\) \{.*?\n\}", html, re.S)
