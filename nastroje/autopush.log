@@ -619,3 +619,6 @@
 [2026-08-25 06:31:21] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_naklady.py::test_vychodzie_stropy_su_bezpecne - AssertionEr... 1 failed, 826 passed, 20 skipped, 36 deselected in 292.52s (0:04:52)
 [2026-08-25 06:35:44] zmenenych suborov: 4
 [2026-08-25 06:44:44] testy OK: ......ss......s......................................................... [ 92%] .....................................ssss.........................       [100%] 838 passed, 20 skipped, 36 deselected in 529.87s (0:08:49)
+[2026-08-25 06:45:08] pushnute 71cd3d4 - server si to vezme do 10 minut
+[2026-08-25 06:46:12] zmenenych suborov: 1
+[2026-08-25 06:53:49] testy OK: ......ss......s......................................................... [ 92%] .....................................ssss.........................       [100%] 838 passed, 20 skipped, 36 deselected in 422.60s (0:07:02)
