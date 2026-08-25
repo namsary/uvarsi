@@ -614,3 +614,8 @@
 [2026-08-25 06:17:17] pushnute 24b0898 - server si to vezme do 10 minut
 [2026-08-25 06:20:38] zmenenych suborov: 1
 [2026-08-25 06:22:11] testy OK: ......ss......s......................................................... [ 93%] ..........................ssss.........................                  [100%] 827 passed, 20 skipped, 36 deselected in 86.52s (0:01:26)
+[2026-08-25 06:22:15] pushnute 269a95a - server si to vezme do 10 minut
+[2026-08-25 06:25:37] zmenenych suborov: 1
+[2026-08-25 06:31:21] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_naklady.py::test_vychodzie_stropy_su_bezpecne - AssertionEr... 1 failed, 826 passed, 20 skipped, 36 deselected in 292.52s (0:04:52)
+[2026-08-25 06:35:44] zmenenych suborov: 4
+[2026-08-25 06:44:44] testy OK: ......ss......s......................................................... [ 92%] .....................................ssss.........................       [100%] 838 passed, 20 skipped, 36 deselected in 529.87s (0:08:49)

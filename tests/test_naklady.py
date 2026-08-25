@@ -474,13 +474,20 @@ def test_upozornenie_ide_na_ntfy_topic_dozorcu():
 
 # ------------------------------------------------------------------ konfigurácia
 def test_vychodzie_stropy_su_bezpecne():
+    # Horné hranice prekalibrované 24. 8. 2026 spolu so stropmi samotnými.
+    # Pôvodné (2,00 € / 10,00 €) zodpovedali dobe, keď fáza 2 čítala len vzorku
+    # 12–14 strán z letáku. Po zrušení vzorky stojí poctivý beh ~2,50 €, takže
+    # starý denný strop zber PRERUŠIL a vypadával posledný obchod v poradí.
+    # Podrobne v app/naklady.py a v tests/test_stropy_pokryju_cely_zber.py.
     stropy = naklady.stropy()
-    assert 0 < stropy.denny <= 2.00
-    assert 0 < stropy.mesacny <= 10.00
+    assert 0 < stropy.denny <= 5.00
+    assert 0 < stropy.mesacny <= 40.00
     assert stropy.denny < stropy.mesacny
 
 
-POCTIVY_TYZDENNY_ZBER_EUR = 1.11      # 3 obchody × ~0,37 € vision beh
+# Merané 24. 8. 2026 na reálnych letákoch (Kaufland 77 + Tesco 31 + Lidl 100
+# strán, ~104 z nich potravinových): fáza 1 ≈ 0,03 €, fáza 2 ≈ 2,51 €.
+POCTIVY_TYZDENNY_ZBER_EUR = 2.55
 
 
 def test_vychodzie_stropy_prezijú_poctivu_prevadzku():

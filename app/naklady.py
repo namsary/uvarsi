@@ -87,24 +87,33 @@ NTFY_TOPIC = "uvarsi-jarvis-8f3a2c"
 PRAHY_UPOZORNENIA = (50, 80)
 
 # ---------------------------------------------------------------- východzie stropy
-# Čísla nie sú vycucané z prsta, vychádzajú zo skutočnej prevádzky:
-#   • jeden vision beh nad letákom JEDNÉHO obchodu ≈ 0,37 €
-#   • zber beží nad tromi obchodmi (Kaufland, Tesco, Lidl) ≈ 1,11 € za týždeň
-#   • skladanie plánu a bločku sú Sonnet volania rádovo za centy
-# Strop musí byť NAD poctivou prevádzkou, inak z neho je výpadok, nie ochrana:
-#   denný 1,50 €  = riadny týždenný zber (1,11 €) sa v pohode zmestí do dňa
-#   mesačný 8,00 € = 4–5 zberov (~5,5 €) plus plány, s rezervou
-#   týždenný zber 2,50 € = jeden riadny beh plus jedno opakovanie
-#   2 behy zberu za týždeň = riadny beh + jedno opakovanie, keď zdroj vypadne
-# Pre incident to znamená: namiesto 4,60 € za dva dni sa minie nanajvýš
-# ~1,5 € za deň a nanajvýš 2 vision behy za týždeň.
-# Predpočet (nočné zahrievanie zdieľaných plánov) má vlastný týždenný strop:
-#   9 plánov × ~0,02 € = ~0,18 € za riadny beh, strop 0,40 € = beh plus jedno
-#   opakovanie, keď prvý narazí na denný zvyšok rozpočtu. Viac ako 2 behy za
-#   týždeň nemá čo robiť — ponuky týždňa sa poskladajú raz.
-VYCHODZI_DENNY_STROP_EUR = 1.50
-VYCHODZI_MESACNY_STROP_EUR = 8.00
-VYCHODZI_TYZDENNY_STROP_ZBER_EUR = 2.50
+# PREKALIBROVANÉ 24. 8. 2026. Predošlé čísla (denný 1,50 €, mesačný 8,00 €,
+# týždenný zber 2,50 €) pochádzali z čias, keď fáza 2 čítala len rovnomernú
+# vzorku 12–14 strán z každého letáku. Tú vzorku sme neskôr ZRUŠILI — dnes sa
+# číta každá potravinová strana, teda z 208 strán zhruba 104.
+#
+# Skutočný náklad jedného poctivého behu je preto ~2,50 €, nie 1,11 €:
+#   • fáza 1 (Haiku, náhľady 320 px): 19 volaní ≈ 0,03 €
+#   • fáza 2 (Opus 5, 1500 px): ~27 volaní × 0,093 € ≈ 2,51 €
+#
+# Starý denný strop 1,50 € teda beh PRERUŠIL niekde v polovici. Obchody sa
+# spracúvajú v poradí Kaufland → Tesco → Lidl, takže vypadával ten posledný.
+# 21. 8. 2026: 431 akcií v DB a chýbal presne Lidl. Strop nechránil, ale kazil
+# dáta — a chyba vyzerala ako problém so zdrojom letáku.
+#
+# Nové čísla vychádzajú z meranej prevádzky, stále s rezervou:
+#   denný 4,00 €  = celý zber (2,50 €) + plány a bloček toho dňa
+#   týždenný zber 4,00 € = jeden celý beh + jeden opravný pokus
+#   mesačný 25,00 € = 4 zbery (~10 €) + plány + predpočet, s rezervou;
+#                     stále hlboko pod majiteľovým limitom 100 €/mesiac
+#   2 behy zberu za týždeň ostáva — to bola správna poistka a zafungovala
+#
+# POZOR: keď sa zmení rozsah čítania (READ_PX, READ_BATCH_SIZE, podiel
+# potravinových strán) alebo cena modelu, tieto čísla treba prepočítať znova.
+# Strop pod skutočnou cenou poctivého behu nie je ochrana, je to tichý výpadok.
+VYCHODZI_DENNY_STROP_EUR = 4.00
+VYCHODZI_MESACNY_STROP_EUR = 25.00
+VYCHODZI_TYZDENNY_STROP_ZBER_EUR = 4.00
 VYCHODZI_TYZDENNY_STROP_PREDPOCET_EUR = 0.40
 VYCHODZI_LIMIT_BEHOV = {"zber_letakov": 2, "predpocet": 2}
 
