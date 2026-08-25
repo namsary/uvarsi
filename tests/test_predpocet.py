@@ -15,6 +15,8 @@ Tieto testy držia štyri sľuby, na ktorých celá vec stojí:
      naživo presne ako doteraz.
 """
 import importlib
+import json
+import sqlite3
 import sys
 import types
 from contextlib import closing
@@ -265,7 +267,8 @@ def test_zasah_do_predpocitaneho_planu_je_vidiet_v_prehlade(monkeypatch, tmp_pat
     monkeypatch.setitem(sys.modules, "anthropic", zakazany_anthropic([]))
     klient_pouzivatela(server, user_id).post("/api/plan/generuj")
 
-    prehlad = TestClient(server.app).get("/api/naklady").json()["predpocet"]
+    monkeypatch.setenv("UVARSI_ADMIN_EMAILS", "u1@uvar.si")
+    prehlad = klient_pouzivatela(server, user_id).get("/api/naklady").json()["predpocet"]
     assert prehlad["usetrenych_generovani"] == 1, prehlad
 
 
@@ -342,7 +345,9 @@ def test_prvy_tyzden_bez_historie_pouzije_vychodzie_profily(monkeypatch, tmp_pat
     assert profily[0] == predpocet.vychodzie_profily()[0], (
         "bez histórie musí ísť na začiatok najpravdepodobnejší profil"
     )
-    assert len({(p.obchody, p.osoby, p.frekvencia, p.variant) for p in profily}) == 5
+    assert len({
+        (p.obchody, p.dospeli, p.deti, p.frekvencia, p.variant) for p in profily
+    }) == 5
 
 
 def test_dalsie_tyzdne_riadi_skutocny_dopyt_pouzivatelov(monkeypatch, tmp_path):
@@ -362,6 +367,130 @@ def test_dalsie_tyzdne_riadi_skutocny_dopyt_pouzivatelov(monkeypatch, tmp_path):
     assert profily[2] in predpocet.vychodzie_profily(), (
         "keď je história kratšia než N, zvyšok sa doplní východzími profilmi"
     )
+
+
+def test_demand_is_aggregated_by_adults_and_children_separately(monkeypatch, tmp_path):
+    server, predpocet = priprav(monkeypatch, tmp_path)
+    with closing(server.db()) as con:
+        predpocet.zaznamenaj_dopyt(
+            con, minuly_tyzden(), ["Lidl"], 2, 2, 3, 1
+        )
+        predpocet.zaznamenaj_dopyt(
+            con, minuly_tyzden(), ["Lidl"], 4, 0, 3, 1
+        )
+        con.commit()
+        rows = con.execute(
+            "SELECT dospeli, deti, pocet FROM dopyt_profilov ORDER BY deti"
+        ).fetchall()
+
+    assert [tuple(row) for row in rows] == [(4, 0, 1), (2, 2, 1)]
+
+
+def test_default_precompute_profiles_cover_common_mixed_households(monkeypatch, tmp_path):
+    _server, predpocet = priprav(monkeypatch, tmp_path)
+    households = {(p.dospeli, p.deti) for p in predpocet.vychodzie_profily()}
+
+    assert {(1, 0), (2, 0), (2, 1), (2, 2), (3, 0), (4, 0)}.issubset(households)
+    assert all(1 <= adults + children <= 12 for adults, children in households)
+
+
+def test_legacy_demand_rows_migrate_to_adults_without_losing_counts(monkeypatch, tmp_path):
+    _server, predpocet = priprav(monkeypatch, tmp_path)
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(
+        """
+        CREATE TABLE plany_zdielane (
+          podpis TEXT NOT NULL, variant INTEGER NOT NULL, tyzden TEXT NOT NULL,
+          json TEXT NOT NULL, PRIMARY KEY (podpis, variant)
+        );
+        CREATE TABLE dopyt_profilov (
+          tyzden TEXT NOT NULL, obchody TEXT NOT NULL, osoby INTEGER NOT NULL,
+          frekvencia INTEGER NOT NULL, variant INTEGER NOT NULL,
+          pocet INTEGER NOT NULL DEFAULT 0, posledny TEXT,
+          PRIMARY KEY (tyzden, obchody, osoby, frekvencia, variant)
+        );
+        INSERT INTO dopyt_profilov
+          (tyzden, obchody, osoby, frekvencia, variant, pocet, posledny)
+        VALUES ('2026-08-17', 'Lidl', 4, 3, 1, 7, '2026-08-20');
+        """
+    )
+
+    predpocet.migrate_predpocet_schema(con)
+    predpocet.migrate_predpocet_schema(con)
+
+    columns = {row[1] for row in con.execute("PRAGMA table_info(dopyt_profilov)")}
+    row = con.execute(
+        "SELECT osoby, dospeli, deti, pocet, posledny FROM dopyt_profilov"
+    ).fetchone()
+    assert {"osoby", "dospeli", "deti"}.issubset(columns)
+    assert tuple(row) == (4, 4, 0, 7, "2026-08-20")
+    con.close()
+
+
+def test_popular_profiles_keep_same_size_mixed_households_separate(monkeypatch, tmp_path):
+    server, predpocet = priprav(monkeypatch, tmp_path)
+    with closing(server.db()) as con:
+        for _ in range(3):
+            predpocet.zaznamenaj_dopyt(
+                con, minuly_tyzden(), ["Lidl"], 2, 2, 3, 1
+            )
+        for _ in range(2):
+            predpocet.zaznamenaj_dopyt(
+                con, minuly_tyzden(), ["Lidl"], 4, 0, 3, 1
+            )
+        con.commit()
+        profiles = predpocet.oblubene_profily(con, current_monday(), 2)
+
+    assert [(p.dospeli, p.deti) for p in profiles] == [(2, 2), (4, 0)]
+
+
+def test_precompute_passes_one_household_contract_to_signature_prompt_and_builder(
+        monkeypatch, tmp_path):
+    server, predpocet = priprav(monkeypatch, tmp_path)
+    profile = predpocet.Profil(("Lidl",), 2, 2, 3, 1)
+    calls = {}
+
+    def signature(week, stores, household_size, frequency, rows, pantry,
+                  *, adults, children):
+        calls["signature"] = (household_size, adults, children)
+        return "signature"
+
+    def messages(rows, frequency, pantry, household_size, variant,
+                 pantry_driven, *, adults, children):
+        calls["prompt"] = (household_size, adults, children)
+        return [{"type": "text", "text": "prompt"}]
+
+    def builder(con, model_output, stores, frequency, household_size,
+                *, adults, children):
+        calls["builder"] = (household_size, adults, children)
+        return {"jedla": []}
+
+    class Messages:
+        def create(self, **_kwargs):
+            return types.SimpleNamespace(
+                stop_reason="end_turn",
+                content=[types.SimpleNamespace(type="text", text=json.dumps({"meals": []}))],
+            )
+
+    monkeypatch.setattr(server, "podpis_planu", signature)
+    monkeypatch.setattr(predpocet, "personal_plan_messages", messages)
+    monkeypatch.setattr(predpocet, "build_personal_plan", builder)
+    monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace())
+    monkeypatch.setattr(
+        predpocet.naklady, "strazeny_klient",
+        lambda *_args, **_kwargs: types.SimpleNamespace(messages=Messages()),
+    )
+
+    assert predpocet._podpis_pre_profil(server, "2026-08-24", profile, []) == "signature"
+    with closing(server.db()) as con:
+        predpocet._poskladaj(con, server, [], profile, klient=object())
+
+    assert calls == {
+        "signature": (None, 2, 2),
+        "prompt": (None, 2, 2),
+        "builder": (None, 2, 2),
+    }
 
 
 def test_dopyt_z_tohto_tyzdna_neprebije_historiu_predoslych(monkeypatch, tmp_path):
@@ -447,7 +576,9 @@ def test_prehlad_nakladov_ukazuje_ako_sa_predpoctu_darilo(monkeypatch, tmp_path)
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), [], []))
     predpocet.zahrej(pocet=2)
 
-    telo = TestClient(server.app).get("/api/naklady").json()
+    user_id = uzivatel(server)
+    monkeypatch.setenv("UVARSI_ADMIN_EMAILS", "u1@uvar.si")
+    telo = klient_pouzivatela(server, user_id).get("/api/naklady").json()
 
     assert "predpocet" in telo, "majiteľ musí vidieť, či predpočet vôbec beží"
     p = telo["predpocet"]
@@ -473,7 +604,9 @@ def test_health_ukazuje_predpocet_a_neprepadne_na_cerstvej_databaze(monkeypatch,
 
 def test_prehlad_predpoctu_neprezradi_tajomstva(monkeypatch, tmp_path):
     server, _ = priprav(monkeypatch, tmp_path)
-    telo = TestClient(server.app).get("/api/naklady").text
+    user_id = uzivatel(server)
+    monkeypatch.setenv("UVARSI_ADMIN_EMAILS", "u1@uvar.si")
+    telo = klient_pouzivatela(server, user_id).get("/api/naklady").text
     for zakazane in ("API_KEY", "sk-ant", "re_", "@uvar.si"):
         assert zakazane not in telo
 
@@ -484,8 +617,13 @@ def test_cena_za_profil_je_zname_a_striezlive_cislo(monkeypatch, tmp_path):
     naklady = importlib.import_module("naklady")
 
     assert predpocet.CENA_ZA_PROFIL_EUR == naklady.ODHAD_EUR["predpocet"]
-    assert 0 < predpocet.CENA_ZA_PROFIL_EUR <= 0.05
-    # Plný predpočet nesmie sám osebe zjesť mesačný rozpočet.
+    assert predpocet.CENA_ZA_PROFIL_EUR == pytest.approx(0.03)
+    assert naklady.VYCHODZI_DENNY_STROP_EUR == pytest.approx(4.00)
+    assert naklady.VYCHODZI_MESACNY_STROP_EUR == pytest.approx(25.00)
+    assert predpocet.CENA_ZA_PROFIL_EUR + predpocet.VYCHODZIA_REZERVA_EUR <= (
+        naklady.VYCHODZI_DENNY_STROP_EUR
+    )
+    # Plný predpočet ani po zvýšení odhadu nesmie sám osebe zjesť mesačný rozpočet.
     assert predpocet.MAX_POCET_PROFILOV * predpocet.CENA_ZA_PROFIL_EUR <= (
         naklady.VYCHODZI_MESACNY_STROP_EUR / 2
     )

@@ -77,9 +77,9 @@ UCELY = ("zber_letakov", "blocek", "plan", "recepty", "predpocet")
 ODHAD_EUR = {
     "zber_letakov": 0.10,     # jedna vision dávka (~4 strany letáku Opusom)
     "blocek": 0.02,
-    "plan": 0.02,
+    "plan": 0.03,            # 7 detailných jedál, konzervatívne aj pri timeoute
     "recepty": 0.02,
-    "predpocet": 0.02,        # to isté volanie ako „plan", len v noci
+    "predpocet": 0.03,        # to isté volanie ako „plan", len v noci
 }
 
 # Ten istý kanál, ktorý už sleduje dozorca (hetzner/dozorca.sh).

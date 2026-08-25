@@ -81,7 +81,25 @@ def _validate_count(value: object, field: str) -> int:
     return value
 
 
+def _validate_current_sources(sources: object, today: date) -> None:
+    if not isinstance(sources, list) or not sources:
+        raise ValueError("Bloček nemá doložené zdroje s údajom o platnosti cien.")
+    for source in sources:
+        if not isinstance(source, dict):
+            raise ValueError("Bloček má neplatný zdroj s platnosťou cien.")
+        valid_to = source.get("valid_to")
+        if not isinstance(valid_to, str):
+            raise ValueError("Zdroj bločku nemá platný dátum platnosti cien.")
+        try:
+            expires = date.fromisoformat(valid_to)
+        except ValueError as error:
+            raise ValueError("Zdroj bločku nemá platný dátum platnosti cien.") from error
+        if expires < today:
+            raise ValueError("Zdroj bločku je po platnosti.")
+
+
 def validate_landing_data(payload: dict, today: date | None = None) -> dict:
+    today = today or date.today()
     if not isinstance(payload, dict):
         raise ValueError("Letákové dáta musia byť objekt.")
     if payload.get("schema_version") != 1:
@@ -98,6 +116,7 @@ def validate_landing_data(payload: dict, today: date | None = None) -> dict:
         raise ValueError("Letákové dáta musia obsahovať week_label.")
     if not isinstance(payload.get("sources"), list):
         raise ValueError("Letákové dáta musia obsahovať sources.")
+    _validate_current_sources(payload["sources"], today)
 
     receipt = payload.get("receipt")
     if not isinstance(receipt, dict) or not isinstance(receipt.get("meals"), list) or not receipt["meals"]:

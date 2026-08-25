@@ -16,7 +16,10 @@ def payload():
         "generated_at": "2026-08-18T05:02:20+02:00",
         "week": "2026-08-17",
         "week_label": "17.–23. 8. 2026",
-        "sources": [],
+        "sources": [{
+            "store": "Lidl", "url": "https://letak.test/lidl",
+            "valid_from": "2026-08-17", "valid_to": "2026-08-23",
+        }],
         "receipt": {
             "meals": [{"day": "PO", "name": "Test", "items": []}],
             "nakup_spolu": "1,00",
@@ -41,6 +44,17 @@ def receipt_with(items, **totals):
     data["receipt"]["meals"][0]["items"] = items
     data["receipt"].update(totals)
     return data
+
+
+def source(**overrides):
+    value = {
+        "store": "Lidl",
+        "url": "https://letak.test/lidl",
+        "valid_from": "2026-08-17",
+        "valid_to": "2026-08-23",
+    }
+    value.update(overrides)
+    return value
 
 
 def test_rejects_previous_week():
@@ -155,3 +169,48 @@ def test_current_check_rejects_stale_or_invalid_json(tmp_path):
 
     path.write_text("not-json", encoding="utf-8")
     assert landing_data_is_current(path, date(2026, 8, 18)) is False
+
+
+def test_rejects_receipt_when_even_one_source_offer_expired_inside_current_iso_week():
+    data = payload()
+    data["sources"] = [
+        source(store="Lidl", valid_to="2026-08-23"),
+        source(store="Tesco", url="https://letak.test/tesco", valid_to="2026-08-19"),
+    ]
+
+    with pytest.raises(ValueError, match="platnosti"):
+        validate_landing_data(data, date(2026, 8, 20))
+
+
+def test_rejects_current_price_claim_without_any_dated_source():
+    data = payload()
+    data["sources"] = []
+
+    with pytest.raises(ValueError, match="platnosti"):
+        validate_landing_data(data, date(2026, 8, 20))
+
+
+@pytest.mark.parametrize("missing", [None, "", "not-a-date"])
+def test_rejects_current_price_claim_when_source_valid_to_is_missing_or_invalid(missing):
+    data = payload()
+    data["sources"] = [source(valid_to=missing)]
+
+    with pytest.raises(ValueError, match="platnosti"):
+        validate_landing_data(data, date(2026, 8, 20))
+
+
+def test_source_offer_remains_current_through_its_valid_to_date_boundary():
+    data = payload()
+    data["sources"] = [source(valid_to="2026-08-20")]
+
+    assert validate_landing_data(data, date(2026, 8, 20)) is data
+
+
+def test_expired_last_good_receipt_stays_on_disk_but_is_not_current(tmp_path):
+    path = tmp_path / "landing_data.json"
+    data = payload()
+    data["sources"] = [source(valid_to="2026-08-19")]
+    write_landing_data_atomic(path, data)
+
+    assert landing_data_is_current(path, date(2026, 8, 20)) is False
+    assert load_landing_data(path) == data

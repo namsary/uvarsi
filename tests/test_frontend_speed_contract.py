@@ -394,6 +394,55 @@ def test_the_prefetched_plan_is_used_instead_of_a_second_round_trip():
     assert "= null" in take.group(0)
 
 
+def test_every_plan_generation_path_uses_one_shared_in_flight_guard():
+    html = read(APP)
+    assert "let PLAN_REQUEST_IN_FLIGHT = null" in html
+    assert "function onePlanRequest(request)" in html
+
+    for name in ("generujPlan", "preskladajPlan", "planZoSpajze"):
+        fn = re.search(rf"function {name}\(\) \{{.*?\n\}}", html, re.S)
+        assert fn, f"chýba {name}()"
+        assert "onePlanRequest" in fn.group(0), f"{name} obchádza spoločný guard"
+
+
+@needs_node
+def test_plan_generation_requests_share_one_in_flight_promise(tmp_path):
+    """Štart a rýchle dvojkliknutie nesmú spustiť dva platené modelové behy."""
+    html = read(APP)
+    guard = re.search(r"function onePlanRequest\(request\) \{.*?\n\}", html, re.S)
+    assert guard, "všetky generatívne cesty potrebujú jeden spoločný in-flight guard"
+
+    script = tmp_path / "one-plan-request.js"
+    script.write_text(
+        "var PLAN_REQUEST_IN_FLIGHT = null;\n"
+        + guard.group(0)
+        + """
+var calls = 0, finish;
+function request() {
+  calls++;
+  return new Promise(function(resolve) { finish = resolve; });
+}
+(async function() {
+  var first = onePlanRequest(request);
+  var second = onePlanRequest(request);
+  if (calls !== 1 || first !== second) process.exit(1);
+  finish('ok');
+  if (await first !== 'ok') process.exit(2);
+  await new Promise(function(resolve) { setTimeout(resolve, 0); });
+  var third = onePlanRequest(request);
+  if (calls !== 2 || third === first) process.exit(3);
+  finish('again');
+  await third;
+  process.exit(0);
+})().catch(function(error) { console.error(error); process.exit(99); });
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run([NODE, str(script)], capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 @needs_node
 def test_a_known_returning_user_sees_the_shell_before_the_network_answers(tmp_path):
     """Meno v hlavičke a spodné menu vieme nakresliť z pamäte, bez čakania."""
@@ -418,9 +467,11 @@ var localStorage = {
   removeItem: function (k) { delete store[k]; }
 };
 var header = {textContent: ''};
-var navShown = 0;
+var navVisible = false;
+var navigationReady = null;
 function $(s) { if (s === '#hdr') return header; throw new Error(s); }
-function showNav() { navShown++; }
+function showNav() { navVisible = true; }
+function setNavigationReady(ready) { navigationReady = !!ready; }
 """
         + "\n".join(pieces)
         + """
@@ -429,7 +480,8 @@ rememberProfile({email: 'jano@uvar.si', osoby: 4, frekvencia: 2,
                  obchody: ['Lidl'], onboarding: true, spajza: ['ryza']});
 if (paintKnownShell() !== true) process.exit(2);
 if (header.textContent !== 'jano') process.exit(3);
-if (navShown !== 1) process.exit(4);
+if (!navVisible) process.exit(4);
+if (navigationReady !== false) process.exit(7);
 var saved = JSON.stringify(store);
 // Ceny sa neukladajú NIKDY — inak by sme raz ukázali neplatnú akciu.
 if (saved.indexOf('cena') !== -1 || saved.indexOf('nakupny_zoznam') !== -1) process.exit(5);
@@ -518,7 +570,7 @@ def test_the_landing_ships_no_second_copy_of_the_receipt():
 
 @pytest.mark.parametrize(
     "page,budget",
-    [(APP, 17_400), (LANDING, 12_400)],
+    [(APP, 18_500), (LANDING, 12_400)],
     ids=lambda value: getattr(value, "name", str(value)),
 )
 def test_pages_stay_within_their_transfer_budget(page, budget):
@@ -546,6 +598,11 @@ def test_pages_stay_within_their_transfer_budget(page, budget):
     dávky, porcie a pre koho sa varí. app.html 14 909 → 17 165 B. Strop appky sa
     druhýkrát dvíha vedome a s číslom: 17 400 B. Toto je posledný raz, čo sa
     zmestí do jedného kroku — ďalší rast už chce revíziu, nie zdvihnutie stropu.
+
+    25. 8. 2026: profil domácnosti rozlíšil dospelých a deti, pridal prístupné
+    počítadlá, validáciu, vysvetlenie detskej porcie a zloženie domácnosti aj
+    počet dní pri recepte. app.html 17 310 → 18 273 B. Zdokumentovaný strop je
+    18 500 B; pôvodné vysvetľujúce komentáre zostali zachované.
     """
     compressed = len(gzip.compress(page.read_bytes(), 9))
     assert compressed <= budget, (

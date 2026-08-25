@@ -28,6 +28,66 @@ def run_node(tmp_path, name, source):
     return subprocess.run([NODE, str(script)], capture_output=True, text=True)
 
 
+def test_saving_profile_never_generates_a_plan_implicitly():
+    """Zmena nastavení nesmie potichu minúť prepočet ani zavolať model."""
+    html = app_html()
+    onboarding = declaration(html, "function viewOnboarding() ")
+
+    assert "nacitajPlan(true)" not in onboarding
+    assert "/api/plan/generuj" not in onboarding
+    assert "refreshPlanAfterProfileSave" in onboarding
+
+    refresh = declaration(html, "async function refreshPlanAfterProfileSave() ")
+    assert "api('/api/plan')" in refresh
+    assert "/api/plan/generuj" not in refresh
+    assert "nacitajPlan(true)" not in refresh
+
+
+def test_profile_save_empty_state_has_truthful_profile_copy_and_button_label():
+    html = app_html()
+    onboarding = declaration(html, "function viewOnboarding() ")
+    refresh = declaration(html, "async function refreshPlanAfterProfileSave() ")
+    plan_view = declaration(html, "function vPlan() ")
+
+    assert "Uložiť nastavenia" in onboarding
+    assert "Uložiť a prepočítať plán" not in onboarding
+    assert "PLAN_EMPTY_REASON = empty ? 'profil' : ''" in refresh
+    assert "PLAN_EMPTY_REASON === 'profil'" in plan_view
+    assert "Nastavenia sa zmenili" in plan_view
+    assert "Špajza sa zmenila" in plan_view
+
+
+def test_every_empty_plan_after_pantry_save_requires_an_explicit_cta():
+    html = app_html()
+    refresh = declaration(html, "async function refreshPlanAfterPantrySave() ")
+    plan_view = declaration(html, "function vPlan() ")
+
+    assert "const empty = !!(plan && plan.prazdny)" in refresh
+    assert "PLAN_NEEDS_REGEN = empty" in refresh
+    assert "PLAN_EMPTY_REASON = empty ? 'spajza' : ''" in refresh
+    assert "plan.prazdny && plan.obnovit_cez" not in refresh
+    assert "if (PLAN_NEEDS_REGEN)" in plan_view
+    guarded = plan_view.split("if (!PLAN || !PLAN.jedla) return nacitajPlan(true)", 1)[0]
+    assert "Vytvoriť aktuálny jedálniček" in guarded
+    assert "return;" in guarded, "prázdny stav sa musí zastaviť na CTA"
+
+
+def test_cached_shell_navigation_stays_locked_until_authoritative_profile_arrives():
+    """Zapamätané meno je iba skeleton, nie oprávnenie klikať do appky."""
+    html = app_html()
+    shell = declaration(html, "function paintKnownShell() ")
+    nav_click = re.search(r"\$\('#nav'\)\.onclick = e => \{.*?\n\};", html, re.S)
+    start = declaration(html, "async function start() ")
+
+    assert nav_click, "spodná navigácia musí mať jeden strážený click handler"
+    assert "setNavigationReady(false)" in shell
+    assert "if (!APP_READY) return" in nav_click.group(0)
+    assert "ME = await readStartupResponse(STARTUP.me)" in start
+    authoritative = start.index("ME = await readStartupResponse(STARTUP.me)")
+    unlock = start.index("setNavigationReady(true)")
+    assert unlock > authoritative, "menu sa smie odomknúť až po odpovedi /api/me"
+
+
 def test_checked_shopping_state_is_namespaced_by_authenticated_user_and_plan_week(tmp_path):
     html = Path("app/static/app.html").read_text(encoding="utf-8")
     match = re.search(r"function checkedStateKey\(user, plan\) \{.*?\n\}", html, re.S)
@@ -198,10 +258,14 @@ def test_change_settings_prefills_current_profile_and_can_be_left_without_saving
     html = app_html()
     onboarding = declaration(html, "function viewOnboarding() ")
 
-    assert "profil.osoby" in onboarding, "household size must come from ME, not a hardcoded default"
+    assert "profil.adults" in onboarding, "adult count must come from ME"
+    assert "profil.children" in onboarding, "child count must come from ME"
     assert "profil.frekvencia" in onboarding
     assert "profil.obchody" in onboarding
-    assert "n===osoby?' on':''" in onboarding
+    assert 'id="c-dospeli"' in onboarding
+    assert 'id="c-deti"' in onboarding
+    assert "Dospelí" in onboarding and "Deti" in onboarding
+    assert "3–12" in onboarding and "tínedžera" in onboarding
     assert "v===frekvencia?' on':''" in onboarding
     assert "obchody.indexOf(o)>=0?' on':''" in onboarding
 
@@ -211,6 +275,42 @@ def test_change_settings_prefills_current_profile_and_can_be_left_without_saving
 
     assert "Späť bez zmeny" in onboarding, "an existing profile must be leavable without submitting"
     assert "$('#spat').onclick" in onboarding
+
+
+def test_profile_submit_sends_both_household_counts_and_rejects_zero_people():
+    onboarding = declaration(app_html(), "function viewOnboarding() ")
+
+    assert "adults:+val('#c-dospeli')" in onboarding
+    assert "children:+val('#c-deti')" in onboarding
+    assert "adults + children" in onboarding
+    assert "aspoň" in onboarding.casefold()
+
+
+def test_recipe_ui_explains_composition_without_nutrition_claims():
+    html = app_html()
+
+    assert "dospel" in html.casefold() and "deti" in html.casefold()
+    assert "kuchársky odhad" in html
+    assert "nie individuálne výživové odporúčanie" in html
+    assert "odporúčaná denná dávka" not in html.casefold()
+
+
+@needs_node
+def test_recipe_composition_keeps_the_number_of_days_in_the_batch(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "household-batch-days.js",
+        "var ME={adults:2,children:2,osoby:4};\n"
+        + declaration(html, "function householdLabel(profil) ")
+        + "\n"
+        + declaration(html, "function portionLine(recept) ")
+        + "\n"
+        + "if (portionLine({porcie:12,dni:3,pre:'2 dospelí + 2 deti × 3 dni'}) "
+        + "!== '12 porcií · 2 dospelí + 2 deti · na 3 dni') process.exit(1);\n",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @needs_node
@@ -447,17 +547,58 @@ def test_plan_screen_promises_only_what_the_leaflet_actually_proves():
 
 
 # --------------------------------------------------------------- špajza (defekt 1)
-def test_editing_the_pantry_saves_instantly_and_never_regenerates_the_plan():
+def test_editing_the_pantry_saves_then_refetches_but_never_regenerates_the_plan():
     """Majiteľ: „pridám vajíčka a zrazu mi preskladá celý jedálniček bez vyzvania"."""
     html = app_html()
     pantry_view = declaration(html, "function vSpajza() ")
 
     assert "/api/spajza" in pantry_view, "the pantry still has to save"
-    assert "nacitajPlan" not in pantry_view, (
+    assert "refreshPlanAfterPantrySave" in pantry_view
+    assert "/api/plan/generuj" not in pantry_view
+    assert "nacitajPlan(true)" not in pantry_view, (
         "a pantry edit must never trigger a paid regeneration as a side effect"
     )
-    assert "api('/api/plan" not in pantry_view, "the pantry must not touch the plan endpoints"
     assert "vSpajza()" in pantry_view, "the pantry redraws itself, so the edit feels instant"
+    plan_view = declaration(html, "function vPlan() ")
+    assert "PLAN_NEEDS_REGEN" in plan_view
+    assert "nacitajPlan(true)" in plan_view, "prázdny zastaraný plán potrebuje výslovné CTA"
+    load_plan = declaration(html, "async function nacitajPlan(gen) ")
+    assert "vyzaduje_akciu" in load_plan
+    assert "PLAN_NEEDS_REGEN" in load_plan
+
+
+@needs_node
+def test_pantry_save_refresh_replaces_or_clears_the_visible_plan_without_generation(tmp_path):
+    html = app_html()
+    refresh = declaration(html, "async function refreshPlanAfterPantrySave() ")
+    result = run_node(
+        tmp_path,
+        "pantry-save-refresh.js",
+        """
+var PLAN={old:true}, PLAN_NEEDS_REGEN=false, calls=[], rendered=0;
+function setPlan(plan) { PLAN=plan; }
+function render() { rendered++; }
+async function api(path, options) {
+  calls.push([path, options]);
+  return globalThis.nextPlan;
+}
+""" + refresh + """
+(async function () {
+  globalThis.nextPlan={jedla:[{nazov:'Aktuálny'}],nakup_spolu:'8,00'};
+  await refreshPlanAfterPantrySave();
+  if (!PLAN.jedla || PLAN.jedla[0].nazov !== 'Aktuálny') process.exit(1);
+  globalThis.nextPlan={prazdny:true};
+  await refreshPlanAfterPantrySave();
+  if (PLAN !== null) process.exit(2);
+  if (PLAN_NEEDS_REGEN !== true) process.exit(7);
+  if (calls.length !== 2 || calls.some(c => c[0] !== '/api/plan')) process.exit(3);
+  if (calls.some(c => c[1] && c[1].method === 'POST')) process.exit(4);
+  if (rendered < 2) process.exit(5);
+  process.exit(0);
+})().catch(function () { process.exit(6); });
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @needs_node
@@ -500,8 +641,8 @@ process.exit(0);
 
 # --------------------------------------------------------------- týždeň (defekt 2)
 @needs_node
-def test_every_day_of_the_week_is_a_meal_leftovers_or_explicit_free_day(tmp_path):
-    """Majiteľ videl PO/UT/ST navarené, ŠT zvyšok — a PI aj SO úplne prázdne."""
+def test_valid_cooking_frequencies_fill_the_entire_week_without_free_days(tmp_path):
+    """Pri platnej frekvencii 1/2/3 nesmie kalendár vydávať žiadny deň za voľno."""
     html = app_html()
     week_days = declaration(html, "function planWeekDays(plan, frequency) ")
     result = run_node(
@@ -521,33 +662,23 @@ function covered(rows) {
   }
   return true;
 }
-var owner = planWeekDays(plan(['PO', 'UT', 'ST']), 2);
-if (!covered(owner)) process.exit(1);
-if (owner[3].typ !== 'zvysok' || owner[3].zdroj !== 'ST') process.exit(2);
-if (owner[4].typ !== 'volno') process.exit(3);
-if (owner[5].typ !== 'volno') process.exit(4);
-if (owner[6].typ !== 'volno') process.exit(5);
-if (owner[0].typ !== 'jedlo' || !owner[0].jedlo || owner[0].jedlo.nazov !== 'Jedlo PO') process.exit(6);
-
-var spread = planWeekDays(plan(['PO', 'ST', 'PI']), 2);
-if (!covered(spread)) process.exit(7);
-if (spread[1].typ !== 'zvysok' || spread[1].zdroj !== 'PO') process.exit(8);
-if (spread[3].typ !== 'zvysok' || spread[3].zdroj !== 'ST') process.exit(9);
-if (spread[5].typ !== 'zvysok' || spread[5].zdroj !== 'PI') process.exit(10);
-if (spread[6].typ !== 'volno') process.exit(11);
-
-var everyThird = planWeekDays(plan(['UT', 'PI']), 3);
-if (!covered(everyThird)) process.exit(12);
-if (everyThird[0].typ !== 'volno') process.exit(13);
-if (everyThird[2].typ !== 'zvysok' || everyThird[3].typ !== 'zvysok') process.exit(14);
-if (everyThird[5].typ !== 'zvysok' || everyThird[6].typ !== 'zvysok') process.exit(15);
-if (everyThird[6].zdroj !== 'PI') process.exit(16);
-
-if (!covered(planWeekDays({}, 2))) process.exit(17);
-if (!covered(planWeekDays(null, undefined))) process.exit(18);
-if (!covered(planWeekDays(plan(['NE']), 7))) process.exit(19);
-var empty = planWeekDays({jedla: []}, 2);
-for (var e = 0; e < 7; e++) if (empty[e].typ !== 'volno') process.exit(20);
+function exact(days, frequency, types, sources) {
+  var rows = planWeekDays(plan(days), frequency);
+  if (!covered(rows)) return false;
+  for (var i = 0; i < 7; i++) {
+    if (rows[i].typ !== types[i] || rows[i].typ === 'volno') return false;
+    if (sources[i] && rows[i].zdroj !== sources[i]) return false;
+  }
+  return true;
+}
+if (!exact(['PO', 'UT', 'ST', 'ŠT', 'PI', 'SO', 'NE'], 1,
+  ['jedlo','jedlo','jedlo','jedlo','jedlo','jedlo','jedlo'], [])) process.exit(1);
+if (!exact(['PO', 'ST', 'PI', 'NE'], 2,
+  ['jedlo','zvysok','jedlo','zvysok','jedlo','zvysok','jedlo'],
+  [null,'PO',null,'ST',null,'PI',null])) process.exit(2);
+if (!exact(['PO', 'ŠT', 'NE'], 3,
+  ['jedlo','zvysok','zvysok','jedlo','zvysok','zvysok','jedlo'],
+  [null,'PO','PO',null,'ŠT','ŠT',null])) process.exit(3);
 process.exit(0);
 """,
     )
@@ -556,9 +687,41 @@ process.exit(0);
 
     plan_view = declaration(html, "function vPlan() ")
     assert "planWeekDays(" in plan_view, "the week must be derived from the plan, not guessed"
-    assert "['UT','ŠT','SO']" not in html, "the hardcoded leftovers days are the bug"
-    assert '"UT", "ŠT", "SO"' not in html
-    assert "voľno" in plan_view, "a day without food must say so instead of disappearing"
+    assert "voľno" in plan_view, "neplatný alebo neúplný plán sa stále musí priznať"
+
+
+@needs_node
+def test_settings_use_natural_slovak_cooking_frequency_text(tmp_path):
+    """Frekvencia 1 nie je „raz za 1 dni“; všetky tri voľby majú čitateľné znenie."""
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "settings-frequency-copy.js",
+        "var M={innerHTML:''}; function $(selector){return {onclick:null};}\n"
+        + "function viewOnboarding() {}\n"
+        + "function esc(value){return String(value == null ? '' : value);}\n"
+        + declaration(html, "function householdLabel(profil) ")
+        + "\n"
+        + declaration(html, "function vNast() ")
+        + """
+function visible(html) { return html.replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim(); }
+function settingsText(frequency) {
+  ME = {email:'cook@example.test', osoby:4, frekvencia:frequency, obchody:['Lidl']};
+  M.innerHTML = '';
+  vNast();
+  return visible(M.innerHTML);
+}
+var daily = settingsText(1);
+var second = settingsText(2);
+var third = settingsText(3);
+if (daily.indexOf('Varím každý deň') === -1 || daily.indexOf('Varím raz za 1 dni') !== -1) process.exit(1);
+if (second.indexOf('Varím raz za 2 dni') === -1) process.exit(2);
+if (third.indexOf('Varím raz za 3 dni') === -1) process.exit(3);
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @needs_node

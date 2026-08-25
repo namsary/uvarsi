@@ -101,6 +101,19 @@ def test_owned_items_are_marked_and_the_remaining_total_drops():
     assert upraveny["spajza_usetri"] == "1,49"
 
 
+def test_one_quantityless_pantry_entry_never_covers_a_multi_package_purchase():
+    """Text „kuracie stehná" nepotvrdzuje, že doma ležia obe potrebné balenia."""
+    upraveny = apply_pantry_to_shopping_list(plan(), ["kuracie stehná"])
+
+    kuracie = upraveny["nakupny_zoznam"][0]["polozky"][1]
+    assert kuracie["mnozstvo"] == 2
+    assert kuracie["mas_doma"] is False
+    assert kuracie["spajza"] is None
+    assert upraveny["spajza_pokryte"] == []
+    assert upraveny["spajza_usetri"] == "0,00"
+    assert upraveny["nakup_bez_spajze"] == "6,49"
+
+
 def test_the_plan_itself_is_never_rewritten_by_the_pantry():
     """Špajza sa smie dotknúť len nákupného zoznamu — jedlá ostávajú, aké boli."""
     povodny = plan()
@@ -138,10 +151,8 @@ def test_the_matched_items_are_listed_so_the_user_can_overrule_them():
 
     assert upraveny["spajza_pokryte"] == [
         {"offer_key": "offer_aaa", "nazov": "Ryža guľatozrnná", "spajza": "ryža", "cena": "1,49"},
-        {"offer_key": "offer_bbb", "nazov": "Kuracie stehná", "spajza": "kuracie stehná",
-         "cena": "5,00"},
     ]
-    assert upraveny["nakup_bez_spajze"] == "0,00"
+    assert upraveny["nakup_bez_spajze"] == "5,00"
 
 
 def test_one_shopping_item_is_claimed_by_at_most_one_pantry_entry():
@@ -165,7 +176,7 @@ def test_the_result_is_computed_from_the_reader_pantry_every_single_time():
     druhy = apply_pantry_to_shopping_list(zaklad, ["kuracie stehná"])
 
     assert prvy["spajza_usetri"] == "1,49"
-    assert druhy["spajza_usetri"] == "5,00"
+    assert druhy["spajza_usetri"] == "0,00"
 
 
 # ------------------------------------------------- čo sa nesmie uložiť zdieľane

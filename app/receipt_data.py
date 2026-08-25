@@ -196,6 +196,7 @@ def build_public_receipt(con, model_output, today=None, generated_at=None):
             source = {
                 "store": row["obchod"],
                 "url": row["source_url"],
+                "source_page": row["source_page"],
                 "valid_from": row["valid_from"],
                 "valid_to": row["valid_to"],
             }

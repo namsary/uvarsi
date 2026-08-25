@@ -140,14 +140,19 @@ nav .ico{display:block;font-size:1.25rem;margin-bottom:2px}
 const $ = s => document.querySelector(s);
 const M = $('#main');
 let ME = null, PLAN = null, TAB = 'plan';
+let APP_READY = false;
 let DONE = {};
 /* Zhody so špajzou, ktoré používateľ zrušil („predsa to kúpim"). Párovanie
    voľného textu na názvy z letáku je odhad; keď sa netrafí, musí sa dať vrátiť
    jedným ťuknutím — a to rozhodnutie musí prežiť prekreslenie aj zatvorenie. */
 let PANTRY_OVERRIDE = {};
 let PANTRY_HINT_HIDDEN = false;
+let PANTRY_ACCESS_CHANGED = false;
 /* Odpoveď servera na vyžiadaný prepočet — ukáže sa nad jedálničkom, nezmaže ho. */
 let PLAN_NOTE = '';
+let PLAN_NEEDS_REGEN = false;
+let PLAN_RESUME_ENDPOINT = '';
+let PLAN_EMPTY_REASON = '';
 /* Suroviny v ukážke: zámerne bežné veci, vždy označené ako ukážka. */
 const SPAJZA_UKAZKA = ['ryža', 'vajcia', 'cibuľa'];
 /* Bežné regálové ceny, nech je v ukážke vidieť, o koľko nákup klesne. */
@@ -157,17 +162,12 @@ const SPAJZA_UKAZKA_CENY = {'ryža': '1,29', 'vajcia': '2,49', 'cibuľa': '0,89'
 const PLAN_TIMEOUT_MS = 150000;
 const PLAN_TIMEOUT_TEXT = 'Jedálniček sa nestihol poskladať do dvoch a pol minúty. Skús to prosím znova.';
 
-/* ---------- štart bez čakania v rade ----------
-   Profil a plán na sebe nezávisia. Dve obrátky za sebou sú na mobilných dátach
-   pol sekundy prázdnej obrazovky, tak odchádzajú naraz. */
 function startupRequests(request) {
   return {me: request('/api/me'), plan: request('/api/plan')};
 }
 
 let STARTUP = null, PLAN_PREFETCH = null;
 
-/* Odpoveď sa dá prečítať raz a zamietnutý sľub ostane zamietnutý — po výpadku
-   siete teda musia vzniknúť nové požiadavky. */
 function beginStartup() {
   STARTUP = startupRequests(url =>
     fetch(url, {headers: {'Content-Type': 'application/json'}}));
@@ -178,23 +178,21 @@ function beginStartup() {
 }
 
 beginStartup();
-/* Response sa dá prečítať iba raz, tak si ju smie vziať len prvý žiadateľ. */
 function takePlanPrefetch() {
   const pending = PLAN_PREFETCH;
   PLAN_PREFETCH = null;
   return pending;
 }
 
-/* ---------- zapamätaný profil ----------
-   Ukladá sa VÝHRADNE to, čo sa nekazí časom: meno v hlavičke a nastavenie.
-   Ceny ani nákupný zoznam sem nepatria — zastaraná akcia by poprela sľub
-   produktu. Vracajúci sa človek tak vidí škrupinu hneď, nie až po serveri. */
 const PROFILE_KEY = 'uvarsi_profil';
 
 function rememberProfile(me) {
   try {
     localStorage.setItem(PROFILE_KEY, JSON.stringify({
-      email: me.email, osoby: me.osoby, frekvencia: me.frekvencia,
+      email: me.email, osoby: me.osoby,
+      adults: me.adults == null ? me.osoby : me.adults,
+      children: me.children == null ? 0 : me.children,
+      frekvencia: me.frekvencia,
       obchody: me.obchody, onboarding: !!me.onboarding}));
   } catch (e) {}
 }
@@ -215,6 +213,7 @@ function paintKnownShell() {
   if (!known) return false;
   $('#hdr').textContent = String(known.email).split('@')[0];
   showNav();
+  setNavigationReady(false);
   return true;
 }
 
@@ -250,6 +249,11 @@ function loadCheckedState(user, plan) {
 
 function setPlan(plan) {
   PLAN = plan;
+  if (plan && plan.jedla) {
+    PLAN_NEEDS_REGEN = false;
+    PLAN_RESUME_ENDPOINT = '';
+    PLAN_EMPTY_REASON = '';
+  }
   DONE = loadCheckedState(ME, PLAN);
   PANTRY_OVERRIDE = loadPantryOverride(ME, PLAN);
 }
@@ -372,7 +376,14 @@ async function readApiResponse(r) {
     authError.authRequired = true;
     throw authError;
   }
-  if (!r.ok) throw new Error(apiErrorMessage(r.status, await r.json().catch(()=>null)));
+  if (!r.ok) {
+    const payload = await r.json().catch(()=>null);
+    const failure = new Error(apiErrorMessage(r.status, payload));
+    failure.status = r.status;
+    const serverCode = payload && (payload.kod || payload.code);
+    failure.code = typeof serverCode === 'string' ? serverCode.slice(0,100) : '';
+    throw failure;
+  }
   return r.json();
 }
 
@@ -428,7 +439,6 @@ async function runGuardedAction(button, errorNode, action) {
   }
 }
 
-/* Nárok hovorí server. Staršia odpoveď pole nemá — vtedy platí premium. */
 function pantryUnlocked(me) {
   if (!me) return false;
   if (typeof me.spajza_dostupna === 'boolean') return me.spajza_dostupna;
@@ -436,9 +446,6 @@ function pantryUnlocked(me) {
   return !!me.premium;
 }
 
-/* ---------- špajza vs. plán ----------
-   Plán si pri skladaní zapamätal, z akej špajze vznikol. Rozdiel je dôvod na
-   tichý návrh, nikdy nie na prepočet. */
 function pantryDiffers(planPantry, currentPantry) {
   if (Object.prototype.toString.call(planPantry) !== '[object Array]') return false;
   var tidy = function(list) {
@@ -643,10 +650,20 @@ function viewLogin(sent, previousEmail) {
 }
 
 /* ---------- onboarding ---------- */
+function householdLabel(profil) {
+  profil = profil || {};
+  const a = +(profil.adults == null ? profil.osoby || 4 : profil.adults), c = +(profil.children || 0);
+  const word = (n, one, few, many) => n === 1 ? one : n < 5 ? few : many;
+  return [a && `${a} ${word(a,'dospelý','dospelí','dospelých')}`,
+    c && `${c} ${word(c,'dieťa','deti','detí')}`].filter(Boolean).join(' + ');
+}
+
 function viewOnboarding() {
   $('#nav').classList.add('hidden');
   const profil = ME || {};
-  const osoby = profil.osoby || 4;
+  const legacyOsoby = profil.osoby || 4;
+  const adults = profil.adults == null ? legacyOsoby : profil.adults;
+  const children = profil.children == null ? 0 : profil.children;
   const frekvencia = profil.frekvencia || 2;
   const obchody = (profil.obchody && profil.obchody.length) ? profil.obchody : ['Kaufland','Tesco','Lidl'];
   const uzMaProfil = !!profil.onboarding;
@@ -654,12 +671,14 @@ function viewOnboarding() {
     <div style="margin-top:26px">
       <span class="eyebrow">Nastavenie · 30 sekúnd</span>
       <h1 class="display" style="font-size:1.8rem;margin:8px 0 18px">${uzMaProfil?'Uprav si nastavenie.':'Povedz mi tri veci.'}</h1>
-      ${uzMaProfil?`<p class="muted" style="margin:-8px 0 18px">Máš tu svoje doterajšie nastavenie. Zmeň, čo chceš — plán prepočítame nanovo.</p>`:''}
+      ${uzMaProfil?`<p class="muted" style="margin:-8px 0 18px">Máš tu svoje doterajšie nastavenie. Zmeň, čo potrebuješ.</p>`:''}
       <div class="card">
-        <label>Pre koľko ľudí varíš?</label>
-        <div class="chips" id="c-osoby">
-          ${[1,2,3,4,5,6].map(n=>`<div class="chip${n===osoby?' on':''}" data-v="${n}">${n}</div>`).join('')}
-        </div>
+        <label>Pre koho varíš?</label>
+        <label id="lbl-dospeli">Dospelí</label><div class="chips" id="c-dospeli" role="group" aria-labelledby="lbl-dospeli">
+          <button class="chip" type="button" data-step="-1" aria-label="Odobrať dospelého">−</button><output class="chip on" data-v="${adults}" aria-live="polite">${adults}</output><button class="chip" type="button" data-step="1" aria-label="Pridať dospelého">+</button>
+        </div><label id="lbl-deti" style="margin-top:12px">Deti</label><div class="chips" id="c-deti" role="group" aria-labelledby="lbl-deti">
+          <button class="chip" type="button" data-step="-1" aria-label="Odobrať dieťa">−</button><output class="chip on" data-v="${children}" aria-live="polite">${children}</output><button class="chip" type="button" data-step="1" aria-label="Pridať dieťa">+</button>
+        </div><p class="muted" style="margin-top:12px">Dieťa: 3–12 rokov, menšia kuchárska porcia. Porciu tínedžera rátame ako dospelú. Deti do 3 rokov neplánujeme.</p>
       </div>
       <div class="card">
         <label>Ako často chceš variť?</label>
@@ -675,7 +694,7 @@ function viewOnboarding() {
             `<div class="chip${obchody.indexOf(o)>=0?' on':''}" data-v="${o}">${o}</div>`).join('')}
         </div>
       </div>
-      <button class="btn" id="save">${uzMaProfil?'Uložiť a prepočítať plán →':'Hotovo, ukáž mi plán →'}</button>
+      <button class="btn" id="save">${uzMaProfil?'Uložiť nastavenia →':'Hotovo, ukáž mi plán →'}</button>
       <p id="ob-err" class="muted" style="color:var(--red);margin-top:10px"></p>
       ${uzMaProfil?`<div style="height:8px"></div>
       <button class="btn btn--ghost" id="spat">Späť bez zmeny</button>`:''}
@@ -685,22 +704,44 @@ function viewOnboarding() {
     [...$(id).children].forEach(c=>c.classList.remove('on'));
     e.target.classList.add('on');
   };
-  single('#c-osoby'); single('#c-frek');
+  const counter = id => {
+    const root = $(id), output = root.querySelector('output');
+    root.onclick = e => {
+      const button = e.target.closest('button[data-step]'); if (!button) return;
+      const otherId = id === '#c-dospeli' ? '#c-deti' : '#c-dospeli';
+      const other = +$(otherId).querySelector('output').dataset.v;
+      const next = Math.max(0, Math.min(12 - other, +output.dataset.v + +button.dataset.step));
+      output.dataset.v = output.textContent = String(next);
+    };
+  };
+  counter('#c-dospeli'); counter('#c-deti'); single('#c-frek');
   $('#c-obch').onclick = e => { if (e.target.dataset.v) e.target.classList.toggle('on'); };
   if (uzMaProfil) $('#spat').onclick = () => { TAB = 'nastavenia'; render(); };
   $('#save').onclick = () => runGuardedAction($('#save'), $('#ob-err'), async () => {
     const val = id => $(id).querySelector('.on')?.dataset.v;
     const vybrane = [...$('#c-obch').querySelectorAll('.on')].map(c=>c.dataset.v);
+    const adults = +val('#c-dospeli');
+    const children = +val('#c-deti');
+    if (!Number.isInteger(adults) || !Number.isInteger(children) || adults + children < 1)
+      throw new Error('Vyber aspoň jednu osobu.');
+    if (adults + children > 12) throw new Error('Plán môže byť najviac pre 12 ľudí.');
     if (!vybrane.length) throw new Error('Vyber aspoň jeden obchod.');
     await api('/api/profil', {method:'POST', body:JSON.stringify(
-      {osoby:+val('#c-osoby'), frekvencia:+val('#c-frek'), obchody:vybrane})});
+      {adults:+val('#c-dospeli'), children:+val('#c-deti'), frekvencia:+val('#c-frek'), obchody:vybrane})});
     ME = await api('/api/me');
-    await nacitajPlan(true);
+    await refreshPlanAfterProfileSave();
   });
 }
 
 /* ---------- plán ---------- */
 let PLAN_PROGRESS = null;
+let PLAN_REQUEST_IN_FLIGHT = null;
+
+function onePlanRequest(request) {
+  if (PLAN_REQUEST_IN_FLIGHT) return PLAN_REQUEST_IN_FLIGHT;
+  PLAN_REQUEST_IN_FLIGHT = request().finally(() => { PLAN_REQUEST_IN_FLIGHT = null; });
+  return PLAN_REQUEST_IN_FLIGHT;
+}
 
 function startPlanProgress() {
   stopPlanProgress();
@@ -715,16 +756,14 @@ function stopPlanProgress() {
   if (PLAN_PROGRESS) { clearInterval(PLAN_PROGRESS); PLAN_PROGRESS = null; }
 }
 
-/* Prvé poskladanie smie prevziať hotový plán rovnakého profilu — preto tu
-   NIE je force. */
 function generujPlan() {
-  return api('/api/plan/generuj', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS});
+  return onePlanRequest(() =>
+    api('/api/plan/generuj', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS}));
 }
 
-/* „Chcem iný plán" sa musí cache vyhnúť, inak by nič nezmenilo. Je to jediné
-   platené skladanie v appke — server ho ráta do denného stropu (1×, s Premium 5×). */
 function preskladajPlan() {
-  return api('/api/plan/generuj?force=1', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS});
+  return onePlanRequest(() =>
+    api('/api/plan/generuj?force=1', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS}));
 }
 
 /* Koľko pokusov dnes zostáva. Keď server mlčí, je to null — „neviem" nie je
@@ -772,7 +811,8 @@ function regenerationNote(me) {
    ovplyvní JEDLÁ; inak sa dotýka len nákupného zoznamu. Je to platené volanie,
    preto sa spúšťa len na kliknutie a berie jeden prepočet z denného stropu. */
 function planZoSpajze() {
-  return api('/api/plan/zo-spajze', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS});
+  return onePlanRequest(() =>
+    api('/api/plan/zo-spajze', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS}));
 }
 
 async function navrhniZoSpajze() {
@@ -806,8 +846,17 @@ function portionLine(recept) {
     var word = portions === 1 ? 'porcia' : portions < 5 ? 'porcie' : 'porcií';
     parts.push(portions + ' ' + word);
   }
+  var composition = typeof ME !== 'undefined' && ME ? householdLabel(ME) : '';
   var forWhom = String(recept.pre == null ? '' : recept.pre).trim();
-  if (forWhom) parts.push('pre ' + forWhom);
+  if (composition) {
+    parts.push(composition);
+    var days = Math.round(Number(recept.dni));
+    if (!isFinite(days) || days < 1) {
+      var match = forWhom.match(/[×x]\s*(\d+)\s*(?:deň|dni|dní)\s*$/i);
+      days = match ? +match[1] : 0;
+    }
+    if (days) parts.push('na ' + days + ' ' + (days === 1 ? 'deň' : days < 5 ? 'dni' : 'dní'));
+  } else if (forWhom) parts.push('pre ' + forWhom);
   return parts.join(' · ');
 }
 
@@ -841,6 +890,13 @@ async function nacitajPlan(gen) {
     const prefetched = gen ? null : takePlanPrefetch();
     let plan = gen ? await generujPlan()
       : (prefetched ? await readStartupResponse(prefetched) : await api('/api/plan'));
+    if (plan.prazdny && plan.vyzaduje_akciu) {
+      setPlan(null);
+      PLAN_NEEDS_REGEN = true;
+      PLAN_RESUME_ENDPOINT = plan.obnovit_cez || '/api/plan/generuj';
+      stopPlanProgress();
+      return render();
+    }
     if (plan.prazdny) { startPlanProgress(); plan = await generujPlan(); }
     stopPlanProgress();
     setPlan(plan);
@@ -865,9 +921,39 @@ async function nacitajPlan(gen) {
   render();
 }
 
+async function refreshPlanAfterPantrySave() {
+  const plan = await api('/api/plan');
+  const empty = !!(plan && plan.prazdny);
+  setPlan(empty ? null : plan);
+  PLAN_NEEDS_REGEN = empty;
+  PLAN_RESUME_ENDPOINT = empty ? (plan.obnovit_cez || '') : '';
+  PLAN_EMPTY_REASON = empty ? 'spajza' : '';
+  render();
+}
+
+async function refreshPlanAfterProfileSave() {
+  const plan = await api('/api/plan'), empty = !!(plan && plan.prazdny);
+  setPlan(empty ? null : plan);
+  PLAN_NEEDS_REGEN = empty;
+  PLAN_RESUME_ENDPOINT = empty ? (plan.obnovit_cez || '') : '';
+  PLAN_EMPTY_REASON = empty ? 'profil' : '';
+  TAB = 'plan';
+  render();
+}
+
+async function resumeInvalidatedPlan() {
+  if (PLAN_RESUME_ENDPOINT === '/api/plan/zo-spajze') return navrhniZoSpajze();
+  return nacitajPlan(true);
+}
+
 function showNav() {
   $('#nav').classList.remove('hidden');
   [...$('#nav').children].forEach(b => b.classList.toggle('on', b.dataset.t === TAB));
+}
+
+function setNavigationReady(ready) {
+  APP_READY = !!ready;
+  [...$('#nav').children].forEach(button => { button.disabled = !APP_READY; });
 }
 
 function render() {
@@ -876,6 +962,17 @@ function render() {
 }
 
 function vPlan() {
+  if (PLAN_NEEDS_REGEN) {
+    const profil = PLAN_EMPTY_REASON === 'profil';
+    M.innerHTML = `<div class="card center" style="margin-top:30px">
+      <span class="eyebrow">${profil?'Nastavenia sa zmenili':'Špajza sa zmenila'}</span>
+      <p style="margin:8px 0 14px">${profil
+        ?'Pre nové nastavenia ešte nemáš aktuálny jedálniček.'
+        :'Predošlý jedálniček vznikol z iného obsahu špajze.'}</p>
+      <button class="btn" onclick="resumeInvalidatedPlan()">Vytvoriť aktuálny jedálniček →</button>
+      </div>`;
+    return;
+  }
   if (!PLAN || !PLAN.jedla) return nacitajPlan(true);
   const dnes = todayIso();
   /* Návrh na prepočet osloví len toho, kto špajzu naozaj má. Na staršom
@@ -995,12 +1092,14 @@ function vZoznam() {
   });
 }
 
-/* ---------- zamknutá špajza (bezplatný účet) ----------
-   Nie prázdna stena s výzvou na platbu: na príklade je vidieť, čo sa stane
-   s nákupom aj s jedlami, a je napísané, že je to ukážka. Žiadne odpočty, jedna
-   veta o Premium, jedno tlačidlo. Čísla sú statické, ale sedia — stráži to test. */
 function vSpajzaZamknuta() {
   const platbyIdu = !!(ME && ME.platby_zapnute);
+  const uspana = !!(ME && ME.spajza_uspana);
+  const ulozenych = Math.max(0, Math.floor(Number(ME && ME.spajza_ulozenych) || 0));
+  const uspanaSprava = ME && typeof ME.spajza_sprava === 'string' && ME.spajza_sprava.trim()
+    || (ulozenych === 1 ? 'Tvoja 1 uložená položka sa vráti s Premium.'
+      : ulozenych < 5 ? `Tvoje ${ulozenych} uložené položky sa vrátia s Premium.`
+      : `Tvojich ${ulozenych} uložených položiek sa vráti s Premium.`);
   const tlacidlo = platbyIdu
     ? {popis: 'Chcem Premium →', zamknute: ''}
     : {popis: 'Premium sa zatiaľ nedá kúpiť', zamknute: ' disabled'};
@@ -1009,6 +1108,7 @@ function vSpajzaZamknuta() {
        zapneme, nájdeš Premium presne tu.</p>`;
   M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Špajza · Premium</span>
     <h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo už máš doma</h1>
+    ${PANTRY_ACCESS_CHANGED ? '<div class="hint"><b>Prístup k Špajze sa zmenil.</b> Úpravy sú teraz zamknuté.</div>' : ''}
     <p class="muted" style="margin:8px 0 16px">Zapíšeš, čo máš doma, a jedálniček aj nákupný
       zoznam s tým rátajú. Zatiaľ skladáme plán len z akcií — o tvojej špajzi nevie.</p></div>
     <div class="card">
@@ -1017,7 +1117,10 @@ function vSpajzaZamknuta() {
       <p class="muted" style="margin-top:10px">V bezplatnej verzii je zápis zamknutý —
         hneď, nie až pri ukladaní.</p>
     </div>
-    <div class="hint">
+    ${uspana && ulozenych > 0 ? `<div class="hint">
+      <span class="eyebrow">Tvoja špajza zostáva uložená</span>
+      <p style="margin:6px 0 0">${esc(uspanaSprava)}</p>
+    </div>` : `<div class="hint">
       <span class="eyebrow">Ukážka — nie tvoje údaje</span>
       <p style="margin:6px 0 12px">Povedzme, že doma máš toto —
         <b>${esc(SPAJZA_UKAZKA.join(', '))}</b>. Potom sa stanú dve veci:</p>
@@ -1036,7 +1139,7 @@ function vSpajzaZamknuta() {
         </div></div>
       <p class="muted" style="margin-top:12px">Dokupuješ už len to, čo k tomu chýba — a to
         z akcií. Nekúpiš druhýkrát to, čo doma máš, a menej jedla skončí v koši.</p>
-    </div>
+    </div>`}
     <p style="margin:16px 0 12px"><b>Premium</b> skladá jedálniček z toho, čo máš doma,
       a nákupný zoznam bez toho, čo už máš.</p>
     <button class="btn" id="sp-premium"${tlacidlo.zamknute}>${esc(tlacidlo.popis)}</button>
@@ -1050,7 +1153,6 @@ function vSpajzaZamknuta() {
 }
 
 function vSpajza() {
-  /* O nároku rozhoduje server (spajza_dostupna, inak premium). */
   if (!pantryUnlocked(ME)) return vSpajzaZamknuta();
   const sp = ME.spajza || [];
   M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Špajza</span>
@@ -1072,11 +1174,21 @@ function vSpajza() {
     <p class="muted center mono" style="font-size:.7rem;margin-top:8px">${sp.length
       ? 'Skladá sa 60 až 120 sekúnd a berie jeden prepočet z dnešného stropu.'
       : 'Najprv napíš, čo máš doma.'}</p>`;
-  /* Uloží a hneď prekreslí špajzu. Žiadne skladanie plánu na pozadí. */
   const uloz = list => runGuardedAction($('#sp-add'), $('#sp-err'), async () => {
-    await api('/api/spajza', {method:'POST', body:JSON.stringify({polozky:list})});
+    try {
+      await api('/api/spajza', {method:'POST', body:JSON.stringify({polozky:list})});
+    } catch (error) {
+      if (error && error.status === 403 && error.code === 'spajza_premium') {
+        ME = await api('/api/me');
+        PANTRY_ACCESS_CHANGED = true;
+        vSpajza();
+        return;
+      }
+      throw error;
+    }
     ME = await api('/api/me');
     PANTRY_HINT_HIDDEN = false;
+    await refreshPlanAfterPantrySave();
     vSpajza();
   });
   $('#sp-add').onclick = () => {
@@ -1091,13 +1203,16 @@ function vSpajza() {
 }
 
 function vNast() {
+  const varenie = ME.frekvencia === 1 ? 'Varím každý deň' :
+    'Varím raz za ' + ME.frekvencia + ' dni';
   M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Nastavenia</span>
     <h1 class="display" style="font-size:1.5rem;margin-top:4px">Tvoj profil</h1></div>
     <div class="card"><div class="ing"><span>E-mail</span><span class="r">${esc(ME.email)}</span></div>
-      <div class="ing"><span>Varím pre</span><span class="r">${ME.osoby} os.</span></div>
-      <div class="ing"><span>Varím raz za</span><span class="r">${ME.frekvencia} dni</span></div>
+      <div class="ing"><span>Varím pre</span><span class="r">${esc(householdLabel(ME))}</span></div>
+      <div class="ing"><span>Varenie</span><span class="r">${varenie}</span></div>
       <div class="ing" style="border:0"><span>Obchody</span><span class="r">${ME.obchody.join(' · ')}</span></div>
     </div>
+    <p class="muted" style="margin:-4px 0 16px">Porcie sú kuchársky odhad na plánovanie nákupu, nie individuálne výživové odporúčanie.</p>
     <button class="btn btn--ghost" id="zmen">Zmeniť nastavenie</button>
     <div style="height:10px"></div>
     <button class="btn btn--ghost" id="odhl" style="color:var(--red)">Odhlásiť sa</button>
@@ -1110,6 +1225,7 @@ function vNast() {
 }
 
 $('#nav').onclick = e => {
+  if (!APP_READY) return;
   const b = e.target.closest('button'); if (!b) return;
   TAB = b.dataset.t; render();
 };
@@ -1137,6 +1253,7 @@ async function start() {
     return viewLogin();
   }
   if (!ME.prihlaseny) return viewLogin();
+  setNavigationReady(true);
   $('#hdr').textContent = ME.email.split('@')[0];
   rememberProfile(ME);
   if (!ME.onboarding) return viewOnboarding();

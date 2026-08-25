@@ -240,5 +240,12 @@ def test_index_hides_receipt_and_savings_claims_until_current_data_arrives():
     assert 'id="landing-data" aria-live="polite" hidden' in html
     assert 'id="landing-model" hidden' in html
     assert 'fetch("/api/public/landing")' in html
+
+
+def test_index_checks_source_expiry_before_rendering_current_price_claims():
+    html = Path("index.html").read_text(encoding="utf-8")
+
+    assert "function sourcesAreCurrent(data, now)" in html
+    assert "if(!sourcesAreCurrent(data,new Date()))" in html
     assert "Reálnu úsporu vidíš priamo na bločku vyššie" not in html
     assert "Za rok to vie byť pokojne pár stoviek eur" not in html
