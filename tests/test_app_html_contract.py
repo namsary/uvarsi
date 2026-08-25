@@ -57,6 +57,12 @@ def test_profile_save_empty_state_has_truthful_profile_copy_and_button_label():
     assert "Špajza sa zmenila" in plan_view
 
 
+def test_app_shell_has_noindex_fallback_meta_tag():
+    html = app_html()
+
+    assert '<meta name="robots" content="noindex,nofollow,noarchive">' in html
+
+
 def test_every_empty_plan_after_pantry_save_requires_an_explicit_cta():
     html = app_html()
     refresh = declaration(html, "async function refreshPlanAfterPantrySave() ")

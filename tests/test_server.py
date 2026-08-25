@@ -355,6 +355,98 @@ def test_public_landing_is_503_for_stale_data(monkeypatch, tmp_path):
     assert response.json()["detail"] == "Aktuálne letákové dáta sa obnovujú."
 
 
+def test_weekly_public_page_serves_current_valid_html(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [], landing_payload())
+
+    response = TestClient(server.app).get("/co-varit-tento-tyzden")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "text/html; charset=utf-8"
+    assert response.headers["cache-control"] == "public, max-age=300, must-revalidate"
+    assert "Čo variť tento týždeň" in response.text
+
+
+@pytest.mark.parametrize(
+    "landing_data",
+    [
+        None,
+        landing_payload("2026-08-10"),
+        {
+            **landing_payload(),
+            "receipt": {"meals": "nie-je-zoznam", "nakup_spolu": "99,99", "bezne": "129,99", "usetris": "30,00"},
+            "sources": [{
+                "store": "Lidl",
+                "url": "https://letak.test/tajny-zdroj",
+                "valid_from": current_monday(),
+                "valid_to": (date.today() + timedelta(days=1)).isoformat(),
+            }],
+        },
+    ],
+)
+def test_weekly_public_page_fails_closed_without_leaking_stale_claims(
+    monkeypatch, tmp_path, landing_data
+):
+    server = load_server(monkeypatch, tmp_path, [], landing_data)
+
+    response = TestClient(server.app).get("/co-varit-tento-tyzden")
+
+    assert response.status_code == 503
+    assert response.headers["content-type"] == "text/html; charset=utf-8"
+    assert response.headers["retry-after"] == "900"
+    assert response.headers["cache-control"] == "no-store"
+    assert "Týždenné ceny práve overujeme" in response.text
+    assert "99,99" not in response.text
+    assert "129,99" not in response.text
+    assert "tajny-zdroj" not in response.text
+
+
+@pytest.mark.parametrize("route", ["/lacny-jedalnicek", "/ako-varime-z-akcii"])
+def test_evergreen_public_pages_are_cacheable_html(route, monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [])
+
+    response = TestClient(server.app).get(route)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "text/html; charset=utf-8"
+    assert response.headers["cache-control"] == "public, max-age=300, must-revalidate"
+
+
+def test_robots_txt_is_plaintext_with_public_cache(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [])
+
+    response = TestClient(server.app).get("/robots.txt")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")
+    assert response.headers["cache-control"] == "public, max-age=300, must-revalidate"
+    assert "Sitemap: https://uvar.si/sitemap.xml" in response.text
+
+
+@pytest.mark.parametrize(
+    "landing_data, expected_lastmod",
+    [
+        (landing_payload(), "<lastmod>2026-08-18</lastmod>"),
+        (landing_payload("2026-08-10"), None),
+        (None, None),
+    ],
+)
+def test_sitemap_reports_weekly_lastmod_only_for_valid_payload(
+    monkeypatch, tmp_path, landing_data, expected_lastmod
+):
+    server = load_server(monkeypatch, tmp_path, [], landing_data)
+
+    response = TestClient(server.app).get("/sitemap.xml")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/xml")
+    assert response.headers["cache-control"] == "public, max-age=300, must-revalidate"
+    assert "https://uvar.si/co-varit-tento-tyzden" in response.text
+    if expected_lastmod is None:
+        assert "<lastmod>" not in response.text
+    else:
+        assert expected_lastmod in response.text
+
+
 def test_material_profile_change_invalidates_only_that_users_current_cached_plan(monkeypatch, tmp_path):
     server = load_server(monkeypatch, tmp_path, [])
     week = current_monday()

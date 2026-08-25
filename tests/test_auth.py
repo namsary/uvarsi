@@ -824,6 +824,18 @@ def test_fragment_get_is_a_branded_confirmation_and_does_not_consume(monkeypatch
         assert con.execute("SELECT COUNT(*) FROM magic_tokens_v2").fetchone()[0] == 1
 
 
+@pytest.mark.parametrize("path,status", [("/prihlasenie", 200), ("/prihlasenie?token=legacy", 400)])
+def test_every_login_page_response_is_private_and_noindex(monkeypatch, tmp_path, path, status):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+
+    response = TestClient(server.app).get(path, follow_redirects=False)
+
+    assert response.status_code == status
+    assert response.headers["x-robots-tag"] == "noindex, nofollow, noarchive"
+    assert response.headers["cache-control"] == "private, no-store"
+    assert '<meta name="robots" content="noindex,nofollow,noarchive">' in response.text
+
+
 def test_confirmation_page_contract_persists_fragment_ephemerally_before_hiding_it(monkeypatch, tmp_path):
     server, _ = load_auth_server(monkeypatch, tmp_path)
     html = TestClient(server.app).get("/prihlasenie").text
@@ -1004,6 +1016,17 @@ def test_legacy_query_token_get_shows_error_without_consuming(monkeypatch, tmp_p
     assert token not in response.text
     with sqlite3.connect(database) as con:
         assert con.execute("SELECT COUNT(*) FROM magic_tokens_v2").fetchone()[0] == 1
+
+
+def test_app_shell_is_private_and_noindex(monkeypatch, tmp_path):
+    monkeypatch.setenv("UVARSI_STATIC", str(ROOT / "app" / "static"))
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+
+    response = TestClient(server.app).get("/app")
+
+    assert response.status_code == 200
+    assert response.headers["x-robots-tag"] == "noindex, nofollow, noarchive"
+    assert response.headers["cache-control"] == "private, no-store"
 
 
 def test_confirmation_page_turns_verification_network_failure_into_resend_ux(monkeypatch, tmp_path):

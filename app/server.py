@@ -15,13 +15,14 @@ from contextlib import asynccontextmanager, closing
 
 import anyio.to_thread
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, Response, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 import db_rezim
 import naklady
 import predpocet
 from config import public_base_url, admin_emails, release_id
 from landing_data import load_landing_data, validate_landing_data
+from public_pages import ROBOTS_TXT, render_evergreen_page, render_sitemap, render_weekly_page
 from weekly_data import offers_for_current_week
 from offer_data import OfferKeyCollision, migrate_akcie_schema
 from plan_data import (
@@ -98,6 +99,10 @@ DB = os.environ.get("UVARSI_DB", "/opt/uvarsi/uvarsi.db")
 STATIC = os.environ.get("UVARSI_STATIC", "/opt/uvarsi/app/static")
 LANDING_DATA = os.environ.get("UVARSI_LANDING_DATA", "/var/lib/uvarsi/landing_data.json")
 BASE_URL = public_base_url()
+PUBLIC_CACHE_CONTROL = "public, max-age=300, must-revalidate"
+PRIVATE_CACHE_CONTROL = "private, no-store"
+NOINDEX_HEADER = "noindex, nofollow, noarchive"
+RETRY_AFTER_PUBLIC_DATA = "900"
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 COOKIE = "uvarsi_session"
 SESSION_MAX_AGE = 30 * 24 * 60 * 60
@@ -360,6 +365,15 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Uvar.si", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def private_ui_noindex(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path == "/app" or request.url.path.startswith("/prihlasenie"):
+        response.headers["Cache-Control"] = PRIVATE_CACHE_CONTROL
+        response.headers["X-Robots-Tag"] = NOINDEX_HEADER
+    return response
 
 
 # Skrátený `offer_key` je zrážka rizika s cenou promptu. Zrážku sme vyhrali,
@@ -689,6 +703,7 @@ background:#FFFCF5;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#1
 LOGIN_CONFIRMATION_PAGE = """<!doctype html>
 <html lang="sk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>Potvrdenie prihlásenia · Uvar.si</title>
+<meta name="robots" content="noindex,nofollow,noarchive">
 <style>
 :root{--paper:#fffcf5;--ink:#14231c;--soft:#5c6b62;--yellow:#ffd400;--red:#e23a26}
 *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Arial,sans-serif}
@@ -1435,6 +1450,55 @@ def public_landing():
         return validate_landing_data(load_landing_data(LANDING_DATA), datetime.date.today())
     except (FileNotFoundError, ValueError):
         raise HTTPException(503, "Aktuálne letákové dáta sa obnovujú.")
+
+
+def _weekly_public_page(today: datetime.date | None = None):
+    today = today or datetime.date.today()
+    try:
+        payload = load_landing_data(LANDING_DATA)
+    except FileNotFoundError:
+        payload = None
+    return render_weekly_page(payload, today=today)
+
+
+@app.get("/co-varit-tento-tyzden")
+def seo_weekly_page():
+    page = _weekly_public_page()
+    headers = {"Cache-Control": PUBLIC_CACHE_CONTROL}
+    status_code = 200
+    if not page.indexable:
+        status_code = 503
+        headers = {
+            "Cache-Control": "no-store",
+            "Retry-After": RETRY_AFTER_PUBLIC_DATA,
+        }
+    return HTMLResponse(page.html, status_code=status_code, headers=headers)
+
+
+@app.get("/lacny-jedalnicek")
+def seo_budget_page():
+    page = render_evergreen_page("lacny-jedalnicek")
+    return HTMLResponse(page.html, headers={"Cache-Control": PUBLIC_CACHE_CONTROL})
+
+
+@app.get("/ako-varime-z-akcii")
+def seo_flyer_method_page():
+    page = render_evergreen_page("ako-varime-z-akcii")
+    return HTMLResponse(page.html, headers={"Cache-Control": PUBLIC_CACHE_CONTROL})
+
+
+@app.get("/robots.txt")
+def robots_txt():
+    return PlainTextResponse(ROBOTS_TXT, headers={"Cache-Control": PUBLIC_CACHE_CONTROL})
+
+
+@app.get("/sitemap.xml")
+def sitemap_xml():
+    today = datetime.date.today()
+    weekly_page = _weekly_public_page(today)
+    weekly_modified = weekly_page.last_modified if weekly_page.indexable else None
+    xml = render_sitemap(today, weekly_modified)
+    return Response(xml, media_type="application/xml", headers={"Cache-Control": PUBLIC_CACHE_CONTROL})
 
 
 # ---------------------------------------------------------------- platby
