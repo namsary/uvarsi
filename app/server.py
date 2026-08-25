@@ -165,8 +165,16 @@ def env(key, default=None):
         return os.environ[key]
     try:
         for line in open(ENV_FILE, encoding="utf-8"):
-            if line.strip().startswith(key):
-                return line.split("=", 1)[1].strip().strip('"').strip("'")
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("export") and len(line) > len("export") and line[len("export")].isspace():
+                line = line[len("export"):].lstrip()
+            if "=" not in line:
+                continue
+            name, value = line.split("=", 1)
+            if name.strip() == key:
+                return value.strip().strip('"').strip("'")
     except FileNotFoundError:
         pass
     return default
