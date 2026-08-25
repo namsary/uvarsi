@@ -59,6 +59,7 @@ $subory = @(
   @{ l = "$B\app\weekly_data.py";       r = "/opt/uvarsi/app/weekly_data.py" },
   @{ l = "$B\app\offer_data.py";        r = "/opt/uvarsi/app/offer_data.py" },
   @{ l = "$B\app\landing_data.py";      r = "/opt/uvarsi/app/landing_data.py" },
+  @{ l = "$B\app\public_pages.py";      r = "/opt/uvarsi/app/public_pages.py" },
   @{ l = "$B\app\receipt_data.py";      r = "/opt/uvarsi/app/receipt_data.py" },
   @{ l = "$B\app\plan_data.py";         r = "/opt/uvarsi/app/plan_data.py" },
   @{ l = "$B\app\predpocet.py";         r = "/opt/uvarsi/app/predpocet.py" },
@@ -134,7 +135,11 @@ MAPA = "mapa.89.167.72.159.sslip.io"
 s = open(p).read()
 if MAPA not in s:
     sys.exit("CHYBA: v Caddyfile chyba site blok " + MAPA + " uz pred upravou - nerobim nic")
-blok = """uvar.si, www.uvar.si, uvarsi.sk, www.uvarsi.sk, uvarsi.89.167.72.159.sslip.io {
+blok = """www.uvar.si, uvarsi.sk, www.uvarsi.sk, uvarsi.89.167.72.159.sslip.io {
+	redir https://uvar.si{uri} permanent
+}
+
+uvar.si {
 	encode gzip
 	handle /api/* {
 		reverse_proxy 127.0.0.1:8090
@@ -143,6 +148,21 @@ blok = """uvar.si, www.uvar.si, uvarsi.sk, www.uvarsi.sk, uvarsi.89.167.72.159.s
 		reverse_proxy 127.0.0.1:8090
 	}
 	handle /prihlasenie* {
+		reverse_proxy 127.0.0.1:8090
+	}
+	handle /co-varit-tento-tyzden {
+		reverse_proxy 127.0.0.1:8090
+	}
+	handle /lacny-jedalnicek {
+		reverse_proxy 127.0.0.1:8090
+	}
+	handle /ako-varime-z-akcii {
+		reverse_proxy 127.0.0.1:8090
+	}
+	handle /robots.txt {
+		reverse_proxy 127.0.0.1:8090
+	}
+	handle /sitemap.xml {
 		reverse_proxy 127.0.0.1:8090
 	}
 	handle /static/fonts/* {
@@ -331,6 +351,22 @@ skontroluj https://uvar.si/app "appka"
 skontroluj https://uvar.si/ "landing"
 skontroluj https://uvar.si/api/public/landing "landing JSON"
 skontroluj https://uvar.si/api/health "health"
+skontroluj https://uvar.si/co-varit-tento-tyzden "verejna tyzdenna stranka"
+skontroluj https://uvar.si/robots.txt "robots.txt"
+skontroluj https://uvar.si/sitemap.xml "sitemap.xml"
+
+hlavicka_musi_obsahovat() {
+  URL="$1"
+  VZOR="$2"
+  POPIS="$3"
+  HLAVICKY=$(curl -fsSI "$URL" | tr -d '\r' || true)
+  echo "$POPIS: kontrolujem hlavicky"
+  printf '%s\n' "$HLAVICKY" | grep -qi "$VZOR" || zle "$POPIS nema hlavicku / vzor $VZOR"
+}
+
+hlavicka_musi_obsahovat https://uvar.si/app 'x-robots-tag: noindex' "app noindex"
+hlavicka_musi_obsahovat https://uvar.si/static/fonts/manrope-400-800.7101939e.woff2 'cache-control: .*immutable' "font immutable cache"
+hlavicka_musi_obsahovat https://www.uvar.si/co-varit-tento-tyzden 'location: https://uvar.si/co-varit-tento-tyzden' "www redirect na kanonicku verejnu stranku"
 
 HEALTH=$(curl -s https://uvar.si/api/health || true)
 

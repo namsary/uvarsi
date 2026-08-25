@@ -222,6 +222,17 @@ def test_service_worker_never_answers_an_api_call_from_cache():
     assert "prihlasenie" in guard, "jednorazový prihlasovací odkaz sa nesmie cachovať"
 
 
+def test_service_worker_bypasses_public_seo_and_crawler_paths():
+    source = worker_source()
+    fetch_handler = source.split("addEventListener('fetch'", 1)[1]
+    guard = fetch_handler.split("respondWith", 1)[0]
+
+    for cesta in ("/co-varit-tento-tyzden", "/robots.txt", "/sitemap.xml"):
+        assert cesta in guard, (
+            f"{cesta} musí vypadnúť z workera pred respondWith, inak môže ostať starý týždeň"
+        )
+
+
 def test_service_worker_precaches_the_shell_and_the_fonts():
     source = worker_source()
     assert "'/app'" in source, "bez /app v cache nemá PWA offline škrupinu"
@@ -239,6 +250,7 @@ def test_service_worker_precaches_the_shell_and_the_fonts():
 def test_service_worker_cache_name_changed_so_the_old_shell_is_dropped():
     source = worker_source()
     assert "uvarsi-v1" not in source, "stará cache by prežila a servírovala starú škrupinu"
+    assert "uvarsi-v2" not in source, "po zmene SEO cache politiky treba aktivovať novú cache"
     assert re.search(r"CACHE\s*=\s*'uvarsi-v\d+'", source)
 
 
@@ -313,6 +325,9 @@ def test_service_worker_behaviour_offline_shell_and_always_fresh_prices(tmp_path
   // 2. Jednorazový prihlasovací odkaz a adresy s ?query tiež nie.
   if (await dispatch('fetch', {request: request('/prihlasenie')}) !== null) process.exit(5);
   if (await dispatch('fetch', {request: {url: 'https://uvar.si/count.json?v=9', method: 'GET'}}) !== null) process.exit(6);
+  if (await dispatch('fetch', {request: request('/co-varit-tento-tyzden')}) !== null) process.exit(14);
+  if (await dispatch('fetch', {request: request('/robots.txt')}) !== null) process.exit(15);
+  if (await dispatch('fetch', {request: request('/sitemap.xml')}) !== null) process.exit(16);
   // 3. POST sa nikdy nezachytáva.
   if (await dispatch('fetch', {request: {url: 'https://uvar.si/app', method: 'POST'}}) !== null) process.exit(7);
   // 4. Cudzí pôvod (napr. MailerLite) necháme tak.

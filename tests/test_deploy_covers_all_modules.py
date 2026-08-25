@@ -10,6 +10,7 @@ from pathlib import Path
 
 APP_DIR = Path("app")
 DEPLOY = Path("nasad.ps1")
+SAMOPULL = Path("hetzner/samopull.sh")
 
 # moduly, ktoré sa zámerne nenasadzujú (nie sú súčasťou runtime)
 NEDEPLOYOVANE: set[str] = set()
@@ -56,4 +57,12 @@ def test_server_imports_are_all_deployed():
             chybajuce.append(f"{modul}.py")
     assert not chybajuce, (
         "server.py ich importuje, ale deploy ich neprenáša: " + ", ".join(chybajuce)
+    )
+
+
+def test_samopull_preflight_rejects_incomplete_release_without_public_pages():
+    script = SAMOPULL.read_text(encoding="utf-8")
+    assert "app/public_pages.py" in script, (
+        "samopull kopíruje celé app/, ale pred prepnutím musí odmietnuť vydanie "
+        "bez public_pages.py"
     )

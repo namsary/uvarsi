@@ -13,7 +13,7 @@
 //   • zvyšok        — z cache hneď, na pozadí sa obnoví (stale-while-revalidate):
 //                     škrupina je na obrazovke okamžite a ďalšie otvorenie ju má
 //                     už aktuálnu.
-const CACHE = 'uvarsi-v2';
+const CACHE = 'uvarsi-v3';
 const FONTS = '/static/fonts/';
 const SHELL = [
   '/app',
@@ -53,6 +53,9 @@ self.addEventListener('fetch', e => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api/')) return;            // dáta vždy zo siete
   if (url.pathname.startsWith('/prihlasenie')) return;      // jednorazový odkaz
+  if (url.pathname === '/co-varit-tento-tyzden') return;    // týždenné ceny nikdy zo zásoby
+  if (url.pathname === '/robots.txt') return;               // crawler pravidlá vždy čerstvé
+  if (url.pathname === '/sitemap.xml') return;              // sitemap musí sedieť s aktuálnymi URL
   if (url.search) return;                                   // ?v=… nikdy do cache
 
   if (url.pathname.startsWith(FONTS)) {

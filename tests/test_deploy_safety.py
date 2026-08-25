@@ -23,6 +23,7 @@ import pytest
 
 DEPLOY = Path("nasad.ps1")
 DOZORCA = Path("hetzner/dozorca.sh")
+SAMOPULL = Path("hetzner/samopull.sh")
 MAPA_SITE = "mapa.89.167.72.159.sslip.io"
 CADDYFILE = "/etc/caddy/Caddyfile"
 
@@ -66,6 +67,22 @@ def _heredoc_blocks(lines: list[str]) -> list[str]:
             continue
         aktualny.append(line)
     return bloky
+
+
+def _caddy_python_block(script: str) -> str:
+    bloky = [
+        blok for blok in _heredoc_blocks(script.splitlines())
+        if "Caddyfile" in blok and 'blok = """' in blok
+    ]
+    assert bloky, "očakávam python blok, ktorý skladá Caddy config"
+    return bloky[0]
+
+
+def _generated_caddy_template(script: str) -> str:
+    blok = _caddy_python_block(script)
+    match = re.search(r'blok\s*=\s*"""(.*?)"""', blok, flags=re.S)
+    assert match, "Caddy template musí byť vložený ako multiline string"
+    return match.group(1)
 
 
 # ------------------------------------------------------- 3. nič nesmie prejsť ticho
@@ -130,6 +147,67 @@ def test_caddyfile_is_never_written_in_place(script):
 def test_caddy_proposal_goes_to_a_temp_path_first(script):
     assert re.search(r"Caddyfile\.(nove|novy|tmp)", script), (
         "návrh configu musí vzniknúť na dočasnej ceste vedľa ostrého Caddyfile"
+    )
+
+
+def test_samopull_preflight_checks_public_pages_before_switching():
+    script = SAMOPULL.read_text(encoding="utf-8")
+    assert "app/public_pages.py" in script, (
+        "samopull musí vedieť odmietnuť neúplný release ešte pred prepnutím"
+    )
+
+
+def test_caddy_uses_separate_redirect_and_canonical_blocks(script):
+    template = _generated_caddy_template(script)
+    assert (
+        "www.uvar.si, uvarsi.sk, www.uvarsi.sk, uvarsi.89.167.72.159.sslip.io {"
+        in template
+    ), "presmerovania musia mať samostatný blok bez kanonického hosta"
+    assert "uvar.si {\n\tencode gzip" in template, (
+        "kanonický host musí mať vlastný blok s gzip a routami"
+    )
+
+
+def test_redirect_block_is_path_preserving_and_permanent(script):
+    template = _generated_caddy_template(script)
+    assert "redir https://uvar.si{uri} permanent" in template, (
+        "www a alternatívne hosty musia trvalo presmerovať na kanonickú URL aj s cestou"
+    )
+
+
+def test_canonical_block_proxies_exact_public_paths_and_keeps_static_root(script):
+    template = _generated_caddy_template(script)
+    for cesta in (
+        "/co-varit-tento-tyzden",
+        "/lacny-jedalnicek",
+        "/ako-varime-z-akcii",
+        "/robots.txt",
+        "/sitemap.xml",
+    ):
+        assert f"handle {cesta} " in template, (
+            f"kanonický host musí proxyovať presne {cesta}, nie všetko z koreňa"
+        )
+    for cesta in ("/api/*", "/app*", "/prihlasenie*", "/static/*"):
+        assert f"handle {cesta} " in template, f"očakávam explicitný handle pre {cesta}"
+    assert "root * /var/www/uvarsi" in template and "file_server" in template, (
+        "root landing musí zostať statický fallback z /var/www/uvarsi"
+    )
+
+
+def test_canonical_block_keeps_immutable_cache_only_on_hashed_fonts(script):
+    template = _generated_caddy_template(script)
+    assert (
+        'header Cache-Control "public, max-age=31536000, immutable"' in template
+    ), "hashované fonty musia dostať immutable cache"
+    assert "handle /static/fonts/* {" in template
+    static_block = re.search(
+        r"handle /static/\* \{\n(.*?)\n\t\}",
+        template,
+        flags=re.S,
+    )
+    assert static_block, "očakávam samostatný /static/* blok"
+    assert "immutable" not in static_block.group(1), (
+        "bežné /static/* nesmú dostať immutable cache, inak zamrznú HTML/manifest súbory"
     )
 
 
@@ -324,7 +402,14 @@ def test_postdeploy_check_fails_on_any_non_200(script):
     bloky = [blok for blok in _heredoc_blocks(script.splitlines()) if "http_code" in blok]
     assert bloky, "očakávam kontrolný bash blok s curl -w %{http_code}"
     blok = bloky[0]
-    for cesta in ("/app", "/api/public/landing", "/api/health"):
+    for cesta in (
+        "/app",
+        "/api/public/landing",
+        "/api/health",
+        "/robots.txt",
+        "/sitemap.xml",
+        "/co-varit-tento-tyzden",
+    ):
         assert cesta in blok, f"kontrola musí testovať {cesta}"
     assert '"200"' in blok or "= 200" in blok, (
         "kontrola musí trvať na kóde 200; 500 a 502 predtým prešli ako úspech"
@@ -356,6 +441,21 @@ def test_postdeploy_result_stops_the_deploy(lines):
 
 def test_service_state_is_still_checked(script):
     assert "sluzba" in script and "is-active" in script
+
+
+def test_postdeploy_checks_noindex_font_cache_and_www_redirect(script):
+    bloky = [
+        blok for blok in _heredoc_blocks(script.splitlines())
+        if "x-robots-tag" in blok or "immutable" in blok or "www.uvar.si" in blok
+    ]
+    assert bloky, "očakávam rozšírený post-deploy check s hlavičkami a redirectom"
+    blok = "\n".join(bloky).lower()
+    assert "/static/fonts/manrope-400-800.7101939e.woff2" in blok
+    assert "x-robots-tag" in blok and "noindex" in blok
+    assert "https://www.uvar.si/co-varit-tento-tyzden" in blok
+    assert "location: https://uvar.si/co-varit-tento-tyzden" in blok, (
+        "presmerovanie musí zachovať cestu pri prechode z www na kanonický host"
+    )
 
 
 # ---------------------------------------------------------------- 8. /api/health

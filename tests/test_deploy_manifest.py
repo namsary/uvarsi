@@ -7,6 +7,7 @@ def test_deploy_manifest_is_worktree_rooted_and_runtime_complete():
     assert "$B = $PSScriptRoot" in script
     for relative_path in (
         "app\\config.py",
+        "app\\public_pages.py",
         "app\\weekly_data.py",
         "app\\offer_data.py",
         "app\\landing_data.py",
