@@ -296,6 +296,7 @@ def test_generated_personal_plan_stores_current_metadata_but_never_exposes_it(
         shared = [json.loads(row[0]) for row in con.execute("SELECT json FROM plany_zdielane")]
     assert stored["_uvarsi_meta"] == {
         "algo_version": plan_data.PLAN_ALGO_VERSION,
+        "portion_standard_version": plan_data.PORTION_STANDARD_VERSION,
         "pantry_driven": False,
     }
     assert all("_uvarsi_meta" not in plan for plan in shared)

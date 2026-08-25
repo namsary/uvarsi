@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 from app.landing_data import write_landing_data_atomic
 from app.offer_data import migrate_akcie_schema, offer_key_for
-from app.plan_data import build_personal_plan
+from app.plan_data import PORTION_STANDARD_VERSION, build_personal_plan
 from app.weekly_data import current_monday
 
 
@@ -379,6 +379,102 @@ def test_material_profile_change_invalidates_only_that_users_current_cached_plan
         assert [row[0] for row in rows] == [2]
 
 
+def test_household_composition_change_invalidates_plan_even_when_total_is_same(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [])
+    week = current_monday()
+    with server.db() as con:
+        con.executemany(
+            "INSERT INTO pouzivatelia "
+            "(id, email, osoby, dospeli, deti, frekvencia, obchody) "
+            "VALUES (?, ?, 4, 2, 2, 2, 'Lidl')",
+            [(1, "first@uvar.si"), (2, "second@uvar.si")],
+        )
+        insert_hashed_session(server, con, "first-session", 1)
+        con.executemany(
+            "INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)",
+            [(1, week, '{"cached":"first"}'), (2, week, '{"cached":"second"}')],
+        )
+        con.commit()
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "first-session")
+
+    response = client.post("/api/profil", json={
+        "adults": 3, "children": 1, "frekvencia": 2, "obchody": ["Lidl"],
+    })
+
+    assert response.status_code == 200
+    with server.db() as con:
+        rows = con.execute(
+            "SELECT user_id FROM plany WHERE tyzden=? ORDER BY user_id", (week,)
+        ).fetchall()
+    assert [row[0] for row in rows] == [2]
+
+
+def test_profile_api_persists_adults_children_and_total_compatibility(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [])
+    with server.db() as con:
+        con.execute("INSERT INTO pouzivatelia (id, email) VALUES (1, 'family@uvar.si')")
+        insert_hashed_session(server, con, "family-session", 1)
+        con.commit()
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "family-session")
+
+    saved = client.post("/api/profil", json={
+        "adults": 2, "children": 2, "frekvencia": 3, "obchody": ["Lidl"],
+    })
+    me = client.get("/api/me")
+
+    assert saved.status_code == 200
+    assert me.status_code == 200
+    assert me.json()["adults"] == 2
+    assert me.json()["children"] == 2
+    assert me.json()["osoby"] == 4
+    with server.db() as con:
+        row = con.execute(
+            "SELECT dospeli, deti, osoby FROM pouzivatelia WHERE id=1"
+        ).fetchone()
+    assert tuple(row) == (2, 2, 4)
+
+
+@pytest.mark.parametrize("adults,children", [
+    (0, 0), (-1, 2), (2, -1), (12, 1), (1.5, 1), (True, 1),
+])
+def test_profile_api_rejects_invalid_household_instead_of_clamping(
+        monkeypatch, tmp_path, adults, children):
+    server = load_server(monkeypatch, tmp_path, [])
+    with server.db() as con:
+        con.execute("INSERT INTO pouzivatelia (id, email) VALUES (1, 'family@uvar.si')")
+        insert_hashed_session(server, con, "family-session", 1)
+        con.commit()
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "family-session")
+
+    response = client.post("/api/profil", json={
+        "adults": adults, "children": children,
+        "frekvencia": 2, "obchody": ["Lidl"],
+    })
+
+    assert response.status_code == 422
+
+
+def test_legacy_osoby_payload_is_treated_as_adults_only(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [])
+    with server.db() as con:
+        con.execute("INSERT INTO pouzivatelia (id, email) VALUES (1, 'legacy@uvar.si')")
+        insert_hashed_session(server, con, "legacy-session", 1)
+        con.commit()
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "legacy-session")
+
+    response = client.post("/api/profil", json={
+        "osoby": 4, "frekvencia": 2, "obchody": ["Lidl"],
+    })
+
+    assert response.status_code == 200
+    profile = client.get("/api/me").json()
+    assert (profile["adults"], profile["children"], profile["osoby"]) == (4, 0, 4)
+
+
 def test_saving_the_pantry_keeps_the_current_plan_and_never_regenerates_it(monkeypatch, tmp_path):
     """Majiteľ: špajza je oddelený systém, nesmie mu prepísať jedálniček bez vyzvania."""
     server = load_server(monkeypatch, tmp_path, [])
@@ -476,6 +572,7 @@ def test_plan_route_persists_only_reconstructed_server_commerce(monkeypatch, tmp
 
     assert response.status_code == 200
     payload = response.json()
+    assert "_uvarsi_meta" not in payload
     offer = plan_offer(1)
     assert payload["jedla"][0]["suroviny"] == [
         {"offer_key": plan_key(1), "nazov": "Ponuka 1", "obchod": "Lidl", "jednotka": "1 ks",
@@ -489,24 +586,57 @@ def test_plan_route_persists_only_reconstructed_server_commerce(monkeypatch, tmp
     # každom čítaní, aby nikdy nezostarol.
     with server.db() as con:
         ulozeny = json.loads(con.execute("SELECT json FROM plany WHERE user_id=1").fetchone()[0])
+        shared = [json.loads(row[0]) for row in con.execute("SELECT json FROM plany_zdielane")]
     assert ulozeny.pop("_uvarsi_meta") == {
-        "algo_version": server.PLAN_ALGO_VERSION, "pantry_driven": False}
+        "algo_version": server.PLAN_ALGO_VERSION,
+        "portion_standard_version": PORTION_STANDARD_VERSION,
+        "pantry_driven": False,
+    }
+    assert shared and all("_uvarsi_meta" not in plan for plan in shared)
     assert ulozeny == server.plan_without_pantry(payload)
     assert "spajza" not in ulozeny and "spajza_pokryte" not in ulozeny
 
 
-def test_plan_generation_passes_profile_household_size_to_prompt_and_builder(monkeypatch, tmp_path):
+def test_plan_generation_passes_household_composition_to_signature_prompt_and_builder(
+        monkeypatch, tmp_path):
     server = load_server(monkeypatch, tmp_path, current_plan_rows())
     with server.db() as con:
         con.execute(
-            "INSERT INTO pouzivatelia (id, email, osoby, obchody) VALUES (1, 'family@uvar.si', 12, 'Lidl')"
+            "INSERT INTO pouzivatelia "
+            "(id, email, osoby, dospeli, deti, obchody) "
+            "VALUES (1, 'family@uvar.si', 4, 2, 2, 'Lidl')"
         )
         insert_hashed_session(server, con, "session-token", 1)
-        con.execute("INSERT INTO spajza (user_id, nazov) VALUES (1, 'soľ')")
         con.commit()
-    grant_premium(server, 1)
     constructors = []
     message_calls = []
+    captured = {}
+
+    def capture_signature(week, stores, household_size, frequency, offer_keys, pantry=(),
+                          pantry_driven=False, *, adults=None, children=0):
+        captured["signature"] = (household_size, adults, children)
+        return "family-signature"
+
+    def capture_messages(rows, frequency, pantry, household_size, variant=0,
+                         pantry_driven=False, *, adults=None, children=0):
+        captured["messages"] = (household_size, adults, children)
+        return [{"type": "text", "text": "test prompt"}]
+
+    def capture_builder(con, model_output, stores, frequency, household_size, pantry=(),
+                        today=None, *, adults=None, children=0):
+        captured["builder"] = (household_size, adults, children)
+        return {
+            "jedla": [], "nakupny_zoznam": [],
+            "nakup_spolu": "0,00", "bezne": "0,00", "usetris": "0,00",
+        }
+
+    def capture_demand(con, week, stores, *, dospeli, deti, frekvencia, variant):
+        captured["demand"] = (dospeli, deti)
+
+    monkeypatch.setattr(server, "plan_signature", capture_signature)
+    monkeypatch.setattr(server, "personal_plan_messages", capture_messages)
+    monkeypatch.setattr(server, "build_personal_plan", capture_builder)
+    monkeypatch.setattr(server.predpocet, "zaznamenaj_dopyt", capture_demand)
     monkeypatch.setitem(
         sys.modules, "anthropic", fake_anthropic(model_plan(), constructors, message_calls)
     )
@@ -516,7 +646,12 @@ def test_plan_generation_passes_profile_household_size_to_prompt_and_builder(mon
     response = client.post("/api/plan/generuj?force=1")
 
     assert response.status_code == 200
-    assert "12 osôb" in prompt_text(message_calls[0])
+    assert captured == {
+        "signature": (None, 2, 2),
+        "demand": (2, 2),
+        "messages": (None, 2, 2),
+        "builder": (None, 2, 2),
+    }
 
 
 def test_invalid_model_plan_does_not_replace_existing_valid_cache(monkeypatch, tmp_path):
@@ -972,6 +1107,88 @@ def test_cached_plan_is_503_when_one_selected_offer_is_no_longer_current(monkeyp
 
     assert response.status_code == 503
     assert constructors == []
+
+
+def test_get_invalidates_legacy_personal_plan_without_portion_version_for_free(
+        monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, current_plan_rows())
+    with server.db() as con:
+        con.execute(
+            "INSERT INTO pouzivatelia (id, email, obchody) "
+            "VALUES (1, 'legacy-plan@uvar.si', 'Lidl')"
+        )
+        insert_hashed_session(server, con, "legacy-plan-session", 1)
+        cached = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4)
+        cached = server.osobny_plan_na_ulozenie(cached)
+        cached["_uvarsi_meta"].pop("portion_standard_version", None)
+        con.execute(
+            "INSERT INTO plany (user_id, tyzden, json) VALUES (1, ?, ?)",
+            (current_monday(), json.dumps(cached)),
+        )
+        con.commit()
+    constructors = []
+    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), constructors))
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "legacy-plan-session")
+
+    response = client.get("/api/plan")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "prazdny": True,
+        "vyzaduje_akciu": True,
+        "dovod": "plan_zastaral",
+        "obnovit_cez": "/api/plan/generuj",
+    }
+    assert constructors == []
+    with server.db() as con:
+        assert con.execute("SELECT COUNT(*) FROM plany WHERE user_id=1").fetchone()[0] == 0
+        assert con.execute("SELECT COUNT(*) FROM prepocty WHERE user_id=1").fetchone()[0] == 0
+
+
+def test_portion_standard_bump_requires_get_then_allows_explicit_post_regeneration(
+        monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, current_plan_rows())
+    with server.db() as con:
+        con.execute(
+            "INSERT INTO pouzivatelia (id, email, obchody) "
+            "VALUES (1, 'version-bump@uvar.si', 'Lidl')"
+        )
+        insert_hashed_session(server, con, "version-bump-session", 1)
+        cached = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4)
+        cached = server.osobny_plan_na_ulozenie(cached)
+        con.execute(
+            "INSERT INTO plany (user_id, tyzden, json) VALUES (1, ?, ?)",
+            (current_monday(), json.dumps(cached)),
+        )
+        con.commit()
+    monkeypatch.setattr(
+        server, "PORTION_STANDARD_VERSION", PORTION_STANDARD_VERSION + 1, raising=False
+    )
+    constructors = []
+    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), constructors))
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "version-bump-session")
+
+    stale = client.get("/api/plan")
+
+    assert stale.status_code == 200
+    assert stale.json()["dovod"] == "plan_zastaral"
+    assert constructors == []
+    with server.db() as con:
+        assert con.execute("SELECT COUNT(*) FROM prepocty WHERE user_id=1").fetchone()[0] == 0
+
+    regenerated = client.post("/api/plan/generuj?force=1")
+
+    assert regenerated.status_code == 200
+    assert len(constructors) == 1
+    assert "_uvarsi_meta" not in regenerated.json()
+    with server.db() as con:
+        stored = json.loads(
+            con.execute("SELECT json FROM plany WHERE user_id=1").fetchone()[0]
+        )
+        assert stored["_uvarsi_meta"]["portion_standard_version"] == PORTION_STANDARD_VERSION + 1
+        assert con.execute("SELECT pocet FROM prepocty WHERE user_id=1").fetchone()[0] == 1
 
 
 # ------------------------------------------------- Premium: špajza a prepočty

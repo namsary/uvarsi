@@ -26,6 +26,7 @@ from weekly_data import offers_for_current_week
 from offer_data import OfferKeyCollision, migrate_akcie_schema
 from plan_data import (
     PLAN_ALGO_VERSION,
+    PORTION_STANDARD_VERSION,
     apply_pantry_to_shopping_list,
     build_personal_plan,
     cached_plan_is_current,
@@ -194,6 +195,8 @@ CREATE TABLE IF NOT EXISTS pouzivatelia (
   vytvoreny TEXT DEFAULT CURRENT_TIMESTAMP,
   platiaci INTEGER DEFAULT 0,
   osoby   INTEGER DEFAULT 4,
+  dospeli INTEGER DEFAULT 4,
+  deti    INTEGER NOT NULL DEFAULT 0,
   frekvencia INTEGER DEFAULT 2,          -- variť raz za N dní
   obchody TEXT DEFAULT 'Kaufland,Tesco,Lidl',
   onboarding INTEGER DEFAULT 0
@@ -273,9 +276,30 @@ CREATE INDEX IF NOT EXISTS idx_akcie_kat ON akcie(tyzden, kategoria);
 _SCHEMA_HOTOVA: set[str] = set()
 
 
+def migrate_household_schema(con) -> None:
+    """Rozdeľ staré ``osoby`` na dospelých a deti bez straty kompatibility."""
+    columns = {row[1] for row in con.execute("PRAGMA table_info(pouzivatelia)")}
+    if "dospeli" not in columns:
+        # DEFAULT ostáva dôležitý aj po migrácii: auth_data vytvára nový účet
+        # iba z e-mailu a profil si človek doplní až následne.
+        legacy = con.execute("SELECT id, osoby FROM pouzivatelia").fetchall()
+        con.execute("ALTER TABLE pouzivatelia ADD COLUMN dospeli INTEGER DEFAULT 4")
+        con.executemany(
+            "UPDATE pouzivatelia SET dospeli=? WHERE id=?",
+            [(int(osoby) if osoby is not None else 4, user_id) for user_id, osoby in legacy],
+        )
+    if "deti" not in columns:
+        con.execute(
+            "ALTER TABLE pouzivatelia ADD COLUMN deti INTEGER NOT NULL DEFAULT 0"
+        )
+    con.execute("UPDATE pouzivatelia SET dospeli=osoby WHERE dospeli IS NULL")
+    con.execute("UPDATE pouzivatelia SET deti=0 WHERE deti IS NULL")
+
+
 def migruj_schemu(con) -> None:
     """Celá schéma a všetky migrácie. Idempotentné, ale drahé — nie na požiadavku."""
     con.executescript(SCHEMA)
+    migrate_household_schema(con)
     migrate_auth_schema(con)
     migrate_akcie_schema(con)
     migrate_platby_schema(con)
@@ -377,6 +401,45 @@ def require_owner(req: Request):
     ):
         raise HTTPException(status_code=403, detail="Prístup zamietnutý")
     return u
+
+
+def zlozenie_domacnosti(row):
+    """Vráť kanonické (dospelí, deti) aj pre riadok zo starého klienta.
+
+    Priamy starý zápis mohol zmeniť iba ``osoby``. Ak sú nové stĺpce ešte
+    prázdne alebo s týmto súčtom nesedia, berieme pôvodný údaj ako počet
+    dospelých. API pri najbližšom uložení zapíše všetky tri polia naraz.
+    """
+    def value(key, default=None):
+        try:
+            return row[key]
+        except (KeyError, IndexError, TypeError):
+            return default
+
+    total = int(value("osoby", 4) or 4)
+    adults = value("dospeli")
+    children = value("deti")
+    if adults is None or children is None:
+        return total, 0
+    adults, children = int(adults), int(children)
+    if adults + children != total:
+        return total, 0
+    return adults, children
+
+
+def validuj_zlozenie_domacnosti(data):
+    """Nový payload používa dve polia; staré ``osoby`` znamená dospelých."""
+    if "adults" in data or "children" in data:
+        if "adults" not in data or "children" not in data:
+            raise HTTPException(422, "Zadaj počet dospelých aj detí.")
+        adults, children = data["adults"], data["children"]
+    else:
+        adults, children = data.get("osoby", 4), 0
+    if (not isinstance(adults, int) or isinstance(adults, bool)
+            or not isinstance(children, int) or isinstance(children, bool)
+            or adults < 0 or children < 0 or not 1 <= adults + children <= 12):
+        raise HTTPException(422, "Domácnosť musí mať spolu 1 až 12 ľudí.")
+    return adults, children
 
 
 # ---------------------------------------------------------------- Premium
@@ -730,7 +793,9 @@ def me(req: Request):
     # a prečo do plánu nevstupujú. Ich názvy sem nepatria — obrazovka o platbe
     # nemá zobrazovať údaje, ktoré práve nič neovplyvňujú.
     uspana = bool(not premium and ulozenych)
-    return {"prihlaseny": True, "id": u["id"], "email": u["email"], "osoby": u["osoby"],
+    adults, children = zlozenie_domacnosti(u)
+    return {"prihlaseny": True, "id": u["id"], "email": u["email"],
+            "adults": adults, "children": children, "osoby": adults + children,
             "frekvencia": u["frekvencia"], "obchody": u["obchody"].split(","),
             "onboarding": bool(u["onboarding"]),
             # `platiaci` je len stĺpec; pravdu o platbe drží tabuľka nárokov.
@@ -747,17 +812,27 @@ def me(req: Request):
 async def uloz_profil(req: Request):
     u = require_user(req)
     d = await req.json()
-    osoby = max(1, min(12, int(d.get("osoby", 4))))
+    adults, children = validuj_zlozenie_domacnosti(d)
+    osoby = adults + children
     frek = max(1, min(7, int(d.get("frekvencia", 2))))
     allowed_stores = ("Kaufland", "Tesco", "Lidl")
     obchody = [store for store in allowed_stores if store in d.get("obchody", [])]
     if not obchody:
         obchody = ["Kaufland", "Tesco", "Lidl"]
     with closing(db()) as con:
-        old = con.execute("SELECT osoby, frekvencia, obchody FROM pouzivatelia WHERE id=?", (u["id"],)).fetchone()
-        changed = old is None or (old["osoby"], old["frekvencia"], old["obchody"]) != (osoby, frek, ",".join(obchody))
-        con.execute("UPDATE pouzivatelia SET osoby=?,frekvencia=?,obchody=?,onboarding=1"
-                    " WHERE id=?", (osoby, frek, ",".join(obchody), u["id"]))
+        old = con.execute(
+            "SELECT osoby, dospeli, deti, frekvencia, obchody "
+            "FROM pouzivatelia WHERE id=?", (u["id"],)
+        ).fetchone()
+        old_adults, old_children = zlozenie_domacnosti(old) if old is not None else (None, None)
+        changed = old is None or (
+            old_adults, old_children, old["frekvencia"], old["obchody"]
+        ) != (adults, children, frek, ",".join(obchody))
+        con.execute(
+            "UPDATE pouzivatelia SET osoby=?,dospeli=?,deti=?,frekvencia=?,obchody=?,onboarding=1"
+            " WHERE id=?",
+            (osoby, adults, children, frek, ",".join(obchody), u["id"]),
+        )
         if changed:
             con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], monday()))
         con.commit()
@@ -867,7 +942,8 @@ def pouzitie_modelu(usage):
     }
 
 
-def podpis_planu(tyzden, obchody, osoby, frekvencia, rows, spajza, zo_spajze=False):
+def podpis_planu(tyzden, obchody, frekvencia, rows, spajza, *, adults, children,
+                 zo_spajze=False):
     """Podpis zdieľaného plánu. Špajza doň vstupuje len pri výslovnom vyžiadaní.
 
     Bežný plán sa skladá bez špajze, takže ho zdieľajú aj platiace účty a
@@ -876,8 +952,9 @@ def podpis_planu(tyzden, obchody, osoby, frekvencia, rows, spajza, zo_spajze=Fal
     zdieľane vôbec.
     """
     return plan_signature(
-        tyzden, obchody, osoby, frekvencia, [row["offer_key"] for row in rows], spajza,
+        tyzden, obchody, None, frekvencia, [row["offer_key"] for row in rows], spajza,
         pantry_driven=zo_spajze,
+        adults=adults, children=children,
     )
 
 
@@ -905,7 +982,11 @@ def podpis_spajze(spajza):
 
 def osobny_plan_na_ulozenie(plan, spajza=(), zo_spajze=False):
     ulozeny = dict(plan)
-    meta = {"algo_version": PLAN_ALGO_VERSION, "pantry_driven": bool(zo_spajze)}
+    meta = {
+        "algo_version": PLAN_ALGO_VERSION,
+        "portion_standard_version": PORTION_STANDARD_VERSION,
+        "pantry_driven": bool(zo_spajze),
+    }
     if zo_spajze:
         meta["pantry_signature"] = podpis_spajze(spajza)
     ulozeny[PLAN_META_KEY] = meta
@@ -918,6 +999,8 @@ def osobna_cache_plati(plan, spajza):
     meta = plan[PLAN_META_KEY]
     if meta.get("algo_version") != PLAN_ALGO_VERSION:
         return False
+    if meta.get("portion_standard_version") != PORTION_STANDARD_VERSION:
+        return False
     if meta.get("pantry_driven") is True:
         return meta.get("pantry_signature") == podpis_spajze(spajza)
     return meta.get("pantry_driven") is False
@@ -928,6 +1011,7 @@ def obnova_neplatnej_osobnej_cache(plan, spajza):
     meta = plan.get(PLAN_META_KEY) if isinstance(plan, dict) else None
     if (isinstance(meta, dict)
             and meta.get("algo_version") == PLAN_ALGO_VERSION
+            and meta.get("portion_standard_version") == PORTION_STANDARD_VERSION
             and meta.get("pantry_driven") is True
             and meta.get("pantry_signature") != podpis_spajze(spajza)):
         return {"dovod": "spajza_zmenena", "obnovit_cez": "/api/plan/zo-spajze"}
@@ -996,18 +1080,21 @@ def zahrej_plan_pre_pouzivatela(user_id):
     tyzden = monday()
     with closing(db()) as con:
         profil = con.execute(
-            "SELECT osoby, frekvencia, obchody FROM pouzivatelia WHERE id=?", (user_id,)
+            "SELECT osoby, dospeli, deti, frekvencia, obchody "
+            "FROM pouzivatelia WHERE id=?", (user_id,)
         ).fetchone()
         if profil is None:
             return None
         spajza = spajza_pouzivatela(con, user_id, je_premium(con, user_id))
 
     obchody = profil["obchody"].split(",")
+    adults, children = zlozenie_domacnosti(profil)
     rows = akcie_pre(obchody)
     if len(rows) < MIN_OFFERS_FOR_PLAN:
         return None
     podpis = podpis_planu(
-        tyzden, obchody, profil["osoby"], profil["frekvencia"], rows, spajza
+        tyzden, obchody, profil["frekvencia"], rows, spajza,
+        adults=adults, children=children,
     )
     with closing(db()) as con:
         variant = plan_variant_for(user_id, PLAN_VARIANTS)
@@ -1039,6 +1126,7 @@ def sprava_o_chybajucich_akciach() -> str:
 @app.post("/api/plan/generuj")
 def generuj_plan(req: Request, force: int = 0):
     u = require_user(req)
+    adults, children = zlozenie_domacnosti(u)
     tyz = monday()
     obchody = u["obchody"].split(",")
     rows = akcie_pre(obchody)
@@ -1067,13 +1155,19 @@ def generuj_plan(req: Request, force: int = 0):
     # rovnaká domácnosť trafí do zdieľanej cache aj s plnou špajzou a čaká
     # milisekundy namiesto minút. Špajza sa dopočíta až nad nákupným zoznamom.
     # „Vygeneruj mi iný" (force) sa cache musí vyhnúť, inak by nič nezmenilo.
-    podpis = podpis_planu(tyz, obchody, u["osoby"], u["frekvencia"], rows, sp)
+    podpis = podpis_planu(
+        tyz, obchody, u["frekvencia"], rows, sp,
+        adults=adults, children=children,
+    )
     variant = plan_variant_for(u["id"], PLAN_VARIANTS)
     with closing(db()) as con:
         # Agregovaná evidencia dopytu: KOĽKO ráz taký profil niekto chcel.
         # Bez user_id a bez e-mailu — je to podklad pre nočné zahrievanie
         # (predpocet.py), nie záznam o človeku. Nikdy nesmie zhodiť požiadavku.
-        predpocet.zaznamenaj_dopyt(con, tyz, obchody, u["osoby"], u["frekvencia"], variant)
+        predpocet.zaznamenaj_dopyt(
+            con, tyz, obchody, dospeli=adults, deti=children,
+            frekvencia=u["frekvencia"], variant=variant,
+        )
         if not force:
             zdielany = nacitaj_zdielany_plan(con, podpis, variant)
             if zdielany is not None:
@@ -1143,6 +1237,7 @@ def plan_zo_spajze(req: Request):
     z denného stropu.
     """
     u = require_user(req)
+    adults, children = zlozenie_domacnosti(u)
     tyz = monday()
     obchody = u["obchody"].split(",")
 
@@ -1162,7 +1257,10 @@ def plan_zo_spajze(req: Request):
     if len(rows) < MIN_OFFERS_FOR_PLAN:
         raise HTTPException(503, sprava_o_chybajucich_akciach())
 
-    podpis = podpis_planu(tyz, obchody, u["osoby"], u["frekvencia"], rows, sp, zo_spajze=True)
+    podpis = podpis_planu(
+        tyz, obchody, u["frekvencia"], rows, sp,
+        adults=adults, children=children, zo_spajze=True,
+    )
     variant = plan_variant_for(u["id"], PLAN_VARIANTS)
     return zaplat_a_poskladaj(
         u, tyz, obchody, rows, sp, podpis, variant, premium, zo_spajze=True)
@@ -1170,6 +1268,7 @@ def plan_zo_spajze(req: Request):
 
 def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant, zo_spajze=False):
     """Jediné platené volanie v celej appke — volá sa až po rezervácii miesta."""
+    adults, children = zlozenie_domacnosti(u)
     # Rozpočet sa overuje EŠTE PRED vyrobením klienta. Keď je vyčerpaný, appka
     # to povie rovno a pravdivo — nikdy nepodstrčí starý či vymyslený plán.
     with closing(db()) as ucty:
@@ -1193,8 +1292,9 @@ def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant, zo_spajze=Fa
         # `pantry_driven` rozhoduje, či sa špajza vôbec dostane do promptu.
         # Pri bežnom pláne nie — je zdieľaný, takže by tam bola aj únikom.
         blocks = personal_plan_messages(
-            rows, u["frekvencia"], sp if zo_spajze else (), household_size=u["osoby"],
+            rows, u["frekvencia"], sp if zo_spajze else (), household_size=None,
             variant=variant, pantry_driven=zo_spajze,
+            adults=adults, children=children,
         )
         plan_timeout = getattr(anthropic, "APITimeoutError", None)
         nastavenie = {"output_config": {"effort": PLAN_EFFORT}} if PLAN_EFFORT else {}
@@ -1239,8 +1339,9 @@ def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant, zo_spajze=Fa
     with closing(db()) as con:
         try:
             plan = build_personal_plan(
-                con, model_output, obchody, u["frekvencia"], u["osoby"],
+                con, model_output, obchody, u["frekvencia"], None,
                 pantry=sp if zo_spajze else (),
+                adults=adults, children=children,
             )
         except ValueError:
             raise HTTPException(500, "Plán sa nepodarilo bezpečne overiť, skús to znova.")

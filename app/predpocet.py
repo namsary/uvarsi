@@ -55,6 +55,7 @@ Ručne na serveri:
     UVARSI_URL=https://uvar.si ../venv/bin/python predpocet.py --stav
 """
 import datetime
+import inspect
 import json
 import logging
 import os
@@ -135,7 +136,18 @@ VYSVETLENIE = {
 MAX_ZLYHANI_PO_SEBE = 3
 
 
-Profil = namedtuple("Profil", "obchody osoby frekvencia variant")
+class Profil(namedtuple("ProfilZaklad", "obchody dospeli deti frekvencia variant")):
+    """Profil predpočtu s kompatibilným celkovým počtom osôb.
+
+    `osoby` zostáva odvodená vlastnosť, aby staršie volania a diagnostika
+    fungovali počas prechodu na samostatných dospelých a deti.
+    """
+
+    __slots__ = ()
+
+    @property
+    def osoby(self):
+        return self.dospeli + self.deti
 
 
 # ---------------------------------------------------------------- schéma
@@ -147,12 +159,14 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS dopyt_profilov (
   tyzden     TEXT NOT NULL,          -- ISO pondelok týždňa požiadavky
   obchody    TEXT NOT NULL,          -- normalizované: zoradené, čiarkou
-  osoby      INTEGER NOT NULL,
+  osoby      INTEGER NOT NULL,       -- kompatibilný súčet dospelí + deti
+  dospeli    INTEGER NOT NULL,
+  deti       INTEGER NOT NULL DEFAULT 0,
   frekvencia INTEGER NOT NULL,
   variant    INTEGER NOT NULL,
   pocet      INTEGER NOT NULL DEFAULT 0,
   posledny   TEXT,                   -- deň poslednej požiadavky (bez hodiny)
-  PRIMARY KEY (tyzden, obchody, osoby, frekvencia, variant)
+  PRIMARY KEY (tyzden, obchody, dospeli, deti, frekvencia, variant)
 );
 
 -- Jeden riadok na týždeň: ako sa predpočtu darilo. `zasahy` je to jediné
@@ -182,6 +196,26 @@ def migrate_predpocet_schema(con) -> None:
     má zmysel zahrievať viac alebo menej.
     """
     con.executescript(SCHEMA)
+    dopyt_stlpce = {
+        riadok[1] for riadok in con.execute("PRAGMA table_info(dopyt_profilov)")
+    }
+    if dopyt_stlpce and not {"dospeli", "deti"}.issubset(dopyt_stlpce):
+        # SQLite nevie zmeniť zložený PRIMARY KEY cez ALTER COLUMN. Tabuľku
+        # preto v jednej migrácii prebudujeme a staré `osoby` zachováme ako
+        # dospelých; deti boli v pôvodnom modeli neznáme, teda bezpečne 0.
+        zaloha = "dopyt_profilov_pred_deti"
+        con.execute(f"ALTER TABLE dopyt_profilov RENAME TO {zaloha}")
+        con.executescript(SCHEMA)
+        con.execute(
+            f"""INSERT INTO dopyt_profilov
+                    (tyzden, obchody, osoby, dospeli, deti, frekvencia,
+                     variant, pocet, posledny)
+                SELECT tyzden, obchody, osoby, osoby, 0, frekvencia,
+                       variant, SUM(pocet), MAX(posledny)
+                  FROM {zaloha}
+                 GROUP BY tyzden, obchody, osoby, frekvencia, variant"""
+        )
+        con.execute(f"DROP TABLE {zaloha}")
     stlpce = {riadok[1] for riadok in con.execute("PRAGMA table_info(plany_zdielane)")}
     if stlpce and "predpocitany" not in stlpce:
         con.execute(
@@ -236,22 +270,22 @@ def rezerva_eur() -> float:
 
 
 # ---------------------------------------------------------------- výber profilov
-# Východzí profil appky je Kaufland+Tesco+Lidl, 4 osoby, variť raz za 2 dni —
+# Východzí profil appky je Kaufland+Tesco+Lidl, 4 dospelí, variť raz za 2 dni —
 # presne to má v `pouzivatelia` každý nový účet. Okolo neho sú najbližší
 # susedia: menšia domácnosť a iná frekvencia. Poradie je poradie stávok, lebo
 # `UVARSI_PREDPOCET_PROFILOV` zoznam odreže zhora.
 VSETKY_OBCHODY = ("Kaufland", "Lidl", "Tesco")
 VYCHODZIE_DOMACNOSTI = (
-    (VSETKY_OBCHODY, 4, 2),
-    (VSETKY_OBCHODY, 2, 2),
-    (VSETKY_OBCHODY, 4, 3),
-    (VSETKY_OBCHODY, 2, 3),
-    (VSETKY_OBCHODY, 4, 1),
-    (VSETKY_OBCHODY, 1, 2),
-    (VSETKY_OBCHODY, 3, 2),
-    (VSETKY_OBCHODY, 5, 2),
-    (VSETKY_OBCHODY, 2, 1),
-    (VSETKY_OBCHODY, 6, 2),
+    (VSETKY_OBCHODY, 4, 0, 2),
+    (VSETKY_OBCHODY, 2, 2, 2),
+    (VSETKY_OBCHODY, 2, 0, 2),
+    (VSETKY_OBCHODY, 2, 1, 2),
+    (VSETKY_OBCHODY, 4, 0, 3),
+    (VSETKY_OBCHODY, 2, 2, 3),
+    (VSETKY_OBCHODY, 1, 0, 2),
+    (VSETKY_OBCHODY, 3, 0, 2),
+    (VSETKY_OBCHODY, 2, 0, 3),
+    (VSETKY_OBCHODY, 4, 0, 1),
 )
 
 
@@ -259,29 +293,50 @@ def vychodzie_profily() -> list:
     """Stávka na prvý týždeň, kým niet histórie. Domácnosť po domácnosti,
     každá so všetkými variantmi — inak by sa trafili len dve tretiny ľudí."""
     profily = []
-    for obchody, osoby, frekvencia in VYCHODZIE_DOMACNOSTI:
+    for obchody, dospeli, deti, frekvencia in VYCHODZIE_DOMACNOSTI:
         for variant in range(POCET_VARIANTOV):
-            profily.append(Profil(_normalizuj_obchody(obchody), osoby, frekvencia, variant))
+            profily.append(Profil(
+                _normalizuj_obchody(obchody), dospeli, deti, frekvencia, variant
+            ))
     return profily
 
 
-def zaznamenaj_dopyt(con, tyzden, obchody, osoby, frekvencia, variant, dnes=None) -> None:
+def zaznamenaj_dopyt(con, tyzden, obchody, *profil, osoby=None, dospeli=None,
+                     deti=0, frekvencia=None, variant=None, dnes=None) -> None:
     """Pripočítaj jednotku k profilu, o ktorý niekto požiadal.
 
     Nikdy nesmie zhodiť požiadavku používateľa: evidencia dopytu je podklad na
     zahrievanie, nie súčasť odpovede. Keď sa zápis nepodarí, zoznam bude o
     kúsok menej presný a nič viac.
     """
+    if profil:
+        if any(hodnota is not None for hodnota in (osoby, dospeli, frekvencia, variant)):
+            raise TypeError("profil zadaj pozične alebo pomenovane, nie oboma spôsobmi")
+        if len(profil) == 3:              # staré: osoby, frekvencia, variant
+            osoby, frekvencia, variant = profil
+            dospeli, deti = osoby, 0
+        elif len(profil) == 4:            # nové: dospelí, deti, frekvencia, variant
+            dospeli, deti, frekvencia, variant = profil
+        else:
+            raise TypeError("profil musí obsahovať 3 staré alebo 4 nové hodnoty")
+    elif dospeli is None:
+        dospeli, deti = osoby, 0
+
     dnes = dnes or datetime.date.today()
     try:
+        dospeli = int(dospeli)
+        deti = int(deti)
+        osoby = dospeli + deti
         con.execute(
-            """INSERT INTO dopyt_profilov (tyzden, obchody, osoby, frekvencia, variant,
-                                           pocet, posledny)
-               VALUES (?, ?, ?, ?, ?, 1, ?)
-               ON CONFLICT(tyzden, obchody, osoby, frekvencia, variant) DO UPDATE SET
-                 pocet = pocet + 1, posledny = excluded.posledny""",
-            (str(tyzden), ",".join(_normalizuj_obchody(obchody)), int(osoby),
-             int(frekvencia), int(variant), dnes.isoformat()),
+            """INSERT INTO dopyt_profilov
+                    (tyzden, obchody, osoby, dospeli, deti, frekvencia, variant,
+                     pocet, posledny)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+               ON CONFLICT(tyzden, obchody, dospeli, deti, frekvencia, variant)
+               DO UPDATE SET
+                     pocet = pocet + 1, posledny = excluded.posledny""",
+            (str(tyzden), ",".join(_normalizuj_obchody(obchody)), osoby,
+             dospeli, deti, int(frekvencia), int(variant), dnes.isoformat()),
         )
         hranica = (datetime.date.fromisoformat(str(tyzden))
                    - datetime.timedelta(weeks=DRZANIE_DOPYTU_TYZDNOV)).isoformat()
@@ -306,11 +361,12 @@ def oblubene_profily(con, tyzden, pocet, tyzdnov=HISTORIA_TYZDNOV) -> list:
         od = (datetime.date.fromisoformat(str(tyzden))
               - datetime.timedelta(weeks=tyzdnov)).isoformat()
         riadky = con.execute(
-            """SELECT obchody, osoby, frekvencia, variant, SUM(pocet) AS spolu
+            """SELECT obchody, dospeli, deti, frekvencia, variant,
+                      SUM(pocet) AS spolu
                FROM dopyt_profilov
                WHERE tyzden < ? AND tyzden >= ?
-               GROUP BY obchody, osoby, frekvencia, variant
-               ORDER BY spolu DESC, obchody, osoby, frekvencia, variant""",
+               GROUP BY obchody, dospeli, deti, frekvencia, variant
+               ORDER BY spolu DESC, obchody, dospeli, deti, frekvencia, variant""",
             (str(tyzden), od),
         ).fetchall()
     except (sqlite3.Error, OSError, ValueError, TypeError):
@@ -318,7 +374,8 @@ def oblubene_profily(con, tyzden, pocet, tyzdnov=HISTORIA_TYZDNOV) -> list:
         riadky = []
     for riadok in riadky:
         profily.append(Profil(
-            _normalizuj_obchody(riadok["obchody"]), int(riadok["osoby"]),
+            _normalizuj_obchody(riadok["obchody"]), int(riadok["dospeli"]),
+            int(riadok["deti"]),
             int(riadok["frekvencia"]), int(riadok["variant"]),
         ))
     for profil in vychodzie_profily():
@@ -363,6 +420,46 @@ def _text_odpovede(msg) -> str:
     return re.sub(r"^```(?:json)?|```$", "", text, flags=re.M).strip()
 
 
+def _pozna_clenov_domacnosti(funkcia) -> bool:
+    """Či cieľ už používa nový kontrakt adults/children.
+
+    Predpočet sa nasadzuje spolu so serverom, no lokálne testy a prípadný
+    rozbehnutý starší proces môžu počas migrácie ešte vystavovať podpis s
+    jediným `household_size`. Kontrola podpisu funkcie zachová kompatibilitu
+    bez maskovania skutočného TypeError vo vnútri volanej funkcie.
+    """
+    try:
+        parametre = inspect.signature(funkcia).parameters
+    except (TypeError, ValueError):
+        return False
+    return "adults" in parametre and "children" in parametre
+
+
+def _podpis_pre_profil(server, tyzden, profil, rows):
+    """Podpis, prompt aj builder musia dostať tú istú skladbu domácnosti."""
+    if _pozna_clenov_domacnosti(server.podpis_planu):
+        parametre = inspect.signature(server.podpis_planu).parameters
+        pozičné = [
+            parameter for parameter in parametre.values()
+            if parameter.kind in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
+        ]
+        zaklad = [tyzden, list(profil.obchody)]
+        # Serverový obal už môže mať nový čistý podpis bez household_size,
+        # kým plan_data počas prechodu stále prijíma jeho voliteľné miesto.
+        if "household_size" in parametre or len(pozičné) >= 6:
+            zaklad.append(None)
+        return server.podpis_planu(
+            *zaklad, profil.frekvencia, rows, (),
+            adults=profil.dospeli, children=profil.deti,
+        )
+    return server.podpis_planu(
+        tyzden, list(profil.obchody), profil.osoby, profil.frekvencia, rows, ()
+    )
+
+
 def _poskladaj(con, server, rows, profil, klient=None):
     """Jedno platené volanie — cez ten istý strážený klient ako appka.
 
@@ -382,10 +479,17 @@ def _poskladaj(con, server, rows, profil, klient=None):
         ),
         UCEL,
     )
-    blocks = personal_plan_messages(
-        rows, profil.frekvencia, (), household_size=profil.osoby,
-        variant=profil.variant, pantry_driven=False,
-    )
+    if _pozna_clenov_domacnosti(personal_plan_messages):
+        blocks = personal_plan_messages(
+            rows, profil.frekvencia, (), household_size=None,
+            variant=profil.variant, pantry_driven=False,
+            adults=profil.dospeli, children=profil.deti,
+        )
+    else:
+        blocks = personal_plan_messages(
+            rows, profil.frekvencia, (), household_size=profil.osoby,
+            variant=profil.variant, pantry_driven=False,
+        )
     msg = strazeny.messages.create(
         model=server.MODEL_PLAN, max_tokens=server.PLAN_TOKENS,
         messages=[{"role": "user", "content": blocks}],
@@ -395,8 +499,14 @@ def _poskladaj(con, server, rows, profil, klient=None):
     except json.JSONDecodeError as chyba:
         raise PlanNepouzitelny("odpoveď nie je platný JSON") from chyba
     try:
+        if _pozna_clenov_domacnosti(build_personal_plan):
+            return build_personal_plan(
+                con, model_output, list(profil.obchody), profil.frekvencia, None,
+                adults=profil.dospeli, children=profil.deti,
+            )
         return build_personal_plan(
-            con, model_output, list(profil.obchody), profil.frekvencia, profil.osoby)
+            con, model_output, list(profil.obchody), profil.frekvencia, profil.osoby
+        )
     except ValueError as chyba:
         raise PlanNepouzitelny(str(chyba)) from chyba
 
@@ -457,8 +567,7 @@ def zahrej(*, pocet=None, dnes=None, teraz=None, klient=None) -> dict:
             rows = ponuky[profil.obchody]
             if len(rows) < server.MIN_OFFERS_FOR_PLAN:
                 continue                 # bez letákov niet z čoho skladať
-            podpis = server.podpis_planu(
-                tyzden, list(profil.obchody), profil.osoby, profil.frekvencia, rows, ())
+            podpis = _podpis_pre_profil(server, tyzden, profil, rows)
             hotovy = server.nacitaj_zdielany_plan(con, podpis, profil.variant)
             if hotovy is not None:
                 vysledok["preskocenych"] += 1

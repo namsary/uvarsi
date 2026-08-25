@@ -258,10 +258,14 @@ def test_change_settings_prefills_current_profile_and_can_be_left_without_saving
     html = app_html()
     onboarding = declaration(html, "function viewOnboarding() ")
 
-    assert "profil.osoby" in onboarding, "household size must come from ME, not a hardcoded default"
+    assert "profil.adults" in onboarding, "adult count must come from ME"
+    assert "profil.children" in onboarding, "child count must come from ME"
     assert "profil.frekvencia" in onboarding
     assert "profil.obchody" in onboarding
-    assert "n===osoby?' on':''" in onboarding
+    assert 'id="c-dospeli"' in onboarding
+    assert 'id="c-deti"' in onboarding
+    assert "Dospelí" in onboarding and "Deti" in onboarding
+    assert "3–12" in onboarding and "tínedžera" in onboarding
     assert "v===frekvencia?' on':''" in onboarding
     assert "obchody.indexOf(o)>=0?' on':''" in onboarding
 
@@ -271,6 +275,42 @@ def test_change_settings_prefills_current_profile_and_can_be_left_without_saving
 
     assert "Späť bez zmeny" in onboarding, "an existing profile must be leavable without submitting"
     assert "$('#spat').onclick" in onboarding
+
+
+def test_profile_submit_sends_both_household_counts_and_rejects_zero_people():
+    onboarding = declaration(app_html(), "function viewOnboarding() ")
+
+    assert "adults:+val('#c-dospeli')" in onboarding
+    assert "children:+val('#c-deti')" in onboarding
+    assert "adults + children" in onboarding
+    assert "aspoň" in onboarding.casefold()
+
+
+def test_recipe_ui_explains_composition_without_nutrition_claims():
+    html = app_html()
+
+    assert "dospel" in html.casefold() and "deti" in html.casefold()
+    assert "kuchársky odhad" in html
+    assert "nie individuálne výživové odporúčanie" in html
+    assert "odporúčaná denná dávka" not in html.casefold()
+
+
+@needs_node
+def test_recipe_composition_keeps_the_number_of_days_in_the_batch(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "household-batch-days.js",
+        "var ME={adults:2,children:2,osoby:4};\n"
+        + declaration(html, "function householdLabel(profil) ")
+        + "\n"
+        + declaration(html, "function portionLine(recept) ")
+        + "\n"
+        + "if (portionLine({porcie:12,dni:3,pre:'2 dospelí + 2 deti × 3 dni'}) "
+        + "!== '12 porcií · 2 dospelí + 2 deti · na 3 dni') process.exit(1);\n",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @needs_node
@@ -660,6 +700,8 @@ def test_settings_use_natural_slovak_cooking_frequency_text(tmp_path):
         "var M={innerHTML:''}; function $(selector){return {onclick:null};}\n"
         + "function viewOnboarding() {}\n"
         + "function esc(value){return String(value == null ? '' : value);}\n"
+        + declaration(html, "function householdLabel(profil) ")
+        + "\n"
         + declaration(html, "function vNast() ")
         + """
 function visible(html) { return html.replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim(); }

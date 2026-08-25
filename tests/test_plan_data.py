@@ -1,9 +1,11 @@
 import re
 import sqlite3
 from datetime import date
+from decimal import Decimal
 
 import pytest
 
+import app.plan_data as plan_data
 from app.plan_data import build_personal_plan, meal_count_for_frequency, personal_plan_prompt
 from app.plan_data import DAY_ORDER, cached_plan_is_current, cooking_days_for_frequency
 from app.plan_data import days_covered_by_meal, example_recipe
@@ -683,6 +685,166 @@ def test_unparsable_package_size_falls_back_to_the_quantity_the_model_asked_for(
     assert (mlieko["mnozstvo"], mlieko["davka"]) == (3, "2 l")
 
 
+# -------------------------------------------- profesionálny porciový štandard
+def test_mixed_household_separates_served_plates_from_adult_equivalents():
+    """2 dospelí + 2 deti na tri dni = 12 tanierov, ale 9,9 dospelej dávky."""
+    assert plan_data.servings_for(2, 2, frequency=3, day="PO") == 12
+    assert plan_data.adult_equivalents_for(2, 2, frequency=3, day="PO") == Decimal("9.90")
+
+    assert plan_data.servings_for(2, 2, frequency=3, day="NE") == 4
+    assert plan_data.adult_equivalents_for(2, 2, frequency=3, day="NE") == Decimal("3.30")
+
+
+def test_mixed_household_recipe_uses_adult_equivalents_but_displays_real_servings():
+    payload = model_output_for_cooking_days(("PO", "ŠT", "NE"), household=4, frequency=3)
+    payload["meals"][0]["items"] = [{
+        "offer_key": verified_key(1),
+        "quantity": 1,
+        "amount_per_adult": 250,
+        "unit": "ml",
+        "ingredient_role": "sauce_liquid",
+    }]
+    payload["meals"][0]["instructions"] = [
+        "V hrnci zohrej 2,475 l mlieka na strednom ohni 5 minút, kým sa nezačne pariť.",
+        "Vsyp 400 g krupice, osoľ štipkou soli a metličkou miešaj 3 minúty, kým kaša nezhustne.",
+        "Kašu rozdeľ na 12 tanierov, posyp 2 lyžičkami škorice a hneď podávaj.",
+    ]
+
+    plan = build_personal_plan(
+        connection(verified_rows()), payload, ["Lidl", "Tesco"], 3, None,
+        pantry=["soľ"], today=TODAY, adults=2, children=2,
+    )
+
+    first = plan["jedla"][0]
+    assert first["recept"]["porcie"] == 12
+    assert first["recept"]["pre"] == "2 dospelí + 2 deti × 3 dni"
+    assert first["suroviny"][0]["davka"] == "2,475 l"
+    assert first["suroviny"][0]["mnozstvo"] == 3
+    assert plan["jedla"][-1]["recept"]["porcie"] == 4
+
+
+def test_prompt_distinguishes_servings_from_adult_equivalents_and_uses_new_field():
+    prompt = personal_plan_prompt(
+        [], 3, [], None, adults=2, children=2,
+    )
+
+    assert "2 dospelí" in prompt and "2 deti" in prompt
+    assert "12 porcií" in prompt and "9,9" in prompt
+    assert "amount_per_adult" in prompt
+    assert "amount_per_person" not in prompt
+    assert "3–12" in prompt and "0,65" in prompt
+
+
+@pytest.mark.parametrize(
+    "name,category,claimed,unit,minimum,maximum,role",
+    [
+        ("Kuracie prsia", "mäso", None, "g", 120, 200, "protein_main"),
+        ("Ryža dlhozrnná", "trvanlivé", None, "g", 60, 110, "dry_starch"),
+        ("Zemiaky", "zelenina", None, "g", 200, 400, "potato"),
+        ("Šošovica", "trvanlivé", None, "g", 60, 110, "legume_dry"),
+        ("Brokolica", "zelenina", None, "g", 120, 350, "vegetable"),
+        ("Chlieb", "pečivo", None, "g", 60, 150, "bread"),
+        ("Vajcia", "vajcia", None, "ks", 1, 3, "egg"),
+        ("Tvaroh", "mliečne", None, "g", 60, 150, "dairy_main"),
+        ("Parmezán", "mliečne", None, "g", 10, 60, "dairy_addition"),
+        ("Mlieko", "mliečne", None, "ml", 100, 400, "sauce_liquid"),
+        ("Olivový olej", "trvanlivé", None, "ml", 5, 40, "fat_addition"),
+        ("Neznáma potravina", "iné", "other", "g", 1, 500, "other"),
+    ],
+)
+def test_every_portion_role_enforces_its_approved_range(
+        name, category, claimed, unit, minimum, maximum, role):
+    assert plan_data.validate_portion_amount(
+        name, category, minimum, unit, claimed
+    ) == (role, unit, Decimal(str(minimum)))
+    assert plan_data.validate_portion_amount(
+        name, category, maximum, unit, claimed
+    ) == (role, unit, Decimal(str(maximum)))
+    with pytest.raises(ValueError, match="porciovú triedu"):
+        plan_data.validate_portion_amount(name, category, maximum + 1, unit, claimed)
+
+
+def test_known_food_name_wins_over_an_incompatible_model_role():
+    assert plan_data.ingredient_role_for(
+        "Olivový olej", "trvanlivé", claimed_role="dry_starch", base="ml"
+    ) == "fat_addition"
+    with pytest.raises(ValueError, match="porciovú triedu"):
+        plan_data.validate_portion_amount(
+            "Olivový olej", "trvanlivé", 75, "ml", claimed_role="dry_starch"
+        )
+
+
+def test_unknown_food_uses_the_conservative_fallback_instead_of_model_guessing():
+    assert plan_data.ingredient_role_for(
+        "Záhadná zmes", "mäso", claimed_role="dry_starch", base="g"
+    ) == "protein_main"
+    assert plan_data.ingredient_role_for(
+        "Záhadná zmes", "iné", claimed_role="not-a-role", base="g"
+    ) == "other"
+
+
+def test_name_classifier_matches_whole_tokens_not_substrings_inside_adjectives():
+    """Maslová tekvica je druh zeleniny, nie porcia masla."""
+    assert plan_data.ingredient_role_for(
+        "Maslová tekvica", "zelenina", claimed_role="vegetable", base="g"
+    ) == "vegetable"
+    assert plan_data.validate_portion_amount(
+        "Maslová tekvica", "zelenina", 200, "g", "vegetable"
+    )[0] == "vegetable"
+
+
+@pytest.mark.parametrize(
+    "name,amount",
+    [("Cibuľa", 50), ("Cesnak", 10)],
+)
+def test_small_aromatics_use_a_closed_addition_role(name, amount):
+    assert plan_data.validate_portion_amount(
+        name, "zelenina", amount, "g", "vegetable_addition"
+    ) == ("vegetable_addition", "g", Decimal(str(amount)))
+
+
+def test_small_amount_does_not_turn_main_broccoli_into_an_addition():
+    with pytest.raises(ValueError, match="porciovú triedu"):
+        plan_data.validate_portion_amount(
+            "Brokolica", "zelenina", 5, "g", "vegetable_addition"
+        )
+
+
+def test_ordinary_cheese_may_be_main_or_addition_but_not_an_incompatible_role():
+    assert plan_data.validate_portion_amount(
+        "Syr Eidam", "mliečne", 30, "g", "dairy_addition"
+    ) == ("dairy_addition", "g", Decimal("30"))
+    assert plan_data.validate_portion_amount(
+        "Syr Eidam", "mliečne", 100, "g", "dairy_main"
+    ) == ("dairy_main", "g", Decimal("100"))
+    with pytest.raises(ValueError, match="porciov"):
+        plan_data.validate_portion_amount(
+            "Syr Eidam", "mliečne", 75, "g", "dry_starch"
+        )
+
+
+def test_common_valid_ingredients_do_not_trigger_a_paid_plan_retry():
+    """Tieto bežné AI návrhy musia prejsť prvýkrát, nie spáliť platený retry."""
+    cases = (
+        ("Maslová tekvica", "zelenina", 200, "g", "vegetable"),
+        ("Cibuľa", "zelenina", 50, "g", "vegetable_addition"),
+        ("Cesnak", "zelenina", 10, "g", "vegetable_addition"),
+        ("Syr Eidam", "mliečne", 30, "g", "dairy_addition"),
+    )
+    assert [
+        plan_data.validate_portion_amount(name, category, amount, unit, role)[0]
+        for name, category, amount, unit, role in cases
+    ] == ["vegetable", "vegetable_addition", "vegetable_addition", "dairy_addition"]
+
+
+def test_prompt_exposes_the_closed_addition_role_and_ambiguous_examples():
+    rules = plan_data.recipe_rules()
+    assert "vegetable_addition" in rules
+    assert "Maslová tekvica" in rules
+    assert "Cibuľa" in rules and "50" in rules
+    assert "Syr Eidam" in rules and "dairy_addition" in rules
+
+
 # ------------------------------------------------- názov musí sedieť na recept
 def with_steps(steps, name="Dusená cibuľa"):
     payload = model_output()
@@ -965,10 +1127,10 @@ def test_prompt_spells_out_the_portion_arithmetic_instead_of_hoping_the_model_gu
     prompt = full_prompt()
     tail = personal_plan_prompt(offers_connection(), 2, ["soľ"], household_size=4)
 
-    assert "amount_per_person" in prompt and "unit = g, ml alebo ks" in prompt
+    assert "amount_per_adult" in prompt and "unit = g, ml alebo ks" in prompt
     assert "PO: navar 8 porcií na 2 dni" in tail, "4 osoby × 2 dni"
     assert "NE: navar 4 porcie na 1 deň" in tail, "nedeľa nesmie variť do pondelka"
-    assert "amount_per_person × počet porcií uvedený pri jeho dni" in tail
+    assert "amount_per_adult × počet dospelých kuchárskych" in tail
 
 
 def test_prompt_shows_a_whole_worked_recipe_that_passes_our_own_validation():

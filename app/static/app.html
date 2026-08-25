@@ -189,7 +189,10 @@ const PROFILE_KEY = 'uvarsi_profil';
 function rememberProfile(me) {
   try {
     localStorage.setItem(PROFILE_KEY, JSON.stringify({
-      email: me.email, osoby: me.osoby, frekvencia: me.frekvencia,
+      email: me.email, osoby: me.osoby,
+      adults: me.adults == null ? me.osoby : me.adults,
+      children: me.children == null ? 0 : me.children,
+      frekvencia: me.frekvencia,
       obchody: me.obchody, onboarding: !!me.onboarding}));
   } catch (e) {}
 }
@@ -647,10 +650,20 @@ function viewLogin(sent, previousEmail) {
 }
 
 /* ---------- onboarding ---------- */
+function householdLabel(profil) {
+  profil = profil || {};
+  const a = +(profil.adults == null ? profil.osoby || 4 : profil.adults), c = +(profil.children || 0);
+  const word = (n, one, few, many) => n === 1 ? one : n < 5 ? few : many;
+  return [a && `${a} ${word(a,'dospelý','dospelí','dospelých')}`,
+    c && `${c} ${word(c,'dieťa','deti','detí')}`].filter(Boolean).join(' + ');
+}
+
 function viewOnboarding() {
   $('#nav').classList.add('hidden');
   const profil = ME || {};
-  const osoby = profil.osoby || 4;
+  const legacyOsoby = profil.osoby || 4;
+  const adults = profil.adults == null ? legacyOsoby : profil.adults;
+  const children = profil.children == null ? 0 : profil.children;
   const frekvencia = profil.frekvencia || 2;
   const obchody = (profil.obchody && profil.obchody.length) ? profil.obchody : ['Kaufland','Tesco','Lidl'];
   const uzMaProfil = !!profil.onboarding;
@@ -660,10 +673,12 @@ function viewOnboarding() {
       <h1 class="display" style="font-size:1.8rem;margin:8px 0 18px">${uzMaProfil?'Uprav si nastavenie.':'Povedz mi tri veci.'}</h1>
       ${uzMaProfil?`<p class="muted" style="margin:-8px 0 18px">Máš tu svoje doterajšie nastavenie. Zmeň, čo potrebuješ.</p>`:''}
       <div class="card">
-        <label>Pre koľko ľudí varíš?</label>
-        <div class="chips" id="c-osoby">
-          ${[1,2,3,4,5,6].map(n=>`<div class="chip${n===osoby?' on':''}" data-v="${n}">${n}</div>`).join('')}
-        </div>
+        <label>Pre koho varíš?</label>
+        <label id="lbl-dospeli">Dospelí</label><div class="chips" id="c-dospeli" role="group" aria-labelledby="lbl-dospeli">
+          <button class="chip" type="button" data-step="-1" aria-label="Odobrať dospelého">−</button><output class="chip on" data-v="${adults}" aria-live="polite">${adults}</output><button class="chip" type="button" data-step="1" aria-label="Pridať dospelého">+</button>
+        </div><label id="lbl-deti" style="margin-top:12px">Deti</label><div class="chips" id="c-deti" role="group" aria-labelledby="lbl-deti">
+          <button class="chip" type="button" data-step="-1" aria-label="Odobrať dieťa">−</button><output class="chip on" data-v="${children}" aria-live="polite">${children}</output><button class="chip" type="button" data-step="1" aria-label="Pridať dieťa">+</button>
+        </div><p class="muted" style="margin-top:12px">Dieťa: 3–12 rokov, menšia kuchárska porcia. Porciu tínedžera rátame ako dospelú. Deti do 3 rokov neplánujeme.</p>
       </div>
       <div class="card">
         <label>Ako často chceš variť?</label>
@@ -689,15 +704,30 @@ function viewOnboarding() {
     [...$(id).children].forEach(c=>c.classList.remove('on'));
     e.target.classList.add('on');
   };
-  single('#c-osoby'); single('#c-frek');
+  const counter = id => {
+    const root = $(id), output = root.querySelector('output');
+    root.onclick = e => {
+      const button = e.target.closest('button[data-step]'); if (!button) return;
+      const otherId = id === '#c-dospeli' ? '#c-deti' : '#c-dospeli';
+      const other = +$(otherId).querySelector('output').dataset.v;
+      const next = Math.max(0, Math.min(12 - other, +output.dataset.v + +button.dataset.step));
+      output.dataset.v = output.textContent = String(next);
+    };
+  };
+  counter('#c-dospeli'); counter('#c-deti'); single('#c-frek');
   $('#c-obch').onclick = e => { if (e.target.dataset.v) e.target.classList.toggle('on'); };
   if (uzMaProfil) $('#spat').onclick = () => { TAB = 'nastavenia'; render(); };
   $('#save').onclick = () => runGuardedAction($('#save'), $('#ob-err'), async () => {
     const val = id => $(id).querySelector('.on')?.dataset.v;
     const vybrane = [...$('#c-obch').querySelectorAll('.on')].map(c=>c.dataset.v);
+    const adults = +val('#c-dospeli');
+    const children = +val('#c-deti');
+    if (!Number.isInteger(adults) || !Number.isInteger(children) || adults + children < 1)
+      throw new Error('Vyber aspoň jednu osobu.');
+    if (adults + children > 12) throw new Error('Plán môže byť najviac pre 12 ľudí.');
     if (!vybrane.length) throw new Error('Vyber aspoň jeden obchod.');
     await api('/api/profil', {method:'POST', body:JSON.stringify(
-      {osoby:+val('#c-osoby'), frekvencia:+val('#c-frek'), obchody:vybrane})});
+      {adults:+val('#c-dospeli'), children:+val('#c-deti'), frekvencia:+val('#c-frek'), obchody:vybrane})});
     ME = await api('/api/me');
     await refreshPlanAfterProfileSave();
   });
@@ -816,8 +846,17 @@ function portionLine(recept) {
     var word = portions === 1 ? 'porcia' : portions < 5 ? 'porcie' : 'porcií';
     parts.push(portions + ' ' + word);
   }
+  var composition = typeof ME !== 'undefined' && ME ? householdLabel(ME) : '';
   var forWhom = String(recept.pre == null ? '' : recept.pre).trim();
-  if (forWhom) parts.push('pre ' + forWhom);
+  if (composition) {
+    parts.push(composition);
+    var days = Math.round(Number(recept.dni));
+    if (!isFinite(days) || days < 1) {
+      var match = forWhom.match(/[×x]\s*(\d+)\s*(?:deň|dni|dní)\s*$/i);
+      days = match ? +match[1] : 0;
+    }
+    if (days) parts.push('na ' + days + ' ' + (days === 1 ? 'deň' : days < 5 ? 'dni' : 'dní'));
+  } else if (forWhom) parts.push('pre ' + forWhom);
   return parts.join(' · ');
 }
 
@@ -1169,10 +1208,11 @@ function vNast() {
   M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Nastavenia</span>
     <h1 class="display" style="font-size:1.5rem;margin-top:4px">Tvoj profil</h1></div>
     <div class="card"><div class="ing"><span>E-mail</span><span class="r">${esc(ME.email)}</span></div>
-      <div class="ing"><span>Varím pre</span><span class="r">${ME.osoby} os.</span></div>
+      <div class="ing"><span>Varím pre</span><span class="r">${esc(householdLabel(ME))}</span></div>
       <div class="ing"><span>Varenie</span><span class="r">${varenie}</span></div>
       <div class="ing" style="border:0"><span>Obchody</span><span class="r">${ME.obchody.join(' · ')}</span></div>
     </div>
+    <p class="muted" style="margin:-4px 0 16px">Porcie sú kuchársky odhad na plánovanie nákupu, nie individuálne výživové odporúčanie.</p>
     <button class="btn btn--ghost" id="zmen">Zmeniť nastavenie</button>
     <div style="height:10px"></div>
     <button class="btn btn--ghost" id="odhl" style="color:var(--red)">Odhlásiť sa</button>
