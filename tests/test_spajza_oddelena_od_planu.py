@@ -20,6 +20,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.plan_data import personal_plan_prompt, plan_signature
+from app import plan_data
 
 from tests.test_server import (
     current_plan_rows,
@@ -207,6 +208,139 @@ def test_adding_to_the_pantry_never_reshapes_the_menu(monkeypatch, tmp_path):
 
     assert po["jedla"] == pred["jedla"], "pridané vajíčko nesmie preskladať týždeň"
     assert po["nakup_spolu"] == pred["nakup_spolu"]
+
+
+# -------------------------------- osobná cache: verzia algoritmu a pôvod plánu
+def test_get_invalidates_a_legacy_personal_plan_without_calling_the_model(
+        monkeypatch, tmp_path):
+    """Plán uložený pred v4 sa nesmie ďalej podávať ani potichu preskladať."""
+    server = shared_plan_server(monkeypatch, tmp_path, users=(1,), pantry={1: []})
+    with server.db() as con:
+        legacy = server.build_personal_plan(
+            con, model_plan(), ["Lidl"], 2, 4, pantry=[])
+        con.execute(
+            "INSERT OR REPLACE INTO plany (user_id,tyzden,json) VALUES (?,?,?)",
+            (1, server.monday(), json.dumps(legacy, ensure_ascii=False)),
+        )
+        con.commit()
+    constructors = []
+    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), constructors))
+
+    response = plan_client(server, 1).get("/api/plan")
+
+    assert response.status_code == 200
+    assert response.json()["prazdny"] is True
+    assert response.json()["vyzaduje_akciu"] is True
+    assert constructors == [], "invalidácia cache nesmie sama zavolať platený model"
+    with server.db() as con:
+        assert con.execute("SELECT COUNT(*) FROM plany WHERE user_id=1").fetchone()[0] == 0
+
+
+def test_explicit_generate_replaces_a_legacy_personal_plan_with_a_current_one(
+        monkeypatch, tmp_path):
+    server = shared_plan_server(monkeypatch, tmp_path, users=(1,), pantry={1: []})
+    with server.db() as con:
+        legacy = server.build_personal_plan(con, model_plan(), ["Lidl"], 2, 4, pantry=[])
+        con.execute(
+            "INSERT OR REPLACE INTO plany (user_id,tyzden,json) VALUES (?,?,?)",
+            (1, server.monday(), json.dumps(legacy, ensure_ascii=False)),
+        )
+        con.commit()
+    constructors = []
+    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), constructors))
+
+    response = plan_client(server, 1).post("/api/plan/generuj")
+
+    assert response.status_code == 200
+    assert response.json().get("prazdny") is not True
+    assert len(constructors) == 1, "explicitný POST smie vytvoriť čerstvý plán"
+    with server.db() as con:
+        stored = json.loads(con.execute(
+            "SELECT json FROM plany WHERE user_id=1").fetchone()[0])
+    assert stored["_uvarsi_meta"]["algo_version"] == plan_data.PLAN_ALGO_VERSION
+
+
+def test_a_personal_plan_with_a_different_algorithm_version_is_invalidated(monkeypatch, tmp_path):
+    server = shared_plan_server(monkeypatch, tmp_path, users=(1,), pantry={1: []})
+    with server.db() as con:
+        stale = server.build_personal_plan(con, model_plan(), ["Lidl"], 2, 4, pantry=[])
+        stale["_uvarsi_meta"] = {
+            "algo_version": plan_data.PLAN_ALGO_VERSION - 1,
+            "pantry_driven": False,
+        }
+        con.execute(
+            "INSERT OR REPLACE INTO plany (user_id,tyzden,json) VALUES (?,?,?)",
+            (1, server.monday(), json.dumps(stale, ensure_ascii=False)),
+        )
+        con.commit()
+
+    response = plan_client(server, 1).get("/api/plan")
+
+    assert response.status_code == 200
+    assert response.json()["prazdny"] is True
+    assert response.json()["vyzaduje_akciu"] is True
+
+
+def test_generated_personal_plan_stores_current_metadata_but_never_exposes_it(
+        monkeypatch, tmp_path):
+    server = shared_plan_server(monkeypatch, tmp_path, users=(1,), pantry={1: []})
+    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), []))
+
+    response = plan_client(server, 1).post("/api/plan/generuj")
+
+    assert response.status_code == 200
+    assert "_uvarsi_meta" not in response.json()
+    with server.db() as con:
+        stored = json.loads(con.execute(
+            "SELECT json FROM plany WHERE user_id=1").fetchone()[0])
+        shared = [json.loads(row[0]) for row in con.execute("SELECT json FROM plany_zdielane")]
+    assert stored["_uvarsi_meta"] == {
+        "algo_version": plan_data.PLAN_ALGO_VERSION,
+        "pantry_driven": False,
+    }
+    assert all("_uvarsi_meta" not in plan for plan in shared)
+
+
+def test_a_pantry_driven_plan_is_invalidated_when_the_normalized_pantry_changes(
+        monkeypatch, tmp_path):
+    server = shared_plan_server(monkeypatch, tmp_path, users=(1,), pantry={1: ["soľ"]})
+    constructors = []
+    monkeypatch.setitem(
+        sys.modules, "anthropic",
+        fake_anthropic(model_plan(pantry=["soľ"]), constructors),
+    )
+    client = plan_client(server, 1)
+    assert client.post("/api/plan/zo-spajze").status_code == 200
+    assert len(constructors) == 1
+
+    assert client.post("/api/spajza", json={"polozky": ["soľ", "vajcia"]}).status_code == 200
+    response = client.get("/api/plan")
+
+    assert response.status_code == 200
+    assert response.json()["prazdny"] is True
+    assert response.json()["vyzaduje_akciu"] is True
+    assert len(constructors) == 1, "zmena špajze nesmie automaticky minúť ďalší prepočet"
+    with server.db() as con:
+        assert con.execute("SELECT COUNT(*) FROM plany WHERE user_id=1").fetchone()[0] == 0
+
+
+def test_pantry_signature_is_order_case_and_whitespace_insensitive(monkeypatch, tmp_path):
+    server = shared_plan_server(
+        monkeypatch, tmp_path, users=(1,), pantry={1: ["soľ"]})
+    constructors = []
+    monkeypatch.setitem(
+        sys.modules, "anthropic",
+        fake_anthropic(model_plan(pantry=["soľ"]), constructors),
+    )
+    client = plan_client(server, 1)
+    assert client.post("/api/plan/zo-spajze").status_code == 200
+
+    assert client.post("/api/spajza", json={"polozky": [" SOĽ "]}).status_code == 200
+    response = client.get("/api/plan")
+
+    assert response.status_code == 200
+    assert response.json().get("prazdny") is not True
+    assert len(constructors) == 1
 
 
 # ------------------------------------------- výslovné „uvar z toho, čo mám doma"

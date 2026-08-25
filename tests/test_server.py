@@ -479,6 +479,8 @@ def test_plan_route_persists_only_reconstructed_server_commerce(monkeypatch, tmp
     # každom čítaní, aby nikdy nezostarol.
     with server.db() as con:
         ulozeny = json.loads(con.execute("SELECT json FROM plany WHERE user_id=1").fetchone()[0])
+    assert ulozeny.pop("_uvarsi_meta") == {
+        "algo_version": server.PLAN_ALGO_VERSION, "pantry_driven": False}
     assert ulozeny == server.plan_without_pantry(payload)
     assert "spajza" not in ulozeny and "spajza_pokryte" not in ulozeny
 
@@ -947,6 +949,7 @@ def test_cached_plan_is_503_when_one_selected_offer_is_no_longer_current(monkeyp
         insert_hashed_session(server, con, "session-token", 1)
         con.execute("INSERT INTO spajza (user_id, nazov) VALUES (1, 'soľ')")
         cached = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4, pantry=["soľ"])
+        cached = server.osobny_plan_na_ulozenie(cached)
         con.execute("INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)", (1, current_monday(), json.dumps(cached)))
         con.execute("DELETE FROM akcie WHERE rowid=1")
         con.commit()
@@ -1436,6 +1439,7 @@ def test_the_plan_a_free_user_is_reading_is_never_taken_away_by_the_lock(monkeyp
     with server.db() as con:
         plan = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4, pantry=["soľ"])
         plan["spajza"] = ["soľ"]
+        plan = server.osobny_plan_na_ulozenie(plan)
         con.execute("INSERT INTO plany (user_id, tyzden, json) VALUES (1, ?, ?)",
                     (current_monday(), json.dumps(plan)))
         con.commit()

@@ -10,7 +10,7 @@ Závislosti: fastapi uvicorn itsdangerous
 """
 import asyncio
 import logging
-import os, re, json, sqlite3, datetime, threading, time
+import os, re, json, sqlite3, datetime, threading, time, hashlib
 from contextlib import asynccontextmanager, closing
 
 import anyio.to_thread
@@ -25,6 +25,7 @@ from landing_data import load_landing_data, validate_landing_data
 from weekly_data import offers_for_current_week
 from offer_data import OfferKeyCollision, migrate_akcie_schema
 from plan_data import (
+    PLAN_ALGO_VERSION,
     apply_pantry_to_shopping_list,
     build_personal_plan,
     cached_plan_is_current,
@@ -880,8 +881,39 @@ def so_spajzou(plan, spajza):
     zmena špajze prejaví okamžite a do zdieľaného riadku sa nemá ako dostať.
     """
     upraveny = apply_pantry_to_shopping_list(plan, spajza)
+    upraveny.pop("_uvarsi_meta", None)
     upraveny["spajza"] = list(spajza)
     return upraveny
+
+
+PLAN_META_KEY = "_uvarsi_meta"
+
+
+def podpis_spajze(spajza):
+    """Stabilný odtlačok obsahu špajze bez ukladania ďalšej čitateľnej kópie."""
+    normalizovane = sorted({str(item).strip().casefold() for item in spajza if str(item).strip()})
+    payload = json.dumps(normalizovane, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def osobny_plan_na_ulozenie(plan, spajza=(), zo_spajze=False):
+    ulozeny = dict(plan)
+    meta = {"algo_version": PLAN_ALGO_VERSION, "pantry_driven": bool(zo_spajze)}
+    if zo_spajze:
+        meta["pantry_signature"] = podpis_spajze(spajza)
+    ulozeny[PLAN_META_KEY] = meta
+    return ulozeny
+
+
+def osobna_cache_plati(plan, spajza):
+    if not isinstance(plan, dict) or not isinstance(plan.get(PLAN_META_KEY), dict):
+        return False
+    meta = plan[PLAN_META_KEY]
+    if meta.get("algo_version") != PLAN_ALGO_VERSION:
+        return False
+    if meta.get("pantry_driven") is True:
+        return meta.get("pantry_signature") == podpis_spajze(spajza)
+    return meta.get("pantry_driven") is False
 
 
 def nacitaj_zdielany_plan(con, podpis, variant):
@@ -911,6 +943,7 @@ def uloz_zdielany_plan(con, podpis, variant, tyzden, plan, predpocitany=False):
     aj suroviny a dávky zo špajze vnútri jedál.
     """
     zdielany = plan_without_pantry(plan)
+    zdielany.pop(PLAN_META_KEY, None)
     con.execute(
         "INSERT OR REPLACE INTO plany_zdielane (podpis,variant,tyzden,json,predpocitany)"
         " VALUES (?,?,?,?,?)",
@@ -927,7 +960,7 @@ def prevezmi_zdielany_plan(con, user_id, tyzden, zdielany, spajza):
     každom čítaní, takže sa nikdy nestane zastaraným a nezaklincuje sa do
     databázy niečo, čo pri ďalšej zmene špajze prestane platiť.
     """
-    plan = plan_without_pantry(zdielany)
+    plan = osobny_plan_na_ulozenie(plan_without_pantry(zdielany))
     con.execute(
         "INSERT OR REPLACE INTO plany (user_id,tyzden,json) VALUES (?,?,?)",
         (user_id, tyzden, json.dumps(plan, ensure_ascii=False)),
@@ -996,6 +1029,7 @@ def generuj_plan(req: Request, force: int = 0):
 
     with closing(db()) as con:
         premium = je_premium(con, u["id"])
+        sp = spajza_pouzivatela(con, u["id"], premium)
         if not force:
             r = con.execute("SELECT json FROM plany WHERE user_id=? AND tyzden=?",
                             (u["id"], tyz)).fetchone()
@@ -1004,12 +1038,12 @@ def generuj_plan(req: Request, force: int = 0):
                     cached = json.loads(r["json"])
                 except json.JSONDecodeError:
                     cached = None
-                if cached and cached_plan_is_current(cached, rows):
-                    return so_spajzou(cached, spajza_pouzivatela(con, u["id"], premium))
+                if osobna_cache_plati(cached, sp) and cached_plan_is_current(cached, rows):
+                    return so_spajzou(cached, sp)
                 con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], tyz))
                 con.commit()
-                raise HTTPException(503, "Aktuálny plán už obsahuje neplatnú ponuku. Skús to o chvíľu.")
-        sp = spajza_pouzivatela(con, u["id"], premium)
+                if cached and osobna_cache_plati(cached, sp):
+                    raise HTTPException(503, "Aktuálny plán už obsahuje neplatnú ponuku. Skús to o chvíľu.")
 
     # Plán závisí len od profilu a ponúk — špajza doň nevstupuje, takže sa
     # rovnaká domácnosť trafí do zdieľanej cache aj s plnou špajzou a čaká
@@ -1192,6 +1226,7 @@ def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant, zo_spajze=Fa
             )
         except ValueError:
             raise HTTPException(500, "Plán sa nepodarilo bezpečne overiť, skús to znova.")
+        plan = osobny_plan_na_ulozenie(plan, sp, zo_spajze)
         con.execute("INSERT OR REPLACE INTO plany (user_id,tyzden,json) VALUES (?,?,?)",
                     (u["id"], tyz, json.dumps(plan, ensure_ascii=False)))
         # Plán poskladaný z osobnej špajze sa nesmie zdieľať s nikým: nesie
@@ -1215,12 +1250,15 @@ def daj_plan(req: Request):
         except json.JSONDecodeError:
             cached = None
         rows = offers_for_current_week(con, u["obchody"].split(","), datetime.date.today())
-        if cached and cached_plan_is_current(cached, rows):
+        sp = spajza_pouzivatela(con, u["id"], je_premium(con, u["id"]))
+        if cached and osobna_cache_plati(cached, sp) and cached_plan_is_current(cached, rows):
             # Špajza sa dopočíta až tu, pri každom čítaní nanovo — preto sa
             # zmena v špajzi prejaví okamžite a bez plateného prepočtu.
-            return so_spajzou(cached, spajza_pouzivatela(con, u["id"], je_premium(con, u["id"])))
+            return so_spajzou(cached, sp)
         con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], monday()))
         con.commit()
+        if not osobna_cache_plati(cached, sp):
+            return {"prazdny": True, "vyzaduje_akciu": True}
     raise HTTPException(503, "Aktuálny plán už obsahuje neplatnú ponuku. Skús to o chvíľu.")
 
 

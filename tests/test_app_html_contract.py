@@ -447,17 +447,58 @@ def test_plan_screen_promises_only_what_the_leaflet_actually_proves():
 
 
 # --------------------------------------------------------------- špajza (defekt 1)
-def test_editing_the_pantry_saves_instantly_and_never_regenerates_the_plan():
+def test_editing_the_pantry_saves_then_refetches_but_never_regenerates_the_plan():
     """Majiteľ: „pridám vajíčka a zrazu mi preskladá celý jedálniček bez vyzvania"."""
     html = app_html()
     pantry_view = declaration(html, "function vSpajza() ")
 
     assert "/api/spajza" in pantry_view, "the pantry still has to save"
-    assert "nacitajPlan" not in pantry_view, (
+    assert "refreshPlanAfterPantrySave" in pantry_view
+    assert "/api/plan/generuj" not in pantry_view
+    assert "nacitajPlan(true)" not in pantry_view, (
         "a pantry edit must never trigger a paid regeneration as a side effect"
     )
-    assert "api('/api/plan" not in pantry_view, "the pantry must not touch the plan endpoints"
     assert "vSpajza()" in pantry_view, "the pantry redraws itself, so the edit feels instant"
+    plan_view = declaration(html, "function vPlan() ")
+    assert "PLAN_NEEDS_REGEN" in plan_view
+    assert "nacitajPlan(true)" in plan_view, "prázdny zastaraný plán potrebuje výslovné CTA"
+    load_plan = declaration(html, "async function nacitajPlan(gen) ")
+    assert "vyzaduje_akciu" in load_plan
+    assert "PLAN_NEEDS_REGEN" in load_plan
+
+
+@needs_node
+def test_pantry_save_refresh_replaces_or_clears_the_visible_plan_without_generation(tmp_path):
+    html = app_html()
+    refresh = declaration(html, "async function refreshPlanAfterPantrySave() ")
+    result = run_node(
+        tmp_path,
+        "pantry-save-refresh.js",
+        """
+var PLAN={old:true}, PLAN_NEEDS_REGEN=false, calls=[], rendered=0;
+function setPlan(plan) { PLAN=plan; }
+function render() { rendered++; }
+async function api(path, options) {
+  calls.push([path, options]);
+  return globalThis.nextPlan;
+}
+""" + refresh + """
+(async function () {
+  globalThis.nextPlan={jedla:[{nazov:'Aktuálny'}],nakup_spolu:'8,00'};
+  await refreshPlanAfterPantrySave();
+  if (!PLAN.jedla || PLAN.jedla[0].nazov !== 'Aktuálny') process.exit(1);
+  globalThis.nextPlan={prazdny:true};
+  await refreshPlanAfterPantrySave();
+  if (PLAN !== null) process.exit(2);
+  if (PLAN_NEEDS_REGEN !== true) process.exit(7);
+  if (calls.length !== 2 || calls.some(c => c[0] !== '/api/plan')) process.exit(3);
+  if (calls.some(c => c[1] && c[1].method === 'POST')) process.exit(4);
+  if (rendered < 2) process.exit(5);
+  process.exit(0);
+})().catch(function () { process.exit(6); });
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @needs_node
