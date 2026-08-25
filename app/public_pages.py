@@ -56,8 +56,8 @@ def _iso_to_date(stamp: str | None) -> date | None:
     return datetime.fromisoformat(stamp).date()
 
 
-def _format_date(iso_value: str) -> str:
-    parsed = date.fromisoformat(iso_value)
+def _format_date(value: str | date) -> str:
+    parsed = value if isinstance(value, date) else date.fromisoformat(value)
     return f"{parsed.day}. {parsed.month}. {parsed.year}"
 
 
@@ -174,15 +174,71 @@ def _article(*, title: str, description: str, url: str, date_modified: str | Non
     return article
 
 
+def _required_text_field(record: dict, field: str) -> str:
+    value = record.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"Chýba {field}.")
+    return value
+
+
+def _required_iso_date(record: dict, field: str) -> date:
+    try:
+        return date.fromisoformat(_required_text_field(record, field))
+    except ValueError as error:
+        raise ValueError(f"Chýba alebo nesedí {field}.") from error
+
+
+def _shared_validity_markup(sources: list[dict]) -> tuple[str, list[str]]:
+    shared_from: date | None = None
+    shared_to: date | None = None
+    source_markup: list[str] = []
+
+    for source in sources:
+        store = _required_text_field(source, "store")
+        valid_from = _required_iso_date(source, "valid_from")
+        valid_to = _required_iso_date(source, "valid_to")
+        if valid_from > valid_to:
+            raise ValueError("Zdroj má obrátené dátumy platnosti.")
+
+        if shared_from is None or valid_from > shared_from:
+            shared_from = valid_from
+        if shared_to is None or valid_to < shared_to:
+            shared_to = valid_to
+
+        label = f"{_safe_text(store)}: {_format_date(valid_from)} - {_format_date(valid_to)}"
+        if source.get("source_page") not in (None, ""):
+            label += f", strana {_safe_text(source['source_page'])}"
+        href = _safe_url(source.get("url"))
+        if href:
+            label += f' (<a href="{href}">zdroj</a>)'
+        source_markup.append(f"<li>{label}</li>")
+
+    if shared_from is None or shared_to is None:
+        raise ValueError("Chýbajú zdroje s platnosťou.")
+
+    if shared_from <= shared_to:
+        return (
+            f'<p class="meta">Platnosť cien: {_format_date(shared_from)} - {_format_date(shared_to)}</p>',
+            source_markup,
+        )
+
+    return (
+        '<p class="meta">Platnosť cien sa líši podľa obchodu. Presné termíny nájdeš pri zdrojoch nižšie.</p>',
+        source_markup,
+    )
+
+
 def _weekly_body(payload: dict) -> str:
     receipt = payload["receipt"]
     sources = payload["sources"]
-    valid_from = min(source["valid_from"] for source in sources)
-    valid_to = max(source["valid_to"] for source in sources)
+    validity_markup, source_markup = _shared_validity_markup(sources)
     meals_markup: list[str] = []
     for meal in receipt["meals"]:
         items_markup: list[str] = []
         for item in meal["items"]:
+            unit = _required_text_field(item, "unit")
+            if item.get("price") in (None, ""):
+                raise ValueError("Chýba price.")
             original = ""
             if item.get("original_price"):
                 original = (
@@ -191,7 +247,7 @@ def _weekly_body(payload: dict) -> str:
             items_markup.append(
                 "<li>"
                 f"<strong>{_safe_text(item['name'])}</strong> "
-                f"({_safe_text(item['store'])}, {_safe_text(item['unit'])}) "
+                f"({_safe_text(item['store'])}, {_safe_text(unit)}) "
                 f'<span class="price">{_safe_text(item["price"])} €</span>'
                 f"{original}"
                 "</li>"
@@ -204,24 +260,12 @@ def _weekly_body(payload: dict) -> str:
             + "".join(items_markup)
             + "</ul></section>"
         )
-
-    source_markup = []
-    for source in sources:
-        href = _safe_url(source.get("url"))
-        label = (
-            f"{_safe_text(source['store'])}: {_format_date(source['valid_from'])} - {_format_date(source['valid_to'])}, "
-            f"strana {_safe_text(source.get('source_page'))}"
-        )
-        if href:
-            label += f' (<a href="{href}">zdroj</a>)'
-        source_markup.append(f"<li>{label}</li>")
-
     return (
         f'<p class="lede">Aktuálny týždenný jedálniček pre { _safe_text(payload["week_label"]) } '
         "stojí na aktuálne platných letákoch a priamo odpovedá, čo sa oplatí variť tento týždeň.</p>"
         f'<div class="card"><p><strong>Priama odpoveď:</strong> Tento týždeň má zmysel postaviť varenie okolo '
         f'{_safe_text(receipt["meals"][0]["name"])} a ďalších overených akciových položiek.</p>'
-        f'<p class="meta">Platnosť cien: {_format_date(valid_from)} - {_format_date(valid_to)}</p>'
+        f"{validity_markup}"
         f'<p class="meta">Aktualizované: {_format_datetime(payload["generated_at"])}</p></div>'
         + "".join(meals_markup)
         + '<section class="card"><h2>Zdroje a strany letákov</h2><ul>'
@@ -291,13 +335,17 @@ def render_weekly_page(payload: dict | None, today: date | None = None) -> Rende
         ),
         _breadcrumbs("Čo variť tento týždeň", WEEKLY_URL),
     ]
+    try:
+        body = _weekly_body(validated)
+    except (KeyError, TypeError, ValueError):
+        return _weekly_recovery(today)
     return RenderedPage(
         html=_shell(
             title=title,
             description=description,
             canonical=WEEKLY_URL,
             h1="Čo variť tento týždeň",
-            body=_weekly_body(validated),
+            body=body,
             json_ld_payload=structured,
             indexable=True,
         ),

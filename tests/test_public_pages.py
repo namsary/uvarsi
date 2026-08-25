@@ -5,6 +5,7 @@ from datetime import date
 
 import pytest
 
+from app.landing_data import validate_landing_data
 from app.public_pages import ROBOTS_TXT, render_evergreen_page, render_sitemap, render_weekly_page
 
 
@@ -70,6 +71,18 @@ def payload():
             "polozky_s_beznou_cenou": 1,
         },
     }
+
+
+def sparse_payload():
+    data = payload()
+    data["sources"][0].pop("valid_from")
+    first_item = data["receipt"]["meals"][0]["items"][0]
+    first_item.pop("unit")
+    first_item.pop("price")
+    first_item["original_price"] = None
+    first_item["savings"] = None
+    data["receipt"].update(nakup_spolu="0,89", bezne="0,89", usetris="0,00", polozky_s_beznou_cenou=0)
+    return data
 
 
 def title_of(html):
@@ -168,6 +181,34 @@ def test_weekly_page_fails_closed_when_data_is_missing_invalid_or_stale():
         assert "1,49 €" not in page.html
         assert "2,19 €" not in page.html
         assert "https://letak.test/" not in page.html
+
+
+def test_weekly_page_fails_closed_for_sparse_validator_accepted_payload():
+    sparse = sparse_payload()
+
+    assert validate_landing_data(sparse, date(2026, 8, 18)) is sparse
+
+    page = render_weekly_page(sparse, today=date(2026, 8, 18))
+
+    assert page.indexable is False
+    assert page.last_modified is None
+    assert 'content="noindex,follow"' in page.html
+    assert "Týždenné ceny práve overujeme" in page.html
+    assert "0,89 €" not in page.html
+    assert "17.–23. 8. 2026" not in page.html
+
+
+def test_weekly_page_uses_shared_intersection_for_mixed_source_validity_windows():
+    mixed = payload()
+    mixed["sources"][1]["valid_from"] = "2026-08-19"
+    mixed["sources"][1]["valid_to"] = "2026-08-21"
+
+    page = render_weekly_page(mixed, today=date(2026, 8, 20))
+
+    assert "Platnosť cien: 19. 8. 2026 - 21. 8. 2026" in page.html
+    assert "Platnosť cien: 17. 8. 2026 - 23. 8. 2026" not in page.html
+    assert "Lidl: 17. 8. 2026 - 23. 8. 2026, strana 2" in page.html
+    assert "Tesco: 19. 8. 2026 - 21. 8. 2026, strana 4" in page.html
 
 
 @pytest.mark.parametrize(

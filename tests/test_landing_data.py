@@ -121,6 +121,23 @@ def test_accepts_items_without_a_verified_regular_price():
     assert validate_landing_data(data, date(2026, 8, 18)) is data
 
 
+def test_allows_sparse_public_page_fields_that_are_not_part_of_landing_validator_contract():
+    data = receipt_with(
+        [item(), item(name="Chlieb", store="Tesco", price="0,89", original_price=None, savings=None, off="")],
+        nakup_spolu="1,89", bezne="2,39", usetris="0,50",
+        polozky=2, polozky_s_beznou_cenou=1,
+    )
+    data["sources"][0].pop("valid_from")
+    first_item = data["receipt"]["meals"][0]["items"][0]
+    first_item.pop("unit")
+    first_item.pop("price")
+    first_item["original_price"] = None
+    first_item["savings"] = None
+    data["receipt"].update(nakup_spolu="0,89", bezne="0,89", usetris="0,00", polozky_s_beznou_cenou=0)
+
+    assert validate_landing_data(data, date(2026, 8, 18)) is data
+
+
 def test_rejects_item_saving_claimed_without_a_verified_regular_price():
     data = receipt_with(
         [item(original_price=None, savings="0,50")],
