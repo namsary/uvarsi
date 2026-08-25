@@ -29,7 +29,9 @@ ZAKLAD = dict(
 def test_algo_version_is_a_positive_integer():
     assert isinstance(plan_data.PLAN_ALGO_VERSION, int)
     assert not isinstance(plan_data.PLAN_ALGO_VERSION, bool)
-    assert plan_data.PLAN_ALGO_VERSION >= 1
+    assert plan_data.PLAN_ALGO_VERSION == 4, (
+        "rozvrh 7/4/3 mení podobu každého plánu a musí zneplatniť cache verzie 3"
+    )
 
 
 def test_changing_the_generator_version_invalidates_every_cached_plan(monkeypatch):
@@ -65,4 +67,7 @@ def test_version_is_documented_next_to_its_constant():
     kontext = zdroj[max(0, i - 400):i]
     assert "Zvýš" in kontext or "zvýš" in kontext, (
         "pri konštante musí byť pokyn, že sa zvyšuje pri zmene podoby plánu"
+    )
+    assert "7/4/3" in kontext, (
+        "komentár musí pomenovať rozvrh 7/4/3, kvôli ktorému cache neplatí"
     )

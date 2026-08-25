@@ -489,8 +489,13 @@ def test_cena_za_profil_je_zname_a_striezlive_cislo(monkeypatch, tmp_path):
     naklady = importlib.import_module("naklady")
 
     assert predpocet.CENA_ZA_PROFIL_EUR == naklady.ODHAD_EUR["predpocet"]
-    assert 0 < predpocet.CENA_ZA_PROFIL_EUR <= 0.05
-    # Plný predpočet nesmie sám osebe zjesť mesačný rozpočet.
+    assert predpocet.CENA_ZA_PROFIL_EUR == pytest.approx(0.03)
+    assert naklady.VYCHODZI_DENNY_STROP_EUR == pytest.approx(4.00)
+    assert naklady.VYCHODZI_MESACNY_STROP_EUR == pytest.approx(25.00)
+    assert predpocet.CENA_ZA_PROFIL_EUR + predpocet.VYCHODZIA_REZERVA_EUR <= (
+        naklady.VYCHODZI_DENNY_STROP_EUR
+    )
+    # Plný predpočet ani po zvýšení odhadu nesmie sám osebe zjesť mesačný rozpočet.
     assert predpocet.MAX_POCET_PROFILOV * predpocet.CENA_ZA_PROFIL_EUR <= (
         naklady.VYCHODZI_MESACNY_STROP_EUR / 2
     )

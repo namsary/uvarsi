@@ -103,10 +103,9 @@ POCET_VARIANTOV = 3
 
 # Koľko stojí jeden zahriaty plán. Nie je to dojem: prompt je ~14 000 znakov
 # (katalóg 140 ponúk + pravidlá receptu) ≈ 4 400 tokenov v cachovanej predpone,
-# osobný chvost ~250 tokenov a odpoveď ~1 300–1 900 tokenov. Sonnet 5 pri
-# EUR = USD × 0,92 → prvé volanie behu (zápis cache) ~0,027 €, každé ďalšie
-# (čítanie cache) ~0,018 €. Rovnaké číslo ako odhad pre `plan`, lebo je to tá
-# istá operácia — len ju nikto nečaká.
+# osobný chvost ~250 tokenov a odpoveď až ~3 640 tokenov pre 7 jedál. Sonnet 5
+# pri EUR = USD × 0,92 preto berie konzervatívny odhad 0,03 € rovnako ako
+# `plan` — je to tá istá operácia, len ju nikto nečaká.
 CENA_ZA_PROFIL_EUR = naklady.ODHAD_EUR[UCEL]
 
 PREMENNE_PROSTREDIA = (

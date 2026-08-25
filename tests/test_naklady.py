@@ -124,6 +124,22 @@ def test_chybajuce_usage_sa_zapise_ako_konzervativny_odhad(con):
     assert riadok["eur"] > 0
 
 
+@pytest.mark.parametrize("ucel", ("plan", "predpocet"))
+def test_seven_meal_plan_uses_the_same_conservative_precheck_and_timeout_estimate(
+        con, monkeypatch, ucel):
+    """+40 % maximálnej odpovede znamená 0,03 € pred volaním aj po timeoute."""
+    assert naklady.ODHAD_EUR[ucel] == pytest.approx(0.03)
+
+    naklady.zapis(con, ucel, "claude-sonnet-5", None, teraz=PONDELOK)
+    timeout = con.execute("SELECT odhad, eur FROM naklady WHERE ucel=?", (ucel,)).fetchone()
+    assert timeout["odhad"] == 1 and timeout["eur"] == pytest.approx(0.03)
+
+    monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "0.05")
+    with pytest.raises(naklady.RozpocetVycerpany) as chyba:
+        naklady.skontroluj(con, ucel, teraz=PONDELOK)
+    assert chyba.value.kod == naklady.KOD_DENNY
+
+
 # ------------------------------------------------------------------ stropy
 def test_denny_strop_odmietne_volanie_este_pred_zaplatenim(con, monkeypatch):
     monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "0.40")

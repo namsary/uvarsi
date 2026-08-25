@@ -130,6 +130,9 @@ def model_plan(first_offer_key=None, pantry=None):
             {"day": "PI", "name": COOKABLE_NAME, "minutes": 40, "instructions": COOKABLE_STEPS,
              "items": [{"offer_key": plan_key(3), "quantity": 1,
                         "amount_per_person": 150, "unit": "g"}]},
+            {"day": "NE", "name": COOKABLE_NAME, "minutes": 30, "instructions": COOKABLE_STEPS,
+             "items": [{"offer_key": plan_key(4), "quantity": 1,
+                        "amount_per_person": 150, "unit": "g"}]},
         ]
     }
 
@@ -878,7 +881,14 @@ def test_plan_tokens_leave_room_for_the_longest_real_answer(monkeypatch, tmp_pat
     assert server.PLAN_TOKENS >= server.PLAN_ODPOVED_TOKENY * 2, (
         "max_tokens bounds thinking and the answer together; keep real headroom"
     )
-    assert server.PLAN_ODPOVED_TOKENY >= 2000, "5 meals of detailed Slovak recipes"
+    assert server.PLAN_ODPOVED_TOKENY >= 2600 * 7 / 5, (
+        "7 detailných jedál je o 40 % dlhších než doterajšie maximum piatich"
+    )
+    source = (ROOT / "app" / "server.py").read_text(encoding="utf-8")
+    offset = source.index("PLAN_ODPOVED_TOKENY =")
+    assert "7 jedál" in source[max(0, offset - 500):offset], (
+        "komentár pri rozpočte odpovede musí vysvetľovať sedemdňový maximálny plán"
+    )
 
 
 def category_rows():

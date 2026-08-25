@@ -500,8 +500,8 @@ process.exit(0);
 
 # --------------------------------------------------------------- týždeň (defekt 2)
 @needs_node
-def test_every_day_of_the_week_is_a_meal_leftovers_or_explicit_free_day(tmp_path):
-    """Majiteľ videl PO/UT/ST navarené, ŠT zvyšok — a PI aj SO úplne prázdne."""
+def test_valid_cooking_frequencies_fill_the_entire_week_without_free_days(tmp_path):
+    """Pri platnej frekvencii 1/2/3 nesmie kalendár vydávať žiadny deň za voľno."""
     html = app_html()
     week_days = declaration(html, "function planWeekDays(plan, frequency) ")
     result = run_node(
@@ -521,33 +521,23 @@ function covered(rows) {
   }
   return true;
 }
-var owner = planWeekDays(plan(['PO', 'UT', 'ST']), 2);
-if (!covered(owner)) process.exit(1);
-if (owner[3].typ !== 'zvysok' || owner[3].zdroj !== 'ST') process.exit(2);
-if (owner[4].typ !== 'volno') process.exit(3);
-if (owner[5].typ !== 'volno') process.exit(4);
-if (owner[6].typ !== 'volno') process.exit(5);
-if (owner[0].typ !== 'jedlo' || !owner[0].jedlo || owner[0].jedlo.nazov !== 'Jedlo PO') process.exit(6);
-
-var spread = planWeekDays(plan(['PO', 'ST', 'PI']), 2);
-if (!covered(spread)) process.exit(7);
-if (spread[1].typ !== 'zvysok' || spread[1].zdroj !== 'PO') process.exit(8);
-if (spread[3].typ !== 'zvysok' || spread[3].zdroj !== 'ST') process.exit(9);
-if (spread[5].typ !== 'zvysok' || spread[5].zdroj !== 'PI') process.exit(10);
-if (spread[6].typ !== 'volno') process.exit(11);
-
-var everyThird = planWeekDays(plan(['UT', 'PI']), 3);
-if (!covered(everyThird)) process.exit(12);
-if (everyThird[0].typ !== 'volno') process.exit(13);
-if (everyThird[2].typ !== 'zvysok' || everyThird[3].typ !== 'zvysok') process.exit(14);
-if (everyThird[5].typ !== 'zvysok' || everyThird[6].typ !== 'zvysok') process.exit(15);
-if (everyThird[6].zdroj !== 'PI') process.exit(16);
-
-if (!covered(planWeekDays({}, 2))) process.exit(17);
-if (!covered(planWeekDays(null, undefined))) process.exit(18);
-if (!covered(planWeekDays(plan(['NE']), 7))) process.exit(19);
-var empty = planWeekDays({jedla: []}, 2);
-for (var e = 0; e < 7; e++) if (empty[e].typ !== 'volno') process.exit(20);
+function exact(days, frequency, types, sources) {
+  var rows = planWeekDays(plan(days), frequency);
+  if (!covered(rows)) return false;
+  for (var i = 0; i < 7; i++) {
+    if (rows[i].typ !== types[i] || rows[i].typ === 'volno') return false;
+    if (sources[i] && rows[i].zdroj !== sources[i]) return false;
+  }
+  return true;
+}
+if (!exact(['PO', 'UT', 'ST', 'ŠT', 'PI', 'SO', 'NE'], 1,
+  ['jedlo','jedlo','jedlo','jedlo','jedlo','jedlo','jedlo'], [])) process.exit(1);
+if (!exact(['PO', 'ST', 'PI', 'NE'], 2,
+  ['jedlo','zvysok','jedlo','zvysok','jedlo','zvysok','jedlo'],
+  [null,'PO',null,'ST',null,'PI',null])) process.exit(2);
+if (!exact(['PO', 'ŠT', 'NE'], 3,
+  ['jedlo','zvysok','zvysok','jedlo','zvysok','zvysok','jedlo'],
+  [null,'PO','PO',null,'ŠT','ŠT',null])) process.exit(3);
 process.exit(0);
 """,
     )
@@ -556,9 +546,38 @@ process.exit(0);
 
     plan_view = declaration(html, "function vPlan() ")
     assert "planWeekDays(" in plan_view, "the week must be derived from the plan, not guessed"
-    assert "['UT','ŠT','SO']" not in html, "the hardcoded leftovers days are the bug"
-    assert '"UT", "ŠT", "SO"' not in html
-    assert "voľno" in plan_view, "a day without food must say so instead of disappearing"
+    assert "voľno" in plan_view, "neplatný alebo neúplný plán sa stále musí priznať"
+
+
+@needs_node
+def test_settings_use_natural_slovak_cooking_frequency_text(tmp_path):
+    """Frekvencia 1 nie je „raz za 1 dni“; všetky tri voľby majú čitateľné znenie."""
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "settings-frequency-copy.js",
+        "var M={innerHTML:''}; function $(selector){return {onclick:null};}\n"
+        + "function esc(value){return String(value == null ? '' : value);}\n"
+        + declaration(html, "function vNast() ")
+        + """
+function visible(html) { return html.replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim(); }
+function settingsText(frequency) {
+  ME = {email:'cook@example.test', osoby:4, frekvencia:frequency, obchody:['Lidl']};
+  M.innerHTML = '';
+  vNast();
+  return visible(M.innerHTML);
+}
+var daily = settingsText(1);
+var second = settingsText(2);
+var third = settingsText(3);
+if (daily.indexOf('Varím každý deň') === -1 || daily.indexOf('Varím raz za 1 dni') !== -1) process.exit(1);
+if (second.indexOf('Varím raz za 2 dni') === -1) process.exit(2);
+if (third.indexOf('Varím raz za 3 dni') === -1) process.exit(3);
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @needs_node

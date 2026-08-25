@@ -115,14 +115,14 @@ _ON_TOP_OF = re.compile(r"\b(?:na|pod)\s+([^\W\d_]+)", re.IGNORECASE)
 
 
 def meal_count_for_frequency(frequency):
-    return {1: 5, 2: 3, 3: 2}.get(frequency, 3)
+    return {1: 7, 2: 4, 3: 3}.get(frequency, 3)
 
 
 def cooking_days_for_frequency(frequency):
     """Kalendár varenia odvodíme v Pythone; model si vyberá už len jedlá.
 
-    „Raz za dva dni" musí vyjsť ako PO, ST, PI — nie tri dni po sebe a
-    potom prázdny zvyšok týždňa.
+    Platný pondelok–nedeľa rozvrh je 7/4/3: každý deň, PO/ST/PI/NE alebo
+    PO/ŠT/NE. Model nesmie vynechať koniec týždňa ani presunúť varenie inam.
     """
     count = meal_count_for_frequency(frequency)
     usable = isinstance(frequency, int) and not isinstance(frequency, bool) and frequency >= 1
@@ -132,17 +132,25 @@ def cooking_days_for_frequency(frequency):
     return tuple(DAY_ORDER[index * spacing] for index in range(count))
 
 
-def days_covered_by_meal(frequency):
-    """Koľko dní má jedna dávka vydržať — vrátane dní, keď sa jedia zvyšky."""
+def days_covered_by_meal(frequency, day=None):
+    """Koľko dní pokrýva dávka v konkrétny cooking day, najviac po nedeľu."""
     days = cooking_days_for_frequency(frequency)
-    if len(days) < 2:
-        return 1
-    return DAY_ORDER.index(days[1]) - DAY_ORDER.index(days[0])
+    spans = tuple(
+        (DAY_ORDER.index(days[index + 1]) if index + 1 < len(days) else len(DAY_ORDER))
+        - DAY_ORDER.index(cooking_day)
+        for index, cooking_day in enumerate(days)
+    )
+    if day is None:
+        return spans[0] if spans else 1
+    try:
+        return spans[days.index(day)]
+    except ValueError as error:
+        raise ValueError(f"Deň {day} nie je dňom varenia.") from error
 
 
-def portions_for(household_size, frequency):
-    """Počet porcií jednej dávky. Toto je jediné miesto, kde sa škáluje."""
-    return household_size * days_covered_by_meal(frequency)
+def portions_for(household_size, frequency, day=None):
+    """Počet porcií dávky; nedeľná dávka nikdy nepresahuje do ďalšieho týždňa."""
+    return household_size * days_covered_by_meal(frequency, day)
 
 
 def _day_list(days):
@@ -391,7 +399,9 @@ def _model_meals(model_output, offers_by_key, frequency, pantry, household_size)
     if not isinstance(meals, list) or len(meals) != len(cooking_days):
         raise ValueError("Návrh nemá správny počet jedál.")
 
-    portions = portions_for(household_size, frequency)
+    portions_by_day = {
+        day: portions_for(household_size, frequency, day) for day in cooking_days
+    }
     pantry_by_name = {item.casefold(): item for item in pantry}
     seen_days = set()
     seen_offers = set()
@@ -401,7 +411,10 @@ def _model_meals(model_output, offers_by_key, frequency, pantry, household_size)
         day = _text(meal.get("day"), "deň")
         if day not in DAY_ORDER or day in seen_days:
             raise ValueError("Návrh obsahuje duplicitný alebo neplatný deň.")
+        if day not in portions_by_day:
+            raise ValueError(f"Návrh nedodržal dni varenia: {_day_list(cooking_days)}.")
         seen_days.add(day)
+        portions = portions_by_day[day]
         name = _text(meal.get("name"), "názov jedla")
         minutes = meal.get("minutes")
         if isinstance(minutes, bool) or not isinstance(minutes, int) or minutes <= 0:
@@ -478,7 +491,9 @@ PLAN_VARIANT_HINTS = (
 # 1 = pôvodný, 2 = rozvrh dní podľa frekvencie + konkrétne recepty s dávkami,
 # 3 = plán bez špajze (špajza sa dopočíta až nad nákupným zoznamom) + krátky
 #     `offer_key`, teda iný katalóg ponúk v prompte.
-PLAN_ALGO_VERSION = 3
+# 4 = plný kalendár 7 dní (7/4/3) a dávky ukončené v nedeľu, bez zvyškov cez
+#     hranicu týždňa.
+PLAN_ALGO_VERSION = 4
 
 
 def plan_variant_for(user_id, variants):
@@ -671,15 +686,16 @@ def personal_plan_prompt(rows, frequency, pantry, household_size, variant=0,
     style = PLAN_VARIANT_HINTS[variant % len(PLAN_VARIANT_HINTS)] if PLAN_VARIANT_HINTS else ""
     days = cooking_days_for_frequency(frequency)
     days_text = _day_list(days)
-    covered = days_covered_by_meal(frequency)
-    portions = portions_for(household_size, frequency)
-    portions_word = "porcia" if portions == 1 else "porcie" if portions < 5 else "porcií"
     people = f"{household_size} {_people_word(household_size)}"
-    leftovers = (
-        f"- Varí sa raz za {covered} dni: každé jedlo navar na {covered} dni dopredu"
-        f" (pre {people} na deň), ďalšie dni sa jedia zvyšky.\n"
-        if covered > 1 else ""
-    )
+    batches = []
+    for day in days:
+        covered = days_covered_by_meal(frequency, day)
+        portions = portions_for(household_size, frequency, day)
+        portions_word = "porcia" if portions == 1 else "porcie" if portions < 5 else "porcií"
+        batches.append(
+            f"- {day}: navar {portions} {portions_word} na {covered} {_days_word(covered)}."
+        )
+    batch_text = "\n".join(batches)
     pantry_text = ", ".join(str(item).strip() for item in pantry if str(item).strip())
     pantry_task = (
         f"\n\nČO MÁ POUŽÍVATEĽ DOMA (ŠPAJZA)\n{pantry_text}\n"
@@ -693,10 +709,11 @@ Navrhni presne {len(days)} {_meals_word(len(days))} na dni {days_text}. Vráť i
 
 - Varí sa len v dňoch {days_text}. Presne tieto dni použi ako "day", každý práve raz,
   iný deň nepoužívaj.
-{leftovers}- Jedlá sú pre {people}; množstvá aj porcie prispôsob presne tejto domácnosti.
-- Jedna dávka je preto {portions} {portions_word}.
-- Do krokov píš amount_per_person × {portions}.
-  Napríklad 150 g na porciu × {portions} = {_amount_text("g", Decimal(150) * portions)} v kroku.
+- Jedlá sú pre {people}; množstvá aj porcie sú rozdielne podľa cooking day a spolu pokrývajú presne 7 dní.
+{batch_text}
+- Dni medzi varením sú zvyšky z predchádzajúcej dávky; po nedeľnom jedle už nič
+  neplánuj cez hranicu týždňa.
+- Do krokov každého jedla píš amount_per_person × počet porcií uvedený pri jeho dni.
 - minutes musí byť kladný celý počet minút prípravy.
 - Vyberaj výhradne z {len(rows)} overených ponúk uvedených vyššie a drž sa pravidiel nad týmto zadaním.
 - Smerovanie tohto jedálnička: {style}{pantry_task}"""
@@ -710,17 +727,16 @@ def build_personal_plan(con, model_output, stores, frequency, household_size, pa
     offers_by_key = {row["offer_key"]: row for row in offers}
     meals = _model_meals(model_output, offers_by_key, frequency, pantry, household_size)
 
-    covered = days_covered_by_meal(frequency)
-    portions = portions_for(household_size, frequency)
-    for_whom = f"{household_size} {_people_word(household_size)}"
-    if covered > 1:
-        for_whom += f" × {covered} {_days_word(covered)}"
-
     plan_meals = []
     purchases = []
     total = Decimal("0")
     regular = Decimal("0")
     for day, name, minutes, instructions, selected_items, pantry_names in meals:
+        covered = days_covered_by_meal(frequency, day)
+        portions = portions_for(household_size, frequency, day)
+        for_whom = f"{household_size} {_people_word(household_size)}"
+        if covered > 1:
+            for_whom += f" × {covered} {_days_word(covered)}"
         ingredients = []
         doses = []
         for row, quantity, davka in selected_items:

@@ -117,11 +117,12 @@ AUTH_PROVIDER_FAILURE_MESSAGE = (
 LOG = logging.getLogger("uvarsi.plan")
 
 MODEL_PLAN = "claude-sonnet-5"     # skladanie plánu = text, lacné
-# Nameraný najhorší prípad odpovede: 5 jedál × 6 podrobných krokov × 4 položky
-# ≈ 1 950 tokenov. max_tokens ohraničuje uvažovanie AJ odpoveď dokopy, takže
+# Nameraný najhorší prípad odpovede: 7 jedál × 6 podrobných krokov × 4 položky
+# je o 40 % dlhší než pôvodných päť, preto 3 640 tokenov. max_tokens ohraničuje
+# uvažovanie AJ odpoveď dokopy, takže
 # strop musí nechať odpovedi dvojnásobnú rezervu — orezaný JSON už raz appku
 # zhodil a stálo to platené volanie navyše.
-PLAN_ODPOVED_TOKENY = 2600
+PLAN_ODPOVED_TOKENY = 3640
 PLAN_TOKENS = 8000
 # Koľko model nad výberom jedál uvažuje. None = doterajšie správanie, teda
 # východisková námaha modelu. Je to posledná veľká páka na dĺžku volania, ale

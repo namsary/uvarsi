@@ -1091,11 +1091,13 @@ function vSpajza() {
 }
 
 function vNast() {
+  const varenie = ME.frekvencia === 1 ? 'Varím každý deň' :
+    'Varím raz za ' + ME.frekvencia + ' dni';
   M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Nastavenia</span>
     <h1 class="display" style="font-size:1.5rem;margin-top:4px">Tvoj profil</h1></div>
     <div class="card"><div class="ing"><span>E-mail</span><span class="r">${esc(ME.email)}</span></div>
       <div class="ing"><span>Varím pre</span><span class="r">${ME.osoby} os.</span></div>
-      <div class="ing"><span>Varím raz za</span><span class="r">${ME.frekvencia} dni</span></div>
+      <div class="ing"><span>Varenie</span><span class="r">${varenie}</span></div>
       <div class="ing" style="border:0"><span>Obchody</span><span class="r">${ME.obchody.join(' · ')}</span></div>
     </div>
     <button class="btn btn--ghost" id="zmen">Zmeniť nastavenie</button>

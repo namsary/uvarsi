@@ -1,3 +1,4 @@
+import re
 import sqlite3
 from datetime import date
 
@@ -142,6 +143,66 @@ def model_output(items=None, household=4, frequency=2):
                 "instructions": piatok_kroky(household, frequency),
                 "items": [item(verified_key(3), MASLO_NA_OSOBU, "g")],
             },
+            {
+                "day": "NE", "name": "Mliečna kaša", "minutes": 25,
+                "instructions": pondelok_kroky(household, 1),
+                "items": [], "pantry_ingredients": ["soľ"],
+            },
+        ]
+    }
+
+
+def model_output_for_cooking_days(days, household=4, frequency=2):
+    """Valid modelový výstup s jedným jedlom pre každý žiadaný deň.
+
+    Jedlá sú zámerne len zo špajze: testuje rozvrh, porcie a validáciu dní cez
+    verejný build kontrakt bez toho, aby limit troch testovacích ponúk maskoval
+    sedemdňový kalendár.
+    """
+    template = model_output(household=household, frequency=frequency)["meals"][0]
+    return {
+        "meals": [
+            dict(template, day=day, items=[], pantry_ingredients=["soľ"])
+            for day in days
+        ]
+    }
+
+
+def milk_rows(count):
+    return [
+        (index, "2026-08-17", "Lidl", f"Mlieko {index}", "mliecne", 1.10, 1.50,
+         "-27 %", "1 l", "https://source.test/lidl", index, "2026-08-17", "2026-08-23")
+        for index in range(1, count + 1)
+    ]
+
+
+def milk_amount_for_portions(portions):
+    return amount(MLIEKO_NA_OSOBU, "ml", household=1, frequency=1) if portions == 1 else (
+        _number(MLIEKO_NA_OSOBU * portions / 1000) + " l"
+        if MLIEKO_NA_OSOBU * portions >= 1000 else f"{MLIEKO_NA_OSOBU * portions} ml"
+    )
+
+
+def milk_steps(portions):
+    milk = milk_amount_for_portions(portions)
+    return [
+        f"V hrnci zohrej {milk} mlieka na strednom ohni 5 minút, kým sa nezačne pariť.",
+        "Vsyp 400 g krupice, osoľ štipkou soli a metličkou miešaj 3 minúty, kým kaša nezhustne.",
+        "Kašu rozdeľ na taniere, posyp 2 lyžičkami škorice a hneď podávaj.",
+    ]
+
+
+def milk_plan_output(con, days, day_portions):
+    offers = current_verified_offers(con, ["Lidl"], TODAY)
+    return {
+        "meals": [
+            {
+                "day": day, "name": "Mliečna kaša", "minutes": 25,
+                "instructions": milk_steps(portions),
+                "items": [item(offers[index]["offer_key"], MLIEKO_NA_OSOBU, "ml")],
+                "pantry_ingredients": [],
+            }
+            for index, (day, portions) in enumerate(zip(days, day_portions))
         ]
     }
 
@@ -187,8 +248,14 @@ def test_reconstructs_grouped_purchases_and_totals_only_from_verified_offers():
                     {"offer_key": verified_key(3), "nazov": "Maslo", "obchod": "Lidl", "jednotka": "250 g",
                      "mnozstvo": 1, "davka": "240 g", "cena": "2,00", "povodna": "2,50", "zlava": "-20 %",
                      "source_url": "https://source.test/lidl", "source_page": 3,
-                     "valid_from": "2026-08-17", "valid_to": "2026-08-23"},
+                    "valid_from": "2026-08-17", "valid_to": "2026-08-23"},
                 ],
+            },
+            {
+                "den": "NE", "nazov": "Mliečna kaša",
+                "recept": {"min": 25, "porcie": 4, "pre": "4 osoby",
+                           "davky": ["soľ zo špajze"], "kroky": pondelok_kroky(4, 1)},
+                "suroviny": [{"spajza": "soľ"}],
             },
         ],
         "nakupny_zoznam": [
@@ -275,7 +342,7 @@ def test_missing_original_price_contributes_sale_price_and_never_negative_saving
 
 def test_positive_recipe_minutes_are_validated_and_emitted_for_every_meal():
     payload = model_output()
-    for meal, minutes in zip(payload["meals"], (25, 35, 45)):
+    for meal, minutes in zip(payload["meals"], (25, 35, 45, 30)):
         meal["minutes"] = minutes
 
     plan = build_personal_plan(
@@ -283,7 +350,7 @@ def test_positive_recipe_minutes_are_validated_and_emitted_for_every_meal():
         pantry=["soľ"], today=TODAY,
     )
 
-    assert [meal["recept"]["min"] for meal in plan["jedla"]] == [25, 35, 45]
+    assert [meal["recept"]["min"] for meal in plan["jedla"]] == [25, 35, 45, 30]
 
 
 @pytest.mark.parametrize("minutes", [0, -1, True, "30"])
@@ -322,9 +389,9 @@ def test_rejects_model_commercial_fields_malformed_content_duplicates_and_expire
 
 
 def test_requires_the_current_frequency_recipe_count():
-    assert meal_count_for_frequency(1) == 5
-    assert meal_count_for_frequency(2) == 3
-    assert meal_count_for_frequency(3) == 2
+    assert meal_count_for_frequency(1) == 7
+    assert meal_count_for_frequency(2) == 4
+    assert meal_count_for_frequency(3) == 3
     assert meal_count_for_frequency(7) == 3
 
     with pytest.raises(ValueError, match="počet jedál"):
@@ -373,85 +440,88 @@ def offers_connection():
     return current_verified_offers(con, ["Lidl"], TODAY)
 
 
-def test_cooking_days_are_spaced_by_the_requested_frequency():
-    """„Varím raz za 2 dni" znamená PO, ST, PI — nie tri dni po sebe."""
-    assert cooking_days_for_frequency(1) == ("PO", "UT", "ST", "ŠT", "PI")
-    assert cooking_days_for_frequency(2) == ("PO", "ST", "PI")
-    assert cooking_days_for_frequency(3) == ("PO", "ŠT")
+@pytest.mark.parametrize(("frequency", "days", "day_portions"), [
+    (1, ("PO", "UT", "ST", "ŠT", "PI", "SO", "NE"), (4, 4, 4, 4, 4, 4, 4)),
+    (2, ("PO", "ST", "PI", "NE"), (8, 8, 8, 4)),
+    (3, ("PO", "ŠT", "NE"), (12, 12, 4)),
+])
+def test_full_week_cooking_schedule_and_portions_end_exactly_on_sunday(
+        frequency, days, day_portions):
+    """PO-NE má 7/4/3 varení a presne 7 × N porcií, bez nedeľných zvyškov."""
+    assert cooking_days_for_frequency(frequency) == days
+    assert meal_count_for_frequency(frequency) == len(days)
+    assert days_covered_by_meal(frequency) == frequency
 
-    for frequency in (1, 2, 3):
-        days = cooking_days_for_frequency(frequency)
-        assert len(days) == meal_count_for_frequency(frequency)
-        assert {DAY_ORDER.index(b) - DAY_ORDER.index(a) for a, b in zip(days, days[1:])} == {frequency}
+    plan = build_personal_plan(
+        connection(verified_rows()), model_output_for_cooking_days(days, frequency=frequency),
+        ["Lidl", "Tesco"], frequency, 4, pantry=["soľ"], today=TODAY,
+    )
 
-    # Aj pri nezmyselnej frekvencii radšej rozostup než tri dni po sebe.
-    assert cooking_days_for_frequency(7) == ("PO", "ŠT", "NE")
-    assert cooking_days_for_frequency(None) == ("PO", "ST", "PI")
-    for frequency in (0, -3, "2", None):
-        assert cooking_days_for_frequency(frequency) == ("PO", "ST", "PI")
-
-
-def test_one_meal_covers_exactly_the_days_until_the_next_cooking_day():
-    """Dávka musí pokryť aj dni so zvyškami — inak sa navarí málo."""
-    assert days_covered_by_meal(1) == 1
-    assert days_covered_by_meal(2) == 2
-    assert days_covered_by_meal(3) == 3
-    assert days_covered_by_meal(None) == 2
+    assert [meal["den"] for meal in plan["jedla"]] == list(days)
+    assert [meal["recept"]["porcie"] for meal in plan["jedla"]] == list(day_portions)
+    assert sum(meal["recept"]["porcie"] for meal in plan["jedla"]) == 7 * 4
 
 
-def test_prompt_names_the_exact_cooking_days_instead_of_only_a_count():
-    rows = offers_connection()
+@pytest.mark.parametrize(("frequency", "days", "day_portions"), [
+    (1, ("PO", "UT", "ST", "ŠT", "PI", "SO", "NE"), (3, 3, 3, 3, 3, 3, 3)),
+    (2, ("PO", "ST", "PI", "NE"), (6, 6, 6, 3)),
+    (3, ("PO", "ŠT", "NE"), (9, 9, 3)),
+])
+def test_recipe_and_basket_quantities_scale_by_each_cooking_days_portions(
+        frequency, days, day_portions):
+    """Nákup sa ráta z dennej dávky, aby NE nekúpila zvyšky do ďalšieho týždňa."""
+    con = connection(milk_rows(len(days)))
+    plan = build_personal_plan(
+        con, milk_plan_output(con, days, day_portions), ["Lidl"], frequency, 3,
+        pantry=[], today=TODAY,
+    )
 
-    each_second_day = personal_plan_prompt(rows, 2, ["soľ"], household_size=4)
-    each_third_day = personal_plan_prompt(rows, 3, ["soľ"], household_size=4)
+    meals = plan["jedla"]
+    assert [meal["recept"]["porcie"] for meal in meals] == list(day_portions)
+    assert sum(meal["recept"]["porcie"] for meal in meals) == 7 * 3
+    assert [meal["suroviny"][0]["davka"] for meal in meals] == [
+        milk_amount_for_portions(portions) for portions in day_portions
+    ]
+    assert [meal["suroviny"][0]["mnozstvo"] for meal in meals] == [
+        (MLIEKO_NA_OSOBU * portions + 999) // 1000 for portions in day_portions
+    ]
 
-    assert "na dni PO, ST a PI" in each_second_day
-    assert "Varí sa len v dňoch PO, ST a PI" in each_second_day
-    assert "Varí sa len v dňoch PO a ŠT" in each_third_day
-    assert "zvyšk" in each_second_day
 
-
-def test_rejects_a_plan_cooked_three_days_in_a_row_instead_of_every_second_day():
-    """Presne to, čo appka vygenerovala majiteľovi: PO, UT, ST a potom nič."""
-    payload = model_output()
-    for meal, day in zip(payload["meals"], ("PO", "UT", "ST")):
-        meal["day"] = day
-
-    with pytest.raises(ValueError, match="dni varenia"):
+@pytest.mark.parametrize(("frequency", "days", "message"), [
+    (1, ("PO", "UT", "ST", "ŠT", "PI", "SO"), "počet jedál"),
+    (2, ("PO", "UT", "PI", "NE"), "dni varenia"),
+    (3, ("PO", "ŠT", "SO"), "dni varenia"),
+])
+def test_model_output_rejects_wrong_weekly_cooking_count_or_days(frequency, days, message):
+    """Model nesmie nahradiť varenie zvyškom ani vynechať koniec týždňa."""
+    with pytest.raises(ValueError, match=message):
         build_personal_plan(
-            connection(verified_rows()), payload, ["Lidl", "Tesco"], 2, 4,
-            pantry=["soľ"], today=TODAY,
+            connection(verified_rows()), model_output_for_cooking_days(days, frequency=frequency),
+            ["Lidl", "Tesco"], frequency, 4, pantry=["soľ"], today=TODAY,
         )
 
 
-def test_meals_come_back_in_calendar_order_whatever_order_the_model_sent():
-    payload = model_output()
-    payload["meals"] = [payload["meals"][2], payload["meals"][0], payload["meals"][1]]
+@pytest.mark.parametrize(("frequency", "count", "days_text", "day_portions"), [
+    (1, 7, "PO, UT, ST, ŠT, PI, SO a NE", (4, 4, 4, 4, 4, 4, 4)),
+    (2, 4, "PO, ST, PI a NE", (8, 8, 8, 4)),
+    (3, 3, "PO, ŠT a NE", (12, 12, 4)),
+])
+def test_prompt_names_every_exact_cooking_day_and_its_portion_contract(
+        frequency, count, days_text, day_portions):
+    prompt = personal_plan_prompt(offers_connection(), frequency, ["soľ"], household_size=4)
+    word = "jedál" if count >= 5 else "jedlá"
 
-    plan = build_personal_plan(
-        connection(verified_rows()), payload, ["Lidl", "Tesco"], 2, 4,
-        pantry=["soľ"], today=TODAY,
-    )
-
-    assert [meal["den"] for meal in plan["jedla"]] == ["PO", "ST", "PI"]
-
-
-def test_cooking_every_third_day_is_accepted_only_on_its_own_two_days():
-    payload = {"meals": [dict(meal) for meal in model_output(frequency=3)["meals"][:2]]}
-    payload["meals"][1]["day"] = "ŠT"
-
-    plan = build_personal_plan(
-        connection(verified_rows()), payload, ["Lidl", "Tesco"], 3, 4,
-        pantry=["soľ"], today=TODAY,
-    )
-    assert [meal["den"] for meal in plan["jedla"]] == ["PO", "ŠT"]
-
-    payload["meals"][1]["day"] = "UT"
-    with pytest.raises(ValueError, match="dni varenia"):
-        build_personal_plan(
-            connection(verified_rows()), payload, ["Lidl", "Tesco"], 3, 4,
-            pantry=["soľ"], today=TODAY,
-        )
+    assert f"Navrhni presne {count} {word} na dni {days_text}" in prompt
+    assert f"Varí sa len v dňoch {days_text}" in prompt
+    for day, portions in zip(cooking_days_for_frequency(frequency), day_portions):
+        days = portions // 4
+        portion_word = "porcie" if portions < 5 else "porcií"
+        day_word = "deň" if days == 1 else "dni"
+        assert re.search(
+            rf"{day}[^\n]*{portions} {portion_word}[^\n]*{days} {day_word}", prompt
+        ), f"{day} must carry its own portion and leftovers span"
+    if frequency > 1:
+        assert "zvyšk" in prompt
 
 
 # ------------------------------------------------- koľko čoho pre počet osôb
@@ -857,8 +927,9 @@ def test_prompt_spells_out_the_portion_arithmetic_instead_of_hoping_the_model_gu
     tail = personal_plan_prompt(offers_connection(), 2, ["soľ"], household_size=4)
 
     assert "amount_per_person" in prompt and "unit = g, ml alebo ks" in prompt
-    assert "8 porcií" in tail, "4 osoby × 2 dni"
-    assert "× 8" in tail, "prepočet na celú dávku musí byť v zadaní ukázaný"
+    assert "PO: navar 8 porcií na 2 dni" in tail, "4 osoby × 2 dni"
+    assert "NE: navar 4 porcie na 1 deň" in tail, "nedeľa nesmie variť do pondelka"
+    assert "amount_per_person × počet porcií uvedený pri jeho dni" in tail
 
 
 def test_prompt_shows_a_whole_worked_recipe_that_passes_our_own_validation():
