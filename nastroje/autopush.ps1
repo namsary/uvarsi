@@ -18,7 +18,9 @@ param([switch]$Instaluj, [switch]$Raz)
 
 $ErrorActionPreference = "Continue"
 $REPO = Split-Path $PSScriptRoot -Parent
-$LOG  = Join-Path $REPO "nastroje\autopush.log"
+$LOG_ROOT = Join-Path $env:LOCALAPPDATA "Uvarsi"
+$LOG = Join-Path $LOG_ROOT "autopush.log"
+New-Item -ItemType Directory -Path $LOG_ROOT -Force | Out-Null
 
 function Zapis($sprava) {
   $riadok = "[{0:yyyy-MM-dd HH:mm:ss}] {1}" -f (Get-Date), $sprava
