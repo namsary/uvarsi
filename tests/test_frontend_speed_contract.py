@@ -467,9 +467,11 @@ var localStorage = {
   removeItem: function (k) { delete store[k]; }
 };
 var header = {textContent: ''};
-var navShown = 0;
+var navVisible = false;
+var navigationReady = null;
 function $(s) { if (s === '#hdr') return header; throw new Error(s); }
-function showNav() { navShown++; }
+function showNav() { navVisible = true; }
+function setNavigationReady(ready) { navigationReady = !!ready; }
 """
         + "\n".join(pieces)
         + """
@@ -478,7 +480,8 @@ rememberProfile({email: 'jano@uvar.si', osoby: 4, frekvencia: 2,
                  obchody: ['Lidl'], onboarding: true, spajza: ['ryza']});
 if (paintKnownShell() !== true) process.exit(2);
 if (header.textContent !== 'jano') process.exit(3);
-if (navShown !== 1) process.exit(4);
+if (!navVisible) process.exit(4);
+if (navigationReady !== false) process.exit(7);
 var saved = JSON.stringify(store);
 // Ceny sa neukladajú NIKDY — inak by sme raz ukázali neplatnú akciu.
 if (saved.indexOf('cena') !== -1 || saved.indexOf('nakupny_zoznam') !== -1) process.exit(5);

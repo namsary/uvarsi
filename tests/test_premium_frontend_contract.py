@@ -83,7 +83,9 @@ def test_the_locked_pantry_never_pretends_the_preview_is_the_users_data():
 
     assert "Ukážka" in zamknuta, "ukážka musí byť pomenovaná ako ukážka"
     assert "nie tvoje údaje" in zamknuta
-    assert "ME.spajza" not in zamknuta, "zamknutá obrazovka nesmie zobrazovať cudzie/staré dáta"
+    assert not re.search(r"ME\.spajza(?!_)", zamknuta), (
+        "zamknutá obrazovka nesmie zobrazovať cudzie/staré dáta"
+    )
 
 
 def test_the_locked_pantry_cannot_write_anything():
@@ -129,6 +131,97 @@ def test_premium_is_taken_from_the_server_answer_and_never_from_the_client():
         "zapamätaný profil nesmie odomykať nič — o nároku rozhoduje server"
     )
     assert "localStorage" not in declaration(html, "function vSpajzaZamknuta() ")
+
+
+# ------------------------------------- odobraty/refundovany narok pocas upravy
+def test_a_pantry_403_keeps_the_server_code_for_the_entitlement_recovery_branch():
+    """Bez kodu z odpovede klient nerozozna odobratie Premium od beznej chyby."""
+    reader = declaration(app_html(), "async function readApiResponse(r) ")
+
+    assert re.search(r"\.kod\s*=|\.code\s*=", reader), (
+        "chyba z API musi zachovat serverovy kod spajza_premium"
+    )
+    assert re.search(r"\.status\s*=", reader), (
+        "chyba musi zachovat aj HTTP status, aby sa 403 nespracoval ako bezna chyba"
+    )
+
+
+def test_a_revoked_pantry_save_refreshes_authoritative_me_and_renders_the_lock():
+    """403 spajza_premium nesmie nechat na obrazovke stary editovatelny formular."""
+    html = app_html()
+    pantry = declaration(html, "function vSpajza() ")
+
+    assert "spajza_premium" in pantry, "ulozenie musi mat osobitnu vetvu pre odobraty narok"
+    assert re.search(r"403|status", pantry), "vetva patri iba serverovemu odmietnutiu 403"
+    assert "api('/api/me')" in pantry, "po odmietnuti sa musi nacitat aktualny profil zo servera"
+    assert re.search(r"ME\s*=\s*await\s+api\('/api/me'\)", pantry), (
+        "globalny profil sa musi nahradit autoritativnou odpovedou"
+    )
+    assert "vSpajza()" in pantry, "obrazovka sa musi hned prekreslit do zamknuteho stavu"
+
+
+def test_a_locked_dormant_pantry_uses_only_the_server_summary_not_item_names():
+    """Refund skryje nazvy, ale pravdivo povie, kolko poloziek server stale drzi."""
+    locked = declaration(app_html(), "function vSpajzaZamknuta() ")
+
+    assert "spajza_uspana" in locked
+    assert "spajza_ulozenych" in locked
+    assert "spajza_sprava" in locked
+    assert not re.search(r"ME\.spajza(?!_)", locked), (
+        "zamknuta obrazovka nesmie odhalit nazvy ulozenych poloziek"
+    )
+    assert re.search(r"spajza_ulozenych[\s\S]*Premium|Premium[\s\S]*spajza_ulozenych", locked), (
+        "pocet ulozenych poloziek musi byt vysvetleny spolu s ich navratom po Premium"
+    )
+
+
+def test_a_live_entitlement_loss_is_explained_even_when_the_pantry_was_empty():
+    html = app_html()
+    pantry = declaration(html, "function vSpajza() ")
+    locked = declaration(html, "function vSpajzaZamknuta() ")
+
+    assert "PANTRY_ACCESS_CHANGED = true" in pantry
+    assert "PANTRY_ACCESS_CHANGED" in locked
+    assert "Prístup" in locked and "zmenil" in locked
+
+
+@needs_node
+def test_dormant_and_generic_locked_accounts_render_different_truthful_states(tmp_path):
+    """Dynamicky dokaz: uspana spajza ukaze pocet, prazdny free ucet iba ukazku."""
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "dormant-pantry-contract.js",
+        """
+var rendered = '';
+var M = {};
+Object.defineProperty(M, 'innerHTML', {set: function(value) { rendered = value; }});
+var SPAJZA_UKAZKA = ['ryza', 'vajcia', 'cibula'];
+var SPAJZA_UKAZKA_CENY = {'ryza':'1,00','vajcia':'2,00','cibula':'1,00'};
+function esc(value) { return String(value == null ? '' : value); }
+function ingredientRow(item) { return '<span>' + esc(item.spajza) + '</span>'; }
+function runGuardedAction() {}
+function $(selector) { return null; }
+var PANTRY_ACCESS_CHANGED = false;
+var ME = {platby_zapnute:false, spajza_uspana:true, spajza_ulozenych:3,
+  spajza_sprava:'Tvoje 3 polozky zostavaju ulozene a vratia sa s Premium.',
+  spajza:['TAJNE_MENO']};
+"""
+        + declaration(html, "function vSpajzaZamknuta() ")
+        + """
+vSpajzaZamknuta();
+if (rendered.indexOf('3') === -1) process.exit(1);
+if (rendered.indexOf('TAJNE_MENO') !== -1) process.exit(2);
+if (rendered.indexOf('Premium') === -1) process.exit(3);
+ME = {platby_zapnute:false, spajza_uspana:false, spajza_ulozenych:0,
+  spajza_sprava:null, spajza:[]};
+vSpajzaZamknuta();
+if (rendered.indexOf('Ukazka') === -1 && rendered.indexOf('Ukážka') === -1) process.exit(4);
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 # ------------------------------------------------------- denný strop prepočtov

@@ -147,6 +147,7 @@ let DONE = {};
    jedným ťuknutím — a to rozhodnutie musí prežiť prekreslenie aj zatvorenie. */
 let PANTRY_OVERRIDE = {};
 let PANTRY_HINT_HIDDEN = false;
+let PANTRY_ACCESS_CHANGED = false;
 /* Odpoveď servera na vyžiadaný prepočet — ukáže sa nad jedálničkom, nezmaže ho. */
 let PLAN_NOTE = '';
 let PLAN_NEEDS_REGEN = false;
@@ -372,7 +373,14 @@ async function readApiResponse(r) {
     authError.authRequired = true;
     throw authError;
   }
-  if (!r.ok) throw new Error(apiErrorMessage(r.status, await r.json().catch(()=>null)));
+  if (!r.ok) {
+    const payload = await r.json().catch(()=>null);
+    const failure = new Error(apiErrorMessage(r.status, payload));
+    failure.status = r.status;
+    const serverCode = payload && (payload.kod || payload.code);
+    failure.code = typeof serverCode === 'string' ? serverCode.slice(0,100) : '';
+    throw failure;
+  }
   return r.json();
 }
 
@@ -428,7 +436,6 @@ async function runGuardedAction(button, errorNode, action) {
   }
 }
 
-/* Nárok hovorí server. Staršia odpoveď pole nemá — vtedy platí premium. */
 function pantryUnlocked(me) {
   if (!me) return false;
   if (typeof me.spajza_dostupna === 'boolean') return me.spajza_dostupna;
@@ -436,9 +443,6 @@ function pantryUnlocked(me) {
   return !!me.premium;
 }
 
-/* ---------- špajza vs. plán ----------
-   Plán si pri skladaní zapamätal, z akej špajze vznikol. Rozdiel je dôvod na
-   tichý návrh, nikdy nie na prepočet. */
 function pantryDiffers(planPantry, currentPantry) {
   if (Object.prototype.toString.call(planPantry) !== '[object Array]') return false;
   var tidy = function(list) {
@@ -1049,12 +1053,14 @@ function vZoznam() {
   });
 }
 
-/* ---------- zamknutá špajza (bezplatný účet) ----------
-   Nie prázdna stena s výzvou na platbu: na príklade je vidieť, čo sa stane
-   s nákupom aj s jedlami, a je napísané, že je to ukážka. Žiadne odpočty, jedna
-   veta o Premium, jedno tlačidlo. Čísla sú statické, ale sedia — stráži to test. */
 function vSpajzaZamknuta() {
   const platbyIdu = !!(ME && ME.platby_zapnute);
+  const uspana = !!(ME && ME.spajza_uspana);
+  const ulozenych = Math.max(0, Math.floor(Number(ME && ME.spajza_ulozenych) || 0));
+  const uspanaSprava = ME && typeof ME.spajza_sprava === 'string' && ME.spajza_sprava.trim()
+    || (ulozenych === 1 ? 'Tvoja 1 uložená položka sa vráti s Premium.'
+      : ulozenych < 5 ? `Tvoje ${ulozenych} uložené položky sa vrátia s Premium.`
+      : `Tvojich ${ulozenych} uložených položiek sa vráti s Premium.`);
   const tlacidlo = platbyIdu
     ? {popis: 'Chcem Premium →', zamknute: ''}
     : {popis: 'Premium sa zatiaľ nedá kúpiť', zamknute: ' disabled'};
@@ -1063,6 +1069,7 @@ function vSpajzaZamknuta() {
        zapneme, nájdeš Premium presne tu.</p>`;
   M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Špajza · Premium</span>
     <h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo už máš doma</h1>
+    ${PANTRY_ACCESS_CHANGED ? '<div class="hint"><b>Prístup k Špajze sa zmenil.</b> Úpravy sú teraz zamknuté.</div>' : ''}
     <p class="muted" style="margin:8px 0 16px">Zapíšeš, čo máš doma, a jedálniček aj nákupný
       zoznam s tým rátajú. Zatiaľ skladáme plán len z akcií — o tvojej špajzi nevie.</p></div>
     <div class="card">
@@ -1071,7 +1078,10 @@ function vSpajzaZamknuta() {
       <p class="muted" style="margin-top:10px">V bezplatnej verzii je zápis zamknutý —
         hneď, nie až pri ukladaní.</p>
     </div>
-    <div class="hint">
+    ${uspana && ulozenych > 0 ? `<div class="hint">
+      <span class="eyebrow">Tvoja špajza zostáva uložená</span>
+      <p style="margin:6px 0 0">${esc(uspanaSprava)}</p>
+    </div>` : `<div class="hint">
       <span class="eyebrow">Ukážka — nie tvoje údaje</span>
       <p style="margin:6px 0 12px">Povedzme, že doma máš toto —
         <b>${esc(SPAJZA_UKAZKA.join(', '))}</b>. Potom sa stanú dve veci:</p>
@@ -1090,7 +1100,7 @@ function vSpajzaZamknuta() {
         </div></div>
       <p class="muted" style="margin-top:12px">Dokupuješ už len to, čo k tomu chýba — a to
         z akcií. Nekúpiš druhýkrát to, čo doma máš, a menej jedla skončí v koši.</p>
-    </div>
+    </div>`}
     <p style="margin:16px 0 12px"><b>Premium</b> skladá jedálniček z toho, čo máš doma,
       a nákupný zoznam bez toho, čo už máš.</p>
     <button class="btn" id="sp-premium"${tlacidlo.zamknute}>${esc(tlacidlo.popis)}</button>
@@ -1104,7 +1114,6 @@ function vSpajzaZamknuta() {
 }
 
 function vSpajza() {
-  /* O nároku rozhoduje server (spajza_dostupna, inak premium). */
   if (!pantryUnlocked(ME)) return vSpajzaZamknuta();
   const sp = ME.spajza || [];
   M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Špajza</span>
@@ -1126,9 +1135,18 @@ function vSpajza() {
     <p class="muted center mono" style="font-size:.7rem;margin-top:8px">${sp.length
       ? 'Skladá sa 60 až 120 sekúnd a berie jeden prepočet z dnešného stropu.'
       : 'Najprv napíš, čo máš doma.'}</p>`;
-  /* Uloží a hneď prekreslí špajzu. Žiadne skladanie plánu na pozadí. */
   const uloz = list => runGuardedAction($('#sp-add'), $('#sp-err'), async () => {
-    await api('/api/spajza', {method:'POST', body:JSON.stringify({polozky:list})});
+    try {
+      await api('/api/spajza', {method:'POST', body:JSON.stringify({polozky:list})});
+    } catch (error) {
+      if (error && error.status === 403 && error.code === 'spajza_premium') {
+        ME = await api('/api/me');
+        PANTRY_ACCESS_CHANGED = true;
+        vSpajza();
+        return;
+      }
+      throw error;
+    }
     ME = await api('/api/me');
     PANTRY_HINT_HIDDEN = false;
     await refreshPlanAfterPantrySave();

@@ -658,6 +658,7 @@ def test_settings_use_natural_slovak_cooking_frequency_text(tmp_path):
         tmp_path,
         "settings-frequency-copy.js",
         "var M={innerHTML:''}; function $(selector){return {onclick:null};}\n"
+        + "function viewOnboarding() {}\n"
         + "function esc(value){return String(value == null ? '' : value);}\n"
         + declaration(html, "function vNast() ")
         + """
