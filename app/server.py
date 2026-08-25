@@ -20,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 import db_rezim
 import naklady
 import predpocet
-from config import public_base_url, release_id
+from config import public_base_url, admin_emails, release_id
 from landing_data import load_landing_data, validate_landing_data
 from weekly_data import offers_for_current_week
 from offer_data import OfferKeyCollision, migrate_akcie_schema
@@ -356,6 +356,14 @@ def require_user(req: Request):
     u = user_from_request(req)
     if not u:
         raise HTTPException(status_code=401, detail="Neprihlásený")
+    return u
+
+
+def require_owner(req: Request):
+    u = require_user(req)
+    email = u.get("email")
+    if not isinstance(email, str) or email.strip().casefold() not in admin_emails():
+        raise HTTPException(status_code=403, detail="Prístup zamietnutý")
     return u
 
 
@@ -1245,8 +1253,9 @@ def health():
 
 
 @app.get("/api/naklady")
-def prehlad_nakladov():
+def prehlad_nakladov(req: Request):
     """Podrobnejší pohľad na to, kam išli peniaze. Bez tajomstiev, bez SSH."""
+    require_owner(req)
     with closing(db()) as con:
         return {**naklady.stav(con, limit_poslednych=20), "predpocet": predpocet.stav(con)}
 

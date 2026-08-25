@@ -265,7 +265,8 @@ def test_zasah_do_predpocitaneho_planu_je_vidiet_v_prehlade(monkeypatch, tmp_pat
     monkeypatch.setitem(sys.modules, "anthropic", zakazany_anthropic([]))
     klient_pouzivatela(server, user_id).post("/api/plan/generuj")
 
-    prehlad = TestClient(server.app).get("/api/naklady").json()["predpocet"]
+    monkeypatch.setenv("UVARSI_ADMIN_EMAILS", "u1@uvar.si")
+    prehlad = klient_pouzivatela(server, user_id).get("/api/naklady").json()["predpocet"]
     assert prehlad["usetrenych_generovani"] == 1, prehlad
 
 
@@ -447,7 +448,9 @@ def test_prehlad_nakladov_ukazuje_ako_sa_predpoctu_darilo(monkeypatch, tmp_path)
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), [], []))
     predpocet.zahrej(pocet=2)
 
-    telo = TestClient(server.app).get("/api/naklady").json()
+    user_id = uzivatel(server)
+    monkeypatch.setenv("UVARSI_ADMIN_EMAILS", "u1@uvar.si")
+    telo = klient_pouzivatela(server, user_id).get("/api/naklady").json()
 
     assert "predpocet" in telo, "majiteľ musí vidieť, či predpočet vôbec beží"
     p = telo["predpocet"]
@@ -473,7 +476,9 @@ def test_health_ukazuje_predpocet_a_neprepadne_na_cerstvej_databaze(monkeypatch,
 
 def test_prehlad_predpoctu_neprezradi_tajomstva(monkeypatch, tmp_path):
     server, _ = priprav(monkeypatch, tmp_path)
-    telo = TestClient(server.app).get("/api/naklady").text
+    user_id = uzivatel(server)
+    monkeypatch.setenv("UVARSI_ADMIN_EMAILS", "u1@uvar.si")
+    telo = klient_pouzivatela(server, user_id).get("/api/naklady").text
     for zakazane in ("API_KEY", "sk-ant", "re_", "@uvar.si"):
         assert zakazane not in telo
 

@@ -600,6 +600,7 @@ def test_chybajuce_akcie_bez_problemu_s_kreditom_hovoria_po_starom(monkeypatch, 
 
 
 def test_health_a_naklady_povedia_ze_api_odmieta_pre_kredit(monkeypatch, tmp_path):
+    monkeypatch.setenv("UVARSI_ADMIN_EMAILS", "a@b.sk")
     server = load_server(monkeypatch, tmp_path, current_plan_rows())
     zaloz_pouzivatela(server)
     monkeypatch.setattr(naklady, "posli_ntfy", lambda sprava: None)
@@ -614,6 +615,6 @@ def test_health_a_naklady_povedia_ze_api_odmieta_pre_kredit(monkeypatch, tmp_pat
     assert zdravie["naklady"]["kredit"]["vycerpany"] is True
     assert zdravie["naklady"]["dnes_eur"] == 0, "nič sa neminulo — žiadne falošné euro"
 
-    prehlad = TestClient(server.app).get("/api/naklady").json()
+    prehlad = client.get("/api/naklady").json()
     assert prehlad["kredit"]["vycerpany"] is True
     assert "kredit" in prehlad["kredit"]["sprava"].lower()

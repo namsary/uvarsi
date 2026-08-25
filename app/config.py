@@ -2,6 +2,15 @@ import os
 from pathlib import Path
 
 
+def admin_emails() -> frozenset[str]:
+    """Normalizovaný allowlist majiteľov; prázdna konfigurácia nič nepovolí."""
+    return frozenset(
+        email.strip().casefold()
+        for email in os.environ.get("UVARSI_ADMIN_EMAILS", "").split(",")
+        if email.strip()
+    )
+
+
 def public_base_url() -> str:
     value = os.environ.get("UVARSI_URL", "").strip().rstrip("/")
     if not value:

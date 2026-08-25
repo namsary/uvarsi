@@ -325,11 +325,18 @@ def test_health_neprepadne_na_cerstvej_databaze(monkeypatch, tmp_path):
 
 
 def test_sesterske_api_naklady_da_podrobny_prehlad(monkeypatch, tmp_path):
+    monkeypatch.setenv("UVARSI_ADMIN_EMAILS", "owner@example.test")
     server = load_server(monkeypatch, tmp_path, [])
     vycerpaj_denny_strop(tmp_path / "uvarsi.db", ucel="zber_letakov")
     from fastapi.testclient import TestClient
 
-    odpoved = TestClient(server.app).get("/api/naklady")
+    with server.db() as con:
+        con.execute("INSERT INTO pouzivatelia (id, email) VALUES (1, 'owner@example.test')")
+        insert_hashed_session(server, con, "owner-session", 1)
+        con.commit()
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "owner-session")
+    odpoved = client.get("/api/naklady")
 
     assert odpoved.status_code == 200
     telo = odpoved.json()
