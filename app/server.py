@@ -362,7 +362,9 @@ def require_user(req: Request):
 def require_owner(req: Request):
     u = require_user(req)
     email = u.get("email")
-    if not isinstance(email, str) or email.strip().casefold() not in admin_emails():
+    if not isinstance(email, str) or email.strip().casefold() not in admin_emails(
+        env("UVARSI_ADMIN_EMAILS", "")
+    ):
         raise HTTPException(status_code=403, detail="Prístup zamietnutý")
     return u
 

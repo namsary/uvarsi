@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+import pytest
 
 from tests.test_server import insert_hashed_session, load_server
 
@@ -46,6 +47,32 @@ def test_detail_naklady_fails_closed_without_admin_configuration(monkeypatch, tm
     assert response.status_code == 403
     assert "owner@example.test" not in response.text
     assert "UVARSI_ADMIN_EMAILS" not in response.text
+
+
+@pytest.mark.parametrize("configured_value", ["", "   ", " , \t, , "])
+def test_detail_naklady_fails_closed_for_effectively_empty_admin_configuration(
+    monkeypatch, tmp_path, configured_value,
+):
+    monkeypatch.setenv("UVARSI_ADMIN_EMAILS", configured_value)
+    server = load_server(monkeypatch, tmp_path, [])
+    client = authenticated_client(server, email="owner@example.test")
+
+    response = client.get("/api/naklady")
+
+    assert response.status_code == 403
+
+
+def test_detail_naklady_reads_allowlist_from_server_env_file(monkeypatch, tmp_path):
+    monkeypatch.delenv("UVARSI_ADMIN_EMAILS", raising=False)
+    server = load_server(monkeypatch, tmp_path, [])
+    env_file = tmp_path / "uvarsi.env"
+    env_file.write_text("UVARSI_ADMIN_EMAILS=owner@example.test\n", encoding="utf-8")
+    monkeypatch.setattr(server, "ENV_FILE", str(env_file))
+    client = authenticated_client(server, email="owner@example.test")
+
+    response = client.get("/api/naklady")
+
+    assert response.status_code == 200
 
 
 def test_detail_naklady_accepts_normalized_owner_from_comma_separated_allowlist(monkeypatch, tmp_path):

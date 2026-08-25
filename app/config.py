@@ -2,11 +2,11 @@ import os
 from pathlib import Path
 
 
-def admin_emails() -> frozenset[str]:
+def admin_emails(raw: str) -> frozenset[str]:
     """Normalizovaný allowlist majiteľov; prázdna konfigurácia nič nepovolí."""
     return frozenset(
         email.strip().casefold()
-        for email in os.environ.get("UVARSI_ADMIN_EMAILS", "").split(",")
+        for email in raw.split(",")
         if email.strip()
     )
 
