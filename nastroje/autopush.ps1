@@ -19,8 +19,15 @@ param([switch]$Instaluj, [switch]$Raz)
 $ErrorActionPreference = "Continue"
 $REPO = Split-Path $PSScriptRoot -Parent
 $LOG_ROOT = Join-Path $env:LOCALAPPDATA "Uvarsi"
+try {
+  New-Item -ItemType Directory -Path $LOG_ROOT -Force -ErrorAction Stop | Out-Null
+} catch {
+  # Núdzový adresár je stále mimo repozitára, takže ani pri obmedzenom profile
+  # používateľa nevznikne samospúšťacia slučka commitov.
+  $LOG_ROOT = Join-Path $env:TEMP "Uvarsi"
+  New-Item -ItemType Directory -Path $LOG_ROOT -Force -ErrorAction Stop | Out-Null
+}
 $LOG = Join-Path $LOG_ROOT "autopush.log"
-New-Item -ItemType Directory -Path $LOG_ROOT -Force | Out-Null
 
 function Zapis($sprava) {
   $riadok = "[{0:yyyy-MM-dd HH:mm:ss}] {1}" -f (Get-Date), $sprava
