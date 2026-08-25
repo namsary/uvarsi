@@ -689,3 +689,8 @@
 [2026-08-25 11:54:21] pushnute 4ab1648 - server si to vezme do 10 minut
 [2026-08-25 11:55:38] zmenenych suborov: 1
 [2026-08-25 11:58:41] testy OK: ......ss......s......................................................... [ 92%] .....................................ssss.........................       [100%] 838 passed, 20 skipped, 36 deselected in 179.05s (0:02:59)
+[2026-08-25 11:58:48] pushnute fdd3a28 - server si to vezme do 10 minut
+[2026-08-25 12:01:01] zmenenych suborov: 1
+[2026-08-25 12:04:14] TESTY ZLYHALI - nepushujem. =========================== short test summary info =========================== FAILED tests/test_auth.py::test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_write 1 failed, 837 passed, 20 skipped, 36 deselected in 189.42s (0:03:09)
+[2026-08-25 12:05:39] zmenenych suborov: 1
+[2026-08-25 12:08:53] testy OK: ......ss......s......................................................... [ 92%] .....................................ssss.........................       [100%] 838 passed, 20 skipped, 36 deselected in 182.82s (0:03:02)
