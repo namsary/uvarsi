@@ -6,13 +6,16 @@
 <title>Uvar.si — z letáka rovno na tanier</title>
 <meta name="description" content="Povedz, ako často chceš variť. Uvar.si vyskladá jedálniček a recepty z toho, čo je práve v akcii v obchodoch u teba — a z toho, čo už máš doma v špajze.">
 <link rel="canonical" href="https://uvar.si/">
+<meta property="og:title" content="Uvar.si — z letáka rovno na tanier">
+<meta property="og:description" content="Povedz, ako často chceš variť. Uvar.si vyskladá jedálniček a recepty z toho, čo je práve v akcii v obchodoch u teba — a z toho, čo už máš doma v špajze.">
+<meta property="og:url" content="https://uvar.si/">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="sk_SK">
+<meta name="twitter:card" content="summary">
 <link rel="preload" as="font" type="font/woff2" href="/static/fonts/manrope-400-800.7101939e.woff2" crossorigin>
 <link rel="preload" as="font" type="font/woff2" href="/static/fonts/anton-400.6d2997e3.woff2" crossorigin>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"Uvar.si","url":"https://uvar.si/","inLanguage":"sk-SK","description":"Povedz, ako často chceš variť. Uvar.si vyskladá jedálniček a recepty z toho, čo je práve v akcii v obchodoch u teba — a z toho, čo už máš doma v špajze."},{"@type":"SoftwareApplication","name":"Uvar.si","url":"https://uvar.si/","applicationCategory":"Meal Planning Application","operatingSystem":"Web","inLanguage":"sk-SK","description":"Pomáha naplánovať jedálniček a recepty z akcií v obchodoch v okolí a zo surovín, ktoré už máš doma."}]}</script>
 <style>
-  /* Písma si servírujeme sami. Landing sa otvára z Facebooku na mobilných
-     dátach — čakať na DNS a TLS k Google Fonts pred prvým písmenom bolo to
-     najdrahšie, čo tu bolo. Navyše už nikomu neposielame IP návštevníka.
-     Subset, licencia a pôvod originálov: /static/fonts/LICENSE.txt */
   @font-face{font-family:"Anton";font-style:normal;font-weight:400;font-display:swap;
     src:url("/static/fonts/anton-400.6d2997e3.woff2") format("woff2")}
   @font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:400;font-display:swap;
@@ -54,7 +57,6 @@
   .hero-lead b{color:var(--ink);font-weight:800}
   .hero-note{font-family:"IBM Plex Mono",monospace;font-size:.75rem;color:var(--ink-soft);margin-top:14px;letter-spacing:.03em}
 
-  /* receipt */
   .rcpt-wrap{display:flex;flex-direction:column;align-items:center;gap:22px}
   .rcpt-proof{font-family:"IBM Plex Mono",monospace;font-size:.72rem;line-height:1.5;color:var(--ink-soft);
     text-align:center;max-width:340px;border-top:2px solid var(--ink);padding-top:12px}
@@ -106,7 +108,6 @@
   .prob h3{font-size:1.05rem;margin:10px 0 5px;font-weight:800}
   .prob p{color:var(--ink-soft);font-size:.94rem}
 
-  /* modelový príklad */
   .ex-lead{color:var(--ink-soft);max-width:56ch;font-size:1.05rem;margin:8px 0 36px}
   .ex-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
   .ex-card{border:2px solid var(--ink);background:#fff;padding:22px 20px;font-family:"IBM Plex Mono",monospace}
@@ -160,7 +161,6 @@
   .shop--soon{border-style:dashed;color:var(--ink-soft);background:transparent}
   .disclaim{font-size:.76rem;color:var(--ink-soft);margin-top:16px;max-width:60ch}
 
-  /* ---- PLÁNY (Buffer test) ---- */
   .plans-band{background:var(--green-deep);color:#fff;border-top:2px solid var(--ink);padding:86px 0}
   .plans-band .eyebrow{color:var(--yellow)}
   .plans-band h2{font-size:clamp(1.9rem,3.6vw,2.7rem);margin:12px 0 14px}
@@ -185,7 +185,6 @@
   .pc-bar{height:10px;border:2px solid var(--ink);background:#fff}
   .pc-bar span{display:block;height:100%;background:var(--ink);width:0}
 
-  /* ---- MODAL ---- */
   .modal{position:fixed;inset:0;background:rgba(14,31,26,.75);display:none;align-items:center;justify-content:center;padding:24px;z-index:50}
   .modal[open]{display:flex}
   .modal-box{background:var(--paper);border:3px solid var(--ink);box-shadow:10px 10px 0 rgba(0,0,0,.4);max-width:460px;width:100%;padding:32px 28px;position:relative}
@@ -245,10 +244,6 @@
       <p class="hero-note">Spúšťame po mestách. Ešte nie sme live — pozri si plány a nechaj nám e-mail.</p>
     </div>
 
-    <!-- Bloček kreslí render() z /api/public/landing, až keď dorazia aktuálne dáta.
-         Zamrznutá kópia tu kedysi bola, no nikdy sa nezobrazila (kontajner je
-         hidden a replaceChildren ju aj tak zahodí) — boli to len bajty navyše
-         a ceny z dávno neplatného letáka v zdrojáku. -->
     <div class="rcpt-wrap" id="landing-data" aria-live="polite" hidden><!-- RCPT:START --><!-- RCPT:END --></div>
     <p class="rcpt-proof" id="landing-status" aria-live="polite">Aktuálne letákové dáta práve obnovujeme.</p>
   </section>
@@ -291,8 +286,6 @@
   </div>
 </section>
 
-<!-- Kreslí renderModel() z /api/public/landing, z tých istých overených ponúk
-     ako bloček vyššie. V zdrojáku preto nie je ani jedna cena — ani placeholder. -->
 <section class="band band--tint" id="landing-model" hidden>
   <div class="shell">
     <span class="eyebrow">Modelový príklad</span>
@@ -322,7 +315,6 @@
   </div>
 </section>
 
-<!-- ============ PLÁNY ============ -->
 <section class="plans-band" id="plany">
   <div class="shell">
     <span class="eyebrow">Plány a ceny</span>
@@ -394,11 +386,10 @@
 <div class="shell">
   <footer class="foot">
     <div class="brand">Uvar<em>.si</em></div>
-    <div class="foot-meta">© 2026 Uvar.si · <a href="#plany">Skorý prístup</a> · <a href="mailto:pumaragency@gmail.com">pumaragency@gmail.com</a></div>
+    <div class="foot-meta">© 2026 Uvar.si · <a href="/co-varit-tento-tyzden">Čo variť tento týždeň</a> · <a href="/lacny-jedalnicek">Lacný jedálniček</a> · <a href="/ako-varime-z-akcii">Ako varíme z akcií</a> · <a href="#plany">Skorý prístup</a> · <a href="mailto:pumaragency@gmail.com">pumaragency@gmail.com</a></div>
   </footer>
 </div>
 
-<!-- ============ MODAL ============ -->
 <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
   <div class="modal-box">
     <button class="modal-close" id="mClose" aria-label="Zavrieť">×</button>
@@ -429,14 +420,11 @@
 <iframe name="ml_sink" id="ml_sink" style="display:none" title="odosielanie"></iframe>
 
 <script>
-/* Dynamické letákové údaje sa zobrazia až po úspešnom načítaní aktuálneho JSONu. */
 (function(){
   var landing=document.getElementById('landing-data');
   var status=document.getElementById('landing-status');
   var model=document.getElementById('landing-model');
   var modelBody=document.getElementById('landing-model-body');
-  /* Druhý zámok: aj keby niekto atribút hidden zo zdrojáka zmazal, sekcia
-     ostane skrytá, kým dáta neprejdú kontrolou v modelIsPublishable(). */
   model.hidden=true;
 
   function node(tag, className, text){
@@ -510,7 +498,6 @@
     return label;
   }
 
-  /* „Skontroluj si ich" je sľub len vtedy, keď je čo otvoriť. */
   function sourcesNode(sources){
     var list=(sources||[]).filter(function(source){ return source&&source.store; });
     if(!list.length) return null;
@@ -572,9 +559,6 @@
     status.hidden=true;
   }
 
-  /* Modelový príklad tvrdí konkrétnu úsporu, tak sa smie vykresliť len z dát,
-     ktoré ju vedia doložiť: aktuálny týždeň a aspoň jedna overená prečiarknutá
-     cena. To isté pravidlo v Pythone: app/landing_data.py. */
   function modelIsPublishable(data, now){
     if(!data||!data.receipt||!(data.receipt.meals||[]).length) return false;
     if(String(data.week||'')!==mondayIso(now)) return false;
@@ -622,9 +606,6 @@
         'recepty krok za krokom','nákupný zoznam: '+order.map(function(store){ return store+' '+counts[store]; }).join(' · '),
         'zvyšky zarátané do ďalších dní'],save));
 
-    /* Týždenná úspora je odčítaná z letákov — to je fakt. Ročná nie je: je to
-       tento týždeň krát 52. Preto vždy podmienené „ak by si" a vždy dopočítané
-       z aktuálneho čísla, nikdy zamrznutá konštanta v zdrojáku. */
     var weekly=money(data.receipt.usetris), band=node('div','cost-band');
     band.append(node('span','c-lbl','Tento týždeň'),node('b','',amount(data.receipt.usetris)),
       node('span','',' ušetrené oproti bežným cenám. Ak by si takto nakupoval každý týždeň, vyšlo by to približne na '),
@@ -703,9 +684,6 @@
 })();
 </script>
 <script>
-/* Reálne počítadlo zakladajúcich členov.
-   Ťahá skutočný počet z count.json (aktualizuje ho týždenná úloha z MailerLite).
-   Zobrazí sa AŽ pri dostatočnom reálnom čísle — nikdy neukáže fejk ani mŕtvu nulu. */
 (function(){
   var CAP=250, THRESHOLD=15;
   fetch('count.json?v='+Date.now()).then(function(r){return r.json();}).then(function(d){

@@ -133,3 +133,14 @@ def test_landing_claims_only_that_prices_were_read_from_a_named_leaflet():
     for overstated in ("overili sme u", "nezávisle overené", "garantujeme", "potvrdené obchodom",
                        "overené priamo v obchode"):
         assert overstated not in html, "reading a leaflet page is not retailer verification"
+
+
+def test_landing_keeps_its_current_title_and_description():
+    html = index_html()
+
+    assert "<title>Uvar.si — z letáka rovno na tanier</title>" in html
+    assert (
+        '<meta name="description" content="Povedz, ako často chceš variť. '
+        "Uvar.si vyskladá jedálniček a recepty z toho, čo je práve v akcii v obchodoch u teba — "
+        'a z toho, čo už máš doma v špajze.">'
+    ) in html
