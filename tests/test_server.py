@@ -6,6 +6,7 @@ import sys
 import threading
 import time
 import types
+import xml.etree.ElementTree as ET
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -56,6 +57,43 @@ def load_server(monkeypatch, tmp_path, rows, landing_data=None):
         landing_path = tmp_path / "landing_data.json"
         write_landing_data_atomic(landing_path, landing_data)
         monkeypatch.setenv("UVARSI_LANDING_DATA", str(landing_path))
+    monkeypatch.syspath_prepend(str(ROOT / "app"))
+    sys.modules.pop("server", None)
+    return importlib.import_module("server")
+
+
+def load_server_with_landing_path(monkeypatch, tmp_path, rows, landing_path):
+    database = tmp_path / "uvarsi.db"
+    con = sqlite3.connect(database)
+    con.execute(
+        """CREATE TABLE akcie (
+            tyzden TEXT, nazov TEXT, obchod TEXT, cena REAL, povodna REAL,
+            zlava TEXT, jednotka TEXT, kategoria TEXT, source_url TEXT,
+            source_page INTEGER, valid_from TEXT, valid_to TEXT
+        )"""
+    )
+    con.executemany(
+        """INSERT INTO akcie
+           (tyzden, nazov, obchod, cena, povodna, zlava, jednotka, kategoria,
+            source_url, source_page, valid_from, valid_to)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        [tuple(row) + (None,) * (12 - len(row)) for row in rows],
+    )
+    migrate_akcie_schema(con)
+    con.row_factory = sqlite3.Row
+    for row in con.execute("SELECT rowid, * FROM akcie").fetchall():
+        offer = dict(row)
+        try:
+            key = offer_key_for(offer["tyzden"], offer)
+        except ValueError:
+            continue
+        con.execute("UPDATE akcie SET offer_key=? WHERE rowid=?", (key, row[0]))
+    con.commit()
+    con.close()
+
+    monkeypatch.setenv("UVARSI_DB", str(database))
+    monkeypatch.setenv("UVARSI_URL", "https://uvar.si")
+    monkeypatch.setenv("UVARSI_LANDING_DATA", str(landing_path))
     monkeypatch.syspath_prepend(str(ROOT / "app"))
     sys.modules.pop("server", None)
     return importlib.import_module("server")
@@ -445,6 +483,46 @@ def test_sitemap_reports_weekly_lastmod_only_for_valid_payload(
         assert "<lastmod>" not in response.text
     else:
         assert expected_lastmod in response.text
+
+
+def test_malformed_landing_file_recovers_weekly_page_instead_of_500(monkeypatch, tmp_path):
+    landing_path = tmp_path / "landing_data.json"
+    landing_path.write_text(
+        '{"receipt":{"nakup_spolu":"99,99","bezne":"129,99"},"source_url":"https://letak.test/tajny-zdroj"',
+        encoding="utf-8",
+    )
+    server = load_server_with_landing_path(monkeypatch, tmp_path, [], landing_path)
+
+    response = TestClient(server.app).get("/co-varit-tento-tyzden")
+
+    assert response.status_code == 503
+    assert response.headers["content-type"] == "text/html; charset=utf-8"
+    assert response.headers["retry-after"] == "900"
+    assert response.headers["cache-control"] == "no-store"
+    assert "Týždenné ceny práve overujeme" in response.text
+    assert "99,99" not in response.text
+    assert "129,99" not in response.text
+    assert "tajny-zdroj" not in response.text
+
+
+def test_malformed_landing_file_keeps_sitemap_truthful_and_parseable(monkeypatch, tmp_path):
+    landing_path = tmp_path / "landing_data.json"
+    landing_path.write_text(
+        '{"receipt":{"nakup_spolu":"99,99","bezne":"129,99"},"source_url":"https://letak.test/tajny-zdroj"',
+        encoding="utf-8",
+    )
+    server = load_server_with_landing_path(monkeypatch, tmp_path, [], landing_path)
+
+    response = TestClient(server.app).get("/sitemap.xml")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/xml")
+    assert response.headers["cache-control"] == "public, max-age=300, must-revalidate"
+    root = ET.fromstring(response.text)
+    namespace = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+    weekly_url = root.find("sm:url[sm:loc='https://uvar.si/co-varit-tento-tyzden']", namespace)
+    assert weekly_url is not None
+    assert weekly_url.find("sm:lastmod", namespace) is None
 
 
 def test_material_profile_change_invalidates_only_that_users_current_cached_plan(monkeypatch, tmp_path):

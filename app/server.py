@@ -1456,7 +1456,7 @@ def _weekly_public_page(today: datetime.date | None = None):
     today = today or datetime.date.today()
     try:
         payload = load_landing_data(LANDING_DATA)
-    except FileNotFoundError:
+    except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError):
         payload = None
     return render_weekly_page(payload, today=today)
 
