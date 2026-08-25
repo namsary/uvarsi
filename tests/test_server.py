@@ -443,15 +443,20 @@ def test_the_served_plan_always_reports_the_readers_current_pantry(monkeypatch, 
     assert generated.status_code == 200
     assert generated.json()["spajza"] == ["soľ"]
 
-    client.post("/api/spajza", json={"polozky": ["soľ", "Ponuka 1"]})
+    client.post("/api/spajza", json={"polozky": ["soľ", "Ponuka 2"]})
     cached = client.get("/api/plan")
 
     assert cached.status_code == 200
-    assert cached.json()["spajza"] == ["soľ", "Ponuka 1"]
-    assert [item["nazov"] for item in cached.json()["spajza_pokryte"]] == ["Ponuka 1"]
+    ponuka = next(
+        item for group in cached.json()["nakupny_zoznam"] for item in group["polozky"]
+        if item["nazov"] == "Ponuka 2"
+    )
+    assert ponuka["mnozstvo"] == 1
+    assert cached.json()["spajza"] == ["soľ", "Ponuka 2"]
+    assert [item["nazov"] for item in cached.json()["spajza_pokryte"]] == ["Ponuka 2"]
     assert len(constructors) == 1, "prepočítanie špajze nesmie stáť volanie modelu"
     assert cached.json()["jedla"] == generated.json()["jedla"], "menu ostáva nedotknuté"
-    assert client.get("/api/me").json()["spajza"] == ["soľ", "Ponuka 1"]
+    assert client.get("/api/me").json()["spajza"] == ["soľ", "Ponuka 2"]
 
 
 def test_plan_route_persists_only_reconstructed_server_commerce(monkeypatch, tmp_path):
@@ -1111,7 +1116,7 @@ def test_a_premium_pantry_shows_up_in_the_shopping_list_not_in_the_generation(mo
     """Za čo Premium platí: nekúpiš druhýkrát to, čo doma máš — a nečakáš na to."""
     first, second = SHARED_VARIANT_USERS
     server = shared_plan_server(
-        monkeypatch, tmp_path, pantry={first: ["soľ"], second: ["soľ", "Ponuka 1"]}
+        monkeypatch, tmp_path, pantry={first: ["soľ"], second: ["soľ", "Ponuka 2"]}
     )
     calls = []
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), [], calls))
@@ -1121,8 +1126,13 @@ def test_a_premium_pantry_shows_up_in_the_shopping_list_not_in_the_generation(mo
 
     assert len(calls) == 1, "rovnaký profil sa má trafiť do zdieľanej cache aj s Premium"
     druhy = plan_client(server, second).get("/api/plan").json()
-    assert druhy["spajza"] == ["soľ", "Ponuka 1"]
-    assert [item["nazov"] for item in druhy["spajza_pokryte"]] == ["Ponuka 1"]
+    ponuka = next(
+        item for group in druhy["nakupny_zoznam"] for item in group["polozky"]
+        if item["nazov"] == "Ponuka 2"
+    )
+    assert ponuka["mnozstvo"] == 1
+    assert druhy["spajza"] == ["soľ", "Ponuka 2"]
+    assert [item["nazov"] for item in druhy["spajza_pokryte"]] == ["Ponuka 2"]
     assert druhy["nakup_bez_spajze"] != druhy["nakup_spolu"]
     # A prvý používateľ vidí ten istý plán, ale bez cudzej špajze.
     prvy = plan_client(server, first).get("/api/plan").json()

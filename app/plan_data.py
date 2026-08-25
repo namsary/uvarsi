@@ -771,7 +771,10 @@ def build_personal_plan(con, model_output, stores, frequency, household_size, pa
     grouped = {}
     for item in purchases:
         grouped.setdefault(item["obchod"], []).append({
-            key: item[key] for key in ("offer_key", "nazov", "jednotka", "mnozstvo", "cena", "povodna", "zlava")
+            key: item[key] for key in (
+                "offer_key", "nazov", "jednotka", "mnozstvo", "cena", "povodna", "zlava",
+                "source_url", "source_page", "valid_from", "valid_to",
+            )
         })
     shopping = [
         {"obchod": store, "polozky": sorted(items, key=lambda item: (item["nazov"].casefold(), item["offer_key"]))}
@@ -904,6 +907,12 @@ def apply_pantry_to_shopping_list(plan, pantry):
     pokryte = []
     usetrene = Decimal("0")
     claimed = set()
+    exact_offer_names = {
+        _fold(str(item.get("nazov") or "").strip())
+        for group in plan.get("nakupny_zoznam") or []
+        for item in group.get("polozky") or []
+        if str(item.get("nazov") or "").strip()
+    }
     for group in plan.get("nakupny_zoznam") or []:
         polozky = []
         for item in group.get("polozky") or []:
@@ -912,8 +921,18 @@ def apply_pantry_to_shopping_list(plan, pantry):
             for candidate in pantry:
                 if candidate in claimed:
                     continue
+                candidate_exact = _fold(candidate)
+                offer_exact = _fold(str(nazov or "").strip())
+                if candidate_exact in exact_offer_names and candidate_exact != offer_exact:
+                    continue
                 if pantry_matches_offer(candidate, nazov):
-                    owner = candidate
+                    if item.get("mnozstvo") == 1:
+                        owner = candidate
+                    else:
+                        # Bez množstva v špajzi nevieme potvrdiť všetky balenia.
+                        # Kandidát však patrí tomuto riadku a nesmie sa neskôr
+                        # nepresne priradiť k podobne pomenovanej položke.
+                        claimed.add(candidate)
                     break
             oznaceny = dict(item, mas_doma=owner is not None, spajza=owner)
             polozky.append(oznaceny)

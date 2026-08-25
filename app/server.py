@@ -640,17 +640,24 @@ h1{font-size:28px;margin:0 0 12px}p{color:var(--soft);line-height:1.6}.action{di
 <a class="action" id="resend" href="/app">Požiadať o nový odkaz</a></section></main>
 <script>
 const panel=document.getElementById('panel');const statusNode=document.getElementById('status');
-let token=new URLSearchParams(location.hash.slice(1)).get('token')||'';
+const MAGIC_TOKEN_SESSION_KEY='uvarsi.auth.magic-token.v1';
+const freshToken=new URLSearchParams(location.hash.slice(1)).get('token')||'';
+function storedToken(){try{return sessionStorage.getItem(MAGIC_TOKEN_SESSION_KEY)||'';}catch(error){return '';}}
+function rememberToken(value){try{sessionStorage.setItem(MAGIC_TOKEN_SESSION_KEY,value);}catch(error){}}
+function forgetToken(){try{sessionStorage.removeItem(MAGIC_TOKEN_SESSION_KEY);}catch(error){}}
+let token=freshToken||storedToken();
+if(freshToken)rememberToken(freshToken);
 history.replaceState(null,'',location.pathname);
 if(!token){statusNode.textContent='Odkaz chýba alebo má starý formát. Požiadaj o nový prihlasovací odkaz.';panel.classList.add('legacy');}
 document.getElementById('confirm').onclick=async()=>{
-  let submittedToken=token;token='';history.replaceState(null,'',location.pathname);
+  const submittedToken=token;history.replaceState(null,'',location.pathname);
   try{
     const response=await fetch('/api/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:submittedToken})});
-    submittedToken='';const data=await response.json().catch(()=>({}));
-    if(response.ok){location.replace(data.redirect);return;}
+    const data=await response.json().catch(()=>({}));
+    if(response.ok){token='';forgetToken();location.replace(data.redirect);return;}
+    if(response.status===400||response.status===410){token='';forgetToken();}
     statusNode.textContent=data.detail||'Odkaz sa nepodarilo overiť. Požiadaj o nový.';
-  }catch(error){submittedToken='';statusNode.textContent='Overenie sa nepodarilo pripojiť. Požiadaj o nový odkaz.';}
+  }catch(error){statusNode.textContent='Overenie sa nepodarilo pripojiť. Požiadaj o nový odkaz.';}
   document.getElementById('confirm').style.display='none';document.getElementById('resend').style.display='inline-block';
 };
 </script></body></html>"""

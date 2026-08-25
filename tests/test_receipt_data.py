@@ -131,8 +131,12 @@ def test_reconstructs_every_item_total_and_exact_deduped_sources_from_db():
     assert payload["receipt"]["bezne"] == "7,30"
     assert payload["receipt"]["usetris"] == "2,10"
     assert payload["sources"] == [
-        {"store": "Lidl", "url": "https://source.test/lidl", "valid_from": "2026-08-16", "valid_to": "2026-08-19"},
-        {"store": "Tesco", "url": "https://source.test/tesco", "valid_from": "2026-08-18", "valid_to": "2026-08-24"},
+        {"store": "Lidl", "url": "https://source.test/lidl", "source_page": 2,
+         "valid_from": "2026-08-16", "valid_to": "2026-08-19"},
+        {"store": "Tesco", "url": "https://source.test/tesco", "source_page": 4,
+         "valid_from": "2026-08-18", "valid_to": "2026-08-24"},
+        {"store": "Lidl", "url": "https://source.test/lidl", "source_page": 3,
+         "valid_from": "2026-08-16", "valid_to": "2026-08-19"},
     ]
 
 

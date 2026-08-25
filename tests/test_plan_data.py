@@ -259,18 +259,57 @@ def test_reconstructs_grouped_purchases_and_totals_only_from_verified_offers():
             },
         ],
         "nakupny_zoznam": [
-            {"obchod": "Lidl", "polozky": [
-                {"offer_key": verified_key(3), "nazov": "Maslo", "jednotka": "250 g", "mnozstvo": 1,
-                 "cena": "2,00", "povodna": "2,50", "zlava": "-20 %"},
-                {"offer_key": verified_key(1), "nazov": "Mlieko", "jednotka": "1 l", "mnozstvo": 2,
-                 "cena": "2,20", "povodna": "3,00", "zlava": "-27 %"},
-            ]},
-            {"obchod": "Tesco", "polozky": [
-                {"offer_key": verified_key(2), "nazov": "Chlieb", "jednotka": "500 g", "mnozstvo": 1,
-                 "cena": "1,20", "povodna": "1,80", "zlava": "-33 %"},
-            ]},
+                {"obchod": "Lidl", "polozky": [
+                    {"offer_key": verified_key(3), "nazov": "Maslo", "jednotka": "250 g", "mnozstvo": 1,
+                     "cena": "2,00", "povodna": "2,50", "zlava": "-20 %",
+                     "source_url": "https://source.test/lidl", "source_page": 3,
+                     "valid_from": "2026-08-17", "valid_to": "2026-08-23"},
+                    {"offer_key": verified_key(1), "nazov": "Mlieko", "jednotka": "1 l", "mnozstvo": 2,
+                     "cena": "2,20", "povodna": "3,00", "zlava": "-27 %",
+                     "source_url": "https://source.test/lidl", "source_page": 1,
+                     "valid_from": "2026-08-17", "valid_to": "2026-08-23"},
+                ]},
+                {"obchod": "Tesco", "polozky": [
+                    {"offer_key": verified_key(2), "nazov": "Chlieb", "jednotka": "500 g", "mnozstvo": 1,
+                     "cena": "1,20", "povodna": "1,80", "zlava": "-33 %",
+                     "source_url": "https://source.test/tesco", "source_page": 2,
+                     "valid_from": "2026-08-17", "valid_to": "2026-08-23"},
+                ]},
         ],
         "nakup_spolu": "5,40", "bezne": "7,30", "usetris": "1,90",
+    }
+
+
+def test_shopping_rows_retain_verified_price_provenance_from_the_offer_database():
+    plan = build_personal_plan(
+        connection(verified_rows()), model_output(), ["Lidl", "Tesco"], 2, 4,
+        pantry=["soľ"], today=TODAY,
+    )
+
+    shopping_by_key = {
+        item["offer_key"]: item
+        for group in plan["nakupny_zoznam"]
+        for item in group["polozky"]
+    }
+    assert {
+        key: {
+            field: shopping_by_key[key][field]
+            for field in ("source_url", "source_page", "valid_from", "valid_to")
+        }
+        for key in shopping_by_key
+    } == {
+        verified_key(1): {
+            "source_url": "https://source.test/lidl", "source_page": 1,
+            "valid_from": "2026-08-17", "valid_to": "2026-08-23",
+        },
+        verified_key(2): {
+            "source_url": "https://source.test/tesco", "source_page": 2,
+            "valid_from": "2026-08-17", "valid_to": "2026-08-23",
+        },
+        verified_key(3): {
+            "source_url": "https://source.test/lidl", "source_page": 3,
+            "valid_from": "2026-08-17", "valid_to": "2026-08-23",
+        },
     }
 
 

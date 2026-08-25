@@ -193,7 +193,7 @@ def test_the_pantry_view_is_recomputed_per_request_not_stored(monkeypatch, tmp_p
 
     assert po_zmene.status_code == 200
     assert len(constructors) == 1, "špajza sa nesmie dotknúť plateného volania"
-    assert [item["nazov"] for item in po_zmene.json()["spajza_pokryte"]] == ["Ponuka 1"]
+    assert po_zmene.json()["spajza_pokryte"] == []
     assert po_zmene.json()["jedla"] == client.get("/api/plan").json()["jedla"]
 
 
