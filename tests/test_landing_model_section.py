@@ -192,6 +192,7 @@ def model_helpers(html):
         nested(html, "function money(value)"),
         nested(html, "function itemsOf(data)"),
         nested(html, "function mondayIso(now)"),
+        nested(html, "function sourcesAreCurrent(data, now)"),
         nested(html, "function plural(count, one, few, many)"),
         nested(html, "function modelIsPublishable(data, now)"),
         nested(html, "function checkCard(key, lines, tail)"),
@@ -292,6 +293,33 @@ renderModel(stale, NOW);
 if (model.hidden !== true) process.exit(1);
 if (modelBody.children.length !== 0) process.exit(2);
 if (modelIsPublishable(stale, NOW) !== false) process.exit(3);
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
+def test_browser_fails_closed_for_expired_or_undated_receipt_sources(tmp_path):
+    result = run_node(
+        tmp_path,
+        "landing-model-expired-source.js",
+        model_helpers(index_html())
+        + """
+var expired = data();
+expired.sources[0].valid_to = '2026-08-19';
+renderModel(expired, NOW);
+if (sourcesAreCurrent(expired, NOW) !== false) process.exit(1);
+if (model.hidden !== true) process.exit(2);
+
+var missing = data();
+delete missing.sources[0].valid_to;
+if (sourcesAreCurrent(missing, NOW) !== false) process.exit(3);
+
+var boundary = data();
+boundary.sources[0].valid_to = '2026-08-20';
+if (sourcesAreCurrent(boundary, NOW) !== true) process.exit(4);
 process.exit(0);
 """,
     )

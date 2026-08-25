@@ -43,6 +43,35 @@ def test_saving_profile_never_generates_a_plan_implicitly():
     assert "nacitajPlan(true)" not in refresh
 
 
+def test_profile_save_empty_state_has_truthful_profile_copy_and_button_label():
+    html = app_html()
+    onboarding = declaration(html, "function viewOnboarding() ")
+    refresh = declaration(html, "async function refreshPlanAfterProfileSave() ")
+    plan_view = declaration(html, "function vPlan() ")
+
+    assert "Uložiť nastavenia" in onboarding
+    assert "Uložiť a prepočítať plán" not in onboarding
+    assert "PLAN_EMPTY_REASON = empty ? 'profil' : ''" in refresh
+    assert "PLAN_EMPTY_REASON === 'profil'" in plan_view
+    assert "Nastavenia sa zmenili" in plan_view
+    assert "Špajza sa zmenila" in plan_view
+
+
+def test_every_empty_plan_after_pantry_save_requires_an_explicit_cta():
+    html = app_html()
+    refresh = declaration(html, "async function refreshPlanAfterPantrySave() ")
+    plan_view = declaration(html, "function vPlan() ")
+
+    assert "const empty = !!(plan && plan.prazdny)" in refresh
+    assert "PLAN_NEEDS_REGEN = empty" in refresh
+    assert "PLAN_EMPTY_REASON = empty ? 'spajza' : ''" in refresh
+    assert "plan.prazdny && plan.obnovit_cez" not in refresh
+    assert "if (PLAN_NEEDS_REGEN)" in plan_view
+    guarded = plan_view.split("if (!PLAN || !PLAN.jedla) return nacitajPlan(true)", 1)[0]
+    assert "Vytvoriť aktuálny jedálniček" in guarded
+    assert "return;" in guarded, "prázdny stav sa musí zastaviť na CTA"
+
+
 def test_cached_shell_navigation_stays_locked_until_authoritative_profile_arrives():
     """Zapamätané meno je iba skeleton, nie oprávnenie klikať do appky."""
     html = app_html()

@@ -45,7 +45,7 @@ def test_dozorca_refreshes_stale_json_using_only_json_destination(tmp_path):
         "  exit 0\n"
         "fi\n"
         f"printf '%s\\n' \"$*\" >> '{bash_path(calls)}'\n"
-        "printf '{\"schema_version\":1,\"generated_at\":\"2026-08-18T05:02:20+02:00\",\"week\":\"2026-08-17\",\"week_label\":\"17.–23. 8. 2026\",\"sources\":[],\"receipt\":{\"meals\":[{\"day\":\"PO\",\"name\":\"Test\",\"items\":[]}],\"nakup_spolu\":\"1,00\",\"bezne\":\"2,00\",\"usetris\":\"1,00\"}}' > \"$3\"\n"
+        "printf '{\"schema_version\":1,\"generated_at\":\"2026-08-18T05:02:20+02:00\",\"week\":\"2026-08-17\",\"week_label\":\"17.–23. 8. 2026\",\"sources\":[{\"store\":\"Lidl\",\"url\":\"https://letak.test/lidl\",\"valid_from\":\"2026-08-17\",\"valid_to\":\"2026-08-23\"}],\"receipt\":{\"meals\":[{\"day\":\"PO\",\"name\":\"Test\",\"items\":[]}],\"nakup_spolu\":\"1,00\",\"bezne\":\"2,00\",\"usetris\":\"1,00\"}}' > \"$3\"\n"
         "exit 0\n",
         encoding="utf-8",
     )

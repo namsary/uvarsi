@@ -62,12 +62,17 @@ def load_server(monkeypatch, tmp_path, rows, landing_data=None):
 
 
 def landing_payload(week=None):
+    today = date.today()
     return {
         "schema_version": 1,
         "generated_at": "2026-08-18T05:02:20+02:00",
         "week": week or current_monday(),
         "week_label": "17.–23. 8. 2026",
-        "sources": [],
+        "sources": [{
+            "store": "Lidl", "url": "https://letak.test/lidl",
+            "valid_from": current_monday(today),
+            "valid_to": (today + timedelta(days=1)).isoformat(),
+        }],
         "receipt": {
             "meals": [{"day": "PO", "name": "Test", "items": []}],
             "nakup_spolu": "1,00",

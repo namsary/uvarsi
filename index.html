@@ -468,6 +468,19 @@
     return day.getFullYear()+'-'+(month.length<2?'0':'')+month+'-'+(date.length<2?'0':'')+date;
   }
 
+  function sourcesAreCurrent(data, now){
+    var sources=data&&data.sources;
+    if(!Array.isArray(sources)||!sources.length) return false;
+    var current=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+    return sources.every(function(source){
+      var match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(source&&source.valid_to||''));
+      if(!match) return false;
+      var expires=new Date(Number(match[1]),Number(match[2])-1,Number(match[3]));
+      if(expires.getFullYear()!==Number(match[1])||expires.getMonth()!==Number(match[2])-1||expires.getDate()!==Number(match[3])) return false;
+      return expires>=current;
+    });
+  }
+
   function plural(count, one, few, many){
     return count===1?one:(count>=2&&count<=4?few:many);
   }
@@ -565,6 +578,7 @@
   function modelIsPublishable(data, now){
     if(!data||!data.receipt||!(data.receipt.meals||[]).length) return false;
     if(String(data.week||'')!==mondayIso(now)) return false;
+    if(!sourcesAreCurrent(data,now)) return false;
     return itemsOf(data).some(function(item){
       return item&&item.original_price!=null&&String(item.original_price).trim()!=='';
     })&&money(data.receipt.usetris)>0;
@@ -643,6 +657,7 @@
     if(!response.ok) throw new Error('landing data unavailable');
     return response.json();
   }).then(function(data){
+    if(!sourcesAreCurrent(data,new Date())) throw new Error('landing source expired');
     render(data);
     renderModel(data,new Date());
   }).catch(function(){

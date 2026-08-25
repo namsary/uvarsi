@@ -151,6 +151,7 @@ let PANTRY_HINT_HIDDEN = false;
 let PLAN_NOTE = '';
 let PLAN_NEEDS_REGEN = false;
 let PLAN_RESUME_ENDPOINT = '';
+let PLAN_EMPTY_REASON = '';
 /* Suroviny v ukážke: zámerne bežné veci, vždy označené ako ukážka. */
 const SPAJZA_UKAZKA = ['ryža', 'vajcia', 'cibuľa'];
 /* Bežné regálové ceny, nech je v ukážke vidieť, o koľko nákup klesne. */
@@ -247,6 +248,7 @@ function setPlan(plan) {
   if (plan && plan.jedla) {
     PLAN_NEEDS_REGEN = false;
     PLAN_RESUME_ENDPOINT = '';
+    PLAN_EMPTY_REASON = '';
   }
   DONE = loadCheckedState(ME, PLAN);
   PANTRY_OVERRIDE = loadPantryOverride(ME, PLAN);
@@ -652,7 +654,7 @@ function viewOnboarding() {
     <div style="margin-top:26px">
       <span class="eyebrow">Nastavenie · 30 sekúnd</span>
       <h1 class="display" style="font-size:1.8rem;margin:8px 0 18px">${uzMaProfil?'Uprav si nastavenie.':'Povedz mi tri veci.'}</h1>
-      ${uzMaProfil?`<p class="muted" style="margin:-8px 0 18px">Máš tu svoje doterajšie nastavenie. Zmeň, čo chceš — plán prepočítame nanovo.</p>`:''}
+      ${uzMaProfil?`<p class="muted" style="margin:-8px 0 18px">Máš tu svoje doterajšie nastavenie. Zmeň, čo potrebuješ.</p>`:''}
       <div class="card">
         <label>Pre koľko ľudí varíš?</label>
         <div class="chips" id="c-osoby">
@@ -673,7 +675,7 @@ function viewOnboarding() {
             `<div class="chip${obchody.indexOf(o)>=0?' on':''}" data-v="${o}">${o}</div>`).join('')}
         </div>
       </div>
-      <button class="btn" id="save">${uzMaProfil?'Uložiť a prepočítať plán →':'Hotovo, ukáž mi plán →'}</button>
+      <button class="btn" id="save">${uzMaProfil?'Uložiť nastavenia →':'Hotovo, ukáž mi plán →'}</button>
       <p id="ob-err" class="muted" style="color:var(--red);margin-top:10px"></p>
       ${uzMaProfil?`<div style="height:8px"></div>
       <button class="btn btn--ghost" id="spat">Späť bez zmeny</button>`:''}
@@ -878,15 +880,11 @@ async function nacitajPlan(gen) {
 
 async function refreshPlanAfterPantrySave() {
   const plan = await api('/api/plan');
-  if (plan && plan.prazdny && plan.obnovit_cez) {
-    setPlan(null);
-    PLAN_NEEDS_REGEN = true;
-    PLAN_RESUME_ENDPOINT = plan.obnovit_cez;
-  } else {
-    setPlan(plan);
-    PLAN_NEEDS_REGEN = false;
-    PLAN_RESUME_ENDPOINT = '';
-  }
+  const empty = !!(plan && plan.prazdny);
+  setPlan(empty ? null : plan);
+  PLAN_NEEDS_REGEN = empty;
+  PLAN_RESUME_ENDPOINT = empty ? (plan.obnovit_cez || '') : '';
+  PLAN_EMPTY_REASON = empty ? 'spajza' : '';
   render();
 }
 
@@ -895,6 +893,7 @@ async function refreshPlanAfterProfileSave() {
   setPlan(empty ? null : plan);
   PLAN_NEEDS_REGEN = empty;
   PLAN_RESUME_ENDPOINT = empty ? (plan.obnovit_cez || '') : '';
+  PLAN_EMPTY_REASON = empty ? 'profil' : '';
   TAB = 'plan';
   render();
 }
@@ -921,9 +920,12 @@ function render() {
 
 function vPlan() {
   if (PLAN_NEEDS_REGEN) {
+    const profil = PLAN_EMPTY_REASON === 'profil';
     M.innerHTML = `<div class="card center" style="margin-top:30px">
-      <span class="eyebrow">Špajza sa zmenila</span>
-      <p style="margin:8px 0 14px">Predošlý jedálniček vznikol z iného obsahu špajze.</p>
+      <span class="eyebrow">${profil?'Nastavenia sa zmenili':'Špajza sa zmenila'}</span>
+      <p style="margin:8px 0 14px">${profil
+        ?'Pre nové nastavenia ešte nemáš aktuálny jedálniček.'
+        :'Predošlý jedálniček vznikol z iného obsahu špajze.'}</p>
       <button class="btn" onclick="resumeInvalidatedPlan()">Vytvoriť aktuálny jedálniček →</button>
       </div>`;
     return;
