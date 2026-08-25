@@ -149,6 +149,7 @@ let PANTRY_HINT_HIDDEN = false;
 /* Odpoveď servera na vyžiadaný prepočet — ukáže sa nad jedálničkom, nezmaže ho. */
 let PLAN_NOTE = '';
 let PLAN_NEEDS_REGEN = false;
+let PLAN_RESUME_ENDPOINT = '';
 /* Suroviny v ukážke: zámerne bežné veci, vždy označené ako ukážka. */
 const SPAJZA_UKAZKA = ['ryža', 'vajcia', 'cibuľa'];
 /* Bežné regálové ceny, nech je v ukážke vidieť, o koľko nákup klesne. */
@@ -251,7 +252,10 @@ function loadCheckedState(user, plan) {
 
 function setPlan(plan) {
   PLAN = plan;
-  if (plan && plan.jedla) PLAN_NEEDS_REGEN = false;
+  if (plan && plan.jedla) {
+    PLAN_NEEDS_REGEN = false;
+    PLAN_RESUME_ENDPOINT = '';
+  }
   DONE = loadCheckedState(ME, PLAN);
   PANTRY_OVERRIDE = loadPantryOverride(ME, PLAN);
 }
@@ -846,6 +850,7 @@ async function nacitajPlan(gen) {
     if (plan.prazdny && plan.vyzaduje_akciu) {
       setPlan(null);
       PLAN_NEEDS_REGEN = true;
+      PLAN_RESUME_ENDPOINT = plan.obnovit_cez || '/api/plan/generuj';
       stopPlanProgress();
       return render();
     }
@@ -875,14 +880,21 @@ async function nacitajPlan(gen) {
 
 async function refreshPlanAfterPantrySave() {
   const plan = await api('/api/plan');
-  if (plan && plan.prazdny) {
+  if (plan && plan.prazdny && plan.obnovit_cez) {
     setPlan(null);
     PLAN_NEEDS_REGEN = true;
+    PLAN_RESUME_ENDPOINT = plan.obnovit_cez;
   } else {
     setPlan(plan);
     PLAN_NEEDS_REGEN = false;
+    PLAN_RESUME_ENDPOINT = '';
   }
   render();
+}
+
+async function resumeInvalidatedPlan() {
+  if (PLAN_RESUME_ENDPOINT === '/api/plan/zo-spajze') return navrhniZoSpajze();
+  return nacitajPlan(true);
 }
 
 function showNav() {
@@ -900,7 +912,7 @@ function vPlan() {
     M.innerHTML = `<div class="card center" style="margin-top:30px">
       <span class="eyebrow">Špajza sa zmenila</span>
       <p style="margin:8px 0 14px">Predošlý jedálniček vznikol z iného obsahu špajze.</p>
-      <button class="btn" onclick="nacitajPlan(true)">Vytvoriť aktuálny jedálniček →</button>
+      <button class="btn" onclick="resumeInvalidatedPlan()">Vytvoriť aktuálny jedálniček →</button>
       </div>`;
     return;
   }

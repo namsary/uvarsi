@@ -916,6 +916,17 @@ def osobna_cache_plati(plan, spajza):
     return meta.get("pantry_driven") is False
 
 
+def obnova_neplatnej_osobnej_cache(plan, spajza):
+    """Povie klientovi, akú výslovnú akciu má ponúknuť — nikdy ju nespúšťa."""
+    meta = plan.get(PLAN_META_KEY) if isinstance(plan, dict) else None
+    if (isinstance(meta, dict)
+            and meta.get("algo_version") == PLAN_ALGO_VERSION
+            and meta.get("pantry_driven") is True
+            and meta.get("pantry_signature") != podpis_spajze(spajza)):
+        return {"dovod": "spajza_zmenena", "obnovit_cez": "/api/plan/zo-spajze"}
+    return {"dovod": "plan_zastaral", "obnovit_cez": "/api/plan/generuj"}
+
+
 def nacitaj_zdielany_plan(con, podpis, variant):
     row = con.execute(
         "SELECT json FROM plany_zdielane WHERE podpis=? AND variant=?", (podpis, variant)
@@ -1255,10 +1266,11 @@ def daj_plan(req: Request):
             # Špajza sa dopočíta až tu, pri každom čítaní nanovo — preto sa
             # zmena v špajzi prejaví okamžite a bez plateného prepočtu.
             return so_spajzou(cached, sp)
+        obnova = obnova_neplatnej_osobnej_cache(cached, sp)
         con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], monday()))
         con.commit()
         if not osobna_cache_plati(cached, sp):
-            return {"prazdny": True, "vyzaduje_akciu": True}
+            return {"prazdny": True, "vyzaduje_akciu": True, **obnova}
     raise HTTPException(503, "Aktuálny plán už obsahuje neplatnú ponuku. Skús to o chvíľu.")
 
 
