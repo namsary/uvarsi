@@ -709,3 +709,6 @@
 [2026-08-25 12:29:03] PUSH ZLYHAL (prihlasenie do GitHubu?) - zmeny su commitnute lokalne
 [2026-08-25 12:30:38] zmenenych suborov: 1
 [2026-08-25 12:32:17] testy OK: ......ss......s......................................................... [ 92%] .....................................ssss.........................       [100%] 838 passed, 20 skipped, 36 deselected in 91.88s (0:01:31)
+[2026-08-25 12:32:21] PUSH ZLYHAL (prihlasenie do GitHubu?) - zmeny su commitnute lokalne
+[2026-08-25 12:35:36] zmenenych suborov: 1
+[2026-08-25 12:37:06] testy OK: ......ss......s......................................................... [ 92%] .....................................ssss.........................       [100%] 838 passed, 20 skipped, 36 deselected in 86.15s (0:01:26)
