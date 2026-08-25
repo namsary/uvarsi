@@ -96,7 +96,7 @@ assert client.get("/app").headers["x-robots-tag"] == "noindex, nofollow, noarchi
 assert client.get("/prihlasenie").headers["x-robots-tag"] == "noindex, nofollow, noarchive"
 ```
 
-Add a current-payload route test and an expired-payload route test. The expired case must contain no old price, return `X-Robots-Tag: noindex, follow`, and remain human-readable.
+Add a current-payload route test and an expired-payload route test. The expired case must contain no old price, return HTTP 503 with `Retry-After`, and remain human-readable.
 
 - [ ] **Step 2: Run focused tests and confirm failure**
 
@@ -176,6 +176,9 @@ git commit -m "feat: connect homepage to SEO content cluster"
 - Modify: `tests/test_deploy_safety.py`
 - Modify: `tests/test_deploy_covers_all_modules.py`
 - Modify: `tests/test_deploy_manifest.py`
+- Modify: `hetzner/samopull.sh`
+- Modify: `sw.js`
+- Modify: `tests/test_frontend_speed_contract.py`
 
 **Interfaces:**
 - Consumes: `app/public_pages.py` and public routes.
@@ -183,7 +186,7 @@ git commit -m "feat: connect homepage to SEO content cluster"
 
 - [ ] **Step 1: Write failing deployment contract tests**
 
-Assert `public_pages.py` is copied to `/opt/uvarsi/app/public_pages.py`. Assert generated Caddy has one canonical `uvar.si` block and a separate redirect block for `www.uvar.si`, `uvarsi.sk`, `www.uvarsi.sk` and the sslip hostname. Assert path-preserving `redir https://uvar.si{uri} permanent`. Assert immutable cache for `/static/fonts/*` and `/static/*.png` while `/api/*` is not publicly cached.
+Assert `public_pages.py` is copied to `/opt/uvarsi/app/public_pages.py` by manual deploy and included by samopull's complete app-directory copy. Assert generated Caddy has one canonical `uvar.si` block and a separate redirect block for `www.uvar.si`, `uvarsi.sk`, `www.uvarsi.sk` and the sslip hostname. Assert path-preserving `redir https://uvar.si{uri} permanent`. Assert immutable cache for `/static/fonts/*` and `/static/*.png` while `/api/*` is not publicly cached. Assert the root service worker bypasses `/co-varit-tento-tyzden`, `/robots.txt` and `/sitemap.xml` so stale-while-revalidate cannot serve an old week or crawler directives.
 
 - [ ] **Step 2: Run deployment tests and confirm failure**
 
@@ -193,7 +196,7 @@ Expected: new module and redirect contract missing.
 
 - [ ] **Step 3: Update deploy manifest and Caddy template**
 
-Upload `app/public_pages.py`. Split host blocks, retain pre-write validation, backup and rollback. Route the three content pages, robots and sitemap to FastAPI. Keep root landing static, `/api/*`, `/app*`, `/prihlasenie*` and `/static/*` behavior explicit.
+Upload `app/public_pages.py`. Add it to samopull's required-file preflight (the app directory itself is already copied recursively). Split host blocks, retain pre-write validation, backup and rollback. Route the three content pages, robots and sitemap to FastAPI. Keep root landing static, `/api/*`, `/app*`, `/prihlasenie*` and `/static/*` behavior explicit. Make the root service worker network-only for the dynamic weekly page and crawler-control files.
 
 - [ ] **Step 4: Extend post-deploy checks**
 
@@ -209,14 +212,14 @@ curl -fsSI https://www.uvar.si/co-varit-tento-tyzden | grep -qi 'location: https
 
 - [ ] **Step 5: Run deployment tests**
 
-Run: `python -m pytest tests/test_deploy_safety.py tests/test_deploy_covers_all_modules.py tests/test_deploy_manifest.py tests/test_deploy_runtime_env.py -q`
+Run: `python -m pytest tests/test_deploy_safety.py tests/test_deploy_covers_all_modules.py tests/test_deploy_manifest.py tests/test_deploy_runtime_env.py tests/test_frontend_speed_contract.py -q`
 
 Expected: all pass.
 
 - [ ] **Step 6: Commit**
 
 ```powershell
-git add nasad.ps1 tests/test_deploy_safety.py tests/test_deploy_covers_all_modules.py tests/test_deploy_manifest.py
+git add nasad.ps1 hetzner/samopull.sh sw.js tests/test_deploy_safety.py tests/test_deploy_covers_all_modules.py tests/test_deploy_manifest.py tests/test_frontend_speed_contract.py
 git commit -m "feat: enforce canonical host and SEO cache policy"
 ```
 

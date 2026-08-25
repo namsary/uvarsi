@@ -48,7 +48,7 @@ Viditeľné minimum:
 - vysvetlenie, že AI navrhuje kombináciu/recept, ale ceny pochádzajú z uvedených zdrojov,
 - CTA do aplikácie.
 
-Ak dáta nie sú aktuálne, HTTP ostane použiteľné, ale stránka zobrazí neutrálny stav „aktuálny výber obnovujeme“, nevypíše staré ceny ako dnešné a použije `noindex, follow`, kým znova nemá validné dáta.
+Ak dáta nie sú aktuálne, stránka vráti dočasný stav HTTP 503 s `Retry-After`, zobrazí neutrálny stav „aktuálny výber obnovujeme“ a nevypíše staré ceny ako dnešné. Tým nepošle crawleru falošný úspech ani pokyn na trvalé vyradenie URL.
 
 ### `/lacny-jedalnicek`
 
@@ -81,10 +81,12 @@ Metodika a dôvera: ktoré reťazce aktuálne pokrývame, ako kontrolujeme dátu
 - HTML a dynamické SEO stránky: krátka cache alebo revalidácia, aby sa týždenné dáta nezasekli.
 - API, app a prihlasovanie: `no-store` alebo existujúce bezpečné správanie; žiadna shared cache používateľských odpovedí.
 - Zachovať gzip a nepridávať render-blocking externé závislosti.
+- Koreňový service worker musí `/co-varit-tento-tyzden`, `robots.txt` a `sitemap.xml` vždy pustiť priamo do siete. Stale-while-revalidate by pri týždennom obsahu mohol vrátiť staré akcie.
 
 ## Meranie a prevádzka
 
 - Release gate overí HTTP 200, canonical, robots, sitemapu, `noindex` na súkromných obrazovkách, cache fontu a prítomnosť aktuálneho týždňa na verejnej stránke.
+- Oba deploy mechanizmy (`nasad.ps1` aj autonómny `hetzner/samopull.sh`) musia preniesť nový serverový modul a aktuálny koreňový service worker.
 - Po nasadení sa doména pridá/overí v Google Search Console a Bing Webmaster Tools, odošle sa sitemap a vyžiada sa nové prehľadanie `/` a `/co-varit-tento-tyzden`.
 - Analytics rozlíši organické registrácie a referral návštevy z Google, Bing a ChatGPT. Implementácia analytického providera nie je súčasťou tohto vydania, kým nie je zvolený privacy režim a consent riešenie.
 
