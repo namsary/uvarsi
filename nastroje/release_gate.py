@@ -27,6 +27,7 @@ import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+from html.parser import HTMLParser
 from pathlib import Path
 
 KOREN = Path(__file__).resolve().parent.parent
@@ -245,12 +246,29 @@ def _json_ld_ok(html: str) -> tuple[bool, str]:
     return True, f"{len(blocks)} JSON-LD blok(y)"
 
 
+class _CanonicalLinkParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.links: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() != "link":
+            return
+
+        attr_map = {name.lower(): (value or "") for name, value in attrs}
+        rel_tokens = {token.casefold() for token in attr_map.get("rel", "").split()}
+        if "canonical" not in rel_tokens:
+            return
+
+        href = attr_map.get("href", "").strip()
+        if href:
+            self.links.append(href)
+
+
 def _canonical_links(html: str) -> list[str]:
-    return re.findall(
-        r'<link[^>]*rel=["\']canonical["\'][^>]*href=["\']([^"\']+)["\']',
-        html,
-        flags=re.IGNORECASE,
-    )
+    parser = _CanonicalLinkParser()
+    parser.feed(html)
+    return parser.links
 
 
 def _has_internal_link(html: str, path: str) -> bool:

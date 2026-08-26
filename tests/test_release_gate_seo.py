@@ -195,3 +195,44 @@ def test_release_gate_blocks_on_font_cache_redirect_and_homepage_metadata(monkey
     assert by_name["landing canonical"].ok is False
     assert by_name["landing JSON-LD"].ok is False
     assert by_name["landing interné odkazy"].ok is False
+
+
+def test_release_gate_accepts_canonical_link_when_href_precedes_rel(monkeypatch):
+    responses = healthy_responses()
+    responses["/"] = response(
+        body=(
+            '<html><head><link href="https://uvar.si/" rel="canonical">'
+            '<script type="application/ld+json">{"@context":"https://schema.org"}</script>'
+            "</head><body>"
+            '<a href="/co-varit-tento-tyzden">Čo variť tento týždeň</a>'
+            '<a href="/lacny-jedalnicek">Lacný jedálniček</a>'
+            '<a href="/ako-varime-z-akcii">Ako varíme z akcií</a>'
+            "</body></html>"
+        )
+    )
+
+    findings, _ = run_gate(monkeypatch, responses)
+    by_name = findings_by_name(findings)
+
+    assert by_name["landing canonical"].ok is True
+
+
+def test_release_gate_accepts_canonical_link_with_mixed_case_and_whitespace(monkeypatch):
+    responses = healthy_responses()
+    responses["/"] = response(
+        body=(
+            "<html><head>"
+            '<LINK   HREF = "https://uvar.si/"   REL = "Canonical"   >'
+            '<script type="application/ld+json">{"@context":"https://schema.org"}</script>'
+            "</head><body>"
+            '<a href="/co-varit-tento-tyzden">Čo variť tento týždeň</a>'
+            '<a href="/lacny-jedalnicek">Lacný jedálniček</a>'
+            '<a href="/ako-varime-z-akcii">Ako varíme z akcií</a>'
+            "</body></html>"
+        )
+    )
+
+    findings, _ = run_gate(monkeypatch, responses)
+    by_name = findings_by_name(findings)
+
+    assert by_name["landing canonical"].ok is True
