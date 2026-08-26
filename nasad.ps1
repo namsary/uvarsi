@@ -352,6 +352,8 @@ skontroluj https://uvar.si/ "landing"
 skontroluj https://uvar.si/api/public/landing "landing JSON"
 skontroluj https://uvar.si/api/health "health"
 skontroluj https://uvar.si/co-varit-tento-tyzden "verejna tyzdenna stranka"
+skontroluj https://uvar.si/lacny-jedalnicek "lacny jedalnicek"
+skontroluj https://uvar.si/ako-varime-z-akcii "ako varime z akcii"
 skontroluj https://uvar.si/robots.txt "robots.txt"
 skontroluj https://uvar.si/sitemap.xml "sitemap.xml"
 

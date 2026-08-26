@@ -406,6 +406,8 @@ def test_postdeploy_check_fails_on_any_non_200(script):
         "/app",
         "/api/public/landing",
         "/api/health",
+        "/lacny-jedalnicek",
+        "/ako-varime-z-akcii",
         "/robots.txt",
         "/sitemap.xml",
         "/co-varit-tento-tyzden",
