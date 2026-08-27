@@ -157,6 +157,16 @@ def test_samopull_preflight_checks_public_pages_before_switching():
     )
 
 
+def test_samopull_starts_guardian_after_successful_release():
+    script = SAMOPULL.read_text(encoding="utf-8")
+    success = script.index('log "OK — nasadené vydanie')
+    guardian = script.index('nohup "$DIR/dozorca.sh"')
+    rollback = script.index("# --- 4. neúspech")
+
+    assert success < guardian < rollback
+    assert '>> /var/log/uvarsi.log 2>&1 &' in script
+
+
 def test_samopull_preflight_rejects_missing_or_empty_root_assets():
     script = SAMOPULL.read_text(encoding="utf-8")
     preflight = script.split("# --- 2. overenie PRED prepnutím ---", 1)[1].split(

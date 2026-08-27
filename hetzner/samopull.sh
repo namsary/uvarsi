@@ -123,6 +123,10 @@ if nasad_z "$CIEL" && zdravie; then
   [ -f "$DIR/samopull.sh.novy" ] && mv "$DIR/samopull.sh.novy" "$DIR/samopull.sh" && chmod +x "$DIR/samopull.sh"
   VER=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
   log "OK — nasadené vydanie $VER ($SHA)"
+  # Nečakáme na najbližšiu celú hodinu. Dozorca má vlastný flock, takže sa
+  # bezpečne ukončí, ak už práve beží iný zber.
+  nohup "$DIR/dozorca.sh" >> /var/log/uvarsi.log 2>&1 &
+  log "dozorca spustený na pozadí po nasadení"
   notify "Uvar.si nasadené" "Vydanie $VER je živé. Appka odpovedá."
   exit 0
 fi
