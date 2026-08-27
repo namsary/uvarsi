@@ -39,3 +39,41 @@
 - Full-suite evidence: `1033 passed, 47 skipped in 73.90s (0:01:13)`.
 - Payment isolation: payment enablement and payment runtime behavior remain untouched.
 - Production status: integration, deployment and live verification are pending the guarded release steps.
+
+## 2026-08-27 14:15 — BLOCKED (vydanie 2026.08.27.1)
+  OK  VERSION: 2026.08.27.1
+  OK  testy: 999 presly, 0 zlyhalo
+  !!  git revizia: ?
+  !!  nezapisane zmeny: 7 suborov nie je commitnutych
+  OK  /api/health: {"vydanie": "2026.08.25.1", "tyzden": "2026-08-24", "pocet": 0, "naklady": {"den": "2026-08-27", "mesiac": "2026-08", "tyzden": "2026-08-24", "chyba": null, "kredit": {"vycerpany": true, "od": "2026-08-26T05:00:04", "sprava": "API odmieta všetky volania — na účte je nulový kredit. Appka nevie generovať jedálničky ani landing bloček, kým kredit nedobiješ. Nič sa neúčtovalo (odmietnuté volania nespotrebovali ani token) a opakované pokusy sú zastavené, aby log nezaplavili."}, "dnes_eur": 0.0, "mesiac_eur": 0.66, "denny_strop_eur": 4.0, "mesacny_strop_eur": 25.0, "zostatok_dnes_eur": 4.0, "zostatok_mesiac_eur": 24.34, "behy": {"zber_letakov": {"tyzden": "2026-08-24", "pocet": 2, "limit": 2}, "predpocet": {"tyzden": "2026-08-24", "pocet": 0, "limit": 2}}, "posledne": [{"cas": "2026-08-24T10:02:55", "ucel": "blocek", "model": "claude-sonnet-5", "eur": 0.02, "odhad": true}, {"cas": "2026-08-24T10:02:53", "ucel": "zber_letakov", "model": "claude-haiku-4-5", "eur": 0.1, "odhad": true}, {"cas": "2026-08-24T10:01:35", "ucel": "zber_letakov", "model": "claude-haiku-4-5", "eur": 0.1, "odhad": true}, {"cas": "2026-08-24T10:01:09", "ucel": "zber_letakov", "model": "claude-haiku-4-5", "eur": 0.1, "odhad": true}, {"cas": "2026-08-24T09:01:41", "ucel": "blocek", "model": "claude-sonnet-5", "eur": 0.02, "odhad": true}]}, "predpocet": {"tyzden": "2026-08-24", "zapnuty": true, "profilov": 9, "cena_za_profil_eur": 0.03, "odhad_plneho_behu_eur": 0.27, "zahriatych": 0, "preskocenych": 0, "zlyhanych": 0, "eur": 0.0, "skutocna_cena_za_profil_eur": null, "usetrenych_generovani": 0, "hotovych_planov": 0, "posledny_beh": null, "dovod": null, "vysvetlenie": null, "chyba": null}, "platby": {"obsadene": 0, "kapacita": 250, "cakajucich_tiel": 0, "nevybavene_vratky": 0}}
+  !!  verzia na webe: 2026.08.25.1 (ocakavam 2026.08.27.1)
+  OK  tyzden dat: 2026-08-24 (aktualny pondelok 2026-08-24)
+  !!  pocet ponuk: 0 (prah 30)
+  OK  landing: HTTP 200
+  OK  appka: HTTP 200
+  !!  landing JSON: HTTP 503
+  OK  prihlasovacia stranka: HTTP 200
+  !!  robots.txt: HTTP 404
+  !!  robots.txt OAI-SearchBot: HTTP 404
+  !!  robots.txt blokuje /api/: HTTP 404
+  !!  robots.txt sitemap: HTTP 404
+  !!  sitemap.xml: HTTP 404
+  !!  sitemap.xml XML: HTTP 404
+  !!  sitemap obsahuje https://uvar.si/: HTTP 404
+  !!  sitemap obsahuje https://uvar.si/co-varit-tento-tyzden: HTTP 404
+  !!  sitemap obsahuje https://uvar.si/lacny-jedalnicek: HTTP 404
+  !!  sitemap obsahuje https://uvar.si/ako-varime-z-akcii: HTTP 404
+  !!  SEO /co-varit-tento-tyzden: HTTP 404
+  !!  SEO /lacny-jedalnicek: HTTP 404
+  !!  SEO /ako-varime-z-akcii: HTTP 404
+  !!  týždenný SEO signál: HTTP 404
+  !!  /app noindex: hlavička X-Robots-Tag chýba
+  !!  /prihlasenie noindex: hlavička X-Robots-Tag chýba
+  !!  font immutable cache: Cache-Control chýba
+  !!  www.uvar.si weekly redirect: HTTP 404, Location ?
+  !!  uvarsi.sk weekly redirect: HTTP 404, Location ?
+  !!  www.uvarsi.sk weekly redirect: HTTP 404, Location ?
+  !!  uvarsi.89.167.72.159.sslip.io weekly redirect: HTTP 404, Location ?
+  OK  landing canonical: https://uvar.si/
+  !!  landing JSON-LD: script type=application/ld+json chýba
+  !!  landing interné odkazy: chýbajú /co-varit-tento-tyzden, /lacny-jedalnicek, /ako-varime-z-akcii

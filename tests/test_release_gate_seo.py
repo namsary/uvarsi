@@ -99,6 +99,28 @@ def findings_by_name(findings):
     return {item.nazov: item for item in findings}
 
 
+def test_git_gate_ignores_untracked_workspace_notes(monkeypatch):
+    commands = []
+
+    def fake_run(command, timeout=None):
+        commands.append(command)
+        if command[:3] == ["git", "rev-parse", "HEAD"]:
+            return 0, "a" * 40
+        if command[:3] == ["git", "status", "--porcelain"]:
+            return 0, ""
+        if command[:3] == ["git", "rev-parse", "origin/main"]:
+            return 1, ""
+        raise AssertionError(command)
+
+    monkeypatch.setattr(gate, "_spusti", fake_run)
+
+    findings = findings_by_name(gate.brana_git())
+
+    assert findings["nezapisane zmeny"].ok is True
+    status_command = next(command for command in commands if command[:2] == ["git", "status"])
+    assert "--untracked-files=no" in status_command
+
+
 def run_gate(monkeypatch, responses):
     calls = []
 

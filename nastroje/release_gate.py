@@ -168,7 +168,9 @@ def brana_git() -> list[Zistenie]:
     sha = sha.strip()[:12] if kod == 0 else "?"
     z.append(Zistenie("git revizia", kod == 0, sha))
 
-    kod, stav = _spusti(["git", "status", "--porcelain"], timeout=30)
+    kod, stav = _spusti(
+        ["git", "status", "--porcelain", "--untracked-files=no"], timeout=30
+    )
     nezapisane = [r for r in stav.splitlines() if r.strip()]
     z.append(Zistenie("nezapisane zmeny", not nezapisane,
                       "ziadne" if not nezapisane
