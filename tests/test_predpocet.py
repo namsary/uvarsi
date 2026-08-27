@@ -150,7 +150,7 @@ def test_predpocet_zastane_pred_dennym_stropom_a_povie_preco(monkeypatch, tmp_pa
     """Rozbehnutý predpočet nesmie minúť denný rozpočet do posledného centa."""
     server, predpocet = priprav(monkeypatch, tmp_path)
     zapis_dopyt(server, predpocet, minuly_tyzden())
-    monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "0.25")
+    monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "0.45")
     monkeypatch.setenv("UVARSI_PREDPOCET_REZERVA_EUR", "0.20")
     volania = []
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), [], volania))
@@ -162,8 +162,8 @@ def test_predpocet_zastane_pred_dennym_stropom_a_povie_preco(monkeypatch, tmp_pa
     assert len(volania) == vysledok["zahriatych"]
     with closing(server.db()) as con:
         minute = con.execute("SELECT COALESCE(SUM(eur), 0) FROM naklady").fetchone()[0]
-    assert minute <= 0.05 + 1e-9, (
-        f"predpočet minul {minute:.3f} € z 0,25 € stropu — rezerva 0,20 € pre "
+    assert minute <= 0.25 + 1e-9, (
+        f"predpočet minul {minute:.3f} € z 0,45 € stropu — rezerva 0,20 € pre "
         "živých používateľov musí ostať nedotknutá"
     )
 
@@ -172,7 +172,7 @@ def test_po_predpocte_ostane_ziveho_pouzivatela_z_coho_zaplatit(monkeypatch, tmp
     """Zmysel rezervy: ráno si človek musí vedieť vypýtať vlastný plán."""
     server, predpocet = priprav(monkeypatch, tmp_path)
     zapis_dopyt(server, predpocet, minuly_tyzden())
-    monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "0.25")
+    monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "0.45")
     monkeypatch.setenv("UVARSI_PREDPOCET_REZERVA_EUR", "0.20")
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), [], []))
 
@@ -522,6 +522,60 @@ def test_precompute_passes_one_household_contract_to_signature_prompt_and_builde
     }
 
 
+def test_predpocet_uses_the_same_low_effort_as_live_plans(monkeypatch, tmp_path):
+    """Nočný predpočet nesmie zopakovať produkčné max_tokens zlyhania."""
+    server, predpocet = priprav(monkeypatch, tmp_path)
+    profile = predpocet.Profil(("Lidl",), 4, 0, 2, 0)
+    calls = []
+
+    class Messages:
+        def create(self, **kwargs):
+            calls.append(kwargs)
+            return types.SimpleNamespace(
+                stop_reason="end_turn",
+                content=[types.SimpleNamespace(
+                    type="text", text=json.dumps(model_plan())
+                )],
+            )
+
+    monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace())
+    monkeypatch.setattr(
+        predpocet.naklady, "strazeny_klient",
+        lambda *_args, **_kwargs: types.SimpleNamespace(messages=Messages()),
+    )
+
+    with closing(server.db()) as con:
+        predpocet._poskladaj(
+            con, server, server.akcie_pre(["Lidl"]), profile, klient=object()
+        )
+
+    assert calls[0]["output_config"] == {"effort": "low"}
+    assert calls[0]["max_tokens"] >= 10_000
+
+
+def test_predpocet_never_retries_a_typeerror_and_double_charges(monkeypatch, tmp_path):
+    server, predpocet = priprav(monkeypatch, tmp_path)
+    profile = predpocet.Profil(("Lidl",), 4, 0, 2, 0)
+    calls = []
+
+    class Messages:
+        def create(self, **kwargs):
+            calls.append(kwargs)
+            raise TypeError("chyba po odoslaní požiadavky")
+
+    monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace())
+    monkeypatch.setattr(
+        predpocet.naklady, "strazeny_klient",
+        lambda *_args, **_kwargs: types.SimpleNamespace(messages=Messages()),
+    )
+
+    with closing(server.db()) as con, pytest.raises(TypeError, match="chyba po odoslaní"):
+        predpocet._poskladaj(con, server, server.akcie_pre(["Lidl"]), profile,
+                             klient=object())
+
+    assert len(calls) == 1
+
+
 def test_dopyt_z_tohto_tyzdna_neprebije_historiu_predoslych(monkeypatch, tmp_path):
     """Zahrieva sa podľa minulých týždňov — tento sa práve len začal."""
     server, predpocet = priprav(monkeypatch, tmp_path)
@@ -646,7 +700,7 @@ def test_cena_za_profil_je_zname_a_striezlive_cislo(monkeypatch, tmp_path):
     naklady = importlib.import_module("naklady")
 
     assert predpocet.CENA_ZA_PROFIL_EUR == naklady.ODHAD_EUR["predpocet"]
-    assert predpocet.CENA_ZA_PROFIL_EUR == pytest.approx(0.03)
+    assert predpocet.CENA_ZA_PROFIL_EUR == pytest.approx(0.12)
     assert naklady.VYCHODZI_DENNY_STROP_EUR == pytest.approx(4.00)
     assert naklady.VYCHODZI_MESACNY_STROP_EUR == pytest.approx(25.00)
     assert predpocet.CENA_ZA_PROFIL_EUR + predpocet.VYCHODZIA_REZERVA_EUR <= (

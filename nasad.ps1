@@ -361,7 +361,9 @@ hlavicka_musi_obsahovat() {
   URL="$1"
   VZOR="$2"
   POPIS="$3"
-  HLAVICKY=$(curl -fsSI "$URL" | tr -d '\r' || true)
+  # FastAPI niektoré GET endpointy pri HEAD vracia ako 405. Potrebujeme
+  # hlavičky skutočnej GET odpovede, nie podporu samostatnej HEAD metódy.
+  HLAVICKY=$(curl -fsS -D - -o /dev/null "$URL" | tr -d '\r' || true)
   echo "$POPIS: kontrolujem hlavicky"
   printf '%s\n' "$HLAVICKY" | grep -qi "$VZOR" || zle "$POPIS nema hlavicku / vzor $VZOR"
 }
@@ -389,13 +391,13 @@ skontroluj_presmerovanie https://uvarsi.89.167.72.159.sslip.io/co-varit-tento-ty
 
 HEALTH=$(curl -s https://uvar.si/api/health || true)
 
-POCET=$(printf '%s' "$HEALTH" | sed -n 's/.*"pocet"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p')
+POCET=$(printf '%s' "$HEALTH" | /opt/uvarsi/venv/bin/python -c 'import json,sys; print(int(json.load(sys.stdin).get("pocet", 0)))' 2>/dev/null || echo 0)
 echo "akcie: ${POCET:-0} (prah $PRAH)"
 if [ "${POCET:-0}" -lt "$PRAH" ]; then
   zle "akcii je len ${POCET:-0}, dozorca ich vyzaduje aspon $PRAH - landing by hlasil obnovujeme"
 fi
 
-VYDANIE=$(printf '%s' "$HEALTH" | sed -n 's/.*"vydanie"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+VYDANIE=$(printf '%s' "$HEALTH" | /opt/uvarsi/venv/bin/python -c 'import json,sys; print(json.load(sys.stdin).get("vydanie", ""))' 2>/dev/null || true)
 echo "vydanie: ${VYDANIE:-?} (ocakavam ${OCAKAVANE:-?})"
 if [ -n "$OCAKAVANE" ] && [ "$VYDANIE" != "$OCAKAVANE" ]; then
   zle "zive vydanie sa nezhoduje s lokalnym VERSION - prenos je len ciastocny"

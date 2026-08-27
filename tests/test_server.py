@@ -1168,35 +1168,38 @@ def test_reasoning_effort_reaches_the_model_and_stays_optional(monkeypatch, tmp_
     assert calls[1]["output_config"] == {"effort": "low"}
 
 
-def test_an_sdk_without_effort_support_still_produces_a_plan(monkeypatch, tmp_path):
-    """Staršie SDK output_config nepozná — plán sa kvôli tomu nesmie vôbec nevygenerovať."""
+def test_typeerror_during_model_call_is_never_retried_and_double_charged(monkeypatch, tmp_path):
+    """Nejasný TypeError nesmie spustiť druhú platenú požiadavku."""
     server, client = logged_in_plan_client(monkeypatch, tmp_path)
     calls = []
 
     class Messages:
         def create(self, **kwargs):
-            if "output_config" in kwargs:
-                raise TypeError("unexpected keyword argument 'output_config'")
             calls.append(kwargs)
-            return types.SimpleNamespace(
-                content=[types.SimpleNamespace(type="text", text=json.dumps(model_plan()))],
-                stop_reason="end_turn", usage=None,
-            )
+            raise TypeError("chyba po odoslaní požiadavky")
 
     monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace(
         Anthropic=type("A", (), {"__init__": lambda self, **kw: setattr(self, "messages", Messages())})
     ))
     monkeypatch.setattr(server, "PLAN_EFFORT", "low")
 
-    assert client.post("/api/plan/generuj?force=1").status_code == 200
+    with pytest.raises(TypeError, match="chyba po odoslaní"):
+        client.post("/api/plan/generuj?force=1")
     assert len(calls) == 1
 
 
 def test_plan_tokens_leave_room_for_the_longest_real_answer(monkeypatch, tmp_path):
     server = load_server(monkeypatch, tmp_path, [])
 
+    assert server.PLAN_EFFORT == "low", (
+        "produkčné meranie ukázalo opakované max_tokens; plánovač musí predvolene "
+        "uprednostniť dokončený JSON pred zbytočne dlhým uvažovaním"
+    )
     assert server.PLAN_TOKENS >= server.PLAN_ODPOVED_TOKENY * 2, (
         "max_tokens bounds thinking and the answer together; keep real headroom"
+    )
+    assert server.PLAN_TOKENS >= 10_000, (
+        "sedemdňový plán potrebuje rezervu aj pri dočasne dlhšom uvažovaní modelu"
     )
     assert server.PLAN_ODPOVED_TOKENY >= 2600 * 7 / 5, (
         "7 detailných jedál je o 40 % dlhších než doterajšie maximum piatich"

@@ -130,13 +130,13 @@ MODEL_PLAN = "claude-sonnet-5"     # skladanie plánu = text, lacné
 # strop musí nechať odpovedi dvojnásobnú rezervu — orezaný JSON už raz appku
 # zhodil a stálo to platené volanie navyše.
 PLAN_ODPOVED_TOKENY = 3640
-PLAN_TOKENS = 8000
-# Koľko model nad výberom jedál uvažuje. None = doterajšie správanie, teda
-# východisková námaha modelu. Je to posledná veľká páka na dĺžku volania, ale
-# meria sa len naživo: nižšia námaha síce skracuje čakanie, no plán musí stále
-# prejsť overením receptov, inak si používateľ počká na opakovanie. Zmeň až
-# podľa čísel z LOG-u nižšie ("plán poskladaný, tokeny: ...").
-PLAN_EFFORT = None
+PLAN_TOKENS = 10_000
+# Produkčné meranie 27. 8. 2026: predvolená námaha päťkrát minula celý strop
+# a odrezala JSON pred koncom. Výber je už ohraničený katalógom a výsledok
+# následne overuje server, preto je low správny kompromis: kratšie uvažovanie,
+# nižšia cena a hlavne dokončená odpoveď. max_tokens ostáva iba bezpečnostný
+# strop; neznamená, že sa všetkých 10 000 tokenov pri každom pláne minie.
+PLAN_EFFORT = "low"
 # Najhorší prípad čakania musí byť jedno číslo, nie súčin skrytých pokusov:
 # samotný timeout bez max_retries nechá SDK opakovať volanie (default 2×), takže
 # jedno zaseknuté spojenie drží používateľa aj vyše šesť minút pri točiacom sa
@@ -1319,11 +1319,10 @@ def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant, zo_spajze=Fa
                                           messages=[{"role": "user", "content": blocks}], **navyse)
 
         try:
-            try:
-                msg = poskladaj(**nastavenie)
-            except TypeError:
-                # Staršie SDK output_config nepozná; plán je dôležitejší než námaha.
-                msg = poskladaj()
+            # Žiadny fallback druhým volaním: TypeError môže vzniknúť aj po
+            # odoslaní požiadavky. Opakovanie bez output_config by potom mohlo
+            # tú istú prácu zaplatiť dvakrát.
+            msg = poskladaj(**nastavenie)
         except naklady.KreditVycerpany as odmietnutie:
             # Došiel kredit na API. Nie je to náš výpadok ani chyba používateľa,
             # tak sa to povie rovno a po slovensky: 503 s pravdivým dôvodom.

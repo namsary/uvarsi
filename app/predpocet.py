@@ -103,11 +103,10 @@ DRZANIE_DOPYTU_TYZDNOV = 12
 # zahrialo by sa niečo, čo nikto nedostane.
 POCET_VARIANTOV = 3
 
-# Koľko stojí jeden zahriaty plán. Nie je to dojem: prompt je ~14 000 znakov
-# (katalóg 140 ponúk + pravidlá receptu) ≈ 4 400 tokenov v cachovanej predpone,
-# osobný chvost ~250 tokenov a odpoveď až ~3 640 tokenov pre 7 jedál. Sonnet 5
-# pri EUR = USD × 0,92 preto berie konzervatívny odhad 0,03 € rovnako ako
-# `plan` — je to tá istá operácia, len ju nikto nečaká.
+# Koľko môže stáť jeden zahriaty plán. Katalóg má v silnom týždni stovky ponúk
+# a odpoveď až ~3 640 tokenov pre 7 jedál. Odhad 0,12 € kryje aj plný
+# 10k-tokenový strop Sonnetu 5 vrátane vstupu/cache; skutočná úspešná odpoveď
+# býva vďaka low effort podstatne lacnejšia a evidencia ju prepíše reálnym usage.
 CENA_ZA_PROFIL_EUR = naklady.ODHAD_EUR[UCEL]
 
 PREMENNE_PROSTREDIA = (
@@ -491,10 +490,18 @@ def _poskladaj(con, server, rows, profil, klient=None):
             rows, profil.frekvencia, (), household_size=profil.osoby,
             variant=profil.variant, pantry_driven=False,
         )
-    msg = strazeny.messages.create(
-        model=server.MODEL_PLAN, max_tokens=server.PLAN_TOKENS,
-        messages=[{"role": "user", "content": blocks}],
+    zaklad = {
+        "model": server.MODEL_PLAN,
+        "max_tokens": server.PLAN_TOKENS,
+        "messages": [{"role": "user", "content": blocks}],
+    }
+    nastavenie = (
+        {"output_config": {"effort": server.PLAN_EFFORT}}
+        if getattr(server, "PLAN_EFFORT", None) else {}
     )
+    # Neopakovať pri TypeError: chyba môže vzniknúť až po odoslaní a druhý
+    # pokus by mohol znamenať druhé platené volanie.
+    msg = strazeny.messages.create(**zaklad, **nastavenie)
     try:
         model_output = json.loads(_text_odpovede(msg))
     except json.JSONDecodeError as chyba:

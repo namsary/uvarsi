@@ -77,9 +77,11 @@ UCELY = ("zber_letakov", "blocek", "plan", "recepty", "predpocet")
 ODHAD_EUR = {
     "zber_letakov": 0.10,     # jedna vision dávka (~4 strany letáku Opusom)
     "blocek": 0.02,
-    "plan": 0.03,            # 7 detailných jedál, konzervatívne aj pri timeoute
+    # 10k výstupných tokenov Sonnet 5 = najviac ~0,092 € plus vstup/cache.
+    # 0,12 € je fail-closed odhad pre timeout bez usage; úspech sa účtuje reálne.
+    "plan": 0.12,
     "recepty": 0.02,
-    "predpocet": 0.03,        # to isté volanie ako „plan", len v noci
+    "predpocet": 0.12,        # to isté volanie ako „plan", len v noci
 }
 
 # Ten istý kanál, ktorý už sleduje dozorca (hetzner/dozorca.sh).

@@ -504,6 +504,30 @@ def test_postdeploy_checks_noindex_font_cache_and_www_redirect(script):
     )
 
 
+def test_postdeploy_reads_headers_with_get_instead_of_unsupported_head(script):
+    bloky = [
+        blok for blok in _heredoc_blocks(script.splitlines())
+        if "hlavicka_musi_obsahovat" in blok
+    ]
+    assert bloky
+    blok = "\n".join(bloky)
+    assert "curl -fsSI" not in blok, "FastAPI /app odmieta HEAD kódom 405"
+    assert "curl -fsS -D - -o /dev/null" in blok
+
+
+def test_postdeploy_parses_top_level_health_json_without_greedy_sed(script):
+    bloky = [
+        blok for blok in _heredoc_blocks(script.splitlines())
+        if 'HEALTH=$(curl -s https://uvar.si/api/health' in blok
+    ]
+    assert bloky
+    blok = "\n".join(bloky)
+    assert "json.load(sys.stdin)" in blok
+    assert "sed -n 's/.*\"pocet\"" not in blok, (
+        "greedy sed prečítal vnorené počítadlo 1 namiesto 582 akcií"
+    )
+
+
 def test_postdeploy_checks_every_alternate_host_for_permanent_exact_redirect(script):
     blocks = [
         block for block in _heredoc_blocks(script.splitlines())
