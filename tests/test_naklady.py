@@ -297,6 +297,11 @@ def test_rozbehnuta_slucka_narazi_najprv_na_tyzdenny_limit_behov(con, monkeypatc
     assert behy == naklady.limit_behov("zber_letakov") <= 3
 
 
+def test_zber_ma_jeden_bezpecny_pokus_na_obnovu_po_dvoch_zlyhaniach(monkeypatch):
+    monkeypatch.delenv("UVARSI_TYZDENNE_BEHY_ZBER", raising=False)
+    assert naklady.limit_behov("zber_letakov") == 3
+
+
 # ------------------------------------------------------------------ s_rozpoctom
 def test_s_rozpoctom_nevola_ked_je_strop_vycerpany(con, monkeypatch):
     monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "0.01")

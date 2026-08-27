@@ -98,5 +98,5 @@ def test_rozsah_citania_sa_nezmenil_bez_prepoctu_stropov(premenna):
 
 
 def test_pocet_behov_zberu_ostava_obmedzeny():
-    """Toto bola správna poistka a zafungovala — nesmie sa stratiť."""
-    assert naklady.VYCHODZI_LIMIT_BEHOV.get("zber_letakov", 0) == 2
+    """Tretí pokus obnoví zber, no slučka zostáva tvrdo obmedzená."""
+    assert naklady.VYCHODZI_LIMIT_BEHOV.get("zber_letakov", 0) == 3

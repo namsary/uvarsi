@@ -115,10 +115,10 @@ VYCHODZI_DENNY_STROP_EUR = 4.00
 VYCHODZI_MESACNY_STROP_EUR = 25.00
 VYCHODZI_TYZDENNY_STROP_ZBER_EUR = 4.00
 VYCHODZI_TYZDENNY_STROP_PREDPOCET_EUR = 0.40
-# Zber zostáva na dvoch drahých pokusoch. Predpočet môže skúsiť každý hodinový
-# dozor až šesťkrát: cenu mu stále tvrdo stráži samostatný týždenný strop 0,40 €,
-# vyšší počet behov iba dovolí zotavenie po krátkom výpadku modelu.
-VYCHODZI_LIMIT_BEHOV = {"zber_letakov": 2, "predpocet": 6}
+# Zber má jeden tretí pokus na zotavenie po dvoch zlyhaniach (napríklad po
+# dobití kreditu). Predpočet môže skúsiť až šesťkrát. Cenu oboch operácií stále
+# tvrdo strážia samostatné týždenné eurové stropy.
+VYCHODZI_LIMIT_BEHOV = {"zber_letakov": 3, "predpocet": 6}
 
 # Ktorý účel si strop počtu behov berie z ktorej premennej prostredia.
 PREMENNA_BEHOV = {
