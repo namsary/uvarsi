@@ -20,3 +20,12 @@
 - Payment isolation: release-gate work only; `app/platby.py` and payment runtime behavior stay untouched.
 - Rollback note: revert commit `chore: gate SEO GEO release`, restore the prior `VERSION` and rerun the local suite before any future deploy attempt.
 - Production status: live deploy and production verification are still pending explicit authorization.
+
+## 2026-08-27 — Final integrated SEO release gap closure
+
+- Scope: close the full-size homepage gate, evergreen content, publishable-evidence boundary, samopull root-asset rollback, and all alternate-host redirect gaps.
+- Focused evidence: public pages/routes/auth `201 passed, 24 skipped in 29.94s`; samopull/deploy contracts `74 passed, 6 skipped in 1.46s`; release gate `14 passed in 0.53s`.
+- Full-suite evidence: `C:\Users\Ucet\AppData\Local\Programs\Python\Python312\python.exe -m pytest -q` -> `1024 passed, 47 skipped in 78.75s (0:01:18)`.
+- Safety: no deploy, SSH, push, merge, payment change, Caddy change, cron change, environment change, or other-app change was performed in this wave.
+- Rollback note: revert commit `fix: close integrated SEO release gaps` and rerun the complete local suite before any future deploy attempt.
+- Production status: deployment and live production verification remain pending explicit authorization.

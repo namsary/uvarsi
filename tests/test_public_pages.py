@@ -112,6 +112,12 @@ def without_json_ld(html):
     return re.sub(r'<script type="application/ld\+json">.*?</script>', "", html, flags=re.S)
 
 
+def visible_text(html):
+    without_structured_data = without_json_ld(html)
+    without_tags = re.sub(r"<[^>]+>", " ", without_structured_data)
+    return re.sub(r"\s+", " ", without_tags).strip()
+
+
 def test_weekly_page_renders_validated_current_data_with_metadata_and_structured_data():
     page = render_weekly_page(payload(), today=date(2026, 8, 18))
 
@@ -156,6 +162,7 @@ def test_weekly_page_escapes_payload_strings_and_serializes_json_ld_safely():
     dangerous["receipt"]["meals"][0]["name"] = 'Polievka </script><script>alert("x")</script>'
     dangerous["receipt"]["meals"][0]["items"][0]["name"] = '<b>Paradajky</b>'
     dangerous["sources"][0]["store"] = 'Lidl & spol.'
+    dangerous["receipt"]["meals"][0]["items"][0]["store"] = 'Lidl & spol.'
 
     page = render_weekly_page(dangerous, today=date(2026, 8, 18))
     visible_html = without_json_ld(page.html)
@@ -212,6 +219,55 @@ def test_weekly_page_uses_shared_intersection_for_mixed_source_validity_windows(
 
 
 @pytest.mark.parametrize(
+    "url",
+    [None, "", "/letak/lidl", "ftp://letak.test/lidl", "https:///bez-hosta"],
+)
+def test_weekly_page_fails_closed_when_a_cited_source_url_is_missing_or_invalid(url):
+    invalid = payload()
+    invalid["sources"][0]["url"] = url
+
+    page = render_weekly_page(invalid, today=date(2026, 8, 18))
+
+    assert page.indexable is False
+    assert "Týždenné ceny práve overujeme" in page.html
+    assert "1,49 €" not in page.html
+    assert "https://letak.test/tesco" not in page.html
+
+
+def test_weekly_page_fails_closed_when_an_item_store_has_no_validated_source_store():
+    mismatched = payload()
+    mismatched["receipt"]["meals"][0]["items"][0]["store"] = "Kaufland"
+
+    page = render_weekly_page(mismatched, today=date(2026, 8, 18))
+
+    assert page.indexable is False
+    assert "Týždenné ceny práve overujeme" in page.html
+    assert "Kaufland" not in without_json_ld(page.html)
+    assert "1,49 €" not in page.html
+
+
+@pytest.mark.parametrize(
+    ("valid_from", "valid_to"),
+    [
+        ("2026-08-19", "2026-08-23"),
+        ("2026-08-10", "2026-08-17"),
+    ],
+)
+def test_weekly_page_fails_closed_outside_each_source_validity_window(valid_from, valid_to):
+    invalid = payload()
+    for source in invalid["sources"]:
+        source["valid_from"] = valid_from
+        source["valid_to"] = valid_to
+
+    page = render_weekly_page(invalid, today=date(2026, 8, 18))
+
+    assert page.indexable is False
+    assert "Týždenné ceny práve overujeme" in page.html
+    assert "1,49 €" not in page.html
+    assert "https://letak.test/" not in page.html
+
+
+@pytest.mark.parametrize(
     ("slug", "title"),
     [
         ("lacny-jedalnicek", "Lacný jedálniček bez vymyslených zliav | Uvar.si"),
@@ -235,6 +291,40 @@ def test_evergreen_pages_are_indexable_structured_and_price_stable(slug, title):
     structured = json_ld(page.html)
     assert [entry["@type"] for entry in structured] == ["Article", "BreadcrumbList"]
     assert structured[0]["mainEntityOfPage"] == f"https://uvar.si/{slug}"
+
+
+def test_budget_evergreen_page_explains_batch_portions_leftovers_and_pantry_planning():
+    page = render_evergreen_page("lacny-jedalnicek")
+    text = visible_text(page.html)
+    folded = text.casefold()
+
+    assert "Varenie na viac dní" in text
+    assert "počet porcií" in folded
+    assert "domácnosť" in folded
+    assert "zvyšné porcie" in folded
+    assert "špajze" in folded
+    assert "odpočítajú z nákupného zoznamu" in folded
+    assert "nepridávajú novú cenu" in folded
+    assert 'href="https://uvar.si/co-varit-tento-tyzden"' in page.html
+    assert 'href="https://uvar.si/app"' in page.html
+    assert "garant" not in folded
+
+
+def test_method_evergreen_page_names_coverage_validation_and_fail_closed_boundary():
+    page = render_evergreen_page("ako-varime-z-akcii")
+    text = visible_text(page.html)
+
+    assert "Lidl, Kaufland a Tesco" in text
+    assert "Fresh momentálne nepokrývame" in text
+    assert all(term in text for term in ("URL zdroja", "obchod", "cenu", "rozsah platnosti"))
+    assert "AI skladá jedlá a návrhy receptov" in text
+    assert "programové kontroly" in text
+    assert all(term in text for term in ("zdroj", "dátumy", "ceny", "matematiku"))
+    assert "nemusí zahŕňať každú ponuku ani každý produkt" in text
+    assert "nezobrazíme nič ako aktuálne" in text
+    assert 'href="https://uvar.si/co-varit-tento-tyzden"' in page.html
+    assert 'href="https://uvar.si/app"' in page.html
+    assert "garant" not in text.casefold()
 
 
 def test_evergreen_pages_reject_unknown_slugs():

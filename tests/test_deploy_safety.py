@@ -157,6 +157,40 @@ def test_samopull_preflight_checks_public_pages_before_switching():
     )
 
 
+def test_samopull_preflight_rejects_missing_or_empty_root_assets():
+    script = SAMOPULL.read_text(encoding="utf-8")
+    preflight = script.split("# --- 2. overenie PRED prepnutím ---", 1)[1].split(
+        "# --- 3. záloha aktuálneho stavu a prepnutie ---",
+        1,
+    )[0]
+
+    assert '[ -s "$CIEL/$f" ]' in preflight
+    required_files = re.search(r"for f in (.*?); do", preflight, flags=re.S)
+    assert required_files, "samopull musí mať jeden fail-closed zoznam povinných súborov"
+    for asset in ("index.html", "sw.js"):
+        assert asset in required_files.group(1), f"prázdny alebo chýbajúci {asset} musí release odmietnuť"
+
+
+def test_samopull_root_assets_are_backed_up_switched_and_restored_as_required_files():
+    script = SAMOPULL.read_text(encoding="utf-8")
+    backup, after_backup = script.split("nasad_z()", 1)
+    switch, rollback = after_backup.split("# --- 4. neúspech → návrat ---", 1)
+    rollback_before_restart = rollback.split("systemctl restart uvarsi", 1)[0]
+
+    for asset in ("index.html", "sw.js"):
+        live = f'/var/www/uvarsi/{asset}'
+        assert re.search(
+            rf'cp -a "{re.escape(live)}" "\$PRED/{re.escape(asset)}"(?![^\n]*\|\| true)',
+            backup,
+        ), f"živý {asset} musí byť povinne zálohovaný pred prepnutím"
+        assert f'cp -a "$1/{asset}" "{live}" || return 1' in switch, (
+            f"prepnutie {asset} musí byť povinná operácia, ktorá vie zlyhať"
+        )
+        assert f'cp -a "$PRED/{asset}" "{live}"' in rollback_before_restart, (
+            f"rollback musí obnoviť {asset} pred reštartom služby"
+        )
+
+
 def test_caddy_uses_separate_redirect_and_canonical_blocks(script):
     template = _generated_caddy_template(script)
     assert (
@@ -458,6 +492,28 @@ def test_postdeploy_checks_noindex_font_cache_and_www_redirect(script):
     assert "location: https://uvar.si/co-varit-tento-tyzden" in blok, (
         "presmerovanie musí zachovať cestu pri prechode z www na kanonický host"
     )
+
+
+def test_postdeploy_checks_every_alternate_host_for_permanent_exact_redirect(script):
+    blocks = [
+        block for block in _heredoc_blocks(script.splitlines())
+        if "co-varit-tento-tyzden" in block and "Location" in block
+    ]
+    assert blocks, "očakávam post-deploy redirect kontroly"
+    block = "\n".join(blocks)
+    for host in (
+        "https://www.uvar.si",
+        "https://uvarsi.sk",
+        "https://www.uvarsi.sk",
+        "https://uvarsi.89.167.72.159.sslip.io",
+    ):
+        assert f"skontroluj_presmerovanie {host}/co-varit-tento-tyzden" in block
+
+    function = re.search(r"skontroluj_presmerovanie\(\) \{(.*?)\n\}", block, flags=re.S)
+    assert function, "redirect potrebuje samostatnú kontrolu statusu aj Location"
+    body = function.group(1)
+    assert '"301"' in body and '"308"' in body
+    assert '[ "$LOCATION" = "https://uvar.si/co-varit-tento-tyzden" ]' in body
 
 
 # ---------------------------------------------------------------- 8. /api/health

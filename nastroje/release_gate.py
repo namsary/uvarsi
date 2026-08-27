@@ -33,9 +33,9 @@ from pathlib import Path
 KOREN = Path(__file__).resolve().parent.parent
 LOG = KOREN / "RELEASE_LOG.md"
 WEB = "https://uvar.si"
-WWW = "https://www.uvar.si"
 SAFE_HEADERS = ("cache-control", "content-type", "location", "x-robots-tag")
 BODY_LIMIT = 20_000
+HOMEPAGE_BODY_LIMIT = 64 * 1024
 DETAIL_LIMIT = 180
 FONT_PATH = "/static/fonts/manrope-400-800.7101939e.woff2"
 CANONICKE_URL = (
@@ -48,6 +48,12 @@ CONTENT_LINKS = (
     "/co-varit-tento-tyzden",
     "/lacny-jedalnicek",
     "/ako-varime-z-akcii",
+)
+ALTERNATE_HOSTS = (
+    ("www.uvar.si", "https://www.uvar.si"),
+    ("uvarsi.sk", "https://uvarsi.sk"),
+    ("www.uvarsi.sk", "https://www.uvarsi.sk"),
+    ("uvarsi.89.167.72.159.sslip.io", "https://uvarsi.89.167.72.159.sslip.io"),
 )
 
 # Windows-only testy (volajú cscript.exe / Git bash) sa mimo Windows nedajú spustiť
@@ -123,9 +129,9 @@ def _safe_headers(headers) -> dict[str, str]:
     return safe
 
 
-def _read_bounded_body(stream) -> bytes:
+def _read_bounded_body(stream, max_body_bytes: int = BODY_LIMIT) -> bytes:
     try:
-        return stream.read(BODY_LIMIT)
+        return stream.read(max_body_bytes)
     except Exception:
         return b""
 
@@ -185,15 +191,30 @@ def brana_verzia() -> list[Zistenie]:
 
 
 # ----------------------------------------------------------------- produkcia
-def _ziskaj(cesta: str, timeout: int = 25, follow_redirects: bool = True) -> HttpResponse:
+def _ziskaj(
+    cesta: str,
+    timeout: int = 25,
+    follow_redirects: bool = True,
+    max_body_bytes: int = BODY_LIMIT,
+) -> HttpResponse:
     url = _cela_url(cesta)
     request = urllib.request.Request(url, headers={"User-Agent": "uvarsi-release-gate/1.0"})
     opener = urllib.request.build_opener() if follow_redirects else urllib.request.build_opener(_BezPresmerovania)
     try:
         with opener.open(request, timeout=timeout) as o:
-            return HttpResponse(o.status, _read_bounded_body(o), _safe_headers(o.headers), url)
+            return HttpResponse(
+                o.status,
+                _read_bounded_body(o, max_body_bytes),
+                _safe_headers(o.headers),
+                url,
+            )
     except urllib.error.HTTPError as e:
-        return HttpResponse(e.code, _read_bounded_body(e), _safe_headers(e.headers), url)
+        return HttpResponse(
+            e.code,
+            _read_bounded_body(e, max_body_bytes),
+            _safe_headers(e.headers),
+            url,
+        )
     except Exception as e:                                  # sieť/TLS
         return HttpResponse(0, str(e).encode("utf-8", errors="replace"), {}, url)
 
@@ -250,12 +271,21 @@ class _CanonicalLinkParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
         self.links: list[str] = []
+        self.visible_hrefs: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag.lower() != "link":
+        tag_name = tag.lower()
+        if tag_name not in ("a", "link"):
             return
 
         attr_map = {name.lower(): (value or "") for name, value in attrs}
+        if tag_name == "a":
+            hidden = "hidden" in attr_map or attr_map.get("aria-hidden", "").casefold() == "true"
+            href = attr_map.get("href", "").strip()
+            if href and not hidden:
+                self.visible_hrefs.append(href)
+            return
+
         rel_tokens = {token.casefold() for token in attr_map.get("rel", "").split()}
         if "canonical" not in rel_tokens:
             return
@@ -272,7 +302,9 @@ def _canonical_links(html: str) -> list[str]:
 
 
 def _has_internal_link(html: str, path: str) -> bool:
-    return f'href="{path}"' in html or f'href="{WEB}{path}"' in html
+    parser = _CanonicalLinkParser()
+    parser.feed(html)
+    return path in parser.visible_hrefs or f"{WEB}{path}" in parser.visible_hrefs
 
 
 def _seo_zistenia(fetch, landing_payload: dict | None) -> list[Zistenie]:
@@ -364,16 +396,23 @@ def _seo_zistenia(fetch, landing_payload: dict | None) -> list[Zistenie]:
         cache_control or (_http_detail(font) if font.status != 200 else "Cache-Control chýba"),
     ))
 
-    redirect = fetch(f"{WWW}/co-varit-tento-tyzden", follow_redirects=False)
-    location = redirect.headers.get("location", "")
-    redirect_ok = redirect.status in (301, 308) and location == f"{WEB}/co-varit-tento-tyzden"
-    z.append(Zistenie(
-        "www weekly redirect",
-        redirect_ok,
-        f"HTTP {redirect.status}, Location {location or '?'}",
-    ))
+    redirect_path = "/co-varit-tento-tyzden"
+    expected_location = f"{WEB}{redirect_path}"
+    for hostname, host_url in ALTERNATE_HOSTS:
+        redirect = fetch(f"{host_url}{redirect_path}", follow_redirects=False)
+        location = redirect.headers.get("location", "")
+        redirect_ok = redirect.status in (301, 308) and location == expected_location
+        if redirect.status == 0:
+            detail = _http_detail(redirect)
+        else:
+            detail = f"HTTP {redirect.status}, Location {location or '?'}"
+        z.append(Zistenie(
+            f"{hostname} weekly redirect",
+            redirect_ok,
+            detail,
+        ))
 
-    homepage = fetch("/")
+    homepage = fetch("/", max_body_bytes=HOMEPAGE_BODY_LIMIT)
     homepage_html = homepage.text() if homepage.status == 200 else ""
     canonicals = _canonical_links(homepage_html) if homepage.status == 200 else []
     z.append(Zistenie(
@@ -395,12 +434,20 @@ def _seo_zistenia(fetch, landing_payload: dict | None) -> list[Zistenie]:
 
 def brana_produkcia(ocakavana_verzia: str) -> list[Zistenie]:
     z = []
-    cache: dict[tuple[str, bool], HttpResponse] = {}
+    cache: dict[tuple[str, bool, int], HttpResponse] = {}
 
-    def fetch(cesta: str, follow_redirects: bool = True) -> HttpResponse:
-        key = (cesta, follow_redirects)
+    def fetch(
+        cesta: str,
+        follow_redirects: bool = True,
+        max_body_bytes: int = BODY_LIMIT,
+    ) -> HttpResponse:
+        key = (cesta, follow_redirects, max_body_bytes)
         if key not in cache:
-            cache[key] = _ziskaj(cesta, follow_redirects=follow_redirects)
+            cache[key] = _ziskaj(
+                cesta,
+                follow_redirects=follow_redirects,
+                max_body_bytes=max_body_bytes,
+            )
         return cache[key]
 
     health = fetch("/api/health")
@@ -429,7 +476,10 @@ def brana_produkcia(ocakavana_verzia: str) -> list[Zistenie]:
     for cesta, popis in (("/", "landing"), ("/app", "appka"),
                          ("/api/public/landing", "landing JSON"),
                          ("/prihlasenie", "prihlasovacia stranka")):
-        odpoved = fetch(cesta)
+        odpoved = fetch(
+            cesta,
+            max_body_bytes=HOMEPAGE_BODY_LIMIT if cesta == "/" else BODY_LIMIT,
+        )
         z.append(Zistenie(popis, odpoved.status == 200, f"HTTP {odpoved.status}"))
 
     # legitimnost: landing nesmie tvrdit uspory bez dat

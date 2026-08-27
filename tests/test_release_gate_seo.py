@@ -1,6 +1,18 @@
+import io
 import json
 
+import pytest
+
 from nastroje import release_gate as gate
+
+
+WEEKLY_PATH = "/co-varit-tento-tyzden"
+ALTERNATE_REDIRECTS = {
+    "https://www.uvar.si": "www.uvar.si weekly redirect",
+    "https://uvarsi.sk": "uvarsi.sk weekly redirect",
+    "https://www.uvarsi.sk": "www.uvarsi.sk weekly redirect",
+    "https://uvarsi.89.167.72.159.sslip.io": "uvarsi.89.167.72.159.sslip.io weekly redirect",
+}
 
 
 def response(status=200, body="", headers=None):
@@ -50,7 +62,7 @@ def healthy_responses():
   <a href="/ako-varime-z-akcii">Ako varíme z akcií</a>
 </body></html>
 """
-    return {
+    responses = {
         "/api/health": response(
             body=json.dumps(
                 {"vydanie": "2026.08.25.1", "tyzden": "2026-08-24", "pocet": 42}
@@ -74,11 +86,13 @@ def healthy_responses():
         "/static/fonts/manrope-400-800.7101939e.woff2": response(
             headers={"Cache-Control": "public, max-age=31536000, immutable"}
         ),
-        "https://www.uvar.si/co-varit-tento-tyzden": response(
-            status=308,
-            headers={"Location": "https://uvar.si/co-varit-tento-tyzden"},
-        ),
     }
+    for index, host in enumerate(ALTERNATE_REDIRECTS):
+        responses[f"{host}{WEEKLY_PATH}"] = response(
+            status=301 if index % 2 == 0 else 308,
+            headers={"Location": f"https://uvar.si{WEEKLY_PATH}"},
+        )
+    return responses
 
 
 def findings_by_name(findings):
@@ -88,8 +102,13 @@ def findings_by_name(findings):
 def run_gate(monkeypatch, responses):
     calls = []
 
-    def fake_fetch(path, timeout=25, follow_redirects=True):
-        calls.append((path, follow_redirects))
+    def fake_fetch(
+        path,
+        timeout=25,
+        follow_redirects=True,
+        max_body_bytes=gate.BODY_LIMIT,
+    ):
+        calls.append((path, follow_redirects, max_body_bytes))
         return responses[path]
 
     monkeypatch.setattr(gate, "_ziskaj", fake_fetch)
@@ -97,7 +116,7 @@ def run_gate(monkeypatch, responses):
     return gate.brana_produkcia("2026.08.25.1"), calls
 
 
-def test_release_gate_passes_seo_contract_and_checks_www_without_following_redirects(monkeypatch):
+def test_release_gate_passes_seo_contract_and_checks_every_alternate_host_without_following_redirects(monkeypatch):
     findings, calls = run_gate(monkeypatch, healthy_responses())
     by_name = findings_by_name(findings)
 
@@ -119,14 +138,61 @@ def test_release_gate_passes_seo_contract_and_checks_www_without_following_redir
         "/app noindex",
         "/prihlasenie noindex",
         "font immutable cache",
-        "www weekly redirect",
+        *ALTERNATE_REDIRECTS.values(),
         "landing canonical",
         "landing JSON-LD",
         "landing interné odkazy",
     ):
         assert by_name[name].ok, name
 
-    assert ("https://www.uvar.si/co-varit-tento-tyzden", False) in calls
+    for host in ALTERNATE_REDIRECTS:
+        assert (f"{host}{WEEKLY_PATH}", False, gate.BODY_LIMIT) in calls
+
+
+def test_release_gate_reads_the_complete_real_homepage_with_a_bounded_override(monkeypatch):
+    homepage = (gate.KOREN / "index.html").read_bytes()
+    read_sizes = []
+
+    class FakeResponse(io.BytesIO):
+        status = 200
+        headers = {}
+
+        def read(self, size=-1):
+            read_sizes.append(size)
+            return super().read(size)
+
+    class FakeOpener:
+        def open(self, request, timeout):
+            return FakeResponse(homepage)
+
+    monkeypatch.setattr(gate.urllib.request, "build_opener", lambda *args: FakeOpener())
+
+    fetched = gate._ziskaj("/", max_body_bytes=64 * 1024)
+
+    assert len(homepage) > gate.BODY_LIMIT
+    assert fetched.body == homepage
+    assert read_sizes == [64 * 1024]
+    assert gate._canonical_links(fetched.text()) == ["https://uvar.si/"]
+    assert all(gate._has_internal_link(fetched.text(), path) for path in gate.CONTENT_LINKS)
+
+
+def test_release_gate_requests_a_larger_but_bounded_homepage_body(monkeypatch):
+    _, calls = run_gate(monkeypatch, healthy_responses())
+
+    homepage_calls = [call for call in calls if call[0] == "/"]
+    assert len(homepage_calls) == 1
+    assert gate.BODY_LIMIT < homepage_calls[0][2] <= 128 * 1024
+
+
+def test_homepage_internal_link_parser_accepts_single_quotes_but_ignores_hidden_links():
+    path = "/lacny-jedalnicek"
+
+    assert gate._has_internal_link(f"<a href='{path}'>Jedálniček</a>", path)
+    assert not gate._has_internal_link(f'<a hidden href="{path}">Skrytý</a>', path)
+    assert not gate._has_internal_link(
+        f'<a href="{path}" aria-hidden="true">Skrytý</a>',
+        path,
+    )
 
 
 def test_release_gate_blocks_on_robots_requirements(monkeypatch):
@@ -191,10 +257,31 @@ def test_release_gate_blocks_on_font_cache_redirect_and_homepage_metadata(monkey
     by_name = findings_by_name(findings)
 
     assert by_name["font immutable cache"].ok is False
-    assert by_name["www weekly redirect"].ok is False
+    assert by_name["www.uvar.si weekly redirect"].ok is False
     assert by_name["landing canonical"].ok is False
     assert by_name["landing JSON-LD"].ok is False
     assert by_name["landing interné odkazy"].ok is False
+
+
+@pytest.mark.parametrize(("host", "finding_name"), ALTERNATE_REDIRECTS.items())
+def test_release_gate_blocks_each_alternate_host_independently(
+    monkeypatch,
+    host,
+    finding_name,
+):
+    responses = healthy_responses()
+    responses[f"{host}{WEEKLY_PATH}"] = response(
+        status=302,
+        headers={"Location": f"{host}{WEEKLY_PATH}"},
+    )
+
+    findings, _ = run_gate(monkeypatch, responses)
+    by_name = findings_by_name(findings)
+
+    assert by_name[finding_name].ok is False
+    assert by_name[finding_name].blokuje is True
+    for other_name in set(ALTERNATE_REDIRECTS.values()) - {finding_name}:
+        assert by_name[other_name].ok is True
 
 
 def test_release_gate_accepts_canonical_link_when_href_precedes_rel(monkeypatch):

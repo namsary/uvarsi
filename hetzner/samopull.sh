@@ -76,7 +76,7 @@ if ! (cd "$CIEL/app" && UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$CIEL/VE
   exit 1
 fi
 # b) povinné súbory
-for f in app/server.py app/auth_data.py app/public_pages.py app/predpocet.py app/static/app.html VERSION; do
+for f in app/server.py app/auth_data.py app/public_pages.py app/predpocet.py app/static/app.html VERSION index.html sw.js; do
   [ -s "$CIEL/$f" ] || { log "vo vydaní chýba $f — NEPREPÍNAM"; \
     notify "Uvar.si: neúplné vydanie" "Chýba $f."; exit 1; }
 done
@@ -86,6 +86,10 @@ PRED="$REL/predosle"
 rm -rf "$PRED"; mkdir -p "$PRED"
 cp -a "$DIR/app" "$PRED/app" 2>/dev/null || true
 cp -a "$DIR/VERSION" "$PRED/VERSION" 2>/dev/null || true
+cp -a "/var/www/uvarsi/index.html" "$PRED/index.html" || {
+  log "záloha živého index.html zlyhala — NEPREPÍNAM"; exit 1; }
+cp -a "/var/www/uvarsi/sw.js" "$PRED/sw.js" || {
+  log "záloha živého sw.js zlyhala — NEPREPÍNAM"; exit 1; }
 for f in refresh_blocek.py recepty.py dozorca.sh zaloha.sh; do
   cp -a "$DIR/$f" "$PRED/$f" 2>/dev/null || true
 done
@@ -94,8 +98,8 @@ nasad_z() {   # $1 = adresár s vydaním
   cp -a "$1/app/." "$DIR/app/" || return 1
   cp -a "$1/VERSION" "$DIR/VERSION" 2>/dev/null || true
   # webový koreň — landing a service worker (bez toho sa stránka nikdy neobnoví)
-  [ -f "$1/index.html" ] && cp -a "$1/index.html" /var/www/uvarsi/index.html
-  [ -f "$1/sw.js" ] && cp -a "$1/sw.js" /var/www/uvarsi/sw.js
+  cp -a "$1/index.html" "/var/www/uvarsi/index.html" || return 1
+  cp -a "$1/sw.js" "/var/www/uvarsi/sw.js" || return 1
   [ -f "$1/hetzner/refresh_blocek.py" ] && cp -a "$1/hetzner/refresh_blocek.py" "$DIR/refresh_blocek.py"
   [ -f "$1/hetzner/recepty.py" ] && cp -a "$1/hetzner/recepty.py" "$DIR/recepty.py"
   [ -f "$1/hetzner/dozorca.sh" ] && { cp -a "$1/hetzner/dozorca.sh" "$DIR/dozorca.sh"; chmod +x "$DIR/dozorca.sh"; }
@@ -128,11 +132,16 @@ log "appka po nasadení neodpovedá — VRACIAM predošlú verziu"
 rm -f "$DIR/samopull.sh.novy"
 cp -a "$PRED/app/." "$DIR/app/" 2>/dev/null || true
 cp -a "$PRED/VERSION" "$DIR/VERSION" 2>/dev/null || true
+NAVRAT_OK=1
+cp -a "$PRED/index.html" "/var/www/uvarsi/index.html" || {
+  log "rollback index.html zlyhal"; NAVRAT_OK=0; }
+cp -a "$PRED/sw.js" "/var/www/uvarsi/sw.js" || {
+  log "rollback sw.js zlyhal"; NAVRAT_OK=0; }
 for f in refresh_blocek.py recepty.py dozorca.sh zaloha.sh; do
   cp -a "$PRED/$f" "$DIR/$f" 2>/dev/null || true
 done
 systemctl restart uvarsi
-if zdravie; then
+if [ "$NAVRAT_OK" -eq 1 ] && zdravie; then
   log "predošlá verzia beží"
   notify "Uvar.si: vydanie vrátené" "Nové vydanie neprešlo, beží predošlá verzia. Appka je v poriadku."
 else

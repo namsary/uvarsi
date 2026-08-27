@@ -228,6 +228,38 @@ def _shared_validity_markup(sources: list[dict]) -> tuple[str, list[str]]:
     )
 
 
+def _validate_publishable_data(payload: dict, today: date) -> None:
+    validated_stores: set[str] = set()
+    for source in payload["sources"]:
+        store = _required_text_field(source, "store").strip()
+        url = _required_text_field(source, "url").strip()
+        try:
+            parsed = urlsplit(url)
+        except ValueError as error:
+            raise ValueError("Zdroj nemá platnú absolútnu URL.") from error
+        if (
+            parsed.scheme.casefold() not in {"http", "https"}
+            or not parsed.hostname
+            or any(character.isspace() for character in parsed.hostname)
+        ):
+            raise ValueError("Zdroj nemá platnú absolútnu URL.")
+
+        valid_from = _required_iso_date(source, "valid_from")
+        valid_to = _required_iso_date(source, "valid_to")
+        if valid_from > valid_to or not valid_from <= today <= valid_to:
+            raise ValueError("Zdroj nie je platný v dnešný deň.")
+        validated_stores.add(store.casefold())
+
+    for meal in payload["receipt"]["meals"]:
+        for item in meal["items"]:
+            store = _required_text_field(item, "store").strip()
+            _required_text_field(item, "unit")
+            if item.get("price") in (None, ""):
+                raise ValueError("Položka nemá cenu potrebnú na zverejnenie.")
+            if store.casefold() not in validated_stores:
+                raise ValueError("Položka nemá validovaný zdroj pre svoj obchod.")
+
+
 def _weekly_body(payload: dict) -> str:
     receipt = payload["receipt"]
     sources = payload["sources"]
@@ -316,6 +348,7 @@ def render_weekly_page(payload: dict | None, today: date | None = None) -> Rende
         return _weekly_recovery(today)
     try:
         validated = validate_landing_data(payload, today)
+        _validate_publishable_data(validated, today)
     except ValueError:
         return _weekly_recovery(today)
 
@@ -360,22 +393,50 @@ def render_evergreen_page(slug: str) -> RenderedPage:
             "title": "Lacný jedálniček bez vymyslených zliav | Uvar.si",
             "description": "Praktický návod, ako skladať lacný jedálniček bez nestabilných cenových tvrdení.",
             "h1": "Lacný jedálniček",
-            "lead": "Lacný jedálniček funguje vtedy, keď si držíš jednoduchý rytmus, suroviny sa prekrývajú a nakupuješ až z overených podkladov.",
-            "steps": [
-                "Začni dvoma až troma opakovateľnými jedlami na týždeň.",
-                "Stavaj jedlá na surovinách, ktoré vieš prehodiť medzi obedom a večerou.",
-                "Aktuálne akcie si over až v týždennom prehľade, nie v evergreen texte.",
+            "lead": "Lacný jedálniček funguje vtedy, keď plánuješ porcie pre svoju domácnosť, varíš na viac dní a pred nákupom odrátaš to, čo už máš doma.",
+            "intro": "Najprv vyber niekoľko jedál so spoločnými surovinami. Potom urči počet porcií, skontroluj špajzu a až nakoniec otvor aktuálny týždenný prehľad.",
+            "sections": [
+                (
+                    "Varenie na viac dní",
+                    "Vyber si dve hlavné jedlá, ktoré sa dobre skladujú a zohrievajú. Väčší hrniec polievky, omáčky alebo strukovinového jedla môže pokryť obed aj večeru v ďalší deň. Časť porcií odlož hneď po dovarení, aby sa plánované jedlo nestratilo pri prvom servírovaní.",
+                ),
+                (
+                    "Počet porcií pre domácnosť a zvyšky",
+                    "Počet porcií rátaj podľa počtu ľudí a počtu podávaní, nie iba podľa počtu receptov. Ak štvorčlenná domácnosť plánuje jedlo na dva dni, potrebuje približne osem porcií; menšie detské porcie si uprav podľa vlastnej skúsenosti. Zvyšné porcie označ dňom a naplánuj ich na konkrétny obed alebo večeru.",
+                ),
+                (
+                    "Špajza skracuje nákupný zoznam",
+                    "Pred nákupom skontroluj ryžu, cestoviny, strukoviny, koreniny a ďalšie trvanlivé zásoby. Suroviny, ktoré už máš v špajze, sa odpočítajú z nákupného zoznamu a nepridávajú novú cenu. Špajza teda nie je ďalší nákup, ale kontrola toho, čo netreba kupovať znova.",
+                ),
+                (
+                    "Ako z plánu urobiť nákup",
+                    "Spoj rovnaké suroviny naprieč jedlami, dopíš potrebné množstvá a porovnaj zoznam s aktuálnymi ponukami. Ak akcia nie je overená alebo sa ti nehodí do jedál, pokojne ju vynechaj; cieľom je použiteľný plán, nie sľub určitej úspory.",
+                ),
             ],
         },
         "ako-varime-z-akcii": {
             "title": "Ako varíme z akcií bez klamlivých tvrdení | Uvar.si",
             "description": "Ako Uvar.si skladá jedlá z akcií tak, aby nevznikali vymyslené cenové sľuby.",
             "h1": "Ako varíme z akcií",
-            "lead": "Z akcií sa oplatí variť iba vtedy, keď sú ceny aktuálne, zdroj pomenovaný a stránka vie priznať, keď dáta práve nie sú pripravené.",
-            "steps": [
-                "Najprv zbierame len overiteľné ponuky s presným zdrojom.",
-                "Potom AI skladá jedlá z týchto položiek, nie z vymyslených úspor.",
-                "Keď dáta zostarnú, týždenná stránka sa prepne do bezpečného režimu bez cien.",
+            "lead": "Z akcií skladáme jedlá iba vtedy, keď vieme ku každej viditeľnej cenovej informácii priradiť obchod, platný zdroj a časové obdobie.",
+            "intro": "Najprv prejdú ponuky programovou kontrolou dôkazov. AI dostane až overené položky a pomáha z nich zostaviť použiteľné jedlá.",
+            "sections": [
+                (
+                    "Ktoré reťazce pokrývame",
+                    "Aktuálne pokrývame reťazce Lidl, Kaufland a Tesco. Fresh momentálne nepokrývame. Zoznam pomenúva súčasný rozsah služby, nie prísľub budúcej dostupnosti.",
+                ),
+                (
+                    "Čo pri ponuke overujeme",
+                    "Pri každej ponuke kontrolujeme URL zdroja, pomenovaný obchod, cenu a rozsah platnosti od–do. Dnešný dátum musí spadať do tohto rozsahu a obchod pri položke musí zodpovedať obchodu pri validovanom zdroji.",
+                ),
+                (
+                    "Čo robí AI a čo program",
+                    "AI skladá jedlá a návrhy receptov z položiek, ktoré dostane. Deterministické programové kontroly overujú zdroj, dátumy, ceny, jednotky a matematiku; AI tieto dôkazy nevymýšľa ani nenahrádza.",
+                ),
+                (
+                    "Keď ponuku nevieme potvrdiť",
+                    "Pokrytie nemusí zahŕňať každú ponuku ani každý produkt v letáku. Ak chýba zdroj, nesedia dátumy, obchod alebo cena, nezobrazíme nič ako aktuálne. Týždenná stránka namiesto toho oznámi, že výber obnovujeme.",
+                ),
             ],
         },
     }
@@ -383,17 +444,25 @@ def render_evergreen_page(slug: str) -> RenderedPage:
         raise KeyError(slug)
 
     page = pages[slug]
-    steps = "".join(f"<li>{_safe_text(step)}</li>" for step in page["steps"])
+    sections = "".join(
+        '<section class="card">'
+        f"<h2>{_safe_text(heading)}</h2>"
+        f"<p>{_safe_text(paragraph)}</p>"
+        "</section>"
+        for heading, paragraph in page["sections"]
+    )
     body = (
         f'<p class="lede">{_safe_text(page["lead"])}</p>'
         '<section class="card"><h2>Priamy záver</h2>'
         f"<p>{_safe_text(page['lead'])}</p></section>"
-        '<section class="card"><h2>Praktický postup</h2><ol>'
-        f"{steps}</ol></section>"
+        '<section class="card"><h2>Praktický postup</h2>'
+        f"<p>{_safe_text(page['intro'])}</p></section>"
+        f"{sections}"
         '<section class="card"><h2>Súvisiace stránky</h2>'
         f'<p><a href="{WEEKLY_URL}">Čo variť tento týždeň</a> ti dá aktuálny týždenný kontext, '
         f'kým <a href="{EVERGREEN_URLS["lacny-jedalnicek"]}">lacný jedálniček</a> a '
-        f'<a href="{EVERGREEN_URLS["ako-varime-z-akcii"]}">ako varíme z akcií</a> vysvetľujú stabilný postup.</p>'
+        f'<a href="{EVERGREEN_URLS["ako-varime-z-akcii"]}">ako varíme z akcií</a> vysvetľujú stabilný postup. '
+        f'<a class="cta" href="{BASE_URL}/app">Otvor aplikáciu Uvar.si</a>, keď chceš pracovať s vlastným plánom.</p>'
         "</section>"
     )
     canonical = EVERGREEN_URLS[slug]

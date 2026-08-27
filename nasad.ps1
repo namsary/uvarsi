@@ -368,7 +368,24 @@ hlavicka_musi_obsahovat() {
 
 hlavicka_musi_obsahovat https://uvar.si/app 'x-robots-tag: noindex' "app noindex"
 hlavicka_musi_obsahovat https://uvar.si/static/fonts/manrope-400-800.7101939e.woff2 'cache-control: .*immutable' "font immutable cache"
-hlavicka_musi_obsahovat https://www.uvar.si/co-varit-tento-tyzden 'location: https://uvar.si/co-varit-tento-tyzden' "www redirect na kanonicku verejnu stranku"
+
+skontroluj_presmerovanie() {
+  URL="$1"
+  POPIS="$2"
+  HLAVICKY=$(curl -sSI --max-redirs 0 "$URL" | tr -d '\r' || true)
+  KOD=$(printf '%s\n' "$HLAVICKY" | sed -n '1s#^HTTP/[^ ]* \([0-9][0-9]*\).*$#\1#p')
+  LOCATION=$(printf '%s\n' "$HLAVICKY" | sed -n 's/^[Ll]ocation:[[:space:]]*//p' | head -1)
+  echo "$POPIS: HTTP ${KOD:-0}, Location ${LOCATION:-?}; ocakavam Location: https://uvar.si/co-varit-tento-tyzden"
+  if [ "$KOD" != "301" ] && [ "$KOD" != "308" ]; then
+    zle "$POPIS nie je trvaly redirect (301 alebo 308)"
+  fi
+  [ "$LOCATION" = "https://uvar.si/co-varit-tento-tyzden" ] || zle "$POPIS stratil cestu alebo smeruje na nespravny host"
+}
+
+skontroluj_presmerovanie https://www.uvar.si/co-varit-tento-tyzden "www.uvar.si redirect"
+skontroluj_presmerovanie https://uvarsi.sk/co-varit-tento-tyzden "uvarsi.sk redirect"
+skontroluj_presmerovanie https://www.uvarsi.sk/co-varit-tento-tyzden "www.uvarsi.sk redirect"
+skontroluj_presmerovanie https://uvarsi.89.167.72.159.sslip.io/co-varit-tento-tyzden "sslip redirect"
 
 HEALTH=$(curl -s https://uvar.si/api/health || true)
 
