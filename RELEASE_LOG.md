@@ -29,3 +29,13 @@
 - Safety: no deploy, SSH, push, merge, payment change, Caddy change, cron change, environment change, or other-app change was performed in this wave.
 - Rollback note: revert commit `fix: close integrated SEO release gaps` and rerun the complete local suite before any future deploy attempt.
 - Production status: deployment and live production verification remain pending explicit authorization.
+
+## 2026-08-27 — Autonomous plan-cache recovery (vydanie 2026.08.27.1)
+
+- Scope: retry plan precomputation on every hourly supervisor run after complete Kaufland, Tesco and Lidl data; refresh stale public receipt before warming plans.
+- Cost safety: weekly precompute budget remains 0.40 EUR; six run slots allow recovery after transient failures without increasing the euro ceiling.
+- Concurrency safety: a process-wide `flock` prevents overlapping supervisors from paying for the same missing cache twice; deployment verifies the dependency.
+- Runtime coverage: current data, low offer count, missing store, refresh-before-warm ordering, occupied lock, hot-cache idempotence and success-failure-recovery.
+- Full-suite evidence: `1033 passed, 47 skipped in 73.90s (0:01:13)`.
+- Payment isolation: payment enablement and payment runtime behavior remain untouched.
+- Production status: integration, deployment and live verification are pending the guarded release steps.

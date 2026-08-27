@@ -3,6 +3,8 @@ import subprocess
 from datetime import date
 from pathlib import Path
 
+import pytest
+
 from app.landing_data import write_landing_data_atomic
 from app.landing_data import landing_data_is_current
 
@@ -59,6 +61,7 @@ def test_dozorca_refreshes_stale_json_using_only_json_destination(tmp_path):
         "UVARSI_LANDING_DATA": bash_path(landing_data),
         "UVARSI_PY": bash_path(fake_python),
         "UVARSI_TODAY": "2026-08-18",
+        "UVARSI_DOZORCA_LOCKED": "1",
         "PATH": f"{bash_path(tmp_path)}:/usr/bin",
     }
     result = subprocess.run(
@@ -87,6 +90,7 @@ def run_dozorca(tmp_path, landing_data):
             "UVARSI_LANDING_DATA": bash_path(landing_data),
             "UVARSI_PY": bash_path(tmp_path / "python"),
             "UVARSI_TODAY": "2026-08-18",
+            "UVARSI_DOZORCA_LOCKED": "1",
             "PATH": f"{bash_path(tmp_path)}:/usr/bin",
         },
         text=True,
@@ -221,6 +225,7 @@ def test_dozorca_credit_block_does_not_leak_into_the_next_day(tmp_path):
             "UVARSI_LANDING_DATA": bash_path(landing_data),
             "UVARSI_PY": bash_path(tmp_path / "python"),
             "UVARSI_TODAY": "2026-08-19",
+            "UVARSI_DOZORCA_LOCKED": "1",
             "PATH": f"{bash_path(tmp_path)}:/usr/bin",
         },
         text=True, encoding="utf-8", errors="replace",
@@ -230,7 +235,8 @@ def test_dozorca_credit_block_does_not_leak_into_the_next_day(tmp_path):
     assert calls.read_text(encoding="utf-8").count("refresh_blocek.py") == 2
 
 
-def test_dozorca_does_not_refresh_current_json(tmp_path):
+def test_dozorca_keeps_warming_plans_even_when_weekly_data_is_already_current(tmp_path):
+    (tmp_path / "app").mkdir()
     landing_data = tmp_path / "landing_data.json"
     write_landing_data_atomic(landing_data, payload("2026-08-17"))
     calls = tmp_path / "calls.txt"
@@ -244,7 +250,14 @@ def test_dozorca_does_not_refresh_current_json(tmp_path):
     )
     fake_python.chmod(0o755)
     fake_sqlite = tmp_path / "sqlite3"
-    fake_sqlite.write_text("#!/bin/sh\necho 30\n", encoding="utf-8")
+    fake_sqlite.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        "  *\"SELECT COUNT(*) FROM (\"*) echo 0 ;;\n"
+        "  *) echo 30 ;;\n"
+        "esac\n",
+        encoding="utf-8",
+    )
     fake_sqlite.chmod(0o755)
 
     environment = os.environ | {
@@ -252,6 +265,7 @@ def test_dozorca_does_not_refresh_current_json(tmp_path):
         "UVARSI_LANDING_DATA": bash_path(landing_data),
         "UVARSI_PY": bash_path(fake_python),
         "UVARSI_TODAY": "2026-08-18",
+        "UVARSI_DOZORCA_LOCKED": "1",
         "PATH": f"{bash_path(tmp_path)}:/usr/bin",
     }
     result = subprocess.run(
@@ -266,4 +280,151 @@ def test_dozorca_does_not_refresh_current_json(tmp_path):
     )
 
     assert result.returncode == 0
-    assert not calls.exists()
+    recorded = calls.read_text(encoding="utf-8")
+    assert "refresh_blocek.py" not in recorded
+    assert recorded.count("predpocet.py --zahrej") == 1, (
+        "predpočet sa musí skúsiť pri každom behu dozorcu; inak sa po jednom "
+        "zlyhaní už do konca týždňa nezotaví"
+    )
+
+
+@pytest.mark.parametrize(("pocet", "chybajuce_obchody"), [(29, 0), (30, 1)])
+def test_dozorca_nezohrieva_plan_nad_neuplnymi_ponukami(
+        tmp_path, pocet, chybajuce_obchody):
+    (tmp_path / "app").mkdir()
+    landing_data = tmp_path / "landing_data.json"
+    write_landing_data_atomic(landing_data, payload("2026-08-17"))
+    calls = tmp_path / "calls.txt"
+    fake_python = tmp_path / "python"
+    fake_python.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"-c\" ]; then exit 0; fi\n"
+        f"printf '%s\\n' \"$*\" >> '{bash_path(calls)}'\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+    fake_sqlite = tmp_path / "sqlite3"
+    fake_sqlite.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        f"  *\"SELECT COUNT(*) FROM (\"*) echo {chybajuce_obchody} ;;\n"
+        f"  *) echo {pocet} ;;\n"
+        "esac\n",
+        encoding="utf-8",
+    )
+    fake_sqlite.chmod(0o755)
+
+    result = subprocess.run(
+        [str(BASH), bash_path(ROOT / "hetzner" / "dozorca.sh")],
+        cwd=str(ROOT),
+        env=os.environ | {
+            "UVARSI_DIR": bash_path(tmp_path),
+            "UVARSI_LANDING_DATA": bash_path(landing_data),
+            "UVARSI_PY": bash_path(fake_python),
+            "UVARSI_TODAY": "2026-08-18",
+            "UVARSI_DOZORCA_LOCKED": "1",
+            "PATH": f"{bash_path(tmp_path)}:/usr/bin",
+        },
+        text=True, encoding="utf-8", errors="replace",
+        capture_output=True, check=False,
+    )
+
+    assert result.returncode == 0
+    recorded = calls.read_text(encoding="utf-8") if calls.exists() else ""
+    assert "predpocet.py" not in recorded
+
+
+def test_dozorca_pri_stalom_landingu_najprv_obnovi_blocek_a_az_potom_zohrieva(tmp_path):
+    (tmp_path / "app").mkdir()
+    landing_data = tmp_path / "landing_data.json"
+    write_landing_data_atomic(landing_data, payload("2026-08-10"))
+    calls = tmp_path / "calls.txt"
+    fake_python = tmp_path / "python"
+    fake_python.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"-c\" ]; then\n"
+        "  grep -q '\"week\":\"2026-08-17\"' \"$3\" && exit 0\n"
+        "  exit 1\n"
+        "fi\n"
+        f"printf '%s\\n' \"$*\" >> '{bash_path(calls)}'\n"
+        "if [ \"$2\" = \"refresh_blocek.py\" ]; then\n"
+        "  printf '{\"schema_version\":1,\"generated_at\":\"2026-08-18T05:02:20+02:00\",\"week\":\"2026-08-17\",\"week_label\":\"17.–23. 8. 2026\",\"sources\":[],\"receipt\":{\"meals\":[{\"day\":\"PO\",\"name\":\"Test\",\"items\":[]}],\"nakup_spolu\":\"1,00\",\"bezne\":\"2,00\",\"usetris\":\"1,00\"}}' > \"$3\"\n"
+        "fi\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+    fake_sqlite = tmp_path / "sqlite3"
+    fake_sqlite.write_text(
+        "#!/bin/sh\ncase \"$*\" in *\"SELECT COUNT(*) FROM (\"*) echo 0 ;; *) echo 30 ;; esac\n",
+        encoding="utf-8",
+    )
+    fake_sqlite.chmod(0o755)
+
+    result = subprocess.run(
+        [str(BASH), bash_path(ROOT / "hetzner" / "dozorca.sh")],
+        cwd=str(ROOT),
+        env=os.environ | {
+            "UVARSI_DIR": bash_path(tmp_path),
+            "UVARSI_LANDING_DATA": bash_path(landing_data),
+            "UVARSI_PY": bash_path(fake_python),
+            "UVARSI_TODAY": "2026-08-18",
+            "UVARSI_DOZORCA_LOCKED": "1",
+            "PATH": f"{bash_path(tmp_path)}:/usr/bin",
+        },
+        text=True, encoding="utf-8", errors="replace",
+        capture_output=True, check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert calls.read_text(encoding="utf-8").splitlines() == [
+        f"-u refresh_blocek.py {bash_path(landing_data)}",
+        "-u predpocet.py --zahrej",
+    ]
+
+
+def test_dozorca_pri_obsadenom_zamku_druhy_beh_skusene_preskoci(tmp_path):
+    fake_flock = tmp_path / "flock"
+    fake_flock.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    fake_flock.chmod(0o755)
+    fake_python = tmp_path / "python"
+    fake_python.write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
+    fake_python.chmod(0o755)
+
+    result = subprocess.run(
+        [str(BASH), bash_path(ROOT / "hetzner" / "dozorca.sh")],
+        cwd=str(ROOT),
+        env=os.environ | {
+            "UVARSI_DIR": bash_path(tmp_path),
+            "UVARSI_PY": bash_path(fake_python),
+            "PATH": f"{bash_path(tmp_path)}:/usr/bin",
+        },
+        text=True, encoding="utf-8", errors="replace",
+        capture_output=True, check=False,
+    )
+
+    assert result.returncode == 0
+    assert "predchádzajúci beh ešte pracuje" in result.stdout
+
+
+def test_dozorca_nepredstiera_obsadeny_zamok_ked_lock_subor_nemoze_otvorit(tmp_path):
+    not_a_directory = tmp_path / "subor"
+    not_a_directory.write_text("x", encoding="utf-8")
+    fake_flock = tmp_path / "flock"
+    fake_flock.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake_flock.chmod(0o755)
+
+    result = subprocess.run(
+        [str(BASH), bash_path(ROOT / "hetzner" / "dozorca.sh")],
+        cwd=str(ROOT),
+        env=os.environ | {
+            "UVARSI_DIR": bash_path(not_a_directory),
+            "PATH": f"{bash_path(tmp_path)}:/usr/bin",
+        },
+        text=True, encoding="utf-8", errors="replace",
+        capture_output=True, check=False,
+    )
+
+    assert result.returncode != 0
+    assert "zámok sa nedá vytvoriť" in result.stdout

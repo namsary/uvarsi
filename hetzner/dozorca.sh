@@ -40,6 +40,25 @@ NTFY_TOPIC="uvarsi-jarvis-8f3a2c"    # notifikácie: ntfy.sh/<topic>
 log(){ echo "[$(date '+%F %T')] DOZORCA: $*"; }
 notify(){ curl -s --max-time 15 -H "Title: $1" -d "$2" "https://ntfy.sh/${NTFY_TOPIC}" >/dev/null 2>&1 || true; }
 
+# Predpočet môže trvať dlhšie než hodinu. Druhý cron sa vtedy musí slušne
+# skončiť, nie zaplatiť rovnaké modelové volania druhýkrát. FD 9 zostáva
+# otvorený po celý beh a kernel ho pri každom ukončení procesu automaticky
+# uvoľní. UVARSI_DOZORCA_LOCKED používajú iba kontraktové testy bez Linux flock.
+if [ "${UVARSI_DOZORCA_LOCKED:-0}" != "1" ]; then
+  if ! command -v flock >/dev/null 2>&1; then
+    log "CHYBA — chýba flock, dozorca bez ochrany proti súbehu neštartuje."
+    exit 1
+  fi
+  if ! exec 9>"$DIR/.dozorca.lock"; then
+    log "CHYBA — zámok sa nedá vytvoriť; dozorca radšej neštartuje bez ochrany proti súbehu."
+    exit 1
+  fi
+  if ! flock -n 9; then
+    log "predchádzajúci beh ešte pracuje — tento hodinový pokus preskakujem."
+    exit 0
+  fi
+fi
+
 TODAY="${UVARSI_TODAY:-$(date +%F)}"
 
 MON_ISO=$("$PY" -c 'from datetime import date, timedelta; import sys; d=date.fromisoformat(sys.argv[1]); print((d-timedelta(days=d.weekday())).isoformat())' "$TODAY")
@@ -70,6 +89,19 @@ landing_data_is_current() {
   (cd "$DIR" && "$PY" -c 'from app.landing_data import landing_data_is_current; from datetime import date; import sys; raise SystemExit(0 if landing_data_is_current(sys.argv[1], date.fromisoformat(sys.argv[2])) else 1)' "$LANDING_DATA" "$TODAY")
 }
 
+zahrej_plany() {
+  # Predpočet je idempotentný: hotové podpisy iba preskočí a API nevolá.
+  # Beží preto pri každom hodinovom dohľade, nie iba raz po zbere. Ak prvý
+  # pokus zlyhá, ďalší beh sa zotaví ešte v ten istý deň bez zásahu majiteľa.
+  # Nastavenie žije iba na serveri a nasadenie ho neprepisuje.
+  (
+    cd "$DIR/app" || exit 1
+    if [ -f "$DIR/predpocet.env" ]; then set -a; . "$DIR/predpocet.env"; set +a; fi
+    UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$DIR/VERSION" \
+      "$PY" -u predpocet.py --zahrej
+  ) || log "predpočet neprešiel — ďalší hodinový beh ho skúsi znova"
+}
+
 # --- 0. Databáza akcií pre appku: má aktuálny týždeň? ---
 # (appka skladá osobné plány z tejto DB; bez nej ľuďom nič nevygeneruje)
 POCET=$(sqlite3 "$DIR/uvarsi.db" \
@@ -78,49 +110,40 @@ POCET=$(sqlite3 "$DIR/uvarsi.db" \
 # Celkový počet nestačí: keď zlyhá JEDEN obchod, ostatné dva ľahko prekročia
 # prah a chýbajúci reťazec sa už nikdy nedobehne — používateľ potom dostane
 # plán bez Lidlu a nedozvie sa to. (21. 8. 2026: 431 akcií, ale bez Lidlu.)
-CHYBA_OBCHOD=$(sqlite3 "$DIR/uvarsi.db" \
+CHYBA_ZBER=$(sqlite3 "$DIR/uvarsi.db" \
   "SELECT COUNT(*) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
-   WHERE v.o NOT IN (SELECT DISTINCT obchod FROM akcie WHERE tyzden='$MON_ISO')" \
-  2>/dev/null || echo 0)
+   WHERE NOT EXISTS (SELECT 1 FROM zber_stav s
+                     WHERE s.tyzden='$MON_ISO' AND s.obchod=v.o AND s.stav='ok')" \
+  2>/dev/null || echo 3)
 
-if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_OBCHOD:-0}" -gt 0 ]; then
-  if [ "${CHYBA_OBCHOD:-0}" -gt 0 ]; then
-    log "týždeň $MON_ISO: chýba $CHYBA_OBCHOD obchod(ov) — dobiehám zber…"
+if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
+  if [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
+    log "týždeň $MON_ISO: $CHYBA_ZBER obchod(ov) nemá úspešný zber — dobieham dáta…"
   else
     log "akcie pre týždeň $MON_ISO chýbajú ($POCET) — spúšťam zbierač…"
   fi
   if cd "$DIR/app" && "$PY" -u zbierac_akcii.py; then
     log "zbierač OK"
-    # Ponuky týždňa sú od tejto chvíle dané, takže sa najžiadanejšie zdieľané
-    # jedálničky dajú poskladať DOPREDU — o tretej ráno na ne nikto nečaká.
-    # Predpočet si stráži vlastný strop aj rezervu pre živých používateľov
-    # (app/predpocet.py) a je bezpečné spustiť ho opakovane: hotové podpisy
-    # preskočí bez volania modelu.
-    #
-    # `|| log` je zámerné: predpočet je zrýchlenie, nie povinnosť. Keď zlyhá,
-    # appka skladá plány naživo presne ako doteraz a dozorca ide ďalej —
-    # bloček je dôležitejší než zahriata cache.
-    #
-    # Nastavenie (koľko profilov, rezerva, vypnutie) číta predpočet z prostredia.
-    # Trvalé miesto preň je NEPOVINNÝ /opt/uvarsi/predpocet.env — rovnako ako
-    # uvarsi.env patrí serveru, nikdy sa nenahráva z PC a žiadne nasadenie ho
-    # neprepíše. Napr.:  echo 'UVARSI_PREDPOCET_PROFILOV=12' > /opt/uvarsi/predpocet.env
-    # Načítava sa v podškrupine, aby premenné neovplyvnili zvyšok dozorcu.
-    (
-      if [ -f "$DIR/predpocet.env" ]; then set -a; . "$DIR/predpocet.env"; set +a; fi
-      UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$DIR/VERSION" \
-        "$PY" -u predpocet.py --zahrej
-    ) || log "predpočet neprešiel — appka bude skladať plány naživo ako doteraz"
   else
     log "zbierač zlyhal — appka zatiaľ nemá aktuálne dáta"
   fi
-  # Zber mohol dáta doplniť; bez prečítania by starý blok platil na starý počet.
-  POCET=$(sqlite3 "$DIR/uvarsi.db" \
-          "SELECT COUNT(*) FROM akcie WHERE tyzden='$MON_ISO'" 2>/dev/null || echo 0)
 fi
 
+# Zber mohol dáta doplniť. Stav čítame znova aj bez zberu: predpočet sa smie
+# spustiť iba nad kompletnou trojicou obchodov a musí sa vedieť zotaviť pri
+# každom ďalšom hodinovom behu dozorcu.
+POCET=$(sqlite3 "$DIR/uvarsi.db" \
+        "SELECT COUNT(*) FROM akcie WHERE tyzden='$MON_ISO'" 2>/dev/null || echo 0)
+CHYBA_ZBER=$(sqlite3 "$DIR/uvarsi.db" \
+  "SELECT COUNT(*) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
+   WHERE NOT EXISTS (SELECT 1 FROM zber_stav s
+                     WHERE s.tyzden='$MON_ISO' AND s.obchod=v.o AND s.stav='ok')" \
+  2>/dev/null || echo 3)
 # --- 1. Už je aktuálny landing JSON pripravený? ---
 if landing_data_is_current; then
+  if [ "${POCET:-0}" -ge 30 ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]; then
+    zahrej_plany
+  fi
   rm -f "$STATE"
   exit 0
 fi
@@ -162,6 +185,9 @@ if [ "$RC" -eq 0 ] && landing_data_is_current; then
   log "OK — landing JSON obnovený na týždeň $MON_ISO."
   if [ "$FAILS" -gt 0 ]; then
     notify "Uvar.si opravené" "Landing JSON sa obnovil na týždeň $MON_ISO (po $FAILS neúspešných pokusoch)."
+  fi
+  if [ "${POCET:-0}" -ge 30 ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]; then
+    zahrej_plany
   fi
   rm -f "$STATE"
   exit 0

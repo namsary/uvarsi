@@ -199,6 +199,35 @@ def test_predpocet_respektuje_tyzdenny_pocet_behov(monkeypatch, tmp_path):
     assert len(volania) == 1
 
 
+def test_predpocet_sa_po_uspechu_a_docasnom_pade_moze_zotavit(monkeypatch, tmp_path):
+    """Hodinový dozor potrebuje tretí beh: úspech, výpadok, zotavenie."""
+    server, predpocet = priprav(monkeypatch, tmp_path)
+    zapis_dopyt(server, predpocet, minuly_tyzden())
+    prve_volania = []
+    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), [], prve_volania))
+    assert predpocet.zahrej(pocet=1)["zahriatych"] == 1
+    with closing(server.db()) as con:
+        con.execute("DELETE FROM plany_zdielane")
+        con.commit()
+
+    class DocasneRozbity:
+        def __init__(self, **kwargs):
+            self.messages = self
+
+        def create(self, **kwargs):
+            raise RuntimeError("dočasný výpadok modelu")
+
+    monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace(Anthropic=DocasneRozbity))
+    assert predpocet.zahrej(pocet=1)["zlyhanych"] == 1
+
+    retry_volania = []
+    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), [], retry_volania))
+    treti = predpocet.zahrej(pocet=1)
+
+    assert treti["zahriatych"] == 1, treti
+    assert len(retry_volania) == 1
+
+
 def test_beh_ktory_nic_neminul_nezabera_miesto_v_tyzdennom_pocte(monkeypatch, tmp_path):
     """Strop počtu behov je poistka proti míňaniu — nie proti zbytočnému behu.
 
@@ -630,18 +659,52 @@ def test_cena_za_profil_je_zname_a_striezlive_cislo(monkeypatch, tmp_path):
 
 
 # ------------------------------------------------------------------- napojenie
-def test_dozorca_spusta_predpocet_az_po_uspesnom_zbere():
+def test_dozorca_spusta_predpocet_len_nad_kompletnymi_ponukami():
     text = (ROOT / "hetzner" / "dozorca.sh").read_text(encoding="utf-8")
     assert "predpocet.py" in text, (
-        "predpočet musí byť napojený na zbierač — inak ho nikto nikdy nespustí"
+        "predpočet musí byť napojený na dozorcu — inak ho nikto nikdy nespustí"
     )
     zbierac = text.index('"$PY" -u zbierac_akcii.py')
-    predpocet_riadok = text.index("predpocet.py")
-    zlyhal = text.index("zbierač zlyhal")
-    assert zbierac < predpocet_riadok < zlyhal, (
-        "predpočet patrí do vetvy „zbierač OK“; nad neúplnými ponukami by "
-        "skladal plány, ktoré sa zajtra aj tak zneplatnia"
+    podmienka = text.index('if [ "${POCET:-0}" -ge 30 ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]')
+    volanie = text.index("zahrej_plany", podmienka)
+    assert zbierac < podmienka < volanie, (
+        "predpočet sa smie opakovať nezávisle od zberu, ale až po novom overení, "
+        "že máme dosť ponúk a nechýba Kaufland, Tesco ani Lidl"
     )
+
+
+def test_dozorca_obnovi_neaktualny_blocek_pred_dlhotrvajucim_predpoctom():
+    text = (ROOT / "hetzner" / "dozorca.sh").read_text(encoding="utf-8")
+    refresh = text.index('VYSTUP=$(cd "$DIR" && "$PY" -u refresh_blocek.py')
+    uspesny_refresh = text.index('if [ "$RC" -eq 0 ] && landing_data_is_current; then')
+    predpocet_po_refreshe = text.find("zahrej_plany", uspesny_refresh)
+    assert refresh < uspesny_refresh < predpocet_po_refreshe, (
+        "bloček je verejný a časovo kritický; predpočet môže trvať minúty, "
+        "preto sa pri neaktuálnom landingu smie spustiť až po jeho úspešnej obnove"
+    )
+
+
+def test_dozorca_ma_procesovy_zamok_a_nasadenie_overi_flock():
+    text = (ROOT / "hetzner" / "dozorca.sh").read_text(encoding="utf-8")
+    assert 'exec 9>"$DIR/.dozorca.lock"' in text
+    assert "flock -n 9" in text, (
+        "dva prekryté hodinové behy nesmú zaplatiť rovnaký predpočet dvakrát"
+    )
+    nasad = (ROOT / "nasad.ps1").read_text(encoding="utf-8")
+    assert "command -v flock" in nasad, (
+        "release musí overiť, že produkčný server vie procesový zámok použiť"
+    )
+
+
+def test_predpocet_cli_vrati_chybu_ked_model_nezahrial_plan(monkeypatch, capsys):
+    predpocet = importlib.import_module("predpocet")
+    monkeypatch.setattr(predpocet, "zahrej", lambda **_kw: {
+        "tyzden": "2026-08-24", "zahriatych": 0, "preskocenych": 0,
+        "zlyhanych": 1, "eur": 0.0, "dovod": predpocet.DOVOD_CHYBY,
+    })
+
+    assert predpocet.cli(["--zahrej"]) == 1
+    assert "zlyhaných 1" in capsys.readouterr().out
 
 
 def test_zlyhanie_predpoctu_nesmie_zmenit_navratovy_kod_dozorcu():

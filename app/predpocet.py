@@ -43,7 +43,8 @@ TRI OHRANIČENIA, ktoré musia platiť súčasne (a fail closed cez `naklady`):
      ranných používateľov bez rozpočtu na ich vlastný plán.
   3. BEHY a TÝŽDENNÝ STROP ÚČELU — `naklady.rezervuj_beh` a
      `stropy().tyzdenny_ucel["predpocet"]`. Rozbehnutý cron narazí na strop
-     skôr, než stihne niečo minúť.
+     skôr, než stihne nekontrolovane míňať; viac povolených behov slúži iba
+     na zotavenie po dočasnom výpadku, eurový strop sa tým nezvyšuje.
 
 ZLYHANIE JE NEŠKODNÉ. Nič z tohto modulu nesmie zhodiť appku ani dozorcu.
 Keď sa predpočet vypne, preskočí alebo padne, appka skladá plány naživo presne
@@ -776,9 +777,9 @@ def cli(argv=None) -> int:
         f"preskočených {vysledok['preskocenych']}, zlyhaných {vysledok['zlyhanych']}, "
         f"minuté {vysledok['eur']:.4f} € — {VYSVETLENIE.get(vysledok['dovod'], vysledok['dovod'])}"
     )
-    # Návratový kód je 0 aj vtedy, keď sa nezahrialo nič. Predpočet je
-    # zrýchlenie, nie povinnosť — jeho neúspech nesmie zhodiť dozorcu.
-    return 0
+    # „Nič nebolo treba" je úspech. Pád modelu však musí byť viditeľný shellu:
+    # dozorca ho iba zaloguje a o hodinu skúsi znova, appku ani bloček nezhodí.
+    return 1 if vysledok["zlyhanych"] or vysledok["dovod"] == DOVOD_CHYBY else 0
 
 
 if __name__ == "__main__":

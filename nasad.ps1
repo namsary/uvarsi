@@ -96,9 +96,9 @@ Ok "shell skripty maju LF konce riadkov"
 Krok "4/8  Python venv a zavislosti"
 # Na cerstvom serveri /opt/uvarsi/venv neexistuje - bez neho pip zlyha a systemd
 # sa toci v 203/EXEC. Vytvorime ho, ak chyba.
-ssh jarvis "set -eu; [ -x /opt/uvarsi/venv/bin/python ] || python3 -m venv /opt/uvarsi/venv; /opt/uvarsi/venv/bin/pip -q install fastapi uvicorn anthropic pillow requests; command -v sqlite3 >/dev/null || apt-get install -y sqlite3 >/dev/null 2>&1; command -v sqlite3 >/dev/null; chmod +x /opt/uvarsi/dozorca.sh"
+ssh jarvis "set -eu; [ -x /opt/uvarsi/venv/bin/python ] || python3 -m venv /opt/uvarsi/venv; /opt/uvarsi/venv/bin/pip -q install fastapi uvicorn anthropic pillow requests; command -v sqlite3 >/dev/null || apt-get install -y sqlite3 util-linux >/dev/null 2>&1; command -v flock >/dev/null || apt-get install -y util-linux >/dev/null 2>&1; command -v sqlite3 >/dev/null; command -v flock >/dev/null; chmod +x /opt/uvarsi/dozorca.sh"
 Vyzaduj "venv alebo zavislosti sa nepodarilo pripravit"
-Ok "venv, zavislosti aj sqlite3 (pre dozorcu)"
+Ok "venv, zavislosti, sqlite3 aj flock (pre dozorcu)"
 
 Krok "5/8  Sluzba uvarsi (bezi stale, prezije restart)"
 $svc = @'
