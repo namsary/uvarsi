@@ -104,11 +104,11 @@ def test_git_gate_ignores_untracked_workspace_notes(monkeypatch):
 
     def fake_run(command, timeout=None):
         commands.append(command)
-        if command[:3] == ["git", "rev-parse", "HEAD"]:
+        if command[-2:] == ["rev-parse", "HEAD"]:
             return 0, "a" * 40
-        if command[:3] == ["git", "status", "--porcelain"]:
+        if "status" in command:
             return 0, ""
-        if command[:3] == ["git", "rev-parse", "origin/main"]:
+        if command[-2:] == ["rev-parse", "origin/main"]:
             return 1, ""
         raise AssertionError(command)
 
@@ -117,8 +117,9 @@ def test_git_gate_ignores_untracked_workspace_notes(monkeypatch):
     findings = findings_by_name(gate.brana_git())
 
     assert findings["nezapisane zmeny"].ok is True
-    status_command = next(command for command in commands if command[:2] == ["git", "status"])
+    status_command = next(command for command in commands if "status" in command)
     assert "--untracked-files=no" in status_command
+    assert f"safe.directory={gate.KOREN}" in status_command
 
 
 def run_gate(monkeypatch, responses):

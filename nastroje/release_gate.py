@@ -164,19 +164,20 @@ def brana_testy() -> list[Zistenie]:
 
 def brana_git() -> list[Zistenie]:
     z = []
-    kod, sha = _spusti(["git", "rev-parse", "HEAD"], timeout=30)
+    git = ["git", "-c", f"safe.directory={KOREN}"]
+    kod, sha = _spusti([*git, "rev-parse", "HEAD"], timeout=30)
     sha = sha.strip()[:12] if kod == 0 else "?"
     z.append(Zistenie("git revizia", kod == 0, sha))
 
     kod, stav = _spusti(
-        ["git", "status", "--porcelain", "--untracked-files=no"], timeout=30
+        [*git, "status", "--porcelain", "--untracked-files=no"], timeout=30
     )
     nezapisane = [r for r in stav.splitlines() if r.strip()]
     z.append(Zistenie("nezapisane zmeny", not nezapisane,
                       "ziadne" if not nezapisane
                       else f"{len(nezapisane)} suborov nie je commitnutych"))
 
-    kod, vzdialene = _spusti(["git", "rev-parse", "origin/main"], timeout=30)
+    kod, vzdialene = _spusti([*git, "rev-parse", "origin/main"], timeout=30)
     if kod == 0:
         rovnake = vzdialene.strip()[:12] == sha
         z.append(Zistenie("push na origin/main", rovnake,
