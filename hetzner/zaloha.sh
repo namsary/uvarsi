@@ -1,4 +1,5 @@
 #!/bin/bash
+# Konce riadkov tohto skriptu musia zostať LF (pozri .gitattributes).
 # Uvar.si — ZÁLOHA DATABÁZY (beží na jarvise každú noc, plne autonómne).
 #
 # Tabuľka `naroky` je JEDINÝ záznam o tom, kto zaplatil. Nič ju doteraz
