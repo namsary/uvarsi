@@ -72,6 +72,7 @@ def test_release_installs_and_restarts_worker_without_touching_other_app():
     unit = (ROOT / "hetzner" / "uvarsi-plan-worker.service").read_text(encoding="utf-8")
 
     assert "ExecStart=/opt/uvarsi/venv/bin/python -u plan_worker.py" in unit
+    assert "Environment=TZ=Europe/Bratislava" in unit
     assert "EnvironmentFile=" not in unit
     assert "taktik-mapa" not in unit
     assert "uvarsi-plan-worker.service" in SAMOPULL

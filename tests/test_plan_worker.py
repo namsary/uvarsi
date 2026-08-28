@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from app import plan_jobs
+from app import plan_calendar
 from app.offer_data import offer_key_for
 from app.plan_jobs import JobRequest
 from app import plan_worker
@@ -665,3 +666,21 @@ def test_run_forever_waits_before_a_pre_dispatch_retry(monkeypatch):
 
     assert calls == ["process"]
     assert stopped.value.args == (0.25,)
+
+
+def test_worker_separates_utc_queue_clock_from_bratislava_business_calendar():
+    instant = datetime.datetime(2026, 8, 30, 22, 30, tzinfo=datetime.timezone.utc)
+    guarded = plan_worker._LeaseAwareClient(
+        server=None,
+        job=types.SimpleNamespace(id=1),
+        client=None,
+        clock=lambda: instant,
+        calendar_clock=lambda: plan_calendar.bratislava_day(instant),
+    )
+
+    assert guarded._clock() == instant
+    assert guarded.job_now == datetime.date(2026, 8, 31)
+
+
+def test_worker_utcnow_returns_an_aware_utc_instant():
+    assert plan_worker.utcnow().tzinfo is datetime.timezone.utc

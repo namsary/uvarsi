@@ -4,6 +4,7 @@ After=network.target uvarsi.service
 
 [Service]
 WorkingDirectory=/opt/uvarsi/app
+Environment=TZ=Europe/Bratislava
 Environment=UVARSI_VERSION_FILE=/opt/uvarsi/VERSION
 ExecStart=/opt/uvarsi/venv/bin/python -u plan_worker.py
 Restart=always

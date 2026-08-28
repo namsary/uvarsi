@@ -10,8 +10,10 @@ from dataclasses import dataclass
 
 try:
     from . import plan_jobs
+    from .plan_calendar import bratislava_day, utc_instant
 except ImportError:  # pragma: no cover - production runs this file directly
     import plan_jobs
+    from plan_calendar import bratislava_day, utc_instant
 
 
 LOG = logging.getLogger("uvarsi.plan_worker")
@@ -21,7 +23,7 @@ MAX_ATTEMPTS = plan_jobs.MAX_ATTEMPTS
 
 
 def utcnow():
-    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    return utc_instant()
 
 
 def _server():
@@ -60,14 +62,15 @@ class InputChangedBeforeDispatch(RuntimeError):
 
 
 class _LeaseAwareClient:
-    def __init__(self, server, job, client, clock):
+    def __init__(self, server, job, client, clock, calendar_clock):
         self._server = server
         self._job = job
         self._client = client
         self._clock = clock
+        self._calendar_clock = calendar_clock
         self.messages = self
         self.dispatched = False
-        self.job_now = clock()
+        self.job_now = calendar_clock()
         self._context_identity = None
 
     def bind_job_context(self, identity):
@@ -111,7 +114,7 @@ class _LeaseAwareClient:
             self._job,
             self._context_identity,
             con=con,
-            now=self._clock(),
+            now=self._calendar_clock(),
         )
 
     def create(self, **kwargs):
@@ -186,8 +189,9 @@ def _record_idle(server, now):
 
 def process_one(*, now=None, client=None) -> ProcessResult:
     server = _server()
-    claim_time = now or utcnow()
+    claim_time = utc_instant(now) if now is not None else utcnow()
     clock = (lambda: claim_time) if now is not None else utcnow
+    calendar_clock = lambda: bratislava_day(clock())
     with server.db() as con:
         job = plan_jobs.claim_next(con, WORKER_ID, now=claim_time)
     if job is None:
@@ -195,7 +199,7 @@ def process_one(*, now=None, client=None) -> ProcessResult:
             plan_jobs.heartbeat(con, WORKER_ID, None, now=claim_time)
         return ProcessResult.empty()
 
-    guarded_client = _LeaseAwareClient(server, job, client, clock)
+    guarded_client = _LeaseAwareClient(server, job, client, clock, calendar_clock)
     try:
         server.build_and_store_job(job, client=guarded_client)
     except BaseException as error:
@@ -206,6 +210,7 @@ def process_one(*, now=None, client=None) -> ProcessResult:
                 error, (server.StalePlanJob, LeaseLostBeforeDispatch, InputChangedBeforeDispatch),
             )
             and job.attempts < MAX_ATTEMPTS
+            and code != server.naklady.KOD_KREDIT
         )
         with server.db() as con:
             changed = plan_jobs.mark_failed(
