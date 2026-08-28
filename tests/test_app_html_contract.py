@@ -786,6 +786,97 @@ def test_pending_plan_keeps_navigation_available_and_polls_get_only():
     assert "setNavigationReady(false)" not in pending
 
 
+@needs_node
+def test_plan_polling_survives_context_invalidation_while_an_old_get_is_in_flight(tmp_path):
+    html = app_html()
+    functions = "\n".join(
+        declaration(html, signature)
+        for signature in (
+            "function stopPlanPolling() ",
+            "function startPlanPolling() ",
+            "function setPlanPreparation(response) ",
+            "function invalidatePlanState() ",
+            "function currentPlanPreparation(preparation, version) ",
+            "async function pollPlanStatus() ",
+        )
+    )
+    result = run_node(
+        tmp_path,
+        "plan-polling-context-race-contract.js",
+        """
+var document = {visibilityState:'visible'};
+var timers = [], nextTimerId = 0, calls = [], renderCalls = 0;
+var PLAN_PREPARATION = null, PLAN_FAILURE = null, PLAN_POLL_TIMER = null;
+var PLAN_POLL_IN_FLIGHT = false, PLAN_CONTEXT_VERSION = 0, PLAN_NOTE = '';
+var oldGet = deferred(), newGet = deferred();
+var responses = [oldGet, newGet];
+function deferred() {
+  var resolve;
+  var promise = new Promise(function(done) { resolve = done; });
+  return {promise:promise, resolve:resolve};
+}
+function setTimeout(fn, milliseconds) {
+  var timer = {id:++nextTimerId, fn:fn, milliseconds:milliseconds,
+    fired:false, cleared:false};
+  timers.push(timer);
+  return timer.id;
+}
+function clearTimeout(id) {
+  for (var i = 0; i < timers.length; i++)
+    if (timers[i].id === id) timers[i].cleared = true;
+}
+function fireNextTimer() {
+  for (var i = 0; i < timers.length; i++) {
+    if (!timers[i].fired && !timers[i].cleared) {
+      timers[i].fired = true;
+      timers[i].fn();
+      return timers[i];
+    }
+  }
+  throw new Error('no active timer');
+}
+function activeTimerCount() {
+  return timers.filter(function(timer) { return !timer.fired && !timer.cleared; }).length;
+}
+function api(url) {
+  calls.push(url);
+  var request = responses.shift();
+  if (!request) return Promise.reject(new Error('unexpected GET'));
+  return request.promise;
+}
+function render() { renderCalls += 1; }
+"""
+        + functions
+        + """
+(async function() {
+  setPlanPreparation({status:'preparing', job_id:'old'}, 'regular');
+  fireNextTimer();
+  if (calls.length !== 1 || calls[0] !== '/api/plan') throw new Error('old GET did not start');
+
+  invalidatePlanState();
+  setPlanPreparation({status:'preparing', job_id:'new'}, 'regular');
+  fireNextTimer();
+  if (calls.length !== 1) throw new Error('new timer duplicated the old in-flight GET');
+
+  oldGet.resolve({status:'ready', jedla:[{den:'stale'}]});
+  await Promise.resolve();
+  await Promise.resolve();
+  if (renderCalls !== 0) throw new Error('stale response rendered');
+  if (activeTimerCount() !== 1) throw new Error('new context was left without a follow-up timer');
+
+  fireNextTimer();
+  if (calls.length !== 2 || calls[1] !== '/api/plan') throw new Error('new poll did not continue');
+  newGet.resolve({status:'preparing'});
+  await Promise.resolve();
+  await Promise.resolve();
+  if (activeTimerCount() !== 1) throw new Error('new preparing poll did not reschedule');
+})().catch(function(error) { console.error(error.stack || error); process.exit(1); });
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_terminal_plan_failure_shows_server_message_and_an_explicit_retry():
     html = app_html()
     failure = declaration(html, "function setPlanFailure(response, kind, version) ")

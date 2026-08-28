@@ -698,7 +698,7 @@ let PLAN_REQUEST_IN_FLIGHT = null;
 let PLAN_PREPARATION = null;
 let PLAN_FAILURE = null;
 let PLAN_POLL_TIMER = null;
-let PLAN_POLL_IN_FLIGHT = false;
+let PLAN_POLL_IN_FLIGHT = null;
 let PLAN_CONTEXT_VERSION = 0;
 
 function onePlanRequest(request) {
@@ -772,7 +772,8 @@ async function pollPlanStatus() {
   if (PLAN_POLL_IN_FLIGHT) return;
   const preparation = PLAN_PREPARATION;
   const version = PLAN_CONTEXT_VERSION;
-  PLAN_POLL_IN_FLIGHT = true;
+  const request = {preparation:preparation, version:version};
+  PLAN_POLL_IN_FLIGHT = request;
   try {
     const response = await api('/api/plan');
     if (!currentPlanPreparation(preparation, version)) return;
@@ -806,8 +807,8 @@ async function pollPlanStatus() {
       render();
     }
   } finally {
-  PLAN_POLL_IN_FLIGHT = false;
-    if (PLAN_PREPARATION && version === PLAN_CONTEXT_VERSION &&
+    if (PLAN_POLL_IN_FLIGHT === request) PLAN_POLL_IN_FLIGHT = null;
+    if (PLAN_PREPARATION &&
         (typeof document === 'undefined' || document.visibilityState === 'visible')) {
       startPlanPolling();
     }
