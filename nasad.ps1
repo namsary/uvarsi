@@ -10,11 +10,17 @@
 
 $ErrorActionPreference = "Stop"
 $B = $PSScriptRoot
+$script:LiveMutationStarted = $false
+$script:RollbackAttempted = $false
 function Krok($t) { Write-Host "`n=== $t" -ForegroundColor Cyan }
 function Ok($t)   { Write-Host "  OK  $t" -ForegroundColor Green }
 function Zle($t)  { Write-Host "  !!  $t" -ForegroundColor Red }
 function Zlyhaj($t) {
   Zle $t
+  if ($script:LiveMutationStarted -and -not $script:RollbackAttempted) {
+    $script:RollbackAttempted = $true
+    VratPredosleUvarsi
+  }
   Write-Host "`nNASADENIE ZLYHALO - na serveri sa nic dalsie nemenilo." -ForegroundColor Red
   exit 1
 }
@@ -25,33 +31,8 @@ function VratPredosleUvarsi {
   Krok "Rollback Uvar.si appky a worker jednotky"
   $rollback = @'
 set -u
-APP_BACKUP=/opt/uvarsi/releases/manual-predosle/app
-VERSION_BACKUP=/opt/uvarsi/releases/manual-predosle/VERSION
-UNIT_BACKUP=/opt/uvarsi/releases/manual-predosle/uvarsi-plan-worker.service
-UNIT_ABSENT=/opt/uvarsi/releases/manual-predosle/uvarsi-plan-worker.service.absent
-OK=1
-if [ ! -d "$APP_BACKUP" ]; then
-  echo "CHYBA: chyba zaloha predoslej appky"
-  exit 1
-fi
-cp -a "$APP_BACKUP/." /opt/uvarsi/app/ || OK=0
-[ ! -f "$VERSION_BACKUP" ] || cp -a "$VERSION_BACKUP" /opt/uvarsi/VERSION || OK=0
-if [ -f "$UNIT_BACKUP" ]; then
-  cp -a "$UNIT_BACKUP" /etc/systemd/system/uvarsi-plan-worker.service || OK=0
-else
-  systemctl disable --now uvarsi-plan-worker >/dev/null 2>&1 || true
-  rm -f /etc/systemd/system/uvarsi-plan-worker.service
-  [ -f "$UNIT_ABSENT" ] || OK=0
-fi
-systemctl daemon-reload || OK=0
-systemctl restart uvarsi || OK=0
-if [ -f "$UNIT_BACKUP" ]; then
-  systemctl enable uvarsi-plan-worker >/dev/null 2>&1 || OK=0
-  systemctl restart uvarsi-plan-worker || OK=0
-  systemctl is-active uvarsi-plan-worker >/dev/null || OK=0
-fi
-systemctl is-active uvarsi >/dev/null || OK=0
-exit $((1-OK))
+. /opt/uvarsi/releases/manual-stage/hetzner/uvarsi-deploy-state.sh || exit 1
+uvarsi_restore /opt/uvarsi/releases/manual-predosle
 '@ -replace "`r`n", "`n"
   $rollback | ssh jarvis "tr -d '\r' > /tmp/uvarsi_rollback.sh; bash /tmp/uvarsi_rollback.sh"
   if ($LASTEXITCODE -ne 0) {
@@ -60,9 +41,17 @@ exit $((1-OK))
     Ok "predosla Uvar.si appka a worker jednotka obnovene"
   }
 }
+trap {
+  Zle "neočakávaná chyba: $($_.Exception.Message)"
+  if ($script:LiveMutationStarted -and -not $script:RollbackAttempted) {
+    $script:RollbackAttempted = $true
+    VratPredosleUvarsi
+  }
+  exit 1
+}
 
-Krok "1/8  Priecinky na serveri"
-ssh jarvis "mkdir -p /opt/uvarsi/app/static /var/www/uvarsi /var/lib/uvarsi"
+Krok "1/8  Priecinky na serveri a upload staging"
+ssh jarvis "set -eu; rm -rf /opt/uvarsi/releases/manual-stage; mkdir -p /opt/uvarsi/releases/manual-stage/app/static /opt/uvarsi/releases/manual-stage/hetzner /var/www/uvarsi /var/lib/uvarsi"
 Vyzaduj "priecinky na serveri sa nepodarilo vytvorit"
 Ok "pripravene"
 
@@ -92,20 +81,9 @@ Ok "env ma oba kluce"
 Krok "3/8  Nahravam subory"
 $backup = @'
 set -eu
-BACKUP=/opt/uvarsi/releases/manual-predosle
-rm -rf "$BACKUP"
-mkdir -p "$BACKUP"
-cp -a /opt/uvarsi/app /opt/uvarsi/releases/manual-predosle/app
-[ ! -f /opt/uvarsi/VERSION ] || cp -a /opt/uvarsi/VERSION /opt/uvarsi/releases/manual-predosle/VERSION
-if [ -f /etc/systemd/system/uvarsi-plan-worker.service ]; then
-  cp -a /etc/systemd/system/uvarsi-plan-worker.service /opt/uvarsi/releases/manual-predosle/uvarsi-plan-worker.service
-else
-  : > /opt/uvarsi/releases/manual-predosle/uvarsi-plan-worker.service.absent
-fi
+. /opt/uvarsi/releases/manual-stage/hetzner/uvarsi-deploy-state.sh
+uvarsi_snapshot /opt/uvarsi/releases/manual-predosle
 '@ -replace "`r`n", "`n"
-$backup | ssh jarvis "tr -d '\r' > /tmp/uvarsi_backup.sh; bash /tmp/uvarsi_backup.sh"
-Vyzaduj "zaloha appky a worker jednotky pred nasadenim zlyhala"
-Ok "predosla appka a worker jednotka zalohovane"
 
 $subory = @(
   @{ l = "$B\app\config.py";            r = "/opt/uvarsi/app/config.py" },
@@ -131,6 +109,7 @@ $subory = @(
   @{ l = "$B\hetzner\recepty.py";       r = "/opt/uvarsi/recepty.py" },
   @{ l = "$B\hetzner\dozorca.sh";       r = "/opt/uvarsi/dozorca.sh" },
   @{ l = "$B\hetzner\zaloha.sh";        r = "/opt/uvarsi/zaloha.sh" },
+  @{ l = "$B\hetzner\uvarsi-deploy-state.sh"; r = "/opt/uvarsi/uvarsi-deploy-state.sh" },
   @{ l = "$B\hetzner\uvarsi-plan-worker.service"; r = "/etc/systemd/system/uvarsi-plan-worker.service" },
   @{ l = "$B\VERSION";                  r = "/opt/uvarsi/VERSION" },
   @{ l = "$B\index.html";               r = "/var/www/uvarsi/index.html" },
@@ -138,20 +117,52 @@ $subory = @(
 )
 foreach ($s in $subory) {
   if (-not (Test-Path $s.l)) { Zlyhaj "chyba lokalny subor $($s.l)" }
-  scp -q $s.l "jarvis:$($s.r)"
+  $nazov = Split-Path $s.l -Leaf
+  if ($s.r.StartsWith("/opt/uvarsi/app/")) { $ciel = "/opt/uvarsi/releases/manual-stage/app/$nazov" }
+  elseif ($s.r -eq "/opt/uvarsi/VERSION") { $ciel = "/opt/uvarsi/releases/manual-stage/VERSION" }
+  elseif ($s.r -eq "/var/www/uvarsi/index.html") { $ciel = "/opt/uvarsi/releases/manual-stage/index.html" }
+  elseif ($s.r -eq "/var/www/uvarsi/sw.js") { $ciel = "/opt/uvarsi/releases/manual-stage/sw.js" }
+  else { $ciel = "/opt/uvarsi/releases/manual-stage/hetzner/$nazov" }
+  scp -q $s.l "jarvis:$ciel"
   Vyzaduj "prenos zlyhal: $($s.l)"
   Ok (Split-Path $s.l -Leaf)
 }
 if (-not (Test-Path "$B\app\static")) { Zlyhaj "chyba lokalny priecinok $B\app\static" }
-scp -q -r "$B\app\static\*" "jarvis:/opt/uvarsi/app/static/"
+scp -q -r "$B\app\static\*" "jarvis:/opt/uvarsi/releases/manual-stage/app/static/"
 Vyzaduj "prenos zlyhal: app\static"
 Ok "static/ (PWA)"
 
 # Windows uklada .sh s CRLF; po binarnom scp je shebang "#!/bin/bash\r" a Linux
 # hlada interpret /bin/bash\r -> "cannot execute: required file not found".
-ssh jarvis "sed -i 's/\r//' /opt/uvarsi/*.sh; chmod +x /opt/uvarsi/*.sh"
+ssh jarvis "sed -i 's/\r//' /opt/uvarsi/releases/manual-stage/hetzner/*.sh; chmod +x /opt/uvarsi/releases/manual-stage/hetzner/*.sh"
 Vyzaduj "normalizacia koncov riadkov v shell skriptoch zlyhala"
 Ok "shell skripty maju LF konce riadkov"
+
+$backup | ssh jarvis "tr -d '\r' > /tmp/uvarsi_backup.sh; bash /tmp/uvarsi_backup.sh"
+Vyzaduj "zaloha appky, worker jednotky/stavu a heartbeat znacky pred nasadenim zlyhala"
+Ok "predosla appka, worker jednotka/stav a heartbeat znacka zalohovane"
+
+$script:LiveMutationStarted = $true
+$install = @'
+set -u
+STAGE=/opt/uvarsi/releases/manual-stage
+PRED=/opt/uvarsi/releases/manual-predosle
+. "$STAGE/hetzner/uvarsi-deploy-state.sh" || exit 1
+uvarsi_install_core "$STAGE" "$PRED" || exit $?
+OK=1
+cp -a "$STAGE/index.html" /var/www/uvarsi/index.html || OK=0
+cp -a "$STAGE/sw.js" /var/www/uvarsi/sw.js || OK=0
+for f in refresh_blocek.py recepty.py dozorca.sh zaloha.sh uvarsi-deploy-state.sh; do
+  cp -a "$STAGE/hetzner/$f" "/opt/uvarsi/$f" || OK=0
+done
+chmod +x /opt/uvarsi/dozorca.sh /opt/uvarsi/zaloha.sh /opt/uvarsi/uvarsi-deploy-state.sh || OK=0
+[ "$OK" -eq 1 ] || { uvarsi_restore "$PRED"; exit 1; }
+'@ -replace "`r`n", "`n"
+$install | ssh jarvis "tr -d '\r' > /tmp/uvarsi_install.sh; bash /tmp/uvarsi_install.sh"
+Vyzaduj "atomicka instalacia zo stagingu zlyhala"
+Ok "staging je kompletne nainstalovany"
+ssh jarvis "sed -i 's/\r//' /opt/uvarsi/*.sh; chmod +x /opt/uvarsi/*.sh"
+Vyzaduj "normalizacia nainstalovanych shell skriptov zlyhala"
 
 Krok "4/8  Python venv a zavislosti"
 # Na cerstvom serveri /opt/uvarsi/venv neexistuje - bez neho pip zlyha a systemd
@@ -179,9 +190,8 @@ WantedBy=multi-user.target
 '@ -replace "`r`n", "`n"
 $svc | ssh jarvis "tr -d '\r' > /etc/systemd/system/uvarsi.service"
 Vyzaduj "systemd jednotku sa nepodarilo zapisat"
-ssh jarvis "set -eu; systemctl daemon-reload; systemctl enable uvarsi >/dev/null 2>&1; systemctl enable uvarsi-plan-worker >/dev/null 2>&1; systemctl restart uvarsi; systemctl restart uvarsi-plan-worker; sleep 3; systemctl is-active uvarsi >/dev/null; systemctl is-active uvarsi-plan-worker >/dev/null"
+ssh jarvis "set -eu; . /opt/uvarsi/uvarsi-deploy-state.sh; PRED_HEARTBEAT=`$(cat /opt/uvarsi/releases/manual-predosle/heartbeat.before); systemctl daemon-reload; systemctl enable uvarsi >/dev/null 2>&1; systemctl enable uvarsi-plan-worker >/dev/null 2>&1; systemctl restart uvarsi; systemctl restart uvarsi-plan-worker; systemctl is-active uvarsi >/dev/null; systemctl is-active uvarsi-plan-worker >/dev/null; uvarsi_wait_fresh_heartbeat `"`$PRED_HEARTBEAT`""
 if ($LASTEXITCODE -ne 0) {
-  VratPredosleUvarsi
   Zlyhaj "sluzba uvarsi alebo uvarsi-plan-worker po restarte nebezi"
 }
 Ok "sluzba aj worker bezia"
@@ -479,7 +489,6 @@ $stav = $check | ssh jarvis "tr -d '\r' > /tmp/check.sh; bash /tmp/check.sh '$ve
 $kodKontroly = $LASTEXITCODE
 $stav | ForEach-Object { Write-Host "  $_" }
 if ($kodKontroly -ne 0) {
-  VratPredosleUvarsi
   Zlyhaj "kontrola po nasadeni nepresla - diagnostika na serveri: journalctl -u uvarsi -n 40 --no-pager"
 }
 

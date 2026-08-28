@@ -99,3 +99,88 @@ Additional checks:
   worker unit is removed and disabled. No Caddy or other-app service is touched.
 - Task 6: commit `6da1be8`, complete-three-store gating, and Dozorca ordering
   remain preserved.
+
+## Fix round 1/5 — independent review blockers
+
+Date: 2026-08-28
+
+The full-suite timestamp failure and all independent deployment-supervision
+findings from review were addressed together. No production command, push,
+Caddy edit, other-app edit, or secret-value read/copy occurred.
+
+### Changes
+
+- Queue ages now normalize aware timestamps (including persisted `+02:00`
+  values) and legacy naive timestamps to UTC before subtraction. Future clock
+  skew is clamped to zero, so health never reports a negative age.
+- Queue health now exposes the persisted heartbeat instant as canonical
+  UTC-aware `heartbeat_at`; both `/api/health` and `/api/naklady` continue to
+  expose the same truthful `plan_queue` object.
+- Added `hetzner/uvarsi-deploy-state.sh`, shared by manual and autonomous
+  deployment. Its executable tests cover backup failure, rollback after a
+  partial live mutation, restore failure propagation, and exact restoration of
+  prior absent/present, disabled/enabled, and inactive/active worker state.
+- Deployment snapshots read the persisted pre-restart heartbeat marker. A
+  restarted worker passes only when health is fully valid, `worker_alive` is
+  true, and `heartbeat_at` is a strictly later instant. An otherwise fresh but
+  unchanged heartbeat is rejected.
+- `nasad.ps1` uploads every file into a complete staging tree before taking the
+  live snapshot or changing the live app. After live mutation starts, native
+  command failures and unexpected PowerShell errors enter the tested rollback
+  path. The helper and worker unit are both in its manifest.
+- `samopull.sh` requires the helper in the release manifest, aborts every backup
+  failure before live mutation, checks every app/unit/web/script restore, and
+  cannot report a successful rollback after any restore failure.
+- Dozorca parses JSON with the bundled environment Python and validates all
+  required queue fields, scalar types, and null relationships. Missing,
+  malformed, or inconsistent health is UNKNOWN: it neither alerts nor clears
+  the existing one-shot marker. A complete healthy response still clears it.
+- The complete-three-store gate and Task 6 Dozorca ordering were not changed.
+
+### TDD evidence
+
+1. Timestamp RED: the aware `+02:00` endpoint case and both direct queue-health
+   regressions failed at `app/plan_jobs.py:560` with `TypeError: can't subtract
+   offset-naive and offset-aware datetimes` (`3 failed`).
+2. Timestamp GREEN: aware and legacy-naive instants produced the correct UTC
+   ages, and future timestamps produced zero (`3 passed`).
+3. Deployment RED: the executable state harness failed all six cases because
+   safe snapshot/restore/install/fresh-heartbeat behavior did not exist
+   (`6 failed`).
+4. Dozorca RED: an incomplete `plan_queue` response deleted an existing alert
+   marker instead of preserving UNKNOWN state (`1 failed`).
+5. GREEN: exact worker-state restoration, failure propagation, strict fresh
+   heartbeat comparison, staged deployment contracts, and UNKNOWN marker
+   behavior all passed.
+
+### Fresh verification
+
+Bundled Python and `--basetemp=.superpowers\pytest-task7` were used for the
+requested focused suites (with the pytest cache provider disabled):
+
+- Queue/worker/health/náklady/server and deployment behavior:
+  `197 passed in 71.16s`.
+- Deployment manifests, safety contracts, shell handling, and executable
+  rollback behavior: `64 passed in 14.20s`.
+- Dozorca contract, complete-store gate, and precomputation ordering:
+  `73 passed in 49.16s`.
+- Final executable helper rerun after self-review adjustment:
+  `7 passed in 14.84s`.
+- Final full deployment regression rerun after that adjustment:
+  `65 passed in 15.59s`.
+- `bash -n` passed for `dozorca.sh`, `samopull.sh`, and
+  `uvarsi-deploy-state.sh`.
+- PowerShell parser passed for `nasad.ps1` with zero errors.
+- `git diff --check` passed (only Windows LF/CRLF notices were emitted).
+
+### Self-review
+
+- All rollback targets are limited to Uvar.si app/version, Uvar.si worker unit
+  and state, and Uvar.si-owned web/script files. No Caddy or Jarvis/taktik-mapa
+  service operation was added.
+- The worker unit still loads secrets only through the existing application env
+  path; no key value is logged, embedded, or copied.
+- Backup happens before live mutation. Restore operations are checked and exact
+  worker state is verified after restoration.
+- Alert thresholds remain strict (`>180s` queue age, `>60s` heartbeat age), use
+  one marker, suppress repeats, and clear only on a complete healthy payload.

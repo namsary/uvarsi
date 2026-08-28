@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 from datetime import date
 from pathlib import Path
 
@@ -511,7 +512,8 @@ def test_dozorca_alerts_once_for_a_stalled_plan_queue_and_clears_after_recovery(
         "UVARSI_DOZORCA_LOCKED": "1",
         "UVARSI_PLAN_QUEUE_HEALTH_URL": "http://queue.test/api/health",
         "UVARSI_CURL": bash_path(fake_curl),
-        "UVARSI_TEST_HEALTH": '{"plan_queue":{"queued":1,"oldest_seconds":181,"worker_alive":false,"heartbeat_seconds":61,"blocking_code":"worker_heartbeat_stale"}}',
+        "UVARSI_HEALTH_PY": bash_path(Path(sys.executable)),
+        "UVARSI_TEST_HEALTH": '{"plan_queue":{"queued":1,"oldest_seconds":181,"worker_alive":false,"heartbeat_seconds":61,"heartbeat_at":"2026-08-28T16:10:20+00:00","last_ready":null,"failed":0,"blocking_code":"worker_heartbeat_stale"}}',
         "PATH": f"{bash_path(tmp_path)}:/usr/bin",
     }
 
@@ -527,7 +529,25 @@ def test_dozorca_alerts_once_for_a_stalled_plan_queue_and_clears_after_recovery(
     assert marker.exists(), result.stdout + result.stderr
     assert notifications.read_text(encoding="utf-8").count("Uvar.si: fronta plánov") == 1
 
-    environment["UVARSI_TEST_HEALTH"] = '{"plan_queue":{"queued":0,"oldest_seconds":null,"worker_alive":true,"heartbeat_seconds":1,"blocking_code":null}}'
+    original_marker = marker.read_text(encoding="utf-8")
+    unknown_payloads = [
+        '{"plan_queue":{"worker_alive":true}}',
+        '{"plan_queue":{"queued":false,"oldest_seconds":null,"worker_alive":true,"heartbeat_seconds":1,"heartbeat_at":"2026-08-28T16:10:20+00:00","last_ready":null,"failed":0,"blocking_code":null}}',
+        '{"plan_queue":{"queued":0,"oldest_seconds":12,"worker_alive":true,"heartbeat_seconds":null,"heartbeat_at":"2026-08-28T16:10:20+00:00","last_ready":null,"failed":0,"blocking_code":null}}',
+    ]
+    for health in unknown_payloads:
+        environment["UVARSI_TEST_HEALTH"] = health
+        unknown = subprocess.run(
+            [str(BASH), bash_path(ROOT / "hetzner" / "dozorca.sh")],
+            cwd=str(ROOT), env=environment, text=True, encoding="utf-8",
+            errors="replace", capture_output=True, check=False,
+        )
+        assert unknown.returncode == 0
+        assert marker.read_text(encoding="utf-8") == original_marker
+        assert "UNKNOWN" in unknown.stdout
+        assert notifications.read_text(encoding="utf-8").count("Uvar.si: fronta plánov") == 1
+
+    environment["UVARSI_TEST_HEALTH"] = '{"plan_queue":{"queued":0,"oldest_seconds":null,"worker_alive":true,"heartbeat_seconds":1,"heartbeat_at":"2026-08-28T16:10:20+00:00","last_ready":null,"failed":0,"blocking_code":null}}'
     recovered = subprocess.run(
         [str(BASH), bash_path(ROOT / "hetzner" / "dozorca.sh")],
         cwd=str(ROOT), env=environment, text=True, encoding="utf-8",

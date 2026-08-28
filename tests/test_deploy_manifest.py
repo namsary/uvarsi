@@ -18,6 +18,8 @@ def test_deploy_manifest_is_worktree_rooted_and_runtime_complete():
         "hetzner\\refresh_blocek.py",
         "hetzner\\recepty.py",
         "hetzner\\dozorca.sh",
+        "hetzner\\uvarsi-deploy-state.sh",
+        "hetzner\\uvarsi-plan-worker.service",
         "index.html",
     ):
         assert f'"$B\\{relative_path}"' in script

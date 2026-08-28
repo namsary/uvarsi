@@ -31,6 +31,7 @@ set -u
 DIR="${UVARSI_DIR:-/opt/uvarsi}"
 LANDING_DATA="${UVARSI_LANDING_DATA:-/var/lib/uvarsi/landing_data.json}"
 PY="${UVARSI_PY:-$DIR/venv/bin/python}"
+HEALTH_PY="${UVARSI_HEALTH_PY:-$PY}"
 CURL="${UVARSI_CURL:-curl}"
 STATE="$DIR/.dozorca_state"          # formát: "RRRR-MM-DD pocet_neuspechov blok"
 PLAN_QUEUE_ALERT_STATE="$DIR/.plan_queue_alert_state"
@@ -68,20 +69,40 @@ skontroluj_frontu_planov() {
   # Health odpoveď je jediný zdroj pravdy: dozorca nesmie z počtu procesov
   # hádať, či worker reálne obnovuje lease.
   HEALTH=$("$CURL" -fsS --max-time 1 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true)
-  [ -n "$HEALTH" ] || { log "frontu plánov sa nedá overiť cez health"; return; }
-  OLDEST=$(printf '%s' "$HEALTH" | sed -n 's/.*"oldest_seconds":[[:space:]]*\([0-9][0-9]*\).*/\1/p')
-  ALIVE=$(printf '%s' "$HEALTH" | sed -n 's/.*"worker_alive":[[:space:]]*\(true\|false\).*/\1/p')
-  HEARTBEAT=$(printf '%s' "$HEALTH" | sed -n 's/.*"heartbeat_seconds":[[:space:]]*\([0-9][0-9]*\).*/\1/p')
-  case "$ALIVE" in
-    true|false) ;;
-    *) log "health neobsahuje stav workera fronty plánov"; return ;;
-  esac
+  [ -n "$HEALTH" ] || { log "UNKNOWN — frontu plánov sa nedá overiť cez health; značka upozornenia ostáva"; return; }
+  STAV_FRONTY=$(printf '%s' "$HEALTH" | "$HEALTH_PY" -c '
+import datetime as dt, json, sys
+q = json.load(sys.stdin).get("plan_queue")
+if not isinstance(q, dict): raise SystemExit(2)
+required = {"queued", "oldest_seconds", "worker_alive", "heartbeat_seconds", "heartbeat_at", "last_ready", "failed", "blocking_code"}
+if not required.issubset(q): raise SystemExit(2)
+integer = lambda v: isinstance(v, int) and not isinstance(v, bool) and v >= 0
+if not integer(q["queued"]) or not integer(q["failed"]): raise SystemExit(2)
+if q["oldest_seconds"] is not None and not integer(q["oldest_seconds"]): raise SystemExit(2)
+if (q["queued"] == 0) != (q["oldest_seconds"] is None): raise SystemExit(2)
+if not isinstance(q["worker_alive"], bool): raise SystemExit(2)
+if q["heartbeat_seconds"] is not None and not integer(q["heartbeat_seconds"]): raise SystemExit(2)
+if q["heartbeat_at"] is not None and not isinstance(q["heartbeat_at"], str): raise SystemExit(2)
+if (q["heartbeat_seconds"] is None) != (q["heartbeat_at"] is None): raise SystemExit(2)
+if q["worker_alive"] and q["heartbeat_at"] is None: raise SystemExit(2)
+if q["last_ready"] is not None and not isinstance(q["last_ready"], str): raise SystemExit(2)
+if q["blocking_code"] is not None and not isinstance(q["blocking_code"], str): raise SystemExit(2)
+if q["heartbeat_at"] is not None:
+    parsed = dt.datetime.fromisoformat(q["heartbeat_at"])
+    if parsed.tzinfo is None: parsed = parsed.replace(tzinfo=dt.timezone.utc)
+if not q["worker_alive"] or q["heartbeat_seconds"] > 60: print("WORKER")
+elif q["oldest_seconds"] is not None and q["oldest_seconds"] > 180: print("QUEUE")
+else: print("HEALTHY")' 2>/dev/null) || {
+    log "UNKNOWN — plan_queue health je neúplný alebo má nesprávne typy; značka upozornenia ostáva"
+    return
+  }
   REASON=""
-  if [ "$ALIVE" != "true" ] || { [ -n "$HEARTBEAT" ] && [ "$HEARTBEAT" -gt 60 ]; }; then
-    REASON="worker heartbeat je starší než 60 s"
-  elif [ -n "$OLDEST" ] && [ "$OLDEST" -gt 180 ]; then
-    REASON="najstaršia úloha vo fronte čaká viac než 180 s"
-  fi
+  case "$STAV_FRONTY" in
+    WORKER) REASON="worker heartbeat je starší než 60 s" ;;
+    QUEUE) REASON="najstaršia úloha vo fronte čaká viac než 180 s" ;;
+    HEALTHY) ;;
+    *) log "UNKNOWN — plan_queue health má neznámy stav; značka upozornenia ostáva"; return ;;
+  esac
   if [ -n "$REASON" ]; then
     if [ ! -f "$PLAN_QUEUE_ALERT_STATE" ]; then
       notify "Uvar.si: fronta plánov" "$REASON. Health: $PLAN_QUEUE_HEALTH_URL"

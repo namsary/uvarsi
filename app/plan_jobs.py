@@ -553,14 +553,26 @@ def health(con, *, now: datetime.datetime) -> dict:
         "SELECT heartbeat_at FROM plan_worker_state WHERE singleton=1"
     ).fetchone()
 
+    def as_utc(value: datetime.datetime) -> datetime.datetime:
+        if value.utcoffset() is None:
+            return value.replace(tzinfo=datetime.timezone.utc)
+        return value.astimezone(datetime.timezone.utc)
+
+    now_utc = as_utc(now)
+
     def age(stamp: str | None) -> int | None:
         if stamp is None:
             return None
-        recorded = datetime.datetime.fromisoformat(stamp)
-        return max(0, int((now - recorded).total_seconds()))
+        recorded_utc = as_utc(datetime.datetime.fromisoformat(stamp))
+        return max(0, int((now_utc - recorded_utc).total_seconds()))
 
     oldest_seconds = age(oldest)
     heartbeat_seconds = age(heartbeat_at[0]) if heartbeat_at is not None else None
+    heartbeat_stamp = (
+        as_utc(datetime.datetime.fromisoformat(heartbeat_at[0])).isoformat()
+        if heartbeat_at is not None
+        else None
+    )
     worker_alive = (
         heartbeat_seconds is not None
         and heartbeat_seconds <= WORKER_HEARTBEAT_ALERT_SECONDS
@@ -576,6 +588,7 @@ def health(con, *, now: datetime.datetime) -> dict:
         "oldest_seconds": oldest_seconds,
         "worker_alive": worker_alive,
         "heartbeat_seconds": heartbeat_seconds,
+        "heartbeat_at": heartbeat_stamp,
         "last_ready": last_ready,
         "failed": int(failed),
         "blocking_code": blocking_code,

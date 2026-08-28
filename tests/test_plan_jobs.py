@@ -66,6 +66,39 @@ def test_server_migration_installs_plan_job_tables(con):
     assert {"plan_jobs", "plan_worker_state"} <= tables
 
 
+def test_health_treats_legacy_naive_timestamps_as_utc(con):
+    enqueue(con, request(), now=NOW - datetime.timedelta(seconds=181))
+    plan_jobs.heartbeat(
+        con, "legacy-worker", None, now=NOW - datetime.timedelta(seconds=61)
+    )
+
+    result = plan_jobs.health(con, now=NOW.replace(tzinfo=datetime.timezone.utc))
+
+    assert result["oldest_seconds"] == 181
+    assert result["heartbeat_seconds"] == 61
+
+
+def test_health_never_reports_negative_age_for_future_aware_timestamps(con):
+    local_time = datetime.timezone(datetime.timedelta(hours=2))
+    now = NOW.replace(tzinfo=datetime.timezone.utc)
+    enqueue(
+        con,
+        request(),
+        now=(now + datetime.timedelta(seconds=10)).astimezone(local_time),
+    )
+    plan_jobs.heartbeat(
+        con,
+        "future-worker",
+        None,
+        now=(now + datetime.timedelta(seconds=5)).astimezone(local_time),
+    )
+
+    result = plan_jobs.health(con, now=NOW)
+
+    assert result["oldest_seconds"] == 0
+    assert result["heartbeat_seconds"] == 0
+
+
 def test_enqueue_is_idempotent_for_one_active_key(con):
     first = enqueue(con, request(), now=NOW)
     second = enqueue(con, request(), now=NOW)

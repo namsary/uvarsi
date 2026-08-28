@@ -32,10 +32,20 @@ def test_health_and_cost_overview_report_truthful_queue_and_worker_state(monkeyp
     """Changing queue metrics or omitting either endpoint must break this contract."""
     monkeypatch.setenv("UVARSI_ADMIN_EMAILS", "owner@uvar.si")
     server = load_server(monkeypatch, tmp_path, [])
-    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None, microsecond=0)
+    now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0)
+    local_time = datetime.timezone(datetime.timedelta(hours=2))
     with server.db() as con:
-        plan_jobs.enqueue(con, queue_request(), now=now - datetime.timedelta(seconds=181))
-        plan_jobs.heartbeat(con, "worker-a", None, now=now - datetime.timedelta(seconds=61))
+        plan_jobs.enqueue(
+            con,
+            queue_request(),
+            now=(now - datetime.timedelta(seconds=181)).astimezone(local_time),
+        )
+        plan_jobs.heartbeat(
+            con,
+            "worker-a",
+            None,
+            now=(now - datetime.timedelta(seconds=61)).astimezone(local_time),
+        )
         con.execute("INSERT INTO pouzivatelia (id, email) VALUES (1, 'owner@uvar.si')")
         insert_hashed_session(server, con, "owner-session", 1)
         con.commit()
@@ -51,6 +61,7 @@ def test_health_and_cost_overview_report_truthful_queue_and_worker_state(monkeyp
         assert payload["oldest_seconds"] >= 181
         assert payload["worker_alive"] is False
         assert payload["heartbeat_seconds"] >= 61
+        assert payload["heartbeat_at"].endswith("+00:00")
         assert payload["last_ready"] is None
         assert payload["failed"] == 0
         assert payload["blocking_code"] == "worker_heartbeat_stale"
@@ -76,7 +87,8 @@ def test_release_installs_and_restarts_worker_without_touching_other_app():
 def test_manual_deploy_checks_heartbeat_and_restores_prior_app_and_unit():
     """A live process without a fresh heartbeat must trigger a recoverable rollback."""
     assert 'queue.get("worker_alive") is True' in NASAD
-    assert "/opt/uvarsi/releases/manual-predosle/app" in NASAD
-    assert "/opt/uvarsi/releases/manual-predosle/uvarsi-plan-worker.service" in NASAD
-    assert "uvarsi-plan-worker.service.absent" in NASAD
-    assert NASAD.count("VratPredosleUvarsi") >= 3
+    assert "uvarsi_snapshot /opt/uvarsi/releases/manual-predosle" in NASAD
+    assert "uvarsi_restore /opt/uvarsi/releases/manual-predosle" in NASAD
+    assert "uvarsi_wait_fresh_heartbeat" in NASAD
+    assert "$script:LiveMutationStarted" in NASAD
+    assert NASAD.count("VratPredosleUvarsi") >= 2
