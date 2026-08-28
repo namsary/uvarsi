@@ -64,7 +64,7 @@ def app_db(tmp_path, monkeypatch):
                 PRIMARY KEY (tyzden, obchod)
             )"""
         )
-        rows = [_offer(index, STORES[(index - 1) % len(STORES)]) for index in range(1, 19)]
+        rows = [_offer(index, STORES[(index - 1) % len(STORES)]) for index in range(1, 25)]
         for row in rows:
             row["offer_key"] = offer_key_for(row["tyzden"], row)
             con.execute(
@@ -79,7 +79,7 @@ def app_db(tmp_path, monkeypatch):
                 )),
             )
         con.executemany(
-            "INSERT INTO zber_stav (tyzden, obchod, stav, pocet) VALUES (?, ?, 'ok', 6)",
+            "INSERT INTO zber_stav (tyzden, obchod, stav, pocet) VALUES (?, ?, 'ok', 8)",
             [(server.monday(NOW.date()), store) for store in STORES],
         )
         con.execute(
@@ -268,9 +268,32 @@ def test_worker_builds_regular_plan_and_marks_job_ready(app_db):
     assert fake_model.calls == 1
 
 
-def test_builder_never_calls_model_when_no_offer_has_a_measurable_package(
+def test_completed_store_with_no_purchasable_offer_does_not_block_other_stores(app_db):
+    with app_db.server.db() as con:
+        for stored in con.execute("SELECT * FROM akcie WHERE obchod='Lidl'").fetchall():
+            changed = dict(stored)
+            changed["jednotka"] = "hrsť"
+            con.execute(
+                "UPDATE akcie SET jednotka=?, offer_key=? WHERE id=?",
+                (changed["jednotka"], offer_key_for(changed["tyzden"], changed), stored["id"]),
+            )
+        con.commit()
+    job = _queued_regular_job(app_db)
+    rows = app_db.server.akcie_pre(STORES)
+    assert len(rows) >= app_db.server.MIN_OFFERS_FOR_PLAN
+    assert {row["obchod"] for row in rows} == {"Kaufland", "Tesco"}
+    fake_model = FakeModel(_model_output([row["offer_key"] for row in rows[:4]]))
+
+    result = process_one(client=fake_model, now=NOW)
+
+    assert result.status == "ready"
+    assert fake_model.calls == 1
+    assert _job_row(app_db, job.id)["state"] == "ready"
+
+
+def test_builder_never_calls_model_when_no_offer_has_a_purchasable_unit(
         app_db, monkeypatch):
-    rows = [dict(row, jednotka="bal.") for row in app_db.server.akcie_pre(STORES)]
+    rows = [dict(row, jednotka="hrsť") for row in app_db.server.akcie_pre(STORES)]
     job = types.SimpleNamespace(kind="regular", variant=0, reserved_eur=0, id=999)
     monkeypatch.setattr(
         app_db.server,

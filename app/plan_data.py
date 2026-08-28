@@ -142,7 +142,8 @@ AMBIGUOUS_CATEGORY_DEFAULTS = {
     "zelenina": "vegetable",
 }
 _PACKAGE = re.compile(
-    r"(?:(\d+)\s*[x×]\s*)?(\d+(?:[.,]\d+)?)\s*(dkg|kg|dl|ml|ks|g|l)\b", re.IGNORECASE
+    r"(?:(\d+)\s*[x×]\s*)?(\d+(?:[.,]\d+)?)\s*"
+    r"(dkg|kg|dl|ml|kusov|kus|ks|g|l)\b", re.IGNORECASE
 )
 _WORD = re.compile(r"[^\W\d_]+", re.UNICODE)
 
@@ -340,22 +341,35 @@ _SERVING_BASES = tuple(_fold(word) for word in SERVING_BASES)
 
 
 # ------------------------------------------------------------------ množstvá
-def _package_amount(jednotka):
+def _package_from_match(match):
+    base, factor = UNITS[match.group(3).lower()]
+    amount = Decimal(match.group(2).replace(",", ".")) * factor
+    if match.group(1):
+        amount *= Decimal(match.group(1))
+    return (base, amount) if amount > 0 else None
+
+
+def _package_amount(jednotka, nazov=None):
     """Veľkosť balenia z overenej jednotky, napr. „500 g" alebo „4×125 g"."""
     if not isinstance(jednotka, str):
         return None
     bare = jednotka.strip().casefold()
+    # Pri cene za kus/balenie býva gramáž často iba v názve produktu.
+    if bare in ("balenie", "bal.", "bal", "ks", "kus", "kusov") and isinstance(nazov, str):
+        named = _PACKAGE.search(nazov)
+        if named is not None:
+            return _package_from_match(named)
+    if bare in ("balenie", "bal.", "bal"):
+        # Cena je za jeden kúpiteľný výrobok. Receptová dávka ostáva uvedená
+        # samostatne; nepredstierame, že balenie má presnú neznámu gramáž.
+        return "package", Decimal("1")
     if bare in UNITS:
         base, factor = UNITS[bare]
         return base, factor
     match = _PACKAGE.search(jednotka)
     if match is None:
         return None
-    base, factor = UNITS[match.group(3).lower()]
-    amount = Decimal(match.group(2).replace(",", ".")) * factor
-    if match.group(1):
-        amount *= Decimal(match.group(1))
-    return (base, amount) if amount > 0 else None
+    return _package_from_match(match)
 
 
 _ROLE_NAME_PATTERNS = (
@@ -495,7 +509,7 @@ def canonical_portion(row, use=None):
     if role in PORTION_DEFAULTS:
         base, amount = PORTION_DEFAULTS[role]
         return role, base, amount
-    package = _package_amount(row.get("jednotka"))
+    package = _package_amount(row.get("jednotka"), name)
     if role == "fat_addition":
         base = package[0] if package and package[0] in ("g", "ml") else (
             "ml" if any(_name_has_pattern(_folded_words(name), pattern)
@@ -554,26 +568,22 @@ def _amount_is_in(recipe, base, total):
     return False
 
 
-def _packages_needed(jednotka, base, total, per_adult):
+def _packages_needed(row, base, total, per_adult):
     """Nákupný zoznam sa počíta iba zo serverovej dávky.
 
-    Ponuky bez prepočítateľnej hmotnosti/objemu sa do modelu vôbec neposielajú.
-    Táto kontrola je druhá obranná vrstva pre starší rozbehnutý job. Model počet
-    balení nikdy neurčuje, takže nemôže nafúknuť ani podhodnotiť cenu.
+    Ak názov alebo jednotka obsahujú gramáž, použijeme ju. Pri neznámom balení
+    alebo kuse kúpi používateľ jeden výrobok; receptová spotreba sa zobrazuje
+    zvlášť a zvyšok môže ostať v špajzi. Model počet balení nikdy neurčuje.
     """
-    package = _package_amount(jednotka)
+    package = _package_amount(row.get("jednotka"), row.get("nazov"))
     if package is None or package[0] != base:
-        raise ValueError("Ponuka nemá prepočítateľnú veľkosť balenia.")
+        return 1
     return max(1, int((total / package[1]).to_integral_value(rounding=ROUND_CEILING)))
 
 
 def _offer_is_measurable(row):
-    """True iba keď z letáka vieme pravdivo odvodiť počet kupovaných balení."""
-    package = _package_amount(row.get("jednotka"))
-    if package is None:
-        return False
-    _role, base, _amount = canonical_portion(row)
-    return package[0] == base
+    """True, keď leták uvádza kúpiteľnú jednotku alebo balenie."""
+    return _package_amount(row.get("jednotka"), row.get("nazov")) is not None
 
 
 def measurable_offers(rows):
@@ -736,7 +746,7 @@ def _model_meals(model_output, offers_by_key, frequency, pantry, adults, childre
                 total = total.to_integral_value(rounding=ROUND_CEILING)
             _steps_agree_with_amount(row["nazov"], base, total, steps)
             selected_items.append(
-                (row, _packages_needed(row["jednotka"], base, total, per_adult),
+                (row, _packages_needed(row, base, total, per_adult),
                  _amount_text(base, total))
             )
         parsed.append((day, name, minutes, steps, selected_items, [pantry_by_name[item] for item in selected_pantry]))
@@ -786,8 +796,11 @@ PLAN_VARIANT_HINTS = (
 # 7 = porciovú triedu, jednotku a dávku určuje výhradne server.
 # 8 = holá cenová jednotka z letáka (kg/l/ks) znamená jednu overenú jednotku;
 #     neznáme „balenie" bez gramáže zostáva vyradené.
+# 9 = kalendár 7/4/3 ostáva; receptová dávka sa oddelila od počtu celých
+#     nákupných balení a dokončený obchod bez vhodnej položky neblokuje akcie
+#     z ostatných zvolených obchodov.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 8
+PLAN_ALGO_VERSION = 9
 
 
 def plan_variant_for(user_id, variants):

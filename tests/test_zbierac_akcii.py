@@ -222,6 +222,72 @@ def test_mletaky_selects_latest_finite_validity_source(monkeypatch):
     }
 
 
+def test_mletaky_prefers_main_weekly_flyer_over_newer_weekend_flyer(monkeypatch):
+    """Lidl's 99-page weekly flyer must beat an 8-page local/weekend insert."""
+    html = " ".join(
+        [
+            "https://app.mletaky.sk/260830_260824_lidl_mainweekly",
+            "https://app.mletaky.sk/260830_260827_lidl_weekend",
+        ]
+    )
+    monkeypatch.setattr(
+        collector.requests,
+        "get",
+        lambda *args, **kwargs: types.SimpleNamespace(text=html),
+    )
+
+    manifest = collector.mletaky_base("lidl", today=date(2026, 8, 28))
+
+    assert manifest == {
+        "source_url": "https://app.mletaky.sk/260830_260824_lidl_mainweekly",
+        "valid_from": "2026-08-24",
+        "valid_to": "2026-08-30",
+    }
+
+
+def test_mletaky_keeps_extended_holiday_main_flyer_over_four_day_insert(monkeypatch):
+    html = " ".join(
+        [
+            "https://app.mletaky.sk/261227_261217_lidl_holidaymain",
+            "https://app.mletaky.sk/261227_261224_lidl_weekend",
+        ]
+    )
+    monkeypatch.setattr(
+        collector.requests,
+        "get",
+        lambda *args, **kwargs: types.SimpleNamespace(text=html),
+    )
+
+    manifest = collector.mletaky_base("lidl", today=date(2026, 12, 24))
+
+    assert manifest["source_url"].endswith("_holidaymain")
+
+
+def test_mletaky_prefers_largest_same_week_flyer_and_keeps_declared_page_count(monkeypatch):
+    html = """\
+    ["card","https://app.mletaky.sk/260830_260824_lidl_main/image00.webp",
+      {"className":"card-description lg:text-sm lg:font-normal","children":99}]
+    ["$","$L59","next-card"]
+    ["card","https://app.mletaky.sk/260830_260824_lidl_selected/image00.webp",
+      {"className":"card-description lg:text-sm lg:font-normal","children":4}]
+    ["$","$L59","end"]
+    """
+    monkeypatch.setattr(
+        collector.requests,
+        "get",
+        lambda *args, **kwargs: types.SimpleNamespace(text=html),
+    )
+
+    manifest = collector.mletaky_base("lidl", today=date(2026, 8, 28))
+
+    assert manifest == {
+        "source_url": "https://app.mletaky.sk/260830_260824_lidl_main",
+        "valid_from": "2026-08-24",
+        "valid_to": "2026-08-30",
+        "declared_pages": 99,
+    }
+
+
 def test_mletaky_discovery_stops_after_two_terminal_misses_without_pages(monkeypatch):
     monkeypatch.setattr(collector, "kupino_meta", lambda store: None)
     monkeypatch.setattr(
@@ -251,6 +317,31 @@ def test_mletaky_discovery_stops_after_two_terminal_misses_without_pages(monkeyp
     assert pages == []
     assert manifest is None
     assert len(calls) == 2
+
+
+def test_mletaky_rejects_a_truncated_flyer_against_its_declared_page_count(monkeypatch):
+    monkeypatch.setattr(collector, "kupino_meta", lambda store: None)
+    monkeypatch.setattr(
+        collector,
+        "mletaky_base",
+        lambda store, today=None: {
+            "source_url": "https://app.mletaky.sk/260830_260824_lidl_main",
+            "valid_from": "2026-08-24",
+            "valid_to": "2026-08-30",
+            "declared_pages": 99,
+        },
+    )
+
+    def only_four_pages(url):
+        page = int(re.search(r"image(\d+)\.webp$", url).group(1))
+        return f"page-{page}" if page < 4 else None
+
+    monkeypatch.setattr(collector, "page_exists", only_four_pages)
+
+    pages, manifest = collector.store_pages("lidl", today=date(2026, 8, 28))
+
+    assert pages == []
+    assert manifest is None
 
 
 def test_ninety_page_flyer_scans_every_thumbnail_and_keeps_late_food_provenance(monkeypatch):

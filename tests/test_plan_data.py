@@ -696,8 +696,8 @@ def test_legacy_model_amount_field_is_ignored(amount_per_person):
     assert build(payload)["jedla"][0]["suroviny"][0]["davka"] == "2 l"
 
 
-def test_unparsable_package_size_is_not_offered_or_priced():
-    """Bez veľkosti balenia sa nedá pravdivo vypočítať počet kusov ani cena."""
+def test_unknown_package_is_one_purchasable_item_and_never_uses_model_quantity():
+    """Recept spotrebuje dávku; človek kúpi jedno neznáme balenie a zvyšok ostáva."""
     rows = verified_rows()
     rows[0] = tuple(list(rows[0][:8]) + ["bal."] + list(rows[0][9:]))
     con = connection(rows)
@@ -707,13 +707,14 @@ def test_unparsable_package_size_is_not_offered_or_priced():
     payload["meals"][1]["items"] = [item(keys["Chlieb"], CHLIEB_NA_OSOBU, "g")]
     payload["meals"][2]["items"] = [item(keys["Maslo"], MASLO_NA_OSOBU, "g")]
 
-    assert keys["Mlieko"] not in plan_data.offers_catalog(
+    assert keys["Mlieko"] in plan_data.offers_catalog(
         current_verified_offers(con, ["Lidl", "Tesco"], TODAY)
     )
-    with pytest.raises(ValueError, match="neznáme alebo neaktuálne"):
-        build_personal_plan(
-            con, payload, ["Lidl", "Tesco"], 2, 4, pantry=["soľ"], today=TODAY
-        )
+    plan = build_personal_plan(
+        con, payload, ["Lidl", "Tesco"], 2, 4, pantry=["soľ"], today=TODAY
+    )
+    mlieko = plan["jedla"][0]["suroviny"][0]
+    assert (mlieko["mnozstvo"], mlieko["davka"]) == (1, "2 l")
 
 
 @pytest.mark.parametrize(("unit", "expected"), [
@@ -723,6 +724,30 @@ def test_unparsable_package_size_is_not_offered_or_priced():
 ])
 def test_bare_flyer_price_units_mean_one_verified_unit(unit, expected):
     assert plan_data._package_amount(unit) == expected
+
+
+@pytest.mark.parametrize(("name", "expected"), [
+    ("Bask ryža 1 kg", ("g", Decimal("1000"))),
+    ("Konzumné zemiaky 5 kg", ("g", Decimal("5000"))),
+    ("Vajcia 30 kusov", ("ks", Decimal("30"))),
+    ("Jogurt 4 x 100 g", ("g", Decimal("400"))),
+])
+def test_package_size_is_recovered_from_product_name(name, expected):
+    assert plan_data._package_amount("balenie", name) == expected
+
+
+@pytest.mark.parametrize(("name", "recipe_amount", "expected_packages"), [
+    ("Ryža 1 kg", Decimal("300"), 1),
+    ("Ryža 5 kg", Decimal("300"), 1),
+    ("Ryža 1 kg", Decimal("1200"), 2),
+])
+def test_shopping_buys_whole_packages_while_recipe_uses_only_its_dose(
+        name, recipe_amount, expected_packages):
+    row = {"nazov": name, "jednotka": "balenie"}
+
+    assert plan_data._packages_needed(
+        row, "g", recipe_amount, Decimal("75")
+    ) == expected_packages
 
 
 # -------------------------------------------- profesionálny porciový štandard

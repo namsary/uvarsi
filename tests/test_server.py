@@ -1314,9 +1314,9 @@ def test_current_offer_catalogue_is_complete_before_prompt_shortlisting(monkeypa
     assert counted == {"maso": 60, "zelenina": 30, "mliecne": 20, "trvanlive": 20, "ovocie": 15, "pecivo": 15}
 
 
-def test_unpriceable_catalogue_is_rejected_before_a_user_attempt_is_reserved(
+def test_catalogue_without_purchasable_units_is_rejected_before_attempt_is_reserved(
         monkeypatch, tmp_path):
-    rows = [tuple(list(row[:6]) + ["bal."] + list(row[7:])) for row in category_rows()[:20]]
+    rows = [tuple(list(row[:6]) + ["hrsť"] + list(row[7:])) for row in category_rows()[:20]]
     server = load_server(monkeypatch, tmp_path, rows)
     with server.db() as con:
         con.execute(

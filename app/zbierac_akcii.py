@@ -213,12 +213,48 @@ def flyer_is_current(valid_from, valid_to, today):
     return valid_from <= today.isoformat() <= valid_to
 
 
-def mletaky_base(store, today=None):
+def _mletaky_declared_page_counts(page_html, store):
+    """Map CDN flyer base URLs to page counts declared by mLetaky cards.
+
+    The listing is streamed as escaped Next.js data.  Each card contains the
+    first CDN image and, later in the same card, its declared page count.  We
+    deliberately bind the count to that card instead of treating every valid
+    URL as an equivalent flyer: Lidl publishes the national weekly flyer next
+    to tiny city/selected-store inserts with identical dates.
+    """
+    normalized = (page_html or "").replace('\\"', '"')
+    image_pattern = re.compile(
+        r'(https?://app\.mletaky\.sk/\d{6}_\d{6}_'
+        + re.escape(store) + r'_[a-z0-9]+)/image00\.webp'
+    )
+    matches = list(image_pattern.finditer(normalized))
+    counts = {}
+    for index, match in enumerate(matches):
+        source_url = match.group(1)
+        if source_url in counts:
+            continue
+        end = len(normalized)
+        for following in matches[index + 1:]:
+            if following.group(1) != source_url:
+                end = following.start()
+                break
+        card = normalized[match.end():end]
+        page_count = re.search(
+            r'card-description[^"\r\n]*"\s*,\s*"children"\s*:\s*(\d+)',
+            card,
+        )
+        if page_count:
+            counts[source_url] = int(page_count.group(1))
+    return counts
+
+
+def mletaky_candidates(store, today=None):
     today = today or datetime.date.today()
     html_ = requests.get(f"https://mletaky.sk/obchody/{store}", headers=H, timeout=20).text
     cands = set(re.findall(r'https?://app\.mletaky\.sk/(\d{6})_(\d{6})_'
                            + store + r'_([a-z0-9]+)', html_))
-    best = None
+    page_counts = _mletaky_declared_page_counts(html_, store)
+    current = []
     for vto, vfrom, h in cands:
         try:
             d_from = datetime.datetime.strptime(vfrom, "%y%m%d").date()
@@ -231,16 +267,38 @@ def mletaky_base(store, today=None):
         # leták môže byť už skončený a jeho ceny by sa ticho zahodili.
         if not flyer_is_current(d_from.isoformat(), d_to.isoformat(), today):
             continue
-        if best is None or d_from > best["sort_date"]:
-            best = {
-                "sort_date": d_from,
-                "source_url": f"https://app.mletaky.sk/{vto}_{vfrom}_{store}_{h}",
-                "valid_from": d_from.isoformat(),
-                "valid_to": d_to.isoformat(),
-            }
-    if best:
-        best.pop("sort_date")
-    return best
+        source_url = f"https://app.mletaky.sk/{vto}_{vfrom}_{store}_{h}"
+        candidate = {
+            "source_url": source_url,
+            "valid_from": d_from.isoformat(),
+            "valid_to": d_to.isoformat(),
+            "_duration": (d_to - d_from).days + 1,
+            "_start": d_from.toordinal(),
+        }
+        if source_url in page_counts:
+            candidate["declared_pages"] = page_counts[source_url]
+        current.append(candidate)
+
+    # Hlavný potravinový leták má bežne 5–14 dní (cez sviatky aj dlhšie než
+    # presný týždeň). Krátke 4-dňové lokálne/víkendové vložky preto nemajú
+    # prednosť iba preto, že začali neskôr. Medzi hlavnými kandidátmi rozhoduje
+    # blízkosť siedmim dňom, deklarovaný počet strán a potom novší začiatok.
+    current.sort(key=lambda item: (
+        0 if 5 <= item["_duration"] <= 14 else 1,
+        abs(item["_duration"] - 7),
+        -item.get("declared_pages", 0),
+        -item["_start"],
+        item["source_url"],
+    ))
+    for candidate in current:
+        candidate.pop("_duration")
+        candidate.pop("_start")
+    return current
+
+
+def mletaky_base(store, today=None):
+    candidates = mletaky_candidates(store, today)
+    return candidates[0] if candidates else None
 
 
 def page_exists(url):
@@ -259,12 +317,15 @@ def _page_marker(marker, url):
 
 
 def _manifest(source, page_rows):
-    return {
+    manifest = {
         "source_url": source["source_url"],
         "valid_from": source["valid_from"],
         "valid_to": source["valid_to"],
         "pages": page_rows,
     }
+    if source.get("declared_pages"):
+        manifest["declared_pages"] = source["declared_pages"]
+    return manifest
 
 
 def _usable_flyer(store, source, meta, today):
@@ -349,6 +410,11 @@ def store_pages(store, today=None):
             lambda n: (None, f"{base['source_url']}/image{n:02d}.webp"),
             start=0,
         )
+        declared_pages = base.get("declared_pages")
+        if pages and declared_pages and len(pages) < declared_pages:
+            log(f"[WARN] {store}: zdroj deklaruje {declared_pages} strán, "
+                f"ale dostupných je len {len(pages)} — neúplný leták odmietam")
+            pages, page_rows = [], []
         if pages:
             return pages, _manifest(base, page_rows)
     log(f"[WARN] {store}: žiadny leták s dôveryhodnou platnosťou — obchod preskakujem")

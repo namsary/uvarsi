@@ -1486,8 +1486,11 @@ def _current_job_context(job, stores, frequency, adults, children, *, con, now):
     if missing_stores:
         raise StalePlanJob("incomplete_stores")
     rows = measurable_offers(offers_for_current_week(con, stores, today))
-    represented = {row["obchod"] for row in rows}
-    if len(rows) < MIN_OFFERS_FOR_PLAN or any(store not in represented for store in stores):
+    # `stores_missing_this_week` vyššie stráži, že zber každého vybraného
+    # obchodu naozaj dobehol. Ak však jeden leták nemá ani jednu položku s
+    # kúpiteľnou jednotkou alebo balením, plán smie použiť ostatné obchody;
+    # inak by chybná jednotka zablokovala celý nákup.
+    if len(rows) < MIN_OFFERS_FOR_PLAN:
         raise StalePlanJob("incomplete_stores")
 
     pantry = []
