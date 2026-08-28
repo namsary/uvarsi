@@ -10,3 +10,5 @@ count.json
 *.zaloha*
 vsetko_log.txt
 nastroje/autopush.log
+.worktrees/
+.superpowers/
