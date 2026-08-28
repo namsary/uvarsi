@@ -86,6 +86,14 @@ _SAFE_CONCISE_ACTION = re.compile(
     r"|(?:(?:hrniec|panvicu|jedlo|zmes)\s+)?odstav(?:\s+z\s+ohna)?"
     r")\.?"
 )
+_UNSUITABLE_MEAL_PRODUCT = re.compile(
+    r"\b(?:polevkova\s+zmes|skelet\w*|chrbt\w*|krk(?:y|ov)?|"
+    r"drob(?:y|ov|mi|ami)?|kost(?:i|ou|ami)?)\b"
+)
+_BONELESS_PHRASE = re.compile(
+    r"\bbez\s+(?:(?:koze|kozu)\s+a\s+)?kosti\b|"
+    r"\bbez\s+kosti\s+a\s+(?:koze|kozu)\b"
+)
 
 # Množstvá, s ktorými vieme rátať. Všetko ostatné je pre nákupný zoznam
 # nepoužiteľné — z „hrsti" sa počet balení dopočítať nedá.
@@ -511,12 +519,20 @@ def canonical_portion(row, use=None):
     """Derive one trusted portion from verified offer facts, never model text."""
     name = row.get("nazov", "")
     category = row.get("kategoria", "")
+    use = use.strip().casefold() if isinstance(use, str) else use
     role = ingredient_role_for(name, category, _role_claim_for_use(name, use))
     if role == "other":
         normalized_category = _fold(str(category)).replace(" ", "")
         role = AMBIGUOUS_CATEGORY_DEFAULTS.get(normalized_category, role)
+    if use == "addition":
+        role = {
+            "vegetable": "vegetable_addition",
+            "dairy_main": "dairy_addition",
+        }.get(role, role)
     if role in PORTION_DEFAULTS:
         base, amount = PORTION_DEFAULTS[role]
+        if role == "sauce_liquid" and use == "addition":
+            amount = Decimal("80")
         return role, base, amount
     package = _package_amount(row.get("jednotka"), name)
     if role == "fat_addition":
@@ -594,8 +610,20 @@ def _packages_needed(row, base, total, per_adult):
 
 
 def _offer_is_measurable(row):
-    """True, keď leták uvádza kúpiteľnú jednotku alebo balenie."""
-    return _package_amount(row.get("jednotka"), row.get("nazov")) is not None
+    """True only when a recipe dose can be converted to whole packages."""
+    name = _fold(str(row.get("nazov", "")))
+    name = re.sub(r"[^\w\s]", " ", name)
+    name = _BONELESS_PHRASE.sub("", name)
+    if _UNSUITABLE_MEAL_PRODUCT.search(name):
+        return False
+    package = _package_amount(row.get("jednotka"), row.get("nazov"))
+    if package is None or package[0] == "package":
+        return False
+    try:
+        _role, recipe_base, _amount = canonical_portion(row, "main")
+    except (KeyError, TypeError, ValueError):
+        return False
+    return package[0] == recipe_base
 
 
 def measurable_offers(rows):
@@ -774,7 +802,7 @@ def _model_meals(model_output, offers_by_key, frequency, pantry, adults, childre
             _steps_agree_with_amount(row["nazov"], base, total, steps)
             selected_items.append(
                 (row, _packages_needed(row, base, total, per_adult),
-                 _amount_text(base, total))
+                 _amount_text(base, total), base, total)
             )
         parsed.append((day, name, minutes, steps, selected_items, [pantry_by_name[item] for item in selected_pantry]))
     if seen_days != set(cooking_days):
@@ -830,7 +858,7 @@ PLAN_VARIANT_HINTS = (
 #      krokov s minimálnou dĺžkou. Krátky všeobecný krok už nemôže minúť
 #      platené volanie a až potom zhodiť celý plán vo validácii.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 11
+PLAN_ALGO_VERSION = 12
 
 
 def plan_variant_for(user_id, variants):
@@ -1147,6 +1175,55 @@ Navrhni presne {len(days)} {_meals_word(len(days))} na dni {days_text}. Vráť i
 - Smerovanie tohto jedálnička: {style}{pantry_task}"""
 
 
+def _purchase_identity(row):
+    """Same real product repeated on two flyer pages must become one basket row."""
+    return (
+        str(row.get("obchod", "")).casefold(),
+        _fold(str(row.get("nazov", ""))),
+        str(row.get("jednotka", "")).strip().casefold(),
+        str(row.get("cena")), str(row.get("povodna")),
+        str(row.get("valid_from")), str(row.get("valid_to")),
+        str(row.get("source_url")),
+    )
+
+
+def _aggregate_purchases(purchases):
+    """Combine recipe doses first, then round once to whole purchasable packs."""
+    combined = {}
+    for row, base, dose in purchases:
+        key = _purchase_identity(row)
+        current = combined.get(key)
+        if current is None:
+            combined[key] = [row, base, Decimal(dose)]
+            continue
+        if current[1] != base:
+            raise ValueError("Rovnaký výrobok má nekompatibilné jednotky receptovej dávky.")
+        current[2] += Decimal(dose)
+
+    items = []
+    total = Decimal("0")
+    regular = Decimal("0")
+    for row, base, dose in combined.values():
+        quantity = _packages_needed(row, base, dose, None)
+        price = _price(row["cena"], "akciová cena") * quantity
+        original = (
+            _price(row["povodna"], "bežná cena") * quantity
+            if row.get("povodna") is not None else None
+        )
+        total += price
+        regular += original if original is not None else price
+        items.append({
+            "offer_key": row["offer_key"], "nazov": row["nazov"],
+            "obchod": row["obchod"], "jednotka": row["jednotka"],
+            "mnozstvo": quantity, "cena": _format(price),
+            "povodna": _format(original) if original is not None else None,
+            "zlava": row.get("zlava") or "", "source_url": row.get("source_url"),
+            "source_page": row.get("source_page"), "valid_from": row.get("valid_from"),
+            "valid_to": row.get("valid_to"),
+        })
+    return items, total, regular
+
+
 def build_personal_plan(con, model_output, stores, frequency, household_size=None, pantry=(),
                         today=None, *, adults=None, children=None):
     """Validate selection content and deterministically derive all purchasable data."""
@@ -1158,8 +1235,6 @@ def build_personal_plan(con, model_output, stores, frequency, household_size=Non
 
     plan_meals = []
     purchases = []
-    total = Decimal("0")
-    regular = Decimal("0")
     for day, name, minutes, instructions, selected_items, pantry_names in meals:
         covered = days_covered_by_meal(frequency, day)
         portions = servings_for(adults, children, frequency, day)
@@ -1169,11 +1244,9 @@ def build_personal_plan(con, model_output, stores, frequency, household_size=Non
             for_whom += f" × {covered} {_days_word(covered)}"
         ingredients = []
         doses = []
-        for row, quantity, davka in selected_items:
+        for row, quantity, davka, base, dose_total in selected_items:
             price = _price(row["cena"], "akciová cena") * quantity
             original = _price(row["povodna"], "bežná cena") * quantity if row["povodna"] is not None else None
-            total += price
-            regular += original if original is not None else price
             ingredient = {
                 "offer_key": row["offer_key"], "nazov": row["nazov"], "obchod": row["obchod"],
                 "jednotka": row["jednotka"], "mnozstvo": quantity,
@@ -1187,7 +1260,7 @@ def build_personal_plan(con, model_output, stores, frequency, household_size=Non
                 "valid_from": row["valid_from"], "valid_to": row["valid_to"],
             }
             ingredients.append(ingredient)
-            purchases.append(ingredient)
+            purchases.append((row, base, dose_total))
             doses.append(f"{row['nazov']} – {davka}")
         ingredients.extend({"spajza": item} for item in pantry_names)
         doses.extend(f"{item} zo špajze" for item in pantry_names)
@@ -1204,8 +1277,9 @@ def build_personal_plan(con, model_output, stores, frequency, household_size=Non
             "suroviny": ingredients,
         })
 
+    shopping_items, total, regular = _aggregate_purchases(purchases)
     grouped = {}
-    for item in purchases:
+    for item in shopping_items:
         grouped.setdefault(item["obchod"], []).append({
             key: item[key] for key in (
                 "offer_key", "nazov", "jednotka", "mnozstvo", "cena", "povodna", "zlava",

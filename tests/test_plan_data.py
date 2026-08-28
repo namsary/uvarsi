@@ -696,8 +696,8 @@ def test_legacy_model_amount_field_is_ignored(amount_per_person):
     assert build(payload)["jedla"][0]["suroviny"][0]["davka"] == "2 l"
 
 
-def test_unknown_package_is_one_purchasable_item_and_never_uses_model_quantity():
-    """Recept spotrebuje dávku; človek kúpi jedno neznáme balenie a zvyšok ostáva."""
+def test_unknown_package_is_excluded_instead_of_pretending_one_pack_is_enough():
+    """Bez gramáže nevieme, či jedna krabička pokryje napr. 2 l receptovej dávky."""
     rows = verified_rows()
     rows[0] = tuple(list(rows[0][:8]) + ["bal."] + list(rows[0][9:]))
     con = connection(rows)
@@ -707,14 +707,15 @@ def test_unknown_package_is_one_purchasable_item_and_never_uses_model_quantity()
     payload["meals"][1]["items"] = [item(keys["Chlieb"], CHLIEB_NA_OSOBU, "g")]
     payload["meals"][2]["items"] = [item(keys["Maslo"], MASLO_NA_OSOBU, "g")]
 
-    assert keys["Mlieko"] in plan_data.offers_catalog(
-        current_verified_offers(con, ["Lidl", "Tesco"], TODAY)
+    assert keys["Mlieko"] not in plan_data.offers_catalog(
+        plan_data.measurable_offers(
+            current_verified_offers(con, ["Lidl", "Tesco"], TODAY)
+        )
     )
-    plan = build_personal_plan(
-        con, payload, ["Lidl", "Tesco"], 2, 4, pantry=["soľ"], today=TODAY
-    )
-    mlieko = plan["jedla"][0]["suroviny"][0]
-    assert (mlieko["mnozstvo"], mlieko["davka"]) == (1, "2 l")
+    with pytest.raises(ValueError, match="neznáme alebo neaktuálne"):
+        build_personal_plan(
+            con, payload, ["Lidl", "Tesco"], 2, 4, pantry=["soľ"], today=TODAY
+        )
 
 
 @pytest.mark.parametrize(("unit", "expected"), [
@@ -748,6 +749,74 @@ def test_shopping_buys_whole_packages_while_recipe_uses_only_its_dose(
     assert plan_data._packages_needed(
         row, "g", recipe_amount, Decimal("75")
     ) == expected_packages
+
+
+def test_piece_offer_must_match_the_recipe_unit_and_eggs_remain_usable():
+    corn = {"nazov": "Kukurica lahôdková", "kategoria": "zelenina", "jednotka": "ks"}
+    eggs = {"nazov": "Vajcia M", "kategoria": "vajcia", "jednotka": "10 ks"}
+
+    assert plan_data.measurable_offers([corn]) == []
+    assert plan_data.measurable_offers([eggs]) == [eggs]
+
+
+@pytest.mark.parametrize("name", [
+    "Kuracia polievková zmes",
+    "Kuracie chrbty",
+    "Kuracie krky",
+    "Kuracie droby",
+    "Kurací skelet",
+])
+def test_bony_soup_meat_is_not_offered_as_boneless_main_meat(name):
+    row = {"nazov": name, "kategoria": "mäso", "jednotka": "kg"}
+
+    assert plan_data.measurable_offers([row]) == []
+
+
+@pytest.mark.parametrize("name", [
+    "Kuracie prsia bez kosti",
+    "Kuracie prsia bez kože a kostí",
+    "Kuracie stehná bez kostí a kože",
+])
+def test_boneless_chicken_is_not_removed_just_because_name_says_without_bone(name):
+    row = {"nazov": name, "kategoria": "mäso", "jednotka": "kg"}
+
+    assert plan_data.measurable_offers([row]) == [row]
+
+
+def test_addition_context_uses_a_smaller_server_owned_cooking_dose():
+    assert plan_data.canonical_portion(
+        {"nazov": "Paprika červená", "kategoria": "zelenina", "jednotka": "1 kg"},
+        "addition",
+    ) == ("vegetable_addition", "g", Decimal("50"))
+    assert plan_data.canonical_portion(
+        {"nazov": "Mozzarella 200 g", "kategoria": "mliečne", "jednotka": "200 g"},
+        "addition",
+    ) == ("dairy_addition", "g", Decimal("30"))
+    assert plan_data.canonical_portion(
+        {"nazov": "Smotana na varenie 200 ml", "kategoria": "mliečne", "jednotka": "200 ml"},
+        "addition",
+    ) == ("sauce_liquid", "ml", Decimal("80"))
+
+
+def test_same_product_is_combined_before_rounding_to_whole_packages():
+    common = {
+        "nazov": "Tatra maslo 250 g", "obchod": "Tesco", "jednotka": "balenie",
+        "cena": 1.29, "povodna": 3.69, "zlava": "-65 %",
+        "source_url": "https://source.test/tesco", "valid_from": "2026-08-17",
+        "valid_to": "2026-08-23",
+    }
+    first = dict(common, offer_key="offer_butter_1", source_page=1)
+    second = dict(common, offer_key="offer_butter_2", source_page=2)
+
+    items, total, regular = plan_data._aggregate_purchases([
+        (first, "g", Decimal("297")),
+        (second, "g", Decimal("297")),
+    ])
+
+    assert len(items) == 1
+    assert items[0]["mnozstvo"] == 3, "594 g spolu = tri celé 250 g balenia"
+    assert items[0]["cena"] == "3,87"
+    assert (total, regular) == (Decimal("3.87"), Decimal("11.07"))
 
 
 # -------------------------------------------- profesionálny porciový štandard
