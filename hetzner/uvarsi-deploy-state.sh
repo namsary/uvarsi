@@ -9,6 +9,7 @@ UVARSI_CURL="${UVARSI_CURL:-curl}"
 UVARSI_HEALTH_PY="${UVARSI_HEALTH_PY:-$UVARSI_DIR/venv/bin/python}"
 UVARSI_SLEEP="${UVARSI_SLEEP:-sleep}"
 UVARSI_CP="${UVARSI_CP:-cp}"
+UVARSI_MV="${UVARSI_MV:-mv}"
 UVARSI_HEARTBEAT_ATTEMPTS="${UVARSI_HEARTBEAT_ATTEMPTS:-30}"
 UVARSI_HEALTH_URL="${UVARSI_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
 UVARSI_DB="${UVARSI_DB:-$UVARSI_DIR/uvarsi.db}"
@@ -113,20 +114,48 @@ _uvarsi_restore_app() {
 
   had_previous=0
   if [ -e "$UVARSI_DIR/app" ]; then
-    mv "$UVARSI_DIR/app" "$previous" || { rm -rf "$staged"; return 1; }
+    "$UVARSI_MV" "$UVARSI_DIR/app" "$previous" || {
+      rm -rf "$staged"
+      return 1
+    }
     had_previous=1
   fi
-  if mv "$staged" "$UVARSI_DIR/app"; then
+  if "$UVARSI_MV" "$staged" "$UVARSI_DIR/app"; then
+    [ -d "$UVARSI_DIR/app" ] || {
+      echo "uvarsi_restore: app promotion returned success but $UVARSI_DIR/app is unavailable; previous=$previous staged=$staged" >&2
+      return 1
+    }
     if [ "$had_previous" -eq 1 ]; then
       rm -rf "$previous" || return 1
     fi
     return 0
   fi
 
-  rm -rf "$staged"
-  if [ "$had_previous" -eq 1 ]; then
-    mv "$previous" "$UVARSI_DIR/app" || return 1
+  echo "uvarsi_restore: app promotion failed; previous=$previous staged=$staged" >&2
+  if [ -d "$UVARSI_DIR/app" ]; then
+    echo "uvarsi_restore: promotion failed but live app path still exists; recovery copies preserved" >&2
+    return 1
   fi
+  if [ "$had_previous" -eq 1 ]; then
+    if "$UVARSI_MV" "$previous" "$UVARSI_DIR/app" && [ -d "$UVARSI_DIR/app" ]; then
+      rm -rf "$staged" || true
+      echo "uvarsi_restore: restored previous app after promotion failure" >&2
+      return 1
+    fi
+    if [ -d "$UVARSI_DIR/app" ]; then
+      echo "uvarsi_restore: recovery move returned failure but restored the live app; staged=$staged" >&2
+      return 1
+    fi
+    if "$UVARSI_CP" -a "$previous" "$UVARSI_DIR/app" && [ -d "$UVARSI_DIR/app" ]; then
+      echo "uvarsi_restore: recovered app path by copying $previous; recovery copies preserved" >&2
+      return 1
+    fi
+  elif "$UVARSI_CP" -a "$staged" "$UVARSI_DIR/app" && [ -d "$UVARSI_DIR/app" ]; then
+    echo "uvarsi_restore: recovered app path by copying $staged; staged recovery copy preserved" >&2
+    return 1
+  fi
+
+  echo "uvarsi_restore: manual recovery required; app=$UVARSI_DIR/app previous=$previous staged=$staged" >&2
   return 1
 }
 

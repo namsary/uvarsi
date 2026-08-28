@@ -116,6 +116,13 @@ def deployment(tmp_path):
         cp,
         "#!/bin/sh\n"
         "case \"$*\" in\n"
+        "  *.app-restore-previous.*)\n"
+        "    if [ -f \"$UVARSI_FAKE_STATE/fail-recovery-copy\" ]; then\n"
+        "      exit 9\n"
+        "    fi\n"
+        "    ;;\n"
+        "esac\n"
+        "case \"$*\" in\n"
         "  *snapshot/app*)\n"
         "    if [ -f \"$UVARSI_FAKE_STATE/fail-app-restore-once\" ]; then\n"
         "      rm -f \"$UVARSI_FAKE_STATE/fail-app-restore-once\"\n"
@@ -133,6 +140,26 @@ def deployment(tmp_path):
         "esac\n"
         "exec /usr/bin/cp \"$@\"\n",
     )
+    mv = tmp_path / "mv"
+    write_executable(
+        mv,
+        "#!/bin/sh\n"
+        "case \"$1:$2\" in\n"
+        "  *.app-restore-staged.*:*/app)\n"
+        "    if [ -f \"$UVARSI_FAKE_STATE/fail-app-promotion\" ]; then\n"
+        "      rm -f \"$UVARSI_FAKE_STATE/fail-app-promotion\"\n"
+        "      exit 10\n"
+        "    fi\n"
+        "    ;;\n"
+        "  *.app-restore-previous.*:*/app)\n"
+        "    if [ -f \"$UVARSI_FAKE_STATE/fail-first-recovery-move\" ]; then\n"
+        "      rm -f \"$UVARSI_FAKE_STATE/fail-first-recovery-move\"\n"
+        "      exit 11\n"
+        "    fi\n"
+        "    ;;\n"
+        "esac\n"
+        "exec /usr/bin/mv \"$@\"\n",
+    )
     env = os.environ | {
         "UVARSI_DIR": bash_path(live),
         "UVARSI_SYSTEMD_DIR": bash_path(systemd),
@@ -143,6 +170,7 @@ def deployment(tmp_path):
         "UVARSI_HEALTH_FILE": bash_path(health),
         "UVARSI_SLEEP": bash_path(sleep),
         "UVARSI_CP": bash_path(cp),
+        "UVARSI_MV": bash_path(mv),
         "UVARSI_FAKE_STATE": bash_path(state),
         "UVARSI_HEARTBEAT_ATTEMPTS": "1",
         "UVARSI_TEST_SNAPSHOT": "snapshot",
@@ -304,6 +332,55 @@ def test_app_restore_failure_keeps_current_app_present_and_reports_failure(deplo
     assert deployment["live"].joinpath("VERSION").read_text(
         encoding="utf-8"
     ) == "old-version"
+
+
+def test_promotion_and_first_recovery_move_failure_restores_app_via_copy(deployment):
+    assert run_library(
+        deployment, 'uvarsi_snapshot "$UVARSI_TEST_SNAPSHOT"'
+    ).returncode == 0
+    deployment["app"].joinpath("marker.txt").write_text(
+        "pre-rollback-live-app", encoding="utf-8"
+    )
+    deployment["state"].joinpath("fail-app-promotion").touch()
+    deployment["state"].joinpath("fail-first-recovery-move").touch()
+
+    restored = run_library(deployment, 'uvarsi_restore "$UVARSI_TEST_SNAPSHOT"')
+
+    assert restored.returncode != 0
+    assert deployment["app"].joinpath("marker.txt").read_text(
+        encoding="utf-8"
+    ) == "pre-rollback-live-app"
+    assert "recovered app path by copying" in restored.stderr
+
+
+def test_failed_recovery_copy_preserves_recovery_paths_and_reports_them(deployment):
+    assert run_library(
+        deployment, 'uvarsi_snapshot "$UVARSI_TEST_SNAPSHOT"'
+    ).returncode == 0
+    deployment["app"].joinpath("marker.txt").write_text(
+        "pre-rollback-live-app", encoding="utf-8"
+    )
+    for marker in (
+        "fail-app-promotion",
+        "fail-first-recovery-move",
+        "fail-recovery-copy",
+    ):
+        deployment["state"].joinpath(marker).touch()
+
+    restored = run_library(deployment, 'uvarsi_restore "$UVARSI_TEST_SNAPSHOT"')
+
+    assert restored.returncode != 0
+    previous = list(deployment["live"].glob(".app-restore-previous.*"))
+    staged = list(deployment["live"].glob(".app-restore-staged.*"))
+    assert len(previous) == 1
+    assert previous[0].joinpath("marker.txt").read_text(
+        encoding="utf-8"
+    ) == "pre-rollback-live-app"
+    assert len(staged) == 1
+    assert staged[0].joinpath("marker.txt").read_text(encoding="utf-8") == "old-app"
+    assert bash_path(previous[0]) in restored.stderr
+    assert bash_path(staged[0]) in restored.stderr
+    assert "manual recovery required" in restored.stderr
 
 
 def test_partial_live_mutation_rolls_back_before_returning_failure(deployment):

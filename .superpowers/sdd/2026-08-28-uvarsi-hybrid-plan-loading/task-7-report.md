@@ -353,3 +353,33 @@ TDD evidence:
 
 Commit `9cb266f` remains the separate plan-calendar manifest fix. No push or
 production deployment occurred.
+
+## Final app-promotion recovery fallback
+
+The app rollback promotion path now treats the prior live directory and staged
+snapshot as durable recovery material. It does not delete either after a failed
+staged-to-live promotion. Recovery proceeds through the prior-directory move,
+then through an independent recursive copy from that prior directory. The live
+`app/` path is validated before any previous copy can be deleted.
+
+If the independent copy succeeds, the app path contains the pre-rollback live
+content and rollback still returns failure because promotion failed. If the
+copy also fails, rollback remains nonzero, retains both `.app-restore-previous`
+and `.app-restore-staged` directories, and emits a `manual recovery required`
+diagnostic containing both exact paths. This deliberately does not claim
+recovery under total filesystem failure; it guarantees the helper does not
+voluntarily erase its last usable copies.
+
+TDD and verification evidence:
+
+- RED: promotion and first recovery-move injection was ignored by the old
+  helper, so both new cases incorrectly returned success (`2 failed`).
+- GREEN: independent-copy recovery restored `app/` with prior content and
+  returned failure; injected copy failure preserved both recovery trees and
+  reported their locations (`2 passed in 13.98s`).
+- Full deployment behavior/contracts under a long path with spaces:
+  `77 passed in 84.39s`.
+- Bash syntax passed for `dozorca.sh`, `samopull.sh`, and
+  `uvarsi-deploy-state.sh`; the PowerShell parser passed for `nasad.ps1`.
+
+No push or production deployment occurred.
