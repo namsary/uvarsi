@@ -216,7 +216,7 @@ def test_startup_raises_the_thread_pool_limit(monkeypatch, tmp_path):
     assert volane == [1], "lifespan musí strop vlákien nastaviť pri štarte"
 
 
-def test_busy_server_turns_the_plan_away_in_slovak(monkeypatch, tmp_path):
+def test_busy_legacy_plan_semaphore_does_not_block_async_enqueue(monkeypatch, tmp_path):
     server = plan_server(monkeypatch, tmp_path)
     volania = []
     monkeypatch.setitem(sys.modules, "anthropic",
@@ -225,23 +225,14 @@ def test_busy_server_turns_the_plan_away_in_slovak(monkeypatch, tmp_path):
     assert plno.acquire(blocking=False)
     monkeypatch.setattr(server, "PLAN_MIESTA", plno)
 
-    odpoved = plan_client(server, 1).post("/api/plan/generuj")
+    odpoved = plan_client(server, 1, wait_for_worker=False).post("/api/plan/generuj")
 
-    assert odpoved.status_code == 503, (
-        "keď je plno, appka to musí povedať hneď — nie ticho visieť na vlákne"
-    )
-    telo = odpoved.json()
-    assert "jedálničkov" in telo["detail"] and "minút" in telo["detail"], (
-        f"hláška musí byť po slovensky a konkrétna: {telo['detail']!r}"
-    )
-    assert telo["kod"] == server.KOD_PLAN_ZANEPRAZDNENY, (
-        "appka sa nesmie rozhodovať podľa textu, ktorý raz preformulujeme"
-    )
-    assert volania == [], "odmietnutý plán nesmie zavolať (a zaplatiť) model"
+    assert odpoved.status_code == 202
+    assert odpoved.json()["status"] == "preparing"
+    assert volania == [], "HTTP enqueue nesmie zavolať (a zaplatiť) model"
 
 
-def test_turned_away_user_keeps_the_daily_quota(monkeypatch, tmp_path):
-    """Kto plán nedostal, nesmie prísť o dnešný prepočet."""
+def test_joining_an_active_job_keeps_one_daily_reservation(monkeypatch, tmp_path):
     server = plan_server(monkeypatch, tmp_path)
     monkeypatch.setitem(sys.modules, "anthropic",
                         fake_anthropic(model_plan_without_pantry(), [], []))
@@ -249,19 +240,14 @@ def test_turned_away_user_keeps_the_daily_quota(monkeypatch, tmp_path):
     assert plno.acquire(blocking=False)
     monkeypatch.setattr(server, "PLAN_MIESTA", plno)
 
-    assert plan_client(server, 1).post("/api/plan/generuj").status_code == 503
+    client = plan_client(server, 1, wait_for_worker=False)
+    first = client.post("/api/plan/generuj")
+    second = client.post("/api/plan/generuj")
 
+    assert first.status_code == second.status_code == 202
+    assert first.json()["job_id"] == second.json()["job_id"]
     with closing(server.db()) as con:
-        assert server.pouzite_prepocty(con, 1, server.dnesok()) == 0, (
-            "odmietnutie kvôli záťaži nie je pokus používateľa — strop sa "
-            "nesmie znížiť"
-        )
-
-    plno.release()
-    monkeypatch.setattr(server, "PLAN_MIESTA", threading.BoundedSemaphore(2))
-    assert plan_client(server, 1).post("/api/plan/generuj").status_code == 200, (
-        "prepočet musel ostať nedotknutý, takže hneď ďalší pokus prejde"
-    )
+        assert server.pouzite_prepocty(con, 1, server.dnesok()) == 1
 
 
 def test_plan_slot_is_released_after_a_successful_generation(monkeypatch, tmp_path):
@@ -280,7 +266,7 @@ def test_plan_slot_is_released_after_a_successful_generation(monkeypatch, tmp_pa
         )
 
 
-def test_plan_slot_is_released_when_generation_fails(monkeypatch, tmp_path):
+def test_cold_http_path_never_reaches_the_synchronous_compatibility_wrapper(monkeypatch, tmp_path):
     server = plan_server(monkeypatch, tmp_path)
     miesta = threading.BoundedSemaphore(1)
     monkeypatch.setattr(server, "PLAN_MIESTA", miesta)
@@ -292,7 +278,7 @@ def test_plan_slot_is_released_when_generation_fails(monkeypatch, tmp_path):
     client = TestClient(server.app, raise_server_exceptions=False)
     client.cookies.set(server.COOKIE, "session-1")
 
-    assert client.post("/api/plan/generuj").status_code == 500
+    assert client.post("/api/plan/generuj").status_code == 202
 
     assert miesta.acquire(blocking=False), (
         "aj neúspešné skladanie musí miesto vrátiť"

@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 import db_rezim
 import naklady
+import plan_jobs
 import predpocet
 from config import public_base_url, admin_emails, release_id
 from landing_data import load_landing_data, validate_landing_data
@@ -26,6 +27,7 @@ from public_pages import ROBOTS_TXT, render_evergreen_page, render_sitemap, rend
 from weekly_data import offers_for_current_week, stores_missing_this_week
 from offer_data import OfferKeyCollision, migrate_akcie_schema
 from plan_shortlist import select_offers
+from plan_jobs import JobRequest
 from plan_data import (
     PLAN_ALGO_VERSION,
     PORTION_STANDARD_VERSION,
@@ -157,6 +159,11 @@ MIN_OFFERS_FOR_PLAN = 15
 # však susedia s rovnakou domácnosťou nemali bajt na bajt to isté menu, podpis
 # sa delí na túto malú sadu variantov. PLAN_VARIANTS=1 = maximálne zdieľanie.
 PLAN_VARIANTS = 3
+PLAN_JOB_PRIORITY_LIVE = 100
+PLAN_JOB_RETRY_AFTER = 4
+SPRAVA_PLAN_PRIPRAVUJEME = "Plán pripravujeme. Pokojne pokračuj inde."
+SPRAVA_PLAN_ZLYHAL = "Plán sa nepodarilo pripraviť. Skús to znova."
+KOD_PLAN_ZLYHAL = "plan_failed"
 
 
 # ---------------------------------------------------------------- env / util
@@ -1102,6 +1109,118 @@ def sprava_o_chybajucich_akciach() -> str:
     return "Aktuálne letákové dáta sa obnovujú. Skús to o chvíľu."
 
 
+def pending_payload(job):
+    return {
+        "prazdny": True,
+        "status": "preparing",
+        "job_id": job.id,
+        "retry_after": PLAN_JOB_RETRY_AFTER,
+        "message": SPRAVA_PLAN_PRIPRAVUJEME,
+    }
+
+
+def failed_payload(status):
+    return {
+        "prazdny": True,
+        "status": "failed",
+        "job_id": status.id,
+        "code": status.error_code or KOD_PLAN_ZLYHAL,
+        "message": SPRAVA_PLAN_ZLYHAL,
+        "retry_allowed": True,
+    }
+
+
+def _job_status_response(status):
+    if status is None:
+        return None
+    if status.state in ("queued", "running"):
+        return JSONResponse(status_code=202, content=pending_payload(status))
+    if status.state == "failed":
+        return failed_payload(status)
+    if status.state == "ready":
+        missing = type(status)(status.id, status.job_key, "failed", "plan_result_missing")
+        return failed_payload(missing)
+    return None
+
+
+def _job_payload(obchody, frekvencia, adults, children, *, spajza=(), zo_spajze=False):
+    payload = {
+        "stores": list(obchody),
+        "frequency": frekvencia,
+        "adults": adults,
+        "children": children,
+        "algo_version": PLAN_ALGO_VERSION,
+    }
+    if zo_spajze:
+        payload["pantry_signature"] = podpis_spajze(spajza)
+    return payload
+
+
+def _enqueue_live_plan(u, tyz, obchody, podpis, variant, premium, *,
+                       spajza=(), zo_spajze=False, job_key=None):
+    adults, children = zlozenie_domacnosti(u)
+    den = dnesok()
+    strop = limit_prepoctov(premium)
+    kind = "pantry" if zo_spajze else "regular"
+    key = job_key or f"{kind}:{podpis}:{variant}"
+    request = JobRequest(
+        job_key=key,
+        signature=podpis,
+        variant=variant,
+        kind=kind,
+        user_id=u["id"],
+        week=tyz,
+        priority=PLAN_JOB_PRIORITY_LIVE,
+        payload=_job_payload(
+            obchody, u["frekvencia"], adults, children,
+            spajza=spajza, zo_spajze=zo_spajze,
+        ),
+        regeneration_limit=strop,
+        regeneration_day=den,
+    )
+    try:
+        with closing(db()) as con:
+            result = plan_jobs.enqueue(con, request, now=datetime.datetime.now())
+    except plan_jobs.RegenerationLimitReached:
+        return odmietni(
+            429, sprava_o_limite(strop, premium), KOD_LIMIT_PREPOCTOV,
+            premium=premium, limit_prepoctov=strop, zostava_prepoctov=0,
+            obnova=zajtrajsok(den),
+        )
+    except naklady.RozpocetVycerpany as refusal:
+        return odmietni(503, str(refusal), refusal.kod)
+    if result.created:
+        with closing(db()) as con:
+            con.execute("DELETE FROM prepocty WHERE den<>?", (den,))
+            con.commit()
+    return JSONResponse(status_code=202, content=pending_payload(result.job))
+
+
+def _force_job_key(con, user_id, podpis, variant, den):
+    used = pouzite_prepocty(con, user_id, den)
+    if used:
+        current = f"force:{user_id}:{podpis}:{variant}:{den}:{used}"
+        status = plan_jobs.status_for_key(con, current)
+        if status is not None and status.state in ("queued", "running"):
+            return current
+    return f"force:{user_id}:{podpis}:{variant}:{den}:{used + 1}"
+
+
+def _current_job_status(con, user_id, podpis, pantry_podpis, variant, den):
+    keys = [
+        f"regular:{podpis}:{variant}",
+        f"pantry:{user_id}:{pantry_podpis}:{variant}",
+    ]
+    used = pouzite_prepocty(con, user_id, den)
+    keys.extend(
+        f"force:{user_id}:{podpis}:{variant}:{den}:{sequence}"
+        for sequence in range(1, used + 1)
+    )
+    statuses = [plan_jobs.status_for_key(con, key) for key in keys]
+    return max((status for status in statuses if status is not None), key=lambda item: item.id,
+               default=None)
+
+
 @app.post("/api/plan/generuj")
 def generuj_plan(req: Request, force: int = 0):
     u = require_user(req)
@@ -1160,7 +1279,13 @@ def generuj_plan(req: Request, force: int = 0):
                 )
         con.commit()
 
-    return zaplat_a_poskladaj(u, tyz, obchody, rows, sp, podpis, variant, premium)
+    job_key = None
+    if force:
+        with closing(db()) as con:
+            job_key = _force_job_key(con, u["id"], podpis, variant, dnesok())
+    return _enqueue_live_plan(
+        u, tyz, obchody, podpis, variant, premium, spajza=sp, job_key=job_key
+    )
 
 
 def zaplat_a_poskladaj(u, tyz, obchody, rows, sp, podpis, variant, premium, zo_spajze=False):
@@ -1241,8 +1366,11 @@ def plan_zo_spajze(req: Request):
         adults=adults, children=children, zo_spajze=True,
     )
     variant = plan_variant_for(u["id"], PLAN_VARIANTS)
-    return zaplat_a_poskladaj(
-        u, tyz, obchody, rows, sp, podpis, variant, premium, zo_spajze=True)
+    return _enqueue_live_plan(
+        u, tyz, obchody, podpis, variant, premium,
+        spajza=sp, zo_spajze=True,
+        job_key=f"pantry:{u['id']}:{podpis}:{variant}",
+    )
 
 
 class StalePlanJob(ValueError):
@@ -1487,27 +1615,82 @@ def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant, zo_spajze=Fa
 @app.get("/api/plan")
 def daj_plan(req: Request):
     u = require_user(req)
+    tyz = monday()
+    obchody = u["obchody"].split(",")
+    adults, children = zlozenie_domacnosti(u)
     with closing(db()) as con:
         r = con.execute("SELECT json FROM plany WHERE user_id=? AND tyzden=?",
-                        (u["id"], monday())).fetchone()
-        if not r:
-            return {"prazdny": True}
-        try:
-            cached = json.loads(r["json"])
-        except json.JSONDecodeError:
-            cached = None
+                        (u["id"], tyz)).fetchone()
+        cached = None
+        if r:
+            try:
+                cached = json.loads(r["json"])
+            except json.JSONDecodeError:
+                pass
         rows = offers_for_current_week(con, u["obchody"].split(","), datetime.date.today())
         sp = spajza_pouzivatela(con, u["id"], je_premium(con, u["id"]))
-        if cached and osobna_cache_plati(cached, sp) and cached_plan_is_current(cached, rows):
+        podpis = podpis_planu(
+            tyz, obchody, u["frekvencia"], rows, sp,
+            adults=adults, children=children,
+        )
+        variant = plan_variant_for(u["id"], PLAN_VARIANTS)
+        pantry_podpis = podpis_planu(
+            tyz, obchody, u["frekvencia"], rows, sp,
+            adults=adults, children=children, zo_spajze=True,
+        )
+        status = _current_job_status(
+            con, u["id"], podpis, pantry_podpis, variant, dnesok()
+        )
+        if status is not None and status.state in ("queued", "running"):
+            return JSONResponse(status_code=202, content=pending_payload(status))
+
+        valid_cached = bool(
+            cached and osobna_cache_plati(cached, sp) and cached_plan_is_current(cached, rows)
+        )
+        if valid_cached and not (
+            status is not None
+            and status.state == "ready"
+            and not status.job_key.startswith("pantry:")
+        ):
             # Špajza sa dopočíta až tu, pri každom čítaní nanovo — preto sa
             # zmena v špajzi prejaví okamžite a bez plateného prepočtu.
             return so_spajzou(cached, sp)
-        obnova = obnova_neplatnej_osobnej_cache(cached, sp)
-        con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], monday()))
-        con.commit()
-        if not osobna_cache_plati(cached, sp):
-            return {"prazdny": True, "vyzaduje_akciu": True, **obnova}
-    raise HTTPException(503, "Aktuálny plán už obsahuje neplatnú ponuku. Skús to o chvíľu.")
+
+        invalidation = None
+        stale_current_cache = False
+        if r and not valid_cached:
+            invalidation = obnova_neplatnej_osobnej_cache(cached, sp)
+            stale_current_cache = bool(cached and osobna_cache_plati(cached, sp))
+            con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], tyz))
+            con.commit()
+
+        # A ready force/regular job published a new shared row in the same
+        # transaction as its ready state. Adopt it before returning an older
+        # personal cache; otherwise GET polling would stop on the old plan.
+        zdielany = nacitaj_zdielany_plan(con, podpis, variant)
+        if zdielany is not None:
+            if cached_plan_is_current(zdielany, rows):
+                predpocet.zapocitaj_zasah(con, podpis, variant, tyz)
+                plan = prevezmi_zdielany_plan(con, u["id"], tyz, zdielany, sp)
+                con.commit()
+                return plan
+            con.execute(
+                "DELETE FROM plany_zdielane WHERE podpis=? AND variant=?", (podpis, variant)
+            )
+            con.commit()
+
+        if valid_cached:
+            return so_spajzou(cached, sp)
+        response = _job_status_response(status)
+        if response is not None:
+            return response
+        if invalidation and not osobna_cache_plati(cached, sp):
+            return {"prazdny": True, "vyzaduje_akciu": True, **invalidation}
+        if stale_current_cache:
+            raise HTTPException(
+                503, "Aktuálny plán už obsahuje neplatnú ponuku. Skús to o chvíľu."
+            )
+        return {"prazdny": True}
 
 
 @app.get("/api/akcie/pocet")

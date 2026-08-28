@@ -40,6 +40,21 @@ def load_server(monkeypatch, tmp_path, rows, landing_data=None):
         [tuple(row) + (None,) * (12 - len(row)) for row in rows],
     )
     migrate_akcie_schema(con)
+    con.execute(
+        """CREATE TABLE zber_stav (
+            tyzden TEXT NOT NULL, obchod TEXT NOT NULL, stav TEXT NOT NULL,
+            pocet INTEGER NOT NULL DEFAULT 0, detail TEXT, updated TEXT,
+            PRIMARY KEY (tyzden, obchod)
+        )"""
+    )
+    stores = sorted({row[2] for row in rows})
+    con.executemany(
+        "INSERT INTO zber_stav (tyzden, obchod, stav, pocet) VALUES (?, ?, 'ok', ?)",
+        [
+            (current_monday(), store, sum(1 for row in rows if row[2] == store))
+            for store in stores
+        ],
+    )
     con.row_factory = sqlite3.Row
     for row in con.execute("SELECT rowid, * FROM akcie").fetchall():
         offer = dict(row)
@@ -80,6 +95,21 @@ def load_server_with_landing_path(monkeypatch, tmp_path, rows, landing_path):
         [tuple(row) + (None,) * (12 - len(row)) for row in rows],
     )
     migrate_akcie_schema(con)
+    con.execute(
+        """CREATE TABLE zber_stav (
+            tyzden TEXT NOT NULL, obchod TEXT NOT NULL, stav TEXT NOT NULL,
+            pocet INTEGER NOT NULL DEFAULT 0, detail TEXT, updated TEXT,
+            PRIMARY KEY (tyzden, obchod)
+        )"""
+    )
+    stores = sorted({row[2] for row in rows})
+    con.executemany(
+        "INSERT INTO zber_stav (tyzden, obchod, stav, pocet) VALUES (?, ?, 'ok', ?)",
+        [
+            (current_monday(), store, sum(1 for row in rows if row[2] == store))
+            for store in stores
+        ],
+    )
     con.row_factory = sqlite3.Row
     for row in con.execute("SELECT rowid, * FROM akcie").fetchall():
         offer = dict(row)
@@ -704,7 +734,7 @@ def test_the_served_plan_always_reports_the_readers_current_pantry(monkeypatch, 
     client = TestClient(server.app)
     client.cookies.set(server.COOKIE, "session-token")
 
-    generated = client.post("/api/plan/generuj?force=1")
+    generated = finish_plan_request(server, client, "/api/plan/generuj?force=1")
 
     assert generated.status_code == 200
     assert generated.json()["spajza"] == ["soľ"]
@@ -738,7 +768,7 @@ def test_plan_route_persists_only_reconstructed_server_commerce(monkeypatch, tmp
     client = TestClient(server.app)
     client.cookies.set(server.COOKIE, "session-token")
 
-    response = client.post("/api/plan/generuj?force=1")
+    response = finish_plan_request(server, client, "/api/plan/generuj?force=1")
 
     assert response.status_code == 200
     payload = response.json()
@@ -813,7 +843,7 @@ def test_plan_generation_passes_household_composition_to_signature_prompt_and_bu
     client = TestClient(server.app, raise_server_exceptions=False)
     client.cookies.set(server.COOKIE, "session-token")
 
-    response = client.post("/api/plan/generuj?force=1")
+    response = finish_plan_request(server, client, "/api/plan/generuj?force=1")
 
     assert response.status_code == 200
     assert captured == {
@@ -831,6 +861,7 @@ def test_invalid_model_plan_does_not_replace_existing_valid_cache(monkeypatch, t
         insert_hashed_session(server, con, "session-token", 1)
         con.execute("INSERT INTO spajza (user_id, nazov) VALUES (1, 'soľ')")
         current = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4, pantry=["soľ"])
+        current = server.osobny_plan_na_ulozenie(current)
         con.execute("INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)", (1, current_monday(), json.dumps(current)))
         con.commit()
     grant_premium(server, 1)
@@ -839,11 +870,16 @@ def test_invalid_model_plan_does_not_replace_existing_valid_cache(monkeypatch, t
     client = TestClient(server.app)
     client.cookies.set(server.COOKIE, "session-token")
 
-    response = client.post("/api/plan/generuj?force=1")
+    response = finish_plan_request(server, client, "/api/plan/generuj?force=1")
 
-    assert response.status_code == 500
+    assert response.status_code == 200
+    assert response.json()["jedla"], "the last valid plan stays readable after a failed force job"
     with server.db() as con:
         assert json.loads(con.execute("SELECT json FROM plany WHERE user_id=1").fetchone()[0]) == current
+        failed = con.execute(
+            "SELECT state, error_code FROM plan_jobs ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        assert tuple(failed) == ("failed", "invalid_model_output")
 
 
 def timing_out_anthropic(constructors):
@@ -871,9 +907,7 @@ def logged_in_plan_client(monkeypatch, tmp_path):
         con.execute("INSERT INTO spajza (user_id, nazov) VALUES (1, 'soľ')")
         con.commit()
     grant_premium(server, 1)
-    client = TestClient(server.app)
-    client.cookies.set(server.COOKIE, "session-token")
-    return server, client
+    return server, plan_client(server, 1, token="session-token")
 
 
 def test_model_call_worst_case_wait_is_bounded_and_predictable(monkeypatch, tmp_path):
@@ -900,11 +934,10 @@ def test_a_model_call_that_times_out_answers_in_slovak_instead_of_crashing(monke
 
     response = client.post("/api/plan/generuj?force=1")
 
-    assert response.status_code == 504
-    detail = response.json()["detail"]
-    assert detail == server.SPRAVA_PLAN_TRVA_PRIDLHO
-    assert "Skús to" in detail
-    assert "Traceback" not in detail
+    assert response.status_code == 200
+    assert response.json()["status"] == "failed"
+    assert response.json()["code"] == "provider_timeout"
+    assert response.json()["message"].endswith(".")
     with server.db() as con:
         assert con.execute("SELECT COUNT(*) FROM plany").fetchone()[0] == 0
 
@@ -934,9 +967,39 @@ def shared_plan_server(monkeypatch, tmp_path, users=SHARED_VARIANT_USERS, pantry
     return server
 
 
-def plan_client(server, user_id):
+def finish_plan_request(server, client, path, *args, **kwargs):
+    response = client.post(path, *args, **kwargs)
+    if response.status_code == 202 and path.split("?", 1)[0] in (
+        "/api/plan/generuj", "/api/plan/zo-spajze",
+    ):
+        from app.plan_worker import process_one
+
+        process_one()
+        return client.get("/api/plan")
+    return response
+
+
+def plan_client(server, user_id, *, wait_for_worker=True, token=None):
+    """Authenticated client for legacy plan assertions.
+
+    Existing server tests exercise the completed plan and injected model fake.
+    The production HTTP contract is still asynchronous: this test helper runs
+    one local worker iteration only after observing a real 202 response.
+    Async API contract tests opt out with ``wait_for_worker=False``.
+    """
     client = TestClient(server.app)
-    client.cookies.set(server.COOKIE, f"session-{user_id}")
+    client.cookies.set(server.COOKIE, token or f"session-{user_id}")
+    if wait_for_worker:
+        post = client.post
+
+        def post_and_finish(path, *args, **kwargs):
+            client.post = post
+            try:
+                return finish_plan_request(server, client, path, *args, **kwargs)
+            finally:
+                client.post = post_and_finish
+
+        client.post = post_and_finish
     return client
 
 
@@ -1146,8 +1209,10 @@ def test_output_cut_off_by_max_tokens_is_reported_in_slovak(monkeypatch, tmp_pat
 
     response = client.post("/api/plan/generuj?force=1")
 
-    assert response.status_code == 500
-    assert response.json()["detail"] == server.SPRAVA_PLAN_NEDOKONCENY
+    assert response.status_code == 200
+    assert response.json()["status"] == "failed"
+    assert response.json()["code"] == "invalid_model_output"
+    assert response.json()["message"].endswith(".")
     with server.db() as con:
         assert con.execute("SELECT COUNT(*) FROM plany").fetchone()[0] == 0
         assert con.execute("SELECT COUNT(*) FROM plany_zdielane").fetchone()[0] == 0
@@ -1183,8 +1248,9 @@ def test_typeerror_during_model_call_is_never_retried_and_double_charged(monkeyp
     ))
     monkeypatch.setattr(server, "PLAN_EFFORT", "low")
 
-    with pytest.raises(TypeError, match="chyba po odoslaní"):
-        client.post("/api/plan/generuj?force=1")
+    response = client.post("/api/plan/generuj?force=1")
+    assert response.json()["status"] == "failed"
+    assert response.json()["code"] == "generation_failed"
     assert len(calls) == 1
 
 
@@ -1275,7 +1341,7 @@ def test_live_plan_shortlists_the_prompt_but_validates_an_offer_outside_it(monke
     client = TestClient(server.app)
     client.cookies.set(server.COOKIE, "short-session")
 
-    response = client.post("/api/plan/generuj?force=1")
+    response = finish_plan_request(server, client, "/api/plan/generuj?force=1")
 
     assert response.status_code == 200
     prompt = prompt_text(message_calls[0])
@@ -1377,7 +1443,7 @@ def test_portion_standard_bump_requires_get_then_allows_explicit_post_regenerati
     with server.db() as con:
         assert con.execute("SELECT COUNT(*) FROM prepocty WHERE user_id=1").fetchone()[0] == 0
 
-    regenerated = client.post("/api/plan/generuj?force=1")
+    regenerated = finish_plan_request(server, client, "/api/plan/generuj?force=1")
 
     assert regenerated.status_code == 200
     assert len(constructors) == 1
@@ -1633,16 +1699,19 @@ def test_a_plan_taken_from_the_shared_cache_costs_no_regeneration(monkeypatch, t
     assert profil["zostava_prepoctov"] == profil["limit_prepoctov"] == server.LIMIT_PREPOCTOV_ZDARMA
 
 
-def test_a_generation_that_failed_does_not_burn_the_daily_budget(monkeypatch, tmp_path):
-    """Kto nedostal plán, nesmie prísť o svoj jediný denný pokus."""
+def test_a_generation_failure_is_terminal_and_not_silently_retried(monkeypatch, tmp_path):
+    """Neistý výsledok po odoslaní sa nesmie automaticky zaplatiť druhýkrát."""
     server = premium_user_server(monkeypatch, tmp_path)
     monkeypatch.setitem(sys.modules, "anthropic", timing_out_anthropic([]))
     client = plan_client(server, 1)
 
-    assert client.post("/api/plan/generuj?force=1").status_code == 504
+    failed = client.post("/api/plan/generuj?force=1")
+    assert failed.status_code == 200
+    assert failed.json()["status"] == "failed"
+    assert failed.json()["code"] == "provider_timeout"
 
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan_without_pantry(), []))
-    assert client.post("/api/plan/generuj?force=1").status_code == 200
+    assert client.post("/api/plan/generuj?force=1").status_code == 429
 
 
 def test_a_free_user_cannot_buy_extra_regenerations_by_shaping_the_request(monkeypatch, tmp_path):
@@ -1731,7 +1800,7 @@ def test_two_tabs_clicking_at_the_same_moment_never_buy_two_plans(monkeypatch, t
     for vlakno in vlakna:
         vlakno.join(timeout=30)
 
-    assert sorted(odpovede) == [200, 429]
+    assert sorted(odpovede) == [200, 202]
     assert len(calls) == 1, "súbežné kliknutia nesmú zaplatiť dva modely"
 
 
