@@ -164,6 +164,16 @@ PLAN_JOB_RETRY_AFTER = 4
 SPRAVA_PLAN_PRIPRAVUJEME = "Plán pripravujeme. Pokojne pokračuj inde."
 SPRAVA_PLAN_ZLYHAL = "Plán sa nepodarilo pripraviť. Skús to znova."
 KOD_PLAN_ZLYHAL = "plan_failed"
+PLAN_JOB_NON_RETRYABLE_CODES = {
+    "incomplete_stores",
+    "invalid_profile",
+    "plan_result_missing",
+    "stale_algorithm",
+    "stale_context",
+    "stale_pantry",
+    "stale_signature",
+    "stale_week",
+}
 
 
 # ---------------------------------------------------------------- env / util
@@ -1119,27 +1129,28 @@ def pending_payload(job):
     }
 
 
-def failed_payload(status):
+def failed_payload(status, retry_allowed):
     return {
         "prazdny": True,
         "status": "failed",
         "job_id": status.id,
         "code": status.error_code or KOD_PLAN_ZLYHAL,
         "message": SPRAVA_PLAN_ZLYHAL,
-        "retry_allowed": True,
+        "retry_allowed": retry_allowed,
     }
 
 
-def _job_status_response(status):
+def _job_status_response(status, retry_allowed):
     if status is None:
         return None
     if status.state in ("queued", "running"):
         return JSONResponse(status_code=202, content=pending_payload(status))
     if status.state == "failed":
-        return failed_payload(status)
+        return failed_payload(status, retry_allowed)
     if status.state == "ready":
-        missing = type(status)(status.id, status.job_key, "failed", "plan_result_missing")
-        return failed_payload(missing)
+        payload = failed_payload(status, False)
+        payload["code"] = "plan_result_missing"
+        return payload
     return None
 
 
@@ -1157,7 +1168,8 @@ def _job_payload(obchody, frekvencia, adults, children, *, spajza=(), zo_spajze=
 
 
 def _enqueue_live_plan(u, tyz, obchody, podpis, variant, premium, *,
-                       spajza=(), zo_spajze=False, job_key=None):
+                       spajza=(), zo_spajze=False, job_key=None,
+                       force_sequence=False):
     adults, children = zlozenie_domacnosti(u)
     den = dnesok()
     strop = limit_prepoctov(premium)
@@ -1177,10 +1189,13 @@ def _enqueue_live_plan(u, tyz, obchody, podpis, variant, premium, *,
         ),
         regeneration_limit=strop,
         regeneration_day=den,
+        force_sequence=force_sequence,
     )
     try:
         with closing(db()) as con:
-            result = plan_jobs.enqueue(con, request, now=datetime.datetime.now())
+            result = plan_jobs.enqueue(
+                con, request, now=datetime.datetime.now().astimezone()
+            )
     except plan_jobs.RegenerationLimitReached:
         return odmietni(
             429, sprava_o_limite(strop, premium), KOD_LIMIT_PREPOCTOV,
@@ -1196,29 +1211,64 @@ def _enqueue_live_plan(u, tyz, obchody, podpis, variant, premium, *,
     return JSONResponse(status_code=202, content=pending_payload(result.job))
 
 
-def _force_job_key(con, user_id, podpis, variant, den):
-    used = pouzite_prepocty(con, user_id, den)
-    if used:
-        current = f"force:{user_id}:{podpis}:{variant}:{den}:{used}"
-        status = plan_jobs.status_for_key(con, current)
-        if status is not None and status.state in ("queued", "running"):
-            return current
-    return f"force:{user_id}:{podpis}:{variant}:{den}:{used + 1}"
-
-
-def _current_job_status(con, user_id, podpis, pantry_podpis, variant, den):
-    keys = [
-        f"regular:{podpis}:{variant}",
-        f"pantry:{user_id}:{pantry_podpis}:{variant}",
+def _current_job_status(con, user_id, tyz, podpis, pantry_podpis, variant):
+    statuses = [
+        plan_jobs.latest_user_request(
+            con,
+            user_id=user_id,
+            signature=podpis,
+            variant=variant,
+            kind="regular",
+            week=tyz,
+        ),
+        plan_jobs.latest_user_request(
+            con,
+            user_id=user_id,
+            signature=pantry_podpis,
+            variant=variant,
+            kind="pantry",
+            week=tyz,
+        ),
     ]
-    used = pouzite_prepocty(con, user_id, den)
-    keys.extend(
-        f"force:{user_id}:{podpis}:{variant}:{den}:{sequence}"
-        for sequence in range(1, used + 1)
-    )
-    statuses = [plan_jobs.status_for_key(con, key) for key in keys]
     return max((status for status in statuses if status is not None), key=lambda item: item.id,
                default=None)
+
+
+def _job_is_at_least_as_new_as_cache(status, cached_created):
+    if status is None or not cached_created:
+        return status is not None
+    try:
+        job_created = datetime.datetime.fromisoformat(status.created)
+        if job_created.tzinfo is None:
+            job_created = job_created.astimezone()
+        cache_created = datetime.datetime.fromisoformat(cached_created)
+        if cache_created.tzinfo is None:
+            cache_created = cache_created.replace(tzinfo=datetime.timezone.utc)
+        return job_created.astimezone(datetime.timezone.utc) >= cache_created.astimezone(
+            datetime.timezone.utc
+        )
+    except (TypeError, ValueError):
+        return True
+
+
+def _retry_allowed(con, u, status, premium, sp):
+    if status is None or status.error_code in PLAN_JOB_NON_RETRYABLE_CODES:
+        return False
+    if status.kind == "pantry" and (not premium or not sp):
+        return False
+    if pouzite_prepocty(con, u["id"], dnesok()) >= limit_prepoctov(premium):
+        return False
+    try:
+        naklady.skontroluj(
+            con,
+            "plan",
+            odhad_eur=status.reserved_eur,
+            teraz=datetime.datetime.now().astimezone(),
+            rezervovane_eur=plan_jobs.active_reservations_eur(con),
+        )
+    except naklady.RozpocetVycerpany:
+        return False
+    return True
 
 
 @app.post("/api/plan/generuj")
@@ -1279,12 +1329,9 @@ def generuj_plan(req: Request, force: int = 0):
                 )
         con.commit()
 
-    job_key = None
-    if force:
-        with closing(db()) as con:
-            job_key = _force_job_key(con, u["id"], podpis, variant, dnesok())
     return _enqueue_live_plan(
-        u, tyz, obchody, podpis, variant, premium, spajza=sp, job_key=job_key
+        u, tyz, obchody, podpis, variant, premium, spajza=sp,
+        force_sequence=bool(force),
     )
 
 
@@ -1619,7 +1666,7 @@ def daj_plan(req: Request):
     obchody = u["obchody"].split(",")
     adults, children = zlozenie_domacnosti(u)
     with closing(db()) as con:
-        r = con.execute("SELECT json FROM plany WHERE user_id=? AND tyzden=?",
+        r = con.execute("SELECT json, vytvoreny FROM plany WHERE user_id=? AND tyzden=?",
                         (u["id"], tyz)).fetchone()
         cached = None
         if r:
@@ -1628,7 +1675,8 @@ def daj_plan(req: Request):
             except json.JSONDecodeError:
                 pass
         rows = offers_for_current_week(con, u["obchody"].split(","), datetime.date.today())
-        sp = spajza_pouzivatela(con, u["id"], je_premium(con, u["id"]))
+        premium = je_premium(con, u["id"])
+        sp = spajza_pouzivatela(con, u["id"], premium)
         podpis = podpis_planu(
             tyz, obchody, u["frekvencia"], rows, sp,
             adults=adults, children=children,
@@ -1639,7 +1687,7 @@ def daj_plan(req: Request):
             adults=adults, children=children, zo_spajze=True,
         )
         status = _current_job_status(
-            con, u["id"], podpis, pantry_podpis, variant, dnesok()
+            con, u["id"], tyz, podpis, pantry_podpis, variant
         )
         if status is not None and status.state in ("queued", "running"):
             return JSONResponse(status_code=202, content=pending_payload(status))
@@ -1647,10 +1695,17 @@ def daj_plan(req: Request):
         valid_cached = bool(
             cached and osobna_cache_plati(cached, sp) and cached_plan_is_current(cached, rows)
         )
+        retry_allowed = _retry_allowed(con, u, status, premium, sp)
+        if (
+            status is not None
+            and status.state == "failed"
+            and _job_is_at_least_as_new_as_cache(status, r["vytvoreny"] if r else None)
+        ):
+            return failed_payload(status, retry_allowed)
         if valid_cached and not (
             status is not None
             and status.state == "ready"
-            and not status.job_key.startswith("pantry:")
+            and status.kind != "pantry"
         ):
             # Špajza sa dopočíta až tu, pri každom čítaní nanovo — preto sa
             # zmena v špajzi prejaví okamžite a bez plateného prepočtu.
@@ -1681,7 +1736,7 @@ def daj_plan(req: Request):
 
         if valid_cached:
             return so_spajzou(cached, sp)
-        response = _job_status_response(status)
+        response = _job_status_response(status, retry_allowed)
         if response is not None:
             return response
         if invalidation and not osobna_cache_plati(cached, sp):

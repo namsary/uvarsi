@@ -79,6 +79,27 @@ def publish_shared_plan(server, job_id):
         con.commit()
 
 
+def cache_current_regular_plan(server, user_id=1):
+    with server.db() as con:
+        cached = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4)
+        cached = server.osobny_plan_na_ulozenie(cached)
+        con.execute(
+            "INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)",
+            (user_id, server.monday(), json.dumps(cached, ensure_ascii=False)),
+        )
+        con.commit()
+
+
+def fail_job(server, job_id, code):
+    with server.db() as con:
+        con.execute(
+            "UPDATE plan_jobs SET state='failed', error_code=?, finished_at=CURRENT_TIMESTAMP "
+            "WHERE id=?",
+            (code, job_id),
+        )
+        con.commit()
+
+
 def test_cold_post_returns_202_without_calling_model(monkeypatch, tmp_path):
     server = shared_plan_server(monkeypatch, tmp_path, users=(1,), premium=False)
     model_calls = forbid_model_construction(monkeypatch)
@@ -194,7 +215,7 @@ def test_get_reports_terminal_failure_with_stable_code(monkeypatch, tmp_path):
         "job_id": submitted["job_id"],
         "code": "provider_timeout",
         "message": "Plán sa nepodarilo pripraviť. Skús to znova.",
-        "retry_allowed": True,
+        "retry_allowed": False,
     }
 
 
@@ -254,19 +275,152 @@ def test_force_after_terminal_completion_creates_the_next_sequence(monkeypatch, 
 def test_active_force_job_takes_precedence_over_the_previous_cached_plan(monkeypatch, tmp_path):
     server = shared_plan_server(monkeypatch, tmp_path, users=(1,), premium=True)
     forbid_model_construction(monkeypatch)
-    with server.db() as con:
-        cached = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4)
-        cached = server.osobny_plan_na_ulozenie(cached)
-        con.execute(
-            "INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)",
-            (1, server.monday(), json.dumps(cached, ensure_ascii=False)),
-        )
-        con.commit()
+    cache_current_regular_plan(server)
 
     submitted = assert_pending(plan_client(server, 1).post("/api/plan/generuj?force=1"))
     polled = assert_pending(plan_client(server, 1).get("/api/plan"))
 
     assert polled["job_id"] == submitted["job_id"]
+
+
+def test_force_double_click_joins_after_pantry_reserves_an_interleaved_regeneration(
+        monkeypatch, tmp_path):
+    server = shared_plan_server(
+        monkeypatch, tmp_path, users=(1,), pantry={1: ["soľ"]}, premium=True
+    )
+    forbid_model_construction(monkeypatch)
+    client = plan_client(server, 1)
+
+    first_force = assert_pending(client.post("/api/plan/generuj?force=1"))
+    pantry = assert_pending(client.post("/api/plan/zo-spajze"))
+    repeated_force = assert_pending(client.post("/api/plan/generuj?force=1"))
+
+    assert repeated_force["job_id"] == first_force["job_id"]
+    assert pantry["job_id"] != first_force["job_id"]
+    with server.db() as con:
+        assert con.execute("SELECT COUNT(*) FROM plan_jobs").fetchone()[0] == 2
+        assert con.execute("SELECT pocet FROM prepocty WHERE user_id=1").fetchone()[0] == 2
+
+
+def test_active_force_remains_visible_and_joinable_after_regeneration_day_changes(
+        monkeypatch, tmp_path):
+    server = shared_plan_server(monkeypatch, tmp_path, users=(1,), premium=True)
+    forbid_model_construction(monkeypatch)
+    day = {"value": "2026-08-27"}
+    monkeypatch.setattr(server, "dnesok", lambda _today=None: day["value"])
+    client = plan_client(server, 1)
+
+    submitted = assert_pending(client.post("/api/plan/generuj?force=1"))
+    day["value"] = "2026-08-28"
+
+    polled = assert_pending(client.get("/api/plan"))
+    repeated = assert_pending(client.post("/api/plan/generuj?force=1"))
+
+    assert polled["job_id"] == repeated["job_id"] == submitted["job_id"]
+    with server.db() as con:
+        assert con.execute("SELECT COUNT(*) FROM plan_jobs").fetchone()[0] == 1
+
+
+def test_failed_force_request_supersedes_old_valid_cache_without_deleting_it(
+        monkeypatch, tmp_path):
+    server = shared_plan_server(monkeypatch, tmp_path, users=(1,), premium=True)
+    cache_current_regular_plan(server)
+    submitted = assert_pending(plan_client(server, 1).post("/api/plan/generuj?force=1"))
+    fail_job(server, submitted["job_id"], "provider_timeout")
+
+    response = plan_client(server, 1).get("/api/plan")
+
+    assert response.json()["status"] == "failed"
+    assert response.json()["job_id"] == submitted["job_id"]
+    with server.db() as con:
+        assert con.execute("SELECT COUNT(*) FROM plany WHERE user_id=1").fetchone()[0] == 1
+
+
+def test_failed_pantry_request_never_falls_back_to_old_regular_cache(monkeypatch, tmp_path):
+    server = shared_plan_server(
+        monkeypatch, tmp_path, users=(1,), pantry={1: ["soľ"]}, premium=True
+    )
+    cache_current_regular_plan(server)
+    submitted = assert_pending(plan_client(server, 1).post("/api/plan/zo-spajze"))
+    fail_job(server, submitted["job_id"], "invalid_model_output")
+
+    response = plan_client(server, 1).get("/api/plan")
+
+    assert response.json()["status"] == "failed"
+    assert response.json()["job_id"] == submitted["job_id"]
+
+
+def test_ready_cache_newer_than_failed_request_takes_precedence(monkeypatch, tmp_path):
+    server = shared_plan_server(monkeypatch, tmp_path, users=(1,), premium=True)
+    cache_current_regular_plan(server)
+    submitted = assert_pending(plan_client(server, 1).post("/api/plan/generuj?force=1"))
+    fail_job(server, submitted["job_id"], "provider_timeout")
+    with server.db() as con:
+        con.execute(
+            "UPDATE plan_jobs SET created='2026-08-28T14:00:00+02:00' WHERE id=?",
+            (submitted["job_id"],),
+        )
+        con.execute(
+            "UPDATE plany SET vytvoreny='2026-08-28 12:01:00' WHERE user_id=1"
+        )
+        con.commit()
+
+    response = plan_client(server, 1).get("/api/plan")
+
+    assert response.json()["jedla"]
+    assert "status" not in response.json()
+
+
+def test_failed_explicit_job_never_leaks_to_another_user(monkeypatch, tmp_path):
+    server = shared_plan_server(
+        monkeypatch, tmp_path, users=(1, 2), pantry={1: ["soľ"], 2: ["soľ"]}, premium=True
+    )
+    submitted = assert_pending(plan_client(server, 1).post("/api/plan/zo-spajze"))
+    fail_job(server, submitted["job_id"], "provider_timeout")
+
+    other = plan_client(server, 2).get("/api/plan")
+
+    assert other.json() == {"prazdny": True}
+
+
+def test_retry_allowed_reflects_remaining_daily_regeneration(monkeypatch, tmp_path):
+    server = shared_plan_server(monkeypatch, tmp_path, users=(1,), premium=True)
+    submitted = assert_pending(plan_client(server, 1).post("/api/plan/generuj?force=1"))
+    fail_job(server, submitted["job_id"], "provider_timeout")
+
+    available = plan_client(server, 1).get("/api/plan")
+    assert available.json()["retry_allowed"] is True
+
+    with server.db() as con:
+        con.execute(
+            "UPDATE prepocty SET pocet=? WHERE user_id=1 AND den=?",
+            (server.LIMIT_PREPOCTOV_PREMIUM, server.dnesok()),
+        )
+        con.commit()
+    exhausted = plan_client(server, 1).get("/api/plan")
+    assert exhausted.json()["retry_allowed"] is False
+
+
+def test_non_retryable_terminal_code_never_promises_retry(monkeypatch, tmp_path):
+    server = shared_plan_server(monkeypatch, tmp_path, users=(1,), premium=True)
+    submitted = assert_pending(plan_client(server, 1).post("/api/plan/generuj?force=1"))
+    fail_job(server, submitted["job_id"], "invalid_profile")
+
+    response = plan_client(server, 1).get("/api/plan")
+
+    assert response.json()["retry_allowed"] is False
+
+
+def test_retry_is_not_promised_when_current_budget_policy_would_reject_it(
+        monkeypatch, tmp_path):
+    server = shared_plan_server(monkeypatch, tmp_path, users=(1,), premium=True)
+    submitted = assert_pending(plan_client(server, 1).post("/api/plan/generuj?force=1"))
+    fail_job(server, submitted["job_id"], "provider_timeout")
+    monkeypatch.setenv("UVARSI_MESACNY_STROP_EUR", "0.10")
+
+    response = plan_client(server, 1).get("/api/plan")
+
+    assert response.json()["retry_allowed"] is False
 
 
 def test_twenty_concurrent_identical_requests_create_one_job(monkeypatch, tmp_path):

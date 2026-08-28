@@ -6,7 +6,7 @@ does not start a worker or make model/HTTP calls.
 import datetime
 import json
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal
 
 try:  # `server.py` runs as a script; tests also import the package form.
@@ -72,6 +72,7 @@ class JobRequest:
     reserved_eur: float = 0.12
     regeneration_limit: int | None = None
     regeneration_day: str | None = None
+    force_sequence: bool = False
 
     def __post_init__(self):
         if self.kind not in ("regular", "pantry", "precompute"):
@@ -126,7 +127,16 @@ class EnqueueResult:
 class JobStatus:
     id: int
     job_key: str
+    signature: str
+    variant: int
+    kind: JobKind
+    user_id: int | None
+    week: str
     state: JobState
+    reserved_eur: float
+    regeneration_limit: int | None
+    regeneration_day: str | None
+    created: str
     error_code: str | None
 
 
@@ -184,12 +194,56 @@ def _job(row: sqlite3.Row) -> Job:
     )
 
 
-def _active_reservations(con) -> float:
+def active_reservations_eur(con) -> float:
     row = con.execute(
         "SELECT COALESCE(SUM(reserved_eur), 0) FROM plan_jobs "
         "WHERE state IN ('queued', 'running')"
     ).fetchone()
     return float(row[0] or 0.0)
+
+
+def _status(row: sqlite3.Row) -> JobStatus:
+    return JobStatus(
+        id=int(row["id"]),
+        job_key=row["job_key"],
+        signature=row["signature"],
+        variant=int(row["variant"]),
+        kind=row["kind"],
+        user_id=row["user_id"],
+        week=row["week"],
+        state=row["state"],
+        reserved_eur=float(row["reserved_eur"]),
+        regeneration_limit=row["regeneration_limit"],
+        regeneration_day=row["regeneration_day"],
+        created=row["created"],
+        error_code=row["error_code"],
+    )
+
+
+def latest_user_request(
+    con,
+    *,
+    user_id: int,
+    signature: str,
+    variant: int,
+    kind: JobKind,
+    week: str,
+    states: tuple[JobState, ...] | None = None,
+) -> JobStatus | None:
+    """Return one user's latest matching request using durable typed columns."""
+    values = [user_id, signature, variant, kind, week]
+    state_clause = ""
+    if states:
+        state_clause = f" AND state IN ({','.join('?' for _ in states)})"
+        values.extend(states)
+    row = con.execute(
+        """SELECT * FROM plan_jobs
+           WHERE user_id=? AND signature=? AND variant=? AND kind=? AND week=?"""
+        + state_clause
+        + " ORDER BY created DESC, id DESC LIMIT 1",
+        values,
+    ).fetchone()
+    return _status(row) if row is not None else None
 
 
 def _reserve_user_regeneration(con, request: JobRequest) -> None:
@@ -214,6 +268,34 @@ def enqueue(con, request: JobRequest, *, now: datetime.datetime) -> EnqueueResul
     _require_clean_connection(con)
     con.execute("BEGIN IMMEDIATE")
     try:
+        if request.force_sequence:
+            active_request = latest_user_request(
+                con,
+                user_id=request.user_id,
+                signature=request.signature,
+                variant=request.variant,
+                kind=request.kind,
+                week=request.week,
+                states=("queued", "running"),
+            )
+            if active_request is not None:
+                active = con.execute(
+                    "SELECT * FROM plan_jobs WHERE id=?", (active_request.id,)
+                ).fetchone()
+                con.commit()
+                return EnqueueResult(job=_job(active), created=False)
+            row = con.execute(
+                "SELECT pocet FROM prepocty WHERE user_id=? AND den=?",
+                (request.user_id, request.regeneration_day),
+            ).fetchone()
+            next_sequence = (int(row[0]) if row else 0) + 1
+            request = replace(
+                request,
+                job_key=(
+                    f"force:{request.user_id}:{request.signature}:{request.variant}:"
+                    f"{request.regeneration_day}:{next_sequence}"
+                ),
+            )
         active = con.execute(
             "SELECT * FROM plan_jobs WHERE job_key=? AND state IN ('queued', 'running')",
             (request.job_key,),
@@ -222,7 +304,7 @@ def enqueue(con, request: JobRequest, *, now: datetime.datetime) -> EnqueueResul
             con.commit()
             return EnqueueResult(job=_job(active), created=False)
 
-        outstanding = _active_reservations(con)
+        outstanding = active_reservations_eur(con)
         purpose = "predpocet" if request.kind == "precompute" else "plan"
         naklady.skontroluj(
             con,
@@ -401,12 +483,10 @@ def mark_failed(
 
 def status_for_key(con, job_key: str) -> JobStatus | None:
     row = con.execute(
-        """SELECT id, job_key, state, error_code FROM plan_jobs WHERE job_key=?
+        """SELECT * FROM plan_jobs WHERE job_key=?
            ORDER BY created DESC, id DESC LIMIT 1""",
         (job_key,),
     ).fetchone()
     if row is None:
         return None
-    return JobStatus(
-        id=int(row["id"]), job_key=row["job_key"], state=row["state"], error_code=row["error_code"]
-    )
+    return _status(row)
