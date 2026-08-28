@@ -345,13 +345,16 @@ def mark_dispatched(con, job_id: int, *, worker_id: str, now: datetime.datetime)
 
 def mark_ready(con, job_id: int, *, worker_id: str, now: datetime.datetime) -> bool:
     stamp = _stamp(now)
-    with con:
-        cursor = con.execute(
-            """UPDATE plan_jobs SET state='ready', finished_at=?, updated_at=?, error_code=NULL,
-                   lease_owner=NULL, lease_expires_at=NULL
-               WHERE id=? AND state='running' AND lease_owner=? AND lease_expires_at > ?""",
-            (stamp, stamp, job_id, worker_id, stamp),
-        )
+    statement = """UPDATE plan_jobs
+                   SET state='ready', finished_at=?, updated_at=?, error_code=NULL,
+                       lease_owner=NULL, lease_expires_at=NULL
+                   WHERE id=? AND state='running' AND lease_owner=? AND lease_expires_at > ?"""
+    values = (stamp, stamp, job_id, worker_id, stamp)
+    if con.in_transaction:
+        cursor = con.execute(statement, values)
+    else:
+        with con:
+            cursor = con.execute(statement, values)
     return cursor.rowcount == 1
 
 

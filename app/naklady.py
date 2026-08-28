@@ -699,6 +699,8 @@ def s_rozpoctom(con, ucel, model, volanie, *, odhad_eur=None, detail=None,
     try:
         odpoved = volanie()
     except BaseException as chyba:
+        if getattr(chyba, "_uvarsi_request_not_dispatched", False):
+            raise
         if je_nedostatok_kreditu(chyba):
             # Jediná výnimka z pravidla „spadnuté volanie sa účtuje": API tu
             # request odmietlo EŠTE PRED akoukoľvek prácou, takže spotreba je

@@ -23,7 +23,7 @@ import predpocet
 from config import public_base_url, admin_emails, release_id
 from landing_data import load_landing_data, validate_landing_data
 from public_pages import ROBOTS_TXT, render_evergreen_page, render_sitemap, render_weekly_page
-from weekly_data import offers_for_current_week
+from weekly_data import offers_for_current_week, stores_missing_this_week
 from offer_data import OfferKeyCollision, migrate_akcie_schema
 from plan_shortlist import select_offers
 from plan_data import (
@@ -1245,95 +1245,191 @@ def plan_zo_spajze(req: Request):
         u, tyz, obchody, rows, sp, podpis, variant, premium, zo_spajze=True)
 
 
-def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant, zo_spajze=False):
-    """Jediné platené volanie v celej appke — volá sa až po rezervácii miesta."""
-    adults, children = zlozenie_domacnosti(u)
-    # Rozpočet sa overuje EŠTE PRED vyrobením klienta. Keď je vyčerpaný, appka
-    # to povie rovno a pravdivo — nikdy nepodstrčí starý či vymyslený plán.
-    with closing(db()) as ucty:
+class StalePlanJob(ValueError):
+    """A queued job no longer describes inputs that are safe to dispatch."""
+
+    def __init__(self, code):
+        super().__init__(code)
+        self.code = code
+
+
+class WorkerLeaseLostAfterDispatch(RuntimeError):
+    pass
+
+
+def _new_plan_model_client():
+    import anthropic
+
+    return anthropic.Anthropic(
+        api_key=env("ANTHROPIC_API_KEY"),
+        timeout=PLAN_TIMEOUT_SECONDS,
+        max_retries=PLAN_MAX_RETRIES,
+    )
+
+
+def _job_context(job, client):
+    payload = job.payload
+    stores = payload.get("stores")
+    if not isinstance(stores, list) or not stores:
+        raise StalePlanJob("invalid_profile")
+    frequency = payload.get("frequency")
+    adults = payload.get("adults")
+    children = payload.get("children")
+    if (any(isinstance(value, bool) or not isinstance(value, int)
+            for value in (frequency, adults, children))
+            or frequency not in (1, 2, 3)
+            or adults < 0 or children < 0 or not 1 <= adults + children <= 12):
+        raise StalePlanJob("invalid_profile")
+
+    if payload.get("_compat_rows") is not None:
+        return stores, frequency, adults, children, payload["_compat_rows"], payload.get("_pantry", [])
+
+    now = getattr(client, "job_now", None)
+    today = (now.date() if isinstance(now, datetime.datetime) else datetime.date.today())
+    if job.week != monday(today):
+        raise StalePlanJob("stale_week")
+    if payload.get("algo_version") != PLAN_ALGO_VERSION:
+        raise StalePlanJob("stale_algorithm")
+
+    with closing(db()) as con:
+        if stores_missing_this_week(con, stores, today):
+            raise StalePlanJob("incomplete_stores")
+        rows = offers_for_current_week(con, stores, today)
+        represented = {row["obchod"] for row in rows}
+        if len(rows) < MIN_OFFERS_FOR_PLAN or any(store not in represented for store in stores):
+            raise StalePlanJob("incomplete_stores")
+        pantry = []
+        if job.user_id is not None:
+            pantry = spajza_pouzivatela(con, job.user_id, je_premium(con, job.user_id))
+
+    pantry_driven = job.kind == "pantry"
+    if pantry_driven and payload.get("pantry_signature") != podpis_spajze(pantry):
+        raise StalePlanJob("stale_pantry")
+    current_signature = podpis_planu(
+        job.week, stores, frequency, rows, pantry,
+        adults=adults, children=children, zo_spajze=pantry_driven,
+    )
+    if current_signature != job.signature:
+        raise StalePlanJob("stale_signature")
+    return stores, frequency, adults, children, rows, pantry
+
+
+def build_and_store_job(job, *, client=None) -> dict:
+    """Build one queued or compatibility plan with exactly one model request."""
+    stores, frequency, adults, children, rows, pantry = _job_context(job, client)
+    pantry_driven = job.kind == "pantry"
+    purpose = "predpocet" if job.kind == "precompute" else "plan"
+    prompt_rows = select_offers(rows, stores, limit=120)
+    blocks = personal_plan_messages(
+        rows, frequency, pantry if pantry_driven else (), household_size=None,
+        variant=job.variant, pantry_driven=pantry_driven,
+        prompt_rows=prompt_rows, adults=adults, children=children,
+    )
+    settings = {"output_config": {"effort": PLAN_EFFORT}} if PLAN_EFFORT else {}
+
+    with closing(db()) as accounts:
         try:
-            naklady.skontroluj(ucty, "plan")
-        except naklady.RozpocetVycerpany as odmietnutie:
-            raise HTTPException(503, str(odmietnutie))
-
-        import anthropic
-        client = naklady.strazeny_klient(
-            ucty,
-            anthropic.Anthropic(
-                api_key=env("ANTHROPIC_API_KEY"),
-                timeout=PLAN_TIMEOUT_SECONDS,
-                max_retries=PLAN_MAX_RETRIES,
-            ),
-            "plan",
-        )
-        # Blok ponúk je pre celý týždeň rovnaký a tvorí ~92 % promptu, tak ide
-        # dopredu a s cache_control — inak sa ako predpona cachovať nedá.
-        # `pantry_driven` rozhoduje, či sa špajza vôbec dostane do promptu.
-        # Pri bežnom pláne nie — je zdieľaný, takže by tam bola aj únikom.
-        prompt_rows = select_offers(rows, obchody, limit=120)
-        blocks = personal_plan_messages(
-            rows, u["frekvencia"], sp if zo_spajze else (), household_size=None,
-            variant=variant, pantry_driven=zo_spajze,
-            prompt_rows=prompt_rows,
-            adults=adults, children=children,
-        )
-        plan_timeout = getattr(anthropic, "APITimeoutError", None)
-        nastavenie = {"output_config": {"effort": PLAN_EFFORT}} if PLAN_EFFORT else {}
-
-        def poskladaj(**navyse):
-            return client.messages.create(model=MODEL_PLAN, max_tokens=PLAN_TOKENS,
-                                          messages=[{"role": "user", "content": blocks}], **navyse)
-
+            naklady.skontroluj(accounts, purpose)
+        except naklady.RozpocetVycerpany as refusal:
+            raise HTTPException(503, str(refusal))
+        raw_client = client or _new_plan_model_client()
+        prepare = getattr(raw_client, "prepare", None)
+        if prepare is not None:
+            prepare(_new_plan_model_client)
+        guarded = naklady.strazeny_klient(accounts, raw_client, purpose)
         try:
-            # Žiadny fallback druhým volaním: TypeError môže vzniknúť aj po
-            # odoslaní požiadavky. Opakovanie bez output_config by potom mohlo
-            # tú istú prácu zaplatiť dvakrát.
-            msg = poskladaj(**nastavenie)
-        except naklady.KreditVycerpany as odmietnutie:
-            # Došiel kredit na API. Nie je to náš výpadok ani chyba používateľa,
-            # tak sa to povie rovno a po slovensky: 503 s pravdivým dôvodom.
-            # Nikdy nie 500 („server má krátkodobý problém") — to by človeka
-            # posielalo skúšať znova do niečoho, čo samo od seba neprejde, a
-            # nikdy nie starý či vymyslený jedálniček.
+            msg = guarded.messages.create(
+                model=MODEL_PLAN,
+                max_tokens=PLAN_TOKENS,
+                messages=[{"role": "user", "content": blocks}],
+                **settings,
+            )
+        except naklady.KreditVycerpany as refusal:
             LOG.warning("plán sa neposkladal: %s", naklady.KOD_KREDIT)
-            raise HTTPException(503, str(odmietnutie))
-        except naklady.RozpocetVycerpany as odmietnutie:
-            raise HTTPException(503, str(odmietnutie))
+            raise HTTPException(503, str(refusal))
+        except naklady.RozpocetVycerpany as refusal:
+            raise HTTPException(503, str(refusal))
         except Exception as error:
+            try:
+                import anthropic
+                plan_timeout = getattr(anthropic, "APITimeoutError", None)
+            except ImportError:
+                plan_timeout = None
             if plan_timeout is not None and isinstance(error, plan_timeout):
                 raise HTTPException(504, SPRAVA_PLAN_TRVA_PRIDLHO)
             raise
+
     LOG.info("plán poskladaný, tokeny: %s", pouzitie_modelu(getattr(msg, "usage", None)))
-    # Orezanú odpoveď nemá zmysel skladať: JSON by nedával zmysel a používateľ
-    # by dostal iba nezrozumiteľnú chybu z parsovania.
     if getattr(msg, "stop_reason", None) == "max_tokens":
         raise HTTPException(500, SPRAVA_PLAN_NEDOKONCENY)
-    txt = "".join(b.text for b in msg.content
-                  if getattr(b, "type", None) == "text").strip()
-    txt = re.sub(r"^```(?:json)?|```$", "", txt, flags=re.M).strip()
+    text = "".join(
+        block.text for block in msg.content if getattr(block, "type", None) == "text"
+    ).strip()
+    text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.M).strip()
     try:
-        model_output = json.loads(txt)
+        model_output = json.loads(text)
     except json.JSONDecodeError:
         raise HTTPException(500, "Plán sa nepodarilo poskladať, skús to znova.")
 
+    complete_job = getattr(client, "complete_job", None)
     with closing(db()) as con:
+        if complete_job is not None:
+            con.execute("BEGIN IMMEDIATE")
         try:
-            plan = build_personal_plan(
-                con, model_output, obchody, u["frekvencia"], None,
-                pantry=sp if zo_spajze else (),
-                adults=adults, children=children,
-            )
-        except ValueError:
-            raise HTTPException(500, "Plán sa nepodarilo bezpečne overiť, skús to znova.")
-        plan = osobny_plan_na_ulozenie(plan, sp, zo_spajze)
-        con.execute("INSERT OR REPLACE INTO plany (user_id,tyzden,json) VALUES (?,?,?)",
-                    (u["id"], tyz, json.dumps(plan, ensure_ascii=False)))
-        # Plán poskladaný z osobnej špajze sa nesmie zdieľať s nikým: nesie
-        # v sebe, čo má konkrétny človek doma. Preto sa ukladá len do `plany`.
-        if not zo_spajze:
-            uloz_zdielany_plan(con, podpis, variant, tyz, plan)
-        con.commit()
-    return so_spajzou(plan, sp)
+            try:
+                plan = build_personal_plan(
+                    con, model_output, stores, frequency, None,
+                    pantry=pantry if pantry_driven else (),
+                    adults=adults, children=children,
+                )
+            except ValueError:
+                raise HTTPException(500, "Plán sa nepodarilo bezpečne overiť, skús to znova.")
+            plan = osobny_plan_na_ulozenie(plan, pantry, pantry_driven)
+            compatibility_call = job.payload.get("_compat_rows") is not None
+            if job.user_id is not None and (pantry_driven or compatibility_call):
+                con.execute(
+                    "INSERT OR REPLACE INTO plany (user_id,tyzden,json) VALUES (?,?,?)",
+                    (job.user_id, job.week, json.dumps(plan, ensure_ascii=False)),
+                )
+            if not pantry_driven:
+                uloz_zdielany_plan(
+                    con, job.signature, job.variant, job.week, plan,
+                    predpocitany=job.kind == "precompute",
+                )
+            if complete_job is not None and not complete_job(con):
+                raise WorkerLeaseLostAfterDispatch()
+            con.commit()
+        except BaseException:
+            if con.in_transaction:
+                con.rollback()
+            raise
+    return so_spajzou(plan, pantry)
+
+
+def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant, zo_spajze=False):
+    """Temporary synchronous compatibility wrapper until the API enqueues jobs."""
+    from types import SimpleNamespace
+
+    adults, children = zlozenie_domacnosti(u)
+    job = SimpleNamespace(
+        id=None,
+        signature=podpis,
+        variant=variant,
+        kind="pantry" if zo_spajze else "regular",
+        user_id=u["id"],
+        week=tyz,
+        lease_owner=None,
+        payload={
+            "stores": obchody,
+            "frequency": u["frekvencia"],
+            "adults": adults,
+            "children": children,
+            "algo_version": PLAN_ALGO_VERSION,
+            "_compat_rows": rows,
+            "_pantry": sp,
+        },
+    )
+    return build_and_store_job(job)
 
 
 @app.get("/api/plan")
