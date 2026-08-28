@@ -344,6 +344,10 @@ def _package_amount(jednotka):
     """Veľkosť balenia z overenej jednotky, napr. „500 g" alebo „4×125 g"."""
     if not isinstance(jednotka, str):
         return None
+    bare = jednotka.strip().casefold()
+    if bare in UNITS:
+        base, factor = UNITS[bare]
+        return base, factor
     match = _PACKAGE.search(jednotka)
     if match is None:
         return None
@@ -780,8 +784,10 @@ PLAN_VARIANT_HINTS = (
 #     serverový porciový štandard; kalendár 7/4/3 ostáva ukončený v nedeľu.
 # 6 = pri bežnom pláne špajzu neurčuje model; pri pláne zo špajze ostáva prísna.
 # 7 = porciovú triedu, jednotku a dávku určuje výhradne server.
+# 8 = holá cenová jednotka z letáka (kg/l/ks) znamená jednu overenú jednotku;
+#     neznáme „balenie" bez gramáže zostáva vyradené.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 7
+PLAN_ALGO_VERSION = 8
 
 
 def plan_variant_for(user_id, variants):

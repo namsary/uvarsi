@@ -716,6 +716,15 @@ def test_unparsable_package_size_is_not_offered_or_priced():
         )
 
 
+@pytest.mark.parametrize(("unit", "expected"), [
+    ("kg", ("g", Decimal("1000"))),
+    ("l", ("ml", Decimal("1000"))),
+    ("ks", ("ks", Decimal("1"))),
+])
+def test_bare_flyer_price_units_mean_one_verified_unit(unit, expected):
+    assert plan_data._package_amount(unit) == expected
+
+
 # -------------------------------------------- profesionálny porciový štandard
 def test_mixed_household_separates_served_plates_from_adult_equivalents():
     """2 dospelí + 2 deti na tri dni = 12 tanierov, ale 9,9 dospelej dávky."""
