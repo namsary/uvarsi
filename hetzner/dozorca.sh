@@ -90,16 +90,17 @@ landing_data_is_current() {
 }
 
 zahrej_plany() {
-  # Predpočet je idempotentný: hotové podpisy iba preskočí a API nevolá.
-  # Beží preto pri každom hodinovom dohľade, nie iba raz po zbere. Ak prvý
-  # pokus zlyhá, ďalší beh sa zotaví ešte v ten istý deň bez zásahu majiteľa.
+  # Predpočet iba zaradí idempotentné low-priority úlohy do trvalej fronty;
+  # Anthropic volá až samostatný worker. Beží preto pri každom hodinovom
+  # dohľade, nie iba raz po zbere. Ak zaradenie zlyhá, ďalší beh sa zotaví
+  # ešte v ten istý deň bez zásahu majiteľa.
   # Nastavenie žije iba na serveri a nasadenie ho neprepisuje.
   (
     cd "$DIR/app" || exit 1
     if [ -f "$DIR/predpocet.env" ]; then set -a; . "$DIR/predpocet.env"; set +a; fi
     UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$DIR/VERSION" \
       "$PY" -u predpocet.py --zahrej
-  ) || log "predpočet neprešiel — ďalší hodinový beh ho skúsi znova"
+  ) || log "predpočet sa nepodarilo zaradiť — ďalší hodinový beh to skúsi znova"
 }
 
 # --- 0. Databáza akcií pre appku: má aktuálny týždeň? ---

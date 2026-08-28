@@ -67,10 +67,12 @@ from contextlib import closing
 
 try:
     from . import naklady
+    from . import plan_jobs
     from .plan_data import build_personal_plan, personal_plan_messages
     from .plan_shortlist import select_offers
 except ImportError:                      # beh priamo z adresára app/
     import naklady
+    import plan_jobs
     from plan_data import build_personal_plan, personal_plan_messages
     from plan_shortlist import select_offers
 
@@ -124,13 +126,15 @@ DOVOD_ROZPOCET = "rozpocet"
 DOVOD_BEHY = "behy"
 DOVOD_VYPNUTE = "vypnute"
 DOVOD_CHYBY = "chyby"
+DOVOD_BLOKOVANE = "blokovane"
 
 VYSVETLENIE = {
-    DOVOD_HOTOVO: "Zahriate všetko, o čo bolo požiadané.",
+    DOVOD_HOTOVO: "Požadované profily sú zaradené alebo už boli pripravené.",
     DOVOD_ROZPOCET: "Zastavené pred stropom — zvyšok rozpočtu ostáva živým používateľom.",
     DOVOD_BEHY: "Tento týždeň už predpočet bežal dosť často; ďalší beh sa nespúšťa.",
     DOVOD_VYPNUTE: "Predpočet je vypnutý (UVARSI_PREDPOCET=0 alebo 0 profilov).",
     DOVOD_CHYBY: "Príliš veľa neúspešných pokusov po sebe — beh sa ukončil.",
+    DOVOD_BLOKOVANE: "Niektoré profily sa zatiaľ nedajú zaradiť; dozorca to skúsi znova.",
 }
 
 # Koľko pádov po sebe sa toleruje, kým sa beh vzdá. Keď model odmieta alebo
@@ -358,6 +362,15 @@ def oblubene_profily(con, tyzden, pocet, tyzdnov=HISTORIA_TYZDNOV) -> list:
     pocet = max(0, int(pocet))
     if not pocet:
         return []
+    profily = historicke_profily(con, tyzden, tyzdnov=tyzdnov)
+    for profil in vychodzie_profily():
+        if profil not in profily:
+            profily.append(profil)
+    return profily[:pocet]
+
+
+def historicke_profily(con, tyzden, tyzdnov=HISTORIA_TYZDNOV) -> list:
+    """Vráť iba agregované profily z nedávnych týždňov, bez východzích stávok."""
     profily = []
     try:
         od = (datetime.date.fromisoformat(str(tyzden))
@@ -380,10 +393,7 @@ def oblubene_profily(con, tyzden, pocet, tyzdnov=HISTORIA_TYZDNOV) -> list:
             int(riadok["deti"]),
             int(riadok["frekvencia"]), int(riadok["variant"]),
         ))
-    for profil in vychodzie_profily():
-        if profil not in profily:
-            profily.append(profil)
-    return profily[:pocet]
+    return profily
 
 
 # ---------------------------------------------------------------- rozpočet
@@ -399,12 +409,13 @@ def _je_miesto_v_rozpocte(con, teraz, rezerva) -> bool:
         den, mesiac, _ = naklady._obdobia(teraz)
         dnes_eur = naklady.spolu_za_den(con, den)
         mesiac_eur = naklady.spolu_za_mesiac(con, mesiac)
+        rezervovane_eur = plan_jobs.active_reservations_eur(con)
     except (naklady.RozpocetVycerpany, sqlite3.Error, OSError):
         return False                     # nevieme → nemíňame
     odhad = CENA_ZA_PROFIL_EUR
-    if dnes_eur + odhad > limity.denny - rezerva:
+    if dnes_eur + rezervovane_eur + odhad > limity.denny - rezerva:
         return False
-    if mesiac_eur + odhad > limity.mesacny - rezerva:
+    if mesiac_eur + rezervovane_eur + odhad > limity.mesacny - rezerva:
         return False
     return True
 
@@ -524,22 +535,77 @@ def _poskladaj(con, server, rows, profil, klient=None):
         raise PlanNepouzitelny(str(chyba)) from chyba
 
 
-# ---------------------------------------------------------------- beh
-def zahrej(*, pocet=None, dnes=None, teraz=None, klient=None) -> dict:
-    """Poskladaj dopredu najžiadanejšie plány. Nikdy nevyhodí výnimku.
+# ---------------------------------------------------------------- výber a fronta
+def _profilovy_kluc(profil):
+    return profil.obchody, profil.dospeli, profil.deti, profil.frekvencia, profil.variant
 
-    Bezpečné spustiť opakovane: podpis, ktorý už v `plany_zdielane` je (a je
-    aktuálny voči dnešným ponukám), sa preskočí bez volania modelu. Beh sa
-    zastaví sám, keď by ďalšie volanie zjedlo rezervu pre živých používateľov.
-    """
-    teraz = teraz or datetime.datetime.now()
-    dnes = dnes or teraz.date()
-    pocet = pocet_profilov() if pocet is None else max(0, min(int(pocet), MAX_POCET_PROFILOV))
-    vysledok = {
-        "tyzden": None, "profilov": pocet, "zahriatych": 0, "preskocenych": 0,
-        "zlyhanych": 0, "eur": 0.0, "dovod": DOVOD_HOTOVO,
+
+def aktivne_profily(con, server) -> list:
+    """Aktuálne profily účtov, v poradí stabilnom pre opakovaný cron."""
+    profily = []
+    try:
+        riadky = con.execute(
+            "SELECT id, osoby, dospeli, deti, frekvencia, obchody "
+            "FROM pouzivatelia ORDER BY id"
+        ).fetchall()
+    except (sqlite3.Error, OSError):
+        LOG.warning("aktívne profily sa nedajú prečítať", exc_info=True)
+        return profily
+    for riadok in riadky:
+        try:
+            dospeli, deti = server.zlozenie_domacnosti(riadok)
+            frekvencia = int(riadok["frekvencia"])
+            if frekvencia not in (1, 2, 3):
+                continue
+            variant = server.plan_variant_for(riadok["id"], server.PLAN_VARIANTS)
+            profily.append(Profil(
+                _normalizuj_obchody(riadok["obchody"]), int(dospeli), int(deti),
+                frekvencia, variant,
+            ))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return profily
+
+
+def _cielove_profily(con, server, tyzden, pocet) -> list:
+    """Aktívne presné profily, potom dopyt, nakoniec bezpečné defaulty."""
+    kandidati = []
+    videne = set()
+    fazy = (
+        aktivne_profily(con, server),
+        historicke_profily(con, tyzden),
+        vychodzie_profily(),
+    )
+    for faza in fazy:
+        for profil in faza:
+            kluc = _profilovy_kluc(profil)
+            if kluc in videne:
+                continue
+            videne.add(kluc)
+            kandidati.append(profil)
+            if len(kandidati) >= pocet:
+                return kandidati
+    return kandidati
+
+
+def _novy_vysledok(tyzden=None, profilov=0):
+    return {
+        "tyzden": tyzden, "profilov": profilov,
+        "queued": 0, "skipped": 0, "blocked": 0,
+        # Staré kľúče ponechávame pre /api/naklady a staršie diagnostické čítače.
+        "zahriatych": 0, "preskocenych": 0, "zlyhanych": 0,
+        "eur": 0.0, "dovod": DOVOD_HOTOVO,
     }
-    if not je_zapnuty() or not pocet:
+
+
+def enqueue_popular_profiles(*, count=None, now=None) -> dict:
+    """Zaraď cielené predpočty do trvalej fronty bez volania Anthropic."""
+    now = now or datetime.datetime.now()
+    if isinstance(now, datetime.date) and not isinstance(now, datetime.datetime):
+        now = datetime.datetime.combine(now, datetime.time())
+    count = pocet_profilov() if count is None else max(0, min(int(count), MAX_POCET_PROFILOV))
+    vysledok = _novy_vysledok(profilov=count)
+    if not je_zapnuty() or not count:
         vysledok["dovod"] = DOVOD_VYPNUTE
         return vysledok
 
@@ -550,26 +616,28 @@ def zahrej(*, pocet=None, dnes=None, teraz=None, klient=None) -> dict:
         vysledok["dovod"] = DOVOD_CHYBY
         return vysledok
 
-    tyzden = server.monday(dnes)
+    tyzden = server.monday(now.date())
     vysledok["tyzden"] = tyzden
     con = None
+    beh_zarezany = False
     try:
         con = server.db()
         migrate_predpocet_schema(con)
+        plan_jobs.migrate_plan_jobs_schema(con)
+        profily = _cielove_profily(con, server, tyzden, count)
+        vysledok["profilov"] = len(profily)
         try:
-            naklady.rezervuj_beh(con, UCEL, teraz=teraz)
+            naklady.rezervuj_beh(con, UCEL, teraz=now)
+            beh_zarezany = True
         except naklady.RozpocetVycerpany as odmietnutie:
             LOG.info("predpočet sa nespúšťa: %s", odmietnutie)
+            vysledok["blocked"] = len(profily)
             vysledok["dovod"] = DOVOD_BEHY
-            _zapis_beh(con, tyzden, teraz, vysledok, zaciatok=False)
+            _zapis_beh(con, tyzden, now, vysledok, zaciatok=False)
             return vysledok
 
-        profily = oblubene_profily(con, tyzden, pocet)
-        vysledok["profilov"] = len(profily)
-        pred_behom = _minute_na_ucel(con, teraz)
         rezerva = rezerva_eur()
         ponuky = {}
-        za_sebou = 0
         for profil in profily:
             if profil.obchody not in ponuky:
                 try:
@@ -579,44 +647,66 @@ def zahrej(*, pocet=None, dnes=None, teraz=None, klient=None) -> dict:
                     ponuky[profil.obchody] = []
             rows = ponuky[profil.obchody]
             if len(rows) < server.MIN_OFFERS_FOR_PLAN:
-                continue                 # bez letákov niet z čoho skladať
+                vysledok["blocked"] += 1
+                vysledok["dovod"] = DOVOD_BLOKOVANE
+                continue
+
             podpis = _podpis_pre_profil(server, tyzden, profil, rows)
-            hotovy = server.nacitaj_zdielany_plan(con, podpis, profil.variant)
-            if hotovy is not None:
-                vysledok["preskocenych"] += 1
+            active_job = con.execute(
+                "SELECT 1 FROM plan_jobs WHERE signature=? AND variant=? "
+                "AND week=? AND state IN ('queued', 'running') "
+                "LIMIT 1",
+                (podpis, profil.variant, tyzden),
+            ).fetchone()
+            if server.nacitaj_zdielany_plan(con, podpis, profil.variant) is not None or active_job:
+                vysledok["skipped"] += 1
                 continue
-            if not _je_miesto_v_rozpocte(con, teraz, rezerva):
+            if not _je_miesto_v_rozpocte(con, now, rezerva):
+                vysledok["blocked"] += 1
                 vysledok["dovod"] = DOVOD_ROZPOCET
                 break
+
+            request = plan_jobs.JobRequest(
+                job_key=f"precompute:{podpis}:{profil.variant}",
+                signature=podpis,
+                variant=profil.variant,
+                kind="precompute",
+                user_id=None,
+                week=tyzden,
+                priority=20,
+                payload={
+                    "stores": list(profil.obchody),
+                    "frequency": profil.frekvencia,
+                    "adults": profil.dospeli,
+                    "children": profil.deti,
+                    "algo_version": server.PLAN_ALGO_VERSION,
+                },
+                reserved_eur=CENA_ZA_PROFIL_EUR,
+            )
             try:
-                plan = _poskladaj(con, server, rows, profil, klient=klient)
+                result = plan_jobs.enqueue(con, request, now=now)
             except naklady.RozpocetVycerpany as odmietnutie:
-                LOG.info("predpočet zastavený rozpočtom: %s", odmietnutie)
+                LOG.info("profil sa do predpočtu nezmestil: %s", odmietnutie)
+                vysledok["blocked"] += 1
                 vysledok["dovod"] = DOVOD_ROZPOCET
                 break
-            except Exception as chyba:
-                LOG.warning("profil %s sa nepodarilo zahriať: %s", profil, chyba)
-                vysledok["zlyhanych"] += 1
-                za_sebou += 1
-                if za_sebou >= MAX_ZLYHANI_PO_SEBE:
-                    vysledok["dovod"] = DOVOD_CHYBY
-                    break
+            except (sqlite3.Error, OSError, ValueError) as chyba:
+                LOG.warning("profil %s sa nedal zaradiť: %s", profil, chyba)
+                vysledok["blocked"] += 1
+                vysledok["dovod"] = DOVOD_BLOKOVANE
                 continue
-            za_sebou = 0
-            server.uloz_zdielany_plan(
-                con, podpis, profil.variant, tyzden, plan, predpocitany=True)
-            con.commit()
-            vysledok["zahriatych"] += 1
-        vysledok["eur"] = round(max(0.0, _minute_na_ucel(con, teraz) - pred_behom), 6)
-        if not vysledok["eur"] and not vysledok["zahriatych"] and not vysledok["zlyhanych"]:
-            # Beh, ktorý nespotreboval ani token (všetko bolo hotové, alebo
-            # nebolo z čoho skladať), nesmie zabrať miesto v týždennom počte
-            # behov. Strop je poistka proti MÍŇANIU v slučke — a tu sa nemíňalo.
-            naklady.uvolni_beh(con, UCEL, teraz=teraz)
-        _zapis_beh(con, tyzden, teraz, vysledok)
+            if result.created:
+                vysledok["queued"] += 1
+            else:
+                vysledok["skipped"] += 1
+
+        vysledok["preskocenych"] = vysledok["skipped"]
+        if vysledok["blocked"]:
+            vysledok["dovod"] = vysledok["dovod"] if vysledok["dovod"] != DOVOD_HOTOVO else DOVOD_BLOKOVANE
+        if beh_zarezany and not vysledok["queued"]:
+            naklady.uvolni_beh(con, UCEL, teraz=now)
+        _zapis_beh(con, tyzden, now, vysledok)
     except Exception:
-        # Predpočet je zrýchlenie. Keď zlyhá čokoľvek nečakané, appka skladá
-        # plány naživo presne ako doteraz a dozorca ide ďalej.
         LOG.warning("predpočet skončil chybou", exc_info=True)
         vysledok["dovod"] = DOVOD_CHYBY
     finally:
@@ -626,6 +716,13 @@ def zahrej(*, pocet=None, dnes=None, teraz=None, klient=None) -> dict:
             except sqlite3.Error:
                 pass
     return vysledok
+
+
+def zahrej(*, pocet=None, dnes=None, teraz=None, klient=None) -> dict:
+    """Kompatibilný názov CLI: iba zaradí prácu, nikdy neskladá plán."""
+    if teraz is None and dnes is not None:
+        teraz = datetime.datetime.combine(dnes, datetime.time())
+    return enqueue_popular_profiles(count=pocet, now=teraz)
 
 
 def _minute_na_ucel(con, teraz) -> float:
@@ -704,6 +801,9 @@ def stav(con, teraz=None) -> dict:
         "zahriatych": 0,
         "preskocenych": 0,
         "zlyhanych": 0,
+        "queued": 0,
+        "skipped": 0,
+        "blocked": 0,
         "eur": 0.0,
         "skutocna_cena_za_profil_eur": None,
         "usetrenych_generovani": 0,
@@ -728,6 +828,7 @@ def stav(con, teraz=None) -> dict:
                 "dovod": riadok["dovod"],
                 "vysvetlenie": VYSVETLENIE.get(riadok["dovod"]),
             })
+            prehlad["skipped"] = prehlad["preskocenych"]
             if prehlad["zahriatych"]:
                 # Nameraná cena, nie odhad — toto je to číslo, ktoré rozhoduje.
                 prehlad["skutocna_cena_za_profil_eur"] = round(
@@ -736,6 +837,14 @@ def stav(con, teraz=None) -> dict:
             "SELECT COUNT(*) FROM plany_zdielane WHERE tyzden = ? AND predpocitany = 1",
             (tyzden,),
         ).fetchone()[0])
+        try:
+            prehlad["queued"] = int(con.execute(
+                "SELECT COUNT(*) FROM plan_jobs "
+                "WHERE week=? AND kind='precompute' AND state IN ('queued', 'running')",
+                (tyzden,),
+            ).fetchone()[0])
+        except sqlite3.Error:
+            pass
     except (sqlite3.Error, OSError) as chyba:
         prehlad["chyba"] = f"{type(chyba).__name__}: {chyba}"[:200]
     return prehlad
@@ -785,12 +894,12 @@ def cli(argv=None) -> int:
 
     vysledok = zahrej(pocet=argumenty.pocet)
     print(
-        f"Predpočet {vysledok['tyzden']}: zahriatych {vysledok['zahriatych']}, "
-        f"preskočených {vysledok['preskocenych']}, zlyhaných {vysledok['zlyhanych']}, "
-        f"minuté {vysledok['eur']:.4f} € — {VYSVETLENIE.get(vysledok['dovod'], vysledok['dovod'])}"
+        f"Predpočet {vysledok['tyzden']}: zaradených {vysledok['queued']}, "
+        f"preskočených {vysledok['skipped']}, blokovaných {vysledok['blocked']} "
+        f"— {VYSVETLENIE.get(vysledok['dovod'], vysledok['dovod'])}"
     )
-    # „Nič nebolo treba" je úspech. Pád modelu však musí byť viditeľný shellu:
-    # dozorca ho iba zaloguje a o hodinu skúsi znova, appku ani bloček nezhodí.
+    # Fronta je hotová aj vtedy, keď niektoré profily čakajú na ďalší beh.
+    # Samotné generovanie patrí workeru, nie tomuto rýchlemu hodinovému príkazu.
     return 1 if vysledok["zlyhanych"] or vysledok["dovod"] == DOVOD_CHYBY else 0
 
 

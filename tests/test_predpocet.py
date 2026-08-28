@@ -20,19 +20,21 @@ import sqlite3
 import sys
 import types
 from contextlib import closing
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.weekly_data import current_monday
+from app import plan_jobs
 from tests.test_server import (
     current_plan_rows,
     fake_anthropic,
     insert_hashed_session,
     load_server,
     model_plan,
+    plan_offer,
     plan_key,
 )
 
@@ -111,9 +113,183 @@ def pocet_zdielanych(server):
         return con.execute("SELECT COUNT(*) FROM plany_zdielane").fetchone()[0]
 
 
+def rows_for_stores(stores, per_store=16):
+    fields = (
+        "tyzden", "nazov", "obchod", "cena", "povodna", "zlava", "jednotka",
+        "kategoria", "source_url", "source_page", "valid_from", "valid_to",
+    )
+    rows = []
+    for store_number, store in enumerate(stores):
+        for index in range(1, per_store + 1):
+            offer = plan_offer(index)
+            offer["obchod"] = store
+            offer["source_page"] = store_number * per_store + index
+            rows.append(tuple(offer[field] for field in fields))
+    return rows
+
+
+def create_active_user(server, user_id=1, stores="Lidl", adults=4, children=0,
+                       frequency=2):
+    with closing(server.db()) as con:
+        con.execute(
+            "INSERT INTO pouzivatelia "
+            "(id, email, osoby, dospeli, deti, frekvencia, obchody) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (user_id, f"active-{user_id}@uvar.si", adults + children, adults,
+             children, frequency, stores),
+        )
+        con.commit()
+
+
+def queued_jobs(server):
+    with closing(server.db()) as con:
+        return con.execute(
+            "SELECT * FROM plan_jobs WHERE state IN ('queued', 'running') "
+            "ORDER BY id"
+        ).fetchall()
+
+
+# -------------------------------------------------------- Task 6: queueing
+def test_precompute_queues_active_exact_profiles_before_demand_and_defaults(
+        monkeypatch, tmp_path):
+    server, predpocet = priprav(monkeypatch, tmp_path, rows_for_stores(("Lidl", "Tesco")))
+    create_active_user(server, stores="Lidl,Tesco", adults=2, children=2, frequency=3)
+    zapis_dopyt(server, predpocet, minuly_tyzden(), obchody="Lidl", osoby=4,
+                frekvencia=2, variant=0)
+    zakazane = []
+    monkeypatch.setitem(sys.modules, "anthropic", zakazany_anthropic(zakazane))
+
+    result = predpocet.enqueue_popular_profiles(
+        count=3, now=datetime(2026, 8, 28, 2, 0, 0)
+    )
+    jobs = queued_jobs(server)
+
+    assert jobs[0]["payload_json"]
+    assert json.loads(jobs[0]["payload_json"])["stores"] == ["Lidl", "Tesco"]
+    assert all(job["priority"] == 20 for job in jobs)
+    assert result["queued"] <= 3
+    assert zakazane == []
+
+
+def test_live_job_claims_before_low_priority_precompute_job(monkeypatch, tmp_path):
+    server, predpocet = priprav(monkeypatch, tmp_path)
+    create_active_user(server)
+    now = datetime(2026, 8, 28, 2, 0, 0)
+    predpocet.enqueue_popular_profiles(count=1, now=now)
+
+    with closing(server.db()) as con:
+        live = plan_jobs.JobRequest(
+            job_key="regular:live:0",
+            signature="live",
+            variant=0,
+            kind="regular",
+            user_id=1,
+            week="2026-08-24",
+            priority=100,
+            payload={},
+            regeneration_limit=1,
+            regeneration_day="2026-08-28",
+        )
+        live_job = plan_jobs.enqueue(con, live, now=now).job
+        claimed = plan_jobs.claim_next(con, "worker", now=now)
+
+    assert claimed.id == live_job.id
+
+
+def test_precompute_deduplicates_an_active_job_by_signature_and_variant(
+        monkeypatch, tmp_path):
+    server, predpocet = priprav(monkeypatch, tmp_path)
+    create_active_user(server)
+
+    first = predpocet.enqueue_popular_profiles(
+        count=1, now=datetime(2026, 8, 28, 2, 0, 0)
+    )
+    second = predpocet.enqueue_popular_profiles(
+        count=1, now=datetime(2026, 8, 28, 2, 1, 0)
+    )
+
+    assert first["queued"] == 1
+    assert second["queued"] == 0
+    assert second["skipped"] == 1
+    assert len(queued_jobs(server)) == 1
+
+
+def test_precompute_skips_a_matching_active_live_job(monkeypatch, tmp_path):
+    server, predpocet = priprav(monkeypatch, tmp_path)
+    create_active_user(server)
+    now = datetime(2026, 8, 28, 2, 0, 0)
+    with closing(server.db()) as con:
+        rows = server.akcie_pre(["Lidl"])
+        profile = predpocet.Profil(("Lidl",), 4, 0, 2, 1)
+        signature = predpocet._podpis_pre_profil(server, current_monday(), profile, rows)
+        plan_jobs.enqueue(
+            con,
+            plan_jobs.JobRequest(
+                job_key="regular:matching-live",
+                signature=signature,
+                variant=1,
+                kind="regular",
+                user_id=1,
+                week=current_monday(),
+                priority=100,
+                payload={},
+                regeneration_limit=1,
+                regeneration_day="2026-08-28",
+            ),
+            now=now,
+        )
+
+    result = predpocet.enqueue_popular_profiles(count=1, now=now)
+
+    assert result["queued"] == 0
+    assert result["skipped"] == 1
+    assert len(queued_jobs(server)) == 1
+
+
+def test_precompute_respects_historical_spend_and_outstanding_reservations(
+        monkeypatch, tmp_path):
+    server, predpocet = priprav(monkeypatch, tmp_path)
+    monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "0.50")
+    monkeypatch.setenv("UVARSI_MESACNY_STROP_EUR", "25.00")
+    monkeypatch.setenv("UVARSI_TYZDENNY_STROP_PREDPOCET_EUR", "1.00")
+    create_active_user(server)
+    now = datetime(2026, 8, 28, 2, 0, 0)
+    with closing(server.db()) as con:
+        con.execute(
+            "INSERT INTO naklady "
+            "(cas, den, mesiac, tyzden, ucel, model, eur) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (now.isoformat(), "2026-08-28", "2026-08", "2026-08-24",
+             "plan", "historical", 0.10),
+        )
+        con.commit()
+
+    result = predpocet.enqueue_popular_profiles(count=3, now=now)
+
+    assert result["queued"] == 1
+    assert result["blocked"] >= 1
+    assert len(queued_jobs(server)) == 1
+
+
+def test_zahrej_cli_reports_queued_skipped_and_blocked_without_model_call(
+        monkeypatch, capsys):
+    predpocet = importlib.import_module("predpocet")
+    monkeypatch.setattr(predpocet, "enqueue_popular_profiles", lambda **_kw: {
+        "tyzden": "2026-08-24", "queued": 2, "skipped": 1, "blocked": 3,
+        "profilov": 6, "zahriatych": 0, "preskocenych": 1, "zlyhanych": 0,
+        "eur": 0.0, "dovod": predpocet.DOVOD_HOTOVO,
+    })
+
+    assert predpocet.cli(["--zahrej"]) == 0
+    output = capsys.readouterr().out
+    assert "zaradených 2" in output
+    assert "preskočených 1" in output
+    assert "blokovaných 3" in output
+
+
 # ------------------------------------------------------------- 1. idempotencia
 def test_druhy_beh_predpoctu_nezavola_model_ani_raz(monkeypatch, tmp_path):
-    """Cron aj dozorca môžu predpočet spustiť viackrát — druhý raz je zadarmo."""
+    """Cron aj dozorca môžu predpočet spustiť viackrát — druhý raz je idempotný."""
     server, predpocet = priprav(monkeypatch, tmp_path)
     zapis_dopyt(server, predpocet, minuly_tyzden())
     volania = []
@@ -123,27 +299,32 @@ def test_druhy_beh_predpoctu_nezavola_model_ani_raz(monkeypatch, tmp_path):
     po_prvom = len(volania)
     druhy = predpocet.zahrej(pocet=3)
 
-    assert prvy["zahriatych"] == 3, prvy
-    assert po_prvom == 3, "prvý beh musí poskladať práve toľko plánov, koľko sa žiada"
-    assert len(volania) == po_prvom, "druhý beh nesmie zaplatiť ani jedno volanie"
-    assert druhy["zahriatych"] == 0 and druhy["preskocenych"] == 3
-    assert pocet_zdielanych(server) == 3, "druhý beh nesmie vyrobiť duplicitné riadky"
+    assert prvy["queued"] == 3, prvy
+    assert po_prvom == 0, "predpočet nesmie volať model"
+    assert len(volania) == po_prvom
+    assert druhy["queued"] == 0 and druhy["skipped"] == 3
+    assert len(queued_jobs(server)) == 3, "druhý beh nesmie vyrobiť duplicitné úlohy"
 
 
 def test_predpocet_preskoci_podpis_ktory_uz_niekto_vygeneroval(monkeypatch, tmp_path):
-    """Keď plán poskladal živý používateľ, predpočet ho už neplatí druhýkrát."""
+    """Keď už existuje zdieľaný plán, predpočet ho znovu nezaradí."""
     server, predpocet = priprav(monkeypatch, tmp_path)
     user_id = uzivatel(server)
     zapis_dopyt(server, predpocet, minuly_tyzden(), variant=user_id % 3)
-    volania = []
-    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), [], volania))
-    assert klient_pouzivatela(server, user_id).post("/api/plan/generuj").status_code == 200
-    assert len(volania) == 1
+    with closing(server.db()) as con:
+        tyzden = current_monday()
+        rows = server.akcie_pre(["Lidl"])
+        profil = predpocet.Profil(("Lidl",), 4, 0, 2, user_id % 3)
+        podpis = predpocet._podpis_pre_profil(server, tyzden, profil, rows)
+        con.execute(
+            "INSERT INTO plany_zdielane (podpis, variant, tyzden, json) VALUES (?, ?, ?, ?)",
+            (podpis, profil.variant, tyzden, "{}"),
+        )
+        con.commit()
 
     vysledok = predpocet.zahrej(pocet=1)
 
-    assert vysledok["preskocenych"] == 1 and vysledok["zahriatych"] == 0
-    assert len(volania) == 1, "hotový zdieľaný plán sa nesmie skladať znova"
+    assert vysledok["skipped"] == 1 and vysledok["queued"] == 0
 
 
 # ---------------------------------------------------------------- 2. rozpočet
@@ -159,14 +340,14 @@ def test_predpocet_zastane_pred_dennym_stropom_a_povie_preco(monkeypatch, tmp_pa
     vysledok = predpocet.zahrej(pocet=9)
 
     assert vysledok["dovod"] == "rozpocet", vysledok
-    assert 0 < vysledok["zahriatych"] < 9, "musí niečo stihnúť, ale nie všetko"
-    assert len(volania) == vysledok["zahriatych"]
+    assert vysledok["queued"] == 2
+    assert vysledok["blocked"] >= 1
+    assert len(volania) == 0
     with closing(server.db()) as con:
         minute = con.execute("SELECT COALESCE(SUM(eur), 0) FROM naklady").fetchone()[0]
-    assert minute <= 0.25 + 1e-9, (
-        f"predpočet minul {minute:.3f} € z 0,45 € stropu — rezerva 0,20 € pre "
-        "živých používateľov musí ostať nedotknutá"
-    )
+        reserved = plan_jobs.active_reservations_eur(con)
+    assert minute == pytest.approx(0.0)
+    assert reserved == pytest.approx(0.24)
 
 
 def test_po_predpocte_ostane_ziveho_pouzivatela_z_coho_zaplatit(monkeypatch, tmp_path):
@@ -195,38 +376,23 @@ def test_predpocet_respektuje_tyzdenny_pocet_behov(monkeypatch, tmp_path):
     prvy = predpocet.zahrej(pocet=1)
     druhy = predpocet.zahrej(pocet=1)
 
-    assert prvy["zahriatych"] == 1
-    assert druhy["dovod"] == "behy" and druhy["zahriatych"] == 0
-    assert len(volania) == 1
+    assert prvy["queued"] == 1
+    assert druhy["dovod"] == "behy" and druhy["blocked"] == 1
+    assert len(volania) == 0
 
 
 def test_predpocet_sa_po_uspechu_a_docasnom_pade_moze_zotavit(monkeypatch, tmp_path):
-    """Hodinový dozor potrebuje tretí beh: úspech, výpadok, zotavenie."""
+    """Hodinový dozor môže frontu skontrolovať znova bez ďalšieho jobu."""
     server, predpocet = priprav(monkeypatch, tmp_path)
     zapis_dopyt(server, predpocet, minuly_tyzden())
-    prve_volania = []
-    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), [], prve_volania))
-    assert predpocet.zahrej(pocet=1)["zahriatych"] == 1
-    with closing(server.db()) as con:
-        con.execute("DELETE FROM plany_zdielane")
-        con.commit()
+    zakazane = []
+    monkeypatch.setitem(sys.modules, "anthropic", zakazany_anthropic(zakazane))
+    prvy = predpocet.zahrej(pocet=1)
+    druhy = predpocet.zahrej(pocet=1)
 
-    class DocasneRozbity:
-        def __init__(self, **kwargs):
-            self.messages = self
-
-        def create(self, **kwargs):
-            raise RuntimeError("dočasný výpadok modelu")
-
-    monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace(Anthropic=DocasneRozbity))
-    assert predpocet.zahrej(pocet=1)["zlyhanych"] == 1
-
-    retry_volania = []
-    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), [], retry_volania))
-    treti = predpocet.zahrej(pocet=1)
-
-    assert treti["zahriatych"] == 1, treti
-    assert len(retry_volania) == 1
+    assert prvy["queued"] == 1
+    assert druhy["skipped"] == 1
+    assert zakazane == []
 
 
 def test_beh_ktory_nic_neminul_nezabera_miesto_v_tyzdennom_pocte(monkeypatch, tmp_path):
@@ -242,17 +408,12 @@ def test_beh_ktory_nic_neminul_nezabera_miesto_v_tyzdennom_pocte(monkeypatch, tm
     volania = []
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), [], volania))
 
-    predpocet.zahrej(pocet=1)                      # zaberie miesto, lebo minul
+    predpocet.zahrej(pocet=1)                      # zaberie miesto vo fronte
     for _ in range(4):
-        predpocet.zahrej(pocet=1)                  # zadarmo, miesto nezaberá
+        predpocet.zahrej(pocet=1)                  # aktívnu úlohu iba preskočí
 
-    with closing(server.db()) as con:
-        con.execute("DELETE FROM plany_zdielane")  # leták sa zmenil
-        con.commit()
-    posledny = predpocet.zahrej(pocet=1)
-
-    assert posledny["zahriatych"] == 1, posledny
-    assert len(volania) == 2
+    assert len(queued_jobs(server)) == 1
+    assert len(volania) == 0
 
 
 def test_predpocet_ma_vlastny_tyzdenny_strop_v_eurach(monkeypatch, tmp_path):
@@ -275,15 +436,15 @@ def test_zahriaty_profil_sa_podava_bez_jedineho_volania_modelu(monkeypatch, tmp_
     user_id = uzivatel(server)
     zapis_dopyt(server, predpocet, minuly_tyzden(), variant=user_id % 3)
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), [], []))
-    assert predpocet.zahrej(pocet=1)["zahriatych"] == 1
+    assert predpocet.zahrej(pocet=1)["queued"] == 1
 
     zakazane = []
     monkeypatch.setitem(sys.modules, "anthropic", zakazany_anthropic(zakazane))
     odpoved = klient_pouzivatela(server, user_id).post("/api/plan/generuj")
 
-    assert odpoved.status_code == 200
+    assert odpoved.status_code == 202
     assert zakazane == [], "zahriaty plán sa nesmie skladať znova"
-    assert odpoved.json()["jedla"], "z cache musí prísť skutočný jedálniček"
+    assert odpoved.json()["status"] == "preparing"
 
 
 def test_zasah_do_predpocitaneho_planu_je_vidiet_v_prehlade(monkeypatch, tmp_path):
@@ -299,7 +460,7 @@ def test_zasah_do_predpocitaneho_planu_je_vidiet_v_prehlade(monkeypatch, tmp_pat
 
     monkeypatch.setenv("UVARSI_ADMIN_EMAILS", "u1@uvar.si")
     prehlad = klient_pouzivatela(server, user_id).get("/api/naklady").json()["predpocet"]
-    assert prehlad["usetrenych_generovani"] == 1, prehlad
+    assert prehlad["usetrenych_generovani"] == 0, prehlad
 
 
 # --------------------------------------------------------- 4. zlyhanie je neškodné
@@ -316,16 +477,16 @@ def test_zlyhanie_predpoctu_nezhodi_beh_a_zive_generovanie_funguje(monkeypatch, 
             raise RuntimeError("model je nedostupný")
 
     monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace(Anthropic=Rozbity))
-    vysledok = predpocet.zahrej(pocet=2)          # nesmie vyhodiť výnimku
+    vysledok = predpocet.zahrej(pocet=1)          # nesmie vyhodiť výnimku
 
-    assert vysledok["zahriatych"] == 0 and vysledok["zlyhanych"] >= 1
+    assert vysledok["queued"] == 1 and vysledok["zlyhanych"] == 0
     assert pocet_zdielanych(server) == 0, "nedokončený plán sa nesmie uložiť"
 
     volania = []
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(model_plan(), [], volania))
     odpoved = klient_pouzivatela(server, user_id).post("/api/plan/generuj")
 
-    assert odpoved.status_code == 200 and len(volania) == 1
+    assert odpoved.status_code == 202 and len(volania) == 0
 
 
 def test_vypnuty_predpocet_nespusti_nic(monkeypatch, tmp_path):
@@ -696,12 +857,11 @@ def test_prehlad_nakladov_ukazuje_ako_sa_predpoctu_darilo(monkeypatch, tmp_path)
 
     assert "predpocet" in telo, "majiteľ musí vidieť, či predpočet vôbec beží"
     p = telo["predpocet"]
-    assert p["zahriatych"] == 2
-    assert p["eur"] > 0
+    assert p["zahriatych"] == 0
+    assert p["eur"] == 0
+    assert p["queued"] == 2
     assert p["cena_za_profil_eur"] > 0
-    assert p["skutocna_cena_za_profil_eur"] == pytest.approx(p["eur"] / 2), (
-        "majiteľ musí vidieť NAMERANÚ cenu za profil, nie len odhad"
-    )
+    assert p["skutocna_cena_za_profil_eur"] is None
     assert p["odhad_plneho_behu_eur"] > 0
     assert p["usetrenych_generovani"] == 0
     assert p["dovod"] == "hotovo"
@@ -784,12 +944,13 @@ def test_dozorca_ma_procesovy_zamok_a_nasadenie_overi_flock():
 def test_predpocet_cli_vrati_chybu_ked_model_nezahrial_plan(monkeypatch, capsys):
     predpocet = importlib.import_module("predpocet")
     monkeypatch.setattr(predpocet, "zahrej", lambda **_kw: {
-        "tyzden": "2026-08-24", "zahriatych": 0, "preskocenych": 0,
+        "tyzden": "2026-08-24", "queued": 0, "skipped": 0, "blocked": 1,
+        "zahriatych": 0, "preskocenych": 0,
         "zlyhanych": 1, "eur": 0.0, "dovod": predpocet.DOVOD_CHYBY,
     })
 
     assert predpocet.cli(["--zahrej"]) == 1
-    assert "zlyhaných 1" in capsys.readouterr().out
+    assert "blokovaných 1" in capsys.readouterr().out
 
 
 def test_zlyhanie_predpoctu_nesmie_zmenit_navratovy_kod_dozorcu():

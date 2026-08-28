@@ -288,6 +288,39 @@ def test_dozorca_keeps_warming_plans_even_when_weekly_data_is_already_current(tm
     )
 
 
+def test_dozorca_queue_handoff_failure_does_not_break_hourly_recovery(tmp_path):
+    (tmp_path / "app").mkdir()
+    landing_data = tmp_path / "landing_data.json"
+    write_landing_data_atomic(landing_data, payload("2026-08-17"))
+    calls = tmp_path / "calls.txt"
+    fake_python = tmp_path / "python"
+    fake_python.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"-c\" ]; then exit 0; fi\n"
+        f"printf '%s\\n' \"$*\" >> '{bash_path(calls)}'\n"
+        "case \"$2\" in predpocet.py) exit 7 ;; esac\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+    fake_sqlite = tmp_path / "sqlite3"
+    fake_sqlite.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        "  *\"SELECT COUNT(*) FROM (\"*) echo 0 ;;\n"
+        "  *) echo 30 ;;\n"
+        "esac\n",
+        encoding="utf-8",
+    )
+    fake_sqlite.chmod(0o755)
+
+    result = run_dozorca(tmp_path, landing_data)
+
+    assert result.returncode == 0
+    assert calls.read_text(encoding="utf-8").count("predpocet.py --zahrej") == 1
+    assert "zaradiť" in result.stdout
+
+
 @pytest.mark.parametrize(("pocet", "chybajuce_obchody"), [(29, 0), (30, 1)])
 def test_dozorca_nezohrieva_plan_nad_neuplnymi_ponukami(
         tmp_path, pocet, chybajuce_obchody):
