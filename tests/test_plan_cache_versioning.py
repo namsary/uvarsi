@@ -29,8 +29,8 @@ ZAKLAD = dict(
 def test_algo_version_is_a_positive_integer():
     assert isinstance(plan_data.PLAN_ALGO_VERSION, int)
     assert not isinstance(plan_data.PLAN_ALGO_VERSION, bool)
-    assert plan_data.PLAN_ALGO_VERSION == 5, (
-        "dospelé a detské porcie menia dávky každého plánu a musia zneplatniť verziu 4"
+    assert plan_data.PLAN_ALGO_VERSION == 6, (
+        "oddelenie bežného plánu od modelovej špajze musí zneplatniť verziu 5"
     )
 
 

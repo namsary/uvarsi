@@ -623,15 +623,23 @@ def _model_meals(model_output, offers_by_key, frequency, pantry, adults, childre
             raise ValueError("Počet minút musí byť kladné celé číslo.")
         steps = _cookable_steps(meal.get("instructions"))
         _name_fits_recipe(name, steps)
-        pantry_names = meal.get("pantry_ingredients", [])
-        if not isinstance(pantry_names, list):
-            raise ValueError("Neplatné suroviny zo špajze.")
         selected_pantry = []
-        for ingredient in pantry_names:
-            normalized = _text(ingredient, "surovinu zo špajze").casefold()
-            if normalized not in pantry_by_name or normalized in selected_pantry:
-                raise ValueError("Návrh obsahuje neznámu alebo duplicitnú surovinu zo špajze.")
-            selected_pantry.append(normalized)
+        # Pri bežnom zdieľanom pláne je `pantry` prázdna zámerne. Model do
+        # pantry_ingredients občas svojvoľne doplní olej či soľ; nesmie tým
+        # zhodiť inak bezpečný plán ani rozhodovať, čo má človek doma. Pole
+        # preto úplne ignorujeme. Pri výslovnom pláne zo špajze je zoznam
+        # neprázdny a zostáva prísne overený voči skutočnému vstupu používateľa.
+        if pantry_by_name:
+            pantry_names = meal.get("pantry_ingredients", [])
+            if not isinstance(pantry_names, list):
+                raise ValueError("Neplatné suroviny zo špajze.")
+            for ingredient in pantry_names:
+                normalized = _text(ingredient, "surovinu zo špajze").casefold()
+                if normalized not in pantry_by_name or normalized in selected_pantry:
+                    raise ValueError(
+                        "Návrh obsahuje neznámu alebo duplicitnú surovinu zo špajze."
+                    )
+                selected_pantry.append(normalized)
         items = meal.get("items")
         if not isinstance(items, list) or (not items and not selected_pantry):
             raise ValueError("Jedlo nemá vybrané ponuky ani suroviny zo špajze.")
@@ -699,8 +707,9 @@ PLAN_VARIANT_HINTS = (
 #     hranicu týždňa.
 # 5 = osobitne dospelí/deti, detská kuchárska porcia 0,65, amount_per_adult a
 #     serverový porciový štandard; kalendár 7/4/3 ostáva ukončený v nedeľu.
+# 6 = pri bežnom pláne špajzu neurčuje model; pri pláne zo špajze ostáva prísna.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 5
+PLAN_ALGO_VERSION = 6
 
 
 def plan_variant_for(user_id, variants):

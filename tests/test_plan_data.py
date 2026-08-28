@@ -209,6 +209,38 @@ def milk_plan_output(con, days, day_portions):
     }
 
 
+def test_regular_plan_ignores_model_invented_pantry_ingredients():
+    """Špajzu pri bežnom pláne neurčuje model; inak zhodí aj správny recept."""
+    con = connection(milk_rows(7))
+    days = cooking_days_for_frequency(1)
+    output = milk_plan_output(con, days, [4] * len(days))
+    for meal in output["meals"]:
+        meal["pantry_ingredients"] = ["olej", "soľ"]
+
+    plan = build_personal_plan(
+        con, output, ["Lidl"], 1, 4, pantry=(), today=TODAY
+    )
+
+    assert len(plan["jedla"]) == 7
+    assert all(
+        "spajza" not in ingredient
+        for meal in plan["jedla"]
+        for ingredient in meal["suroviny"]
+    )
+
+
+def test_pantry_driven_plan_still_rejects_an_unknown_pantry_ingredient():
+    con = connection(milk_rows(7))
+    days = cooking_days_for_frequency(1)
+    output = milk_plan_output(con, days, [4] * len(days))
+    output["meals"][0]["pantry_ingredients"] = ["olej"]
+
+    with pytest.raises(ValueError, match="neznámu alebo duplicitnú surovinu"):
+        build_personal_plan(
+            con, output, ["Lidl"], 1, 4, pantry=["soľ"], today=TODAY
+        )
+
+
 def test_reconstructs_grouped_purchases_and_totals_only_from_verified_offers():
     plan = build_personal_plan(
         connection(verified_rows()), model_output(), ["Lidl", "Tesco"], 2, 4,
