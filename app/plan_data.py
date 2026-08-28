@@ -831,6 +831,10 @@ MNOŽSTVÁ
 - Príklady: Maslová tekvica 200 g = vegetable; Cibuľa 50 g alebo Cesnak 10 g
   ako aróma = vegetable_addition; Syr Eidam 30 g na posypanie = dairy_addition.
 - unit = g, ml alebo ks. Nič iné (žiadna „hrsť", „balenie" ani „lyžica").
+- Jednotku nevyberaj odhadom. Pre protein_main, dry_starch, potato, legume_dry,
+  vegetable, vegetable_addition, bread, dairy_main a dairy_addition použi vždy g.
+  Pre egg použi vždy ks. Pre sauce_liquid použi vždy ml. Pre fat_addition použi
+  g alebo ml podľa výrobku. Rola a jednotka musia byť presne v tejto kombinácii.
 - V krokoch píš CELKOVÉ množstvo na celú dávku, teda amount_per_adult × počet
   dospelých kuchárskych ekvivalentov uvedený pri danom dni.
 - Každé množstvo napíš naraz pri prvom použití suroviny, nerozdeľuj ho medzi kroky.

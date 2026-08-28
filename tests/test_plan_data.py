@@ -877,6 +877,15 @@ def test_prompt_exposes_the_closed_addition_role_and_ambiguous_examples():
     assert "Syr Eidam" in rules and "dairy_addition" in rules
 
 
+def test_prompt_maps_each_portion_role_to_a_validator_compatible_unit():
+    rules = plan_data.recipe_rules()
+    assert "vegetable, vegetable_addition" in rules
+    assert "použi vždy g" in rules
+    assert "Pre egg použi vždy ks" in rules
+    assert "Pre sauce_liquid použi vždy ml" in rules
+    assert "Rola a jednotka musia byť presne v tejto kombinácii" in rules
+
+
 # ------------------------------------------------- názov musí sedieť na recept
 def with_steps(steps, name="Dusená cibuľa"):
     payload = model_output()
