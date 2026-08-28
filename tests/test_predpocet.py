@@ -65,7 +65,9 @@ def ciste_prostredie(monkeypatch):
 def priprav(monkeypatch, tmp_path, rows=None):
     """Server nad testovacou databázou + modul predpočtu, ktorý ho používa."""
     server = load_server(
-        monkeypatch, tmp_path, current_plan_rows() if rows is None else rows)
+        monkeypatch, tmp_path,
+        rows_for_stores(("Lidl", "Kaufland", "Tesco")) if rows is None else rows,
+    )
     return server, importlib.import_module("predpocet")
 
 
@@ -152,7 +154,8 @@ def queued_jobs(server):
 # -------------------------------------------------------- Task 6: queueing
 def test_precompute_queues_active_exact_profiles_before_demand_and_defaults(
         monkeypatch, tmp_path):
-    server, predpocet = priprav(monkeypatch, tmp_path, rows_for_stores(("Lidl", "Tesco")))
+    server, predpocet = priprav(
+        monkeypatch, tmp_path, rows_for_stores(("Kaufland", "Lidl", "Tesco")))
     create_active_user(server, stores="Lidl,Tesco", adults=2, children=2, frequency=3)
     zapis_dopyt(server, predpocet, minuly_tyzden(), obchody="Lidl", osoby=4,
                 frekvencia=2, variant=0)
@@ -168,6 +171,66 @@ def test_precompute_queues_active_exact_profiles_before_demand_and_defaults(
     assert json.loads(jobs[0]["payload_json"])["stores"] == ["Lidl", "Tesco"]
     assert all(job["priority"] == 20 for job in jobs)
     assert result["queued"] <= 3
+    assert zakazane == []
+
+
+def test_precompute_blocks_every_job_when_one_required_collection_is_missing(
+        monkeypatch, tmp_path):
+    server, predpocet = priprav(monkeypatch, tmp_path)
+    create_active_user(server, stores="Lidl")
+    with closing(server.db()) as con:
+        con.execute(
+            "DELETE FROM zber_stav WHERE tyzden=? AND obchod='Tesco'",
+            (current_monday(),),
+        )
+        con.commit()
+    zakazane = []
+    monkeypatch.setitem(sys.modules, "anthropic", zakazany_anthropic(zakazane))
+
+    result = predpocet.enqueue_popular_profiles(
+        count=2, now=datetime(2026, 8, 28, 2, 0, 0)
+    )
+
+    assert result["queued"] == 0
+    assert result["blocked"] == 2
+    assert result["dovod"] == predpocet.DOVOD_BLOKOVANE
+    assert queued_jobs(server) == []
+    assert zakazane == []
+
+
+def test_zahrej_cli_blocks_without_all_three_verified_collections(
+        monkeypatch, tmp_path, capsys):
+    server, predpocet = priprav(monkeypatch, tmp_path)
+    with closing(server.db()) as con:
+        con.execute(
+            "UPDATE zber_stav SET stav='fail' WHERE tyzden=? AND obchod='Kaufland'",
+            (current_monday(),),
+        )
+        con.commit()
+    zakazane = []
+    monkeypatch.setitem(sys.modules, "anthropic", zakazany_anthropic(zakazane))
+
+    assert predpocet.cli(["--zahrej", "--pocet", "1"]) == 0
+
+    output = capsys.readouterr().out
+    assert "zaradených 0" in output
+    assert "blokovaných 1" in output
+    assert queued_jobs(server) == []
+    assert zakazane == []
+
+
+def test_zahrej_cli_queues_when_all_three_collections_are_verified(
+        monkeypatch, tmp_path, capsys):
+    server, predpocet = priprav(monkeypatch, tmp_path)
+    zakazane = []
+    monkeypatch.setitem(sys.modules, "anthropic", zakazany_anthropic(zakazane))
+
+    assert predpocet.cli(["--zahrej", "--pocet", "1"]) == 0
+
+    output = capsys.readouterr().out
+    assert "zaradených 1" in output
+    assert "blokovaných 0" in output
+    assert len(queued_jobs(server)) == 1
     assert zakazane == []
 
 

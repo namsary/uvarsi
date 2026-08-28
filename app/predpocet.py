@@ -598,6 +598,24 @@ def _novy_vysledok(tyzden=None, profilov=0):
     }
 
 
+def _ma_kompletny_povinny_zber(con, server, dnes) -> bool:
+    """Fail closed, kým nie je overený aktuálny zber všetkých troch obchodov."""
+    try:
+        chybajuce = server.stores_missing_this_week(
+            con, list(VSETKY_OBCHODY), dnes)
+        rows = server.offers_for_current_week(
+            con, list(VSETKY_OBCHODY), dnes)
+    except (sqlite3.Error, OSError, ValueError):
+        LOG.warning("úplnosť zberu pre predpočet sa nedá overiť", exc_info=True)
+        return False
+    zastupene = {row["obchod"] for row in rows}
+    return (
+        not chybajuce
+        and len(rows) >= server.MIN_OFFERS_FOR_PLAN
+        and set(VSETKY_OBCHODY).issubset(zastupene)
+    )
+
+
 def enqueue_popular_profiles(*, count=None, now=None) -> dict:
     """Zaraď cielené predpočty do trvalej fronty bez volania Anthropic."""
     now = now or datetime.datetime.now()
@@ -626,6 +644,11 @@ def enqueue_popular_profiles(*, count=None, now=None) -> dict:
         plan_jobs.migrate_plan_jobs_schema(con)
         profily = _cielove_profily(con, server, tyzden, count)
         vysledok["profilov"] = len(profily)
+        if not _ma_kompletny_povinny_zber(con, server, now.date()):
+            vysledok["blocked"] = len(profily)
+            vysledok["dovod"] = DOVOD_BLOKOVANE
+            _zapis_beh(con, tyzden, now, vysledok, zaciatok=False)
+            return vysledok
         try:
             naklady.rezervuj_beh(con, UCEL, teraz=now)
             beh_zarezany = True

@@ -57,3 +57,37 @@ the pre-existing HTTP 200/503 Anthropic behavior instead of the already-landed
 HTTP 202 queue handoff. No changes were made to those out-of-scope files.
 
 The pre-change baseline for the same focused suite was `60 passed, 2 failed`; both failures were existing Task 4 async expectations asserting HTTP 200/model execution where the already-landed async API returns HTTP 202. The dozorca contracts passed in that baseline.
+
+## Fix round 1/5 — complete required-store collection gate
+
+Root cause: `enqueue_popular_profiles` checked only the offer rows needed by
+each selected profile. A Lidl-only profile could therefore enter the queue
+while Kaufland or Tesco had no successful current collection.
+
+The producer now fails closed before reserving a precompute run or inserting
+any queue row. It uses the server's authoritative
+`stores_missing_this_week` metadata and current verified offer catalogue,
+requiring successful current collection status, enough verified offers, and
+representation of Lidl, Kaufland, and Tesco. An incomplete gate returns all
+target profiles as blocked, queues zero jobs, and never imports or calls
+Anthropic. The direct `predpocet.py --zahrej` path uses the same producer gate.
+
+TDD evidence:
+
+1. RED: the missing-row unit test and failed-store CLI test both queued jobs;
+   the complete-three-store control passed (`2 failed, 1 passed`).
+2. GREEN: all three direct unit/CLI cases passed after the gate (`3 passed`).
+3. Full `tests/test_predpocet.py`: `55 passed`.
+
+Focused verification with bundled Python and
+`--basetemp=.superpowers\pytest-task6-fix1`:
+
+```text
+python -m pytest -p no:cacheprovider tests/test_predpocet.py tests/test_dozorca_contract.py tests/test_dozorca_chybajuci_obchod.py -q --basetemp=.superpowers\pytest-task6-fix1 -k "not test_dozorca_alerts_once_for_a_stalled_plan_queue_and_clears_after_recovery"
+```
+
+Result: `72 passed, 1 deselected in 45.80s`. The one deselected case is an
+uncommitted Task 7 watchdog-alert test that the user explicitly required this
+fix to preserve. The combined run without deselection produced `72 passed,
+1 failed`; that sole failure was the same Task 7 test. No Task 7 file was
+edited for this fix.
