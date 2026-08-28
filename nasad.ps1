@@ -79,6 +79,22 @@ Vyzaduj "uvarsi.env na serveri chyba alebo v nom nie su oba kluce"
 Ok "env ma oba kluce"
 
 Krok "3/8  Nahravam subory"
+$svc = @'
+[Unit]
+Description=Uvarsi app
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/uvarsi/app
+Environment=UVARSI_URL=https://uvar.si
+Environment=UVARSI_LANDING_DATA=/var/lib/uvarsi/landing_data.json
+Environment=UVARSI_VERSION_FILE=/opt/uvarsi/VERSION
+ExecStart=/opt/uvarsi/venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8090
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+'@ -replace "`r`n", "`n"
 $backup = @'
 set -eu
 . /opt/uvarsi/releases/manual-stage/hetzner/uvarsi-deploy-state.sh
@@ -137,10 +153,12 @@ Ok "static/ (PWA)"
 ssh jarvis "sed -i 's/\r//' /opt/uvarsi/releases/manual-stage/hetzner/*.sh; chmod +x /opt/uvarsi/releases/manual-stage/hetzner/*.sh"
 Vyzaduj "normalizacia koncov riadkov v shell skriptoch zlyhala"
 Ok "shell skripty maju LF konce riadkov"
+$svc | ssh jarvis "tr -d '\r' > /opt/uvarsi/releases/manual-stage/hetzner/uvarsi.service"
+Vyzaduj "staging systemd jednotky uvarsi zlyhal"
 
 $backup | ssh jarvis "tr -d '\r' > /tmp/uvarsi_backup.sh; bash /tmp/uvarsi_backup.sh"
-Vyzaduj "zaloha appky, worker jednotky/stavu a heartbeat znacky pred nasadenim zlyhala"
-Ok "predosla appka, worker jednotka/stav a heartbeat znacka zalohovane"
+Vyzaduj "uplna zaloha Uvar.si suborov, jednotiek/stavov a heartbeat znacky zlyhala"
+Ok "vsetky menene Uvar.si subory a jednotky zalohovane"
 
 $script:LiveMutationStarted = $true
 $install = @'
@@ -148,20 +166,12 @@ set -u
 STAGE=/opt/uvarsi/releases/manual-stage
 PRED=/opt/uvarsi/releases/manual-predosle
 . "$STAGE/hetzner/uvarsi-deploy-state.sh" || exit 1
-uvarsi_install_core "$STAGE" "$PRED" || exit $?
-OK=1
-cp -a "$STAGE/index.html" /var/www/uvarsi/index.html || OK=0
-cp -a "$STAGE/sw.js" /var/www/uvarsi/sw.js || OK=0
-for f in refresh_blocek.py recepty.py dozorca.sh zaloha.sh uvarsi-deploy-state.sh; do
-  cp -a "$STAGE/hetzner/$f" "/opt/uvarsi/$f" || OK=0
-done
-chmod +x /opt/uvarsi/dozorca.sh /opt/uvarsi/zaloha.sh /opt/uvarsi/uvarsi-deploy-state.sh || OK=0
-[ "$OK" -eq 1 ] || { uvarsi_restore "$PRED"; exit 1; }
+uvarsi_install_manual_release "$STAGE" "$PRED"
 '@ -replace "`r`n", "`n"
 $install | ssh jarvis "tr -d '\r' > /tmp/uvarsi_install.sh; bash /tmp/uvarsi_install.sh"
 Vyzaduj "atomicka instalacia zo stagingu zlyhala"
 Ok "staging je kompletne nainstalovany"
-ssh jarvis "sed -i 's/\r//' /opt/uvarsi/*.sh; chmod +x /opt/uvarsi/*.sh"
+ssh jarvis "sed -i 's/\r//' /opt/uvarsi/dozorca.sh /opt/uvarsi/zaloha.sh /opt/uvarsi/uvarsi-deploy-state.sh; chmod +x /opt/uvarsi/dozorca.sh /opt/uvarsi/zaloha.sh /opt/uvarsi/uvarsi-deploy-state.sh"
 Vyzaduj "normalizacia nainstalovanych shell skriptov zlyhala"
 
 Krok "4/8  Python venv a zavislosti"
@@ -172,24 +182,6 @@ Vyzaduj "venv alebo zavislosti sa nepodarilo pripravit"
 Ok "venv, zavislosti, sqlite3 aj flock (pre dozorcu)"
 
 Krok "5/8  Sluzba uvarsi (bezi stale, prezije restart)"
-$svc = @'
-[Unit]
-Description=Uvarsi app
-After=network.target
-
-[Service]
-WorkingDirectory=/opt/uvarsi/app
-Environment=UVARSI_URL=https://uvar.si
-Environment=UVARSI_LANDING_DATA=/var/lib/uvarsi/landing_data.json
-Environment=UVARSI_VERSION_FILE=/opt/uvarsi/VERSION
-ExecStart=/opt/uvarsi/venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8090
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-'@ -replace "`r`n", "`n"
-$svc | ssh jarvis "tr -d '\r' > /etc/systemd/system/uvarsi.service"
-Vyzaduj "systemd jednotku sa nepodarilo zapisat"
 ssh jarvis "set -eu; . /opt/uvarsi/uvarsi-deploy-state.sh; PRED_HEARTBEAT=`$(cat /opt/uvarsi/releases/manual-predosle/heartbeat.before); systemctl daemon-reload; systemctl enable uvarsi >/dev/null 2>&1; systemctl enable uvarsi-plan-worker >/dev/null 2>&1; systemctl restart uvarsi; systemctl restart uvarsi-plan-worker; systemctl is-active uvarsi >/dev/null; systemctl is-active uvarsi-plan-worker >/dev/null; uvarsi_wait_fresh_heartbeat `"`$PRED_HEARTBEAT`""
 if ($LASTEXITCODE -ne 0) {
   Zlyhaj "sluzba uvarsi alebo uvarsi-plan-worker po restarte nebezi"

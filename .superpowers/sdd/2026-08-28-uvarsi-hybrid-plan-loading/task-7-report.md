@@ -184,3 +184,103 @@ requested focused suites (with the pytest cache provider disabled):
   worker state is verified after restoration.
 - Alert thresholds remain strict (`>180s` queue age, `>60s` heartbeat age), use
   one marker, suppress repeats, and clear only on a complete healthy payload.
+
+## Fix round 2/5 — Windows behavior-test path transport
+
+Date: 2026-08-28
+
+### Root cause and scope
+
+The six full-suite failures were reproduced with a deliberately long Windows
+pytest base-temp path containing spaces. Four snapshot-state cases, the
+backup/restore failure case, and the partial-mutation rollback case failed at
+the first `mkdir`; the heartbeat-only case passed. The failing process showed
+the dynamically interpolated absolute snapshot argument truncated at the first
+space (`C:/Users/Ucet`).
+
+The unchanged production helper passed all seven cases under the identical
+long path when the shell execution boundary did not rewrite the command. This
+isolated the defect to test-only Windows subprocess argument transport, not
+`uvarsi-deploy-state.sh` quoting or deployment semantics.
+
+The initial path-transport correction changed only
+`tests/test_plan_worker_deployment_behavior.py`:
+
+- snapshot and release locations are passed as `UVARSI_TEST_SNAPSHOT` and
+  `UVARSI_TEST_RELEASE` environment variables;
+- their values are stable relative names (`snapshot`, `release`), anchored by
+  running Bash with the pytest case directory as `cwd`;
+- Bash invokes `uvarsi_snapshot "$UVARSI_TEST_SNAPSHOT"`,
+  `uvarsi_restore "$UVARSI_TEST_SNAPSHOT"`, and `uvarsi_install_core` with the
+  quoted environment variables;
+- no dynamic absolute pytest path is interpolated into the `bash -c` command
+  string.
+
+That correction did not require a production semantic change.
+
+### TDD and verification evidence
+
+1. RED under a long spaced base-temp path: `6 failed, 1 passed in 4.48s`.
+   Every path-consuming case failed with the snapshot path truncated at
+   `C:/Users/Ucet`; the path-free heartbeat case passed.
+2. GREEN under a deliberately long spaced base-temp path without elevated
+   execution: `7 passed in 16.50s`.
+3. Full deployment suite under a spaced base-temp path:
+   `65 passed in 16.70s`.
+
+Assertions remain unchanged: the harness still executes the real shell helper
+and verifies exact worker state, backup/restore failures, partial-mutation
+rollback, and strict fresh-heartbeat behavior.
+
+### P1 re-review — complete manual rollback surface
+
+The subsequent re-review found that manual deployment staged and mutated more
+Uvar.si-owned live targets than its snapshot restored. In addition to app,
+VERSION, and the worker unit, it changed landing `index.html`, `sw.js`, five
+operational scripts, and `/etc/systemd/system/uvarsi.service`. A later service,
+heartbeat, Caddy-validation, cron, payment-check, backup, or final-health
+failure could therefore restore the app while leaving a mixed deployment.
+
+The shared deployment-state helper now:
+
+- snapshots and restores `index.html`, `sw.js`, `refresh_blocek.py`,
+  `recepty.py`, `dozorca.sh`, `zaloha.sh`, and `uvarsi-deploy-state.sh`, with an
+  explicit absence marker for every file;
+- snapshots and restores the prior `uvarsi.service` bytes or absence, plus its
+  enabled/disabled and active/inactive state;
+- verifies each file, unit, daemon-reload, enable/disable, and start/stop
+  restore operation;
+- provides `uvarsi_install_manual_release`, which installs core app/worker and
+  all manual-only targets as one rollback domain.
+
+`nasad.ps1` now creates `uvarsi.service` in the upload staging tree before the
+snapshot, invokes the tested full manual-release installer, and no longer
+writes the live app unit later as an unsnapshotted mutation. Any later failure
+continues to call the same complete `uvarsi_restore` path. No Caddy target or
+other application was added to snapshot, install, or rollback handling.
+
+Executable RED/GREEN evidence:
+
+1. RED: the new failure-after-mutation test failed in all three prior app-unit
+   states because the full manual installer/rollback did not exist
+   (`3 failed in 3.95s`).
+2. GREEN: the injected failure occurred only after app, worker, landing files,
+   scripts, and app unit had been copied; rollback restored every asserted file
+   byte-for-byte, removed a previously absent script, and restored prior app
+   unit existence/enabled/active state (`3 passed in 21.04s`).
+3. Entire behavior harness under a deliberately long spaced path:
+   `10 passed in 43.18s`.
+4. Full deployment suite under a deliberately long spaced path:
+   `68 passed in 41.81s`.
+5. Bash syntax passed for `uvarsi-deploy-state.sh` and `samopull.sh`; the
+   PowerShell parser passed for `nasad.ps1`.
+
+Self-review also narrowed the post-install CRLF/mode command from the broad
+`/opt/uvarsi/*.sh` glob to the three shell files this manual release actually
+installs and snapshots. It therefore cannot mutate an unrelated Uvar.si script
+outside the rollback manifest. After that adjustment, the fresh final
+deployment suite passed `68 passed in 59.62s` under a long spaced base-temp
+path, with Bash and PowerShell syntax checks in the same command.
+
+No secret value, Caddy file, or other application was touched. No push or
+production deployment was performed.

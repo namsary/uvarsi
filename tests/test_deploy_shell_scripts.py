@@ -27,18 +27,24 @@ def test_manifest_transfers_at_least_one_shell_script():
 
 def test_deploy_normalises_line_endings_of_shell_scripts_on_server():
     script = DEPLOY.read_text(encoding="utf-8")
-    assert re.search(r"sed -i .s/\\r//. /opt/uvarsi/\*\.sh", script) or (
-        "dos2unix" in script
-    ), (
-        "deploy musi po prenose odstranit CR zo shell skriptov na serveri, "
-        "inak shebang obsahuje \\r a skript sa neda spustit"
+    live_normalisation = script.index(
+        'ssh jarvis "sed -i', script.index('Ok "staging je kompletne')
+    )
+    command = script[live_normalisation:script.index("Vyzaduj", live_normalisation)]
+    for remote_path in _shell_scripts_in_manifest(script):
+        assert remote_path in command, (
+            f"deploy musi po prenose odstranit CR zo {remote_path}, inak "
+            "shebang obsahuje \\r a skript sa neda spustit"
+        )
+    assert "/opt/uvarsi/*.sh" not in command, (
+        "normalizacia nesmie menit ine zive skripty, ktore rollback nezalohuje"
     )
 
 
 def test_normalisation_happens_before_scripts_are_used():
     """Normalizacia musi predchadzat cron/spustenie, inak je zbytocna."""
     script = DEPLOY.read_text(encoding="utf-8")
-    normalizacia = script.find("/opt/uvarsi/*.sh")
+    normalizacia = script.find("/opt/uvarsi/dozorca.sh /opt/uvarsi/zaloha.sh")
     cron = script.find("crontab")
     assert normalizacia != -1, "normalizacia CR sa v deployi nenasla"
     assert cron == -1 or normalizacia < cron, (
