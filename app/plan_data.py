@@ -49,21 +49,6 @@ _COOKS_WITH_HEAT = re.compile(
 )
 _HEAT_LEVEL = re.compile(r"°\s*c|stupň|ohni|oheň|plamen|plameň|predhri|predhrej|teplot|výkon", re.IGNORECASE)
 
-# Kto nikdy nevaril, ten z „nakrájaj mäso" nevie nič. Tvar rezu je to prvé,
-# čo v postupe musí byť: na kocky, na plátky, na prúžky, na kolieska.
-_CUTS = re.compile(r"krája|sekaj|sekan|nakroj|rozkroj", re.IGNORECASE)
-_CUT_SHAPE = re.compile(
-    r"kock|plátk|plátok|prúžk|koliesk|krúžk|najemno|na jemno|nadrobno|nahrubo|drobno|"
-    r"pásik|pás\b|štvrt|osmin|polovic|rezanc|rez\b|mesiačik|dielik|hranolč|kúsk|"
-    r"špalík|guľôčk|hrub|tenk|krajc|\d+\s*cm",
-    re.IGNORECASE,
-)
-# Vňať či bylinky sa krájajú „len tak" — tvar rezu má zmysel pýtať pri surovine,
-# ktorá tvorí jedlo, nie pri petržlenovej vňati na ozdobu.
-_GARNISH = re.compile(
-    r"vňať|vňat|petržlen|pažítk|bazalk|koriand|kôpor|mät|rozmarín|tymian|zelen\w* na ozdob",
-    re.IGNORECASE,
-)
 # Recept sa musí skončiť tak, že jedlo je na stole — nie v hrnci.
 _SERVES = re.compile(
     r"podávaj|podávame|podáva sa|podávaní|servíruj|naservíruj|rozdeľ|rozlož na tanier|"
@@ -662,9 +647,6 @@ def _cookable_steps(instructions):
         raise ValueError("Recept neuvádza teplotu ani intenzitu ohrevu.")
     if sum(1 for step in steps if _NUMBER.search(step)) * 2 < len(steps):
         raise ValueError("Väčšina krokov musí uvádzať konkrétne množstvo, čas alebo teplotu.")
-    for step in steps:
-        if _CUTS.search(step) and not _CUT_SHAPE.search(step) and not _GARNISH.search(step):
-            raise ValueError("Pri krájaní chýba tvar: na kocky, na plátky, na prúžky či kolieska.")
     if not _LOOKS_DONE.search(recipe):
         raise ValueError("Recept nehovorí, ako má hotové jedlo vyzerať (do sklovita, kým nezmäkne).")
     # Posledný krok býva niekedy rada o zvyškoch; podávanie preto stačí v závere.
@@ -858,7 +840,7 @@ PLAN_VARIANT_HINTS = (
 #      krokov s minimálnou dĺžkou. Krátky všeobecný krok už nemôže minúť
 #      platené volanie a až potom zhodiť celý plán vo validácii.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 12
+PLAN_ALGO_VERSION = 13
 
 
 def plan_variant_for(user_id, variants):

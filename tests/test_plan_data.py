@@ -1316,16 +1316,17 @@ def test_rejects_recipes_that_do_not_say_how_much_how_long_or_how_hot(steps, mes
         build(with_steps(steps))
 
 
-def test_rejects_cutting_that_does_not_say_into_what_shape():
-    """„Nakrájaj mäso" nevie zopakovať nikto, kto nevaril: na kocky? na plátky?"""
+def test_one_missing_cut_shape_does_not_discard_or_rewrite_a_paid_plan():
+    """Tvar žiada prompt, ale backend nemá hádať a prepisovať modelový recept."""
     payload = with_steps([
         "Nakrájaj 2 cibule a opeč ich na 2 lyžiciach oleja 5 minút do sklovita.",
         "Prilej 200 ml vody, osoľ štipkou soli a na miernom ohni duste 15 minút, kým nezmäknú.",
         "Rozdeľ na 4 taniere, posyp 1 lyžičkou korenia a hneď podávaj.",
     ])
 
-    with pytest.raises(ValueError, match="krája"):
-        build(payload)
+    plan = build(payload)
+
+    assert plan["jedla"][0]["recept"]["kroky"][0] == payload["meals"][0]["instructions"][0]
 
 
 def test_requires_the_last_step_to_put_the_finished_dish_on_the_table():
