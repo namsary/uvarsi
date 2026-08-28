@@ -413,11 +413,55 @@ def test_every_plan_generation_path_uses_one_shared_in_flight_guard():
     html = read(APP)
     assert "let PLAN_REQUEST_IN_FLIGHT = null" in html
     assert "function onePlanRequest(request)" in html
+    assert "function requestPlan(kind, url)" in html
 
     for name in ("generujPlan", "preskladajPlan", "planZoSpajze"):
         fn = re.search(rf"function {name}\(\) \{{.*?\n\}}", html, re.S)
         assert fn, f"chýba {name}()"
-        assert "onePlanRequest" in fn.group(0), f"{name} obchádza spoločný guard"
+        assert "requestPlan" in fn.group(0), f"{name} obchádza spoločný guard"
+
+
+def test_a_202_acknowledgement_is_reused_after_the_first_request_finishes():
+    html = read(APP)
+    request = re.search(r"function requestPlan\(kind, url\) \{.*?\n\}", html, re.S)
+    assert request, "generovanie potrebuje stavový guard aj po HTTP 202"
+    assert "PLAN_PREPARATION" in request.group(0)
+    assert "Promise.resolve" in request.group(0)
+    assert "method:'POST'" in request.group(0)
+
+
+@needs_node
+def test_pending_acknowledgement_blocks_a_second_post_and_discards_stale_response(tmp_path):
+    html = read(APP)
+    one = re.search(r"function onePlanRequest\(request\) \{.*?\n\}", html, re.S)
+    request = re.search(r"function requestPlan\(kind, url\) \{.*?\n\}", html, re.S)
+    assert one and request
+    script = tmp_path / "pending-plan-guard.js"
+    script.write_text(
+        "var PLAN_REQUEST_IN_FLIGHT=null, PLAN_PREPARATION=null, PLAN_CONTEXT_VERSION=0;\n"
+        "var calls=0, resolveApi;\n"
+        "function api(url, options) { calls++; return new Promise(function(resolve){resolveApi=resolve;}); }\n"
+        "function setPlanPreparation(response, kind, version) { PLAN_PREPARATION={response:response,jobId:response.job_id,kind:kind,version:version}; return true; }\n"
+        + one.group(0) + "\n" + request.group(0) + "\n"
+        + "(async function(){\n"
+        + "  var first=requestPlan('regular','/api/plan/generuj',{method:'POST'});\n"
+        + "  resolveApi({status:'preparing',job_id:7,message:'Plán pripravujeme. Pokojne pokračuj inde.'});\n"
+        + "  await first;\n"
+        + "  await requestPlan('regular','/api/plan/generuj',{method:'POST'});\n"
+        + "  if (calls !== 1) process.exit(1);\n"
+        + "  PLAN_PREPARATION=null; PLAN_CONTEXT_VERSION=1;\n"
+        + "  var stale=await requestPlan('regular','/api/plan/generuj',{method:'POST'});\n"
+        + "  PLAN_CONTEXT_VERSION=2;\n"
+        + "  resolveApi({status:'preparing',job_id:8,message:'Plán pripravujeme. Pokojne pokračuj inde.'});\n"
+        + "  stale=await stale;\n"
+        + "  if (!stale.stale || stale.plan_version !== 1) process.exit(2);\n"
+        + "  if (PLAN_PREPARATION !== null) process.exit(3);\n"
+        + "  process.exit(0);\n"
+        + "})().catch(function(error){console.error(error);process.exit(99);});\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run([NODE, str(script)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @needs_node
@@ -585,7 +629,7 @@ def test_the_landing_ships_no_second_copy_of_the_receipt():
 
 @pytest.mark.parametrize(
     "page,budget",
-    [(APP, 18_500), (LANDING, 12_400)],
+    [(APP, 19_100), (LANDING, 12_400)],
     ids=lambda value: getattr(value, "name", str(value)),
 )
 def test_pages_stay_within_their_transfer_budget(page, budget):
@@ -618,6 +662,9 @@ def test_pages_stay_within_their_transfer_budget(page, budget):
     počítadlá, validáciu, vysvetlenie detskej porcie a zloženie domácnosti aj
     počet dní pri recepte. app.html 17 310 → 18 273 B. Zdokumentovaný strop je
     18 500 B; pôvodné vysvetľujúce komentáre zostali zachované.
+
+    28. 8. 2026: plán sa po HTTP 202 pripravuje na pozadí, navigácia zostáva
+    aktívna a klient kontroluje iba GET stav. Strop sa zdvíha na 19 100 B.
     """
     compressed = len(gzip.compress(page.read_bytes(), 9))
     assert compressed <= budget, (

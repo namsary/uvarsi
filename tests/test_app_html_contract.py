@@ -751,63 +751,68 @@ process.exit(0);
     assert "dayGenitive(" in declaration(html, "function vPlan() ")
 
 
-# --------------------------------------------------------------- čakanie (defekt 3)
-@needs_node
-def test_plan_generation_says_what_it_does_and_how_long_it_honestly_takes(tmp_path):
+# ------------------------------------------------------- príprava na pozadí (Task 5)
+def test_plan_generation_uses_background_acknowledgement_without_a_browser_timeout():
     html = app_html()
-    result = run_node(
-        tmp_path,
-        "plan-progress-contract.js",
-        declaration(html, "function planWaitMessage(seconds) ")
-        + "\n"
-        + declaration(html, "function planWaitFootnote(seconds) ")
-        + """
-var seen = {};
-var stages = [0, 25, 70, 200].map(function (s) { return planWaitMessage(s); });
-for (var i = 0; i < stages.length; i++) {
-  if (typeof stages[i] !== 'string' || stages[i].length < 12) process.exit(1);
-  if (seen[stages[i]]) process.exit(2);
-  seen[stages[i]] = true;
-}
-if (planWaitFootnote(0).indexOf('0:00') === -1) process.exit(3);
-if (planWaitFootnote(95).indexOf('1:35') === -1) process.exit(4);
-if (planWaitFootnote(5).indexOf('60') === -1) process.exit(5);
-if (planWaitFootnote(5).indexOf('120') === -1) process.exit(6);
-if (planWaitFootnote(-3).indexOf('0:00') === -1) process.exit(7);
-process.exit(0);
-""",
-    )
 
-    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Plán pripravujeme. Pokojne pokračuj inde." in html
+    assert "PLAN_TIMEOUT_MS" not in html
+    assert "PLAN_TIMEOUT_TEXT" not in html
+    assert "150000" not in html
 
-    load_plan = declaration(html, "async function nacitajPlan(gen) ")
-    assert "startPlanProgress()" in load_plan, "generation must show progress, not a bare spinner"
-    assert "stopPlanProgress()" in load_plan, "the ticking progress must always be stopped"
-    assert "planWaitMessage" in declaration(html, "function planProgressHtml(seconds) ")
+    for signature in (
+        "function generujPlan() ",
+        "function preskladajPlan() ",
+        "function planZoSpajze() ",
+    ):
+        request = declaration(html, signature)
+        assert "method:'POST'" in request
+    assert "setPlanPreparation" in declaration(html, "function requestPlan(kind, url) ")
 
 
-def test_a_plan_that_never_arrives_times_out_in_slovak_instead_of_spinning_forever():
+def test_pending_plan_keeps_navigation_available_and_polls_get_only():
     html = app_html()
-    api_wrapper = declaration(html, "async function api(url, opts) ")
+    pending = declaration(html, "function setPlanPreparation(response) ")
+    polling = declaration(html, "async function pollPlanStatus() ")
+    starter = declaration(html, "function startPlanPolling() ")
 
-    assert "AbortController" in api_wrapper, "an unbounded fetch is the infinite spinner"
-    assert "timeoutMs" in api_wrapper
-    assert "catch (networkError)" in api_wrapper, "network failures stay distinguishable"
-    assert "clearTimeout" in api_wrapper, "a finished request must not fire a late abort"
-    assert "error.timeout" in html or ".timeout = true" in html
+    assert "Plán pripravujeme. Pokojne pokračuj inde." in html
+    assert "startPlanPolling()" in pending
+    assert "api('/api/plan')" in polling
+    assert "/api/plan/generuj" not in polling
+    assert "method:'POST'" not in polling
+    assert "4000" in starter
+    assert "visibilityState" in starter
+    assert "setNavigationReady(false)" not in pending
 
-    assert re.search(r"const PLAN_TIMEOUT_MS = \d+", html), "the wait has to be bounded"
-    assert "PLAN_TIMEOUT_TEXT" in html
-    match = re.search(r"const PLAN_TIMEOUT_TEXT = '([^']+)'", html)
-    assert match, "the timeout message must be a single Slovak sentence"
-    assert "Skús to" in match.group(1)
 
-    generate = declaration(html, "function generujPlan() ")
-    assert "timeoutMs: PLAN_TIMEOUT_MS" in generate, "generation is the call that can hang"
-    load_plan = declaration(html, "async function nacitajPlan(gen) ")
-    assert "generujPlan()" in load_plan, "every generation goes through the bounded call"
-    failure = load_plan.split("catch", 1)[1]
-    assert "Skúsiť znova" in failure, "a timeout must offer a retry, not a dead end"
+def test_terminal_plan_failure_shows_server_message_and_an_explicit_retry():
+    html = app_html()
+    failure = declaration(html, "function setPlanFailure(response, kind, version) ")
+    plan_view = declaration(html, "function vPlan() ")
+    retry = declaration(html, "async function retryPlanPreparation() ")
+
+    assert "response.message" in failure
+    assert "Skúsiť znova" in html
+    assert "plan-retry" in html
+    assert "PLAN_FAILURE" in plan_view
+    assert "retryPlanPreparation()" in plan_view
+    assert "PLAN_FAILURE" in retry
+
+
+def test_startup_accepts_a_preparing_plan_and_profile_refresh_invalidates_stale_work():
+    html = app_html()
+    startup = declaration(html, "async function nacitajPlan(gen) ")
+    request = declaration(html, "function requestPlan(kind, url) ")
+    profile = declaration(html, "async function refreshPlanAfterProfileSave() ")
+    pantry = declaration(html, "async function refreshPlanAfterPantrySave() ")
+
+    assert "status === 'preparing'" in startup
+    assert "setPlanPreparation" in startup
+    assert "PLAN_CONTEXT_VERSION" in request
+    assert "version !== PLAN_CONTEXT_VERSION" in request
+    assert "invalidatePlanState()" in profile
+    assert "invalidatePlanState()" in pantry
 
 
 # ------------------------------------------- špajza je Premium (majiteľ, 21. 8.)

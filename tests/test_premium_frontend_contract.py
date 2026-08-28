@@ -232,7 +232,9 @@ def test_only_the_explicit_button_asks_for_a_brand_new_paid_plan():
 
     assert "force=1" not in prve, "prvé poskladanie smie prevziať hotový zdieľaný plán"
     assert "force=1" in znova, "prepočet na vyžiadanie sa musí cache vyhnúť"
-    assert "timeoutMs: PLAN_TIMEOUT_MS" in znova, "aj prepočet je volanie, čo môže visieť"
+    assert "timeoutMs" not in znova, "prepočet sa nesmie blokovať na dlhom browser timeoute"
+    assert "requestPlan" in prve
+    assert "requestPlan" in znova
 
     plan_view = declaration(html, "function vPlan() ")
     assert "novyPlan()" in plan_view
@@ -245,7 +247,7 @@ def test_a_refused_regeneration_keeps_the_plan_the_user_is_reading():
 
     assert "PLAN_NOTE" in novy, "hlášku o strope treba ukázať, nie prehltnúť"
     assert "PLAN = null" not in novy and "clearAuthenticatedState" not in novy
-    assert "stopPlanProgress()" in novy, "koliesko sa musí zastaviť aj pri odmietnutí"
+    assert "preskladajPlan" in novy, "prepočet musí prejsť do pravdivého pending stavu"
     assert "PLAN_NOTE" in declaration(html, "function vPlan() ")
 
 

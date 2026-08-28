@@ -158,10 +158,7 @@ let PLAN_EMPTY_REASON = '';
 const SPAJZA_UKAZKA = ['ryža', 'vajcia', 'cibuľa'];
 /* Bežné regálové ceny, nech je v ukážke vidieť, o koľko nákup klesne. */
 const SPAJZA_UKAZKA_CENY = {'ryža': '1,29', 'vajcia': '2,49', 'cibuľa': '0,89'};
-/* Jediné dlhé volanie. Bez stropu by sa koliesko točilo donekonečna; server
-   má 120 s, klient necháva rezervu na sieť. */
-const PLAN_TIMEOUT_MS = 150000;
-const PLAN_TIMEOUT_TEXT = 'Jedálniček sa nestihol poskladať do dvoch a pol minúty. Skús to prosím znova.';
+const PLAN_PREPARATION_MESSAGE = 'Plán pripravujeme. Pokojne pokračuj inde.';
 
 function startupRequests(request) {
   return {me: request('/api/me'), plan: request('/api/plan')};
@@ -397,26 +394,11 @@ async function readStartupResponse(pending) {
 
 async function api(url, opts) {
   const options = Object.assign({headers:{'Content-Type':'application/json'}}, opts||{});
-  const limit = options.timeoutMs;
-  delete options.timeoutMs;
-  let controller = null, timer = null;
-  if (limit && typeof AbortController !== 'undefined') {
-    controller = new AbortController();
-    options.signal = controller.signal;
-    timer = setTimeout(() => controller.abort(), limit);
-  }
   let r;
   try {
     r = await fetch(url, options);
   } catch (networkError) {
-    if (controller && controller.signal.aborted) {
-      const timeoutError = new Error(PLAN_TIMEOUT_TEXT);
-      timeoutError.timeout = true;
-      throw timeoutError;
-    }
     throw offlineError();
-  } finally {
-    if (timer) clearTimeout(timer);
   }
   return readApiResponse(r);
 }
@@ -491,29 +473,6 @@ function planWeekDays(plan, frequency) {
     else rows.push({den: den, typ: 'volno'});
   }
   return rows;
-}
-
-/* ---------- čakanie na plán ----------
-   Skladanie trvá 60–120 s. Bez slova o tom, čo sa deje, to vyzerá zamrznuto. */
-function planWaitMessage(seconds) {
-  var s = Math.max(0, Math.floor(Number(seconds) || 0));
-  if (s < 20) return 'Čítam letáky z tvojich obchodov…';
-  if (s < 60) return 'Skladám jedlá tak, aby ti suroviny nezostali navyše…';
-  if (s < 120) return 'Dopočítavam ceny a nákupný zoznam…';
-  return 'Trvá to dlhšie ako zvyčajne. Ešte chvíľu to skúšam…';
-}
-
-function planWaitFootnote(seconds) {
-  var s = Math.max(0, Math.floor(Number(seconds) || 0));
-  var minutes = Math.floor(s / 60), rest = s % 60;
-  return 'Beží ' + minutes + ':' + (rest < 10 ? '0' : '') + rest +
-    ' · zvyčajne to trvá 60 až 120 sekúnd';
-}
-
-function planProgressHtml(seconds) {
-  return `<div class="spin"></div>
-    <p class="center mono" style="font-size:.82rem;font-weight:600">${esc(planWaitMessage(seconds))}</p>
-    <p class="center muted mono" style="font-size:.72rem;margin-top:6px">${esc(planWaitFootnote(seconds))}</p>`;
 }
 
 function weekLabel(tyzden) {
@@ -735,8 +694,12 @@ function viewOnboarding() {
 }
 
 /* ---------- plán ---------- */
-let PLAN_PROGRESS = null;
 let PLAN_REQUEST_IN_FLIGHT = null;
+let PLAN_PREPARATION = null;
+let PLAN_FAILURE = null;
+let PLAN_POLL_TIMER = null;
+let PLAN_POLL_IN_FLIGHT = false;
+let PLAN_CONTEXT_VERSION = 0;
 
 function onePlanRequest(request) {
   if (PLAN_REQUEST_IN_FLIGHT) return PLAN_REQUEST_IN_FLIGHT;
@@ -744,27 +707,124 @@ function onePlanRequest(request) {
   return PLAN_REQUEST_IN_FLIGHT;
 }
 
-function startPlanProgress() {
-  stopPlanProgress();
-  const zaciatok = Date.now();
-  M.innerHTML = planProgressHtml(0);
-  PLAN_PROGRESS = setInterval(() => {
-    M.innerHTML = planProgressHtml(Math.floor((Date.now() - zaciatok) / 1000));
-  }, 1000);
+function requestPlan(kind, url) {
+  if (PLAN_PREPARATION) return Promise.resolve(PLAN_PREPARATION.response);
+  const version = PLAN_CONTEXT_VERSION;
+  const options = arguments[2] || {method:'POST'};
+  return onePlanRequest(async () => {
+    const response = await api(url, options);
+    if (version !== PLAN_CONTEXT_VERSION) return {stale:true, plan_version:version};
+    if (response && response.status === 'preparing') {
+      setPlanPreparation(response, kind, version);
+    }
+    return response;
+  });
 }
 
-function stopPlanProgress() {
-  if (PLAN_PROGRESS) { clearInterval(PLAN_PROGRESS); PLAN_PROGRESS = null; }
+function stopPlanPolling() {
+  if (PLAN_POLL_TIMER) { clearTimeout(PLAN_POLL_TIMER); PLAN_POLL_TIMER = null; }
 }
+
+function startPlanPolling() {
+  stopPlanPolling();
+  if (!PLAN_PREPARATION) return;
+  if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+  PLAN_POLL_TIMER = setTimeout(pollPlanStatus, 4000);
+}
+
+function setPlanPreparation(response) {
+  const kind = arguments[1] || 'regular';
+  const version = arguments[2] == null ? PLAN_CONTEXT_VERSION : arguments[2];
+  if (!response || response.status !== 'preparing' || version !== PLAN_CONTEXT_VERSION) return false;
+  PLAN_PREPARATION = {response:response, jobId:response.job_id, kind:kind};
+  PLAN_FAILURE = null;
+  PLAN_NOTE = '';
+  startPlanPolling();
+  return true;
+}
+
+function setPlanFailure(response, kind, version) {
+  if (version !== PLAN_CONTEXT_VERSION) return false;
+  stopPlanPolling();
+  PLAN_PREPARATION = null;
+  PLAN_FAILURE = response || {};
+  PLAN_FAILURE.kind = kind;
+  const serverMessage = response && response.message;
+  PLAN_FAILURE.message = serverMessage || 'Plán sa nepodarilo pripraviť. Skús to znova.';
+  return true;
+}
+
+function invalidatePlanState() {
+  PLAN_CONTEXT_VERSION += 1;
+  stopPlanPolling();
+  PLAN_PREPARATION = null;
+  PLAN_FAILURE = null;
+}
+
+function currentPlanPreparation(preparation, version) {
+  return PLAN_PREPARATION && PLAN_PREPARATION.jobId === preparation.jobId &&
+    version === PLAN_CONTEXT_VERSION;
+}
+
+async function pollPlanStatus() {
+  if (!PLAN_PREPARATION) return;
+  if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+  if (PLAN_POLL_IN_FLIGHT) return;
+  const preparation = PLAN_PREPARATION;
+  const version = PLAN_CONTEXT_VERSION;
+  PLAN_POLL_IN_FLIGHT = true;
+  try {
+    const response = await api('/api/plan');
+    if (!currentPlanPreparation(preparation, version)) return;
+    if (response && response.status === 'preparing') return;
+    if (response && response.status === 'failed') {
+      setPlanFailure(response, preparation.kind, version);
+      render();
+      return;
+    }
+    if (response && response.jedla) {
+      let me = null;
+      try { me = await api('/api/me'); } catch (ignored) {}
+      if (!currentPlanPreparation(preparation, version)) return;
+      stopPlanPolling();
+      PLAN_PREPARATION = null;
+      setPlan(response);
+      if (me) ME = me;
+      render();
+      return;
+    }
+    stopPlanPolling();
+    PLAN_PREPARATION = null;
+    setPlan(null);
+    PLAN_NEEDS_REGEN = true;
+    render();
+  } catch (error) {
+    if (currentPlanPreparation(preparation, version)) {
+      setPlanFailure({message:(error && error.message) ||
+        'Nepodarilo sa skontrolovať prípravu plánu. Skús to znova.', retry_allowed:true},
+        preparation.kind, version);
+      render();
+    }
+  } finally {
+  PLAN_POLL_IN_FLIGHT = false;
+    if (PLAN_PREPARATION && version === PLAN_CONTEXT_VERSION &&
+        (typeof document === 'undefined' || document.visibilityState === 'visible')) {
+      startPlanPolling();
+    }
+  }
+}
+
+if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') startPlanPolling();
+  else stopPlanPolling();
+});
 
 function generujPlan() {
-  return onePlanRequest(() =>
-    api('/api/plan/generuj', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS}));
+  return requestPlan('regular', '/api/plan/generuj', {method:'POST'});
 }
 
 function preskladajPlan() {
-  return onePlanRequest(() =>
-    api('/api/plan/generuj?force=1', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS}));
+  return requestPlan('force', '/api/plan/generuj?force=1', {method:'POST'});
 }
 
 /* Koľko pokusov dnes zostáva. Keď server mlčí, je to null — „neviem" nie je
@@ -812,8 +872,7 @@ function regenerationNote(me) {
    ovplyvní JEDLÁ; inak sa dotýka len nákupného zoznamu. Je to platené volanie,
    preto sa spúšťa len na kliknutie a berie jeden prepočet z denného stropu. */
 function planZoSpajze() {
-  return onePlanRequest(() =>
-    api('/api/plan/zo-spajze', {method:'POST', timeoutMs: PLAN_TIMEOUT_MS}));
+  return requestPlan('pantry', '/api/plan/zo-spajze', {method:'POST'});
 }
 
 async function navrhniZoSpajze() {
@@ -822,18 +881,27 @@ async function navrhniZoSpajze() {
     PLAN_NOTE = regenerationBlockedNote(ME, todayIso());
     return render();
   }
-  startPlanProgress();
+  const version = PLAN_CONTEXT_VERSION;
   try {
-    setPlan(await planZoSpajze());
+    const response = await planZoSpajze();
+    if (response && response.stale) return;
+    if (response && response.status === 'preparing') return render();
+    if (response && response.status === 'failed') {
+      setPlanFailure(response, 'pantry', PLAN_CONTEXT_VERSION);
+      return render();
+    }
+    setPlan(response);
     PLAN_NOTE = '';
     PANTRY_HINT_HIDDEN = true;
-    try { ME = await api('/api/me'); } catch (ignored) {}
+    try {
+      const me = await api('/api/me');
+      if (version === PLAN_CONTEXT_VERSION) ME = me;
+    } catch (ignored) {}
   } catch (error) {
-    if (error && error.authRequired) { stopPlanProgress(); return; }
+    if (error && error.authRequired) return;
     PLAN_NOTE = (error && error.message) ||
       'Jedálniček zo špajze sa teraz nepodaril. Skús to prosím znova.';
   }
-  stopPlanProgress();
   render();
 }
 
@@ -870,43 +938,63 @@ async function novyPlan() {
     PLAN_NOTE = regenerationBlockedNote(ME, todayIso());
     return render();
   }
-  startPlanProgress();
+  const version = PLAN_CONTEXT_VERSION;
   try {
-    setPlan(await preskladajPlan());
+    const response = await preskladajPlan();
+    if (response && response.stale) return;
+    if (response && response.status === 'preparing') return render();
+    if (response && response.status === 'failed') {
+      setPlanFailure(response, 'force', PLAN_CONTEXT_VERSION);
+      return render();
+    }
+    setPlan(response);
     PLAN_NOTE = '';
-    try { ME = await api('/api/me'); } catch (ignored) {}
+    try {
+      const me = await api('/api/me');
+      if (version === PLAN_CONTEXT_VERSION) ME = me;
+    } catch (ignored) {}
   } catch (error) {
-    if (error && error.authRequired) { stopPlanProgress(); return; }
+    if (error && error.authRequired) return;
     PLAN_NOTE = (error && error.message) || 'Nový jedálniček sa teraz nepodaril. Skús to prosím znova.';
   }
-  stopPlanProgress();
   render();
 }
 
 async function nacitajPlan(gen) {
-  if (gen) startPlanProgress();
-  else M.innerHTML = `<div class="spin"></div><p class="center muted mono" style="font-size:.8rem">Načítavam…</p>`;
+  const version = PLAN_CONTEXT_VERSION;
+  if (!gen) M.innerHTML = `<div class="spin"></div><p class="center muted mono" style="font-size:.8rem">Načítavam…</p>`;
   try {
     /* Pri prvom otvorení je plán už na ceste zo štartu — netreba druhú obrátku. */
     const prefetched = gen ? null : takePlanPrefetch();
     let plan = gen ? await generujPlan()
       : (prefetched ? await readStartupResponse(prefetched) : await api('/api/plan'));
+    if (version !== PLAN_CONTEXT_VERSION) return;
+    if (plan && plan.stale) return;
+    if (plan && plan.status === 'preparing') {
+      if (!PLAN_PREPARATION) setPlanPreparation(plan, 'regular', version);
+      return render();
+    }
+    if (plan && plan.status === 'failed') {
+      setPlanFailure(plan, 'regular', version);
+      return render();
+    }
     if (plan.prazdny && plan.vyzaduje_akciu) {
       setPlan(null);
       PLAN_NEEDS_REGEN = true;
       PLAN_RESUME_ENDPOINT = plan.obnovit_cez || '/api/plan/generuj';
-      stopPlanProgress();
       return render();
     }
-    if (plan.prazdny) { startPlanProgress(); plan = await generujPlan(); }
-    stopPlanProgress();
+    if (plan.prazdny) {
+      plan = await generujPlan();
+      if (plan && plan.stale) return;
+      if (plan && plan.status === 'preparing') return render();
+    }
     setPlan(plan);
   } catch(e) {
-    stopPlanProgress();
     if (e.authRequired) return;
     showNav();
     M.innerHTML = `<div class="card center" style="margin-top:30px">
-      <span class="eyebrow">${e.timeout?'Skladanie trvalo pridlho':'Plán sa nepodaril'}</span>
+      <span class="eyebrow">Plán sa nepodaril</span>
       <p style="margin-top:8px">${esc(e.message)}</p><div style="height:14px"></div>
       <button class="btn" onclick="nacitajPlan(true)">Skúsiť znova</button>
       <div style="height:10px"></div>
@@ -922,8 +1010,40 @@ async function nacitajPlan(gen) {
   render();
 }
 
+function planPreparationHtml() {
+  return `<div class="card center" style="margin-top:30px">
+    <span class="eyebrow">Príprava jedálnička</span>
+    <p style="margin:8px 0 14px">${esc(PLAN_PREPARATION_MESSAGE)}</p>
+    <p class="muted" style="margin:0">Môžeš pokračovať v Špajze, Nákupnom zozname alebo v Nastaveniach.</p>
+    </div>`;
+}
+
+function planFailureHtml() {
+  const retryAllowed = !PLAN_FAILURE || PLAN_FAILURE.retry_allowed !== false;
+  const message = (PLAN_FAILURE && PLAN_FAILURE.message) ||
+    'Plán sa nepodarilo pripraviť. Skús to znova.';
+  return `<div class="card center" style="margin-top:30px">
+    <span class="eyebrow">Plán sa nepodaril</span>
+    <p style="margin:8px 0 14px">${esc(message)}</p>
+    <button class="btn" id="plan-retry"${retryAllowed ? '' : ' disabled'}>Skúsiť znova</button>
+    </div>`;
+}
+
+async function retryPlanPreparation() {
+  if (!PLAN_FAILURE) return nacitajPlan(true);
+  if (PLAN_FAILURE.retry_allowed === false) return render();
+  const kind = PLAN_FAILURE.kind;
+  PLAN_FAILURE = null;
+  if (kind === 'pantry') return navrhniZoSpajze();
+  if (kind === 'force') return novyPlan();
+  return nacitajPlan(true);
+}
+
 async function refreshPlanAfterPantrySave() {
+  invalidatePlanState();
+  const version = PLAN_CONTEXT_VERSION;
   const plan = await api('/api/plan');
+  if (version !== PLAN_CONTEXT_VERSION) return;
   const empty = !!(plan && plan.prazdny);
   setPlan(empty ? null : plan);
   PLAN_NEEDS_REGEN = empty;
@@ -933,7 +1053,10 @@ async function refreshPlanAfterPantrySave() {
 }
 
 async function refreshPlanAfterProfileSave() {
+  invalidatePlanState();
+  const version = PLAN_CONTEXT_VERSION;
   const plan = await api('/api/plan'), empty = !!(plan && plan.prazdny);
+  if (version !== PLAN_CONTEXT_VERSION) return;
   setPlan(empty ? null : plan);
   PLAN_NEEDS_REGEN = empty;
   PLAN_RESUME_ENDPOINT = empty ? (plan.obnovit_cez || '') : '';
@@ -963,6 +1086,15 @@ function render() {
 }
 
 function vPlan() {
+  if (PLAN_PREPARATION) {
+    M.innerHTML = planPreparationHtml();
+    return;
+  }
+  if (PLAN_FAILURE) {
+    M.innerHTML = planFailureHtml();
+    $('#plan-retry').onclick = () => retryPlanPreparation();
+    return;
+  }
   if (PLAN_NEEDS_REGEN) {
     const profil = PLAN_EMPTY_REASON === 'profil';
     M.innerHTML = `<div class="card center" style="margin-top:30px">
@@ -994,8 +1126,8 @@ function vPlan() {
       <span class="eyebrow">Špajza sa zmenila</span>
       <p style="margin:6px 0 4px">Nákupný zoznam to už zarátal. Chceš aj jedlá poskladať
         okolo toho, čo máš doma?</p>
-      <p class="muted" style="margin-bottom:12px">Tento jedálniček nechávam tak, ako je,
-        kým to nepovieš. Nový sa skladá 60 až 120 sekúnd a berie jeden prepočet.</p>
+       <p class="muted" style="margin-bottom:12px">Tento jedálniček nechávam tak, ako je,
+         kým to nepovieš. Nový sa pripraví na pozadí a berie jeden prepočet.</p>
       <button class="btn" id="sp-hint-go">Navrhni jedlá z toho, čo mám doma →</button>
       <div style="height:8px"></div>
       <button class="btn btn--ghost" id="sp-hint-off">Nechať tak</button></div>`;
@@ -1173,7 +1305,7 @@ function vSpajza() {
     <div style="height:16px"></div>
     <button class="btn btn--ghost" id="sp-navrhni"${sp.length ? '' : ' disabled'}>Navrhni jedlá z toho, čo mám doma →</button>
     <p class="muted center mono" style="font-size:.7rem;margin-top:8px">${sp.length
-      ? 'Skladá sa 60 až 120 sekúnd a berie jeden prepočet z dnešného stropu.'
+      ? 'Pripraví sa na pozadí a berie jeden prepočet z dnešného stropu.'
       : 'Najprv napíš, čo máš doma.'}</p>`;
   const uloz = list => runGuardedAction($('#sp-add'), $('#sp-err'), async () => {
     try {
@@ -1243,6 +1375,7 @@ function viewOffline(message) {
 }
 
 async function start() {
+  invalidatePlanState();
   /* Kto sa už raz prihlásil, uvidí hlavičku aj menu okamžite — čaká len na plán. */
   const known = paintKnownShell();
   M.innerHTML = known
