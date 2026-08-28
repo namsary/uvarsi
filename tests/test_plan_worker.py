@@ -38,7 +38,7 @@ def _offer(index, store):
         "cena": 1.0 + index / 100,
         "povodna": 2.0 + index / 100,
         "zlava": "-50 %",
-        "jednotka": "1 ks",
+        "jednotka": "1 kg",
         "source_url": f"https://example.test/{store}/{index}.jpg",
         "source_page": index,
         "valid_from": (today - datetime.timedelta(days=1)).isoformat(),
@@ -266,6 +266,24 @@ def test_worker_builds_regular_plan_and_marks_job_ready(app_db):
         ).fetchone()
         assert con.execute("SELECT COUNT(*) FROM plany").fetchone()[0] == 0
     assert fake_model.calls == 1
+
+
+def test_builder_never_calls_model_when_no_offer_has_a_measurable_package(
+        app_db, monkeypatch):
+    rows = [dict(row, jednotka="bal.") for row in app_db.server.akcie_pre(STORES)]
+    job = types.SimpleNamespace(kind="regular", variant=0, reserved_eur=0, id=999)
+    monkeypatch.setattr(
+        app_db.server,
+        "_job_context",
+        lambda *_args: (STORES, 2, 2, 2, rows, [], None),
+    )
+    fake_model = FakeModel({"meals": []})
+
+    with pytest.raises(Exception) as raised:
+        app_db.server.build_and_store_job(job, client=fake_model)
+
+    assert getattr(raised.value, "status_code", None) == 503
+    assert fake_model.calls == 0
 
 
 def test_worker_never_retries_after_dispatch_timeout(app_db):

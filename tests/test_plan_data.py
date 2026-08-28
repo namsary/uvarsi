@@ -444,7 +444,7 @@ def test_invalid_recipe_minutes_are_rejected(minutes):
         (lambda plan: plan.update(nakup_spolu="0,01"), "nepovolené"),
         (lambda plan: plan["meals"][0]["items"][0].update(price="0,01"), "nepovolené"),
         (lambda plan: plan["meals"][0].update(instructions=[""]), "pokyn"),
-        (lambda plan: plan["meals"][0]["items"][0].update(quantity=0), "Množstvo"),
+        (lambda plan: plan["meals"][0]["items"][0].update(use="neplatné"), "Použitie"),
         (lambda plan: plan["meals"][1]["items"].__setitem__(
             0, item(verified_key(1), MLIEKO_NA_OSOBU, "ml")), "duplicitné"),
         (lambda plan: plan["meals"][0]["items"][0].update(offer_key=verified_key(4)), "neznáme"),
@@ -665,56 +665,55 @@ def test_rejects_a_recipe_whose_steps_contradict_the_amount_that_is_bought():
         build(payload)
 
 
-def test_requires_an_amount_per_person_for_every_bought_ingredient():
+def test_model_item_needs_only_offer_key_and_package_quantity():
     payload = model_output()
     payload["meals"][0]["items"] = [{"offer_key": verified_key(1), "quantity": 2}]
 
-    with pytest.raises(ValueError, match="na osobu"):
-        build(payload)
+    ingredient = build(payload)["jedla"][0]["suroviny"][0]
 
-    payload["meals"][0]["items"] = [item(verified_key(1), 250, "hrsť", quantity=2)]
-    with pytest.raises(ValueError, match="jednotk"):
-        build(payload)
+    assert ingredient["davka"] == "2 l"
+    assert ingredient["mnozstvo"] == 2
 
 
-def test_a_typo_in_the_unit_can_never_buy_a_hundred_kilos():
-    """150 kg namiesto 150 g je nákup za stovky eur — to sa nesmie stať."""
+def test_a_model_typo_in_the_unit_cannot_change_server_owned_amounts():
     payload = model_output()
     payload["meals"][0]["items"] = [item(verified_key(1), 150, "l", quantity=1)]
 
-    with pytest.raises(ValueError, match="nereálne"):
-        build(payload)
+    ingredient = build(payload)["jedla"][0]["suroviny"][0]
+
+    assert ingredient["davka"] == "2 l"
+    assert ingredient["mnozstvo"] == 2
 
 
 @pytest.mark.parametrize("amount_per_person", [0, -5, True, "250", float("inf")])
-def test_rejects_nonsense_amounts_per_person(amount_per_person):
+def test_legacy_model_amount_field_is_ignored(amount_per_person):
     payload = model_output()
     payload["meals"][0]["items"] = [
         {"offer_key": verified_key(1), "quantity": 2,
          "amount_per_person": amount_per_person, "unit": "ml"}
     ]
 
-    with pytest.raises(ValueError, match="na osobu"):
-        build(payload)
+    assert build(payload)["jedla"][0]["suroviny"][0]["davka"] == "2 l"
 
 
-def test_unparsable_package_size_falls_back_to_the_quantity_the_model_asked_for():
-    """Pri balení „bal." sa počet kusov dopočítať nedá — tam model rozhoduje."""
+def test_unparsable_package_size_is_not_offered_or_priced():
+    """Bez veľkosti balenia sa nedá pravdivo vypočítať počet kusov ani cena."""
     rows = verified_rows()
     rows[0] = tuple(list(rows[0][:8]) + ["bal."] + list(rows[0][9:]))
     con = connection(rows)
     keys = {row["nazov"]: row["offer_key"] for row in current_verified_offers(con, ["Lidl", "Tesco"], TODAY)}
     payload = model_output()
-    payload["meals"][0]["items"] = [item(keys["Mlieko"], MLIEKO_NA_OSOBU, "ml", quantity=3)]
+    payload["meals"][0]["items"] = [item(keys["Mlieko"], MLIEKO_NA_OSOBU, "ml", quantity=999)]
     payload["meals"][1]["items"] = [item(keys["Chlieb"], CHLIEB_NA_OSOBU, "g")]
     payload["meals"][2]["items"] = [item(keys["Maslo"], MASLO_NA_OSOBU, "g")]
 
-    plan = build_personal_plan(
-        con, payload, ["Lidl", "Tesco"], 2, 4, pantry=["soľ"], today=TODAY
+    assert keys["Mlieko"] not in plan_data.offers_catalog(
+        current_verified_offers(con, ["Lidl", "Tesco"], TODAY)
     )
-
-    mlieko = plan["jedla"][0]["suroviny"][0]
-    assert (mlieko["mnozstvo"], mlieko["davka"]) == (3, "2 l")
+    with pytest.raises(ValueError, match="neznáme alebo neaktuálne"):
+        build_personal_plan(
+            con, payload, ["Lidl", "Tesco"], 2, 4, pantry=["soľ"], today=TODAY
+        )
 
 
 # -------------------------------------------- profesionálny porciový štandard
@@ -755,15 +754,15 @@ def test_mixed_household_recipe_uses_adult_equivalents_but_displays_real_serving
     assert plan["jedla"][-1]["recept"]["porcie"] == 4
 
 
-def test_prompt_distinguishes_servings_from_adult_equivalents_and_uses_new_field():
+def test_prompt_distinguishes_servings_from_adult_equivalents_and_server_doses():
     prompt = personal_plan_prompt(
         [], 3, [], None, adults=2, children=2,
     )
 
     assert "2 dospelí" in prompt and "2 deti" in prompt
     assert "12 porcií" in prompt and "9,9" in prompt
-    assert "amount_per_adult" in prompt
-    assert "amount_per_person" not in prompt
+    assert "katalógovú dávku" in prompt
+    assert "amount_per_adult" not in prompt
     assert "3–12" in prompt and "0,65" in prompt
 
 
@@ -794,6 +793,66 @@ def test_every_portion_role_enforces_its_approved_range(
     ) == (role, unit, Decimal(str(maximum)))
     with pytest.raises(ValueError, match="porciovú triedu"):
         plan_data.validate_portion_amount(name, category, maximum + 1, unit, claimed)
+
+
+def test_server_owns_portion_unit_and_amount_even_when_model_claims_wrong_values():
+    """AI smie vybrať papriku, ale nesmie zmeniť serverový porciový štandard."""
+    row = {"nazov": "Paprika červená", "kategoria": "zelenina", "jednotka": "1 kg"}
+    hostile_model_item = {
+        "offer_key": "offer_paprika",
+        "quantity": 1,
+        "amount_per_adult": 1,
+        "unit": "ks",
+        "ingredient_role": "vegetable",
+    }
+
+    assert plan_data._amount_per_adult(hostile_model_item, row) == (
+        "vegetable", "g", Decimal("200"),
+    )
+
+
+def test_offer_catalog_gives_model_the_exact_server_owned_recipe_portion():
+    catalog = plan_data.offers_catalog([
+        {
+            "offer_key": "offer_paprika",
+            "nazov": "Paprika červená",
+            "kategoria": "zelenina",
+            "jednotka": "1 kg",
+        }
+    ])
+
+    assert "kuchárska dávka na dospelého: 200 g" in catalog
+    assert "porciová trieda: vegetable" in catalog
+
+
+def test_plan_output_schema_excludes_model_owned_portion_fields():
+    config = plan_data.plan_output_config("low")
+    schema = config["format"]["schema"]
+    item = schema["properties"]["meals"]["items"]["properties"]["items"]["items"]
+
+    assert config["effort"] == "low"
+    assert item["required"] == ["offer_key", "use"]
+    assert set(item["properties"]) == {"offer_key", "use"}
+    assert item["properties"]["use"]["enum"] == ["main", "addition"]
+    assert item["additionalProperties"] is False
+
+
+def test_server_allows_only_safe_context_for_ambiguous_cheese_and_onion():
+    cheese = {"nazov": "Syr Eidam", "kategoria": "mliečne", "jednotka": "200 g"}
+    onion = {"nazov": "Cibuľa", "kategoria": "zelenina", "jednotka": "1 kg"}
+
+    assert plan_data._amount_per_adult({"use": "main"}, cheese) == (
+        "dairy_main", "g", Decimal("100"),
+    )
+    assert plan_data._amount_per_adult({"use": "addition"}, cheese) == (
+        "dairy_addition", "g", Decimal("30"),
+    )
+    assert plan_data._amount_per_adult({"use": "main"}, onion) == (
+        "vegetable", "g", Decimal("200"),
+    )
+    assert plan_data._amount_per_adult({"use": "addition"}, onion) == (
+        "vegetable_addition", "g", Decimal("50"),
+    )
 
 
 def test_known_food_name_wins_over_an_incompatible_model_role():
@@ -870,25 +929,25 @@ def test_common_valid_ingredients_do_not_trigger_a_paid_plan_retry():
 
 
 def test_prompt_exposes_the_closed_addition_role_and_ambiguous_examples():
-    rules = plan_data.recipe_rules()
-    assert "vegetable_addition" in rules
-    assert "Maslová tekvica" in rules
-    assert "Cibuľa" in rules and "50" in rules
-    assert "Syr Eidam" in rules and "dairy_addition" in rules
+    catalog = plan_data.offers_catalog([
+        {"offer_key": "a", "nazov": "Maslová tekvica", "kategoria": "zelenina", "jednotka": "1 kg"},
+        {"offer_key": "b", "nazov": "Cibuľa", "kategoria": "zelenina", "jednotka": "1 kg"},
+        {"offer_key": "c", "nazov": "Syr Eidam", "kategoria": "mliečne", "jednotka": "200 g"},
+    ])
+    assert "Maslová tekvica" in catalog and "vegetable" in catalog
+    assert "Cibuľa" in catalog and "vegetable_addition" in catalog and "50 g" in catalog
+    assert "Syr Eidam" in catalog and "dairy_main" in catalog and "100 g" in catalog
 
 
 def test_prompt_maps_each_portion_role_to_a_validator_compatible_unit():
-    rules = plan_data.recipe_rules()
-    assert "vegetable, vegetable_addition" in rules
-    assert "použi vždy g" in rules
-    assert "Pre egg použi vždy ks" in rules
-    assert "Pre sauce_liquid použi vždy ml" in rules
-    assert "Rola a jednotka musia byť presne v tejto kombinácii" in rules
-    assert "protein_main 120–200 g" in rules
-    assert "vegetable 120–350 g" in rules
-    assert "egg 1–3 ks" in rules
-    assert "sauce_liquid 100–400 ml" in rules
-    assert "Nikdy nechoď pod ani nad tieto hranice" in rules
+    cases = (
+        ({"nazov": "Kuracie prsia", "kategoria": "mäso", "jednotka": "500 g"}, ("protein_main", "g")),
+        ({"nazov": "Paprika", "kategoria": "zelenina", "jednotka": "1 kg"}, ("vegetable", "g")),
+        ({"nazov": "Vajcia", "kategoria": "vajcia", "jednotka": "10 ks"}, ("egg", "ks")),
+        ({"nazov": "Mlieko", "kategoria": "mliečne", "jednotka": "1 l"}, ("sauce_liquid", "ml")),
+    )
+    assert [(plan_data.canonical_portion(row)[0], plan_data.canonical_portion(row)[1])
+            for row, _expected in cases] == [expected for _row, expected in cases]
 
 
 # ------------------------------------------------- názov musí sedieť na recept
@@ -1173,10 +1232,11 @@ def test_prompt_spells_out_the_portion_arithmetic_instead_of_hoping_the_model_gu
     prompt = full_prompt()
     tail = personal_plan_prompt(offers_connection(), 2, ["soľ"], household_size=4)
 
-    assert "amount_per_adult" in prompt and "unit = g, ml alebo ks" in prompt
+    assert "kuchárska dávka na dospelého" in prompt
+    assert "Jednotku, rolu, dávku ani počet balení" in prompt
     assert "PO: navar 8 porcií na 2 dni" in tail, "4 osoby × 2 dni"
     assert "NE: navar 4 porcie na 1 deň" in tail, "nedeľa nesmie variť do pondelka"
-    assert "amount_per_adult × počet dospelých kuchárskych" in tail
+    assert "katalógovú dávku × počet dospelých kuchárskych" in tail
 
 
 def test_prompt_shows_a_whole_worked_recipe_that_passes_our_own_validation():
@@ -1234,7 +1294,7 @@ def ingest_three(con, prefix):
         {
             "obchod": "Lidl", "nazov": f"{prefix} {index}", "kategoria": "trvanlive",
             "cena": 1.00 + index / 10, "povodna": 2.00 + index / 10, "zlava": "-50 %",
-            "jednotka": "1 ks", "source_url": f"https://source.test/{prefix}/{index}",
+            "jednotka": "1 kg", "source_url": f"https://source.test/{prefix}/{index}",
             "source_page": index, "valid_from": "2026-08-17", "valid_to": "2026-08-23",
         }
         for index in range(1, 4)

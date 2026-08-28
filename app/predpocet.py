@@ -68,12 +68,16 @@ from contextlib import closing
 try:
     from . import naklady
     from . import plan_jobs
-    from .plan_data import build_personal_plan, personal_plan_messages
+    from .plan_data import (
+        build_personal_plan, measurable_offers, personal_plan_messages, plan_output_config,
+    )
     from .plan_shortlist import select_offers
 except ImportError:                      # beh priamo z adresára app/
     import naklady
     import plan_jobs
-    from plan_data import build_personal_plan, personal_plan_messages
+    from plan_data import (
+        build_personal_plan, measurable_offers, personal_plan_messages, plan_output_config,
+    )
     from plan_shortlist import select_offers
 
 
@@ -493,7 +497,12 @@ def _poskladaj(con, server, rows, profil, klient=None):
         UCEL,
         rezervovane_eur=lambda: plan_jobs.active_reservations_eur(con),
     )
-    prompt_rows = select_offers(rows, profil.obchody, limit=120)
+    prompt_source = measurable_offers(rows)
+    if not prompt_source:
+        raise PlanNepouzitelny(
+            "z aktuálnych akcií sa nedajú spoľahlivo vypočítať množstvá"
+        )
+    prompt_rows = select_offers(prompt_source, profil.obchody, limit=120)
     if _pozna_clenov_domacnosti(personal_plan_messages):
         blocks = personal_plan_messages(
             rows, profil.frekvencia, (), household_size=None,
@@ -512,10 +521,9 @@ def _poskladaj(con, server, rows, profil, klient=None):
         "max_tokens": server.PLAN_TOKENS,
         "messages": [{"role": "user", "content": blocks}],
     }
-    nastavenie = (
-        {"output_config": {"effort": server.PLAN_EFFORT}}
-        if getattr(server, "PLAN_EFFORT", None) else {}
-    )
+    nastavenie = {
+        "output_config": plan_output_config(getattr(server, "PLAN_EFFORT", None)),
+    }
     # Neopakovať pri TypeError: chyba môže vzniknúť až po odoslaní a druhý
     # pokus by mohol znamenať druhé platené volanie.
     msg = strazeny.messages.create(**zaklad, **nastavenie)

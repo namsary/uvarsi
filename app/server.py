@@ -34,7 +34,9 @@ from plan_data import (
     apply_pantry_to_shopping_list,
     build_personal_plan,
     cached_plan_is_current,
+    measurable_offers,
     personal_plan_messages,
+    plan_output_config,
     plan_signature,
     plan_variant_for,
     plan_without_pantry,
@@ -908,17 +910,18 @@ async def uloz_spajzu(req: Request):
 
 # ---------------------------------------------------------------- plán
 def akcie_pre(obchody):
-    """Complete current verified rows for signatures, caches, and validation.
+    """Complete current priceable rows for signatures, caches, and validation.
 
     Prompt shortening happens only at the model-call boundary through
-    ``plan_shortlist.select_offers``; this catalogue must stay complete.
+    ``plan_shortlist.select_offers``. Offers without a measurable package are
+    excluded here, before a user's generation allowance can be reserved.
     """
     if not obchody:
         return []
 
     today = datetime.date.today()
     with closing(db()) as con:
-        rows = offers_for_current_week(con, obchody, today)
+        rows = measurable_offers(offers_for_current_week(con, obchody, today))
 
     return rows
 
@@ -1482,7 +1485,7 @@ def _current_job_context(job, stores, frequency, adults, children, *, con, now):
     missing_stores = stores_missing_this_week(con, stores, today)
     if missing_stores:
         raise StalePlanJob("incomplete_stores")
-    rows = offers_for_current_week(con, stores, today)
+    rows = measurable_offers(offers_for_current_week(con, stores, today))
     represented = {row["obchod"] for row in rows}
     if len(rows) < MIN_OFFERS_FOR_PLAN or any(store not in represented for store in stores):
         raise StalePlanJob("incomplete_stores")
@@ -1556,13 +1559,16 @@ def build_and_store_job(job, *, client=None) -> dict:
         bind_context(context_identity)
     pantry_driven = job.kind == "pantry"
     purpose = "predpocet" if job.kind == "precompute" else "plan"
-    prompt_rows = select_offers(rows, stores, limit=120)
+    prompt_source = measurable_offers(rows)
+    if not prompt_source:
+        raise HTTPException(503, "Z aktuálnych akcií sa nedajú spoľahlivo vypočítať množstvá.")
+    prompt_rows = select_offers(prompt_source, stores, limit=120)
     blocks = personal_plan_messages(
         rows, frequency, pantry if pantry_driven else (), household_size=None,
         variant=job.variant, pantry_driven=pantry_driven,
         prompt_rows=prompt_rows, adults=adults, children=children,
     )
-    settings = {"output_config": {"effort": PLAN_EFFORT}} if PLAN_EFFORT else {}
+    settings = {"output_config": plan_output_config(PLAN_EFFORT)}
 
     with closing(db()) as accounts:
         own_reservation = getattr(job, "reserved_eur", None)
@@ -1709,7 +1715,9 @@ def daj_plan(req: Request):
                 cached = json.loads(r["json"])
             except json.JSONDecodeError:
                 pass
-        rows = offers_for_current_week(con, u["obchody"].split(","), datetime.date.today())
+        rows = measurable_offers(
+            offers_for_current_week(con, u["obchody"].split(","), datetime.date.today())
+        )
         premium = je_premium(con, u["id"])
         sp = spajza_pouzivatela(con, u["id"], premium)
         podpis = podpis_planu(
@@ -1736,6 +1744,17 @@ def daj_plan(req: Request):
             and status.state == "failed"
             and _job_is_at_least_as_new_as_cache(status, r["vytvoreny"] if r else None)
         ):
+            # Bežný plán je zdieľaný. Ak ho po našom zlyhaní úspešne vytvoril
+            # iný rovnaký profil alebo nočný predpočet, platný výsledok má
+            # prednosť pred starou chybovou stenou. Force a špajzový job sú
+            # osobné požiadavky, preto pri nich starý výsledok nikdy nemaskuj.
+            if status.kind == "regular" and not status.is_force:
+                recovered = nacitaj_zdielany_plan(con, podpis, variant)
+                if recovered is not None and cached_plan_is_current(recovered, rows):
+                    predpocet.zapocitaj_zasah(con, podpis, variant, tyz)
+                    plan = prevezmi_zdielany_plan(con, u["id"], tyz, recovered, sp)
+                    con.commit()
+                    return plan
             return failed_payload(status, retry_allowed)
         if valid_cached and not (
             status is not None

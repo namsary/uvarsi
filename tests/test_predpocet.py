@@ -783,12 +783,13 @@ def test_precompute_passes_one_household_contract_to_signature_prompt_and_builde
     )
 
     assert predpocet._podpis_pre_profil(server, "2026-08-24", profile, []) == "signature"
+    rows = server.akcie_pre(["Lidl"])
     with closing(server.db()) as con:
-        predpocet._poskladaj(con, server, [], profile, klient=object())
+        predpocet._poskladaj(con, server, rows, profile, klient=object())
 
     assert calls == {
         "signature": (None, 2, 2),
-        "prompt": (None, 2, 2, []),
+        "prompt": (None, 2, 2, rows),
         "builder": (None, 2, 2),
     }
 
@@ -820,7 +821,8 @@ def test_predpocet_uses_the_same_low_effort_as_live_plans(monkeypatch, tmp_path)
             con, server, server.akcie_pre(["Lidl"]), profile, klient=object()
         )
 
-    assert calls[0]["output_config"] == {"effort": "low"}
+    assert calls[0]["output_config"]["effort"] == "low"
+    assert calls[0]["output_config"]["format"]["type"] == "json_schema"
     assert calls[0]["max_tokens"] >= 10_000
 
 

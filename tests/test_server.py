@@ -162,7 +162,7 @@ def plan_offer(index):
     return {
         "tyzden": current_monday(today), "nazov": f"Ponuka {index}", "obchod": "Lidl",
         "cena": 1.0 + index / 100, "povodna": 2.0 + index / 100, "zlava": "-50 %",
-        "jednotka": "1 ks", "kategoria": "trvanlive",
+        "jednotka": "1 kg", "kategoria": "trvanlive",
         "source_url": f"https://example.test/{index}.jpg", "source_page": index,
         "valid_from": (today - timedelta(days=1)).isoformat(),
         "valid_to": (today + timedelta(days=1)).isoformat(),
@@ -775,8 +775,8 @@ def test_plan_route_persists_only_reconstructed_server_commerce(monkeypatch, tmp
     assert "_uvarsi_meta" not in payload
     offer = plan_offer(1)
     assert payload["jedla"][0]["suroviny"] == [
-        {"offer_key": plan_key(1), "nazov": "Ponuka 1", "obchod": "Lidl", "jednotka": "1 ks",
-         "mnozstvo": 2, "davka": "1,2 kg", "cena": "2,02", "povodna": "4,02", "zlava": "-50 %",
+        {"offer_key": plan_key(1), "nazov": "Ponuka 1", "obchod": "Lidl", "jednotka": "1 kg",
+         "mnozstvo": 1, "davka": "600 g", "cena": "1,01", "povodna": "2,01", "zlava": "-50 %",
          "source_url": offer["source_url"], "source_page": offer["source_page"],
          "valid_from": offer["valid_from"], "valid_to": offer["valid_to"]},
     ]
@@ -1040,7 +1040,7 @@ def test_shared_plan_still_carries_only_verified_prices_and_provenance(monkeypat
 
     offer = plan_offer(1)
     bought = shared["jedla"][0]["suroviny"][0]
-    assert bought["cena"] == "2,02" and bought["povodna"] == "4,02"
+    assert bought["cena"] == "1,01" and bought["povodna"] == "2,01"
     assert bought["source_url"] == offer["source_url"]
     assert bought["source_page"] == offer["source_page"]
     assert (bought["valid_from"], bought["valid_to"]) == (offer["valid_from"], offer["valid_to"])
@@ -1230,11 +1230,13 @@ def test_reasoning_effort_reaches_the_model_and_stays_optional(monkeypatch, tmp_
 
     monkeypatch.setattr(server, "PLAN_EFFORT", None)
     assert client.post("/api/plan/generuj?force=1").status_code == 200
-    assert "output_config" not in calls[0], "unset effort must not change today's behaviour"
+    assert "effort" not in calls[0]["output_config"]
+    assert calls[0]["output_config"]["format"]["type"] == "json_schema"
 
     monkeypatch.setattr(server, "PLAN_EFFORT", "low")
     assert client.post("/api/plan/generuj?force=1").status_code == 200
-    assert calls[1]["output_config"] == {"effort": "low"}
+    assert calls[1]["output_config"]["effort"] == "low"
+    assert calls[1]["output_config"]["format"]["type"] == "json_schema"
 
 
 def test_typeerror_during_model_call_is_never_retried_and_double_charged(monkeypatch, tmp_path):
@@ -1292,7 +1294,7 @@ def category_rows():
         cena = 0.5 + index / 100 if kategoria == "maso" else 5.0 + index / 100
         rows.append((
             current_monday(today), f"{kategoria} {index}", "Lidl", round(cena, 2),
-            round(cena * 2, 2), "-50 %", "1 ks", kategoria,
+            round(cena * 2, 2), "-50 %", "1 kg", kategoria,
             f"https://example.test/{index}.jpg", index,
             (today - timedelta(days=1)).isoformat(), (today + timedelta(days=1)).isoformat(),
         ))
@@ -1310,6 +1312,26 @@ def test_current_offer_catalogue_is_complete_before_prompt_shortlisting(monkeypa
     assert len(selected) == len(category_rows()) == 160
     counted = {name: sum(1 for row in selected if row["kategoria"] == name) for name in categories}
     assert counted == {"maso": 60, "zelenina": 30, "mliecne": 20, "trvanlive": 20, "ovocie": 15, "pecivo": 15}
+
+
+def test_unpriceable_catalogue_is_rejected_before_a_user_attempt_is_reserved(
+        monkeypatch, tmp_path):
+    rows = [tuple(list(row[:6]) + ["bal."] + list(row[7:])) for row in category_rows()[:20]]
+    server = load_server(monkeypatch, tmp_path, rows)
+    with server.db() as con:
+        con.execute(
+            "INSERT INTO pouzivatelia (id, email, obchody) VALUES (1, 'measure@uvar.si', 'Lidl')"
+        )
+        insert_hashed_session(server, con, "measure-session", 1)
+        con.commit()
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "measure-session")
+
+    response = client.post("/api/plan/generuj")
+
+    assert response.status_code == 503
+    with server.db() as con:
+        assert con.execute("SELECT COUNT(*) FROM plan_jobs").fetchone()[0] == 0
 
 
 def test_complete_offer_catalogue_is_deterministic_so_the_shared_signature_is_stable(monkeypatch, tmp_path):

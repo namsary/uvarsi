@@ -174,6 +174,37 @@ def test_both_joiners_see_failure_of_one_shared_regular_job(monkeypatch, tmp_pat
     assert first_failed.json()["job_id"] == second_failed.json()["job_id"] == submitted["job_id"]
 
 
+def test_valid_shared_plan_recovers_user_from_an_older_failed_regular_job(monkeypatch, tmp_path):
+    """Novší bezpečný výsledok nesmie byť zakrytý starou chybovou stenou."""
+    server = shared_plan_server(monkeypatch, tmp_path, users=(1,), premium=False)
+    client = plan_client(server, 1)
+    submitted = assert_pending(client.post("/api/plan/generuj"))
+    fail_job(server, submitted["job_id"], "invalid_model_output")
+
+    with server.db() as con:
+        job = con.execute("SELECT * FROM plan_jobs WHERE id=?", (submitted["job_id"],)).fetchone()
+        payload = json.loads(job["payload_json"])
+        plan = build_personal_plan(
+            con,
+            model_plan(),
+            payload["stores"],
+            payload["frequency"],
+            None,
+            adults=payload["adults"],
+            children=payload["children"],
+        )
+        server.uloz_zdielany_plan(
+            con, job["signature"], job["variant"], job["week"], plan,
+        )
+        con.commit()
+
+    recovered = client.get("/api/plan")
+
+    assert recovered.status_code == 200
+    assert recovered.json()["jedla"]
+    assert "status" not in recovered.json()
+
+
 def test_cache_hit_still_returns_plan_directly(monkeypatch, tmp_path):
     server = shared_plan_server(monkeypatch, tmp_path, users=(1,), premium=False)
     forbid_model_construction(monkeypatch)
@@ -201,6 +232,28 @@ def test_get_reports_the_active_regular_job(monkeypatch, tmp_path):
     submitted = assert_pending(plan_client(server, 1).post("/api/plan/generuj"))
 
     polled = assert_pending(plan_client(server, 1).get("/api/plan"))
+
+    assert polled["job_id"] == submitted["job_id"]
+
+
+def test_get_finds_active_job_with_an_extra_unpriceable_offer(monkeypatch, tmp_path):
+    server = shared_plan_server(monkeypatch, tmp_path, users=(1,), premium=False)
+    with server.db() as con:
+        con.execute(
+            """INSERT INTO akcie (
+                   tyzden, obchod, nazov, kategoria, cena, povodna, zlava,
+                   jednotka, source_url, source_page, valid_from, valid_to, offer_key
+               )
+               SELECT tyzden, obchod, 'Nečitateľné balenie', kategoria, cena,
+                      povodna, zlava, 'bal.', source_url, 999, valid_from, valid_to,
+                      'offer_unpriceable'
+               FROM akcie LIMIT 1"""
+        )
+        con.commit()
+    client = plan_client(server, 1)
+    submitted = assert_pending(client.post("/api/plan/generuj"))
+
+    polled = assert_pending(client.get("/api/plan"))
 
     assert polled["job_id"] == submitted["job_id"]
 

@@ -21,7 +21,7 @@ _MODEL_TOP_LEVEL = frozenset({"meals"})
 _MODEL_MEAL = frozenset({"day", "name", "minutes", "instructions", "items", "pantry_ingredients"})
 _MODEL_ITEM = frozenset({
     "offer_key", "quantity", "amount_per_adult", "amount_per_person", "unit",
-    "ingredient_role",
+    "ingredient_role", "use",
 })
 
 # Recept je použiteľný až vtedy, keď povie koľko, ako dlho a na čom.
@@ -116,6 +116,30 @@ PORTION_RANGES = {
         "ml": (Decimal("0"), Decimal("500")),
         "ks": (Decimal("0"), Decimal("3")),
     },
+}
+# Python, nie model, vlastní jednotku aj dávku jednej dospelej kuchárskej
+# porcie. Sú to plánovacie hodnoty uprostred bezpečných rozsahov vyššie, nie
+# individuálne výživové odporúčanie.
+PORTION_DEFAULTS = {
+    "protein_main": ("g", Decimal("150")),
+    "dry_starch": ("g", Decimal("75")),
+    "potato": ("g", Decimal("250")),
+    "legume_dry": ("g", Decimal("75")),
+    "vegetable": ("g", Decimal("200")),
+    "vegetable_addition": ("g", Decimal("50")),
+    "bread": ("g", Decimal("60")),
+    "egg": ("ks", Decimal("2")),
+    "dairy_main": ("g", Decimal("100")),
+    "dairy_addition": ("g", Decimal("30")),
+    "sauce_liquid": ("ml", Decimal("250")),
+}
+OTHER_PORTION_DEFAULTS = {
+    "g": Decimal("100"), "ml": Decimal("100"), "ks": Decimal("0.25"),
+}
+AMBIGUOUS_CATEGORY_DEFAULTS = {
+    "trvanlive": "dry_starch",
+    "mlecne": "dairy_main",
+    "zelenina": "vegetable",
 }
 _PACKAGE = re.compile(
     r"(?:(\d+)\s*[x×]\s*)?(\d+(?:[.,]\d+)?)\s*(dkg|kg|dl|ml|ks|g|l)\b", re.IGNORECASE
@@ -444,17 +468,44 @@ def validate_portion_amount(name, category, amount, unit, claimed_role=None):
     return role, base, amount
 
 
+def _role_claim_for_use(name, use):
+    if use not in ("main", "addition"):
+        return None
+    tokens = _folded_words(str(name))
+    for patterns, allowed_roles, _default_role in _AMBIGUOUS_NAME_ROLES:
+        if any(_name_has_pattern(tokens, pattern) for pattern in patterns):
+            if use == "addition":
+                return next((role for role in allowed_roles if role.endswith("_addition")), None)
+            return next((role for role in allowed_roles if not role.endswith("_addition")), None)
+    return None
+
+
+def canonical_portion(row, use=None):
+    """Derive one trusted portion from verified offer facts, never model text."""
+    name = row.get("nazov", "")
+    category = row.get("kategoria", "")
+    role = ingredient_role_for(name, category, _role_claim_for_use(name, use))
+    if role == "other":
+        normalized_category = _fold(str(category)).replace(" ", "")
+        role = AMBIGUOUS_CATEGORY_DEFAULTS.get(normalized_category, role)
+    if role in PORTION_DEFAULTS:
+        base, amount = PORTION_DEFAULTS[role]
+        return role, base, amount
+    package = _package_amount(row.get("jednotka"))
+    if role == "fat_addition":
+        base = package[0] if package and package[0] in ("g", "ml") else (
+            "ml" if any(_name_has_pattern(_folded_words(name), pattern)
+                        for pattern in ("olej", "oleja", "olejom")) else "g"
+        )
+        return role, base, Decimal("30")
+    base = package[0] if package and package[0] in OTHER_PORTION_DEFAULTS else "g"
+    return "other", base, OTHER_PORTION_DEFAULTS[base]
+
+
 def _amount_per_adult(item, row):
-    has_new = "amount_per_adult" in item
-    has_old = "amount_per_person" in item
-    if has_new and has_old:
-        raise ValueError("Surovina má dve rôzne polia množstva.")
-    amount = item.get("amount_per_adult") if has_new else item.get("amount_per_person")
-    unit = item.get("unit")
-    role, base, amount = validate_portion_amount(
-        row["nazov"], row["kategoria"], amount, unit, item.get("ingredient_role")
-    )
-    return role, base, amount
+    # Polia starého modelového kontraktu tolerujeme len kvôli rozbehnutým
+    # jobom. Ich hodnoty zámerne nečítame: cenu aj dávku vlastní server.
+    return canonical_portion(row, item.get("use"))
 
 
 def _decimal_text(value):
@@ -499,12 +550,31 @@ def _amount_is_in(recipe, base, total):
     return False
 
 
-def _packages_needed(jednotka, base, total, asked):
-    """Nákupný zoznam sa počíta z receptu, nie z odhadu modelu."""
+def _packages_needed(jednotka, base, total, per_adult):
+    """Nákupný zoznam sa počíta iba zo serverovej dávky.
+
+    Ponuky bez prepočítateľnej hmotnosti/objemu sa do modelu vôbec neposielajú.
+    Táto kontrola je druhá obranná vrstva pre starší rozbehnutý job. Model počet
+    balení nikdy neurčuje, takže nemôže nafúknuť ani podhodnotiť cenu.
+    """
     package = _package_amount(jednotka)
     if package is None or package[0] != base:
-        return asked
+        raise ValueError("Ponuka nemá prepočítateľnú veľkosť balenia.")
     return max(1, int((total / package[1]).to_integral_value(rounding=ROUND_CEILING)))
+
+
+def _offer_is_measurable(row):
+    """True iba keď z letáka vieme pravdivo odvodiť počet kupovaných balení."""
+    package = _package_amount(row.get("jednotka"))
+    if package is None:
+        return False
+    _role, base, _amount = canonical_portion(row)
+    return package[0] == base
+
+
+def measurable_offers(rows):
+    """Return only offers whose package count and price can be reconstructed."""
+    return [row for row in rows if _offer_is_measurable(row)]
 
 
 # ------------------------------------------------------------------- recepty
@@ -646,12 +716,12 @@ def _model_meals(model_output, offers_by_key, frequency, pantry, adults, childre
         selected_items = []
         for item in items:
             _reject_extra(item, _MODEL_ITEM)
+            use = item.get("use")
+            if use is not None and use not in ("main", "addition"):
+                raise ValueError("Použitie suroviny musí byť main alebo addition.")
             offer_key = item.get("offer_key")
-            quantity = item.get("quantity", 1)
             if not isinstance(offer_key, str) or offer_key not in offers_by_key:
                 raise ValueError("Návrh obsahuje neznáme alebo neaktuálne offer_key.")
-            if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0:
-                raise ValueError("Množstvo musí byť kladné celé číslo.")
             if offer_key in seen_offers:
                 raise ValueError("Návrh obsahuje duplicitné offer_key.")
             seen_offers.add(offer_key)
@@ -662,7 +732,8 @@ def _model_meals(model_output, offers_by_key, frequency, pantry, adults, childre
                 total = total.to_integral_value(rounding=ROUND_CEILING)
             _steps_agree_with_amount(row["nazov"], base, total, steps)
             selected_items.append(
-                (row, _packages_needed(row["jednotka"], base, total, quantity), _amount_text(base, total))
+                (row, _packages_needed(row["jednotka"], base, total, per_adult),
+                 _amount_text(base, total))
             )
         parsed.append((day, name, minutes, steps, selected_items, [pantry_by_name[item] for item in selected_pantry]))
     if seen_days != set(cooking_days):
@@ -708,8 +779,9 @@ PLAN_VARIANT_HINTS = (
 # 5 = osobitne dospelí/deti, detská kuchárska porcia 0,65, amount_per_adult a
 #     serverový porciový štandard; kalendár 7/4/3 ostáva ukončený v nedeľu.
 # 6 = pri bežnom pláne špajzu neurčuje model; pri pláne zo špajze ostáva prísna.
+# 7 = porciovú triedu, jednotku a dávku určuje výhradne server.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 6
+PLAN_ALGO_VERSION = 7
 
 
 def plan_variant_for(user_id, variants):
@@ -766,10 +838,23 @@ def offers_catalog(rows):
     nelíši. Preto stojí na začiatku správy a nesmie obsahovať nič osobné:
     len tak sa dá poslať s cache_control a čítať z cache namiesto prepočítania.
     """
-    offers = "\n".join(
-        f"- offer_key: {row['offer_key']}; názov: {row['nazov']}; kategória: {row['kategoria'] or 'iné'}"
-        for row in rows
-    )
+    def line(row):
+        role, base, amount = canonical_portion(row)
+        main = canonical_portion(row, "main")
+        addition = canonical_portion(row, "addition")
+        choices = ""
+        if main != addition:
+            choices = (
+                f"; use=main: {main[0]}, {_decimal_text(main[2])} {main[1]}"
+                f"; use=addition: {addition[0]}, {_decimal_text(addition[2])} {addition[1]}"
+            )
+        return (
+            f"- offer_key: {row['offer_key']}; názov: {row['nazov']};"
+            f" kategória: {row['kategoria'] or 'iné'}; porciová trieda: {role};"
+            f" kuchárska dávka na dospelého: {_decimal_text(amount)} {base}{choices}"
+        )
+
+    offers = "\n".join(line(row) for row in measurable_offers(rows))
     return f"""Overené ponuky z tohtotýždňových letákov. Vyberať smieš výhradne z nich
 a odkazovať sa na ne výhradne cez offer_key.
 
@@ -821,29 +906,19 @@ def recipe_rules():
     steps = ",\n".join(f'    "{step}"' for step in example["instructions"])
     return f"""Si slovenský kuchár a skladáš jedálniček pre jednu domácnosť.
 Vraciaš iba JSON v tomto tvare, nič iné:
-{{"meals":[{{"day":"PO","name":"...","minutes":30,"items":[{{"offer_key":"offer_...","amount_per_adult":150,"unit":"g","quantity":1,"ingredient_role":"protein_main"}}],"pantry_ingredients":["..."],"instructions":["..."]}}]}}
+{{"meals":[{{"day":"PO","name":"...","minutes":30,"items":[{{"offer_key":"offer_...","use":"main"}}],"pantry_ingredients":["..."],"instructions":["..."]}}]}}
 
 MNOŽSTVÁ
-- amount_per_adult = kuchárske množstvo suroviny pre jedného dospelého na jedno
-  jedlo, číslo bez jednotky. Nie je to výživové ani zdravotné odporúčanie.
-- ingredient_role = jedna z: {", ".join(sorted(INGREDIENT_ROLES))}. Server názov,
-  kategóriu, jednotku aj bezpečný kuchársky rozsah overí; rola sama nič neprepíše.
-- Príklady: Maslová tekvica 200 g = vegetable; Cibuľa 50 g alebo Cesnak 10 g
-  ako aróma = vegetable_addition; Syr Eidam 30 g na posypanie = dairy_addition.
-- unit = g, ml alebo ks. Nič iné (žiadna „hrsť", „balenie" ani „lyžica").
-- Jednotku nevyberaj odhadom. Pre protein_main, dry_starch, potato, legume_dry,
-  vegetable, vegetable_addition, bread, dairy_main a dairy_addition použi vždy g.
-  Pre egg použi vždy ks. Pre sauce_liquid použi vždy ml. Pre fat_addition použi
-  g alebo ml podľa výrobku. Rola a jednotka musia byť presne v tejto kombinácii.
-- amount_per_adult musí byť v tomto uzavretom rozsahu: protein_main 120–200 g;
-  dry_starch 60–110 g; potato 200–400 g; legume_dry 60–110 g;
-  vegetable 120–350 g; vegetable_addition 5–120 g; bread 60–150 g; egg 1–3 ks;
-  dairy_main 60–150 g; dairy_addition 10–60 g; sauce_liquid 100–400 ml;
-  fat_addition 5–40 g alebo 5–40 ml. Nikdy nechoď pod ani nad tieto hranice.
-- V krokoch píš CELKOVÉ množstvo na celú dávku, teda amount_per_adult × počet
+- Pri každej ponuke v katalógu už server uviedol presnú kuchársku dávku na
+  jedného dospelého. Ty ju nesmieš meniť ani prevádzať na inú jednotku.
+- use = main, keď je surovina podstatnou časťou jedla; use = addition, keď je
+  iba malým dochutením či posypom. Pri nejednoznačnom syre, cibuli a cesnaku
+  katalóg uvádza obe bezpečné serverové dávky. Pri ostatných položkách server
+  use ignoruje a dávku nemení.
+- V krokoch píš CELKOVÉ množstvo na celú dávku: katalógová dávka × počet
   dospelých kuchárskych ekvivalentov uvedený pri danom dni.
 - Každé množstvo napíš naraz pri prvom použití suroviny, nerozdeľuj ho medzi kroky.
-- quantity = koľko balení z letáku treba kúpiť.
+- Počet balení nikdy neurčuj; server ho vypočíta z dávky a údajov letáka.
 - Základné suroviny ({", ".join(STAPLES)}) používateľ doma má — pokojne ich v krokoch
   použi a vyčísli. Nikdy ich neuvádzaj v items ani ako ponuku s cenou či zľavou.
 
@@ -870,8 +945,8 @@ POSTUP
 
 TAKTO VYZERÁ DOBRÉ JEDLO (vzor je na {example['portions']} porcie, ty rátaj s počtom porcií zo zadania nižšie):
 {{"day":"PO","name":"{example['name']}","minutes":{example['minutes']},
-  "items":[{{"offer_key":"<offer_key kuracích pŕs>","amount_per_adult":150,"unit":"g","quantity":1,"ingredient_role":"protein_main"}},
-           {{"offer_key":"<offer_key ryže>","amount_per_adult":75,"unit":"g","quantity":1,"ingredient_role":"dry_starch"}}],
+  "items":[{{"offer_key":"<offer_key kuracích pŕs>","use":"main"}},
+           {{"offer_key":"<offer_key ryže>","use":"main"}}],
   "pantry_ingredients":[],
   "instructions":[
 {steps}
@@ -880,9 +955,59 @@ TAKTO VYZERÁ DOBRÉ JEDLO (vzor je na {example['portions']} porcie, ty rátaj s
 ČO NESMIEŠ
 - Nesmieš uvádzať ani meniť obchod, názov položky, jednotku, cenu, bežnú cenu,
   úsporu, zdroj ani súčty.
-- Každá položka smie obsahovať iba offer_key, quantity, amount_per_adult, unit a ingredient_role.
+- Každá položka smie obsahovať iba offer_key a use. Jednotku, rolu, dávku ani počet balení
+  nikdy nevracaj — sú to overené serverové údaje z katalógu.
 - Suroviny zo špajze uveď výlučne v pantry_ingredients a len z ponuky používateľa.
 - Každý offer_key a deň použi najviac raz. Pokyny musia byť neprázdne."""
+
+
+def plan_output_config(effort=None):
+    """Constrained JSON shape; semantic food safety remains in Python.
+
+    The schema deliberately gives the model no fields for portion, unit or
+    ingredient role. Those values are server-owned and come from the verified
+    offer catalog through :func:`canonical_portion`.
+    """
+    item_schema = {
+        "type": "object",
+        "properties": {
+            "offer_key": {"type": "string"},
+            "use": {"type": "string", "enum": ["main", "addition"]},
+        },
+        "required": ["offer_key", "use"],
+        "additionalProperties": False,
+    }
+    meal_schema = {
+        "type": "object",
+        "properties": {
+            "day": {"type": "string"},
+            "name": {"type": "string"},
+            "minutes": {"type": "integer"},
+            "items": {"type": "array", "items": item_schema},
+            "pantry_ingredients": {"type": "array", "items": {"type": "string"}},
+            "instructions": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": [
+            "day", "name", "minutes", "items", "pantry_ingredients", "instructions",
+        ],
+        "additionalProperties": False,
+    }
+    output = {
+        "format": {
+            "type": "json_schema",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "meals": {"type": "array", "items": meal_schema},
+                },
+                "required": ["meals"],
+                "additionalProperties": False,
+            },
+        }
+    }
+    if effort:
+        output["effort"] = effort
+    return output
 
 
 def personal_plan_messages(rows, frequency, pantry, household_size=None, variant=0,
@@ -953,7 +1078,7 @@ Navrhni presne {len(days)} {_meals_word(len(days))} na dni {days_text}. Vráť i
 {batch_text}
 - Dni medzi varením sú zvyšky z predchádzajúcej dávky; po nedeľnom jedle už nič
   neplánuj cez hranicu týždňa.
-- Do krokov každého jedla píš amount_per_adult × počet dospelých kuchárskych
+- Do krokov každého jedla píš katalógovú dávku × počet dospelých kuchárskych
   ekvivalentov uvedený pri jeho dni.
 - minutes musí byť kladný celý počet minút prípravy.
 - Vyberaj výhradne z {len(rows)} overených ponúk uvedených vyššie a drž sa pravidiel nad týmto zadaním.
@@ -965,7 +1090,7 @@ def build_personal_plan(con, model_output, stores, frequency, household_size=Non
     """Validate selection content and deterministically derive all purchasable data."""
     adults, children, legacy = _household(household_size, adults, children)
     today = today or date.today()
-    offers = current_verified_offers(con, stores, today)
+    offers = measurable_offers(current_verified_offers(con, stores, today))
     offers_by_key = {row["offer_key"]: row for row in offers}
     meals = _model_meals(model_output, offers_by_key, frequency, pantry, adults, children)
 
