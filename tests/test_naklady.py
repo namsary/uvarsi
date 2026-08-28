@@ -177,6 +177,17 @@ def test_strop_zohladnuje_odhad_ceny_takze_neprekroci_sa_ani_raz(con, monkeypatc
         naklady.skontroluj(con, "zber_letakov", odhad_eur=0.60, teraz=PONDELOK)
 
 
+def test_strop_zohladnuje_aj_nevybavene_rezervacie(con, monkeypatch):
+    monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "0.20")
+
+    with pytest.raises(naklady.RozpocetVycerpany) as chyba:
+        naklady.skontroluj(
+            con, "plan", odhad_eur=0.12, rezervovane_eur=0.12, teraz=PONDELOK
+        )
+
+    assert chyba.value.kod == naklady.KOD_DENNY
+
+
 def test_sprava_o_vycerpanom_rozpocte_je_po_slovensky(con, monkeypatch):
     monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "0.01")
     with pytest.raises(naklady.RozpocetVycerpany) as chyba:

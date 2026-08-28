@@ -303,12 +303,15 @@ def migrate_household_schema(con) -> None:
 
 def migruj_schemu(con) -> None:
     """Celá schéma a všetky migrácie. Idempotentné, ale drahé — nie na požiadavku."""
+    import plan_jobs
+
     con.executescript(SCHEMA)
     migrate_household_schema(con)
     migrate_auth_schema(con)
     migrate_akcie_schema(con)
     migrate_platby_schema(con)
     naklady.migrate_naklady_schema(con)
+    plan_jobs.migrate_plan_jobs_schema(con)
     predpocet.migrate_predpocet_schema(con)
     con.commit()
 

@@ -467,7 +467,7 @@ def spolu_za_ucel_tyzden(con, ucel, tyzden) -> float:
 
 
 # ---------------------------------------------------------------- strop PRED volaním
-def skontroluj(con, ucel, *, odhad_eur=None, teraz=None):
+def skontroluj(con, ucel, odhad_eur=None, teraz=None, rezervovane_eur=0.0):
     """Smie sa teraz minúť? Keď nie, vyhodí RozpocetVycerpany a NIČ sa nevolá.
 
     Započítava sa aj odhad ceny volania, ktoré sa práve chystá — inak by sa
@@ -487,6 +487,7 @@ def skontroluj(con, ucel, *, odhad_eur=None, teraz=None):
     limity = stropy()                       # pokazené prostredie → RozpocetVycerpany
     odhad = ODHAD_EUR.get(ucel, 0.0) if odhad_eur is None else float(odhad_eur)
     odhad = max(odhad, 0.0)
+    rezervovane = max(float(rezervovane_eur), 0.0)
 
     try:
         dnes_eur = spolu_za_den(con, den)
@@ -496,26 +497,31 @@ def skontroluj(con, ucel, *, odhad_eur=None, teraz=None):
         # Nevieme, koľko už padlo → nesmieme minúť ani cent.
         raise RozpocetVycerpany(SPRAVA_NECITATELNY, kod=KOD_NECITATELNY, ucel=ucel) from chyba
 
-    if dnes_eur + odhad > limity.denny:
+    if dnes_eur + rezervovane + odhad > limity.denny:
         raise RozpocetVycerpany(
             f"Dnešný rozpočet na AI je vyčerpaný ({dnes_eur:.2f} € z {limity.denny:.2f} €). "
             "Skús to zajtra.",
             kod=KOD_DENNY, ucel=ucel, minute_eur=dnes_eur, strop_eur=limity.denny,
         )
-    if mesiac_eur + odhad > limity.mesacny:
+    if mesiac_eur + rezervovane + odhad > limity.mesacny:
         raise RozpocetVycerpany(
             f"Mesačný rozpočet na AI je vyčerpaný ({mesiac_eur:.2f} € z {limity.mesacny:.2f} €). "
             "Do nového mesiaca sa platené volania nespúšťajú.",
             kod=KOD_MESACNY, ucel=ucel, minute_eur=mesiac_eur, strop_eur=limity.mesacny,
         )
     strop_ucelu = limity.tyzdenny_ucel.get(ucel)
-    if strop_ucelu is not None and ucel_eur + odhad > strop_ucelu:
+    if strop_ucelu is not None and ucel_eur + rezervovane + odhad > strop_ucelu:
         raise RozpocetVycerpany(
             f"Týždenný rozpočet na „{ucel}“ je vyčerpaný "
             f"({ucel_eur:.2f} € z {strop_ucelu:.2f} €).",
             kod=KOD_UCEL, ucel=ucel, minute_eur=ucel_eur, strop_eur=strop_ucelu,
         )
-    return {"dnes_eur": dnes_eur, "mesiac_eur": mesiac_eur, "ucel_eur": ucel_eur}
+    return {
+        "dnes_eur": dnes_eur,
+        "mesiac_eur": mesiac_eur,
+        "ucel_eur": ucel_eur,
+        "rezervovane_eur": rezervovane,
+    }
 
 
 def rezervuj_beh(con, ucel, *, teraz=None):
