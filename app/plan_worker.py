@@ -17,7 +17,7 @@ except ImportError:  # pragma: no cover - production runs this file directly
 LOG = logging.getLogger("uvarsi.plan_worker")
 WORKER_ID = f"{socket.gethostname()}:{os.getpid()}"
 HEARTBEAT_SECONDS = 15.0
-MAX_ATTEMPTS = 2
+MAX_ATTEMPTS = plan_jobs.MAX_ATTEMPTS
 
 
 def utcnow():
@@ -51,6 +51,14 @@ class LeaseLostAfterDispatch(RuntimeError):
     pass
 
 
+class InputChangedBeforeDispatch(RuntimeError):
+    _uvarsi_request_not_dispatched = True
+
+    def __init__(self, code):
+        super().__init__(code)
+        self.code = code
+
+
 class _LeaseAwareClient:
     def __init__(self, server, job, client, clock):
         self._server = server
@@ -60,6 +68,10 @@ class _LeaseAwareClient:
         self.messages = self
         self.dispatched = False
         self.job_now = clock()
+        self._context_identity = None
+
+    def bind_job_context(self, identity):
+        self._context_identity = identity
 
     def prepare(self, factory):
         if self._client is None:
@@ -94,13 +106,32 @@ class _LeaseAwareClient:
             now=self._clock(),
         )
 
+    def revalidate_job_context(self, con):
+        self._server.revalidate_job_context(
+            self._job,
+            self._context_identity,
+            con=con,
+            now=self._clock(),
+        )
+
     def create(self, **kwargs):
         with self._server.db() as con:
-            marked = plan_jobs.mark_dispatched(
-                con, self._job.id, worker_id=WORKER_ID, now=self._clock(),
-            )
-        if not marked:
-            raise LeaseLostBeforeDispatch()
+            con.execute("BEGIN IMMEDIATE")
+            try:
+                try:
+                    self.revalidate_job_context(con)
+                except self._server.StalePlanJob as error:
+                    raise InputChangedBeforeDispatch(error.code) from error
+                marked = plan_jobs.mark_dispatched(
+                    con, self._job.id, worker_id=WORKER_ID, now=self._clock(),
+                )
+                if not marked:
+                    raise LeaseLostBeforeDispatch()
+                con.commit()
+            except BaseException:
+                if con.in_transaction:
+                    con.rollback()
+                raise
         self.dispatched = True
 
         stop = threading.Event()
@@ -126,6 +157,8 @@ def _error_code(server, error):
         return error.code
     if isinstance(error, LeaseLostBeforeDispatch):
         return "lease_lost_before_dispatch"
+    if isinstance(error, InputChangedBeforeDispatch):
+        return error.code
     if isinstance(error, LeaseLostAfterDispatch):
         return "worker_lost_after_dispatch"
     if isinstance(error, server.WorkerLeaseLostAfterDispatch):
@@ -169,7 +202,9 @@ def process_one(*, now=None, client=None) -> ProcessResult:
         code = _error_code(server, error)
         retryable = (
             not guarded_client.dispatched
-            and not isinstance(error, (server.StalePlanJob, LeaseLostBeforeDispatch))
+            and not isinstance(
+                error, (server.StalePlanJob, LeaseLostBeforeDispatch, InputChangedBeforeDispatch),
+            )
             and job.attempts < MAX_ATTEMPTS
         )
         with server.db() as con:

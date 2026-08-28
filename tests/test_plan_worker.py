@@ -217,6 +217,38 @@ def _shared_plan_count(app_db, job):
         ).fetchone()[0]
 
 
+def _mutable_job(app_db, mutation):
+    kind = "pantry" if mutation == "pantry" else "regular"
+    if kind == "pantry":
+        _grant_premium(app_db)
+        with app_db.server.db() as con:
+            con.execute("INSERT INTO spajza (user_id, nazov) VALUES (1, 'soľ')")
+            con.commit()
+    job = _queued_job(app_db, kind=kind)
+    rows = app_db.server.akcie_pre(STORES)
+    output = _model_output([row["offer_key"] for row in rows[:4]])
+    if kind == "pantry":
+        output["meals"][0]["pantry_ingredients"] = ["soľ"]
+    return job, output
+
+
+def _mutate_current_input(app_db, mutation):
+    with app_db.server.db() as con:
+        if mutation == "collection":
+            con.execute(
+                "UPDATE zber_stav SET stav='fail' WHERE tyzden=? AND obchod='Tesco'",
+                (app_db.server.monday(NOW.date()),),
+            )
+        elif mutation == "offers":
+            row = con.execute("SELECT id, cena FROM akcie ORDER BY id LIMIT 1").fetchone()
+            con.execute("UPDATE akcie SET cena=? WHERE id=?", (row["cena"] + 0.01, row["id"]))
+        elif mutation == "pantry":
+            con.execute("UPDATE spajza SET nazov='ryža' WHERE user_id=1")
+        else:  # pragma: no cover - protects the test helper itself
+            raise AssertionError(mutation)
+        con.commit()
+
+
 def test_worker_builds_regular_plan_and_marks_job_ready(app_db):
     job = _queued_regular_job(app_db)
     rows = app_db.server.akcie_pre(STORES)
@@ -403,6 +435,67 @@ def test_one_missing_selected_store_fails_before_dispatch(app_db):
     assert _job_row(app_db, job.id)["dispatched_at"] is None
 
 
+@pytest.mark.parametrize(
+    ("mutation", "error_code"),
+    (("collection", "incomplete_stores"),
+     ("offers", "stale_signature"),
+     ("pantry", "stale_pantry")),
+)
+def test_mutable_input_change_after_context_build_blocks_dispatch(
+        app_db, monkeypatch, mutation, error_code):
+    job, output = _mutable_job(app_db, mutation)
+    model = FakeModel(output)
+
+    def mutate_during_client_setup():
+        _mutate_current_input(app_db, mutation)
+        return model
+
+    monkeypatch.setattr(
+        app_db.server, "_new_plan_model_client", mutate_during_client_setup,
+    )
+
+    result = process_one(now=NOW)
+
+    assert (result.status, result.error_code) == ("failed", error_code)
+    assert model.calls == 0
+    row = _job_row(app_db, job.id)
+    assert row["state"] == "failed" and row["dispatched_at"] is None
+    assert _shared_plan_count(app_db, job) == 0
+    with app_db.server.db() as con:
+        assert con.execute("SELECT COUNT(*) FROM plany").fetchone()[0] == 0
+        assert con.execute("SELECT COUNT(*) FROM naklady").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize(
+    ("mutation", "error_code"),
+    (("collection", "incomplete_stores"),
+     ("offers", "stale_signature"),
+     ("pantry", "stale_pantry")),
+)
+def test_mutable_input_change_after_model_return_blocks_publication(
+        app_db, mutation, error_code):
+    job, output = _mutable_job(app_db, mutation)
+
+    class MutatingModel(FakeModel):
+        def create(self, **kwargs):
+            response = super().create(**kwargs)
+            _mutate_current_input(app_db, mutation)
+            return response
+
+    model = MutatingModel(output)
+
+    result = process_one(client=model, now=NOW)
+
+    assert (result.status, result.error_code) == ("failed", error_code)
+    assert model.calls == 1
+    row = _job_row(app_db, job.id)
+    assert row["state"] == "failed" and row["dispatched_at"] is not None
+    assert _shared_plan_count(app_db, job) == 0
+    with app_db.server.db() as con:
+        assert con.execute("SELECT COUNT(*) FROM plany").fetchone()[0] == 0
+        assert con.execute("SELECT COUNT(*) FROM naklady").fetchone()[0] == 1
+
+
 def test_dispatch_cas_failure_never_calls_the_model(app_db, monkeypatch):
     job = _queued_regular_job(app_db)
     monkeypatch.setattr(plan_worker.plan_jobs, "mark_dispatched", lambda *args, **kwargs: False)
@@ -490,6 +583,28 @@ def test_lease_lost_after_dispatch_never_publishes_or_retries(app_db):
     assert second.status == "empty"
     assert model.calls == 1
     assert _shared_plan_count(app_db, job) == 0
+
+
+def test_two_expired_pre_dispatch_claims_become_terminal_before_a_third_call(app_db):
+    job = _queued_regular_job(app_db)
+    with app_db.server.db() as con:
+        first = plan_jobs.claim_next(con, "crashed-worker-1", now=NOW, lease_seconds=1)
+        second = plan_jobs.claim_next(
+            con, "crashed-worker-2", now=NOW + datetime.timedelta(seconds=2), lease_seconds=1,
+        )
+    assert first.attempts == 1 and second.attempts == 2
+    model = FakeModel(_model_output([
+        row["offer_key"] for row in app_db.server.akcie_pre(STORES)[:4]
+    ]))
+
+    result = process_one(client=model, now=NOW + datetime.timedelta(seconds=4))
+
+    assert result.status == "empty"
+    assert model.calls == 0
+    row = _job_row(app_db, job.id)
+    assert (row["state"], row["attempts"], row["error_code"]) == (
+        "failed", 2, "worker_lost_before_dispatch",
+    )
 
 
 def test_ready_cas_failure_rolls_back_the_plan_publish(app_db, monkeypatch):

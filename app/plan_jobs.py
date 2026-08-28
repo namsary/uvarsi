@@ -18,6 +18,7 @@ except ImportError:  # pragma: no cover - exercised by the production entrypoint
 JobKind = Literal["regular", "pantry", "precompute"]
 JobState = Literal["queued", "running", "ready", "failed"]
 LEASE_SECONDS = 150
+MAX_ATTEMPTS = 2
 
 
 SCHEMA = """
@@ -272,6 +273,14 @@ def _recover_expired_leases(con, stamp: str) -> None:
     )
     con.execute(
         """UPDATE plan_jobs
+           SET state='failed', finished_at=?, updated_at=?,
+               lease_owner=NULL, lease_expires_at=NULL,
+               error_code='worker_lost_before_dispatch'
+           WHERE state='queued' AND attempts >= ? AND dispatched_at IS NULL""",
+        (stamp, stamp, MAX_ATTEMPTS),
+    )
+    con.execute(
+        """UPDATE plan_jobs
            SET state='failed', finished_at=?, lease_owner=NULL, lease_expires_at=NULL,
                updated_at=?, error_code='worker_lost_after_dispatch'
            WHERE state='running' AND lease_expires_at <= ? AND dispatched_at IS NOT NULL""",
@@ -293,7 +302,7 @@ def claim_next(con, worker_id: str, *, now: datetime.datetime,
                SET state='running', attempts=attempts+1, started_at=COALESCE(started_at, ?),
                    updated_at=?, lease_owner=?, lease_expires_at=?
                WHERE id=(
-                   SELECT id FROM plan_jobs WHERE state='queued'
+                   SELECT id FROM plan_jobs WHERE state='queued' AND attempts < ?
                    ORDER BY priority DESC, created ASC, id ASC LIMIT 1
                )
                AND NOT EXISTS (
@@ -301,7 +310,7 @@ def claim_next(con, worker_id: str, *, now: datetime.datetime,
                    WHERE running.state='running' AND running.lease_expires_at > ?
                )
                RETURNING *""",
-            (stamp, stamp, worker_id, expiry, stamp),
+            (stamp, stamp, worker_id, expiry, MAX_ATTEMPTS, stamp),
         ).fetchone()
         con.commit()
         return _job(row) if row is not None else None
@@ -333,13 +342,15 @@ def heartbeat(con, worker_id: str, job_id: int | None, *, now: datetime.datetime
 
 def mark_dispatched(con, job_id: int, *, worker_id: str, now: datetime.datetime) -> bool:
     stamp = _stamp(now)
-    with con:
-        cursor = con.execute(
-            """UPDATE plan_jobs SET dispatched_at=?, updated_at=?
-               WHERE id=? AND state='running' AND lease_owner=? AND lease_expires_at > ?
-                 AND dispatched_at IS NULL""",
-            (stamp, stamp, job_id, worker_id, stamp),
-        )
+    statement = """UPDATE plan_jobs SET dispatched_at=?, updated_at=?
+                   WHERE id=? AND state='running' AND lease_owner=? AND lease_expires_at > ?
+                     AND dispatched_at IS NULL"""
+    values = (stamp, stamp, job_id, worker_id, stamp)
+    if con.in_transaction:
+        cursor = con.execute(statement, values)
+    else:
+        with con:
+            cursor = con.execute(statement, values)
     return cursor.rowcount == 1
 
 

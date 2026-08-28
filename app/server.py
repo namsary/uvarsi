@@ -1267,7 +1267,7 @@ def _new_plan_model_client():
     )
 
 
-def _job_context(job, client):
+def _job_profile(job):
     payload = job.payload
     stores = payload.get("stores")
     if not isinstance(stores, list) or not stores:
@@ -1280,43 +1280,92 @@ def _job_context(job, client):
             or frequency not in (1, 2, 3)
             or adults < 0 or children < 0 or not 1 <= adults + children <= 12):
         raise StalePlanJob("invalid_profile")
+    return stores, frequency, adults, children
 
-    if payload.get("_compat_rows") is not None:
-        return stores, frequency, adults, children, payload["_compat_rows"], payload.get("_pantry", [])
 
-    now = getattr(client, "job_now", None)
-    today = (now.date() if isinstance(now, datetime.datetime) else datetime.date.today())
+def _current_job_context(job, stores, frequency, adults, children, *, con, now):
+    payload = job.payload
+    today = now.date() if isinstance(now, datetime.datetime) else now
     if job.week != monday(today):
         raise StalePlanJob("stale_week")
     if payload.get("algo_version") != PLAN_ALGO_VERSION:
         raise StalePlanJob("stale_algorithm")
 
-    with closing(db()) as con:
-        if stores_missing_this_week(con, stores, today):
-            raise StalePlanJob("incomplete_stores")
-        rows = offers_for_current_week(con, stores, today)
-        represented = {row["obchod"] for row in rows}
-        if len(rows) < MIN_OFFERS_FOR_PLAN or any(store not in represented for store in stores):
-            raise StalePlanJob("incomplete_stores")
-        pantry = []
-        if job.user_id is not None:
-            pantry = spajza_pouzivatela(con, job.user_id, je_premium(con, job.user_id))
+    missing_stores = stores_missing_this_week(con, stores, today)
+    if missing_stores:
+        raise StalePlanJob("incomplete_stores")
+    rows = offers_for_current_week(con, stores, today)
+    represented = {row["obchod"] for row in rows}
+    if len(rows) < MIN_OFFERS_FOR_PLAN or any(store not in represented for store in stores):
+        raise StalePlanJob("incomplete_stores")
 
+    pantry = []
+    if job.user_id is not None:
+        pantry = spajza_pouzivatela(con, job.user_id, je_premium(con, job.user_id))
     pantry_driven = job.kind == "pantry"
-    if pantry_driven and payload.get("pantry_signature") != podpis_spajze(pantry):
+    pantry_signature = podpis_spajze(pantry) if pantry_driven else None
+    if pantry_driven and payload.get("pantry_signature") != pantry_signature:
         raise StalePlanJob("stale_pantry")
+
     current_signature = podpis_planu(
         job.week, stores, frequency, rows, pantry,
         adults=adults, children=children, zo_spajze=pantry_driven,
     )
     if current_signature != job.signature:
         raise StalePlanJob("stale_signature")
-    return stores, frequency, adults, children, rows, pantry
+
+    identity_facts = {
+        "week": monday(today),
+        "stores": sorted(stores),
+        "complete_stores": sorted(set(stores) - set(missing_stores)),
+        "offer_keys": sorted(row["offer_key"] for row in rows),
+        "signature": current_signature,
+        "algo_version": PLAN_ALGO_VERSION,
+        "portion_standard_version": PORTION_STANDARD_VERSION,
+        "pantry_signature": pantry_signature,
+    }
+    canonical = json.dumps(
+        identity_facts, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    )
+    identity = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return rows, pantry, identity
+
+
+def _job_context(job, client):
+    stores, frequency, adults, children = _job_profile(job)
+    payload = job.payload
+
+    if payload.get("_compat_rows") is not None:
+        return (
+            stores, frequency, adults, children,
+            payload["_compat_rows"], payload.get("_pantry", []), None,
+        )
+
+    now = getattr(client, "job_now", None)
+    with closing(db()) as con:
+        rows, pantry, identity = _current_job_context(
+            job, stores, frequency, adults, children,
+            con=con, now=now or datetime.datetime.now(),
+        )
+    return stores, frequency, adults, children, rows, pantry, identity
+
+
+def revalidate_job_context(job, expected_identity, *, con, now):
+    """Require the mutable job inputs to match one validated snapshot exactly."""
+    stores, frequency, adults, children = _job_profile(job)
+    _rows, _pantry, current_identity = _current_job_context(
+        job, stores, frequency, adults, children, con=con, now=now,
+    )
+    if current_identity != expected_identity:
+        raise StalePlanJob("stale_context")
 
 
 def build_and_store_job(job, *, client=None) -> dict:
     """Build one queued or compatibility plan with exactly one model request."""
-    stores, frequency, adults, children, rows, pantry = _job_context(job, client)
+    stores, frequency, adults, children, rows, pantry, context_identity = _job_context(job, client)
+    bind_context = getattr(client, "bind_job_context", None)
+    if bind_context is not None:
+        bind_context(context_identity)
     pantry_driven = job.kind == "pantry"
     purpose = "predpocet" if job.kind == "precompute" else "plan"
     prompt_rows = select_offers(rows, stores, limit=120)
@@ -1372,10 +1421,13 @@ def build_and_store_job(job, *, client=None) -> dict:
         raise HTTPException(500, "Plán sa nepodarilo poskladať, skús to znova.")
 
     complete_job = getattr(client, "complete_job", None)
+    revalidate_context = getattr(client, "revalidate_job_context", None)
     with closing(db()) as con:
         if complete_job is not None:
             con.execute("BEGIN IMMEDIATE")
         try:
+            if revalidate_context is not None:
+                revalidate_context(con)
             try:
                 plan = build_personal_plan(
                     con, model_output, stores, frequency, None,
