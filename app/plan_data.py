@@ -877,22 +877,23 @@ TAKTO VYZERÁ DOBRÉ JEDLO (vzor je na {example['portions']} porcie, ty rátaj s
 
 
 def personal_plan_messages(rows, frequency, pantry, household_size=None, variant=0,
-                           pantry_driven=False, *, adults=None, children=None):
+                           pantry_driven=False, *, prompt_rows=None, adults=None, children=None):
     """Správa pre model: cachovaná predpona + osobný zvyšok.
 
     Do predpony patrí všetko, čo je pre celý týždeň rovnaké — ponuky aj
     pravidlá písania receptu. Osobné je len zadanie domácnosti.
     """
+    prompt_rows = rows if prompt_rows is None else prompt_rows
     return [
         {
             "type": "text",
-            "text": f"{offers_catalog(rows)}\n\n{recipe_rules()}",
+            "text": f"{offers_catalog(prompt_rows)}\n\n{recipe_rules()}",
             "cache_control": {"type": "ephemeral"},
         },
         {
             "type": "text",
             "text": personal_plan_prompt(
-                rows, frequency, pantry, household_size, variant, pantry_driven,
+                prompt_rows, frequency, pantry, household_size, variant, pantry_driven,
                 adults=adults, children=children),
         },
     ]

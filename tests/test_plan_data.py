@@ -1347,6 +1347,23 @@ def test_messages_put_the_cached_catalogue_before_anything_personal():
     assert blocks[0] == personal_plan_messages(rows, 3, [], household_size=9)[0]
 
 
+def test_messages_use_prompt_rows_but_plan_validation_keeps_full_verified_rows():
+    con = connection(verified_rows())
+    full_rows = current_verified_offers(con, ["Lidl", "Tesco"], TODAY)
+    prompt_rows = [full_rows[0]]
+
+    blocks = personal_plan_messages(full_rows, 2, [], household_size=4, prompt_rows=prompt_rows)
+
+    assert prompt_rows[0]["offer_key"] in blocks[0]["text"]
+    assert full_rows[1]["offer_key"] not in blocks[0]["text"]
+    assert "z 1 overených ponúk" in blocks[1]["text"]
+
+    payload = model_output()
+    assert build_personal_plan(
+        con, payload, ["Lidl", "Tesco"], 2, 4, pantry=["soľ"], today=TODAY
+    )["jedla"][1]["suroviny"][0]["offer_key"] == full_rows[1]["offer_key"]
+
+
 def test_each_variant_asks_the_model_for_a_visibly_different_menu():
     rows = offers_connection()
 
