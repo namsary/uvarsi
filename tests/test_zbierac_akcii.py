@@ -7,7 +7,7 @@ from datetime import date, datetime
 import pytest
 
 from app import zbierac_akcii as collector
-from app import naklady, plan_jobs
+from app import plan_jobs
 from app.offer_data import replace_store_week
 from app.plan_jobs import JobRequest
 
@@ -51,10 +51,10 @@ def test_collector_model_gate_preserves_capacity_reserved_by_the_plan_queue(
 
         model = Model()
         guarded = collector.guarded_client(con, model)
-        with pytest.raises(naklady.RozpocetVycerpany) as refusal:
+        with pytest.raises(collector.naklady.RozpocetVycerpany) as refusal:
             guarded.messages.create(model="claude-opus-5", max_tokens=1, messages=[])
 
-        assert refusal.value.kod == naklady.KOD_DENNY
+        assert refusal.value.kod == "rozpocet_denny"
         assert model.calls == 0
         assert con.execute("SELECT COUNT(*) FROM naklady").fetchone()[0] == 0
     finally:
