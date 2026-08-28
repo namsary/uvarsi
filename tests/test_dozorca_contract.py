@@ -496,8 +496,8 @@ def test_dozorca_alerts_once_for_a_stalled_plan_queue_and_clears_after_recovery(
     fake_curl.write_text(
         "#!/bin/sh\n"
         "case \"$*\" in\n"
+        f"  *ntfy.sh/*) printf '%s\\n' \"$*\" >> '{bash_path(notifications)}' ;;\n"
         "  -fsS*api/health*) printf '%s\\n' \"$UVARSI_TEST_HEALTH\" ;;\n"
-        f"  *) printf '%s\\n' \"$*\" >> '{bash_path(notifications)}' ;;\n"
         "esac\n",
         encoding="utf-8",
         newline="\n",
@@ -558,7 +558,7 @@ def test_dozorca_alerts_once_for_a_stalled_plan_queue_and_clears_after_recovery(
     assert not marker.exists()
 
 
-def test_dozorca_retries_failed_queue_notification_then_suppresses_after_success(tmp_path):
+def test_dozorca_retries_http_500_queue_notification_then_suppresses_after_success(tmp_path):
     (tmp_path / "app").mkdir()
     landing_data = tmp_path / "landing_data.json"
     write_landing_data_atomic(landing_data, payload("2026-08-17"))
@@ -577,9 +577,13 @@ def test_dozorca_retries_failed_queue_notification_then_suppresses_after_success
     fake_curl.write_text(
         "#!/bin/sh\n"
         "case \"$*\" in\n"
+        f"  *ntfy.sh/*) printf '500\\n' >> '{bash_path(attempts)}'; "
+        f"COUNT=$(wc -l < '{bash_path(attempts)}'); "
+        "if [ \"$COUNT\" -eq 1 ]; then "
+        "  case \"$*\" in *-fsS*) exit 22 ;; *) exit 0 ;; esac; "
+        "fi; "
+        f"sed -i '$s/500/200/' '{bash_path(attempts)}'; exit 0 ;;\n"
         "  -fsS*api/health*) printf '%s\\n' \"$UVARSI_TEST_HEALTH\" ;;\n"
-        f"  *) printf 'attempt\\n' >> '{bash_path(attempts)}'; "
-        f"[ \"$(wc -l < '{bash_path(attempts)}')\" -gt 1 ] ;;\n"
         "esac\n",
         encoding="utf-8",
         newline="\n",
@@ -613,5 +617,5 @@ def test_dozorca_retries_failed_queue_notification_then_suppresses_after_success
         ))
 
     assert [run.returncode for run in runs] == [0, 0, 0]
-    assert attempts.read_text(encoding="utf-8").splitlines() == ["attempt", "attempt"]
+    assert attempts.read_text(encoding="utf-8").splitlines() == ["500", "200"]
     assert marker.exists()

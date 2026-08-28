@@ -100,6 +100,36 @@ _uvarsi_restore_database() {
   fi
 }
 
+_uvarsi_restore_app() {
+  snapshot=$1
+  staged="$UVARSI_DIR/.app-restore-staged.$$"
+  previous="$UVARSI_DIR/.app-restore-previous.$$"
+  rm -rf "$staged" "$previous" || return 1
+  "$UVARSI_CP" -a "$snapshot/app" "$staged" || {
+    rm -rf "$staged"
+    return 1
+  }
+  [ -d "$staged" ] || { rm -rf "$staged"; return 1; }
+
+  had_previous=0
+  if [ -e "$UVARSI_DIR/app" ]; then
+    mv "$UVARSI_DIR/app" "$previous" || { rm -rf "$staged"; return 1; }
+    had_previous=1
+  fi
+  if mv "$staged" "$UVARSI_DIR/app"; then
+    if [ "$had_previous" -eq 1 ]; then
+      rm -rf "$previous" || return 1
+    fi
+    return 0
+  fi
+
+  rm -rf "$staged"
+  if [ "$had_previous" -eq 1 ]; then
+    mv "$previous" "$UVARSI_DIR/app" || return 1
+  fi
+  return 1
+}
+
 _uvarsi_health_marker() {
   # A deployment health response is valid only when the whole queue contract is
   # present and typed. Print its persisted heartbeat marker (possibly blank).
@@ -217,8 +247,7 @@ uvarsi_restore() {
     ok=0
   fi
 
-  rm -rf "$UVARSI_DIR/app" || ok=0
-  [ "$ok" -eq 0 ] || "$UVARSI_CP" -a "$snapshot/app" "$UVARSI_DIR/app" || ok=0
+  _uvarsi_restore_app "$snapshot" || ok=0
   if [ -f "$snapshot/VERSION" ]; then
     "$UVARSI_CP" -a "$snapshot/VERSION" "$UVARSI_DIR/VERSION" || ok=0
   elif [ -f "$snapshot/VERSION.absent" ]; then

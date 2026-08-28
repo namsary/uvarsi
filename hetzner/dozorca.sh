@@ -42,7 +42,7 @@ EXIT_STRUCTURAL=3                    # kód, ktorým refresh_blocek hlási "neop
 NTFY_TOPIC="uvarsi-jarvis-8f3a2c"    # notifikácie: ntfy.sh/<topic>
 
 log(){ echo "[$(date '+%F %T')] DOZORCA: $*"; }
-notify(){ "$CURL" -s --max-time 15 -H "Title: $1" -d "$2" "https://ntfy.sh/${NTFY_TOPIC}" >/dev/null 2>&1; }
+notify(){ "$CURL" -fsS --max-time 15 -H "Title: $1" -d "$2" "https://ntfy.sh/${NTFY_TOPIC}" >/dev/null 2>&1; }
 
 # Predpočet môže trvať dlhšie než hodinu. Druhý cron sa vtedy musí slušne
 # skončiť, nie zaplatiť rovnaké modelové volania druhýkrát. FD 9 zostáva

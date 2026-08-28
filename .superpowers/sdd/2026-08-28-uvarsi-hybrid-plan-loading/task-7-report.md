@@ -321,3 +321,35 @@ Executable TDD evidence:
   `uvarsi-deploy-state.sh`; the PowerShell parser passed for `nasad.ps1`.
 
 No secrets were printed or copied. No push or production deployment occurred.
+
+## Final rollback failure-safety continuation
+
+Dozorca now sends ntfy requests with `curl -fsS`. Queue-alert state is therefore
+written only after transport and HTTP success; HTTP 4xx/5xx responses remain
+unmarked and retry on the next supervisor run. The executable behavior case
+models HTTP 500, then HTTP 200, then another unhealthy run and verifies exactly
+two delivery attempts followed by marker-based suppression.
+
+Rollback app restoration is now independent of database restoration and of the
+aggregate failure flag. The snapshot app is copied into a sibling staging
+directory and validated before the live directory is moved. A failed staging
+copy leaves the current app untouched; a prepared snapshot is swapped in and
+the previous directory is removed only afterward. Database, app, VERSION,
+assets, scripts, units, and service states continue best-effort independently,
+while any component failure keeps the final `uvarsi_restore` result nonzero.
+
+TDD evidence:
+
+- RED: injected database restore and app-copy failures both left `app/` absent;
+  the HTTP-500 notification was treated as success and suppressed retry
+  (`3 failed`).
+- GREEN: both rollback failures retain an app directory, independently restore
+  VERSION, and return failure; the notification sequence is `500`, `200`, then
+  suppression (`3 passed in 17.63s`).
+- Full behavior/deploy/Dozorca suites under a long path with spaces:
+  `94 passed in 127.87s`.
+- `bash -n` passed for `dozorca.sh`, `samopull.sh`, and
+  `uvarsi-deploy-state.sh`; the PowerShell parser passed for `nasad.ps1`.
+
+Commit `9cb266f` remains the separate plan-calendar manifest fix. No push or
+production deployment occurred.

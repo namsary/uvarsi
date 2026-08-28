@@ -116,6 +116,14 @@ def deployment(tmp_path):
         cp,
         "#!/bin/sh\n"
         "case \"$*\" in\n"
+        "  *snapshot/app*)\n"
+        "    if [ -f \"$UVARSI_FAKE_STATE/fail-app-restore-once\" ]; then\n"
+        "      rm -f \"$UVARSI_FAKE_STATE/fail-app-restore-once\"\n"
+        "      exit 8\n"
+        "    fi\n"
+        "    ;;\n"
+        "esac\n"
+        "case \"$*\" in\n"
         "  *uvarsi-plan-worker.service*)\n"
         "    if [ -f \"$UVARSI_FAKE_STATE/fail-unit-copy-once\" ]; then\n"
         "      rm -f \"$UVARSI_FAKE_STATE/fail-unit-copy-once\"\n"
@@ -248,6 +256,54 @@ def test_migration_failure_restores_a_consistent_predeployment_database(deployme
             "SELECT COUNT(*) FROM sqlite_master WHERE name='migration_only'"
         ).fetchone() == (0,)
         assert live.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+
+
+def test_database_restore_failure_keeps_an_app_present_and_reports_failure(deployment):
+    assert run_library(
+        deployment, 'uvarsi_snapshot "$UVARSI_TEST_SNAPSHOT"'
+    ).returncode == 0
+    deployment["app"].joinpath("marker.txt").write_text(
+        "current-app", encoding="utf-8"
+    )
+    deployment["live"].joinpath("VERSION").write_text(
+        "current-version", encoding="utf-8"
+    )
+    deployment["snapshot"].joinpath("uvarsi.db").write_bytes(b"not sqlite")
+
+    restored = run_library(deployment, 'uvarsi_restore "$UVARSI_TEST_SNAPSHOT"')
+
+    assert restored.returncode != 0
+    assert deployment["app"].is_dir()
+    assert deployment["app"].joinpath("marker.txt").read_text(
+        encoding="utf-8"
+    ) == "old-app"
+    assert deployment["live"].joinpath("VERSION").read_text(
+        encoding="utf-8"
+    ) == "old-version"
+
+
+def test_app_restore_failure_keeps_current_app_present_and_reports_failure(deployment):
+    assert run_library(
+        deployment, 'uvarsi_snapshot "$UVARSI_TEST_SNAPSHOT"'
+    ).returncode == 0
+    deployment["app"].joinpath("marker.txt").write_text(
+        "current-app", encoding="utf-8"
+    )
+    deployment["live"].joinpath("VERSION").write_text(
+        "current-version", encoding="utf-8"
+    )
+    deployment["state"].joinpath("fail-app-restore-once").touch()
+
+    restored = run_library(deployment, 'uvarsi_restore "$UVARSI_TEST_SNAPSHOT"')
+
+    assert restored.returncode != 0
+    assert deployment["app"].is_dir()
+    assert deployment["app"].joinpath("marker.txt").read_text(
+        encoding="utf-8"
+    ) == "current-app"
+    assert deployment["live"].joinpath("VERSION").read_text(
+        encoding="utf-8"
+    ) == "old-version"
 
 
 def test_partial_live_mutation_rolls_back_before_returning_failure(deployment):
