@@ -799,8 +799,11 @@ PLAN_VARIANT_HINTS = (
 # 9 = kalendár 7/4/3 ostáva; receptová dávka sa oddelila od počtu celých
 #     nákupných balení a dokončený obchod bez vhodnej položky neblokuje akcie
 #     z ostatných zvolených obchodov.
+# 10 = kalendár 7/4/3 ostáva; výstupná JSON schéma vynucuje 5–7 použiteľných
+#      krokov s minimálnou dĺžkou. Krátky všeobecný krok už nemôže minúť
+#      platené volanie a až potom zhodiť celý plán vo validácii.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 9
+PLAN_ALGO_VERSION = 10
 
 
 def plan_variant_for(user_id, variants):
@@ -1001,10 +1004,15 @@ def plan_output_config(effort=None):
         "properties": {
             "day": {"type": "string"},
             "name": {"type": "string"},
-            "minutes": {"type": "integer"},
+            "minutes": {"type": "integer", "minimum": 1},
             "items": {"type": "array", "items": item_schema},
             "pantry_ingredients": {"type": "array", "items": {"type": "string"}},
-            "instructions": {"type": "array", "items": {"type": "string"}},
+            "instructions": {
+                "type": "array",
+                "minItems": 5,
+                "maxItems": 7,
+                "items": {"type": "string", "minLength": MIN_STEP_CHARS},
+            },
         },
         "required": [
             "day", "name", "minutes", "items", "pantry_ingredients", "instructions",

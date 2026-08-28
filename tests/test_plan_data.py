@@ -862,13 +862,20 @@ def test_offer_catalog_gives_model_the_exact_server_owned_recipe_portion():
 def test_plan_output_schema_excludes_model_owned_portion_fields():
     config = plan_data.plan_output_config("low")
     schema = config["format"]["schema"]
-    item = schema["properties"]["meals"]["items"]["properties"]["items"]["items"]
+    meal = schema["properties"]["meals"]["items"]
+    item = meal["properties"]["items"]["items"]
 
     assert config["effort"] == "low"
     assert item["required"] == ["offer_key", "use"]
     assert set(item["properties"]) == {"offer_key", "use"}
     assert item["properties"]["use"]["enum"] == ["main", "addition"]
     assert item["additionalProperties"] is False
+
+    instructions = meal["properties"]["instructions"]
+    assert instructions["minItems"] == 5
+    assert instructions["maxItems"] == 7
+    assert instructions["items"]["minLength"] == plan_data.MIN_STEP_CHARS
+    assert meal["properties"]["minutes"]["minimum"] == 1
 
 
 def test_server_allows_only_safe_context_for_ambiguous_cheese_and_onion():
