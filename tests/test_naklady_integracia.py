@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from app import naklady
+from app import plan_jobs, plan_worker
 from app.receipt_data import StructuralFailure
 
 from tests.test_server import (
@@ -257,7 +258,7 @@ def test_odmietnuty_plan_nezobere_pouzivatelovi_denny_prepocet(monkeypatch, tmp_
 def test_uspesny_plan_zaeviduje_skutocnu_spotrebu(monkeypatch, tmp_path):
     server = load_server(monkeypatch, tmp_path, current_plan_rows())
     with server.db() as con:
-        con.execute("INSERT INTO pouzivatelia (id,email) VALUES (1,'a@b.sk')")
+        con.execute("INSERT INTO pouzivatelia (id,email,obchody) VALUES (1,'a@b.sk','Lidl')")
         insert_hashed_session(server, con, "session-token", 1)
         con.execute("INSERT INTO spajza (user_id, nazov) VALUES (1, 'soľ')")
         con.commit()
@@ -273,7 +274,23 @@ def test_uspesny_plan_zaeviduje_skutocnu_spotrebu(monkeypatch, tmp_path):
 
     client = TestClient(server.app)
     client.cookies.set(server.COOKIE, "session-token")
-    assert client.post("/api/plan/generuj?force=1").status_code == 200
+    odpoved = client.post("/api/plan/generuj?force=1")
+    assert odpoved.status_code == 202
+    job_id = odpoved.json()["job_id"]
+
+    with server.db() as con:
+        job = con.execute("SELECT * FROM plan_jobs WHERE id=?", (job_id,)).fetchone()
+        assert job["state"] == "queued"
+        assert job["reserved_eur"] == pytest.approx(0.12)
+        assert server.pouzite_prepocty(con, 1, server.dnesok()) == 1
+        assert plan_jobs.active_reservations_eur(con) == pytest.approx(0.12)
+
+    worker = plan_worker.process_one()
+    assert worker.status == "ready"
+
+    plan = client.get("/api/plan")
+    assert plan.status_code == 200
+    assert plan.json()["jedla"]
 
     con = sqlite3.connect(tmp_path / "uvarsi.db")
     con.row_factory = sqlite3.Row
@@ -286,6 +303,8 @@ def test_uspesny_plan_zaeviduje_skutocnu_spotrebu(monkeypatch, tmp_path):
     assert riadok["eur"] == pytest.approx(
         (12_000 * 2 + 1_500 * 10 + 9_000 * 0.20) / 1e6 * 0.92
     )
+    with server.db() as con:
+        assert plan_jobs.active_reservations_eur(con) == pytest.approx(0.0)
 
 
 # ------------------------------------------------------------------ viditeľnosť

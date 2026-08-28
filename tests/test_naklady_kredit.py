@@ -26,6 +26,7 @@ from pathlib import Path
 import pytest
 
 from app import naklady
+from app import plan_jobs, plan_worker
 from app.receipt_data import StructuralFailure
 
 from tests.test_server import (
@@ -513,7 +514,7 @@ def test_dozorca_neposiela_vlastnu_notifikaciu_o_kredite(dozorca):
 # ------------------------------------------------------------------ používateľ
 def zaloz_pouzivatela(server):
     with server.db() as con:
-        con.execute("INSERT INTO pouzivatelia (id,email) VALUES (1,'a@b.sk')")
+        con.execute("INSERT INTO pouzivatelia (id,email,obchody) VALUES (1,'a@b.sk','Lidl')")
         insert_hashed_session(server, con, "session-token", 1)
         con.commit()
 
@@ -541,12 +542,22 @@ def test_pouzivatel_dostane_pravdivu_slovensku_hlasku_nie_vymysleny_plan(monkeyp
     client.cookies.set(server.COOKIE, "session-token")
     odpoved = client.post("/api/plan/generuj?force=1")
 
-    assert odpoved.status_code == 503, "nie 500 — nie je to náhodný pád servera"
-    detail = odpoved.json()["detail"]
-    assert "kredit" in detail.lower()
-    assert "jedálniček" in detail.lower() or "plán" in detail.lower()
-    assert "€" not in detail, "nič sa neminulo, euro číslo by klamalo"
-    assert "jedla" not in odpoved.text, "žiadny vymyslený plán"
+    assert odpoved.status_code == 202
+    job_id = odpoved.json()["job_id"]
+    worker = plan_worker.process_one()
+    assert (worker.status, worker.error_code) == ("failed", "generation_failed")
+
+    zlyhanie = client.get("/api/plan")
+    assert zlyhanie.status_code == 200
+    assert zlyhanie.json() == {
+        "prazdny": True,
+        "status": "failed",
+        "job_id": job_id,
+        "code": "generation_failed",
+        "message": server.SPRAVA_PLAN_ZLYHAL,
+        "retry_allowed": False,
+    }
+    assert "jedla" not in zlyhanie.text, "žiadny vymyslený plán"
 
 
 def test_odmietnutie_pre_kredit_nezoberie_ledger_ani_denny_prepocet(monkeypatch, tmp_path):
@@ -558,14 +569,30 @@ def test_odmietnutie_pre_kredit_nezoberie_ledger_ani_denny_prepocet(monkeypatch,
 
     client = TestClient(server.app, raise_server_exceptions=False)
     client.cookies.set(server.COOKIE, "session-token")
-    for _ in range(3):
-        client.post("/api/plan/generuj?force=1")
+    prve = client.post("/api/plan/generuj?force=1")
+    druhe = client.post("/api/plan/generuj?force=1")
+    tretie = client.post("/api/plan/generuj?force=1")
+    assert prve.status_code == druhe.status_code == tretie.status_code == 202
+    assert druhe.json()["job_id"] == tretie.json()["job_id"] == prve.json()["job_id"]
 
     with server.db() as con:
-        assert server.pouzite_prepocty(con, 1, server.dnesok()) == 0
-    spojenie = sqlite3.connect(tmp_path / "uvarsi.db")
-    assert spojenie.execute("SELECT COALESCE(SUM(eur),0) FROM naklady").fetchone()[0] == 0
-    spojenie.close()
+        assert server.pouzite_prepocty(con, 1, server.dnesok()) == 1
+        assert plan_jobs.active_reservations_eur(con) == pytest.approx(0.12)
+        assert con.execute("SELECT COUNT(*) FROM naklady").fetchone()[0] == 0
+
+    worker = plan_worker.process_one()
+    assert (worker.status, worker.error_code) == ("failed", "generation_failed")
+
+    with server.db() as con:
+        assert server.pouzite_prepocty(con, 1, server.dnesok()) == 1, (
+            "terminalne odoslaný force pokus neuvoľní denný slot"
+        )
+        assert plan_jobs.active_reservations_eur(con) == pytest.approx(0.0)
+        assert con.execute("SELECT COUNT(*) FROM naklady").fetchone()[0] == 0
+
+    dalsi = client.post("/api/plan/generuj?force=1")
+    assert dalsi.status_code == 429, "neúspešný force pokus sa nevracia ako voľný slot"
+    assert dalsi.json()["kod"] == server.KOD_LIMIT_PREPOCTOV
 
 
 def test_chybajuce_akcie_pri_nulovom_kredite_nesľubuju_ze_to_bude_o_chvilu(monkeypatch, tmp_path):
@@ -609,12 +636,22 @@ def test_health_a_naklady_povedia_ze_api_odmieta_pre_kredit(monkeypatch, tmp_pat
 
     client = TestClient(server.app, raise_server_exceptions=False)
     client.cookies.set(server.COOKIE, "session-token")
-    client.post("/api/plan/generuj?force=1")
+    odpoved = client.post("/api/plan/generuj?force=1")
+    assert odpoved.status_code == 202
+    worker = plan_worker.process_one()
+    assert worker.status == "failed"
 
     zdravie = TestClient(server.app).get("/api/health").json()
     assert zdravie["naklady"]["kredit"]["vycerpany"] is True
     assert zdravie["naklady"]["dnes_eur"] == 0, "nič sa neminulo — žiadne falošné euro"
+    assert zdravie["naklady"]["posledne"] == []
+    assert zdravie["plan_queue"]["queued"] == 0
+    assert zdravie["plan_queue"]["failed"] == 1
+    assert zdravie["plan_queue"]["worker_alive"] is True
 
     prehlad = client.get("/api/naklady").json()
     assert prehlad["kredit"]["vycerpany"] is True
     assert "kredit" in prehlad["kredit"]["sprava"].lower()
+    assert prehlad["dnes_eur"] == 0
+    assert prehlad["plan_queue"]["queued"] == 0
+    assert prehlad["plan_queue"]["failed"] == 1
