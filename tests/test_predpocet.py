@@ -33,6 +33,7 @@ from tests.test_server import (
     insert_hashed_session,
     load_server,
     model_plan,
+    plan_key,
 )
 
 
@@ -486,8 +487,8 @@ def test_precompute_passes_one_household_contract_to_signature_prompt_and_builde
         return "signature"
 
     def messages(rows, frequency, pantry, household_size, variant,
-                 pantry_driven, *, adults, children):
-        calls["prompt"] = (household_size, adults, children)
+                 pantry_driven, *, prompt_rows=None, adults, children):
+        calls["prompt"] = (household_size, adults, children, prompt_rows)
         return [{"type": "text", "text": "prompt"}]
 
     def builder(con, model_output, stores, frequency, household_size,
@@ -517,7 +518,7 @@ def test_precompute_passes_one_household_contract_to_signature_prompt_and_builde
 
     assert calls == {
         "signature": (None, 2, 2),
-        "prompt": (None, 2, 2),
+        "prompt": (None, 2, 2, []),
         "builder": (None, 2, 2),
     }
 
@@ -551,6 +552,36 @@ def test_predpocet_uses_the_same_low_effort_as_live_plans(monkeypatch, tmp_path)
 
     assert calls[0]["output_config"] == {"effort": "low"}
     assert calls[0]["max_tokens"] >= 10_000
+
+
+def test_precompute_shortlists_the_prompt_but_validates_an_offer_outside_it(monkeypatch, tmp_path):
+    server, predpocet = priprav(monkeypatch, tmp_path, current_plan_rows(130))
+    profile = predpocet.Profil(("Lidl",), 4, 0, 2, 0)
+    calls = []
+    outside_shortlist = plan_key(121)
+
+    class Messages:
+        def create(self, **kwargs):
+            calls.append(kwargs)
+            return types.SimpleNamespace(
+                stop_reason="end_turn",
+                content=[types.SimpleNamespace(
+                    type="text", text=json.dumps(model_plan(first_offer_key=outside_shortlist))
+                )],
+            )
+
+    client = types.SimpleNamespace(messages=Messages())
+    monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace())
+    monkeypatch.setattr(predpocet.naklady, "strazeny_klient", lambda *_args, **_kwargs: client)
+
+    with closing(server.db()) as con:
+        plan = predpocet._poskladaj(con, server, server.akcie_pre(["Lidl"]), profile, klient=client)
+
+    prompt = "\n".join(block["text"] for block in calls[0]["messages"][0]["content"])
+    shown = [plan_key(index) for index in range(1, 131) if plan_key(index) in prompt]
+    assert len(shown) <= 120
+    assert outside_shortlist not in shown
+    assert plan["jedla"][0]["suroviny"][0]["offer_key"] == outside_shortlist
 
 
 def test_predpocet_never_retries_a_typeerror_and_double_charges(monkeypatch, tmp_path):

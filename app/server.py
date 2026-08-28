@@ -25,6 +25,7 @@ from landing_data import load_landing_data, validate_landing_data
 from public_pages import ROBOTS_TXT, render_evergreen_page, render_sitemap, render_weekly_page
 from weekly_data import offers_for_current_week
 from offer_data import OfferKeyCollision, migrate_akcie_schema
+from plan_shortlist import select_offers
 from plan_data import (
     PLAN_ALGO_VERSION,
     PORTION_STANDARD_VERSION,
@@ -151,15 +152,6 @@ SPRAVA_PLAN_NEDOKONCENY = (
     "Jedálniček sa nestihol dopísať do konca. Skús to prosím znova."
 )
 
-# Koľko ponúk vidí model a ako sa medzi ne delí miesto. Zoradenie podľa
-# kategórie a až potom ceny znamenalo, že do promptu sa zmestilo 89 mias a
-# 51 zelenín — a ani jedna mliečna, trvanlivá či pekárenská ponuka. Z toho sa
-# týždenný jedálniček zložiť nedá, tak si každá kategória drží svoj podiel.
-PLAN_OFFER_LIMIT = 140
-CATEGORY_QUOTA = (
-    ("maso", 3), ("zelenina", 3), ("mliecne", 2),
-    ("trvanlive", 2), ("ovocie", 1), ("pecivo", 1), ("ine", 1),
-)
 MIN_OFFERS_FOR_PLAN = 15
 # Rovnaký profil dostane rovnaký plán, takže sa počíta raz pre všetkých. Aby
 # však susedia s rovnakou domácnosťou nemali bajt na bajt to isté menu, podpis
@@ -897,7 +889,12 @@ async def uloz_spajzu(req: Request):
 
 
 # ---------------------------------------------------------------- plán
-def akcie_pre(obchody, limit=PLAN_OFFER_LIMIT):
+def akcie_pre(obchody):
+    """Complete current verified rows for signatures, caches, and validation.
+
+    Prompt shortening happens only at the model-call boundary through
+    ``plan_shortlist.select_offers``; this catalogue must stay complete.
+    """
     if not obchody:
         return []
 
@@ -905,43 +902,7 @@ def akcie_pre(obchody, limit=PLAN_OFFER_LIMIT):
     with closing(db()) as con:
         rows = offers_for_current_week(con, obchody, today)
 
-    return vyvazene_ponuky(rows, limit)
-
-
-def _kategoria(row):
-    known = {name for name, _ in CATEGORY_QUOTA}
-    return row["kategoria"] if row["kategoria"] in known else "ine"
-
-
-def vyvazene_ponuky(rows, limit=PLAN_OFFER_LIMIT):
-    """Najlacnejšie ponuky, ale zo všetkých kategórií naraz.
-
-    V každom kole si kategória vezme svoj podiel od najlacnejšej ďalej. Mäso
-    stále vedie, no už nevytlačí mliečne a pečivo úplne z promptu. Keď obchod
-    v niektorej kategórii nič nemá, miesto pripadne ostatným — chudobný týždeň
-    sa tým nezmenší. Výber je deterministický, aby zdieľaný podpis sedel.
-    """
-    buckets = {name: [] for name, _ in CATEGORY_QUOTA}
-    for row in rows:
-        buckets[_kategoria(row)].append(row)
-    for bucket in buckets.values():
-        bucket.sort(key=lambda row: (row["cena"], row["offer_key"]))
-
-    order = {name: index for index, (name, _) in enumerate(CATEGORY_QUOTA)}
-    cursors = {name: 0 for name in buckets}
-    taken = []
-    while len(taken) < limit:
-        before = len(taken)
-        for name, quota in CATEGORY_QUOTA:
-            bucket = buckets[name]
-            for _ in range(quota):
-                if len(taken) >= limit or cursors[name] >= len(bucket):
-                    break
-                taken.append(bucket[cursors[name]])
-                cursors[name] += 1
-        if len(taken) == before:
-            break
-    return sorted(taken, key=lambda row: (order[_kategoria(row)], row["cena"]))
+    return rows
 
 
 def pouzitie_modelu(usage):
@@ -1309,9 +1270,11 @@ def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant, zo_spajze=Fa
         # dopredu a s cache_control — inak sa ako predpona cachovať nedá.
         # `pantry_driven` rozhoduje, či sa špajza vôbec dostane do promptu.
         # Pri bežnom pláne nie — je zdieľaný, takže by tam bola aj únikom.
+        prompt_rows = select_offers(rows, obchody, limit=120)
         blocks = personal_plan_messages(
             rows, u["frekvencia"], sp if zo_spajze else (), household_size=None,
             variant=variant, pantry_driven=zo_spajze,
+            prompt_rows=prompt_rows,
             adults=adults, children=children,
         )
         plan_timeout = getattr(anthropic, "APITimeoutError", None)

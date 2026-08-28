@@ -68,9 +68,11 @@ from contextlib import closing
 try:
     from . import naklady
     from .plan_data import build_personal_plan, personal_plan_messages
+    from .plan_shortlist import select_offers
 except ImportError:                      # beh priamo z adresára app/
     import naklady
     from plan_data import build_personal_plan, personal_plan_messages
+    from plan_shortlist import select_offers
 
 
 LOG = logging.getLogger("uvarsi.predpocet")
@@ -479,16 +481,19 @@ def _poskladaj(con, server, rows, profil, klient=None):
         ),
         UCEL,
     )
+    prompt_rows = select_offers(rows, profil.obchody, limit=120)
     if _pozna_clenov_domacnosti(personal_plan_messages):
         blocks = personal_plan_messages(
             rows, profil.frekvencia, (), household_size=None,
             variant=profil.variant, pantry_driven=False,
+            prompt_rows=prompt_rows,
             adults=profil.dospeli, children=profil.deti,
         )
     else:
         blocks = personal_plan_messages(
             rows, profil.frekvencia, (), household_size=profil.osoby,
             variant=profil.variant, pantry_driven=False,
+            prompt_rows=prompt_rows,
         )
     zaklad = {
         "model": server.MODEL_PLAN,

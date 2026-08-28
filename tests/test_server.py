@@ -788,8 +788,8 @@ def test_plan_generation_passes_household_composition_to_signature_prompt_and_bu
         return "family-signature"
 
     def capture_messages(rows, frequency, pantry, household_size, variant=0,
-                         pantry_driven=False, *, adults=None, children=0):
-        captured["messages"] = (household_size, adults, children)
+                         pantry_driven=False, *, prompt_rows=None, adults=None, children=0):
+        captured["messages"] = (household_size, adults, children, prompt_rows)
         return [{"type": "text", "text": "test prompt"}]
 
     def capture_builder(con, model_output, stores, frequency, household_size, pantry=(),
@@ -819,7 +819,7 @@ def test_plan_generation_passes_household_composition_to_signature_prompt_and_bu
     assert captured == {
         "signature": (None, 2, 2),
         "demand": (2, 2),
-        "messages": (None, 2, 2),
+        "messages": (None, 2, 2, server.select_offers(server.akcie_pre(["Lidl"]), ["Lidl"])),
         "builder": (None, 2, 2),
     }
 
@@ -1229,21 +1229,20 @@ def category_rows():
     return rows
 
 
-def test_offers_shown_to_the_model_cover_every_category_not_only_the_cheapest_meat(monkeypatch, tmp_path):
-    """Zoradenie podľa kategórie a ceny odrezalo mliečne aj pečivo — z toho sa nedá zložiť týždeň."""
+def test_current_offer_catalogue_is_complete_before_prompt_shortlisting(monkeypatch, tmp_path):
+    """Katalóg pre podpis a validáciu nesmie byť starý 140-položkový promptový výber."""
     server = load_server(monkeypatch, tmp_path, category_rows())
 
     selected = server.akcie_pre(["Lidl"])
 
     categories = {row["kategoria"] for row in selected}
     assert categories == {"maso", "zelenina", "mliecne", "trvanlive", "ovocie", "pecivo"}
-    assert len(selected) == server.PLAN_OFFER_LIMIT
+    assert len(selected) == len(category_rows()) == 160
     counted = {name: sum(1 for row in selected if row["kategoria"] == name) for name in categories}
-    assert counted["mliecne"] >= 10 and counted["pecivo"] >= 5, counted
-    assert counted["maso"] >= counted["pecivo"], "meat still leads, it just stops crowding everyone out"
+    assert counted == {"maso": 60, "zelenina": 30, "mliecne": 20, "trvanlive": 20, "ovocie": 15, "pecivo": 15}
 
 
-def test_offer_selection_is_deterministic_so_the_shared_signature_is_stable(monkeypatch, tmp_path):
+def test_complete_offer_catalogue_is_deterministic_so_the_shared_signature_is_stable(monkeypatch, tmp_path):
     server = load_server(monkeypatch, tmp_path, category_rows())
 
     assert [row["offer_key"] for row in server.akcie_pre(["Lidl"])] == [
@@ -1257,6 +1256,33 @@ def test_a_meat_only_week_still_fills_the_whole_catalogue(monkeypatch, tmp_path)
     server = load_server(monkeypatch, tmp_path, rows)
 
     assert len(server.akcie_pre(["Lidl"])) == 60
+
+
+def test_live_plan_shortlists_the_prompt_but_validates_an_offer_outside_it(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, current_plan_rows(130))
+    with server.db() as con:
+        con.execute("INSERT INTO pouzivatelia (id, email, obchody) VALUES (1, 'short@uvar.si', 'Lidl')")
+        insert_hashed_session(server, con, "short-session", 1)
+        con.commit()
+    constructors = []
+    message_calls = []
+    outside_shortlist = plan_key(121)
+    monkeypatch.setitem(
+        sys.modules, "anthropic", fake_anthropic(
+            model_plan(first_offer_key=outside_shortlist), constructors, message_calls
+        ),
+    )
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "short-session")
+
+    response = client.post("/api/plan/generuj?force=1")
+
+    assert response.status_code == 200
+    prompt = prompt_text(message_calls[0])
+    shown = [plan_key(index) for index in range(1, 131) if plan_key(index) in prompt]
+    assert len(shown) <= 120
+    assert outside_shortlist not in shown
+    assert response.json()["jedla"][0]["suroviny"][0]["offer_key"] == outside_shortlist
 
 
 @pytest.mark.parametrize("method, path", [("get", "/api/plan"), ("post", "/api/plan/generuj")])
