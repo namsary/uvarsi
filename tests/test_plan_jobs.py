@@ -38,9 +38,23 @@ def request(**changes):
         "week": "2026-08-24",
         "priority": 100,
         "payload": {},
+        "regeneration_limit": 2,
+        "regeneration_day": "2026-08-28",
     }
     values.update(changes)
     return JobRequest(**values)
+
+
+def precompute_request(**changes):
+    values = {
+        "kind": "precompute",
+        "user_id": None,
+        "job_key": "pre:abc:0",
+        "regeneration_limit": None,
+        "regeneration_day": None,
+    }
+    values.update(changes)
+    return request(**values)
 
 
 def test_server_migration_installs_plan_job_tables(con):
@@ -68,12 +82,31 @@ def test_regular_and_pantry_jobs_never_collide(con):
     assert enqueue(con, regular, now=NOW).job.id != enqueue(con, pantry, now=NOW).job.id
 
 
-def test_regeneration_fields_must_be_provided_together():
+@pytest.mark.parametrize("kind", ("regular", "pantry"))
+def test_regular_and_pantry_jobs_require_both_regeneration_fields(kind):
     with pytest.raises(ValueError, match="regeneration"):
-        request(regeneration_limit=2)
+        request(kind=kind, regeneration_limit=None, regeneration_day=None)
 
     with pytest.raises(ValueError, match="regeneration"):
-        request(regeneration_day="2026-08-28")
+        request(kind=kind, regeneration_limit=None, regeneration_day="2026-08-28")
+
+
+def test_precompute_rejects_user_or_regeneration_reservation():
+    with pytest.raises(ValueError, match="precompute"):
+        precompute_request(user_id=1)
+
+    with pytest.raises(ValueError, match="precompute"):
+        precompute_request(regeneration_limit=2, regeneration_day="2026-08-28")
+
+
+def test_regeneration_reservation_round_trips_through_job_storage(con):
+    created = enqueue(con, request(regeneration_limit=3, regeneration_day="2026-08-28"), now=NOW).job
+    claimed = plan_jobs.claim_next(con, "worker-a", now=NOW)
+
+    assert created.regeneration_limit == 3
+    assert created.regeneration_day == "2026-08-28"
+    assert claimed.regeneration_limit == 3
+    assert claimed.regeneration_day == "2026-08-28"
 
 
 def test_enqueue_reserves_one_user_regeneration_only_when_creating_a_job(con):
@@ -87,7 +120,7 @@ def test_enqueue_reserves_one_user_regeneration_only_when_creating_a_job(con):
 
 
 def test_precompute_does_not_reserve_a_user_regeneration(con):
-    job = request(kind="precompute", user_id=None, job_key="pre:abc:0")
+    job = precompute_request()
 
     enqueue(con, job, now=NOW)
 
@@ -142,11 +175,12 @@ def test_heartbeat_extends_a_claimed_lease_and_records_worker_state(con):
 def test_dispatched_job_is_not_automatically_requeued(con):
     job = enqueue(con, request(), now=NOW).job
     plan_jobs.claim_next(con, "worker-a", now=NOW)
-    plan_jobs.mark_dispatched(con, job.id, now=NOW)
+    assert plan_jobs.mark_dispatched(con, job.id, worker_id="worker-a", now=NOW) is True
 
-    plan_jobs.mark_failed(
-        con, job.id, "provider_timeout", retryable_before_dispatch=False, now=NOW
-    )
+    assert plan_jobs.mark_failed(
+        con, job.id, "provider_timeout", retryable_before_dispatch=False,
+        worker_id="worker-a", now=NOW,
+    ) is True
 
     status = plan_jobs.status_for_key(con, job.job_key)
     assert status.state == "failed"
@@ -156,7 +190,7 @@ def test_dispatched_job_is_not_automatically_requeued(con):
 def test_expired_dispatched_job_fails_instead_of_being_claimed_again(con):
     job = enqueue(con, request(), now=NOW).job
     plan_jobs.claim_next(con, "worker-a", now=NOW)
-    plan_jobs.mark_dispatched(con, job.id, now=NOW)
+    assert plan_jobs.mark_dispatched(con, job.id, worker_id="worker-a", now=NOW) is True
 
     assert plan_jobs.claim_next(con, "worker-b", now=NOW + datetime.timedelta(seconds=151)) is None
     status = plan_jobs.status_for_key(con, job.job_key)
@@ -168,9 +202,10 @@ def test_failure_before_dispatch_returns_the_same_job_to_the_queue(con):
     job = enqueue(con, request(), now=NOW).job
     plan_jobs.claim_next(con, "worker-a", now=NOW)
 
-    plan_jobs.mark_failed(
-        con, job.id, "network_before_send", retryable_before_dispatch=True, now=NOW
-    )
+    assert plan_jobs.mark_failed(
+        con, job.id, "network_before_send", retryable_before_dispatch=True,
+        worker_id="worker-a", now=NOW,
+    ) is True
 
     retried = plan_jobs.claim_next(con, "worker-b", now=NOW)
     assert retried.id == job.id
@@ -181,6 +216,71 @@ def test_mark_ready_is_a_terminal_state(con):
     job = enqueue(con, request(), now=NOW).job
     plan_jobs.claim_next(con, "worker-a", now=NOW)
 
-    plan_jobs.mark_ready(con, job.id, now=NOW)
+    assert plan_jobs.mark_ready(con, job.id, worker_id="worker-a", now=NOW) is True
 
     assert plan_jobs.status_for_key(con, job.job_key).state == "ready"
+
+
+def test_stale_worker_cannot_mutate_a_reclaimed_job(con):
+    job = enqueue(con, request(), now=NOW).job
+    plan_jobs.claim_next(con, "worker-a", now=NOW, lease_seconds=1)
+    reclaimed = plan_jobs.claim_next(con, "worker-b", now=NOW + datetime.timedelta(seconds=2))
+
+    assert reclaimed.id == job.id
+    assert plan_jobs.mark_dispatched(
+        con, job.id, worker_id="worker-a", now=NOW + datetime.timedelta(seconds=2)
+    ) is False
+    assert plan_jobs.mark_ready(
+        con, job.id, worker_id="worker-a", now=NOW + datetime.timedelta(seconds=2)
+    ) is False
+    assert plan_jobs.mark_failed(
+        con, job.id, "stale", retryable_before_dispatch=True,
+        worker_id="worker-a", now=NOW + datetime.timedelta(seconds=2),
+    ) is False
+
+    row = con.execute("SELECT state, lease_owner, dispatched_at FROM plan_jobs WHERE id=?", (job.id,)).fetchone()
+    assert tuple(row) == ("running", "worker-b", None)
+
+
+def test_duplicate_mark_dispatched_cannot_authorize_another_dispatch(con):
+    job = enqueue(con, request(), now=NOW).job
+    plan_jobs.claim_next(con, "worker-a", now=NOW)
+
+    assert plan_jobs.mark_dispatched(con, job.id, worker_id="worker-a", now=NOW) is True
+    assert plan_jobs.mark_dispatched(con, job.id, worker_id="worker-a", now=NOW) is False
+
+
+def test_second_worker_cannot_claim_while_another_lease_is_live(con):
+    first = enqueue(con, request(job_key="first", priority=100), now=NOW).job
+    enqueue(con, request(job_key="second", priority=20), now=NOW)
+
+    claimed = plan_jobs.claim_next(con, "worker-a", now=NOW)
+    competing = plan_jobs.claim_next(con, "worker-b", now=NOW + datetime.timedelta(seconds=1))
+
+    assert claimed.id == first.id
+    assert competing is None
+    assert plan_jobs.status_for_key(con, "second").state == "queued"
+
+
+def test_enqueue_rejects_a_dirty_connection_without_committing_caller_changes(con):
+    con.execute("INSERT INTO prepocty (user_id, den, pocet) VALUES (99, '2026-08-28', 1)")
+
+    with pytest.raises(plan_jobs.DirtyConnectionError, match="clean connection"):
+        enqueue(con, request(), now=NOW)
+
+    assert con.in_transaction is True
+    con.rollback()
+    assert con.execute("SELECT COUNT(*) FROM prepocty WHERE user_id=99").fetchone()[0] == 0
+
+
+def test_claim_rejects_a_dirty_connection_without_committing_caller_changes(con):
+    job = enqueue(con, request(), now=NOW).job
+    con.execute("INSERT INTO prepocty (user_id, den, pocet) VALUES (99, '2026-08-28', 1)")
+
+    with pytest.raises(plan_jobs.DirtyConnectionError, match="clean connection"):
+        plan_jobs.claim_next(con, "worker-a", now=NOW)
+
+    assert con.in_transaction is True
+    con.rollback()
+    assert con.execute("SELECT COUNT(*) FROM prepocty WHERE user_id=99").fetchone()[0] == 0
+    assert plan_jobs.status_for_key(con, job.job_key).state == "queued"

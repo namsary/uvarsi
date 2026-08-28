@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS plan_jobs (
   attempts INTEGER NOT NULL DEFAULT 0,
   dispatched_at TEXT,
   reserved_eur REAL NOT NULL CHECK (reserved_eur >= 0),
+  regeneration_limit INTEGER,
+  regeneration_day TEXT,
   created TEXT NOT NULL,
   started_at TEXT,
   finished_at TEXT,
@@ -71,12 +73,17 @@ class JobRequest:
     regeneration_day: str | None = None
 
     def __post_init__(self):
-        if (self.regeneration_limit is None) != (self.regeneration_day is None):
-            missing = "regeneration_limit" if self.regeneration_limit is None else "regeneration_day"
-            raise ValueError(f"{missing} must be set together with the other regeneration field")
-        if self.regeneration_limit is not None:
+        if self.kind not in ("regular", "pantry", "precompute"):
+            raise ValueError("kind must be regular, pantry, or precompute")
+        has_regeneration = self.regeneration_limit is not None or self.regeneration_day is not None
+        if self.kind == "precompute":
+            if self.user_id is not None or has_regeneration:
+                raise ValueError("precompute jobs cannot reserve a user regeneration")
+        else:
             if self.user_id is None:
-                raise ValueError("regeneration_limit requires user_id")
+                raise ValueError("regular and pantry jobs require user_id")
+            if self.regeneration_limit is None or self.regeneration_day is None:
+                raise ValueError("regular and pantry jobs require both regeneration fields")
             if self.regeneration_limit < 0:
                 raise ValueError("regeneration_limit must not be negative")
         if self.reserved_eur < 0:
@@ -98,6 +105,8 @@ class Job:
     attempts: int
     dispatched_at: str | None
     reserved_eur: float
+    regeneration_limit: int | None
+    regeneration_day: str | None
     created: str
     started_at: str | None
     finished_at: str | None
@@ -124,8 +133,24 @@ class RegenerationLimitReached(Exception):
     """A new job would exceed the user's daily forced-regeneration limit."""
 
 
+class DirtyConnectionError(RuntimeError):
+    """Queue operations refuse caller-owned transactions."""
+
+
+def _require_clean_connection(con) -> None:
+    if con.in_transaction:
+        raise DirtyConnectionError("plan_jobs requires a clean connection")
+
+
 def migrate_plan_jobs_schema(con) -> None:
     con.executescript(SCHEMA)
+    columns = {row[1] for row in con.execute("PRAGMA table_info(plan_jobs)")}
+    for name, definition in (
+        ("regeneration_limit", "INTEGER"),
+        ("regeneration_day", "TEXT"),
+    ):
+        if name not in columns:
+            con.execute(f"ALTER TABLE plan_jobs ADD COLUMN {name} {definition}")
 
 
 def _stamp(now: datetime.datetime) -> str:
@@ -147,6 +172,8 @@ def _job(row: sqlite3.Row) -> Job:
         attempts=int(row["attempts"]),
         dispatched_at=row["dispatched_at"],
         reserved_eur=float(row["reserved_eur"]),
+        regeneration_limit=row["regeneration_limit"],
+        regeneration_day=row["regeneration_day"],
         created=row["created"],
         started_at=row["started_at"],
         finished_at=row["finished_at"],
@@ -183,8 +210,7 @@ def _reserve_user_regeneration(con, request: JobRequest) -> None:
 
 def enqueue(con, request: JobRequest, *, now: datetime.datetime) -> EnqueueResult:
     """Create one active job, reserving budget and a user retry atomically."""
-    if con.in_transaction:
-        con.commit()
+    _require_clean_connection(con)
     con.execute("BEGIN IMMEDIATE")
     try:
         active = con.execute(
@@ -209,8 +235,9 @@ def enqueue(con, request: JobRequest, *, now: datetime.datetime) -> EnqueueResul
         cursor = con.execute(
             """INSERT INTO plan_jobs (
                 job_key, signature, variant, kind, user_id, week, priority,
-                payload_json, state, reserved_eur, created, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)""",
+                payload_json, state, reserved_eur, regeneration_limit, regeneration_day,
+                created, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)""",
             (
                 request.job_key,
                 request.signature,
@@ -221,6 +248,8 @@ def enqueue(con, request: JobRequest, *, now: datetime.datetime) -> EnqueueResul
                 request.priority,
                 json.dumps(request.payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
                 request.reserved_eur,
+                request.regeneration_limit,
+                request.regeneration_day,
                 stamp,
                 stamp,
             ),
@@ -253,8 +282,7 @@ def _recover_expired_leases(con, stamp: str) -> None:
 def claim_next(con, worker_id: str, *, now: datetime.datetime,
                lease_seconds: int = LEASE_SECONDS) -> Job | None:
     """Atomically claim the highest-priority queued job after lease recovery."""
-    if con.in_transaction:
-        con.commit()
+    _require_clean_connection(con)
     con.execute("BEGIN IMMEDIATE")
     try:
         stamp = _stamp(now)
@@ -268,8 +296,12 @@ def claim_next(con, worker_id: str, *, now: datetime.datetime,
                    SELECT id FROM plan_jobs WHERE state='queued'
                    ORDER BY priority DESC, created ASC, id ASC LIMIT 1
                )
+               AND NOT EXISTS (
+                   SELECT 1 FROM plan_jobs AS running
+                   WHERE running.state='running' AND running.lease_expires_at > ?
+               )
                RETURNING *""",
-            (stamp, stamp, worker_id, expiry),
+            (stamp, stamp, worker_id, expiry, stamp),
         ).fetchone()
         con.commit()
         return _job(row) if row is not None else None
@@ -299,23 +331,28 @@ def heartbeat(con, worker_id: str, job_id: int | None, *, now: datetime.datetime
             )
 
 
-def mark_dispatched(con, job_id: int, *, now: datetime.datetime) -> None:
+def mark_dispatched(con, job_id: int, *, worker_id: str, now: datetime.datetime) -> bool:
     stamp = _stamp(now)
     with con:
-        con.execute(
-            "UPDATE plan_jobs SET dispatched_at=COALESCE(dispatched_at, ?), updated_at=? WHERE id=?",
-            (stamp, stamp, job_id),
+        cursor = con.execute(
+            """UPDATE plan_jobs SET dispatched_at=?, updated_at=?
+               WHERE id=? AND state='running' AND lease_owner=? AND lease_expires_at > ?
+                 AND dispatched_at IS NULL""",
+            (stamp, stamp, job_id, worker_id, stamp),
         )
+    return cursor.rowcount == 1
 
 
-def mark_ready(con, job_id: int, *, now: datetime.datetime) -> None:
+def mark_ready(con, job_id: int, *, worker_id: str, now: datetime.datetime) -> bool:
     stamp = _stamp(now)
     with con:
-        con.execute(
+        cursor = con.execute(
             """UPDATE plan_jobs SET state='ready', finished_at=?, updated_at=?, error_code=NULL,
-                   lease_owner=NULL, lease_expires_at=NULL WHERE id=?""",
-            (stamp, stamp, job_id),
+                   lease_owner=NULL, lease_expires_at=NULL
+               WHERE id=? AND state='running' AND lease_owner=? AND lease_expires_at > ?""",
+            (stamp, stamp, job_id, worker_id, stamp),
         )
+    return cursor.rowcount == 1
 
 
 def mark_failed(
@@ -324,24 +361,28 @@ def mark_failed(
     code: str,
     retryable_before_dispatch: bool,
     *,
+    worker_id: str,
     now: datetime.datetime,
-) -> None:
+) -> bool:
     stamp = _stamp(now)
     with con:
         if retryable_before_dispatch:
             cursor = con.execute(
                 """UPDATE plan_jobs SET state='queued', updated_at=?, error_code=?,
                        lease_owner=NULL, lease_expires_at=NULL
-                   WHERE id=? AND dispatched_at IS NULL""",
-                (stamp, code, job_id),
+                   WHERE id=? AND state='running' AND lease_owner=? AND lease_expires_at > ?
+                     AND dispatched_at IS NULL""",
+                (stamp, code, job_id, worker_id, stamp),
             )
             if cursor.rowcount:
-                return
-        con.execute(
+                return True
+        cursor = con.execute(
             """UPDATE plan_jobs SET state='failed', finished_at=?, updated_at=?, error_code=?,
-                   lease_owner=NULL, lease_expires_at=NULL WHERE id=?""",
-            (stamp, stamp, code, job_id),
+                   lease_owner=NULL, lease_expires_at=NULL
+               WHERE id=? AND state='running' AND lease_owner=? AND lease_expires_at > ?""",
+            (stamp, stamp, code, job_id, worker_id, stamp),
         )
+    return cursor.rowcount == 1
 
 
 def status_for_key(con, job_key: str) -> JobStatus | None:
