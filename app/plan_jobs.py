@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS plan_jobs (
   signature TEXT NOT NULL,
   variant INTEGER NOT NULL,
   kind TEXT NOT NULL CHECK (kind IN ('regular', 'pantry', 'precompute')),
+  is_force INTEGER NOT NULL DEFAULT 0 CHECK (is_force IN (0, 1)),
   user_id INTEGER,
   week TEXT NOT NULL,
   priority INTEGER NOT NULL,
@@ -72,11 +73,13 @@ class JobRequest:
     reserved_eur: float = 0.12
     regeneration_limit: int | None = None
     regeneration_day: str | None = None
-    force_sequence: bool = False
+    is_force: bool = False
 
     def __post_init__(self):
         if self.kind not in ("regular", "pantry", "precompute"):
             raise ValueError("kind must be regular, pantry, or precompute")
+        if self.is_force and self.kind != "regular":
+            raise ValueError("only regular jobs can be force requests")
         has_regeneration = self.regeneration_limit is not None or self.regeneration_day is not None
         if self.kind == "precompute":
             if self.user_id is not None or has_regeneration:
@@ -99,6 +102,7 @@ class Job:
     signature: str
     variant: int
     kind: JobKind
+    is_force: bool
     user_id: int | None
     week: str
     priority: int
@@ -130,6 +134,7 @@ class JobStatus:
     signature: str
     variant: int
     kind: JobKind
+    is_force: bool
     user_id: int | None
     week: str
     state: JobState
@@ -162,6 +167,17 @@ def migrate_plan_jobs_schema(con) -> None:
     ):
         if name not in columns:
             con.execute(f"ALTER TABLE plan_jobs ADD COLUMN {name} {definition}")
+    if "is_force" not in columns:
+        con.execute(
+            "ALTER TABLE plan_jobs ADD COLUMN is_force INTEGER NOT NULL DEFAULT 0 "
+            "CHECK (is_force IN (0, 1))"
+        )
+        # One-time compatibility backfill. Runtime identity never parses keys.
+        con.execute("UPDATE plan_jobs SET is_force=1 WHERE job_key LIKE 'force:%'")
+    con.execute(
+        "CREATE INDEX IF NOT EXISTS plan_jobs_request_lookup "
+        "ON plan_jobs(signature, variant, week, kind, is_force, state, created, id)"
+    )
 
 
 def _stamp(now: datetime.datetime) -> str:
@@ -175,6 +191,7 @@ def _job(row: sqlite3.Row) -> Job:
         signature=row["signature"],
         variant=int(row["variant"]),
         kind=row["kind"],
+        is_force=bool(row["is_force"]),
         user_id=row["user_id"],
         week=row["week"],
         priority=int(row["priority"]),
@@ -209,6 +226,7 @@ def _status(row: sqlite3.Row) -> JobStatus:
         signature=row["signature"],
         variant=int(row["variant"]),
         kind=row["kind"],
+        is_force=bool(row["is_force"]),
         user_id=row["user_id"],
         week=row["week"],
         state=row["state"],
@@ -228,10 +246,15 @@ def latest_user_request(
     variant: int,
     kind: JobKind,
     week: str,
+    is_force: bool | None = None,
     states: tuple[JobState, ...] | None = None,
 ) -> JobStatus | None:
     """Return one user's latest matching request using durable typed columns."""
     values = [user_id, signature, variant, kind, week]
+    force_clause = ""
+    if is_force is not None:
+        force_clause = " AND is_force=?"
+        values.append(int(is_force))
     state_clause = ""
     if states:
         state_clause = f" AND state IN ({','.join('?' for _ in states)})"
@@ -239,9 +262,28 @@ def latest_user_request(
     row = con.execute(
         """SELECT * FROM plan_jobs
            WHERE user_id=? AND signature=? AND variant=? AND kind=? AND week=?"""
+        + force_clause
         + state_clause
         + " ORDER BY created DESC, id DESC LIMIT 1",
         values,
+    ).fetchone()
+    return _status(row) if row is not None else None
+
+
+def latest_shared_regular_request(
+    con,
+    *,
+    signature: str,
+    variant: int,
+    week: str,
+) -> JobStatus | None:
+    """Return status that is safe to share for one identical regular request."""
+    row = con.execute(
+        """SELECT * FROM plan_jobs
+           WHERE signature=? AND variant=? AND week=?
+             AND kind='regular' AND is_force=0
+           ORDER BY created DESC, id DESC LIMIT 1""",
+        (signature, variant, week),
     ).fetchone()
     return _status(row) if row is not None else None
 
@@ -268,7 +310,7 @@ def enqueue(con, request: JobRequest, *, now: datetime.datetime) -> EnqueueResul
     _require_clean_connection(con)
     con.execute("BEGIN IMMEDIATE")
     try:
-        if request.force_sequence:
+        if request.is_force:
             active_request = latest_user_request(
                 con,
                 user_id=request.user_id,
@@ -276,6 +318,7 @@ def enqueue(con, request: JobRequest, *, now: datetime.datetime) -> EnqueueResul
                 variant=request.variant,
                 kind=request.kind,
                 week=request.week,
+                is_force=True,
                 states=("queued", "running"),
             )
             if active_request is not None:
@@ -317,15 +360,16 @@ def enqueue(con, request: JobRequest, *, now: datetime.datetime) -> EnqueueResul
         stamp = _stamp(now)
         cursor = con.execute(
             """INSERT INTO plan_jobs (
-                job_key, signature, variant, kind, user_id, week, priority,
+                job_key, signature, variant, kind, is_force, user_id, week, priority,
                 payload_json, state, reserved_eur, regeneration_limit, regeneration_day,
                 created, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)""",
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)""",
             (
                 request.job_key,
                 request.signature,
                 request.variant,
                 request.kind,
+                int(request.is_force),
                 request.user_id,
                 request.week,
                 request.priority,

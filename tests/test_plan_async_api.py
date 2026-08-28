@@ -130,6 +130,50 @@ def test_same_signature_from_two_users_creates_one_job(monkeypatch, tmp_path):
         assert con.execute("SELECT SUM(pocet) FROM prepocty").fetchone()[0] == 1
 
 
+def test_both_joiners_can_poll_and_adopt_one_shared_regular_job(monkeypatch, tmp_path):
+    first, second = SHARED_VARIANT_USERS
+    server = shared_plan_server(
+        monkeypatch, tmp_path, users=(first, second), pantry={first: [], second: []}
+    )
+    forbid_model_construction(monkeypatch)
+    first_client = plan_client(server, first)
+    second_client = plan_client(server, second)
+
+    submitted = assert_pending(first_client.post("/api/plan/generuj"))
+    joined = assert_pending(second_client.post("/api/plan/generuj"))
+
+    assert joined["job_id"] == submitted["job_id"]
+    assert assert_pending(first_client.get("/api/plan"))["job_id"] == submitted["job_id"]
+    assert assert_pending(second_client.get("/api/plan"))["job_id"] == submitted["job_id"]
+
+    publish_shared_plan(server, submitted["job_id"])
+    first_ready = first_client.get("/api/plan")
+    second_ready = second_client.get("/api/plan")
+    assert first_ready.json()["jedla"]
+    assert second_ready.json()["jedla"]
+    assert "status" not in first_ready.json()
+    assert "status" not in second_ready.json()
+
+
+def test_both_joiners_see_failure_of_one_shared_regular_job(monkeypatch, tmp_path):
+    first, second = SHARED_VARIANT_USERS
+    server = shared_plan_server(
+        monkeypatch, tmp_path, users=(first, second), pantry={first: [], second: []}
+    )
+    first_client = plan_client(server, first)
+    second_client = plan_client(server, second)
+    submitted = assert_pending(first_client.post("/api/plan/generuj"))
+    assert_pending(second_client.post("/api/plan/generuj"))
+    fail_job(server, submitted["job_id"], "provider_timeout")
+
+    first_failed = first_client.get("/api/plan")
+    second_failed = second_client.get("/api/plan")
+
+    assert first_failed.json()["status"] == "failed"
+    assert second_failed.json()["status"] == "failed"
+    assert first_failed.json()["job_id"] == second_failed.json()["job_id"] == submitted["job_id"]
+
+
 def test_cache_hit_still_returns_plan_directly(monkeypatch, tmp_path):
     server = shared_plan_server(monkeypatch, tmp_path, users=(1,), premium=False)
     forbid_model_construction(monkeypatch)
@@ -302,6 +346,27 @@ def test_force_double_click_joins_after_pantry_reserves_an_interleaved_regenerat
         assert con.execute("SELECT pocet FROM prepocty WHERE user_id=1").fetchone()[0] == 2
 
 
+def test_force_does_not_join_an_active_ordinary_regular_job(monkeypatch, tmp_path):
+    server = shared_plan_server(monkeypatch, tmp_path, users=(1,), premium=True)
+    forbid_model_construction(monkeypatch)
+    client = plan_client(server, 1)
+
+    ordinary = assert_pending(client.post("/api/plan/generuj"))
+    forced = assert_pending(client.post("/api/plan/generuj?force=1"))
+    repeated_force = assert_pending(client.post("/api/plan/generuj?force=1"))
+
+    assert forced["job_id"] != ordinary["job_id"]
+    assert repeated_force["job_id"] == forced["job_id"]
+    with server.db() as con:
+        rows = con.execute(
+            "SELECT id, is_force FROM plan_jobs ORDER BY id"
+        ).fetchall()
+        assert [tuple(row) for row in rows] == [
+            (ordinary["job_id"], 0),
+            (forced["job_id"], 1),
+        ]
+
+
 def test_active_force_remains_visible_and_joinable_after_regeneration_day_changes(
         monkeypatch, tmp_path):
     server = shared_plan_server(monkeypatch, tmp_path, users=(1,), premium=True)
@@ -381,6 +446,27 @@ def test_failed_explicit_job_never_leaks_to_another_user(monkeypatch, tmp_path):
     other = plan_client(server, 2).get("/api/plan")
 
     assert other.json() == {"prazdny": True}
+
+
+def test_other_user_sees_shared_ordinary_status_but_not_later_force_or_pantry(
+        monkeypatch, tmp_path):
+    first, second = SHARED_VARIANT_USERS
+    server = shared_plan_server(
+        monkeypatch,
+        tmp_path,
+        users=(first, second),
+        pantry={first: ["soľ"], second: ["soľ"]},
+        premium=True,
+    )
+    first_client = plan_client(server, first)
+    shared = assert_pending(first_client.post("/api/plan/generuj"))
+    forced = assert_pending(first_client.post("/api/plan/generuj?force=1"))
+    pantry = assert_pending(first_client.post("/api/plan/zo-spajze"))
+
+    other = assert_pending(plan_client(server, second).get("/api/plan"))
+
+    assert other["job_id"] == shared["job_id"]
+    assert other["job_id"] not in {forced["job_id"], pantry["job_id"]}
 
 
 def test_retry_allowed_reflects_remaining_daily_regeneration(monkeypatch, tmp_path):

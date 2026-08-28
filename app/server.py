@@ -1169,7 +1169,7 @@ def _job_payload(obchody, frekvencia, adults, children, *, spajza=(), zo_spajze=
 
 def _enqueue_live_plan(u, tyz, obchody, podpis, variant, premium, *,
                        spajza=(), zo_spajze=False, job_key=None,
-                       force_sequence=False):
+                       is_force=False):
     adults, children = zlozenie_domacnosti(u)
     den = dnesok()
     strop = limit_prepoctov(premium)
@@ -1189,7 +1189,7 @@ def _enqueue_live_plan(u, tyz, obchody, podpis, variant, premium, *,
         ),
         regeneration_limit=strop,
         regeneration_day=den,
-        force_sequence=force_sequence,
+        is_force=is_force,
     )
     try:
         with closing(db()) as con:
@@ -1220,6 +1220,7 @@ def _current_job_status(con, user_id, tyz, podpis, pantry_podpis, variant):
             variant=variant,
             kind="regular",
             week=tyz,
+            is_force=True,
         ),
         plan_jobs.latest_user_request(
             con,
@@ -1227,6 +1228,13 @@ def _current_job_status(con, user_id, tyz, podpis, pantry_podpis, variant):
             signature=pantry_podpis,
             variant=variant,
             kind="pantry",
+            week=tyz,
+            is_force=False,
+        ),
+        plan_jobs.latest_shared_regular_request(
+            con,
+            signature=podpis,
+            variant=variant,
             week=tyz,
         ),
     ]
@@ -1331,7 +1339,7 @@ def generuj_plan(req: Request, force: int = 0):
 
     return _enqueue_live_plan(
         u, tyz, obchody, podpis, variant, premium, spajza=sp,
-        force_sequence=bool(force),
+        is_force=bool(force),
     )
 
 
