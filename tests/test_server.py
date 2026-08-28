@@ -7,7 +7,7 @@ import threading
 import time
 import types
 import xml.etree.ElementTree as ET
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -20,6 +20,13 @@ from app.weekly_data import current_monday
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_daily_limit_uses_bratislava_day_after_local_midnight(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [])
+    instant = datetime(2026, 8, 28, 22, 30, tzinfo=timezone.utc)
+
+    assert server.dnesok(instant) == "2026-08-29"
 
 
 def load_server(monkeypatch, tmp_path, rows, landing_data=None):

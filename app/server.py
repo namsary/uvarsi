@@ -28,6 +28,7 @@ from weekly_data import offers_for_current_week, stores_missing_this_week
 from offer_data import OfferKeyCollision, migrate_akcie_schema
 from plan_shortlist import select_offers
 from plan_jobs import JobRequest
+from plan_calendar import bratislava_day
 from plan_data import (
     PLAN_ALGO_VERSION,
     PORTION_STANDARD_VERSION,
@@ -548,7 +549,11 @@ def sprava_o_uspanej_spajze(pocet: int):
 
 
 def dnesok(dnes=None) -> str:
-    return (dnes or datetime.date.today()).isoformat()
+    if isinstance(dnes, datetime.datetime):
+        return bratislava_day(dnes).isoformat()
+    if isinstance(dnes, datetime.date):
+        return dnes.isoformat()
+    return bratislava_day().isoformat()
 
 
 def zajtrajsok(den=None) -> str:
