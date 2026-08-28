@@ -31,14 +31,17 @@ set -u
 DIR="${UVARSI_DIR:-/opt/uvarsi}"
 LANDING_DATA="${UVARSI_LANDING_DATA:-/var/lib/uvarsi/landing_data.json}"
 PY="${UVARSI_PY:-$DIR/venv/bin/python}"
+CURL="${UVARSI_CURL:-curl}"
 STATE="$DIR/.dozorca_state"          # formát: "RRRR-MM-DD pocet_neuspechov blok"
+PLAN_QUEUE_ALERT_STATE="$DIR/.plan_queue_alert_state"
+PLAN_QUEUE_HEALTH_URL="${UVARSI_PLAN_QUEUE_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
 MAX_TRIES=6                          # max pokusov za jeden deň
 NOTIFY_AT=2                          # po koľkých neúspechoch upozorniť
 EXIT_STRUCTURAL=3                    # kód, ktorým refresh_blocek hlási "neopakuj"
 NTFY_TOPIC="uvarsi-jarvis-8f3a2c"    # notifikácie: ntfy.sh/<topic>
 
 log(){ echo "[$(date '+%F %T')] DOZORCA: $*"; }
-notify(){ curl -s --max-time 15 -H "Title: $1" -d "$2" "https://ntfy.sh/${NTFY_TOPIC}" >/dev/null 2>&1 || true; }
+notify(){ "$CURL" -s --max-time 15 -H "Title: $1" -d "$2" "https://ntfy.sh/${NTFY_TOPIC}" >/dev/null 2>&1 || true; }
 
 # Predpočet môže trvať dlhšie než hodinu. Druhý cron sa vtedy musí slušne
 # skončiť, nie zaplatiť rovnaké modelové volania druhýkrát. FD 9 zostáva
@@ -60,6 +63,40 @@ if [ "${UVARSI_DOZORCA_LOCKED:-0}" != "1" ]; then
 fi
 
 TODAY="${UVARSI_TODAY:-$(date +%F)}"
+
+skontroluj_frontu_planov() {
+  # Health odpoveď je jediný zdroj pravdy: dozorca nesmie z počtu procesov
+  # hádať, či worker reálne obnovuje lease.
+  HEALTH=$("$CURL" -fsS --max-time 1 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true)
+  [ -n "$HEALTH" ] || { log "frontu plánov sa nedá overiť cez health"; return; }
+  OLDEST=$(printf '%s' "$HEALTH" | sed -n 's/.*"oldest_seconds":[[:space:]]*\([0-9][0-9]*\).*/\1/p')
+  ALIVE=$(printf '%s' "$HEALTH" | sed -n 's/.*"worker_alive":[[:space:]]*\(true\|false\).*/\1/p')
+  HEARTBEAT=$(printf '%s' "$HEALTH" | sed -n 's/.*"heartbeat_seconds":[[:space:]]*\([0-9][0-9]*\).*/\1/p')
+  case "$ALIVE" in
+    true|false) ;;
+    *) log "health neobsahuje stav workera fronty plánov"; return ;;
+  esac
+  REASON=""
+  if [ "$ALIVE" != "true" ] || { [ -n "$HEARTBEAT" ] && [ "$HEARTBEAT" -gt 60 ]; }; then
+    REASON="worker heartbeat je starší než 60 s"
+  elif [ -n "$OLDEST" ] && [ "$OLDEST" -gt 180 ]; then
+    REASON="najstaršia úloha vo fronte čaká viac než 180 s"
+  fi
+  if [ -n "$REASON" ]; then
+    if [ ! -f "$PLAN_QUEUE_ALERT_STATE" ]; then
+      notify "Uvar.si: fronta plánov" "$REASON. Health: $PLAN_QUEUE_HEALTH_URL"
+      printf '%s\n' "$REASON" > "$PLAN_QUEUE_ALERT_STATE"
+      log "UPOZORNENIE — $REASON"
+    fi
+    return
+  fi
+  if [ -f "$PLAN_QUEUE_ALERT_STATE" ]; then
+    rm -f "$PLAN_QUEUE_ALERT_STATE"
+    log "fronta plánov je znova zdravá — značka upozornenia zmazaná"
+  fi
+}
+
+skontroluj_frontu_planov
 
 MON_ISO=$("$PY" -c 'from datetime import date, timedelta; import sys; d=date.fromisoformat(sys.argv[1]); print((d-timedelta(days=d.weekday())).isoformat())' "$TODAY")
 

@@ -1791,8 +1791,12 @@ def health():
         utrata = naklady.stav(con)
         zahrievanie = predpocet.stav(con)
         platby_stav = stav_dozoru(con)
+        fronta_planov = plan_jobs.health(
+            con, now=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        )
     return {"vydanie": release_id(), "tyzden": monday(today), "pocet": len(rows),
-            "naklady": utrata, "predpocet": zahrievanie, "platby": platby_stav}
+            "naklady": utrata, "predpocet": zahrievanie, "platby": platby_stav,
+            "plan_queue": fronta_planov}
 
 
 @app.get("/api/naklady")
@@ -1800,7 +1804,13 @@ def prehlad_nakladov(req: Request):
     """Podrobnejší pohľad na to, kam išli peniaze. Bez tajomstiev, bez SSH."""
     require_owner(req)
     with closing(db()) as con:
-        return {**naklady.stav(con, limit_poslednych=20), "predpocet": predpocet.stav(con)}
+        return {
+            **naklady.stav(con, limit_poslednych=20),
+            "predpocet": predpocet.stav(con),
+            "plan_queue": plan_jobs.health(
+                con, now=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            ),
+        }
 
 
 @app.get("/api/public/landing")

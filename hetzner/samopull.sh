@@ -76,7 +76,7 @@ if ! (cd "$CIEL/app" && UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$CIEL/VE
   exit 1
 fi
 # b) povinné súbory
-for f in app/server.py app/auth_data.py app/public_pages.py app/predpocet.py app/static/app.html VERSION index.html sw.js; do
+for f in app/server.py app/auth_data.py app/public_pages.py app/plan_jobs.py app/plan_shortlist.py app/plan_worker.py app/predpocet.py app/static/app.html hetzner/uvarsi-plan-worker.service VERSION index.html sw.js; do
   [ -s "$CIEL/$f" ] || { log "vo vydaní chýba $f — NEPREPÍNAM"; \
     notify "Uvar.si: neúplné vydanie" "Chýba $f."; exit 1; }
 done
@@ -86,6 +86,11 @@ PRED="$REL/predosle"
 rm -rf "$PRED"; mkdir -p "$PRED"
 cp -a "$DIR/app" "$PRED/app" 2>/dev/null || true
 cp -a "$DIR/VERSION" "$PRED/VERSION" 2>/dev/null || true
+if [ -f /etc/systemd/system/uvarsi-plan-worker.service ]; then
+  cp -a /etc/systemd/system/uvarsi-plan-worker.service "$PRED/uvarsi-plan-worker.service"
+else
+  : > "$PRED/uvarsi-plan-worker.service.absent"
+fi
 cp -a "/var/www/uvarsi/index.html" "$PRED/index.html" || {
   log "záloha živého index.html zlyhala — NEPREPÍNAM"; exit 1; }
 cp -a "/var/www/uvarsi/sw.js" "$PRED/sw.js" || {
@@ -105,6 +110,10 @@ nasad_z() {   # $1 = adresár s vydaním
   [ -f "$1/hetzner/dozorca.sh" ] && { cp -a "$1/hetzner/dozorca.sh" "$DIR/dozorca.sh"; chmod +x "$DIR/dozorca.sh"; }
   [ -f "$1/hetzner/zaloha.sh" ] && { cp -a "$1/hetzner/zaloha.sh" "$DIR/zaloha.sh"; chmod +x "$DIR/zaloha.sh"; }
   [ -f "$1/hetzner/samopull.sh" ] && { cp -a "$1/hetzner/samopull.sh" "$DIR/samopull.sh.novy"; }
+  cp -a "$1/hetzner/uvarsi-plan-worker.service" /etc/systemd/system/uvarsi-plan-worker.service || return 1
+  systemctl daemon-reload || return 1
+  systemctl enable uvarsi >/dev/null 2>&1 || return 1
+  systemctl enable uvarsi-plan-worker >/dev/null 2>&1 || return 1
   systemctl restart uvarsi
 }
 
@@ -116,8 +125,22 @@ zdravie() {   # čaká max 30 s na živú appku
   return 1
 }
 
+spusti_worker() {
+  systemctl restart uvarsi-plan-worker && systemctl is-active --quiet uvarsi-plan-worker
+}
+
+worker_zdravie() {  # čerstvý heartbeat dokazuje aj funkčný import fronty a DB
+  for _ in $(seq 1 30); do
+    if curl -fsS --max-time 5 localhost:8090/api/health | "$PY" -c 'import json,sys; queue=json.load(sys.stdin).get("plan_queue", {}); sys.exit(0 if queue.get("worker_alive") is True else 1)'; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
 log "prepínam na $SHA"
-if nasad_z "$CIEL" && zdravie; then
+if nasad_z "$CIEL" && zdravie && spusti_worker && worker_zdravie; then
   echo "$SHA" > "$STAV"
   # samopull sa aktualizuje až po úspechu, aby sa nezmenil pod vlastnými nohami
   [ -f "$DIR/samopull.sh.novy" ] && mv "$DIR/samopull.sh.novy" "$DIR/samopull.sh" && chmod +x "$DIR/samopull.sh"
@@ -136,6 +159,12 @@ log "appka po nasadení neodpovedá — VRACIAM predošlú verziu"
 rm -f "$DIR/samopull.sh.novy"
 cp -a "$PRED/app/." "$DIR/app/" 2>/dev/null || true
 cp -a "$PRED/VERSION" "$DIR/VERSION" 2>/dev/null || true
+if [ -f "$PRED/uvarsi-plan-worker.service" ]; then
+  cp -a "$PRED/uvarsi-plan-worker.service" /etc/systemd/system/uvarsi-plan-worker.service
+else
+  rm -f /etc/systemd/system/uvarsi-plan-worker.service
+fi
+systemctl daemon-reload
 NAVRAT_OK=1
 cp -a "$PRED/index.html" "/var/www/uvarsi/index.html" || {
   log "rollback index.html zlyhal"; NAVRAT_OK=0; }
@@ -145,7 +174,12 @@ for f in refresh_blocek.py recepty.py dozorca.sh zaloha.sh; do
   cp -a "$PRED/$f" "$DIR/$f" 2>/dev/null || true
 done
 systemctl restart uvarsi
-if [ "$NAVRAT_OK" -eq 1 ] && zdravie; then
+if [ -f "$PRED/uvarsi-plan-worker.service" ]; then
+  systemctl restart uvarsi-plan-worker
+else
+  systemctl disable --now uvarsi-plan-worker >/dev/null 2>&1 || true
+fi
+if [ "$NAVRAT_OK" -eq 1 ] && zdravie && { [ ! -f "$PRED/uvarsi-plan-worker.service" ] || worker_zdravie; }; then
   log "predošlá verzia beží"
   notify "Uvar.si: vydanie vrátené" "Nové vydanie neprešlo, beží predošlá verzia. Appka je v poriadku."
 else

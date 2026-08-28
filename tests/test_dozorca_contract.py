@@ -13,6 +13,16 @@ ROOT = Path(__file__).resolve().parents[1]
 BASH = Path("C:/Program Files/Git/bin/bash.exe")
 
 
+@pytest.fixture(autouse=True)
+def offline_queue_health(monkeypatch, tmp_path):
+    """Existing Dozorca cases do not need a real local FastAPI service."""
+    monkeypatch.setenv("UVARSI_PLAN_QUEUE_HEALTH_URL", "http://127.0.0.1:9")
+    fake_curl = tmp_path / "curl"
+    fake_curl.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8", newline="\n")
+    fake_curl.chmod(0o755)
+    monkeypatch.setenv("UVARSI_CURL", bash_path(fake_curl))
+
+
 def bash_path(path):
     return "/c" + path.as_posix()[2:]
 
@@ -175,8 +185,10 @@ def _credit_exhausted_environment(tmp_path):
     fake_curl = tmp_path / "curl"
     fake_curl.write_text(
         "#!/bin/sh\n"
+        "case \"$*\" in -fsS*) exit 0 ;; esac\n"
         f"printf '%s\\n' \"$*\" >> '{bash_path(notifications)}'\n",
         encoding="utf-8",
+        newline="\n",
     )
     fake_curl.chmod(0o755)
     return landing_data, calls, notifications
@@ -461,3 +473,66 @@ def test_dozorca_nepredstiera_obsadeny_zamok_ked_lock_subor_nemoze_otvorit(tmp_p
 
     assert result.returncode != 0
     assert "zámok sa nedá vytvoriť" in result.stdout
+
+
+def test_dozorca_alerts_once_for_a_stalled_plan_queue_and_clears_after_recovery(tmp_path):
+    """A repeated hourly check must not resend a queue alert after the first one."""
+    (tmp_path / "app").mkdir()
+    landing_data = tmp_path / "landing_data.json"
+    write_landing_data_atomic(landing_data, payload("2026-08-17"))
+    notifications = tmp_path / "notifications.txt"
+    fake_python = tmp_path / "python"
+    fake_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8", newline="\n")
+    fake_python.chmod(0o755)
+    fake_sqlite = tmp_path / "sqlite3"
+    fake_sqlite.write_text(
+        "#!/bin/sh\ncase \"$*\" in *\"SELECT COUNT(*) FROM (\"*) echo 0 ;; *) echo 30 ;; esac\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_sqlite.chmod(0o755)
+    fake_curl = tmp_path / "curl"
+    fake_curl.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        "  -fsS*api/health*) printf '%s\\n' \"$UVARSI_TEST_HEALTH\" ;;\n"
+        f"  *) printf '%s\\n' \"$*\" >> '{bash_path(notifications)}' ;;\n"
+        "esac\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_curl.chmod(0o755)
+
+    environment = os.environ | {
+        "UVARSI_DIR": bash_path(tmp_path),
+        "UVARSI_LANDING_DATA": bash_path(landing_data),
+        "UVARSI_PY": bash_path(fake_python),
+        "UVARSI_TODAY": "2026-08-18",
+        "UVARSI_DOZORCA_LOCKED": "1",
+        "UVARSI_PLAN_QUEUE_HEALTH_URL": "http://queue.test/api/health",
+        "UVARSI_CURL": bash_path(fake_curl),
+        "UVARSI_TEST_HEALTH": '{"plan_queue":{"queued":1,"oldest_seconds":181,"worker_alive":false,"heartbeat_seconds":61,"blocking_code":"worker_heartbeat_stale"}}',
+        "PATH": f"{bash_path(tmp_path)}:/usr/bin",
+    }
+
+    for _ in range(2):
+        result = subprocess.run(
+            [str(BASH), bash_path(ROOT / "hetzner" / "dozorca.sh")],
+            cwd=str(ROOT), env=environment, text=True, encoding="utf-8",
+            errors="replace", capture_output=True, check=False,
+        )
+        assert result.returncode == 0
+
+    marker = tmp_path / ".plan_queue_alert_state"
+    assert marker.exists(), result.stdout + result.stderr
+    assert notifications.read_text(encoding="utf-8").count("Uvar.si: fronta plánov") == 1
+
+    environment["UVARSI_TEST_HEALTH"] = '{"plan_queue":{"queued":0,"oldest_seconds":null,"worker_alive":true,"heartbeat_seconds":1,"blocking_code":null}}'
+    recovered = subprocess.run(
+        [str(BASH), bash_path(ROOT / "hetzner" / "dozorca.sh")],
+        cwd=str(ROOT), env=environment, text=True, encoding="utf-8",
+        errors="replace", capture_output=True, check=False,
+    )
+
+    assert recovered.returncode == 0
+    assert not marker.exists()

@@ -19,6 +19,8 @@ JobKind = Literal["regular", "pantry", "precompute"]
 JobState = Literal["queued", "running", "ready", "failed"]
 LEASE_SECONDS = 150
 MAX_ATTEMPTS = 2
+QUEUE_OLDEST_ALERT_SECONDS = 180
+WORKER_HEARTBEAT_ALERT_SECONDS = 60
 
 
 SCHEMA = """
@@ -534,3 +536,47 @@ def status_for_key(con, job_key: str) -> JobStatus | None:
     if row is None:
         return None
     return _status(row)
+
+
+def health(con, *, now: datetime.datetime) -> dict:
+    """Return persisted queue state without pretending an absent worker is alive."""
+    queued, oldest = con.execute(
+        "SELECT COUNT(*), MIN(created) FROM plan_jobs WHERE state='queued'"
+    ).fetchone()
+    last_ready = con.execute(
+        "SELECT MAX(finished_at) FROM plan_jobs WHERE state='ready'"
+    ).fetchone()[0]
+    failed = con.execute(
+        "SELECT COUNT(*) FROM plan_jobs WHERE state='failed'"
+    ).fetchone()[0]
+    heartbeat_at = con.execute(
+        "SELECT heartbeat_at FROM plan_worker_state WHERE singleton=1"
+    ).fetchone()
+
+    def age(stamp: str | None) -> int | None:
+        if stamp is None:
+            return None
+        recorded = datetime.datetime.fromisoformat(stamp)
+        return max(0, int((now - recorded).total_seconds()))
+
+    oldest_seconds = age(oldest)
+    heartbeat_seconds = age(heartbeat_at[0]) if heartbeat_at is not None else None
+    worker_alive = (
+        heartbeat_seconds is not None
+        and heartbeat_seconds <= WORKER_HEARTBEAT_ALERT_SECONDS
+    )
+    if not worker_alive:
+        blocking_code = "worker_heartbeat_stale"
+    elif oldest_seconds is not None and oldest_seconds > QUEUE_OLDEST_ALERT_SECONDS:
+        blocking_code = "queue_oldest_exceeded"
+    else:
+        blocking_code = None
+    return {
+        "queued": int(queued),
+        "oldest_seconds": oldest_seconds,
+        "worker_alive": worker_alive,
+        "heartbeat_seconds": heartbeat_seconds,
+        "last_ready": last_ready,
+        "failed": int(failed),
+        "blocking_code": blocking_code,
+    }

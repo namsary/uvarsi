@@ -21,6 +21,45 @@ function Zlyhaj($t) {
 function Vyzaduj($popis) {
   if ($LASTEXITCODE -ne 0) { Zlyhaj "$popis (navratovy kod $LASTEXITCODE)" }
 }
+function VratPredosleUvarsi {
+  Krok "Rollback Uvar.si appky a worker jednotky"
+  $rollback = @'
+set -u
+APP_BACKUP=/opt/uvarsi/releases/manual-predosle/app
+VERSION_BACKUP=/opt/uvarsi/releases/manual-predosle/VERSION
+UNIT_BACKUP=/opt/uvarsi/releases/manual-predosle/uvarsi-plan-worker.service
+UNIT_ABSENT=/opt/uvarsi/releases/manual-predosle/uvarsi-plan-worker.service.absent
+OK=1
+if [ ! -d "$APP_BACKUP" ]; then
+  echo "CHYBA: chyba zaloha predoslej appky"
+  exit 1
+fi
+cp -a "$APP_BACKUP/." /opt/uvarsi/app/ || OK=0
+[ ! -f "$VERSION_BACKUP" ] || cp -a "$VERSION_BACKUP" /opt/uvarsi/VERSION || OK=0
+if [ -f "$UNIT_BACKUP" ]; then
+  cp -a "$UNIT_BACKUP" /etc/systemd/system/uvarsi-plan-worker.service || OK=0
+else
+  systemctl disable --now uvarsi-plan-worker >/dev/null 2>&1 || true
+  rm -f /etc/systemd/system/uvarsi-plan-worker.service
+  [ -f "$UNIT_ABSENT" ] || OK=0
+fi
+systemctl daemon-reload || OK=0
+systemctl restart uvarsi || OK=0
+if [ -f "$UNIT_BACKUP" ]; then
+  systemctl enable uvarsi-plan-worker >/dev/null 2>&1 || OK=0
+  systemctl restart uvarsi-plan-worker || OK=0
+  systemctl is-active uvarsi-plan-worker >/dev/null || OK=0
+fi
+systemctl is-active uvarsi >/dev/null || OK=0
+exit $((1-OK))
+'@ -replace "`r`n", "`n"
+  $rollback | ssh jarvis "tr -d '\r' > /tmp/uvarsi_rollback.sh; bash /tmp/uvarsi_rollback.sh"
+  if ($LASTEXITCODE -ne 0) {
+    Zle "rollback predoslej Uvar.si appky alebo worker jednotky zlyhal"
+  } else {
+    Ok "predosla Uvar.si appka a worker jednotka obnovene"
+  }
+}
 
 Krok "1/8  Priecinky na serveri"
 ssh jarvis "mkdir -p /opt/uvarsi/app/static /var/www/uvarsi /var/lib/uvarsi"
@@ -51,6 +90,23 @@ Vyzaduj "uvarsi.env na serveri chyba alebo v nom nie su oba kluce"
 Ok "env ma oba kluce"
 
 Krok "3/8  Nahravam subory"
+$backup = @'
+set -eu
+BACKUP=/opt/uvarsi/releases/manual-predosle
+rm -rf "$BACKUP"
+mkdir -p "$BACKUP"
+cp -a /opt/uvarsi/app /opt/uvarsi/releases/manual-predosle/app
+[ ! -f /opt/uvarsi/VERSION ] || cp -a /opt/uvarsi/VERSION /opt/uvarsi/releases/manual-predosle/VERSION
+if [ -f /etc/systemd/system/uvarsi-plan-worker.service ]; then
+  cp -a /etc/systemd/system/uvarsi-plan-worker.service /opt/uvarsi/releases/manual-predosle/uvarsi-plan-worker.service
+else
+  : > /opt/uvarsi/releases/manual-predosle/uvarsi-plan-worker.service.absent
+fi
+'@ -replace "`r`n", "`n"
+$backup | ssh jarvis "tr -d '\r' > /tmp/uvarsi_backup.sh; bash /tmp/uvarsi_backup.sh"
+Vyzaduj "zaloha appky a worker jednotky pred nasadenim zlyhala"
+Ok "predosla appka a worker jednotka zalohovane"
+
 $subory = @(
   @{ l = "$B\app\config.py";            r = "/opt/uvarsi/app/config.py" },
   @{ l = "$B\app\db_rezim.py";          r = "/opt/uvarsi/app/db_rezim.py" },
@@ -62,6 +118,9 @@ $subory = @(
   @{ l = "$B\app\public_pages.py";      r = "/opt/uvarsi/app/public_pages.py" },
   @{ l = "$B\app\receipt_data.py";      r = "/opt/uvarsi/app/receipt_data.py" },
   @{ l = "$B\app\plan_data.py";         r = "/opt/uvarsi/app/plan_data.py" },
+  @{ l = "$B\app\plan_jobs.py";         r = "/opt/uvarsi/app/plan_jobs.py" },
+  @{ l = "$B\app\plan_shortlist.py";    r = "/opt/uvarsi/app/plan_shortlist.py" },
+  @{ l = "$B\app\plan_worker.py";       r = "/opt/uvarsi/app/plan_worker.py" },
   @{ l = "$B\app\predpocet.py";         r = "/opt/uvarsi/app/predpocet.py" },
   @{ l = "$B\app\server.py";            r = "/opt/uvarsi/app/server.py" },
   @{ l = "$B\app\platby.py";            r = "/opt/uvarsi/app/platby.py" },
@@ -72,6 +131,7 @@ $subory = @(
   @{ l = "$B\hetzner\recepty.py";       r = "/opt/uvarsi/recepty.py" },
   @{ l = "$B\hetzner\dozorca.sh";       r = "/opt/uvarsi/dozorca.sh" },
   @{ l = "$B\hetzner\zaloha.sh";        r = "/opt/uvarsi/zaloha.sh" },
+  @{ l = "$B\hetzner\uvarsi-plan-worker.service"; r = "/etc/systemd/system/uvarsi-plan-worker.service" },
   @{ l = "$B\VERSION";                  r = "/opt/uvarsi/VERSION" },
   @{ l = "$B\index.html";               r = "/var/www/uvarsi/index.html" },
   @{ l = "$B\sw.js";                    r = "/var/www/uvarsi/sw.js" }
@@ -119,9 +179,12 @@ WantedBy=multi-user.target
 '@ -replace "`r`n", "`n"
 $svc | ssh jarvis "tr -d '\r' > /etc/systemd/system/uvarsi.service"
 Vyzaduj "systemd jednotku sa nepodarilo zapisat"
-ssh jarvis "set -eu; systemctl daemon-reload; systemctl enable uvarsi >/dev/null 2>&1; systemctl restart uvarsi; sleep 3; systemctl is-active uvarsi >/dev/null"
-Vyzaduj "sluzba uvarsi po restarte nebezi"
-Ok "sluzba bezi"
+ssh jarvis "set -eu; systemctl daemon-reload; systemctl enable uvarsi >/dev/null 2>&1; systemctl enable uvarsi-plan-worker >/dev/null 2>&1; systemctl restart uvarsi; systemctl restart uvarsi-plan-worker; sleep 3; systemctl is-active uvarsi >/dev/null; systemctl is-active uvarsi-plan-worker >/dev/null"
+if ($LASTEXITCODE -ne 0) {
+  VratPredosleUvarsi
+  Zlyhaj "sluzba uvarsi alebo uvarsi-plan-worker po restarte nebezi"
+}
+Ok "sluzba aj worker bezia"
 
 Krok "6/8  Caddy (appka na /app, landing na hlavnej)"
 # Navrh configu vznika VEDLA ostreho suboru. Ostry Caddyfile sa nedotkne, kym
@@ -341,6 +404,9 @@ done
 STAV=$(systemctl is-active uvarsi || true)
 echo "sluzba: $STAV"
 [ "$STAV" = "active" ] || zle "sluzba uvarsi nebezi"
+STAV_WORKER=$(systemctl is-active uvarsi-plan-worker || true)
+echo "worker: $STAV_WORKER"
+[ "$STAV_WORKER" = "active" ] || zle "sluzba uvarsi-plan-worker nebezi"
 
 skontroluj() {
   KOD=$(curl -s -o /dev/null -w "%{http_code}" "$1" || true)
@@ -403,12 +469,17 @@ if [ -n "$OCAKAVANE" ] && [ "$VYDANIE" != "$OCAKAVANE" ]; then
   zle "zive vydanie sa nezhoduje s lokalnym VERSION - prenos je len ciastocny"
 fi
 
+WORKER_ALIVE=$(printf '%s' "$HEALTH" | /opt/uvarsi/venv/bin/python -c 'import json,sys; queue=json.load(sys.stdin).get("plan_queue", {}); print("true" if queue.get("worker_alive") is True else "false")' 2>/dev/null || echo false)
+echo "worker heartbeat: ${WORKER_ALIVE:-false}"
+[ "$WORKER_ALIVE" = "true" ] || zle "uvarsi-plan-worker nema cerstvy heartbeat"
+
 exit $CHYBY
 '@ -replace "`r`n", "`n"
 $stav = $check | ssh jarvis "tr -d '\r' > /tmp/check.sh; bash /tmp/check.sh '$verzia'"
 $kodKontroly = $LASTEXITCODE
 $stav | ForEach-Object { Write-Host "  $_" }
 if ($kodKontroly -ne 0) {
+  VratPredosleUvarsi
   Zlyhaj "kontrola po nasadeni nepresla - diagnostika na serveri: journalctl -u uvarsi -n 40 --no-pager"
 }
 
