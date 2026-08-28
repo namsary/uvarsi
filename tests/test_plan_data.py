@@ -859,7 +859,7 @@ def test_offer_catalog_gives_model_the_exact_server_owned_recipe_portion():
     assert "porciová trieda: vegetable" in catalog
 
 
-def test_plan_output_schema_excludes_model_owned_portion_fields():
+def test_plan_output_schema_excludes_model_owned_portion_fields_and_unsupported_constraints():
     config = plan_data.plan_output_config("low")
     schema = config["format"]["schema"]
     meal = schema["properties"]["meals"]["items"]
@@ -872,10 +872,25 @@ def test_plan_output_schema_excludes_model_owned_portion_fields():
     assert item["additionalProperties"] is False
 
     instructions = meal["properties"]["instructions"]
-    assert instructions["minItems"] == 5
-    assert instructions["maxItems"] == 7
-    assert instructions["items"]["minLength"] == plan_data.MIN_STEP_CHARS
-    assert meal["properties"]["minutes"]["minimum"] == 1
+    assert "5 až 7" in instructions["description"]
+    assert "30 znakmi" in instructions["items"]["description"]
+    assert "klad" in meal["properties"]["minutes"]["description"].casefold()
+
+    # Anthropic pri ručne posielanej JSON schéme vracia HTTP 400, ak obsahuje
+    # validačné obmedzenia, ktoré podporuje až SDK transformácia. Sémantické
+    # pravidlá preto zostávajú v našom Python validátore a v popisoch schémy.
+    unsupported = {"minimum", "maximum", "minLength", "maxLength", "minItems", "maxItems"}
+
+    def walk(value):
+        if isinstance(value, dict):
+            assert not unsupported.intersection(value)
+            for child in value.values():
+                walk(child)
+        elif isinstance(value, list):
+            for child in value:
+                walk(child)
+
+    walk(schema)
 
 
 def test_server_allows_only_safe_context_for_ambiguous_cheese_and_onion():
@@ -1121,6 +1136,61 @@ def test_accepts_the_same_step_once_it_says_how_much_how_long_and_how_hot():
     plan = build(payload)
 
     assert plan["jedla"][0]["recept"]["kroky"][0].startswith("Na 2 lyžiciach oleja opeč")
+
+
+def test_accepts_one_concise_step_when_the_whole_five_step_recipe_is_cookable():
+    """Jedno prirodzené „osoľ a okoreň“ nesmie zahodiť celý platený plán."""
+    payload = with_steps([
+        "Nakrájaj 2 cibule na kocky a opeč ich na 2 lyžiciach oleja 5 minút do sklovita.",
+        "Osoľ a okoreň podľa chuti.",
+        "Prilej 200 ml vody a zmes premiešavaj na strednom ohni ďalšie 3 minúty.",
+        "Prikry a duste 15 minút na miernom ohni, kým cibuľa úplne nezmäkne.",
+        "Hotové jedlo rozdeľ na 4 taniere, každý posyp 1 lyžičkou vňate a podávaj.",
+    ], name="Cibuľa")
+
+    plan = build(payload)
+
+    assert plan["jedla"][0]["recept"]["kroky"][1] == "Osoľ a okoreň podľa chuti."
+
+
+def test_accepts_a_safe_concise_mixing_step_after_slovak_normalization():
+    payload = with_steps([
+        "Nakrájaj 2 cibule na kocky a opeč ich na 2 lyžiciach oleja 5 minút do sklovita.",
+        "Dôkladne premiešaj.",
+        "Prilej 200 ml vody a zmes zohrievaj na strednom ohni ďalšie 3 minúty.",
+        "Prikry a duste 15 minút na miernom ohni, kým cibuľa úplne nezmäkne.",
+        "Hotové jedlo rozdeľ na 4 taniere, každý posyp 1 lyžičkou vňate a podávaj.",
+    ], name="Cibuľa")
+
+    plan = build(payload)
+
+    assert plan["jedla"][0]["recept"]["kroky"][1] == "Dôkladne premiešaj."
+
+
+@pytest.mark.parametrize("unsafe_step", [
+    "Pridaj surové kura.",
+    "Osoľ a pridaj surové kura.",
+])
+def test_rejects_an_unsafe_concise_step_even_inside_an_otherwise_complete_recipe(unsafe_step):
+    payload = with_steps([
+        "Nakrájaj 2 cibule na kocky a opeč ich na 2 lyžiciach oleja 5 minút do sklovita.",
+        unsafe_step,
+        "Prilej 200 ml vody a zmes premiešavaj na strednom ohni ďalšie 3 minúty.",
+        "Prikry a duste 15 minút na miernom ohni, kým cibuľa úplne nezmäkne.",
+        "Hotové jedlo rozdeľ na 4 taniere, každý posyp 1 lyžičkou vňate a podávaj.",
+    ], name="Cibuľa")
+
+    with pytest.raises(ValueError, match="všeobecn"):
+        build(payload)
+
+
+def test_model_enum_casing_is_normalized_before_portion_selection():
+    """Anthropic negarantuje kapitalizáciu enum hodnoty Main/Addition."""
+    cheese = {"nazov": "Syr Eidam", "kategoria": "mliečne", "jednotka": "200 g"}
+
+    assert plan_data._amount_per_adult({"use": "Addition"}, cheese) == (
+        "dairy_addition", "g", Decimal("30"),
+    )
 
 
 @pytest.mark.parametrize(

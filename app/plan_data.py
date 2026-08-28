@@ -77,6 +77,15 @@ _LOOKS_DONE = re.compile(
     r"penist|roztopí|roztopen|nezhnedn|nepust|hustá|hustý|šťavnat|voňav|hotov",
     re.IGNORECASE,
 )
+_SAFE_CONCISE_ACTION = re.compile(
+    r"(?:"
+    r"(?:(?:jedlo|zmes|omacku|polievku)\s+)?(?:osol|okoren|dochut)"
+    r"(?:\s+a\s+(?:osol|okoren|dochut))?(?:\s+podla\s+chuti)?"
+    r"|(?:(?:vsetko|zmes|jedlo)\s+)?(?:dokladne\s+)?(?:premesaj|zamesaj)"
+    r"|(?:jedlo\s+)?(?:podavaj|serviruj|naserviruj)(?:\s+teple)?"
+    r"|(?:(?:hrniec|panvicu|jedlo|zmes)\s+)?odstav(?:\s+z\s+ohna)?"
+    r")\.?"
+)
 
 # Množstvá, s ktorými vieme rátať. Všetko ostatné je pre nákupný zoznam
 # nepoužiteľné — z „hrsti" sa počet balení dopočítať nedá.
@@ -523,7 +532,10 @@ def canonical_portion(row, use=None):
 def _amount_per_adult(item, row):
     # Polia starého modelového kontraktu tolerujeme len kvôli rozbehnutým
     # jobom. Ich hodnoty zámerne nečítame: cenu aj dávku vlastní server.
-    return canonical_portion(row, item.get("use"))
+    use = item.get("use")
+    if isinstance(use, str):
+        use = use.strip().casefold()
+    return canonical_portion(row, use)
 
 
 def _decimal_text(value):
@@ -597,9 +609,20 @@ def _cookable_steps(instructions):
     if not isinstance(instructions, list) or not instructions:
         raise ValueError("Chýbajú pokyny k jedlu.")
     steps = [_text(instruction, "pokyn") for instruction in instructions]
-    for step in steps:
-        if len(step) < MIN_STEP_CHARS or len(step.split()) < MIN_STEP_WORDS:
-            raise ValueError("Pokyn je príliš všeobecný na to, aby sa podľa neho dalo variť.")
+    concise = [
+        step for step in steps
+        if len(step) < MIN_STEP_CHARS or len(step.split()) < MIN_STEP_WORDS
+    ]
+    # V päť- až sedemkrokovom recepte je jeden krátky krok typu „osoľ a
+    # okoreň“ prirodzený. Kvalitu ďalej strážia konkrétne množstvá, časy,
+    # teplota, výsledný vzhľad a podávanie celého receptu. Viac stručných
+    # krokov alebo stručný trojkrokový recept by už používateľovi nepomohli.
+    allowed_concise = 1 if len(steps) >= 5 else 0
+    unsafe_concise = [
+        step for step in concise if not _SAFE_CONCISE_ACTION.fullmatch(_fold(step))
+    ]
+    if len(concise) > allowed_concise or unsafe_concise:
+        raise ValueError("Pokyn je príliš všeobecný na to, aby sa podľa neho dalo variť.")
     if len(steps) < MIN_STEPS_PER_MEAL:
         raise ValueError(f"Recept musí mať aspoň {MIN_STEPS_PER_MEAL} kroky v poradí varenia.")
     recipe = " ".join(steps)
@@ -731,8 +754,12 @@ def _model_meals(model_output, offers_by_key, frequency, pantry, adults, childre
         for item in items:
             _reject_extra(item, _MODEL_ITEM)
             use = item.get("use")
+            if isinstance(use, str):
+                use = use.strip().casefold()
             if use is not None and use not in ("main", "addition"):
                 raise ValueError("Použitie suroviny musí byť main alebo addition.")
+            if use != item.get("use"):
+                item = dict(item, use=use)
             offer_key = item.get("offer_key")
             if not isinstance(offer_key, str) or offer_key not in offers_by_key:
                 raise ValueError("Návrh obsahuje neznáme alebo neaktuálne offer_key.")
@@ -803,7 +830,7 @@ PLAN_VARIANT_HINTS = (
 #      krokov s minimálnou dĺžkou. Krátky všeobecný krok už nemôže minúť
 #      platené volanie a až potom zhodiť celý plán vo validácii.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 10
+PLAN_ALGO_VERSION = 11
 
 
 def plan_variant_for(user_id, variants):
@@ -1004,14 +1031,22 @@ def plan_output_config(effort=None):
         "properties": {
             "day": {"type": "string"},
             "name": {"type": "string"},
-            "minutes": {"type": "integer", "minimum": 1},
+            "minutes": {
+                "type": "integer",
+                "description": "Kladný celý počet minút potrebných na prípravu jedla.",
+            },
             "items": {"type": "array", "items": item_schema},
             "pantry_ingredients": {"type": "array", "items": {"type": "string"}},
             "instructions": {
                 "type": "array",
-                "minItems": 5,
-                "maxItems": 7,
-                "items": {"type": "string", "minLength": MIN_STEP_CHARS},
+                "description": "Presne 5 až 7 konkrétnych krokov v poradí varenia.",
+                "items": {
+                    "type": "string",
+                    "description": (
+                        "Konkrétny kuchársky krok s aspoň 30 znakmi; uveď množstvo, "
+                        "čas alebo teplotu podľa typu kroku."
+                    ),
+                },
             },
         },
         "required": [
