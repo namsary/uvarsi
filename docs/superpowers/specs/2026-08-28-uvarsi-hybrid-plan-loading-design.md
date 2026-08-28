@@ -1,7 +1,7 @@
 # Uvar.si — hybridné načítanie jedálničkov
 
-**Dátum:** 28. august 2026  
-**Stav:** návrh na schválenie  
+**Dátum:** 28. august 2026
+**Stav:** návrh na schválenie
 **Predpoklad vydania:** oprava `ace8ef7` je súčasťou toho istého release
 
 ## Cieľ
