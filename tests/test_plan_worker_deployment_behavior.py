@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -215,6 +216,40 @@ def test_snapshot_failure_aborts_and_restore_failure_propagates(deployment):
     assert failed_restore.returncode != 0
 
 
+def test_migration_failure_restores_a_consistent_predeployment_database(deployment):
+    database = deployment["live"] / "uvarsi.db"
+    writer = sqlite3.connect(database)
+    assert writer.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
+    writer.execute("CREATE TABLE release_guard (value TEXT NOT NULL)")
+    writer.execute("INSERT INTO release_guard VALUES ('before')")
+    writer.commit()
+
+    saved = run_library(deployment, 'uvarsi_snapshot "$UVARSI_TEST_SNAPSHOT"')
+    assert saved.returncode == 0, saved.stdout + saved.stderr
+    snapshot_database = deployment["snapshot"] / "uvarsi.db"
+    with sqlite3.connect(snapshot_database) as snapshot:
+        assert snapshot.execute("SELECT value FROM release_guard").fetchone() == (
+            "before",
+        )
+        assert snapshot.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+
+    writer.execute("UPDATE release_guard SET value='migrated'")
+    writer.execute("CREATE TABLE migration_only (value INTEGER)")
+    writer.commit()
+    writer.close()
+
+    restored = run_library(deployment, 'uvarsi_restore "$UVARSI_TEST_SNAPSHOT"')
+    assert restored.returncode == 0, restored.stdout + restored.stderr
+    with sqlite3.connect(database) as live:
+        assert live.execute("SELECT value FROM release_guard").fetchone() == (
+            "before",
+        )
+        assert live.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE name='migration_only'"
+        ).fetchone() == (0,)
+        assert live.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+
+
 def test_partial_live_mutation_rolls_back_before_returning_failure(deployment):
     assert run_library(
         deployment, 'uvarsi_snapshot "$UVARSI_TEST_SNAPSHOT"'
@@ -312,3 +347,58 @@ def test_manual_failure_restores_every_mutated_file_and_app_service_state(
         assert deployment["app_unit"].read_text(encoding="utf-8") == "old-app-unit"
     assert deployment["state"].joinpath("app-enabled").read_text() == str(int(enabled))
     assert deployment["state"].joinpath("app-active").read_text() == str(int(active))
+
+
+def test_manual_release_does_not_invoke_shared_caddy_or_crontab(tmp_path):
+    powershell = shutil.which("pwsh") or shutil.which("powershell")
+    if not powershell:
+        pytest.skip("PowerShell is required for the manual deployment behavior test")
+    calls = tmp_path / "remote-calls.txt"
+    harness = tmp_path / "manual-deploy-harness.ps1"
+    harness.write_text(
+        "param([string]$Deploy, [string]$Calls)\n"
+        "function global:ssh {\n"
+        "  param([Parameter(ValueFromPipeline=$true)][object]$InputObject, "
+        "[Parameter(ValueFromRemainingArguments=$true)][object[]]$Rest)\n"
+        "  begin { $body = @() }\n"
+        "  process { if ($null -ne $InputObject) { $body += $InputObject } }\n"
+        "  end {\n"
+        "    Add-Content -LiteralPath $Calls -Value (\"SSH \" + ($Rest -join ' '))\n"
+        "    if ($body.Count) { Add-Content -LiteralPath $Calls -Value ($body -join \"`n\") }\n"
+        "    $global:LASTEXITCODE = 0\n"
+        "  }\n"
+        "}\n"
+        "function global:scp {\n"
+        "  param([Parameter(ValueFromRemainingArguments=$true)][object[]]$Rest)\n"
+        "  Add-Content -LiteralPath $Calls -Value (\"SCP \" + ($Rest -join ' '))\n"
+        "  $global:LASTEXITCODE = 0\n"
+        "}\n"
+        ". $Deploy\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            powershell,
+            "-NoProfile",
+            "-NonInteractive",
+            "-File",
+            str(harness),
+            "-Deploy",
+            str(ROOT / "nasad.ps1"),
+            "-Calls",
+            str(calls),
+        ],
+        cwd=ROOT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    remote_calls = calls.read_text(encoding="utf-8")
+    assert "/etc/caddy" not in remote_calls
+    assert "reload caddy" not in remote_calls
+    assert "crontab" not in remote_calls

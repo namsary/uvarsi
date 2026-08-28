@@ -40,6 +40,66 @@ _uvarsi_restore_file() {
   fi
 }
 
+_uvarsi_sqlite_backup() {
+  source_database=$1
+  target_database=$2
+  "$UVARSI_HEALTH_PY" -c '
+import os, sqlite3, sys
+source_path, target_path = sys.argv[1:3]
+temporary_path = target_path + ".backup-in-progress"
+for path in (temporary_path, temporary_path + "-wal", temporary_path + "-shm"):
+    try: os.unlink(path)
+    except FileNotFoundError: pass
+source = sqlite3.connect(source_path)
+target = sqlite3.connect(temporary_path)
+try:
+    source.backup(target)
+    if target.execute("PRAGMA integrity_check").fetchone() != ("ok",):
+        raise RuntimeError("SQLite backup failed integrity_check")
+finally:
+    target.close()
+    source.close()
+os.replace(temporary_path, target_path)
+' "$source_database" "$target_database"
+}
+
+_uvarsi_snapshot_database() {
+  snapshot=$1
+  if [ -f "$UVARSI_DB" ]; then
+    _uvarsi_sqlite_backup "$UVARSI_DB" "$snapshot/uvarsi.db"
+  else
+    : > "$snapshot/uvarsi.db.absent"
+  fi
+}
+
+_uvarsi_sqlite_restore() {
+  source_database=$1
+  target_database=$2
+  "$UVARSI_HEALTH_PY" -c '
+import sqlite3, sys
+source = sqlite3.connect(sys.argv[1])
+target = sqlite3.connect(sys.argv[2])
+try:
+    source.backup(target)
+    if target.execute("PRAGMA integrity_check").fetchone() != ("ok",):
+        raise RuntimeError("restored SQLite database failed integrity_check")
+finally:
+    target.close()
+    source.close()
+' "$source_database" "$target_database"
+}
+
+_uvarsi_restore_database() {
+  snapshot=$1
+  if [ -f "$snapshot/uvarsi.db" ]; then
+    _uvarsi_sqlite_restore "$snapshot/uvarsi.db" "$UVARSI_DB"
+  elif [ -f "$snapshot/uvarsi.db.absent" ]; then
+    rm -f "$UVARSI_DB" "$UVARSI_DB-wal" "$UVARSI_DB-shm"
+  else
+    return 1
+  fi
+}
+
 _uvarsi_health_marker() {
   # A deployment health response is valid only when the whole queue contract is
   # present and typed. Print its persisted heartbeat marker (possibly blank).
@@ -90,6 +150,7 @@ uvarsi_snapshot() {
   mkdir -p "$snapshot" || return 1
   [ -d "$UVARSI_DIR/app" ] || return 1
   "$UVARSI_CP" -a "$UVARSI_DIR/app" "$snapshot/app" || return 1
+  _uvarsi_snapshot_database "$snapshot" || return 1
   if [ -f "$UVARSI_DIR/VERSION" ]; then
     "$UVARSI_CP" -a "$UVARSI_DIR/VERSION" "$snapshot/VERSION" || return 1
   else
@@ -140,7 +201,21 @@ uvarsi_snapshot() {
 uvarsi_restore() {
   snapshot=$1
   ok=1
+  services_stopped=1
   [ -d "$snapshot/app" ] || return 1
+
+  # No process may retain an old SQLite handle while rollback replaces the DB.
+  if "$UVARSI_SYSTEMCTL" is-active --quiet uvarsi-plan-worker; then
+    "$UVARSI_SYSTEMCTL" stop uvarsi-plan-worker >/dev/null 2>&1 || services_stopped=0
+  fi
+  if "$UVARSI_SYSTEMCTL" is-active --quiet uvarsi; then
+    "$UVARSI_SYSTEMCTL" stop uvarsi >/dev/null 2>&1 || services_stopped=0
+  fi
+  if [ "$services_stopped" -eq 1 ]; then
+    _uvarsi_restore_database "$snapshot" || ok=0
+  else
+    ok=0
+  fi
 
   rm -rf "$UVARSI_DIR/app" || ok=0
   [ "$ok" -eq 0 ] || "$UVARSI_CP" -a "$snapshot/app" "$UVARSI_DIR/app" || ok=0

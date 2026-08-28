@@ -1,6 +1,7 @@
 # Uvar.si - nasadenie jednym prikazom.
 # Pouzitie:  cd "$env:USERPROFILE\OneDrive\Online produkt"; .\nasad.ps1
-# Nahra subory na jarvis, restartuje sluzbu, nastavi Caddy a overi, ze vsetko bezi.
+# Nahra subory na jarvis, restartuje sluzby a overi, ze vsetko bezi.
+# Rutinne vydanie nikdy nemeni zdielany Caddyfile ani systemovy cron.
 #
 # PRAVIDLO: nasadenie MUSI vediet zlyhat. Kazde vzdialene volanie kontroluje
 # navratovy kod a pri prvej chybe sa konci `exit 1`. Na serveri bezi aj druha
@@ -113,6 +114,7 @@ $subory = @(
   @{ l = "$B\app\receipt_data.py";      r = "/opt/uvarsi/app/receipt_data.py" },
   @{ l = "$B\app\plan_data.py";         r = "/opt/uvarsi/app/plan_data.py" },
   @{ l = "$B\app\plan_jobs.py";         r = "/opt/uvarsi/app/plan_jobs.py" },
+  @{ l = "$B\app\plan_calendar.py";     r = "/opt/uvarsi/app/plan_calendar.py" },
   @{ l = "$B\app\plan_shortlist.py";    r = "/opt/uvarsi/app/plan_shortlist.py" },
   @{ l = "$B\app\plan_worker.py";       r = "/opt/uvarsi/app/plan_worker.py" },
   @{ l = "$B\app\predpocet.py";         r = "/opt/uvarsi/app/predpocet.py" },
@@ -188,7 +190,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 Ok "sluzba aj worker bezia"
 
-Krok "6/8  Caddy (appka na /app, landing na hlavnej)"
+Krok "6/8  Zdielana infrastruktura ostava bez zmeny"
 # Navrh configu vznika VEDLA ostreho suboru. Ostry Caddyfile sa nedotkne, kym
 # navrh neprejde `caddy validate` ako samostatny prikaz (nie clanok rury -
 # v rure je navratovy kod posledneho clanku, teda vzdy 0).
@@ -280,9 +282,6 @@ if MAPA not in s:
 open(novy, "w").write(s)
 print("navrh caddy configu: %s (odstranenych starych blokov: %d)" % (novy, odstranene))
 '@ -replace "`r`n", "`n"
-$py | ssh jarvis "tr -d '\r' > /tmp/caddyfix.py"
-Vyzaduj "skript na upravu Caddyfile sa nepodarilo preniest"
-
 $caddy = @'
 set -eu
 OSTRY=/etc/caddy/Caddyfile
@@ -305,11 +304,9 @@ if ! systemctl reload caddy; then
 fi
 echo "caddy OK (zaloha: $ZALOHA)"
 '@ -replace "`r`n", "`n"
-$caddy | ssh jarvis "tr -d '\r' > /tmp/caddy_nasad.sh; bash /tmp/caddy_nasad.sh"
-Vyzaduj "Caddy config nepresiel validaciou alebo reload zlyhal - ostry Caddyfile ostal nezmeneny"
-Ok "web nastaveny (obe appky na serveri overene)"
+Ok "Caddy ostal nedotknuty"
 
-Krok "7/8  Cron: dozorca (akcie), nocna zaloha a rekonciliacia platieb"
+Krok "7/8  Prevadzkové kontroly bez zmeny crontabu"
 # Tabulka `naroky` je jediny zaznam o tom, kto zaplatil - bez nocnej zalohy by
 # ju strata disku zmazala nenavratne. Rekonciliacia dobehne platby, o ktorych sa
 # appka z webhooku nikdy nedozvedela; bez nej je kazdy neprijaty webhook
@@ -346,9 +343,7 @@ if [ "${POCET_PLATIEB:-0}" -ne 1 ]; then
 fi
 crontab -l | grep -E 'dozorca.sh|zaloha.sh|rekonciliacia.py'
 '@ -replace "`r`n", "`n"
-$cron | ssh jarvis "tr -d '\r' > /tmp/uvarsi_cron.sh; bash /tmp/uvarsi_cron.sh"
-Vyzaduj "cron pre dozorcu, zalohu a rekonciliaciu platieb sa nepodarilo nainstalovat"
-Ok "dozorca, nocna zaloha aj rekonciliacia platieb v crone (po jednom riadku)"
+Ok "crontab ostal nedotknuty"
 
 # Rekonciliacia bez kluca len ticho nic nerobi - to by sa dalo prehliadnut az do
 # prvej reklamacie. Preto to nasadenie povie nahlas (a hodnoty klucov NEVYPISUJE).

@@ -284,3 +284,40 @@ path, with Bash and PowerShell syntax checks in the same command.
 
 No secret value, Caddy file, or other application was touched. No push or
 production deployment was performed.
+
+## Final review fix D — deployment completeness and notification retry
+
+The pre-mutation deployment snapshot now includes `uvarsi.db` in both manual
+and samopull deployments through the shared state helper. The helper uses
+Python SQLite's online backup API and runs `PRAGMA integrity_check`, so committed
+WAL data is included without copying a live database file. Rollback stops the
+Uvar.si worker and app before restoring the snapshot through SQLite; if either
+service cannot be stopped, database restore is withheld and rollback returns a
+failure. Prior database absence is also restored, including WAL/SHM sidecars.
+
+Routine `nasad.ps1` no longer executes its legacy Caddy or crontab install
+steps. Its existing Uvar.si app, landing assets, scripts, app unit, worker unit,
+and exact service-state rollback remains unchanged. The manual manifest also
+includes the concurrently added `plan_calendar.py`; no Caddy, Jarvis/taktik-mapa
+application target, or shared cron state is in the release mutation set.
+
+Dozorca now creates `.plan_queue_alert_state` only after ntfy returns success.
+A transient notification failure therefore retries on the next supervisor run;
+after one successful delivery, subsequent unhealthy runs remain suppressed by
+the single marker until health recovers.
+
+Executable TDD evidence:
+
+- RED: a committed WAL-only table was missing from the old snapshot, and a
+  failed ntfy delivery still created the marker and prevented retry.
+- GREEN: the migration-failure test verifies pre-migration values/schema and
+  SQLite integrity after rollback; a complete mocked PowerShell deployment
+  verifies no remote Caddy/crontab command is issued; and three Dozorca runs
+  verify fail, success, then suppression.
+- Long path with spaces: `12 passed in 142.75s` for the complete deployment
+  behavior harness.
+- Final deploy/Dozorca suites: `91 passed in 183.31s`.
+- `bash -n` passed for `dozorca.sh`, `samopull.sh`, and
+  `uvarsi-deploy-state.sh`; the PowerShell parser passed for `nasad.ps1`.
+
+No secrets were printed or copied. No push or production deployment occurred.

@@ -42,7 +42,7 @@ EXIT_STRUCTURAL=3                    # kód, ktorým refresh_blocek hlási "neop
 NTFY_TOPIC="uvarsi-jarvis-8f3a2c"    # notifikácie: ntfy.sh/<topic>
 
 log(){ echo "[$(date '+%F %T')] DOZORCA: $*"; }
-notify(){ "$CURL" -s --max-time 15 -H "Title: $1" -d "$2" "https://ntfy.sh/${NTFY_TOPIC}" >/dev/null 2>&1 || true; }
+notify(){ "$CURL" -s --max-time 15 -H "Title: $1" -d "$2" "https://ntfy.sh/${NTFY_TOPIC}" >/dev/null 2>&1; }
 
 # Predpočet môže trvať dlhšie než hodinu. Druhý cron sa vtedy musí slušne
 # skončiť, nie zaplatiť rovnaké modelové volania druhýkrát. FD 9 zostáva
@@ -105,9 +105,12 @@ else: print("HEALTHY")' 2>/dev/null) || {
   esac
   if [ -n "$REASON" ]; then
     if [ ! -f "$PLAN_QUEUE_ALERT_STATE" ]; then
-      notify "Uvar.si: fronta plánov" "$REASON. Health: $PLAN_QUEUE_HEALTH_URL"
-      printf '%s\n' "$REASON" > "$PLAN_QUEUE_ALERT_STATE"
-      log "UPOZORNENIE — $REASON"
+      if notify "Uvar.si: fronta plánov" "$REASON. Health: $PLAN_QUEUE_HEALTH_URL"; then
+        printf '%s\n' "$REASON" > "$PLAN_QUEUE_ALERT_STATE"
+        log "UPOZORNENIE — $REASON"
+      else
+        log "UPOZORNENIE sa nepodarilo odoslať — ďalší beh ho skúsi znova"
+      fi
     fi
     return
   fi
