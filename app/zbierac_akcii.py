@@ -9,6 +9,7 @@ neobmedzený počet používateľov.
 
 Zdroje strán letákov: kupino.sk (primárne), mletaky.sk (záložné).
 Beh:  /opt/uvarsi/venv/bin/python -u zbierac_akcii.py
+Opravný beh jedného zdroja:  ... zbierac_akcii.py --store lidl
 """
 import os, re, json, base64, datetime, hashlib, sqlite3, requests
 from io import BytesIO
@@ -648,8 +649,12 @@ def record_store_outcome(con, week, store, status, count=0, detail=None):
     con.commit()
 
 
-def main():
+def main(stores=None):
     import anthropic
+    selected_stores = list(dict.fromkeys(stores or STORES))
+    unknown = [store for store in selected_stores if store not in STORES]
+    if unknown:
+        raise ValueError(f"Neznámy obchod: {', '.join(unknown)}")
     tyz = monday()
     con = db()
     # Vision beh je najdrahšia operácia v celej appke (~0,37 € za obchod). Miesto
@@ -668,7 +673,7 @@ def main():
     )
     total, failures, collected = 0, [], []
     try:
-        for store in STORES:
+        for store in selected_stores:
             try:
                 akcie = zbieraj(client, store)
                 replace_store_week(con, tyz, store.capitalize(), akcie)
@@ -703,5 +708,20 @@ def main():
         raise SystemExit("Málo akcií — niečo je zle.")
 
 
+def cli(argv=None):
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Zozbieraj akcie zo všetkých letákov alebo iba zvolený obchod."
+    )
+    parser.add_argument(
+        "--store", action="append", choices=STORES, dest="stores",
+        help="opravný zber iba jedného obchodu; možno uviesť opakovane",
+    )
+    args = parser.parse_args(argv)
+    main(args.stores)
+    return 0
+
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(cli())

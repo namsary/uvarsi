@@ -712,6 +712,29 @@ def test_successful_run_marks_every_store_as_collected(monkeypatch, tmp_path):
     ]
 
 
+def test_targeted_recovery_collects_only_the_requested_store(monkeypatch, tmp_path):
+    database = run_main_over_stores(
+        monkeypatch, tmp_path, {"kaufland": True, "tesco": True, "lidl": True}
+    )
+
+    collector.main(["lidl"])
+
+    con = sqlite3.connect(database)
+    rows = con.execute(
+        "SELECT obchod, stav, pocet FROM zber_stav ORDER BY obchod"
+    ).fetchall()
+    con.close()
+    assert rows == [("Lidl", "ok", 20)]
+
+
+def test_cli_passes_repeated_store_arguments_to_targeted_collection(monkeypatch):
+    selected = []
+    monkeypatch.setattr(collector, "main", lambda stores=None: selected.extend(stores or []))
+
+    assert collector.cli(["--store", "lidl", "--store", "tesco"]) == 0
+    assert selected == ["lidl", "tesco"]
+
+
 def test_a_stores_stale_success_is_replaced_by_a_later_failure(monkeypatch, tmp_path):
     database = run_main_over_stores(monkeypatch, tmp_path, {"lidl": True})
     collector.main()
