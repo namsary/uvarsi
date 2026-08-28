@@ -165,6 +165,7 @@ SPRAVA_PLAN_PRIPRAVUJEME = "Plán pripravujeme. Pokojne pokračuj inde."
 SPRAVA_PLAN_ZLYHAL = "Plán sa nepodarilo pripraviť. Skús to znova."
 KOD_PLAN_ZLYHAL = "plan_failed"
 PLAN_JOB_NON_RETRYABLE_CODES = {
+    naklady.KOD_KREDIT,
     "incomplete_stores",
     "invalid_profile",
     "plan_result_missing",
@@ -1135,7 +1136,11 @@ def failed_payload(status, retry_allowed):
         "status": "failed",
         "job_id": status.id,
         "code": status.error_code or KOD_PLAN_ZLYHAL,
-        "message": SPRAVA_PLAN_ZLYHAL,
+        "message": (
+            naklady.SPRAVA_KREDIT
+            if status.error_code == naklady.KOD_KREDIT
+            else SPRAVA_PLAN_ZLYHAL
+        ),
         "retry_allowed": retry_allowed,
     }
 
@@ -1560,15 +1565,32 @@ def build_and_store_job(job, *, client=None) -> dict:
     settings = {"output_config": {"effort": PLAN_EFFORT}} if PLAN_EFFORT else {}
 
     with closing(db()) as accounts:
+        own_reservation = getattr(job, "reserved_eur", None)
+        queued_reservations = lambda: plan_jobs.active_reservations_eur(
+            accounts, exclude_job_id=getattr(job, "id", None),
+        )
         try:
-            naklady.skontroluj(accounts, purpose)
+            naklady.skontroluj(
+                accounts,
+                purpose,
+                odhad_eur=own_reservation,
+                rezervovane_eur=queued_reservations(),
+            )
         except naklady.RozpocetVycerpany as refusal:
-            raise HTTPException(503, str(refusal))
+            error = HTTPException(503, str(refusal))
+            error.kod = refusal.kod
+            raise error
         raw_client = client or _new_plan_model_client()
         prepare = getattr(raw_client, "prepare", None)
         if prepare is not None:
             prepare(_new_plan_model_client)
-        guarded = naklady.strazeny_klient(accounts, raw_client, purpose)
+        guarded = naklady.strazeny_klient(
+            accounts,
+            raw_client,
+            purpose,
+            odhad_eur=own_reservation,
+            rezervovane_eur=queued_reservations,
+        )
         try:
             msg = guarded.messages.create(
                 model=MODEL_PLAN,
@@ -1578,9 +1600,13 @@ def build_and_store_job(job, *, client=None) -> dict:
             )
         except naklady.KreditVycerpany as refusal:
             LOG.warning("plán sa neposkladal: %s", naklady.KOD_KREDIT)
-            raise HTTPException(503, str(refusal))
+            error = HTTPException(503, str(refusal))
+            error.kod = refusal.kod
+            raise error
         except naklady.RozpocetVycerpany as refusal:
-            raise HTTPException(503, str(refusal))
+            error = HTTPException(503, str(refusal))
+            error.kod = refusal.kod
+            raise error
         except Exception as error:
             try:
                 import anthropic

@@ -196,13 +196,16 @@ def test_odmietnute_volania_poslu_prave_jedno_upozornenie(con):
     assert "dobi" in text.lower(), "majiteľ musí vedieť, čo má urobiť"
 
 
-def test_uspesne_volanie_zrusi_priznak_vycerpaneho_kreditu(con):
+def test_explicitne_odobranie_priznaku_umozni_po_dobiti_kreditu_uspesne_volanie(con):
     with pytest.raises(naklady.KreditVycerpany):
         naklady.s_rozpoctom(con, "plan", "claude-sonnet-5",
                             lambda: (_ for _ in ()).throw(bad_request_kredit()),
                             teraz=PONDELOK, notifikuj=lambda s: None)
     assert naklady.stav(con, teraz=PONDELOK)["kredit"]["vycerpany"] is True
 
+    # Príznak je fail-closed, kým majiteľ po dobití kreditu výslovne nepotvrdí
+    # zotavenie. Úspešné volanie ho nemôže vymazať samo, keď sa k nemu nesmie dostať.
+    naklady.zabudni_kredit(con)
     naklady.s_rozpoctom(con, "plan", "claude-sonnet-5",
                         lambda: types.SimpleNamespace(usage=usage(vstup=1_000)),
                         teraz=PONDELOK, notifikuj=lambda s: None)
@@ -414,7 +417,7 @@ def test_zbierac_pri_nulovom_kredite_nespotrebuje_tyzdenny_beh(monkeypatch, tmp_
     assert spojenie.execute("SELECT COALESCE(SUM(eur),0) FROM naklady").fetchone()[0] == 0
     assert naklady.stav(spojenie)["behy"]["zber_letakov"]["pocet"] == 0
     spojenie.close()
-    assert len(volania) == 6, "každý pokus končí na PRVOM odmietnutí, nešaltuje po obchodoch"
+    assert len(volania) == 1, "známy nulový kredit už neodosiela ďalšie requesty"
 
 
 def test_zbieraj_neschova_odmietnutie_za_zlyhanie_jedneho_obchodu(con, collector, monkeypatch):
@@ -545,7 +548,7 @@ def test_pouzivatel_dostane_pravdivu_slovensku_hlasku_nie_vymysleny_plan(monkeyp
     assert odpoved.status_code == 202
     job_id = odpoved.json()["job_id"]
     worker = plan_worker.process_one()
-    assert (worker.status, worker.error_code) == ("failed", "generation_failed")
+    assert (worker.status, worker.error_code) == ("failed", naklady.KOD_KREDIT)
 
     zlyhanie = client.get("/api/plan")
     assert zlyhanie.status_code == 200
@@ -553,11 +556,18 @@ def test_pouzivatel_dostane_pravdivu_slovensku_hlasku_nie_vymysleny_plan(monkeyp
         "prazdny": True,
         "status": "failed",
         "job_id": job_id,
-        "code": "generation_failed",
-        "message": server.SPRAVA_PLAN_ZLYHAL,
+        "code": naklady.KOD_KREDIT,
+        "message": naklady.SPRAVA_KREDIT,
         "retry_allowed": False,
     }
     assert "jedla" not in zlyhanie.text, "žiadny vymyslený plán"
+
+    dalsi = client.post("/api/plan/generuj?force=1")
+    assert dalsi.status_code == 503
+    assert dalsi.json()["kod"] == naklady.KOD_KREDIT
+    with server.db() as con:
+        assert server.pouzite_prepocty(con, 1, server.dnesok()) == 1
+        assert plan_jobs.active_reservations_eur(con) == pytest.approx(0.0)
 
 
 def test_odmietnutie_pre_kredit_nezoberie_ledger_ani_denny_prepocet(monkeypatch, tmp_path):
@@ -581,7 +591,7 @@ def test_odmietnutie_pre_kredit_nezoberie_ledger_ani_denny_prepocet(monkeypatch,
         assert con.execute("SELECT COUNT(*) FROM naklady").fetchone()[0] == 0
 
     worker = plan_worker.process_one()
-    assert (worker.status, worker.error_code) == ("failed", "generation_failed")
+    assert (worker.status, worker.error_code) == ("failed", naklady.KOD_KREDIT)
 
     with server.db() as con:
         assert server.pouzite_prepocty(con, 1, server.dnesok()) == 1, (
@@ -591,8 +601,11 @@ def test_odmietnutie_pre_kredit_nezoberie_ledger_ani_denny_prepocet(monkeypatch,
         assert con.execute("SELECT COUNT(*) FROM naklady").fetchone()[0] == 0
 
     dalsi = client.post("/api/plan/generuj?force=1")
-    assert dalsi.status_code == 429, "neúspešný force pokus sa nevracia ako voľný slot"
-    assert dalsi.json()["kod"] == server.KOD_LIMIT_PREPOCTOV
+    assert dalsi.status_code == 503
+    assert dalsi.json()["kod"] == naklady.KOD_KREDIT
+    with server.db() as con:
+        assert server.pouzite_prepocty(con, 1, server.dnesok()) == 1
+        assert plan_jobs.active_reservations_eur(con) == pytest.approx(0.0)
 
 
 def test_chybajuce_akcie_pri_nulovom_kredite_nesľubuju_ze_to_bude_o_chvilu(monkeypatch, tmp_path):

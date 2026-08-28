@@ -170,6 +170,50 @@ def test_outstanding_queue_reservations_block_a_second_job(con, monkeypatch):
     assert failure.value.kod == naklady.KOD_DENNY
 
 
+def test_persisted_credit_exhaustion_rejects_enqueue_before_reserving_a_daily_slot(con):
+    naklady.zapamataj_kredit(con, ucel="plan", teraz=NOW)
+
+    with pytest.raises(naklady.KreditVycerpany):
+        enqueue(con, request(), now=NOW)
+
+    assert con.execute("SELECT COUNT(*) FROM plan_jobs").fetchone()[0] == 0
+    assert con.execute("SELECT COUNT(*) FROM prepocty").fetchone()[0] == 0
+
+
+def test_claimed_job_excludes_its_own_reservation_but_keeps_other_jobs_protected(
+        con, monkeypatch):
+    monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "0.24")
+    first = enqueue(con, request(job_key="first", reserved_eur=0.12), now=NOW).job
+    enqueue(con, request(job_key="second", reserved_eur=0.12), now=NOW)
+
+    class Model:
+        def __init__(self):
+            self.messages = self
+            self.calls = 0
+
+        def create(self, **_kwargs):
+            self.calls += 1
+            return type("Response", (), {"usage": None})()
+
+    model = Model()
+    guarded = naklady.strazeny_klient(
+        con,
+        model,
+        "plan",
+        odhad_eur=first.reserved_eur,
+        teraz=NOW,
+        rezervovane_eur=lambda: plan_jobs.active_reservations_eur(
+            con, exclude_job_id=first.id,
+        ),
+    )
+
+    guarded.messages.create(model="claude-sonnet-5", max_tokens=1, messages=[])
+
+    assert model.calls == 1
+    assert plan_jobs.active_reservations_eur(con, exclude_job_id=first.id) == pytest.approx(0.12)
+    assert con.execute("SELECT COUNT(*) FROM naklady").fetchone()[0] == 1
+
+
 def test_enqueue_never_rewrites_existing_cost_rows(con):
     naklady.zapis(con, "plan", "claude-sonnet-5", None, teraz=NOW)
     before = tuple(con.execute("SELECT id, eur, odhad FROM naklady").fetchone())

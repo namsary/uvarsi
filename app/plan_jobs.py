@@ -213,10 +213,16 @@ def _job(row: sqlite3.Row) -> Job:
     )
 
 
-def active_reservations_eur(con) -> float:
+def active_reservations_eur(con, *, exclude_job_id: int | None = None) -> float:
+    """Return live queue reservations, optionally excluding the call's own job."""
+    where = "WHERE state IN ('queued', 'running')"
+    values: tuple[int, ...] = ()
+    if exclude_job_id is not None:
+        where += " AND id<>?"
+        values = (exclude_job_id,)
     row = con.execute(
-        "SELECT COALESCE(SUM(reserved_eur), 0) FROM plan_jobs "
-        "WHERE state IN ('queued', 'running')"
+        "SELECT COALESCE(SUM(reserved_eur), 0) FROM plan_jobs " + where,
+        values,
     ).fetchone()
     return float(row[0] or 0.0)
 

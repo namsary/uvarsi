@@ -2,15 +2,63 @@ import re
 import sqlite3
 import sys
 import types
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 
 from app import zbierac_akcii as collector
+from app import naklady, plan_jobs
 from app.offer_data import replace_store_week
+from app.plan_jobs import JobRequest
 
 
 TODAY = date(2026, 8, 20)
+NOW = datetime(2026, 8, 20, 9, 0, 0)
+
+
+def test_collector_model_gate_preserves_capacity_reserved_by_the_plan_queue(
+        tmp_path, monkeypatch):
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "0.20")
+    monkeypatch.setattr(collector, "DB", str(database))
+    con = collector.db()
+    try:
+        plan_jobs.migrate_plan_jobs_schema(con)
+        plan_jobs.enqueue(
+            con,
+            JobRequest(
+                job_key="pre:reserved:0",
+                signature="reserved",
+                variant=0,
+                kind="precompute",
+                user_id=None,
+                week="2026-08-17",
+                priority=20,
+                payload={},
+                reserved_eur=0.12,
+            ),
+            now=NOW,
+        )
+
+        class Model:
+            def __init__(self):
+                self.messages = self
+                self.calls = 0
+
+            def create(self, **_kwargs):
+                self.calls += 1
+                return types.SimpleNamespace(usage=None)
+
+        model = Model()
+        guarded = collector.guarded_client(con, model)
+        with pytest.raises(naklady.RozpocetVycerpany) as refusal:
+            guarded.messages.create(model="claude-opus-5", max_tokens=1, messages=[])
+
+        assert refusal.value.kod == naklady.KOD_DENNY
+        assert model.calls == 0
+        assert con.execute("SELECT COUNT(*) FROM naklady").fetchone()[0] == 0
+    finally:
+        con.close()
 
 
 def kupino_flyer(slug="/letak/lidl-letak-2026-08-17-2026-08-23", flyer_id="42", image_name="lidl-letak"):

@@ -482,6 +482,16 @@ def skontroluj(con, ucel, odhad_eur=None, teraz=None, rezervovane_eur=0.0):
         raise RozpocetVycerpany(
             f"Neznámy účel platby „{ucel}“ — volanie nespúšťam.", kod=KOD_NECITATELNY
         )
+    try:
+        kredit_vycerpany = con.execute(
+            "SELECT 1 FROM naklady_kredit LIMIT 1"
+        ).fetchone() is not None
+    except (sqlite3.Error, OSError) as chyba:
+        raise RozpocetVycerpany(
+            SPRAVA_NECITATELNY, kod=KOD_NECITATELNY, ucel=ucel,
+        ) from chyba
+    if kredit_vycerpany:
+        raise KreditVycerpany(ucel=ucel)
     teraz = _teraz(teraz)
     den, mesiac, tyzden = _obdobia(teraz)
     limity = stropy()                       # pokazené prostredie → RozpocetVycerpany
@@ -687,7 +697,7 @@ def zapis(con, ucel, model, usage=None, *, detail=None, teraz=None,
 
 
 def s_rozpoctom(con, ucel, model, volanie, *, odhad_eur=None, detail=None,
-                teraz=None, notifikuj=None):
+                teraz=None, notifikuj=None, rezervovane_eur=0.0):
     """Skontroluj strop → zavolaj → zapíš skutočnú spotrebu.
 
     Jediný správny spôsob, ako v tejto appke zaplatiť za volanie modelu. Keď
@@ -695,7 +705,10 @@ def s_rozpoctom(con, ucel, model, volanie, *, odhad_eur=None, detail=None,
     tokeny minúť a tváriť sa, že bolo zadarmo, je presne tá chyba, ktorá
     dovolila incidentu bežať dva dni.
     """
-    skontroluj(con, ucel, odhad_eur=odhad_eur, teraz=teraz)
+    skontroluj(
+        con, ucel, odhad_eur=odhad_eur, teraz=teraz,
+        rezervovane_eur=rezervovane_eur,
+    )
     try:
         odpoved = volanie()
     except BaseException as chyba:
@@ -720,11 +733,15 @@ class _StrazeneSpravy:
         self._s = strazeny
 
     def create(self, **kw):
+        rezervovane = self._s.rezervovane_eur
+        if callable(rezervovane):
+            rezervovane = rezervovane()
         return s_rozpoctom(
             self._s.con, self._s.ucel, kw.get("model"),
             lambda: self._s.klient.messages.create(**kw),
             odhad_eur=self._s.odhad_eur, teraz=self._s.teraz,
             notifikuj=self._s.notifikuj,
+            rezervovane_eur=rezervovane,
         )
 
 
@@ -735,19 +752,22 @@ class StrazenyKlient:
     vzniknúť call site, ktorý na strop zabudne. Kto má klienta, má aj strop.
     """
 
-    def __init__(self, con, klient, ucel, *, odhad_eur=None, teraz=None, notifikuj=None):
+    def __init__(self, con, klient, ucel, *, odhad_eur=None, teraz=None, notifikuj=None,
+                 rezervovane_eur=0.0):
         self.con = con
         self.klient = klient
         self.ucel = ucel
         self.odhad_eur = odhad_eur
         self.teraz = teraz
         self.notifikuj = notifikuj
+        self.rezervovane_eur = rezervovane_eur
         self.messages = _StrazeneSpravy(self)
 
 
-def strazeny_klient(con, klient, ucel, *, odhad_eur=None, teraz=None, notifikuj=None):
+def strazeny_klient(con, klient, ucel, *, odhad_eur=None, teraz=None, notifikuj=None,
+                    rezervovane_eur=0.0):
     return StrazenyKlient(con, klient, ucel, odhad_eur=odhad_eur, teraz=teraz,
-                          notifikuj=notifikuj)
+                          notifikuj=notifikuj, rezervovane_eur=rezervovane_eur)
 
 
 # ---------------------------------------------------------------- upozornenia

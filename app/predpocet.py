@@ -491,6 +491,7 @@ def _poskladaj(con, server, rows, profil, klient=None):
             max_retries=server.PLAN_MAX_RETRIES,
         ),
         UCEL,
+        rezervovane_eur=lambda: plan_jobs.active_reservations_eur(con),
     )
     prompt_rows = select_offers(rows, profil.obchody, limit=120)
     if _pozna_clenov_domacnosti(personal_plan_messages):

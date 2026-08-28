@@ -29,6 +29,11 @@ try:
 except ImportError:
     from app import naklady
 
+try:
+    import plan_jobs
+except ImportError:
+    from app import plan_jobs
+
 DB = os.environ.get("UVARSI_DB", "/opt/uvarsi/uvarsi.db")
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 
@@ -110,6 +115,7 @@ def db():
     con.executescript(SCHEMA)
     migrate_akcie_schema(con)
     naklady.migrate_naklady_schema(con)
+    plan_jobs.migrate_plan_jobs_schema(con)
     return con
 
 
@@ -427,6 +433,16 @@ def claude_json(client, model, content, max_tokens, effort=None):
     return json.loads(txt)
 
 
+def guarded_client(con, client):
+    """Guard collector calls without consuming capacity reserved by queued plans."""
+    return naklady.strazeny_klient(
+        con,
+        client,
+        "zber_letakov",
+        rezervovane_eur=lambda: plan_jobs.active_reservations_eur(con),
+    )
+
+
 SCAN_PROMPT = """Toto sú náhľady strán letáku. Pri každej je číslo. Vráť IBA JSON zoznam \
 čísel strán, ktoré obsahujú POTRAVINY (mäso, hydina, ryby, zelenina, ovocie, mliečne, \
 syry, vajcia, pečivo, ryža, cestoviny, múka, oleje, strukoviny, konzervy).
@@ -580,10 +596,9 @@ def main():
         con.close()
         raise SystemExit(f"Zber nespúšťam — {odmietnutie}")
     # Cez strážený klient sa nedá zavolať model bez zaúčtovania a bez stropu.
-    client = naklady.strazeny_klient(
+    client = guarded_client(
         con,
         anthropic.Anthropic(api_key=load_key(), timeout=180.0, max_retries=1),
-        "zber_letakov",
     )
     total, failures, collected = 0, [], []
     try:

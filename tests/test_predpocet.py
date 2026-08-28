@@ -151,6 +151,52 @@ def queued_jobs(server):
         ).fetchall()
 
 
+def test_predpocet_model_gate_preserves_capacity_reserved_by_live_plan_jobs(
+        monkeypatch, tmp_path):
+    server, predpocet = priprav(monkeypatch, tmp_path)
+    monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "0.20")
+    profile = predpocet.Profil(("Lidl",), 4, 0, 2, 0)
+
+    class Model:
+        def __init__(self):
+            self.messages = self
+            self.calls = 0
+
+        def create(self, **_kwargs):
+            self.calls += 1
+            return types.SimpleNamespace(
+                stop_reason="end_turn",
+                content=[types.SimpleNamespace(type="text", text=json.dumps(model_plan()))],
+                usage=None,
+            )
+
+    model = Model()
+    with closing(server.db()) as con:
+        plan_jobs.enqueue(
+            con,
+            plan_jobs.JobRequest(
+                job_key="pre:reserved:0",
+                signature="reserved",
+                variant=0,
+                kind="precompute",
+                user_id=None,
+                week=server.monday(),
+                priority=20,
+                payload={},
+                reserved_eur=0.12,
+            ),
+            now=datetime.now(),
+        )
+
+        with pytest.raises(predpocet.naklady.RozpocetVycerpany) as refusal:
+            predpocet._poskladaj(con, server, server.akcie_pre(["Lidl"]), profile,
+                                  klient=model)
+
+        assert refusal.value.kod == predpocet.naklady.KOD_DENNY
+        assert model.calls == 0
+        assert con.execute("SELECT COUNT(*) FROM naklady").fetchone()[0] == 0
+
+
 # -------------------------------------------------------- Task 6: queueing
 def test_precompute_queues_active_exact_profiles_before_demand_and_defaults(
         monkeypatch, tmp_path):
