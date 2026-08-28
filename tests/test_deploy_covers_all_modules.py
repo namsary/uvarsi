@@ -6,11 +6,13 @@ Ručne udržiavaný zoznam súborov je krehký — tento test enumeruje adresár
 každý nový modul musí byť v deploy manifeste, inak testy zčervenajú.
 """
 from pathlib import Path
+import subprocess
 
 
 APP_DIR = Path("app")
 DEPLOY = Path("nasad.ps1")
 SAMOPULL = Path("hetzner/samopull.sh")
+BASH = Path("C:/Program Files/Git/bin/bash.exe")
 
 # moduly, ktoré sa zámerne nenasadzujú (nie sú súčasťou runtime)
 NEDEPLOYOVANE: set[str] = set()
@@ -66,3 +68,59 @@ def test_samopull_preflight_rejects_incomplete_release_without_public_pages():
         "samopull kopíruje celé app/, ale pred prepnutím musí odmietnuť vydanie "
         "bez public_pages.py"
     )
+
+
+def _bash_path(path: Path) -> str:
+    return "/c" + path.resolve().as_posix()[2:]
+
+
+def test_samopull_missing_plan_calendar_aborts_before_live_mutation(tmp_path):
+    """Removing plan_calendar.py must stop the real required-files gate."""
+    release = tmp_path / "release with spaces"
+    required = (
+        "app/server.py",
+        "app/auth_data.py",
+        "app/public_pages.py",
+        "app/plan_jobs.py",
+        "app/plan_calendar.py",
+        "app/plan_shortlist.py",
+        "app/plan_worker.py",
+        "app/predpocet.py",
+        "app/static/app.html",
+        "hetzner/uvarsi-plan-worker.service",
+        "hetzner/uvarsi-deploy-state.sh",
+        "VERSION",
+        "index.html",
+        "sw.js",
+    )
+    for relative in required:
+        if relative == "app/plan_calendar.py":
+            continue
+        target = release / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("present\n", encoding="utf-8")
+
+    script = SAMOPULL.read_text(encoding="utf-8")
+    required_files_gate = script.split("# b) povinné súbory", 1)[1].split(
+        "# --- 3. záloha aktuálneho stavu a prepnutie ---", 1
+    )[0]
+    mutation_marker = tmp_path / "live-mutation-reached"
+    command = (
+        "log() { :; }\n"
+        "notify() { :; }\n"
+        f'CIEL="{_bash_path(release)}"\n'
+        f"{required_files_gate}\n"
+        f'printf reached > "{_bash_path(mutation_marker)}"\n'
+    )
+
+    result = subprocess.run(
+        [str(BASH), "-c", command],
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert not mutation_marker.exists()
