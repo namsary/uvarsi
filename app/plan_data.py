@@ -835,6 +835,11 @@ MNOŽSTVÁ
   vegetable, vegetable_addition, bread, dairy_main a dairy_addition použi vždy g.
   Pre egg použi vždy ks. Pre sauce_liquid použi vždy ml. Pre fat_addition použi
   g alebo ml podľa výrobku. Rola a jednotka musia byť presne v tejto kombinácii.
+- amount_per_adult musí byť v tomto uzavretom rozsahu: protein_main 120–200 g;
+  dry_starch 60–110 g; potato 200–400 g; legume_dry 60–110 g;
+  vegetable 120–350 g; vegetable_addition 5–120 g; bread 60–150 g; egg 1–3 ks;
+  dairy_main 60–150 g; dairy_addition 10–60 g; sauce_liquid 100–400 ml;
+  fat_addition 5–40 g alebo 5–40 ml. Nikdy nechoď pod ani nad tieto hranice.
 - V krokoch píš CELKOVÉ množstvo na celú dávku, teda amount_per_adult × počet
   dospelých kuchárskych ekvivalentov uvedený pri danom dni.
 - Každé množstvo napíš naraz pri prvom použití suroviny, nerozdeľuj ho medzi kroky.

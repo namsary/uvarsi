@@ -884,6 +884,11 @@ def test_prompt_maps_each_portion_role_to_a_validator_compatible_unit():
     assert "Pre egg použi vždy ks" in rules
     assert "Pre sauce_liquid použi vždy ml" in rules
     assert "Rola a jednotka musia byť presne v tejto kombinácii" in rules
+    assert "protein_main 120–200 g" in rules
+    assert "vegetable 120–350 g" in rules
+    assert "egg 1–3 ks" in rules
+    assert "sauce_liquid 100–400 ml" in rules
+    assert "Nikdy nechoď pod ani nad tieto hranice" in rules
 
 
 # ------------------------------------------------- názov musí sedieť na recept
