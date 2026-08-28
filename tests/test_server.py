@@ -855,7 +855,7 @@ def test_plan_generation_passes_household_composition_to_signature_prompt_and_bu
 
 
 def test_invalid_model_plan_reports_failure_without_replacing_existing_valid_cache(
-        monkeypatch, tmp_path):
+        monkeypatch, tmp_path, caplog):
     server = load_server(monkeypatch, tmp_path, current_plan_rows())
     with server.db() as con:
         con.execute("INSERT INTO pouzivatelia (id, email, obchody) VALUES (1, 'test@uvar.si', 'Lidl')")
@@ -876,6 +876,8 @@ def test_invalid_model_plan_reports_failure_without_replacing_existing_valid_cac
     assert response.status_code == 200
     assert response.json()["status"] == "failed"
     assert response.json()["code"] == "invalid_model_output"
+    assert "modelový plán neprešiel bezpečnostnou kontrolou" in caplog.text
+    assert "neznáme alebo neaktuálne offer_key" in caplog.text
     with server.db() as con:
         assert json.loads(con.execute("SELECT json FROM plany WHERE user_id=1").fetchone()[0]) == current
         failed = con.execute(

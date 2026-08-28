@@ -1643,7 +1643,8 @@ def build_and_store_job(job, *, client=None) -> dict:
                     pantry=pantry if pantry_driven else (),
                     adults=adults, children=children,
                 )
-            except ValueError:
+            except ValueError as error:
+                LOG.warning("modelový plán neprešiel bezpečnostnou kontrolou: %s", error)
                 raise HTTPException(500, "Plán sa nepodarilo bezpečne overiť, skús to znova.")
             plan = osobny_plan_na_ulozenie(plan, pantry, pantry_driven)
             compatibility_call = job.payload.get("_compat_rows") is not None
