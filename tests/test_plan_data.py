@@ -1095,16 +1095,22 @@ def test_name_classifier_matches_whole_tokens_not_substrings_inside_adjectives()
 
 
 # --------------------------------------------------- rozmanitosť jedál
-def diversity_item(name, category):
+def diversity_item(name, category, dose_total=Decimal("100")):
     row = {"nazov": name, "kategoria": category}
-    return (row, 1, "100 g", "g", Decimal("100"))
+    return (row, 1, f"{dose_total} g", "g", Decimal(str(dose_total)))
 
 
 @pytest.mark.parametrize(("name", "category", "expected"), [
     ("Kuracieho stehna", "mäso", "chicken"),
+    ("Morčacie prsia", "mäso", "chicken"),
+    ("Kačacie stehno", "mäso", "chicken"),
     ("Bravčové karé", "mäso", "pork"),
     ("Hovädzie zadné", "mäso", "beef"),
+    ("Teľacie pliecko", "mäso", "beef"),
+    ("Jahňacie stehno", "mäso", "beef"),
+    ("Mleté mäso", "mäso", "beef"),
     ("Filet z lososa", "ryby", "fish"),
+    ("Filé", "iné", "fish"),
     ("Šošovicový základ", "trvanlivé", "legume"),
     ("Vajcia", "vajcia", "egg"),
     ("Syr Eidam", "mliečne", "cheese"),
@@ -1131,9 +1137,29 @@ def test_dominant_side_uses_verified_offer_family_or_none(name, category, expect
     assert plan_data._dominant_side(selected_items) == expected
 
 
+@pytest.mark.parametrize(("selected_items", "expected"), [
+    ([diversity_item("Ryža", "trvanlivé", 100),
+      diversity_item("Zemiaky", "zelenina", 100)], "rice"),
+    ([diversity_item("Zemiaky", "zelenina", 100),
+      diversity_item("Ryža", "trvanlivé", 100)], "rice"),
+    ([diversity_item("Ryža", "trvanlivé", 200),
+      diversity_item("Zemiaky", "zelenina", 400)], "potato"),
+    ([diversity_item("Zemiaky", "zelenina", 400),
+      diversity_item("Ryža", "trvanlivé", 200)], "potato"),
+    ([diversity_item("Šošovica", "trvanlivé", 100),
+      diversity_item("Cestoviny", "trvanlivé", 300)], "pasta"),
+    ([diversity_item("Cestoviny", "trvanlivé", 300),
+      diversity_item("Šošovica", "trvanlivé", 100)], "pasta"),
+])
+def test_dominant_side_is_order_independent_for_compound_sides(selected_items, expected):
+    assert plan_data._dominant_side(selected_items) == expected
+
+
 @pytest.mark.parametrize(("name", "steps", "expected"), [
     ("Zapekané zemiaky", ["Zapeč jedlo v rúre."], "oven"),
+    ("Upečené kuracie", ["Mäso upeč dozlata."], "oven"),
     ("Kuracie na panvici", ["Mäso opeč na panvici."], "pan"),
+    ("Grilované kuracie", ["Mäso nakrájaj a podávaj."], "pan"),
     ("Varené cestoviny", ["Cestoviny uvar v hrnci."], "pot"),
     ("Dusené hovädzie", ["Mäso dusené domäkka pod pokrievkou."], "pot"),
     ("Šošovicová polievka", ["Šošovicu uvar domäkka."], "soup"),
@@ -1141,6 +1167,14 @@ def test_dominant_side_uses_verified_offer_family_or_none(name, category, expect
 ])
 def test_preparation_method_handles_slovak_inflections(name, steps, expected):
     assert plan_data._preparation_method(name, steps) == expected
+
+
+@pytest.mark.parametrize(("name", "steps"), [
+    ("Pečivový šalát", ["Pečivo nakrájaj, premiešaj so zeleninou a podávaj."]),
+    ("Variácia šalátov", ["Zeleninu nakrájaj, premiešaj a podávaj."]),
+])
+def test_preparation_method_does_not_match_non_cooking_word_collisions(name, steps):
+    assert plan_data._preparation_method(name, steps) == "no-cook"
 
 
 def test_meal_signature_prefers_verified_items_and_uses_folded_prose_as_fallback():

@@ -477,10 +477,10 @@ class MealDiversitySignature:
 
 
 _PROTEIN_FAMILY_PATTERNS = (
-    ("chicken", ("kurac*", "morac*")),
+    ("chicken", ("kurac*", "morac*", "morcac*", "kacac*")),
     ("pork", ("bravc*",)),
-    ("beef", ("hovadz*", "telac*")),
-    ("fish", ("ryb*", "losos*", "tuniak*", "tresk*", "pstruh*")),
+    ("beef", ("hovadz*", "telac*", "jahnac*", "maso")),
+    ("fish", ("ryb*", "losos*", "tuniak*", "tresk*", "pstruh*", "file")),
     ("legume", ("sosovic*", "fazul*", "cicer*", "hrach*")),
     ("egg", ("vajc*",)),
     ("cheese", (
@@ -496,6 +496,9 @@ _SIDE_FAMILY_PATTERNS = (
     ("bread", ("chleb*", "peciv*", "rozok*", "zeml*", "baget*", "toast*", "tortill*")),
     ("legume", ("sosovic*", "fazul*", "cicer*", "hrach*")),
 )
+_SIDE_FAMILY_PRIORITY = {
+    family: priority for priority, (family, _patterns) in enumerate(_SIDE_FAMILY_PATTERNS)
+}
 
 
 def _family_in_text(text, families):
@@ -540,24 +543,40 @@ def _primary_protein(selected_items: list[tuple]) -> str:
 
 
 def _dominant_side(selected_items: list[tuple]) -> str:
+    candidates = []
     for selected_item in selected_items:
         if selected_item:
             name, category = _row_text(selected_item[0])
             family = _family_in_text(f"{name} {category}", _SIDE_FAMILY_PATTERNS)
             if family:
-                return family
-    return "none"
+                try:
+                    dose_total = Decimal(str(selected_item[4]))
+                except (IndexError, InvalidOperation, TypeError, ValueError):
+                    dose_total = Decimal("0")
+                candidates.append((dose_total, _SIDE_FAMILY_PRIORITY[family], family))
+    return max(candidates, default=(Decimal("0"), 0, "none"),
+               key=lambda candidate: (candidate[0], -candidate[1]))[2]
 
 
 def _preparation_method(name: str, steps: list[str]) -> str:
-    text = f"{name} {' '.join(steps)}"
+    tokens = _folded_words(f"{name} {' '.join(steps)}")
     families = (
-        ("soup", ("polev*",)),
-        ("oven", ("zapec*", "pec*", "rur*")),
-        ("pan", ("opec*", "smaz*", "vypraz*", "rest*", "panvic*")),
-        ("pot", ("uvar*", "var*", "dus*", "hrnc*")),
+        ("soup", ("polevka", "polevky", "polevku", "polevke", "polevkou", "polevok"), ()),
+        ("oven", ("zapec*", "upec*", "pec*", "rura", "rure", "ruru", "rury"),
+         ("peciv*",)),
+        ("pan", ("opec*", "smaz*", "vypraz*", "resto*", "restu*", "panvic*", "gril*"),
+         ()),
+        ("pot", ("uvar*", "var*", "dus*", "hrnec", "hrnci", "hrnca", "hrncom"),
+         ("variac*", "variant*")),
     )
-    return _family_in_text(text, families) or "no-cook"
+    for family, patterns, exclusions in families:
+        if any(
+            any(_token_matches_pattern(token, pattern) for pattern in patterns)
+            and not any(_token_matches_pattern(token, exclusion) for exclusion in exclusions)
+            for token in tokens
+        ):
+            return family
+    return "no-cook"
 
 
 def meal_diversity_signature(name: str, steps: list[str],
