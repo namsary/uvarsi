@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Uvar.si</title>
 <meta name="robots" content="noindex,nofollow,noarchive">
-<meta name="theme-color" content="#FFD400">
+<meta name="theme-color" content="#F7F5EF">
 <link rel="manifest" href="/static/manifest.json">
 <link rel="preload" as="font" type="font/woff2" href="/static/fonts/manrope-400-800.7101939e.woff2" crossorigin>
 <link rel="preload" as="font" type="font/woff2" href="/static/fonts/anton-400.6d2997e3.woff2" crossorigin>
@@ -18,126 +18,160 @@
   src:url("/static/fonts/ibmplexmono-600.f4faf2fe.woff2") format("woff2")}
 @font-face{font-family:"Manrope";font-style:normal;font-weight:400 800;font-display:swap;
   src:url("/static/fonts/manrope-400-800.7101939e.woff2") format("woff2")}
-:root{--paper:#FFFCF5;--paper-2:#F7F1E3;--ink:#14231C;--ink-soft:#5C6B62;
-  --yellow:#FFD400;--red:#C93427;--green:#1F7A4C;--line:#E4DED0}
+:root{--canvas:#F7F5EF;--surface:#fff;--surface-soft:#F0EEE7;--ink:#183229;
+  --muted:#66746E;--accent:#C93427;--highlight:#F3C928;--success:#237A50;
+  --border:#DCD7CA;--radius-card:14px;--radius-control:10px;
+  --shadow-card:0 8px 24px rgba(24,50,41,.07);--paper:var(--canvas);
+  --paper-2:var(--surface-soft);--ink-soft:var(--muted);--yellow:var(--highlight);
+  --red:var(--accent);--green:var(--success);--line:var(--border)}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-:focus-visible{outline:3px solid var(--red);outline-offset:3px}
-body{background:var(--paper);color:var(--ink);font-family:"Manrope",system-ui,sans-serif;
-  line-height:1.55;padding-bottom:78px}
-.display{font-family:"Anton",sans-serif;font-weight:400;text-transform:uppercase;line-height:1}
+button,input,select{touch-action:manipulation}
+:focus-visible{outline:3px solid var(--highlight);outline-offset:3px}
+body{background:var(--canvas);color:var(--ink);font-family:"Manrope",system-ui,sans-serif;
+  line-height:1.55;padding-bottom:calc(86px + env(safe-area-inset-bottom));min-height:100vh}
+.display{font-family:"Anton",sans-serif;font-weight:400;text-transform:uppercase;line-height:1.04;letter-spacing:.01em}
 .mono{font-family:"IBM Plex Mono",monospace}
-.wrap{max-width:640px;margin:0 auto;padding:0 18px}
-header{position:sticky;top:0;background:var(--paper);border-bottom:2px solid var(--ink);
-  padding:14px 0;z-index:20}
-.brand{font-family:"Anton",sans-serif;font-size:1.3rem;letter-spacing:.04em;text-transform:uppercase}
-.brand em{font-style:normal;color:var(--red)}
-.btn{font-family:"IBM Plex Mono",monospace;font-weight:600;letter-spacing:.05em;
-  text-transform:uppercase;font-size:.84rem;padding:15px 20px;border:2px solid var(--ink);
-  background:var(--yellow);color:var(--ink);cursor:pointer;display:block;width:100%;
-  box-shadow:3px 3px 0 var(--ink);text-align:center;text-decoration:none}
-.btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
-.btn:disabled{background:var(--paper-2);color:var(--ink-soft);border-color:var(--line);
-  box-shadow:none;cursor:not-allowed}
-.btn--ghost{background:transparent;box-shadow:none}
-input,select{width:100%;padding:14px;border:2px solid var(--ink);background:#fff;
-  font-family:"IBM Plex Mono",monospace;font-size:1rem;color:var(--ink)}
-label{font-family:"IBM Plex Mono",monospace;font-size:.76rem;font-weight:600;
-  letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);display:block;margin-bottom:7px}
-.card{background:#fff;border:2px solid var(--ink);padding:18px;margin-bottom:14px}
+.wrap{max-width:680px;margin:0 auto;padding:0 18px}
+header{position:sticky;top:0;background:rgba(247,245,239,.97);border-bottom:1px solid var(--border);
+  padding:calc(11px + env(safe-area-inset-top)) 0 11px;z-index:20;box-shadow:0 3px 12px rgba(24,50,41,.04)}
+.brand{font-family:"Anton",sans-serif;font-size:1.42rem;letter-spacing:.035em;text-transform:uppercase}
+.brand em{font-style:normal;color:var(--accent)}
+.btn{font-family:"Manrope",system-ui,sans-serif;font-weight:800;font-size:.93rem;padding:14px 18px;
+  min-height:48px;border:1px solid transparent;border-radius:var(--radius-control);background:var(--highlight);
+  color:var(--ink);cursor:pointer;display:block;width:100%;box-shadow:0 3px 0 #C9A816;
+  text-align:center;text-decoration:none;transition:transform .18s,box-shadow .18s,background .18s}
+.btn:hover{background:#F8D94E}.btn:active{transform:translateY(2px);box-shadow:0 1px 0 #C9A816}
+.btn:disabled{background:var(--surface-soft);color:var(--muted);border-color:var(--border);box-shadow:none;cursor:not-allowed}
+.btn--ghost{background:var(--surface);border-color:var(--border);box-shadow:none;color:var(--ink)}
+.btn--ghost:hover{background:var(--surface-soft)}
+input,select{width:100%;min-height:48px;padding:13px 14px;border:1px solid var(--border);
+  border-radius:var(--radius-control);background:var(--surface);font:inherit;font-size:1rem;color:var(--ink)}
+input:focus,select:focus{border-color:var(--ink)}
+label{font-size:.78rem;font-weight:800;color:var(--muted);display:block;margin-bottom:7px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  padding:20px;margin-bottom:14px;box-shadow:var(--shadow-card)}
 .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.7rem;font-weight:600;
-  letter-spacing:.14em;text-transform:uppercase;color:var(--red)}
-.muted{color:var(--ink-soft);font-size:.9rem}
+  letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.muted{color:var(--muted);font-size:.9rem}
 .center{text-align:center}
 .hidden{display:none!important}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
-.chip{font-family:"IBM Plex Mono",monospace;font-size:.8rem;font-weight:600;padding:11px 15px;
-  border:2px solid var(--ink);background:#fff;cursor:pointer}
-.chip.on{background:var(--yellow)}
-.meal{border:2px solid var(--ink);background:#fff;margin-bottom:12px}
-.meal-h{display:flex;align-items:center;gap:12px;padding:15px;cursor:pointer;width:100%;
-  border:0;background:transparent;color:inherit;text-align:left;font:inherit;min-height:54px}
-.meal-d{font-family:"Anton",sans-serif;font-size:1.5rem;color:var(--yellow);
-  -webkit-text-stroke:1.5px var(--ink);min-width:42px}
-.meal-n{font-weight:800;font-size:1.02rem;line-height:1.25;flex:1}
-.meal-b{border-top:2px dashed var(--line);padding:15px;display:none}
+.chip{font-family:"Manrope",system-ui,sans-serif;font-size:.84rem;font-weight:700;padding:10px 14px;
+  min-height:44px;border:1px solid var(--border);border-radius:9px;background:var(--surface);cursor:pointer}
+.chip:hover{border-color:var(--ink)}.chip.on{background:#FFF5BE;border-color:#D9B600;color:var(--ink)}
+.meal{border:1px solid var(--border);border-radius:var(--radius-card);background:var(--surface);
+  margin-bottom:12px;overflow:hidden;box-shadow:0 4px 16px rgba(24,50,41,.045)}
+.meal-h{display:flex;align-items:center;gap:12px;padding:14px 15px;cursor:pointer;width:100%;
+  border:0;background:transparent;color:inherit;text-align:left;font:inherit;min-height:66px}
+.meal-h:hover{background:#FAF9F5}
+.meal-d{font-family:"Anton",sans-serif;font-size:1.05rem;min-width:42px;height:42px;border-radius:10px;
+  background:var(--ink);color:#fff;display:grid;place-items:center}
+.meal-n{font-weight:800;font-size:1rem;line-height:1.3;flex:1}
+.meal-chevron{width:18px;height:18px;color:var(--muted);transition:transform .18s;flex:none}
+.meal.open .meal-chevron{transform:rotate(180deg)}
+.meal-b{border-top:1px solid var(--border);padding:16px;display:none;background:#FCFBF8}
 .meal.open .meal-b{display:block}
-.ing{display:flex;justify-content:space-between;gap:10px;font-family:"IBM Plex Mono",monospace;
-  font-size:.82rem;padding:7px 0;border-bottom:1px dashed var(--line)}
-.ing .r{white-space:nowrap;font-weight:600}
-.ing .off{color:var(--red);margin-left:7px}
-.ing-b{border-bottom:1px dashed var(--line)}
-.ing-b .ing{border-bottom:0;padding-bottom:2px}
+.ing{display:flex;justify-content:space-between;gap:12px;font-size:.85rem;padding:9px 0;border-bottom:1px solid var(--border)}
+.ing .r{white-space:nowrap;font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:.8rem}
+.ing .off{color:var(--accent);margin-left:7px}
+.ing-b{border-bottom:1px solid var(--border)}
+.ing-b .ing{border-bottom:0;padding-bottom:3px}
 .prov{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;font-family:"IBM Plex Mono",monospace;
-  font-size:.68rem;line-height:1.45;color:var(--ink-soft);padding:0 0 8px}
-.prov a{color:var(--ink-soft);text-decoration:underline;text-underline-offset:2px}
+  font-size:.66rem;line-height:1.45;color:var(--muted);padding:0 0 9px}
+.prov a{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
 .prov a:active{color:var(--ink)}
-.prov .vld--dnes,.prov .vld--zajtra,.prov .vld--neplatna{color:var(--red);font-weight:600}
-.ing--neplatna .r{color:var(--ink-soft);text-decoration:line-through}
-.steps{list-style:none;counter-reset:s;margin-top:14px}
-.steps li{counter-increment:s;position:relative;padding-left:28px;margin-bottom:11px;font-size:.94rem}
-.steps li::before{content:counter(s) ".";position:absolute;left:0;color:var(--red);
-  font-weight:700;font-family:"IBM Plex Mono",monospace}
-.rest{font-style:italic;color:var(--ink-soft);font-size:.88rem;padding:9px 15px;
-  border:2px dashed var(--line);margin-bottom:12px}
-.rest--volno{font-style:normal;border-style:dotted}
-.hint{background:var(--paper-2);border:2px dashed var(--ink);padding:16px;margin-bottom:14px}
-.save{display:flex;justify-content:space-between;align-items:baseline;background:var(--yellow);
-  border:2px solid var(--ink);padding:14px;margin:16px 0}
-.save b{font-family:"Anton",sans-serif;font-weight:400;font-size:1.7rem}
-.shop-h{font-family:"Anton",sans-serif;font-size:1.1rem;text-transform:uppercase;
-  background:var(--ink);color:var(--paper);padding:9px 14px;margin-top:14px}
-.item{display:flex;align-items:center;gap:12px;padding:13px 14px;border:2px solid var(--ink);
-  border-top:0;background:#fff;cursor:pointer}
-.item.done{opacity:.45;text-decoration:line-through}
-.box{width:22px;height:22px;border:2px solid var(--ink);flex-shrink:0;display:grid;place-items:center;
-  font-weight:800;font-size:.9rem}
-.item.done .box{background:var(--green);color:#fff}
-.item .nm{flex:1;font-size:.94rem}
-.item .pr{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:.86rem;white-space:nowrap}
-.item--doma{background:var(--paper-2);cursor:default}
-.item--doma .nm,.item--doma .pr{color:var(--ink-soft)}
-.undo{display:block;font-family:"IBM Plex Mono",monospace;font-size:.68rem;font-weight:600;
-  text-decoration:underline;cursor:pointer;color:var(--ink)}
-.item .doma-note{display:block;font-family:"IBM Plex Mono",monospace;font-size:.68rem}
-.item .buy-note{display:block;color:var(--ink-soft);font-family:"IBM Plex Mono",monospace;font-size:.68rem}
-.davky{margin:10px 0 2px;color:var(--ink-soft)}
-.recipe-label{font-family:"IBM Plex Mono",monospace;font-size:.68rem;font-weight:600;
-  letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);margin:14px 0 5px}
+.prov .vld--dnes,.prov .vld--zajtra,.prov .vld--neplatna{color:var(--accent);font-weight:600}
+.ing--neplatna .r{color:var(--muted);text-decoration:line-through}
+.steps{list-style:none;counter-reset:s;margin-top:12px}
+.steps li{counter-increment:s;position:relative;padding-left:34px;margin-bottom:13px;font-size:.94rem}
+.steps li::before{content:counter(s);position:absolute;left:0;top:0;width:23px;height:23px;border-radius:50%;
+  display:grid;place-items:center;background:var(--ink);color:#fff;font:600 .7rem "IBM Plex Mono",monospace}
+.rest{color:var(--muted);font-size:.86rem;padding:10px 14px;border:1px dashed var(--border);
+  border-radius:10px;margin-bottom:12px;background:rgba(255,255,255,.45)}
+.rest--volno{border-style:dotted}
+.hint{background:var(--surface-soft);border:1px solid var(--border);border-radius:var(--radius-card);
+  padding:16px;margin-bottom:14px}
+.save{position:relative;display:flex;justify-content:space-between;align-items:center;background:var(--highlight);
+  padding:16px 20px 16px 16px;margin:18px 0;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%)}
+.save::after{content:"";position:absolute;right:5px;top:5px;width:8px;height:8px;border-radius:50%;background:var(--canvas)}
+.save b{font-family:"Anton",sans-serif;font-weight:400;font-size:1.9rem}
+.shop-h{font-size:.82rem;font-weight:800;background:var(--ink);color:#fff;padding:11px 14px;
+  margin-top:16px;border-radius:12px 12px 0 0;letter-spacing:.04em}
+.item{display:flex;align-items:center;gap:11px;padding:13px 14px;border:1px solid var(--border);
+  border-top:0;background:var(--surface);cursor:pointer;min-height:54px}
+.item:last-child{border-radius:0 0 12px 12px}.item.done{opacity:.5;text-decoration:line-through}
+.box{width:23px;height:23px;border:1.5px solid var(--border);border-radius:6px;flex-shrink:0;display:grid;
+  place-items:center;font-weight:800;font-size:.82rem}
+.item.done .box{background:var(--success);border-color:var(--success);color:#fff}
+.item .nm{flex:1;font-size:.92rem;min-width:0}
+.item .pr{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:.8rem;white-space:nowrap;text-align:right}
+.item--doma{background:#F1F7F3;cursor:default}.item--doma .nm,.item--doma .pr{color:var(--muted)}
+.undo{display:block;font-family:"Manrope",sans-serif;font-size:.72rem;font-weight:800;text-decoration:underline;
+  text-underline-offset:2px;cursor:pointer;color:var(--ink)}
+.item .doma-note,.item .buy-note{display:block;color:var(--muted);font-size:.72rem;line-height:1.4;margin-top:3px}
+.davky{margin:8px 0 2px;color:var(--muted)}.davky .d{padding:3px 0}
+.recipe-label{font-size:.76rem;font-weight:800;color:var(--ink);margin:18px 0 6px}
 .home-basics{display:flex;flex-wrap:wrap;gap:6px;margin:5px 0 12px}
-.home-basics span{font-family:"IBM Plex Mono",monospace;font-size:.72rem;background:var(--paper-2);
-  border:1px solid var(--line);padding:4px 8px}
-.storage-note{margin:14px 0 4px;padding:11px 12px;background:#EFF7F1;border-left:3px solid var(--green);
-  color:var(--ink);font-size:.84rem}
-.item--partial{background:#fffaf0}
-.item--partial .doma-note{color:var(--green)}
-nav{position:fixed;bottom:0;left:0;right:0;background:var(--paper);border-top:2px solid var(--ink);
-  display:flex;z-index:30;padding-bottom:env(safe-area-inset-bottom)}
-nav button{flex:1;background:none;border:0;padding:11px 4px;font-family:"IBM Plex Mono",monospace;
-  font-size:.64rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--ink-soft);cursor:pointer}
-nav button.on{color:var(--ink)}
-nav .ico{display:block;font-size:1.25rem;margin-bottom:2px}
-.spin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--red);
+.home-basics span{font-size:.75rem;background:var(--surface-soft);border:1px solid var(--border);
+  border-radius:7px;padding:5px 8px}
+.storage-note{margin:14px 0 4px;padding:11px 12px;background:#EFF7F1;border-left:3px solid var(--success);
+  border-radius:0 9px 9px 0;color:var(--ink);font-size:.84rem}
+.item--partial{background:#FFFBEB}.item--partial .doma-note{color:var(--success)}
+nav{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.98);border-top:1px solid var(--border);
+  display:flex;z-index:30;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -8px 24px rgba(24,50,41,.07)}
+nav button{position:relative;flex:1;background:none;border:0;min-height:64px;padding:8px 4px 7px;
+  font:700 .67rem "Manrope",sans-serif;color:var(--muted);cursor:pointer}
+nav button.on{color:var(--accent)}nav button.on::before{content:"";position:absolute;top:0;left:28%;right:28%;
+  height:3px;border-radius:0 0 4px 4px;background:var(--accent)}
+.nav-icon{display:block;width:22px;height:22px;margin:0 auto 3px;stroke:currentColor;fill:none;stroke-width:1.8}
+.icon-sprite{position:absolute;width:0;height:0;overflow:hidden}
+.state-icon{width:34px;height:34px;stroke:var(--accent);fill:none;stroke-width:1.7;margin-bottom:4px}
+.spin{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);
   border-radius:50%;animation:sp .8s linear infinite;margin:34px auto}
 @keyframes sp{to{transform:rotate(360deg)}}
 .tag{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:.68rem;font-weight:600;
-  background:var(--yellow);border:1.5px solid var(--ink);padding:2px 7px;margin-left:6px}
+  background:#FFF5BE;border:1px solid #E4CB48;border-radius:6px;padding:2px 6px;margin-left:6px}
+.plan-skeleton{margin-top:24px}.skeleton-head,.skeleton-meal{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-card);padding:18px;margin-bottom:12px}.skeleton-meal{display:flex;gap:12px;align-items:center}
+.skeleton-day{width:42px;height:42px;border-radius:10px}.skeleton-copy{flex:1}.skeleton-line{display:block;height:11px;
+  border-radius:8px;background:linear-gradient(90deg,#EAE7DF 25%,#F7F5EF 45%,#EAE7DF 65%);
+  background-size:240% 100%;animation:shimmer 1.4s ease-in-out infinite;margin:7px 0}
+.skeleton-line.short{width:40%}.skeleton-line.medium{width:68%}@keyframes shimmer{to{background-position:-240% 0}}
+@media (min-width:700px){.wrap{padding:0 26px}body{padding-bottom:104px}nav{left:50%;right:auto;
+  width:680px;transform:translateX(-50%);bottom:14px;border:1px solid var(--border);border-radius:18px;
+  overflow:hidden;padding-bottom:0}.card{padding:22px}.meal-h{padding:16px 18px}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;
+  animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
 <body>
+
+<svg class="icon-sprite" aria-hidden="true">
+  <symbol id="i-plan" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M4 4v6M2.5 7h3M20 4v16M20 4c-2 2-2 5 0 7"/></symbol>
+  <symbol id="i-cart" viewBox="0 0 24 24"><path d="M3 4h2l2.2 10.2h10.9l2-7.2H6"/><circle cx="9" cy="19" r="1.4"/><circle cx="18" cy="19" r="1.4"/></symbol>
+  <symbol id="i-pantry" viewBox="0 0 24 24"><path d="M7 5h10l1 3v11H6V8l1-3ZM8 2h8v3H8zM9 12h6"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 21c.8-4.4 3.3-6.5 7.5-6.5s6.7 2.1 7.5 6.5"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></symbol>
+  <symbol id="i-offline" viewBox="0 0 24 24"><path d="M5 12a10 10 0 0 1 13-2M8 16a6 6 0 0 1 6.5-1M12 20h.01M3 3l18 18"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+</svg>
 
 <header><div class="wrap" style="display:flex;justify-content:space-between;align-items:center">
   <span class="brand">Uvar<em>.si</em></span>
   <span id="hdr" class="mono" style="font-size:.72rem;color:var(--ink-soft)"></span>
 </div></header>
 
-<main class="wrap" id="main"><div class="spin"></div></main>
+<main class="wrap" id="main"><div class="plan-skeleton" aria-label="Načítavam jedálniček">
+  <div class="skeleton-head"><span class="skeleton-line short"></span><span class="skeleton-line medium"></span></div>
+  <div class="skeleton-meal"><span class="skeleton-line skeleton-day"></span><span class="skeleton-copy"><span class="skeleton-line medium"></span><span class="skeleton-line short"></span></span></div>
+  <div class="skeleton-meal"><span class="skeleton-line skeleton-day"></span><span class="skeleton-copy"><span class="skeleton-line"></span><span class="skeleton-line short"></span></span></div>
+</div></main>
 
-<nav id="nav" class="hidden">
-  <button data-t="plan" class="on"><span class="ico">🍽️</span>Plán</button>
-  <button data-t="zoznam"><span class="ico">🛒</span>Nákup</button>
-  <button data-t="spajza"><span class="ico">🥫</span>Špajza</button>
-  <button data-t="nastavenia"><span class="ico">⚙️</span>Profil</button>
+<nav id="nav" class="hidden" aria-label="Hlavná navigácia">
+  <button data-t="plan" class="on" aria-current="page"><svg class="nav-icon" aria-hidden="true"><use href="#i-plan"></use></svg>Plán</button>
+  <button data-t="zoznam"><svg class="nav-icon" aria-hidden="true"><use href="#i-cart"></use></svg>Nákup</button>
+  <button data-t="spajza"><svg class="nav-icon" aria-hidden="true"><use href="#i-pantry"></use></svg>Špajza</button>
+  <button data-t="nastavenia"><svg class="nav-icon" aria-hidden="true"><use href="#i-user"></use></svg>Profil</button>
 </nav>
 
 <script>
@@ -566,7 +600,7 @@ function viewLogin(sent, previousEmail) {
   $('#nav').classList.add('hidden');
   M.innerHTML = sent ? `
     <div class="card center" style="margin-top:40px">
-      <div style="font-size:2.4rem">📬</div>
+      <svg class="state-icon" aria-hidden="true"><use href="#i-mail"></use></svg>
       <h2 class="display" style="font-size:1.5rem;margin:10px 0">Žiadosť je prijatá</h2>
       <p class="muted">Poskytovateľ prijal žiadosť o prihlasovací e-mail. Odkaz platí 60 minút.</p>
       <button class="btn btn--ghost" id="again">Poslať znova o 60 sekúnd</button>
@@ -941,7 +975,7 @@ async function novyPlan() {
 
 async function nacitajPlan(gen) {
   const version = PLAN_CONTEXT_VERSION;
-  if (!gen) M.innerHTML = `<div class="spin"></div><p class="center muted mono" style="font-size:.8rem">Načítavam…</p>`;
+  if (!gen) M.innerHTML = loadingSkeletonHtml('Načítavam jedálniček…');
   try {
     const prefetched = gen ? null : takePlanPrefetch();
     let plan = gen ? await generujPlan()
@@ -988,12 +1022,17 @@ async function nacitajPlan(gen) {
   render();
 }
 
+function loadingSkeletonHtml(message) {
+  return `<div class="plan-skeleton" aria-label="${esc(message || 'Načítavam jedálniček')}">
+    <div class="skeleton-head"><span class="skeleton-line short"></span><span class="skeleton-line medium"></span></div>
+    <div class="skeleton-meal"><span class="skeleton-line skeleton-day"></span><span class="skeleton-copy"><span class="skeleton-line medium"></span><span class="skeleton-line short"></span></span></div>
+    <div class="skeleton-meal"><span class="skeleton-line skeleton-day"></span><span class="skeleton-copy"><span class="skeleton-line"></span><span class="skeleton-line short"></span></span></div>
+    <p class="center muted" style="margin-top:14px">${esc(message || 'Načítavam…')}</p></div>`;
+}
+
 function planPreparationHtml() {
-  return `<div class="card center" style="margin-top:30px">
-    <span class="eyebrow">Príprava jedálnička</span>
-    <p style="margin:8px 0 14px">${esc(PLAN_PREPARATION_MESSAGE)}</p>
-    <p class="muted" style="margin:0">Môžeš pokračovať v Špajze, Nákupnom zozname alebo v Nastaveniach.</p>
-    </div>`;
+  return loadingSkeletonHtml(PLAN_PREPARATION_MESSAGE) +
+    `<p class="center muted" style="margin:14px 0">Môžeš zatiaľ pokračovať v Špajze, Nákupnom zozname alebo v Nastaveniach.</p>`;
 }
 
 function planFailureHtml() {
@@ -1050,7 +1089,11 @@ async function resumeInvalidatedPlan() {
 
 function showNav() {
   $('#nav').classList.remove('hidden');
-  [...$('#nav').children].forEach(b => b.classList.toggle('on', b.dataset.t === TAB));
+  [...$('#nav').children].forEach(b => {
+    const active = b.dataset.t === TAB;
+    b.classList.toggle('on', active);
+    if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
 }
 
 function setNavigationReady(ready) {
@@ -1116,7 +1159,8 @@ function vPlan() {
       h += `<div class="meal" data-d="${esc(row.den)}"><button type="button" class="meal-h"
         aria-expanded="false" aria-controls="${esc(panelId)}">
         <span class="meal-d">${esc(row.den)}</span><span class="meal-n">${esc(j.nazov)}</span>
-        <span class="mono" style="font-size:.72rem;color:var(--ink-soft)">${j.recept?.min||''} min ▾</span>
+        <span class="mono" style="font-size:.72rem;color:var(--ink-soft)">${j.recept?.min||''} min</span>
+        <svg class="meal-chevron" aria-hidden="true"><use href="#i-chevron"></use></svg>
       </button><div class="meal-b" id="${esc(panelId)}">
         ${portionLine(j.recept)?`<p class="mono" style="font-size:.72rem;color:var(--ink-soft);margin-top:10px">${esc(portionLine(j.recept))}</p>`:''}
         ${(j.recept?.davky||[]).length?`<div class="recipe-label">Na recept použiješ</div><div class="davky">${(j.recept?.davky||[]).map(d=>`<div class="d"><span>${esc(d)}</span></div>`).join('')}</div>`:''}
@@ -1179,7 +1223,7 @@ function vZoznam() {
       const mnozstvo = shoppingQuantityLabel(p) ? `<span class="tag">${esc(shoppingQuantityLabel(p))}</span>` : '';
       if (pantryOwned(p, PANTRY_OVERRIDE)) {
         h += `<div class="item item--doma">
-          <span class="box">🥫</span>
+          <span class="box">✓</span>
           <span class="nm">${esc(p.nazov)}${mnozstvo}
             <span class="doma-note">máš doma · zo špajze: ${esc(p.spajza || '')}</span></span>
           <span class="pr">nekupuješ<br>
@@ -1236,7 +1280,7 @@ function vSpajzaZamknuta() {
     <p class="muted" style="margin:8px 0 16px">Zapíšeš, čo máš doma, a jedálniček aj nákupný
       zoznam s tým rátajú. Zatiaľ skladáme plán len z akcií — o tvojej špajzi nevie.</p></div>
     <div class="card">
-      <label>Pridať surovinu · zamknuté 🔒</label>
+      <label>Pridať surovinu · zamknuté</label>
       <input placeholder="napr. ${esc(SPAJZA_UKAZKA.join(', '))}" disabled>
       <p class="muted" style="margin-top:10px">V bezplatnej verzii je zápis zamknutý —
         hneď, nie až pri ukladaní.</p>
@@ -1358,7 +1402,7 @@ $('#nav').onclick = e => {
 function viewOffline(message) {
   $('#nav').classList.add('hidden');
   M.innerHTML = `<div class="card center" style="margin-top:40px">
-    <div style="font-size:2.4rem">📡</div>
+    <svg class="state-icon" aria-hidden="true"><use href="#i-offline"></use></svg>
     <h2 class="display" style="font-size:1.4rem;margin:10px 0">Bez spojenia</h2>
     <p class="muted">${esc(message)}</p><div style="height:14px"></div>
     <button class="btn" id="znova">Skúsiť znova</button></div>`;
@@ -1368,9 +1412,7 @@ function viewOffline(message) {
 async function start() {
   invalidatePlanState();
   const known = paintKnownShell();
-  M.innerHTML = known
-    ? `<div class="spin"></div><p class="center muted mono" style="font-size:.8rem">Načítavam…</p>`
-    : '<div class="spin"></div>';
+  M.innerHTML = loadingSkeletonHtml(known ? 'Načítavam tvoj jedálniček…' : 'Načítavam…');
   try { ME = await readStartupResponse(STARTUP.me); }
   catch(e) {
     if (e.offline) return viewOffline(e.message);

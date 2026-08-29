@@ -629,7 +629,7 @@ def test_the_landing_ships_no_second_copy_of_the_receipt():
 
 @pytest.mark.parametrize(
     "page,budget",
-    [(APP, 19_100), (LANDING, 12_400)],
+    [(APP, 19_800), (LANDING, 12_400)],
     ids=lambda value: getattr(value, "name", str(value)),
 )
 def test_pages_stay_within_their_transfer_budget(page, budget):
@@ -665,6 +665,10 @@ def test_pages_stay_within_their_transfer_budget(page, budget):
 
     28. 8. 2026: plán sa po HTTP 202 pripravuje na pozadí, navigácia zostáva
     aktívna a klient kontroluje iba GET stav. Strop sa zdvíha na 19 100 B.
+
+    29. 8. 2026: aplikácia dostala kompletný responzívny vizuálny systém,
+    prístupnú SVG navigáciu a skeleton plánu. Gzip narástol na 19 595 B;
+    vedomý strop 19 800 B stále drží celý shell pod 20 kB.
     """
     compressed = len(gzip.compress(page.read_bytes(), 9))
     assert compressed <= budget, (
