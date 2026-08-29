@@ -1064,6 +1064,7 @@ def _model_meals(model_output, offers_by_key, frequency, pantry, adults, childre
         parsed.append((day, name, minutes, steps, selected_items, [pantry_by_name[item] for item in selected_pantry]))
     if seen_days != set(cooking_days):
         raise ValueError(f"Návrh nedodržal dni varenia: {_day_list(cooking_days)}.")
+    validate_weekly_diversity(parsed, list(offers_by_key.values()))
     return sorted(parsed, key=lambda meal: DAY_ORDER.index(meal[0]))
 
 

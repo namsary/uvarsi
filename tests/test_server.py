@@ -190,6 +190,36 @@ COOKABLE_STEPS = [
 ]
 COOKABLE_NAME = "Dusená cibuľová polievka"
 
+DIVERSE_COOKABLE_RECIPES = [
+    (
+        "Kuracie s ryžou",
+        [
+            "V hrnci zohrej 2 lyžice oleja na strednom ohni 2 minúty, kým sa rozvonia.",
+            "Pridaj 400 g kuracieho mäsa nakrájaného na kocky a var 8 minút, kým nezhnedne.",
+            "Vsyp 300 g ryže, prilej 600 ml vody a var 15 minút na miernom ohni, kým ryža nezmäkne.",
+            "Kuracie s ryžou rozdeľ na 4 taniere a podávaj horúce.",
+        ],
+    ),
+    (
+        "Bravčové s cestovinami",
+        [
+            "Na panvici zohrej 2 lyžice oleja na strednom ohni 2 minúty, kým sa rozvonia.",
+            "Pridaj 400 g bravčového mäsa nakrájaného na pásiky a opekaj 10 minút do zlatista.",
+            "Vmiešaj 300 g cestovín a 200 ml vody, prehrievaj 5 minút, kým omáčka nezhustne.",
+            "Bravčové s cestovinami rozdeľ na 4 taniere a podávaj horúce.",
+        ],
+    ),
+    (
+        "Losos so zemiakmi",
+        [
+            "Rúru predhrej na 200 °C a plech potri 2 lyžicami oleja.",
+            "Na plech polož 400 g lososa a 300 g zemiakov nakrájaných na kolieska.",
+            "Peč 25 minút, kým losos nie je šťavnatý a zemiaky nie sú dozlata.",
+            "Lososa so zemiakmi rozdeľ na 4 taniere a podávaj horúce.",
+        ],
+    ),
+]
+
 
 def model_plan(first_offer_key=None, pantry=None):
     """Odpoveď modelu. Bez špajze — bežný plán sa skladá len z ponúk.
@@ -198,23 +228,28 @@ def model_plan(first_offer_key=None, pantry=None):
     čo mám doma"; na to slúži parameter `pantry`.
     """
     first_offer_key = first_offer_key or plan_key(1)
-    return {
-        "meals": [
-            {"day": "PO", "name": COOKABLE_NAME, "minutes": 30, "instructions": COOKABLE_STEPS,
-             "items": [{"offer_key": first_offer_key, "quantity": 2,
-                        "amount_per_person": 150, "unit": "g"}],
-             "pantry_ingredients": list(pantry or [])},
-            {"day": "ST", "name": COOKABLE_NAME, "minutes": 35, "instructions": COOKABLE_STEPS,
-             "items": [{"offer_key": plan_key(2), "quantity": 1,
-                        "amount_per_person": 150, "unit": "g"}]},
-            {"day": "PI", "name": COOKABLE_NAME, "minutes": 40, "instructions": COOKABLE_STEPS,
-             "items": [{"offer_key": plan_key(3), "quantity": 1,
-                        "amount_per_person": 150, "unit": "g"}]},
-            {"day": "NE", "name": COOKABLE_NAME, "minutes": 30, "instructions": COOKABLE_STEPS,
-             "items": [{"offer_key": plan_key(4), "quantity": 1,
-                        "amount_per_person": 150, "unit": "g"}]},
-        ]
-    }
+    days = ("PO", "ST", "PI", "NE")
+    keys = (first_offer_key, plan_key(2), plan_key(3), plan_key(4))
+    return {"meals": [
+        {
+            "day": day,
+            "name": DIVERSE_COOKABLE_RECIPES[index % 3][0],
+            "minutes": 30 + index * 5,
+            "instructions": DIVERSE_COOKABLE_RECIPES[index % 3][1],
+            "items": [{"offer_key": keys[index], "quantity": 2 if index == 0 else 1,
+                       "amount_per_person": 150, "unit": "g"}],
+            **({"pantry_ingredients": list(pantry or [])} if index == 0 else {}),
+        }
+        for index, day in enumerate(days)
+    ]}
+
+
+def repetitive_model_plan():
+    plan = model_plan()
+    for meal in plan["meals"]:
+        meal["name"] = COOKABLE_NAME
+        meal["instructions"] = COOKABLE_STEPS
+    return plan
 
 
 def fake_anthropic(model_output, constructors, message_calls=None, stop_reason="end_turn", usage=None):
@@ -949,6 +984,27 @@ def test_invalid_model_plan_reports_failure_without_replacing_existing_valid_cac
             "SELECT state, error_code FROM plan_jobs ORDER BY id DESC LIMIT 1"
         ).fetchone()
         assert tuple(failed) == ("failed", "invalid_model_output")
+
+
+def test_diversity_validation_error_is_internal_and_never_leaks_to_users(
+        monkeypatch, tmp_path, caplog):
+    server, client = logged_in_plan_client(monkeypatch, tmp_path)
+    calls = []
+    monkeypatch.setitem(
+        sys.modules, "anthropic", fake_anthropic(repetitive_model_plan(), [], calls)
+    )
+
+    response = client.post("/api/plan/generuj?force=1")
+
+    payload = response.json()
+    internal_error = "Týždenný plán nemá dosť rôznych spôsobov prípravy."
+    assert response.status_code == 200
+    assert payload["status"] == "failed"
+    assert payload["code"] == "invalid_model_output"
+    assert payload["message"] == server.SPRAVA_PLAN_ZLYHAL
+    assert internal_error in caplog.text
+    assert internal_error not in json.dumps(payload, ensure_ascii=False)
+    assert len(calls) == server.MODEL_VALIDATION_ATTEMPTS
 
 
 def timing_out_anthropic(constructors):

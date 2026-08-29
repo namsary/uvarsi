@@ -161,11 +161,43 @@ def model_output_for_cooking_days(days, household=4, frequency=2):
     verejný build kontrakt bez toho, aby limit troch testovacích ponúk maskoval
     sedemdňový kalendár.
     """
-    template = model_output(household=household, frequency=frequency)["meals"][0]
+    recipes = (
+        (
+            "Kuracie s ryžou",
+            [
+                "V hrnci zohrej 2 lyžice oleja na strednom ohni 2 minúty, kým sa rozvonia.",
+                "Pridaj 400 g kuracieho mäsa nakrájaného na kocky a var 8 minút, kým nezhnedne.",
+                "Vsyp 300 g ryže, prilej 600 ml vody a var 15 minút na miernom ohni, kým ryža nezmäkne.",
+                "Kuracie s ryžou rozdeľ na 4 taniere a podávaj horúce.",
+            ],
+        ),
+        (
+            "Bravčové s cestovinami",
+            [
+                "Na panvici zohrej 2 lyžice oleja na strednom ohni 2 minúty, kým sa rozvonia.",
+                "Pridaj 400 g bravčového mäsa nakrájaného na pásiky a opekaj 10 minút do zlatista.",
+                "Vmiešaj 300 g cestovín a 200 ml vody, prehrievaj 5 minút, kým omáčka nezhustne.",
+                "Bravčové s cestovinami rozdeľ na 4 taniere a podávaj horúce.",
+            ],
+        ),
+        (
+            "Losos so zemiakmi",
+            [
+                "Rúru predhrej na 200 °C a plech potri 2 lyžicami oleja.",
+                "Na plech polož 400 g lososa a 300 g zemiakov nakrájaných na kolieska.",
+                "Peč 25 minút, kým losos nie je šťavnatý a zemiaky nie sú dozlata.",
+                "Lososa so zemiakmi rozdeľ na 4 taniere a podávaj horúce.",
+            ],
+        ),
+    )
     return {
         "meals": [
-            dict(template, day=day, items=[], pantry_ingredients=["soľ"])
-            for day in days
+            {
+                "day": day, "name": recipes[index % len(recipes)][0], "minutes": 30,
+                "instructions": recipes[index % len(recipes)][1],
+                "items": [], "pantry_ingredients": ["soľ"],
+            }
+            for index, day in enumerate(days)
         ]
     }
 
@@ -196,11 +228,16 @@ def milk_steps(portions):
 
 def milk_plan_output(con, days, day_portions):
     offers = current_verified_offers(con, ["Lidl"], TODAY)
+    recipes = model_output_for_cooking_days(days)["meals"]
     return {
         "meals": [
             {
-                "day": day, "name": "Mliečna kaša", "minutes": 25,
-                "instructions": milk_steps(portions),
+                "day": day, "name": recipes[index]["name"], "minutes": 25,
+                "instructions": [
+                    recipes[index]["instructions"][0][:-1]
+                    + f" a priprav {milk_amount_for_portions(portions)} mlieka.",
+                    *recipes[index]["instructions"][1:],
+                ],
                 "items": [item(offers[index]["offer_key"], MLIEKO_NA_OSOBU, "ml")],
                 "pantry_ingredients": [],
             }
@@ -744,6 +781,55 @@ def test_unknown_package_is_excluded_instead_of_pretending_one_pack_is_enough():
         )
 
 
+def _parsed_model_meals(payload, frequency, pantry=("soľ",)):
+    con = connection(verified_rows())
+    rows = current_verified_offers(con, ["Lidl", "Tesco"], TODAY)
+    offers_by_key = {row["offer_key"]: row for row in rows}
+    return plan_data._model_meals(payload, offers_by_key, frequency, pantry, 4, 0)
+
+
+def test_model_meals_rejects_a_repetitive_seven_meal_week():
+    days = cooking_days_for_frequency(1)
+    payload = model_output_for_cooking_days(days, frequency=1)
+    repeated = payload["meals"][0]
+    payload["meals"] = [dict(repeated, day=day) for day in days]
+
+    with pytest.raises(ValueError, match="Týždenný plán|Podobné jedlá"):
+        _parsed_model_meals(payload, 1)
+
+
+@pytest.mark.parametrize("frequency", [1, 2, 3])
+def test_model_meals_accepts_a_diverse_7_4_3_week(frequency):
+    days = cooking_days_for_frequency(frequency)
+
+    parsed = _parsed_model_meals(
+        model_output_for_cooking_days(days, frequency=frequency), frequency
+    )
+
+    assert [meal[0] for meal in parsed] == list(days)
+
+
+def test_diversity_integration_preserves_amount_pantry_and_calendar_errors():
+    wrong_amount = model_output()
+    wrong_amount["meals"][0]["instructions"] = [
+        "V hrnci zohrej 1 l mlieka na strednom ohni 5 minút, kým sa nezačne pariť.",
+        "Vsyp 400 g krupice, osoľ štipkou soli a miešaj 3 minúty, kým kaša nezhustne.",
+        "Kašu rozdeľ na 4 taniere, posyp 2 lyžičkami škorice a podávaj horúcu.",
+    ]
+    with pytest.raises(ValueError, match="nesúhlas"):
+        _parsed_model_meals(wrong_amount, 2)
+
+    wrong_pantry = model_output_for_cooking_days(cooking_days_for_frequency(1), frequency=1)
+    wrong_pantry["meals"][0]["pantry_ingredients"] = ["olej"]
+    with pytest.raises(ValueError, match="neznámu alebo duplicitnú surovinu"):
+        _parsed_model_meals(wrong_pantry, 1)
+
+    wrong_calendar = model_output_for_cooking_days(cooking_days_for_frequency(2), frequency=2)
+    wrong_calendar["meals"][1]["day"] = "UT"
+    with pytest.raises(ValueError, match="dni varenia"):
+        _parsed_model_meals(wrong_calendar, 2)
+
+
 def test_same_offer_can_be_used_in_two_different_meals_and_is_aggregated_for_purchase():
     """Jedno akciové balenie môže byť surovinou viacerých receptov v týždni."""
     payload = model_output()
@@ -916,6 +1002,7 @@ def test_mixed_household_separates_served_plates_from_adult_equivalents():
 
 def test_mixed_household_recipe_uses_adult_equivalents_but_displays_real_servings():
     payload = model_output_for_cooking_days(("PO", "ŠT", "NE"), household=4, frequency=3)
+    payload["meals"][0]["name"] = "Mliečna kaša"
     payload["meals"][0]["items"] = [{
         "offer_key": verified_key(1),
         "quantity": 1,
@@ -1508,7 +1595,7 @@ def test_a_tip_about_leftovers_may_follow_the_serving_step():
     payload = with_steps([
         "600 g mrkvy nakrájaj na kolieska hrubé 1 cm a daj ich do hrnca.",
         "Prilej 200 ml vody, osoľ a na miernom ohni duste 20 minút, kým mrkva nezmäkne.",
-        "Rozdeľ na štyri taniere a podávaj s krajcom chleba.",
+        "Rozdeľ na štyri taniere a hotovú mrkvu podávaj ešte teplú.",
         "Zvyšok nechaj vychladnúť, v chladničke vydrží do ďalšieho dňa.",
     ], name="Dusená mrkva")
 
