@@ -530,6 +530,13 @@ def test_vychodzie_stropy_prezijú_poctivu_prevadzku():
     assert limity.mesacny > POCTIVY_TYZDENNY_ZBER_EUR * 4.5, "mesiac má 4–5 zberov"
 
 
+def test_predpocet_pokryje_tri_varianty_najcastejsieho_profilu_aj_jeden_retry():
+    """Tesný strop nesmie zmeniť hybridnú cache na nefunkčnú dekoráciu."""
+    limit = naklady.stropy().tyzdenny_ucel["predpocet"]
+    potrebne = 3 * 2 * naklady.ODHAD_EUR["predpocet"]
+    assert limit >= potrebne
+
+
 def test_odhad_jedneho_volania_nezastavi_poctivy_beh():
     """Príliš vysoký odhad na volanie by strop spustil dávno pred útratou."""
     assert naklady.ODHAD_EUR["zber_letakov"] < naklady.stropy().denny / 5

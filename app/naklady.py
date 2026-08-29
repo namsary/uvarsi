@@ -116,7 +116,9 @@ PRAHY_UPOZORNENIA = (50, 80)
 VYCHODZI_DENNY_STROP_EUR = 4.00
 VYCHODZI_MESACNY_STROP_EUR = 25.00
 VYCHODZI_TYZDENNY_STROP_ZBER_EUR = 4.00
-VYCHODZI_TYZDENNY_STROP_PREDPOCET_EUR = 0.40
+# Tri varianty najžiadanejšieho profilu × najviac dva pokusy × 0,12 €.
+# Zaokrúhlených 0,80 € necháva malú rezervu, no drží predpočet pod ~3,20 €/mesiac.
+VYCHODZI_TYZDENNY_STROP_PREDPOCET_EUR = 0.80
 # Zber má jeden tretí pokus na zotavenie po dvoch zlyhaniach (napríklad po
 # dobití kreditu). Predpočet môže skúsiť až šesťkrát. Cenu oboch operácií stále
 # tvrdo strážia samostatné týždenné eurové stropy.
