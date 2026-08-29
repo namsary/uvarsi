@@ -69,6 +69,10 @@ sed -i 's/\r//' "$CIEL"/hetzner/*.sh 2>/dev/null || true
 
 # --- 2. overenie PRED prepnutím ---
 # a) všetky moduly sa dajú naimportovať
+if ! "$PY" -c "import argon2, webauthn" >/dev/null 2>&1; then
+  log "auth závislosti chýbajú — vydanie NEPREPÍNAM"
+  exit 1
+fi
 if ! (cd "$CIEL/app" && UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$CIEL/VERSION" \
       "$PY" -c "import server" >/dev/null 2>"$TMP/import.err"); then
   log "import zlyhal — vydanie NEPREPÍNAM:"; sed 's/^/    /' "$TMP/import.err" | tail -5

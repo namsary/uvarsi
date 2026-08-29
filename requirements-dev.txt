@@ -5,3 +5,5 @@ fastapi==0.115.12
 # chýbajúce ľ/š/č by sa ukázalo až návštevníkovi.
 fonttools==4.63.0
 Brotli==1.2.0
+argon2-cffi==25.1.0
+webauthn==3.0.0
