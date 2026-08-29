@@ -142,7 +142,7 @@ def test_landing_keeps_its_current_title_and_description():
 
 
 @needs_node
-def test_community_counter_is_truthful_progressive_and_capped(tmp_path):
+def test_community_counter_is_truthful_progressive_accessible_and_capped(tmp_path):
     html = index_html()
     helpers = COMMUNITY_DOM_STUB + "\n".join([
         nested(html, "function node(tag, className, text)"),
@@ -166,23 +166,27 @@ if (textOf(communityCounter) !== fallback || communityCounter.children.length) p
 freshCounter();
 renderCommunity({visible: true, accounts: 10, goal: 250});
 var tenLabel = 'Testovacia komunita: 10 z cieľa 250 účtov';
+var tenLabelNode = communityCounter.children[0];
 var tenBar = communityCounter.children[1];
-if (communityCounter.children[0].textContent !== tenLabel) process.exit(2);
+if (tenLabelNode.textContent !== tenLabel) process.exit(2);
 if (tenBar.attributes['aria-valuetext'] !== tenLabel) process.exit(3);
 if (tenBar.attributes.role !== 'progressbar') process.exit(4);
 if (tenBar.attributes['aria-valuemin'] !== '0') process.exit(5);
 if (tenBar.attributes['aria-valuemax'] !== '250') process.exit(6);
 if (tenBar.attributes['aria-valuenow'] !== '10') process.exit(7);
 if (tenBar.children[0].style.width !== '4%') process.exit(8);
+if (!tenLabelNode.id || tenBar.attributes['aria-labelledby'] !== tenLabelNode.id) process.exit(14);
 
 freshCounter();
 renderCommunity({visible: true, accounts: 251, goal: 250});
 var overLabel = 'Testovacia komunita: 251 z cieľa 250 účtov';
+var overLabelNode = communityCounter.children[0];
 var overBar = communityCounter.children[1];
-if (communityCounter.children[0].textContent !== overLabel) process.exit(9);
+if (overLabelNode.textContent !== overLabel) process.exit(9);
 if (overBar.children[0].style.width !== '100%') process.exit(10);
 if (overBar.attributes['aria-valuenow'] !== '250') process.exit(11);
 if (overBar.attributes['aria-valuetext'] !== overLabel) process.exit(12);
+if (!overLabelNode.id || overBar.attributes['aria-labelledby'] !== overLabelNode.id) process.exit(15);
 
 [null, {}, {visible: true, accounts: '10', goal: 250},
  {visible: true, accounts: 10.5, goal: 250},

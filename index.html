@@ -510,12 +510,13 @@
     if(!c||c.visible!==true||!Number.isInteger(c.accounts)||c.accounts<10||c.goal!==250) return;
     var a=c.accounts, t='Testovacia komunita: '+a+' z cieľa 250 účtov';
     var r=node('div','pc-row',t), b=node('div','pc-bar'), f=node('span','');
-    f.style.width=Math.min(a/250*100,100)+'%';
+    f.style.width=Math.min(a/2.5,100)+'%';
     b.setAttribute('role','progressbar');
     b.setAttribute('aria-valuemin','0');
     b.setAttribute('aria-valuemax','250');
-    b.setAttribute('aria-valuenow',String(Math.min(a,250)));
+    b.setAttribute('aria-valuenow',Math.min(a,250));
     b.setAttribute('aria-valuetext',t);
+    b.setAttribute('aria-labelledby',r.id='cp');
     b.append(f);
     communityCounter.replaceChildren(r,b);
   }
