@@ -1095,8 +1095,12 @@ def test_name_classifier_matches_whole_tokens_not_substrings_inside_adjectives()
 
 
 # --------------------------------------------------- rozmanitosť jedál
+def diversity_row(name, category):
+    return {"nazov": name, "kategoria": category}
+
+
 def diversity_item(name, category, dose_total=Decimal("100")):
-    row = {"nazov": name, "kategoria": category}
+    row = diversity_row(name, category)
     return (row, 1, f"{dose_total} g", "g", Decimal(str(dose_total)))
 
 
@@ -1213,6 +1217,158 @@ def test_meal_signature_prefers_verified_items_and_uses_folded_prose_as_fallback
     assert fallback == plan_data.MealDiversitySignature("pork", "legume", "pot")
     with pytest.raises(AttributeError):
         verified.protein = "chicken"
+
+
+def test_rich_catalog_keeps_strict_weekly_diversity_limits():
+    rows = [
+        diversity_row("Kuracie prsia", "mäso"),
+        diversity_row("Bravčové karé", "mäso"),
+        diversity_row("Hovädzie zadné", "mäso"),
+        diversity_row("Losos filet", "ryby"),
+        diversity_row("Ryža", "trvanlivé"),
+        diversity_row("Cestoviny", "trvanlivé"),
+        diversity_row("Zemiaky", "zelenina"),
+        diversity_row("Chlieb", "pečivo"),
+    ]
+
+    assert plan_data.diversity_limits(rows, 7) == plan_data.DiversityLimits(2, 2, 3)
+
+
+def test_catalog_with_one_feasible_protein_relaxes_only_the_protein_limit():
+    rows = [
+        diversity_row("Kuracie prsia", "mäso"),
+        diversity_row("Ryža", "trvanlivé"),
+        diversity_row("Cestoviny", "trvanlivé"),
+        diversity_row("Chlieb", "pečivo"),
+    ]
+
+    assert plan_data.diversity_limits(rows, 4) == plan_data.DiversityLimits(4, 2, 3)
+
+
+@pytest.mark.parametrize(("meal_count", "required_methods"), [(1, 1), (2, 2), (3, 3), (7, 3)])
+def test_method_requirement_depends_only_on_meal_count(meal_count, required_methods):
+    one_row_catalog = [diversity_row("Kuracie prsia", "mäso")]
+
+    limits = plan_data.diversity_limits(one_row_catalog, meal_count)
+
+    assert limits.required_methods == required_methods
+
+
+def diversity_meal(day, protein, side, method):
+    ingredients = {
+        "chicken": ("Kuracie prsia", "mäso"),
+        "pork": ("Bravčové karé", "mäso"),
+        "beef": ("Hovädzie zadné", "mäso"),
+        "fish": ("Losos filet", "ryby"),
+        "rice": ("Ryža", "trvanlivé"),
+        "pasta": ("Cestoviny", "trvanlivé"),
+        "potato": ("Zemiaky", "zelenina"),
+        "bread": ("Chlieb", "pečivo"),
+    }
+    recipes = {
+        "oven": ("Pečené jedlo", ["Jedlo zapeč v rúre a podávaj."]),
+        "pan": ("Jedlo na panvici", ["Jedlo opeč na panvici a podávaj."]),
+        "pot": ("Varené jedlo", ["Jedlo uvar v hrnci a podávaj."]),
+    }
+    selected_items = [diversity_item(*ingredients[protein])]
+    if side != "none":
+        selected_items.append(diversity_item(*ingredients[side]))
+    name, steps = recipes[method]
+    return day, name, 30, steps, selected_items, []
+
+
+def rich_diversity_rows():
+    return [
+        diversity_row("Kuracie prsia", "mäso"),
+        diversity_row("Bravčové karé", "mäso"),
+        diversity_row("Hovädzie zadné", "mäso"),
+        diversity_row("Losos filet", "ryby"),
+        diversity_row("Ryža", "trvanlivé"),
+        diversity_row("Cestoviny", "trvanlivé"),
+        diversity_row("Zemiaky", "zelenina"),
+        diversity_row("Chlieb", "pečivo"),
+    ]
+
+
+def test_weekly_diversity_accepts_a_rich_plan_at_each_strict_limit():
+    meals = [
+        diversity_meal("PO", "chicken", "rice", "oven"),
+        diversity_meal("UT", "chicken", "pasta", "pan"),
+        diversity_meal("ST", "pork", "rice", "pot"),
+        diversity_meal("ŠT", "beef", "potato", "oven"),
+    ]
+
+    plan_data.validate_weekly_diversity(meals, rich_diversity_rows())
+
+
+def test_weekly_diversity_rejects_too_many_identical_proteins():
+    meals = [
+        diversity_meal("PO", "chicken", "rice", "oven"),
+        diversity_meal("UT", "chicken", "pasta", "pan"),
+        diversity_meal("ST", "chicken", "potato", "pot"),
+    ]
+
+    with pytest.raises(ValueError, match="bielkovin"):
+        plan_data.validate_weekly_diversity(meals, rich_diversity_rows())
+
+
+def test_weekly_diversity_rejects_too_many_identical_sides():
+    meals = [
+        diversity_meal("PO", "chicken", "rice", "oven"),
+        diversity_meal("UT", "pork", "rice", "pan"),
+        diversity_meal("ST", "beef", "rice", "pot"),
+    ]
+
+    with pytest.raises(ValueError, match="príloh"):
+        plan_data.validate_weekly_diversity(meals, rich_diversity_rows())
+
+
+def test_weekly_diversity_requires_three_methods_even_when_flyers_do_not_name_them():
+    meals = [
+        diversity_meal("PO", "chicken", "rice", "oven"),
+        diversity_meal("UT", "pork", "pasta", "oven"),
+        diversity_meal("ST", "beef", "potato", "oven"),
+    ]
+
+    with pytest.raises(ValueError, match="spôsob"):
+        plan_data.validate_weekly_diversity(meals, rich_diversity_rows())
+
+
+def test_weekly_diversity_rejects_matching_protein_and_side_on_adjacent_cooking_days():
+    meals_in_model_order = [
+        diversity_meal("PO", "chicken", "rice", "oven"),
+        diversity_meal("PI", "pork", "pasta", "pot"),
+        diversity_meal("ST", "chicken", "rice", "pan"),
+    ]
+
+    with pytest.raises(ValueError, match="po sebe"):
+        plan_data.validate_weekly_diversity(meals_in_model_order, rich_diversity_rows())
+
+
+def test_narrow_catalog_relaxes_protein_but_keeps_side_and_method_rules():
+    rows = [
+        diversity_row("Kuracie prsia", "mäso"),
+        diversity_row("Ryža", "trvanlivé"),
+        diversity_row("Cestoviny", "trvanlivé"),
+        diversity_row("Chlieb", "pečivo"),
+    ]
+    valid_meals = [
+        diversity_meal("PO", "chicken", "rice", "oven"),
+        diversity_meal("UT", "chicken", "pasta", "pan"),
+        diversity_meal("ST", "chicken", "bread", "pot"),
+        diversity_meal("ŠT", "chicken", "rice", "oven"),
+    ]
+    repeated_side = [
+        diversity_meal("PO", "chicken", "rice", "oven"),
+        diversity_meal("UT", "chicken", "pasta", "pan"),
+        diversity_meal("ST", "chicken", "rice", "pot"),
+        diversity_meal("ŠT", "chicken", "bread", "oven"),
+        diversity_meal("PI", "chicken", "rice", "pan"),
+    ]
+
+    plan_data.validate_weekly_diversity(valid_meals, rows)
+    with pytest.raises(ValueError, match="príloh"):
+        plan_data.validate_weekly_diversity(repeated_side, rows)
 
 
 @pytest.mark.parametrize(

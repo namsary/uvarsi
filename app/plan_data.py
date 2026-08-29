@@ -3,6 +3,7 @@ import hashlib
 import json
 import re
 import unicodedata
+from collections import Counter
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_HALF_UP
@@ -476,6 +477,13 @@ class MealDiversitySignature:
     method: str
 
 
+@dataclass(frozen=True)
+class DiversityLimits:
+    max_same_protein: int
+    max_same_side: int
+    required_methods: int
+
+
 _PROTEIN_FAMILY_PATTERNS = (
     ("chicken", ("kurac*", "morac*", "morcac*", "kacac*")),
     ("pork", ("bravc*",)),
@@ -596,6 +604,51 @@ def meal_diversity_signature(name: str, steps: list[str],
     if side == "none":
         side = _family_in_text(prose, _SIDE_FAMILY_PATTERNS) or "none"
     return MealDiversitySignature(protein, side, _preparation_method(name, steps))
+
+
+def _attainable_repeat_limit(meal_count: int, family_count: int) -> int:
+    family_count = max(1, family_count)
+    return max(2, (meal_count + family_count - 1) // family_count)
+
+
+def diversity_limits(rows: list[dict], meal_count: int) -> DiversityLimits:
+    proteins = set()
+    sides = set()
+    for row in rows:
+        protein = _primary_protein([(row,)])
+        side = _dominant_side([(row, None, None, None, Decimal("1"))])
+        if protein:
+            proteins.add(protein)
+        if side != "none":
+            sides.add(side)
+    return DiversityLimits(
+        max_same_protein=_attainable_repeat_limit(meal_count, len(proteins)),
+        max_same_side=_attainable_repeat_limit(meal_count, len(sides)),
+        required_methods=min(3, meal_count),
+    )
+
+
+def validate_weekly_diversity(parsed_meals: list[tuple], rows: list[dict]) -> None:
+    ordered_meals = sorted(parsed_meals, key=lambda meal: DAY_ORDER.index(meal[0]))
+    signatures = [
+        meal_diversity_signature(meal[1], meal[3], meal[4])
+        for meal in ordered_meals
+    ]
+    limits = diversity_limits(rows, len(signatures))
+    proteins = Counter(signature.protein for signature in signatures)
+    sides = Counter(signature.side for signature in signatures)
+
+    if any(count > limits.max_same_protein for count in proteins.values()):
+        raise ValueError("Týždenný plán priveľa ráz opakuje rovnakú bielkovinu.")
+    if any(count > limits.max_same_side for count in sides.values()):
+        raise ValueError("Týždenný plán priveľa ráz opakuje rovnakú prílohu.")
+    if len({signature.method for signature in signatures}) < limits.required_methods:
+        raise ValueError("Týždenný plán nemá dosť rôznych spôsobov prípravy.")
+    if any(
+        first.protein == second.protein and first.side == second.side
+        for first, second in zip(signatures, signatures[1:])
+    ):
+        raise ValueError("Podobné jedlá nesmú ísť po sebe.")
 
 
 def validate_portion_amount(name, category, amount, unit, claimed_role=None):
