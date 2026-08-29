@@ -674,3 +674,13 @@ def test_pages_stay_within_their_transfer_budget(page, budget):
     assert compressed <= budget, (
         f"{page} sa prenáša ako {compressed} B, strop je {budget} B"
     )
+
+
+def test_landing_keeps_practical_headroom_with_deployed_gzip_level():
+    """Level 6 musí nechať aspoň 300 B rezervu pod pevným 12 400 B stropom."""
+    compressed = len(gzip.compress(LANDING.read_bytes(), 6))
+
+    assert compressed <= 12_100, (
+        f"{LANDING} sa pri gzip level 6 prenáša ako {compressed} B; "
+        "praktický strop s rezervou je 12100 B"
+    )

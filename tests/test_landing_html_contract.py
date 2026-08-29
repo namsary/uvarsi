@@ -168,16 +168,18 @@ def test_founding_and_premium_share_the_same_core_functionality():
     premium_marker = '<div class="plan-name">Premium</div>'
     assert premium_marker in section
     founding = section.split('<div class="plan-name">Zakladajúci</div>', 1)[1]
+    founding = founding.split(premium_marker, 1)[0]
     premium = section.split(premium_marker, 1)[1]
 
-    founding_features = re.findall(r"<li>(.*?)</li>", founding)[:2]
-    premium_features = re.findall(r"<li>(.*?)</li>", premium)[:2]
+    founding_features = re.findall(r"<li>(.*?)</li>", founding)
+    premium_features = re.findall(r"<li>(.*?)</li>", premium)
     assert founding_features == premium_features == [
         "Všetky podporované obchody",
         "Celý týždeň, recepty a špajza",
+        "Budúce aktualizácie",
     ]
     assert "natrvalo" in founding
-    assert "Budúce Premium aktualizácie" in premium
+    assert "/ rok" in premium
 
 
 @needs_node

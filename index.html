@@ -16,36 +16,36 @@
 <link rel="preload" as="font" type="font/woff2" href="/static/fonts/anton-400.6d2997e3.woff2" crossorigin>
 <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"Uvar.si","url":"https://uvar.si/","inLanguage":"sk-SK","description":"Uvar.si spojí aktuálne akcie z Lidla, Kauflandu a Tesca s tým, čo máš doma. Dostaneš jedálniček, recepty a nákupný zoznam na celý týždeň."},{"@type":"SoftwareApplication","name":"Uvar.si","url":"https://uvar.si/app","applicationCategory":"Meal Planning Application","operatingSystem":"Web","inLanguage":"sk-SK","description":"Pomáha naplánovať jedálniček a recepty z aktuálnych akcií a zo surovín, ktoré už máš doma."}]}</script>
 <style>
-  @font-face{font-family:"Anton";font-style:normal;font-weight:400;font-display:swap;
+  @font-face{font-family:"Anton";font-display:swap;
     src:url("/static/fonts/anton-400.6d2997e3.woff2") format("woff2")}
-  @font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:400;font-display:swap;
+  @font-face{font-family:"IBM Plex Mono";font-display:swap;
     src:url("/static/fonts/ibmplexmono-400.c55d055f.woff2") format("woff2")}
-  @font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:600;font-display:swap;
+  @font-face{font-family:"IBM Plex Mono";font-weight:600;font-display:swap;
     src:url("/static/fonts/ibmplexmono-600.f4faf2fe.woff2") format("woff2")}
-  @font-face{font-family:"Manrope";font-style:normal;font-weight:400 800;font-display:swap;
+  @font-face{font-family:"Manrope";font-weight:400 800;font-display:swap;
     src:url("/static/fonts/manrope-400-800.7101939e.woff2") format("woff2")}
   :root{
     --paper:#F4F7F2; --paper-2:#EAF3EC; --surface:#FFFFFF; --ink:#12392E; --ink-soft:#586B64;
-    --yellow:#F7D64A; --red:#A52F25; --green:#1C8B5C; --green-deep:#103C31; --sky:#D5EBF3;
-    --line:rgba(18,57,46,.14); --radius-sm:14px; --radius-lg:28px;
-    --shadow-soft:0 22px 70px rgba(18,57,46,.13); --shadow-card:0 10px 34px rgba(18,57,46,.08);
+    --yellow:#F7D64A; --red:#A52F25; --green:#1C8B5C; --green-deep:#103C31;
+    --line:#12392e24; --radius-sm:14px; --radius-lg:28px;
+    --shadow-soft:0 22px 70px #12392e21; --shadow-card:0 10px 34px #12392e14;
     --maxw:1160px;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
-  body{background:var(--paper);color:var(--ink);font-family:"Manrope",system-ui,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased}
+  body{background:var(--paper);color:var(--ink);font-family:"Manrope",system-ui,sans-serif;line-height:1.6}
   .shell{max-width:var(--maxw);margin:0 auto;padding:0 32px}
   .display{font-family:"Manrope",system-ui,sans-serif;font-weight:800;line-height:1.04;letter-spacing:-.045em}
   a{color:inherit}
   .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.7rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--green-deep);
-    display:inline-flex;align-items:center;gap:8px;background:rgba(28,139,92,.09);border:1px solid rgba(28,139,92,.18);
+    display:inline-flex;align-items:center;gap:8px;background:#1c8b5c17;border:1px solid #1c8b5c2e;
     border-radius:999px;padding:7px 11px}
 
   .btn{font-family:"Manrope",system-ui,sans-serif;font-weight:800;font-size:.92rem;min-height:48px;
     padding:13px 21px;border:1px solid transparent;border-radius:999px;background:var(--yellow);color:var(--ink);
     cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;
     transition:transform .2s ease,box-shadow .2s ease,background-color .2s ease;white-space:nowrap}
-  .btn:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(18,57,46,.16)}
+  .btn:hover{transform:translateY(-2px);box-shadow:0 10px 24px #12392e29}
   .btn:focus-visible,.text-link:focus-visible,.nav-link:focus-visible{outline:3px solid var(--red);outline-offset:4px}
   .btn-primary{background:var(--green-deep);color:#fff}
 
@@ -76,13 +76,13 @@
     left:-85px;bottom:-75px;z-index:-1}
   .receipt-slot{height:42px;border-radius:18px 18px 9px 9px;background:#092D24;color:#A7D1BE;
     font-family:"IBM Plex Mono",monospace;font-size:.62rem;letter-spacing:.12em;display:flex;align-items:center;justify-content:center;
-    max-width:390px;margin:0 auto -7px;position:relative;z-index:2;box-shadow:inset 0 -7px 12px rgba(0,0,0,.22)}
+    max-width:390px;margin:0 auto -7px;position:relative;z-index:2;box-shadow:inset 0 -7px 12px #00000038}
   .rcpt-wrap{display:flex;flex-direction:column;align-items:center;gap:18px;position:relative;z-index:1}
   .rcpt-proof{font-family:"IBM Plex Mono",monospace;font-size:.68rem;line-height:1.45;color:#D7E8E0;
     text-align:center;max-width:370px;margin:0 auto;padding-top:16px;display:flex;flex-direction:column;gap:3px}
   .proof-current{color:#fff;font-weight:600}.proof-stores{color:var(--yellow)}.proof-note{opacity:.8}
   .rcpt{position:relative;background:#fff;width:100%;max-width:390px;padding:28px 26px 36px;
-    box-shadow:0 20px 45px rgba(0,0,0,.22);font-family:"IBM Plex Mono",monospace;font-size:.8rem;line-height:1.5;
+    box-shadow:0 20px 45px #00000038;font-family:"IBM Plex Mono",monospace;font-size:.8rem;line-height:1.5;
     animation:receipt-enter .8s cubic-bezier(.22,1,.36,1) both;transform-origin:top center}
   @keyframes receipt-enter{from{transform:translateY(-42px) scaleY(.88);opacity:0}to{transform:translateY(0) scaleY(1);opacity:1}}
   .rcpt::after{content:"";position:absolute;left:0;right:0;bottom:-10px;height:10px;
@@ -101,8 +101,6 @@
   .off{color:var(--red);font-weight:600;white-space:nowrap}
   .item-r{white-space:nowrap;display:flex;gap:8px;align-items:baseline;flex-shrink:0}
   .price{color:var(--ink);font-weight:600}
-  .day--rest{color:var(--ink-soft);font-style:italic;margin-bottom:9px}
-  .tot{font-weight:600}
   .save{display:flex;justify-content:space-between;align-items:baseline;gap:12px;background:var(--yellow);margin:10px -8px 0;padding:9px 8px}
   .save span:first-child{font-weight:600;letter-spacing:.06em}
   .save span:last-child{font-family:"Anton",sans-serif;font-size:1.5rem}
@@ -114,13 +112,6 @@
   .band-h2{font-size:clamp(2.25rem,4.5vw,4rem);margin:18px 0 16px;max-width:18ch;text-wrap:balance}
   .band-sub{color:var(--ink-soft);max-width:58ch;font-size:1.07rem}
 
-  .probs{display:grid;grid-template-columns:repeat(3,1fr);margin-top:44px;border:2px solid var(--ink);background:#fff}
-  .prob{padding:26px 22px;border-right:2px solid var(--ink)}
-  .prob:last-child{border-right:0}
-  .prob-n{font-family:"Anton",sans-serif;font-size:2.2rem;color:var(--yellow);-webkit-text-stroke:1.5px var(--ink);line-height:1}
-  .prob h3{font-size:1.05rem;margin:10px 0 5px;font-weight:800}
-  .prob p{color:var(--ink-soft);font-size:.94rem}
-
   .ex-lead{color:var(--ink-soft);max-width:56ch;font-size:1.05rem;margin:8px 0 36px}
   .ex-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
   .ex-card{border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);padding:22px 20px;
@@ -128,23 +119,23 @@
   .ex-k{font-size:.72rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--red);
     border-bottom:1px dashed #C9C2B4;padding-bottom:12px;margin-bottom:16px}
   .ex-note{font-size:.72rem;color:var(--ink-soft);font-style:italic;margin-top:6px}
-  .deal{display:flex;justify-content:space-between;gap:10px;align-items:center;background:rgba(247,214,74,.42);
-    border:1px solid rgba(18,57,46,.12);border-radius:10px;padding:9px 11px;font-size:.78rem;font-weight:600;margin-bottom:10px}
-  .deal .d-off{color:var(--ink);white-space:nowrap;text-align:right}
+  .deal{display:flex;justify-content:space-between;gap:10px;align-items:center;background:#f7d64a6b;
+    border:1px solid #12392e1f;border-radius:10px;padding:9px 11px;font-size:.78rem;font-weight:600;margin-bottom:10px}
+  .deal .d-off{white-space:nowrap;text-align:right}
   .deal .d-off em{color:var(--red);font-style:normal;margin-left:5px}
   .check{list-style:none;font-size:.84rem}
-  .check li{padding-left:22px;position:relative;margin-bottom:10px;color:var(--ink)}
+  .check li{padding-left:22px;position:relative;margin-bottom:10px}
   .check li::before{content:"✓";position:absolute;left:0;color:var(--green);font-weight:700}
   .ex-save{display:flex;justify-content:space-between;align-items:baseline;background:var(--yellow);
-    border:0;border-radius:10px;padding:10px 12px;margin-top:16px}
+    border-radius:10px;padding:10px 12px;margin-top:16px}
   .ex-save span:first-child{font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
-  .ex-save b{font-family:"Anton",sans-serif;font-weight:400;font-size:1.5rem}
-  .cost-band{background:var(--red);color:#fff;border:0;border-radius:var(--radius-lg);padding:28px 30px;margin:28px 0 54px;
-    display:grid;grid-template-columns:minmax(0,1fr) minmax(230px,.42fr);gap:26px;align-items:center;box-shadow:0 16px 36px rgba(165,47,37,.18)}
+  .ex-save b{font-family:"Anton",sans-serif;font-size:1.5rem}
+  .cost-band{background:var(--red);color:#fff;border-radius:var(--radius-lg);padding:28px 30px;margin:28px 0 54px;
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(230px,.42fr);gap:26px;align-items:center;box-shadow:0 16px 36px #a52f252e}
   .saving-story{font-size:1.02rem;line-height:1.65}
   .cost-band .c-lbl{display:block;font-family:"IBM Plex Mono",monospace;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:.68rem;margin-bottom:7px;color:#FFE7E1}
   .cost-band b{color:var(--yellow);font-family:"Manrope",sans-serif;font-size:1.42rem;font-weight:800;white-space:nowrap}
-  .saving-math{font-family:"IBM Plex Mono",monospace;font-size:.68rem;line-height:1.55;color:#FFE7E1;border-left:1px solid rgba(255,255,255,.3);padding-left:24px}
+  .saving-math{font-family:"IBM Plex Mono",monospace;font-size:.68rem;line-height:1.55;color:#FFE7E1;border-left:1px solid #ffffff4d;padding-left:24px}
   .rec-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:20px}
   .rec-card{border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);padding:20px;
     font-family:"IBM Plex Mono",monospace;box-shadow:var(--shadow-card)}
@@ -162,7 +153,7 @@
   .step{display:flex;flex-direction:column;gap:14px;min-height:250px;padding:26px;border:1px solid var(--line);
     border-radius:var(--radius-lg);background:var(--paper);box-shadow:var(--shadow-card)}
   .step-k{font-family:"IBM Plex Mono",monospace;font-size:.72rem;font-weight:600;letter-spacing:.12em;color:var(--red);
-    width:42px;height:42px;border-radius:50%;background:rgba(239,90,69,.1);display:flex;align-items:center;justify-content:center}
+    width:42px;height:42px;border-radius:50%;background:#ef5a451a;display:flex;align-items:center;justify-content:center}
   .step h3{font-size:1.18rem;font-weight:800;margin-bottom:6px;line-height:1.25}
   .step p{color:var(--ink-soft);max-width:52ch}
   .step-tag{font-family:"IBM Plex Mono",monospace;font-size:.67rem;letter-spacing:.06em;text-transform:uppercase;color:var(--green);
@@ -184,10 +175,10 @@
   .plans-band .eyebrow{color:var(--yellow)}
   .plans-band h2{font-size:clamp(2.2rem,4.5vw,3.8rem);line-height:1.08;letter-spacing:-.04em;margin:18px 0;max-width:20ch;text-wrap:balance}
   .plans-band .band-sub{color:#BFD8CC}
-  .plans{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-top:48px;align-items:stretch}
+  .plans{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-top:48px}
   .plans,.plan{min-width:0}
-  .plan{background:var(--surface);color:var(--ink);border:1px solid rgba(255,255,255,.16);border-radius:var(--radius-lg);
-    padding:30px 28px;display:flex;flex-direction:column;box-shadow:0 18px 55px rgba(0,0,0,.16)}
+  .plan{background:var(--surface);color:var(--ink);border:1px solid #ffffff29;border-radius:var(--radius-lg);
+    padding:30px 28px;display:flex;flex-direction:column;box-shadow:0 18px 55px #00000029}
   .plan--hot{background:var(--yellow)}
   .plan-tag{font-family:"IBM Plex Mono",monospace;font-size:.68rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--red)}
   .plan--hot .plan-tag{color:var(--ink)}
@@ -196,7 +187,7 @@
   .plan-per{font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:14px}
   .plan--hot .plan-per{color:#6B5A00}
   .plan ul{list-style:none;margin:0 0 20px;font-size:.92rem}
-  .plan li{padding:5px 0;border-bottom:1px dashed rgba(20,35,28,.18)}
+  .plan li{padding:5px 0;border-bottom:1px dashed #14231c2e}
   .plan li::before{content:"✓";color:var(--green);font-weight:800;margin-right:8px}
   .plan .btn{margin-top:auto;width:100%;white-space:normal;background:#fff;border-color:var(--line)}
   .plan--hot .btn{background:var(--ink);border-color:var(--ink);color:var(--yellow)}
@@ -205,25 +196,24 @@
   .pc-bar{height:10px;border:2px solid var(--ink);background:#fff;overflow:hidden}
   .pc-bar span{display:block;height:100%;background:var(--ink);width:0}
 
-  .modal{position:fixed;inset:0;background:rgba(14,31,26,.75);display:none;align-items:center;justify-content:center;padding:24px;z-index:50}
+  .modal{position:fixed;inset:0;background:#0e1f1abf;display:none;align-items:center;justify-content:center;padding:24px;z-index:50}
   .modal[open]{display:flex}
   .modal-box{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-soft);max-width:460px;width:100%;padding:34px 30px;position:relative}
   .modal-close{position:absolute;top:8px;right:12px;background:none;border:0;font-size:1.6rem;cursor:pointer;line-height:1;color:var(--ink-soft);min-width:44px;min-height:44px}
   .modal-box h3{font-family:"Manrope",sans-serif;font-size:1.6rem;font-weight:800;line-height:1.2;margin:12px 0 8px}
   .modal-box p{color:var(--ink-soft);font-size:.95rem;margin-bottom:18px}
   .chosen{font-family:"IBM Plex Mono",monospace;font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;
-    background:rgba(247,214,74,.5);border:1px solid rgba(18,57,46,.12);border-radius:999px;padding:6px 10px;display:inline-block}
+    background:#f7d64a80;border:1px solid #12392e1f;border-radius:999px;padding:6px 10px;display:inline-block}
   .f-row{display:flex;flex-direction:column;gap:10px}
   .f-row input{min-height:50px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;font-family:inherit;font-size:1rem;background:#fff;color:var(--ink);width:100%}
   .f-row input:focus{outline:3px solid var(--yellow);outline-offset:1px}
-  .fineprint{font-size:.75rem;color:var(--ink-soft);margin-top:12px}
+  .fineprint{font-size:.75rem;margin-top:12px}
   .success{display:none;text-align:center}
   .success .big{font-family:"Manrope",sans-serif;font-size:1.75rem;font-weight:800;margin-bottom:8px}
-  .success .mail{background:rgba(247,214,74,.42);border:1px solid rgba(18,57,46,.12);border-radius:12px;padding:12px;font-family:"IBM Plex Mono",monospace;font-size:.75rem;margin-top:14px}
+  .success .mail{background:#f7d64a6b;border:1px solid #12392e1f;border-radius:12px;padding:12px;font-family:"IBM Plex Mono",monospace;font-size:.75rem;margin-top:14px}
 
   .faq{max-width:820px}
   .faq details{border:1px solid var(--line);border-radius:var(--radius-sm);padding:18px 20px;margin-bottom:10px;background:var(--surface)}
-  .faq details:first-of-type{border-top:1px solid var(--line)}
   .faq summary{font-weight:800;cursor:pointer;font-size:1.05rem;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:16px;min-height:44px}
   .faq summary::-webkit-details-marker{display:none}
   .faq summary::after{content:"+";font-family:"Manrope",sans-serif;color:var(--red);font-size:1.3rem;line-height:1}
@@ -246,7 +236,7 @@
     .band,.plans-band{padding:72px 0}
     .step{min-height:0}
     .cost-band{grid-template-columns:1fr;padding:24px 22px}
-    .saving-math{border-left:0;border-top:1px solid rgba(255,255,255,.3);padding:18px 0 0}
+    .saving-math{border-left:0;border-top:1px solid #ffffff4d;padding:18px 0 0}
   }
   @media(max-width:560px){
     .shell{padding:0 16px}
@@ -352,7 +342,7 @@
   <div class="shell">
     <span class="eyebrow">Začni bez rizika</span>
     <h2 class="display">Free teraz. Premium po spustení.</h2>
-    <p class="band-sub">Platby sú vypnuté. Free funguje bez karty.</p>
+    <p class="band-sub">Bez karty. Platby sú vypnuté.</p>
 
     <div class="plans">
       <div class="plan">
@@ -376,7 +366,7 @@
         <ul>
           <li>Všetky podporované obchody</li>
           <li>Celý týždeň, recepty a špajza</li>
-          <li>Bez ďalšieho predplatného</li>
+          <li>Budúce aktualizácie</li>
         </ul>
         <div class="plan-counter" id="community-counter">Prvých 250 získa zakladajúcu cenu</div>
         <button type="button" class="btn js-plan" data-plan="Zakladajúci (39 € jednorazovo)">Chcem zakladajúcu cenu</button>
@@ -390,7 +380,7 @@
         <ul>
           <li>Všetky podporované obchody</li>
           <li>Celý týždeň, recepty a špajza</li>
-          <li>Budúce Premium aktualizácie</li>
+          <li>Budúce aktualizácie</li>
         </ul>
         <button type="button" class="btn js-plan" data-plan="Premium (49 € / rok po spustení)">Chcem vedieť o spustení</button>
       </div>
@@ -403,7 +393,7 @@
     <span class="eyebrow">Otázky</span>
     <h2 class="display band-h2">Pred prvým plánom</h2>
     <div style="margin-top:34px">
-      <details><summary>Môžem Uvar.si používať už teraz?</summary><p>Áno. Bezplatnú verziu otvoríš bez platobnej karty. Premium platby zapneme až po dokončení testovania.</p></details>
+      <details><summary>Môžem Uvar.si používať už teraz?</summary><p>Áno. Free je bez karty. Premium platby zapneme po dokončení testovania.</p></details>
       <details><summary>Odkiaľ beriete akcie?</summary><p>Z aktuálnych akciových letákov Lidla, Kauflandu a Tesca. Pri každom bločku uvádzame týždeň platnosti a obchody. Cenu si pred nákupom over v predajni.</p></details>
       <details><summary>Môžem zadať, čo už mám doma?</summary><p>Áno. V špajzi zadáš aj množstvo. Uvar.si ho odráta z nákupného zoznamu, aby ti znova neponúkalo ryžu, ktorú už doma máš.</p></details>
       <details><summary>Nechcem variť každý deň. Zvládne to?</summary><p>Presne na to je to stavané. Povieš, že varíš raz za dva alebo tri dni, a plán s tým počíta — zvyšky zaráta do ďalších dní.</p></details>
@@ -426,7 +416,7 @@
     <div id="formState">
       <span class="chosen" id="chosen">—</span>
       <h3 id="mTitle">Daj mi vedieť</h3>
-      <p>E-mailom ti pošleme vybranú ponuku. Zápis je nezáväzný; teraz nič neplatíš.</p>
+      <p>Pošleme ti vybranú ponuku. Nezáväzne, bez platby.</p>
       <form class="f-row" id="wf"
             action="https://assets.mailerlite.com/jsonp/2513849/forms/193159378287724436/subscribe"
             method="post" target="ml_sink">
@@ -436,13 +426,13 @@
         <input type="hidden" name="anticsrf" value="true">
         <button class="btn" type="submit">Zapíš ma</button>
       </form>
-      <p class="fineprint">Bez spamu. Odhlásiš sa jedným klikom.</p>
+      <p class="fineprint">Bez spamu. Odhlásiš sa kliknutím.</p>
     </div>
 
     <div class="success" id="successState">
       <div class="big">Zapísali sme ťa</div>
-      <p>Ponuku pošleme pred spustením platieb.</p>
-      <div class="mail"><b>Potvrď prihlásenie v e-maile.</b></div>
+      <p>Ponuku pošleme pred spustením.</p>
+      <div class="mail"><b>Potvrď e-mail.</b></div>
     </div>
   </div>
 </div>
