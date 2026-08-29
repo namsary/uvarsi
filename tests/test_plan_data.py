@@ -1094,6 +1094,74 @@ def test_name_classifier_matches_whole_tokens_not_substrings_inside_adjectives()
     )[0] == "vegetable"
 
 
+# --------------------------------------------------- rozmanitosť jedál
+def diversity_item(name, category):
+    row = {"nazov": name, "kategoria": category}
+    return (row, 1, "100 g", "g", Decimal("100"))
+
+
+@pytest.mark.parametrize(("name", "category", "expected"), [
+    ("Kuracieho stehna", "mäso", "chicken"),
+    ("Bravčové karé", "mäso", "pork"),
+    ("Hovädzie zadné", "mäso", "beef"),
+    ("Filet z lososa", "ryby", "fish"),
+    ("Šošovicový základ", "trvanlivé", "legume"),
+    ("Vajcia", "vajcia", "egg"),
+    ("Syr Eidam", "mliečne", "cheese"),
+    ("Brokolica", "zelenina", "vegetable"),
+])
+def test_primary_protein_uses_verified_slovak_offer_family(name, category, expected):
+    selected_items = [diversity_item(name, category)]
+
+    assert plan_data._primary_protein(selected_items) == expected
+
+
+@pytest.mark.parametrize(("name", "category", "expected"), [
+    ("Ryža dlhozrnná", "trvanlivé", "rice"),
+    ("Cestoviny penne", "trvanlivé", "pasta"),
+    ("Zemiaky", "zelenina", "potato"),
+    ("Halušky", "trvanlivé", "dumpling"),
+    ("Chlieb", "pečivo", "bread"),
+    ("Šošovica", "trvanlivé", "legume"),
+    ("Kuracie prsia", "mäso", "none"),
+])
+def test_dominant_side_uses_verified_offer_family_or_none(name, category, expected):
+    selected_items = [diversity_item(name, category)]
+
+    assert plan_data._dominant_side(selected_items) == expected
+
+
+@pytest.mark.parametrize(("name", "steps", "expected"), [
+    ("Zapekané zemiaky", ["Zapeč jedlo v rúre."], "oven"),
+    ("Kuracie na panvici", ["Mäso opeč na panvici."], "pan"),
+    ("Varené cestoviny", ["Cestoviny uvar v hrnci."], "pot"),
+    ("Dusené hovädzie", ["Mäso dusené domäkka pod pokrievkou."], "pot"),
+    ("Šošovicová polievka", ["Šošovicu uvar domäkka."], "soup"),
+    ("Zeleninový šalát", ["Suroviny premiešaj a podávaj."], "no-cook"),
+])
+def test_preparation_method_handles_slovak_inflections(name, steps, expected):
+    assert plan_data._preparation_method(name, steps) == expected
+
+
+def test_meal_signature_prefers_verified_items_and_uses_folded_prose_as_fallback():
+    selected_items = [
+        diversity_item("Losos filet", "ryby"),
+        diversity_item("Cestoviny fusilli", "trvanlivé"),
+    ]
+
+    verified = plan_data.meal_diversity_signature(
+        "Kuracieho mäso so zemiakmi", ["Jedlo zapeč v rúre."], selected_items,
+    )
+    fallback = plan_data.meal_diversity_signature(
+        "Bravčové so šošovicou", ["Mäso uvar v hrnci."], [],
+    )
+
+    assert verified == plan_data.MealDiversitySignature("fish", "pasta", "oven")
+    assert fallback == plan_data.MealDiversitySignature("pork", "legume", "pot")
+    with pytest.raises(AttributeError):
+        verified.protein = "chicken"
+
+
 @pytest.mark.parametrize(
     "name,amount",
     [("Cibuľa", 50), ("Cesnak", 10)],

@@ -3,6 +3,7 @@ import hashlib
 import json
 import re
 import unicodedata
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_HALF_UP
 
@@ -466,6 +467,109 @@ def ingredient_role_for(name, category="", claimed_role=None, base=None):
         if base is None or base in PORTION_RANGES[role]:
             return role
     return "other"
+
+
+@dataclass(frozen=True)
+class MealDiversitySignature:
+    protein: str
+    side: str
+    method: str
+
+
+_PROTEIN_FAMILY_PATTERNS = (
+    ("chicken", ("kurac*", "morac*")),
+    ("pork", ("bravc*",)),
+    ("beef", ("hovadz*", "telac*")),
+    ("fish", ("ryb*", "losos*", "tuniak*", "tresk*", "pstruh*")),
+    ("legume", ("sosovic*", "fazul*", "cicer*", "hrach*")),
+    ("egg", ("vajc*",)),
+    ("cheese", (
+        "syr*", "eidam*", "gouda*", "emental*", "cheddar*", "mozzarell*",
+        "bryndz*", "tvaroh*", "parmezan*",
+    )),
+)
+_SIDE_FAMILY_PATTERNS = (
+    ("rice", ("ryz*",)),
+    ("pasta", ("cestovin*", "spaget*", "rezanc*", "lasagn*")),
+    ("potato", ("zemiak*", "batat*")),
+    ("dumpling", ("knedl*", "halusk*")),
+    ("bread", ("chleb*", "peciv*", "rozok*", "zeml*", "baget*", "toast*", "tortill*")),
+    ("legume", ("sosovic*", "fazul*", "cicer*", "hrach*")),
+)
+
+
+def _family_in_text(text, families):
+    tokens = _folded_words(str(text))
+    for family, patterns in families:
+        if any(_name_has_pattern(tokens, pattern) for pattern in patterns):
+            return family
+    return ""
+
+
+def _row_text(row):
+    try:
+        name = row["nazov"]
+    except (KeyError, IndexError, TypeError):
+        name = ""
+    try:
+        category = row["kategoria"]
+    except (KeyError, IndexError, TypeError):
+        category = ""
+    return str(name or ""), str(category or "")
+
+
+def _primary_protein(selected_items: list[tuple]) -> str:
+    candidates = []
+    for selected_item in selected_items:
+        if not selected_item:
+            continue
+        name, category = _row_text(selected_item[0])
+        role = ingredient_role_for(name, category)
+        family = _family_in_text(f"{name} {category}", _PROTEIN_FAMILY_PATTERNS)
+        if role == "protein_main" and family in {"chicken", "pork", "beef", "fish"}:
+            candidates.append((0, family))
+        elif role == "legume_dry":
+            candidates.append((1, "legume"))
+        elif role == "egg":
+            candidates.append((1, "egg"))
+        elif role == "dairy_main":
+            candidates.append((1, "cheese"))
+        elif role in {"vegetable", "potato"}:
+            candidates.append((2, "vegetable"))
+    return min(candidates, default=(3, ""))[1]
+
+
+def _dominant_side(selected_items: list[tuple]) -> str:
+    for selected_item in selected_items:
+        if selected_item:
+            name, category = _row_text(selected_item[0])
+            family = _family_in_text(f"{name} {category}", _SIDE_FAMILY_PATTERNS)
+            if family:
+                return family
+    return "none"
+
+
+def _preparation_method(name: str, steps: list[str]) -> str:
+    text = f"{name} {' '.join(steps)}"
+    families = (
+        ("soup", ("polev*",)),
+        ("oven", ("zapec*", "pec*", "rur*")),
+        ("pan", ("opec*", "smaz*", "vypraz*", "rest*", "panvic*")),
+        ("pot", ("uvar*", "var*", "dus*", "hrnc*")),
+    )
+    return _family_in_text(text, families) or "no-cook"
+
+
+def meal_diversity_signature(name: str, steps: list[str],
+                             selected_items: list[tuple]) -> MealDiversitySignature:
+    prose = f"{name} {' '.join(steps)}"
+    protein = _primary_protein(selected_items)
+    side = _dominant_side(selected_items)
+    if not protein:
+        protein = _family_in_text(prose, _PROTEIN_FAMILY_PATTERNS) or "vegetable"
+    if side == "none":
+        side = _family_in_text(prose, _SIDE_FAMILY_PATTERNS) or "none"
+    return MealDiversitySignature(protein, side, _preparation_method(name, steps))
 
 
 def validate_portion_amount(name, category, amount, unit, claimed_role=None):
