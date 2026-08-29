@@ -12,6 +12,7 @@ import types
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from argon2 import PasswordHasher, Type
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -106,6 +107,11 @@ def load_auth_server(monkeypatch, tmp_path):
     server = importlib.import_module("server")
     server.ENV_FILE = str(tmp_path / "missing.env")
     return server, database
+
+
+def load_auth_data(monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / "app"))
+    return importlib.import_module("auth_data")
 
 
 class ProviderResponse:
@@ -1209,6 +1215,281 @@ def test_auth_v3_action_token_purpose_rejects_an_invalid_value(monkeypatch, tmp_
                    VALUES (?, ?, ?, ?, ?)""",
                 ("invalid-action-hash", "existing@example.com", "login", 2.0, 1.0),
             )
+
+
+@pytest.mark.parametrize(
+    "password",
+    [
+        "a" * 10,
+        "a" * 128,
+        "žluťoučký🐈",
+    ],
+)
+def test_password_primitive_accepts_10_to_128_unicode_characters(
+    monkeypatch, password
+):
+    auth_data = load_auth_data(monkeypatch)
+
+    assert auth_data.validate_password(password) == password
+
+
+@pytest.mark.parametrize("password", ["a" * 9, "a" * 129, None, 10, b"abcdefghij"])
+def test_password_primitive_rejects_values_outside_the_typed_character_boundary(
+    monkeypatch, password
+):
+    auth_data = load_auth_data(monkeypatch)
+
+    with pytest.raises(ValueError, match="^invalid password$"):
+        auth_data.validate_password(password)
+
+
+def test_password_primitive_preserves_leading_and_trailing_whitespace(monkeypatch):
+    auth_data = load_auth_data(monkeypatch)
+    password = " 12345678 "
+
+    assert auth_data.validate_password(password) == password
+
+
+def test_password_primitive_hashes_and_verifies_only_argon2id(monkeypatch):
+    auth_data = load_auth_data(monkeypatch)
+    password = "päss word🐈"
+
+    encoded = auth_data.hash_password(password)
+    argon2i_encoded = PasswordHasher(type=Type.I).hash(password)
+
+    assert encoded.startswith("$argon2id$")
+    assert password not in encoded
+    assert auth_data.verify_password(encoded, password) is True
+    assert auth_data.verify_password(encoded, "wrong password") is False
+    assert auth_data.verify_password("not-an-argon2-hash", password) is False
+    assert auth_data.verify_password(argon2i_encoded, password) is False
+
+
+def test_password_primitive_flags_old_argon2id_parameters_without_rejecting_them(
+    monkeypatch,
+):
+    auth_data = load_auth_data(monkeypatch)
+    password = "parameter test"
+    current = auth_data.hash_password(password)
+    old_parameters = PasswordHasher(
+        time_cost=1,
+        memory_cost=8 * 1024,
+        parallelism=1,
+        hash_len=16,
+        salt_len=16,
+        type=Type.ID,
+    ).hash(password)
+
+    assert auth_data.password_needs_rehash(current) is False
+    assert auth_data.password_needs_rehash(old_parameters) is True
+    assert auth_data.verify_password(old_parameters, password) is True
+    assert auth_data.password_needs_rehash("not-an-argon2-hash") is True
+
+
+def test_password_primitive_stores_only_argon2id_and_authenticates_generically(
+    monkeypatch,
+):
+    auth_data = load_auth_data(monkeypatch)
+    password = "correct horse"
+
+    with sqlite3.connect(":memory:") as con:
+        con.execute(
+            "CREATE TABLE pouzivatelia (id INTEGER PRIMARY KEY, email TEXT NOT NULL)"
+        )
+        con.execute(
+            "INSERT INTO pouzivatelia (id, email) VALUES (?, ?)",
+            (7, "cook@example.com"),
+        )
+        auth_data.migrate_auth_schema(con)
+
+        with pytest.raises(ValueError, match="^invalid password hash$"):
+            auth_data.set_password(
+                con, user_id=7, password_hash=password, now=1_900_000_000.0
+            )
+        assert con.execute("SELECT * FROM auth_credentials").fetchall() == []
+
+        encoded = auth_data.hash_password(password)
+        auth_data.set_password(
+            con, user_id=7, password_hash=encoded, now=1_900_000_001.0
+        )
+        stored = con.execute(
+            "SELECT user_id, password_hash, changed_at FROM auth_credentials"
+        ).fetchall()
+
+        assert stored == [(7, encoded, 1_900_000_001.0)]
+        assert password not in repr(stored)
+        assert (
+            auth_data.authenticate_password(
+                con, email="cook@example.com", password=password
+            )
+            == 7
+        )
+        assert (
+            auth_data.authenticate_password(
+                con, email="cook@example.com", password="wrong password"
+            )
+            is None
+        )
+        assert (
+            auth_data.authenticate_password(
+                con, email="unknown@example.com", password=password
+            )
+            is None
+        )
+
+        con.execute(
+            "UPDATE auth_credentials SET password_hash='malformed' WHERE user_id=7"
+        )
+        assert (
+            auth_data.authenticate_password(
+                con, email="cook@example.com", password=password
+            )
+            is None
+        )
+
+
+def test_action_token_primitive_hashes_and_consumes_confirmation_once(monkeypatch):
+    auth_data = load_auth_data(monkeypatch)
+    now = 1_900_000_000.0
+    pending_hash = auth_data.hash_password("pending pass")
+
+    with sqlite3.connect(":memory:") as con:
+        auth_data.migrate_auth_schema(con)
+        raw_token = auth_data.create_action_token(
+            con,
+            email="cook@example.com",
+            purpose="confirm",
+            now=now,
+            pending_password_hash=pending_hash,
+        )
+        stored = con.execute(
+            """SELECT token_hash, email, purpose, pending_password_hash,
+                      expires_at, created_at
+               FROM auth_action_tokens"""
+        ).fetchall()
+
+        assert stored == [
+            (
+                hashlib.sha256(raw_token.encode()).hexdigest(),
+                "cook@example.com",
+                "confirm",
+                pending_hash,
+                now + 24 * 60 * 60,
+                now,
+            )
+        ]
+        assert raw_token not in repr(stored)
+        assert auth_data.consume_action_token(
+            con, raw_token=raw_token, purpose="confirm", now=now + 1
+        ) == {
+            "email": "cook@example.com",
+            "purpose": "confirm",
+            "pending_password_hash": pending_hash,
+        }
+        with pytest.raises(auth_data.ActionTokenInvalid, match="^invalid token$"):
+            auth_data.consume_action_token(
+                con, raw_token=raw_token, purpose="confirm", now=now + 2
+            )
+
+
+@pytest.mark.parametrize("purpose", ["reset", "setup"])
+def test_action_token_primitive_reset_and_setup_expire_after_60_minutes(
+    monkeypatch, purpose
+):
+    auth_data = load_auth_data(monkeypatch)
+    now = 1_900_000_000.0
+
+    with sqlite3.connect(":memory:") as con:
+        auth_data.migrate_auth_schema(con)
+        raw_token = auth_data.create_action_token(
+            con, email="cook@example.com", purpose=purpose, now=now
+        )
+        stored = con.execute(
+            "SELECT expires_at FROM auth_action_tokens WHERE token_hash=?",
+            (hashlib.sha256(raw_token.encode()).hexdigest(),),
+        ).fetchone()
+
+    assert stored == (now + 60 * 60,)
+
+
+def test_action_token_primitive_is_purpose_bound_and_expires_at_the_boundary(
+    monkeypatch,
+):
+    auth_data = load_auth_data(monkeypatch)
+    now = 1_900_000_000.0
+
+    with sqlite3.connect(":memory:") as con:
+        auth_data.migrate_auth_schema(con)
+        reset_token = auth_data.create_action_token(
+            con, email="cook@example.com", purpose="reset", now=now
+        )
+        with pytest.raises(auth_data.ActionTokenInvalid, match="^invalid token$"):
+            auth_data.consume_action_token(
+                con, raw_token=reset_token, purpose="setup", now=now + 1
+            )
+        assert auth_data.consume_action_token(
+            con, raw_token=reset_token, purpose="reset", now=now + 1
+        )["email"] == "cook@example.com"
+
+        setup_token = auth_data.create_action_token(
+            con, email="cook@example.com", purpose="setup", now=now
+        )
+        with pytest.raises(auth_data.ActionTokenExpired, match="^expired token$"):
+            auth_data.consume_action_token(
+                con, raw_token=setup_token, purpose="setup", now=now + 60 * 60
+            )
+        assert con.execute("SELECT * FROM auth_action_tokens").fetchall() == []
+
+
+def test_action_token_primitive_rejects_invalid_purpose_and_pending_plaintext(
+    monkeypatch,
+):
+    auth_data = load_auth_data(monkeypatch)
+
+    with sqlite3.connect(":memory:") as con:
+        auth_data.migrate_auth_schema(con)
+        with pytest.raises(ValueError, match="^invalid action token purpose$"):
+            auth_data.create_action_token(
+                con, email="cook@example.com", purpose="login", now=1.0
+            )
+        with pytest.raises(ValueError, match="^invalid password hash$"):
+            auth_data.create_action_token(
+                con,
+                email="cook@example.com",
+                purpose="confirm",
+                now=1.0,
+                pending_password_hash="raw password",
+            )
+        assert con.execute("SELECT * FROM auth_action_tokens").fetchall() == []
+
+
+def test_action_token_primitive_consumption_is_transactionally_one_time(
+    monkeypatch, tmp_path
+):
+    auth_data = load_auth_data(monkeypatch)
+    database = tmp_path / "action-token.db"
+    now = 1_900_000_000.0
+    with sqlite3.connect(database) as con:
+        auth_data.migrate_auth_schema(con)
+        raw_token = auth_data.create_action_token(
+            con, email="cook@example.com", purpose="reset", now=now
+        )
+
+    def consume():
+        with sqlite3.connect(database) as con:
+            try:
+                return auth_data.consume_action_token(
+                    con, raw_token=raw_token, purpose="reset", now=now + 1
+                )
+            except auth_data.ActionTokenInvalid:
+                return None
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: consume(), range(2)))
+
+    assert sorted(result is None for result in results) == [False, True]
+    with sqlite3.connect(database) as con:
+        assert con.execute("SELECT COUNT(*) FROM auth_action_tokens").fetchone() == (0,)
 
 
 @pytest.mark.parametrize("purpose", ["register", "login"])

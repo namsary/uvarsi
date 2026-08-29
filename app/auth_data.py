@@ -6,11 +6,24 @@ import re
 import secrets
 import threading
 
+from argon2 import PasswordHasher, Type, extract_parameters
+from argon2.exceptions import InvalidHashError, VerificationError
+
 
 MAGIC_TOKEN_TTL_SECONDS = 60 * 60
 MAGIC_RESERVATION_TTL_SECONDS = 5 * 60
 EMAIL_COOLDOWN_SECONDS = 60
 SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
+CONFIRM_ACTION_TOKEN_TTL_SECONDS = 24 * 60 * 60
+PASSWORD_ACTION_TOKEN_TTL_SECONDS = 60 * 60
+
+_ACTION_TOKEN_TTLS = {
+    "confirm": CONFIRM_ACTION_TOKEN_TTL_SECONDS,
+    "reset": PASSWORD_ACTION_TOKEN_TTL_SECONDS,
+    "setup": PASSWORD_ACTION_TOKEN_TTL_SECONDS,
+}
+_PASSWORD_HASHER = PasswordHasher(type=Type.ID)
+_DUMMY_PASSWORD_HASH = _PASSWORD_HASHER.hash("uvarsi generic authentication check")
 
 _LOCAL_PART = r"[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*"
 _DOMAIN_LABEL = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
@@ -102,6 +115,14 @@ class MagicTokenExpired(RuntimeError):
     """A known token passed its absolute expiry."""
 
 
+class ActionTokenInvalid(RuntimeError):
+    """An action token is unknown, purpose-mismatched, or already consumed."""
+
+
+class ActionTokenExpired(RuntimeError):
+    """A known action token passed its absolute expiry."""
+
+
 @dataclass(frozen=True)
 class DeliveryAccepted:
     provider_id: str
@@ -162,6 +183,155 @@ def migrate_auth_schema(con) -> None:
 
 def token_hash(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+def validate_password(value: object) -> str:
+    if not isinstance(value, str) or not 10 <= len(value) <= 128:
+        raise ValueError("invalid password")
+    return value
+
+
+def _is_argon2id_hash(encoded: object) -> bool:
+    if not isinstance(encoded, str) or not encoded.startswith("$argon2id$"):
+        return False
+    try:
+        return extract_parameters(encoded).type is Type.ID
+    except InvalidHashError:
+        return False
+
+
+def hash_password(password: str) -> str:
+    return _PASSWORD_HASHER.hash(validate_password(password))
+
+
+def verify_password(encoded: str, password: str) -> bool:
+    if not _is_argon2id_hash(encoded) or not isinstance(password, str):
+        return False
+    try:
+        return _PASSWORD_HASHER.verify(encoded, password)
+    except (InvalidHashError, VerificationError):
+        return False
+
+
+def password_needs_rehash(encoded: str) -> bool:
+    if not _is_argon2id_hash(encoded):
+        return True
+    try:
+        return _PASSWORD_HASHER.check_needs_rehash(encoded)
+    except InvalidHashError:
+        return True
+
+
+def _require_argon2id_hash(encoded: object) -> str:
+    if not _is_argon2id_hash(encoded):
+        raise ValueError("invalid password hash")
+    return encoded
+
+
+def create_action_token(
+    con,
+    *,
+    email: str,
+    purpose: str,
+    now: float,
+    pending_password_hash: str | None = None,
+) -> str:
+    ttl = _ACTION_TOKEN_TTLS.get(purpose)
+    if ttl is None:
+        raise ValueError("invalid action token purpose")
+    normalized_email = normalize_email(email)
+    if pending_password_hash is not None:
+        pending_password_hash = _require_argon2id_hash(pending_password_hash)
+
+    raw_token = secrets.token_urlsafe(32)
+    con.execute("DELETE FROM auth_action_tokens WHERE expires_at <= ?", (now,))
+    con.execute(
+        """INSERT INTO auth_action_tokens
+           (token_hash, email, purpose, pending_password_hash, expires_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (
+            token_hash(raw_token),
+            normalized_email,
+            purpose,
+            pending_password_hash,
+            now + ttl,
+            now,
+        ),
+    )
+    con.commit()
+    return raw_token
+
+
+def consume_action_token(
+    con, *, raw_token: str, purpose: str, now: float
+) -> dict:
+    if purpose not in _ACTION_TOKEN_TTLS:
+        raise ValueError("invalid action token purpose")
+    if not isinstance(raw_token, str) or not raw_token or len(raw_token) > 512:
+        raise ActionTokenInvalid("invalid token")
+
+    digest = token_hash(raw_token)
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        row = con.execute(
+            """SELECT email, purpose, pending_password_hash, expires_at
+               FROM auth_action_tokens
+               WHERE token_hash=? AND purpose=?""",
+            (digest, purpose),
+        ).fetchone()
+        if row is None:
+            raise ActionTokenInvalid("invalid token")
+        if float(row[3]) <= now:
+            con.execute("DELETE FROM auth_action_tokens WHERE token_hash=?", (digest,))
+            con.commit()
+            raise ActionTokenExpired("expired token")
+
+        con.execute("DELETE FROM auth_action_tokens WHERE token_hash=?", (digest,))
+        con.commit()
+        return {
+            "email": row[0],
+            "purpose": row[1],
+            "pending_password_hash": row[2],
+        }
+    except (ActionTokenInvalid, ActionTokenExpired):
+        if con.in_transaction:
+            con.rollback()
+        raise
+    except Exception:
+        con.rollback()
+        raise
+
+
+def set_password(
+    con, *, user_id: int, password_hash: str, now: float
+) -> None:
+    encoded = _require_argon2id_hash(password_hash)
+    con.execute(
+        """INSERT INTO auth_credentials (user_id, password_hash, changed_at)
+           VALUES (?, ?, ?)
+           ON CONFLICT(user_id) DO UPDATE SET
+             password_hash=excluded.password_hash,
+             changed_at=excluded.changed_at""",
+        (user_id, encoded, now),
+    )
+    con.commit()
+
+
+def authenticate_password(con, *, email: str, password: str) -> int | None:
+    if not isinstance(email, str) or not isinstance(password, str):
+        return None
+    row = con.execute(
+        """SELECT p.id, c.password_hash
+           FROM pouzivatelia p
+           JOIN auth_credentials c ON c.user_id=p.id
+           WHERE p.email=?""",
+        (email,),
+    ).fetchone()
+    encoded = row[1] if row is not None else _DUMMY_PASSWORD_HASH
+    verified = verify_password(encoded, password)
+    if row is None or not verified:
+        return None
+    return int(row[0])
 
 
 def normalize_email(value) -> str:
