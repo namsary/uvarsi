@@ -1863,6 +1863,32 @@ def full_prompt(frequency=2, pantry=("soľ",), household_size=4):
     return "\n\n".join(block["text"] for block in blocks)
 
 
+@pytest.mark.parametrize(
+    ("frequency", "max_protein", "max_side"),
+    [(1, 4, 2), (2, 2, 2), (3, 2, 2)],
+)
+def test_prompt_uses_validator_diversity_limits_for_each_frequency(
+        frequency, max_protein, max_side):
+    rows = [
+        diversity_row("Kuracie prsia", "mäso"),
+        diversity_row("Bravčové karé", "mäso"),
+        diversity_row("Ryža", "trvanlivé"),
+        diversity_row("Cestoviny", "trvanlivé"),
+        diversity_row("Halušky", "trvanlivé"),
+        diversity_row("Chlieb", "pečivo"),
+    ]
+
+    prompt = personal_plan_prompt(rows, frequency, ["soľ"], household_size=4)
+
+    expected = f"""ROZMANITOSŤ TÝŽDŇA
+- Rovnaký hlavný druh bielkoviny použi najviac {max_protein}×, ak katalóg ponúka alternatívy.
+- Rovnakú dominantnú prílohu použi najviac {max_side}×, ak katalóg ponúka alternatívy.
+- Použi aspoň 3 odlišné spôsoby prípravy.
+- Dve po sebe idúce varenia nesmú mať súčasne rovnakú bielkovinu aj prílohu."""
+    assert expected in prompt
+    assert prompt.count("ROZMANITOSŤ TÝŽDŇA") == 1
+
+
 def test_prompt_demands_cookable_steps_with_quantities_temperatures_and_times():
     prompt = full_prompt()
 

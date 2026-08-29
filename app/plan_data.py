@@ -628,6 +628,14 @@ def diversity_limits(rows: list[dict], meal_count: int) -> DiversityLimits:
     )
 
 
+def weekly_diversity_rules(limits: DiversityLimits) -> str:
+    return f"""ROZMANITOSŤ TÝŽDŇA
+- Rovnaký hlavný druh bielkoviny použi najviac {limits.max_same_protein}×, ak katalóg ponúka alternatívy.
+- Rovnakú dominantnú prílohu použi najviac {limits.max_same_side}×, ak katalóg ponúka alternatívy.
+- Použi aspoň {limits.required_methods} odlišné spôsoby prípravy.
+- Dve po sebe idúce varenia nesmú mať súčasne rovnakú bielkovinu aj prílohu."""
+
+
 def validate_weekly_diversity(parsed_meals: list[tuple], rows: list[dict]) -> None:
     ordered_meals = sorted(parsed_meals, key=lambda meal: DAY_ORDER.index(meal[0]))
     signatures = [
@@ -1412,6 +1420,7 @@ def personal_plan_prompt(rows, frequency, pantry, household_size=None, variant=0
     adults, children, legacy = _household(household_size, adults, children)
     style = PLAN_VARIANT_HINTS[variant % len(PLAN_VARIANT_HINTS)] if PLAN_VARIANT_HINTS else ""
     days = cooking_days_for_frequency(frequency)
+    diversity = weekly_diversity_rules(diversity_limits(rows, len(days)))
     days_text = _day_list(days)
     people = _household_text(adults, children, legacy)
     batches = []
@@ -1449,6 +1458,9 @@ Navrhni presne {len(days)} {_meals_word(len(days))} na dni {days_text}. Vráť i
   ekvivalentov uvedený pri jeho dni.
 - minutes musí byť kladný celý počet minút prípravy.
 - Vyberaj výhradne z {len(rows)} overených ponúk uvedených vyššie a drž sa pravidiel nad týmto zadaním.
+
+{diversity}
+
 - Smerovanie tohto jedálnička: {style}{pantry_task}"""
 
 
