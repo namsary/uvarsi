@@ -1175,6 +1175,80 @@ def test_auth_v3_migration_adds_account_tables_and_session_metadata(monkeypatch,
     }
 
 
+@pytest.mark.parametrize("purpose", ["confirm", "reset", "setup"])
+def test_auth_v3_action_token_purpose_accepts_every_permitted_value(
+    monkeypatch, tmp_path, purpose
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+
+    with sqlite3.connect(":memory:") as con:
+        server.migrate_auth_schema(con)
+        con.execute(
+            """INSERT INTO auth_action_tokens
+               (token_hash, email, purpose, pending_password_hash, expires_at, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (f"{purpose}-hash", "existing@example.com", purpose, None, 2.0, 1.0),
+        )
+        stored = con.execute(
+            "SELECT purpose FROM auth_action_tokens WHERE token_hash=?",
+            (f"{purpose}-hash",),
+        ).fetchone()
+
+    assert stored == (purpose,)
+
+
+def test_auth_v3_action_token_purpose_rejects_an_invalid_value(monkeypatch, tmp_path):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+
+    with sqlite3.connect(":memory:") as con:
+        server.migrate_auth_schema(con)
+        with pytest.raises(sqlite3.IntegrityError, match="CHECK constraint failed"):
+            con.execute(
+                """INSERT INTO auth_action_tokens
+                   (token_hash, email, purpose, expires_at, created_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                ("invalid-action-hash", "existing@example.com", "login", 2.0, 1.0),
+            )
+
+
+@pytest.mark.parametrize("purpose", ["register", "login"])
+def test_auth_v3_webauthn_challenge_purpose_accepts_every_permitted_value(
+    monkeypatch, tmp_path, purpose
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+
+    with sqlite3.connect(":memory:") as con:
+        server.migrate_auth_schema(con)
+        con.execute(
+            """INSERT INTO auth_webauthn_challenges
+               (challenge_hash, user_id, purpose, expires_at, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (f"{purpose}-hash", 7, purpose, 2.0, 1.0),
+        )
+        stored = con.execute(
+            "SELECT purpose FROM auth_webauthn_challenges WHERE challenge_hash=?",
+            (f"{purpose}-hash",),
+        ).fetchone()
+
+    assert stored == (purpose,)
+
+
+def test_auth_v3_webauthn_challenge_purpose_rejects_an_invalid_value(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+
+    with sqlite3.connect(":memory:") as con:
+        server.migrate_auth_schema(con)
+        with pytest.raises(sqlite3.IntegrityError, match="CHECK constraint failed"):
+            con.execute(
+                """INSERT INTO auth_webauthn_challenges
+                   (challenge_hash, user_id, purpose, expires_at, created_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                ("invalid-challenge-hash", 7, "reset", 2.0, 1.0),
+            )
+
+
 def test_post_redeems_once_into_a_hashed_30_day_host_only_session(monkeypatch, tmp_path):
     server, database = load_auth_server(monkeypatch, tmp_path)
     monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
