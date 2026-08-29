@@ -45,6 +45,36 @@ CREATE TABLE IF NOT EXISTS sessions_v2 (
 );
 CREATE INDEX IF NOT EXISTS sessions_v2_user_idx
   ON sessions_v2(user_id);
+CREATE TABLE IF NOT EXISTS auth_credentials (
+  user_id INTEGER PRIMARY KEY,
+  password_hash TEXT NOT NULL,
+  changed_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS auth_action_tokens (
+  token_hash TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  purpose TEXT NOT NULL CHECK(purpose IN ('confirm','reset','setup')),
+  pending_password_hash TEXT,
+  expires_at REAL NOT NULL,
+  created_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS auth_passkeys (
+  credential_id TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  public_key BLOB NOT NULL,
+  sign_count INTEGER NOT NULL,
+  transports TEXT NOT NULL DEFAULT '[]',
+  name TEXT NOT NULL,
+  created_at REAL NOT NULL,
+  last_used_at REAL
+);
+CREATE TABLE IF NOT EXISTS auth_webauthn_challenges (
+  challenge_hash TEXT PRIMARY KEY,
+  user_id INTEGER,
+  purpose TEXT NOT NULL CHECK(purpose IN ('register','login')),
+  expires_at REAL NOT NULL,
+  created_at REAL NOT NULL
+);
 """
 
 
@@ -116,8 +146,18 @@ class ClientIpRateLimiter:
 
 
 def migrate_auth_schema(con) -> None:
-    """Create additive auth-v2 tables without trusting legacy plaintext data."""
+    """Create additive auth-v3 tables without trusting legacy plaintext data."""
     con.executescript(AUTH_SCHEMA)
+    session_columns = {
+        row[1] for row in con.execute("PRAGMA table_info(sessions_v2)")
+    }
+    for name, column_type in (
+        ("last_seen_at", "REAL"),
+        ("device_name", "TEXT"),
+        ("revoked_at", "REAL"),
+    ):
+        if name not in session_columns:
+            con.execute(f"ALTER TABLE sessions_v2 ADD COLUMN {name} {column_type}")
 
 
 def token_hash(raw_token: str) -> str:

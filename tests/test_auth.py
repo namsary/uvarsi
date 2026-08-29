@@ -1057,22 +1057,122 @@ def test_legacy_plaintext_magic_token_is_never_trusted(monkeypatch, tmp_path):
         assert con.execute("SELECT COUNT(*) FROM sessions_v2").fetchone()[0] == 0
 
 
-def test_auth_schema_migration_is_idempotent(monkeypatch, tmp_path):
-    server, database = load_auth_server(monkeypatch, tmp_path)
-
-    with server.db():
-        pass
-    with server.db():
-        pass
+def test_auth_v3_migration_is_idempotent_and_preserves_existing_rows(monkeypatch, tmp_path):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    database = tmp_path / "populated-auth-v2.db"
+    selected_columns = {
+        "pouzivatelia": "id, email",
+        "naroky": "id, user_id, stav",
+        "plany": "id, user_id, tyzden, json",
+        "magic_tokens_v2": "token_hash, email, expires_at, created_at",
+        "sessions_v2": "token_hash, user_id, expires_at, created_at",
+    }
 
     with sqlite3.connect(database) as con:
-        tables = {
-            row[0]
-            for row in con.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%v2'"
+        con.executescript(
+            """
+            CREATE TABLE pouzivatelia (id INTEGER PRIMARY KEY, email TEXT NOT NULL);
+            CREATE TABLE naroky (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, stav TEXT NOT NULL);
+            CREATE TABLE plany (
+              id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL,
+              tyzden TEXT NOT NULL, json TEXT NOT NULL
+            );
+            CREATE TABLE magic_tokens_v2 (
+              token_hash TEXT PRIMARY KEY, email TEXT NOT NULL,
+              expires_at REAL NOT NULL, created_at REAL NOT NULL
+            );
+            CREATE TABLE sessions_v2 (
+              token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
+              expires_at REAL NOT NULL, created_at REAL NOT NULL
+            );
+            INSERT INTO pouzivatelia VALUES (7, 'existing@example.com');
+            INSERT INTO naroky VALUES (11, 7, 'aktivny');
+            INSERT INTO plany VALUES (13, 7, '2026-08-24', '{"jedla":[]}');
+            INSERT INTO magic_tokens_v2
+              VALUES ('existing-magic-hash', 'existing@example.com', 1900003600.0, 1900000000.0);
+            INSERT INTO sessions_v2
+              VALUES ('existing-session-hash', 7, 1902592000.0, 1900000000.0);
+            """
+        )
+        before = {
+            table: con.execute(f"SELECT {columns} FROM {table}").fetchall()
+            for table, columns in selected_columns.items()
+        }
+
+        server.migrate_auth_schema(con)
+        server.migrate_auth_schema(con)
+
+        after = {
+            table: con.execute(f"SELECT {columns} FROM {table}").fetchall()
+            for table, columns in selected_columns.items()
+        }
+        session_columns = {
+            row[1] for row in con.execute("PRAGMA table_info(sessions_v2)")
+        }
+
+    assert after == before
+    assert {"last_seen_at", "device_name", "revoked_at"} <= session_columns
+
+
+def test_auth_v3_migration_adds_account_tables_and_session_metadata(monkeypatch, tmp_path):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+
+    with sqlite3.connect(":memory:") as con:
+        server.migrate_auth_schema(con)
+        schemas = {
+            table: [tuple(row[1:6]) for row in con.execute(f"PRAGMA table_info({table})")]
+            for table in (
+                "auth_credentials",
+                "auth_action_tokens",
+                "auth_passkeys",
+                "auth_webauthn_challenges",
             )
         }
-    assert tables == {"magic_tokens_v2", "sessions_v2"}
+        session_columns = {
+            row[1]: tuple(row[2:5])
+            for row in con.execute("PRAGMA table_info(sessions_v2)")
+        }
+
+    assert schemas == {
+        "auth_credentials": [
+            ("user_id", "INTEGER", 0, None, 1),
+            ("password_hash", "TEXT", 1, None, 0),
+            ("changed_at", "REAL", 1, None, 0),
+        ],
+        "auth_action_tokens": [
+            ("token_hash", "TEXT", 0, None, 1),
+            ("email", "TEXT", 1, None, 0),
+            ("purpose", "TEXT", 1, None, 0),
+            ("pending_password_hash", "TEXT", 0, None, 0),
+            ("expires_at", "REAL", 1, None, 0),
+            ("created_at", "REAL", 1, None, 0),
+        ],
+        "auth_passkeys": [
+            ("credential_id", "TEXT", 0, None, 1),
+            ("user_id", "INTEGER", 1, None, 0),
+            ("public_key", "BLOB", 1, None, 0),
+            ("sign_count", "INTEGER", 1, None, 0),
+            ("transports", "TEXT", 1, "'[]'", 0),
+            ("name", "TEXT", 1, None, 0),
+            ("created_at", "REAL", 1, None, 0),
+            ("last_used_at", "REAL", 0, None, 0),
+        ],
+        "auth_webauthn_challenges": [
+            ("challenge_hash", "TEXT", 0, None, 1),
+            ("user_id", "INTEGER", 0, None, 0),
+            ("purpose", "TEXT", 1, None, 0),
+            ("expires_at", "REAL", 1, None, 0),
+            ("created_at", "REAL", 1, None, 0),
+        ],
+    }
+    assert {
+        name: session_columns[name]
+        for name in ("last_seen_at", "device_name", "revoked_at")
+    } == {
+        "last_seen_at": ("REAL", 0, None),
+        "device_name": ("TEXT", 0, None),
+        "revoked_at": ("REAL", 0, None),
+    }
 
 
 def test_post_redeems_once_into_a_hashed_30_day_host_only_session(monkeypatch, tmp_path):
