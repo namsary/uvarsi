@@ -4,7 +4,7 @@ import json
 import re
 import unicodedata
 from datetime import date
-from decimal import Decimal, InvalidOperation, ROUND_CEILING
+from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_HALF_UP
 
 try:
     from .weekly_data import current_monday, current_verified_offers
@@ -31,6 +31,10 @@ MIN_STEPS_PER_MEAL = 3
 MIN_STEP_WORDS = 6
 MIN_STEP_CHARS = 30
 STAPLES = ("soľ", "korenie", "olej", "voda")
+SEASONING_OPTIONS = (
+    "soľ", "čierne korenie", "sladká paprika", "rasca", "majorán", "oregano",
+    "bazalka", "kurkuma", "karí korenie", "čili", "škorica", "olej", "voda",
+)
 GOOD_STEP_EXAMPLE = "Na 2 lyžiciach oleja opeč 2 cibule nakrájané na kocky 5 minút do sklovita."
 BAD_STEP_EXAMPLE = "Pridaj cibuľu a opeč."
 
@@ -546,6 +550,30 @@ def _decimal_text(value):
     return text.replace(".", ",")
 
 
+def kitchen_amount(base, total):
+    """Round a calculation to a quantity a person can actually measure."""
+    total = Decimal(total)
+    if base == "ks":
+        return total.to_integral_value(rounding=ROUND_CEILING)
+    if base not in ("g", "ml"):
+        return total
+    if total < 10:
+        step = Decimal("1")
+    elif total < 100:
+        step = Decimal("5")
+    elif total < 500:
+        step = Decimal("10")
+    elif total < 1000:
+        if total == total.to_integral_value() and total % 10 == 0:
+            return total
+        step = Decimal("25")
+    else:
+        if total == total.to_integral_value() and total % 50 == 0:
+            return total
+        step = Decimal("50")
+    return (total / step).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * step
+
+
 def _amount_text(base, total):
     """Toľko suroviny sa v recepte naozaj použije, napísané po slovensky."""
     if base == "g" and total >= 1000:
@@ -655,6 +683,68 @@ def _cookable_steps(instructions):
     return steps
 
 
+def validate_recipe_language(name, steps):
+    """Reject a small, high-confidence set of embarrassing language errors."""
+    text = _fold(f"{name} {' '.join(steps)}")
+    if re.search(r"\bstehennych\s+rez(?:e|i)k\b", text):
+        raise ValueError("Recept obsahuje nesprávnu slovenčinu; správne je stehenných rezňov.")
+    if re.search(r"\bryz\w*\b[^.]{0,45}\bsced\w*\b", text):
+        raise ValueError("Recept používa neurčitý kuchársky postup pri ryži; ryža sa má variť absorpčne.")
+
+
+_HOME_INGREDIENT_PATTERNS = (
+    ("soľ", (r"\bsol\b", r"\bosol\w*\b")),
+    ("čierne korenie", (r"\bciernym?\s+koren\w*\b", r"\bokoren\w*\b")),
+    ("sladká paprika", (r"\bsladk\w*\s+paprik\w*\b",)),
+    ("rasca", (r"\brasc\w*\b",)),
+    ("majorán", (r"\bmajoran\w*\b",)),
+    ("oregano", (r"\boregan\w*\b",)),
+    ("bazalka", (r"\bbazalk\w*\b",)),
+    ("kurkuma", (r"\bkurkum\w*\b",)),
+    ("karí korenie", (r"\bkari\w*(?:\s+koren\w*)?\b",)),
+    ("čili", (r"\bcili\w*\b",)),
+    ("škorica", (r"\bskoric\w*\b",)),
+    ("olej", (r"\bolej\w*\b",)),
+    ("voda", (r"\bvod\w*\b",)),
+)
+
+
+def home_ingredients_in(steps):
+    """List visible pantry basics used by the instructions, in a stable order."""
+    text = _fold(" ".join(steps))
+    return [name for name, patterns in _HOME_INGREDIENT_PATTERNS
+            if any(re.search(pattern, text) for pattern in patterns)]
+
+
+def validate_meal_role_mix(roles):
+    """A mixed dish gets one vegetable allowance, not one per vegetable row."""
+    if sum(role == "vegetable" for role in roles) > 1:
+        raise ValueError(
+            "Jedlo má viac plných zeleninových dávok; ďalšiu zeleninu označ ako addition."
+        )
+
+
+def leftover_storage_note(steps, covered_days):
+    """Conservative storage instruction for meals intentionally cooked ahead."""
+    if covered_days <= 1:
+        return None
+    folded = _fold(" ".join(steps))
+    if re.search(r"\bryz\w*\b", folded):
+        if covered_days >= 3:
+            return (
+                "Porcie na ďalšie dni do 1 hodiny schlaď. Porciu na tretí deň "
+                "hneď zamraz a po rozmrazení ju dôkladne zohrej iba raz."
+            )
+        return (
+            "Zvyšnú porciu s ryžou do 1 hodiny schlaď, ulož do chladničky "
+            "a pri podávaní ju dôkladne zohrej iba raz."
+        )
+    return (
+        "Zvyšné porcie čo najskôr schlaď, ulož do chladničky a pri podávaní "
+        "ich dôkladne prehrej."
+    )
+
+
 def _name_fits_recipe(name, steps):
     """Názov musí opisovať to, čo kroky naozaj urobia.
 
@@ -739,6 +829,7 @@ def _model_meals(model_output, offers_by_key, frequency, pantry, adults, childre
         if isinstance(minutes, bool) or not isinstance(minutes, int) or minutes <= 0:
             raise ValueError("Počet minút musí byť kladné celé číslo.")
         steps = _cookable_steps(meal.get("instructions"))
+        validate_recipe_language(name, steps)
         _name_fits_recipe(name, steps)
         selected_pantry = []
         # Pri bežnom zdieľanom pláne je `pantry` prázdna zámerne. Model do
@@ -761,6 +852,7 @@ def _model_meals(model_output, offers_by_key, frequency, pantry, adults, childre
         if not isinstance(items, list) or (not items and not selected_pantry):
             raise ValueError("Jedlo nemá vybrané ponuky ani suroviny zo špajze.")
         selected_items = []
+        selected_roles = []
         for item in items:
             _reject_extra(item, _MODEL_ITEM)
             use = item.get("use")
@@ -777,15 +869,15 @@ def _model_meals(model_output, offers_by_key, frequency, pantry, adults, childre
                 raise ValueError("Návrh obsahuje duplicitné offer_key.")
             seen_offers.add(offer_key)
             row = offers_by_key[offer_key]
-            _role, base, per_adult = _amount_per_adult(item, row)
-            total = per_adult * equivalents_by_day[day]
-            if base == "ks":
-                total = total.to_integral_value(rounding=ROUND_CEILING)
+            role, base, per_adult = _amount_per_adult(item, row)
+            selected_roles.append(role)
+            total = kitchen_amount(base, per_adult * equivalents_by_day[day])
             _steps_agree_with_amount(row["nazov"], base, total, steps)
             selected_items.append(
                 (row, _packages_needed(row, base, total, per_adult),
                  _amount_text(base, total), base, total)
             )
+        validate_meal_role_mix(selected_roles)
         parsed.append((day, name, minutes, steps, selected_items, [pantry_by_name[item] for item in selected_pantry]))
     if seen_days != set(cooking_days):
         raise ValueError(f"Návrh nedodržal dni varenia: {_day_list(cooking_days)}.")
@@ -839,8 +931,11 @@ PLAN_VARIANT_HINTS = (
 # 10 = kalendár 7/4/3 ostáva; výstupná JSON schéma vynucuje 5–7 použiteľných
 #      krokov s minimálnou dĺžkou. Krátky všeobecný krok už nemôže minúť
 #      platené volanie a až potom zhodiť celý plán vo validácii.
+# 14 = zachováva rozvrh 7/4/3 a pridáva prirodzené kuchynské zaokrúhlenie,
+#      viditeľné dochucovadlá, kontrolu zeleninových dávok, bezpečné uchovanie
+#      zvyškov a množstevnú špajzu.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 13
+PLAN_ALGO_VERSION = 14
 
 
 def plan_variant_for(user_id, variants):
@@ -976,10 +1071,18 @@ MNOŽSTVÁ
   use ignoruje a dávku nemení.
 - V krokoch píš CELKOVÉ množstvo na celú dávku: katalógová dávka × počet
   dospelých kuchárskych ekvivalentov uvedený pri danom dni.
+- Výsledok napíš ako kuchynské množstvo, nie ako bunku z Excelu: gramy a mililitre
+  zaokrúhli na prirodzené celé hodnoty (247,5 g → 250 g; 1 980 g → 2 kg;
+  2 475 ml → 2,5 l). Desatinné gramy ani mililitre nepíš.
 - Každé množstvo napíš naraz pri prvom použití suroviny, nerozdeľuj ho medzi kroky.
 - Počet balení nikdy neurčuj; server ho vypočíta z dávky a údajov letáka.
 - Základné suroviny ({", ".join(STAPLES)}) používateľ doma má — pokojne ich v krokoch
   použi a vyčísli. Nikdy ich neuvádzaj v items ani ako ponuku s cenou či zľavou.
+- Každé jedlo primerane dochuť. Podľa jedla vyber 2 až 4 položky zo zoznamu
+  „Skontroluj doma“: {", ".join(SEASONING_OPTIONS)}. Uveď ich priamo v krokoch;
+  server ich zobrazí oddelene od akciových surovín a nákupných balení.
+- Ak vyberieš viac druhov zeleniny, iba jedna smie mať use=main. Ostatné označ
+  use=addition; inak by každá dostala samostatnú plnú zeleninovú porciu.
 
 NÁZOV JEDLA
 - Názov musí opisovať presne to, čo kroky naozaj urobia. Každé slovo z názvu sa
@@ -1001,6 +1104,10 @@ POSTUP
 - Napíš 5 až 7 krokov, aspoň {MIN_STEPS_PER_MEAL} kroky sú minimum.
 - Píš „{GOOD_STEP_EXAMPLE}", nikdy nie „{BAD_STEP_EXAMPLE}"
 - Slovenčina ako v kuchárke: rozkazovací spôsob, krátke vety, žiadne prekladové obraty.
+- Správne tvary sú „kuracie stehenné rezne“ a „z kuracích stehenných rezňov“;
+  nikdy nie „stehenných reziek“ ani české „rezky“.
+- Ryžu nesceď. Prepláchni ju, zalej primeraným množstvom vody, var pod pokrievkou
+  na miernom ohni a nechaj dôjsť, kým sa voda vsiakne.
 
 TAKTO VYZERÁ DOBRÉ JEDLO (vzor je na {example['portions']} porcie, ty rátaj s počtom porcií zo zadania nižšie):
 {{"day":"PO","name":"{example['name']}","minutes":{example['minutes']},
@@ -1187,6 +1294,11 @@ def _aggregate_purchases(purchases):
     regular = Decimal("0")
     for row, base, dose in combined.values():
         quantity = _packages_needed(row, base, dose, None)
+        package = _package_amount(row.get("jednotka"), row.get("nazov"))
+        leftover = (
+            max(Decimal("0"), package[1] * quantity - dose)
+            if package is not None and package[0] == base else None
+        )
         price = _price(row["cena"], "akciová cena") * quantity
         original = (
             _price(row["povodna"], "bežná cena") * quantity
@@ -1198,6 +1310,14 @@ def _aggregate_purchases(purchases):
             "offer_key": row["offer_key"], "nazov": row["nazov"],
             "obchod": row["obchod"], "jednotka": row["jednotka"],
             "mnozstvo": quantity, "cena": _format(price),
+            "potrebne": _decimal_text(dose), "potrebna_jednotka": base,
+            "pouzije": _amount_text(base, dose),
+            "zostane": _amount_text(base, leftover) if leftover else None,
+            "cena_za_balenie": _format(_price(row["cena"], "akciová cena")),
+            "povodna_za_balenie": (
+                _format(_price(row["povodna"], "bežná cena"))
+                if row.get("povodna") is not None else None
+            ),
             "povodna": _format(original) if original is not None else None,
             "zlava": row.get("zlava") or "", "source_url": row.get("source_url"),
             "source_page": row.get("source_page"), "valid_from": row.get("valid_from"),
@@ -1247,7 +1367,11 @@ def build_personal_plan(con, model_output, stores, frequency, household_size=Non
         ingredients.extend({"spajza": item} for item in pantry_names)
         doses.extend(f"{item} zo špajze" for item in pantry_names)
         recipe = {"min": minutes, "porcie": portions, "pre": for_whom,
-                  "davky": doses, "kroky": instructions}
+                  "davky": doses, "skontroluj_doma": home_ingredients_in(instructions),
+                  "kroky": instructions}
+        storage = leftover_storage_note(instructions, covered)
+        if storage:
+            recipe["uchovanie"] = storage
         if not legacy:
             recipe["domacnost"] = {"dospeli": adults, "deti": children}
             recipe["dni"] = covered
@@ -1265,6 +1389,8 @@ def build_personal_plan(con, model_output, stores, frequency, household_size=Non
         grouped.setdefault(item["obchod"], []).append({
             key: item[key] for key in (
                 "offer_key", "nazov", "jednotka", "mnozstvo", "cena", "povodna", "zlava",
+                "potrebne", "potrebna_jednotka", "cena_za_balenie", "povodna_za_balenie",
+                "pouzije", "zostane",
                 "source_url", "source_page", "valid_from", "valid_to",
             )
         })
@@ -1386,6 +1512,23 @@ def _pantry_owner(pantry, offer_name):
     return None
 
 
+def _pantry_amount(text):
+    """Optional measured stock from free text such as `ryža 500 g`."""
+    match = _PACKAGE.search(str(text or ""))
+    return _package_from_match(match) if match is not None else None
+
+
+def _item_required_amount(item):
+    base = item.get("potrebna_jednotka")
+    if base not in ("g", "ml", "ks"):
+        return None
+    try:
+        amount = Decimal(str(item.get("potrebne", "")).replace(",", "."))
+    except InvalidOperation:
+        return None
+    return (base, amount) if amount.is_finite() and amount > 0 else None
+
+
 def apply_pantry_to_shopping_list(plan, pantry):
     """Označ v nákupnom zozname to, čo používateľ už doma má.
 
@@ -1409,6 +1552,7 @@ def apply_pantry_to_shopping_list(plan, pantry):
         polozky = []
         for item in group.get("polozky") or []:
             owner = None
+            pantry_amount = None
             nazov = item.get("nazov")
             for candidate in pantry:
                 if candidate in claimed:
@@ -1418,15 +1562,61 @@ def apply_pantry_to_shopping_list(plan, pantry):
                 if candidate_exact in exact_offer_names and candidate_exact != offer_exact:
                     continue
                 if pantry_matches_offer(candidate, nazov):
-                    if item.get("mnozstvo") == 1:
-                        owner = candidate
-                    else:
-                        # Bez množstva v špajzi nevieme potvrdiť všetky balenia.
-                        # Kandidát však patrí tomuto riadku a nesmie sa neskôr
-                        # nepresne priradiť k podobne pomenovanej položke.
-                        claimed.add(candidate)
+                    measured = _pantry_amount(candidate)
+                    required = _item_required_amount(item)
+                    if measured is not None and required is not None and measured[0] != required[0]:
+                        continue
+                    owner = candidate
+                    pantry_amount = measured
                     break
-            oznaceny = dict(item, mas_doma=owner is not None, spajza=owner)
+            original_quantity = int(item.get("mnozstvo") or 0)
+            try:
+                total_price = _price(item.get("cena"), "cena položky")
+                unit_price = _price(
+                    item.get("cena_za_balenie") or total_price / max(1, original_quantity),
+                    "cena balenia",
+                )
+            except (InvalidOperation, ValueError, ZeroDivisionError):
+                total_price = Decimal("0")
+                unit_price = Decimal("0")
+            buy_quantity = original_quantity
+            pantry_text = None
+            remaining_text = None
+            leftover_after_text = item.get("zostane")
+            partial = False
+            full = False
+            if owner is not None:
+                required = _item_required_amount(item)
+                if pantry_amount is None or required is None:
+                    full = True
+                    pantry_text = "celá potrebná dávka"
+                    buy_quantity = 0
+                else:
+                    base, needed = required
+                    used = min(needed, pantry_amount[1])
+                    remaining = max(Decimal("0"), needed - used)
+                    pantry_text = _amount_text(base, used)
+                    remaining_text = _amount_text(base, remaining) if remaining else None
+                    full = remaining == 0
+                    partial = not full and used > 0
+                    if full:
+                        buy_quantity = 0
+                    else:
+                        package = _package_amount(item.get("jednotka"), nazov)
+                        if package and package[0] == base:
+                            buy_quantity = max(1, int(
+                                (remaining / package[1]).to_integral_value(rounding=ROUND_CEILING)))
+                            leftover_after = max(
+                                Decimal("0"), package[1] * buy_quantity - remaining)
+                            leftover_after_text = (
+                                _amount_text(base, leftover_after) if leftover_after else None)
+            price_after = unit_price * buy_quantity
+            oznaceny = dict(
+                item, mas_doma=full, ciastocne_doma=partial, spajza=owner,
+                zo_spajze=pantry_text, zostava=remaining_text,
+                zostane_po_spajzi=leftover_after_text,
+                mnozstvo_po_spajzi=buy_quantity, cena_po_spajzi=_format(price_after),
+            )
             polozky.append(oznaceny)
             if owner is None:
                 continue
@@ -1436,7 +1626,7 @@ def apply_pantry_to_shopping_list(plan, pantry):
                 "spajza": owner, "cena": item.get("cena"),
             })
             try:
-                usetrene += _price(item.get("cena"), "cena položky")
+                usetrene += max(Decimal("0"), total_price - price_after)
             except ValueError:
                 pass
         zoznam.append(dict(group, polozky=polozky))
@@ -1456,7 +1646,10 @@ def apply_pantry_to_shopping_list(plan, pantry):
 # nesmie prísť ani jeden — odkedy podpis špajzu neobsahuje, je to jediné, čo
 # bráni tomu, aby sa špajza jedného používateľa ukázala druhému.
 PANTRY_PLAN_KEYS = ("spajza", "spajza_pokryte", "spajza_usetri", "nakup_bez_spajze")
-PANTRY_ITEM_KEYS = ("spajza", "mas_doma")
+PANTRY_ITEM_KEYS = (
+    "spajza", "mas_doma", "ciastocne_doma", "zo_spajze", "zostava",
+    "zostane_po_spajzi", "mnozstvo_po_spajzi", "cena_po_spajzi",
+)
 PANTRY_DOSE_SUFFIX = "zo špajze"
 
 

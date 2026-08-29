@@ -145,6 +145,14 @@ def test_shopping_quantity_label_combines_quantity_with_verified_unit(tmp_path):
     assert "esc(shoppingQuantityLabel(p))" in html
 
 
+def test_recipe_disclosure_has_keyboard_focus_and_accessible_state():
+    html = Path("app/static/app.html").read_text(encoding="utf-8")
+
+    assert '<button type="button" class="meal-h"' in html
+    assert 'aria-expanded="false"' in html and 'aria-controls=' in html
+    assert ":focus-visible" in html
+
+
 def test_later_api_401_clears_user_state_and_returns_to_login(tmp_path):
     html = Path("app/static/app.html").read_text(encoding="utf-8")
     clear_match = re.search(r"function clearAuthenticatedState\(\) \{.*?\n\}", html, re.S)

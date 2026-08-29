@@ -247,6 +247,19 @@ def test_reconstructs_grouped_purchases_and_totals_only_from_verified_offers():
         pantry=["soľ"], today=TODAY
     )
 
+    # Nové prezentačné polia majú vlastné cielené testy. Tento starší prísny
+    # kontrakt ostáva zameraný na dôveryhodné ceny, zdroje a súčty.
+    for meal in plan["jedla"]:
+        meal["recept"].pop("skontroluj_doma", None)
+        meal["recept"].pop("uchovanie", None)
+    for group in plan["nakupny_zoznam"]:
+        for shopping_item in group["polozky"]:
+            for field in (
+                "potrebne", "potrebna_jednotka", "cena_za_balenie",
+                "povodna_za_balenie", "pouzije", "zostane",
+            ):
+                shopping_item.pop(field, None)
+
     assert plan == {
         "tyzden": "2026-08-17",
         "jedla": [
@@ -652,6 +665,21 @@ def test_partly_used_package_is_still_bought_whole():
     assert (chlieb["davka"], chlieb["mnozstvo"]) == ("720 g", 2)
 
 
+@pytest.mark.parametrize(("unit", "raw", "expected", "label"), [
+    ("g", "247.5", "250", "250 g"),
+    ("g", "1980", "2000", "2 kg"),
+    ("ml", "2475", "2500", "2,5 l"),
+    ("g", "37.5", "40", "40 g"),
+])
+def test_recipe_amounts_are_rounded_like_kitchen_quantities_not_spreadsheet_cells(
+        unit, raw, expected, label):
+    rounded = plan_data.kitchen_amount(unit, Decimal(raw))
+
+    assert rounded == Decimal(expected)
+    assert plan_data._amount_text(unit, rounded) == label
+    assert "." not in label and ",0" not in label
+
+
 def test_rejects_a_recipe_whose_steps_contradict_the_amount_that_is_bought():
     """Recept hovorí 1 l, nakúpi sa 2 l — presne tá nedôvera, ktorú appka nesmie vyrobiť."""
     payload = model_output()
@@ -751,6 +779,22 @@ def test_shopping_buys_whole_packages_while_recipe_uses_only_its_dose(
     ) == expected_packages
 
 
+def test_shopping_row_explains_recipe_use_and_what_remains_from_the_pack():
+    row = {
+        "offer_key": "offer_rice", "nazov": "Ryža 1 kg", "obchod": "Lidl",
+        "jednotka": "1 kg", "cena": 1.49, "povodna": 1.99, "zlava": "-25 %",
+        "source_url": "https://source.test/rice", "source_page": 2,
+        "valid_from": "2026-08-17", "valid_to": "2026-08-23",
+    }
+
+    items, _total, _regular = plan_data._aggregate_purchases([
+        (row, "g", Decimal("300")),
+    ])
+
+    assert items[0]["pouzije"] == "300 g"
+    assert items[0]["zostane"] == "700 g"
+
+
 def test_piece_offer_must_match_the_recipe_unit_and_eggs_remain_usable():
     corn = {"nazov": "Kukurica lahôdková", "kategoria": "zelenina", "jednotka": "ks"}
     eggs = {"nazov": "Vajcia M", "kategoria": "vajcia", "jednotka": "10 ks"}
@@ -798,6 +842,13 @@ def test_addition_context_uses_a_smaller_server_owned_cooking_dose():
     ) == ("sauce_liquid", "ml", Decimal("80"))
 
 
+def test_one_recipe_cannot_receive_a_full_portion_for_every_kind_of_vegetable():
+    with pytest.raises(ValueError, match="zelenin"):
+        plan_data.validate_meal_role_mix(["vegetable", "vegetable", "dry_starch"])
+
+    plan_data.validate_meal_role_mix(["vegetable", "vegetable_addition", "dry_starch"])
+
+
 def test_same_product_is_combined_before_rounding_to_whole_packages():
     common = {
         "nazov": "Tatra maslo 250 g", "obchod": "Tesco", "jednotka": "balenie",
@@ -839,7 +890,7 @@ def test_mixed_household_recipe_uses_adult_equivalents_but_displays_real_serving
         "ingredient_role": "sauce_liquid",
     }]
     payload["meals"][0]["instructions"] = [
-        "V hrnci zohrej 2,475 l mlieka na strednom ohni 5 minút, kým sa nezačne pariť.",
+        "V hrnci zohrej 2,5 l mlieka na strednom ohni 5 minút, kým sa nezačne pariť.",
         "Vsyp 400 g krupice, osoľ štipkou soli a metličkou miešaj 3 minúty, kým kaša nezhustne.",
         "Kašu rozdeľ na 12 tanierov, posyp 2 lyžičkami škorice a hneď podávaj.",
     ]
@@ -852,7 +903,7 @@ def test_mixed_household_recipe_uses_adult_equivalents_but_displays_real_serving
     first = plan["jedla"][0]
     assert first["recept"]["porcie"] == 12
     assert first["recept"]["pre"] == "2 dospelí + 2 deti × 3 dni"
-    assert first["suroviny"][0]["davka"] == "2,475 l"
+    assert first["suroviny"][0]["davka"] == "2,5 l"
     assert first["suroviny"][0]["mnozstvo"] == 3
     assert plan["jedla"][-1]["recept"]["porcie"] == 4
 
@@ -1381,6 +1432,28 @@ def test_staples_stay_in_the_steps_and_never_reach_the_shopping_list():
     assert plan["nakup_spolu"] == "5,40"
     assert all("davka" not in polozka
                for store in plan["nakupny_zoznam"] for polozka in store["polozky"])
+    assert plan["jedla"][0]["recept"]["skontroluj_doma"] == [
+        "soľ", "čierne korenie", "olej", "voda",
+    ]
+
+
+def test_leftover_storage_note_is_specific_for_rice_and_multi_day_cooking():
+    note = plan_data.leftover_storage_note(
+        ["Ryžu prepláchni, uvar a rozdeľ na taniere."], covered_days=3,
+    )
+
+    assert "do 1 hodiny" in note
+    assert "tretí deň" in note and "zamraz" in note
+    assert "zohrej" in note
+
+
+@pytest.mark.parametrize(("name", "steps"), [
+    ("Kuracie zo stehenných reziek", ["Mäso priprav podľa receptu."]),
+    ("Kuracie s ryžou", ["Ryžu uvar vo vode 12 minút a potom ryžu sceď."]),
+])
+def test_recipe_language_linter_rejects_known_unprofessional_cookbook_phrases(name, steps):
+    with pytest.raises(ValueError, match="slovenčin|kuchársk"):
+        plan_data.validate_recipe_language(name, steps)
 
 
 # ------------------------------------------------------------------- prompt
@@ -1438,6 +1511,15 @@ def test_prompt_demands_a_name_that_matches_what_the_steps_do():
 
     assert "na ryži" in prompt and "s ryžou" in prompt
     assert "Názov musí opisovať presne to, čo kroky naozaj urobia." in prompt
+
+
+def test_prompt_demands_natural_slovak_and_visible_seasoning():
+    prompt = full_prompt()
+
+    assert "stehenných rezňov" in prompt and "stehenných reziek" in prompt
+    assert "Skontroluj doma" in prompt
+    assert "sladká paprika" in prompt and "majorán" in prompt
+    assert "Ryžu nesceď" in prompt
 
 
 def test_recipe_rules_ride_in_the_cached_prefix_and_never_in_the_personal_tail():

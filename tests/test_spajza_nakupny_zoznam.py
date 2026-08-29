@@ -101,17 +101,58 @@ def test_owned_items_are_marked_and_the_remaining_total_drops():
     assert upraveny["spajza_usetri"] == "1,49"
 
 
-def test_one_quantityless_pantry_entry_never_covers_a_multi_package_purchase():
-    """Text „kuracie stehná" nepotvrdzuje, že doma ležia obe potrebné balenia."""
+def test_quantityless_pantry_entry_means_the_user_has_enough_of_that_ingredient():
+    """Špajza bez množstva je vedomé „mám dosť", nie nefunkčný polozáznam."""
     upraveny = apply_pantry_to_shopping_list(plan(), ["kuracie stehná"])
 
     kuracie = upraveny["nakupny_zoznam"][0]["polozky"][1]
     assert kuracie["mnozstvo"] == 2
-    assert kuracie["mas_doma"] is False
-    assert kuracie["spajza"] is None
-    assert upraveny["spajza_pokryte"] == []
-    assert upraveny["spajza_usetri"] == "0,00"
+    assert kuracie["mnozstvo_po_spajzi"] == 0
+    assert kuracie["mas_doma"] is True
+    assert kuracie["spajza"] == "kuracie stehná"
+    assert kuracie["zo_spajze"] == "celá potrebná dávka"
+    assert upraveny["spajza_usetri"] == "5,00"
+    assert upraveny["nakup_bez_spajze"] == "1,49"
+
+
+def test_pantry_grams_reduce_the_required_dose_before_whole_packages_are_bought():
+    zasoba = plan()
+    ryza = zasoba["nakupny_zoznam"][0]["polozky"][0]
+    ryza.update({
+        "potrebne": "1200", "potrebna_jednotka": "g", "jednotka": "1 kg",
+        "mnozstvo": 2, "cena": "2,98", "povodna": "3,98",
+        "cena_za_balenie": "1,49", "povodna_za_balenie": "1,99",
+    })
+    zasoba["nakup_spolu"] = "7,98"
+
+    upraveny = apply_pantry_to_shopping_list(zasoba, ["ryža 500 g"])
+
+    ryza = upraveny["nakupny_zoznam"][0]["polozky"][0]
+    assert ryza["mas_doma"] is False
+    assert ryza["ciastocne_doma"] is True
+    assert ryza["zo_spajze"] == "500 g"
+    assert ryza["zostava"] == "700 g"
+    assert ryza["zostane_po_spajzi"] == "300 g"
+    assert ryza["mnozstvo_po_spajzi"] == 1, "700 g sa dokúpi ako jedno celé kilové balenie"
+    assert ryza["cena_po_spajzi"] == "1,49"
     assert upraveny["nakup_bez_spajze"] == "6,49"
+
+
+def test_enough_quantified_pantry_stock_removes_the_purchase_completely():
+    zasoba = plan()
+    ryza = zasoba["nakupny_zoznam"][0]["polozky"][0]
+    ryza.update({
+        "potrebne": "600", "potrebna_jednotka": "g", "jednotka": "1 kg",
+        "cena_za_balenie": "1,49", "povodna_za_balenie": "1,99",
+    })
+
+    upraveny = apply_pantry_to_shopping_list(zasoba, ["ryža 1 kg"])
+
+    ryza = upraveny["nakupny_zoznam"][0]["polozky"][0]
+    assert ryza["mas_doma"] is True
+    assert ryza["zo_spajze"] == "600 g"
+    assert ryza["mnozstvo_po_spajzi"] == 0
+    assert ryza["cena_po_spajzi"] == "0,00"
 
 
 def test_the_plan_itself_is_never_rewritten_by_the_pantry():
@@ -151,8 +192,9 @@ def test_the_matched_items_are_listed_so_the_user_can_overrule_them():
 
     assert upraveny["spajza_pokryte"] == [
         {"offer_key": "offer_aaa", "nazov": "Ryža guľatozrnná", "spajza": "ryža", "cena": "1,49"},
+        {"offer_key": "offer_bbb", "nazov": "Kuracie stehná", "spajza": "kuracie stehná", "cena": "5,00"},
     ]
-    assert upraveny["nakup_bez_spajze"] == "5,00"
+    assert upraveny["nakup_bez_spajze"] == "0,00"
 
 
 def test_one_shopping_item_is_claimed_by_at_most_one_pantry_entry():
@@ -176,7 +218,7 @@ def test_the_result_is_computed_from_the_reader_pantry_every_single_time():
     druhy = apply_pantry_to_shopping_list(zaklad, ["kuracie stehná"])
 
     assert prvy["spajza_usetri"] == "1,49"
-    assert druhy["spajza_usetri"] == "0,00"
+    assert druhy["spajza_usetri"] == "5,00"
 
 
 # ------------------------------------------------- čo sa nesmie uložiť zdieľane
@@ -194,7 +236,10 @@ def test_a_shared_plan_is_stripped_of_every_pantry_trace():
     ], "surovina zo špajze je cudzí osobný údaj a do zdieľaného riadku nepatrí"
     assert zdielany["jedla"][0]["recept"]["davky"] == ["Ryža guľatozrnná – 600 g"]
     for polozka in zdielany["nakupny_zoznam"][0]["polozky"]:
-        assert "mas_doma" not in polozka and "spajza" not in polozka
+        assert not {
+            "mas_doma", "ciastocne_doma", "spajza", "zo_spajze", "zostava",
+            "zostane_po_spajzi", "mnozstvo_po_spajzi", "cena_po_spajzi",
+        }.intersection(polozka)
 
 
 def test_stripping_leaves_the_purchasable_facts_completely_intact():

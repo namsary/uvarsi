@@ -10,9 +10,6 @@
 <link rel="preload" as="font" type="font/woff2" href="/static/fonts/manrope-400-800.7101939e.woff2" crossorigin>
 <link rel="preload" as="font" type="font/woff2" href="/static/fonts/anton-400.6d2997e3.woff2" crossorigin>
 <style>
-/* Písma si servírujeme sami: prvé vykreslenie už nečaká na cudzí DNS a TLS
-   a IP návštevníka neodchádza tretej strane. Subset a licencia:
-   /static/fonts/LICENSE.txt */
 @font-face{font-family:"Anton";font-style:normal;font-weight:400;font-display:swap;
   src:url("/static/fonts/anton-400.6d2997e3.woff2") format("woff2")}
 @font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:400;font-display:swap;
@@ -22,8 +19,9 @@
 @font-face{font-family:"Manrope";font-style:normal;font-weight:400 800;font-display:swap;
   src:url("/static/fonts/manrope-400-800.7101939e.woff2") format("woff2")}
 :root{--paper:#FFFCF5;--paper-2:#F7F1E3;--ink:#14231C;--ink-soft:#5C6B62;
-  --yellow:#FFD400;--red:#E23A26;--green:#1F7A4C;--line:#E4DED0}
+  --yellow:#FFD400;--red:#C93427;--green:#1F7A4C;--line:#E4DED0}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:3px solid var(--red);outline-offset:3px}
 body{background:var(--paper);color:var(--ink);font-family:"Manrope",system-ui,sans-serif;
   line-height:1.55;padding-bottom:78px}
 .display{font-family:"Anton",sans-serif;font-weight:400;text-transform:uppercase;line-height:1}
@@ -38,6 +36,8 @@ header{position:sticky;top:0;background:var(--paper);border-bottom:2px solid var
   background:var(--yellow);color:var(--ink);cursor:pointer;display:block;width:100%;
   box-shadow:3px 3px 0 var(--ink);text-align:center;text-decoration:none}
 .btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+.btn:disabled{background:var(--paper-2);color:var(--ink-soft);border-color:var(--line);
+  box-shadow:none;cursor:not-allowed}
 .btn--ghost{background:transparent;box-shadow:none}
 input,select{width:100%;padding:14px;border:2px solid var(--ink);background:#fff;
   font-family:"IBM Plex Mono",monospace;font-size:1rem;color:var(--ink)}
@@ -53,9 +53,9 @@ label{font-family:"IBM Plex Mono",monospace;font-size:.76rem;font-weight:600;
 .chip{font-family:"IBM Plex Mono",monospace;font-size:.8rem;font-weight:600;padding:11px 15px;
   border:2px solid var(--ink);background:#fff;cursor:pointer}
 .chip.on{background:var(--yellow)}
-/* plán */
 .meal{border:2px solid var(--ink);background:#fff;margin-bottom:12px}
-.meal-h{display:flex;align-items:center;gap:12px;padding:15px;cursor:pointer}
+.meal-h{display:flex;align-items:center;gap:12px;padding:15px;cursor:pointer;width:100%;
+  border:0;background:transparent;color:inherit;text-align:left;font:inherit;min-height:54px}
 .meal-d{font-family:"Anton",sans-serif;font-size:1.5rem;color:var(--yellow);
   -webkit-text-stroke:1.5px var(--ink);min-width:42px}
 .meal-n{font-weight:800;font-size:1.02rem;line-height:1.25;flex:1}
@@ -65,7 +65,6 @@ label{font-family:"IBM Plex Mono",monospace;font-size:.76rem;font-weight:600;
   font-size:.82rem;padding:7px 0;border-bottom:1px dashed var(--line)}
 .ing .r{white-space:nowrap;font-weight:600}
 .ing .off{color:var(--red);margin-left:7px}
-/* pôvod ceny — tichý riadok pod surovinou, aby sa dala cena skontrolovať */
 .ing-b{border-bottom:1px dashed var(--line)}
 .ing-b .ing{border-bottom:0;padding-bottom:2px}
 .prov{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;font-family:"IBM Plex Mono",monospace;
@@ -80,13 +79,11 @@ label{font-family:"IBM Plex Mono",monospace;font-size:.76rem;font-weight:600;
   font-weight:700;font-family:"IBM Plex Mono",monospace}
 .rest{font-style:italic;color:var(--ink-soft);font-size:.88rem;padding:9px 15px;
   border:2px dashed var(--line);margin-bottom:12px}
-/* voľný deň — nikdy tichá diera v týždni, vždy viditeľný riadok */
 .rest--volno{font-style:normal;border-style:dotted}
 .hint{background:var(--paper-2);border:2px dashed var(--ink);padding:16px;margin-bottom:14px}
 .save{display:flex;justify-content:space-between;align-items:baseline;background:var(--yellow);
   border:2px solid var(--ink);padding:14px;margin:16px 0}
 .save b{font-family:"Anton",sans-serif;font-weight:400;font-size:1.7rem}
-/* nákupný zoznam */
 .shop-h{font-family:"Anton",sans-serif;font-size:1.1rem;text-transform:uppercase;
   background:var(--ink);color:var(--paper);padding:9px 14px;margin-top:14px}
 .item{display:flex;align-items:center;gap:12px;padding:13px 14px;border:2px solid var(--ink);
@@ -97,16 +94,22 @@ label{font-family:"IBM Plex Mono",monospace;font-size:.76rem;font-weight:600;
 .item.done .box{background:var(--green);color:#fff}
 .item .nm{flex:1;font-size:.94rem}
 .item .pr{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:.86rem;white-space:nowrap}
-/* položka zo špajze — nie je odškrtnutá, je odložená nabok a jedno ťuknutie
-   ju vráti do nákupu */
 .item--doma{background:var(--paper-2);cursor:default}
 .item--doma .nm,.item--doma .pr{color:var(--ink-soft)}
 .undo{display:block;font-family:"IBM Plex Mono",monospace;font-size:.68rem;font-weight:600;
   text-decoration:underline;cursor:pointer;color:var(--ink)}
 .item .doma-note{display:block;font-family:"IBM Plex Mono",monospace;font-size:.68rem}
-/* dávky receptu — koľko čoho sa naozaj použije, nie koľko sa kupuje */
+.item .buy-note{display:block;color:var(--ink-soft);font-family:"IBM Plex Mono",monospace;font-size:.68rem}
 .davky{margin:10px 0 2px;color:var(--ink-soft)}
-/* nav */
+.recipe-label{font-family:"IBM Plex Mono",monospace;font-size:.68rem;font-weight:600;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);margin:14px 0 5px}
+.home-basics{display:flex;flex-wrap:wrap;gap:6px;margin:5px 0 12px}
+.home-basics span{font-family:"IBM Plex Mono",monospace;font-size:.72rem;background:var(--paper-2);
+  border:1px solid var(--line);padding:4px 8px}
+.storage-note{margin:14px 0 4px;padding:11px 12px;background:#EFF7F1;border-left:3px solid var(--green);
+  color:var(--ink);font-size:.84rem}
+.item--partial{background:#fffaf0}
+.item--partial .doma-note{color:var(--green)}
 nav{position:fixed;bottom:0;left:0;right:0;background:var(--paper);border-top:2px solid var(--ink);
   display:flex;z-index:30;padding-bottom:env(safe-area-inset-bottom)}
 nav button{flex:1;background:none;border:0;padding:11px 4px;font-family:"IBM Plex Mono",monospace;
@@ -134,7 +137,7 @@ nav .ico{display:block;font-size:1.25rem;margin-bottom:2px}
   <button data-t="plan" class="on"><span class="ico">🍽️</span>Plán</button>
   <button data-t="zoznam"><span class="ico">🛒</span>Nákup</button>
   <button data-t="spajza"><span class="ico">🥫</span>Špajza</button>
-  <button data-t="nastavenia"><span class="ico">⚙️</span>Ja</button>
+  <button data-t="nastavenia"><span class="ico">⚙️</span>Profil</button>
 </nav>
 
 <script>
@@ -143,20 +146,14 @@ const M = $('#main');
 let ME = null, PLAN = null, TAB = 'plan';
 let APP_READY = false;
 let DONE = {};
-/* Zhody so špajzou, ktoré používateľ zrušil („predsa to kúpim"). Párovanie
-   voľného textu na názvy z letáku je odhad; keď sa netrafí, musí sa dať vrátiť
-   jedným ťuknutím — a to rozhodnutie musí prežiť prekreslenie aj zatvorenie. */
 let PANTRY_OVERRIDE = {};
 let PANTRY_HINT_HIDDEN = false;
 let PANTRY_ACCESS_CHANGED = false;
-/* Odpoveď servera na vyžiadaný prepočet — ukáže sa nad jedálničkom, nezmaže ho. */
 let PLAN_NOTE = '';
 let PLAN_NEEDS_REGEN = false;
 let PLAN_RESUME_ENDPOINT = '';
 let PLAN_EMPTY_REASON = '';
-/* Suroviny v ukážke: zámerne bežné veci, vždy označené ako ukážka. */
 const SPAJZA_UKAZKA = ['ryža', 'vajcia', 'cibuľa'];
-/* Bežné regálové ceny, nech je v ukážke vidieť, o koľko nákup klesne. */
 const SPAJZA_UKAZKA_CENY = {'ryža': '1,29', 'vajcia': '2,49', 'cibuľa': '0,89'};
 const PLAN_PREPARATION_MESSAGE = 'Plán pripravujeme. Pokojne pokračuj inde.';
 
@@ -256,10 +253,6 @@ function setPlan(plan) {
   PANTRY_OVERRIDE = loadPantryOverride(ME, PLAN);
 }
 
-/* ---------- špajza nad nákupným zoznamom ----------
-   Server označí, čo už používateľ doma má, a povie, ktorá položka špajze sa
-   naň chytila. Párovanie voľného textu nie je neomylné, preto sa tu nič
-   nemaže: položka je len odložená a jedno ťuknutie ju vráti do nákupu. */
 function pantryOverrideKey(user, plan) {
   return 'uvarsi_kupim:' + checkedStateKey(user, plan).slice(12);
 }
@@ -271,6 +264,11 @@ function loadPantryOverride(user, plan) {
 
 function pantryOwned(item, overrides) {
   if (!item || !item.mas_doma) return false;
+  return !(overrides || {})[String(item.offer_key || item.nazov || '')];
+}
+
+function pantryPartial(item, overrides) {
+  if (!item || !item.ciastocne_doma) return false;
   return !(overrides || {})[String(item.offer_key || item.nazov || '')];
 }
 
@@ -292,17 +290,18 @@ function shoppingItems(plan) {
   return out;
 }
 
-/* Koľko sa po odrátaní špajze naozaj zaplatí. Ráta sa na klientovi, lebo
-   zrušenie zhody nesmie čakať na server — číslo musí sedieť okamžite. */
 function remainingTotal(plan, overrides) {
   return moneyText(shoppingItems(plan).reduce(function(sum, item) {
+    var id = String(item && (item.offer_key || item.nazov) || '');
+    if ((overrides || {})[id]) return sum + moneyValue(item.cena);
+    if (item && item.cena_po_spajzi != null) return sum + moneyValue(item.cena_po_spajzi);
     return pantryOwned(item, overrides) ? sum : sum + moneyValue(item.cena);
   }, 0));
 }
 
 function pantryOwnedCount(plan, overrides) {
   return shoppingItems(plan).filter(function(item) {
-    return pantryOwned(item, overrides);
+    return pantryOwned(item, overrides) || pantryPartial(item, overrides);
   }).length;
 }
 
@@ -311,7 +310,11 @@ function itemsWord(count) {
 }
 
 function shoppingQuantityLabel(item) {
-  var quantity = item && item.mnozstvo;
+  var overrides = typeof PANTRY_OVERRIDE === 'undefined' ? {} : PANTRY_OVERRIDE;
+  var id = String(item && (item.offer_key || item.nazov) || '');
+  var overridden = !!((overrides || {})[id]);
+  var quantity = !overridden && item && item.mnozstvo_po_spajzi != null
+    ? item.mnozstvo_po_spajzi : item && item.mnozstvo;
   var unit = item && item.jednotka;
   return quantity && unit ? String(quantity) + ' × ' + String(unit) : '';
 }
@@ -367,7 +370,6 @@ function offlineError() {
   return failure;
 }
 
-/* Spoločné vyhodnotenie odpovede: api() aj predbežná požiadavka zo štartu. */
 async function readApiResponse(r) {
   if (handleApiUnauthorized(r)) {
     const authError = new Error('Prihlásenie vypršalo. Prihlás sa znova.');
@@ -446,9 +448,6 @@ function pantryDiffers(planPantry, currentPantry) {
   return false;
 }
 
-/* ---------- týždeň ----------
-   Každý deň musí mať riadok: navarené, zvyšok alebo výslovné voľno. Z pevného
-   zoznamu dní dni mimo neho ticho zmizli. */
 function dayGenitive(day) {
   var forms = {'PO':'pondelka', 'UT':'utorka', 'ST':'stredy', 'ŠT':'štvrtka',
     'PI':'piatku', 'SO':'soboty', 'NE':'nedele'};
@@ -483,9 +482,6 @@ function weekLabel(tyzden) {
 }
 const esc = s => String(s??'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-/* ---------- pôvod ceny ----------
-   Ku každej surovine chodí leták, strana a platnosť. Bez nich sa sľub
-   „skutočné ceny" nedá overiť. */
 function isoDay(value) {
   var parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value == null ? '' : value).trim());
   if (!parts) return null;
@@ -533,7 +529,6 @@ function ingredientProvenance(item, today) {
   var href = sourceHref(item.source_url);
   var page = Number(item.source_page);
   var hasPage = isFinite(page) && page > 0;
-  /* Starší uložený plán zdroj nemá — vtedy radšej nič, než holé zopakovanie obchodu. */
   if (!validity.text && !href && !hasPage) return '';
   var parts = [];
   var leaflet = leafletLabel(item);
@@ -556,7 +551,6 @@ function ingredientRow(item, today) {
     ${ingredientProvenance(item, today)}</div>`;
 }
 
-/* ---------- prihlásenie ---------- */
 function armAuthResend(button, schedule) {
   button.disabled = true;
   button.textContent = 'Poslať znova o 60 sekúnd';
@@ -609,7 +603,6 @@ function viewLogin(sent, previousEmail) {
   };
 }
 
-/* ---------- onboarding ---------- */
 function householdLabel(profil) {
   profil = profil || {};
   const a = +(profil.adults == null ? profil.osoby || 4 : profil.adults), c = +(profil.children || 0);
@@ -693,7 +686,6 @@ function viewOnboarding() {
   });
 }
 
-/* ---------- plán ---------- */
 let PLAN_REQUEST_IN_FLIGHT = null;
 let PLAN_PREPARATION = null;
 let PLAN_FAILURE = null;
@@ -828,8 +820,6 @@ function preskladajPlan() {
   return requestPlan('force', '/api/plan/generuj?force=1', {method:'POST'});
 }
 
-/* Koľko pokusov dnes zostáva. Keď server mlčí, je to null — „neviem" nie je
-   „nula" a tlačidlo vtedy ostáva tam, kde bolo. */
 function regenerationsLeft(me) {
   var raw = me ? me.zostava_prepoctov : null;
   if (typeof raw !== 'number' && typeof raw !== 'string') return null;
@@ -837,7 +827,6 @@ function regenerationsLeft(me) {
   return isFinite(left) && String(raw).trim() ? Math.max(0, left) : null;
 }
 
-/* Strop sa vracia o polnoci — nech je napísané, ktorý deň. */
 function nextDayLabel(today) {
   var base = isoDay(today);
   if (base === null) return 'zajtra';
@@ -845,8 +834,6 @@ function nextDayLabel(today) {
   return 'zajtra ' + next.getUTCDate() + '. ' + (next.getUTCMonth() + 1) + '.';
 }
 
-/* Vyčerpaný strop je bežný stav, nie chyba: koľko, dokedy a že jedálniček
-   zostáva. Znenie sedí s tým, čo na to isté odpovedá server. */
 function regenerationBlockedNote(me, today) {
   var limit = Math.round(Number(me && me.limit_prepoctov));
   var kolko = isFinite(limit) && limit > 0
@@ -860,7 +847,6 @@ function regenerationBlockedNote(me, today) {
   return text;
 }
 
-/* Koľko nových jedálničkov dnes ešte ide — aby strop nebol prekvapením. */
 function regenerationNote(me) {
   var limit = Math.round(Number(me && me.limit_prepoctov));
   if (!isFinite(limit) || limit <= 0) return '';
@@ -869,9 +855,6 @@ function regenerationNote(me) {
   return 'Nový jedálniček: dnes ešte ' + Math.min(left, limit) + ' z ' + limit;
 }
 
-/* Výslovné „navrhni jedlá z toho, čo mám doma". Jediná cesta, ktorou špajza
-   ovplyvní JEDLÁ; inak sa dotýka len nákupného zoznamu. Je to platené volanie,
-   preto sa spúšťa len na kliknutie a berie jeden prepočet z denného stropu. */
 function planZoSpajze() {
   return requestPlan('pantry', '/api/plan/zo-spajze', {method:'POST'});
 }
@@ -906,8 +889,6 @@ async function navrhniZoSpajze() {
   render();
 }
 
-/* Server posiela recept.davky, recept.pre a recept.porcie od začiatku;
-   obrazovka ich zamlčiavala, takže z jedla nebolo vidieť, na koľko dní sa varí. */
 function portionLine(recept) {
   if (!recept) return '';
   var parts = [];
@@ -930,11 +911,8 @@ function portionLine(recept) {
   return parts.join(' · ');
 }
 
-/* Prepočet na vyžiadanie. Keď server odmietne, jedálniček zostáva a hláška je
-   nad ním — nikdy prázdna chybová stena. */
 async function novyPlan() {
   if (!PLAN || !PLAN.jedla) return nacitajPlan(true);
-  /* Keď dnes už nič nejde, povie sa to rovno — bez volania do odmietnutia. */
   if (regenerationsLeft(ME) === 0) {
     PLAN_NOTE = regenerationBlockedNote(ME, todayIso());
     return render();
@@ -965,7 +943,6 @@ async function nacitajPlan(gen) {
   const version = PLAN_CONTEXT_VERSION;
   if (!gen) M.innerHTML = `<div class="spin"></div><p class="center muted mono" style="font-size:.8rem">Načítavam…</p>`;
   try {
-    /* Pri prvom otvorení je plán už na ceste zo štartu — netreba druhú obrátku. */
     const prefetched = gen ? null : takePlanPrefetch();
     let plan = gen ? await generujPlan()
       : (prefetched ? await readStartupResponse(prefetched) : await api('/api/plan'));
@@ -1109,9 +1086,7 @@ function vPlan() {
   }
   if (!PLAN || !PLAN.jedla) return nacitajPlan(true);
   const dnes = todayIso();
-  /* Návrh na prepočet osloví len toho, kto špajzu naozaj má. Na staršom
-     serveri bez vlastného poľa o tom rozhoduje ME.premium ako doteraz. */
-  const spajzaSaZmenila = !PANTRY_HINT_HIDDEN && pantryUnlocked(ME) &&
+  const spajzaSaZmenila = !PANTRY_HINT_HIDDEN && ME && ME.premium && pantryUnlocked(ME) &&
     pantryDiffers(PLAN.spajza, ME && ME.spajza);
   let h = `<div style="margin:18px 0 6px"><span class="eyebrow">Tvoj týždeň</span>
     <h1 class="display" style="font-size:1.5rem;margin-top:4px">Navarené z akcií</h1>
@@ -1133,18 +1108,24 @@ function vPlan() {
       <div style="height:8px"></div>
       <button class="btn btn--ghost" id="sp-hint-off">Nechať tak</button></div>`;
   }
-  /* Každý deň dostane riadok — navarené, zvyšok alebo výslovné voľno. */
   planWeekDays(PLAN, ME && ME.frekvencia).forEach(row => {
     if (row.typ === 'jedlo') {
       const j = row.jedlo;
-      h += `<div class="meal" data-d="${esc(row.den)}"><div class="meal-h">
+      const panelId = `meal-${String(row.den).toLowerCase()}`;
+      const doma = j.recept?.skontroluj_doma || [];
+      h += `<div class="meal" data-d="${esc(row.den)}"><button type="button" class="meal-h"
+        aria-expanded="false" aria-controls="${esc(panelId)}">
         <span class="meal-d">${esc(row.den)}</span><span class="meal-n">${esc(j.nazov)}</span>
         <span class="mono" style="font-size:.72rem;color:var(--ink-soft)">${j.recept?.min||''} min ▾</span>
-      </div><div class="meal-b">
-        ${(j.suroviny||[]).map(s=>ingredientRow(s, dnes)).join('')}
+      </button><div class="meal-b" id="${esc(panelId)}">
         ${portionLine(j.recept)?`<p class="mono" style="font-size:.72rem;color:var(--ink-soft);margin-top:10px">${esc(portionLine(j.recept))}</p>`:''}
-        ${(j.recept?.davky||[]).length?`<div class="davky">${(j.recept?.davky||[]).map(d=>`<div class="d"><span>${esc(d)}</span></div>`).join('')}</div>`:''}
+        ${(j.recept?.davky||[]).length?`<div class="recipe-label">Na recept použiješ</div><div class="davky">${(j.recept?.davky||[]).map(d=>`<div class="d"><span>${esc(d)}</span></div>`).join('')}</div>`:''}
+        ${doma.length?`<div class="recipe-label">Skontroluj doma</div><div class="home-basics">${doma.map(d=>`<span>${esc(d)}</span>`).join('')}</div>`:''}
+        <div class="recipe-label">Akcie a ceny</div>
+        ${(j.suroviny||[]).map(s=>ingredientRow(s, dnes)).join('')}
+        <div class="recipe-label">Postup</div>
         <ol class="steps">${(j.recept?.kroky||[]).map(k=>`<li>${esc(k)}</li>`).join('')}</ol>
+        ${j.recept?.uchovanie?`<div class="storage-note"><b>Uchovanie:</b> ${esc(j.recept.uchovanie)}</div>`:''}
       </div></div>`;
     } else if (row.typ === 'zvysok') {
       h += `<div class="rest">${esc(row.den)} · zvyšok z ${esc(dayGenitive(row.zdroj))}</div>`;
@@ -1157,7 +1138,6 @@ function vPlan() {
     <p class="muted center mono" style="font-size:.74rem">Nákup ${esc(PLAN.nakup_spolu)} € ·
     bežne ${esc(PLAN.bezne)} €</p>
     <div style="height:14px"></div>`;
-  /* Keď pokusy dôjdu, namiesto tlačidla je veta, kedy sa strop vráti. */
   const zostava = regenerationsLeft(ME);
   if (zostava === 0) {
     h += `<div class="hint" id="rg-strop">
@@ -1173,7 +1153,10 @@ function vPlan() {
     $('#sp-hint-off').onclick = () => { PANTRY_HINT_HIDDEN = true; render(); };
   }
   M.querySelectorAll('.meal-h').forEach(el =>
-    el.onclick = () => el.parentElement.classList.toggle('open'));
+    el.onclick = () => {
+      const open = el.parentElement.classList.toggle('open');
+      el.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
 }
 
 function vZoznam() {
@@ -1182,12 +1165,10 @@ function vZoznam() {
   const zaplatis = remainingTotal(PLAN, PANTRY_OVERRIDE);
   let h = `<div style="margin:18px 0 6px"><span class="eyebrow">Nákupný zoznam</span>
     <h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo kúpiť a kde</h1></div>`;
-  /* Zhrnutie špajze: koľko toho netreba kupovať a koľko sa naozaj zaplatí.
-     Ráta sa z aktuálnej špajzy pri každom otvorení, nič sa neukladá. */
   if (doma) {
     h += `<div class="hint" id="doma-suhrn"><span class="eyebrow">Zo špajze</span>
-      <p style="margin:6px 0 4px">${doma} ${esc(itemsWord(doma))} už máš doma, tak ich
-        nekupuješ. Zaplatíš <b>${esc(zaplatis)} €</b> namiesto ${esc(PLAN.nakup_spolu||'')} €.</p>
+      <p style="margin:6px 0 4px">${doma} ${esc(itemsWord(doma))} nákupu pokrýva špajza
+        úplne alebo sčasti. Zaplatíš <b>${esc(zaplatis)} €</b> namiesto ${esc(PLAN.nakup_spolu||'')} €.</p>
       <p class="muted" style="margin:0">Keď zhoda nesedí, ťukni na „Predsa kúpiť".</p></div>`;
   }
   PLAN.nakupny_zoznam.forEach((s, si) => {
@@ -1201,13 +1182,22 @@ function vZoznam() {
           <span class="box">🥫</span>
           <span class="nm">${esc(p.nazov)}${mnozstvo}
             <span class="doma-note">máš doma · zo špajze: ${esc(p.spajza || '')}</span></span>
-          <span class="pr">${p.cena?esc(p.cena)+' €':''}<br>
+          <span class="pr">nekupuješ<br>
             <span class="undo" data-doma="${esc(id)}">Predsa kúpiť</span></span></div>`;
+        return;
+      }
+      if (pantryPartial(p, PANTRY_OVERRIDE)) {
+        h += `<div class="item item--partial">
+          <span class="box">◐</span>
+          <span class="nm">${esc(p.nazov)}${mnozstvo}
+            <span class="doma-note">zo špajze použiješ ${esc(p.zo_spajze || '')} · na recept chýba ${esc(p.zostava || '')}${p.zostane_po_spajzi ? ' · z nákupu zostane približne ' + esc(p.zostane_po_spajzi) : ''}</span></span>
+          <span class="pr">${esc(p.cena_po_spajzi || p.cena || '')} €<br>
+            <span class="undo" data-doma="${esc(id)}">Kúpiť celé množstvo</span></span></div>`;
         return;
       }
       h += `<div class="item${DONE[k]?' done':''}" data-k="${k}">
         <span class="box">${DONE[k]?'✓':''}</span>
-        <span class="nm">${esc(p.nazov)}${mnozstvo}</span>
+        <span class="nm">${esc(p.nazov)}${mnozstvo}${p.pouzije ? `<span class="buy-note">na recept použiješ ${esc(p.pouzije)}${p.zostane ? ' · približne ' + esc(p.zostane) + ' zostane' : ''}</span>` : ''}</span>
         <span class="pr">${p.cena?esc(p.cena)+' €':''}</span></div>`;
     });
   });
@@ -1296,9 +1286,10 @@ function vSpajza() {
       čo už doma máš.</p>
     <p class="muted" style="margin:0 0 16px">Keď chceš aj jedlá poskladať okolo špajze,
       povedz si o to tlačidlom dole.</p></div>
-    <div class="card"><label>Pridať surovinu</label>
-      <div style="display:flex;gap:8px"><input id="sp-new" placeholder="napr. ${esc(SPAJZA_UKAZKA.join(', '))}">
+    <div class="card"><label>Pridať surovinu a voliteľné množstvo</label>
+      <div style="display:flex;gap:8px"><input id="sp-new" placeholder="napr. ryža 500 g alebo vajcia 6 ks">
       <button class="btn" style="width:auto;padding:14px 18px" id="sp-add">+</button></div>
+      <p class="muted" style="margin-top:10px">Ak množstvo nenapíšeš, budeme rátať, že máš suroviny dosť.</p>
       <p id="sp-err" class="muted" style="color:var(--red);margin-top:10px"></p></div>
     <div id="sp-list">${sp.map((s,i)=>`<div class="item"><span class="nm">${esc(s)}</span>
       <span class="pr" data-i="${i}" style="color:var(--red);cursor:pointer">✕</span></div>`).join('')
@@ -1364,7 +1355,6 @@ $('#nav').onclick = e => {
   TAB = b.dataset.t; render();
 };
 
-/* ---------- štart ---------- */
 function viewOffline(message) {
   $('#nav').classList.add('hidden');
   M.innerHTML = `<div class="card center" style="margin-top:40px">
@@ -1377,7 +1367,6 @@ function viewOffline(message) {
 
 async function start() {
   invalidatePlanState();
-  /* Kto sa už raz prihlásil, uvidí hlavičku aj menu okamžite — čaká len na plán. */
   const known = paintKnownShell();
   M.innerHTML = known
     ? `<div class="spin"></div><p class="center muted mono" style="font-size:.8rem">Načítavam…</p>`
@@ -1397,9 +1386,6 @@ async function start() {
 
 start();
 
-/* Service worker musí sedieť v koreni webu, inak jeho scope končí na /static/
-   a /app nikdy neovláda — preto PWA nemala offline škrupinu. Starú registráciu
-   treba zrušiť menovite, sama by neodišla. */
 if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
   navigator.serviceWorker.getRegistrations().then(registrations => {
     registrations.forEach(registration => {
