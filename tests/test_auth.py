@@ -1427,6 +1427,7 @@ def test_action_token_primitive_is_purpose_bound_and_expires_at_the_boundary(
             auth_data.consume_action_token(
                 con, raw_token=reset_token, purpose="setup", now=now + 1
             )
+        assert con.in_transaction is False
         assert auth_data.consume_action_token(
             con, raw_token=reset_token, purpose="reset", now=now + 1
         )["email"] == "cook@example.com"
@@ -1438,6 +1439,7 @@ def test_action_token_primitive_is_purpose_bound_and_expires_at_the_boundary(
             auth_data.consume_action_token(
                 con, raw_token=setup_token, purpose="setup", now=now + 60 * 60
             )
+        assert con.in_transaction is False
         assert con.execute("SELECT * FROM auth_action_tokens").fetchall() == []
 
 
@@ -1478,9 +1480,11 @@ def test_action_token_primitive_consumption_is_transactionally_one_time(
     def consume():
         with sqlite3.connect(database) as con:
             try:
-                return auth_data.consume_action_token(
+                result = auth_data.consume_action_token(
                     con, raw_token=raw_token, purpose="reset", now=now + 1
                 )
+                con.commit()
+                return result
             except auth_data.ActionTokenInvalid:
                 return None
 
@@ -1490,6 +1494,160 @@ def test_action_token_primitive_consumption_is_transactionally_one_time(
     assert sorted(result is None for result in results) == [False, True]
     with sqlite3.connect(database) as con:
         assert con.execute("SELECT COUNT(*) FROM auth_action_tokens").fetchone() == (0,)
+
+
+def test_action_token_transaction_rollback_after_consume_restores_token(
+    monkeypatch, tmp_path
+):
+    auth_data = load_auth_data(monkeypatch)
+    database = tmp_path / "action-token-rollback.db"
+    now = 1_900_000_000.0
+    with sqlite3.connect(database) as con:
+        auth_data.migrate_auth_schema(con)
+        raw_token = auth_data.create_action_token(
+            con, email="cook@example.com", purpose="reset", now=now
+        )
+
+    with sqlite3.connect(database) as con:
+        consumed = auth_data.consume_action_token(
+            con, raw_token=raw_token, purpose="reset", now=now + 1
+        )
+
+        assert consumed["email"] == "cook@example.com"
+        assert con.in_transaction is True
+        assert con.execute("SELECT COUNT(*) FROM auth_action_tokens").fetchone() == (0,)
+        with sqlite3.connect(database) as observer:
+            assert observer.execute(
+                "SELECT COUNT(*) FROM auth_action_tokens"
+            ).fetchone() == (1,)
+
+        con.rollback()
+
+        assert con.in_transaction is False
+        assert con.execute("SELECT COUNT(*) FROM auth_action_tokens").fetchone() == (1,)
+        auth_data.consume_action_token(
+            con, raw_token=raw_token, purpose="reset", now=now + 2
+        )
+        con.commit()
+
+    with sqlite3.connect(database) as con:
+        assert con.execute("SELECT COUNT(*) FROM auth_action_tokens").fetchone() == (0,)
+
+
+def test_action_token_transaction_commits_with_protected_user_and_credential_mutation(
+    monkeypatch, tmp_path
+):
+    auth_data = load_auth_data(monkeypatch)
+    database = tmp_path / "action-token-confirm.db"
+    now = 1_900_000_000.0
+    pending_hash = auth_data.hash_password("pending pass")
+    with sqlite3.connect(database) as con:
+        con.execute(
+            "CREATE TABLE pouzivatelia (id INTEGER PRIMARY KEY, email TEXT NOT NULL)"
+        )
+        auth_data.migrate_auth_schema(con)
+        raw_token = auth_data.create_action_token(
+            con,
+            email="cook@example.com",
+            purpose="confirm",
+            now=now,
+            pending_password_hash=pending_hash,
+        )
+
+    with sqlite3.connect(database) as con:
+        consumed = auth_data.consume_action_token(
+            con, raw_token=raw_token, purpose="confirm", now=now + 1
+        )
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES (?)", (consumed["email"],)
+        ).lastrowid
+        con.execute(
+            """INSERT INTO auth_credentials (user_id, password_hash, changed_at)
+               VALUES (?, ?, ?)""",
+            (user_id, consumed["pending_password_hash"], now + 1),
+        )
+
+        assert con.in_transaction is True
+        with sqlite3.connect(database) as observer:
+            assert observer.execute(
+                "SELECT COUNT(*) FROM auth_action_tokens"
+            ).fetchone() == (1,)
+            assert observer.execute("SELECT COUNT(*) FROM pouzivatelia").fetchone() == (
+                0,
+            )
+            assert observer.execute(
+                "SELECT COUNT(*) FROM auth_credentials"
+            ).fetchone() == (0,)
+        con.commit()
+
+    with sqlite3.connect(database) as con:
+        assert con.execute("SELECT COUNT(*) FROM auth_action_tokens").fetchone() == (0,)
+        assert con.execute(
+            """SELECT p.email, c.password_hash, c.changed_at
+               FROM pouzivatelia p
+               JOIN auth_credentials c ON c.user_id=p.id"""
+        ).fetchone() == ("cook@example.com", pending_hash, now + 1)
+
+
+def test_action_token_transaction_uses_existing_transaction_without_damaging_it(
+    monkeypatch,
+):
+    auth_data = load_auth_data(monkeypatch)
+    now = 1_900_000_000.0
+    with sqlite3.connect(":memory:") as con:
+        auth_data.migrate_auth_schema(con)
+        con.execute("CREATE TABLE audit_event (value TEXT NOT NULL)")
+        raw_token = auth_data.create_action_token(
+            con, email="cook@example.com", purpose="reset", now=now
+        )
+        con.execute("BEGIN IMMEDIATE")
+        con.execute("INSERT INTO audit_event (value) VALUES ('keep pending')")
+
+        with pytest.raises(auth_data.ActionTokenInvalid, match="^invalid token$"):
+            auth_data.consume_action_token(
+                con, raw_token=raw_token, purpose="setup", now=now + 1
+            )
+
+        assert con.in_transaction is True
+        assert con.execute("SELECT value FROM audit_event").fetchall() == [
+            ("keep pending",)
+        ]
+        assert con.execute("SELECT COUNT(*) FROM auth_action_tokens").fetchone() == (1,)
+        con.rollback()
+
+        assert con.in_transaction is False
+        assert con.execute("SELECT * FROM audit_event").fetchall() == []
+
+
+def test_action_token_transaction_expiry_keeps_existing_transaction_safe(
+    monkeypatch,
+):
+    auth_data = load_auth_data(monkeypatch)
+    now = 1_900_000_000.0
+    with sqlite3.connect(":memory:") as con:
+        auth_data.migrate_auth_schema(con)
+        con.execute("CREATE TABLE audit_event (value TEXT NOT NULL)")
+        raw_token = auth_data.create_action_token(
+            con, email="cook@example.com", purpose="setup", now=now
+        )
+        con.execute("BEGIN IMMEDIATE")
+        con.execute("INSERT INTO audit_event (value) VALUES ('keep pending')")
+
+        with pytest.raises(auth_data.ActionTokenExpired, match="^expired token$"):
+            auth_data.consume_action_token(
+                con, raw_token=raw_token, purpose="setup", now=now + 60 * 60
+            )
+
+        assert con.in_transaction is True
+        assert con.execute("SELECT value FROM audit_event").fetchall() == [
+            ("keep pending",)
+        ]
+        assert con.execute("SELECT COUNT(*) FROM auth_action_tokens").fetchone() == (0,)
+        con.rollback()
+
+        assert con.in_transaction is False
+        assert con.execute("SELECT * FROM audit_event").fetchall() == []
+        assert con.execute("SELECT COUNT(*) FROM auth_action_tokens").fetchone() == (1,)
 
 
 @pytest.mark.parametrize("purpose", ["register", "login"])

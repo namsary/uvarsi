@@ -271,7 +271,12 @@ def consume_action_token(
         raise ActionTokenInvalid("invalid token")
 
     digest = token_hash(raw_token)
-    con.execute("BEGIN IMMEDIATE")
+    owns_transaction = not con.in_transaction
+    savepoint = "action_token_consume"
+    if owns_transaction:
+        con.execute("BEGIN IMMEDIATE")
+    else:
+        con.execute(f"SAVEPOINT {savepoint}")
     try:
         row = con.execute(
             """SELECT email, purpose, pending_password_hash, expires_at
@@ -283,22 +288,35 @@ def consume_action_token(
             raise ActionTokenInvalid("invalid token")
         if float(row[3]) <= now:
             con.execute("DELETE FROM auth_action_tokens WHERE token_hash=?", (digest,))
-            con.commit()
+            if owns_transaction:
+                con.commit()
+            else:
+                con.execute(f"RELEASE SAVEPOINT {savepoint}")
             raise ActionTokenExpired("expired token")
 
         con.execute("DELETE FROM auth_action_tokens WHERE token_hash=?", (digest,))
-        con.commit()
+        if not owns_transaction:
+            con.execute(f"RELEASE SAVEPOINT {savepoint}")
         return {
             "email": row[0],
             "purpose": row[1],
             "pending_password_hash": row[2],
         }
-    except (ActionTokenInvalid, ActionTokenExpired):
-        if con.in_transaction:
+    except ActionTokenExpired:
+        raise
+    except ActionTokenInvalid:
+        if owns_transaction:
             con.rollback()
+        else:
+            con.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+            con.execute(f"RELEASE SAVEPOINT {savepoint}")
         raise
     except Exception:
-        con.rollback()
+        if owns_transaction:
+            con.rollback()
+        else:
+            con.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+            con.execute(f"RELEASE SAVEPOINT {savepoint}")
         raise
 
 
