@@ -1,5 +1,6 @@
 """Focused persistence and provider boundaries for passwordless authentication."""
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 import hashlib
 import re
@@ -184,6 +185,29 @@ def migrate_auth_schema(con) -> None:
 
 def token_hash(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+@contextmanager
+def _session_mutation(con, savepoint: str):
+    owns_transaction = not con.in_transaction
+    if owns_transaction:
+        con.execute("BEGIN IMMEDIATE")
+    else:
+        con.execute(f"SAVEPOINT {savepoint}")
+    try:
+        yield
+    except Exception:
+        if owns_transaction:
+            con.rollback()
+        else:
+            con.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+            con.execute(f"RELEASE SAVEPOINT {savepoint}")
+        raise
+    else:
+        if owns_transaction:
+            con.commit()
+        else:
+            con.execute(f"RELEASE SAVEPOINT {savepoint}")
 
 
 def validate_password(value: object) -> str:
@@ -524,21 +548,21 @@ def create_session(
     con, *, user_id: int, now: float, device_name: str
 ) -> str:
     raw_session = secrets.token_urlsafe(32)
-    con.execute(
-        """INSERT INTO sessions_v2
-           (token_hash, user_id, expires_at, created_at, last_seen_at,
-            device_name, revoked_at)
-           VALUES (?, ?, ?, ?, ?, ?, NULL)""",
-        (
-            token_hash(raw_session),
-            user_id,
-            now + SESSION_TTL_SECONDS,
-            now,
-            now,
-            device_name,
-        ),
-    )
-    con.commit()
+    with _session_mutation(con, "session_create"):
+        con.execute(
+            """INSERT INTO sessions_v2
+               (token_hash, user_id, expires_at, created_at, last_seen_at,
+                device_name, revoked_at)
+               VALUES (?, ?, ?, ?, ?, ?, NULL)""",
+            (
+                token_hash(raw_session),
+                user_id,
+                now + SESSION_TTL_SECONDS,
+                now,
+                now,
+                device_name,
+            ),
+        )
     return raw_session
 
 
@@ -574,6 +598,7 @@ def consume_magic_token(con, *, raw_token: str, now: float) -> str:
             now=now,
             device_name="Magic link",
         )
+        con.commit()
         return raw_session
     except (MagicTokenInvalid, MagicTokenExpired):
         if con.in_transaction:
@@ -665,34 +690,34 @@ def list_sessions(
 def revoke_session(con, *, user_id: int, session_hash: str) -> bool:
     if not isinstance(session_hash, str) or not session_hash:
         return False
-    revoked = con.execute(
-        """UPDATE sessions_v2
-           SET revoked_at=CAST(strftime('%s', 'now') AS REAL)
-           WHERE user_id=? AND token_hash=? AND revoked_at IS NULL""",
-        (user_id, session_hash),
-    ).rowcount
-    con.commit()
+    with _session_mutation(con, "session_revoke"):
+        revoked = con.execute(
+            """UPDATE sessions_v2
+               SET revoked_at=CAST(strftime('%s', 'now') AS REAL)
+               WHERE user_id=? AND token_hash=? AND revoked_at IS NULL""",
+            (user_id, session_hash),
+        ).rowcount
     return revoked == 1
 
 
 def revoke_other_sessions(
     con, *, user_id: int, current_token: str | None
 ) -> None:
-    if current_token:
-        con.execute(
-            """UPDATE sessions_v2
-               SET revoked_at=CAST(strftime('%s', 'now') AS REAL)
-               WHERE user_id=? AND token_hash<>? AND revoked_at IS NULL""",
-            (user_id, token_hash(current_token)),
-        )
-    else:
-        con.execute(
-            """UPDATE sessions_v2
-               SET revoked_at=CAST(strftime('%s', 'now') AS REAL)
-               WHERE user_id=? AND revoked_at IS NULL""",
-            (user_id,),
-        )
-    con.commit()
+    with _session_mutation(con, "sessions_revoke_other"):
+        if current_token:
+            con.execute(
+                """UPDATE sessions_v2
+                   SET revoked_at=CAST(strftime('%s', 'now') AS REAL)
+                   WHERE user_id=? AND token_hash<>? AND revoked_at IS NULL""",
+                (user_id, token_hash(current_token)),
+            )
+        else:
+            con.execute(
+                """UPDATE sessions_v2
+                   SET revoked_at=CAST(strftime('%s', 'now') AS REAL)
+                   WHERE user_id=? AND revoked_at IS NULL""",
+                (user_id,),
+            )
 
 
 def delete_session(con, raw_session: str) -> None:

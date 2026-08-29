@@ -387,9 +387,23 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Uvar.si", lifespan=lifespan)
 
 
+def set_session_cookie(response: Response, raw_session: str) -> None:
+    response.set_cookie(
+        COOKIE,
+        raw_session,
+        max_age=SESSION_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+        secure=True,
+    )
+
+
 @app.middleware("http")
 async def private_ui_noindex(request: Request, call_next):
     response = await call_next(request)
+    renewal = getattr(request.state, "renew_session_cookie", None)
+    if renewal:
+        set_session_cookie(response, renewal)
     if request.url.path == "/app" or request.url.path.startswith("/prihlasenie"):
         response.headers["Cache-Control"] = PRIVATE_CACHE_CONTROL
         response.headers["X-Robots-Tag"] = NOINDEX_HEADER
@@ -417,7 +431,11 @@ def user_from_request(req: Request):
     if not tok:
         return None
     with closing(db()) as con:
-        return user_for_session(con, raw_session=tok, now=AUTH_CLOCK())
+        changes_before = con.total_changes
+        user = user_for_session(con, raw_session=tok, now=AUTH_CLOCK())
+        if user is not None and con.total_changes > changes_before:
+            req.state.renew_session_cookie = tok
+        return user
 
 
 def require_user(req: Request):
@@ -793,14 +811,7 @@ async def auth_verify(req: Request):
     except MagicTokenInvalid:
         raise HTTPException(400, "Odkaz je neplatný alebo už bol použitý. Požiadaj o nový.")
     response = JSONResponse({"ok": True, "redirect": "/app"})
-    response.set_cookie(
-        COOKIE,
-        session,
-        max_age=SESSION_MAX_AGE,
-        httponly=True,
-        samesite="lax",
-        secure=True,
-    )
+    set_session_cookie(response, session)
     return response
 
 

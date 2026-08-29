@@ -9,6 +9,7 @@ import subprocess
 import sys
 import threading
 import types
+from contextlib import closing
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -1900,6 +1901,52 @@ def test_active_session_slides_to_90_days_at_most_once_per_24_hours(
         ) == touched
 
 
+def test_session_cookie_is_not_renewed_before_the_24_hour_touch(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    now = [1_800_000_000.0]
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now[0])
+    token = issue_link(server, monkeypatch)
+    client = TestClient(server.app, base_url="https://testserver")
+    assert client.post("/api/auth/verify", json={"token": token}).status_code == 200
+
+    now[0] += 24 * 60 * 60 - 1
+    response = client.get("/api/me")
+
+    assert response.status_code == 200
+    assert response.json()["prihlaseny"] is True
+    assert response.headers.get("set-cookie") is None
+
+
+def test_session_touch_renews_the_secure_90_day_cookie_only_on_that_response(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    now = [1_800_000_000.0]
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now[0])
+    token = issue_link(server, monkeypatch)
+    client = TestClient(server.app, base_url="https://testserver")
+    assert client.post("/api/auth/verify", json={"token": token}).status_code == 200
+    raw_session = client.cookies.get(server.COOKIE)
+
+    now[0] += 24 * 60 * 60
+    touched = client.get("/api/me")
+    now[0] += 1
+    immediate_repeat = client.get("/api/me")
+
+    cookie = touched.headers["set-cookie"]
+    assert f"uvarsi_session={raw_session}" in cookie
+    assert "Max-Age=7776000" in cookie
+    assert "HttpOnly" in cookie
+    assert "Secure" in cookie
+    assert "SameSite=lax" in cookie
+    assert "Domain=" not in cookie
+    assert immediate_repeat.headers.get("set-cookie") is None
+
+
 def test_legacy_hashed_session_with_null_metadata_remains_valid_and_is_touched(
     monkeypatch, tmp_path
 ):
@@ -2055,6 +2102,203 @@ def test_session_list_and_revoke_use_hash_identifiers_that_cannot_authenticate(
                WHERE token_hash=?""",
             (session_hash,),
         ).fetchone()[0] == 1
+
+
+def test_create_session_leaves_a_caller_transaction_open_for_rollback(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('create-rollback@example.com')"
+        ).lastrowid
+        auth_data.create_session(
+            con,
+            user_id=user_id,
+            now=1_800_000_000.0,
+            device_name="Rollback",
+        )
+
+        assert con.in_transaction is True
+        con.rollback()
+
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM pouzivatelia WHERE email='create-rollback@example.com'"
+        ).fetchone() == (0,)
+        assert con.execute("SELECT COUNT(*) FROM sessions_v2").fetchone() == (0,)
+
+
+def test_create_session_leaves_a_caller_transaction_open_for_commit(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('create-commit@example.com')"
+        ).lastrowid
+        raw_session = auth_data.create_session(
+            con,
+            user_id=user_id,
+            now=1_800_000_000.0,
+            device_name="Commit",
+        )
+
+        assert con.in_transaction is True
+        con.commit()
+
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT email FROM pouzivatelia WHERE id=?", (user_id,)
+        ).fetchone() == ("create-commit@example.com",)
+        assert con.execute(
+            "SELECT token_hash FROM sessions_v2 WHERE user_id=?", (user_id,)
+        ).fetchone() == (hashlib.sha256(raw_session.encode()).hexdigest(),)
+
+
+def test_create_session_persists_when_it_owns_the_transaction(monkeypatch, tmp_path):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('create-owned@example.com')"
+        ).lastrowid
+        con.commit()
+        raw_session = auth_data.create_session(
+            con,
+            user_id=user_id,
+            now=1_800_000_000.0,
+            device_name="Owned",
+        )
+        assert con.in_transaction is False
+
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT token_hash FROM sessions_v2 WHERE user_id=?", (user_id,)
+        ).fetchone() == (hashlib.sha256(raw_session.encode()).hexdigest(),)
+
+
+def _seed_session_revoke_test(server, auth_data, email):
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES (?)", (email,)
+        ).lastrowid
+        con.commit()
+        current = auth_data.create_session(
+            con,
+            user_id=user_id,
+            now=1_800_000_000.0,
+            device_name="Current",
+        )
+        target = auth_data.create_session(
+            con,
+            user_id=user_id,
+            now=1_800_000_000.0,
+            device_name="Target",
+        )
+    return user_id, current, hashlib.sha256(target.encode()).hexdigest()
+
+
+@pytest.mark.parametrize("operation", ["revoke_session", "revoke_other_sessions"])
+def test_session_revokers_leave_a_caller_transaction_open_for_rollback(
+    monkeypatch, tmp_path, operation
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    original_email = f"{operation}-rollback@example.com"
+    user_id, current, target_hash = _seed_session_revoke_test(
+        server, auth_data, original_email
+    )
+    with closing(server.db()) as con:
+        con.execute(
+            "UPDATE pouzivatelia SET email='pending@example.com' WHERE id=?",
+            (user_id,),
+        )
+        if operation == "revoke_session":
+            assert auth_data.revoke_session(
+                con, user_id=user_id, session_hash=target_hash
+            ) is True
+        else:
+            auth_data.revoke_other_sessions(
+                con, user_id=user_id, current_token=current
+            )
+
+        assert con.in_transaction is True
+        con.rollback()
+
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT email FROM pouzivatelia WHERE id=?", (user_id,)
+        ).fetchone() == (original_email,)
+        assert con.execute(
+            "SELECT COUNT(*) FROM sessions_v2 WHERE user_id=? AND revoked_at IS NOT NULL",
+            (user_id,),
+        ).fetchone() == (0,)
+
+
+@pytest.mark.parametrize("operation", ["revoke_session", "revoke_other_sessions"])
+def test_session_revokers_leave_a_caller_transaction_open_for_commit(
+    monkeypatch, tmp_path, operation
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    user_id, current, target_hash = _seed_session_revoke_test(
+        server, auth_data, f"{operation}-commit@example.com"
+    )
+    with closing(server.db()) as con:
+        con.execute(
+            "UPDATE pouzivatelia SET email='committed@example.com' WHERE id=?",
+            (user_id,),
+        )
+        if operation == "revoke_session":
+            assert auth_data.revoke_session(
+                con, user_id=user_id, session_hash=target_hash
+            ) is True
+        else:
+            auth_data.revoke_other_sessions(
+                con, user_id=user_id, current_token=current
+            )
+
+        assert con.in_transaction is True
+        con.commit()
+
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT email FROM pouzivatelia WHERE id=?", (user_id,)
+        ).fetchone() == ("committed@example.com",)
+        assert con.execute(
+            "SELECT revoked_at IS NOT NULL FROM sessions_v2 WHERE token_hash=?",
+            (target_hash,),
+        ).fetchone() == (1,)
+
+
+@pytest.mark.parametrize("operation", ["revoke_session", "revoke_other_sessions"])
+def test_session_revokers_persist_when_they_own_the_transaction(
+    monkeypatch, tmp_path, operation
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    user_id, current, target_hash = _seed_session_revoke_test(
+        server, auth_data, f"{operation}-owned@example.com"
+    )
+    with closing(server.db()) as con:
+        if operation == "revoke_session":
+            assert auth_data.revoke_session(
+                con, user_id=user_id, session_hash=target_hash
+            ) is True
+        else:
+            auth_data.revoke_other_sessions(
+                con, user_id=user_id, current_token=current
+            )
+        assert con.in_transaction is False
+
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT revoked_at IS NOT NULL FROM sessions_v2 WHERE token_hash=?",
+            (target_hash,),
+        ).fetchone() == (1,)
 
 
 def test_legacy_plaintext_session_is_invalid_after_release(monkeypatch, tmp_path):
