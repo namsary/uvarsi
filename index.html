@@ -613,7 +613,7 @@
     var band=node('div','cost-band'), saving=node('div','saving-story'), math=node('div','saving-math');
     saving.append(node('span','c-lbl','Modelový príklad'),
       node('span','saving-week','Týždeň '),node('b','',amount(data.receipt.usetris)),
-      node('span','','. Model × 52 ≈ '),
+      node('span','','. Ak by si tak šetril rok ≈ '),
       node('b','',annualText),node('span','','.'));
     math.append(node('span','','Príklad, nie záruka: '+amount(data.receipt.usetris)+' × 52.'));
     band.append(saving,math);
