@@ -21,11 +21,26 @@ from app.plan_worker import ProcessResult, process_one
 ROOT = Path(__file__).resolve().parents[1]
 NOW = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None, microsecond=0)
 STORES = ["Lidl", "Kaufland", "Tesco"]
-COOKABLE_STEPS = [
-    "Na oleji opeč cibuľu nakrájanú na kocky 5 minút do sklovita.",
-    "Prilej 200 ml vody, osoľ a var 15 minút pod pokrievkou.",
-    "Na miernom ohni jedlo prevar ešte 3 minúty a rozdeľ ho na taniere.",
-]
+DIVERSE_RECIPES = (
+    ("Kuracie s ryžou", [
+        "V hrnci zohrej 2 lyžice oleja na strednom ohni 2 minúty, kým sa rozvonia.",
+        "Pridaj 400 g kuracieho mäsa nakrájaného na kocky a var 8 minút, kým nezhnedne.",
+        "Vsyp 300 g ryže, prilej 600 ml vody a var 15 minút na miernom ohni, kým ryža nezmäkne.",
+        "Kuracie s ryžou rozdeľ na 4 taniere a podávaj horúce.",
+    ]),
+    ("Bravčové s cestovinami", [
+        "Na panvici zohrej 2 lyžice oleja na strednom ohni 2 minúty, kým sa rozvonia.",
+        "Pridaj 400 g bravčového mäsa nakrájaného na pásiky a opekaj 10 minút do zlatista.",
+        "Vmiešaj 300 g cestovín a 200 ml vody, prehrievaj 5 minút, kým omáčka nezhustne.",
+        "Bravčové s cestovinami rozdeľ na 4 taniere a podávaj horúce.",
+    ]),
+    ("Losos so zemiakmi", [
+        "Rúru predhrej na 200 °C a plech potri 2 lyžicami oleja.",
+        "Na plech polož 400 g lososa a 300 g zemiakov nakrájaných na kolieska.",
+        "Peč 25 minút, kým losos nie je šťavnatý a zemiaky nie sú dozlata.",
+        "Lososa so zemiakmi rozdeľ na 4 taniere a podávaj horúce.",
+    ]),
+)
 
 
 def _offer(index, store):
@@ -97,9 +112,9 @@ def _model_output(offer_keys):
         "meals": [
             {
                 "day": day,
-                "name": f"Jedlo {index}",
+                "name": DIVERSE_RECIPES[(index - 1) % len(DIVERSE_RECIPES)][0],
                 "minutes": 30,
-                "instructions": COOKABLE_STEPS,
+                "instructions": DIVERSE_RECIPES[(index - 1) % len(DIVERSE_RECIPES)][1],
                 "items": [{
                     "offer_key": offer_key,
                     "quantity": 1,
@@ -262,7 +277,7 @@ def _mutate_current_input(app_db, mutation):
         con.commit()
 
 
-def test_worker_builds_regular_plan_and_marks_job_ready(app_db):
+def test_valid_diverse_worker_plan_uses_exactly_one_model_call(app_db):
     job = _queued_regular_job(app_db)
     rows = app_db.server.akcie_pre(STORES)
     fake_model = FakeModel(_model_output([row["offer_key"] for row in rows[:4]]))
@@ -277,7 +292,7 @@ def test_worker_builds_regular_plan_and_marks_job_ready(app_db):
             (job.signature, job.variant),
         ).fetchone()
         assert con.execute("SELECT COUNT(*) FROM plany").fetchone()[0] == 0
-    assert fake_model.calls == 1
+    assert fake_model.calls == 1, "platný rozmanitý plán nesmie spustiť opravné volanie"
 
 
 def test_worker_repairs_one_semantically_invalid_model_plan_with_feedback(app_db):

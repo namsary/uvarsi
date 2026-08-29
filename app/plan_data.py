@@ -1128,8 +1128,10 @@ PLAN_VARIANT_HINTS = (
 #      zvyškov a množstevnú špajzu.
 # 15 = tá istá overená surovina sa môže použiť vo viacerých jedlách; duplicitný
 #      offer_key zostáva zakázaný iba v rámci jedného receptu.
+# 16 = plán 7/4/3 strieda hlavné bielkoviny, dominantné prílohy a najmenej tri
+#      spôsoby prípravy; podobné jedlá nejdú bezprostredne po sebe.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 15
+PLAN_ALGO_VERSION = 16
 
 
 def plan_variant_for(user_id, variants):
