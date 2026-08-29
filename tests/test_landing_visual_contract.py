@@ -80,3 +80,17 @@ def test_founding_offer_matches_the_approved_value_story():
     assert "39 €" in page
     assert "jednorazovo" in page.lower()
     assert "Prvých 250" in page
+
+
+def test_founding_offer_has_a_progressive_accessible_counter_slot():
+    page = html()
+
+    assert re.search(
+        r'<div[^>]+id="community-counter"[^>]*>\s*Prvých 250 získa zakladajúcu cenu\s*</div>',
+        page,
+    )
+    assert "renderCommunity(data.community)" in page
+    assert page.count('fetch("/api/public/landing")') == 1
+    bar_rule = re.search(r"\.pc-bar\s*\{(.*?)\}", page, re.S)
+    assert bar_rule
+    assert "overflow:hidden" in bar_rule.group(1).replace(" ", "")

@@ -48,6 +48,29 @@ function textOf(element) {
 """
 
 
+COMMUNITY_DOM_STUB = """
+function makeElement(tag) {
+  var ownText = '';
+  return {tag: tag, className: '', attributes: {}, style: {}, children: [],
+    get textContent() { return ownText; },
+    set textContent(value) { ownText = String(value); this.children = []; },
+    append: function () {
+      ownText = '';
+      for (var i = 0; i < arguments.length; i++) this.children.push(arguments[i]);
+    },
+    replaceChildren: function () {
+      ownText = '';
+      this.children = Array.prototype.slice.call(arguments);
+    },
+    setAttribute: function (name, value) { this.attributes[name] = String(value); }};
+}
+var document = {createElement: makeElement};
+function textOf(element) {
+  return [element.textContent].concat((element.children || []).map(textOf)).filter(Boolean).join('');
+}
+"""
+
+
 @needs_node
 def test_receipt_proof_names_each_store_once_without_publishing_source_urls(tmp_path):
     html = index_html()
@@ -116,3 +139,96 @@ def test_landing_keeps_its_current_title_and_description():
         '<meta name="description" content="Uvar.si spojí aktuálne akcie z Lidla, Kauflandu a Tesca '
         's tým, čo máš doma. Dostaneš jedálniček, recepty a nákupný zoznam na celý týždeň.">'
     ) in html
+
+
+@needs_node
+def test_community_counter_is_truthful_progressive_and_capped(tmp_path):
+    html = index_html()
+    helpers = COMMUNITY_DOM_STUB + "\n".join([
+        nested(html, "function node(tag, className, text)"),
+        nested(html, "function renderCommunity(c)"),
+    ])
+    result = run_node(
+        tmp_path,
+        "landing-community-counter.js",
+        helpers
+        + """
+var fallback = 'Prvých 250 získa zakladajúcu cenu';
+function freshCounter() {
+  communityCounter = makeElement('div');
+  communityCounter.textContent = fallback;
+}
+
+freshCounter();
+renderCommunity({visible: true, accounts: 9, goal: 250});
+if (textOf(communityCounter) !== fallback || communityCounter.children.length) process.exit(1);
+
+freshCounter();
+renderCommunity({visible: true, accounts: 10, goal: 250});
+var tenLabel = 'Testovacia komunita: 10 z cieľa 250 účtov';
+var tenBar = communityCounter.children[1];
+if (communityCounter.children[0].textContent !== tenLabel) process.exit(2);
+if (tenBar.attributes['aria-valuetext'] !== tenLabel) process.exit(3);
+if (tenBar.attributes.role !== 'progressbar') process.exit(4);
+if (tenBar.attributes['aria-valuemin'] !== '0') process.exit(5);
+if (tenBar.attributes['aria-valuemax'] !== '250') process.exit(6);
+if (tenBar.attributes['aria-valuenow'] !== '10') process.exit(7);
+if (tenBar.children[0].style.width !== '4%') process.exit(8);
+
+freshCounter();
+renderCommunity({visible: true, accounts: 251, goal: 250});
+var overLabel = 'Testovacia komunita: 251 z cieľa 250 účtov';
+var overBar = communityCounter.children[1];
+if (communityCounter.children[0].textContent !== overLabel) process.exit(9);
+if (overBar.children[0].style.width !== '100%') process.exit(10);
+if (overBar.attributes['aria-valuenow'] !== '250') process.exit(11);
+if (overBar.attributes['aria-valuetext'] !== overLabel) process.exit(12);
+
+[null, {}, {visible: true, accounts: '10', goal: 250},
+ {visible: true, accounts: 10.5, goal: 250},
+ {visible: true, accounts: 10, goal: '250'}].forEach(function (community) {
+  freshCounter();
+  renderCommunity(community);
+  if (textOf(communityCounter) !== fallback || communityCounter.children.length) process.exit(13);
+});
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
+def test_failed_landing_fetch_keeps_counter_fallback_and_uses_no_second_request(tmp_path):
+    html = index_html()
+    result = run_node(
+        tmp_path,
+        "landing-community-fetch-failure.js",
+        COMMUNITY_DOM_STUB
+        + nested(html, "function loadLanding()")
+        + """
+var fallback = 'Prvých 250 získa zakladajúcu cenu';
+var communityCounter = makeElement('div');
+communityCounter.textContent = fallback;
+var landing = {hidden: false};
+var model = {hidden: false};
+var status = {hidden: true, textContent: ''};
+var calls = [];
+function fetch(url) { calls.push(url); return Promise.reject(new Error('offline')); }
+function sourcesAreCurrent() { throw new Error('must not inspect failed payload'); }
+function render() { throw new Error('must not render failed payload'); }
+function renderModel() { throw new Error('must not render failed payload'); }
+function renderCommunity() { throw new Error('must not render failed payload'); }
+
+loadLanding().then(function () {
+  if (calls.length !== 1 || calls[0] !== '/api/public/landing') process.exit(1);
+  if (textOf(communityCounter) !== fallback || communityCounter.children.length) process.exit(2);
+  process.exit(0);
+}).catch(function (error) {
+  console.error(error);
+  process.exit(3);
+});
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr

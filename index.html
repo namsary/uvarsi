@@ -203,7 +203,7 @@
   .plan--hot .btn{background:var(--ink);color:var(--yellow)}
   .plan-counter{margin:10px 0 4px;font-family:"IBM Plex Mono",monospace;font-size:.72rem}
   .pc-row{display:flex;justify-content:space-between;margin-bottom:5px;font-weight:600}
-  .pc-bar{height:10px;border:2px solid var(--ink);background:#fff}
+  .pc-bar{height:10px;border:2px solid var(--ink);background:#fff;overflow:hidden}
   .pc-bar span{display:block;height:100%;background:var(--ink);width:0}
 
   .modal{position:fixed;inset:0;background:rgba(14,31,26,.75);display:none;align-items:center;justify-content:center;padding:24px;z-index:50}
@@ -375,6 +375,7 @@
           <li>Celý týždeň, recepty a špajza</li>
           <li>Bez ďalšieho predplatného</li>
         </ul>
+        <div class="plan-counter" id="community-counter">Prvých 250 získa zakladajúcu cenu</div>
         <button class="btn js-plan" data-plan="Zakladajúci (39 € jednorazovo)">Chcem zakladajúcu cenu</button>
       </div>
     </div>
@@ -437,6 +438,7 @@
   var status=document.getElementById('landing-status');
   var model=document.getElementById('landing-model');
   var modelBody=document.getElementById('landing-model-body');
+  var communityCounter=document.getElementById('community-counter');
   model.hidden=true;
 
   function node(tag, className, text){
@@ -501,6 +503,21 @@
     if(stores.length) proof.append(node('span','proof-stores',stores.join(' · ')));
     proof.append(node('span','proof-note','Cenu si pred nákupom over v predajni.'));
     return proof;
+  }
+
+  function renderCommunity(c){
+    communityCounter.textContent='Prvých 250 získa zakladajúcu cenu';
+    if(!c||c.visible!==true||!Number.isInteger(c.accounts)||c.accounts<10||c.goal!==250) return;
+    var a=c.accounts, t='Testovacia komunita: '+a+' z cieľa 250 účtov';
+    var r=node('div','pc-row',t), b=node('div','pc-bar'), f=node('span','');
+    f.style.width=Math.min(a/250*100,100)+'%';
+    b.setAttribute('role','progressbar');
+    b.setAttribute('aria-valuemin','0');
+    b.setAttribute('aria-valuemax','250');
+    b.setAttribute('aria-valuenow',String(Math.min(a,250)));
+    b.setAttribute('aria-valuetext',t);
+    b.append(f);
+    communityCounter.replaceChildren(r,b);
   }
 
   function render(data){
@@ -616,19 +633,24 @@
     model.hidden=false;
   }
 
-  fetch("/api/public/landing").then(function(response){
-    if(!response.ok) throw new Error('landing data unavailable');
-    return response.json();
-  }).then(function(data){
-    if(!sourcesAreCurrent(data,new Date())) throw new Error('landing source expired');
-    render(data);
-    renderModel(data,new Date());
-  }).catch(function(){
-    landing.hidden=true;
-    model.hidden=true;
-    status.hidden=false;
-    status.textContent='Aktuálne letákové dáta práve obnovujeme.';
-  });
+  function loadLanding(){
+    return fetch("/api/public/landing").then(function(response){
+      if(!response.ok) throw new Error('landing data unavailable');
+      return response.json();
+    }).then(function(data){
+      if(!sourcesAreCurrent(data,new Date())) throw new Error('landing source expired');
+      render(data);
+      renderModel(data,new Date());
+      renderCommunity(data.community);
+    }).catch(function(){
+      landing.hidden=true;
+      model.hidden=true;
+      status.hidden=false;
+      status.textContent='Aktuálne letákové dáta práve obnovujeme.';
+    });
+  }
+
+  loadLanding();
 })();
 </script>
 <script>
