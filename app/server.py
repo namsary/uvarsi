@@ -90,6 +90,7 @@ from auth_data import (
     MagicTokenExpired,
     MagicTokenInvalid,
     ReservationInvalid,
+    SESSION_TTL_SECONDS,
     cancel_magic_token_reservation,
     consume_magic_token,
     delete_session,
@@ -113,7 +114,7 @@ COMMUNITY_GOAL = 250
 COMMUNITY_VISIBILITY_THRESHOLD = 10
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 COOKIE = "uvarsi_session"
-SESSION_MAX_AGE = 30 * 24 * 60 * 60
+SESSION_MAX_AGE = SESSION_TTL_SECONDS
 AUTH_CLOCK = time.time
 # Single-worker beta guard only; the deployed edge still needs a shared limiter.
 IP_REQUEST_LIMITER = ClientIpRateLimiter(

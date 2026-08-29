@@ -1688,7 +1688,7 @@ def test_auth_v3_webauthn_challenge_purpose_rejects_an_invalid_value(
             )
 
 
-def test_post_redeems_once_into_a_hashed_30_day_host_only_session(monkeypatch, tmp_path):
+def test_post_redeems_once_into_a_hashed_90_day_host_only_session(monkeypatch, tmp_path):
     server, database = load_auth_server(monkeypatch, tmp_path)
     monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
     monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_800_000_000.0)
@@ -1705,7 +1705,7 @@ def test_post_redeems_once_into_a_hashed_30_day_host_only_session(monkeypatch, t
     assert "HttpOnly" in cookie
     assert "Secure" in cookie
     assert "SameSite=lax" in cookie
-    assert "Max-Age=2592000" in cookie
+    assert "Max-Age=7776000" in cookie
     assert "Domain=" not in cookie
     raw_session = client.cookies.get(server.COOKIE)
     with sqlite3.connect(database) as con:
@@ -1714,7 +1714,7 @@ def test_post_redeems_once_into_a_hashed_30_day_host_only_session(monkeypatch, t
             "SELECT token_hash, expires_at FROM sessions_v2"
         ).fetchall()
     assert sessions == [
-        (hashlib.sha256(raw_session.encode()).hexdigest(), 1_802_592_000.0)
+        (hashlib.sha256(raw_session.encode()).hexdigest(), 1_807_776_000.0)
     ]
     assert raw_session not in repr(sessions)
 
@@ -1786,7 +1786,7 @@ def test_expired_session_is_rejected_and_deleted_server_side(monkeypatch, tmp_pa
     client = TestClient(server.app, base_url="https://testserver")
     assert client.post("/api/auth/verify", json={"token": token}).status_code == 200
 
-    now[0] += 30 * 24 * 60 * 60 + 1
+    now[0] += 90 * 24 * 60 * 60 + 1
     response = client.get("/api/me")
 
     assert response.json() == {"prihlaseny": False}
@@ -1794,24 +1794,36 @@ def test_expired_session_is_rejected_and_deleted_server_side(monkeypatch, tmp_pa
         assert con.execute("SELECT COUNT(*) FROM sessions_v2").fetchone()[0] == 0
 
 
-def test_logout_deletes_current_hashed_session_and_cookie(monkeypatch, tmp_path):
+def test_logout_deletes_only_the_current_hashed_session_and_cookie(monkeypatch, tmp_path):
     server, database = load_auth_server(monkeypatch, tmp_path)
     monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
-    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_800_000_000.0)
-    token = issue_link(server, monkeypatch)
-    client = TestClient(server.app, base_url="https://testserver")
-    assert client.post("/api/auth/verify", json={"token": token}).status_code == 200
+    now = [1_800_000_000.0]
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now[0])
+    first_client = TestClient(server.app, base_url="https://testserver")
+    first_token = issue_link(server, monkeypatch)
+    assert first_client.post(
+        "/api/auth/verify", json={"token": first_token}
+    ).status_code == 200
 
-    response = client.post("/api/auth/logout")
+    now[0] += 60
+    second_client = TestClient(server.app, base_url="https://testserver")
+    second_token = issue_link(server, monkeypatch)
+    assert second_client.post(
+        "/api/auth/verify", json={"token": second_token}
+    ).status_code == 200
+
+    response = first_client.post("/api/auth/logout")
 
     assert response.status_code == 200
     assert response.json() == {"ok": True}
     assert "uvarsi_session=\"\"" in response.headers["set-cookie"]
+    assert first_client.get("/api/me").json() == {"prihlaseny": False}
+    assert second_client.get("/api/me").json()["prihlaseny"] is True
     with sqlite3.connect(database) as con:
-        assert con.execute("SELECT COUNT(*) FROM sessions_v2").fetchone()[0] == 0
+        assert con.execute("SELECT COUNT(*) FROM sessions_v2").fetchone()[0] == 1
 
 
-def test_second_magic_login_rotates_the_users_session(monkeypatch, tmp_path):
+def test_two_magic_logins_create_two_valid_sessions(monkeypatch, tmp_path):
     server, database = load_auth_server(monkeypatch, tmp_path)
     monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
     now = [1_800_000_000.0]
@@ -1826,11 +1838,223 @@ def test_second_magic_login_rotates_the_users_session(monkeypatch, tmp_path):
     second_client = TestClient(server.app, base_url="https://testserver")
     assert second_client.post("/api/auth/verify", json={"token": second_token}).status_code == 200
 
-    assert first_client.get("/api/me").json() == {"prihlaseny": False}
+    assert first_client.get("/api/me").json()["prihlaseny"] is True
+    assert second_client.get("/api/me").json()["prihlaseny"] is True
     with sqlite3.connect(database) as con:
         sessions = con.execute("SELECT token_hash FROM sessions_v2").fetchall()
-    assert len(sessions) == 1
-    assert sessions[0][0] != hashlib.sha256(first_session.encode()).hexdigest()
+    assert {row[0] for row in sessions} == {
+        hashlib.sha256(first_session.encode()).hexdigest(),
+        hashlib.sha256(second_client.cookies.get(server.COOKIE).encode()).hexdigest(),
+    }
+
+
+def test_active_session_slides_to_90_days_at_most_once_per_24_hours(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    now = 1_800_000_000.0
+    with server.db() as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('sliding@example.com')"
+        ).lastrowid
+        raw_session = auth_data.create_session(
+            con, user_id=user_id, now=now, device_name="Desktop"
+        )
+
+        assert auth_data.user_for_session(
+            con,
+            raw_session=raw_session,
+            now=now + auth_data.SESSION_TOUCH_SECONDS - 1,
+        )["id"] == user_id
+        untouched = tuple(
+            con.execute(
+                "SELECT last_seen_at, expires_at FROM sessions_v2"
+            ).fetchone()
+        )
+        assert untouched == (now, now + auth_data.SESSION_TTL_SECONDS)
+
+        first_touch = now + auth_data.SESSION_TOUCH_SECONDS
+        assert auth_data.user_for_session(
+            con, raw_session=raw_session, now=first_touch
+        )["id"] == user_id
+        touched = tuple(
+            con.execute(
+                "SELECT last_seen_at, expires_at FROM sessions_v2"
+            ).fetchone()
+        )
+        assert touched == (
+            first_touch,
+            first_touch + auth_data.SESSION_TTL_SECONDS,
+        )
+
+        assert auth_data.user_for_session(
+            con,
+            raw_session=raw_session,
+            now=first_touch + auth_data.SESSION_TOUCH_SECONDS - 1,
+        )["id"] == user_id
+        assert tuple(
+            con.execute(
+                "SELECT last_seen_at, expires_at FROM sessions_v2"
+            ).fetchone()
+        ) == touched
+
+
+def test_legacy_hashed_session_with_null_metadata_remains_valid_and_is_touched(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    raw_session = "existing-hashed-session"
+    now = 1_800_000_000.0
+    with server.db() as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('legacy-session@example.com')"
+        ).lastrowid
+        con.execute(
+            """INSERT INTO sessions_v2
+               (token_hash, user_id, expires_at, created_at)
+               VALUES (?, ?, ?, ?)""",
+            (
+                hashlib.sha256(raw_session.encode()).hexdigest(),
+                user_id,
+                now + 60,
+                now - 1_000,
+            ),
+        )
+        con.commit()
+
+        assert auth_data.user_for_session(
+            con, raw_session=raw_session, now=now
+        )["id"] == user_id
+        assert tuple(
+            con.execute(
+                "SELECT last_seen_at, expires_at FROM sessions_v2"
+            ).fetchone()
+        ) == (now, now + auth_data.SESSION_TTL_SECONDS)
+
+
+def test_revoke_other_sessions_preserves_only_the_current_raw_session(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    now = 1_800_000_000.0
+    with server.db() as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('change@example.com')"
+        ).lastrowid
+        current = auth_data.create_session(
+            con, user_id=user_id, now=now, device_name="Current"
+        )
+        other = auth_data.create_session(
+            con, user_id=user_id, now=now, device_name="Other"
+        )
+
+        auth_data.revoke_other_sessions(
+            con, user_id=user_id, current_token=current
+        )
+
+        assert auth_data.user_for_session(
+            con, raw_session=current, now=now, touch=False
+        )["id"] == user_id
+        assert auth_data.user_for_session(
+            con, raw_session=other, now=now, touch=False
+        ) is None
+        assert [
+            tuple(row)
+            for row in con.execute(
+                """SELECT device_name, revoked_at IS NOT NULL
+                   FROM sessions_v2 ORDER BY device_name"""
+            )
+        ] == [("Current", 0), ("Other", 1)]
+
+
+def test_password_reset_without_current_session_revokes_every_user_session(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    now = 1_800_000_000.0
+    with server.db() as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('reset@example.com')"
+        ).lastrowid
+        sessions = [
+            auth_data.create_session(
+                con, user_id=user_id, now=now, device_name=device
+            )
+            for device in ("Phone", "Laptop")
+        ]
+
+        auth_data.revoke_other_sessions(con, user_id=user_id, current_token=None)
+
+        assert all(
+            auth_data.user_for_session(
+                con, raw_session=raw_session, now=now, touch=False
+            )
+            is None
+            for raw_session in sessions
+        )
+        assert con.execute(
+            """SELECT COUNT(*) FROM sessions_v2
+               WHERE revoked_at IS NOT NULL"""
+        ).fetchone()[0] == 2
+
+
+def test_session_list_and_revoke_use_hash_identifiers_that_cannot_authenticate(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    now = 1_800_000_000.0
+    with server.db() as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('sessions@example.com')"
+        ).lastrowid
+        other_user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('other@example.com')"
+        ).lastrowid
+        raw_session = auth_data.create_session(
+            con, user_id=user_id, now=now, device_name="Firefox on Windows"
+        )
+
+        listed = auth_data.list_sessions(
+            con, user_id=user_id, current_token=raw_session, now=now
+        )
+
+        assert listed == [
+            {
+                "session_hash": hashlib.sha256(raw_session.encode()).hexdigest(),
+                "device_name": "Firefox on Windows",
+                "created_at": now,
+                "last_seen_at": now,
+                "expires_at": now + auth_data.SESSION_TTL_SECONDS,
+                "current": True,
+            }
+        ]
+        session_hash = listed[0]["session_hash"]
+        assert raw_session not in repr(listed)
+        assert auth_data.user_for_session(
+            con, raw_session=session_hash, now=now, touch=False
+        ) is None
+        assert auth_data.revoke_session(
+            con, user_id=other_user_id, session_hash=session_hash
+        ) is False
+        assert auth_data.user_for_session(
+            con, raw_session=raw_session, now=now, touch=False
+        )["id"] == user_id
+        assert auth_data.revoke_session(
+            con, user_id=user_id, session_hash=session_hash
+        ) is True
+        assert auth_data.user_for_session(
+            con, raw_session=raw_session, now=now, touch=False
+        ) is None
+        assert con.execute(
+            """SELECT revoked_at IS NOT NULL FROM sessions_v2
+               WHERE token_hash=?""",
+            (session_hash,),
+        ).fetchone()[0] == 1
 
 
 def test_legacy_plaintext_session_is_invalid_after_release(monkeypatch, tmp_path):

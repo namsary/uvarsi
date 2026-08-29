@@ -13,7 +13,8 @@ from argon2.exceptions import InvalidHashError, VerificationError
 MAGIC_TOKEN_TTL_SECONDS = 60 * 60
 MAGIC_RESERVATION_TTL_SECONDS = 5 * 60
 EMAIL_COOLDOWN_SECONDS = 60
-SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
+SESSION_TTL_SECONDS = 90 * 24 * 60 * 60
+SESSION_TOUCH_SECONDS = 24 * 60 * 60
 CONFIRM_ACTION_TOKEN_TTL_SECONDS = 24 * 60 * 60
 PASSWORD_ACTION_TOKEN_TTL_SECONDS = 60 * 60
 
@@ -519,8 +520,30 @@ def cancel_magic_token_reservation(con, reservation: MagicTokenReservation) -> N
     con.commit()
 
 
+def create_session(
+    con, *, user_id: int, now: float, device_name: str
+) -> str:
+    raw_session = secrets.token_urlsafe(32)
+    con.execute(
+        """INSERT INTO sessions_v2
+           (token_hash, user_id, expires_at, created_at, last_seen_at,
+            device_name, revoked_at)
+           VALUES (?, ?, ?, ?, ?, ?, NULL)""",
+        (
+            token_hash(raw_session),
+            user_id,
+            now + SESSION_TTL_SECONDS,
+            now,
+            now,
+            device_name,
+        ),
+    )
+    con.commit()
+    return raw_session
+
+
 def consume_magic_token(con, *, raw_token: str, now: float) -> str:
-    """Atomically consume one token, rotate the user's session, and return its raw cookie."""
+    """Atomically consume one token and return a new raw session cookie."""
     if not isinstance(raw_token, str) or not raw_token or len(raw_token) > 512:
         raise MagicTokenInvalid("invalid token")
     digest = token_hash(raw_token)
@@ -545,14 +568,12 @@ def consume_magic_token(con, *, raw_token: str, now: float) -> str:
             ).lastrowid
         else:
             user_id = user[0]
-        con.execute("DELETE FROM sessions_v2 WHERE user_id=?", (user_id,))
-        raw_session = secrets.token_urlsafe(32)
-        con.execute(
-            """INSERT INTO sessions_v2
-               (token_hash, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)""",
-            (token_hash(raw_session), user_id, now + SESSION_TTL_SECONDS, now),
+        raw_session = create_session(
+            con,
+            user_id=user_id,
+            now=now,
+            device_name="Magic link",
         )
-        con.commit()
         return raw_session
     except (MagicTokenInvalid, MagicTokenExpired):
         if con.in_transaction:
@@ -563,23 +584,115 @@ def consume_magic_token(con, *, raw_token: str, now: float) -> str:
         raise
 
 
-def user_for_session(con, *, raw_session: str, now: float):
+def user_for_session(
+    con, *, raw_session: str, now: float, touch: bool = True
+):
     if not isinstance(raw_session, str) or not raw_session:
         return None
     digest = token_hash(raw_session)
     row = con.execute(
-        """SELECT p.*, s.expires_at
+        """SELECT p.*,
+                  s.expires_at AS session_expires_at,
+                  s.last_seen_at AS session_last_seen_at,
+                  s.revoked_at AS session_revoked_at
            FROM sessions_v2 s JOIN pouzivatelia p ON p.id=s.user_id
            WHERE s.token_hash=?""",
         (digest,),
     ).fetchone()
     if row is None:
         return None
-    if float(row["expires_at"]) <= now:
+    if row["session_revoked_at"] is not None:
+        return None
+    if float(row["session_expires_at"]) <= now:
         con.execute("DELETE FROM sessions_v2 WHERE token_hash=?", (digest,))
         con.commit()
         return None
-    return {key: row[key] for key in row.keys() if key != "expires_at"}
+    last_seen_at = row["session_last_seen_at"]
+    if touch and (
+        last_seen_at is None
+        or float(last_seen_at) + SESSION_TOUCH_SECONDS <= now
+    ):
+        con.execute(
+            """UPDATE sessions_v2
+               SET last_seen_at=?, expires_at=?
+               WHERE token_hash=? AND revoked_at IS NULL
+                 AND (last_seen_at IS NULL OR last_seen_at <= ?)""",
+            (
+                now,
+                now + SESSION_TTL_SECONDS,
+                digest,
+                now - SESSION_TOUCH_SECONDS,
+            ),
+        )
+        con.commit()
+    session_fields = {
+        "session_expires_at",
+        "session_last_seen_at",
+        "session_revoked_at",
+    }
+    return {key: row[key] for key in row.keys() if key not in session_fields}
+
+
+def list_sessions(
+    con, *, user_id: int, current_token: str, now: float
+) -> list[dict]:
+    current_hash = (
+        token_hash(current_token)
+        if isinstance(current_token, str) and current_token
+        else None
+    )
+    rows = con.execute(
+        """SELECT token_hash, device_name, created_at, last_seen_at, expires_at
+           FROM sessions_v2
+           WHERE user_id=? AND revoked_at IS NULL AND expires_at > ?
+           ORDER BY created_at DESC, token_hash""",
+        (user_id, now),
+    ).fetchall()
+    return [
+        {
+            "session_hash": row["token_hash"],
+            "device_name": row["device_name"],
+            "created_at": row["created_at"],
+            "last_seen_at": row["last_seen_at"],
+            "expires_at": row["expires_at"],
+            "current": current_hash is not None
+            and secrets.compare_digest(row["token_hash"], current_hash),
+        }
+        for row in rows
+    ]
+
+
+def revoke_session(con, *, user_id: int, session_hash: str) -> bool:
+    if not isinstance(session_hash, str) or not session_hash:
+        return False
+    revoked = con.execute(
+        """UPDATE sessions_v2
+           SET revoked_at=CAST(strftime('%s', 'now') AS REAL)
+           WHERE user_id=? AND token_hash=? AND revoked_at IS NULL""",
+        (user_id, session_hash),
+    ).rowcount
+    con.commit()
+    return revoked == 1
+
+
+def revoke_other_sessions(
+    con, *, user_id: int, current_token: str | None
+) -> None:
+    if current_token:
+        con.execute(
+            """UPDATE sessions_v2
+               SET revoked_at=CAST(strftime('%s', 'now') AS REAL)
+               WHERE user_id=? AND token_hash<>? AND revoked_at IS NULL""",
+            (user_id, token_hash(current_token)),
+        )
+    else:
+        con.execute(
+            """UPDATE sessions_v2
+               SET revoked_at=CAST(strftime('%s', 'now') AS REAL)
+               WHERE user_id=? AND revoked_at IS NULL""",
+            (user_id,),
+        )
+    con.commit()
 
 
 def delete_session(con, raw_session: str) -> None:
