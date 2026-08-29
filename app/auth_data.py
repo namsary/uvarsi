@@ -629,27 +629,27 @@ def user_for_session(
     if row["session_revoked_at"] is not None:
         return None
     if float(row["session_expires_at"]) <= now:
-        con.execute("DELETE FROM sessions_v2 WHERE token_hash=?", (digest,))
-        con.commit()
+        with _session_mutation(con, "session_expire"):
+            con.execute("DELETE FROM sessions_v2 WHERE token_hash=?", (digest,))
         return None
     last_seen_at = row["session_last_seen_at"]
     if touch and (
         last_seen_at is None
         or float(last_seen_at) + SESSION_TOUCH_SECONDS <= now
     ):
-        con.execute(
-            """UPDATE sessions_v2
-               SET last_seen_at=?, expires_at=?
-               WHERE token_hash=? AND revoked_at IS NULL
-                 AND (last_seen_at IS NULL OR last_seen_at <= ?)""",
-            (
-                now,
-                now + SESSION_TTL_SECONDS,
-                digest,
-                now - SESSION_TOUCH_SECONDS,
-            ),
-        )
-        con.commit()
+        with _session_mutation(con, "session_touch"):
+            con.execute(
+                """UPDATE sessions_v2
+                   SET last_seen_at=?, expires_at=?
+                   WHERE token_hash=? AND revoked_at IS NULL
+                     AND (last_seen_at IS NULL OR last_seen_at <= ?)""",
+                (
+                    now,
+                    now + SESSION_TTL_SECONDS,
+                    digest,
+                    now - SESSION_TOUCH_SECONDS,
+                ),
+            )
     session_fields = {
         "session_expires_at",
         "session_last_seen_at",
@@ -722,5 +722,8 @@ def revoke_other_sessions(
 
 def delete_session(con, raw_session: str) -> None:
     if raw_session:
-        con.execute("DELETE FROM sessions_v2 WHERE token_hash=?", (token_hash(raw_session),))
-        con.commit()
+        with _session_mutation(con, "session_delete"):
+            con.execute(
+                "DELETE FROM sessions_v2 WHERE token_hash=?",
+                (token_hash(raw_session),),
+            )

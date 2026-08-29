@@ -2301,6 +2301,187 @@ def test_session_revokers_persist_when_they_own_the_transaction(
         ).fetchone() == (1,)
 
 
+def _seed_single_session_test(server, auth_data, email):
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES (?)", (email,)
+        ).lastrowid
+        con.commit()
+        raw_session = auth_data.create_session(
+            con,
+            user_id=user_id,
+            now=1_800_000_000.0,
+            device_name="Transaction test",
+        )
+    return user_id, raw_session
+
+
+def test_session_touch_persists_when_it_owns_the_transaction(monkeypatch, tmp_path):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    user_id, raw_session = _seed_single_session_test(
+        server, auth_data, "touch-owned@example.com"
+    )
+    with closing(server.db()) as con:
+        assert auth_data.user_for_session(
+            con, raw_session=raw_session, now=1_800_086_400.0
+        )["id"] == user_id
+        assert con.in_transaction is False
+
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT last_seen_at, expires_at FROM sessions_v2 WHERE user_id=?",
+            (user_id,),
+        ).fetchone() == (1_800_086_400.0, 1_807_862_400.0)
+
+
+def test_session_touch_leaves_a_caller_transaction_open_for_rollback(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    original_email = "touch-rollback@example.com"
+    user_id, raw_session = _seed_single_session_test(
+        server, auth_data, original_email
+    )
+    with closing(server.db()) as con:
+        con.execute(
+            "UPDATE pouzivatelia SET email='pending@example.com' WHERE id=?",
+            (user_id,),
+        )
+        assert auth_data.user_for_session(
+            con, raw_session=raw_session, now=1_800_086_400.0
+        )["id"] == user_id
+
+        assert con.in_transaction is True
+        assert tuple(
+            con.execute(
+                "SELECT last_seen_at, expires_at FROM sessions_v2 WHERE user_id=?",
+                (user_id,),
+            ).fetchone()
+        ) == (1_800_086_400.0, 1_807_862_400.0)
+        con.rollback()
+
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT email FROM pouzivatelia WHERE id=?", (user_id,)
+        ).fetchone() == (original_email,)
+        assert con.execute(
+            "SELECT last_seen_at, expires_at FROM sessions_v2 WHERE user_id=?",
+            (user_id,),
+        ).fetchone() == (1_800_000_000.0, 1_807_776_000.0)
+
+
+def test_expired_session_cleanup_persists_when_it_owns_the_transaction(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    user_id, raw_session = _seed_single_session_test(
+        server, auth_data, "expiry-owned@example.com"
+    )
+    with closing(server.db()) as con:
+        con.execute(
+            "UPDATE sessions_v2 SET expires_at=? WHERE user_id=?",
+            (1_800_000_000.0, user_id),
+        )
+        con.commit()
+        assert auth_data.user_for_session(
+            con, raw_session=raw_session, now=1_800_000_000.0
+        ) is None
+        assert con.in_transaction is False
+
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM sessions_v2 WHERE user_id=?", (user_id,)
+        ).fetchone() == (0,)
+
+
+def test_expired_session_cleanup_leaves_a_caller_transaction_open_for_rollback(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    original_email = "expiry-rollback@example.com"
+    user_id, raw_session = _seed_single_session_test(
+        server, auth_data, original_email
+    )
+    with closing(server.db()) as con:
+        con.execute(
+            "UPDATE sessions_v2 SET expires_at=? WHERE user_id=?",
+            (1_800_000_000.0, user_id),
+        )
+        con.commit()
+        con.execute(
+            "UPDATE pouzivatelia SET email='pending@example.com' WHERE id=?",
+            (user_id,),
+        )
+        assert auth_data.user_for_session(
+            con, raw_session=raw_session, now=1_800_000_000.0
+        ) is None
+
+        assert con.in_transaction is True
+        assert con.execute(
+            "SELECT COUNT(*) FROM sessions_v2 WHERE user_id=?", (user_id,)
+        ).fetchone()[0] == 0
+        con.rollback()
+
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT email FROM pouzivatelia WHERE id=?", (user_id,)
+        ).fetchone() == (original_email,)
+        assert con.execute(
+            "SELECT expires_at FROM sessions_v2 WHERE user_id=?", (user_id,)
+        ).fetchone() == (1_800_000_000.0,)
+
+
+def test_delete_session_persists_when_it_owns_the_transaction(monkeypatch, tmp_path):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    user_id, raw_session = _seed_single_session_test(
+        server, auth_data, "delete-owned@example.com"
+    )
+    with closing(server.db()) as con:
+        auth_data.delete_session(con, raw_session)
+        assert con.in_transaction is False
+
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM sessions_v2 WHERE user_id=?", (user_id,)
+        ).fetchone() == (0,)
+
+
+def test_delete_session_leaves_a_caller_transaction_open_for_rollback(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    original_email = "delete-rollback@example.com"
+    user_id, raw_session = _seed_single_session_test(
+        server, auth_data, original_email
+    )
+    with closing(server.db()) as con:
+        con.execute(
+            "UPDATE pouzivatelia SET email='pending@example.com' WHERE id=?",
+            (user_id,),
+        )
+        auth_data.delete_session(con, raw_session)
+
+        assert con.in_transaction is True
+        assert con.execute(
+            "SELECT COUNT(*) FROM sessions_v2 WHERE user_id=?", (user_id,)
+        ).fetchone()[0] == 0
+        con.rollback()
+
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT email FROM pouzivatelia WHERE id=?", (user_id,)
+        ).fetchone() == (original_email,)
+        assert con.execute(
+            "SELECT token_hash FROM sessions_v2 WHERE user_id=?", (user_id,)
+        ).fetchone() == (hashlib.sha256(raw_session.encode()).hexdigest(),)
+
+
 def test_legacy_plaintext_session_is_invalid_after_release(monkeypatch, tmp_path):
     server, _ = load_auth_server(monkeypatch, tmp_path)
     with server.db() as con:
