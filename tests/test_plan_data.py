@@ -1122,6 +1122,25 @@ def test_primary_protein_uses_verified_slovak_offer_family(name, category, expec
     assert plan_data._primary_protein(selected_items) == expected
 
 
+@pytest.mark.parametrize("name", [
+    "Rybie mäso",
+    "Losos mäso",
+    "Tuniak mäso",
+    "Treska mäso",
+    "Pstruh mäso",
+])
+def test_specific_verified_fish_beats_the_generic_meat_fallback(name):
+    assert plan_data._primary_protein([diversity_item(name, "ryby")]) == "fish"
+
+
+def test_specific_fish_in_recipe_prose_beats_the_generic_meat_fallback():
+    signature = plan_data.meal_diversity_signature(
+        "Losos mäso so šalátom", ["Suroviny griluj a podávaj."], [],
+    )
+
+    assert signature.protein == "fish"
+
+
 @pytest.mark.parametrize(("name", "category", "expected"), [
     ("Ryža dlhozrnná", "trvanlivé", "rice"),
     ("Cestoviny penne", "trvanlivé", "pasta"),

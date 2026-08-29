@@ -479,7 +479,7 @@ class MealDiversitySignature:
 _PROTEIN_FAMILY_PATTERNS = (
     ("chicken", ("kurac*", "morac*", "morcac*", "kacac*")),
     ("pork", ("bravc*",)),
-    ("beef", ("hovadz*", "telac*", "jahnac*", "maso")),
+    ("beef", ("hovadz*", "telac*", "jahnac*")),
     ("fish", ("ryb*", "losos*", "tuniak*", "tresk*", "pstruh*", "file")),
     ("legume", ("sosovic*", "fazul*", "cicer*", "hrach*")),
     ("egg", ("vajc*",)),
@@ -509,6 +509,13 @@ def _family_in_text(text, families):
     return ""
 
 
+def _protein_family_in_text(text):
+    family = _family_in_text(text, _PROTEIN_FAMILY_PATTERNS)
+    if family:
+        return family
+    return "beef" if _name_has_pattern(_folded_words(str(text)), "maso") else ""
+
+
 def _row_text(row):
     try:
         name = row["nazov"]
@@ -528,7 +535,7 @@ def _primary_protein(selected_items: list[tuple]) -> str:
             continue
         name, category = _row_text(selected_item[0])
         role = ingredient_role_for(name, category)
-        family = _family_in_text(f"{name} {category}", _PROTEIN_FAMILY_PATTERNS)
+        family = _protein_family_in_text(f"{name} {category}")
         if role == "protein_main" and family in {"chicken", "pork", "beef", "fish"}:
             candidates.append((0, family))
         elif role == "legume_dry":
@@ -585,7 +592,7 @@ def meal_diversity_signature(name: str, steps: list[str],
     protein = _primary_protein(selected_items)
     side = _dominant_side(selected_items)
     if not protein:
-        protein = _family_in_text(prose, _PROTEIN_FAMILY_PATTERNS) or "vegetable"
+        protein = _protein_family_in_text(prose) or "vegetable"
     if side == "none":
         side = _family_in_text(prose, _SIDE_FAMILY_PATTERNS) or "none"
     return MealDiversitySignature(protein, side, _preparation_method(name, steps))
