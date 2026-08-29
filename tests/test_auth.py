@@ -16,7 +16,7 @@ from pathlib import Path
 from argon2 import PasswordHasher, Type
 import httpx
 import pytest
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient as FastAPITestClient
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +30,18 @@ PROVIDER_FAILURE_MESSAGE = (
 )
 NODE = shutil.which("node")
 needs_node = pytest.mark.skipif(NODE is None, reason="node runtime is not available")
+AUTH_ORIGIN = {"Origin": "https://uvar.si"}
+
+
+def TestClient(app, *args, **kwargs):
+    kwargs.setdefault("headers", AUTH_ORIGIN)
+    return FastAPITestClient(app, *args, **kwargs)
+
+
+def origin_client(server, **kwargs):
+    headers = dict(kwargs.pop("headers", {}))
+    headers.setdefault("Origin", "https://uvar.si")
+    return TestClient(server.app, headers=headers, **kwargs)
 
 
 def confirmation_script(html):
@@ -153,7 +165,7 @@ def ensure_legacy_account(server, email):
 
 def request_link(server, email="Cook@example.com"):
     ensure_legacy_account(server, email)
-    return TestClient(server.app).post("/api/auth/request", json={"email": email})
+    return origin_client(server).post("/api/auth/request", json={"email": email})
 
 
 def outbound_token(calls):
@@ -442,7 +454,9 @@ def test_paused_provider_does_not_delay_async_event_loop_heartbeat(monkeypatch, 
 
     async def scenario():
         transport = httpx.ASGITransport(app=server.app)
-        async with httpx.AsyncClient(transport=transport, base_url="https://testserver") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="https://testserver", headers=AUTH_ORIGIN
+        ) as client:
             request = asyncio.create_task(
                 client.post("/api/auth/request", json={"email": "cook@example.com"})
             )
@@ -523,7 +537,9 @@ def test_cancelled_request_keeps_exclusive_reservation_until_delivery_finalizes(
 
     async def scenario():
         transport = httpx.ASGITransport(app=server.app)
-        async with httpx.AsyncClient(transport=transport, base_url="https://testserver") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="https://testserver", headers=AUTH_ORIGIN
+        ) as client:
             request = asyncio.create_task(
                 client.post("/api/auth/request", json={"email": "cook@example.com"})
             )
@@ -609,7 +625,9 @@ def test_provider_failure_after_cancellation_cleans_only_pending_reservation(
 
     async def scenario():
         transport = httpx.ASGITransport(app=server.app)
-        async with httpx.AsyncClient(transport=transport, base_url="https://testserver") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="https://testserver", headers=AUTH_ORIGIN
+        ) as client:
             request = asyncio.create_task(
                 client.post("/api/auth/request", json={"email": "cook@example.com"})
             )
@@ -1152,6 +1170,7 @@ def test_auth_v3_migration_adds_account_tables_and_session_metadata(monkeypatch,
             for table in (
                 "auth_credentials",
                 "auth_action_tokens",
+                "auth_legacy_setup_claims",
                 "auth_passkeys",
                 "auth_webauthn_challenges",
             )
@@ -1174,6 +1193,10 @@ def test_auth_v3_migration_adds_account_tables_and_session_metadata(monkeypatch,
             ("pending_password_hash", "TEXT", 0, None, 0),
             ("expires_at", "REAL", 1, None, 0),
             ("created_at", "REAL", 1, None, 0),
+        ],
+        "auth_legacy_setup_claims": [
+            ("user_id", "INTEGER", 0, None, 1),
+            ("claimed_at", "REAL", 1, None, 0),
         ],
         "auth_passkeys": [
             ("credential_id", "TEXT", 0, None, 1),
@@ -1818,20 +1841,20 @@ def test_expired_session_is_rejected_and_deleted_server_side(monkeypatch, tmp_pa
 
 def test_logout_deletes_only_the_current_hashed_session_and_cookie(monkeypatch, tmp_path):
     server, database = load_auth_server(monkeypatch, tmp_path)
-    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    auth_data = sys.modules["auth_data"]
+    password = "multi device password"
+    seed_password_account(server, auth_data, "cook@example.com", password)
     now = [1_800_000_000.0]
     monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now[0])
     first_client = TestClient(server.app, base_url="https://testserver")
-    first_token = issue_link(server, monkeypatch)
     assert first_client.post(
-        "/api/auth/verify", json={"token": first_token}
+        "/api/auth/login", json={"email": "cook@example.com", "password": password}
     ).status_code == 200
 
     now[0] += 60
     second_client = TestClient(server.app, base_url="https://testserver")
-    second_token = issue_link(server, monkeypatch)
     assert second_client.post(
-        "/api/auth/verify", json={"token": second_token}
+        "/api/auth/login", json={"email": "cook@example.com", "password": password}
     ).status_code == 200
 
     response = first_client.post("/api/auth/logout")
@@ -1845,20 +1868,24 @@ def test_logout_deletes_only_the_current_hashed_session_and_cookie(monkeypatch, 
         assert con.execute("SELECT COUNT(*) FROM sessions_v2").fetchone()[0] == 1
 
 
-def test_two_magic_logins_create_two_valid_sessions(monkeypatch, tmp_path):
+def test_two_password_logins_create_two_valid_sessions(monkeypatch, tmp_path):
     server, database = load_auth_server(monkeypatch, tmp_path)
-    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    auth_data = sys.modules["auth_data"]
+    password = "multi device password"
+    seed_password_account(server, auth_data, "cook@example.com", password)
     now = [1_800_000_000.0]
     monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now[0])
-    first_token = issue_link(server, monkeypatch)
     first_client = TestClient(server.app, base_url="https://testserver")
-    assert first_client.post("/api/auth/verify", json={"token": first_token}).status_code == 200
+    assert first_client.post(
+        "/api/auth/login", json={"email": "cook@example.com", "password": password}
+    ).status_code == 200
     first_session = first_client.cookies.get(server.COOKIE)
 
     now[0] += 60
-    second_token = issue_link(server, monkeypatch)
     second_client = TestClient(server.app, base_url="https://testserver")
-    assert second_client.post("/api/auth/verify", json={"token": second_token}).status_code == 200
+    assert second_client.post(
+        "/api/auth/login", json={"email": "cook@example.com", "password": password}
+    ).status_code == 200
 
     assert first_client.get("/api/me").json()["prihlaseny"] is True
     assert second_client.get("/api/me").json()["prihlaseny"] is True
@@ -2518,11 +2545,11 @@ def test_legacy_plaintext_session_is_invalid_after_release(monkeypatch, tmp_path
 
 
 # ---------------------------------------------------------------- auth v3 routes
-AUTH_V3_ORIGIN = {"Origin": "https://uvar.si"}
+AUTH_V3_ORIGIN = AUTH_ORIGIN
 
 
 def auth_v3_client(server, **kwargs):
-    return TestClient(server.app, base_url="https://uvar.si", **kwargs)
+    return FastAPITestClient(server.app, base_url="https://uvar.si", **kwargs)
 
 
 def seed_password_account(server, auth_data, email, password="correct horse battery"):
@@ -2690,19 +2717,27 @@ def test_auth_v3_route_password_request_and_reset_are_generic_one_time_and_atomi
         con.commit()
     monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
     calls = []
-    install_provider(monkeypatch, calls=calls)
-    client = auth_v3_client(server)
+    delivered = threading.Event()
 
-    known = client.post(
-        "/api/auth/password/request",
-        headers=AUTH_V3_ORIGIN,
-        json={"email": " Reset@Example.com "},
-    )
-    unknown = client.post(
-        "/api/auth/password/request",
-        headers=AUTH_V3_ORIGIN,
-        json={"email": "unknown@example.com"},
-    )
+    def post(url, **kwargs):
+        calls.append((url, kwargs))
+        delivered.set()
+        return ProviderResponse()
+
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
+
+    with auth_v3_client(server) as client:
+        known = client.post(
+            "/api/auth/password/request",
+            headers=AUTH_V3_ORIGIN,
+            json={"email": " Reset@Example.com "},
+        )
+        unknown = client.post(
+            "/api/auth/password/request",
+            headers=AUTH_V3_ORIGIN,
+            json={"email": "unknown@example.com"},
+        )
+        assert delivered.wait(1), "queued reset delivery did not reach the provider"
 
     assert known.status_code == unknown.status_code == 200
     assert known.json() == unknown.json()
@@ -2772,6 +2807,14 @@ def test_auth_v3_route_action_token_rolls_back_when_protected_mutation_fails(
             now=now,
             pending_password_hash=pending_hash if purpose == "confirm" else None,
         )
+        sibling_token = None
+        if purpose == "reset":
+            sibling_token = auth_data.create_action_token(
+                con,
+                email="atomic@example.com",
+                purpose="setup",
+                now=now,
+            )
 
     if purpose == "confirm":
         monkeypatch.setattr(
@@ -2800,6 +2843,11 @@ def test_auth_v3_route_action_token_rolls_back_when_protected_mutation_fails(
             "SELECT COUNT(*) FROM auth_action_tokens WHERE token_hash=?",
             (hashlib.sha256(raw_token.encode()).hexdigest(),),
         ).fetchone()[0] == 1
+        if sibling_token is not None:
+            assert con.execute(
+                "SELECT COUNT(*) FROM auth_action_tokens WHERE token_hash=?",
+                (hashlib.sha256(sibling_token.encode()).hexdigest(),),
+            ).fetchone()[0] == 1
         if purpose == "confirm":
             assert con.execute(
                 "SELECT COUNT(*) FROM pouzivatelia WHERE email='atomic@example.com'"
@@ -2941,6 +2989,9 @@ def test_auth_v3_route_authenticated_password_and_session_management(
             "/api/auth/register",
             {"email": "a@example.com", "password": "long enough password"},
         ),
+        ("/api/auth/request", {"email": "a@example.com"}),
+        ("/api/auth/verify", {"token": "token"}),
+        ("/api/auth/logout", {}),
         ("/api/auth/confirm", {"token": "token"}),
         (
             "/api/auth/login",
@@ -2975,6 +3026,8 @@ def test_auth_v3_route_state_changes_require_the_exact_origin(
     "endpoint",
     [
         "/api/auth/register",
+        "/api/auth/request",
+        "/api/auth/verify",
         "/api/auth/confirm",
         "/api/auth/login",
         "/api/auth/password/request",
@@ -3057,9 +3110,6 @@ def test_auth_v3_route_limits_ip_and_normalized_account_independently(
         first_reset = auth_data.create_action_token(
             con, email="limited-reset@example.com", purpose="reset", now=now
         )
-        second_reset = auth_data.create_action_token(
-            con, email="limited-reset@example.com", purpose="reset", now=now
-        )
     server.AUTH_V3_IP_LIMITER = server.ClientIpRateLimiter(max_requests=10)
     server.AUTH_V3_ACCOUNT_LIMITER = server.ClientIpRateLimiter(max_requests=1)
     accepted_reset = auth_v3_client(server).post(
@@ -3067,6 +3117,10 @@ def test_auth_v3_route_limits_ip_and_normalized_account_independently(
         headers=AUTH_V3_ORIGIN,
         json={"token": first_reset, "password": "first reset password"},
     )
+    with closing(server.db()) as con:
+        second_reset = auth_data.create_action_token(
+            con, email="limited-reset@example.com", purpose="reset", now=now
+        )
     limited_reset = auth_v3_client(server).post(
         "/api/auth/password/reset",
         headers=AUTH_V3_ORIGIN,
@@ -3122,11 +3176,19 @@ def test_auth_v3_route_legacy_magic_request_only_serves_existing_accounts(
     seed_password_account(server, auth_data, "configured@example.com")
     client = auth_v3_client(server)
 
-    unknown = client.post("/api/auth/request", json={"email": "new@example.com"})
-    configured = client.post(
-        "/api/auth/request", json={"email": "configured@example.com"}
+    unknown = client.post(
+        "/api/auth/request", headers=AUTH_V3_ORIGIN, json={"email": "new@example.com"}
     )
-    existing = client.post("/api/auth/request", json={"email": "legacy@example.com"})
+    configured = client.post(
+        "/api/auth/request",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "configured@example.com"},
+    )
+    existing = client.post(
+        "/api/auth/request",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "legacy@example.com"},
+    )
 
     assert unknown.status_code == configured.status_code == existing.status_code == 200
     assert unknown.json() == configured.json() == existing.json()
@@ -3171,13 +3233,310 @@ def test_auth_v3_route_legacy_verify_rejects_unknown_or_now_configured_accounts(
         con.commit()
 
     configured = auth_v3_client(server).post(
-        "/api/auth/verify", json={"token": raw_token}
+        "/api/auth/verify", headers=AUTH_V3_ORIGIN, json={"token": raw_token}
     )
     unknown = auth_v3_client(server).post(
-        "/api/auth/verify", json={"token": unknown_token}
+        "/api/auth/verify", headers=AUTH_V3_ORIGIN, json={"token": unknown_token}
     )
 
     assert configured.status_code == unknown.status_code == 400
     with sqlite3.connect(database) as con:
         assert con.execute("SELECT COUNT(*) FROM sessions_v2").fetchone() == (0,)
         assert con.execute("SELECT COUNT(*) FROM magic_tokens_v2").fetchone() == (0,)
+
+
+def test_auth_task5_fix1_legacy_mutations_reject_foreign_origin_before_body_or_cookie_use(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    now = 1_800_000_000.0
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now)
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    calls = []
+    install_provider(monkeypatch, calls=calls)
+    raw_magic = "foreign-origin-valid-magic-token"
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('legacy-origin@example.com')"
+        ).lastrowid
+        con.execute(
+            """INSERT INTO magic_tokens_v2
+               (token_hash, email, expires_at, created_at) VALUES (?, ?, ?, ?)""",
+            (
+                hashlib.sha256(raw_magic.encode()).hexdigest(),
+                "legacy-origin@example.com",
+                now + 3_600,
+                now,
+            ),
+        )
+        current = auth_data.create_session(
+            con, user_id=user_id, now=now, device_name="Current"
+        )
+        con.commit()
+
+    foreign_headers = {
+        "Origin": "https://evil.example",
+        "Content-Type": "text/plain",
+    }
+    request = auth_v3_client(server).post(
+        "/api/auth/request",
+        headers=foreign_headers,
+        content=json.dumps({"email": "legacy-origin@example.com"}),
+    )
+    attacker = auth_v3_client(server)
+    verify = attacker.post(
+        "/api/auth/verify",
+        headers=foreign_headers,
+        content=json.dumps({"token": raw_magic}),
+    )
+    logged_in = auth_v3_client(server)
+    logged_in.cookies.set(server.COOKIE, current)
+    logout = logged_in.post(
+        "/api/auth/logout", headers={"Origin": "https://evil.example"}
+    )
+
+    assert request.status_code == verify.status_code == logout.status_code == 403
+    assert calls == []
+    assert verify.headers.get_list("set-cookie") == []
+    assert logout.headers.get_list("set-cookie") == []
+    with sqlite3.connect(database) as con:
+        assert con.execute("SELECT COUNT(*) FROM magic_tokens_v2").fetchone() == (1,)
+        assert con.execute(
+            "SELECT COUNT(*) FROM sessions_v2 WHERE token_hash=?",
+            (hashlib.sha256(current.encode()).hexdigest(),),
+        ).fetchone() == (1,)
+
+
+def test_auth_task5_fix1_reset_atomically_invalidates_all_reset_and_setup_siblings(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    now = 1_800_000_000.0
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now)
+    user_id = seed_password_account(
+        server, auth_data, "siblings@example.com", "original password"
+    )
+    with closing(server.db()) as con:
+        older_reset = auth_data.create_action_token(
+            con, email="siblings@example.com", purpose="reset", now=now - 2
+        )
+        setup_sibling = auth_data.create_action_token(
+            con, email="siblings@example.com", purpose="setup", now=now - 1
+        )
+        chosen_reset = auth_data.create_action_token(
+            con, email="siblings@example.com", purpose="reset", now=now
+        )
+
+    client = auth_v3_client(server)
+    changed = client.post(
+        "/api/auth/password/reset",
+        headers=AUTH_V3_ORIGIN,
+        json={"token": chosen_reset, "password": "first final password"},
+    )
+    old_retry = auth_v3_client(server).post(
+        "/api/auth/password/reset",
+        headers=AUTH_V3_ORIGIN,
+        json={"token": older_reset, "password": "attacker reset password"},
+    )
+    setup_retry = auth_v3_client(server).post(
+        "/api/auth/password/reset",
+        headers=AUTH_V3_ORIGIN,
+        json={
+            "token": setup_sibling,
+            "purpose": "setup",
+            "password": "attacker setup password",
+        },
+    )
+
+    assert changed.status_code == 200
+    assert old_retry.status_code == setup_retry.status_code == 400
+    with closing(server.db()) as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM auth_action_tokens WHERE email=?",
+            ("siblings@example.com",),
+        ).fetchone()[0] == 0
+        assert auth_data.authenticate_password(
+            con, email="siblings@example.com", password="first final password"
+        ) == user_id
+        assert auth_data.authenticate_password(
+            con, email="siblings@example.com", password="attacker reset password"
+        ) is None
+        assert auth_data.authenticate_password(
+            con, email="siblings@example.com", password="attacker setup password"
+        ) is None
+
+
+def test_auth_task5_fix1_password_request_returns_before_known_mailer_and_matches_unknown(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    seed_password_account(server, auth_data, "known-timing@example.com")
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    provider_entered = threading.Event()
+    release_provider = threading.Event()
+
+    def post(url, **kwargs):
+        provider_entered.set()
+        if not release_provider.wait(2):
+            raise TimeoutError("test provider was not released")
+        return ProviderResponse()
+
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
+
+    async def scenario():
+        transport = httpx.ASGITransport(app=server.app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="https://uvar.si"
+        ) as client:
+            known_done = asyncio.Event()
+
+            async def request_known():
+                response = await client.post(
+                    "/api/auth/password/request",
+                    headers=AUTH_V3_ORIGIN,
+                    json={"email": "known-timing@example.com"},
+                )
+                known_done.set()
+                return response
+
+            known_task = asyncio.create_task(request_known())
+            try:
+                assert await asyncio.to_thread(provider_entered.wait, 1)
+                returned_before_provider = True
+                try:
+                    await asyncio.wait_for(known_done.wait(), timeout=0.2)
+                except TimeoutError:
+                    returned_before_provider = False
+                unknown = await client.post(
+                    "/api/auth/password/request",
+                    headers=AUTH_V3_ORIGIN,
+                    json={"email": "unknown-timing@example.com"},
+                )
+            finally:
+                release_provider.set()
+            known = await known_task
+            return returned_before_provider, known, unknown
+
+    returned_before_provider, known, unknown = asyncio.run(scenario())
+
+    assert returned_before_provider is True
+    assert known.status_code == unknown.status_code == 200
+    assert known.json() == unknown.json()
+
+
+def test_auth_task5_fix1_password_request_provider_failure_never_changes_or_leaks_response(
+    capsys, monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    seed_password_account(server, auth_data, "provider-reset@example.com")
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    provider_finished = threading.Event()
+    calls = []
+
+    def post(url, **kwargs):
+        calls.append((url, kwargs))
+        provider_finished.set()
+        raise TimeoutError("provider network secret")
+
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
+
+    async def scenario():
+        transport = httpx.ASGITransport(app=server.app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="https://uvar.si"
+        ) as client:
+            return await client.post(
+                "/api/auth/password/request",
+                headers=AUTH_V3_ORIGIN,
+                json={"email": "provider-reset@example.com"},
+            )
+
+    response = asyncio.run(scenario())
+    assert provider_finished.wait(1)
+    captured = capsys.readouterr()
+    raw_token = action_token_from_message(calls, "heslo")
+    public = response.text + captured.out + captured.err
+    assert response.status_code == 200
+    assert "provider-reset@example.com" not in public
+    assert raw_token not in public
+    assert "provider network secret" not in public
+
+
+def test_auth_task5_fix1_legacy_magic_is_a_single_setup_claim_not_repeat_login(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    now = 1_800_000_000.0
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now)
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    calls = []
+    install_provider(monkeypatch, calls=calls)
+    first_magic = "first-legacy-setup-token"
+    sibling_magic = "second-legacy-setup-token"
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('one-setup@example.com')"
+        ).lastrowid
+        con.executemany(
+            """INSERT INTO magic_tokens_v2
+               (token_hash, email, expires_at, created_at) VALUES (?, ?, ?, ?)""",
+            [
+                (
+                    hashlib.sha256(first_magic.encode()).hexdigest(),
+                    "one-setup@example.com",
+                    now + 3_600,
+                    now,
+                ),
+                (
+                    hashlib.sha256(sibling_magic.encode()).hexdigest(),
+                    "one-setup@example.com",
+                    now + 3_600,
+                    now,
+                ),
+            ],
+        )
+        con.commit()
+
+    setup_client = auth_v3_client(server)
+    first = setup_client.post(
+        "/api/auth/verify",
+        headers=AUTH_V3_ORIGIN,
+        json={"token": first_magic},
+    )
+    repeat = auth_v3_client(server).post(
+        "/api/auth/verify",
+        headers=AUTH_V3_ORIGIN,
+        json={"token": sibling_magic},
+    )
+
+    assert first.status_code == 200
+    assert repeat.status_code == 400
+    repeated_request = auth_v3_client(server).post(
+        "/api/auth/request",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "one-setup@example.com"},
+    )
+    assert repeated_request.status_code == 200
+    assert calls == []
+    assert setup_client.post(
+        "/api/auth/password/set",
+        headers=AUTH_V3_ORIGIN,
+        json={"password": "migrated final password"},
+    ).status_code == 200
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM sessions_v2 WHERE user_id=?", (user_id,)
+        ).fetchone() == (1,)
+        assert con.execute(
+            "SELECT COUNT(*) FROM magic_tokens_v2 WHERE email=?",
+            ("one-setup@example.com",),
+        ).fetchone() == (0,)
+        assert con.execute(
+            "SELECT COUNT(*) FROM auth_legacy_setup_claims WHERE user_id=?",
+            (user_id,),
+        ).fetchone() == (1,)

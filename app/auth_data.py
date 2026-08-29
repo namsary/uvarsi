@@ -52,6 +52,10 @@ CREATE TABLE IF NOT EXISTS auth_email_cooldowns (
   email TEXT PRIMARY KEY,
   sent_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS auth_legacy_setup_claims (
+  user_id INTEGER PRIMARY KEY,
+  claimed_at REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS sessions_v2 (
   token_hash TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL,
@@ -319,7 +323,14 @@ def consume_action_token(
                 con.execute(f"RELEASE SAVEPOINT {savepoint}")
             raise ActionTokenExpired("expired token")
 
-        con.execute("DELETE FROM auth_action_tokens WHERE token_hash=?", (digest,))
+        if purpose in {"reset", "setup"}:
+            con.execute(
+                """DELETE FROM auth_action_tokens
+                   WHERE email=? AND purpose IN ('reset', 'setup')""",
+                (row[0],),
+            )
+        else:
+            con.execute("DELETE FROM auth_action_tokens WHERE token_hash=?", (digest,))
         if not owns_transaction:
             con.execute(f"RELEASE SAVEPOINT {savepoint}")
         return {
@@ -584,7 +595,9 @@ def consume_magic_token(con, *, raw_token: str, now: float) -> str:
             raise MagicTokenExpired("expired token")
 
         email = row[0]
-        con.execute("DELETE FROM magic_tokens_v2 WHERE token_hash=?", (digest,))
+        # Every issued link for this address belongs to the same one-time
+        # migration opportunity. Consuming any one retires all siblings.
+        con.execute("DELETE FROM magic_tokens_v2 WHERE email=?", (email,))
         user = con.execute(
             """SELECT p.id, c.user_id
                FROM pouzivatelia p
@@ -598,6 +611,14 @@ def consume_magic_token(con, *, raw_token: str, now: float) -> str:
             con.commit()
             raise MagicTokenInvalid("account is not eligible for migration")
         user_id = user[0]
+        claimed = con.execute(
+            """INSERT OR IGNORE INTO auth_legacy_setup_claims (user_id, claimed_at)
+               VALUES (?, ?)""",
+            (user_id, now),
+        )
+        if claimed.rowcount != 1:
+            con.commit()
+            raise MagicTokenInvalid("migration was already claimed")
         raw_session = create_session(
             con,
             user_id=user_id,

@@ -140,6 +140,7 @@ AUTH_V3_IP_LIMITER = ClientIpRateLimiter(
 AUTH_V3_ACCOUNT_LIMITER = ClientIpRateLimiter(
     max_requests=5, window_seconds=10 * 60, max_clients=50_000
 )
+AUTH_BACKGROUND_TASKS: set[asyncio.Task] = set()
 
 AUTH_SUCCESS_MESSAGE = (
     "Poskytovateľ prijal žiadosť o prihlasovací e-mail. "
@@ -741,8 +742,55 @@ def action_email(*, email: str, subject: str, heading: str, link: str):
     return posli_mail(email, subject, text, html)
 
 
+def deliver_password_reset_if_eligible(*, email: str, requested_at: float) -> None:
+    """Resolve eligibility and deliver outside the request's observable path."""
+    with closing(db()) as con:
+        account = con.execute(
+            """SELECT p.id FROM pouzivatelia p
+               JOIN auth_credentials c ON c.user_id=p.id WHERE p.email=?""",
+            (email,),
+        ).fetchone()
+        if account is None:
+            return
+        raw_token = create_action_token(
+            con, email=email, purpose="reset", now=requested_at
+        )
+    link = f"{BASE_URL}/heslo#token={raw_token}&purpose=reset"
+    action_email(
+        email=email,
+        subject="Obnova hesla Uvar.si",
+        heading="Nastav si nové heslo; odkaz platí 60 minút",
+        link=link,
+    )
+
+
+def enqueue_password_reset_delivery(*, email: str, requested_at: float) -> None:
+    task = asyncio.create_task(
+        asyncio.to_thread(
+            deliver_password_reset_if_eligible,
+            email=email,
+            requested_at=requested_at,
+        )
+    )
+    AUTH_BACKGROUND_TASKS.add(task)
+
+    def discard_outcome(completed: asyncio.Task) -> None:
+        AUTH_BACKGROUND_TASKS.discard(completed)
+        if completed.cancelled():
+            return
+        try:
+            completed.exception()
+        except BaseException:
+            # Provider, network, and persistence details are never reflected in
+            # the generic public response or emitted as unobserved task errors.
+            pass
+
+    task.add_done_callback(discard_outcome)
+
+
 @app.post("/api/auth/request")
 async def auth_request(req: Request):
+    require_auth_origin(req)
     now = AUTH_CLOCK()
     client_ip = req.client.host if req.client else "unknown"
     if not IP_REQUEST_LIMITER.allow(client_ip, now):
@@ -762,7 +810,8 @@ async def auth_request(req: Request):
         existing_account = con.execute(
             """SELECT 1 FROM pouzivatelia p
                LEFT JOIN auth_credentials c ON c.user_id=p.id
-               WHERE p.email=? AND c.user_id IS NULL""",
+               LEFT JOIN auth_legacy_setup_claims l ON l.user_id=p.id
+               WHERE p.email=? AND c.user_id IS NULL AND l.user_id IS NULL""",
             (email,),
         ).fetchone() is not None
     if not existing_account:
@@ -983,29 +1032,7 @@ async def auth_password_request(req: Request):
     except ValueError:
         raise HTTPException(400, "Zadaj platnú e-mailovú adresu.")
     auth_account_rate_limit(account=email, operation="password-request", now=now)
-    with closing(db()) as con:
-        account = con.execute(
-            """SELECT p.id FROM pouzivatelia p
-               JOIN auth_credentials c ON c.user_id=p.id WHERE p.email=?""",
-            (email,),
-        ).fetchone()
-        if account is None:
-            return {"ok": True, "message": PASSWORD_REQUEST_MESSAGE}
-        raw_token = create_action_token(
-            con, email=email, purpose="reset", now=now
-        )
-    link = f"{BASE_URL}/heslo#token={raw_token}&purpose=reset"
-    try:
-        await asyncio.to_thread(
-            action_email,
-            email=email,
-            subject="Obnova hesla Uvar.si",
-            heading="Nastav si nové heslo; odkaz platí 60 minút",
-            link=link,
-        )
-    except DeliveryError:
-        # A reset endpoint must not reveal account existence even during outage.
-        pass
+    enqueue_password_reset_delivery(email=email, requested_at=now)
     return {"ok": True, "message": PASSWORD_REQUEST_MESSAGE}
 
 
@@ -1281,7 +1308,8 @@ def auth_confirmation(req: Request):
 
 @app.post("/api/auth/verify")
 async def auth_verify(req: Request):
-    data = await req.json()
+    require_auth_origin(req)
+    data = await auth_json(req)
     try:
         with closing(db()) as con:
             session = consume_magic_token(
@@ -1298,6 +1326,7 @@ async def auth_verify(req: Request):
 
 @app.post("/api/auth/logout")
 def auth_logout(req: Request):
+    require_auth_origin(req)
     tok = req.cookies.get(COOKIE)
     if tok:
         with closing(db()) as con:
