@@ -93,6 +93,12 @@ def minuly_tyzden():
     return current_monday(date.today() - timedelta(days=7))
 
 
+def queue_now(minute=0):
+    return datetime.combine(date.today(), datetime.min.time()).replace(
+        hour=2, minute=minute
+    )
+
+
 def zapis_dopyt(server, predpocet, tyzden, obchody="Lidl", osoby=4, frekvencia=2,
                 variant=1, kolko=5):
     with closing(server.db()) as con:
@@ -208,13 +214,13 @@ def test_precompute_queues_active_exact_profiles_before_demand_and_defaults(
     zakazane = []
     monkeypatch.setitem(sys.modules, "anthropic", zakazany_anthropic(zakazane))
 
-    result = predpocet.enqueue_popular_profiles(
-        count=3, now=datetime(2026, 8, 28, 2, 0, 0)
-    )
+    result = predpocet.enqueue_popular_profiles(count=3, now=queue_now())
     jobs = queued_jobs(server)
 
-    assert jobs[0]["payload_json"]
-    assert json.loads(jobs[0]["payload_json"])["stores"] == ["Lidl", "Tesco"]
+    assert jobs, result
+    active_payload = json.loads(jobs[0]["payload_json"])
+    assert active_payload["stores"] == ["Lidl", "Tesco"]
+    assert active_payload["algo_version"] == server.PLAN_ALGO_VERSION
     assert all(job["priority"] == 20 for job in jobs)
     assert result["queued"] <= 3
     assert zakazane == []
@@ -233,9 +239,7 @@ def test_precompute_blocks_every_job_when_one_required_collection_is_missing(
     zakazane = []
     monkeypatch.setitem(sys.modules, "anthropic", zakazany_anthropic(zakazane))
 
-    result = predpocet.enqueue_popular_profiles(
-        count=2, now=datetime(2026, 8, 28, 2, 0, 0)
-    )
+    result = predpocet.enqueue_popular_profiles(count=2, now=queue_now())
 
     assert result["queued"] == 0
     assert result["blocked"] == 2
@@ -283,8 +287,8 @@ def test_zahrej_cli_queues_when_all_three_collections_are_verified(
 def test_live_job_claims_before_low_priority_precompute_job(monkeypatch, tmp_path):
     server, predpocet = priprav(monkeypatch, tmp_path)
     create_active_user(server)
-    now = datetime(2026, 8, 28, 2, 0, 0)
-    predpocet.enqueue_popular_profiles(count=1, now=now)
+    now = queue_now()
+    precompute = predpocet.enqueue_popular_profiles(count=1, now=now)
 
     with closing(server.db()) as con:
         live = plan_jobs.JobRequest(
@@ -293,15 +297,16 @@ def test_live_job_claims_before_low_priority_precompute_job(monkeypatch, tmp_pat
             variant=0,
             kind="regular",
             user_id=1,
-            week="2026-08-24",
+            week=current_monday(now.date()),
             priority=100,
             payload={},
             regeneration_limit=1,
-            regeneration_day="2026-08-28",
+            regeneration_day=now.date().isoformat(),
         )
         live_job = plan_jobs.enqueue(con, live, now=now).job
         claimed = plan_jobs.claim_next(con, "worker", now=now)
 
+    assert precompute["queued"] == 1
     assert claimed.id == live_job.id
 
 
@@ -311,10 +316,10 @@ def test_precompute_deduplicates_an_active_job_by_signature_and_variant(
     create_active_user(server)
 
     first = predpocet.enqueue_popular_profiles(
-        count=1, now=datetime(2026, 8, 28, 2, 0, 0)
+        count=1, now=queue_now()
     )
     second = predpocet.enqueue_popular_profiles(
-        count=1, now=datetime(2026, 8, 28, 2, 1, 0)
+        count=1, now=queue_now(minute=1)
     )
 
     assert first["queued"] == 1
@@ -326,7 +331,7 @@ def test_precompute_deduplicates_an_active_job_by_signature_and_variant(
 def test_precompute_skips_a_matching_active_live_job(monkeypatch, tmp_path):
     server, predpocet = priprav(monkeypatch, tmp_path)
     create_active_user(server)
-    now = datetime(2026, 8, 28, 2, 0, 0)
+    now = queue_now()
     with closing(server.db()) as con:
         rows = server.akcie_pre(["Lidl"])
         profile = predpocet.Profil(("Lidl",), 4, 0, 2, 1)
@@ -343,7 +348,7 @@ def test_precompute_skips_a_matching_active_live_job(monkeypatch, tmp_path):
                 priority=100,
                 payload={},
                 regeneration_limit=1,
-                regeneration_day="2026-08-28",
+                regeneration_day=now.date().isoformat(),
             ),
             now=now,
         )
@@ -362,13 +367,14 @@ def test_precompute_respects_historical_spend_and_outstanding_reservations(
     monkeypatch.setenv("UVARSI_MESACNY_STROP_EUR", "25.00")
     monkeypatch.setenv("UVARSI_TYZDENNY_STROP_PREDPOCET_EUR", "1.00")
     create_active_user(server)
-    now = datetime(2026, 8, 28, 2, 0, 0)
+    now = queue_now()
+    den, mesiac, tyzden = predpocet.naklady._obdobia(now)
     with closing(server.db()) as con:
         con.execute(
             "INSERT INTO naklady "
             "(cas, den, mesiac, tyzden, ucel, model, eur) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (now.isoformat(), "2026-08-28", "2026-08", "2026-08-24",
+            (now.isoformat(), den, mesiac, tyzden,
              "plan", "historical", 0.10),
         )
         con.commit()
