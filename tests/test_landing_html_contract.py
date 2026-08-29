@@ -1,13 +1,15 @@
-"""Bloček na landingu musí ukázať, z ktorých letákov ceny pochádzajú."""
+"""Landing ukazuje pôvod cien bez odkazov na nestabilné cudzie agregátory."""
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 
-NODE = shutil.which("node")
+_BUNDLED_NODE = Path(sys.executable).resolve().parent.parent / "node" / "bin" / "node.exe"
+NODE = shutil.which("node") or (str(_BUNDLED_NODE) if _BUNDLED_NODE.exists() else None)
 needs_node = pytest.mark.skipif(NODE is None, reason="node runtime is not available")
 
 
@@ -16,7 +18,6 @@ def index_html():
 
 
 def nested(html, signature):
-    """Return a whole function declared inside the landing IIFE (two-space indent)."""
     match = re.search(re.escape(signature) + r"\{.*?\n  \}", html, re.S)
     assert match, "landing must declare " + signature.strip()
     return match.group(0)
@@ -44,46 +45,35 @@ function flatten(element, collected) {
 function textOf(element) {
   return flatten(element, []).map(function (n) { return n.textContent || ''; }).join(' | ');
 }
-function linksOf(element) {
-  return flatten(element, []).filter(function (n) { return n.href; });
-}
 """
 
 
-def sources_helpers(html):
-    return DOM_STUB + "\n".join([
+@needs_node
+def test_receipt_proof_names_each_store_once_without_publishing_source_urls(tmp_path):
+    html = index_html()
+    helpers = DOM_STUB + "\n".join([
         nested(html, "function node(tag, className, text)"),
-        nested(html, "function dayMonth(iso)"),
-        nested(html, "function dayMonthYear(iso)"),
-        nested(html, "function sourceUrl(url)"),
-        nested(html, "function sourceLabel(source)"),
-        nested(html, "function sourcesNode(sources)"),
+        nested(html, "function sourceStores(sources)"),
+        nested(html, "function proofNode(data)"),
     ])
-
-
-@needs_node
-def test_landing_receipt_lists_the_leaflets_its_prices_were_read_from(tmp_path):
-    html = index_html()
     result = run_node(
         tmp_path,
-        "landing-sources-contract.js",
-        sources_helpers(html)
+        "landing-proof-contract.js",
+        helpers
         + """
-var box = sourcesNode([
-  {store: 'Kaufland', url: 'https://letak.test/kaufland/32', valid_from: '2026-08-17', valid_to: '2026-08-23'},
-  {store: 'Lidl', url: 'https://letak.test/lidl/11', valid_from: '2026-08-20', valid_to: '2026-08-26'}
-]);
-var text = textOf(box);
-if (text.indexOf('Kaufland') === -1) process.exit(1);
-if (text.indexOf('Lidl') === -1) process.exit(2);
-if (text.indexOf('17. 8.') === -1) process.exit(3);
-if (text.indexOf('23. 8. 2026') === -1) process.exit(4);
-if (text.indexOf('undefined') !== -1) process.exit(5);
-var links = linksOf(box);
-if (links.length !== 2) process.exit(6);
-if (links[0].href !== 'https://letak.test/kaufland/32') process.exit(7);
-if (links[0].target !== '_blank') process.exit(8);
-if (String(links[0].rel).indexOf('noopener') === -1) process.exit(9);
+var proof = proofNode({
+  week_label: '17.\u201323. 8. 2026',
+  sources: [
+    {store: 'Kaufland', url: 'https://letak.test/kaufland/32'},
+    {store: 'Lidl', url: 'https://letak.test/lidl/11'},
+    {store: 'Kaufland', url: 'https://letak.test/kaufland/33'}
+  ]
+});
+var text = textOf(proof);
+if (text.indexOf('17.\u201323. 8. 2026') === -1) process.exit(1);
+if ((text.match(/Kaufland/g) || []).length !== 1) process.exit(2);
+if ((text.match(/Lidl/g) || []).length !== 1) process.exit(3);
+if (text.indexOf('letak.test') !== -1) process.exit(4);
 process.exit(0);
 """,
     )
@@ -91,48 +81,31 @@ process.exit(0);
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-@needs_node
-def test_landing_sources_never_link_a_non_http_url_and_vanish_when_absent(tmp_path):
-    html = index_html()
-    result = run_node(
-        tmp_path,
-        "landing-sources-safety.js",
-        sources_helpers(html)
-        + """
-if (sourceUrl('javascript:alert(1)') !== '') process.exit(1);
-if (sourceUrl('https://letak.test/x') !== 'https://letak.test/x') process.exit(2);
-var box = sourcesNode([
-  {store: 'Kaufland', url: 'https://letak.test/kaufland/32', valid_from: '2026-08-17', valid_to: '2026-08-23'},
-  {store: 'Lidl', url: 'javascript:alert(1)', valid_from: '2026-08-17', valid_to: '2026-08-23'}
-]);
-if (linksOf(box).length !== 1) process.exit(3);
-if (textOf(box).indexOf('Lidl') === -1) process.exit(4);
-if (sourcesNode([]) !== null) process.exit(5);
-if (sourcesNode(null) !== null) process.exit(6);
-process.exit(0);
-""",
-    )
-
-    assert result.returncode == 0, result.stdout + result.stderr
-
-
-def test_landing_render_actually_puts_the_sources_under_the_receipt():
+def test_landing_does_not_publish_breakable_external_leaflet_links():
     html = index_html()
     render = nested(html, "function render(data)")
 
-    assert "sourcesNode(data.sources)" in render, "receipt_data already ships sources — use them"
+    assert "sourcesNode" not in html
+    assert "sourceUrl" not in html
+    assert "rcpt-src-link" not in html
+    assert "proofNode(data)" in render
     assert "landing.replaceChildren" in render
-    assert re.search(r"landing\.append\(\s*sources\s*\)", render), "sources belong under the receipt"
 
 
-def test_landing_claims_only_that_prices_were_read_from_a_named_leaflet():
+def test_landing_claims_only_that_prices_come_from_current_leaflets():
     html = index_html()
-    render = nested(html, "function render(data)")
+    proof = nested(html, "function proofNode(data)")
 
-    assert "skontroluj" in render.lower(), "the public claim must stay actionable"
-    for overstated in ("overili sme u", "nezávisle overené", "garantujeme", "potvrdené obchodom",
-                       "overené priamo v obchode"):
-        assert overstated not in html, "reading a leaflet page is not retailer verification"
+    assert "aktuálne letáky" in proof.lower()
+    assert "over" in proof.lower()
+    for overstated in (
+        "overili sme u",
+        "nezávisle overené",
+        "garantujeme",
+        "potvrdené obchodom",
+        "overené priamo v obchode",
+    ):
+        assert overstated not in html
 
 
 def test_landing_keeps_its_current_title_and_description():
@@ -140,7 +113,6 @@ def test_landing_keeps_its_current_title_and_description():
 
     assert "<title>Uvar.si — z letáka rovno na tanier</title>" in html
     assert (
-        '<meta name="description" content="Povedz, ako často chceš variť. '
-        "Uvar.si vyskladá jedálniček a recepty z toho, čo je práve v akcii v obchodoch u teba — "
-        'a z toho, čo už máš doma v špajze.">'
+        '<meta name="description" content="Uvar.si spojí aktuálne akcie z Lidla, Kauflandu a Tesca '
+        's tým, čo máš doma. Dostaneš jedálniček, recepty a nákupný zoznam na celý týždeň.">'
     ) in html

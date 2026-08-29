@@ -77,3 +77,10 @@
   OK  landing canonical: https://uvar.si/
   !!  landing JSON-LD: script type=application/ld+json chýba
   !!  landing interné odkazy: chýbajú /co-varit-tento-tyzden, /lacny-jedalnicek, /ako-varime-z-akcii
+## 2026-08-29 — Moderný landing Uvar.si (vydanie 2026.08.29.16)
+
+- Landing dostal nový responzívny grocery-tech vizuálny systém, jasné CTA do fungujúcej appky a ľahkú animáciu bločka.
+- Nefunkčné verejné odkazy na agregátory letákov boli odstránené; interná kontrola zdrojov a platnosti dát zostala zachovaná.
+- Týždenná úspora aj ročná projekcia pochádzajú z aktuálneho bločka. Landing zobrazuje výpočet týždenná úspora × 52 a upozornenie, že nejde o garanciu.
+- Cenník rozlišuje fungujúci Free plán a zakladajúcu ponuku 39 € jednorazovo; platby zostávajú vypnuté.
+- Overenie: 1248 testov prešlo, 44 bolo podmienene preskočených; mobilný, tabletový a desktopový viewport bez horizontálneho pretekania.

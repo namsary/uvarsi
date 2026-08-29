@@ -6,8 +6,8 @@ from pathlib import Path
 
 TITLE = "Uvar.si — z letáka rovno na tanier"
 DESCRIPTION = (
-    "Povedz, ako často chceš variť. Uvar.si vyskladá jedálniček a recepty z toho, "
-    "čo je práve v akcii v obchodoch u teba — a z toho, čo už máš doma v špajze."
+    "Uvar.si spojí aktuálne akcie z Lidla, Kauflandu a Tesca s tým, čo máš doma. "
+    "Dostaneš jedálniček, recepty a nákupný zoznam na celý týždeň."
 )
 REQUIRED_LINKS = {
     "/co-varit-tento-tyzden": "Čo variť tento týždeň",
@@ -120,7 +120,9 @@ def test_homepage_keeps_one_canonical_one_h1_and_the_current_copy():
     assert squash("".join(parser.title_parts)) == TITLE
     assert meta_values(parser, "description") == [DESCRIPTION]
     assert parser.canonicals == ["https://uvar.si/"]
-    assert parser.h1_texts == ["Z letáka rovno na tanier."]
+    assert parser.h1_texts == [
+        "Varenie na celý týždeň. Podľa akcií, ktoré práve platia."
+    ]
 
 
 def test_homepage_exposes_truthful_social_metadata_without_fake_image_claims():
@@ -159,7 +161,7 @@ def test_homepage_jsonld_stays_inside_supported_website_and_app_claims():
 
     app = graph_item(graph, "SoftwareApplication")
     assert app["name"] == "Uvar.si"
-    assert app["url"] == "https://uvar.si/"
+    assert app["url"] == "https://uvar.si/app"
     assert app["operatingSystem"] == "Web"
     assert "meal" in app["applicationCategory"].lower()
     assert app["inLanguage"] == "sk-SK"

@@ -8,6 +8,7 @@ sa sekcia nesmie vykresliť vôbec.
 import re
 import shutil
 import subprocess
+import sys
 from datetime import date
 from pathlib import Path
 
@@ -16,7 +17,8 @@ import pytest
 from app.landing_data import model_example_is_publishable
 
 
-NODE = shutil.which("node")
+_BUNDLED_NODE = Path(sys.executable).resolve().parent.parent / "node" / "bin" / "node.exe"
+NODE = shutil.which("node") or (str(_BUNDLED_NODE) if _BUNDLED_NODE.exists() else None)
 needs_node = pytest.mark.skipif(NODE is None, reason="node runtime is not available")
 
 # „8,20 €", „2,69 €/kg", „−33 %" — čokoľvek, čo čitateľ prečíta ako cenu či zľavu.
@@ -220,10 +222,11 @@ if (text.indexOf('1,82 \\u20ac') === -1) process.exit(2);   // skutočná týžd
 if (text.indexOf('2,69 ') === -1) process.exit(3);          // skutočná akciová cena
 if (text.indexOf('Lidl') === -1) process.exit(4);
 if (text.indexOf('Kaufland') === -1) process.exit(5);
-if (text.indexOf('90 \\u20ac ro\\u010dne') === -1) process.exit(6);  // 1,82 x 52, zaokruhlene
+if (text.indexOf('94,64 \\u20ac ro\\u010dne') === -1) process.exit(6); // presne 1,82 x 52
 if (text.toLowerCase().indexOf('ak by si') === -1) process.exit(7);  // podmienene, nie fakt
 if (text.indexOf('430') !== -1) process.exit(8);
 if (text.indexOf('undefined') !== -1) process.exit(9);
+if (text.indexOf('1,82 \\u20ac \\u00d7 52') === -1) process.exit(13); // transparentny vypocet
 // recepty: bez recepty.py sa kroky vezmu z instructions, ktore prilozil blocek
 if (text.indexOf('Kuracie stehna') === -1) process.exit(10);
 if (text.indexOf('4 kroky') === -1) process.exit(11);
@@ -271,8 +274,8 @@ function annualFor(usetris) {
   renderModel(payload, NOW);
   return textOf(modelBody);
 }
-if (annualFor('1,00').indexOf('50 \\u20ac ro\\u010dne') === -1) process.exit(1);
-if (annualFor('2,00').indexOf('100 \\u20ac ro\\u010dne') === -1) process.exit(2);
+if (annualFor('1,00').indexOf('52 \\u20ac ro\\u010dne') === -1) process.exit(1);
+if (annualFor('2,00').indexOf('104 \\u20ac ro\\u010dne') === -1) process.exit(2);
 process.exit(0);
 """,
     )
