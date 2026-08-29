@@ -342,7 +342,7 @@
   <div class="shell">
     <span class="eyebrow">Začni bez rizika</span>
     <h2 class="display">Free teraz. Premium po spustení.</h2>
-    <p class="band-sub">Bez karty. Platby sú vypnuté.</p>
+    <p class="band-sub">Platby sú vypnuté.</p>
 
     <div class="plans">
       <div class="plan">
@@ -393,11 +393,11 @@
     <span class="eyebrow">Otázky</span>
     <h2 class="display band-h2">Pred prvým plánom</h2>
     <div style="margin-top:34px">
-      <details><summary>Môžem Uvar.si používať už teraz?</summary><p>Áno. Free je bez karty. Premium platby zapneme po dokončení testovania.</p></details>
+      <details><summary>Môžem Uvar.si používať už teraz?</summary><p>Áno, Free. Platby sú vypnuté. E-mail je nezáväzný záujem, nevytvára objednávku. Premium aktivuje úspešný neskorší nákup. Podmienky odstúpenia a vrátenia platby uvedieme v konečnom checkoute.</p></details>
       <details><summary>Odkiaľ beriete akcie?</summary><p>Z letákov Lidla, Kauflandu a Tesca. Pri bločku uvádzame platnosť a obchody; cenu si over v predajni.</p></details>
       <details><summary>Môžem zadať, čo už mám doma?</summary><p>Áno. Zadaj surovinu aj množstvo; odrátame ich z nákupného zoznamu.</p></details>
       <details><summary>Nechcem variť každý deň. Zvládne to?</summary><p>Áno. Zvoľ varenie raz za dva či tri dni; plán zaradí zvyšky do ďalších dní.</p></details>
-      <details><summary>Koľko reálne ušetrím?</summary><p>Závisí od jedál, obchodov a týždňa. Rátame ju z aktuálnych akciových a bežných cien; ročná suma je projekcia, nie záruka.</p></details>
+      <details><summary>Koľko reálne ušetrím?</summary><p>Závisí od týždňa. Ročná suma je modelový príklad a projekcia, nie je zárukou úspory.</p></details>
     </div>
   </div>
 </section>
@@ -416,7 +416,7 @@
     <div id="formState">
       <span class="chosen" id="chosen">—</span>
       <h3 id="mTitle">Daj mi vedieť</h3>
-      <p>Pošleme ti vybranú ponuku. Nezáväzne, bez platby.</p>
+      <p>Nezáväzný záujem, bez platby.</p>
       <form class="f-row" id="wf"
             action="https://assets.mailerlite.com/jsonp/2513849/forms/193159378287724436/subscribe"
             method="post" target="ml_sink">
@@ -524,7 +524,7 @@
     b.setAttribute('aria-valuetext',t);
     b.setAttribute('aria-labelledby',r.id='cp');
     b.append(f);
-    communityCounter.replaceChildren(r,b);
+    communityCounter.replaceChildren(r,b,node('small','','Počet účtov je informatívny; nejde o počet kupujúcich.'));
   }
 
   function render(data){
@@ -611,11 +611,11 @@
     var weekly=money(data.receipt.usetris), annual=weekly*52;
     var annualText=annual.toLocaleString('sk-SK',{minimumFractionDigits:0,maximumFractionDigits:2})+' € ročne';
     var band=node('div','cost-band'), saving=node('div','saving-story'), math=node('div','saving-math');
-    saving.append(node('span','c-lbl','Úspora podľa tohto týždňa'),
-      node('span','saving-week','Tento týždeň '),node('b','',amount(data.receipt.usetris)),
-      node('span','','. Ak by si mal podobnú úsporu každý týždeň, za rok je to približne '),
+    saving.append(node('span','c-lbl','Modelový príklad'),
+      node('span','saving-week','Týždeň '),node('b','',amount(data.receipt.usetris)),
+      node('span','','. Model × 52 ≈ '),
       node('b','',annualText),node('span','','.'));
-    math.append(node('span','','Orientačný prepočet: '+amount(data.receipt.usetris)+' × 52 týždňov. Skutočná úspora závisí od tvojich nákupov, akcií a obchodov.'));
+    math.append(node('span','','Príklad, nie záruka: '+amount(data.receipt.usetris)+' × 52.'));
     band.append(saving,math);
 
     var parts=[grid,band], recipes=node('div','rec-grid');

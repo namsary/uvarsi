@@ -7,6 +7,10 @@ def html():
     return Path("index.html").read_text(encoding="utf-8")
 
 
+def legal_terms():
+    return Path("docs/legal/01_VOP_NAVRH.md").read_text(encoding="utf-8")
+
+
 def pricing_cards(page):
     section = page.split('<section class="plans-band"', 1)[1].split("</section>", 1)[0]
     starts = list(re.finditer(r'<div class="plan(?: plan--hot)?">', section))
@@ -141,3 +145,64 @@ def test_founding_offer_has_a_progressive_accessible_counter_slot():
     bar_rule = re.search(r"\.pc-bar\s*\{(.*?)\}", page, re.S)
     assert bar_rule
     assert "overflow:hidden" in bar_rule.group(1).replace(" ", "")
+
+
+def test_landing_and_legal_draft_share_the_approved_prices_without_stale_offers():
+    page = html()
+    legal = legal_terms()
+
+    assert "39 €" in page and "39 €" in legal
+    assert "49 €" in page and "49 €" in legal
+    assert "39 € jednorazovo" in page and "39 € jednorazovo" in legal
+    assert "49 € ročne" in legal
+    for stale_price in ("19 €", "29 €"):
+        assert stale_price not in page
+        assert stale_price not in legal
+
+
+def test_interest_email_is_nonbinding_and_only_a_later_purchase_creates_entitlement():
+    page = html()
+    legal = legal_terms()
+
+    assert "Platby sú vypnuté" in page
+    assert "nezáväzný záujem" in page
+    assert "nevytvára objednávku" in page
+    assert "úspešný neskorší nákup" in page
+    assert "odstúpenia a vrátenia platby" in page
+    assert "konečnom checkoute" in page
+    assert "Platby za Premium sú momentálne vypnuté" in legal
+    assert "nezáväzné prejavenie záujmu" in legal
+    assert "nevzniká objednávka" in legal
+    assert "úspešnom nákupe" in legal
+    assert "odstúpenia a vrátenia platby" in legal
+    assert "konečnom checkoute" in legal
+    for live_payment_claim in (
+        "Kúpiť Premium teraz",
+        "Zaplať teraz",
+        "Platbu technicky a zmluvne spracúva",
+    ):
+        assert live_payment_claim not in page
+        assert live_payment_claim not in legal
+
+
+def test_account_counter_is_informational_and_never_presented_as_buyer_popularity():
+    page = html()
+    legal = legal_terms()
+
+    assert "Počet účtov je informatívny" in page
+    assert "nejde o počet kupujúcich" in page
+    assert "Počet vytvorených účtov" in legal
+    assert "nie je počtom kupujúcich" in legal
+    for fake_claim in ("najobľúbenejší", "najpopulárnejší", "najpredávanejší"):
+        assert fake_claim not in page.lower()
+        assert fake_claim not in legal.lower()
+
+
+def test_annual_savings_is_a_model_example_not_a_guarantee():
+    page = html()
+    legal = legal_terms()
+
+    assert "Modelový príklad" in page
+    assert "nie je zárukou úspory" in page
+    assert "modelového nákupného zoznamu" in legal
+    assert "Nie je zárukou osobnej úspory" in legal
