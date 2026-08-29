@@ -133,6 +133,18 @@ class FakeModel:
         )
 
 
+class SequenceModel(FakeModel):
+    def __init__(self, outputs):
+        super().__init__(None)
+        self.outputs = list(outputs)
+        self.requests = []
+
+    def create(self, **kwargs):
+        self.requests.append(kwargs)
+        self.output = self.outputs[min(self.calls, len(self.outputs) - 1)]
+        return super().create(**kwargs)
+
+
 class TimeoutModel:
     def __init__(self):
         self.calls = 0
@@ -266,6 +278,39 @@ def test_worker_builds_regular_plan_and_marks_job_ready(app_db):
         ).fetchone()
         assert con.execute("SELECT COUNT(*) FROM plany").fetchone()[0] == 0
     assert fake_model.calls == 1
+
+
+def test_worker_repairs_one_semantically_invalid_model_plan_with_feedback(app_db):
+    job = _queued_regular_job(app_db)
+    rows = app_db.server.akcie_pre(STORES)
+    valid = _model_output([row["offer_key"] for row in rows[:4]])
+    invalid = json.loads(json.dumps(valid))
+    invalid["meals"][0]["name"] = "Smotanové jedlo"
+    model = SequenceModel([invalid, valid])
+
+    result = process_one(client=model, now=NOW)
+
+    assert result.status == "ready"
+    assert model.calls == 2
+    assert _job_row(app_db, job.id)["state"] == "ready"
+    retry_messages = model.requests[1]["messages"]
+    assert len(retry_messages) == 3
+    assert "smotanové" in retry_messages[2]["content"].casefold()
+
+
+def test_worker_stops_after_one_semantic_repair_attempt(app_db):
+    job = _queued_regular_job(app_db)
+    rows = app_db.server.akcie_pre(STORES)
+    invalid = _model_output([row["offer_key"] for row in rows[:4]])
+    invalid["meals"][0]["name"] = "Smotanové jedlo"
+    model = SequenceModel([invalid, invalid, invalid])
+
+    result = process_one(client=model, now=NOW)
+
+    assert result.status == "failed"
+    assert result.error_code == "invalid_model_output"
+    assert model.calls == 2
+    assert _job_row(app_db, job.id)["state"] == "failed"
 
 
 def test_completed_store_with_no_purchasable_offer_does_not_block_other_stores(app_db):

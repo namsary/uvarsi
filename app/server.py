@@ -150,6 +150,7 @@ PLAN_EFFORT = "low"
 PLAN_TIMEOUT_SECONDS = 120.0
 PLAN_MAX_RETRIES = 0
 PLAN_WORST_CASE_SECONDS = PLAN_TIMEOUT_SECONDS * (PLAN_MAX_RETRIES + 1)
+MODEL_VALIDATION_ATTEMPTS = 2
 SPRAVA_PLAN_TRVA_PRIDLHO = (
     "Jedálniček sa nestihol poskladať do dvoch minút. Skús to prosím znova."
 )
@@ -1560,7 +1561,7 @@ def revalidate_job_context(job, expected_identity, *, con, now):
 
 
 def build_and_store_job(job, *, client=None) -> dict:
-    """Build one queued or compatibility plan with exactly one model request."""
+    """Build one plan; one semantic correction is allowed after a complete response."""
     stores, frequency, adults, children, rows, pantry, context_identity = _job_context(job, client)
     bind_context = getattr(client, "bind_job_context", None)
     if bind_context is not None:
@@ -1605,43 +1606,74 @@ def build_and_store_job(job, *, client=None) -> dict:
             odhad_eur=own_reservation,
             rezervovane_eur=queued_reservations,
         )
-        try:
-            msg = guarded.messages.create(
-                model=MODEL_PLAN,
-                max_tokens=PLAN_TOKENS,
-                messages=[{"role": "user", "content": blocks}],
-                **settings,
-            )
-        except naklady.KreditVycerpany as refusal:
-            LOG.warning("plán sa neposkladal: %s", naklady.KOD_KREDIT)
-            error = HTTPException(503, str(refusal))
-            error.kod = refusal.kod
-            raise error
-        except naklady.RozpocetVycerpany as refusal:
-            error = HTTPException(503, str(refusal))
-            error.kod = refusal.kod
-            raise error
-        except Exception as error:
+        messages = [{"role": "user", "content": blocks}]
+        plan = None
+        for attempt in range(MODEL_VALIDATION_ATTEMPTS):
             try:
-                import anthropic
-                plan_timeout = getattr(anthropic, "APITimeoutError", None)
-            except ImportError:
-                plan_timeout = None
-            if plan_timeout is not None and isinstance(error, plan_timeout):
-                raise HTTPException(504, SPRAVA_PLAN_TRVA_PRIDLHO)
-            raise
+                msg = guarded.messages.create(
+                    model=MODEL_PLAN,
+                    max_tokens=PLAN_TOKENS,
+                    messages=messages,
+                    **settings,
+                )
+            except naklady.KreditVycerpany as refusal:
+                LOG.warning("plán sa neposkladal: %s", naklady.KOD_KREDIT)
+                error = HTTPException(503, str(refusal))
+                error.kod = refusal.kod
+                raise error
+            except naklady.RozpocetVycerpany as refusal:
+                error = HTTPException(503, str(refusal))
+                error.kod = refusal.kod
+                raise error
+            except Exception as error:
+                try:
+                    import anthropic
+                    plan_timeout = getattr(anthropic, "APITimeoutError", None)
+                except ImportError:
+                    plan_timeout = None
+                if plan_timeout is not None and isinstance(error, plan_timeout):
+                    raise HTTPException(504, SPRAVA_PLAN_TRVA_PRIDLHO)
+                raise
 
-    LOG.info("plán poskladaný, tokeny: %s", pouzitie_modelu(getattr(msg, "usage", None)))
-    if getattr(msg, "stop_reason", None) == "max_tokens":
-        raise HTTPException(500, SPRAVA_PLAN_NEDOKONCENY)
-    text = "".join(
-        block.text for block in msg.content if getattr(block, "type", None) == "text"
-    ).strip()
-    text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.M).strip()
-    try:
-        model_output = json.loads(text)
-    except json.JSONDecodeError:
-        raise HTTPException(500, "Plán sa nepodarilo poskladať, skús to znova.")
+            LOG.info("plán poskladaný, tokeny: %s", pouzitie_modelu(getattr(msg, "usage", None)))
+            if getattr(msg, "stop_reason", None) == "max_tokens":
+                raise HTTPException(500, SPRAVA_PLAN_NEDOKONCENY)
+            text = "".join(
+                block.text for block in msg.content if getattr(block, "type", None) == "text"
+            ).strip()
+            text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.M).strip()
+            try:
+                model_output = json.loads(text)
+            except json.JSONDecodeError as invalid:
+                validation_error = ValueError("Výstup nie je platný JSON.")
+            else:
+                try:
+                    with closing(db()) as validation_con:
+                        plan = build_personal_plan(
+                            validation_con, model_output, stores, frequency, None,
+                            pantry=pantry if pantry_driven else (),
+                            adults=adults, children=children,
+                        )
+                except ValueError as invalid:
+                    validation_error = invalid
+                else:
+                    break
+
+            LOG.warning("modelový plán neprešiel bezpečnostnou kontrolou: %s", validation_error)
+            if attempt + 1 >= MODEL_VALIDATION_ATTEMPTS:
+                raise HTTPException(500, "Plán sa nepodarilo bezpečne overiť, skús to znova.")
+            messages = [
+                {"role": "user", "content": blocks},
+                {"role": "assistant", "content": text},
+                {"role": "user", "content": (
+                    "Predchádzajúci návrh neprešiel bezpečnostnou kontrolou. "
+                    f"Dôvod: {validation_error} Oprav túto chybu a vráť celý plán "
+                    "znova iba ako JSON podľa pôvodnej schémy."
+                )},
+            ]
+
+    if plan is None:  # obrana pri budúcej zmene slučky
+        raise HTTPException(500, "Plán sa nepodarilo bezpečne overiť, skús to znova.")
 
     complete_job = getattr(client, "complete_job", None)
     revalidate_context = getattr(client, "revalidate_job_context", None)
@@ -1651,15 +1683,6 @@ def build_and_store_job(job, *, client=None) -> dict:
         try:
             if revalidate_context is not None:
                 revalidate_context(con)
-            try:
-                plan = build_personal_plan(
-                    con, model_output, stores, frequency, None,
-                    pantry=pantry if pantry_driven else (),
-                    adults=adults, children=children,
-                )
-            except ValueError as error:
-                LOG.warning("modelový plán neprešiel bezpečnostnou kontrolou: %s", error)
-                raise HTTPException(500, "Plán sa nepodarilo bezpečne overiť, skús to znova.")
             plan = osobny_plan_na_ulozenie(plan, pantry, pantry_driven)
             compatibility_call = job.payload.get("_compat_rows") is not None
             if job.user_id is not None and (pantry_driven or compatibility_call):

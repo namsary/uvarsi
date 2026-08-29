@@ -125,16 +125,19 @@ class _LeaseAwareClient:
                     self.revalidate_job_context(con)
                 except self._server.StalePlanJob as error:
                     raise InputChangedBeforeDispatch(error.code) from error
-                marked = plan_jobs.mark_dispatched(
-                    con, self._job.id, worker_id=WORKER_ID, now=self._clock(),
-                )
-                if not marked:
-                    raise LeaseLostBeforeDispatch()
+                if not self.dispatched:
+                    marked = plan_jobs.mark_dispatched(
+                        con, self._job.id, worker_id=WORKER_ID, now=self._clock(),
+                    )
+                    if not marked:
+                        raise LeaseLostBeforeDispatch()
                 con.commit()
             except BaseException:
                 if con.in_transaction:
                     con.rollback()
                 raise
+        if self.dispatched and not self._lease_is_current():
+            raise LeaseLostAfterDispatch()
         self.dispatched = True
 
         stop = threading.Event()
