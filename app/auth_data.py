@@ -18,6 +18,8 @@ SESSION_TTL_SECONDS = 90 * 24 * 60 * 60
 SESSION_TOUCH_SECONDS = 24 * 60 * 60
 CONFIRM_ACTION_TOKEN_TTL_SECONDS = 24 * 60 * 60
 PASSWORD_ACTION_TOKEN_TTL_SECONDS = 60 * 60
+PASSWORD_RESET_OUTBOX_LEASE_SECONDS = 30
+PASSWORD_RESET_OUTBOX_MAX_ATTEMPTS = 3
 
 _ACTION_TOKEN_TTLS = {
     "confirm": CONFIRM_ACTION_TOKEN_TTL_SECONDS,
@@ -74,9 +76,26 @@ CREATE TABLE IF NOT EXISTS auth_action_tokens (
   email TEXT NOT NULL,
   purpose TEXT NOT NULL CHECK(purpose IN ('confirm','reset','setup')),
   pending_password_hash TEXT,
+  credential_changed_at REAL,
   expires_at REAL NOT NULL,
   created_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS auth_password_reset_outbox (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT NOT NULL,
+  credential_changed_at REAL,
+  requested_at REAL NOT NULL,
+  state TEXT NOT NULL CHECK(state IN ('queued','running','sent','skipped','failed')),
+  attempts INTEGER NOT NULL DEFAULT 0,
+  token_hash TEXT,
+  lease_owner TEXT,
+  lease_expires_at REAL,
+  created_at REAL NOT NULL,
+  updated_at REAL NOT NULL,
+  delivered_at REAL
+);
+CREATE INDEX IF NOT EXISTS auth_password_reset_outbox_next
+  ON auth_password_reset_outbox(state, created_at, id);
 CREATE TABLE IF NOT EXISTS auth_passkeys (
   credential_id TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL,
@@ -127,6 +146,15 @@ class ActionTokenInvalid(RuntimeError):
 
 class ActionTokenExpired(RuntimeError):
     """A known action token passed its absolute expiry."""
+
+
+@dataclass(frozen=True)
+class PasswordResetDelivery:
+    job_id: int
+    email: str
+    worker_id: str
+    raw_token: str | None
+    token_hash: str | None
 
 
 @dataclass(frozen=True)
@@ -185,6 +213,25 @@ def migrate_auth_schema(con) -> None:
     ):
         if name not in session_columns:
             con.execute(f"ALTER TABLE sessions_v2 ADD COLUMN {name} {column_type}")
+    action_columns = {
+        row[1] for row in con.execute("PRAGMA table_info(auth_action_tokens)")
+    }
+    if "credential_changed_at" not in action_columns:
+        con.execute(
+            "ALTER TABLE auth_action_tokens ADD COLUMN credential_changed_at REAL"
+        )
+    if con.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pouzivatelia'"
+    ).fetchone():
+        # Fix-round 1 could persist a claim before password setup. Such rows
+        # represent interrupted migration, not completion, and must be reopened.
+        con.execute(
+            """DELETE FROM auth_legacy_setup_claims
+               WHERE NOT EXISTS (
+                 SELECT 1 FROM auth_credentials c
+                 WHERE c.user_id=auth_legacy_setup_claims.user_id
+               )"""
+        )
 
 
 def token_hash(raw_token: str) -> str:
@@ -257,13 +304,14 @@ def _require_argon2id_hash(encoded: object) -> str:
     return encoded
 
 
-def create_action_token(
+def _insert_action_token(
     con,
     *,
     email: str,
     purpose: str,
     now: float,
     pending_password_hash: str | None = None,
+    credential_changed_at: float | None = None,
 ) -> str:
     ttl = _ACTION_TOKEN_TTLS.get(purpose)
     if ttl is None:
@@ -272,20 +320,45 @@ def create_action_token(
     if pending_password_hash is not None:
         pending_password_hash = _require_argon2id_hash(pending_password_hash)
 
+    if credential_changed_at is not None:
+        credential_changed_at = float(credential_changed_at)
+
     raw_token = secrets.token_urlsafe(32)
     con.execute("DELETE FROM auth_action_tokens WHERE expires_at <= ?", (now,))
     con.execute(
         """INSERT INTO auth_action_tokens
-           (token_hash, email, purpose, pending_password_hash, expires_at, created_at)
-           VALUES (?, ?, ?, ?, ?, ?)""",
+           (token_hash, email, purpose, pending_password_hash,
+            credential_changed_at, expires_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
         (
             token_hash(raw_token),
             normalized_email,
             purpose,
             pending_password_hash,
+            credential_changed_at,
             now + ttl,
             now,
         ),
+    )
+    return raw_token
+
+
+def create_action_token(
+    con,
+    *,
+    email: str,
+    purpose: str,
+    now: float,
+    pending_password_hash: str | None = None,
+    credential_changed_at: float | None = None,
+) -> str:
+    raw_token = _insert_action_token(
+        con,
+        email=email,
+        purpose=purpose,
+        now=now,
+        pending_password_hash=pending_password_hash,
+        credential_changed_at=credential_changed_at,
     )
     con.commit()
     return raw_token
@@ -308,7 +381,8 @@ def consume_action_token(
         con.execute(f"SAVEPOINT {savepoint}")
     try:
         row = con.execute(
-            """SELECT email, purpose, pending_password_hash, expires_at
+            """SELECT email, purpose, pending_password_hash, expires_at,
+                      credential_changed_at
                FROM auth_action_tokens
                WHERE token_hash=? AND purpose=?""",
             (digest, purpose),
@@ -322,6 +396,26 @@ def consume_action_token(
             else:
                 con.execute(f"RELEASE SAVEPOINT {savepoint}")
             raise ActionTokenExpired("expired token")
+        if purpose == "reset" and row[4] is not None:
+            credential = con.execute(
+                """SELECT c.changed_at
+                   FROM pouzivatelia p
+                   JOIN auth_credentials c ON c.user_id=p.id
+                   WHERE p.email=?""",
+                (row[0],),
+            ).fetchone()
+            if credential is None or float(credential[0]) != float(row[4]):
+                raise ActionTokenInvalid("credential changed after token generation")
+        if purpose == "setup" and con.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pouzivatelia'"
+        ).fetchone():
+            if con.execute(
+                """SELECT 1 FROM pouzivatelia p
+                   JOIN auth_credentials c ON c.user_id=p.id
+                   WHERE p.email=?""",
+                (row[0],),
+            ).fetchone():
+                raise ActionTokenInvalid("password setup was already completed")
 
         if purpose in {"reset", "setup"}:
             con.execute(
@@ -353,6 +447,191 @@ def consume_action_token(
         else:
             con.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
             con.execute(f"RELEASE SAVEPOINT {savepoint}")
+        raise
+
+
+def enqueue_password_reset_job(
+    con, *, email: str, requested_at: float
+) -> int:
+    """Persist one constant-shaped reset request with its credential version."""
+    normalized_email = normalize_email(email)
+    with _session_mutation(con, "password_reset_enqueue"):
+        credential = con.execute(
+            """SELECT c.changed_at
+               FROM pouzivatelia p
+               JOIN auth_credentials c ON c.user_id=p.id
+               WHERE p.email=?""",
+            (normalized_email,),
+        ).fetchone()
+        changed_at = float(credential[0]) if credential is not None else None
+        cursor = con.execute(
+            """INSERT INTO auth_password_reset_outbox
+               (email, credential_changed_at, requested_at, state,
+                created_at, updated_at)
+               VALUES (?, ?, ?, 'queued', ?, ?)""",
+            (
+                normalized_email,
+                changed_at,
+                float(requested_at),
+                float(requested_at),
+                float(requested_at),
+            ),
+        )
+        job_id = int(cursor.lastrowid)
+    return job_id
+
+
+def _recover_password_reset_leases(con, *, now: float) -> None:
+    expired = con.execute(
+        """SELECT token_hash FROM auth_password_reset_outbox
+           WHERE state='running' AND lease_expires_at <= ? AND token_hash IS NOT NULL""",
+        (now,),
+    ).fetchall()
+    if expired:
+        con.executemany(
+            "DELETE FROM auth_action_tokens WHERE token_hash=?", expired
+        )
+    con.execute(
+        """UPDATE auth_password_reset_outbox
+           SET state=CASE WHEN attempts < ? THEN 'queued' ELSE 'failed' END,
+               token_hash=NULL, lease_owner=NULL, lease_expires_at=NULL,
+               updated_at=?
+           WHERE state='running' AND lease_expires_at <= ?""",
+        (PASSWORD_RESET_OUTBOX_MAX_ATTEMPTS, now, now),
+    )
+
+
+def claim_password_reset_job(
+    con,
+    *,
+    worker_id: str,
+    now: float,
+    lease_seconds: int = PASSWORD_RESET_OUTBOX_LEASE_SECONDS,
+) -> PasswordResetDelivery | None:
+    """Lease one job and mint its version-bound token in one transaction."""
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        _recover_password_reset_leases(con, now=now)
+        row = con.execute(
+            """SELECT id, email, credential_changed_at, requested_at
+               FROM auth_password_reset_outbox
+               WHERE state='queued' AND attempts < ?
+               ORDER BY created_at, id LIMIT 1""",
+            (PASSWORD_RESET_OUTBOX_MAX_ATTEMPTS,),
+        ).fetchone()
+        if row is None:
+            con.commit()
+            return None
+        job_id, email, expected_changed_at, requested_at = row
+        con.execute(
+            """UPDATE auth_password_reset_outbox
+               SET state='running', attempts=attempts+1, lease_owner=?,
+                   lease_expires_at=?, updated_at=?
+               WHERE id=?""",
+            (worker_id, now + lease_seconds, now, job_id),
+        )
+        credential = con.execute(
+            """SELECT c.changed_at
+               FROM pouzivatelia p
+               JOIN auth_credentials c ON c.user_id=p.id
+               WHERE p.email=?""",
+            (email,),
+        ).fetchone()
+        current_changed_at = float(credential[0]) if credential is not None else None
+        if (
+            expected_changed_at is None
+            or current_changed_at is None
+            or float(expected_changed_at) != current_changed_at
+        ):
+            con.execute(
+                """UPDATE auth_password_reset_outbox
+                   SET state='skipped', lease_owner=NULL, lease_expires_at=NULL,
+                       updated_at=? WHERE id=?""",
+                (now, job_id),
+            )
+            con.commit()
+            return PasswordResetDelivery(
+                job_id=int(job_id),
+                email=email,
+                worker_id=worker_id,
+                raw_token=None,
+                token_hash=None,
+            )
+
+        raw_token = _insert_action_token(
+            con,
+            email=email,
+            purpose="reset",
+            now=float(requested_at),
+            credential_changed_at=float(expected_changed_at),
+        )
+        digest = token_hash(raw_token)
+        con.execute(
+            "UPDATE auth_password_reset_outbox SET token_hash=? WHERE id=?",
+            (digest, job_id),
+        )
+        con.commit()
+        return PasswordResetDelivery(
+            job_id=int(job_id),
+            email=email,
+            worker_id=worker_id,
+            raw_token=raw_token,
+            token_hash=digest,
+        )
+    except Exception:
+        if con.in_transaction:
+            con.rollback()
+        raise
+
+
+def finish_password_reset_job(
+    con,
+    delivery: PasswordResetDelivery,
+    *,
+    accepted: bool,
+    now: float,
+) -> bool:
+    """Finish or safely requeue one leased delivery without retaining raw tokens."""
+    if delivery.raw_token is None or delivery.token_hash is None:
+        return False
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        row = con.execute(
+            """SELECT attempts FROM auth_password_reset_outbox
+               WHERE id=? AND state='running' AND lease_owner=? AND token_hash=?""",
+            (delivery.job_id, delivery.worker_id, delivery.token_hash),
+        ).fetchone()
+        if row is None:
+            con.rollback()
+            return False
+        if accepted:
+            con.execute(
+                """UPDATE auth_password_reset_outbox
+                   SET state='sent', lease_owner=NULL, lease_expires_at=NULL,
+                       delivered_at=?, updated_at=? WHERE id=?""",
+                (now, now, delivery.job_id),
+            )
+        else:
+            con.execute(
+                "DELETE FROM auth_action_tokens WHERE token_hash=?",
+                (delivery.token_hash,),
+            )
+            next_state = (
+                "queued"
+                if int(row[0]) < PASSWORD_RESET_OUTBOX_MAX_ATTEMPTS
+                else "failed"
+            )
+            con.execute(
+                """UPDATE auth_password_reset_outbox
+                   SET state=?, token_hash=NULL, lease_owner=NULL,
+                       lease_expires_at=NULL, updated_at=? WHERE id=?""",
+                (next_state, now, delivery.job_id),
+            )
+        con.commit()
+        return True
+    except Exception:
+        if con.in_transaction:
+            con.rollback()
         raise
 
 
@@ -611,14 +890,6 @@ def consume_magic_token(con, *, raw_token: str, now: float) -> str:
             con.commit()
             raise MagicTokenInvalid("account is not eligible for migration")
         user_id = user[0]
-        claimed = con.execute(
-            """INSERT OR IGNORE INTO auth_legacy_setup_claims (user_id, claimed_at)
-               VALUES (?, ?)""",
-            (user_id, now),
-        )
-        if claimed.rowcount != 1:
-            con.commit()
-            raise MagicTokenInvalid("migration was already claimed")
         raw_session = create_session(
             con,
             user_id=user_id,

@@ -100,7 +100,10 @@ from auth_data import (
     consume_magic_token,
     create_action_token,
     create_session,
+    claim_password_reset_job,
     delete_session,
+    enqueue_password_reset_job,
+    finish_password_reset_job,
     hash_password,
     list_sessions,
     migrate_auth_schema,
@@ -141,6 +144,9 @@ AUTH_V3_ACCOUNT_LIMITER = ClientIpRateLimiter(
     max_requests=5, window_seconds=10 * 60, max_clients=50_000
 )
 AUTH_BACKGROUND_TASKS: set[asyncio.Task] = set()
+AUTH_OUTBOX_BATCH_SIZE = 8
+AUTH_OUTBOX_WORKER_ID = f"auth-reset-{os.getpid()}-{id(AUTH_BACKGROUND_TASKS)}"
+AUTH_OUTBOX_SHUTTING_DOWN = False
 
 AUTH_SUCCESS_MESSAGE = (
     "Poskytovateľ prijal žiadosť o prihlasovací e-mail. "
@@ -410,9 +416,16 @@ def zvys_strop_vlakien() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    global AUTH_OUTBOX_SHUTTING_DOWN
     priprav_databazu()
     zvys_strop_vlakien()
-    yield
+    AUTH_OUTBOX_SHUTTING_DOWN = False
+    ensure_password_reset_worker()
+    try:
+        yield
+    finally:
+        AUTH_OUTBOX_SHUTTING_DOWN = True
+        await drain_password_reset_workers()
 
 
 app = FastAPI(title="Uvar.si", lifespan=lifespan)
@@ -742,34 +755,52 @@ def action_email(*, email: str, subject: str, heading: str, link: str):
     return posli_mail(email, subject, text, html)
 
 
-def deliver_password_reset_if_eligible(*, email: str, requested_at: float) -> None:
-    """Resolve eligibility and deliver outside the request's observable path."""
-    with closing(db()) as con:
-        account = con.execute(
-            """SELECT p.id FROM pouzivatelia p
-               JOIN auth_credentials c ON c.user_id=p.id WHERE p.email=?""",
-            (email,),
-        ).fetchone()
-        if account is None:
-            return
-        raw_token = create_action_token(
-            con, email=email, purpose="reset", now=requested_at
-        )
-    link = f"{BASE_URL}/heslo#token={raw_token}&purpose=reset"
-    action_email(
-        email=email,
-        subject="Obnova hesla Uvar.si",
-        heading="Nastav si nové heslo; odkaz platí 60 minút",
-        link=link,
-    )
+def process_password_reset_outbox_batch(
+    worker_id: str, *, limit: int = AUTH_OUTBOX_BATCH_SIZE
+) -> int:
+    """Process a bounded durable batch without exposing delivery outcomes."""
+    processed = 0
+    for _ in range(limit):
+        with closing(db()) as con:
+            delivery = claim_password_reset_job(
+                con, worker_id=worker_id, now=AUTH_CLOCK()
+            )
+        if delivery is None:
+            break
+        processed += 1
+        if delivery.raw_token is None:
+            continue
+        link = f"{BASE_URL}/heslo#token={delivery.raw_token}&purpose=reset"
+        accepted = False
+        try:
+            action_email(
+                email=delivery.email,
+                subject="Obnova hesla Uvar.si",
+                heading="Nastav si nové heslo; odkaz platí 60 minút",
+                link=link,
+            )
+            accepted = True
+        except Exception:
+            pass
+        with closing(db()) as con:
+            finish_password_reset_job(
+                con, delivery, accepted=accepted, now=AUTH_CLOCK()
+            )
+    return processed
 
 
-def enqueue_password_reset_delivery(*, email: str, requested_at: float) -> None:
+def ensure_password_reset_worker() -> asyncio.Task:
+    loop = asyncio.get_running_loop()
+    for task in tuple(AUTH_BACKGROUND_TASKS):
+        if task.done():
+            AUTH_BACKGROUND_TASKS.discard(task)
+        elif task.get_loop() is loop:
+            return task
     task = asyncio.create_task(
         asyncio.to_thread(
-            deliver_password_reset_if_eligible,
-            email=email,
-            requested_at=requested_at,
+            process_password_reset_outbox_batch,
+            AUTH_OUTBOX_WORKER_ID,
+            limit=AUTH_OUTBOX_BATCH_SIZE,
         )
     )
     AUTH_BACKGROUND_TASKS.add(task)
@@ -779,13 +810,43 @@ def enqueue_password_reset_delivery(*, email: str, requested_at: float) -> None:
         if completed.cancelled():
             return
         try:
-            completed.exception()
+            processed = completed.result()
         except BaseException:
-            # Provider, network, and persistence details are never reflected in
-            # the generic public response or emitted as unobserved task errors.
-            pass
+            return
+        if AUTH_OUTBOX_SHUTTING_DOWN:
+            return
+        with closing(db()) as con:
+            queued = con.execute(
+                """SELECT 1 FROM auth_password_reset_outbox
+                   WHERE state='queued' LIMIT 1"""
+            ).fetchone() is not None
+        if processed >= AUTH_OUTBOX_BATCH_SIZE or queued:
+            ensure_password_reset_worker()
 
     task.add_done_callback(discard_outcome)
+    return task
+
+
+async def drain_password_reset_workers() -> None:
+    while True:
+        active = [task for task in AUTH_BACKGROUND_TASKS if not task.done()]
+        if not active:
+            task = ensure_password_reset_worker()
+            active = [task]
+        results = await asyncio.gather(*active, return_exceptions=True)
+        if not any(
+            isinstance(result, int) and result >= AUTH_OUTBOX_BATCH_SIZE
+            for result in results
+        ):
+            return
+
+
+def enqueue_password_reset_delivery(*, email: str, requested_at: float) -> None:
+    with closing(db()) as con:
+        enqueue_password_reset_job(
+            con, email=email, requested_at=requested_at
+        )
+    ensure_password_reset_worker()
 
 
 @app.post("/api/auth/request")
@@ -906,7 +967,7 @@ async def auth_register(req: Request):
 
     with closing(db()) as con:
         account = con.execute(
-            """SELECT p.id, c.user_id
+            """SELECT p.id, c.user_id, c.changed_at
                FROM pouzivatelia p
                LEFT JOIN auth_credentials c ON c.user_id=p.id
                WHERE p.email=?""",
@@ -927,7 +988,11 @@ async def auth_register(req: Request):
         else:
             purpose = "reset" if account[1] is not None else "setup"
             raw_token = create_action_token(
-                con, email=email, purpose=purpose, now=now
+                con,
+                email=email,
+                purpose=purpose,
+                now=now,
+                credential_changed_at=account[2] if purpose == "reset" else None,
             )
             link = f"{BASE_URL}/heslo#token={raw_token}&purpose={purpose}"
             subject = "Účet Uvar.si už existuje"
@@ -1081,6 +1146,16 @@ async def auth_password_reset(req: Request):
                 set_password(
                     con, user_id=user_id, password_hash=password_hash, now=now
                 )
+                if purpose == "setup":
+                    con.execute(
+                        """INSERT OR REPLACE INTO auth_legacy_setup_claims
+                           (user_id, claimed_at) VALUES (?, ?)""",
+                        (user_id, now),
+                    )
+                    con.execute(
+                        "DELETE FROM magic_tokens_v2 WHERE email=?",
+                        (action["email"],),
+                    )
                 session = create_session(
                     con,
                     user_id=user_id,
@@ -1104,16 +1179,44 @@ async def auth_password_reset(req: Request):
     return response
 
 
+class PasswordAlreadyConfigured(RuntimeError):
+    pass
+
+
 def update_authenticated_password(
-    req: Request, *, user: dict, password_hash: str, now: float
+    req: Request,
+    *,
+    user: dict,
+    password_hash: str,
+    now: float,
+    finalize_legacy_setup: bool = False,
 ) -> None:
     current = req.cookies.get(COOKIE)
     with closing(db()) as con:
         con.execute("BEGIN IMMEDIATE")
         try:
+            if finalize_legacy_setup and con.execute(
+                "SELECT 1 FROM auth_credentials WHERE user_id=?", (user["id"],)
+            ).fetchone():
+                raise PasswordAlreadyConfigured()
             set_password(
                 con, user_id=user["id"], password_hash=password_hash, now=now
             )
+            con.execute(
+                """DELETE FROM auth_action_tokens
+                   WHERE email=? AND purpose IN ('reset', 'setup')""",
+                (user["email"],),
+            )
+            if finalize_legacy_setup:
+                con.execute(
+                    """INSERT OR REPLACE INTO auth_legacy_setup_claims
+                       (user_id, claimed_at) VALUES (?, ?)""",
+                    (user["id"], now),
+                )
+                con.execute(
+                    "DELETE FROM magic_tokens_v2 WHERE email=?",
+                    (user["email"],),
+                )
             revoke_other_sessions(
                 con, user_id=user["id"], current_token=current
             )
@@ -1139,7 +1242,16 @@ async def auth_password_set(req: Request):
             raise HTTPException(409, "Heslo už je nastavené. Použi zmenu hesla.")
     now = AUTH_CLOCK()
     password_hash = await asyncio.to_thread(hash_password, password)
-    update_authenticated_password(req, user=user, password_hash=password_hash, now=now)
+    try:
+        update_authenticated_password(
+            req,
+            user=user,
+            password_hash=password_hash,
+            now=now,
+            finalize_legacy_setup=True,
+        )
+    except PasswordAlreadyConfigured:
+        raise HTTPException(409, "Heslo už je nastavené. Použi zmenu hesla.")
     return {"ok": True}
 
 

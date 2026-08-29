@@ -1170,6 +1170,7 @@ def test_auth_v3_migration_adds_account_tables_and_session_metadata(monkeypatch,
             for table in (
                 "auth_credentials",
                 "auth_action_tokens",
+                "auth_password_reset_outbox",
                 "auth_legacy_setup_claims",
                 "auth_passkeys",
                 "auth_webauthn_challenges",
@@ -1191,8 +1192,23 @@ def test_auth_v3_migration_adds_account_tables_and_session_metadata(monkeypatch,
             ("email", "TEXT", 1, None, 0),
             ("purpose", "TEXT", 1, None, 0),
             ("pending_password_hash", "TEXT", 0, None, 0),
+            ("credential_changed_at", "REAL", 0, None, 0),
             ("expires_at", "REAL", 1, None, 0),
             ("created_at", "REAL", 1, None, 0),
+        ],
+        "auth_password_reset_outbox": [
+            ("id", "INTEGER", 0, None, 1),
+            ("email", "TEXT", 1, None, 0),
+            ("credential_changed_at", "REAL", 0, None, 0),
+            ("requested_at", "REAL", 1, None, 0),
+            ("state", "TEXT", 1, None, 0),
+            ("attempts", "INTEGER", 1, "0", 0),
+            ("token_hash", "TEXT", 0, None, 0),
+            ("lease_owner", "TEXT", 0, None, 0),
+            ("lease_expires_at", "REAL", 0, None, 0),
+            ("created_at", "REAL", 1, None, 0),
+            ("updated_at", "REAL", 1, None, 0),
+            ("delivered_at", "REAL", 0, None, 0),
         ],
         "auth_legacy_setup_claims": [
             ("user_id", "INTEGER", 0, None, 1),
@@ -1476,6 +1492,7 @@ def test_action_token_primitive_is_purpose_bound_and_expires_at_the_boundary(
         assert auth_data.consume_action_token(
             con, raw_token=reset_token, purpose="reset", now=now + 1
         )["email"] == "cook@example.com"
+        con.commit()
 
         setup_token = auth_data.create_action_token(
             con, email="cook@example.com", purpose="setup", now=now
@@ -2837,7 +2854,7 @@ def test_auth_v3_route_action_token_rolls_back_when_protected_mutation_fails(
         endpoint, headers=AUTH_V3_ORIGIN, json=payload
     )
 
-    assert response.status_code == 500
+    assert response.status_code == 500, response.text
     with closing(server.db()) as con:
         assert con.execute(
             "SELECT COUNT(*) FROM auth_action_tokens WHERE token_hash=?",
@@ -3522,7 +3539,7 @@ def test_auth_task5_fix1_legacy_magic_is_a_single_setup_claim_not_repeat_login(
         json={"email": "one-setup@example.com"},
     )
     assert repeated_request.status_code == 200
-    assert calls == []
+    assert len(calls) == 1
     assert setup_client.post(
         "/api/auth/password/set",
         headers=AUTH_V3_ORIGIN,
@@ -3540,3 +3557,436 @@ def test_auth_task5_fix1_legacy_magic_is_a_single_setup_claim_not_repeat_login(
             "SELECT COUNT(*) FROM auth_legacy_setup_claims WHERE user_id=?",
             (user_id,),
         ).fetchone() == (1,)
+    calls.clear()
+    assert auth_v3_client(server).post(
+        "/api/auth/request",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "one-setup@example.com"},
+    ).status_code == 200
+    assert calls == []
+
+
+def test_auth_task5_fix2_queued_reset_rejects_credential_changed_before_generation(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    seed_password_account(server, auth_data, "stale-queue@example.com")
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    now = [2_000.0]
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now[0])
+    worker_entered_db = threading.Event()
+    release_worker_db = threading.Event()
+    calls = []
+    install_provider(monkeypatch, calls=calls)
+    real_db = server.db
+    request_thread = threading.current_thread()
+
+    def controlled_db():
+        if threading.current_thread() is not request_thread:
+            worker_entered_db.set()
+            if not release_worker_db.wait(2):
+                raise TimeoutError("test did not release reset worker")
+        return real_db()
+
+    monkeypatch.setattr(server, "db", controlled_db)
+
+    async def scenario():
+        transport = httpx.ASGITransport(app=server.app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="https://uvar.si"
+        ) as client:
+            response = await client.post(
+                "/api/auth/password/request",
+                headers=AUTH_V3_ORIGIN,
+                json={"email": "stale-queue@example.com"},
+            )
+            assert await asyncio.to_thread(worker_entered_db.wait, 1)
+            now[0] += 1
+            with closing(real_db()) as con:
+                user_id = con.execute(
+                    "SELECT id FROM pouzivatelia WHERE email='stale-queue@example.com'"
+                ).fetchone()[0]
+                auth_data.set_password(
+                    con,
+                    user_id=user_id,
+                    password_hash=auth_data.hash_password("credential changed later"),
+                    now=now[0],
+                )
+                con.commit()
+            release_worker_db.set()
+
+            async def worker_finished():
+                while server.AUTH_BACKGROUND_TASKS:
+                    await asyncio.sleep(0)
+
+            await asyncio.wait_for(worker_finished(), timeout=2)
+            return response
+
+    try:
+        response = asyncio.run(scenario())
+    finally:
+        release_worker_db.set()
+
+    assert response.status_code == 200
+    assert calls == []
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM auth_action_tokens WHERE email=?",
+            ("stale-queue@example.com",),
+        ).fetchone() == (0,)
+
+
+def test_auth_task5_fix2_delivered_reset_rejects_credential_changed_after_mint(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    user_id = seed_password_account(server, auth_data, "stale-token@example.com")
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    now = [3_000.0]
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now[0])
+    provider_entered = threading.Event()
+    release_provider = threading.Event()
+    calls = []
+
+    def post(url, **kwargs):
+        calls.append((url, kwargs))
+        provider_entered.set()
+        if not release_provider.wait(2):
+            raise TimeoutError("test did not release reset provider")
+        return ProviderResponse()
+
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
+
+    async def scenario():
+        transport = httpx.ASGITransport(app=server.app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="https://uvar.si"
+        ) as client:
+            response = await client.post(
+                "/api/auth/password/request",
+                headers=AUTH_V3_ORIGIN,
+                json={"email": "stale-token@example.com"},
+            )
+            assert await asyncio.to_thread(provider_entered.wait, 1)
+            now[0] += 1
+            with closing(server.db()) as con:
+                auth_data.set_password(
+                    con,
+                    user_id=user_id,
+                    password_hash=auth_data.hash_password("newer credential version"),
+                    now=now[0],
+                )
+                con.commit()
+            release_provider.set()
+
+            async def worker_finished():
+                while server.AUTH_BACKGROUND_TASKS:
+                    await asyncio.sleep(0)
+
+            await asyncio.wait_for(worker_finished(), timeout=2)
+            return response
+
+    try:
+        response = asyncio.run(scenario())
+    finally:
+        release_provider.set()
+
+    raw_token = action_token_from_message(calls, "heslo")
+    replay = auth_v3_client(server).post(
+        "/api/auth/password/reset",
+        headers=AUTH_V3_ORIGIN,
+        json={"token": raw_token, "password": "stale link takeover"},
+    )
+    assert response.status_code == 200
+    assert replay.status_code == 400
+
+
+def test_auth_task5_fix2_legacy_setup_is_recoverable_until_password_commit(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    calls = []
+    install_provider(monkeypatch, calls=calls)
+    now = 4_000.0
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now)
+    first_token = "recoverable-first-magic"
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('recoverable@example.com')"
+        ).lastrowid
+        con.execute(
+            """INSERT INTO magic_tokens_v2
+               (token_hash, email, expires_at, created_at) VALUES (?, ?, ?, ?)""",
+            (
+                hashlib.sha256(first_token.encode()).hexdigest(),
+                "recoverable@example.com",
+                now + 3_600,
+                now,
+            ),
+        )
+        con.commit()
+
+    abandoned = auth_v3_client(server)
+    assert abandoned.post(
+        "/api/auth/verify",
+        headers=AUTH_V3_ORIGIN,
+        json={"token": first_token},
+    ).status_code == 200
+    assert abandoned.post("/api/auth/logout", headers=AUTH_V3_ORIGIN).status_code == 200
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM auth_legacy_setup_claims WHERE user_id=?", (user_id,)
+        ).fetchone() == (0,)
+
+    requested = auth_v3_client(server).post(
+        "/api/auth/request",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "recoverable@example.com"},
+    )
+    assert requested.status_code == 200
+    second_token = outbound_token(calls)
+    recovered = auth_v3_client(server)
+    assert recovered.post(
+        "/api/auth/verify",
+        headers=AUTH_V3_ORIGIN,
+        json={"token": second_token},
+    ).status_code == 200
+    assert recovered.post(
+        "/api/auth/password/set",
+        headers=AUTH_V3_ORIGIN,
+        json={"password": "final recoverable password"},
+    ).status_code == 200
+
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM auth_legacy_setup_claims WHERE user_id=?", (user_id,)
+        ).fetchone() == (1,)
+    calls.clear()
+    assert auth_v3_client(server).post(
+        "/api/auth/request",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "recoverable@example.com"},
+    ).status_code == 200
+    assert calls == []
+
+
+def test_auth_task5_fix2_migration_reopens_only_premature_legacy_claims(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    with sqlite3.connect(":memory:") as con:
+        con.execute(
+            "CREATE TABLE pouzivatelia (id INTEGER PRIMARY KEY, email TEXT NOT NULL)"
+        )
+        auth_data.migrate_auth_schema(con)
+        incomplete_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('incomplete@example.com')"
+        ).lastrowid
+        complete_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('complete@example.com')"
+        ).lastrowid
+        auth_data.set_password(
+            con,
+            user_id=complete_id,
+            password_hash=auth_data.hash_password("completed migration password"),
+            now=7_000.0,
+        )
+        con.executemany(
+            "INSERT INTO auth_legacy_setup_claims (user_id, claimed_at) VALUES (?, ?)",
+            [(incomplete_id, 6_999.0), (complete_id, 7_000.0)],
+        )
+        con.commit()
+
+        auth_data.migrate_auth_schema(con)
+
+        assert con.execute(
+            "SELECT user_id FROM auth_legacy_setup_claims ORDER BY user_id"
+        ).fetchall() == [(complete_id,)]
+
+
+def test_auth_task5_fix2_setup_token_cannot_replace_a_committed_password(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    now = 7_500.0
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now)
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('setup-race@example.com')"
+        ).lastrowid
+        current = auth_data.create_session(
+            con, user_id=user_id, now=now, device_name="Migration session"
+        )
+        setup_token = auth_data.create_action_token(
+            con, email="setup-race@example.com", purpose="setup", now=now
+        )
+
+    setup_client = auth_v3_client(server)
+    setup_client.cookies.set(server.COOKIE, current)
+    assert setup_client.post(
+        "/api/auth/password/set",
+        headers=AUTH_V3_ORIGIN,
+        json={"password": "committed setup password"},
+    ).status_code == 200
+    stale_setup = auth_v3_client(server).post(
+        "/api/auth/password/reset",
+        headers=AUTH_V3_ORIGIN,
+        json={
+            "token": setup_token,
+            "purpose": "setup",
+            "password": "stale setup takeover",
+        },
+    )
+
+    assert stale_setup.status_code == 400
+    with closing(server.db()) as con:
+        assert auth_data.authenticate_password(
+            con,
+            email="setup-race@example.com",
+            password="committed setup password",
+        ) == user_id
+        assert auth_data.authenticate_password(
+            con, email="setup-race@example.com", password="stale setup takeover"
+        ) is None
+
+
+def test_auth_task5_fix2_reset_outbox_survives_restart_and_startup_delivers(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    seed_password_account(server, auth_data, "restart-reset@example.com")
+    with closing(server.db()) as con:
+        auth_data.enqueue_password_reset_job(
+            con, email="restart-reset@example.com", requested_at=5_000.0
+        )
+
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    delivered = threading.Event()
+    calls = []
+
+    def post(url, **kwargs):
+        calls.append((url, kwargs))
+        delivered.set()
+        return ProviderResponse()
+
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
+    sys.modules.pop("server", None)
+    sys.modules.pop("auth_data", None)
+    restarted = importlib.import_module("server")
+    restarted.ENV_FILE = str(tmp_path / "missing.env")
+    restarted.AUTH_CLOCK = lambda: 5_001.0
+
+    with FastAPITestClient(restarted.app, base_url="https://uvar.si"):
+        assert delivered.wait(2), "startup did not drain the persisted reset job"
+
+    raw_token = action_token_from_message(calls, "heslo")
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT state, attempts FROM auth_password_reset_outbox"
+        ).fetchone() == ("sent", 1)
+        assert con.execute(
+            "SELECT token_hash FROM auth_action_tokens WHERE email=?",
+            ("restart-reset@example.com",),
+        ).fetchone() == (hashlib.sha256(raw_token.encode()).hexdigest(),)
+
+
+def test_auth_task5_fix2_reset_outbox_retries_without_leaving_failed_token(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    seed_password_account(server, auth_data, "retry-reset@example.com")
+    with closing(server.db()) as con:
+        auth_data.enqueue_password_reset_job(
+            con, email="retry-reset@example.com", requested_at=6_000.0
+        )
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    calls = []
+
+    def post(url, **kwargs):
+        calls.append((url, kwargs))
+        if len(calls) == 1:
+            raise TimeoutError("first delivery uncertain")
+        return ProviderResponse()
+
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 6_001.0)
+
+    assert server.process_password_reset_outbox_batch("retry-worker", limit=1) == 1
+    first_token = action_token_from_message(calls, "heslo")
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT state, attempts FROM auth_password_reset_outbox"
+        ).fetchone() == ("queued", 1)
+        assert con.execute("SELECT COUNT(*) FROM auth_action_tokens").fetchone() == (0,)
+
+    assert server.process_password_reset_outbox_batch("retry-worker", limit=1) == 1
+    second_token = action_token_from_message(calls, "heslo")
+    assert first_token != second_token
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT state, attempts FROM auth_password_reset_outbox"
+        ).fetchone() == ("sent", 2)
+        assert con.execute("SELECT token_hash FROM auth_action_tokens").fetchone() == (
+            hashlib.sha256(second_token.encode()).hexdigest(),
+        )
+
+
+def test_auth_task5_fix2_shutdown_drains_an_accepted_reset_delivery(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    seed_password_account(server, auth_data, "shutdown-reset@example.com")
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    provider_entered = threading.Event()
+    release_provider = threading.Event()
+    request_done = threading.Event()
+    allow_shutdown = threading.Event()
+    shutdown_done = threading.Event()
+
+    def post(url, **kwargs):
+        provider_entered.set()
+        if not release_provider.wait(3):
+            raise TimeoutError("test did not release shutdown delivery")
+        return ProviderResponse()
+
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
+
+    def host_process():
+        with FastAPITestClient(server.app, base_url="https://uvar.si") as client:
+            response = client.post(
+                "/api/auth/password/request",
+                headers=AUTH_V3_ORIGIN,
+                json={"email": "shutdown-reset@example.com"},
+            )
+            assert response.status_code == 200
+            request_done.set()
+            allow_shutdown.wait(2)
+        shutdown_done.set()
+
+    host = threading.Thread(target=host_process)
+    host.start()
+    try:
+        assert request_done.wait(2)
+        assert provider_entered.wait(2)
+        allow_shutdown.set()
+        assert not shutdown_done.wait(0.2)
+        release_provider.set()
+        assert shutdown_done.wait(2)
+    finally:
+        allow_shutdown.set()
+        release_provider.set()
+        host.join(timeout=3)
+
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT state FROM auth_password_reset_outbox"
+        ).fetchone() == ("sent",)
