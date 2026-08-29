@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 import re
+import shlex
+import shutil
 import subprocess
 
 import pytest
@@ -15,7 +17,8 @@ AUTH_PINS = {
     "argon2-cffi": "25.1.0",
     "webauthn": "3.0.0",
 }
-BASH = Path("C:/Program Files/Git/bin/bash.exe")
+PREFLIGHT_SECTION = "# --- 2. overenie PRED prepnutím ---"
+SWITCH_BOUNDARY = "# --- 3. záloha aktuálneho stavu a prepnutie ---"
 
 
 def _auth_requirement_versions(path):
@@ -33,8 +36,63 @@ def _auth_requirement_versions(path):
     return versions, package_names
 
 
-def _bash_path(path):
-    return "/c" + path.resolve().as_posix()[2:]
+def _find_posix_shell():
+    for executable in ("bash", "sh"):
+        shell = shutil.which(executable)
+        if shell:
+            return Path(shell)
+
+    git = shutil.which("git")
+    if not git:
+        return None
+    result = subprocess.run(
+        [git, "--exec-path"], text=True, capture_output=True, check=False,
+    )
+    if result.returncode != 0:
+        return None
+    git_exec_path = Path(result.stdout.strip())
+    for parent in (git_exec_path, *git_exec_path.parents):
+        for relative in ("bin", "usr/bin"):
+            search_path = str(parent / relative)
+            for executable in ("bash", "sh"):
+                shell = shutil.which(executable, path=search_path)
+                if shell:
+                    return Path(shell)
+    return None
+
+
+@pytest.fixture(scope="module")
+def posix_shell():
+    shell = _find_posix_shell()
+    if shell is None:
+        pytest.skip("no POSIX shell is available")
+    return shell
+
+
+def _shell_path(shell, path):
+    result = subprocess.run(
+        [
+            str(shell),
+            "-c",
+            'if command -v cygpath >/dev/null 2>&1; then cygpath -u "$1"; '
+            'else printf "%s" "$1"; fi',
+            "path-converter",
+            str(path.resolve()),
+        ],
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout.strip()
+
+
+def _required_release_files(pre_switch):
+    match = re.search(r"for f in ([^;\n]+); do", pre_switch)
+    assert match, "samopull required-files gate was not found"
+    return shlex.split(match.group(1))
 
 
 def test_auth_dependencies_are_exactly_pinned_for_development_and_production():
@@ -52,24 +110,29 @@ def test_auth_dependencies_are_exactly_pinned_for_development_and_production():
 
 @pytest.mark.parametrize("missing_module", ["argon2", "webauthn"])
 def test_samopull_refuses_to_switch_when_auth_dependency_cannot_import(
-        tmp_path, missing_module):
+        tmp_path, missing_module, posix_shell):
     """A failed real auth probe must exit before the live-mutation boundary."""
     script = SAMOPULL.read_text(encoding="utf-8")
     configuration = script.split("NTFY=", 1)[0]
-    auth_preflight = script.split("# a) všetky moduly sa dajú naimportovať", 1)[1].split(
-        'if ! (cd "$CIEL/app"', 1,
-    )[0]
+    before_switch, boundary, _ = script.partition(SWITCH_BOUNDARY)
+    assert boundary, "samopull release-switch boundary was not found"
+    pre_switch = before_switch.split(PREFLIGHT_SECTION, 1)[1]
+
+    release = tmp_path / "release with spaces"
+    for relative in _required_release_files(pre_switch):
+        target = release / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("present\n", encoding="utf-8")
 
     calls = tmp_path / "python-calls"
     switch_sentinel = tmp_path / "switch-reached"
     fake_python = tmp_path / "python"
     fake_python.write_text(
         "#!/bin/sh\n"
-        f'printf "%s:%s\\n" "$UVARSI_MISSING_MODULE" "$2" > "{_bash_path(calls)}"\n'
-        'case "$2" in\n'
-        '  *"$UVARSI_MISSING_MODULE"*) exit 23 ;;\n'
-        "  *) exit 0 ;;\n"
-        "esac\n",
+        f'printf "%s:%s\\n" "$UVARSI_MISSING_MODULE" "$2" >> '
+        f'"{_shell_path(posix_shell, calls)}"\n'
+        'if [ "$2" = "import argon2, webauthn" ]; then exit 23; fi\n'
+        "exit 0\n",
         encoding="utf-8",
         newline="\n",
     )
@@ -78,14 +141,18 @@ def test_samopull_refuses_to_switch_when_auth_dependency_cannot_import(
     command = (
         f"{configuration}\n"
         'log(){ printf "%s\\n" "$*"; }\n'
-        f"{auth_preflight}\n"
-        f'printf reached > "{_bash_path(switch_sentinel)}"\n'
+        "notify(){ :; }\n"
+        f'CIEL="{_shell_path(posix_shell, release)}"\n'
+        f'TMP="{_shell_path(posix_shell, tmp_path)}"\n'
+        f"{PREFLIGHT_SECTION}\n{pre_switch}\n"
+        f"{boundary}\n"
+        f'printf reached > "{_shell_path(posix_shell, switch_sentinel)}"\n'
     )
     result = subprocess.run(
-        [str(BASH), "-c", command],
+        [str(posix_shell), "-c", command],
         env=os.environ | {
             "UVARSI_MISSING_MODULE": missing_module,
-            "UVARSI_PY": _bash_path(fake_python),
+            "UVARSI_PY": _shell_path(posix_shell, fake_python),
         },
         text=True,
         encoding="utf-8",
@@ -94,10 +161,10 @@ def test_samopull_refuses_to_switch_when_auth_dependency_cannot_import(
         check=False,
     )
 
+    assert not switch_sentinel.exists(), "samopull reached its real release-switch boundary"
     assert calls.exists(), "samopull did not execute the injected fake Python"
     assert calls.read_text(encoding="utf-8") == (
         f"{missing_module}:import argon2, webauthn\n"
     )
     assert result.returncode == 1
     assert "auth závislosti chýbajú — vydanie NEPREPÍNAM" in result.stdout
-    assert not switch_sentinel.exists()
