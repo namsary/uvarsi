@@ -29,8 +29,8 @@ ZAKLAD = dict(
 def test_algo_version_is_a_positive_integer():
     assert isinstance(plan_data.PLAN_ALGO_VERSION, int)
     assert not isinstance(plan_data.PLAN_ALGO_VERSION, bool)
-    assert plan_data.PLAN_ALGO_VERSION == 14, (
-        "kuchynské zaokrúhlenie a nový receptový formát musia zneplatniť staré plány"
+    assert plan_data.PLAN_ALGO_VERSION == 15, (
+        "opakovanie jednej suroviny vo viacerých jedlách musí zneplatniť staré plány"
     )
 
 

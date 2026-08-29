@@ -813,7 +813,6 @@ def _model_meals(model_output, offers_by_key, frequency, pantry, adults, childre
     }
     pantry_by_name = {item.casefold(): item for item in pantry}
     seen_days = set()
-    seen_offers = set()
     parsed = []
     for meal in meals:
         _reject_extra(meal, _MODEL_MEAL)
@@ -853,6 +852,7 @@ def _model_meals(model_output, offers_by_key, frequency, pantry, adults, childre
             raise ValueError("Jedlo nemá vybrané ponuky ani suroviny zo špajze.")
         selected_items = []
         selected_roles = []
+        seen_meal_offers = set()
         for item in items:
             _reject_extra(item, _MODEL_ITEM)
             use = item.get("use")
@@ -865,9 +865,9 @@ def _model_meals(model_output, offers_by_key, frequency, pantry, adults, childre
             offer_key = item.get("offer_key")
             if not isinstance(offer_key, str) or offer_key not in offers_by_key:
                 raise ValueError("Návrh obsahuje neznáme alebo neaktuálne offer_key.")
-            if offer_key in seen_offers:
+            if offer_key in seen_meal_offers:
                 raise ValueError("Návrh obsahuje duplicitné offer_key.")
-            seen_offers.add(offer_key)
+            seen_meal_offers.add(offer_key)
             row = offers_by_key[offer_key]
             role, base, per_adult = _amount_per_adult(item, row)
             selected_roles.append(role)
@@ -934,8 +934,10 @@ PLAN_VARIANT_HINTS = (
 # 14 = zachováva rozvrh 7/4/3 a pridáva prirodzené kuchynské zaokrúhlenie,
 #      viditeľné dochucovadlá, kontrolu zeleninových dávok, bezpečné uchovanie
 #      zvyškov a množstevnú špajzu.
+# 15 = tá istá overená surovina sa môže použiť vo viacerých jedlách; duplicitný
+#      offer_key zostáva zakázaný iba v rámci jedného receptu.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 14
+PLAN_ALGO_VERSION = 15
 
 
 def plan_variant_for(user_id, variants):
@@ -1124,7 +1126,9 @@ TAKTO VYZERÁ DOBRÉ JEDLO (vzor je na {example['portions']} porcie, ty rátaj s
 - Každá položka smie obsahovať iba offer_key a use. Jednotku, rolu, dávku ani počet balení
   nikdy nevracaj — sú to overené serverové údaje z katalógu.
 - Suroviny zo špajze uveď výlučne v pantry_ingredients a len z ponuky používateľa.
-- Každý offer_key a deň použi najviac raz. Pokyny musia byť neprázdne."""
+- V jednom jedle použi každý offer_key najviac raz. Tú istú overenú surovinu
+  smieš použiť aj v inom jedle počas týždňa; server jej nákup sčíta.
+- Každý deň použi najviac raz. Pokyny musia byť neprázdne."""
 
 
 def plan_output_config(effort=None):

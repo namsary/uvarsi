@@ -458,8 +458,6 @@ def test_invalid_recipe_minutes_are_rejected(minutes):
         (lambda plan: plan["meals"][0]["items"][0].update(price="0,01"), "nepovolené"),
         (lambda plan: plan["meals"][0].update(instructions=[""]), "pokyn"),
         (lambda plan: plan["meals"][0]["items"][0].update(use="neplatné"), "Použitie"),
-        (lambda plan: plan["meals"][1]["items"].__setitem__(
-            0, item(verified_key(1), MLIEKO_NA_OSOBU, "ml")), "duplicitné"),
         (lambda plan: plan["meals"][0]["items"][0].update(offer_key=verified_key(4)), "neznáme"),
     ],
 )
@@ -743,6 +741,42 @@ def test_unknown_package_is_excluded_instead_of_pretending_one_pack_is_enough():
     with pytest.raises(ValueError, match="neznáme alebo neaktuálne"):
         build_personal_plan(
             con, payload, ["Lidl", "Tesco"], 2, 4, pantry=["soľ"], today=TODAY
+        )
+
+
+def test_same_offer_can_be_used_in_two_different_meals_and_is_aggregated_for_purchase():
+    """Jedno akciové balenie môže byť surovinou viacerých receptov v týždni."""
+    payload = model_output()
+    payload["meals"][3]["items"] = [
+        item(verified_key(1), MLIEKO_NA_OSOBU, "ml")
+    ]
+
+    plan = build_personal_plan(
+        connection(verified_rows()), payload, ["Lidl", "Tesco"], 2, 4,
+        pantry=["soľ"], today=TODAY,
+    )
+
+    milk = next(
+        product
+        for group in plan["nakupny_zoznam"]
+        for product in group["polozky"]
+        if product["offer_key"] == verified_key(1)
+    )
+    assert milk["pouzije"] == "3 l"
+    assert milk["mnozstvo"] == 3
+
+
+def test_same_offer_is_still_rejected_twice_inside_one_meal():
+    payload = model_output()
+    payload["meals"][0]["items"] = [
+        item(verified_key(1), MLIEKO_NA_OSOBU, "ml"),
+        item(verified_key(1), MLIEKO_NA_OSOBU, "ml"),
+    ]
+
+    with pytest.raises(ValueError, match="duplicitné"):
+        build_personal_plan(
+            connection(verified_rows()), payload, ["Lidl", "Tesco"], 2, 4,
+            pantry=["soľ"], today=TODAY,
         )
 
 
