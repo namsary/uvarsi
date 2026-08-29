@@ -21,7 +21,7 @@ DIR=/opt/uvarsi
 CFG="$DIR/samopull.env"
 REL="$DIR/releases"
 STAV="$DIR/.nasadene_sha"
-PY="$DIR/venv/bin/python"
+PY="${UVARSI_PY:-$DIR/venv/bin/python}"
 NTFY="uvarsi-jarvis-8f3a2c"
 LOCK=/var/lock/uvarsi-samopull.lock
 
