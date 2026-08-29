@@ -109,6 +109,8 @@ PUBLIC_CACHE_CONTROL = "public, max-age=300, must-revalidate"
 PRIVATE_CACHE_CONTROL = "private, no-store"
 NOINDEX_HEADER = "noindex, nofollow, noarchive"
 RETRY_AFTER_PUBLIC_DATA = "900"
+COMMUNITY_GOAL = 250
+COMMUNITY_VISIBILITY_THRESHOLD = 10
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 COOKIE = "uvarsi_session"
 SESSION_MAX_AGE = 30 * 24 * 60 * 60
@@ -1890,12 +1892,30 @@ def prehlad_nakladov(req: Request):
         }
 
 
+def public_community(con) -> dict:
+    accounts = int(con.execute("SELECT COUNT(*) FROM pouzivatelia").fetchone()[0])
+    return {
+        "accounts": accounts,
+        "goal": COMMUNITY_GOAL,
+        "visible": accounts >= COMMUNITY_VISIBILITY_THRESHOLD,
+    }
+
+
 @app.get("/api/public/landing")
 def public_landing():
     try:
-        return validate_landing_data(load_landing_data(LANDING_DATA), datetime.date.today())
+        payload = validate_landing_data(
+            load_landing_data(LANDING_DATA), datetime.date.today()
+        )
     except (FileNotFoundError, ValueError):
         raise HTTPException(503, "Aktuálne letákové dáta sa obnovujú.")
+
+    try:
+        with closing(db()) as con:
+            community = public_community(con)
+    except sqlite3.Error:
+        community = {"visible": False}
+    return {**payload, "community": community}
 
 
 def _weekly_public_page(today: datetime.date | None = None):

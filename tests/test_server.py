@@ -421,6 +421,64 @@ def test_public_landing_serves_only_valid_current_data(monkeypatch, tmp_path):
     assert response.json()["week"] == current_monday()
 
 
+@pytest.mark.parametrize(
+    ("user_count", "expected_visible"),
+    [(0, False), (9, False), (10, True), (251, True)],
+)
+def test_public_landing_reports_only_anonymous_real_account_count(
+    monkeypatch, tmp_path, user_count, expected_visible
+):
+    server = load_server(monkeypatch, tmp_path, [], landing_payload())
+    con = server.db()
+    try:
+        con.executemany(
+            "INSERT INTO pouzivatelia (email) VALUES (?)",
+            [(f"member-{index}@example.test",) for index in range(user_count)],
+        )
+        con.commit()
+    finally:
+        con.close()
+
+    response = TestClient(server.app).get("/api/public/landing")
+
+    assert response.status_code == 200
+    community = response.json()["community"]
+    assert community == {
+        "accounts": user_count,
+        "goal": 250,
+        "visible": expected_visible,
+    }
+    assert type(community["accounts"]) is int
+    assert type(community["goal"]) is int
+    assert "member-" not in response.text
+
+
+def test_public_landing_hides_community_when_count_query_fails(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [], landing_payload())
+    original_db = server.db
+
+    class CountFailingConnection:
+        def __init__(self, con):
+            self.con = con
+
+        def execute(self, sql):
+            if sql == "SELECT COUNT(*) FROM pouzivatelia":
+                raise sqlite3.Error("count unavailable")
+            return self.con.execute(sql)
+
+        def close(self):
+            self.con.close()
+
+    monkeypatch.setattr(server, "db", lambda: CountFailingConnection(original_db()))
+
+    response = TestClient(server.app).get("/api/public/landing")
+
+    assert response.status_code == 200
+    assert response.json()["week"] == current_monday()
+    assert response.json()["community"]["visible"] is False
+    assert "accounts" not in response.json()["community"]
+
+
 def test_public_landing_is_503_for_stale_data(monkeypatch, tmp_path):
     server = load_server(monkeypatch, tmp_path, [], landing_payload("2026-08-10"))
 
