@@ -12,6 +12,7 @@ import asyncio
 import logging
 import os, re, json, sqlite3, datetime, threading, time, hashlib
 from contextlib import asynccontextmanager, closing
+from urllib.parse import urlsplit
 
 import anyio.to_thread
 from fastapi import FastAPI, Request, HTTPException
@@ -83,6 +84,8 @@ from platby import (
     volne_miesta,
 )
 from auth_data import (
+    ActionTokenExpired,
+    ActionTokenInvalid,
     ClientIpRateLimiter,
     DeliveryError,
     EmailCooldown,
@@ -91,15 +94,26 @@ from auth_data import (
     MagicTokenInvalid,
     ReservationInvalid,
     SESSION_TTL_SECONDS,
+    authenticate_password,
     cancel_magic_token_reservation,
+    consume_action_token,
     consume_magic_token,
+    create_action_token,
+    create_session,
     delete_session,
+    hash_password,
+    list_sessions,
     migrate_auth_schema,
     normalize_email,
     promote_magic_token,
     reserve_magic_token,
+    revoke_other_sessions,
+    revoke_session,
     send_resend_message,
+    set_password,
+    token_hash,
     user_for_session,
+    validate_password,
 )
 
 DB = os.environ.get("UVARSI_DB", "/opt/uvarsi/uvarsi.db")
@@ -120,6 +134,12 @@ AUTH_CLOCK = time.time
 IP_REQUEST_LIMITER = ClientIpRateLimiter(
     max_requests=5, window_seconds=10 * 60, max_clients=10_000
 )
+AUTH_V3_IP_LIMITER = ClientIpRateLimiter(
+    max_requests=5, window_seconds=10 * 60, max_clients=10_000
+)
+AUTH_V3_ACCOUNT_LIMITER = ClientIpRateLimiter(
+    max_requests=5, window_seconds=10 * 60, max_clients=50_000
+)
 
 AUTH_SUCCESS_MESSAGE = (
     "Poskytovateľ prijal žiadosť o prihlasovací e-mail. "
@@ -128,6 +148,16 @@ AUTH_SUCCESS_MESSAGE = (
 AUTH_PROVIDER_FAILURE_MESSAGE = (
     "Prihlasovací e-mail sa teraz nepodarilo odovzdať poskytovateľovi. "
     "Skús to znova o chvíľu."
+)
+ACCOUNT_REQUEST_MESSAGE = (
+    "Ak je možné túto adresu použiť, poslali sme na ňu ďalší bezpečný krok."
+)
+PASSWORD_REQUEST_MESSAGE = (
+    "Ak účet s touto adresou existuje, poslali sme pokyny na nastavenie hesla."
+)
+PASSWORD_LOGIN_FAILURE_MESSAGE = "E-mail alebo heslo nie sú správne."
+ACCOUNT_PROVIDER_FAILURE_MESSAGE = (
+    "E-mail sa teraz nepodarilo odovzdať poskytovateľovi. Skús to znova o chvíľu."
 )
 
 LOG = logging.getLogger("uvarsi.plan")
@@ -404,7 +434,9 @@ async def private_ui_noindex(request: Request, call_next):
     renewal = getattr(request.state, "renew_session_cookie", None)
     if renewal:
         set_session_cookie(response, renewal)
-    if request.url.path == "/app" or request.url.path.startswith("/prihlasenie"):
+    if request.url.path == "/app" or request.url.path.startswith(
+        ("/prihlasenie", "/potvrdenie", "/heslo")
+    ):
         response.headers["Cache-Control"] = PRIVATE_CACHE_CONTROL
         response.headers["X-Robots-Tag"] = NOINDEX_HEADER
     return response
@@ -658,6 +690,57 @@ def posli_mail(komu: str, predmet: str, telo: str, html: str):
 
 
 # ---------------------------------------------------------------- auth
+def require_auth_origin(req: Request) -> None:
+    configured = urlsplit(BASE_URL)
+    allowed = f"{configured.scheme}://{configured.netloc}"
+    if req.headers.get("origin") != allowed:
+        raise HTTPException(403, "Neplatný pôvod požiadavky.")
+
+
+async def auth_json(req: Request) -> dict:
+    try:
+        data = await req.json()
+    except (ValueError, UnicodeDecodeError):
+        raise HTTPException(400, "Požiadavka musí obsahovať platný JSON objekt.")
+    if not isinstance(data, dict):
+        raise HTTPException(400, "Požiadavka musí obsahovať platný JSON objekt.")
+    return data
+
+
+def auth_ip_rate_limit(req: Request, *, operation: str, now: float) -> None:
+    client_ip = req.client.host if req.client else "unknown"
+    if not AUTH_V3_IP_LIMITER.allow(f"{operation}:{client_ip}", now):
+        raise HTTPException(429, "Priveľa pokusov. Skús to znova o 10 minút.")
+
+
+def auth_account_rate_limit(*, account: str, operation: str, now: float) -> None:
+    if not AUTH_V3_ACCOUNT_LIMITER.allow(f"{operation}:{account}", now):
+        raise HTTPException(429, "Priveľa pokusov. Skús to znova o 10 minút.")
+
+
+def auth_device_name(req: Request, data: dict, fallback: str) -> str:
+    supplied = data.get("device_name")
+    if isinstance(supplied, str):
+        supplied = " ".join(supplied.split())
+        if supplied:
+            return supplied[:80]
+    user_agent = " ".join(req.headers.get("user-agent", "").split())
+    return user_agent[:80] or fallback
+
+
+def action_email(*, email: str, subject: str, heading: str, link: str):
+    text = (
+        f"Ahoj!\n\n{heading}:\n{link}\n\n"
+        "Ak si o túto zmenu nežiadal, e-mail ignoruj.\n\nUvar.si\nhttps://uvar.si"
+    )
+    html = (
+        "<!doctype html><html lang='sk'><body><h1>Uvar.si</h1>"
+        f"<p>{heading}</p><p><a href='{link}'>Pokračovať</a></p>"
+        "<p>Ak si o túto zmenu nežiadal, e-mail ignoruj.</p></body></html>"
+    )
+    return posli_mail(email, subject, text, html)
+
+
 @app.post("/api/auth/request")
 async def auth_request(req: Request):
     now = AUTH_CLOCK()
@@ -671,6 +754,19 @@ async def auth_request(req: Request):
         email = normalize_email(data.get("email"))
     except (ValueError, UnicodeDecodeError):
         raise HTTPException(400, "Zadaj platnú e-mailovú adresu.")
+
+    # The old magic route is now a one-time migration bridge. Unknown addresses
+    # and accounts that already have a password get the identical public
+    # response but never receive a login credential.
+    with closing(db()) as con:
+        existing_account = con.execute(
+            """SELECT 1 FROM pouzivatelia p
+               LEFT JOIN auth_credentials c ON c.user_id=p.id
+               WHERE p.email=? AND c.user_id IS NULL""",
+            (email,),
+        ).fetchone() is not None
+    if not existing_account:
+        return {"ok": True, "message": AUTH_SUCCESS_MESSAGE}
 
     def deliver(tok):
         link = f"{BASE_URL}/prihlasenie#token={tok}"
@@ -740,6 +836,391 @@ background:#FFFCF5;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#1
     except (DeliveryError, ReservationInvalid):
         raise HTTPException(503, AUTH_PROVIDER_FAILURE_MESSAGE)
     return {"ok": True, "message": AUTH_SUCCESS_MESSAGE}
+
+
+@app.post("/api/auth/register")
+async def auth_register(req: Request):
+    require_auth_origin(req)
+    data = await auth_json(req)
+    now = AUTH_CLOCK()
+    auth_ip_rate_limit(req, operation="register", now=now)
+    try:
+        email = normalize_email(data.get("email"))
+    except ValueError:
+        raise HTTPException(400, "Zadaj platný e-mail a heslo s 10 až 128 znakmi.")
+    auth_account_rate_limit(account=email, operation="register", now=now)
+    try:
+        password = validate_password(data.get("password"))
+    except ValueError:
+        raise HTTPException(400, "Zadaj platný e-mail a heslo s 10 až 128 znakmi.")
+    pending_hash = await asyncio.to_thread(hash_password, password)
+
+    with closing(db()) as con:
+        account = con.execute(
+            """SELECT p.id, c.user_id
+               FROM pouzivatelia p
+               LEFT JOIN auth_credentials c ON c.user_id=p.id
+               WHERE p.email=?""",
+            (email,),
+        ).fetchone()
+        if account is None:
+            purpose = "confirm"
+            raw_token = create_action_token(
+                con,
+                email=email,
+                purpose=purpose,
+                now=now,
+                pending_password_hash=pending_hash,
+            )
+            link = f"{BASE_URL}/potvrdenie#token={raw_token}"
+            subject = "Potvrď účet Uvar.si"
+            heading = "Potvrď vytvorenie účtu; odkaz platí 24 hodín"
+        else:
+            purpose = "reset" if account[1] is not None else "setup"
+            raw_token = create_action_token(
+                con, email=email, purpose=purpose, now=now
+            )
+            link = f"{BASE_URL}/heslo#token={raw_token}&purpose={purpose}"
+            subject = "Účet Uvar.si už existuje"
+            heading = "Pokračuj prihlásením alebo bezpečným nastavením hesla"
+    try:
+        await asyncio.to_thread(
+            action_email,
+            email=email,
+            subject=subject,
+            heading=heading,
+            link=link,
+        )
+    except DeliveryError:
+        raise HTTPException(503, ACCOUNT_PROVIDER_FAILURE_MESSAGE)
+    return {"ok": True, "message": ACCOUNT_REQUEST_MESSAGE}
+
+
+@app.post("/api/auth/confirm")
+async def auth_confirm(req: Request):
+    require_auth_origin(req)
+    data = await auth_json(req)
+    now = AUTH_CLOCK()
+    try:
+        with closing(db()) as con:
+            try:
+                action = consume_action_token(
+                    con,
+                    raw_token=data.get("token"),
+                    purpose="confirm",
+                    now=now,
+                )
+                pending_hash = action.get("pending_password_hash")
+                if not isinstance(pending_hash, str):
+                    raise ActionTokenInvalid("confirmation has no password")
+                existing = con.execute(
+                    "SELECT id FROM pouzivatelia WHERE email=?", (action["email"],)
+                ).fetchone()
+                if existing is not None:
+                    con.commit()
+                    raise ActionTokenInvalid("account already exists")
+                user_id = con.execute(
+                    "INSERT INTO pouzivatelia (email) VALUES (?)", (action["email"],)
+                ).lastrowid
+                set_password(
+                    con, user_id=user_id, password_hash=pending_hash, now=now
+                )
+                session = create_session(
+                    con,
+                    user_id=user_id,
+                    now=now,
+                    device_name=auth_device_name(req, data, "Nové zariadenie"),
+                )
+                con.commit()
+            except Exception:
+                if con.in_transaction:
+                    con.rollback()
+                raise
+    except ActionTokenExpired:
+        raise HTTPException(410, "Potvrdzovací odkaz vypršal. Vyžiadaj si nový.")
+    except ActionTokenInvalid:
+        raise HTTPException(400, "Potvrdzovací odkaz je neplatný alebo už použitý.")
+    response = JSONResponse({"ok": True, "redirect": "/app"})
+    set_session_cookie(response, session)
+    return response
+
+
+@app.post("/api/auth/login")
+async def auth_password_login(req: Request):
+    require_auth_origin(req)
+    data = await auth_json(req)
+    now = AUTH_CLOCK()
+    auth_ip_rate_limit(req, operation="login", now=now)
+    try:
+        email = normalize_email(data.get("email"))
+    except ValueError:
+        raise HTTPException(401, PASSWORD_LOGIN_FAILURE_MESSAGE)
+    password = data.get("password")
+    auth_account_rate_limit(account=email, operation="login", now=now)
+    with closing(db()) as con:
+        user_id = authenticate_password(con, email=email, password=password)
+        if user_id is None:
+            raise HTTPException(401, PASSWORD_LOGIN_FAILURE_MESSAGE)
+        session = create_session(
+            con,
+            user_id=user_id,
+            now=now,
+            device_name=auth_device_name(req, data, "Prihlásené zariadenie"),
+        )
+    response = JSONResponse({"ok": True, "redirect": "/app"})
+    set_session_cookie(response, session)
+    return response
+
+
+@app.post("/api/auth/password/request")
+async def auth_password_request(req: Request):
+    require_auth_origin(req)
+    data = await auth_json(req)
+    now = AUTH_CLOCK()
+    auth_ip_rate_limit(req, operation="password-request", now=now)
+    try:
+        email = normalize_email(data.get("email"))
+    except ValueError:
+        raise HTTPException(400, "Zadaj platnú e-mailovú adresu.")
+    auth_account_rate_limit(account=email, operation="password-request", now=now)
+    with closing(db()) as con:
+        account = con.execute(
+            """SELECT p.id FROM pouzivatelia p
+               JOIN auth_credentials c ON c.user_id=p.id WHERE p.email=?""",
+            (email,),
+        ).fetchone()
+        if account is None:
+            return {"ok": True, "message": PASSWORD_REQUEST_MESSAGE}
+        raw_token = create_action_token(
+            con, email=email, purpose="reset", now=now
+        )
+    link = f"{BASE_URL}/heslo#token={raw_token}&purpose=reset"
+    try:
+        await asyncio.to_thread(
+            action_email,
+            email=email,
+            subject="Obnova hesla Uvar.si",
+            heading="Nastav si nové heslo; odkaz platí 60 minút",
+            link=link,
+        )
+    except DeliveryError:
+        # A reset endpoint must not reveal account existence even during outage.
+        pass
+    return {"ok": True, "message": PASSWORD_REQUEST_MESSAGE}
+
+
+@app.post("/api/auth/password/reset")
+async def auth_password_reset(req: Request):
+    require_auth_origin(req)
+    data = await auth_json(req)
+    now = AUTH_CLOCK()
+    auth_ip_rate_limit(req, operation="password-reset", now=now)
+    purpose = data.get("purpose", "reset")
+    if purpose not in {"reset", "setup"}:
+        raise HTTPException(400, "Odkaz je neplatný alebo už použitý.")
+    try:
+        password = validate_password(data.get("password"))
+    except ValueError:
+        raise HTTPException(400, "Heslo musí mať 10 až 128 znakov.")
+    raw_token = data.get("token")
+    if isinstance(raw_token, str) and raw_token:
+        with closing(db()) as con:
+            token_account = con.execute(
+                """SELECT email FROM auth_action_tokens
+                   WHERE token_hash=? AND purpose=?""",
+                (token_hash(raw_token), purpose),
+            ).fetchone()
+        if token_account is not None:
+            auth_account_rate_limit(
+                account=token_account[0], operation="password-reset", now=now
+            )
+    password_hash = await asyncio.to_thread(hash_password, password)
+    try:
+        with closing(db()) as con:
+            try:
+                action = consume_action_token(
+                    con,
+                    raw_token=raw_token,
+                    purpose=purpose,
+                    now=now,
+                )
+                user = con.execute(
+                    "SELECT id FROM pouzivatelia WHERE email=?", (action["email"],)
+                ).fetchone()
+                if user is None:
+                    con.commit()
+                    raise ActionTokenInvalid("account missing")
+                user_id = int(user[0])
+                set_password(
+                    con, user_id=user_id, password_hash=password_hash, now=now
+                )
+                session = create_session(
+                    con,
+                    user_id=user_id,
+                    now=now,
+                    device_name=auth_device_name(req, data, "Obnovené zariadenie"),
+                )
+                revoke_other_sessions(
+                    con, user_id=user_id, current_token=session
+                )
+                con.commit()
+            except Exception:
+                if con.in_transaction:
+                    con.rollback()
+                raise
+    except ActionTokenExpired:
+        raise HTTPException(410, "Odkaz na heslo vypršal. Vyžiadaj si nový.")
+    except ActionTokenInvalid:
+        raise HTTPException(400, "Odkaz je neplatný alebo už použitý.")
+    response = JSONResponse({"ok": True, "redirect": "/app"})
+    set_session_cookie(response, session)
+    return response
+
+
+def update_authenticated_password(
+    req: Request, *, user: dict, password_hash: str, now: float
+) -> None:
+    current = req.cookies.get(COOKIE)
+    with closing(db()) as con:
+        con.execute("BEGIN IMMEDIATE")
+        try:
+            set_password(
+                con, user_id=user["id"], password_hash=password_hash, now=now
+            )
+            revoke_other_sessions(
+                con, user_id=user["id"], current_token=current
+            )
+            con.commit()
+        except Exception:
+            con.rollback()
+            raise
+
+
+@app.post("/api/auth/password/set")
+async def auth_password_set(req: Request):
+    require_auth_origin(req)
+    user = require_user(req)
+    data = await auth_json(req)
+    try:
+        password = validate_password(data.get("password"))
+    except ValueError:
+        raise HTTPException(400, "Heslo musí mať 10 až 128 znakov.")
+    with closing(db()) as con:
+        if con.execute(
+            "SELECT 1 FROM auth_credentials WHERE user_id=?", (user["id"],)
+        ).fetchone():
+            raise HTTPException(409, "Heslo už je nastavené. Použi zmenu hesla.")
+    now = AUTH_CLOCK()
+    password_hash = await asyncio.to_thread(hash_password, password)
+    update_authenticated_password(req, user=user, password_hash=password_hash, now=now)
+    return {"ok": True}
+
+
+@app.post("/api/auth/password/change")
+async def auth_password_change(req: Request):
+    require_auth_origin(req)
+    user = require_user(req)
+    data = await auth_json(req)
+    current_password = data.get("current_password")
+    try:
+        password = validate_password(data.get("password"))
+    except ValueError:
+        raise HTTPException(400, "Heslo musí mať 10 až 128 znakov.")
+    with closing(db()) as con:
+        if authenticate_password(
+            con, email=user["email"], password=current_password
+        ) != user["id"]:
+            raise HTTPException(401, PASSWORD_LOGIN_FAILURE_MESSAGE)
+    now = AUTH_CLOCK()
+    password_hash = await asyncio.to_thread(hash_password, password)
+    update_authenticated_password(req, user=user, password_hash=password_hash, now=now)
+    return {"ok": True}
+
+
+@app.get("/api/auth/sessions")
+def auth_sessions(req: Request):
+    user = require_user(req)
+    current = req.cookies.get(COOKIE) or ""
+    with closing(db()) as con:
+        active = list_sessions(
+            con, user_id=user["id"], current_token=current, now=AUTH_CLOCK()
+        )
+    return {"sessions": active}
+
+
+@app.delete("/api/auth/sessions/{session_hash}")
+def auth_session_delete(session_hash: str, req: Request):
+    require_auth_origin(req)
+    user = require_user(req)
+    if re.fullmatch(r"[0-9a-f]{64}", session_hash) is None:
+        raise HTTPException(404, "Relácia sa nenašla.")
+    current = req.cookies.get(COOKIE)
+    with closing(db()) as con:
+        if not revoke_session(
+            con, user_id=user["id"], session_hash=session_hash
+        ):
+            raise HTTPException(404, "Relácia sa nenašla.")
+    response = JSONResponse({"ok": True})
+    if current and token_hash(current) == session_hash:
+        req.state.renew_session_cookie = None
+        response.delete_cookie(COOKIE, httponly=True, samesite="lax", secure=True)
+    return response
+
+
+@app.post("/api/auth/sessions/logout-others")
+def auth_sessions_logout_others(req: Request):
+    require_auth_origin(req)
+    user = require_user(req)
+    with closing(db()) as con:
+        revoke_other_sessions(
+            con,
+            user_id=user["id"],
+            current_token=req.cookies.get(COOKIE),
+        )
+    return {"ok": True}
+
+
+ACCOUNT_CONFIRMATION_PAGE = """<!doctype html>
+<html lang="sk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Potvrdenie účtu · Uvar.si</title><meta name="robots" content="noindex,nofollow,noarchive"></head>
+<body><main><h1>Potvrď účet</h1><p id="status">Účet vznikne až po stlačení tlačidla.</p>
+<button id="confirm" type="button">Potvrdiť účet</button></main><script>
+let token=new URLSearchParams(location.hash.slice(1)).get('token')||'';
+history.replaceState(null,'',location.pathname);
+document.getElementById('confirm').onclick=async()=>{
+  const response=await fetch('/api/auth/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
+  const data=await response.json().catch(()=>({}));
+  if(response.ok){token='';location.replace(data.redirect);return;}
+  document.getElementById('status').textContent=data.detail||'Potvrdenie sa nepodarilo.';
+};
+</script></body></html>"""
+
+
+PASSWORD_RESET_PAGE = """<!doctype html>
+<html lang="sk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Nové heslo · Uvar.si</title><meta name="robots" content="noindex,nofollow,noarchive"></head>
+<body><main><h1>Nastav nové heslo</h1><input id="password" type="password" autocomplete="new-password">
+<button id="submit" type="button">Uložiť heslo</button><p id="status"></p></main><script>
+const fragment=new URLSearchParams(location.hash.slice(1));let token=fragment.get('token')||'';let purpose=fragment.get('purpose')||'reset';
+history.replaceState(null,'',location.pathname);
+document.getElementById('submit').onclick=async()=>{
+  const password=document.getElementById('password').value;
+  const response=await fetch('/api/auth/password/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,purpose,password})});
+  const data=await response.json().catch(()=>({}));
+  if(response.ok){token='';location.replace(data.redirect);return;}
+  document.getElementById('status').textContent=data.detail||'Heslo sa nepodarilo uložiť.';
+};
+</script></body></html>"""
+
+
+@app.get("/potvrdenie")
+def account_confirmation_page():
+    return HTMLResponse(ACCOUNT_CONFIRMATION_PAGE)
+
+
+@app.get("/heslo")
+def password_reset_page():
+    return HTMLResponse(PASSWORD_RESET_PAGE)
 
 
 LOGIN_CONFIRMATION_PAGE = """<!doctype html>

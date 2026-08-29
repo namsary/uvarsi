@@ -349,15 +349,15 @@ def set_password(
     con, *, user_id: int, password_hash: str, now: float
 ) -> None:
     encoded = _require_argon2id_hash(password_hash)
-    con.execute(
-        """INSERT INTO auth_credentials (user_id, password_hash, changed_at)
-           VALUES (?, ?, ?)
-           ON CONFLICT(user_id) DO UPDATE SET
-             password_hash=excluded.password_hash,
-             changed_at=excluded.changed_at""",
-        (user_id, encoded, now),
-    )
-    con.commit()
+    with _session_mutation(con, "password_set"):
+        con.execute(
+            """INSERT INTO auth_credentials (user_id, password_hash, changed_at)
+               VALUES (?, ?, ?)
+               ON CONFLICT(user_id) DO UPDATE SET
+                 password_hash=excluded.password_hash,
+                 changed_at=excluded.changed_at""",
+            (user_id, encoded, now),
+        )
 
 
 def authenticate_password(con, *, email: str, password: str) -> int | None:
@@ -585,13 +585,19 @@ def consume_magic_token(con, *, raw_token: str, now: float) -> str:
 
         email = row[0]
         con.execute("DELETE FROM magic_tokens_v2 WHERE token_hash=?", (digest,))
-        user = con.execute("SELECT id FROM pouzivatelia WHERE email=?", (email,)).fetchone()
-        if user is None:
-            user_id = con.execute(
-                "INSERT INTO pouzivatelia (email) VALUES (?)", (email,)
-            ).lastrowid
-        else:
-            user_id = user[0]
+        user = con.execute(
+            """SELECT p.id, c.user_id
+               FROM pouzivatelia p
+               LEFT JOIN auth_credentials c ON c.user_id=p.id
+               WHERE p.email=?""",
+            (email,),
+        ).fetchone()
+        if user is None or user[1] is not None:
+            # The migration bridge must never create an identity or become a
+            # password-account login path. Consume stale links definitively.
+            con.commit()
+            raise MagicTokenInvalid("account is not eligible for migration")
+        user_id = user[0]
         raw_session = create_session(
             con,
             user_id=user_id,

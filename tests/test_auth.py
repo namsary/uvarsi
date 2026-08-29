@@ -139,7 +139,20 @@ def install_provider(monkeypatch, *, response=None, error=None, calls=None):
     monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
 
 
+def ensure_legacy_account(server, email):
+    try:
+        normalized = server.normalize_email(email)
+    except ValueError:
+        return
+    with closing(server.db()) as con:
+        con.execute(
+            "INSERT OR IGNORE INTO pouzivatelia (email) VALUES (?)", (normalized,)
+        )
+        con.commit()
+
+
 def request_link(server, email="Cook@example.com"):
+    ensure_legacy_account(server, email)
     return TestClient(server.app).post("/api/auth/request", json={"email": email})
 
 
@@ -232,6 +245,7 @@ def test_malformed_resend_success_response_returns_truthful_503(monkeypatch, tmp
 
 def test_resend_response_missing_http_status_returns_truthful_503(monkeypatch, tmp_path):
     server, _ = load_auth_server(monkeypatch, tmp_path)
+    ensure_legacy_account(server, "cook@example.com")
     monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
     install_provider(monkeypatch, response=object())
 
@@ -411,6 +425,7 @@ def test_provider_pause_keeps_reservation_short_and_does_not_block_unrelated_wri
 
 def test_paused_provider_does_not_delay_async_event_loop_heartbeat(monkeypatch, tmp_path):
     server, _ = load_auth_server(monkeypatch, tmp_path)
+    ensure_legacy_account(server, "cook@example.com")
     monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
     monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_800_000_000.0)
     entered = threading.Event()
@@ -487,6 +502,7 @@ def test_cancelled_request_keeps_exclusive_reservation_until_delivery_finalizes(
     monkeypatch, tmp_path
 ):
     server, database = load_auth_server(monkeypatch, tmp_path)
+    ensure_legacy_account(server, "cook@example.com")
     monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
     monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_800_000_000.0)
     entered = threading.Event()
@@ -563,6 +579,7 @@ def test_provider_failure_after_cancellation_cleans_only_pending_reservation(
     monkeypatch, tmp_path
 ):
     server, database = load_auth_server(monkeypatch, tmp_path)
+    ensure_legacy_account(server, "cook@example.com")
     monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
     monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_800_000_000.0)
     old_token = "older-still-valid-token"
@@ -633,6 +650,7 @@ def test_provider_acceptance_finalize_failure_preserves_reservation_for_recovery
     capsys, monkeypatch, tmp_path
 ):
     server, database = load_auth_server(monkeypatch, tmp_path)
+    ensure_legacy_account(server, "cook@example.com")
     monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
     monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_800_000_000.0)
     calls = []
@@ -715,6 +733,7 @@ def test_stale_reservations_are_pruned_even_when_current_email_is_on_cooldown(
     monkeypatch, tmp_path
 ):
     server, database = load_auth_server(monkeypatch, tmp_path)
+    ensure_legacy_account(server, "cooldown@example.com")
     monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_800_000_000.0)
     with server.db() as con:
         con.execute(
@@ -741,6 +760,8 @@ def test_stale_reservations_are_pruned_even_when_current_email_is_on_cooldown(
 
 def test_client_ip_is_limited_to_five_requests_per_ten_minutes(monkeypatch, tmp_path):
     server, _ = load_auth_server(monkeypatch, tmp_path)
+    for index in range(5):
+        ensure_legacy_account(server, f"cook{index}@example.com")
     monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
     monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_800_000_000.0)
     calls = []
@@ -2494,3 +2515,669 @@ def test_legacy_plaintext_session_is_invalid_after_release(monkeypatch, tmp_path
     response = client.get("/api/me")
 
     assert response.json() == {"prihlaseny": False}
+
+
+# ---------------------------------------------------------------- auth v3 routes
+AUTH_V3_ORIGIN = {"Origin": "https://uvar.si"}
+
+
+def auth_v3_client(server, **kwargs):
+    return TestClient(server.app, base_url="https://uvar.si", **kwargs)
+
+
+def seed_password_account(server, auth_data, email, password="correct horse battery"):
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES (?)", (email,)
+        ).lastrowid
+        auth_data.set_password(
+            con,
+            user_id=user_id,
+            password_hash=auth_data.hash_password(password),
+            now=1_000.0,
+        )
+        con.commit()
+    return user_id
+
+
+def action_token_from_message(calls, page):
+    text = calls[-1][1]["json"]["text"]
+    match = re.search(
+        rf"https://uvar\.si/{page}#token=([A-Za-z0-9_-]+)(?:&purpose=[a-z]+)?",
+        text,
+    )
+    assert match, text
+    return match.group(1)
+
+
+def test_auth_v3_route_registration_waits_for_explicit_confirmation_post(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    calls = []
+    install_provider(monkeypatch, calls=calls)
+    client = auth_v3_client(server)
+    password = "  Žemľová polievka  "
+
+    registered = client.post(
+        "/api/auth/register",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": " New.Cook@Example.com ", "password": password},
+    )
+
+    assert registered.status_code == 200
+    assert "new.cook@example.com" not in registered.text.lower()
+    assert password not in registered.text
+    raw_token = action_token_from_message(calls, "potvrdenie")
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM pouzivatelia WHERE email='new.cook@example.com'"
+        ).fetchone() == (0,)
+        stored = con.execute(
+            """SELECT token_hash, email, purpose, pending_password_hash
+               FROM auth_action_tokens"""
+        ).fetchone()
+        assert stored[0] == hashlib.sha256(raw_token.encode()).hexdigest()
+        assert stored[1:3] == ("new.cook@example.com", "confirm")
+        assert stored[3].startswith("$argon2id$")
+        assert password not in " ".join(str(value) for value in stored)
+
+    scanner_get = client.get("/potvrdenie")
+    assert scanner_get.status_code == 200
+    assert 'type="button"' in scanner_get.text
+    assert "Potvrdiť účet" in scanner_get.text
+    assert "fetch('/api/auth/confirm'" in scanner_get.text
+    with sqlite3.connect(database) as con:
+        assert con.execute("SELECT COUNT(*) FROM auth_action_tokens").fetchone() == (1,)
+        assert con.execute("SELECT COUNT(*) FROM pouzivatelia").fetchone() == (0,)
+
+    confirmed = client.post(
+        "/api/auth/confirm",
+        headers=AUTH_V3_ORIGIN,
+        json={"token": raw_token, "device_name": "Firefox na notebooku"},
+    )
+
+    assert confirmed.status_code == 200
+    assert confirmed.json() == {"ok": True, "redirect": "/app"}
+    assert client.cookies.get(server.COOKIE)
+    with sqlite3.connect(database) as con:
+        user = con.execute(
+            "SELECT id FROM pouzivatelia WHERE email='new.cook@example.com'"
+        ).fetchone()
+        assert user is not None
+        assert con.execute(
+            "SELECT password_hash FROM auth_credentials WHERE user_id=?", user
+        ).fetchone()[0].startswith("$argon2id$")
+        assert con.execute("SELECT COUNT(*) FROM auth_action_tokens").fetchone() == (0,)
+        assert con.execute("SELECT COUNT(*) FROM sessions_v2").fetchone() == (1,)
+
+    replay = client.post(
+        "/api/auth/confirm", headers=AUTH_V3_ORIGIN, json={"token": raw_token}
+    )
+    assert replay.status_code == 400
+    existing_registration = client.post(
+        "/api/auth/register",
+        headers=AUTH_V3_ORIGIN,
+        json={
+            "email": "new.cook@example.com",
+            "password": "different valid password",
+        },
+    )
+    assert existing_registration.status_code == registered.status_code
+    assert existing_registration.json() == registered.json()
+    with sqlite3.connect(database) as con:
+        assert con.execute("SELECT COUNT(*) FROM pouzivatelia").fetchone() == (1,)
+        assert con.execute("SELECT COUNT(*) FROM sessions_v2").fetchone() == (1,)
+
+
+def test_auth_v3_route_login_is_generic_and_keeps_both_devices_valid(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    user_id = seed_password_account(server, auth_data, "cook@example.com")
+    first = auth_v3_client(server)
+    second = auth_v3_client(server)
+
+    first_login = first.post(
+        "/api/auth/login",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": " Cook@Example.com ", "password": "correct horse battery"},
+    )
+    second_login = second.post(
+        "/api/auth/login",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "cook@example.com", "password": "correct horse battery"},
+    )
+    wrong = auth_v3_client(server).post(
+        "/api/auth/login",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "cook@example.com", "password": "wrong password"},
+    )
+    unknown = auth_v3_client(server).post(
+        "/api/auth/login",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "missing@example.com", "password": "wrong password"},
+    )
+
+    assert first_login.status_code == second_login.status_code == 200
+    assert wrong.status_code == unknown.status_code == 401
+    assert wrong.json() == unknown.json()
+    assert "cook@example.com" not in wrong.text
+    assert first.get("/api/me").json()["id"] == user_id
+    assert second.get("/api/me").json()["id"] == user_id
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM sessions_v2 WHERE user_id=? AND revoked_at IS NULL",
+            (user_id,),
+        ).fetchone() == (2,)
+
+
+def test_auth_v3_route_password_request_and_reset_are_generic_one_time_and_atomic(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    user_id = seed_password_account(server, auth_data, "reset@example.com")
+    with closing(server.db()) as con:
+        old_first = auth_data.create_session(
+            con, user_id=user_id, now=1_000.0, device_name="Mobil"
+        )
+        old_second = auth_data.create_session(
+            con, user_id=user_id, now=1_000.0, device_name="Notebook"
+        )
+        con.commit()
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    calls = []
+    install_provider(monkeypatch, calls=calls)
+    client = auth_v3_client(server)
+
+    known = client.post(
+        "/api/auth/password/request",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": " Reset@Example.com "},
+    )
+    unknown = client.post(
+        "/api/auth/password/request",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "unknown@example.com"},
+    )
+
+    assert known.status_code == unknown.status_code == 200
+    assert known.json() == unknown.json()
+    assert "reset@example.com" not in known.text.lower()
+    raw_token = action_token_from_message(calls, "heslo")
+    new_client = auth_v3_client(server)
+    reset = new_client.post(
+        "/api/auth/password/reset",
+        headers=AUTH_V3_ORIGIN,
+        json={"token": raw_token, "password": "nové bezpečné heslo"},
+    )
+
+    assert reset.status_code == 200
+    new_session = new_client.cookies.get(server.COOKIE)
+    assert new_session and new_session not in {old_first, old_second}
+    with closing(server.db()) as con:
+        assert auth_data.authenticate_password(
+            con, email="reset@example.com", password="nové bezpečné heslo"
+        ) == user_id
+        assert auth_data.authenticate_password(
+            con, email="reset@example.com", password="correct horse battery"
+        ) is None
+        sessions = con.execute(
+            "SELECT token_hash, revoked_at FROM sessions_v2 WHERE user_id=?", (user_id,)
+        ).fetchall()
+        assert sum(row[1] is None for row in sessions) == 1
+        assert sessions[-1][0] == hashlib.sha256(new_session.encode()).hexdigest()
+
+    replay = new_client.post(
+        "/api/auth/password/reset",
+        headers=AUTH_V3_ORIGIN,
+        json={"token": raw_token, "password": "ešte iné bezpečné"},
+    )
+    assert replay.status_code == 400
+
+
+@pytest.mark.parametrize(
+    "endpoint,purpose",
+    [
+        ("/api/auth/confirm", "confirm"),
+        ("/api/auth/password/reset", "reset"),
+    ],
+)
+def test_auth_v3_route_action_token_rolls_back_when_protected_mutation_fails(
+    monkeypatch, tmp_path, endpoint, purpose
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    now = 5_000.0
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now)
+    pending_hash = auth_data.hash_password("new protected password")
+    with closing(server.db()) as con:
+        if purpose == "reset":
+            user_id = con.execute(
+                "INSERT INTO pouzivatelia (email) VALUES ('atomic@example.com')"
+            ).lastrowid
+            auth_data.set_password(
+                con,
+                user_id=user_id,
+                password_hash=auth_data.hash_password("old protected password"),
+                now=now - 1,
+            )
+        raw_token = auth_data.create_action_token(
+            con,
+            email="atomic@example.com",
+            purpose=purpose,
+            now=now,
+            pending_password_hash=pending_hash if purpose == "confirm" else None,
+        )
+
+    if purpose == "confirm":
+        monkeypatch.setattr(
+            server,
+            "create_session",
+            lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+            raising=False,
+        )
+        payload = {"token": raw_token}
+    else:
+        monkeypatch.setattr(
+            server,
+            "revoke_other_sessions",
+            lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+            raising=False,
+        )
+        payload = {"token": raw_token, "password": "new protected password"}
+
+    response = auth_v3_client(server, raise_server_exceptions=False).post(
+        endpoint, headers=AUTH_V3_ORIGIN, json=payload
+    )
+
+    assert response.status_code == 500
+    with closing(server.db()) as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM auth_action_tokens WHERE token_hash=?",
+            (hashlib.sha256(raw_token.encode()).hexdigest(),),
+        ).fetchone()[0] == 1
+        if purpose == "confirm":
+            assert con.execute(
+                "SELECT COUNT(*) FROM pouzivatelia WHERE email='atomic@example.com'"
+            ).fetchone()[0] == 0
+        else:
+            assert auth_data.authenticate_password(
+                con, email="atomic@example.com", password="old protected password"
+            ) is not None
+            assert auth_data.authenticate_password(
+                con, email="atomic@example.com", password="new protected password"
+            ) is None
+
+
+def test_auth_v3_route_authenticated_password_and_session_management(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_001.0)
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('legacy@example.com')"
+        ).lastrowid
+        current = auth_data.create_session(
+            con, user_id=user_id, now=1_000.0, device_name="Aktuálny mobil"
+        )
+        old_other = auth_data.create_session(
+            con, user_id=user_id, now=1_000.0, device_name="Starý notebook"
+        )
+        con.commit()
+    client = auth_v3_client(server)
+    client.cookies.set(server.COOKIE, current)
+
+    password_set = client.post(
+        "/api/auth/password/set",
+        headers=AUTH_V3_ORIGIN,
+        json={"password": "prvé bezpečné heslo"},
+    )
+    assert password_set.status_code == 200
+    with closing(server.db()) as con:
+        assert auth_data.authenticate_password(
+            con, email="legacy@example.com", password="prvé bezpečné heslo"
+        ) == user_id
+        assert auth_data.user_for_session(con, raw_session=current, now=1_001.0)
+        assert auth_data.user_for_session(con, raw_session=old_other, now=1_001.0) is None
+
+    second = auth_v3_client(server)
+    assert second.post(
+        "/api/auth/login",
+        headers=AUTH_V3_ORIGIN,
+        json={
+            "email": "legacy@example.com",
+            "password": "prvé bezpečné heslo",
+            "device_name": "PC",
+        },
+    ).status_code == 200
+    second_raw = second.cookies.get(server.COOKIE)
+    sessions = client.get("/api/auth/sessions")
+    assert sessions.status_code == 200
+    listed = sessions.json()["sessions"]
+    assert len(listed) == 2
+    assert all(
+        re.fullmatch(r"[0-9a-f]{64}", item["session_hash"]) for item in listed
+    )
+    assert sum(item["current"] for item in listed) == 1
+    assert current not in sessions.text
+    assert second_raw not in sessions.text
+    second_hash = hashlib.sha256(second_raw.encode()).hexdigest()
+
+    credential_attempt = auth_v3_client(server)
+    credential_attempt.cookies.set(server.COOKIE, second_hash)
+    assert credential_attempt.get("/api/me").json() == {"prihlaseny": False}
+    missing_origin = client.delete(f"/api/auth/sessions/{second_hash}")
+    foreign_origin = client.delete(
+        f"/api/auth/sessions/{second_hash}",
+        headers={"Origin": "https://evil.example"},
+    )
+    assert missing_origin.status_code == foreign_origin.status_code == 403
+    deleted = client.delete(
+        f"/api/auth/sessions/{second_hash}", headers=AUTH_V3_ORIGIN
+    )
+    assert deleted.status_code == 200
+    assert second.get("/api/me").json() == {"prihlaseny": False}
+
+    third = auth_v3_client(server)
+    assert third.post(
+        "/api/auth/login",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "legacy@example.com", "password": "prvé bezpečné heslo"},
+    ).status_code == 200
+    logout_others = client.post(
+        "/api/auth/sessions/logout-others", headers=AUTH_V3_ORIGIN, json={}
+    )
+    assert logout_others.status_code == 200
+    assert client.get("/api/me").json()["id"] == user_id
+    assert third.get("/api/me").json() == {"prihlaseny": False}
+
+    wrong_change = client.post(
+        "/api/auth/password/change",
+        headers=AUTH_V3_ORIGIN,
+        json={
+            "current_password": "wrong password",
+            "password": "druhé bezpečné heslo",
+        },
+    )
+    assert wrong_change.status_code == 401
+    changed = client.post(
+        "/api/auth/password/change",
+        headers=AUTH_V3_ORIGIN,
+        json={
+            "current_password": "prvé bezpečné heslo",
+            "password": "druhé bezpečné heslo",
+        },
+    )
+    assert changed.status_code == 200
+    with closing(server.db()) as con:
+        assert auth_data.authenticate_password(
+            con, email="legacy@example.com", password="prvé bezpečné heslo"
+        ) is None
+        assert auth_data.authenticate_password(
+            con, email="legacy@example.com", password="druhé bezpečné heslo"
+        ) == user_id
+
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_001.0 + 24 * 60 * 60)
+    current_hash = hashlib.sha256(current.encode()).hexdigest()
+    current_logout = client.delete(
+        f"/api/auth/sessions/{current_hash}", headers=AUTH_V3_ORIGIN
+    )
+    assert current_logout.status_code == 200
+    cookie_headers = current_logout.headers.get_list("set-cookie")
+    assert any("Max-Age=0" in header for header in cookie_headers)
+    assert all("Max-Age=7776000" not in header for header in cookie_headers)
+
+
+@pytest.mark.parametrize(
+    "endpoint,payload",
+    [
+        (
+            "/api/auth/register",
+            {"email": "a@example.com", "password": "long enough password"},
+        ),
+        ("/api/auth/confirm", {"token": "token"}),
+        (
+            "/api/auth/login",
+            {"email": "a@example.com", "password": "long enough password"},
+        ),
+        ("/api/auth/password/request", {"email": "a@example.com"}),
+        (
+            "/api/auth/password/reset",
+            {"token": "token", "password": "long enough password"},
+        ),
+        ("/api/auth/password/set", {"password": "long enough password"}),
+        (
+            "/api/auth/password/change",
+            {"current_password": "old password", "password": "new password"},
+        ),
+        ("/api/auth/sessions/logout-others", {}),
+    ],
+)
+def test_auth_v3_route_state_changes_require_the_exact_origin(
+    monkeypatch, tmp_path, endpoint, payload
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    client = auth_v3_client(server)
+    missing = client.post(endpoint, json=payload)
+    foreign = client.post(
+        endpoint, headers={"Origin": "https://evil.example"}, json=payload
+    )
+    assert missing.status_code == foreign.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "/api/auth/register",
+        "/api/auth/confirm",
+        "/api/auth/login",
+        "/api/auth/password/request",
+        "/api/auth/password/reset",
+    ],
+)
+def test_auth_v3_route_public_json_rejects_malformed_or_non_object_bodies(
+    monkeypatch, tmp_path, endpoint
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    client = auth_v3_client(server)
+    malformed = client.post(
+        endpoint,
+        headers={**AUTH_V3_ORIGIN, "Content-Type": "application/json"},
+        content="{",
+    )
+    array = client.post(endpoint, headers=AUTH_V3_ORIGIN, json=[])
+    assert malformed.status_code == array.status_code == 400
+
+
+def test_auth_v3_route_limits_ip_and_normalized_account_independently(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    calls = []
+    install_provider(monkeypatch, calls=calls)
+    server.AUTH_V3_IP_LIMITER = server.ClientIpRateLimiter(max_requests=10)
+    server.AUTH_V3_ACCOUNT_LIMITER = server.ClientIpRateLimiter(max_requests=1)
+    client = auth_v3_client(server)
+
+    first = client.post(
+        "/api/auth/register",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "Rate@Example.com", "password": "long enough password"},
+    )
+    normalized_repeat = client.post(
+        "/api/auth/register",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": " rate@example.com ", "password": "long enough password"},
+    )
+    assert first.status_code == 200
+    assert normalized_repeat.status_code == 429
+    assert len(calls) == 1
+
+    server.AUTH_V3_IP_LIMITER = server.ClientIpRateLimiter(max_requests=1)
+    server.AUTH_V3_ACCOUNT_LIMITER = server.ClientIpRateLimiter(max_requests=10)
+    first_ip = auth_v3_client(server).post(
+        "/api/auth/login",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "one@example.com", "password": "long enough password"},
+    )
+    second_ip = auth_v3_client(server).post(
+        "/api/auth/login",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "two@example.com", "password": "long enough password"},
+    )
+    assert first_ip.status_code == 401
+    assert second_ip.status_code == 429
+
+    server.AUTH_V3_IP_LIMITER = server.ClientIpRateLimiter(max_requests=1)
+    server.AUTH_V3_ACCOUNT_LIMITER = server.ClientIpRateLimiter(max_requests=10)
+    invalid_first = auth_v3_client(server).post(
+        "/api/auth/login",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "not-an-email", "password": "long enough password"},
+    )
+    invalid_second = auth_v3_client(server).post(
+        "/api/auth/login",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "still-not-an-email", "password": "long enough password"},
+    )
+    assert invalid_first.status_code == 401
+    assert invalid_second.status_code == 429
+
+    seed_password_account(server, auth_data, "limited-reset@example.com")
+    now = server.AUTH_CLOCK()
+    with closing(server.db()) as con:
+        first_reset = auth_data.create_action_token(
+            con, email="limited-reset@example.com", purpose="reset", now=now
+        )
+        second_reset = auth_data.create_action_token(
+            con, email="limited-reset@example.com", purpose="reset", now=now
+        )
+    server.AUTH_V3_IP_LIMITER = server.ClientIpRateLimiter(max_requests=10)
+    server.AUTH_V3_ACCOUNT_LIMITER = server.ClientIpRateLimiter(max_requests=1)
+    accepted_reset = auth_v3_client(server).post(
+        "/api/auth/password/reset",
+        headers=AUTH_V3_ORIGIN,
+        json={"token": first_reset, "password": "first reset password"},
+    )
+    limited_reset = auth_v3_client(server).post(
+        "/api/auth/password/reset",
+        headers=AUTH_V3_ORIGIN,
+        json={"token": second_reset, "password": "second reset password"},
+    )
+    assert accepted_reset.status_code == 200
+    assert limited_reset.status_code == 429
+
+
+def test_auth_v3_route_provider_failure_never_exposes_registration_secrets(
+    capsys, monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    calls = []
+    install_provider(
+        monkeypatch, error=TimeoutError("network unavailable"), calls=calls
+    )
+    password = "provider secret password"
+
+    response = auth_v3_client(server).post(
+        "/api/auth/register",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "provider@example.com", "password": password},
+    )
+
+    assert response.status_code == 503
+    raw_token = action_token_from_message(calls, "potvrdenie")
+    captured = capsys.readouterr()
+    public = response.text + captured.out + captured.err
+    assert password not in public
+    assert raw_token not in public
+    assert "provider@example.com" not in public
+    with sqlite3.connect(database) as con:
+        stored = con.execute(
+            "SELECT token_hash, pending_password_hash FROM auth_action_tokens"
+        ).fetchone()
+        assert stored[0] != raw_token
+        assert stored[1] != password
+
+
+def test_auth_v3_route_legacy_magic_request_only_serves_existing_accounts(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    calls = []
+    install_provider(monkeypatch, calls=calls)
+    with closing(server.db()) as con:
+        con.execute("INSERT INTO pouzivatelia (email) VALUES ('legacy@example.com')")
+        con.commit()
+    seed_password_account(server, auth_data, "configured@example.com")
+    client = auth_v3_client(server)
+
+    unknown = client.post("/api/auth/request", json={"email": "new@example.com"})
+    configured = client.post(
+        "/api/auth/request", json={"email": "configured@example.com"}
+    )
+    existing = client.post("/api/auth/request", json={"email": "legacy@example.com"})
+
+    assert unknown.status_code == configured.status_code == existing.status_code == 200
+    assert unknown.json() == configured.json() == existing.json()
+    assert len(calls) == 1
+    with sqlite3.connect(database) as con:
+        assert con.execute("SELECT email FROM magic_tokens_v2").fetchall() == [
+            ("legacy@example.com",)
+        ]
+
+
+def test_auth_v3_route_legacy_verify_rejects_unknown_or_now_configured_accounts(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    calls = []
+    install_provider(monkeypatch, calls=calls)
+    raw_token = issue_link(server, monkeypatch, "legacy@example.com")
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "SELECT id FROM pouzivatelia WHERE email='legacy@example.com'"
+        ).fetchone()[0]
+        auth_data.set_password(
+            con,
+            user_id=user_id,
+            password_hash=auth_data.hash_password("configured password"),
+            now=1_000.0,
+        )
+        con.commit()
+        unknown_token = "unknown-account-magic-token"
+        con.execute(
+            """INSERT INTO magic_tokens_v2
+               (token_hash, email, expires_at, created_at) VALUES (?, ?, ?, ?)""",
+            (
+                hashlib.sha256(unknown_token.encode()).hexdigest(),
+                "never-registered@example.com",
+                server.AUTH_CLOCK() + 3_600,
+                server.AUTH_CLOCK(),
+            ),
+        )
+        con.commit()
+
+    configured = auth_v3_client(server).post(
+        "/api/auth/verify", json={"token": raw_token}
+    )
+    unknown = auth_v3_client(server).post(
+        "/api/auth/verify", json={"token": unknown_token}
+    )
+
+    assert configured.status_code == unknown.status_code == 400
+    with sqlite3.connect(database) as con:
+        assert con.execute("SELECT COUNT(*) FROM sessions_v2").fetchone() == (0,)
+        assert con.execute("SELECT COUNT(*) FROM magic_tokens_v2").fetchone() == (0,)
