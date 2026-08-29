@@ -141,6 +141,45 @@ def test_landing_keeps_its_current_title_and_description():
     ) in html
 
 
+def test_premium_is_a_nonbinding_email_interest_action_not_checkout():
+    html = index_html()
+    section = html.split('<section class="plans-band"', 1)[1].split("</section>", 1)[0]
+    premium_marker = '<div class="plan-name">Premium</div>'
+    assert premium_marker in section
+    premium = section.split(premium_marker, 1)[1]
+
+    action = re.search(
+        r'<button[^>]+class="[^"]*js-plan[^"]*"[^>]+data-plan="([^"]+)"[^>]*>'
+        r'Chcem vedieť o spustení</button>',
+        premium,
+    )
+    assert action
+    assert action.group(1) == "Premium (49 € / rok po spustení)"
+    assert 'type="button"' in action.group(0)
+    assert "checkout" not in premium.lower()
+    assert 'href=' not in action.group(0)
+    assert '<input type="hidden" name="fields[plan]" id="planField"' in html
+    assert "planField.value=plan" in html.replace(" ", "")
+
+
+def test_founding_and_premium_share_the_same_core_functionality():
+    html = index_html()
+    section = html.split('<section class="plans-band"', 1)[1].split("</section>", 1)[0]
+    premium_marker = '<div class="plan-name">Premium</div>'
+    assert premium_marker in section
+    founding = section.split('<div class="plan-name">Zakladajúci</div>', 1)[1]
+    premium = section.split(premium_marker, 1)[1]
+
+    founding_features = re.findall(r"<li>(.*?)</li>", founding)[:2]
+    premium_features = re.findall(r"<li>(.*?)</li>", premium)[:2]
+    assert founding_features == premium_features == [
+        "Všetky podporované obchody",
+        "Celý týždeň, recepty a špajza",
+    ]
+    assert "natrvalo" in founding
+    assert "Budúce Premium aktualizácie" in premium
+
+
 @needs_node
 def test_community_counter_is_truthful_progressive_accessible_and_capped(tmp_path):
     html = index_html()

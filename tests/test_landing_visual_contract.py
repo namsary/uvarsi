@@ -7,6 +7,15 @@ def html():
     return Path("index.html").read_text(encoding="utf-8")
 
 
+def pricing_cards(page):
+    section = page.split('<section class="plans-band"', 1)[1].split("</section>", 1)[0]
+    starts = list(re.finditer(r'<div class="plan(?: plan--hot)?">', section))
+    return [
+        section[match.start():starts[index + 1].start() if index + 1 < len(starts) else None]
+        for index, match in enumerate(starts)
+    ]
+
+
 def test_primary_action_opens_the_working_app_and_old_waitlist_story_is_gone():
     page = html()
 
@@ -80,6 +89,44 @@ def test_founding_offer_matches_the_approved_value_story():
     assert "39 €" in page
     assert "jednorazovo" in page.lower()
     assert "Prvých 250" in page
+
+
+def test_pricing_shows_exactly_free_founding_and_annual_premium():
+    cards = pricing_cards(html())
+
+    assert len(cards) == 3
+    free, founding, premium = cards
+    assert '<div class="plan-name">Free</div>' in free
+    assert '<div class="plan-price">0 €</div>' in free
+    assert '<div class="plan-per">navždy</div>' in free
+    assert '<div class="plan-name">Zakladajúci</div>' in founding
+    assert '<div class="plan-price">39 €</div>' in founding
+    assert "jednorazovo" in founding
+    assert "cena natrvalo" in founding
+    assert "Prvých 250" in founding
+    assert '<div class="plan-name">Premium</div>' in premium
+    assert '<div class="plan-price">49 €</div>' in premium
+    assert "/ rok" in premium
+    assert "po skončení zakladajúcej ponuky" in premium
+
+
+def test_founding_is_the_only_highlighted_pricing_card():
+    cards = pricing_cards(html())
+
+    assert sum('class="plan plan--hot"' in card for card in cards) == 1
+    assert 'class="plan plan--hot"' in cards[1]
+    assert '<div class="plan-name">Zakladajúci</div>' in cards[1]
+
+
+def test_pricing_grid_is_three_desktop_two_tablet_and_one_mobile_column():
+    page = html().replace(" ", "").replace("\n", "")
+
+    assert ".plans{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))" in page
+    assert "@media(max-width:1050px){.plans{grid-template-columns:repeat(2,minmax(0,1fr))}" in page
+    assert "@media(max-width:560px)" in page
+    mobile = page.split("@media(max-width:560px)", 1)[1]
+    assert ".plans{grid-template-columns:1fr}" in mobile
+    assert ".plans,.plan{min-width:0}" in page
 
 
 def test_founding_offer_has_a_progressive_accessible_counter_slot():
