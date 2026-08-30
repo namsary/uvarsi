@@ -51,6 +51,32 @@ def test_nutrition_is_divided_by_real_adult_equivalents(chicken_and_rice):
     )
 
 
+def test_fractional_servings_and_totals_ignore_ambient_decimal_precision(
+    chicken_and_rice,
+):
+    chicken, rice = chicken_and_rice
+
+    with localcontext() as context:
+        context.prec = 3
+        estimate = estimate_recipe_nutrition(
+            [(chicken, Decimal("600")), (rice, Decimal("300"))],
+            adult_servings=Decimal("2.5"),
+        )
+
+    assert estimate.total == MacroValues(
+        kcal=Decimal("1815"),
+        protein_g=Decimal("156.39"),
+        fat_g=Decimal("17.70"),
+        carbs_g=Decimal("239.85"),
+    )
+    assert estimate.serving == MacroValues(
+        kcal=Decimal("726"),
+        protein_g=Decimal("62.556"),
+        fat_g=Decimal("7.08"),
+        carbs_g=Decimal("95.94"),
+    )
+
+
 def test_high_protein_requires_twenty_percent_of_energy():
     serving = MacroValues(
         kcal=Decimal("370"),
@@ -65,21 +91,21 @@ def test_high_protein_requires_twenty_percent_of_energy():
 
 
 @pytest.mark.parametrize(
-    ("kcal", "protein_g", "expected"),
+    ("kcal", "protein_g", "fat_g", "carbs_g", "expected"),
     [
-        ("400", "20", True),
-        ("400", "19.99", False),
-        ("0", "20", False),
+        ("999", "20", "20", "35", True),
+        ("1", "19.99", "20", "35", False),
+        ("100", "0", "0", "0", False),
     ],
 )
-def test_high_protein_uses_inclusive_twenty_percent_boundary(
-    kcal, protein_g, expected
+def test_high_protein_uses_macro_derived_legal_energy_not_catalog_kcal(
+    kcal, protein_g, fat_g, carbs_g, expected
 ):
     serving = MacroValues(
         kcal=Decimal(kcal),
         protein_g=Decimal(protein_g),
-        fat_g=Decimal("0"),
-        carbs_g=Decimal("0"),
+        fat_g=Decimal(fat_g),
+        carbs_g=Decimal(carbs_g),
     )
     estimate = NutritionEstimate(total=serving, serving=serving)
 
@@ -88,10 +114,10 @@ def test_high_protein_uses_inclusive_twenty_percent_boundary(
 
 def test_high_protein_rejects_extreme_value_just_below_twenty_percent():
     serving = MacroValues(
-        kcal=Decimal("400"),
+        kcal=Decimal("1"),
         protein_g=Decimal("19.9999999999999999999999999999"),
-        fat_g=Decimal("0"),
-        carbs_g=Decimal("0"),
+        fat_g=Decimal("20"),
+        carbs_g=Decimal("35"),
     )
 
     assert qualifies_high_protein(
@@ -101,16 +127,16 @@ def test_high_protein_rejects_extreme_value_just_below_twenty_percent():
 
 def test_high_protein_preserves_boundary_under_changed_ambient_precision():
     below = MacroValues(
-        kcal=Decimal("400"),
+        kcal=Decimal("1"),
         protein_g=Decimal("19.9999999999999999999999999999"),
-        fat_g=Decimal("0"),
-        carbs_g=Decimal("0"),
+        fat_g=Decimal("20"),
+        carbs_g=Decimal("35"),
     )
     exact = MacroValues(
-        kcal=Decimal("400"),
+        kcal=Decimal("999"),
         protein_g=Decimal("20"),
-        fat_g=Decimal("0"),
-        carbs_g=Decimal("0"),
+        fat_g=Decimal("20"),
+        carbs_g=Decimal("35"),
     )
 
     with localcontext() as context:
@@ -123,7 +149,16 @@ def test_high_protein_preserves_boundary_under_changed_ambient_precision():
         ) is True
 
 
-@pytest.mark.parametrize("adult_servings", [Decimal("0"), Decimal("-1")])
+@pytest.mark.parametrize(
+    "adult_servings",
+    [
+        Decimal("0"),
+        Decimal("-1"),
+        Decimal("NaN"),
+        Decimal("Infinity"),
+        Decimal("-Infinity"),
+    ],
+)
 def test_nutrition_rejects_non_positive_adult_servings(
     chicken_and_rice, adult_servings
 ):
@@ -136,11 +171,22 @@ def test_nutrition_rejects_non_positive_adult_servings(
         )
 
 
-def test_nutrition_rejects_negative_edible_grams(chicken_and_rice):
+@pytest.mark.parametrize(
+    "edible_grams",
+    [
+        Decimal("-0.01"),
+        Decimal("NaN"),
+        Decimal("Infinity"),
+        Decimal("-Infinity"),
+    ],
+)
+def test_nutrition_rejects_non_finite_or_negative_edible_grams(
+    chicken_and_rice, edible_grams
+):
     chicken, _ = chicken_and_rice
 
     with pytest.raises(ValueError, match="edible grams"):
         estimate_recipe_nutrition(
-            [(chicken, Decimal("-0.01"))],
+            [(chicken, edible_grams)],
             adult_servings=Decimal("1"),
         )

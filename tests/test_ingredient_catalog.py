@@ -71,7 +71,22 @@ def _ingredient(**overrides):
 
 def _write_catalog(tmp_path, ingredients):
     path = tmp_path / "ingredients.json"
-    path.write_text(json.dumps({"ingredients": ingredients}), encoding="utf-8")
+    path.write_text(
+        json.dumps(
+            {
+                "catalog_version": 1,
+                "nutrition_basis": "per 100 g edible portion",
+                "ingredients": ingredients,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_raw_catalog(tmp_path, text):
+    path = tmp_path / "ingredients.json"
+    path.write_text(text, encoding="utf-8")
     return path
 
 
@@ -106,6 +121,87 @@ def test_catalog_rejects_duplicate_id_and_name(tmp_path):
     duplicate_name = _ingredient(id="chicken_thigh", synonyms=[])
     with pytest.raises(ValueError, match="duplicitný názov"):
         load_ingredient_catalog(_write_catalog(tmp_path, [_ingredient(), duplicate_name]))
+
+
+@pytest.mark.parametrize(
+    ("raw", "key"),
+    [
+        (
+            '{"catalog_version":1,"catalog_version":1,'
+            '"nutrition_basis":"per 100 g edible portion","ingredients":[]}',
+            "catalog_version",
+        ),
+        (
+            json.dumps(
+                {
+                    "catalog_version": 1,
+                    "nutrition_basis": "per 100 g edible portion",
+                    "ingredients": [_ingredient()],
+                },
+                ensure_ascii=False,
+            ).replace('"protein_g": "22.5"', '"protein_g":"22.5","protein_g":"22.5"'),
+            "protein_g",
+        ),
+    ],
+)
+def test_catalog_rejects_duplicate_json_keys_recursively(tmp_path, raw, key):
+    with pytest.raises(ValueError, match=f"duplicitný JSON kľúč: {key}"):
+        load_ingredient_catalog(_write_raw_catalog(tmp_path, raw))
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda payload: payload.update(extra=True), "katalógu"),
+        (lambda payload: payload.pop("ingredients"), "katalógu"),
+        (lambda payload: payload["ingredients"][0].update(extra=True), "suroviny"),
+        (lambda payload: payload["ingredients"][0].pop("category"), "suroviny"),
+        (
+            lambda payload: payload["ingredients"][0]["nutrition"].update(extra=True),
+            "výživových údajov",
+        ),
+        (
+            lambda payload: payload["ingredients"][0]["nutrition"].pop("source"),
+            "výživových údajov",
+        ),
+    ],
+)
+def test_catalog_rejects_missing_or_extra_schema_keys(tmp_path, mutate, message):
+    payload = {
+        "catalog_version": 1,
+        "nutrition_basis": "per 100 g edible portion",
+        "ingredients": [_ingredient()],
+    }
+    mutate(payload)
+
+    with pytest.raises(ValueError, match=message):
+        load_ingredient_catalog(
+            _write_raw_catalog(tmp_path, json.dumps(payload, ensure_ascii=False))
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("catalog_version", 2, "catalog_version"),
+        ("catalog_version", "1", "catalog_version"),
+        ("nutrition_basis", "per 100 ml", "nutrition_basis"),
+    ],
+)
+def test_catalog_requires_supported_version_and_exact_nutrition_basis(
+    tmp_path, field, value, message
+):
+    payload = {
+        "catalog_version": 1,
+        "nutrition_basis": "per 100 g edible portion",
+        "ingredients": [_ingredient()],
+    }
+    payload[field] = value
+
+    with pytest.raises(ValueError, match=message):
+        load_ingredient_catalog(
+            _write_raw_catalog(tmp_path, json.dumps(payload, ensure_ascii=False))
+        )
 
 
 def test_default_catalog_contains_verified_foundation_slice():

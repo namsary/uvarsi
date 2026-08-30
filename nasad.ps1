@@ -172,6 +172,9 @@ if ($recipeJson.Count -eq 0) {
   Zlyhaj "chyba lokalny receptovy JSON v $B\app\catalog\recipes"
 }
 foreach ($recept in $recipeJson) {
+  if ($recept.Name -cnotmatch '^[a-z0-9_-]+\.json$') {
+    Zlyhaj "nebezpecny nazov receptoveho JSON: $($recept.Name)"
+  }
   if ($recept.Length -le 0) {
     Zlyhaj "receptovy JSON je prazdny: $($recept.FullName)"
   }

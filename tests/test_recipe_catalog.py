@@ -205,6 +205,66 @@ def test_rejects_missing_required_slot_placeholder(ingredients, tmp_path):
 
 
 @pytest.mark.parametrize(
+    ("instructions", "missing"),
+    [
+        (
+            [
+                {"text": "Rozohrej panvicu."},
+                {"text": "Opekaj {protein.amount} 8 minút."},
+                {"text": "Rozdeľ na {portions} porcií."},
+            ],
+            "názvu",
+        ),
+        (
+            [
+                {"text": "Nakrájaj {protein.name}."},
+                {"text": "Opekaj 8 minút."},
+                {"text": "Rozdeľ na {portions} porcií."},
+            ],
+            "množstva",
+        ),
+    ],
+)
+def test_required_slot_needs_name_and_amount_in_instructions(
+    ingredients, tmp_path, instructions, missing
+):
+    root = _write_library(
+        tmp_path,
+        [
+            _recipe(
+                name_template="Panvica z {protein.name}",
+                instructions=instructions,
+            )
+        ],
+    )
+
+    with pytest.raises(ValueError, match=rf"povinná pozícia.*{missing}.*protein"):
+        load_recipe_catalog(ingredients, root)
+
+
+def test_malformed_inactive_template_cannot_hide_missing_instruction_contract(
+    ingredients, tmp_path
+):
+    root = _write_library(
+        tmp_path,
+        [
+            _recipe(
+                active=False,
+                name_template="Panvica z {protein.name}",
+                instructions=[
+                    {"text": "Rozohrej panvicu."},
+                    {"text": "Opekaj 8 minút."},
+                    {"text": "Rozdeľ na {portions} porcií."},
+                ],
+            )
+        ],
+    )
+
+    with pytest.raises(ValueError, match=r"povinná pozícia.*protein"):
+        load_recipe_catalog(ingredients, root)
+
+
+@pytest.mark.parametrize(
     "text",
     ["Pridaj {protein.price}.", "Pridaj {protein}.", "Pridaj {portions.count}."],
 )

@@ -14,8 +14,29 @@ import unicodedata
 
 
 DEFAULT_CATALOG_PATH = Path(__file__).with_name("catalog") / "ingredients.json"
+SUPPORTED_CATALOG_VERSION = 1
+SUPPORTED_NUTRITION_BASIS = "per 100 g edible portion"
 ALLOWED_ROLES = frozenset(
     {"protein", "starch", "vegetable", "aromatic", "fat", "seasoning", "dairy"}
+)
+CATALOG_KEYS = frozenset({"catalog_version", "nutrition_basis", "ingredients"})
+INGREDIENT_KEYS = frozenset(
+    {
+        "id",
+        "name",
+        "synonyms",
+        "category",
+        "roles",
+        "diet_tags",
+        "allergens",
+        "edible_ratio",
+        "grams_per_piece",
+        "density_g_per_ml",
+        "nutrition",
+    }
+)
+NUTRITION_KEYS = frozenset(
+    {"kcal", "protein_g", "fat_g", "carbs_g", "source", "verified_on"}
 )
 
 
@@ -144,35 +165,105 @@ def _optional_decimal(value, label: str) -> Decimal | None:
     return None if value is None else _decimal(value, label)
 
 
-def _ingredient_from_json(value: dict) -> Ingredient:
-    nutrition = value["nutrition"]
-    tags = frozenset(DietTag(tag) for tag in value["diet_tags"])
+def _json_object_without_duplicates(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicitný JSON kľúč: {key}")
+        result[key] = value
+    return result
+
+
+def _load_strict_json(path: Path):
+    with path.open(encoding="utf-8") as stream:
+        return json.load(stream, object_pairs_hook=_json_object_without_duplicates)
+
+
+def _object(value, label: str) -> dict:
+    if type(value) is not dict:
+        raise ValueError(f"{label} musí byť objekt")
+    return value
+
+
+def _exact_keys(value: dict, expected: frozenset[str], label: str) -> None:
+    actual = set(value)
+    if actual == expected:
+        return
+    missing = sorted(expected - actual)
+    extra = sorted(actual - expected)
+    details = []
+    if missing:
+        details.append("chýba " + ", ".join(missing))
+    if extra:
+        details.append("navyše " + ", ".join(extra))
+    raise ValueError(f"neplatná schéma {label}: {'; '.join(details)}")
+
+
+def _text(value, label: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label} nesmie byť prázdny text")
+    return value
+
+
+def _texts(value, label: str) -> tuple[str, ...]:
+    if type(value) is not list:
+        raise ValueError(f"{label} musí byť zoznam")
+    return tuple(_text(item, label) for item in value)
+
+
+def _ingredient_from_json(value) -> Ingredient:
+    payload = _object(value, "suroviny")
+    _exact_keys(payload, INGREDIENT_KEYS, "suroviny")
+    nutrition = _object(payload["nutrition"], "výživových údajov")
+    _exact_keys(nutrition, NUTRITION_KEYS, "výživových údajov")
+    tags = frozenset(
+        DietTag(tag) for tag in _texts(payload["diet_tags"], "diet tags")
+    )
     if DietTag.VEGAN in tags and DietTag.VEGETARIAN not in tags:
         raise ValueError("vegan surovina musí byť aj vegetarian")
+    verified_on = _text(nutrition["verified_on"], "dátum overenia")
+    try:
+        verified_date = date.fromisoformat(verified_on)
+    except ValueError as exc:
+        raise ValueError("dátum overenia musí byť ISO dátum") from exc
     return Ingredient(
-        id=value["id"],
-        name=value["name"],
-        synonyms=tuple(value["synonyms"]),
-        category=value["category"],
-        roles=frozenset(value["roles"]),
+        id=_text(payload["id"], "ID suroviny"),
+        name=_text(payload["name"], "názov suroviny"),
+        synonyms=_texts(payload["synonyms"], "synonymá"),
+        category=_text(payload["category"], "kategória suroviny"),
+        roles=frozenset(_texts(payload["roles"], "roly suroviny")),
         diet_tags=tags,
-        allergens=tuple(value["allergens"]),
-        edible_ratio=_decimal(value["edible_ratio"], "jedlý podiel"),
-        grams_per_piece=_optional_decimal(value["grams_per_piece"], "gramov na kus"),
-        density_g_per_ml=_optional_decimal(value["density_g_per_ml"], "hustota"),
+        allergens=_texts(payload["allergens"], "alergény"),
+        edible_ratio=_decimal(payload["edible_ratio"], "jedlý podiel"),
+        grams_per_piece=_optional_decimal(payload["grams_per_piece"], "gramov na kus"),
+        density_g_per_ml=_optional_decimal(payload["density_g_per_ml"], "hustota"),
         nutrition=NutritionPer100(
             kcal=_decimal(nutrition["kcal"], "výživová energia"),
             protein_g=_decimal(nutrition["protein_g"], "výživové bielkoviny"),
             fat_g=_decimal(nutrition["fat_g"], "výživové tuky"),
             carbs_g=_decimal(nutrition["carbs_g"], "výživové sacharidy"),
-            source=nutrition["source"],
-            verified_on=date.fromisoformat(nutrition["verified_on"]),
+            source=_text(nutrition["source"], "zdroj výživových hodnôt"),
+            verified_on=verified_date,
         ),
     )
 
 
 def load_ingredient_catalog(path=None) -> IngredientCatalog:
     source_path = DEFAULT_CATALOG_PATH if path is None else Path(path)
-    with source_path.open(encoding="utf-8") as stream:
-        payload = json.load(stream)
-    return IngredientCatalog(_ingredient_from_json(value) for value in payload["ingredients"])
+    payload = _object(_load_strict_json(source_path), "katalógu")
+    _exact_keys(payload, CATALOG_KEYS, "katalógu")
+    if (
+        type(payload["catalog_version"]) is not int
+        or payload["catalog_version"] != SUPPORTED_CATALOG_VERSION
+    ):
+        raise ValueError(
+            f"catalog_version musí byť podporovaná verzia {SUPPORTED_CATALOG_VERSION}"
+        )
+    if payload["nutrition_basis"] != SUPPORTED_NUTRITION_BASIS:
+        raise ValueError(
+            f"nutrition_basis musí byť presne {SUPPORTED_NUTRITION_BASIS!r}"
+        )
+    ingredients = payload["ingredients"]
+    if type(ingredients) is not list:
+        raise ValueError("ingredients musí byť zoznam")
+    return IngredientCatalog(_ingredient_from_json(value) for value in ingredients)

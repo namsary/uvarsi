@@ -81,11 +81,14 @@ for catalog_asset in ingredients.json recipes/manifest.json; do
 done
 for recept in "$ZDROJ"/app/catalog/recipes/*.json; do
   [ -e "$recept" ] || continue
-  [ "${recept##*/}" = "manifest.json" ] && continue
+  RECEPT_NAZOV="${recept##*/}"
+  [ "$RECEPT_NAZOV" = "manifest.json" ] && continue
+  [[ "$RECEPT_NAZOV" =~ ^[a-z0-9_-]+\.json$ ]] || {
+    log "zdrojový receptový JSON má nebezpečný názov: $RECEPT_NAZOV"; exit 1; }
   [ -f "$recept" ] && [ -s "$recept" ] || {
-    log "zdrojový receptový JSON nie je platný súbor: ${recept##*/}"; exit 1; }
-  cp -a "$recept" "$CIEL/app/catalog/recipes/${recept##*/}" || {
-    log "receptový JSON ${recept##*/} sa nepodarilo pripraviť"; exit 1; }
+    log "zdrojový receptový JSON nie je platný súbor: $RECEPT_NAZOV"; exit 1; }
+  cp -a "$recept" "$CIEL/app/catalog/recipes/$RECEPT_NAZOV" || {
+    log "receptový JSON $RECEPT_NAZOV sa nepodarilo pripraviť"; exit 1; }
 done
 # Windows môže do gitu uložiť CRLF; shell skripty musia mať LF, inak je shebang rozbitý
 sed -i 's/\r//' "$CIEL"/hetzner/*.sh 2>/dev/null || true
@@ -110,10 +113,15 @@ done
 RECEPT_JSON_NAJDENY=0
 for recept in "$CIEL"/app/catalog/recipes/*.json; do
   [ -e "$recept" ] || continue
-  [ "$(basename "$recept")" = "manifest.json" ] && continue
+  RECEPT_NAZOV="${recept##*/}"
+  [ "$RECEPT_NAZOV" = "manifest.json" ] && continue
+  [[ "$RECEPT_NAZOV" =~ ^[a-z0-9_-]+\.json$ ]] || {
+    log "vo vydaní je receptový JSON s nebezpečným názvom: $RECEPT_NAZOV — NEPREPÍNAM"
+    notify "Uvar.si: neúplné vydanie" "Neplatný názov receptového JSON."
+    exit 1
+  }
   if [ -f "$recept" ] && [ -s "$recept" ]; then
     RECEPT_JSON_NAJDENY=1
-    break
   fi
 done
 [ "$RECEPT_JSON_NAJDENY" -eq 1 ] || {

@@ -83,8 +83,13 @@ def _prepare_manual_source(tmp_path: Path) -> Path:
 def _run_manual_deploy_offline(
     tmp_path: Path,
     invalid_catalog_asset: tuple[str, str] | None = None,
+    unsafe_recipe_name: str | None = None,
 ) -> tuple[subprocess.CompletedProcess, str]:
     release = _prepare_manual_source(tmp_path)
+    if unsafe_recipe_name is not None:
+        (release / "app/catalog/recipes" / unsafe_recipe_name).write_text(
+            "{}\n", encoding="utf-8"
+        )
     if invalid_catalog_asset is not None:
         asset, invalid_kind = invalid_catalog_asset
         target = {
@@ -180,6 +185,19 @@ def test_manual_deploy_rejects_invalid_catalog_assets_before_snapshot(
     assert "uvarsi_snapshot /opt/uvarsi/releases/manual-predosle" not in calls
 
 
+@pytest.mark.parametrize("unsafe_name", ["week night.json", "week;night.json"])
+def test_manual_deploy_rejects_unsafe_recipe_filename_before_transfer_or_snapshot(
+    tmp_path, unsafe_name
+):
+    result, calls = _run_manual_deploy_offline(
+        tmp_path, unsafe_recipe_name=unsafe_name
+    )
+
+    assert "NASADENIE ZLYHALO" in result.stdout, result.stdout + result.stderr
+    assert unsafe_name not in calls
+    assert "uvarsi_snapshot /opt/uvarsi/releases/manual-predosle" not in calls
+
+
 def _samopull_catalog_gate() -> str:
     script = SAMOPULL.read_text(encoding="utf-8")
     return script.split("# b) povinné súbory", 1)[1].split(SWITCH_BOUNDARY, 1)[0]
@@ -198,6 +216,7 @@ def _run_samopull_catalog_gate(
     missing: str | None = None,
     candidate_only: bool = False,
     invalid_catalog_asset: tuple[str, str] | None = None,
+    unsafe_recipe_name: str | None = None,
 ) -> tuple[subprocess.CompletedProcess, Path]:
     gate = _samopull_catalog_gate()
     release = tmp_path / "release with spaces"
@@ -218,6 +237,8 @@ def _run_samopull_catalog_gate(
         candidate = release / "app/catalog/candidates/draft.json"
         candidate.parent.mkdir(parents=True, exist_ok=True)
         candidate.write_text("{}\n", encoding="utf-8")
+    if unsafe_recipe_name is not None:
+        (recipe.parent / unsafe_recipe_name).write_text("{}\n", encoding="utf-8")
 
     missing_paths = {
         "ingredients": ingredients,
@@ -304,9 +325,26 @@ def test_samopull_catalog_gate_rejects_invalid_file_before_switch(
     assert not mutation_marker.exists()
 
 
-def test_samopull_staging_allowlists_only_runtime_catalog_assets(
-        tmp_path, bash_executable):
-    """Preparing the release must never stage candidate drafts."""
+@pytest.mark.parametrize("unsafe_name", ["week night.json", "week;night.json"])
+def test_samopull_gate_rejects_unsafe_recipe_filename_before_switch(
+    tmp_path, bash_executable, unsafe_name
+):
+    result, mutation_marker = _run_samopull_catalog_gate(
+        tmp_path,
+        bash_executable,
+        unsafe_recipe_name=unsafe_name,
+    )
+
+    assert result.returncode != 0
+    assert not mutation_marker.exists()
+
+
+def _run_samopull_staging(
+    tmp_path: Path,
+    bash_executable: str,
+    *,
+    unsafe_recipe_name: str | None = None,
+) -> tuple[subprocess.CompletedProcess, Path]:
     source = tmp_path / "source"
     catalog = source / "app/catalog"
     ingredient = catalog / "ingredients.json"
@@ -316,6 +354,8 @@ def test_samopull_staging_allowlists_only_runtime_catalog_assets(
     recipes.mkdir()
     (recipes / "manifest.json").write_text("{}\n", encoding="utf-8")
     (recipes / "smoke.json").write_text("{}\n", encoding="utf-8")
+    if unsafe_recipe_name is not None:
+        (recipes / unsafe_recipe_name).write_text("{}\n", encoding="utf-8")
     for relative in (
         "candidates/draft.json",
         "development/root-draft.json",
@@ -350,8 +390,13 @@ def test_samopull_staging_allowlists_only_runtime_catalog_assets(
         capture_output=True,
         check=False,
     )
+    return result, releases / "1234567890ab" / "app/catalog"
 
-    staged = releases / "1234567890ab" / "app/catalog"
+
+def test_samopull_staging_allowlists_only_runtime_catalog_assets(
+        tmp_path, bash_executable):
+    """Preparing the release must never stage candidate drafts."""
+    result, staged = _run_samopull_staging(tmp_path, bash_executable)
     assert result.returncode == 0, result.stdout + result.stderr
     staged_files = sorted(
         path.relative_to(staged).as_posix()
@@ -363,6 +408,20 @@ def test_samopull_staging_allowlists_only_runtime_catalog_assets(
         "recipes/manifest.json",
         "recipes/smoke.json",
     ]
+
+
+@pytest.mark.parametrize("unsafe_name", ["week night.json", "week;night.json"])
+def test_samopull_staging_rejects_unsafe_recipe_filename_before_copy(
+    tmp_path, bash_executable, unsafe_name
+):
+    result, staged = _run_samopull_staging(
+        tmp_path,
+        bash_executable,
+        unsafe_recipe_name=unsafe_name,
+    )
+
+    assert result.returncode != 0
+    assert not (staged / "recipes" / unsafe_name).exists()
 
 
 def test_directory_rollback_restores_code_and_catalog_together(

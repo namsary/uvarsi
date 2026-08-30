@@ -337,13 +337,20 @@ def _recipe_from_json(value, ingredient_catalog: IngredientCatalog) -> RecipeTem
         instructions.append(InstructionTemplate(_text(instruction["text"], "krok")))
     instructions_tuple = tuple(instructions)
 
-    references = _validate_placeholders(
-        (name_template, *(item.text for item in instructions_tuple)),
-        frozenset(slot_keys),
+    slot_key_set = frozenset(slot_keys)
+    _validate_placeholders((name_template,), slot_key_set)
+    instruction_references = _validate_placeholders(
+        tuple(item.text for item in instructions_tuple),
+        slot_key_set,
     )
     for slot in slots:
-        if slot.required and (slot.key, "name") not in references:
-            raise ValueError(f"povinná pozícia nemá placeholder názvu: {slot.key}")
+        if not slot.required:
+            continue
+        for attribute, label in (("name", "názvu"), ("amount", "množstva")):
+            if (slot.key, attribute) not in instruction_references:
+                raise ValueError(
+                    f"povinná pozícia nemá placeholder {label} v pokynoch: {slot.key}"
+                )
 
     all_ingredient_ids = tuple(
         ingredient_id
