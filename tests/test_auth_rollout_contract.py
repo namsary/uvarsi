@@ -17,7 +17,8 @@ POWERSHELL_OFFLINE_HARNESS = r'''
 param(
   [Parameter(Mandatory = $true)][string]$TargetScript,
   [Parameter(Mandatory = $true)][string]$Mode,
-  [switch]$Mutating
+  [switch]$Mutating,
+  [switch]$DisposableRegistration
 )
 
 $global:UvarsiTestMode = $Mode
@@ -136,6 +137,25 @@ function global:Invoke-RestMethod {
     }
     return New-PublicResponse
   }
+  if ($path -eq "/api/auth/register") {
+    $ok = $true
+    $message = "generic registration response"
+    if ($global:UvarsiTestMode -eq "registration_ok_integer") {
+      $ok = 1
+      $message = "SECRET_RESPONSE_MARKER"
+    }
+    if ($global:UvarsiTestMode -eq "registration_ok_string") {
+      $ok = "true"
+      $message = "SECRET_RESPONSE_MARKER"
+    }
+    if ($global:UvarsiTestMode -eq "registration_message_missing") {
+      return [pscustomobject]@{ ok = $ok }
+    }
+    if ($global:UvarsiTestMode -eq "registration_message_integer") {
+      $message = 1
+    }
+    return [pscustomobject]@{ ok = $ok; message = $message }
+  }
   if ($path -eq "/api/auth/login") {
     $global:UvarsiTestSessionStates[$label] = $true
     $ok = $true
@@ -147,7 +167,13 @@ function global:Invoke-RestMethod {
     $global:UvarsiTestLogoutCalls += 1
     $global:UvarsiTestSessionStates[$label] = $false
     $ok = $true
-    if ($global:UvarsiTestMode -eq "logout_ok_integer" -and $global:UvarsiTestLogoutCalls -eq 1) { $ok = 1 }
+    if ($global:UvarsiTestMode -eq "logout_current_ok_integer" -and
+        $global:UvarsiTestLogoutCalls -eq 1) { $ok = 1 }
+    if ($global:UvarsiTestMode -eq "logout_current_ok_string" -and
+        $global:UvarsiTestLogoutCalls -eq 1) { $ok = "true" }
+    if ($ok -isnot [bool]) {
+      return [pscustomobject]@{ ok = $ok; detail = "SECRET_RESPONSE_MARKER" }
+    }
     return [pscustomobject]@{ ok = $ok }
   }
   if ($path -eq "/api/auth/sessions/logout-others") {
@@ -161,7 +187,13 @@ function global:Invoke-RestMethod {
       $global:UvarsiTestSessionStates["A"] = $true
       $global:UvarsiTestSessionStates["B"] = $false
     }
-    return [pscustomobject]@{ ok = $true }
+    $ok = $true
+    if ($global:UvarsiTestMode -eq "logout_others_ok_integer") { $ok = 1 }
+    if ($global:UvarsiTestMode -eq "logout_others_ok_string") { $ok = "true" }
+    if ($ok -isnot [bool]) {
+      return [pscustomobject]@{ ok = $ok; detail = "SECRET_RESPONSE_MARKER" }
+    }
+    return [pscustomobject]@{ ok = $ok }
   }
   throw [InvalidOperationException]::new("unexpected offline route")
 }
@@ -180,6 +212,18 @@ if ($Mutating) {
     "test@example.com", $secure
   )
   $arguments["AllowMutation"] = $true
+}
+if ($DisposableRegistration) {
+  $registrationSecure = [Security.SecureString]::new()
+  foreach ($character in "offline-registration-password".ToCharArray()) {
+    $registrationSecure.AppendChar($character)
+  }
+  $registrationSecure.MakeReadOnly()
+  $arguments["DisposableRegistrationCredential"] = `
+    [Management.Automation.PSCredential]::new(
+      "disposable@example.com", $registrationSecure
+    )
+  $arguments["AllowDisposableRegistrationProbe"] = $true
 }
 & $TargetScript @arguments
 exit $LASTEXITCODE
@@ -238,7 +282,9 @@ def windows_powershell_51():
     return executable
 
 
-def _run_offline_smoke(tmp_path, powershell, mode, *, mutating=False):
+def _run_offline_smoke(
+        tmp_path, powershell, mode, *, mutating=False,
+        disposable_registration=False):
     harness = tmp_path / "offline-auth-v3-harness.ps1"
     calls_path = tmp_path / "calls.jsonl"
     harness.write_text(POWERSHELL_OFFLINE_HARNESS, encoding="utf-8", newline="\n")
@@ -257,6 +303,8 @@ def _run_offline_smoke(tmp_path, powershell, mode, *, mutating=False):
     ]
     if mutating:
         command.append("-Mutating")
+    if disposable_registration:
+        command.append("-DisposableRegistration")
     result = subprocess.run(
         command,
         cwd=ROOT,
@@ -327,7 +375,6 @@ def test_redirect_is_blocked_without_following_or_false_success(
         ("identity_auth_v3_string", True, "identity-session-a"),
         ("password_configured_integer", True, "identity-session-a"),
         ("password_configured_string", True, "identity-session-a"),
-        ("logout_ok_integer", True, "logout-current-session"),
     ],
 )
 def test_required_booleans_reject_integer_and_string_coercions(
@@ -339,6 +386,100 @@ def test_required_booleans_reject_integer_and_string_coercions(
 
     assert result.returncode == 1
     assert _output_lines(result)[-1] == f"FAIL [{phase}]"
+
+
+def test_disposable_registration_probe_executes_offline_and_continues(
+        tmp_path, windows_powershell_51):
+    """Removing the registration call must erase it from the executable trace."""
+    result, calls = _run_offline_smoke(
+        tmp_path,
+        windows_powershell_51,
+        "success",
+        mutating=True,
+        disposable_registration=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert [(call["method"], call["path"], call["session"]) for call in calls[:3]] == [
+        ("GET", "/api/health", "R"),
+        ("GET", "/api/me", "R"),
+        ("POST", "/api/auth/register", "none"),
+    ]
+    assert calls[2]["maximum_redirection"] == 0
+    assert "OK [registration-response-shape]" in _output_lines(result)
+
+
+@pytest.mark.parametrize(
+    "mode",
+    ["registration_ok_integer", "registration_ok_string"],
+)
+def test_registration_rejects_coercible_ok_without_exposing_response(
+        tmp_path, windows_powershell_51, mode):
+    """Weakening exact ok validation must let the malformed registration pass."""
+    result, calls = _run_offline_smoke(
+        tmp_path,
+        windows_powershell_51,
+        mode,
+        mutating=True,
+        disposable_registration=True,
+    )
+
+    combined = result.stdout + result.stderr
+    assert result.returncode == 1
+    assert _output_lines(result)[-1] == "FAIL [registration-response-shape]"
+    assert "SECRET_RESPONSE_MARKER" not in combined
+    assert calls[-1]["path"] == "/api/auth/register"
+
+
+@pytest.mark.parametrize(
+    "mode",
+    ["registration_message_missing", "registration_message_integer"],
+)
+def test_registration_rejects_malformed_message_shape(
+        tmp_path, windows_powershell_51, mode):
+    """Removing message-shape validation must accept an incomplete response."""
+    result, calls = _run_offline_smoke(
+        tmp_path,
+        windows_powershell_51,
+        mode,
+        mutating=True,
+        disposable_registration=True,
+    )
+
+    assert result.returncode == 1
+    assert _output_lines(result)[-1] == "FAIL [registration-response-shape]"
+    assert calls[-1]["path"] == "/api/auth/register"
+
+
+@pytest.mark.parametrize(
+    ("mode", "route", "phase"),
+    [
+        ("logout_current_ok_integer", "/api/auth/logout", "logout-current-session"),
+        ("logout_current_ok_string", "/api/auth/logout", "logout-current-session"),
+        (
+            "logout_others_ok_integer",
+            "/api/auth/sessions/logout-others",
+            "logout-others",
+        ),
+        (
+            "logout_others_ok_string",
+            "/api/auth/sessions/logout-others",
+            "logout-others",
+        ),
+    ],
+)
+def test_logout_routes_reject_coercible_ok_at_their_own_phase(
+        tmp_path, windows_powershell_51, mode, route, phase):
+    """Weakening logout ok validation must false-pass this route-specific case."""
+    result, calls = _run_offline_smoke(
+        tmp_path, windows_powershell_51, mode, mutating=True
+    )
+
+    combined = result.stdout + result.stderr
+    assert result.returncode == 1
+    assert _output_lines(result)[-1] == f"FAIL [{phase}]"
+    assert "SECRET_RESPONSE_MARKER" not in combined
+    assert route in [call["path"] for call in calls]
 
 
 def test_safe_default_calls_read_only_routes_only(tmp_path, windows_powershell_51):
