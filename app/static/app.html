@@ -212,6 +212,10 @@ const $ = s => document.querySelector(s);
 const M = $('#main');
 let ME = null, PLAN = null, TAB = 'plan';
 let AUTH_V3_ENABLED = false;
+
+function authV3Enabled(me) {
+  return !!me && me.auth_v3 === true;
+}
 let SECURITY_LOAD_GENERATION = 0;
 let APP_READY = false;
 let DONE = {};
@@ -1691,7 +1695,7 @@ function dismissPasswordSetup(me, storage) {
 }
 
 function passwordSetupCard(me, storage) {
-  if (!me || !me.auth_v3) return '';
+  if (!authV3Enabled(me)) return '';
   const key = passwordSetupDismissalKey(me);
   if (me.password_configured !== false) {
     if (key && storage) {
@@ -1908,7 +1912,7 @@ function vNast() {
       <div class="ing" style="border:0"><span>Obchody</span><span class="r">${ME.obchody.join(' · ')}</span></div>
     </div>
     ${passwordSetupCard(ME, localStorage)}
-    ${ME.auth_v3 ? `<div id="account-security">
+    ${authV3Enabled(ME) ? `<div id="account-security">
       <div id="account-security-content">${securityPanelHtml(
         false, [], [], {loading: true})}</div>
       ${securityStatusHtml()}</div>` : ''}
@@ -1922,7 +1926,7 @@ function vNast() {
     dismissPasswordSetup(ME, localStorage);
     $('#password-setup-card').remove();
   };
-  if (ME.auth_v3) loadAccountSecurity();
+  if (authV3Enabled(ME)) loadAccountSecurity();
   $('#zmen').onclick = viewOnboarding;
   $('#odhl').onclick = () => runGuardedAction($('#odhl'), $('#nast-err'), async () => {
     await api('/api/auth/logout',{method:'POST'});
@@ -1955,7 +1959,7 @@ async function start() {
     if (e.offline) return viewOffline(e.message);
     return viewLogin();
   }
-  AUTH_V3_ENABLED = ME.auth_v3 === true;
+  AUTH_V3_ENABLED = authV3Enabled(ME);
   if (!ME.prihlaseny) return viewLogin();
   setNavigationReady(true);
   $('#hdr').textContent = ME.email.split('@')[0];

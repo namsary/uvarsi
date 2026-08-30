@@ -907,15 +907,36 @@ def test_feature_flag_keeps_legacy_magic_ui_and_enabled_ui_uses_guarded_actions(
 
 
 @needs_node
+def test_auth_v3_ui_capability_requires_literal_boolean_true(tmp_path):
+    html = app_html()
+    source = function_source(html, "authV3Enabled")
+    result = run_node(
+        tmp_path,
+        "auth-v3-boolean-capability.js",
+        source
+        + r"""
+const values=[true,false,'1','true',1,{},null,undefined];
+process.stdout.write(JSON.stringify(values.map(value=>authV3Enabled({auth_v3:value}))));
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout) == [True, False, False, False, False, False, False, False]
+
+
+@needs_node
 def test_password_setup_card_is_non_blocking_and_only_shown_when_needed(tmp_path):
     html = app_html()
+    capability_source = function_source(html, "authV3Enabled")
     key_source = function_source(html, "passwordSetupDismissalKey")
     source = function_source(html, "passwordSetupCard")
     dismiss_source = function_source(html, "dismissPasswordSetup")
     result = run_node(
         tmp_path,
         "password-setup-card.js",
-        key_source
+        capability_source
+        + "\n"
+        + key_source
         + "\n"
         + source
         + "\n"

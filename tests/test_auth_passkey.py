@@ -954,8 +954,16 @@ def test_passkey_routes_are_hidden_when_auth_v3_feature_is_disabled(
             "email": "flag@example.com",
             "password": "password remains available",
         },
-    ).status_code == 200
+    ).status_code == 404
     monkeypatch.setenv("UVARSI_AUTH_V3", "1")
+    assert public.post(
+        "/api/auth/login",
+        headers=ORIGIN,
+        json={
+            "email": "flag@example.com",
+            "password": "password remains available",
+        },
+    ).status_code == 200
     assert authenticated.get("/api/auth/passkeys").status_code == 200
 
 

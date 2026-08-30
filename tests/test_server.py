@@ -136,6 +136,63 @@ def load_server_with_landing_path(monkeypatch, tmp_path, rows, landing_path):
     return importlib.import_module("server")
 
 
+def test_auth_v3_public_capability_is_boolean_and_primary_routes_are_server_gated(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("UVARSI_AUTH_V3", "0")
+    server = load_server(monkeypatch, tmp_path, [])
+    client = TestClient(server.app, base_url="https://uvar.si")
+
+    disabled_me = client.get("/api/me")
+    disabled_routes = [
+        client.post(
+            path,
+            headers={"Origin": "https://uvar.si"},
+            content="{",
+            follow_redirects=path != "/api/auth/login/",
+        )
+        for path in (
+            "/api/auth/register",
+            "/api/auth/confirm",
+            "/api/auth/login",
+            "/api/auth/login/",
+            "/api/auth/password/request",
+            "/api/auth/password/reset",
+            "/api/auth/password/change",
+            "/api/auth/sessions/logout-others",
+            "/api/auth/passkey/login/options",
+        )
+    ]
+    disabled_routes.extend(
+        [
+            client.get("/api/auth/sessions"),
+            client.delete("/api/auth/sessions/not-a-session"),
+            client.get("/api/auth/passkeys"),
+        ]
+    )
+
+    assert disabled_me.json() == {"prihlaseny": False}
+    assert [response.status_code for response in disabled_routes] == [404] * len(
+        disabled_routes
+    )
+
+    monkeypatch.setenv("UVARSI_AUTH_V3", "1")
+    enabled_me = client.get("/api/me")
+    enabled_login = client.post(
+        "/api/auth/login", headers={"Origin": "https://uvar.si"}, content="{"
+    )
+    enabled_passkey = client.post(
+        "/api/auth/passkey/login/options",
+        headers={"Origin": "https://uvar.si"},
+        json={"email": "not-an-email"},
+    )
+
+    assert enabled_me.json() == {"prihlaseny": False, "auth_v3": True}
+    assert all(type(value) is bool for value in enabled_me.json().values())
+    assert enabled_login.status_code == 400
+    assert enabled_passkey.status_code == 400
+
+
 def landing_payload(week=None):
     today = date.today()
     return {

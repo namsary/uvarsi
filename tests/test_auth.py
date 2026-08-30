@@ -189,6 +189,7 @@ def load_auth_server(monkeypatch, tmp_path):
 
     monkeypatch.setenv("UVARSI_DB", str(database))
     monkeypatch.setenv("UVARSI_URL", "https://uvar.si")
+    monkeypatch.setenv("UVARSI_AUTH_V3", "0")
     monkeypatch.syspath_prepend(str(ROOT / "app"))
     sys.modules.pop("server", None)
     sys.modules.pop("auth_data", None)
@@ -2003,7 +2004,10 @@ def test_logout_deletes_only_the_current_hashed_session_and_cookie(monkeypatch, 
     assert response.status_code == 200
     assert response.json() == {"ok": True}
     assert "uvarsi_session=\"\"" in response.headers["set-cookie"]
-    assert first_client.get("/api/me").json() == {"prihlaseny": False}
+    assert first_client.get("/api/me").json() == {
+        "prihlaseny": False,
+        "auth_v3": True,
+    }
     assert second_client.get("/api/me").json()["prihlaseny"] is True
     with sqlite3.connect(database) as con:
         assert con.execute("SELECT COUNT(*) FROM sessions_v2").fetchone()[0] == 1
@@ -2703,10 +2707,12 @@ AUTH_V3_ORIGIN = AUTH_ORIGIN
 
 
 def auth_v3_client(server, **kwargs):
+    os.environ["UVARSI_AUTH_V3"] = "1"
     return FastAPITestClient(server.app, base_url="https://uvar.si", **kwargs)
 
 
 def seed_password_account(server, auth_data, email, password="correct horse battery"):
+    os.environ["UVARSI_AUTH_V3"] = "1"
     with closing(server.db()) as con:
         user_id = con.execute(
             "INSERT INTO pouzivatelia (email) VALUES (?)", (email,)
@@ -3073,7 +3079,10 @@ def test_auth_v3_route_authenticated_password_and_session_management(
 
     credential_attempt = auth_v3_client(server)
     credential_attempt.cookies.set(server.COOKIE, second_hash)
-    assert credential_attempt.get("/api/me").json() == {"prihlaseny": False}
+    assert credential_attempt.get("/api/me").json() == {
+        "prihlaseny": False,
+        "auth_v3": True,
+    }
     missing_origin = client.delete(f"/api/auth/sessions/{second_hash}")
     foreign_origin = client.delete(
         f"/api/auth/sessions/{second_hash}",
@@ -3084,7 +3093,10 @@ def test_auth_v3_route_authenticated_password_and_session_management(
         f"/api/auth/sessions/{second_hash}", headers=AUTH_V3_ORIGIN
     )
     assert deleted.status_code == 200
-    assert second.get("/api/me").json() == {"prihlaseny": False}
+    assert second.get("/api/me").json() == {
+        "prihlaseny": False,
+        "auth_v3": True,
+    }
 
     third = auth_v3_client(server)
     assert third.post(
@@ -3097,7 +3109,10 @@ def test_auth_v3_route_authenticated_password_and_session_management(
     )
     assert logout_others.status_code == 200
     assert client.get("/api/me").json()["id"] == user_id
-    assert third.get("/api/me").json() == {"prihlaseny": False}
+    assert third.get("/api/me").json() == {
+        "prihlaseny": False,
+        "auth_v3": True,
+    }
 
     wrong_change = client.post(
         "/api/auth/password/change",
@@ -4214,7 +4229,10 @@ def test_auth_task5_fix3_legacy_verify_grants_only_recoverable_password_setup(
     assert client.cookies.get(server.COOKIE) is None
     setup_cookie = client.cookies.get(server.SETUP_COOKIE)
     assert setup_cookie
-    assert client.get("/api/me").json() == {"prihlaseny": False}
+    assert client.get("/api/me").json() == {
+        "prihlaseny": False,
+        "auth_v3": True,
+    }
     assert client.get("/api/auth/sessions").status_code == 401
     password_page = client.get("/heslo")
     assert "token?'/api/auth/password/reset':'/api/auth/password/set'" in password_page.text
@@ -4473,8 +4491,8 @@ def test_auth_task5_fix4_shutdown_stops_after_the_single_inflight_delivery(
 def test_auth_v3_me_capabilities_preserve_passwordless_session_during_ui_rollout(
     monkeypatch, tmp_path
 ):
-    monkeypatch.setenv("UVARSI_AUTH_V3", "1")
     server, _database = load_auth_server(monkeypatch, tmp_path)
+    monkeypatch.setenv("UVARSI_AUTH_V3", "1")
     auth_data = sys.modules["auth_data"]
     now = 80_000.0
     monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now)
@@ -4518,3 +4536,91 @@ def test_auth_v3_me_capabilities_preserve_passwordless_session_during_ui_rollout
             "SELECT revoked_at FROM sessions_v2 WHERE token_hash=?",
             (hashlib.sha256(session.encode()).hexdigest(),),
         ).fetchone()[0] is None
+
+
+def test_auth_v3_flag_stages_primary_auth_without_breaking_session_or_setup_bridge(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("UVARSI_AUTH_V3", "0")
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    now = 90_000.0
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now)
+    raw_magic = "task-nine-legacy-setup"
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('stage@example.com')"
+        ).lastrowid
+        session = auth_data.create_session(
+            con, user_id=user_id, now=now, device_name="Existing device"
+        )
+        con.execute(
+            """INSERT INTO magic_tokens_v2
+               (token_hash, email, expires_at, created_at) VALUES (?, ?, ?, ?)""",
+            (
+                hashlib.sha256(raw_magic.encode()).hexdigest(),
+                "stage@example.com",
+                now + 3_600,
+                now,
+            ),
+        )
+        con.commit()
+
+    existing = FastAPITestClient(server.app, base_url="https://uvar.si")
+    existing.cookies.set(server.COOKIE, session)
+    me = existing.get("/api/me")
+    hidden_login = existing.post(
+        "/api/auth/login", headers=AUTH_V3_ORIGIN, content="{"
+    )
+    hidden_sessions = existing.get("/api/auth/sessions")
+    hidden_passkey = existing.post(
+        "/api/auth/passkey/login/options",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "stage@example.com"},
+    )
+
+    assert me.status_code == 200
+    assert me.json()["id"] == user_id
+    assert "auth_v3" not in me.json()
+    assert "password_configured" not in me.json()
+    assert hidden_login.status_code == 404
+    assert hidden_sessions.status_code == 404
+    assert hidden_passkey.status_code == 404
+
+    setup = FastAPITestClient(server.app, base_url="https://uvar.si")
+    verified = setup.post(
+        "/api/auth/verify",
+        headers=AUTH_V3_ORIGIN,
+        json={"token": raw_magic},
+    )
+    configured = setup.post(
+        "/api/auth/password/set",
+        headers=AUTH_V3_ORIGIN,
+        json={"password": "staged migration password"},
+    )
+
+    assert verified.status_code == 200
+    assert verified.json()["redirect"] == "/heslo"
+    assert configured.status_code == 200
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM auth_legacy_setup_claims WHERE user_id=?",
+            (user_id,),
+        ).fetchone() == (1,)
+
+    monkeypatch.setenv("UVARSI_AUTH_V3", "1")
+    password_login = FastAPITestClient(
+        server.app, base_url="https://uvar.si"
+    ).post(
+        "/api/auth/login",
+        headers=AUTH_V3_ORIGIN,
+        json={
+            "email": "stage@example.com",
+            "password": "staged migration password",
+        },
+    )
+    assert password_login.status_code == 200
+    enabled = FastAPITestClient(server.app, base_url="https://uvar.si")
+    enabled.cookies.set(server.COOKIE, password_login.cookies.get(server.COOKIE))
+    assert enabled.get("/api/auth/sessions").status_code == 200
+    assert enabled.get("/api/auth/passkeys").status_code == 200

@@ -480,6 +480,37 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Uvar.si", lifespan=lifespan)
 
+AUTH_V3_PRIMARY_PATHS = frozenset(
+    {
+        "/api/auth/register",
+        "/api/auth/confirm",
+        "/api/auth/login",
+        "/api/auth/password/request",
+        "/api/auth/password/reset",
+        "/api/auth/password/change",
+    }
+)
+AUTH_V3_PRIMARY_PREFIXES = ("/api/auth/sessions", "/api/auth/passkey")
+
+
+def auth_v3_enabled() -> bool:
+    return env("UVARSI_AUTH_V3", "0") == "1"
+
+
+def auth_v3_primary_path(path: str) -> bool:
+    normalized = path.rstrip("/") or "/"
+    return normalized in AUTH_V3_PRIMARY_PATHS or any(
+        normalized == prefix or normalized.startswith(prefix + "/")
+        for prefix in AUTH_V3_PRIMARY_PREFIXES
+    )
+
+
+@app.middleware("http")
+async def stage_auth_v3(request: Request, call_next):
+    if not auth_v3_enabled() and auth_v3_primary_path(request.url.path):
+        return JSONResponse({"detail": "Nenájdené"}, status_code=404)
+    return await call_next(request)
+
 
 def set_session_cookie(response: Response, raw_session: str) -> None:
     response.set_cookie(
@@ -812,7 +843,7 @@ def auth_device_name(req: Request, data: dict, fallback: str) -> str:
 
 
 def require_passkey_feature() -> None:
-    if env("UVARSI_AUTH_V3", "0") != "1":
+    if not auth_v3_enabled():
         raise HTTPException(404, "Nenájdené")
 
 
@@ -2050,7 +2081,7 @@ def auth_logout(req: Request):
 # ---------------------------------------------------------------- profil
 @app.get("/api/me")
 def me(req: Request):
-    auth_v3 = env("UVARSI_AUTH_V3", "0") == "1"
+    auth_v3 = auth_v3_enabled()
     u = user_from_request(req)
     if not u:
         public = {"prihlaseny": False}
