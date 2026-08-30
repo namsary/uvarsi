@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import importlib
 import json
+import os
 import re
 import shutil
 import sqlite3
@@ -28,7 +29,7 @@ PROVIDER_FAILURE_MESSAGE = (
     "Prihlasovací e-mail sa teraz nepodarilo odovzdať poskytovateľovi. "
     "Skús to znova o chvíľu."
 )
-NODE = shutil.which("node")
+NODE = os.environ.get("UVARSI_NODE") or shutil.which("node")
 needs_node = pytest.mark.skipif(NODE is None, reason="node runtime is not available")
 AUTH_ORIGIN = {"Origin": "https://uvar.si"}
 
@@ -99,7 +100,80 @@ async function page(spec){
 """,
         encoding="utf-8",
     )
-    return subprocess.run([NODE, str(script)], capture_output=True, text=True)
+    return subprocess.run(
+        [NODE, str(script)], capture_output=True, text=True, encoding="utf-8"
+    )
+
+
+def run_account_action_page(
+    tmp_path,
+    html,
+    *,
+    page_name,
+    fragment,
+    button_id,
+    values=None,
+    status=200,
+    body=None,
+    network_error=False,
+):
+    script = tmp_path / f"{page_name}-account-action.js"
+    script.write_text(
+        "const pageScript=" + json.dumps(confirmation_script(html)) + ";\n"
+        + "const spec="
+        + json.dumps(
+            {
+                "fragment": fragment,
+                "button": button_id,
+                "values": values or {},
+                "status": status,
+                "body": body or {},
+                "networkError": network_error,
+            }
+        )
+        + ";\n"
+        + r"""
+const vm=require('vm');
+const nodes=new Map();
+const node=id=>nodes.get(id)||nodes.set(id,{
+  disabled:false,textContent:'',value:'',type:'password',style:{},
+  classList:{add(){},remove(){}},setAttribute(){},onclick:null
+}).get(id);
+for(const [id,value] of Object.entries(spec.values))node(id).value=value;
+const calls=[];const storage=[];const historyValues=[];const replacements=[];
+const storageApi={
+  getItem(key){storage.push(['get',key]);return null},
+  setItem(key,value){storage.push(['set',key,String(value)])},
+  removeItem(key){storage.push(['remove',key])}
+};
+const context={
+  URLSearchParams,
+  location:{hash:spec.fragment,pathname:'/'+String(spec.button),replace(value){replacements.push(value)}},
+  history:{replaceState(_state,_title,value){historyValues.push(value);context.location.hash=''}},
+  localStorage:storageApi,sessionStorage:storageApi,
+  document:{getElementById:node},
+  fetch:async(url,options)=>{
+    calls.push({url,body:JSON.parse(options.body)});
+    if(spec.networkError)throw new Error('offline');
+    return {ok:spec.status>=200&&spec.status<300,status:spec.status,
+      json:async()=>spec.body};
+  }
+};
+vm.createContext(context);vm.runInContext(pageScript,context);
+(async()=>{
+  const button=node(spec.button);
+  const first=button.onclick();
+  const second=button.onclick();
+  await Promise.allSettled([first,second]);
+  process.stdout.write(JSON.stringify({calls,storage,historyValues,replacements,
+    status:node('status').textContent,disabled:button.disabled,text:button.textContent}));
+})().catch(error=>{console.error(error);process.exit(1)});
+""",
+        encoding="utf-8",
+    )
+    return subprocess.run(
+        [NODE, str(script)], capture_output=True, text=True, encoding="utf-8"
+    )
 
 
 def load_auth_server(monkeypatch, tmp_path):
@@ -1044,6 +1118,126 @@ def test_fresh_fragment_still_works_when_session_storage_is_unavailable(monkeypa
         {"url": "/api/auth/verify", "body": {"token": "memory-only-secret"}}
     ]
     assert state["replaced"] == "/app"
+
+
+def test_account_confirmation_and_password_pages_have_safe_accessible_controls(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    client = TestClient(server.app)
+    confirmation = client.get("/potvrdenie")
+    password = client.get("/heslo")
+
+    for response in (confirmation, password):
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "private, no-store"
+        assert response.headers["x-robots-tag"] == "noindex, nofollow, noarchive"
+        assert "location.hash" in response.text
+        assert "history.replaceState" in response.text
+        assert "location.search" not in response.text
+        assert "localStorage" not in response.text
+        assert "Pracujem…" in response.text
+        assert 'role="status"' in response.text
+    assert "Potvrdiť účet" in confirmation.text
+    assert "Účet vznikne až" in confirmation.text
+    assert 'autocomplete="new-password"' in password.text
+    assert "Zobraziť heslo" in password.text
+    assert "10 až 128 znakov" in password.text
+    assert "/api/auth/password/set" in password.text
+    assert "/api/auth/password/reset" in password.text
+
+
+@needs_node
+def test_account_action_pages_scrub_fragment_and_block_double_submission(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    client = TestClient(server.app)
+    confirmation = run_account_action_page(
+        tmp_path,
+        client.get("/potvrdenie").text,
+        page_name="confirmation",
+        fragment="#token=confirm-secret",
+        button_id="confirm",
+        status=200,
+        body={"redirect": "/app"},
+    )
+    reset = run_account_action_page(
+        tmp_path,
+        client.get("/heslo").text,
+        page_name="reset",
+        fragment="#token=reset-secret&purpose=reset",
+        button_id="submit",
+        values={"password": "nové bezpečné heslo"},
+        status=200,
+        body={"redirect": "/app"},
+    )
+    setup = run_account_action_page(
+        tmp_path,
+        client.get("/heslo").text,
+        page_name="setup",
+        fragment="",
+        button_id="submit",
+        values={"password": "migračné bezpečné heslo"},
+        status=200,
+        body={"ok": True},
+    )
+
+    for result in (confirmation, reset, setup):
+        assert result.returncode == 0, result.stdout + result.stderr
+    confirmed = json.loads(confirmation.stdout)
+    reset_state = json.loads(reset.stdout)
+    setup_state = json.loads(setup.stdout)
+    assert confirmed["calls"] == [
+        {"url": "/api/auth/confirm", "body": {"token": "confirm-secret"}}
+    ]
+    assert reset_state["calls"] == [
+        {
+            "url": "/api/auth/password/reset",
+            "body": {
+                "token": "reset-secret",
+                "purpose": "reset",
+                "password": "nové bezpečné heslo",
+            },
+        }
+    ]
+    assert setup_state["calls"] == [
+        {
+            "url": "/api/auth/password/set",
+            "body": {"password": "migračné bezpečné heslo"},
+        }
+    ]
+    for state, secret in (
+        (confirmed, "confirm-secret"),
+        (reset_state, "reset-secret"),
+        (setup_state, "migračné bezpečné heslo"),
+    ):
+        assert state["storage"] == []
+        assert secret not in json.dumps(state["historyValues"])
+        assert secret not in json.dumps(state["replacements"])
+
+
+@needs_node
+def test_password_page_reports_network_failure_in_slovak_and_allows_retry(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    result = run_account_action_page(
+        tmp_path,
+        TestClient(server.app).get("/heslo").text,
+        page_name="reset-network-error",
+        fragment="#token=retry-secret&purpose=reset",
+        button_id="submit",
+        values={"password": "nové bezpečné heslo"},
+        network_error=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    state = json.loads(result.stdout)
+    assert len(state["calls"]) == 1
+    assert "pripoj" in state["status"].lower()
+    assert state["disabled"] is False
+    assert state["text"] == "Uložiť heslo"
 
 
 def test_legacy_query_token_get_shows_error_without_consuming(monkeypatch, tmp_path):
@@ -4368,3 +4562,53 @@ def test_auth_task5_fix4_shutdown_stops_after_the_single_inflight_delivery(
         server.process_password_reset_outbox_batch("recovery-worker", limit=1) == 1
     )
     assert state_counts() == {"queued": 6, "sent": 2}
+
+
+def test_auth_v3_me_capabilities_preserve_passwordless_session_during_ui_rollout(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("UVARSI_AUTH_V3", "1")
+    server, _database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    now = 80_000.0
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now)
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('rollout@example.com')"
+        ).lastrowid
+        session = auth_data.create_session(
+            con, user_id=user_id, now=now, device_name="Existing session"
+        )
+        con.commit()
+    client = auth_v3_client(server)
+    client.cookies.set(server.COOKIE, session)
+
+    passwordless = client.get("/api/me")
+    public = auth_v3_client(server).get("/api/me")
+
+    assert passwordless.status_code == 200
+    assert passwordless.json()["prihlaseny"] is True
+    assert passwordless.json()["auth_v3"] is True
+    assert passwordless.json()["password_configured"] is False
+    assert public.json() == {"prihlaseny": False, "auth_v3": True}
+
+    with closing(server.db()) as con:
+        auth_data.set_password(
+            con,
+            user_id=user_id,
+            password_hash=auth_data.hash_password("rollout password"),
+            now=now,
+        )
+    configured = client.get("/api/me")
+    assert configured.json()["password_configured"] is True
+    assert configured.json()["id"] == user_id
+
+    monkeypatch.setenv("UVARSI_AUTH_V3", "0")
+    disabled = client.get("/api/me")
+    assert disabled.json()["prihlaseny"] is True
+    assert disabled.json().get("auth_v3", False) is False
+    with closing(server.db()) as con:
+        assert con.execute(
+            "SELECT revoked_at FROM sessions_v2 WHERE token_hash=?",
+            (hashlib.sha256(session.encode()).hexdigest(),),
+        ).fetchone()[0] is None

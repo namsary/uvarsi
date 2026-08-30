@@ -126,6 +126,19 @@ nav button.on{color:var(--accent)}nav button.on::before{content:"";position:abso
 .nav-icon{display:block;width:22px;height:22px;margin:0 auto 3px;stroke:currentColor;fill:none;stroke-width:1.8}
 .icon-sprite{position:absolute;width:0;height:0;overflow:hidden}
 .state-icon{width:34px;height:34px;stroke:var(--accent);fill:none;stroke-width:1.7;margin-bottom:4px}
+.auth-shell{max-width:460px;margin:30px auto 0}.auth-intro{margin-bottom:18px}
+.auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;background:var(--highlight);
+  border:1px solid #D5B118;border-radius:12px;margin-bottom:16px}
+.auth-tab{min-height:44px;border:0;border-radius:8px;background:transparent;color:var(--ink);
+  font:800 .88rem "Manrope",sans-serif;cursor:pointer}
+.auth-tab.on{background:var(--surface);box-shadow:0 2px 7px rgba(24,50,41,.12)}
+.auth-field{margin-bottom:14px}.password-field{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:stretch}
+.password-toggle{min-height:48px;padding:0 13px;border:1px solid var(--border);border-radius:var(--radius-control);
+  background:var(--surface-soft);color:var(--ink);font:800 .78rem "Manrope",sans-serif;cursor:pointer}
+.auth-link{border:0;background:transparent;color:var(--accent);font:800 .82rem "Manrope",sans-serif;
+  text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:5px 0}
+.auth-status{min-height:1.5em;margin-top:12px}.setup-card{border-left:4px solid var(--highlight)}
+.setup-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}.setup-actions .btn{width:auto;flex:1}
 .spin{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);
   border-radius:50%;animation:sp .8s linear infinite;margin:34px auto}
 @keyframes sp{to{transform:rotate(360deg)}}
@@ -178,6 +191,7 @@ nav button.on{color:var(--accent)}nav button.on::before{content:"";position:abso
 const $ = s => document.querySelector(s);
 const M = $('#main');
 let ME = null, PLAN = null, TAB = 'plan';
+let AUTH_V3_ENABLED = false;
 let APP_READY = false;
 let DONE = {};
 let PANTRY_OVERRIDE = {};
@@ -594,7 +608,7 @@ function armAuthResend(button, schedule) {
   }, 60000);
 }
 
-function viewLogin(sent, previousEmail) {
+function viewLegacyLogin(sent, previousEmail) {
   clearAuthenticatedState();
   forgetProfile();
   $('#nav').classList.add('hidden');
@@ -635,6 +649,123 @@ function viewLogin(sent, previousEmail) {
       $('#go').disabled = false;
     }
   };
+}
+
+function authScreenHtml(mode) {
+  const active = mode === 'register' ? 'register' : mode === 'forgot' ? 'forgot' : 'login';
+  const isRegister = active === 'register';
+  const isForgot = active === 'forgot';
+  const title = isRegister ? 'Vytvor si účet.' : isForgot ? 'Obnov si heslo.' : 'Vitaj späť.';
+  const note = isRegister
+    ? 'Po odoslaní ti príde e-mail s výslovným potvrdením účtu.'
+    : isForgot
+      ? 'Ak účet existuje, pošleme na e-mail bezpečný odkaz.'
+      : 'Prihlás sa e-mailom a heslom.';
+  const action = isRegister ? 'Vytvoriť účet' : isForgot ? 'Poslať odkaz na obnovu' : 'Prihlásiť sa';
+  return `<div class="auth-shell">
+    <div class="auth-intro"><span class="eyebrow">Tvoj účet</span>
+      <h1 class="display" style="font-size:2rem;margin:8px 0 10px">${title}</h1>
+      <p class="muted">${note}</p></div>
+    <div class="auth-tabs" role="tablist" aria-label="Účet">
+      <button class="auth-tab${active === 'login' ? ' on' : ''}" id="auth-login-tab" type="button" role="tab" aria-selected="${active === 'login'}">Prihlásiť sa</button>
+      <button class="auth-tab${active === 'register' ? ' on' : ''}" id="auth-register-tab" type="button" role="tab" aria-selected="${active === 'register'}">Vytvoriť účet</button>
+    </div>
+    <form class="card" id="auth-form" novalidate>
+      <div class="auth-field"><label for="auth-email">E-mail</label>
+        <input id="auth-email" name="email" type="email" inputmode="email" autocomplete="email" required placeholder="tvoj@email.sk"></div>
+      ${isForgot ? '' : `<div class="auth-field"><label for="auth-password">Heslo</label>
+        <div class="password-field"><input id="auth-password" name="password" type="password" autocomplete="${isRegister ? 'new-password' : 'current-password'}" minlength="10" maxlength="128" required>
+          <button class="password-toggle" id="auth-password-toggle" type="button" aria-pressed="false">Zobraziť heslo</button></div>
+        ${isRegister ? '<p class="muted" style="margin-top:6px">Použi 10 až 128 znakov.</p>' : ''}</div>`}
+      ${active === 'login' ? '<button class="auth-link" id="auth-forgot" type="button">Zabudol som heslo</button><div style="height:8px"></div>' : ''}
+      ${isForgot ? '<button class="auth-link" id="auth-back" type="button">Späť na prihlásenie</button><div style="height:8px"></div>' : ''}
+      <button class="btn" id="auth-submit" type="submit">${action}</button>
+      <p class="muted auth-status" id="auth-status" role="status" aria-live="polite"></p>
+    </form>
+  </div>`;
+}
+
+function authRequest(mode, email, password) {
+  const endpoints = {
+    login: '/api/auth/login',
+    register: '/api/auth/register',
+    forgot: '/api/auth/password/request'
+  };
+  const payload = mode === 'forgot' ? {email: email} : {email: email, password: password};
+  return {url: endpoints[mode], options: {method: 'POST', body: JSON.stringify(payload)}};
+}
+
+async function accountApi(request) {
+  const options = Object.assign(
+    {headers: {'Content-Type': 'application/json'}}, request.options || {});
+  let response;
+  try {
+    response = await fetch(request.url, options);
+  } catch (error) {
+    throw new Error('Nepodarilo sa pripojiť. Skontroluj internet a skús to znova.');
+  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = payload && typeof payload.detail === 'string' ? payload.detail.trim() : '';
+    throw new Error(detail || (response.status >= 500
+      ? 'Server má krátkodobý problém. Skús to o chvíľu znova.'
+      : 'Zadané údaje nesedia. Skontroluj ich a skús to znova.'));
+  }
+  return payload;
+}
+
+function togglePasswordVisibility(input, button) {
+  const visible = input.type === 'password';
+  input.type = visible ? 'text' : 'password';
+  button.textContent = visible ? 'Skryť heslo' : 'Zobraziť heslo';
+  button.setAttribute('aria-pressed', visible ? 'true' : 'false');
+}
+
+function viewAccountAuth(mode, previousEmail) {
+  const active = mode === 'register' || mode === 'forgot' ? mode : 'login';
+  M.innerHTML = authScreenHtml(active);
+  if (previousEmail) $('#auth-email').value = previousEmail;
+  $('#auth-login-tab').onclick = () => viewAccountAuth('login', $('#auth-email').value.trim());
+  $('#auth-register-tab').onclick = () => viewAccountAuth('register', $('#auth-email').value.trim());
+  const forgot = $('#auth-forgot');
+  if (forgot) forgot.onclick = () => viewAccountAuth('forgot', $('#auth-email').value.trim());
+  const back = $('#auth-back');
+  if (back) back.onclick = () => viewAccountAuth('login', $('#auth-email').value.trim());
+  const password = $('#auth-password');
+  const toggle = $('#auth-password-toggle');
+  if (password && toggle) toggle.onclick = () => togglePasswordVisibility(password, toggle);
+  $('#auth-form').onsubmit = event => {
+    event.preventDefault();
+    const button = $('#auth-submit');
+    const status = $('#auth-status');
+    const email = $('#auth-email').value.trim();
+    const secret = password ? password.value : '';
+    runGuardedAction(button, status, async () => {
+      if (!email) throw new Error('Zadaj e-mailovú adresu.');
+      if (active !== 'forgot' && (secret.length < 10 || secret.length > 128))
+        throw new Error('Heslo musí mať 10 až 128 znakov.');
+      const request = authRequest(active, email, secret);
+      const result = await accountApi(request);
+      if (active === 'login') {
+        location.replace(result.redirect || '/app');
+        return;
+      }
+      status.style.color = 'var(--success)';
+      status.textContent = active === 'register'
+        ? 'Žiadosť je prijatá. V e-maile výslovne potvrď vytvorenie účtu.'
+        : 'Ak účet existuje, odkaz na obnovu hesla je na ceste.';
+      button.textContent = active === 'register' ? 'Skontroluj e-mail' : 'E-mail je na ceste';
+    });
+  };
+}
+
+function viewLogin(sent, previousEmail) {
+  clearAuthenticatedState();
+  forgetProfile();
+  $('#nav').classList.add('hidden');
+  if (AUTH_V3_ENABLED) return viewAccountAuth(
+    sent === 'register' || sent === 'forgot' ? sent : 'login', previousEmail);
+  return viewLegacyLogin(sent, previousEmail);
 }
 
 function householdLabel(profil) {
@@ -1371,6 +1502,17 @@ function vSpajza() {
   });
 }
 
+function passwordSetupCard(me) {
+  if (!me || !me.auth_v3 || me.password_configured !== false) return '';
+  return `<section class="card setup-card" id="password-setup-card">
+    <span class="eyebrow">Zabezpečenie účtu</span>
+    <h2 class="display" style="font-size:1.25rem;margin:7px 0">Nastaviť heslo</h2>
+    <p class="muted">Tvoje prihlásenie ostáva aktívne. Heslo si môžeš doplniť teraz alebo neskôr.</p>
+    <div class="setup-actions"><a class="btn" href="/heslo">Nastaviť heslo</a>
+      <button class="auth-link" id="skip-password-setup" type="button">Pokračovať bez nastavenia</button></div>
+  </section>`;
+}
+
 function vNast() {
   const varenie = ME.frekvencia === 1 ? 'Varím každý deň' :
     'Varím raz za ' + ME.frekvencia + ' dni';
@@ -1381,11 +1523,14 @@ function vNast() {
       <div class="ing"><span>Varenie</span><span class="r">${varenie}</span></div>
       <div class="ing" style="border:0"><span>Obchody</span><span class="r">${ME.obchody.join(' · ')}</span></div>
     </div>
+    ${passwordSetupCard(ME)}
     <p class="muted" style="margin:-4px 0 16px">Porcie sú kuchársky odhad na plánovanie nákupu, nie individuálne výživové odporúčanie.</p>
     <button class="btn btn--ghost" id="zmen">Zmeniť nastavenie</button>
     <div style="height:10px"></div>
     <button class="btn btn--ghost" id="odhl" style="color:var(--red)">Odhlásiť sa</button>
     <p id="nast-err" class="muted" style="color:var(--red);margin-top:10px"></p>`;
+  const skipPasswordSetup = $('#skip-password-setup');
+  if (skipPasswordSetup) skipPasswordSetup.onclick = () => $('#password-setup-card').remove();
   $('#zmen').onclick = viewOnboarding;
   $('#odhl').onclick = () => runGuardedAction($('#odhl'), $('#nast-err'), async () => {
     await api('/api/auth/logout',{method:'POST'});
@@ -1418,6 +1563,7 @@ async function start() {
     if (e.offline) return viewOffline(e.message);
     return viewLogin();
   }
+  AUTH_V3_ENABLED = ME.auth_v3 === true;
   if (!ME.prihlaseny) return viewLogin();
   setNavigationReady(true);
   $('#hdr').textContent = ME.email.split('@')[0];

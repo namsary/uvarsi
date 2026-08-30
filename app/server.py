@@ -1862,38 +1862,90 @@ def auth_passkey_delete(credential_id: str, req: Request):
     return {"ok": True}
 
 
-ACCOUNT_CONFIRMATION_PAGE = """<!doctype html>
-<html lang="sk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>Potvrdenie účtu · Uvar.si</title><meta name="robots" content="noindex,nofollow,noarchive"></head>
-<body><main><h1>Potvrď účet</h1><p id="status">Účet vznikne až po stlačení tlačidla.</p>
-<button id="confirm" type="button">Potvrdiť účet</button></main><script>
+ACCOUNT_PAGE_STYLE = """
+:root{--paper:#F7F5EF;--surface:#fff;--ink:#183229;--muted:#66746E;--red:#C93427;
+  --yellow:#F3C928;--border:#DCD7CA;--success:#237A50}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:Manrope,system-ui,sans-serif;line-height:1.55}
+main{max-width:480px;margin:0 auto;padding:8vh 18px 30px}.brand{font-size:22px;font-weight:900;
+  letter-spacing:.035em;text-transform:uppercase}.brand em{color:var(--red);font-style:normal}
+.card{margin-top:24px;padding:24px;background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;box-shadow:0 8px 24px rgba(24,50,41,.07)}
+.eyebrow{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--red)}
+h1{font-size:30px;line-height:1.08;margin:8px 0 12px}p{color:var(--muted)}
+label{display:block;font-size:13px;font-weight:800;color:var(--muted);margin:18px 0 7px}
+input{width:100%;min-height:48px;padding:13px 14px;border:1px solid var(--border);border-radius:10px;
+  background:var(--surface);font:inherit;color:var(--ink)}
+.password{display:grid;grid-template-columns:1fr auto;gap:8px}.toggle{padding:0 13px;border:1px solid var(--border);
+  border-radius:10px;background:#F0EEE7;color:var(--ink);font-weight:800;cursor:pointer}
+.action{width:100%;min-height:48px;margin-top:18px;padding:13px 18px;border:0;border-radius:10px;
+  background:var(--yellow);color:var(--ink);font:800 15px Manrope,system-ui,sans-serif;cursor:pointer;
+  box-shadow:0 3px 0 #C9A816}.action:disabled{background:#F0EEE7;color:var(--muted);box-shadow:none}
+.hint{font-size:14px;margin:7px 0 0}.status{min-height:24px;margin:13px 0 0;font-size:14px}
+a{color:var(--red);font-weight:800;text-underline-offset:3px}
+"""
+
+
+ACCOUNT_CONFIRMATION_PAGE = f"""<!doctype html>
+<html lang="sk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Potvrdenie účtu · Uvar.si</title><meta name="robots" content="noindex,nofollow,noarchive">
+<style>{ACCOUNT_PAGE_STYLE}</style></head><body><main><div class="brand">Uvar<em>.si</em></div>
+<section class="card"><span class="eyebrow">Posledný krok</span><h1>Potvrď účet</h1>
+<p>Účet vznikne až po stlačení tlačidla. Samotné otvorenie odkazu nič nepotvrdí.</p>
+<button class="action" id="confirm" type="button">Potvrdiť účet</button>
+<p class="status" id="status" role="status" aria-live="polite"></p></section></main><script>
 let token=new URLSearchParams(location.hash.slice(1)).get('token')||'';
 history.replaceState(null,'',location.pathname);
-document.getElementById('confirm').onclick=async()=>{
-  const response=await fetch('/api/auth/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
-  const data=await response.json().catch(()=>({}));
-  if(response.ok){token='';location.replace(data.redirect);return;}
-  document.getElementById('status').textContent=data.detail||'Potvrdenie sa nepodarilo.';
-};
+const button=document.getElementById('confirm');const statusNode=document.getElementById('status');let busy=false;
+button.textContent='Potvrdiť účet';
+button.onclick=async()=>{{
+  if(busy)return;busy=true;button.disabled=true;button.textContent='Pracujem…';statusNode.textContent='';
+  try{{
+    const submittedToken=token;
+    const response=await fetch('/api/auth/confirm',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{token:submittedToken}})}});
+    const data=await response.json().catch(()=>({{}}));
+    if(!response.ok)throw new Error(data.detail||'Potvrdenie sa nepodarilo. Vyžiadaj si nový odkaz.');
+    token='';statusNode.textContent='Účet je potvrdený. Presmerúvame ťa…';location.replace(data.redirect||'/app');return;
+  }}catch(error){{statusNode.textContent=error&&error.message?error.message:'Nepodarilo sa pripojiť. Skontroluj pripojenie a skús to znova.';}}
+  busy=false;button.disabled=false;button.textContent='Potvrdiť účet';
+}};
 </script></body></html>"""
 
 
-PASSWORD_RESET_PAGE = """<!doctype html>
-<html lang="sk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>Nové heslo · Uvar.si</title><meta name="robots" content="noindex,nofollow,noarchive"></head>
-<body><main><h1>Nastav nové heslo</h1><input id="password" type="password" autocomplete="new-password">
-<button id="submit" type="button">Uložiť heslo</button><p id="status"></p></main><script>
+PASSWORD_RESET_PAGE = f"""<!doctype html>
+<html lang="sk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nové heslo · Uvar.si</title><meta name="robots" content="noindex,nofollow,noarchive">
+<style>{ACCOUNT_PAGE_STYLE}</style></head><body><main><div class="brand">Uvar<em>.si</em></div>
+<section class="card"><span class="eyebrow">Zabezpečenie účtu</span><h1>Nastav nové heslo</h1>
+<p>Heslo sa odošle až po potvrdení. Použi 10 až 128 znakov.</p>
+<label for="password">Nové heslo</label><div class="password">
+<input id="password" type="password" autocomplete="new-password" minlength="10" maxlength="128">
+<button class="toggle" id="toggle" type="button" aria-pressed="false">Zobraziť heslo</button></div>
+<button class="action" id="submit" type="button">Uložiť heslo</button>
+<p class="status" id="status" role="status" aria-live="polite"></p></section></main><script>
 const fragment=new URLSearchParams(location.hash.slice(1));let token=fragment.get('token')||'';let purpose=fragment.get('purpose')||'reset';
 history.replaceState(null,'',location.pathname);
-document.getElementById('submit').onclick=async()=>{
-  const password=document.getElementById('password').value;
-  const endpoint=token?'/api/auth/password/reset':'/api/auth/password/set';
-  const payload=token?{token,purpose,password}:{password};
-  const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  const data=await response.json().catch(()=>({}));
-  if(response.ok){token='';location.replace(data.redirect);return;}
-  document.getElementById('status').textContent=data.detail||'Heslo sa nepodarilo uložiť.';
-};
+const passwordNode=document.getElementById('password');const button=document.getElementById('submit');
+const toggle=document.getElementById('toggle');const statusNode=document.getElementById('status');let busy=false;
+button.textContent='Uložiť heslo';toggle.textContent='Zobraziť heslo';
+toggle.onclick=()=>{{const visible=passwordNode.type==='password';passwordNode.type=visible?'text':'password';
+  toggle.textContent=visible?'Skryť heslo':'Zobraziť heslo';toggle.setAttribute('aria-pressed',visible?'true':'false');}};
+button.onclick=async()=>{{
+  if(busy)return;const password=passwordNode.value;
+  if(password.length<10||password.length>128){{statusNode.textContent='Heslo musí mať 10 až 128 znakov.';return;}}
+  busy=true;button.disabled=true;button.textContent='Pracujem…';statusNode.textContent='';
+  try{{
+    const endpoint=token?'/api/auth/password/reset':'/api/auth/password/set';
+    const payload=token?{{token,purpose,password}}:{{password}};
+    const response=await fetch(endpoint,{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(payload)}});
+    const data=await response.json().catch(()=>({{}}));
+    if(!response.ok)throw new Error(data.detail||'Heslo sa nepodarilo uložiť.');
+    token='';passwordNode.value='';statusNode.textContent='Heslo je uložené. Presmerúvame ťa…';location.replace(data.redirect||'/app');return;
+  }}catch(error){{
+    statusNode.textContent=error&&error.message&&error.message!=='offline'?error.message:'Nepodarilo sa pripojiť. Skontroluj pripojenie a skús to znova.';
+  }}
+  busy=false;button.disabled=false;button.textContent='Uložiť heslo';
+}};
 </script></body></html>"""
 
 
@@ -2001,11 +2053,20 @@ def auth_logout(req: Request):
 # ---------------------------------------------------------------- profil
 @app.get("/api/me")
 def me(req: Request):
+    auth_v3 = env("UVARSI_AUTH_V3", "0") == "1"
     u = user_from_request(req)
     if not u:
-        return {"prihlaseny": False}
+        public = {"prihlaseny": False}
+        if auth_v3:
+            public["auth_v3"] = True
+        return public
     den = dnesok()
     with closing(db()) as con:
+        password_configured = False
+        if auth_v3:
+            password_configured = con.execute(
+                "SELECT 1 FROM auth_credentials WHERE user_id=?", (u["id"],)
+            ).fetchone() is not None
         premium = je_premium(con, u["id"])
         sp = spajza_pouzivatela(con, u["id"], premium)
         ulozenych = pocet_ulozenej_spajze(con, u["id"])
@@ -2016,18 +2077,21 @@ def me(req: Request):
     # nemá zobrazovať údaje, ktoré práve nič neovplyvňujú.
     uspana = bool(not premium and ulozenych)
     adults, children = zlozenie_domacnosti(u)
-    return {"prihlaseny": True, "id": u["id"], "email": u["email"],
-            "adults": adults, "children": children, "osoby": adults + children,
-            "frekvencia": u["frekvencia"], "obchody": u["obchody"].split(","),
-            "onboarding": bool(u["onboarding"]),
-            # `platiaci` je len stĺpec; pravdu o platbe drží tabuľka nárokov.
-            "platiaci": premium, "premium": premium,
-            "platby_zapnute": platby_su_zapnute(),
-            "spajza": sp, "spajza_premium": premium, "spajza_dostupna": premium,
-            "spajza_ulozenych": ulozenych, "spajza_uspana": uspana,
-            "spajza_sprava": sprava_o_uspanej_spajze(ulozenych) if uspana else None,
-            "limit_prepoctov": limit, "zostava_prepoctov": zostava,
-            "prepocty_obnova": zajtrajsok(den)}
+    result = {"prihlaseny": True, "id": u["id"], "email": u["email"],
+              "adults": adults, "children": children, "osoby": adults + children,
+              "frekvencia": u["frekvencia"], "obchody": u["obchody"].split(","),
+              "onboarding": bool(u["onboarding"]),
+              # `platiaci` je len stĺpec; pravdu o platbe drží tabuľka nárokov.
+              "platiaci": premium, "premium": premium,
+              "platby_zapnute": platby_su_zapnute(),
+              "spajza": sp, "spajza_premium": premium, "spajza_dostupna": premium,
+              "spajza_ulozenych": ulozenych, "spajza_uspana": uspana,
+              "spajza_sprava": sprava_o_uspanej_spajze(ulozenych) if uspana else None,
+              "limit_prepoctov": limit, "zostava_prepoctov": zostava,
+              "prepocty_obnova": zajtrajsok(den)}
+    if auth_v3:
+        result.update(auth_v3=True, password_configured=password_configured)
+    return result
 
 
 @app.post("/api/profil")
