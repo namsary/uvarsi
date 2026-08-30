@@ -484,6 +484,10 @@ class DiversityLimits:
     required_methods: int
 
 
+class PlanDiversityError(ValueError):
+    """Inak bezpečný plán nesplnil iba estetický cieľ týždennej rozmanitosti."""
+
+
 _PROTEIN_FAMILY_PATTERNS = (
     ("chicken", ("kurac*", "morac*", "morcac*", "kacac*")),
     ("pork", ("bravc*",)),
@@ -647,16 +651,16 @@ def validate_weekly_diversity(parsed_meals: list[tuple], rows: list[dict]) -> No
     sides = Counter(signature.side for signature in signatures)
 
     if any(count > limits.max_same_protein for count in proteins.values()):
-        raise ValueError("Týždenný plán priveľa ráz opakuje rovnakú bielkovinu.")
+        raise PlanDiversityError("Týždenný plán priveľa ráz opakuje rovnakú bielkovinu.")
     if any(count > limits.max_same_side for count in sides.values()):
-        raise ValueError("Týždenný plán priveľa ráz opakuje rovnakú prílohu.")
+        raise PlanDiversityError("Týždenný plán priveľa ráz opakuje rovnakú prílohu.")
     if len({signature.method for signature in signatures}) < limits.required_methods:
-        raise ValueError("Týždenný plán nemá dosť rôznych spôsobov prípravy.")
+        raise PlanDiversityError("Týždenný plán nemá dosť rôznych spôsobov prípravy.")
     if any(
         first.protein == second.protein and first.side == second.side
         for first, second in zip(signatures, signatures[1:])
     ):
-        raise ValueError("Podobné jedlá nesmú ísť po sebe.")
+        raise PlanDiversityError("Podobné jedlá nesmú ísť po sebe.")
 
 
 def validate_portion_amount(name, category, amount, unit, claimed_role=None):
@@ -991,7 +995,8 @@ def _reject_extra(mapping, allowed):
         raise ValueError("Návrh obsahuje nepovolené obchodné údaje.")
 
 
-def _model_meals(model_output, offers_by_key, frequency, pantry, adults, children):
+def _model_meals(model_output, offers_by_key, frequency, pantry, adults, children,
+                 *, enforce_diversity=True):
     _reject_extra(model_output, _MODEL_TOP_LEVEL)
     meals = model_output.get("meals")
     cooking_days = cooking_days_for_frequency(frequency)
@@ -1072,7 +1077,8 @@ def _model_meals(model_output, offers_by_key, frequency, pantry, adults, childre
         parsed.append((day, name, minutes, steps, selected_items, [pantry_by_name[item] for item in selected_pantry]))
     if seen_days != set(cooking_days):
         raise ValueError(f"Návrh nedodržal dni varenia: {_day_list(cooking_days)}.")
-    validate_weekly_diversity(parsed, list(offers_by_key.values()))
+    if enforce_diversity:
+        validate_weekly_diversity(parsed, list(offers_by_key.values()))
     return sorted(parsed, key=lambda meal: DAY_ORDER.index(meal[0]))
 
 
@@ -1130,8 +1136,10 @@ PLAN_VARIANT_HINTS = (
 #      offer_key zostáva zakázaný iba v rámci jedného receptu.
 # 16 = plán 7/4/3 strieda hlavné bielkoviny, dominantné prílohy a najmenej tri
 #      spôsoby prípravy; podobné jedlá nejdú bezprostredne po sebe.
+# 17 = rozmanitosť sa po jednom opravnom pokuse zmení na mäkký cieľ; inak
+#      bezpečný plán už nezlyhá iba preto, že model zopakoval spôsob prípravy.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 16
+PLAN_ALGO_VERSION = 17
 
 
 def plan_variant_for(user_id, variants):
@@ -1529,13 +1537,16 @@ def _aggregate_purchases(purchases):
 
 
 def build_personal_plan(con, model_output, stores, frequency, household_size=None, pantry=(),
-                        today=None, *, adults=None, children=None):
+                        today=None, *, adults=None, children=None, enforce_diversity=True):
     """Validate selection content and deterministically derive all purchasable data."""
     adults, children, legacy = _household(household_size, adults, children)
     today = today or date.today()
     offers = measurable_offers(current_verified_offers(con, stores, today))
     offers_by_key = {row["offer_key"]: row for row in offers}
-    meals = _model_meals(model_output, offers_by_key, frequency, pantry, adults, children)
+    meals = _model_meals(
+        model_output, offers_by_key, frequency, pantry, adults, children,
+        enforce_diversity=enforce_diversity,
+    )
 
     plan_meals = []
     purchases = []

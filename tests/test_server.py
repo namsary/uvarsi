@@ -1061,7 +1061,7 @@ def test_invalid_model_plan_reports_failure_without_replacing_existing_valid_cac
         assert tuple(failed) == ("failed", "invalid_model_output")
 
 
-def test_diversity_validation_error_is_internal_and_never_leaks_to_users(
+def test_diversity_validation_retries_once_then_keeps_otherwise_safe_plan(
         monkeypatch, tmp_path, caplog):
     server, client = logged_in_plan_client(monkeypatch, tmp_path)
     calls = []
@@ -1074,12 +1074,12 @@ def test_diversity_validation_error_is_internal_and_never_leaks_to_users(
     payload = response.json()
     internal_error = "Týždenný plán nemá dosť rôznych spôsobov prípravy."
     assert response.status_code == 200
-    assert payload["status"] == "failed"
-    assert payload["code"] == "invalid_model_output"
-    assert payload["message"] == server.SPRAVA_PLAN_ZLYHAL
+    assert len(payload["jedla"]) == 4
+    assert payload["tyzden"] == current_monday()
     assert internal_error in caplog.text
     assert internal_error not in json.dumps(payload, ensure_ascii=False)
     assert len(calls) == server.MODEL_VALIDATION_ATTEMPTS
+    assert "rozmanitosť ostala odporúčaním" in caplog.text
 
 
 def timing_out_anthropic(constructors):

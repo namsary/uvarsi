@@ -51,6 +51,7 @@ from plan_jobs import JobRequest
 from plan_calendar import bratislava_day
 from plan_data import (
     PLAN_ALGO_VERSION,
+    PlanDiversityError,
     PORTION_STANDARD_VERSION,
     apply_pantry_to_shopping_list,
     build_personal_plan,
@@ -3055,6 +3056,18 @@ def build_and_store_job(job, *, client=None) -> dict:
 
             LOG.warning("modelový plán neprešiel bezpečnostnou kontrolou: %s", validation_error)
             if attempt + 1 >= MODEL_VALIDATION_ATTEMPTS:
+                if isinstance(validation_error, PlanDiversityError):
+                    with closing(db()) as validation_con:
+                        plan = build_personal_plan(
+                            validation_con, model_output, stores, frequency, None,
+                            pantry=pantry if pantry_driven else (),
+                            adults=adults, children=children, enforce_diversity=False,
+                        )
+                    LOG.warning(
+                        "model po oprave nesplnil iba rozmanitosť; "
+                        "rozmanitosť ostala odporúčaním a bezpečný plán sa použil"
+                    )
+                    break
                 raise HTTPException(500, "Plán sa nepodarilo bezpečne overiť, skús to znova.")
             messages = [
                 {"role": "user", "content": blocks},

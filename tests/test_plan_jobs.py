@@ -108,6 +108,95 @@ def test_enqueue_is_idempotent_for_one_active_key(con):
     assert second.job.id == first.job.id
 
 
+def test_failed_free_replacement_cannot_be_reclaimed_by_another_upgrade(con):
+    first = enqueue(
+        con,
+        request(payload={"algo_version": 16}, regeneration_limit=1),
+        now=NOW,
+    )
+    con.execute(
+        "UPDATE plan_jobs SET state='failed', error_code='invalid_model_output' WHERE id=?",
+        (first.job.id,),
+    )
+    con.commit()
+
+    upgraded = enqueue(
+        con,
+        request(
+            job_key="regular:def:0",
+            signature="def",
+            payload={"algo_version": 17},
+            regeneration_limit=1,
+        ),
+        now=NOW + datetime.timedelta(minutes=1),
+    )
+
+    assert upgraded.created is True
+    assert con.execute(
+        "SELECT pocet FROM prepocty WHERE user_id=1 AND den='2026-08-28'"
+    ).fetchone()[0] == 1
+
+    con.execute(
+        "UPDATE plan_jobs SET state='failed', error_code='invalid_model_output' WHERE id=?",
+        (upgraded.job.id,),
+    )
+    con.commit()
+    with pytest.raises(plan_jobs.RegenerationLimitReached):
+        enqueue(
+            con,
+            request(
+                job_key="regular:ghi:0",
+                signature="ghi",
+                payload={"algo_version": 18},
+                regeneration_limit=1,
+            ),
+            now=NOW + datetime.timedelta(minutes=2),
+        )
+
+
+def test_successful_algorithm_replacement_consumes_old_failure_only_once(con):
+    first = enqueue(
+        con,
+        request(payload={"algo_version": 16}, regeneration_limit=1),
+        now=NOW,
+    )
+    con.execute(
+        "UPDATE plan_jobs SET state='failed', error_code='invalid_model_output' WHERE id=?",
+        (first.job.id,),
+    )
+    con.commit()
+
+    upgraded = enqueue(
+        con,
+        request(
+            job_key="force:replacement",
+            signature="replacement",
+            payload={"algo_version": 17},
+            regeneration_limit=1,
+            is_force=True,
+        ),
+        now=NOW + datetime.timedelta(minutes=1),
+    )
+    con.execute(
+        "UPDATE plan_jobs SET state='ready' WHERE id=?",
+        (upgraded.job.id,),
+    )
+    con.commit()
+
+    with pytest.raises(plan_jobs.RegenerationLimitReached):
+        enqueue(
+            con,
+            request(
+                job_key="force:second",
+                signature="second",
+                payload={"algo_version": 17},
+                regeneration_limit=1,
+                is_force=True,
+            ),
+            now=NOW + datetime.timedelta(minutes=2),
+        )
+
+
 def test_regular_and_pantry_jobs_never_collide(con):
     regular = request(job_key="regular:abc:0", kind="regular")
     pantry = request(job_key="pantry:1:abc:0", kind="pantry")

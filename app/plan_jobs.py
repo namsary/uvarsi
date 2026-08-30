@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS plan_jobs (
   reserved_eur REAL NOT NULL CHECK (reserved_eur >= 0),
   regeneration_limit INTEGER,
   regeneration_day TEXT,
+  regeneration_slot_reserved INTEGER NOT NULL DEFAULT 0 CHECK (regeneration_slot_reserved IN (0, 1)),
+  regeneration_replacement_claimed INTEGER NOT NULL DEFAULT 0 CHECK (regeneration_replacement_claimed IN (0, 1)),
   created TEXT NOT NULL,
   started_at TEXT,
   finished_at TEXT,
@@ -176,6 +178,21 @@ def migrate_plan_jobs_schema(con) -> None:
         )
         # One-time compatibility backfill. Runtime identity never parses keys.
         con.execute("UPDATE plan_jobs SET is_force=1 WHERE job_key LIKE 'force:%'")
+    if "regeneration_slot_reserved" not in columns:
+        con.execute(
+            "ALTER TABLE plan_jobs ADD COLUMN regeneration_slot_reserved "
+            "INTEGER NOT NULL DEFAULT 0 CHECK (regeneration_slot_reserved IN (0, 1))"
+        )
+        # Before this migration every user job with a limit reserved its own slot.
+        con.execute(
+            "UPDATE plan_jobs SET regeneration_slot_reserved=1 "
+            "WHERE regeneration_limit IS NOT NULL"
+        )
+    if "regeneration_replacement_claimed" not in columns:
+        con.execute(
+            "ALTER TABLE plan_jobs ADD COLUMN regeneration_replacement_claimed "
+            "INTEGER NOT NULL DEFAULT 0 CHECK (regeneration_replacement_claimed IN (0, 1))"
+        )
     con.execute(
         "CREATE INDEX IF NOT EXISTS plan_jobs_request_lookup "
         "ON plan_jobs(signature, variant, week, kind, is_force, state, created, id)"
@@ -296,14 +313,48 @@ def latest_shared_regular_request(
     return _status(row) if row is not None else None
 
 
-def _reserve_user_regeneration(con, request: JobRequest) -> None:
+def _claim_failed_algorithm_slot(con, request: JobRequest, used: int) -> bool:
+    """Atomically claim one paid failed old-algorithm attempt as its replacement."""
+    current = request.payload.get("algo_version")
+    if (used <= 0 or request.user_id is None or isinstance(current, bool)
+            or not isinstance(current, int)):
+        return False
+    rows = con.execute(
+        """SELECT id, payload_json FROM plan_jobs
+           WHERE user_id=? AND week=? AND state='failed'
+             AND regeneration_day=? AND regeneration_limit IS NOT NULL
+             AND regeneration_slot_reserved=1
+             AND regeneration_replacement_claimed=0
+           ORDER BY id DESC""",
+        (request.user_id, request.week, request.regeneration_day),
+    ).fetchall()
+    for row in rows:
+        try:
+            previous = json.loads(row["payload_json"]).get("algo_version")
+        except (AttributeError, json.JSONDecodeError, TypeError):
+            continue
+        if (not isinstance(previous, int) or isinstance(previous, bool)
+                or previous == current):
+            continue
+        cursor = con.execute(
+            "UPDATE plan_jobs SET regeneration_replacement_claimed=1 "
+            "WHERE id=? AND regeneration_replacement_claimed=0",
+            (row["id"],),
+        )
+        return cursor.rowcount == 1
+    return False
+
+
+def _reserve_user_regeneration(con, request: JobRequest) -> bool:
     if request.regeneration_limit is None:
-        return
+        return False
     row = con.execute(
         "SELECT pocet FROM prepocty WHERE user_id=? AND den=?",
         (request.user_id, request.regeneration_day),
     ).fetchone()
     used = int(row[0]) if row else 0
+    if _claim_failed_algorithm_slot(con, request, used):
+        return False
     if used >= request.regeneration_limit:
         raise RegenerationLimitReached()
     con.execute(
@@ -311,6 +362,7 @@ def _reserve_user_regeneration(con, request: JobRequest) -> None:
         "ON CONFLICT(user_id, den) DO UPDATE SET pocet=pocet+1",
         (request.user_id, request.regeneration_day),
     )
+    return True
 
 
 def enqueue(con, request: JobRequest, *, now: datetime.datetime) -> EnqueueResult:
@@ -364,14 +416,14 @@ def enqueue(con, request: JobRequest, *, now: datetime.datetime) -> EnqueueResul
             teraz=now,
             rezervovane_eur=outstanding,
         )
-        _reserve_user_regeneration(con, request)
+        regeneration_slot_reserved = _reserve_user_regeneration(con, request)
         stamp = _stamp(now)
         cursor = con.execute(
             """INSERT INTO plan_jobs (
                 job_key, signature, variant, kind, is_force, user_id, week, priority,
                 payload_json, state, reserved_eur, regeneration_limit, regeneration_day,
-                created, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)""",
+                regeneration_slot_reserved, created, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?)""",
             (
                 request.job_key,
                 request.signature,
@@ -385,6 +437,7 @@ def enqueue(con, request: JobRequest, *, now: datetime.datetime) -> EnqueueResul
                 request.reserved_eur,
                 request.regeneration_limit,
                 request.regeneration_day,
+                int(regeneration_slot_reserved),
                 stamp,
                 stamp,
             ),
