@@ -87,7 +87,11 @@ def test_login_endpoints_do_not_500_on_a_fresh_database(fresh_server):
     client = TestClient(fresh_server.app, raise_server_exceptions=False)
     for cesta in ("/api/me", "/api/health"):
         assert client.get(cesta).status_code == 200, f"{cesta} spadlo na prázdnej DB"
-    overenie = client.post("/api/auth/verify", json={"token": "nic"})
+    overenie = client.post(
+        "/api/auth/verify",
+        json={"token": "nic"},
+        headers={"Origin": "https://uvar.si"},
+    )
     assert overenie.status_code == 400, (
         "neplatný token má byť 400 (nie 500 z chýbajúcej tabuľky)"
     )
