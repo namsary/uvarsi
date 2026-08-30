@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, localcontext
 
 import pytest
 
@@ -84,6 +84,43 @@ def test_high_protein_uses_inclusive_twenty_percent_boundary(
     estimate = NutritionEstimate(total=serving, serving=serving)
 
     assert qualifies_high_protein(estimate) is expected
+
+
+def test_high_protein_rejects_extreme_value_just_below_twenty_percent():
+    serving = MacroValues(
+        kcal=Decimal("400"),
+        protein_g=Decimal("19.9999999999999999999999999999"),
+        fat_g=Decimal("0"),
+        carbs_g=Decimal("0"),
+    )
+
+    assert qualifies_high_protein(
+        NutritionEstimate(total=serving, serving=serving)
+    ) is False
+
+
+def test_high_protein_preserves_boundary_under_changed_ambient_precision():
+    below = MacroValues(
+        kcal=Decimal("400"),
+        protein_g=Decimal("19.9999999999999999999999999999"),
+        fat_g=Decimal("0"),
+        carbs_g=Decimal("0"),
+    )
+    exact = MacroValues(
+        kcal=Decimal("400"),
+        protein_g=Decimal("20"),
+        fat_g=Decimal("0"),
+        carbs_g=Decimal("0"),
+    )
+
+    with localcontext() as context:
+        context.prec = 2
+        assert qualifies_high_protein(
+            NutritionEstimate(total=below, serving=below)
+        ) is False
+        assert qualifies_high_protein(
+            NutritionEstimate(total=exact, serving=exact)
+        ) is True
 
 
 @pytest.mark.parametrize("adult_servings", [Decimal("0"), Decimal("-1")])

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from typing import Sequence
 
 if __package__:
@@ -66,8 +66,16 @@ def estimate_recipe_nutrition(
 
 
 def qualifies_high_protein(value: NutritionEstimate) -> bool:
-    protein_kcal = value.serving.protein_g * Decimal("4")
-    return (
-        value.serving.kcal > Decimal("0")
-        and protein_kcal / value.serving.kcal >= Decimal("0.20")
+    if value.serving.kcal <= Decimal("0"):
+        return False
+
+    factor = Decimal("20")
+    multiplication_digits = len(value.serving.protein_g.as_tuple().digits) + len(
+        factor.as_tuple().digits
     )
+    with localcontext() as context:
+        context.prec = max(
+            multiplication_digits,
+            len(value.serving.kcal.as_tuple().digits),
+        )
+        return factor * value.serving.protein_g >= value.serving.kcal
