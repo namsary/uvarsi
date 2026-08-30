@@ -157,8 +157,11 @@ Ok "static/ (PWA)"
 $ingredientCatalog = "$B\app\catalog\ingredients.json"
 $recipeManifest = "$B\app\catalog\recipes\manifest.json"
 foreach ($povinnyCatalogSubor in @($ingredientCatalog, $recipeManifest)) {
-  if (-not (Test-Path $povinnyCatalogSubor -PathType Leaf)) {
-    Zlyhaj "chyba lokalny subor $povinnyCatalogSubor"
+  if (
+    -not (Test-Path $povinnyCatalogSubor -PathType Leaf) -or
+    (Get-Item $povinnyCatalogSubor).Length -le 0
+  ) {
+    Zlyhaj "chyba neprazdny lokalny subor $povinnyCatalogSubor"
   }
 }
 $recipeJson = @(
@@ -167,6 +170,11 @@ $recipeJson = @(
 )
 if ($recipeJson.Count -eq 0) {
   Zlyhaj "chyba lokalny receptovy JSON v $B\app\catalog\recipes"
+}
+foreach ($recept in $recipeJson) {
+  if ($recept.Length -le 0) {
+    Zlyhaj "receptovy JSON je prazdny: $($recept.FullName)"
+  }
 }
 ssh jarvis "mkdir -p /opt/uvarsi/releases/manual-stage/app/catalog/recipes"
 Vyzaduj "staging priecinka receptoveho katalogu zlyhal"
@@ -178,7 +186,7 @@ foreach ($recept in $recipeJson) {
   scp -q $recept.FullName "jarvis:/opt/uvarsi/releases/manual-stage/app/catalog/recipes/$($recept.Name)"
   Vyzaduj "prenos zlyhal: app\catalog\recipes\$($recept.Name)"
 }
-Ok "receptovy katalog (bez vyvojovych candidates/)"
+Ok "receptovy katalog (iba runtime JSON subory)"
 
 # Windows uklada .sh s CRLF; po binarnom scp je shebang "#!/bin/bash\r" a Linux
 # hlada interpret /bin/bash\r -> "cannot execute: required file not found".

@@ -14,12 +14,30 @@ ROOT = Path(__file__).resolve().parents[1]
 MANUAL_DEPLOY = ROOT / "nasad.ps1"
 SAMOPULL = ROOT / "hetzner" / "samopull.sh"
 DEPLOY_STATE = ROOT / "hetzner" / "uvarsi-deploy-state.sh"
-BASH = Path("C:/Program Files/Git/bin/bash.exe")
 SWITCH_BOUNDARY = "# --- 3. záloha aktuálneho stavu a prepnutie ---"
 
 
-def _bash_path(path: Path) -> str:
-    return "/c" + path.resolve().as_posix()[2:]
+def _discover_bash() -> str | None:
+    for name in ("bash", "bash.exe"):
+        executable = shutil.which(name)
+        if executable:
+            return executable
+    if os.name == "nt":
+        git = shutil.which("git")
+        if git:
+            git_root = Path(git).resolve().parent.parent
+            for candidate in (git_root / "bin/bash.exe", git_root / "usr/bin/bash.exe"):
+                if candidate.is_file():
+                    return str(candidate)
+    return None
+
+
+@pytest.fixture(scope="module")
+def bash_executable() -> str:
+    executable = _discover_bash()
+    if executable is None:
+        pytest.skip("Bash is unavailable; shell deployment behavior tests require Bash")
+    return executable
 
 
 def _powershell() -> str:
@@ -46,18 +64,42 @@ def _prepare_manual_source(tmp_path: Path) -> Path:
 
     catalog = release / "app" / "catalog"
     recipes = catalog / "recipes"
-    candidates = catalog / "candidates"
     recipes.mkdir(parents=True)
-    candidates.mkdir(parents=True)
     (catalog / "ingredients.json").write_text("{}\n", encoding="utf-8")
     (recipes / "manifest.json").write_text("{}\n", encoding="utf-8")
     (recipes / "smoke.json").write_text("{}\n", encoding="utf-8")
-    (candidates / "draft.json").write_text("{}\n", encoding="utf-8")
+    for relative in (
+        "candidates/draft.json",
+        "development/root-draft.json",
+        "recipes/candidates/nested-draft.json",
+        "recipes/development/nested-draft.json",
+    ):
+        development_asset = catalog / relative
+        development_asset.parent.mkdir(parents=True, exist_ok=True)
+        development_asset.write_text("{}\n", encoding="utf-8")
     return release
 
 
-def _run_manual_deploy_offline(tmp_path: Path) -> tuple[subprocess.CompletedProcess, str]:
+def _run_manual_deploy_offline(
+    tmp_path: Path,
+    invalid_catalog_asset: tuple[str, str] | None = None,
+) -> tuple[subprocess.CompletedProcess, str]:
     release = _prepare_manual_source(tmp_path)
+    if invalid_catalog_asset is not None:
+        asset, invalid_kind = invalid_catalog_asset
+        target = {
+            "ingredients": release / "app/catalog/ingredients.json",
+            "manifest": release / "app/catalog/recipes/manifest.json",
+            "recipe": release / "app/catalog/recipes/smoke.json",
+        }[asset]
+        target.unlink()
+        if invalid_kind == "empty":
+            target.write_bytes(b"")
+        elif invalid_kind == "directory":
+            target.mkdir()
+            (target / "not-a-file").write_text("present\n", encoding="utf-8")
+        else:
+            raise AssertionError(f"unknown invalid kind: {invalid_kind}")
     calls = tmp_path / "remote-calls.txt"
     harness = tmp_path / "manual-deploy-harness.ps1"
     harness.write_text(
@@ -121,7 +163,21 @@ def test_manual_deploy_stages_catalog_before_switch_without_candidates_or_live_c
         )
     assert "/app/catalog/candidates" not in calls
     assert "draft.json" not in calls
+    assert "root-draft.json" not in calls
+    assert "nested-draft.json" not in calls
     assert "jarvis:/opt/uvarsi/app/catalog/" not in calls
+
+
+@pytest.mark.parametrize("asset", ["ingredients", "manifest", "recipe"])
+@pytest.mark.parametrize("invalid_kind", ["empty", "directory"])
+def test_manual_deploy_rejects_invalid_catalog_assets_before_snapshot(
+        tmp_path, asset, invalid_kind):
+    result, calls = _run_manual_deploy_offline(
+        tmp_path, invalid_catalog_asset=(asset, invalid_kind)
+    )
+
+    assert "NASADENIE ZLYHALO" in result.stdout, result.stdout + result.stderr
+    assert "uvarsi_snapshot /opt/uvarsi/releases/manual-predosle" not in calls
 
 
 def _samopull_catalog_gate() -> str:
@@ -137,9 +193,11 @@ def _required_release_files(gate: str) -> list[str]:
 
 def _run_samopull_catalog_gate(
     tmp_path: Path,
+    bash_executable: str,
     *,
     missing: str | None = None,
     candidate_only: bool = False,
+    invalid_catalog_asset: tuple[str, str] | None = None,
 ) -> tuple[subprocess.CompletedProcess, Path]:
     gate = _samopull_catalog_gate()
     release = tmp_path / "release with spaces"
@@ -168,18 +226,31 @@ def _run_samopull_catalog_gate(
     }
     if missing is not None and missing_paths[missing].exists():
         missing_paths[missing].unlink()
+    if invalid_catalog_asset is not None:
+        asset, invalid_kind = invalid_catalog_asset
+        target = missing_paths[asset]
+        if target.exists():
+            target.unlink()
+        if invalid_kind == "empty":
+            target.write_bytes(b"")
+        elif invalid_kind == "directory":
+            target.mkdir()
+            (target / "not-a-file").write_text("present\n", encoding="utf-8")
+        else:
+            raise AssertionError(f"unknown invalid kind: {invalid_kind}")
 
     mutation_marker = tmp_path / "live-mutation-reached"
     command = (
-        "PATH=/usr/bin:/bin\n"
+        'PATH=/usr/bin:/bin:"$PATH"\n'
         "log() { :; }\n"
         "notify() { :; }\n"
-        f'CIEL="{_bash_path(release)}"\n'
+        'CIEL="release with spaces"\n'
         f"{gate}\n"
-        f'printf reached > "{_bash_path(mutation_marker)}"\n'
+        'printf reached > "live-mutation-reached"\n'
     )
     result = subprocess.run(
-        [str(BASH), "-c", command],
+        [bash_executable, "-c", command],
+        cwd=tmp_path,
         text=True,
         encoding="utf-8",
         errors="replace",
@@ -189,38 +260,71 @@ def _run_samopull_catalog_gate(
     return result, mutation_marker
 
 
-def test_samopull_catalog_gate_accepts_one_top_level_recipe_json(tmp_path):
-    result, mutation_marker = _run_samopull_catalog_gate(tmp_path)
+def test_samopull_catalog_gate_accepts_one_top_level_recipe_json(
+        tmp_path, bash_executable):
+    result, mutation_marker = _run_samopull_catalog_gate(tmp_path, bash_executable)
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert mutation_marker.exists()
 
 
 @pytest.mark.parametrize("missing", ["ingredients", "manifest", "recipe"])
-def test_samopull_catalog_gate_rejects_incomplete_release_before_switch(tmp_path, missing):
+def test_samopull_catalog_gate_rejects_incomplete_release_before_switch(
+        tmp_path, bash_executable, missing):
     """Deleting any runtime catalog component must close the pre-switch gate."""
-    result, mutation_marker = _run_samopull_catalog_gate(tmp_path, missing=missing)
+    result, mutation_marker = _run_samopull_catalog_gate(
+        tmp_path, bash_executable, missing=missing
+    )
 
     assert result.returncode != 0
     assert not mutation_marker.exists()
 
 
-def test_samopull_does_not_count_candidate_json_as_a_runtime_recipe(tmp_path):
-    result, mutation_marker = _run_samopull_catalog_gate(tmp_path, candidate_only=True)
+def test_samopull_does_not_count_candidate_json_as_a_runtime_recipe(
+        tmp_path, bash_executable):
+    result, mutation_marker = _run_samopull_catalog_gate(
+        tmp_path, bash_executable, candidate_only=True
+    )
 
     assert result.returncode != 0
     assert not mutation_marker.exists()
 
 
-def test_samopull_staging_excludes_development_candidates(tmp_path):
+@pytest.mark.parametrize("asset", ["ingredients", "manifest", "recipe"])
+@pytest.mark.parametrize("invalid_kind", ["empty", "directory"])
+def test_samopull_catalog_gate_rejects_invalid_file_before_switch(
+        tmp_path, bash_executable, asset, invalid_kind):
+    result, mutation_marker = _run_samopull_catalog_gate(
+        tmp_path,
+        bash_executable,
+        invalid_catalog_asset=(asset, invalid_kind),
+    )
+
+    assert result.returncode != 0
+    assert not mutation_marker.exists()
+
+
+def test_samopull_staging_allowlists_only_runtime_catalog_assets(
+        tmp_path, bash_executable):
     """Preparing the release must never stage candidate drafts."""
     source = tmp_path / "source"
-    candidate = source / "app/catalog/candidates/draft.json"
-    candidate.parent.mkdir(parents=True)
-    candidate.write_text("{}\n", encoding="utf-8")
-    ingredient = source / "app/catalog/ingredients.json"
+    catalog = source / "app/catalog"
+    ingredient = catalog / "ingredients.json"
     ingredient.parent.mkdir(parents=True, exist_ok=True)
     ingredient.write_text("{}\n", encoding="utf-8")
+    recipes = catalog / "recipes"
+    recipes.mkdir()
+    (recipes / "manifest.json").write_text("{}\n", encoding="utf-8")
+    (recipes / "smoke.json").write_text("{}\n", encoding="utf-8")
+    for relative in (
+        "candidates/draft.json",
+        "development/root-draft.json",
+        "recipes/candidates/nested-draft.json",
+        "recipes/development/nested-draft.json",
+    ):
+        development_asset = catalog / relative
+        development_asset.parent.mkdir(parents=True, exist_ok=True)
+        development_asset.write_text("{}\n", encoding="utf-8")
 
     script = SAMOPULL.read_text(encoding="utf-8")
     staging = script[script.index('CIEL="$REL/${SHA:0:12}"'):].split(
@@ -228,7 +332,7 @@ def test_samopull_staging_excludes_development_candidates(tmp_path):
     )[0]
     releases = tmp_path / "releases"
     command = (
-        "PATH=/usr/bin:/bin\n"
+        'PATH=/usr/bin:/bin:"$PATH"\n'
         "log() { :; }\n"
         'ZDROJ="source"\n'
         'REL="releases"\n'
@@ -238,7 +342,7 @@ def test_samopull_staging_excludes_development_candidates(tmp_path):
         f"{staging}\n"
     )
     result = subprocess.run(
-        [str(BASH), "-c", command],
+        [bash_executable, "-c", command],
         cwd=tmp_path,
         text=True,
         encoding="utf-8",
@@ -249,11 +353,20 @@ def test_samopull_staging_excludes_development_candidates(tmp_path):
 
     staged = releases / "1234567890ab" / "app/catalog"
     assert result.returncode == 0, result.stdout + result.stderr
-    assert (staged / "ingredients.json").is_file()
-    assert not (staged / "candidates").exists()
+    staged_files = sorted(
+        path.relative_to(staged).as_posix()
+        for path in staged.rglob("*")
+        if path.is_file()
+    )
+    assert staged_files == [
+        "ingredients.json",
+        "recipes/manifest.json",
+        "recipes/smoke.json",
+    ]
 
 
-def test_directory_rollback_restores_code_and_catalog_together(tmp_path):
+def test_directory_rollback_restores_code_and_catalog_together(
+        tmp_path, bash_executable):
     """Directory rollback must not combine old code with a new catalog."""
     live = tmp_path / "live"
     live_catalog = live / "app/catalog"
@@ -267,17 +380,21 @@ def test_directory_rollback_restores_code_and_catalog_together(tmp_path):
     (snapshot / "app/code.txt").write_text("old-code\n", encoding="utf-8")
     (snapshot_catalog / "ingredients.json").write_text("old-catalog\n", encoding="utf-8")
 
+    library = tmp_path / "deploy-state.sh"
+    shutil.copyfile(DEPLOY_STATE, library)
     result = subprocess.run(
         [
-            str(BASH),
+            bash_executable,
             "-c",
-            f'. "{_bash_path(DEPLOY_STATE)}"\n_uvarsi_restore_app "{_bash_path(snapshot)}"',
+            'PATH=/usr/bin:/bin:"$PATH"\n. "./deploy-state.sh"\n'
+            '_uvarsi_restore_app "snapshot"',
         ],
+        cwd=tmp_path,
         env=os.environ
         | {
-            "UVARSI_DIR": _bash_path(live),
-            "UVARSI_CP": "/usr/bin/cp",
-            "UVARSI_MV": "/usr/bin/mv",
+            "UVARSI_DIR": "live",
+            "UVARSI_CP": "cp",
+            "UVARSI_MV": "mv",
         },
         text=True,
         encoding="utf-8",

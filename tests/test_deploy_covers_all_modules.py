@@ -5,14 +5,17 @@ a služba spadla pri importe (ModuleNotFoundError: No module named 'auth_data').
 Ručne udržiavaný zoznam súborov je krehký — tento test enumeruje adresár, takže
 každý nový modul musí byť v deploy manifeste, inak testy zčervenajú.
 """
+import os
 from pathlib import Path
+import shutil
 import subprocess
+
+import pytest
 
 
 APP_DIR = Path("app")
 DEPLOY = Path("nasad.ps1")
 SAMOPULL = Path("hetzner/samopull.sh")
-BASH = Path("C:/Program Files/Git/bin/bash.exe")
 
 # moduly, ktoré sa zámerne nenasadzujú (nie sú súčasťou runtime)
 NEDEPLOYOVANE: set[str] = set()
@@ -70,11 +73,31 @@ def test_samopull_preflight_rejects_incomplete_release_without_public_pages():
     )
 
 
-def _bash_path(path: Path) -> str:
-    return "/c" + path.resolve().as_posix()[2:]
+def _discover_bash() -> str | None:
+    for name in ("bash", "bash.exe"):
+        executable = shutil.which(name)
+        if executable:
+            return executable
+    if os.name == "nt":
+        git = shutil.which("git")
+        if git:
+            git_root = Path(git).resolve().parent.parent
+            for candidate in (git_root / "bin/bash.exe", git_root / "usr/bin/bash.exe"):
+                if candidate.is_file():
+                    return str(candidate)
+    return None
 
 
-def test_samopull_missing_plan_calendar_aborts_before_live_mutation(tmp_path):
+@pytest.fixture(scope="module")
+def bash_executable() -> str:
+    executable = _discover_bash()
+    if executable is None:
+        pytest.skip("Bash is unavailable; samopull behavior tests require Bash")
+    return executable
+
+
+def test_samopull_missing_plan_calendar_aborts_before_live_mutation(
+        tmp_path, bash_executable):
     """Removing plan_calendar.py must stop the real required-files gate."""
     release = tmp_path / "release with spaces"
     required = (
@@ -111,13 +134,14 @@ def test_samopull_missing_plan_calendar_aborts_before_live_mutation(tmp_path):
     command = (
         "log() { :; }\n"
         "notify() { :; }\n"
-        f'CIEL="{_bash_path(release)}"\n'
+        'CIEL="release with spaces"\n'
         f"{required_files_gate}\n"
-        f'printf reached > "{_bash_path(mutation_marker)}"\n'
+        'printf reached > "live-mutation-reached"\n'
     )
 
     result = subprocess.run(
-        [str(BASH), "-c", command],
+        [bash_executable, "-c", command],
+        cwd=tmp_path,
         text=True,
         encoding="utf-8",
         errors="replace",

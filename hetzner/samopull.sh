@@ -64,12 +64,29 @@ log "nová verzia ${SHA:0:8} — pripravujem"
 CIEL="$REL/${SHA:0:12}"
 rm -rf "$CIEL"; mkdir -p "$CIEL"
 RELEASE_ARCHIVE="$TMP/release.tar"
-tar -C "$ZDROJ" --exclude='./app/catalog/candidates' -cf "$RELEASE_ARCHIVE" . || {
+tar -C "$ZDROJ" --exclude='./app/catalog' -cf "$RELEASE_ARCHIVE" . || {
   log "archív vydania sa nepodarilo pripraviť"; exit 1; }
 tar -C "$CIEL" -xf "$RELEASE_ARCHIVE" || {
   log "kópiu sa nepodarilo pripraviť"; exit 1; }
 rm -f "$RELEASE_ARCHIVE" || {
   log "dočasný archív vydania sa nepodarilo odstrániť"; exit 1; }
+mkdir -p "$CIEL/app/catalog/recipes" || {
+  log "runtime katalóg sa nepodarilo pripraviť"; exit 1; }
+for catalog_asset in ingredients.json recipes/manifest.json; do
+  [ -f "$ZDROJ/app/catalog/$catalog_asset" ] && \
+    [ -s "$ZDROJ/app/catalog/$catalog_asset" ] || {
+      log "zdrojový katalóg nemá platný $catalog_asset"; exit 1; }
+  cp -a "$ZDROJ/app/catalog/$catalog_asset" "$CIEL/app/catalog/$catalog_asset" || {
+    log "runtime katalóg $catalog_asset sa nepodarilo pripraviť"; exit 1; }
+done
+for recept in "$ZDROJ"/app/catalog/recipes/*.json; do
+  [ -e "$recept" ] || continue
+  [ "${recept##*/}" = "manifest.json" ] && continue
+  [ -f "$recept" ] && [ -s "$recept" ] || {
+    log "zdrojový receptový JSON nie je platný súbor: ${recept##*/}"; exit 1; }
+  cp -a "$recept" "$CIEL/app/catalog/recipes/${recept##*/}" || {
+    log "receptový JSON ${recept##*/} sa nepodarilo pripraviť"; exit 1; }
+done
 # Windows môže do gitu uložiť CRLF; shell skripty musia mať LF, inak je shebang rozbitý
 sed -i 's/\r//' "$CIEL"/hetzner/*.sh 2>/dev/null || true
 
@@ -87,14 +104,14 @@ if ! (cd "$CIEL/app" && UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$CIEL/VE
 fi
 # b) povinné súbory
 for f in app/server.py app/auth_data.py app/public_pages.py app/plan_jobs.py app/plan_calendar.py app/plan_shortlist.py app/plan_worker.py app/predpocet.py app/static/app.html app/catalog/ingredients.json app/catalog/recipes/manifest.json hetzner/uvarsi-plan-worker.service hetzner/uvarsi-deploy-state.sh VERSION index.html sw.js; do
-  [ -s "$CIEL/$f" ] || { log "vo vydaní chýba $f — NEPREPÍNAM"; \
+  [ -f "$CIEL/$f" ] && [ -s "$CIEL/$f" ] || { log "vo vydaní chýba platný $f — NEPREPÍNAM"; \
     notify "Uvar.si: neúplné vydanie" "Chýba $f."; exit 1; }
 done
 RECEPT_JSON_NAJDENY=0
 for recept in "$CIEL"/app/catalog/recipes/*.json; do
   [ -e "$recept" ] || continue
   [ "$(basename "$recept")" = "manifest.json" ] && continue
-  if [ -s "$recept" ]; then
+  if [ -f "$recept" ] && [ -s "$recept" ]; then
     RECEPT_JSON_NAJDENY=1
     break
   fi
