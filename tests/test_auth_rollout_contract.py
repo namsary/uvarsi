@@ -711,14 +711,22 @@ def test_runbook_has_staged_stop_gates_and_non_secret_evidence():
     assert "no pii" in runbook
 
 
-def test_runbook_activation_and_rollback_touch_only_uvarsi_and_never_restore_db():
-    """Broad service control or data rollback must never enter the auth-v3 runbook."""
+def test_runbook_uses_coherent_standard_deploy_and_flag_only_auth_rollback():
+    """The release moves server and worker together without broad service control."""
     runbook = _read_required(RUNBOOK).lower()
 
     assert runbook.count("systemctl restart uvarsi") >= 2
+    for required in (
+        "standard uvar deployment",
+        "hetzner/samopull.sh",
+        "restarts both uvarsi and uvarsi-plan-worker",
+        "worker binary comes from the same reviewed release as the server",
+        "fresh heartbeat",
+    ):
+        assert required in runbook
     dangerous_service_action = re.compile(
         r"systemctl\s+(?:restart|start|stop|reload|try-restart)\s+"
-        r"(?:caddy|taktik[^\s]*|uvarsi-plan-worker|\*|--all)\b",
+        r"(?:caddy|taktik[^\s]*|\*|--all)\b",
         re.I,
     )
     assert not dangerous_service_action.search(runbook)

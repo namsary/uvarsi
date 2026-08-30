@@ -256,12 +256,7 @@ const PROFILE_KEY = 'uvarsi_profil';
 
 function rememberProfile(me) {
   try {
-    localStorage.setItem(PROFILE_KEY, JSON.stringify({
-      email: me.email, osoby: me.osoby,
-      adults: me.adults == null ? me.osoby : me.adults,
-      children: me.children == null ? 0 : me.children,
-      frekvencia: me.frekvencia,
-      obchody: me.obchody, onboarding: !!me.onboarding}));
+    localStorage.setItem(PROFILE_KEY, JSON.stringify({onboarding: !!me.onboarding}));
   } catch (e) {}
 }
 
@@ -272,14 +267,16 @@ function forgetProfile() {
 function cachedProfile() {
   try {
     const known = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null');
-    return known && known.email && known.onboarding ? known : null;
+    if (!known || !known.onboarding) return null;
+    localStorage.setItem(PROFILE_KEY, '{"onboarding":true}');
+    return {onboarding: true};
   } catch (e) { return null; }
 }
 
 function paintKnownShell() {
   const known = cachedProfile();
   if (!known) return false;
-  $('#hdr').textContent = String(known.email).split('@')[0];
+  $('#hdr').textContent = 'Tvoj plán';
   showNav();
   setNavigationReady(false);
   return true;
@@ -762,11 +759,10 @@ function authenticationCredentialJson(credential) {
   };
 }
 
-async function performPasskeyLogin(email, credentialsApi) {
-  if (!email) throw new Error('Najprv zadaj e-mailovú adresu.');
+async function performPasskeyLogin(credentialsApi) {
   const options = await accountApi({
     url: '/api/auth/passkey/login/options',
-    options: {method: 'POST', body: JSON.stringify({email: email})}
+    options: {method: 'POST', body: '{}'}
   });
   let assertion;
   try {
@@ -846,6 +842,7 @@ function authScreenHtml(mode, passkeyReady) {
           <button class="password-toggle" id="auth-password-toggle" type="button" aria-pressed="false">Zobraziť heslo</button></div>
         ${isRegister ? '<p class="muted" style="margin-top:6px">Použi 10 až 128 znakov.</p>' : ''}</div>`}
       ${active === 'login' ? '<button class="auth-link" id="auth-forgot" type="button">Zabudol som heslo</button><div style="height:8px"></div>' : ''}
+      ${active === 'login' ? '<button class="auth-link" id="auth-legacy-setup" type="button">Mám starý účet – nastaviť heslo</button>' : ''}
       ${isForgot ? '<button class="auth-link" id="auth-back" type="button">Späť na prihlásenie</button><div style="height:8px"></div>' : ''}
       <button class="btn" id="auth-submit" type="submit">${action}</button>
       ${active === 'login' && passkeyReady ? `<div class="auth-divider"><span>alebo</span></div>
@@ -863,6 +860,16 @@ function authRequest(mode, email, password) {
   };
   const payload = mode === 'forgot' ? {email: email} : {email: email, password: password};
   return {url: endpoints[mode], options: {method: 'POST', body: JSON.stringify(payload)}};
+}
+
+function legacySetupRequest(email) {
+  return {url:'/api/auth/request',options:{method:'POST',
+    body:JSON.stringify({email:email.trim()})}};
+}
+
+function passwordChangeRequest(old, next) {
+  return {url:'/api/auth/password/change',options:{method:'POST',
+    body:JSON.stringify({current_password:old,password:next})}};
 }
 
 async function accountApi(request) {
@@ -907,10 +914,19 @@ function viewAccountAuth(mode, previousEmail) {
   const toggle = $('#auth-password-toggle');
   const status = $('#auth-status');
   if (password && toggle) toggle.onclick = () => togglePasswordVisibility(password, toggle);
+  const legacySetup = $('#auth-legacy-setup');
+  if (legacySetup) legacySetup.onclick = () => runGuardedAction(
+    legacySetup, status, async () => {
+      const email = $('#auth-email').value.trim();
+      if (!email) throw new Error('Zadaj e-mailovú adresu.');
+      await accountApi(legacySetupRequest(email));
+      status.style.color = 'var(--success)';
+      status.textContent = 'Ak účet existuje, odkaz je na ceste.';
+      legacySetup.textContent = 'Skontroluj e-mail';
+    });
   const passkey = $('#auth-passkey');
   if (passkey) passkey.onclick = () => runGuardedAction(passkey, status, async () => {
-    const result = await performPasskeyLogin(
-      $('#auth-email').value.trim(), navigator.credentials);
+    const result = await performPasskeyLogin(navigator.credentials);
     location.replace(result.redirect || '/app');
   });
   $('#auth-title').focus();
@@ -1716,8 +1732,8 @@ function passwordSetupCard(me, storage) {
 }
 
 function deviceRevocationRequest(session) {
-  const identifier = session && session.session_hash;
-  if (typeof identifier !== 'string' || !/^[0-9a-f]{64}$/.test(identifier)) return null;
+  const identifier = session && session.management_id;
+  if (typeof identifier !== 'string' || !/^[A-Za-z0-9_-]{20,128}$/.test(identifier)) return null;
   return {
     url: '/api/auth/sessions/' + encodeURIComponent(identifier),
     options: {method: 'DELETE'},
@@ -1769,7 +1785,7 @@ function securityPanelHtml(passkeyReady, passkeys, sessions, state) {
     return `<div class="security-row"><span class="security-copy">
       <span class="security-name">${esc(name)}${current ? '<span class="security-current">Toto zariadenie</span>' : ''}</span>
       <span class="security-meta">${seen ? 'Aktívne ' + esc(seen) : 'Aktívna relácia'}</span></span>
-      <button class="btn btn--ghost" type="button" data-session-revoke="${esc(item.session_hash)}"
+      <button class="btn btn--ghost" type="button" data-session-revoke="${esc(item.management_id)}"
         aria-label="${current ? 'Odhlásiť toto zariadenie' : 'Odhlásiť zariadenie ' + esc(name)}">${current ? 'Odhlásiť toto zariadenie' : 'Odhlásiť zariadenie'}</button></div>`;
   }).join('');
   return `<section class="card" aria-labelledby="passkey-security-title">
@@ -1822,7 +1838,7 @@ function bindSecurityControls(passkeys, sessions) {
   });
   M.querySelectorAll('[data-session-revoke]').forEach(button => button.onclick = () => {
     const item = sessions.find(candidate =>
-      candidate.session_hash === button.dataset.sessionRevoke);
+      candidate.management_id === button.dataset.sessionRevoke);
     const request = deviceRevocationRequest(item);
     const question = request && request.logsOutCurrent
       ? 'Odhlásiť toto zariadenie? Potom sa budeš musieť znova prihlásiť.'
@@ -1912,6 +1928,12 @@ function vNast() {
       <div class="ing" style="border:0"><span>Obchody</span><span class="r">${ME.obchody.join(' · ')}</span></div>
     </div>
     ${passwordSetupCard(ME, localStorage)}
+    ${authV3Enabled(ME) && ME.password_configured ? `<div class="card">
+      <h2>Zmeniť heslo</h2><form id="pw">
+        <label>Aktuálne heslo<input id="po" type="password" autocomplete="current-password"></label>
+        <label>Nové heslo<input id="pn" type="password" autocomplete="new-password"></label>
+        <button class="btn btn--ghost" id="pb">Zmeniť heslo</button><p id="pm"></p>
+      </form></div>` : ''}
     ${authV3Enabled(ME) ? `<div id="account-security">
       <div id="account-security-content">${securityPanelHtml(
         false, [], [], {loading: true})}</div>
@@ -1927,6 +1949,19 @@ function vNast() {
     $('#password-setup-card').remove();
   };
   if (authV3Enabled(ME)) loadAccountSecurity();
+  const passwordForm = $('#pw');
+  if (passwordForm) passwordForm.onsubmit = event => {
+    event.preventDefault();
+    const button = $('#pb'), status = $('#pm');
+    const old = $('#po').value, next = $('#pn').value;
+    runGuardedAction(button, status, async () => {
+      await accountApi(passwordChangeRequest(old, next));
+      passwordForm.reset();
+      status.textContent = 'Heslo zmenené';
+      button.disabled = false;
+      button.textContent = 'Zmeniť heslo';
+    });
+  };
   $('#zmen').onclick = viewOnboarding;
   $('#odhl').onclick = () => runGuardedAction($('#odhl'), $('#nast-err'), async () => {
     await api('/api/auth/logout',{method:'POST'});

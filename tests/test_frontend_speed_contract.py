@@ -11,6 +11,7 @@ Testy sú čisto v Pythone (prípadne cez node), aby bežali aj na Linuxe —
 na rozdiel od tests/test_app_html_contract.py, ktorý potrebuje cscript.exe.
 """
 import gzip
+import os
 import posixpath
 import re
 import shutil
@@ -23,7 +24,7 @@ import pytest
 APP = Path("app/static/app.html")
 LANDING = Path("index.html")
 FONT_DIR = Path("app/static/fonts")
-NODE = shutil.which("node")
+NODE = os.environ.get("UVARSI_NODE") or shutil.which("node")
 needs_node = pytest.mark.skipif(NODE is None, reason="node runtime is not available")
 
 PAGES = (APP, LANDING)
@@ -219,7 +220,6 @@ def test_service_worker_never_answers_an_api_call_from_cache():
     guard = fetch_handler.split("respondWith", 1)[0]
 
     assert "/api/" in guard, "API musí vypadnúť z cache ešte pred respondWith"
-    assert "prihlasenie" in guard, "jednorazový prihlasovací odkaz sa nesmie cachovať"
 
 
 def test_service_worker_bypasses_public_seo_and_crawler_paths():
@@ -251,7 +251,7 @@ def test_service_worker_cache_name_changed_so_the_old_shell_is_dropped():
     source = worker_source()
     assert "uvarsi-v1" not in source, "stará cache by prežila a servírovala starú škrupinu"
     assert "uvarsi-v2" not in source, "po zmene SEO cache politiky treba aktivovať novú cache"
-    assert re.search(r"CACHE\s*=\s*'uvarsi-v\d+'", source)
+    assert "const CACHE = 'uvarsi-v4'" in source
 
 
 def test_service_worker_skips_urls_with_a_query_string():
@@ -322,8 +322,7 @@ def test_service_worker_behaviour_offline_shell_and_always_fresh_prices(tmp_path
   // 1. API sa workera vôbec netýka — prehliadač ide rovno na sieť.
   if (await dispatch('fetch', {request: request('/api/plan')}) !== null) process.exit(3);
   if (await dispatch('fetch', {request: request('/api/me')}) !== null) process.exit(4);
-  // 2. Jednorazový prihlasovací odkaz a adresy s ?query tiež nie.
-  if (await dispatch('fetch', {request: request('/prihlasenie')}) !== null) process.exit(5);
+  // 2. Adresy s ?query worker neukladá.
   if (await dispatch('fetch', {request: {url: 'https://uvar.si/count.json?v=9', method: 'GET'}}) !== null) process.exit(6);
   if (await dispatch('fetch', {request: request('/co-varit-tento-tyzden')}) !== null) process.exit(14);
   if (await dispatch('fetch', {request: request('/robots.txt')}) !== null) process.exit(15);
@@ -345,12 +344,11 @@ def test_service_worker_behaviour_offline_shell_and_always_fresh_prices(tmp_path
   if (!font || font.body !== 'font') process.exit(10);
   if (fetched.length !== 0) process.exit(11);
 
-  // 7. Online: škrupina sa ticho obnoví na pozadí.
+  // 7. Online: škrupina je network-first, aby rollout flagu neostal v starej cache.
   networkUp = true;
   fetched.length = 0;
   const again = await dispatch('fetch', {request: request('/app')});
-  if (!again || again.body !== 'shell') process.exit(12);        // hneď zo zásoby
-  await new Promise(r => setTimeout(r, 20));
+  if (!again || again.body !== 'net:https://uvar.si/app') process.exit(12);
   if (fetched.indexOf('https://uvar.si/app') === -1) process.exit(13);
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(99); });
@@ -465,6 +463,42 @@ def test_pending_acknowledgement_blocks_a_second_post_and_discards_stale_respons
 
 
 @needs_node
+def test_service_worker_network_first_auth_shells_with_safe_offline_app_fallback(tmp_path):
+    """Online auth routes must bypass stale shells; offline may use only cached /app."""
+    script = tmp_path / "sw-auth-network-first.js"
+    script.write_text(
+        SW_HARNESS
+        + "\n(async () => {\n"
+        + worker_source()
+        + r"""
+  await dispatch('install');
+  store.set('https://uvar.si/app', Res('offline-shell'));
+  const dynamic = [
+    '/app', '/prihlasenie', '/potvrdenie', '/heslo',
+    '/api/auth/pages/potvrdenie', '/api/auth/pages/heslo'
+  ];
+  for (const path of dynamic) {
+    networkUp = true;
+    const online = await dispatch('fetch', {request: request(path)});
+    if (!online || online.body !== 'net:https://uvar.si' + path) process.exit(20);
+    networkUp = false;
+    const offline = await dispatch('fetch', {request: request(path)});
+    if (!offline || !['offline-shell', 'net:https://uvar.si/app'].includes(offline.body)) process.exit(21);
+  }
+  process.exit(0);
+})().catch(error => { console.error(error); process.exit(99); });
+""",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [NODE, str(script)], capture_output=True, text=True, encoding="utf-8"
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
 def test_plan_generation_requests_share_one_in_flight_promise(tmp_path):
     """Štart a rýchle dvojkliknutie nesmú spustiť dva platené modelové behy."""
     html = read(APP)
@@ -538,13 +572,14 @@ if (paintKnownShell() !== false) process.exit(1);      // neznámy človek: nič
 rememberProfile({email: 'jano@uvar.si', osoby: 4, frekvencia: 2,
                  obchody: ['Lidl'], onboarding: true, spajza: ['ryza']});
 if (paintKnownShell() !== true) process.exit(2);
-if (header.textContent !== 'jano') process.exit(3);
+    if (header.textContent !== 'Tvoj plán') process.exit(3);
 if (!navVisible) process.exit(4);
 if (navigationReady !== false) process.exit(7);
 var saved = JSON.stringify(store);
 // Ceny sa neukladajú NIKDY — inak by sme raz ukázali neplatnú akciu.
 if (saved.indexOf('cena') !== -1 || saved.indexOf('nakupny_zoznam') !== -1) process.exit(5);
-if (saved.indexOf('spajza') !== -1) process.exit(6);
+    if (saved.indexOf('spajza') !== -1) process.exit(6);
+    if (saved.indexOf('jano@uvar.si') !== -1 || saved.indexOf('email') !== -1) process.exit(8);
 process.exit(0);
 """,
         encoding="utf-8",

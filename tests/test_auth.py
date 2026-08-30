@@ -9,6 +9,7 @@ import sqlite3
 import subprocess
 import sys
 import threading
+import time
 import types
 from contextlib import closing
 from concurrent.futures import ThreadPoolExecutor
@@ -1033,8 +1034,8 @@ def test_account_confirmation_and_password_pages_have_safe_accessible_controls(
     server, _ = load_auth_server(monkeypatch, tmp_path)
     monkeypatch.setenv("UVARSI_AUTH_V3", "1")
     client = TestClient(server.app)
-    confirmation = client.get("/potvrdenie")
-    password = client.get("/heslo")
+    confirmation = client.get("/api/auth/pages/potvrdenie")
+    password = client.get("/api/auth/pages/heslo")
 
     for response in (confirmation, password):
         assert response.status_code == 200
@@ -1053,6 +1054,8 @@ def test_account_confirmation_and_password_pages_have_safe_accessible_controls(
     assert "10 až 128 znakov" in password.text
     assert "/api/auth/password/set" in password.text
     assert "/api/auth/password/reset" in password.text
+    assert client.get("/potvrdenie").text == confirmation.text
+    assert client.get("/heslo").text == password.text
 
 
 @needs_node
@@ -1213,6 +1216,7 @@ def test_auth_v3_migration_is_idempotent_and_preserves_existing_rows(monkeypatch
         "pouzivatelia": "id, email",
         "naroky": "id, user_id, stav",
         "plany": "id, user_id, tyzden, json",
+        "spajza": "id, user_id, nazov",
         "magic_tokens_v2": "token_hash, email, expires_at, created_at",
         "sessions_v2": "token_hash, user_id, expires_at, created_at",
     }
@@ -1226,6 +1230,9 @@ def test_auth_v3_migration_is_idempotent_and_preserves_existing_rows(monkeypatch
               id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL,
               tyzden TEXT NOT NULL, json TEXT NOT NULL
             );
+            CREATE TABLE spajza (
+              id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, nazov TEXT NOT NULL
+            );
             CREATE TABLE magic_tokens_v2 (
               token_hash TEXT PRIMARY KEY, email TEXT NOT NULL,
               expires_at REAL NOT NULL, created_at REAL NOT NULL
@@ -1237,6 +1244,7 @@ def test_auth_v3_migration_is_idempotent_and_preserves_existing_rows(monkeypatch
             INSERT INTO pouzivatelia VALUES (7, 'existing@example.com');
             INSERT INTO naroky VALUES (11, 7, 'aktivny');
             INSERT INTO plany VALUES (13, 7, '2026-08-24', '{"jedla":[]}');
+            INSERT INTO spajza VALUES (17, 7, 'šošovica');
             INSERT INTO magic_tokens_v2
               VALUES ('existing-magic-hash', 'existing@example.com', 1900003600.0, 1900000000.0);
             INSERT INTO sessions_v2
@@ -1249,6 +1257,9 @@ def test_auth_v3_migration_is_idempotent_and_preserves_existing_rows(monkeypatch
         }
 
         server.migrate_auth_schema(con)
+        first_management_id = con.execute(
+            "SELECT management_id FROM sessions_v2 WHERE token_hash='existing-session-hash'"
+        ).fetchone()[0]
         server.migrate_auth_schema(con)
 
         after = {
@@ -1260,7 +1271,81 @@ def test_auth_v3_migration_is_idempotent_and_preserves_existing_rows(monkeypatch
         }
 
     assert after == before
-    assert {"last_seen_at", "device_name", "revoked_at"} <= session_columns
+    assert {"management_id", "last_seen_at", "device_name", "revoked_at"} <= session_columns
+    assert re.fullmatch(r"[A-Za-z0-9_-]{20,128}", first_management_id)
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT management_id FROM sessions_v2 WHERE token_hash='existing-session-hash'"
+        ).fetchone() == (first_management_id,)
+        indexes = con.execute("PRAGMA index_list(sessions_v2)").fetchall()
+    assert any(row[1] == "sessions_v2_management_id_uidx" and row[2] == 1 for row in indexes)
+
+
+def test_auth_cleanup_is_bounded_idempotent_and_never_removes_active_data(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    now = 2_000_000_000.0
+    old = now - auth_data.AUTH_TERMINAL_RETENTION_SECONDS - 1
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('cleanup@example.com')"
+        ).lastrowid
+        sessions = [
+            auth_data.create_session(
+                con, user_id=user_id, now=now, device_name=name
+            )
+            for name in ("active", "expired", "revoked-old", "revoked-recent")
+        ]
+        hashes = [hashlib.sha256(value.encode()).hexdigest() for value in sessions]
+        con.execute(
+            "UPDATE sessions_v2 SET expires_at=? WHERE token_hash=?",
+            (now, hashes[1]),
+        )
+        con.execute(
+            "UPDATE sessions_v2 SET revoked_at=? WHERE token_hash=?",
+            (old, hashes[2]),
+        )
+        con.execute(
+            "UPDATE sessions_v2 SET revoked_at=? WHERE token_hash=?",
+            (now - 60, hashes[3]),
+        )
+        for index, expires_at in enumerate((now - 3, now - 2, now - 1, now + 60)):
+            con.execute(
+                """INSERT INTO auth_webauthn_challenges
+                   (challenge_hash, user_id, purpose, expires_at, created_at)
+                   VALUES (?, NULL, 'login', ?, ?)""",
+                (f"challenge-{index}", expires_at, expires_at - 60),
+            )
+        for index, (state, updated_at) in enumerate(
+            (("sent", old), ("skipped", old), ("failed", old),
+             ("sent", now - 60), ("queued", old))
+        ):
+            con.execute(
+                """INSERT INTO auth_password_reset_outbox
+                   (email, requested_at, state, attempts, created_at, updated_at)
+                   VALUES (?, ?, ?, 0, ?, ?)""",
+                (f"cleanup-{index}@example.com", updated_at, state, updated_at, updated_at),
+            )
+        con.commit()
+
+        first = auth_data.cleanup_auth_records(con, now=now, limit=2)
+        assert sum(first.values()) == 2
+        second = auth_data.cleanup_auth_records(con, now=now, limit=100)
+        third = auth_data.cleanup_auth_records(con, now=now, limit=100)
+
+        assert sum(second.values()) == 6
+        assert third == {"challenges": 0, "outbox": 0, "sessions": 0}
+        assert [tuple(row) for row in con.execute(
+            "SELECT challenge_hash FROM auth_webauthn_challenges"
+        )] == [("challenge-3",)]
+        assert [tuple(row) for row in con.execute(
+            "SELECT state, updated_at FROM auth_password_reset_outbox ORDER BY id"
+        )] == [("sent", now - 60), ("queued", old)]
+        assert [tuple(row) for row in con.execute(
+            "SELECT device_name FROM sessions_v2 ORDER BY created_at, device_name"
+        )] == [("active",), ("revoked-recent",)]
 
 
 def test_auth_v3_migration_adds_account_tables_and_session_metadata(monkeypatch, tmp_path):
@@ -1875,7 +1960,7 @@ def test_post_redeems_once_into_a_hashed_one_hour_host_only_setup_capability(
     response = client.post("/api/auth/verify", json={"token": token})
 
     assert response.status_code == 200
-    assert response.json() == {"ok": True, "redirect": "/heslo"}
+    assert response.json() == {"ok": True, "redirect": "/api/auth/pages/heslo"}
     assert token not in response.text
     cookie = response.headers["set-cookie"]
     assert "uvarsi_setup=" in cookie
@@ -2257,7 +2342,7 @@ def test_password_reset_without_current_session_revokes_every_user_session(
         ).fetchone()[0] == 2
 
 
-def test_session_list_and_revoke_use_hash_identifiers_that_cannot_authenticate(
+def test_session_list_and_revoke_use_public_management_ids_that_cannot_authenticate(
     monkeypatch, tmp_path
 ):
     server, _ = load_auth_server(monkeypatch, tmp_path)
@@ -2278,29 +2363,29 @@ def test_session_list_and_revoke_use_hash_identifiers_that_cannot_authenticate(
             con, user_id=user_id, current_token=raw_session, now=now
         )
 
-        assert listed == [
-            {
-                "session_hash": hashlib.sha256(raw_session.encode()).hexdigest(),
-                "device_name": "Firefox on Windows",
-                "created_at": now,
-                "last_seen_at": now,
-                "expires_at": now + auth_data.SESSION_TTL_SECONDS,
-                "current": True,
-            }
-        ]
-        session_hash = listed[0]["session_hash"]
+        assert len(listed) == 1
+        management_id = listed[0].pop("management_id")
+        assert re.fullmatch(r"[A-Za-z0-9_-]{20,128}", management_id)
+        assert listed == [{
+            "device_name": "Firefox on Windows",
+            "created_at": now,
+            "last_seen_at": now,
+            "expires_at": now + auth_data.SESSION_TTL_SECONDS,
+            "current": True,
+        }]
         assert raw_session not in repr(listed)
+        assert hashlib.sha256(raw_session.encode()).hexdigest() not in repr(listed)
         assert auth_data.user_for_session(
-            con, raw_session=session_hash, now=now, touch=False
+            con, raw_session=management_id, now=now, touch=False
         ) is None
         assert auth_data.revoke_session(
-            con, user_id=other_user_id, session_hash=session_hash
+            con, user_id=other_user_id, management_id=management_id
         ) is False
         assert auth_data.user_for_session(
             con, raw_session=raw_session, now=now, touch=False
         )["id"] == user_id
         assert auth_data.revoke_session(
-            con, user_id=user_id, session_hash=session_hash
+            con, user_id=user_id, management_id=management_id
         ) is True
         assert auth_data.user_for_session(
             con, raw_session=raw_session, now=now, touch=False
@@ -2308,7 +2393,7 @@ def test_session_list_and_revoke_use_hash_identifiers_that_cannot_authenticate(
         assert con.execute(
             """SELECT revoked_at IS NOT NULL FROM sessions_v2
                WHERE token_hash=?""",
-            (session_hash,),
+            (hashlib.sha256(raw_session.encode()).hexdigest(),),
         ).fetchone()[0] == 1
 
 
@@ -2406,7 +2491,12 @@ def _seed_session_revoke_test(server, auth_data, email):
             now=1_800_000_000.0,
             device_name="Target",
         )
-    return user_id, current, hashlib.sha256(target.encode()).hexdigest()
+    with closing(server.db()) as con:
+        management_id = con.execute(
+            "SELECT management_id FROM sessions_v2 WHERE token_hash=?",
+            (hashlib.sha256(target.encode()).hexdigest(),),
+        ).fetchone()[0]
+    return user_id, current, hashlib.sha256(target.encode()).hexdigest(), management_id
 
 
 @pytest.mark.parametrize("operation", ["revoke_session", "revoke_other_sessions"])
@@ -2416,7 +2506,7 @@ def test_session_revokers_leave_a_caller_transaction_open_for_rollback(
     server, database = load_auth_server(monkeypatch, tmp_path)
     auth_data = importlib.import_module("auth_data")
     original_email = f"{operation}-rollback@example.com"
-    user_id, current, target_hash = _seed_session_revoke_test(
+    user_id, current, target_hash, management_id = _seed_session_revoke_test(
         server, auth_data, original_email
     )
     with closing(server.db()) as con:
@@ -2426,7 +2516,7 @@ def test_session_revokers_leave_a_caller_transaction_open_for_rollback(
         )
         if operation == "revoke_session":
             assert auth_data.revoke_session(
-                con, user_id=user_id, session_hash=target_hash
+                con, user_id=user_id, management_id=management_id
             ) is True
         else:
             auth_data.revoke_other_sessions(
@@ -2452,7 +2542,7 @@ def test_session_revokers_leave_a_caller_transaction_open_for_commit(
 ):
     server, database = load_auth_server(monkeypatch, tmp_path)
     auth_data = importlib.import_module("auth_data")
-    user_id, current, target_hash = _seed_session_revoke_test(
+    user_id, current, target_hash, management_id = _seed_session_revoke_test(
         server, auth_data, f"{operation}-commit@example.com"
     )
     with closing(server.db()) as con:
@@ -2462,7 +2552,7 @@ def test_session_revokers_leave_a_caller_transaction_open_for_commit(
         )
         if operation == "revoke_session":
             assert auth_data.revoke_session(
-                con, user_id=user_id, session_hash=target_hash
+                con, user_id=user_id, management_id=management_id
             ) is True
         else:
             auth_data.revoke_other_sessions(
@@ -2488,13 +2578,13 @@ def test_session_revokers_persist_when_they_own_the_transaction(
 ):
     server, database = load_auth_server(monkeypatch, tmp_path)
     auth_data = importlib.import_module("auth_data")
-    user_id, current, target_hash = _seed_session_revoke_test(
+    user_id, current, target_hash, management_id = _seed_session_revoke_test(
         server, auth_data, f"{operation}-owned@example.com"
     )
     with closing(server.db()) as con:
         if operation == "revoke_session":
             assert auth_data.revoke_session(
-                con, user_id=user_id, session_hash=target_hash
+                con, user_id=user_id, management_id=management_id
             ) is True
         else:
             auth_data.revoke_other_sessions(
@@ -2713,6 +2803,152 @@ def auth_v3_client(server, **kwargs):
     return FastAPITestClient(server.app, base_url="https://uvar.si", **kwargs)
 
 
+def test_auth_v3_rejects_oversized_json_before_parse_or_kdf(monkeypatch, tmp_path):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    calls = []
+
+    def forbidden_hash(password):
+        calls.append(password)
+        raise AssertionError("oversized input reached KDF")
+
+    monkeypatch.setattr(server, "hash_password", forbidden_hash)
+    payload = json.dumps(
+        {
+            "email": "large@example.com",
+            "password": "long enough password",
+            "padding": "x" * 20_000,
+        }
+    )
+
+    response = auth_v3_client(server, raise_server_exceptions=False).post(
+        "/api/auth/register",
+        headers={**AUTH_V3_ORIGIN, "Content-Type": "application/json"},
+        content=payload,
+    )
+
+    assert response.status_code == 413
+    assert calls == []
+
+
+def test_auth_v3_login_bounds_password_and_device_before_kdf(monkeypatch, tmp_path):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    seed_password_account(server, auth_data, "bounded@example.com")
+    verify_calls = []
+    original_verify = auth_data.verify_password
+
+    def counted_verify(encoded, password):
+        verify_calls.append((encoded, password))
+        return original_verify(encoded, password)
+
+    monkeypatch.setattr(auth_data, "verify_password", counted_verify)
+    client = auth_v3_client(server)
+    oversized_password = client.post(
+        "/api/auth/login",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "bounded@example.com", "password": "x" * 129},
+    )
+    oversized_device = client.post(
+        "/api/auth/login",
+        headers=AUTH_V3_ORIGIN,
+        json={
+            "email": "bounded@example.com",
+            "password": "correct horse battery",
+            "device_name": "x" * 81,
+        },
+    )
+
+    assert oversized_password.status_code == 401
+    assert oversized_password.json() == {
+        "detail": "E-mail alebo heslo nie sú správne."
+    }
+    assert oversized_device.status_code == 400
+    assert verify_calls == []
+
+
+def test_auth_v3_kdf_gate_bounds_load_and_keeps_health_responsive(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    active = 0
+    peak = 0
+    lock = threading.Lock()
+
+    def slow_kdf(value):
+        nonlocal active, peak
+        with lock:
+            active += 1
+            peak = max(peak, active)
+        time.sleep(0.12)
+        with lock:
+            active -= 1
+        return value
+
+    async def scenario():
+        work = [
+            asyncio.create_task(server.run_password_kdf(slow_kdf, index))
+            for index in range(7)
+        ]
+        await asyncio.sleep(0.03)
+        started = time.monotonic()
+        transport = httpx.ASGITransport(app=server.app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="https://uvar.si"
+        ) as client:
+            health = await client.get("/api/health")
+        elapsed = time.monotonic() - started
+        values = await asyncio.gather(*work)
+        return health, elapsed, values
+
+    health, elapsed, values = asyncio.run(scenario())
+
+    assert server.AUTH_KDF_CONCURRENCY == 2
+    assert peak == server.AUTH_KDF_CONCURRENCY
+    assert health.status_code == 200
+    assert elapsed < 0.20
+    assert values == list(range(7))
+
+
+def test_successful_password_login_rehashes_old_argon2_parameters(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    password = "rehash this password"
+    old_hash = PasswordHasher(
+        time_cost=1,
+        memory_cost=8 * 1024,
+        parallelism=1,
+        hash_len=16,
+        salt_len=16,
+        type=Type.ID,
+    ).hash(password)
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('rehash@example.com')"
+        ).lastrowid
+        auth_data.set_password(
+            con, user_id=user_id, password_hash=old_hash, now=100.0
+        )
+        con.commit()
+
+    response = auth_v3_client(server).post(
+        "/api/auth/login",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "rehash@example.com", "password": password},
+    )
+
+    assert response.status_code == 200
+    with sqlite3.connect(database) as con:
+        upgraded = con.execute(
+            "SELECT password_hash FROM auth_credentials WHERE user_id=?",
+            (user_id,),
+        ).fetchone()[0]
+    assert upgraded != old_hash
+    assert auth_data.verify_password(upgraded, password) is True
+    assert auth_data.password_needs_rehash(upgraded) is False
+
+
 def seed_password_account(server, auth_data, email, password="correct horse battery"):
     os.environ["UVARSI_AUTH_V3"] = "1"
     with closing(server.db()) as con:
@@ -2758,7 +2994,7 @@ def test_auth_v3_route_registration_waits_for_explicit_confirmation_post(
     assert registered.status_code == 200
     assert "new.cook@example.com" not in registered.text.lower()
     assert password not in registered.text
-    raw_token = action_token_from_message(calls, "potvrdenie")
+    raw_token = action_token_from_message(calls, "api/auth/pages/potvrdenie")
     with sqlite3.connect(database) as con:
         assert con.execute(
             "SELECT COUNT(*) FROM pouzivatelia WHERE email='new.cook@example.com'"
@@ -2772,7 +3008,7 @@ def test_auth_v3_route_registration_waits_for_explicit_confirmation_post(
         assert stored[3].startswith("$argon2id$")
         assert password not in " ".join(str(value) for value in stored)
 
-    scanner_get = client.get("/potvrdenie")
+    scanner_get = client.get("/api/auth/pages/potvrdenie")
     assert scanner_get.status_code == 200
     assert 'type="button"' in scanner_get.text
     assert "Potvrdiť účet" in scanner_get.text
@@ -2904,7 +3140,7 @@ def test_auth_v3_route_password_request_and_reset_are_generic_one_time_and_atomi
     assert known.status_code == unknown.status_code == 200
     assert known.json() == unknown.json()
     assert "reset@example.com" not in known.text.lower()
-    raw_token = action_token_from_message(calls, "heslo")
+    raw_token = action_token_from_message(calls, "api/auth/pages/heslo")
     new_client = auth_v3_client(server)
     reset = new_client.post(
         "/api/auth/password/reset",
@@ -3072,12 +3308,23 @@ def test_auth_v3_route_authenticated_password_and_session_management(
     listed = sessions.json()["sessions"]
     assert len(listed) == 2
     assert all(
-        re.fullmatch(r"[0-9a-f]{64}", item["session_hash"]) for item in listed
+        re.fullmatch(r"[A-Za-z0-9_-]{20,128}", item["management_id"])
+        for item in listed
     )
+    assert "session_hash" not in sessions.text
+    assert "token_hash" not in sessions.text
     assert sum(item["current"] for item in listed) == 1
+    current_management_id = next(
+        item["management_id"] for item in listed if item["current"]
+    )
     assert current not in sessions.text
     assert second_raw not in sessions.text
     second_hash = hashlib.sha256(second_raw.encode()).hexdigest()
+    with closing(server.db()) as con:
+        second_management_id = con.execute(
+            "SELECT management_id FROM sessions_v2 WHERE token_hash=?",
+            (second_hash,),
+        ).fetchone()[0]
 
     credential_attempt = auth_v3_client(server)
     credential_attempt.cookies.set(server.COOKIE, second_hash)
@@ -3085,14 +3332,14 @@ def test_auth_v3_route_authenticated_password_and_session_management(
         "prihlaseny": False,
         "auth_v3": True,
     }
-    missing_origin = client.delete(f"/api/auth/sessions/{second_hash}")
+    missing_origin = client.delete(f"/api/auth/sessions/{second_management_id}")
     foreign_origin = client.delete(
-        f"/api/auth/sessions/{second_hash}",
+        f"/api/auth/sessions/{second_management_id}",
         headers={"Origin": "https://evil.example"},
     )
     assert missing_origin.status_code == foreign_origin.status_code == 403
     deleted = client.delete(
-        f"/api/auth/sessions/{second_hash}", headers=AUTH_V3_ORIGIN
+        f"/api/auth/sessions/{second_management_id}", headers=AUTH_V3_ORIGIN
     )
     assert deleted.status_code == 200
     assert second.get("/api/me").json() == {
@@ -3143,9 +3390,8 @@ def test_auth_v3_route_authenticated_password_and_session_management(
         ) == user_id
 
     monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_001.0 + 24 * 60 * 60)
-    current_hash = hashlib.sha256(current.encode()).hexdigest()
     current_logout = client.delete(
-        f"/api/auth/sessions/{current_hash}", headers=AUTH_V3_ORIGIN
+        f"/api/auth/sessions/{current_management_id}", headers=AUTH_V3_ORIGIN
     )
     assert current_logout.status_code == 200
     cookie_headers = current_logout.headers.get_list("set-cookie")
@@ -3319,7 +3565,7 @@ def test_auth_v3_route_provider_failure_never_exposes_registration_secrets(
     )
 
     assert response.status_code == 503
-    raw_token = action_token_from_message(calls, "potvrdenie")
+    raw_token = action_token_from_message(calls, "api/auth/pages/potvrdenie")
     captured = capsys.readouterr()
     public = response.text + captured.out + captured.err
     assert password not in public
@@ -3629,7 +3875,7 @@ def test_auth_task5_fix1_password_request_provider_failure_never_changes_or_leak
     response = asyncio.run(scenario())
     assert provider_finished.wait(1)
     captured = capsys.readouterr()
-    raw_token = action_token_from_message(calls, "heslo")
+    raw_token = action_token_from_message(calls, "api/auth/pages/heslo")
     public = response.text + captured.out + captured.err
     assert response.status_code == 200
     assert "provider-reset@example.com" not in public
@@ -3847,7 +4093,7 @@ def test_auth_task5_fix2_delivered_reset_rejects_credential_changed_after_mint(
     finally:
         release_provider.set()
 
-    raw_token = action_token_from_message(calls, "heslo")
+    raw_token = action_token_from_message(calls, "api/auth/pages/heslo")
     replay = auth_v3_client(server).post(
         "/api/auth/password/reset",
         headers=AUTH_V3_ORIGIN,
@@ -4040,7 +4286,7 @@ def test_auth_task5_fix2_reset_outbox_survives_restart_and_startup_delivers(
     with FastAPITestClient(restarted.app, base_url="https://uvar.si"):
         assert delivered.wait(2), "startup did not drain the persisted reset job"
 
-    raw_token = action_token_from_message(calls, "heslo")
+    raw_token = action_token_from_message(calls, "api/auth/pages/heslo")
     with sqlite3.connect(database) as con:
         assert con.execute(
             "SELECT state, attempts FROM auth_password_reset_outbox"
@@ -4075,7 +4321,7 @@ def test_auth_task5_fix2_reset_outbox_retries_with_one_still_valid_token(
     monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now[0])
 
     assert server.process_password_reset_outbox_batch("retry-worker", limit=1) == 1
-    first_token = action_token_from_message(calls, "heslo")
+    first_token = action_token_from_message(calls, "api/auth/pages/heslo")
     with sqlite3.connect(database) as con:
         state, attempts, next_attempt_at = con.execute(
             """SELECT state, attempts, next_attempt_at
@@ -4088,7 +4334,7 @@ def test_auth_task5_fix2_reset_outbox_retries_with_one_still_valid_token(
     assert server.process_password_reset_outbox_batch("retry-worker", limit=1) == 0
     now[0] = next_attempt_at
     assert server.process_password_reset_outbox_batch("retry-worker", limit=1) == 1
-    second_token = action_token_from_message(calls, "heslo")
+    second_token = action_token_from_message(calls, "api/auth/pages/heslo")
     assert first_token == second_token
     with sqlite3.connect(database) as con:
         assert con.execute(
@@ -4227,7 +4473,7 @@ def test_auth_task5_fix3_legacy_verify_grants_only_recoverable_password_setup(
     )
 
     assert verified.status_code == 200
-    assert verified.json() == {"ok": True, "redirect": "/heslo"}
+    assert verified.json() == {"ok": True, "redirect": "/api/auth/pages/heslo"}
     assert client.cookies.get(server.COOKIE) is None
     setup_cookie = client.cookies.get(server.SETUP_COOKIE)
     assert setup_cookie
@@ -4308,7 +4554,7 @@ def test_auth_task5_fix3_uncertain_delivery_retries_same_valid_token_with_idempo
     monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
 
     assert server.process_password_reset_outbox_batch("uncertain-worker", limit=1) == 1
-    first_token = action_token_from_message(calls, "heslo")
+    first_token = action_token_from_message(calls, "api/auth/pages/heslo")
     first_key = calls[0][1]["headers"]["Idempotency-Key"]
     with sqlite3.connect(database) as con:
         state, attempts, next_attempt_at, token_hash = con.execute(
@@ -4331,7 +4577,7 @@ def test_auth_task5_fix3_uncertain_delivery_retries_same_valid_token_with_idempo
     assert len(calls) == 1
     now[0] = next_attempt_at
     assert server.process_password_reset_outbox_batch("uncertain-worker", limit=1) == 1
-    assert action_token_from_message(calls, "heslo") == first_token
+    assert action_token_from_message(calls, "api/auth/pages/heslo") == first_token
     assert calls[1][1]["headers"]["Idempotency-Key"] == first_key
     with sqlite3.connect(database) as con:
         state, attempts, second_attempt_at = con.execute(
@@ -4344,7 +4590,7 @@ def test_auth_task5_fix3_uncertain_delivery_retries_same_valid_token_with_idempo
     assert server.process_password_reset_outbox_batch("uncertain-worker", limit=1) == 0
     now[0] = second_attempt_at
     assert server.process_password_reset_outbox_batch("uncertain-worker", limit=1) == 1
-    assert action_token_from_message(calls, "heslo") == first_token
+    assert action_token_from_message(calls, "api/auth/pages/heslo") == first_token
     assert calls[2][1]["headers"]["Idempotency-Key"] == first_key
     with sqlite3.connect(database) as con:
         assert con.execute(
@@ -4602,7 +4848,7 @@ def test_auth_v3_flag_stages_primary_auth_without_breaking_session_or_setup_brid
     )
 
     assert verified.status_code == 200
-    assert verified.json()["redirect"] == "/heslo"
+    assert verified.json()["redirect"] == "/api/auth/pages/heslo"
     assert configured.status_code == 200
     with sqlite3.connect(database) as con:
         assert con.execute(

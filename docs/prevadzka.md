@@ -8,9 +8,10 @@ controller and require separate approval.
 ## Non-negotiable guardrails
 
 - Payments stay OFF (`PLATBY_ZAPNUTE=0`) for the entire rollout.
-- Do not edit, reload, restart, or stop Caddy, Taktik-mapa, the plan worker,
-  cron, timers, or any other service. Read-only status and HTTP checks are
-  allowed. Restart only uvarsi where this runbook explicitly says so.
+- Do not edit, reload, restart, or stop Caddy, Taktik-mapa, cron, timers, or
+  any other unrelated service. Read-only status and HTTP checks are allowed.
+  The standard Uvar deployment is the only release step allowed to control
+  both Uvar services. Flag activation and rollback restart only uvarsi.
 - Do not run `nasad.ps1`; it has a wider operational scope than this rollout.
 - Do not print or capture e-mail addresses, passwords, cookies, tokens,
   response bodies from authenticated endpoints, environment values, or PII.
@@ -157,16 +158,24 @@ that file or any other environment value. Confirm only that the key exists once
 and equals `0`. The release controller then deploys the reviewed backend
 candidate. This document does not authorize push, upload, SSH, or deployment.
 
-The deployment must not modify Caddy, Taktik-mapa, cron, timers, payment
-configuration, or the plan-worker service. Once the controller reports the
-backend candidate deployed with the flag off, verify:
+Use the existing reviewed **standard Uvar deployment** represented by the
+installed `hetzner/samopull.sh` release path. It atomically installs one app
+release, restarts both uvarsi and uvarsi-plan-worker, and rejects success until
+it observes a fresh heartbeat. The worker binary comes from the same reviewed release as the server.
+Do not substitute `nasad.ps1`: that wider maintenance
+script can manage Caddy and cron and is outside this rollout.
+
+The standard deployment must not modify Caddy, Taktik-mapa, cron, timers,
+payment configuration, or the feature flag. Once the controller reports the
+coherent server-and-worker candidate deployed with the flag off, verify:
 
 1. `/api/health` has the expected candidate release and current week.
 2. `/co-varit-tento-tyzden` and `/api/public/landing` return valid current-week
    content without recording their full bodies.
 3. The plan worker reports a fresh heartbeat: capture
    `plan_queue.heartbeat_at` before deployment, then require a later timestamp
-   and `plan_queue.worker_alive=true` after deployment. Do not restart it.
+   and `plan_queue.worker_alive=true` after deployment. The timestamp must be
+   newer than the pre-deploy value, proving the restarted worker is this release.
 4. The existing old session still opens `/app` and remains authenticated.
 5. The second hosted app at `mapa.89.167.72.159.sslip.io` still returns success.
 6. Anonymous `/api/me` does not expose auth-v3 capability while the flag is off.
@@ -186,8 +195,9 @@ sudo systemctl restart uvarsi
 sudo systemctl is-active --quiet uvarsi
 ```
 
-Do not run a grouped service command. Do not touch Caddy, Taktik-mapa,
-uvarsi-plan-worker, cron, timers, or payment configuration.
+Do not run a grouped service command. This flag-only activation does not
+replace binaries: do not touch Caddy, Taktik-mapa, uvarsi-plan-worker, cron,
+timers, or payment configuration.
 
 Immediately repeat health, current-week landing, fresh heartbeat, existing old
 session, second hosted app, and payments-off checks. Anonymous `/api/me` must

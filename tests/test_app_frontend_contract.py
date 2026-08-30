@@ -293,7 +293,7 @@ const credentialsApi={
 };
 (async()=>{
   await performPasskeyRegistration(credentialsApi);
-  await performPasskeyLogin('cook@example.com',credentialsApi);
+  await performPasskeyLogin(credentialsApi);
   process.stdout.write(JSON.stringify({navigatorCalls,calls:calls.map(call=>({
     url:call.url,method:call.options.method,body:JSON.parse(call.options.body)}))}));
 })().catch(error=>{console.error(error);process.exit(1)});
@@ -310,6 +310,7 @@ const credentialsApi={
         "/api/auth/passkey/login/verify",
     ]
     assert all(call["method"] == "POST" for call in state["calls"])
+    assert state["calls"][2]["body"] == {}
     register = state["calls"][1]["body"]
     assert register == {
         "challenge": "AQID",
@@ -366,7 +367,7 @@ const password={value:'heslo zostáva použiteľné'};
 const status={textContent:'',style:{}};
 (async()=>{
   const ok=await runGuardedAction(passkeyButton,status,
-    ()=>performPasskeyLogin('cook@example.com',credentialsApi));
+    ()=>performPasskeyLogin(credentialsApi));
   process.stdout.write(JSON.stringify({ok,calls,password,passwordButton,passkeyButton,status}));
 })().catch(error=>{console.error(error);process.exit(1)});
 """,
@@ -396,10 +397,10 @@ def test_device_and_passkey_controls_use_only_valid_opaque_list_identifiers(tmp_
         "device-revocation-contract.js",
         source
         + r"""
-const currentHash='a'.repeat(64),otherHash='b'.repeat(64);
-const current=deviceRevocationRequest({session_hash:currentHash,current:true});
-const other=deviceRevocationRequest({session_hash:otherHash,current:false});
-const malformed=deviceRevocationRequest({session_hash:'../../foreign',current:false});
+const currentHash='a'.repeat(32),otherHash='b'.repeat(32);
+const current=deviceRevocationRequest({management_id:currentHash,current:true});
+const other=deviceRevocationRequest({management_id:otherHash,current:false});
+const malformed=deviceRevocationRequest({management_id:'../../foreign',current:false});
 const passkey=passkeyDeletionRequest({credential_id:'AQID-_8'});
 const longPasskey=passkeyDeletionRequest({credential_id:'A'.repeat(1500)});
 const tooLongPasskey=passkeyDeletionRequest({credential_id:'A'.repeat(2049)});
@@ -412,12 +413,12 @@ process.stdout.write(JSON.stringify({current,other,malformed,passkey,longPasskey
     assert result.returncode == 0, result.stdout + result.stderr
     state = json.loads(result.stdout)
     assert state["current"] == {
-        "url": "/api/auth/sessions/" + "a" * 64,
+        "url": "/api/auth/sessions/" + "a" * 32,
         "options": {"method": "DELETE"},
         "logsOutCurrent": True,
     }
     assert state["other"] == {
-        "url": "/api/auth/sessions/" + "b" * 64,
+        "url": "/api/auth/sessions/" + "b" * 32,
         "options": {"method": "DELETE"},
         "logsOutCurrent": False,
     }
@@ -450,13 +451,13 @@ process.stdout.write(JSON.stringify({current,other,malformed,passkey,longPasskey
         "device-handler-idor.js",
         handler_source
         + r"""
-const ownCurrent={session_hash:'a'.repeat(64),current:true};
-const ownOther={session_hash:'b'.repeat(64),current:false};
-const foreign={session_hash:'f'.repeat(64),current:false};
+const ownCurrent={management_id:'a'.repeat(32),current:true};
+const ownOther={management_id:'b'.repeat(32),current:false};
+const foreign={management_id:'f'.repeat(32),current:false};
 const buttons={
-  current:{dataset:{sessionRevoke:ownCurrent.session_hash}},
-  other:{dataset:{sessionRevoke:ownOther.session_hash}},
-  foreign:{dataset:{sessionRevoke:foreign.session_hash}}
+  current:{dataset:{sessionRevoke:ownCurrent.management_id}},
+  other:{dataset:{sessionRevoke:ownOther.management_id}},
+  foreign:{dataset:{sessionRevoke:foreign.management_id}}
 };
 const calls=[];const loaded=[];const locations=[];
 const M={querySelectorAll(selector){
@@ -482,8 +483,8 @@ bindSecurityControls([], [ownCurrent,ownOther]);
     assert behavior.returncode == 0, behavior.stdout + behavior.stderr
     handled = json.loads(behavior.stdout)
     assert [call["url"] for call in handled["calls"]] == [
-        "/api/auth/sessions/" + "b" * 64,
-        "/api/auth/sessions/" + "a" * 64,
+        "/api/auth/sessions/" + "b" * 32,
+        "/api/auth/sessions/" + "a" * 32,
     ]
     assert handled["loaded"] == ["Zariadenie bolo odhlásené."]
     assert handled["locations"] == ["/app"]
@@ -523,7 +524,7 @@ async function api(url){
     credential_id:'AQID',name:'Laptop',created_at:1,last_used_at:null
   }]};
   if(url==='/api/auth/sessions')return {sessions:[{
-    session_hash:'a'.repeat(64),device_name:'Tablet',created_at:1,
+    management_id:'a'.repeat(32),device_name:'Tablet',created_at:1,
     last_seen_at:2,expires_at:3,current:true
   }]};
   throw new Error('unexpected URL');
@@ -598,11 +599,11 @@ function api(url){return queues[url].shift()}
   const older=loadAccountSecurity('Starý stav.','#passkey-add');
   const newer=loadAccountSecurity('Nový stav.','#passkey-add');
   newPasskeys.resolve({passkeys:[{credential_id:'new-id',name:'Nový Passkey',created_at:20}]});
-  newSessions.resolve({sessions:[{session_hash:'b'.repeat(64),device_name:'Nový telefón',
+  newSessions.resolve({sessions:[{management_id:'b'.repeat(32),device_name:'Nový telefón',
     created_at:20,last_seen_at:20,expires_at:30,current:true}]});
   await newer;
   oldPasskeys.resolve({passkeys:[{credential_id:'old-id',name:'Starý Passkey',created_at:10}]});
-  oldSessions.resolve({sessions:[{session_hash:'a'.repeat(64),device_name:'Starý telefón',
+  oldSessions.resolve({sessions:[{management_id:'a'.repeat(32),device_name:'Starý telefón',
     created_at:10,last_seen_at:10,expires_at:30,current:true}]});
   await older;
   process.stdout.write(JSON.stringify({html:content.innerHTML,status,bound,
@@ -684,9 +685,9 @@ def test_security_mutations_request_sensible_focus_after_refresh(tmp_path):
         source
         + r"""
 const passkey={credential_id:'AQID',name:'Telefón'};
-const session={session_hash:'b'.repeat(64),device_name:'Tablet',current:false};
+const session={management_id:'b'.repeat(32),device_name:'Tablet',current:false};
 const add={};const remove={dataset:{passkeyDelete:passkey.credential_id}};
-const revoke={dataset:{sessionRevoke:session.session_hash}};
+const revoke={dataset:{sessionRevoke:session.management_id}};
 const status={textContent:'',style:{}};
 const M={querySelectorAll(selector){
   if(selector==='[data-passkey-delete]')return [remove];
@@ -791,6 +792,44 @@ def test_account_controls_fit_320px_and_keep_native_visible_focus():
     assert ".password-field input{min-width:0}" in html
     assert "@media (max-width:360px)" in html
     assert ":focus-visible{outline:3px solid var(--highlight)" in html
+
+
+@needs_node
+def test_profile_cache_migrates_away_email_and_keeps_only_non_pii_hints(tmp_path):
+    html = app_html()
+    source = "\n".join(
+        function_source(html, name)
+        for name in ("rememberProfile", "cachedProfile", "paintKnownShell")
+    )
+    result = run_node(
+        tmp_path,
+        "profile-cache-privacy.js",
+        "const PROFILE_KEY='uvarsi_profil';\n"
+        + source
+        + r"""
+const values=new Map([[PROFILE_KEY,JSON.stringify({email:'person@example.com',
+  osoby:3,adults:2,children:1,frekvencia:2,obchody:['Lidl'],onboarding:true})]]);
+const localStorage={
+  getItem(key){return values.has(key)?values.get(key):null},
+  setItem(key,value){values.set(key,String(value))},removeItem(key){values.delete(key)}
+};
+const header={textContent:''};function $(selector){return selector==='#hdr'?header:null}
+function showNav(){}function setNavigationReady(){}
+const migrated=cachedProfile();const painted=paintKnownShell();
+rememberProfile({email:'new@example.com',osoby:4,adults:2,children:2,
+  frekvencia:1,obchody:['Tesco'],onboarding:true});
+process.stdout.write(JSON.stringify({migrated,painted,header,stored:values.get(PROFILE_KEY)}));
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    state = json.loads(result.stdout)
+    assert state["painted"] is True
+    assert state["header"]["textContent"] == "Tvoj plán"
+    assert state["migrated"] == {"onboarding": True}
+    assert json.loads(state["stored"]) == {"onboarding": True}
+    assert "email" not in state["stored"].lower()
+    assert "example.com" not in state["stored"]
 
 
 @needs_node
@@ -904,6 +943,56 @@ def test_feature_flag_keeps_legacy_magic_ui_and_enabled_ui_uses_guarded_actions(
     assert "/api/auth/request" not in account
     assert "runGuardedAction" in account
     assert "authRequest" in account
+    assert "Mám starý účet – nastaviť heslo" in function_source(html, "authScreenHtml")
+    assert "legacySetupRequest" in account
+
+
+@needs_node
+def test_legacy_setup_bridge_and_profile_password_change_are_guarded_post_actions(tmp_path):
+    html = app_html()
+    legacy_source = function_source(html, "legacySetupRequest")
+    password_source = function_source(html, "passwordChangeRequest")
+    result = run_node(
+        tmp_path,
+        "auth-ux-actions.js",
+        legacy_source
+        + "\n"
+        + password_source
+        + r"""
+const legacy=legacySetupRequest(' old@example.com ');
+const change=passwordChangeRequest('current secret','new secure password');
+process.stdout.write(JSON.stringify({legacy,change}));
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    state = json.loads(result.stdout)
+    assert state["legacy"] == {
+        "url": "/api/auth/request",
+        "options": {
+            "method": "POST",
+            "body": json.dumps({"email": "old@example.com"}, separators=(",", ":")),
+        },
+    }
+    assert state["change"] == {
+        "url": "/api/auth/password/change",
+        "options": {
+            "method": "POST",
+            "body": json.dumps(
+                {
+                    "current_password": "current secret",
+                    "password": "new secure password",
+                },
+                separators=(",", ":"),
+            ),
+        },
+    }
+    profile = function_source(html, "vNast")
+    assert 'autocomplete="current-password"' in profile
+    assert 'autocomplete="new-password"' in profile
+    assert "passwordChangeRequest" in profile
+    assert "runGuardedAction" in profile
+    assert "email/change" not in profile
 
 
 @needs_node

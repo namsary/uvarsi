@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 AUTH_REQUIREMENTS = ROOT / "requirements-auth.txt"
 DEV_REQUIREMENTS = ROOT / "requirements-dev.txt"
 SAMOPULL = ROOT / "hetzner" / "samopull.sh"
+MANUAL_DEPLOY = ROOT / "nasad.ps1"
 
 AUTH_PINS = {
     "argon2-cffi": "25.1.0",
@@ -106,6 +107,19 @@ def test_auth_dependencies_are_exactly_pinned_for_development_and_production():
     for package, expected_version in AUTH_PINS.items():
         assert auth_versions[package] == [expected_version]
         assert dev_versions[package] == [expected_version]
+
+
+def test_existing_caddy_contract_proxies_auth_pages_through_api_without_new_routes():
+    """Auth HTML must fit the reviewed /api proxy; Caddy must not need a release edit."""
+    script = MANUAL_DEPLOY.read_text(encoding="utf-8")
+    match = re.search(r'blok = """(.*?)"""', script, re.DOTALL)
+    assert match, "manual deploy must contain the generated Caddy site block"
+    caddy = match.group(1)
+
+    api = re.search(r"handle /api/\*\s*\{(.*?)\}", caddy, re.DOTALL)
+    assert api and "reverse_proxy 127.0.0.1:8090" in api.group(1)
+    assert "handle /potvrdenie" not in caddy
+    assert "handle /heslo" not in caddy
 
 
 @pytest.mark.parametrize("missing_module", ["argon2", "webauthn"])

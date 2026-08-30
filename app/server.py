@@ -34,6 +34,7 @@ from webauthn.helpers.structs import (
     AuthenticatorSelectionCriteria,
     AuthenticatorTransport,
     PublicKeyCredentialDescriptor,
+    ResidentKeyRequirement,
     UserVerificationRequirement,
 )
 import db_rezim
@@ -117,7 +118,6 @@ from auth_data import (
     PASSWORD_ACTION_TOKEN_TTL_SECONDS,
     PASSWORDLESS_CREDENTIAL_VERSION,
     SESSION_TTL_SECONDS,
-    authenticate_password,
     cancel_magic_token_reservation,
     consume_action_token,
     consume_magic_token,
@@ -126,6 +126,7 @@ from auth_data import (
     create_session,
     create_webauthn_challenge,
     claim_password_reset_job,
+    cleanup_auth_records,
     delete_passkey,
     delete_session,
     delete_setup_session,
@@ -136,6 +137,7 @@ from auth_data import (
     list_sessions,
     migrate_auth_schema,
     normalize_email,
+    password_authentication_material,
     password_reset_outbox_next_wake,
     passkey_for_credential,
     promote_magic_token,
@@ -150,6 +152,7 @@ from auth_data import (
     user_for_setup_session,
     update_passkey_use,
     validate_password,
+    verify_password_and_rehash,
 )
 
 DB = os.environ.get("UVARSI_DB", "/opt/uvarsi/uvarsi.db")
@@ -178,6 +181,9 @@ AUTH_V3_IP_LIMITER = ClientIpRateLimiter(
 AUTH_V3_ACCOUNT_LIMITER = ClientIpRateLimiter(
     max_requests=5, window_seconds=10 * 60, max_clients=50_000
 )
+AUTH_KDF_CONCURRENCY = 2
+AUTH_KDF_GATE = asyncio.BoundedSemaphore(AUTH_KDF_CONCURRENCY)
+MAX_AUTH_JSON_BYTES = 16 * 1024
 AUTH_BACKGROUND_TASKS: set[asyncio.Task] = set()
 AUTH_OUTBOX_BATCH_SIZE = 1
 AUTH_OUTBOX_WORKER_ID = f"auth-reset-{os.getpid()}-{id(AUTH_BACKGROUND_TASKS)}"
@@ -465,6 +471,8 @@ def zvys_strop_vlakien() -> None:
 async def lifespan(_app: FastAPI):
     global AUTH_OUTBOX_SHUTTING_DOWN
     priprav_databazu()
+    with closing(db()) as con:
+        cleanup_auth_records(con, now=AUTH_CLOCK())
     zvys_strop_vlakien()
     AUTH_OUTBOX_SHUTTING_DOWN = False
     ensure_password_reset_worker()
@@ -488,6 +496,7 @@ AUTH_V3_PRIMARY_PATHS = frozenset(
         "/api/auth/password/request",
         "/api/auth/password/reset",
         "/api/auth/password/change",
+        "/api/auth/pages/potvrdenie",
         "/potvrdenie",
     }
 )
@@ -546,7 +555,7 @@ async def private_ui_noindex(request: Request, call_next):
     if renewal:
         set_session_cookie(response, renewal)
     if request.url.path == "/app" or request.url.path.startswith(
-        ("/prihlasenie", "/potvrdenie", "/heslo")
+        ("/prihlasenie", "/potvrdenie", "/heslo", "/api/auth/pages/")
     ):
         response.headers["Cache-Control"] = PRIVATE_CACHE_CONTROL
         response.headers["X-Robots-Tag"] = NOINDEX_HEADER
@@ -817,13 +826,54 @@ def require_auth_origin(req: Request) -> None:
 
 
 async def auth_json(req: Request) -> dict:
+    content_length = req.headers.get("content-length")
+    if content_length is not None:
+        try:
+            if int(content_length) > MAX_AUTH_JSON_BYTES:
+                raise HTTPException(413, "Požiadavka je príliš veľká.")
+        except ValueError:
+            raise HTTPException(400, "Požiadavka musí obsahovať platný JSON objekt.")
+    chunks = []
+    size = 0
     try:
-        data = await req.json()
+        async for chunk in req.stream():
+            size += len(chunk)
+            if size > MAX_AUTH_JSON_BYTES:
+                raise HTTPException(413, "Požiadavka je príliš veľká.")
+            chunks.append(chunk)
+        data = json.loads(b"".join(chunks))
     except (ValueError, UnicodeDecodeError):
         raise HTTPException(400, "Požiadavka musí obsahovať platný JSON objekt.")
     if not isinstance(data, dict):
         raise HTTPException(400, "Požiadavka musí obsahovať platný JSON objekt.")
     return data
+
+
+async def run_password_kdf(function, *args):
+    """Offload one Argon2 operation under the process-local capacity bound."""
+    async with AUTH_KDF_GATE:
+        return await asyncio.to_thread(function, *args)
+
+
+async def authenticate_password_async(
+    *, email: str, password: str, now: float, rehash: bool = True
+) -> int | None:
+    with closing(db()) as con:
+        user_id, encoded = password_authentication_material(con, email=email)
+    verified, replacement = await run_password_kdf(
+        verify_password_and_rehash, encoded, password
+    )
+    if user_id is None or not verified:
+        return None
+    if rehash and replacement is not None:
+        with closing(db()) as con:
+            con.execute(
+                """UPDATE auth_credentials SET password_hash=?, changed_at=?
+                   WHERE user_id=? AND password_hash=?""",
+                (replacement, now, user_id, encoded),
+            )
+            con.commit()
+    return user_id
 
 
 def auth_ip_rate_limit(req: Request, *, operation: str, now: float) -> None:
@@ -840,6 +890,8 @@ def auth_account_rate_limit(*, account: str, operation: str, now: float) -> None
 def auth_device_name(req: Request, data: dict, fallback: str) -> str:
     supplied = data.get("device_name")
     if isinstance(supplied, str):
+        if len(supplied) > 80:
+            raise HTTPException(400, "Názov zariadenia môže mať najviac 80 znakov.")
         supplied = " ".join(supplied.split())
         if supplied:
             return supplied[:80]
@@ -945,7 +997,10 @@ def process_password_reset_outbox_batch(
                 con, delivery, accepted=False, now=AUTH_CLOCK()
             )
         return 1
-    link = f"{BASE_URL}/heslo#token={delivery.raw_token}&purpose=reset"
+    link = (
+        f"{BASE_URL}/api/auth/pages/heslo"
+        f"#token={delivery.raw_token}&purpose=reset"
+    )
     accepted = False
     try:
         action_email(
@@ -1187,7 +1242,7 @@ async def auth_register(req: Request):
         password = validate_password(data.get("password"))
     except ValueError:
         raise HTTPException(400, "Zadaj platný e-mail a heslo s 10 až 128 znakmi.")
-    pending_hash = await asyncio.to_thread(hash_password, password)
+    pending_hash = await run_password_kdf(hash_password, password)
 
     with closing(db()) as con:
         account = con.execute(
@@ -1206,7 +1261,7 @@ async def auth_register(req: Request):
                 now=now,
                 pending_password_hash=pending_hash,
             )
-            link = f"{BASE_URL}/potvrdenie#token={raw_token}"
+            link = f"{BASE_URL}/api/auth/pages/potvrdenie#token={raw_token}"
             subject = "Potvrď účet Uvar.si"
             heading = "Potvrď vytvorenie účtu; odkaz platí 24 hodín"
         else:
@@ -1222,7 +1277,10 @@ async def auth_register(req: Request):
                     else PASSWORDLESS_CREDENTIAL_VERSION
                 ),
             )
-            link = f"{BASE_URL}/heslo#token={raw_token}&purpose={purpose}"
+            link = (
+                f"{BASE_URL}/api/auth/pages/heslo"
+                f"#token={raw_token}&purpose={purpose}"
+            )
             subject = "Účet Uvar.si už existuje"
             heading = "Pokračuj prihlásením alebo bezpečným nastavením hesla"
     try:
@@ -1297,17 +1355,23 @@ async def auth_password_login(req: Request):
         email = normalize_email(data.get("email"))
     except ValueError:
         raise HTTPException(401, PASSWORD_LOGIN_FAILURE_MESSAGE)
-    password = data.get("password")
+    try:
+        password = validate_password(data.get("password"))
+    except ValueError:
+        raise HTTPException(401, PASSWORD_LOGIN_FAILURE_MESSAGE)
+    device_name = auth_device_name(req, data, "Prihlásené zariadenie")
     auth_account_rate_limit(account=email, operation="login", now=now)
+    user_id = await authenticate_password_async(
+        email=email, password=password, now=now
+    )
+    if user_id is None:
+        raise HTTPException(401, PASSWORD_LOGIN_FAILURE_MESSAGE)
     with closing(db()) as con:
-        user_id = authenticate_password(con, email=email, password=password)
-        if user_id is None:
-            raise HTTPException(401, PASSWORD_LOGIN_FAILURE_MESSAGE)
         session = create_session(
             con,
             user_id=user_id,
             now=now,
-            device_name=auth_device_name(req, data, "Prihlásené zariadenie"),
+            device_name=device_name,
         )
     response = JSONResponse({"ok": True, "redirect": "/app"})
     set_session_cookie(response, session)
@@ -1354,7 +1418,8 @@ async def auth_password_reset(req: Request):
             auth_account_rate_limit(
                 account=token_account[0], operation="password-reset", now=now
             )
-    password_hash = await asyncio.to_thread(hash_password, password)
+    device_name = auth_device_name(req, data, "Obnovené zariadenie")
+    password_hash = await run_password_kdf(hash_password, password)
     try:
         with closing(db()) as con:
             try:
@@ -1391,7 +1456,7 @@ async def auth_password_reset(req: Request):
                     con,
                     user_id=user_id,
                     now=now,
-                    device_name=auth_device_name(req, data, "Obnovené zariadenie"),
+                    device_name=device_name,
                 )
                 revoke_other_sessions(
                     con, user_id=user_id, current_token=session
@@ -1541,7 +1606,7 @@ async def auth_password_set(req: Request):
         ).fetchone():
             raise HTTPException(409, "Heslo už je nastavené. Použi zmenu hesla.")
     now = AUTH_CLOCK()
-    password_hash = await asyncio.to_thread(hash_password, password)
+    password_hash = await run_password_kdf(hash_password, password)
     try:
         if raw_setup_session is not None:
             session = complete_restricted_setup_password(
@@ -1575,18 +1640,21 @@ async def auth_password_change(req: Request):
     require_auth_origin(req)
     user = require_user(req)
     data = await auth_json(req)
-    current_password = data.get("current_password")
+    try:
+        current_password = validate_password(data.get("current_password"))
+    except ValueError:
+        raise HTTPException(401, PASSWORD_LOGIN_FAILURE_MESSAGE)
     try:
         password = validate_password(data.get("password"))
     except ValueError:
         raise HTTPException(400, "Heslo musí mať 10 až 128 znakov.")
-    with closing(db()) as con:
-        if authenticate_password(
-            con, email=user["email"], password=current_password
-        ) != user["id"]:
-            raise HTTPException(401, PASSWORD_LOGIN_FAILURE_MESSAGE)
     now = AUTH_CLOCK()
-    password_hash = await asyncio.to_thread(hash_password, password)
+    authenticated_id = await authenticate_password_async(
+        email=user["email"], password=current_password, now=now, rehash=False
+    )
+    if authenticated_id != user["id"]:
+        raise HTTPException(401, PASSWORD_LOGIN_FAILURE_MESSAGE)
+    password_hash = await run_password_kdf(hash_password, password)
     update_authenticated_password(req, user=user, password_hash=password_hash, now=now)
     return {"ok": True}
 
@@ -1602,20 +1670,33 @@ def auth_sessions(req: Request):
     return {"sessions": active}
 
 
-@app.delete("/api/auth/sessions/{session_hash}")
-def auth_session_delete(session_hash: str, req: Request):
+@app.delete("/api/auth/sessions/{management_id}")
+def auth_session_delete(management_id: str, req: Request):
     require_auth_origin(req)
     user = require_user(req)
-    if re.fullmatch(r"[0-9a-f]{64}", session_hash) is None:
+    if re.fullmatch(r"[A-Za-z0-9_-]{20,128}", management_id) is None:
         raise HTTPException(404, "Relácia sa nenašla.")
     current = req.cookies.get(COOKIE)
     with closing(db()) as con:
+        current_management_id = next(
+            (
+                item["management_id"]
+                for item in list_sessions(
+                    con,
+                    user_id=user["id"],
+                    current_token=current or "",
+                    now=AUTH_CLOCK(),
+                )
+                if item["current"]
+            ),
+            None,
+        )
         if not revoke_session(
-            con, user_id=user["id"], session_hash=session_hash
+            con, user_id=user["id"], management_id=management_id
         ):
             raise HTTPException(404, "Relácia sa nenašla.")
     response = JSONResponse({"ok": True})
-    if current and token_hash(current) == session_hash:
+    if current_management_id == management_id:
         req.state.renew_session_cookie = None
         response.delete_cookie(COOKIE, httponly=True, samesite="lax", secure=True)
     return response
@@ -1659,6 +1740,8 @@ async def auth_passkey_register_options(req: Request):
         challenge=base64url_to_bytes(challenge),
         timeout=PASSKEY_OPTIONS_TIMEOUT_MS,
         authenticator_selection=AuthenticatorSelectionCriteria(
+            resident_key=ResidentKeyRequirement.REQUIRED,
+            require_resident_key=True,
             user_verification=UserVerificationRequirement.REQUIRED
         ),
         exclude_credentials=[passkey_descriptor(item) for item in existing],
@@ -1749,30 +1832,17 @@ async def auth_passkey_register_verify(req: Request):
 async def auth_passkey_login_options(req: Request):
     require_passkey_feature()
     require_auth_origin(req)
-    data = await auth_json(req)
+    await auth_json(req)
     now = AUTH_CLOCK()
     auth_ip_rate_limit(req, operation="passkey-login-options", now=now)
-    try:
-        email = normalize_email(data.get("email"))
-    except ValueError:
-        raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
-    auth_account_rate_limit(
-        account=email, operation="passkey-login-options", now=now
-    )
     with closing(db()) as con:
-        user = con.execute(
-            "SELECT id FROM pouzivatelia WHERE email=?", (email,)
-        ).fetchone()
-        user_id = int(user[0]) if user is not None else None
-        credentials = list_passkeys(con, user_id=user_id) if user_id else []
         challenge = create_webauthn_challenge(
-            con, purpose="login", now=now, user_id=user_id
+            con, purpose="login", now=now, user_id=None
         )
     options = generate_authentication_options(
         rp_id=PASSKEY_RP_ID,
         challenge=base64url_to_bytes(challenge),
         timeout=PASSKEY_OPTIONS_TIMEOUT_MS,
-        allow_credentials=[passkey_descriptor(item) for item in credentials],
         user_verification=UserVerificationRequirement.REQUIRED,
     )
     return JSONResponse(json.loads(options_to_json(options)))
@@ -1792,7 +1862,7 @@ async def auth_passkey_login_verify(req: Request):
         raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
     with closing(db()) as con:
         try:
-            challenge = consume_webauthn_challenge(
+            consume_webauthn_challenge(
                 con,
                 raw_challenge=raw_challenge,
                 purpose="login",
@@ -1808,22 +1878,13 @@ async def auth_passkey_login_verify(req: Request):
             passkey = passkey_for_credential(
                 con, credential_id=credential_id
             )
-            if (
-                passkey is None
-                or challenge["user_id"] is None
-                or challenge["user_id"] != passkey["user_id"]
-            ):
-                con.commit()
-                raise HTTPException(401, PASSKEY_FAILURE_MESSAGE)
-            account = con.execute(
-                "SELECT email FROM pouzivatelia WHERE id=?",
-                (passkey["user_id"],),
-            ).fetchone()
-            if account is None:
+            if passkey is None:
                 con.commit()
                 raise HTTPException(401, PASSKEY_FAILURE_MESSAGE)
             auth_account_rate_limit(
-                account=account[0], operation="passkey-login-verify", now=now
+                account=f"user:{passkey['user_id']}",
+                operation="passkey-login-verify",
+                now=now,
             )
             try:
                 verified = verify_authentication_response(
@@ -1986,11 +2047,13 @@ button.onclick=async()=>{{
 
 
 @app.get("/potvrdenie")
+@app.get("/api/auth/pages/potvrdenie")
 def account_confirmation_page():
     return HTMLResponse(ACCOUNT_CONFIRMATION_PAGE)
 
 
 @app.get("/heslo")
+@app.get("/api/auth/pages/heslo")
 def password_reset_page():
     return HTMLResponse(PASSWORD_RESET_PAGE)
 
@@ -2061,7 +2124,7 @@ async def auth_verify(req: Request):
         raise HTTPException(410, "Odkaz vypršal. Požiadaj o nový prihlasovací odkaz.")
     except MagicTokenInvalid:
         raise HTTPException(400, "Odkaz je neplatný alebo už bol použitý. Požiadaj o nový.")
-    response = JSONResponse({"ok": True, "redirect": "/heslo"})
+    response = JSONResponse({"ok": True, "redirect": "/api/auth/pages/heslo"})
     set_setup_cookie(response, setup_session)
     return response
 

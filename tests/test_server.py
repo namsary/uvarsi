@@ -151,6 +151,7 @@ def test_auth_v3_public_capability_is_boolean_and_primary_routes_are_server_gate
     disabled_me = client.get("/api/me")
     primary_routes = [
         ("GET", "/potvrdenie"),
+        ("GET", "/api/auth/pages/potvrdenie"),
         ("POST", "/api/auth/register"),
         ("POST", "/api/auth/confirm"),
         ("POST", "/api/auth/login"),
@@ -181,6 +182,9 @@ def test_auth_v3_public_capability_is_boolean_and_primary_routes_are_server_gate
         route: status for route, status in disabled_routes.items() if status != 404
     } == {}
     assert client.get("/heslo", follow_redirects=False).status_code == 200
+    assert client.get(
+        "/api/auth/pages/heslo", follow_redirects=False
+    ).status_code == 200
     assert client.get("/prihlasenie", follow_redirects=False).status_code == 200
     assert client.get(
         "/api/auth/passkeys-health", follow_redirects=False
@@ -200,7 +204,11 @@ def test_auth_v3_public_capability_is_boolean_and_primary_routes_are_server_gate
     assert enabled_me.json() == {"prihlaseny": False, "auth_v3": True}
     assert all(type(value) is bool for value in enabled_me.json().values())
     assert enabled_login.status_code == 400
-    assert enabled_passkey.status_code == 400
+    assert enabled_passkey.status_code == 200
+    assert enabled_passkey.json().get("allowCredentials", []) == []
+    assert client.get(
+        "/api/auth/pages/potvrdenie", follow_redirects=False
+    ).status_code == 200
 
 
 def landing_payload(week=None):

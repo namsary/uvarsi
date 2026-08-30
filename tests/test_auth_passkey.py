@@ -134,6 +134,8 @@ def test_registration_options_use_uvarsi_rp_required_uv_and_only_hash_challenge(
     options = response.json()
     assert options["rp"] == {"name": "Uvar.si", "id": "uvar.si"}
     assert options["authenticatorSelection"]["userVerification"] == "required"
+    assert options["authenticatorSelection"]["residentKey"] == "required"
+    assert options["authenticatorSelection"]["requireResidentKey"] is True
     assert options["timeout"] == 300_000
     assert options["excludeCredentials"] == [
         {"id": existing_id, "type": "public-key", "transports": ["internal"]}
@@ -459,7 +461,7 @@ def test_login_options_and_verify_update_counter_create_one_session_and_reject_r
     options_response = client.post(
         "/api/auth/passkey/login/options",
         headers=ORIGIN,
-        json={"email": " LOGIN@example.com "},
+        json={},
     )
     assert options_response.status_code == 200
     options = options_response.json()
@@ -492,10 +494,7 @@ def test_login_options_and_verify_update_counter_create_one_session_and_reject_r
     assert options_response.status_code == 200
     assert options["rpId"] == "uvar.si"
     assert options["userVerification"] == "required"
-    assert {item["id"] for item in options["allowCredentials"]} == {
-        first_id,
-        second_id,
-    }
+    assert options.get("allowCredentials", []) == []
     assert verified.status_code == 200
     assert verified.json() == {"ok": True, "redirect": "/app"}
     cookie = verified.headers["set-cookie"]
@@ -512,6 +511,9 @@ def test_login_options_and_verify_update_counter_create_one_session_and_reject_r
     assert captured[0]["credential_current_sign_count"] == 4
     with sqlite3.connect(database) as con:
         assert con.execute(
+            "SELECT user_id FROM auth_webauthn_challenges"
+        ).fetchall() == []
+        assert con.execute(
             "SELECT sign_count, last_used_at FROM auth_passkeys WHERE credential_id=?",
             (first_id,),
         ).fetchone() == (5, now)
@@ -526,6 +528,40 @@ def test_login_options_and_verify_update_counter_create_one_session_and_reject_r
     password_client = authenticated_client(server, password_session)
     assert password_client.get("/api/me").json()["id"] == user_id
     assert client.get("/api/me").json()["id"] == user_id
+
+
+def test_login_options_are_username_less_and_known_unknown_indistinguishable(
+    monkeypatch, tmp_path
+):
+    server, auth_data, database = load_server(monkeypatch, tmp_path)
+    user_id, _session = seed_account(server, auth_data, "known@example.com")
+    credential_id = b64url(b"discoverable credential")
+    insert_passkey(server, credential_id=credential_id, user_id=user_id)
+    client = TestClient(server.app, base_url="https://uvar.si")
+
+    known = client.post(
+        "/api/auth/passkey/login/options",
+        headers=ORIGIN,
+        json={"email": "known@example.com"},
+    )
+    unknown = client.post(
+        "/api/auth/passkey/login/options",
+        headers=ORIGIN,
+        json={"email": "unknown@example.com"},
+    )
+
+    assert known.status_code == unknown.status_code == 200
+    known_options = known.json()
+    unknown_options = unknown.json()
+    assert known_options.pop("challenge") != unknown_options.pop("challenge")
+    assert known_options == unknown_options
+    assert known_options.get("allowCredentials", []) == []
+    assert credential_id not in known.text
+    assert credential_id not in unknown.text
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT purpose, user_id FROM auth_webauthn_challenges ORDER BY created_at"
+        ).fetchall() == [("login", None), ("login", None)]
 
 
 def test_login_rejects_non_monotonic_clone_signal_without_mutation_or_session(
@@ -967,7 +1003,7 @@ def test_passkey_routes_are_hidden_when_auth_v3_feature_is_disabled(
     assert authenticated.get("/api/auth/passkeys").status_code == 200
 
 
-def test_challenge_creation_limits_ip_and_normalized_account_independently(
+def test_challenge_creation_limits_account_for_registration_and_ip_for_login(
     monkeypatch, tmp_path
 ):
     server, auth_data, _database = load_server(monkeypatch, tmp_path)
@@ -994,14 +1030,14 @@ def test_challenge_creation_limits_ip_and_normalized_account_independently(
         headers=ORIGIN,
         json={"email": " LIMIT@example.com "},
     )
-    limited_normalized_login = public.post(
+    second_username_less_login = public.post(
         "/api/auth/passkey/login/options",
         headers=ORIGIN,
         json={"email": "limit@example.com"},
     )
 
     assert first_login.status_code == 200
-    assert limited_normalized_login.status_code == 429
+    assert second_username_less_login.status_code == 200
 
     server.AUTH_V3_IP_LIMITER = server.ClientIpRateLimiter(max_requests=1)
     server.AUTH_V3_ACCOUNT_LIMITER = server.ClientIpRateLimiter(max_requests=10)

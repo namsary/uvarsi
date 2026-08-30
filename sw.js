@@ -5,15 +5,17 @@
 // — appka teda mala „offline škrupinu", ktorá nikdy nikoho neobslúžila.
 //
 // Pravidlá:
-//   • /api/*        — VŽDY zo siete, nikdy z cache. Ceny z letákov sa nesmú
-//                     podávať zastarané, to je celý produkt.
-//   • /prihlasenie  — jednorazový odkaz, cachovať ho nedáva zmysel.
+//   • /api/*        — VŽDY zo siete, nikdy z cache. Výnimkou sú iba HTML
+//                     auth stránky pod /api/auth/pages/*, ktoré sú network-first
+//                     a offline bezpečne spadnú na uloženú /app škrupinu.
+//   • /app a auth   — network-first, aby prepnutie auth flagu nikdy neostalo
+//                     skryté starou škrupinou; offline fallback je iba /app.
 //   • ?query        — count.json?v=<čas> je zakaždým iná adresa, cache by rástla.
 //   • /static/fonts — nemenné (v názve je odtlačok obsahu), teda rovno z cache.
 //   • zvyšok        — z cache hneď, na pozadí sa obnoví (stale-while-revalidate):
 //                     škrupina je na obrazovke okamžite a ďalšie otvorenie ju má
 //                     už aktuálnu.
-const CACHE = 'uvarsi-v3';
+const CACHE = 'uvarsi-v4';
 const FONTS = '/static/fonts/';
 const SHELL = [
   '/app',
@@ -47,16 +49,35 @@ function refresh(request) {
   });
 }
 
+async function networkFirstShell(request, pathname) {
+  try {
+    const response = await fetch(request);
+    if (pathname === '/app' && response && response.ok) {
+      const copy = response.clone();
+      caches.open(CACHE).then(c => c.put('/app', copy)).catch(() => {});
+    }
+    return response;
+  } catch (_error) {
+    return (await caches.match(request)) || caches.match('/app');
+  }
+}
+
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
   if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith('/api/')) return;            // dáta vždy zo siete
-  if (url.pathname.startsWith('/prihlasenie')) return;      // jednorazový odkaz
+  const authApiPage = url.pathname.startsWith('/api/auth/pages/');
+  if (url.pathname.startsWith('/api/') && !authApiPage) return; // dáta vždy zo siete
   if (url.pathname === '/co-varit-tento-tyzden') return;    // týždenné ceny nikdy zo zásoby
   if (url.pathname === '/robots.txt') return;               // crawler pravidlá vždy čerstvé
   if (url.pathname === '/sitemap.xml') return;              // sitemap musí sedieť s aktuálnymi URL
   if (url.search) return;                                   // ?v=… nikdy do cache
+
+  const authAlias = ['/prihlasenie', '/potvrdenie', '/heslo'].includes(url.pathname);
+  if (url.pathname === '/app' || authAlias || authApiPage) {
+    e.respondWith(networkFirstShell(e.request, url.pathname));
+    return;
+  }
 
   if (url.pathname.startsWith(FONTS)) {
     e.respondWith(caches.match(e.request).then(hit => hit || refresh(e.request)));

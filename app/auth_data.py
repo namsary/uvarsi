@@ -26,6 +26,8 @@ PASSWORD_RESET_OUTBOX_MAX_ATTEMPTS = 3
 PASSWORD_RESET_OUTBOX_RETRY_BASE_SECONDS = 5
 PASSWORD_RESET_OUTBOX_RETRY_MAX_SECONDS = 60
 WEBAUTHN_CHALLENGE_TTL_SECONDS = 5 * 60
+AUTH_TERMINAL_RETENTION_SECONDS = 30 * 24 * 60 * 60
+AUTH_CLEANUP_LIMIT = 200
 PASSWORDLESS_CREDENTIAL_VERSION = 0.0
 
 _ACTION_TOKEN_TTLS = {
@@ -76,6 +78,7 @@ CREATE INDEX IF NOT EXISTS auth_setup_sessions_user_idx
   ON auth_setup_sessions(user_id);
 CREATE TABLE IF NOT EXISTS sessions_v2 (
   token_hash TEXT PRIMARY KEY,
+  management_id TEXT,
   user_id INTEGER NOT NULL,
   expires_at REAL NOT NULL,
   created_at REAL NOT NULL
@@ -239,12 +242,37 @@ def migrate_auth_schema(con) -> None:
         row[1] for row in con.execute("PRAGMA table_info(sessions_v2)")
     }
     for name, column_type in (
+        ("management_id", "TEXT"),
         ("last_seen_at", "REAL"),
         ("device_name", "TEXT"),
         ("revoked_at", "REAL"),
     ):
         if name not in session_columns:
             con.execute(f"ALTER TABLE sessions_v2 ADD COLUMN {name} {column_type}")
+    seen_management_ids = set()
+    for rowid, management_id in con.execute(
+        "SELECT rowid, management_id FROM sessions_v2 ORDER BY rowid"
+    ).fetchall():
+        if (
+            isinstance(management_id, str)
+            and re.fullmatch(r"[A-Za-z0-9_-]{20,128}", management_id)
+            and management_id not in seen_management_ids
+        ):
+            seen_management_ids.add(management_id)
+            continue
+        while True:
+            replacement = secrets.token_urlsafe(24)
+            if replacement not in seen_management_ids:
+                break
+        con.execute(
+            "UPDATE sessions_v2 SET management_id=? WHERE rowid=?",
+            (replacement, rowid),
+        )
+        seen_management_ids.add(replacement)
+    con.execute(
+        """CREATE UNIQUE INDEX IF NOT EXISTS sessions_v2_management_id_uidx
+           ON sessions_v2(management_id)"""
+    )
     action_columns = {
         row[1] for row in con.execute("PRAGMA table_info(auth_action_tokens)")
     }
@@ -304,6 +332,52 @@ def migrate_auth_schema(con) -> None:
 
 def token_hash(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+def cleanup_auth_records(
+    con, *, now: float, limit: int = AUTH_CLEANUP_LIMIT
+) -> dict[str, int]:
+    """Bound startup cleanup to inactive auth rows and documented retention."""
+    removed = {"challenges": 0, "outbox": 0, "sessions": 0}
+    remaining = max(0, int(limit))
+    if remaining == 0:
+        return removed
+    retention_cutoff = float(now) - AUTH_TERMINAL_RETENTION_SECONDS
+    statements = (
+        (
+            "challenges",
+            "auth_webauthn_challenges",
+            "expires_at <= ?",
+            (float(now),),
+        ),
+        (
+            "outbox",
+            "auth_password_reset_outbox",
+            "state IN ('sent','skipped','failed') AND updated_at <= ?",
+            (retention_cutoff,),
+        ),
+        (
+            "sessions",
+            "sessions_v2",
+            "expires_at <= ? OR (revoked_at IS NOT NULL AND revoked_at <= ?)",
+            (float(now), retention_cutoff),
+        ),
+    )
+    with _session_mutation(con, "auth_cleanup"):
+        for label, table, predicate, parameters in statements:
+            if remaining == 0:
+                break
+            cursor = con.execute(
+                f"""DELETE FROM {table} WHERE rowid IN (
+                       SELECT rowid FROM {table}
+                       WHERE {predicate} ORDER BY rowid LIMIT ?
+                     )""",
+                (*parameters, remaining),
+            )
+            count = max(0, int(cursor.rowcount))
+            removed[label] = count
+            remaining -= count
+    return removed
 
 
 @contextmanager
@@ -582,6 +656,29 @@ def password_needs_rehash(encoded: str) -> bool:
         return _PASSWORD_HASHER.check_needs_rehash(encoded)
     except InvalidHashError:
         return True
+
+
+def password_authentication_material(con, *, email: str) -> tuple[int | None, str]:
+    """Return constant-shaped verification material without exposing account state."""
+    row = con.execute(
+        """SELECT p.id, c.password_hash
+           FROM pouzivatelia p
+           JOIN auth_credentials c ON c.user_id=p.id
+           WHERE p.email=?""",
+        (email,),
+    ).fetchone()
+    if row is None:
+        return None, _DUMMY_PASSWORD_HASH
+    return int(row[0]), row[1]
+
+
+def verify_password_and_rehash(encoded: str, password: str) -> tuple[bool, str | None]:
+    """Perform one verification and prepare a transparent replacement when needed."""
+    verified = verify_password(encoded, password)
+    if not verified:
+        return False, None
+    replacement = hash_password(password) if password_needs_rehash(encoded) else None
+    return True, replacement
 
 
 def _require_argon2id_hash(encoded: object) -> str:
@@ -1066,18 +1163,11 @@ def set_password(
 def authenticate_password(con, *, email: str, password: str) -> int | None:
     if not isinstance(email, str) or not isinstance(password, str):
         return None
-    row = con.execute(
-        """SELECT p.id, c.password_hash
-           FROM pouzivatelia p
-           JOIN auth_credentials c ON c.user_id=p.id
-           WHERE p.email=?""",
-        (email,),
-    ).fetchone()
-    encoded = row[1] if row is not None else _DUMMY_PASSWORD_HASH
+    user_id, encoded = password_authentication_material(con, email=email)
     verified = verify_password(encoded, password)
-    if row is None or not verified:
+    if user_id is None or not verified:
         return None
-    return int(row[0])
+    return user_id
 
 
 def normalize_email(value) -> str:
@@ -1259,14 +1349,16 @@ def create_session(
     con, *, user_id: int, now: float, device_name: str
 ) -> str:
     raw_session = secrets.token_urlsafe(32)
+    management_id = secrets.token_urlsafe(24)
     with _session_mutation(con, "session_create"):
         con.execute(
             """INSERT INTO sessions_v2
-               (token_hash, user_id, expires_at, created_at, last_seen_at,
+               (token_hash, management_id, user_id, expires_at, created_at, last_seen_at,
                 device_name, revoked_at)
-               VALUES (?, ?, ?, ?, ?, ?, NULL)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, NULL)""",
             (
                 token_hash(raw_session),
+                management_id,
                 user_id,
                 now + SESSION_TTL_SECONDS,
                 now,
@@ -1431,7 +1523,7 @@ def list_sessions(
         else None
     )
     rows = con.execute(
-        """SELECT token_hash, device_name, created_at, last_seen_at, expires_at
+        """SELECT token_hash, management_id, device_name, created_at, last_seen_at, expires_at
            FROM sessions_v2
            WHERE user_id=? AND revoked_at IS NULL AND expires_at > ?
            ORDER BY created_at DESC, token_hash""",
@@ -1439,7 +1531,7 @@ def list_sessions(
     ).fetchall()
     return [
         {
-            "session_hash": row["token_hash"],
+            "management_id": row["management_id"],
             "device_name": row["device_name"],
             "created_at": row["created_at"],
             "last_seen_at": row["last_seen_at"],
@@ -1451,15 +1543,15 @@ def list_sessions(
     ]
 
 
-def revoke_session(con, *, user_id: int, session_hash: str) -> bool:
-    if not isinstance(session_hash, str) or not session_hash:
+def revoke_session(con, *, user_id: int, management_id: str) -> bool:
+    if not isinstance(management_id, str) or not management_id:
         return False
     with _session_mutation(con, "session_revoke"):
         revoked = con.execute(
             """UPDATE sessions_v2
                SET revoked_at=CAST(strftime('%s', 'now') AS REAL)
-               WHERE user_id=? AND token_hash=? AND revoked_at IS NULL""",
-            (user_id, session_hash),
+               WHERE user_id=? AND management_id=? AND revoked_at IS NULL""",
+            (user_id, management_id),
         ).rowcount
     return revoked == 1
 
