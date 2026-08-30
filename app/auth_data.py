@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import base64
 import hashlib
 import hmac
+import json
 import re
 import secrets
 import threading
@@ -24,6 +25,7 @@ PASSWORD_RESET_OUTBOX_LEASE_SECONDS = 30
 PASSWORD_RESET_OUTBOX_MAX_ATTEMPTS = 3
 PASSWORD_RESET_OUTBOX_RETRY_BASE_SECONDS = 5
 PASSWORD_RESET_OUTBOX_RETRY_MAX_SECONDS = 60
+WEBAUTHN_CHALLENGE_TTL_SECONDS = 5 * 60
 PASSWORDLESS_CREDENTIAL_VERSION = 0.0
 
 _ACTION_TOKEN_TTLS = {
@@ -38,6 +40,7 @@ _LOCAL_PART = r"[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~
 _DOMAIN_LABEL = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
 _EMAIL = re.compile(rf"{_LOCAL_PART}@(?:{_DOMAIN_LABEL}\.)+[A-Za-z]{{2,63}}")
 _OPAQUE_ID = re.compile(r"[A-Za-z0-9_-]{1,128}")
+_PASSKEY_ID = re.compile(r"[A-Za-z0-9_-]{1,2048}")
 
 AUTH_SCHEMA = """
 CREATE TABLE IF NOT EXISTS magic_tokens_v2 (
@@ -162,6 +165,18 @@ class ActionTokenInvalid(RuntimeError):
 
 class ActionTokenExpired(RuntimeError):
     """A known action token passed its absolute expiry."""
+
+
+class WebAuthnChallengeInvalid(RuntimeError):
+    """A WebAuthn challenge is unknown, mismatched, or already consumed."""
+
+
+class WebAuthnChallengeExpired(RuntimeError):
+    """A known WebAuthn challenge passed its five-minute expiry."""
+
+
+class PasskeyCloneDetected(RuntimeError):
+    """A credential returned a non-monotonic signature counter."""
 
 
 @dataclass(frozen=True)
@@ -312,6 +327,224 @@ def _session_mutation(con, savepoint: str):
             con.commit()
         else:
             con.execute(f"RELEASE SAVEPOINT {savepoint}")
+
+
+def create_webauthn_challenge(
+    con, *, purpose: str, now: float, user_id: int | None
+) -> str:
+    """Persist only a digest of a fresh five-minute ceremony challenge."""
+    if purpose not in {"register", "login"}:
+        raise ValueError("invalid WebAuthn challenge purpose")
+    raw_challenge = secrets.token_urlsafe(32)
+    with _session_mutation(con, "webauthn_challenge_create"):
+        con.execute(
+            """INSERT INTO auth_webauthn_challenges
+               (challenge_hash, user_id, purpose, expires_at, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (
+                token_hash(raw_challenge),
+                user_id,
+                purpose,
+                now + WEBAUTHN_CHALLENGE_TTL_SECONDS,
+                now,
+            ),
+        )
+    return raw_challenge
+
+
+def consume_webauthn_challenge(
+    con,
+    *,
+    raw_challenge: object,
+    purpose: str,
+    now: float,
+    expected_user_id: int | None = None,
+) -> dict:
+    """Delete one challenge and leave its successful transaction to the caller.
+
+    The caller must commit only after the verified credential mutation or
+    session creation succeeds, and roll back operational failures.
+    """
+    if (
+        not isinstance(raw_challenge, str)
+        or not raw_challenge
+        or len(raw_challenge) > 512
+        or purpose not in {"register", "login"}
+    ):
+        raise WebAuthnChallengeInvalid("invalid challenge")
+    if con.in_transaction:
+        raise RuntimeError("WebAuthn challenge consumption needs a clean connection")
+    digest = token_hash(raw_challenge)
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        row = con.execute(
+            """SELECT user_id, purpose, expires_at
+               FROM auth_webauthn_challenges WHERE challenge_hash=?""",
+            (digest,),
+        ).fetchone()
+        if row is None or row[1] != purpose:
+            con.rollback()
+            raise WebAuthnChallengeInvalid("invalid challenge")
+        if expected_user_id is not None and row[0] != expected_user_id:
+            con.rollback()
+            raise WebAuthnChallengeInvalid("challenge owner mismatch")
+        if float(row[2]) <= now:
+            con.execute(
+                "DELETE FROM auth_webauthn_challenges WHERE challenge_hash=?",
+                (digest,),
+            )
+            con.commit()
+            raise WebAuthnChallengeExpired("expired challenge")
+        con.execute(
+            "DELETE FROM auth_webauthn_challenges WHERE challenge_hash=?",
+            (digest,),
+        )
+        return {
+            "user_id": int(row[0]) if row[0] is not None else None,
+            "purpose": row[1],
+        }
+    except (WebAuthnChallengeInvalid, WebAuthnChallengeExpired):
+        raise
+    except Exception:
+        if con.in_transaction:
+            con.rollback()
+        raise
+
+
+def _validated_passkey_id(credential_id: object) -> str:
+    if (
+        not isinstance(credential_id, str)
+        or _PASSKEY_ID.fullmatch(credential_id) is None
+    ):
+        raise ValueError("invalid passkey credential id")
+    return credential_id
+
+
+def store_passkey(
+    con,
+    *,
+    credential_id: str,
+    user_id: int,
+    public_key: bytes,
+    sign_count: int,
+    transports: list[str],
+    name: str,
+    now: float,
+) -> None:
+    credential_id = _validated_passkey_id(credential_id)
+    if not isinstance(public_key, bytes) or not public_key:
+        raise ValueError("invalid passkey public key")
+    if (
+        not isinstance(sign_count, int)
+        or isinstance(sign_count, bool)
+        or sign_count < 0
+    ):
+        raise ValueError("invalid passkey sign count")
+    if not isinstance(name, str) or not name:
+        raise ValueError("invalid passkey name")
+    with _session_mutation(con, "passkey_store"):
+        con.execute(
+            """INSERT INTO auth_passkeys
+               (credential_id, user_id, public_key, sign_count, transports,
+                name, created_at, last_used_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, NULL)""",
+            (
+                credential_id,
+                user_id,
+                public_key,
+                sign_count,
+                json.dumps(transports, separators=(",", ":")),
+                name,
+                now,
+            ),
+        )
+
+
+def passkey_for_credential(con, *, credential_id: object) -> dict | None:
+    try:
+        credential_id = _validated_passkey_id(credential_id)
+    except ValueError:
+        return None
+    row = con.execute(
+        """SELECT credential_id, user_id, public_key, sign_count, transports,
+                  name, created_at, last_used_at
+           FROM auth_passkeys WHERE credential_id=?""",
+        (credential_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return {
+        "credential_id": row["credential_id"],
+        "user_id": int(row["user_id"]),
+        "public_key": bytes(row["public_key"]),
+        "sign_count": int(row["sign_count"]),
+        "transports": json.loads(row["transports"]),
+        "name": row["name"],
+        "created_at": row["created_at"],
+        "last_used_at": row["last_used_at"],
+    }
+
+
+def list_passkeys(con, *, user_id: int) -> list[dict]:
+    rows = con.execute(
+        """SELECT credential_id, transports, name, created_at, last_used_at
+           FROM auth_passkeys WHERE user_id=?
+           ORDER BY created_at DESC, credential_id""",
+        (user_id,),
+    ).fetchall()
+    return [
+        {
+            "credential_id": row["credential_id"],
+            "name": row["name"],
+            "transports": json.loads(row["transports"]),
+            "created_at": row["created_at"],
+            "last_used_at": row["last_used_at"],
+        }
+        for row in rows
+    ]
+
+
+def update_passkey_use(
+    con, *, credential_id: str, user_id: int, new_sign_count: int, now: float
+) -> None:
+    credential_id = _validated_passkey_id(credential_id)
+    if (
+        not isinstance(new_sign_count, int)
+        or isinstance(new_sign_count, bool)
+        or new_sign_count < 0
+    ):
+        raise PasskeyCloneDetected("invalid sign count")
+    row = con.execute(
+        """SELECT sign_count FROM auth_passkeys
+           WHERE credential_id=? AND user_id=?""",
+        (credential_id, user_id),
+    ).fetchone()
+    if row is None:
+        raise ValueError("passkey not found")
+    current_sign_count = int(row[0])
+    if (current_sign_count > 0 or new_sign_count > 0) and (
+        new_sign_count <= current_sign_count
+    ):
+        raise PasskeyCloneDetected("non-monotonic sign count")
+    with _session_mutation(con, "passkey_use"):
+        con.execute(
+            """UPDATE auth_passkeys SET sign_count=?, last_used_at=?
+               WHERE credential_id=? AND user_id=?""",
+            (new_sign_count, now, credential_id, user_id),
+        )
+
+
+def delete_passkey(con, *, user_id: int, credential_id: object) -> bool:
+    try:
+        credential_id = _validated_passkey_id(credential_id)
+    except ValueError:
+        return False
+    with _session_mutation(con, "passkey_delete"):
+        deleted = con.execute(
+            "DELETE FROM auth_passkeys WHERE user_id=? AND credential_id=?",
+            (user_id, credential_id),
+        ).rowcount
+    return deleted == 1
 
 
 def validate_password(value: object) -> str:

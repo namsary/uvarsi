@@ -18,6 +18,25 @@ import anyio.to_thread
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, Response, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
+from webauthn import (
+    generate_authentication_options,
+    generate_registration_options,
+    options_to_json,
+    verify_authentication_response,
+    verify_registration_response,
+)
+from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
+from webauthn.helpers.exceptions import (
+    InvalidAuthenticationResponse,
+    InvalidRegistrationResponse,
+    WebAuthnException,
+)
+from webauthn.helpers.structs import (
+    AuthenticatorSelectionCriteria,
+    AuthenticatorTransport,
+    PublicKeyCredentialDescriptor,
+    UserVerificationRequirement,
+)
 import db_rezim
 import naklady
 import plan_jobs
@@ -92,7 +111,10 @@ from auth_data import (
     EmailRequestInProgress,
     MagicTokenExpired,
     MagicTokenInvalid,
+    PasskeyCloneDetected,
     ReservationInvalid,
+    WebAuthnChallengeExpired,
+    WebAuthnChallengeInvalid,
     PASSWORD_ACTION_TOKEN_TTL_SECONDS,
     PASSWORDLESS_CREDENTIAL_VERSION,
     SESSION_TTL_SECONDS,
@@ -100,27 +122,34 @@ from auth_data import (
     cancel_magic_token_reservation,
     consume_action_token,
     consume_magic_token,
+    consume_webauthn_challenge,
     create_action_token,
     create_session,
+    create_webauthn_challenge,
     claim_password_reset_job,
+    delete_passkey,
     delete_session,
     delete_setup_session,
     enqueue_password_reset_job,
     finish_password_reset_job,
     hash_password,
+    list_passkeys,
     list_sessions,
     migrate_auth_schema,
     normalize_email,
     password_reset_outbox_next_wake,
+    passkey_for_credential,
     promote_magic_token,
     reserve_magic_token,
     revoke_other_sessions,
     revoke_session,
     send_resend_message,
     set_password,
+    store_passkey,
     token_hash,
     user_for_session,
     user_for_setup_session,
+    update_passkey_use,
     validate_password,
 )
 
@@ -176,6 +205,12 @@ PASSWORD_REQUEST_MESSAGE = (
     "Ak účet s touto adresou existuje, poslali sme pokyny na nastavenie hesla."
 )
 PASSWORD_LOGIN_FAILURE_MESSAGE = "E-mail alebo heslo nie sú správne."
+PASSKEY_FAILURE_MESSAGE = (
+    "Passkey sa nepodarilo overiť. Použi heslo alebo skús znova."
+)
+PASSKEY_RP_ID = "uvar.si"
+PASSKEY_ORIGIN = "https://uvar.si"
+PASSKEY_OPTIONS_TIMEOUT_MS = 5 * 60 * 1000
 ACCOUNT_PROVIDER_FAILURE_MESSAGE = (
     "E-mail sa teraz nepodarilo odovzdať poskytovateľovi. Skús to znova o chvíľu."
 )
@@ -775,6 +810,50 @@ def auth_device_name(req: Request, data: dict, fallback: str) -> str:
             return supplied[:80]
     user_agent = " ".join(req.headers.get("user-agent", "").split())
     return user_agent[:80] or fallback
+
+
+def require_passkey_feature() -> None:
+    if env("UVARSI_AUTH_V3", "0") != "1":
+        raise HTTPException(404, "Nenájdené")
+
+
+def passkey_credential_id(credential: object) -> str:
+    if not isinstance(credential, dict):
+        raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
+    credential_id = credential.get("id")
+    if (
+        not isinstance(credential_id, str)
+        or re.fullmatch(r"[A-Za-z0-9_-]{1,2048}", credential_id) is None
+    ):
+        raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
+    return credential_id
+
+
+def passkey_transports(data: dict) -> list[str]:
+    supplied = data.get("transports", [])
+    if not isinstance(supplied, list) or len(supplied) > 8:
+        raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
+    allowed = {transport.value for transport in AuthenticatorTransport}
+    transports = []
+    for value in supplied:
+        if not isinstance(value, str) or value not in allowed:
+            raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
+        if value not in transports:
+            transports.append(value)
+    return transports
+
+
+def passkey_descriptor(passkey: dict) -> PublicKeyCredentialDescriptor:
+    transports = []
+    for value in passkey["transports"]:
+        try:
+            transports.append(AuthenticatorTransport(value))
+        except ValueError:
+            continue
+    return PublicKeyCredentialDescriptor(
+        id=base64url_to_bytes(passkey["credential_id"]),
+        transports=transports,
+    )
 
 
 def action_email(
@@ -1517,6 +1596,266 @@ def auth_sessions_logout_others(req: Request):
             user_id=user["id"],
             current_token=req.cookies.get(COOKIE),
         )
+    return {"ok": True}
+
+
+@app.post("/api/auth/passkey/register/options")
+async def auth_passkey_register_options(req: Request):
+    require_passkey_feature()
+    require_auth_origin(req)
+    user = require_user(req)
+    await auth_json(req)
+    now = AUTH_CLOCK()
+    auth_ip_rate_limit(req, operation="passkey-register-options", now=now)
+    auth_account_rate_limit(
+        account=user["email"], operation="passkey-register-options", now=now
+    )
+    with closing(db()) as con:
+        existing = list_passkeys(con, user_id=user["id"])
+        challenge = create_webauthn_challenge(
+            con, purpose="register", now=now, user_id=user["id"]
+        )
+    options = generate_registration_options(
+        rp_id=PASSKEY_RP_ID,
+        rp_name="Uvar.si",
+        user_name=user["email"],
+        user_display_name=user["email"],
+        user_id=str(user["id"]).encode("ascii"),
+        challenge=base64url_to_bytes(challenge),
+        timeout=PASSKEY_OPTIONS_TIMEOUT_MS,
+        authenticator_selection=AuthenticatorSelectionCriteria(
+            user_verification=UserVerificationRequirement.REQUIRED
+        ),
+        exclude_credentials=[passkey_descriptor(item) for item in existing],
+    )
+    return JSONResponse(json.loads(options_to_json(options)))
+
+
+@app.post("/api/auth/passkey/register/verify")
+async def auth_passkey_register_verify(req: Request):
+    require_passkey_feature()
+    require_auth_origin(req)
+    user = require_user(req)
+    data = await auth_json(req)
+    now = AUTH_CLOCK()
+    auth_ip_rate_limit(req, operation="passkey-register-verify", now=now)
+    auth_account_rate_limit(
+        account=user["email"], operation="passkey-register-verify", now=now
+    )
+    credential = data.get("credential")
+    requested_credential_id = passkey_credential_id(credential)
+    transports = passkey_transports(data)
+    name = auth_device_name(
+        req, {"device_name": data.get("name")}, "Passkey"
+    )
+    raw_challenge = data.get("challenge")
+    try:
+        expected_challenge = base64url_to_bytes(raw_challenge)
+    except (TypeError, ValueError):
+        raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
+    with closing(db()) as con:
+        try:
+            consume_webauthn_challenge(
+                con,
+                raw_challenge=raw_challenge,
+                purpose="register",
+                now=now,
+                expected_user_id=user["id"],
+            )
+        except WebAuthnChallengeExpired:
+            raise HTTPException(410, "Passkey výzva vypršala. Začni znova.")
+        except WebAuthnChallengeInvalid:
+            raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
+        try:
+            try:
+                verified = verify_registration_response(
+                    credential=credential,
+                    expected_challenge=expected_challenge,
+                    expected_rp_id=PASSKEY_RP_ID,
+                    expected_origin=PASSKEY_ORIGIN,
+                    require_user_verification=True,
+                )
+                credential_id = bytes_to_base64url(verified.credential_id)
+                if (
+                    not verified.user_verified
+                    or credential_id != requested_credential_id
+                ):
+                    raise InvalidRegistrationResponse("credential mismatch")
+            except (WebAuthnException, TypeError, ValueError, KeyError):
+                con.commit()
+                raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
+            store_passkey(
+                con,
+                credential_id=credential_id,
+                user_id=user["id"],
+                public_key=bytes(verified.credential_public_key),
+                sign_count=int(verified.sign_count),
+                transports=transports,
+                name=name,
+                now=now,
+            )
+            con.commit()
+        except sqlite3.IntegrityError:
+            if con.in_transaction:
+                con.rollback()
+            raise HTTPException(409, "Tento Passkey už je priradený.")
+        except HTTPException:
+            raise
+        except Exception:
+            if con.in_transaction:
+                con.rollback()
+            raise
+    return {"ok": True}
+
+
+@app.post("/api/auth/passkey/login/options")
+async def auth_passkey_login_options(req: Request):
+    require_passkey_feature()
+    require_auth_origin(req)
+    data = await auth_json(req)
+    now = AUTH_CLOCK()
+    auth_ip_rate_limit(req, operation="passkey-login-options", now=now)
+    try:
+        email = normalize_email(data.get("email"))
+    except ValueError:
+        raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
+    auth_account_rate_limit(
+        account=email, operation="passkey-login-options", now=now
+    )
+    with closing(db()) as con:
+        user = con.execute(
+            "SELECT id FROM pouzivatelia WHERE email=?", (email,)
+        ).fetchone()
+        user_id = int(user[0]) if user is not None else None
+        credentials = list_passkeys(con, user_id=user_id) if user_id else []
+        challenge = create_webauthn_challenge(
+            con, purpose="login", now=now, user_id=user_id
+        )
+    options = generate_authentication_options(
+        rp_id=PASSKEY_RP_ID,
+        challenge=base64url_to_bytes(challenge),
+        timeout=PASSKEY_OPTIONS_TIMEOUT_MS,
+        allow_credentials=[passkey_descriptor(item) for item in credentials],
+        user_verification=UserVerificationRequirement.REQUIRED,
+    )
+    return JSONResponse(json.loads(options_to_json(options)))
+
+
+@app.post("/api/auth/passkey/login/verify")
+async def auth_passkey_login_verify(req: Request):
+    require_passkey_feature()
+    require_auth_origin(req)
+    data = await auth_json(req)
+    now = AUTH_CLOCK()
+    auth_ip_rate_limit(req, operation="passkey-login-verify", now=now)
+    credential = data.get("credential")
+    credential_id = passkey_credential_id(credential)
+    raw_challenge = data.get("challenge")
+    try:
+        expected_challenge = base64url_to_bytes(raw_challenge)
+    except (TypeError, ValueError):
+        raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
+    with closing(db()) as con:
+        try:
+            challenge = consume_webauthn_challenge(
+                con,
+                raw_challenge=raw_challenge,
+                purpose="login",
+                now=now,
+            )
+        except WebAuthnChallengeExpired:
+            raise HTTPException(410, "Passkey výzva vypršala. Začni znova.")
+        except WebAuthnChallengeInvalid:
+            raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
+        try:
+            passkey = passkey_for_credential(
+                con, credential_id=credential_id
+            )
+            if (
+                passkey is None
+                or challenge["user_id"] is None
+                or challenge["user_id"] != passkey["user_id"]
+            ):
+                con.commit()
+                raise HTTPException(401, PASSKEY_FAILURE_MESSAGE)
+            account = con.execute(
+                "SELECT email FROM pouzivatelia WHERE id=?",
+                (passkey["user_id"],),
+            ).fetchone()
+            if account is None:
+                con.commit()
+                raise HTTPException(401, PASSKEY_FAILURE_MESSAGE)
+            auth_account_rate_limit(
+                account=account[0], operation="passkey-login-verify", now=now
+            )
+            try:
+                verified = verify_authentication_response(
+                    credential=credential,
+                    expected_challenge=expected_challenge,
+                    expected_rp_id=PASSKEY_RP_ID,
+                    expected_origin=PASSKEY_ORIGIN,
+                    credential_public_key=passkey["public_key"],
+                    credential_current_sign_count=passkey["sign_count"],
+                    require_user_verification=True,
+                )
+                if (
+                    not verified.user_verified
+                    or bytes_to_base64url(verified.credential_id) != credential_id
+                ):
+                    raise InvalidAuthenticationResponse("credential mismatch")
+            except (WebAuthnException, TypeError, ValueError, KeyError):
+                con.commit()
+                raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
+            try:
+                update_passkey_use(
+                    con,
+                    credential_id=credential_id,
+                    user_id=passkey["user_id"],
+                    new_sign_count=int(verified.new_sign_count),
+                    now=now,
+                )
+            except PasskeyCloneDetected:
+                con.commit()
+                raise HTTPException(401, PASSKEY_FAILURE_MESSAGE)
+            session = create_session(
+                con,
+                user_id=passkey["user_id"],
+                now=now,
+                device_name=auth_device_name(
+                    req, data, "Zariadenie s Passkey"
+                ),
+            )
+            con.commit()
+        except HTTPException:
+            raise
+        except Exception:
+            if con.in_transaction:
+                con.rollback()
+            raise
+    response = JSONResponse({"ok": True, "redirect": "/app"})
+    set_session_cookie(response, session)
+    return response
+
+
+@app.get("/api/auth/passkeys")
+def auth_passkeys(req: Request):
+    require_passkey_feature()
+    user = require_user(req)
+    with closing(db()) as con:
+        credentials = list_passkeys(con, user_id=user["id"])
+    return {"passkeys": credentials}
+
+
+@app.delete("/api/auth/passkeys/{credential_id}")
+def auth_passkey_delete(credential_id: str, req: Request):
+    require_passkey_feature()
+    require_auth_origin(req)
+    user = require_user(req)
+    with closing(db()) as con:
+        if not delete_passkey(
+            con, user_id=user["id"], credential_id=credential_id
+        ):
+            raise HTTPException(404, "Passkey sa nenašiel.")
     return {"ok": True}
 
 
