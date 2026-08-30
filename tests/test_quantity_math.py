@@ -1,4 +1,5 @@
-from decimal import Decimal
+from decimal import Decimal, localcontext
+from fractions import Fraction
 
 import pytest
 
@@ -8,6 +9,10 @@ from app.quantity_math import (
     parse_quantity,
     purchase_requirement,
 )
+
+
+def _exact_amount(quantity):
+    return Fraction(*quantity.amount.as_integer_ratio())
 
 
 @pytest.mark.parametrize(
@@ -20,6 +25,14 @@ from app.quantity_math import (
 )
 def test_parse_quantity_normalizes_to_base_units(text, amount, unit):
     assert parse_quantity(text) == Quantity(amount, unit)
+
+
+def test_kg_normalization_preserves_high_precision_under_low_ambient_context():
+    with localcontext() as context:
+        context.prec = 3
+        result = parse_quantity("1234567890123456789012345678.9 kg")
+
+    assert result == Quantity(Decimal("1234567890123456789012345678900"), "g")
 
 
 @pytest.mark.parametrize(
@@ -91,6 +104,37 @@ def test_rounds_only_package_count_up_for_multiple_packages():
     assert result.to_buy == q("1200 g")
     assert result.used_from_purchase == q("1000.15 g")
     assert result.leftover == q("199.85 g")
+
+
+@pytest.mark.parametrize("precision", [1, 3, 28, 50])
+def test_infinitesimal_package_overage_uses_exact_ceiling_and_balances(precision):
+    required = Quantity(Decimal("1.0000000000000000000000000001"), "g")
+    pantry = Quantity(Decimal("0"), "g")
+    package = PackageSize(Quantity(Decimal("1"), "g"))
+
+    with localcontext() as context:
+        context.prec = precision
+        result = purchase_requirement(required, pantry, package)
+
+    assert result.required == required
+    assert result.used_from_pantry == pantry
+    assert result.missing == required
+    assert result.packages == 2
+    assert result.to_buy == Quantity(Decimal("2"), "g")
+    assert result.used_from_purchase == required
+    assert result.leftover == Quantity(
+        Decimal("0.9999999999999999999999999999"), "g"
+    )
+    assert _exact_amount(result.used_from_pantry) + _exact_amount(
+        result.missing
+    ) == _exact_amount(result.required)
+    assert _exact_amount(package.content) * result.packages == _exact_amount(
+        result.to_buy
+    )
+    assert _exact_amount(result.used_from_purchase) + _exact_amount(
+        result.leftover
+    ) == _exact_amount(result.to_buy)
+    assert result.leftover.amount >= 0
 
 
 def test_buys_whole_rice_package_and_keeps_remainder():
