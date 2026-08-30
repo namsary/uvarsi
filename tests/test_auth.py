@@ -862,7 +862,7 @@ def test_fragment_get_is_a_branded_confirmation_and_does_not_consume(monkeypatch
 
     assert response.status_code == 200
     assert "Uvar.si" in response.text
-    assert "Potvrdiť prihlásenie" in response.text
+    assert "Pokračovať k heslu" in response.text
     assert "location.hash" in response.text
     assert "Požiadať o nový odkaz" in response.text
     assert token not in response.text
@@ -1172,6 +1172,7 @@ def test_auth_v3_migration_adds_account_tables_and_session_metadata(monkeypatch,
                 "auth_action_tokens",
                 "auth_password_reset_outbox",
                 "auth_legacy_setup_claims",
+                "auth_setup_sessions",
                 "auth_passkeys",
                 "auth_webauthn_challenges",
             )
@@ -1204,6 +1205,9 @@ def test_auth_v3_migration_adds_account_tables_and_session_metadata(monkeypatch,
             ("state", "TEXT", 1, None, 0),
             ("attempts", "INTEGER", 1, "0", 0),
             ("token_hash", "TEXT", 0, None, 0),
+            ("token_seed", "TEXT", 0, None, 0),
+            ("idempotency_key", "TEXT", 0, None, 0),
+            ("next_attempt_at", "REAL", 0, None, 0),
             ("lease_owner", "TEXT", 0, None, 0),
             ("lease_expires_at", "REAL", 0, None, 0),
             ("created_at", "REAL", 1, None, 0),
@@ -1213,6 +1217,12 @@ def test_auth_v3_migration_adds_account_tables_and_session_metadata(monkeypatch,
         "auth_legacy_setup_claims": [
             ("user_id", "INTEGER", 0, None, 1),
             ("claimed_at", "REAL", 1, None, 0),
+        ],
+        "auth_setup_sessions": [
+            ("token_hash", "TEXT", 0, None, 1),
+            ("user_id", "INTEGER", 1, None, 0),
+            ("expires_at", "REAL", 1, None, 0),
+            ("created_at", "REAL", 1, None, 0),
         ],
         "auth_passkeys": [
             ("credential_id", "TEXT", 0, None, 1),
@@ -1750,7 +1760,9 @@ def test_auth_v3_webauthn_challenge_purpose_rejects_an_invalid_value(
             )
 
 
-def test_post_redeems_once_into_a_hashed_90_day_host_only_session(monkeypatch, tmp_path):
+def test_post_redeems_once_into_a_hashed_one_hour_host_only_setup_capability(
+    monkeypatch, tmp_path
+):
     server, database = load_auth_server(monkeypatch, tmp_path)
     monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
     monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_800_000_000.0)
@@ -1760,23 +1772,23 @@ def test_post_redeems_once_into_a_hashed_90_day_host_only_session(monkeypatch, t
     response = client.post("/api/auth/verify", json={"token": token})
 
     assert response.status_code == 200
-    assert response.json() == {"ok": True, "redirect": "/app"}
+    assert response.json() == {"ok": True, "redirect": "/heslo"}
     assert token not in response.text
     cookie = response.headers["set-cookie"]
-    assert "uvarsi_session=" in cookie
+    assert "uvarsi_setup=" in cookie
     assert "HttpOnly" in cookie
     assert "Secure" in cookie
     assert "SameSite=lax" in cookie
-    assert "Max-Age=7776000" in cookie
+    assert "Max-Age=3600" in cookie
     assert "Domain=" not in cookie
-    raw_session = client.cookies.get(server.COOKIE)
+    raw_session = client.cookies.get(server.SETUP_COOKIE)
     with sqlite3.connect(database) as con:
         assert con.execute("SELECT COUNT(*) FROM magic_tokens_v2").fetchone()[0] == 0
         sessions = con.execute(
-            "SELECT token_hash, expires_at FROM sessions_v2"
+            "SELECT token_hash, expires_at FROM auth_setup_sessions"
         ).fetchall()
     assert sessions == [
-        (hashlib.sha256(raw_session.encode()).hexdigest(), 1_807_776_000.0)
+        (hashlib.sha256(raw_session.encode()).hexdigest(), 1_800_003_600.0)
     ]
     assert raw_session not in repr(sessions)
 
@@ -1822,7 +1834,9 @@ def test_used_and_invalid_magic_tokens_fail_explicitly_without_home_redirect(mon
         assert response.headers.get("location") is None
 
 
-def test_concurrent_redemption_creates_exactly_one_session(monkeypatch, tmp_path):
+def test_concurrent_redemption_creates_exactly_one_setup_capability(
+    monkeypatch, tmp_path
+):
     server, database = load_auth_server(monkeypatch, tmp_path)
     monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
     monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 1_800_000_000.0)
@@ -1836,17 +1850,27 @@ def test_concurrent_redemption_creates_exactly_one_session(monkeypatch, tmp_path
 
     assert sorted(response.status_code for response in responses) == [200, 400]
     with sqlite3.connect(database) as con:
-        assert con.execute("SELECT COUNT(*) FROM sessions_v2").fetchone()[0] == 1
+        assert con.execute(
+            "SELECT COUNT(*) FROM auth_setup_sessions"
+        ).fetchone()[0] == 1
+        assert con.execute("SELECT COUNT(*) FROM sessions_v2").fetchone()[0] == 0
 
 
 def test_expired_session_is_rejected_and_deleted_server_side(monkeypatch, tmp_path):
     server, database = load_auth_server(monkeypatch, tmp_path)
-    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    auth_data = sys.modules["auth_data"]
     now = [1_800_000_000.0]
     monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now[0])
-    token = issue_link(server, monkeypatch)
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('session-expiry@example.com')"
+        ).lastrowid
+        raw_session = auth_data.create_session(
+            con, user_id=user_id, now=now[0], device_name="Expiry test"
+        )
+        con.commit()
     client = TestClient(server.app, base_url="https://testserver")
-    assert client.post("/api/auth/verify", json={"token": token}).status_code == 200
+    client.cookies.set(server.COOKIE, raw_session)
 
     now[0] += 90 * 24 * 60 * 60 + 1
     response = client.get("/api/me")
@@ -1970,12 +1994,19 @@ def test_session_cookie_is_not_renewed_before_the_24_hour_touch(
     monkeypatch, tmp_path
 ):
     server, _ = load_auth_server(monkeypatch, tmp_path)
-    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    auth_data = sys.modules["auth_data"]
     now = [1_800_000_000.0]
     monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now[0])
-    token = issue_link(server, monkeypatch)
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('session-expiry@example.com')"
+        ).lastrowid
+        raw_session = auth_data.create_session(
+            con, user_id=user_id, now=now[0], device_name="Expiry test"
+        )
+        con.commit()
     client = TestClient(server.app, base_url="https://testserver")
-    assert client.post("/api/auth/verify", json={"token": token}).status_code == 200
+    client.cookies.set(server.COOKIE, raw_session)
 
     now[0] += 24 * 60 * 60 - 1
     response = client.get("/api/me")
@@ -1989,13 +2020,19 @@ def test_session_touch_renews_the_secure_90_day_cookie_only_on_that_response(
     monkeypatch, tmp_path
 ):
     server, _ = load_auth_server(monkeypatch, tmp_path)
-    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    auth_data = sys.modules["auth_data"]
     now = [1_800_000_000.0]
     monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now[0])
-    token = issue_link(server, monkeypatch)
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('touch-cookie@example.com')"
+        ).lastrowid
+        raw_session = auth_data.create_session(
+            con, user_id=user_id, now=now[0], device_name="Touch test"
+        )
+        con.commit()
     client = TestClient(server.app, base_url="https://testserver")
-    assert client.post("/api/auth/verify", json={"token": token}).status_code == 200
-    raw_session = client.cookies.get(server.COOKIE)
+    client.cookies.set(server.COOKIE, raw_session)
 
     now[0] += 24 * 60 * 60
     touched = client.get("/api/me")
@@ -3897,7 +3934,7 @@ def test_auth_task5_fix2_reset_outbox_survives_restart_and_startup_delivers(
         ).fetchone() == (hashlib.sha256(raw_token.encode()).hexdigest(),)
 
 
-def test_auth_task5_fix2_reset_outbox_retries_without_leaving_failed_token(
+def test_auth_task5_fix2_reset_outbox_retries_with_one_still_valid_token(
     monkeypatch, tmp_path
 ):
     server, database = load_auth_server(monkeypatch, tmp_path)
@@ -3917,19 +3954,25 @@ def test_auth_task5_fix2_reset_outbox_retries_without_leaving_failed_token(
         return ProviderResponse()
 
     monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
-    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 6_001.0)
+    now = [6_001.0]
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now[0])
 
     assert server.process_password_reset_outbox_batch("retry-worker", limit=1) == 1
     first_token = action_token_from_message(calls, "heslo")
     with sqlite3.connect(database) as con:
-        assert con.execute(
-            "SELECT state, attempts FROM auth_password_reset_outbox"
-        ).fetchone() == ("queued", 1)
-        assert con.execute("SELECT COUNT(*) FROM auth_action_tokens").fetchone() == (0,)
+        state, attempts, next_attempt_at = con.execute(
+            """SELECT state, attempts, next_attempt_at
+               FROM auth_password_reset_outbox"""
+        ).fetchone()
+        assert (state, attempts) == ("queued", 1)
+        assert next_attempt_at > now[0]
+        assert con.execute("SELECT COUNT(*) FROM auth_action_tokens").fetchone() == (1,)
 
+    assert server.process_password_reset_outbox_batch("retry-worker", limit=1) == 0
+    now[0] = next_attempt_at
     assert server.process_password_reset_outbox_batch("retry-worker", limit=1) == 1
     second_token = action_token_from_message(calls, "heslo")
-    assert first_token != second_token
+    assert first_token == second_token
     with sqlite3.connect(database) as con:
         assert con.execute(
             "SELECT state, attempts FROM auth_password_reset_outbox"
@@ -3990,3 +4033,251 @@ def test_auth_task5_fix2_shutdown_drains_an_accepted_reset_delivery(
         assert con.execute(
             "SELECT state FROM auth_password_reset_outbox"
         ).fetchone() == ("sent",)
+
+
+@pytest.mark.parametrize(
+    "purpose, configure_password",
+    [("reset", True), ("setup", False)],
+)
+def test_auth_task5_fix3_null_generation_action_tokens_are_never_accepted(
+    monkeypatch, tmp_path, purpose, configure_password
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    now = 10_000.0
+    raw_token = f"pre-upgrade-null-{purpose}-token"
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('null-token@example.com')"
+        ).lastrowid
+        if configure_password:
+            auth_data.set_password(
+                con,
+                user_id=user_id,
+                password_hash=auth_data.hash_password("newer account credential"),
+                now=now - 1,
+            )
+        con.execute(
+            """INSERT INTO auth_action_tokens
+               (token_hash, email, purpose, pending_password_hash,
+                credential_changed_at, expires_at, created_at)
+               VALUES (?, ?, ?, NULL, NULL, ?, ?)""",
+            (
+                hashlib.sha256(raw_token.encode()).hexdigest(),
+                "null-token@example.com",
+                purpose,
+                now + 3_600,
+                now - 100,
+            ),
+        )
+        con.commit()
+
+        with pytest.raises(auth_data.ActionTokenInvalid):
+            auth_data.consume_action_token(
+                con, raw_token=raw_token, purpose=purpose, now=now
+            )
+
+
+def test_auth_task5_fix3_legacy_verify_grants_only_recoverable_password_setup(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    now = 20_000.0
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now)
+    raw_magic = "restricted-legacy-migration-token"
+    with closing(server.db()) as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('restricted@example.com')"
+        ).lastrowid
+        con.execute(
+            """INSERT INTO magic_tokens_v2
+               (token_hash, email, expires_at, created_at) VALUES (?, ?, ?, ?)""",
+            (
+                hashlib.sha256(raw_magic.encode()).hexdigest(),
+                "restricted@example.com",
+                now + 3_600,
+                now,
+            ),
+        )
+        con.commit()
+
+    client = auth_v3_client(server)
+    verified = client.post(
+        "/api/auth/verify",
+        headers=AUTH_V3_ORIGIN,
+        json={"token": raw_magic},
+    )
+
+    assert verified.status_code == 200
+    assert verified.json() == {"ok": True, "redirect": "/heslo"}
+    assert client.cookies.get(server.COOKIE) is None
+    setup_cookie = client.cookies.get(server.SETUP_COOKIE)
+    assert setup_cookie
+    assert client.get("/api/me").json() == {"prihlaseny": False}
+    assert client.get("/api/auth/sessions").status_code == 401
+    password_page = client.get("/heslo")
+    assert "token?'/api/auth/password/reset':'/api/auth/password/set'" in password_page.text
+    with sqlite3.connect(database) as con:
+        assert con.execute("SELECT COUNT(*) FROM sessions_v2").fetchone() == (0,)
+        assert con.execute(
+            "SELECT COUNT(*) FROM auth_setup_sessions WHERE user_id=?", (user_id,)
+        ).fetchone() == (1,)
+
+    completed = client.post(
+        "/api/auth/password/set",
+        headers=AUTH_V3_ORIGIN,
+        json={"password": "recoverable migration password"},
+    )
+    assert completed.status_code == 200
+    assert client.cookies.get(server.COOKIE)
+    assert client.cookies.get(server.SETUP_COOKIE) is None
+    assert client.get("/api/me").json()["id"] == user_id
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM auth_setup_sessions WHERE user_id=?", (user_id,)
+        ).fetchone() == (0,)
+
+
+def test_auth_task5_fix3_delayed_outbox_token_ttl_starts_when_job_is_claimed(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    seed_password_account(server, auth_data, "delayed-reset@example.com")
+    with closing(server.db()) as con:
+        auth_data.enqueue_password_reset_job(
+            con, email="delayed-reset@example.com", requested_at=1_000.0
+        )
+        delivery = auth_data.claim_password_reset_job(
+            con,
+            worker_id="delayed-worker",
+            now=10_000.0,
+            token_secret="test-only-key",
+        )
+
+    assert delivery is not None and delivery.raw_token
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT created_at, expires_at FROM auth_action_tokens WHERE token_hash=?",
+            (delivery.token_hash,),
+        ).fetchone() == (10_000.0, 13_600.0)
+
+
+def test_auth_task5_fix3_uncertain_delivery_retries_same_valid_token_with_idempotency(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    seed_password_account(server, auth_data, "uncertain-reset@example.com")
+    with closing(server.db()) as con:
+        auth_data.enqueue_password_reset_job(
+            con, email="uncertain-reset@example.com", requested_at=30_000.0
+        )
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    now = [30_001.0]
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now[0])
+    calls = []
+
+    def post(url, **kwargs):
+        calls.append((url, kwargs))
+        if len(calls) <= 2:
+            raise TimeoutError("provider accepted before connection dropped")
+        return ProviderResponse()
+
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
+
+    assert server.process_password_reset_outbox_batch("uncertain-worker", limit=1) == 1
+    first_token = action_token_from_message(calls, "heslo")
+    first_key = calls[0][1]["headers"]["Idempotency-Key"]
+    with sqlite3.connect(database) as con:
+        state, attempts, next_attempt_at, token_hash = con.execute(
+            """SELECT state, attempts, next_attempt_at, token_hash
+               FROM auth_password_reset_outbox"""
+        ).fetchone()
+        assert (state, attempts) == ("queued", 1)
+        assert next_attempt_at == now[0] + 5
+        assert token_hash == hashlib.sha256(first_token.encode()).hexdigest()
+        persisted = con.execute(
+            """SELECT token_seed, idempotency_key, token_hash
+               FROM auth_password_reset_outbox"""
+        ).fetchone()
+        assert first_token not in repr(persisted)
+        assert con.execute(
+            "SELECT COUNT(*) FROM auth_action_tokens WHERE token_hash=?", (token_hash,)
+        ).fetchone() == (1,)
+
+    assert server.process_password_reset_outbox_batch("uncertain-worker", limit=1) == 0
+    assert len(calls) == 1
+    now[0] = next_attempt_at
+    assert server.process_password_reset_outbox_batch("uncertain-worker", limit=1) == 1
+    assert action_token_from_message(calls, "heslo") == first_token
+    assert calls[1][1]["headers"]["Idempotency-Key"] == first_key
+    with sqlite3.connect(database) as con:
+        state, attempts, second_attempt_at = con.execute(
+            """SELECT state, attempts, next_attempt_at
+               FROM auth_password_reset_outbox"""
+        ).fetchone()
+        assert (state, attempts) == ("queued", 2)
+        assert second_attempt_at == now[0] + 10
+
+    assert server.process_password_reset_outbox_batch("uncertain-worker", limit=1) == 0
+    now[0] = second_attempt_at
+    assert server.process_password_reset_outbox_batch("uncertain-worker", limit=1) == 1
+    assert action_token_from_message(calls, "heslo") == first_token
+    assert calls[2][1]["headers"]["Idempotency-Key"] == first_key
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT state, attempts FROM auth_password_reset_outbox"
+        ).fetchone() == ("sent", 3)
+
+
+def test_auth_task5_fix3_lease_wake_and_shutdown_drain_are_bounded(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    seed_password_account(server, auth_data, "lease-wake@example.com")
+    with closing(server.db()) as con:
+        auth_data.enqueue_password_reset_job(
+            con, email="lease-wake@example.com", requested_at=40_000.0
+        )
+        delivery = auth_data.claim_password_reset_job(
+            con,
+            worker_id="crashed-worker",
+            now=40_000.0,
+            lease_seconds=30,
+            token_secret="test-only-key",
+        )
+    assert delivery is not None
+
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 40_000.0)
+    scheduled = []
+
+    def call_later(loop, delay, callback):
+        scheduled.append((delay, callback))
+        return types.SimpleNamespace(cancel=lambda: None, cancelled=lambda: False)
+
+    monkeypatch.setattr(server, "AUTH_OUTBOX_CALL_LATER", call_later, raising=False)
+
+    async def scenario():
+        task = server.ensure_password_reset_worker()
+        await task
+        await asyncio.sleep(0)
+        assert scheduled and scheduled[0][0] == pytest.approx(30.0)
+
+        blocker = asyncio.create_task(asyncio.Event().wait())
+        server.AUTH_BACKGROUND_TASKS.add(blocker)
+        try:
+            drained = await server.drain_password_reset_workers(deadline=0.01)
+            assert drained is False
+            assert not blocker.done()
+        finally:
+            blocker.cancel()
+            await asyncio.gather(blocker, return_exceptions=True)
+
+    asyncio.run(scenario())
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT state, lease_expires_at FROM auth_password_reset_outbox"
+        ).fetchone() == ("running", 40_030.0)

@@ -93,6 +93,8 @@ from auth_data import (
     MagicTokenExpired,
     MagicTokenInvalid,
     ReservationInvalid,
+    PASSWORD_ACTION_TOKEN_TTL_SECONDS,
+    PASSWORDLESS_CREDENTIAL_VERSION,
     SESSION_TTL_SECONDS,
     authenticate_password,
     cancel_magic_token_reservation,
@@ -102,12 +104,14 @@ from auth_data import (
     create_session,
     claim_password_reset_job,
     delete_session,
+    delete_setup_session,
     enqueue_password_reset_job,
     finish_password_reset_job,
     hash_password,
     list_sessions,
     migrate_auth_schema,
     normalize_email,
+    password_reset_outbox_next_wake,
     promote_magic_token,
     reserve_magic_token,
     revoke_other_sessions,
@@ -116,6 +120,7 @@ from auth_data import (
     set_password,
     token_hash,
     user_for_session,
+    user_for_setup_session,
     validate_password,
 )
 
@@ -131,7 +136,9 @@ COMMUNITY_GOAL = 250
 COMMUNITY_VISIBILITY_THRESHOLD = 10
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 COOKIE = "uvarsi_session"
+SETUP_COOKIE = "uvarsi_setup"
 SESSION_MAX_AGE = SESSION_TTL_SECONDS
+SETUP_MAX_AGE = PASSWORD_ACTION_TOKEN_TTL_SECONDS
 AUTH_CLOCK = time.time
 # Single-worker beta guard only; the deployed edge still needs a shared limiter.
 IP_REQUEST_LIMITER = ClientIpRateLimiter(
@@ -147,6 +154,12 @@ AUTH_BACKGROUND_TASKS: set[asyncio.Task] = set()
 AUTH_OUTBOX_BATCH_SIZE = 8
 AUTH_OUTBOX_WORKER_ID = f"auth-reset-{os.getpid()}-{id(AUTH_BACKGROUND_TASKS)}"
 AUTH_OUTBOX_SHUTTING_DOWN = False
+AUTH_OUTBOX_SHUTDOWN_DEADLINE = 1.0
+AUTH_OUTBOX_PROVIDER_RETRY_SECONDS = 60.0
+AUTH_OUTBOX_WAKE_HANDLES = {}
+AUTH_OUTBOX_CALL_LATER = lambda loop, delay, callback: loop.call_later(
+    delay, callback
+)
 
 AUTH_SUCCESS_MESSAGE = (
     "Poskytovateľ prijal žiadosť o prihlasovací e-mail. "
@@ -425,7 +438,10 @@ async def lifespan(_app: FastAPI):
         yield
     finally:
         AUTH_OUTBOX_SHUTTING_DOWN = True
-        await drain_password_reset_workers()
+        for handle, _wake_at in tuple(AUTH_OUTBOX_WAKE_HANDLES.values()):
+            handle.cancel()
+        AUTH_OUTBOX_WAKE_HANDLES.clear()
+        await drain_password_reset_workers(deadline=AUTH_OUTBOX_SHUTDOWN_DEADLINE)
 
 
 app = FastAPI(title="Uvar.si", lifespan=lifespan)
@@ -436,6 +452,17 @@ def set_session_cookie(response: Response, raw_session: str) -> None:
         COOKIE,
         raw_session,
         max_age=SESSION_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+        secure=True,
+    )
+
+
+def set_setup_cookie(response: Response, raw_session: str) -> None:
+    response.set_cookie(
+        SETUP_COOKIE,
+        raw_session,
+        max_age=SETUP_MAX_AGE,
         httponly=True,
         samesite="lax",
         secure=True,
@@ -692,7 +719,14 @@ def sprava_o_limite(limit: int, premium: bool, dnes=None) -> str:
 
 
 # ---------------------------------------------------------------- e-mail
-def posli_mail(komu: str, predmet: str, telo: str, html: str):
+def posli_mail(
+    komu: str,
+    predmet: str,
+    telo: str,
+    html: str,
+    *,
+    idempotency_key: str | None = None,
+):
     return send_resend_message(
         api_key=env("RESEND_API_KEY"),
         sender=env("MAIL_FROM", "Uvar.si <info@uvar.si>"),
@@ -700,6 +734,7 @@ def posli_mail(komu: str, predmet: str, telo: str, html: str):
         subject=predmet,
         text=telo,
         html=html,
+        idempotency_key=idempotency_key,
     )
 
 
@@ -742,7 +777,9 @@ def auth_device_name(req: Request, data: dict, fallback: str) -> str:
     return user_agent[:80] or fallback
 
 
-def action_email(*, email: str, subject: str, heading: str, link: str):
+def action_email(
+    *, email: str, subject: str, heading: str, link: str, idempotency_key=None
+):
     text = (
         f"Ahoj!\n\n{heading}:\n{link}\n\n"
         "Ak si o túto zmenu nežiadal, e-mail ignoruj.\n\nUvar.si\nhttps://uvar.si"
@@ -752,18 +789,33 @@ def action_email(*, email: str, subject: str, heading: str, link: str):
         f"<p>{heading}</p><p><a href='{link}'>Pokračovať</a></p>"
         "<p>Ak si o túto zmenu nežiadal, e-mail ignoruj.</p></body></html>"
     )
-    return posli_mail(email, subject, text, html)
+    return posli_mail(
+        email, subject, text, html, idempotency_key=idempotency_key
+    )
 
 
 def process_password_reset_outbox_batch(
     worker_id: str, *, limit: int = AUTH_OUTBOX_BATCH_SIZE
 ) -> int:
     """Process a bounded durable batch without exposing delivery outcomes."""
+    token_secret = env("RESEND_API_KEY")
+    if not token_secret:
+        with closing(db()) as con:
+            claim_password_reset_job(
+                con,
+                worker_id=worker_id,
+                now=AUTH_CLOCK(),
+                token_secret=None,
+            )
+        return -1
     processed = 0
     for _ in range(limit):
         with closing(db()) as con:
             delivery = claim_password_reset_job(
-                con, worker_id=worker_id, now=AUTH_CLOCK()
+                con,
+                worker_id=worker_id,
+                now=AUTH_CLOCK(),
+                token_secret=token_secret,
             )
         if delivery is None:
             break
@@ -778,6 +830,7 @@ def process_password_reset_outbox_batch(
                 subject="Obnova hesla Uvar.si",
                 heading="Nastav si nové heslo; odkaz platí 60 minút",
                 link=link,
+                idempotency_key=delivery.idempotency_key,
             )
             accepted = True
         except Exception:
@@ -787,6 +840,29 @@ def process_password_reset_outbox_batch(
                 con, delivery, accepted=accepted, now=AUTH_CLOCK()
             )
     return processed
+
+
+def schedule_password_reset_wake(wake_at: float) -> None:
+    if AUTH_OUTBOX_SHUTTING_DOWN:
+        return
+    loop = asyncio.get_running_loop()
+    current = AUTH_OUTBOX_WAKE_HANDLES.get(loop)
+    if current is not None:
+        handle, current_wake = current
+        if not handle.cancelled() and current_wake <= wake_at:
+            return
+        handle.cancel()
+
+    def wake() -> None:
+        AUTH_OUTBOX_WAKE_HANDLES.pop(loop, None)
+        if not AUTH_OUTBOX_SHUTTING_DOWN:
+            ensure_password_reset_worker()
+
+    delay = max(0.0, wake_at - AUTH_CLOCK())
+    AUTH_OUTBOX_WAKE_HANDLES[loop] = (
+        AUTH_OUTBOX_CALL_LATER(loop, delay, wake),
+        wake_at,
+    )
 
 
 def ensure_password_reset_worker() -> asyncio.Task:
@@ -815,30 +891,53 @@ def ensure_password_reset_worker() -> asyncio.Task:
             return
         if AUTH_OUTBOX_SHUTTING_DOWN:
             return
+        if processed < 0:
+            now = AUTH_CLOCK()
+            with closing(db()) as con:
+                durable_wake = password_reset_outbox_next_wake(con, now=now)
+            provider_wake = now + AUTH_OUTBOX_PROVIDER_RETRY_SECONDS
+            if durable_wake is not None and durable_wake > now:
+                provider_wake = min(provider_wake, durable_wake)
+            schedule_password_reset_wake(provider_wake)
+            return
         with closing(db()) as con:
-            queued = con.execute(
-                """SELECT 1 FROM auth_password_reset_outbox
-                   WHERE state='queued' LIMIT 1"""
-            ).fetchone() is not None
-        if processed >= AUTH_OUTBOX_BATCH_SIZE or queued:
+            wake_at = password_reset_outbox_next_wake(
+                con, now=AUTH_CLOCK()
+            )
+        if wake_at is None:
+            return
+        if wake_at <= AUTH_CLOCK():
             ensure_password_reset_worker()
+        else:
+            schedule_password_reset_wake(wake_at)
 
     task.add_done_callback(discard_outcome)
     return task
 
 
-async def drain_password_reset_workers() -> None:
+async def drain_password_reset_workers(
+    *, deadline: float = AUTH_OUTBOX_SHUTDOWN_DEADLINE
+) -> bool:
+    loop = asyncio.get_running_loop()
+    stop_at = loop.time() + max(0.0, deadline)
     while True:
         active = [task for task in AUTH_BACKGROUND_TASKS if not task.done()]
         if not active:
-            task = ensure_password_reset_worker()
-            active = [task]
-        results = await asyncio.gather(*active, return_exceptions=True)
-        if not any(
-            isinstance(result, int) and result >= AUTH_OUTBOX_BATCH_SIZE
-            for result in results
-        ):
-            return
+            if not env("RESEND_API_KEY"):
+                return True
+            with closing(db()) as con:
+                wake_at = password_reset_outbox_next_wake(
+                    con, now=AUTH_CLOCK()
+                )
+            if wake_at is None or wake_at > AUTH_CLOCK():
+                return True
+            active = [ensure_password_reset_worker()]
+        remaining = stop_at - loop.time()
+        if remaining <= 0:
+            return False
+        _done, pending = await asyncio.wait(active, timeout=remaining)
+        if pending:
+            return False
 
 
 def enqueue_password_reset_delivery(*, email: str, requested_at: float) -> None:
@@ -880,27 +979,27 @@ async def auth_request(req: Request):
 
     def deliver(tok):
         link = f"{BASE_URL}/prihlasenie#token={tok}"
-        text = (f"Ahoj!\n\nKlikni sem a potvrď prihlásenie (odkaz platí 60 minút):\n{link}\n\n"
-                f"Ak si o prihlásenie nežiadal, tento e-mail pokojne ignoruj.\n\n"
+        text = (f"Ahoj!\n\nKlikni sem a pokračuj v nastavení hesla (odkaz platí 60 minút):\n{link}\n\n"
+                f"Ak si o nastavenie hesla nežiadal, tento e-mail pokojne ignoruj.\n\n"
                 f"Uvar.si — z letáka rovno na tanier\nhttps://uvar.si")
         html = f"""<!DOCTYPE html><html lang="sk"><body style="margin:0;padding:28px;
 background:#FFFCF5;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#14231C">
 <div style="max-width:460px;margin:0 auto;background:#fff;border:2px solid #14231C;padding:30px">
   <div style="font-size:22px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
     margin-bottom:22px">UVAR<span style="color:#E23A26">.SI</span></div>
-  <h1 style="font-size:21px;margin:0 0 12px">Tvoje prihlásenie</h1>
-  <p style="color:#5C6B62;line-height:1.6;margin:0 0 24px">Klikni na tlačidlo a potvrď prihlásenie.
-     Žiadne heslo netreba. Odkaz platí 60 minút.</p>
+  <h1 style="font-size:21px;margin:0 0 12px">Nastavenie hesla</h1>
+  <p style="color:#5C6B62;line-height:1.6;margin:0 0 24px">Klikni na tlačidlo a pokračuj
+     v bezpečnom nastavení hesla. Odkaz platí 60 minút.</p>
   <a href="{link}" style="display:inline-block;background:#FFD400;color:#14231C;
      border:2px solid #14231C;padding:14px 24px;text-decoration:none;font-weight:700;
-     letter-spacing:.04em;text-transform:uppercase;font-size:14px">Prihlásiť sa →</a>
+     letter-spacing:.04em;text-transform:uppercase;font-size:14px">Pokračovať →</a>
   <p style="color:#5C6B62;font-size:13px;line-height:1.6;margin:26px 0 0">
-     Ak si o prihlásenie nežiadal, tento e-mail pokojne ignoruj — nič sa nestane.</p>
+     Ak si o nastavenie hesla nežiadal, tento e-mail pokojne ignoruj — nič sa nestane.</p>
   <hr style="border:0;border-top:1px dashed #C9C2B4;margin:24px 0">
   <p style="color:#5C6B62;font-size:12px;margin:0">Uvar.si — jedálniček a recepty z toho,
      čo je práve v akcii. <a href="https://uvar.si" style="color:#14231C">uvar.si</a></p>
 </div></body></html>"""
-        return posli_mail(email, "Prihlásenie do Uvar.si", text, html)
+        return posli_mail(email, "Nastavenie hesla Uvar.si", text, html)
 
     try:
         with closing(db()) as con:
@@ -992,7 +1091,11 @@ async def auth_register(req: Request):
                 email=email,
                 purpose=purpose,
                 now=now,
-                credential_changed_at=account[2] if purpose == "reset" else None,
+                credential_changed_at=(
+                    account[2]
+                    if purpose == "reset"
+                    else PASSWORDLESS_CREDENTIAL_VERSION
+                ),
             )
             link = f"{BASE_URL}/heslo#token={raw_token}&purpose={purpose}"
             subject = "Účet Uvar.si už existuje"
@@ -1146,6 +1249,9 @@ async def auth_password_reset(req: Request):
                 set_password(
                     con, user_id=user_id, password_hash=password_hash, now=now
                 )
+                con.execute(
+                    "DELETE FROM auth_setup_sessions WHERE user_id=?", (user_id,)
+                )
                 if purpose == "setup":
                     con.execute(
                         """INSERT OR REPLACE INTO auth_legacy_setup_claims
@@ -1207,6 +1313,10 @@ def update_authenticated_password(
                    WHERE email=? AND purpose IN ('reset', 'setup')""",
                 (user["email"],),
             )
+            con.execute(
+                "DELETE FROM auth_setup_sessions WHERE user_id=?",
+                (user["id"],),
+            )
             if finalize_legacy_setup:
                 con.execute(
                     """INSERT OR REPLACE INTO auth_legacy_setup_claims
@@ -1226,11 +1336,76 @@ def update_authenticated_password(
             raise
 
 
+def complete_restricted_setup_password(
+    req: Request,
+    *,
+    raw_setup_session: str,
+    password_hash: str,
+    now: float,
+) -> str:
+    """Atomically turn one setup capability into a password and full session."""
+    with closing(db()) as con:
+        con.execute("BEGIN IMMEDIATE")
+        try:
+            user = user_for_setup_session(
+                con, raw_session=raw_setup_session, now=now
+            )
+            if user is None:
+                raise PasswordAlreadyConfigured()
+            set_password(
+                con, user_id=user["id"], password_hash=password_hash, now=now
+            )
+            con.execute(
+                """INSERT OR REPLACE INTO auth_legacy_setup_claims
+                   (user_id, claimed_at) VALUES (?, ?)""",
+                (user["id"], now),
+            )
+            con.execute(
+                "DELETE FROM magic_tokens_v2 WHERE email=?", (user["email"],)
+            )
+            con.execute(
+                """DELETE FROM auth_action_tokens
+                   WHERE email=? AND purpose IN ('reset', 'setup')""",
+                (user["email"],),
+            )
+            con.execute(
+                "DELETE FROM auth_setup_sessions WHERE user_id=?", (user["id"],)
+            )
+            session = create_session(
+                con,
+                user_id=user["id"],
+                now=now,
+                device_name=auth_device_name(req, {}, "Nastavené zariadenie"),
+            )
+            revoke_other_sessions(
+                con, user_id=user["id"], current_token=session
+            )
+            con.commit()
+            return session
+        except Exception:
+            con.rollback()
+            raise
+
+
 @app.post("/api/auth/password/set")
 async def auth_password_set(req: Request):
     require_auth_origin(req)
-    user = require_user(req)
     data = await auth_json(req)
+    user = None
+    raw_setup_session = None
+    candidate = req.cookies.get(SETUP_COOKIE)
+    if candidate:
+        with closing(db()) as con:
+            setup_user = user_for_setup_session(
+                con, raw_session=candidate, now=AUTH_CLOCK()
+            )
+        if setup_user is not None:
+            user = setup_user
+            raw_setup_session = candidate
+    if user is None:
+        user = user_from_request(req)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Neprihlásený")
     try:
         password = validate_password(data.get("password"))
     except ValueError:
@@ -1243,16 +1418,31 @@ async def auth_password_set(req: Request):
     now = AUTH_CLOCK()
     password_hash = await asyncio.to_thread(hash_password, password)
     try:
-        update_authenticated_password(
-            req,
-            user=user,
-            password_hash=password_hash,
-            now=now,
-            finalize_legacy_setup=True,
-        )
+        if raw_setup_session is not None:
+            session = complete_restricted_setup_password(
+                req,
+                raw_setup_session=raw_setup_session,
+                password_hash=password_hash,
+                now=now,
+            )
+        else:
+            update_authenticated_password(
+                req,
+                user=user,
+                password_hash=password_hash,
+                now=now,
+                finalize_legacy_setup=True,
+            )
+            session = None
     except PasswordAlreadyConfigured:
         raise HTTPException(409, "Heslo už je nastavené. Použi zmenu hesla.")
-    return {"ok": True}
+    response = JSONResponse({"ok": True})
+    if session is not None:
+        set_session_cookie(response, session)
+        response.delete_cookie(
+            SETUP_COOKIE, httponly=True, samesite="lax", secure=True
+        )
+    return response
 
 
 @app.post("/api/auth/password/change")
@@ -1344,7 +1534,9 @@ const fragment=new URLSearchParams(location.hash.slice(1));let token=fragment.ge
 history.replaceState(null,'',location.pathname);
 document.getElementById('submit').onclick=async()=>{
   const password=document.getElementById('password').value;
-  const response=await fetch('/api/auth/password/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,purpose,password})});
+  const endpoint=token?'/api/auth/password/reset':'/api/auth/password/set';
+  const payload=token?{token,purpose,password}:{password};
+  const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   const data=await response.json().catch(()=>({}));
   if(response.ok){token='';location.replace(data.redirect);return;}
   document.getElementById('status').textContent=data.detail||'Heslo sa nepodarilo uložiť.';
@@ -1364,7 +1556,7 @@ def password_reset_page():
 
 LOGIN_CONFIRMATION_PAGE = """<!doctype html>
 <html lang="sk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>Potvrdenie prihlásenia · Uvar.si</title>
+<title>Potvrdenie nastavenia hesla · Uvar.si</title>
 <meta name="robots" content="noindex,nofollow,noarchive">
 <style>
 :root{--paper:#fffcf5;--ink:#14231c;--soft:#5c6b62;--yellow:#ffd400;--red:#e23a26}
@@ -1374,9 +1566,9 @@ main{max-width:520px;margin:9vh auto;padding:24px}.brand{font-size:24px;font-wei
 h1{font-size:28px;margin:0 0 12px}p{color:var(--soft);line-height:1.6}.action{display:inline-block;border:2px solid var(--ink);background:var(--yellow);color:var(--ink);padding:14px 18px;font-weight:800;text-decoration:none;cursor:pointer}
 #resend{display:none;margin-top:16px}.legacy #confirm{display:none}.legacy #resend{display:inline-block}.legacy #status{color:var(--red)}
 </style></head><body><main><div class="brand">Uvar<em>.si</em></div>
-<section class="card" id="panel"><h1>Potvrď prihlásenie</h1>
+<section class="card" id="panel"><h1>Potvrď nastavenie hesla</h1>
 <p id="status">Odkaz sa použije až po tvojom potvrdení. Platí 60 minút.</p>
-<button class="action" id="confirm" type="button">Potvrdiť prihlásenie</button>
+<button class="action" id="confirm" type="button">Pokračovať k heslu</button>
 <a class="action" id="resend" href="/app">Požiadať o nový odkaz</a></section></main>
 <script>
 const panel=document.getElementById('panel');const statusNode=document.getElementById('status');
@@ -1388,7 +1580,7 @@ function forgetToken(){try{sessionStorage.removeItem(MAGIC_TOKEN_SESSION_KEY);}c
 let token=freshToken||storedToken();
 if(freshToken)rememberToken(freshToken);
 history.replaceState(null,'',location.pathname);
-if(!token){statusNode.textContent='Odkaz chýba alebo má starý formát. Požiadaj o nový prihlasovací odkaz.';panel.classList.add('legacy');}
+if(!token){statusNode.textContent='Odkaz chýba alebo má starý formát. Požiadaj o nový odkaz na nastavenie hesla.';panel.classList.add('legacy');}
 document.getElementById('confirm').onclick=async()=>{
   const submittedToken=token;history.replaceState(null,'',location.pathname);
   try{
@@ -1424,15 +1616,15 @@ async def auth_verify(req: Request):
     data = await auth_json(req)
     try:
         with closing(db()) as con:
-            session = consume_magic_token(
+            setup_session = consume_magic_token(
                 con, raw_token=data.get("token"), now=AUTH_CLOCK()
             )
     except MagicTokenExpired:
         raise HTTPException(410, "Odkaz vypršal. Požiadaj o nový prihlasovací odkaz.")
     except MagicTokenInvalid:
         raise HTTPException(400, "Odkaz je neplatný alebo už bol použitý. Požiadaj o nový.")
-    response = JSONResponse({"ok": True, "redirect": "/app"})
-    set_session_cookie(response, session)
+    response = JSONResponse({"ok": True, "redirect": "/heslo"})
+    set_setup_cookie(response, setup_session)
     return response
 
 
@@ -1440,11 +1632,16 @@ async def auth_verify(req: Request):
 def auth_logout(req: Request):
     require_auth_origin(req)
     tok = req.cookies.get(COOKIE)
-    if tok:
+    setup_tok = req.cookies.get(SETUP_COOKIE)
+    if tok or setup_tok:
         with closing(db()) as con:
-            delete_session(con, tok)
+            if tok:
+                delete_session(con, tok)
+            if setup_tok:
+                delete_setup_session(con, setup_tok)
     r = JSONResponse({"ok": True})
     r.delete_cookie(COOKIE, httponly=True, samesite="lax", secure=True)
+    r.delete_cookie(SETUP_COOKIE, httponly=True, samesite="lax", secure=True)
     return r
 
 
