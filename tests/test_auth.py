@@ -409,7 +409,7 @@ def test_malformed_json_body_returns_the_same_safe_400(monkeypatch, tmp_path):
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "Zadaj platnú e-mailovú adresu."
+    assert response.json()["detail"] == "Požiadavka musí obsahovať platný JSON objekt."
 
 
 @pytest.mark.parametrize("body", [[], ["cook@example.com"], "cook@example.com", 7, None])
@@ -420,7 +420,37 @@ def test_non_object_json_body_returns_the_same_safe_400(monkeypatch, tmp_path, b
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "Zadaj platnú e-mailovú adresu."
+    assert response.json()["detail"] == "Požiadavka musí obsahovať platný JSON objekt."
+
+
+def test_legacy_auth_request_rejects_oversized_json_before_parse(monkeypatch, tmp_path):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    response = TestClient(server.app, raise_server_exceptions=False).post(
+        "/api/auth/request",
+        content=json.dumps(
+            {"email": "unknown@example.com", "padding": "x" * 20_000}
+        ),
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 413
+    assert response.json()["detail"] == "Požiadavka je príliš veľká."
+
+
+def test_legacy_auth_request_shared_json_bound_preserves_valid_flow(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    ensure_legacy_account(server, "bounded-legacy@example.com")
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    calls = []
+    install_provider(monkeypatch, calls=calls)
+
+    response = request_link(server, "bounded-legacy@example.com")
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True, "message": SUCCESS_MESSAGE}
+    assert len(calls) == 1
 
 
 @pytest.mark.parametrize(
@@ -3097,6 +3127,202 @@ def test_auth_v3_route_login_is_generic_and_keeps_both_devices_valid(
             "SELECT COUNT(*) FROM sessions_v2 WHERE user_id=? AND revoked_at IS NULL",
             (user_id,),
         ).fetchone() == (2,)
+
+
+def test_password_login_cannot_create_session_after_reset_replaces_verified_hash(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 5_000.0)
+    user_id = seed_password_account(server, auth_data, "login-race@example.com")
+    with closing(server.db()) as con:
+        reset_token = auth_data.create_action_token(
+            con, email="login-race@example.com", purpose="reset", now=5_000.0
+        )
+
+    entered = threading.Event()
+    release = threading.Event()
+    original_verify = server.verify_password_and_rehash
+
+    def pause_old_password(encoded, password):
+        if password == "correct horse battery":
+            entered.set()
+            assert release.wait(5), "login KDF was not released"
+        return original_verify(encoded, password)
+
+    monkeypatch.setattr(server, "verify_password_and_rehash", pause_old_password)
+    result = {}
+    login_client = auth_v3_client(server)
+
+    def run_login():
+        result["response"] = login_client.post(
+            "/api/auth/login",
+            headers=AUTH_V3_ORIGIN,
+            json={
+                "email": "login-race@example.com",
+                "password": "correct horse battery",
+            },
+        )
+
+    host = threading.Thread(target=run_login)
+    host.start()
+    assert entered.wait(5), "login did not reach password verification"
+    reset_client = auth_v3_client(server)
+    reset = reset_client.post(
+        "/api/auth/password/reset",
+        headers=AUTH_V3_ORIGIN,
+        json={"token": reset_token, "password": "replacement password"},
+    )
+    release.set()
+    host.join(5)
+
+    assert not host.is_alive()
+    assert reset.status_code == 200
+    assert result["response"].status_code == 401
+    assert login_client.cookies.get(server.COOKIE) is None
+    with closing(server.db()) as con:
+        assert auth_data.authenticate_password(
+            con, email="login-race@example.com", password="replacement password"
+        ) == user_id
+        assert auth_data.authenticate_password(
+            con, email="login-race@example.com", password="correct horse battery"
+        ) is None
+        assert con.execute(
+            """SELECT COUNT(*) FROM sessions_v2
+               WHERE user_id=? AND revoked_at IS NULL""",
+            (user_id,),
+        ).fetchone()[0] == 1
+
+
+def test_password_change_cannot_overwrite_reset_that_wins_after_verification(
+    monkeypatch, tmp_path
+):
+    server, _database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 6_000.0)
+    user_id = seed_password_account(server, auth_data, "change-race@example.com")
+    with closing(server.db()) as con:
+        current_session = auth_data.create_session(
+            con, user_id=user_id, now=5_999.0, device_name="Current"
+        )
+        reset_token = auth_data.create_action_token(
+            con, email="change-race@example.com", purpose="reset", now=6_000.0
+        )
+
+    entered = threading.Event()
+    release = threading.Event()
+    original_verify = server.verify_password_and_rehash
+
+    def pause_old_password(encoded, password):
+        if password == "correct horse battery":
+            entered.set()
+            assert release.wait(5), "change KDF was not released"
+        return original_verify(encoded, password)
+
+    monkeypatch.setattr(server, "verify_password_and_rehash", pause_old_password)
+    result = {}
+    change_client = auth_v3_client(server)
+    change_client.cookies.set(server.COOKIE, current_session)
+
+    def run_change():
+        result["response"] = change_client.post(
+            "/api/auth/password/change",
+            headers=AUTH_V3_ORIGIN,
+            json={
+                "current_password": "correct horse battery",
+                "password": "stale change password",
+            },
+        )
+
+    host = threading.Thread(target=run_change)
+    host.start()
+    assert entered.wait(5), "change did not reach password verification"
+    reset_client = auth_v3_client(server)
+    reset = reset_client.post(
+        "/api/auth/password/reset",
+        headers=AUTH_V3_ORIGIN,
+        json={"token": reset_token, "password": "reset wins password"},
+    )
+    release.set()
+    host.join(5)
+
+    assert not host.is_alive()
+    assert reset.status_code == 200
+    assert result["response"].status_code == 401
+    with closing(server.db()) as con:
+        assert auth_data.authenticate_password(
+            con, email="change-race@example.com", password="reset wins password"
+        ) == user_id
+        assert auth_data.authenticate_password(
+            con, email="change-race@example.com", password="stale change password"
+        ) is None
+        assert auth_data.user_for_session(
+            con,
+            raw_session=reset_client.cookies.get(server.COOKIE),
+            now=6_000.0,
+            touch=False,
+        )["id"] == user_id
+
+
+def test_password_change_requires_same_current_session_at_commit(
+    monkeypatch, tmp_path
+):
+    server, _database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 7_000.0)
+    user_id = seed_password_account(server, auth_data, "session-race@example.com")
+    with closing(server.db()) as con:
+        current_session = auth_data.create_session(
+            con, user_id=user_id, now=6_999.0, device_name="Current"
+        )
+
+    entered = threading.Event()
+    release = threading.Event()
+    original_verify = server.verify_password_and_rehash
+
+    def pause_old_password(encoded, password):
+        if password == "correct horse battery":
+            entered.set()
+            assert release.wait(5), "change KDF was not released"
+        return original_verify(encoded, password)
+
+    monkeypatch.setattr(server, "verify_password_and_rehash", pause_old_password)
+    result = {}
+    change_client = auth_v3_client(server)
+    change_client.cookies.set(server.COOKIE, current_session)
+
+    def run_change():
+        result["response"] = change_client.post(
+            "/api/auth/password/change",
+            headers=AUTH_V3_ORIGIN,
+            json={
+                "current_password": "correct horse battery",
+                "password": "must not be stored",
+            },
+        )
+
+    host = threading.Thread(target=run_change)
+    host.start()
+    assert entered.wait(5), "change did not reach password verification"
+    with closing(server.db()) as con:
+        con.execute(
+            "UPDATE sessions_v2 SET revoked_at=? WHERE token_hash=?",
+            (7_000.0, hashlib.sha256(current_session.encode()).hexdigest()),
+        )
+        con.commit()
+    release.set()
+    host.join(5)
+
+    assert not host.is_alive()
+    assert result["response"].status_code == 401
+    with closing(server.db()) as con:
+        assert auth_data.authenticate_password(
+            con, email="session-race@example.com", password="correct horse battery"
+        ) == user_id
+        assert auth_data.authenticate_password(
+            con, email="session-race@example.com", password="must not be stored"
+        ) is None
 
 
 def test_auth_v3_route_password_request_and_reset_are_generic_one_time_and_atomic(

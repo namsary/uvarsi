@@ -857,7 +857,7 @@ async def run_password_kdf(function, *args):
 
 async def authenticate_password_async(
     *, email: str, password: str, now: float, rehash: bool = True
-) -> int | None:
+) -> tuple[int, str, str | None] | None:
     with closing(db()) as con:
         user_id, encoded = password_authentication_material(con, email=email)
     verified, replacement = await run_password_kdf(
@@ -865,15 +865,7 @@ async def authenticate_password_async(
     )
     if user_id is None or not verified:
         return None
-    if rehash and replacement is not None:
-        with closing(db()) as con:
-            con.execute(
-                """UPDATE auth_credentials SET password_hash=?, changed_at=?
-                   WHERE user_id=? AND password_hash=?""",
-                (replacement, now, user_id, encoded),
-            )
-            con.commit()
-    return user_id
+    return int(user_id), encoded, replacement if rehash else None
 
 
 def auth_ip_rate_limit(req: Request, *, operation: str, now: float) -> None:
@@ -1135,12 +1127,10 @@ async def auth_request(req: Request):
     client_ip = req.client.host if req.client else "unknown"
     if not IP_REQUEST_LIMITER.allow(client_ip, now):
         raise HTTPException(429, "Priveľa pokusov. Skús to znova o 10 minút.")
+    data = await auth_json(req)
     try:
-        data = await req.json()
-        if not isinstance(data, dict):
-            raise ValueError("JSON body must be an object")
         email = normalize_email(data.get("email"))
-    except (ValueError, UnicodeDecodeError):
+    except ValueError:
         raise HTTPException(400, "Zadaj platnú e-mailovú adresu.")
 
     # The old magic route is now a one-time migration bridge. Unknown addresses
@@ -1361,18 +1351,44 @@ async def auth_password_login(req: Request):
         raise HTTPException(401, PASSWORD_LOGIN_FAILURE_MESSAGE)
     device_name = auth_device_name(req, data, "Prihlásené zariadenie")
     auth_account_rate_limit(account=email, operation="login", now=now)
-    user_id = await authenticate_password_async(
+    authentication = await authenticate_password_async(
         email=email, password=password, now=now
     )
-    if user_id is None:
+    if authentication is None:
         raise HTTPException(401, PASSWORD_LOGIN_FAILURE_MESSAGE)
+    user_id, verified_hash, replacement_hash = authentication
     with closing(db()) as con:
-        session = create_session(
-            con,
-            user_id=user_id,
-            now=now,
-            device_name=device_name,
-        )
+        con.execute("BEGIN IMMEDIATE")
+        try:
+            if replacement_hash is None:
+                current = con.execute(
+                    """SELECT 1 FROM auth_credentials
+                       WHERE user_id=? AND password_hash=?""",
+                    (user_id, verified_hash),
+                ).fetchone()
+                if current is None:
+                    raise CredentialStateChanged()
+            else:
+                updated = con.execute(
+                    """UPDATE auth_credentials SET password_hash=?, changed_at=?
+                       WHERE user_id=? AND password_hash=?""",
+                    (replacement_hash, now, user_id, verified_hash),
+                )
+                if updated.rowcount != 1:
+                    raise CredentialStateChanged()
+            session = create_session(
+                con,
+                user_id=user_id,
+                now=now,
+                device_name=device_name,
+            )
+            con.commit()
+        except CredentialStateChanged:
+            con.rollback()
+            raise HTTPException(401, PASSWORD_LOGIN_FAILURE_MESSAGE)
+        except Exception:
+            con.rollback()
+            raise
     response = JSONResponse({"ok": True, "redirect": "/app"})
     set_session_cookie(response, session)
     return response
@@ -1479,6 +1495,10 @@ class PasswordAlreadyConfigured(RuntimeError):
     pass
 
 
+class CredentialStateChanged(RuntimeError):
+    pass
+
+
 def update_authenticated_password(
     req: Request,
     *,
@@ -1486,6 +1506,8 @@ def update_authenticated_password(
     password_hash: str,
     now: float,
     finalize_legacy_setup: bool = False,
+    expected_password_hash: str | None = None,
+    require_current_session: bool = False,
 ) -> None:
     current = req.cookies.get(COOKIE)
     with closing(db()) as con:
@@ -1495,9 +1517,25 @@ def update_authenticated_password(
                 "SELECT 1 FROM auth_credentials WHERE user_id=?", (user["id"],)
             ).fetchone():
                 raise PasswordAlreadyConfigured()
-            set_password(
-                con, user_id=user["id"], password_hash=password_hash, now=now
-            )
+            if require_current_session:
+                if not current or con.execute(
+                    """SELECT 1 FROM sessions_v2
+                       WHERE token_hash=? AND user_id=? AND revoked_at IS NULL
+                         AND expires_at>?""",
+                    (token_hash(current), user["id"], now),
+                ).fetchone() is None:
+                    raise CredentialStateChanged()
+                updated = con.execute(
+                    """UPDATE auth_credentials SET password_hash=?, changed_at=?
+                       WHERE user_id=? AND password_hash=?""",
+                    (password_hash, now, user["id"], expected_password_hash),
+                )
+                if updated.rowcount != 1:
+                    raise CredentialStateChanged()
+            else:
+                set_password(
+                    con, user_id=user["id"], password_hash=password_hash, now=now
+                )
             con.execute(
                 """DELETE FROM auth_action_tokens
                    WHERE email=? AND purpose IN ('reset', 'setup')""",
@@ -1649,13 +1687,23 @@ async def auth_password_change(req: Request):
     except ValueError:
         raise HTTPException(400, "Heslo musí mať 10 až 128 znakov.")
     now = AUTH_CLOCK()
-    authenticated_id = await authenticate_password_async(
+    authentication = await authenticate_password_async(
         email=user["email"], password=current_password, now=now, rehash=False
     )
-    if authenticated_id != user["id"]:
+    if authentication is None or authentication[0] != user["id"]:
         raise HTTPException(401, PASSWORD_LOGIN_FAILURE_MESSAGE)
     password_hash = await run_password_kdf(hash_password, password)
-    update_authenticated_password(req, user=user, password_hash=password_hash, now=now)
+    try:
+        update_authenticated_password(
+            req,
+            user=user,
+            password_hash=password_hash,
+            now=now,
+            expected_password_hash=authentication[1],
+            require_current_session=True,
+        )
+    except CredentialStateChanged:
+        raise HTTPException(401, PASSWORD_LOGIN_FAILURE_MESSAGE)
     return {"ok": True}
 
 

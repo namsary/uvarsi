@@ -24,6 +24,7 @@ import pytest
 APP = Path("app/static/app.html")
 LANDING = Path("index.html")
 FONT_DIR = Path("app/static/fonts")
+APP_DETAILS_CSS = Path("app/static/app-details.v1.css")
 NODE = os.environ.get("UVARSI_NODE") or shutil.which("node")
 needs_node = pytest.mark.skipif(NODE is None, reason="node runtime is not available")
 
@@ -463,8 +464,8 @@ def test_pending_acknowledgement_blocks_a_second_post_and_discards_stale_respons
 
 
 @needs_node
-def test_service_worker_network_first_auth_shells_with_safe_offline_app_fallback(tmp_path):
-    """Online auth routes must bypass stale shells; offline may use only cached /app."""
+def test_service_worker_auth_pages_never_fall_back_to_the_offline_app_shell(tmp_path):
+    """Action-token pages must fail closed offline instead of rendering cached /app."""
     script = tmp_path / "sw-auth-network-first.js"
     script.write_text(
         SW_HARNESS
@@ -473,17 +474,23 @@ def test_service_worker_network_first_auth_shells_with_safe_offline_app_fallback
         + r"""
   await dispatch('install');
   store.set('https://uvar.si/app', Res('offline-shell'));
-  const dynamic = [
-    '/app', '/prihlasenie', '/potvrdenie', '/heslo',
+  const authPages = [
+    '/prihlasenie', '/potvrdenie', '/heslo',
     '/api/auth/pages/potvrdenie', '/api/auth/pages/heslo'
   ];
-  for (const path of dynamic) {
+  for (const path of ['/app', ...authPages]) {
     networkUp = true;
     const online = await dispatch('fetch', {request: request(path)});
     if (!online || online.body !== 'net:https://uvar.si' + path) process.exit(20);
-    networkUp = false;
-    const offline = await dispatch('fetch', {request: request(path)});
-    if (!offline || !['offline-shell', 'net:https://uvar.si/app'].includes(offline.body)) process.exit(21);
+  }
+  networkUp = false;
+  const appOffline = await dispatch('fetch', {request: request('/app')});
+  if (!appOffline || appOffline.body !== 'offline-shell') process.exit(21);
+  for (const path of authPages) {
+    let failedClosed = false;
+    try { await dispatch('fetch', {request: request(path)}); }
+    catch (error) { failedClosed = error && error.message === 'offline'; }
+    if (!failedClosed) process.exit(22);
   }
   process.exit(0);
 })().catch(error => { console.error(error); process.exit(99); });
@@ -710,10 +717,20 @@ def test_pages_stay_within_their_transfer_budget(page, budget):
     app.html má 26 575 B gzip; nový vedomý strop 27 000 B ponecháva malú rezervu
     a ďalej zabráni tichému rastu. Landing ostáva na pôvodnom limite.
     """
-    compressed = len(gzip.compress(page.read_bytes(), 9))
+    compressed = len(gzip.compress(page.read_bytes(), 5))
     assert compressed <= budget, (
         f"{page} sa prenáša ako {compressed} B, strop je {budget} B"
     )
+
+
+def test_app_detail_stylesheet_split_is_local_and_shipped():
+    html = read(APP)
+
+    assert 'href="/static/app-details.v1.css"' in head_of(html)
+    assert APP_DETAILS_CSS.is_file()
+    styles = read(APP_DETAILS_CSS)
+    assert ".meal{" in styles
+    assert ".storage-note{" in styles
 
 
 def test_landing_keeps_practical_headroom_with_deployed_gzip_level():

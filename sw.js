@@ -6,10 +6,10 @@
 //
 // Pravidlá:
 //   • /api/*        — VŽDY zo siete, nikdy z cache. Výnimkou sú iba HTML
-//                     auth stránky pod /api/auth/pages/*, ktoré sú network-first
-//                     a offline bezpečne spadnú na uloženú /app škrupinu.
+//                     auth stránky pod /api/auth/pages/*, ktoré worker zachytí
+//                     network-first, ale pri offline stave nič nenahrádza.
 //   • /app a auth   — network-first, aby prepnutie auth flagu nikdy neostalo
-//                     skryté starou škrupinou; offline fallback je iba /app.
+//                     skryté starou škrupinou; offline fallback má iba /app.
 //   • ?query        — count.json?v=<čas> je zakaždým iná adresa, cache by rástla.
 //   • /static/fonts — nemenné (v názve je odtlačok obsahu), teda rovno z cache.
 //   • zvyšok        — z cache hneď, na pozadí sa obnoví (stale-while-revalidate):
@@ -58,6 +58,7 @@ async function networkFirstShell(request, pathname) {
     }
     return response;
   } catch (_error) {
+    if (pathname !== '/app') throw _error;
     return (await caches.match(request)) || caches.match('/app');
   }
 }

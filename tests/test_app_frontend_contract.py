@@ -833,6 +833,43 @@ process.stdout.write(JSON.stringify({migrated,painted,header,stored:values.get(P
 
 
 @needs_node
+def test_profile_cache_purges_pii_when_onboarding_is_false_or_json_is_invalid(tmp_path):
+    source = function_source(app_html(), "cachedProfile")
+    result = run_node(
+        tmp_path,
+        "profile-cache-purge.js",
+        "const PROFILE_KEY='uvarsi_profil';\n"
+        + source
+        + r"""
+function exercise(initial){
+  const values=new Map([[PROFILE_KEY,initial]]);
+  global.localStorage={
+    getItem(key){return values.has(key)?values.get(key):null},
+    setItem(key,value){values.set(key,String(value))},
+    removeItem(key){values.delete(key)}
+  };
+  const returned=cachedProfile();
+  return {returned,stored:values.has(PROFILE_KEY)?values.get(PROFILE_KEY):null};
+}
+process.stdout.write(JSON.stringify({
+  notOnboarded:exercise(JSON.stringify({email:'old@example.com',onboarding:false})),
+  invalid:exercise('{"email":"old@example.com",broken')
+}));
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    state = json.loads(result.stdout)
+    assert state["notOnboarded"] == {
+        "returned": None,
+        "stored": '{"onboarding":false}',
+    }
+    assert state["invalid"] == {"returned": None, "stored": None}
+    assert "email" not in json.dumps(state).lower()
+    assert "example.com" not in json.dumps(state)
+
+
+@needs_node
 def test_account_requests_keep_credentials_in_post_body_and_never_in_urls_or_storage(
     tmp_path,
 ):
@@ -1056,7 +1093,7 @@ process.stdout.write(JSON.stringify({disabled,before,dismissed,otherUser,configu
     assert state["disabled"] == ""
     assert "Nastaviť heslo" in state["before"]
     assert "Pokračovať bez nastavenia" in state["before"]
-    assert "/heslo" in state["before"]
+    assert 'href="/api/auth/pages/heslo"' in state["before"]
     assert state["dismissed"] == ""
     assert "Nastaviť heslo" in state["otherUser"]
     assert state["configured"] == ""

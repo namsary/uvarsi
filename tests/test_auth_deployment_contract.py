@@ -13,6 +13,7 @@ AUTH_REQUIREMENTS = ROOT / "requirements-auth.txt"
 DEV_REQUIREMENTS = ROOT / "requirements-dev.txt"
 SAMOPULL = ROOT / "hetzner" / "samopull.sh"
 MANUAL_DEPLOY = ROOT / "nasad.ps1"
+APP_HTML = ROOT / "app" / "static" / "app.html"
 
 AUTH_PINS = {
     "argon2-cffi": "25.1.0",
@@ -120,6 +121,13 @@ def test_existing_caddy_contract_proxies_auth_pages_through_api_without_new_rout
     assert api and "reverse_proxy 127.0.0.1:8090" in api.group(1)
     assert "handle /potvrdenie" not in caddy
     assert "handle /heslo" not in caddy
+
+
+def test_profile_password_setup_link_uses_the_existing_api_proxy_contract():
+    html = APP_HTML.read_text(encoding="utf-8")
+
+    assert 'href="/api/auth/pages/heslo"' in html
+    assert 'href="/heslo"' not in html
 
 
 @pytest.mark.parametrize("missing_module", ["argon2", "webauthn"])
