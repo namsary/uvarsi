@@ -7,6 +7,7 @@ import types
 from contextlib import closing
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -280,6 +281,105 @@ def test_registration_credential_failure_rolls_back_challenge_consumption(
         ).fetchone() == (0,)
 
 
+@pytest.mark.parametrize(
+    "failure_kind",
+    [
+        "missing-credential",
+        "invalid-credential-base64",
+        "unsupported-transports",
+        "verifier-exception",
+    ],
+)
+def test_registration_attempt_burns_identified_challenge_before_credential_validation(
+    monkeypatch, tmp_path, failure_kind
+):
+    server, auth_data, database = load_server(monkeypatch, tmp_path)
+    _user_id, session = seed_account(
+        server, auth_data, f"register-{failure_kind}@example.com"
+    )
+    client = authenticated_client(server, session)
+    options_response = client.post(
+        "/api/auth/passkey/register/options", headers=ORIGIN, json={}
+    )
+    assert options_response.status_code == 200
+    challenge = options_response.json()["challenge"]
+    credential_id = b64url(b"attempted registration credential")
+    payload = {
+        "challenge": challenge,
+        "credential": credential_payload(credential_id),
+    }
+    if failure_kind == "missing-credential":
+        payload["credential"] = {}
+    elif failure_kind == "invalid-credential-base64":
+        payload["credential"] = credential_payload("not+base64url")
+    elif failure_kind == "unsupported-transports":
+        payload["transports"] = ["carrier-pigeon"]
+
+    def reject_registration(**_kwargs):
+        raise RuntimeError("injected verifier failure")
+
+    monkeypatch.setattr(
+        server, "verify_registration_response", reject_registration
+    )
+
+    rejected = client.post(
+        "/api/auth/passkey/register/verify", headers=ORIGIN, json=payload
+    )
+    with sqlite3.connect(database) as con:
+        challenges_after_attempt = con.execute(
+            "SELECT COUNT(*) FROM auth_webauthn_challenges"
+        ).fetchone()[0]
+    replay = client.post(
+        "/api/auth/passkey/register/verify", headers=ORIGIN, json=payload
+    )
+
+    assert rejected.status_code == 400
+    assert challenges_after_attempt == 0
+    assert replay.status_code == 400
+
+
+def test_registration_malformed_attempt_cannot_burn_another_users_challenge(
+    monkeypatch, tmp_path
+):
+    server, auth_data, database = load_server(monkeypatch, tmp_path)
+    _owner_id, owner_session = seed_account(
+        server, auth_data, "challenge-owner@example.com"
+    )
+    _other_id, other_session = seed_account(
+        server, auth_data, "challenge-other@example.com"
+    )
+    owner = authenticated_client(server, owner_session)
+    other = authenticated_client(server, other_session)
+    options_response = owner.post(
+        "/api/auth/passkey/register/options", headers=ORIGIN, json={}
+    )
+    challenge = options_response.json()["challenge"]
+    malformed_payload = {"challenge": challenge, "credential": {}}
+
+    foreign_attempt = other.post(
+        "/api/auth/passkey/register/verify",
+        headers=ORIGIN,
+        json=malformed_payload,
+    )
+    with sqlite3.connect(database) as con:
+        challenges_after_foreign_attempt = con.execute(
+            "SELECT COUNT(*) FROM auth_webauthn_challenges"
+        ).fetchone()[0]
+    owner_attempt = owner.post(
+        "/api/auth/passkey/register/verify",
+        headers=ORIGIN,
+        json=malformed_payload,
+    )
+
+    assert foreign_attempt.status_code == 400
+    assert challenges_after_foreign_attempt == 1
+    assert owner_attempt.status_code == 400
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM auth_webauthn_challenges"
+        ).fetchone() == (0,)
+
+
 def test_expired_registration_challenge_is_deleted_and_never_verified(
     monkeypatch, tmp_path
 ):
@@ -545,6 +645,153 @@ def test_login_session_failure_rolls_back_counter_and_challenge(
             "SELECT sign_count, last_used_at FROM auth_passkeys WHERE credential_id=?",
             (credential_id,),
         ).fetchone() == (2, None)
+        assert con.execute(
+            "SELECT COUNT(*) FROM auth_webauthn_challenges"
+        ).fetchone() == (1,)
+
+
+@pytest.mark.parametrize(
+    "failure_kind",
+    [
+        "missing-credential",
+        "invalid-credential-base64",
+        "verifier-exception",
+    ],
+)
+def test_login_attempt_burns_identified_challenge_before_credential_validation(
+    monkeypatch, tmp_path, failure_kind
+):
+    server, auth_data, database = load_server(monkeypatch, tmp_path)
+    user_id, _session = seed_account(
+        server, auth_data, f"login-{failure_kind}@example.com"
+    )
+    credential_id = b64url(b"attempted login credential")
+    insert_passkey(server, credential_id=credential_id, user_id=user_id)
+    client = TestClient(server.app, base_url="https://uvar.si")
+    options_response = client.post(
+        "/api/auth/passkey/login/options",
+        headers=ORIGIN,
+        json={"email": f"login-{failure_kind}@example.com"},
+    )
+    assert options_response.status_code == 200
+    challenge = options_response.json()["challenge"]
+    payload = {
+        "challenge": challenge,
+        "credential": credential_payload(credential_id),
+    }
+    if failure_kind == "missing-credential":
+        payload["credential"] = {}
+    elif failure_kind == "invalid-credential-base64":
+        payload["credential"] = credential_payload("not+base64url")
+
+    def reject_authentication(**_kwargs):
+        raise RuntimeError("injected verifier failure")
+
+    monkeypatch.setattr(
+        server, "verify_authentication_response", reject_authentication
+    )
+
+    rejected = client.post(
+        "/api/auth/passkey/login/verify", headers=ORIGIN, json=payload
+    )
+    with sqlite3.connect(database) as con:
+        challenges_after_attempt = con.execute(
+            "SELECT COUNT(*) FROM auth_webauthn_challenges"
+        ).fetchone()[0]
+    replay = client.post(
+        "/api/auth/passkey/login/verify", headers=ORIGIN, json=payload
+    )
+
+    assert rejected.status_code == 400
+    assert challenges_after_attempt == 0
+    assert replay.status_code == 400
+
+
+def test_database_failure_before_challenge_consumption_allows_retry(
+    monkeypatch, tmp_path
+):
+    server, auth_data, database = load_server(monkeypatch, tmp_path)
+    _user_id, session = seed_account(server, auth_data, "retry@example.com")
+    client = authenticated_client(server, session)
+    options_response = client.post(
+        "/api/auth/passkey/register/options", headers=ORIGIN, json={}
+    )
+    challenge = options_response.json()["challenge"]
+    original_consume = server.consume_webauthn_challenge
+    attempts = 0
+
+    def fail_once_before_consumption(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise sqlite3.OperationalError("injected pre-consumption failure")
+        return original_consume(*args, **kwargs)
+
+    monkeypatch.setattr(
+        server, "consume_webauthn_challenge", fail_once_before_consumption
+    )
+    payload = {"challenge": challenge, "credential": {}}
+    failing_client = TestClient(
+        server.app, base_url="https://uvar.si", raise_server_exceptions=False
+    )
+    failing_client.cookies.set(server.COOKIE, session)
+    first = failing_client.post(
+        "/api/auth/passkey/register/verify", headers=ORIGIN, json=payload
+    )
+    with sqlite3.connect(database) as con:
+        challenges_after_database_failure = con.execute(
+            "SELECT COUNT(*) FROM auth_webauthn_challenges"
+        ).fetchone()[0]
+    retry = client.post(
+        "/api/auth/passkey/register/verify", headers=ORIGIN, json=payload
+    )
+
+    assert first.status_code == 500
+    assert challenges_after_database_failure == 1
+    assert retry.status_code == 400
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM auth_webauthn_challenges"
+        ).fetchone() == (0,)
+
+
+@pytest.mark.parametrize("ceremony", ["register", "login"])
+def test_unidentifiable_challenge_returns_generic_error_without_consuming_issued_row(
+    monkeypatch, tmp_path, ceremony
+):
+    server, auth_data, database = load_server(monkeypatch, tmp_path)
+    user_id, session = seed_account(
+        server, auth_data, f"unidentified-{ceremony}@example.com"
+    )
+    credential_id = b64url(b"unidentified challenge credential")
+    insert_passkey(server, credential_id=credential_id, user_id=user_id)
+    if ceremony == "register":
+        client = authenticated_client(server, session)
+        options_path = "/api/auth/passkey/register/options"
+        verify_path = "/api/auth/passkey/register/verify"
+        options_payload = {}
+    else:
+        client = TestClient(server.app, base_url="https://uvar.si")
+        options_path = "/api/auth/passkey/login/options"
+        verify_path = "/api/auth/passkey/login/verify"
+        options_payload = {"email": f"unidentified-{ceremony}@example.com"}
+    options_response = client.post(
+        options_path, headers=ORIGIN, json=options_payload
+    )
+    assert options_response.status_code == 200
+
+    rejected = client.post(
+        verify_path,
+        headers=ORIGIN,
+        json={
+            "challenge": None,
+            "credential": credential_payload(credential_id),
+        },
+    )
+
+    assert rejected.status_code == 400
+    assert rejected.json() == {"detail": server.PASSKEY_FAILURE_MESSAGE}
+    with sqlite3.connect(database) as con:
         assert con.execute(
             "SELECT COUNT(*) FROM auth_webauthn_challenges"
         ).fetchone() == (1,)

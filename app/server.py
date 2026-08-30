@@ -29,7 +29,6 @@ from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
 from webauthn.helpers.exceptions import (
     InvalidAuthenticationResponse,
     InvalidRegistrationResponse,
-    WebAuthnException,
 )
 from webauthn.helpers.structs import (
     AuthenticatorSelectionCriteria,
@@ -1642,12 +1641,6 @@ async def auth_passkey_register_verify(req: Request):
     auth_account_rate_limit(
         account=user["email"], operation="passkey-register-verify", now=now
     )
-    credential = data.get("credential")
-    requested_credential_id = passkey_credential_id(credential)
-    transports = passkey_transports(data)
-    name = auth_device_name(
-        req, {"device_name": data.get("name")}, "Passkey"
-    )
     raw_challenge = data.get("challenge")
     try:
         expected_challenge = base64url_to_bytes(raw_challenge)
@@ -1667,6 +1660,12 @@ async def auth_passkey_register_verify(req: Request):
         except WebAuthnChallengeInvalid:
             raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
         try:
+            credential = data.get("credential")
+            requested_credential_id = passkey_credential_id(credential)
+            transports = passkey_transports(data)
+            name = auth_device_name(
+                req, {"device_name": data.get("name")}, "Passkey"
+            )
             try:
                 verified = verify_registration_response(
                     credential=credential,
@@ -1681,7 +1680,7 @@ async def auth_passkey_register_verify(req: Request):
                     or credential_id != requested_credential_id
                 ):
                     raise InvalidRegistrationResponse("credential mismatch")
-            except (WebAuthnException, TypeError, ValueError, KeyError):
+            except Exception:
                 con.commit()
                 raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
             store_passkey(
@@ -1700,6 +1699,8 @@ async def auth_passkey_register_verify(req: Request):
                 con.rollback()
             raise HTTPException(409, "Tento Passkey už je priradený.")
         except HTTPException:
+            if con.in_transaction:
+                con.commit()
             raise
         except Exception:
             if con.in_transaction:
@@ -1748,8 +1749,6 @@ async def auth_passkey_login_verify(req: Request):
     data = await auth_json(req)
     now = AUTH_CLOCK()
     auth_ip_rate_limit(req, operation="passkey-login-verify", now=now)
-    credential = data.get("credential")
-    credential_id = passkey_credential_id(credential)
     raw_challenge = data.get("challenge")
     try:
         expected_challenge = base64url_to_bytes(raw_challenge)
@@ -1768,6 +1767,8 @@ async def auth_passkey_login_verify(req: Request):
         except WebAuthnChallengeInvalid:
             raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
         try:
+            credential = data.get("credential")
+            credential_id = passkey_credential_id(credential)
             passkey = passkey_for_credential(
                 con, credential_id=credential_id
             )
@@ -1803,7 +1804,7 @@ async def auth_passkey_login_verify(req: Request):
                     or bytes_to_base64url(verified.credential_id) != credential_id
                 ):
                     raise InvalidAuthenticationResponse("credential mismatch")
-            except (WebAuthnException, TypeError, ValueError, KeyError):
+            except Exception:
                 con.commit()
                 raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
             try:
@@ -1827,6 +1828,8 @@ async def auth_passkey_login_verify(req: Request):
             )
             con.commit()
         except HTTPException:
+            if con.in_transaction:
+                con.commit()
             raise
         except Exception:
             if con.in_transaction:
