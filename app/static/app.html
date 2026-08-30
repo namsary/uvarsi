@@ -154,6 +154,7 @@ nav button.on{color:var(--accent)}nav button.on::before{content:"";position:abso
 .security-row .btn{width:auto;min-height:42px;padding:9px 12px;font-size:.78rem;box-shadow:none}
 .security-current{display:inline-block;margin-left:6px;padding:2px 6px;border-radius:6px;
   background:#FFF5BE;border:1px solid #E4CB48;font:600 .65rem "IBM Plex Mono",monospace}
+.security-title:focus{outline:3px solid var(--highlight);outline-offset:4px}
 .security-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.security-actions .btn{width:auto;flex:1}
 @media (max-width:360px){.auth-shell{margin-top:20px}.auth-switch{padding:0 6px;font-size:.78rem}
   .password-toggle{padding:0 9px;font-size:.72rem}.security-row{grid-template-columns:minmax(0,1fr)}
@@ -211,6 +212,7 @@ const $ = s => document.querySelector(s);
 const M = $('#main');
 let ME = null, PLAN = null, TAB = 'plan';
 let AUTH_V3_ENABLED = false;
+let SECURITY_LOAD_GENERATION = 0;
 let APP_READY = false;
 let DONE = {};
 let PANTRY_OVERRIDE = {};
@@ -1722,7 +1724,7 @@ function deviceRevocationRequest(session) {
 function passkeyDeletionRequest(passkey) {
   const identifier = passkey && passkey.credential_id;
   if (typeof identifier !== 'string' ||
-      !/^[A-Za-z0-9_-]{1,1024}$/.test(identifier)) return null;
+      !/^[A-Za-z0-9_-]{1,2048}$/.test(identifier)) return null;
   return {
     url: '/api/auth/passkeys/' + encodeURIComponent(identifier),
     options: {method: 'DELETE'}
@@ -1741,8 +1743,8 @@ function securityDateLabel(timestamp) {
 
 function securityPanelHtml(passkeyReady, passkeys, sessions, state) {
   const loading = state && state.loading;
-  const error = state && state.error ? String(state.error) : '';
-  const notice = state && state.notice ? String(state.notice) : '';
+  const passkeyError = state && state.passkeyError ? String(state.passkeyError) : '';
+  const sessionError = state && state.sessionError ? String(state.sessionError) : '';
   const listedPasskeys = Object.prototype.toString.call(passkeys) === '[object Array]'
     ? passkeys : [];
   const listedSessions = Object.prototype.toString.call(sessions) === '[object Array]'
@@ -1768,39 +1770,50 @@ function securityPanelHtml(passkeyReady, passkeys, sessions, state) {
   }).join('');
   return `<section class="card" aria-labelledby="passkey-security-title">
     <span class="eyebrow">Prihlásenie</span>
-    <h2 class="display" id="passkey-security-title" style="font-size:1.25rem;margin:7px 0">Biometria a Passkey</h2>
+    <h2 class="display security-title" id="passkey-security-title" tabindex="-1" style="font-size:1.25rem;margin:7px 0">Biometria a Passkey</h2>
     <p class="muted">Biometrická kontrola ostáva v zariadení. Uvar.si na serveri ukladá iba verejné poverenie Passkey.</p>
     ${passkeyReady ? '<div class="security-actions"><button class="btn btn--ghost" id="passkey-add" type="button">Pridať biometriu/Passkey</button></div>' : ''}
-    <div class="security-list" aria-label="Tvoje Passkey">${loading ? '<p class="muted">Načítavam Passkey…</p>' : passkeyRows || '<p class="muted">Zatiaľ nemáš pridaný Passkey.</p>'}</div>
+    <div class="security-list" aria-label="Tvoje Passkey">${loading
+      ? '<p class="muted">Načítavam Passkey…</p>'
+      : passkeyError
+        ? '<p class="muted" style="color:var(--red)">Passkey sa nepodarilo načítať.</p>'
+        : passkeyRows || '<p class="muted">Zatiaľ nemáš pridaný Passkey.</p>'}</div>
   </section>
   <section class="card" aria-labelledby="device-security-title">
     <span class="eyebrow">Relácie</span>
-    <h2 class="display" id="device-security-title" style="font-size:1.25rem;margin:7px 0">Tvoje zariadenia</h2>
+    <h2 class="display security-title" id="device-security-title" tabindex="-1" style="font-size:1.25rem;margin:7px 0">Tvoje zariadenia</h2>
     <p class="muted">Odhlás zariadenie, ktoré už nepoužívaš. Identifikátory v tomto zozname nie sú prihlasovacie údaje.</p>
-    <div class="security-list" aria-label="Prihlásené zariadenia">${loading ? '<p class="muted">Načítavam zariadenia…</p>' : sessionRows || '<p class="muted">Nenašli sa aktívne zariadenia.</p>'}</div>
-    ${listedSessions.length > 1 ? '<div class="security-actions"><button class="btn btn--ghost" id="sessions-logout-others" type="button">Odhlásiť ostatné zariadenia</button></div>' : ''}
+    <div class="security-list" aria-label="Prihlásené zariadenia">${loading
+      ? '<p class="muted">Načítavam zariadenia…</p>'
+      : sessionError
+        ? '<p class="muted" style="color:var(--red)">Zariadenia sa nepodarilo načítať.</p>'
+        : sessionRows || '<p class="muted">Nenašli sa aktívne zariadenia.</p>'}</div>
+    ${!sessionError && listedSessions.length > 1 ? '<div class="security-actions"><button class="btn btn--ghost" id="sessions-logout-others" type="button">Odhlásiť ostatné zariadenia</button></div>' : ''}
   </section>
-  <p class="muted auth-status" id="security-status" role="status" aria-live="polite"${error ? ' style="color:var(--red)"' : notice ? ' style="color:var(--success)"' : ''}>${esc(error || notice)}</p>
-  ${error ? '<button class="auth-link" id="security-retry" type="button">Skúsiť načítať znova</button>' : ''}`;
+  ${passkeyError || sessionError ? '<button class="auth-link" id="security-retry" type="button">Skúsiť načítať znova</button>' : ''}`;
+}
+
+function securityStatusHtml() {
+  return '<p class="muted auth-status" id="security-status" role="status" aria-live="polite" aria-atomic="true"></p>';
 }
 
 function bindSecurityControls(passkeys, sessions) {
   const status = $('#security-status');
   const retry = $('#security-retry');
-  if (retry) retry.onclick = () => loadAccountSecurity();
+  if (retry) retry.onclick = () => loadAccountSecurity('', '#passkey-security-title');
   const add = $('#passkey-add');
   if (add) add.onclick = () => runGuardedAction(add, status, async () => {
     await performPasskeyRegistration(navigator.credentials);
-    await loadAccountSecurity('Passkey bol pridaný.');
+    await loadAccountSecurity('Passkey bol pridaný.', '#passkey-add');
   });
   M.querySelectorAll('[data-passkey-delete]').forEach(button => button.onclick = () => {
     const item = passkeys.find(candidate =>
       candidate.credential_id === button.dataset.passkeyDelete);
     const request = passkeyDeletionRequest(item);
     if (!request || !confirm('Odstrániť tento Passkey? Heslo bude naďalej fungovať.')) return;
-    runGuardedAction(button, status, async () => {
+    return runGuardedAction(button, status, async () => {
       await api(request.url, request.options);
-      await loadAccountSecurity('Passkey bol odstránený.');
+      await loadAccountSecurity('Passkey bol odstránený.', '#passkey-security-title');
     });
   });
   M.querySelectorAll('[data-session-revoke]').forEach(button => button.onclick = () => {
@@ -1811,47 +1824,77 @@ function bindSecurityControls(passkeys, sessions) {
       ? 'Odhlásiť toto zariadenie? Potom sa budeš musieť znova prihlásiť.'
       : 'Odhlásiť vybrané zariadenie?';
     if (!request || !confirm(question)) return;
-    runGuardedAction(button, status, async () => {
+    return runGuardedAction(button, status, async () => {
       await api(request.url, request.options);
       if (request.logsOutCurrent) {
         location.replace('/app');
         return;
       }
-      await loadAccountSecurity('Zariadenie bolo odhlásené.');
+      await loadAccountSecurity('Zariadenie bolo odhlásené.', '#device-security-title');
     });
   });
   const logoutOthers = $('#sessions-logout-others');
   if (logoutOthers) logoutOthers.onclick = () => {
     if (!confirm('Odhlásiť všetky ostatné zariadenia? Toto zariadenie ostane prihlásené.')) return;
-    runGuardedAction(logoutOthers, status, async () => {
+    return runGuardedAction(logoutOthers, status, async () => {
       await api('/api/auth/sessions/logout-others', {method: 'POST', body: '{}'});
-      await loadAccountSecurity('Ostatné zariadenia boli odhlásené.');
+      await loadAccountSecurity('Ostatné zariadenia boli odhlásené.', '#device-security-title');
     });
   };
 }
 
-async function loadAccountSecurity(notice) {
+async function loadAccountSecurity(notice, focusTarget) {
   const root = $('#account-security');
-  if (!root) return;
+  const content = $('#account-security-content');
+  const status = $('#security-status');
+  if (!root || !content || !status) return false;
+  const generation = ++SECURITY_LOAD_GENERATION;
   const browser = typeof window === 'undefined' ? null : window;
   const passkeyReady = passkeyUiAvailable(AUTH_V3_ENABLED, browser);
-  try {
-    const values = await Promise.all([
-      api('/api/auth/passkeys'), api('/api/auth/sessions')
-    ]);
-    if ($('#account-security') !== root) return;
-    const passkeys = values[0] && values[0].passkeys || [];
-    const sessions = values[1] && values[1].sessions || [];
-    root.innerHTML = securityPanelHtml(
-      passkeyReady, passkeys, sessions, {notice: notice || ''});
-    bindSecurityControls(passkeys, sessions);
-  } catch (error) {
-    if ($('#account-security') !== root || (error && error.authRequired)) return;
-    root.innerHTML = securityPanelHtml(passkeyReady, [], [], {
-      error: (error && error.message) || 'Zabezpečenie účtu sa nepodarilo načítať.'
-    });
-    bindSecurityControls([], []);
+  const values = await Promise.allSettled([
+    api('/api/auth/passkeys'), api('/api/auth/sessions')
+  ]);
+  if (generation !== SECURITY_LOAD_GENERATION ||
+      $('#account-security') !== root ||
+      $('#account-security-content') !== content ||
+      $('#security-status') !== status) return false;
+  if (values.some(result => result.status === 'rejected' &&
+      result.reason && result.reason.authRequired)) return false;
+
+  const passkeyResult = values[0];
+  const sessionResult = values[1];
+  const passkeys = passkeyResult.status === 'fulfilled' && passkeyResult.value &&
+    Object.prototype.toString.call(passkeyResult.value.passkeys) === '[object Array]'
+    ? passkeyResult.value.passkeys : [];
+  const sessions = sessionResult.status === 'fulfilled' && sessionResult.value &&
+    Object.prototype.toString.call(sessionResult.value.sessions) === '[object Array]'
+    ? sessionResult.value.sessions : [];
+  const passkeyError = passkeyResult.status === 'rejected'
+    ? (passkeyResult.reason && passkeyResult.reason.message) || 'Neznáma chyba.' : '';
+  const sessionError = sessionResult.status === 'rejected'
+    ? (sessionResult.reason && sessionResult.reason.message) || 'Neznáma chyba.' : '';
+
+  content.innerHTML = securityPanelHtml(passkeyReady, passkeys, sessions, {
+    passkeyError: passkeyError, sessionError: sessionError
+  });
+  const announcements = [];
+  if (notice) announcements.push(String(notice));
+  if (passkeyError) announcements.push('Passkey sa nepodarilo načítať: ' + passkeyError);
+  if (sessionError) announcements.push('Zariadenia sa nepodarilo načítať: ' + sessionError);
+  status.textContent = announcements.join(' ');
+  status.style.color = passkeyError || sessionError
+    ? 'var(--red)' : notice ? 'var(--success)' : '';
+  bindSecurityControls(passkeys, sessions);
+
+  if (focusTarget) {
+    let target = $(focusTarget);
+    if (!target && focusTarget.indexOf('passkey') >= 0)
+      target = $('#passkey-security-title');
+    if (!target && focusTarget.indexOf('device') >= 0)
+      target = $('#device-security-title');
+    if (target && typeof target.focus === 'function') target.focus();
   }
+  return true;
 }
 
 function vNast() {
@@ -1865,8 +1908,10 @@ function vNast() {
       <div class="ing" style="border:0"><span>Obchody</span><span class="r">${ME.obchody.join(' · ')}</span></div>
     </div>
     ${passwordSetupCard(ME, localStorage)}
-    ${ME.auth_v3 ? `<div id="account-security">${securityPanelHtml(
-      false, [], [], {loading: true})}</div>` : ''}
+    ${ME.auth_v3 ? `<div id="account-security">
+      <div id="account-security-content">${securityPanelHtml(
+        false, [], [], {loading: true})}</div>
+      ${securityStatusHtml()}</div>` : ''}
     <p class="muted" style="margin:-4px 0 16px">Porcie sú kuchársky odhad na plánovanie nákupu, nie individuálne výživové odporúčanie.</p>
     <button class="btn btn--ghost" id="zmen">Zmeniť nastavenie</button>
     <div style="height:10px"></div>

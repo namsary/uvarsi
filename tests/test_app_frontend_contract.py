@@ -401,8 +401,11 @@ const current=deviceRevocationRequest({session_hash:currentHash,current:true});
 const other=deviceRevocationRequest({session_hash:otherHash,current:false});
 const malformed=deviceRevocationRequest({session_hash:'../../foreign',current:false});
 const passkey=passkeyDeletionRequest({credential_id:'AQID-_8'});
+const longPasskey=passkeyDeletionRequest({credential_id:'A'.repeat(1500)});
+const tooLongPasskey=passkeyDeletionRequest({credential_id:'A'.repeat(2049)});
 const badPasskey=passkeyDeletionRequest({credential_id:'../foreign'});
-process.stdout.write(JSON.stringify({current,other,malformed,passkey,badPasskey}));
+process.stdout.write(JSON.stringify({current,other,malformed,passkey,longPasskey,
+  tooLongPasskey,badPasskey}));
 """,
     )
 
@@ -423,6 +426,11 @@ process.stdout.write(JSON.stringify({current,other,malformed,passkey,badPasskey}
         "url": "/api/auth/passkeys/AQID-_8",
         "options": {"method": "DELETE"},
     }
+    assert state["longPasskey"] == {
+        "url": "/api/auth/passkeys/" + "A" * 1500,
+        "options": {"method": "DELETE"},
+    }
+    assert state["tooLongPasskey"] is None
     assert state["badPasskey"] is None
 
     profile = function_source(html, "securityPanelHtml")
@@ -481,6 +489,240 @@ bindSecurityControls([], [ownCurrent,ownOther]);
     assert handled["locations"] == ["/app"]
 
 
+@needs_node
+def test_security_load_isolates_each_endpoint_failure(tmp_path):
+    html = app_html()
+    names = [
+        "passkeyUiAvailable",
+        "securityDateLabel",
+        "securityPanelHtml",
+        "loadAccountSecurity",
+    ]
+    source = "\n".join(function_source(html, name) for name in names)
+    result = run_node(
+        tmp_path,
+        "security-load-isolation.js",
+        source
+        + r"""
+let SECURITY_LOAD_GENERATION=0;const AUTH_V3_ENABLED=true;
+const window={PublicKeyCredential:function PublicKeyCredential(){}};
+const status={textContent:'',style:{},connected:true};
+const content={innerHTML:''};
+const root={set innerHTML(value){this.rendered=value;status.connected=false}};
+const nodes={'#account-security':root,'#account-security-content':content,
+  '#security-status':status};
+function $(selector){return nodes[selector]||null}
+function esc(value){return String(value??'').replace(/[&<>"]/g,char=>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]))}
+let bound=null;let failedEndpoint='passkeys';
+function bindSecurityControls(passkeys,sessions){bound={passkeys,sessions}}
+async function api(url){
+  if(url.endsWith('/'+failedEndpoint))throw new Error(
+    failedEndpoint==='passkeys'?'Passkey služba je nedostupná.':'Relácie sú nedostupné.');
+  if(url==='/api/auth/passkeys')return {passkeys:[{
+    credential_id:'AQID',name:'Laptop',created_at:1,last_used_at:null
+  }]};
+  if(url==='/api/auth/sessions')return {sessions:[{
+    session_hash:'a'.repeat(64),device_name:'Tablet',created_at:1,
+    last_seen_at:2,expires_at:3,current:true
+  }]};
+  throw new Error('unexpected URL');
+}
+(async()=>{
+  await loadAccountSecurity();
+  const passkeyFailure={html:content.innerHTML,statusText:status.textContent,bound};
+  failedEndpoint='sessions';
+  await loadAccountSecurity();
+  const sessionFailure={html:content.innerHTML,statusText:status.textContent,bound};
+  process.stdout.write(JSON.stringify({passkeyFailure,sessionFailure,
+    connected:status.connected,rootRendered:root.rendered||''}));
+})().catch(error=>{console.error(error);process.exit(1)});
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    state = json.loads(result.stdout)
+    passkey_failure = state["passkeyFailure"]
+    assert "Tablet" in passkey_failure["html"]
+    assert "Passkey sa nepodarilo načítať" in passkey_failure["html"]
+    assert "Passkey služba je nedostupná" in passkey_failure["statusText"]
+    assert passkey_failure["bound"]["passkeys"] == []
+    assert passkey_failure["bound"]["sessions"][0]["device_name"] == "Tablet"
+    session_failure = state["sessionFailure"]
+    assert "Laptop" in session_failure["html"]
+    assert "Zariadenia sa nepodarilo načítať" in session_failure["html"]
+    assert "Relácie sú nedostupné" in session_failure["statusText"]
+    assert session_failure["bound"]["passkeys"][0]["name"] == "Laptop"
+    assert session_failure["bound"]["sessions"] == []
+    assert state["connected"] is True
+    assert state["rootRendered"] == ""
+
+
+@needs_node
+def test_security_load_generation_prevents_stale_overlap_from_overwriting_newer_state(
+    tmp_path,
+):
+    html = app_html()
+    names = [
+        "passkeyUiAvailable",
+        "securityDateLabel",
+        "securityPanelHtml",
+        "loadAccountSecurity",
+    ]
+    source = "\n".join(function_source(html, name) for name in names)
+    result = run_node(
+        tmp_path,
+        "security-load-generation.js",
+        source
+        + r"""
+let SECURITY_LOAD_GENERATION=0;const AUTH_V3_ENABLED=true;
+const window={PublicKeyCredential:function PublicKeyCredential(){}};
+const status={textContent:'',style:{},connected:true};
+const content={innerHTML:''};
+const root={set innerHTML(value){this.rendered=value;status.connected=false}};
+const nodes={'#account-security':root,'#account-security-content':content,
+  '#security-status':status,'#passkey-add':{focus(){}}};
+function $(selector){return nodes[selector]||null}
+function esc(value){return String(value??'')}
+const bound=[];
+function bindSecurityControls(passkeys,sessions){bound.push({passkeys,sessions})}
+function deferred(){let resolve,reject;const promise=new Promise((ok,no)=>{resolve=ok;reject=no});
+  return {promise,resolve,reject}}
+const oldPasskeys=deferred(),newPasskeys=deferred(),oldSessions=deferred(),newSessions=deferred();
+const queues={
+  '/api/auth/passkeys':[oldPasskeys.promise,newPasskeys.promise],
+  '/api/auth/sessions':[oldSessions.promise,newSessions.promise]
+};
+function api(url){return queues[url].shift()}
+(async()=>{
+  const older=loadAccountSecurity('Starý stav.','#passkey-add');
+  const newer=loadAccountSecurity('Nový stav.','#passkey-add');
+  newPasskeys.resolve({passkeys:[{credential_id:'new-id',name:'Nový Passkey',created_at:20}]});
+  newSessions.resolve({sessions:[{session_hash:'b'.repeat(64),device_name:'Nový telefón',
+    created_at:20,last_seen_at:20,expires_at:30,current:true}]});
+  await newer;
+  oldPasskeys.resolve({passkeys:[{credential_id:'old-id',name:'Starý Passkey',created_at:10}]});
+  oldSessions.resolve({sessions:[{session_hash:'a'.repeat(64),device_name:'Starý telefón',
+    created_at:10,last_seen_at:10,expires_at:30,current:true}]});
+  await older;
+  process.stdout.write(JSON.stringify({html:content.innerHTML,status,bound,
+    rootRendered:root.rendered||''}));
+})().catch(error=>{console.error(error);process.exit(1)});
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    state = json.loads(result.stdout)
+    assert "Nový Passkey" in state["html"]
+    assert "Nový telefón" in state["html"]
+    assert "Starý Passkey" not in state["html"]
+    assert "Starý telefón" not in state["html"]
+    assert state["status"]["textContent"] == "Nový stav."
+    assert state["status"]["connected"] is True
+    assert state["rootRendered"] == ""
+    assert len(state["bound"]) == 1
+    assert state["bound"][0]["passkeys"][0]["name"] == "Nový Passkey"
+
+
+@needs_node
+def test_security_refresh_preserves_live_region_and_restores_requested_focus(tmp_path):
+    html = app_html()
+    names = [
+        "passkeyUiAvailable",
+        "securityDateLabel",
+        "securityPanelHtml",
+        "loadAccountSecurity",
+    ]
+    source = "\n".join(function_source(html, name) for name in names)
+    result = run_node(
+        tmp_path,
+        "security-load-focus.js",
+        source
+        + r"""
+let SECURITY_LOAD_GENERATION=0;const AUTH_V3_ENABLED=true;
+const window={PublicKeyCredential:function PublicKeyCredential(){}};
+const focused=[];
+const target={focus(){focused.push('device-security-title')}};
+const status={textContent:'',style:{},connected:true};
+const content={innerHTML:''};
+const root={set innerHTML(value){this.rendered=value;status.connected=false}};
+const nodes={'#account-security':root,'#account-security-content':content,
+  '#security-status':status,'#device-security-title':target};
+function $(selector){return nodes[selector]||null}
+function esc(value){return String(value??'')}
+function bindSecurityControls(){}
+async function api(url){return url.endsWith('/passkeys')?{passkeys:[]}:{sessions:[]}}
+(async()=>{
+  const originalStatus=status;
+  await loadAccountSecurity('Zariadenie bolo odhlásené.','#device-security-title');
+  process.stdout.write(JSON.stringify({sameStatus:originalStatus===nodes['#security-status'],
+    connected:status.connected,statusText:status.textContent,focused,
+    rootRendered:root.rendered||'',content:content.innerHTML}));
+})().catch(error=>{console.error(error);process.exit(1)});
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    state = json.loads(result.stdout)
+    assert state["sameStatus"] is True
+    assert state["connected"] is True
+    assert state["statusText"] == "Zariadenie bolo odhlásené."
+    assert state["focused"] == ["device-security-title"]
+    assert state["rootRendered"] == ""
+    assert "Tvoje zariadenia" in state["content"]
+
+
+@needs_node
+def test_security_mutations_request_sensible_focus_after_refresh(tmp_path):
+    html = app_html()
+    source = function_source(html, "deviceRevocationRequest") + "\n"
+    source += function_source(html, "passkeyDeletionRequest") + "\n"
+    source += function_source(html, "bindSecurityControls")
+    result = run_node(
+        tmp_path,
+        "security-mutation-focus.js",
+        source
+        + r"""
+const passkey={credential_id:'AQID',name:'Telefón'};
+const session={session_hash:'b'.repeat(64),device_name:'Tablet',current:false};
+const add={};const remove={dataset:{passkeyDelete:passkey.credential_id}};
+const revoke={dataset:{sessionRevoke:session.session_hash}};
+const status={textContent:'',style:{}};
+const M={querySelectorAll(selector){
+  if(selector==='[data-passkey-delete]')return [remove];
+  if(selector==='[data-session-revoke]')return [revoke];
+  return [];
+}};
+function $(selector){
+  if(selector==='#security-status')return status;
+  if(selector==='#passkey-add')return add;
+  return null;
+}
+function confirm(){return true}
+function runGuardedAction(_button,_status,action){return action()}
+async function performPasskeyRegistration(){}
+const navigator={credentials:{}};
+async function api(){}
+const refreshed=[];
+async function loadAccountSecurity(message,focusTarget){refreshed.push([message,focusTarget])}
+bindSecurityControls([passkey],[session]);
+(async()=>{
+  await add.onclick();
+  await remove.onclick();
+  await revoke.onclick();
+  process.stdout.write(JSON.stringify(refreshed));
+})().catch(error=>{console.error(error);process.exit(1)});
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout) == [
+        ["Passkey bol pridaný.", "#passkey-add"],
+        ["Passkey bol odstránený.", "#passkey-security-title"],
+        ["Zariadenie bolo odhlásené.", "#device-security-title"],
+    ]
+
+
 def test_task8_security_controls_are_mobile_accessible_and_do_not_claim_biometrics_are_stored():
     html = app_html()
 
@@ -488,7 +730,11 @@ def test_task8_security_controls_are_mobile_accessible_and_do_not_claim_biometri
     assert ".security-row{" in html
     assert "minmax(0,1fr)" in html
     assert "@media (max-width:360px)" in html
-    assert 'aria-live="polite"' in function_source(html, "securityPanelHtml")
+    status = function_source(html, "securityStatusHtml")
+    assert 'role="status"' in status
+    assert 'aria-live="polite"' in status
+    assert 'aria-atomic="true"' in status
+    assert "securityStatusHtml()" in function_source(html, "vNast")
     assert "biometrick" in html.lower()
     assert "ostáva v zariadení" in html.lower()
     assert "server ukladá odtlačok" not in html.lower()
