@@ -1031,6 +1031,7 @@ def test_account_confirmation_and_password_pages_have_safe_accessible_controls(
     monkeypatch, tmp_path
 ):
     server, _ = load_auth_server(monkeypatch, tmp_path)
+    monkeypatch.setenv("UVARSI_AUTH_V3", "1")
     client = TestClient(server.app)
     confirmation = client.get("/potvrdenie")
     password = client.get("/heslo")
@@ -1059,6 +1060,7 @@ def test_account_action_pages_scrub_fragment_and_block_double_submission(
     monkeypatch, tmp_path
 ):
     server, _ = load_auth_server(monkeypatch, tmp_path)
+    monkeypatch.setenv("UVARSI_AUTH_V3", "1")
     client = TestClient(server.app)
     confirmation = run_account_action_page(
         tmp_path,

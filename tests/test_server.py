@@ -141,40 +141,50 @@ def test_auth_v3_public_capability_is_boolean_and_primary_routes_are_server_gate
 ):
     monkeypatch.setenv("UVARSI_AUTH_V3", "0")
     server = load_server(monkeypatch, tmp_path, [])
+
+    @server.app.get("/api/auth/passkeys-health")
+    def passkeys_health_probe():
+        return {"ok": True}
+
     client = TestClient(server.app, base_url="https://uvar.si")
 
     disabled_me = client.get("/api/me")
-    disabled_routes = [
-        client.post(
-            path,
-            headers={"Origin": "https://uvar.si"},
-            content="{",
-            follow_redirects=path != "/api/auth/login/",
-        )
-        for path in (
-            "/api/auth/register",
-            "/api/auth/confirm",
-            "/api/auth/login",
-            "/api/auth/login/",
-            "/api/auth/password/request",
-            "/api/auth/password/reset",
-            "/api/auth/password/change",
-            "/api/auth/sessions/logout-others",
-            "/api/auth/passkey/login/options",
-        )
+    primary_routes = [
+        ("GET", "/potvrdenie"),
+        ("POST", "/api/auth/register"),
+        ("POST", "/api/auth/confirm"),
+        ("POST", "/api/auth/login"),
+        ("POST", "/api/auth/password/request"),
+        ("POST", "/api/auth/password/reset"),
+        ("POST", "/api/auth/password/change"),
+        ("GET", "/api/auth/sessions"),
+        ("DELETE", "/api/auth/sessions/not-a-session"),
+        ("POST", "/api/auth/sessions/logout-others"),
+        ("POST", "/api/auth/passkey/login/options"),
+        ("GET", "/api/auth/passkeys"),
+        ("DELETE", "/api/auth/passkeys/not-a-passkey"),
     ]
-    disabled_routes.extend(
-        [
-            client.get("/api/auth/sessions"),
-            client.delete("/api/auth/sessions/not-a-session"),
-            client.get("/api/auth/passkeys"),
-        ]
-    )
+    disabled_routes = {}
+    for method, path in primary_routes:
+        for variant in (path, path + "/"):
+            kwargs = {"follow_redirects": False}
+            if method == "POST":
+                kwargs.update(
+                    headers={"Origin": "https://uvar.si"}, content="{"
+                )
+            disabled_routes[(method, variant)] = client.request(
+                method, variant, **kwargs
+            ).status_code
 
     assert disabled_me.json() == {"prihlaseny": False}
-    assert [response.status_code for response in disabled_routes] == [404] * len(
-        disabled_routes
-    )
+    assert {
+        route: status for route, status in disabled_routes.items() if status != 404
+    } == {}
+    assert client.get("/heslo", follow_redirects=False).status_code == 200
+    assert client.get("/prihlasenie", follow_redirects=False).status_code == 200
+    assert client.get(
+        "/api/auth/passkeys-health", follow_redirects=False
+    ).json() == {"ok": True}
 
     monkeypatch.setenv("UVARSI_AUTH_V3", "1")
     enabled_me = client.get("/api/me")

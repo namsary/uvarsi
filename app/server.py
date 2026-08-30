@@ -488,9 +488,14 @@ AUTH_V3_PRIMARY_PATHS = frozenset(
         "/api/auth/password/request",
         "/api/auth/password/reset",
         "/api/auth/password/change",
+        "/potvrdenie",
     }
 )
-AUTH_V3_PRIMARY_PREFIXES = ("/api/auth/sessions", "/api/auth/passkey")
+AUTH_V3_PRIMARY_PREFIXES = (
+    "/api/auth/sessions",
+    "/api/auth/passkey",
+    "/api/auth/passkeys",
+)
 
 
 def auth_v3_enabled() -> bool:
