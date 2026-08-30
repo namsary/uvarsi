@@ -1,0 +1,163 @@
+{
+  "recipes": [
+    {
+      "id": "chicken_rice_pan",
+      "version": 1,
+      "active": false,
+      "name_template": "Kuracia panvica s {protein.name}, {starch.name} a {vegetable.name}",
+      "family": "rice_pan",
+      "method": "pan",
+      "minutes": 35,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["panvica", "hrniec"],
+      "slots": [
+        {
+          "key": "protein",
+          "role": "protein",
+          "candidates": ["chicken_breast", "chicken_thigh"],
+          "amount_per_adult": "150",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na kocky"
+        },
+        {
+          "key": "starch",
+          "role": "starch",
+          "candidates": ["rice"],
+          "amount_per_adult": "75",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "vegetable",
+          "role": "vegetable",
+          "candidates": ["zucchini", "broccoli", "carrot"],
+          "amount_per_adult": "120",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na menšie kúsky"
+        }
+      ],
+      "pantry_basics": ["oil", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Uvar {starch.amount} {starch.name} domäkka podľa času na obale."},
+        {"text": "Nakrájaj {protein.amount} {protein.name} {protein.cut} a opekaj na panvici 8 až 10 minút."},
+        {"text": "Pridaj {vegetable.amount} {vegetable.name} {vegetable.cut} a opekaj ďalších 6 minút."},
+        {"text": "Spoj suroviny, dochuť a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id": "tofu_vegetable_pan",
+      "version": 1,
+      "active": false,
+      "name_template": "Tofu panvica z {protein.name}, {vegetable.name} a {starch.name}",
+      "family": "vegetable_pan",
+      "method": "pan",
+      "minutes": 30,
+      "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["panvica", "hrniec"],
+      "slots": [
+        {
+          "key": "protein",
+          "role": "protein",
+          "candidates": ["tofu"],
+          "amount_per_adult": "160",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na kocky"
+        },
+        {
+          "key": "vegetable",
+          "role": "vegetable",
+          "candidates": ["zucchini", "broccoli", "carrot"],
+          "amount_per_adult": "150",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na menšie kúsky"
+        },
+        {
+          "key": "starch",
+          "role": "starch",
+          "candidates": ["rice"],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null
+        }
+      ],
+      "pantry_basics": ["oil", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Uvar {starch.amount} {starch.name} domäkka podľa času na obale."},
+        {"text": "Opekaj {protein.amount} {protein.name} {protein.cut} na oleji 6 minút."},
+        {"text": "Pridaj {vegetable.amount} {vegetable.name} {vegetable.cut} a opekaj ďalších 7 minút."},
+        {"text": "Dochuť, premiešaj s prílohou a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id": "lentil_tomato_pot",
+      "version": 1,
+      "active": false,
+      "name_template": "Šošovicový hrniec z {protein.name}, {vegetable.name} a {aromatic.name}",
+      "family": "lentil_stew",
+      "method": "pot",
+      "minutes": 40,
+      "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["hrniec"],
+      "slots": [
+        {
+          "key": "protein",
+          "role": "protein",
+          "candidates": ["red_lentils"],
+          "amount_per_adult": "90",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "vegetable",
+          "role": "vegetable",
+          "candidates": ["tomato"],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na kocky"
+        },
+        {
+          "key": "aromatic",
+          "role": "aromatic",
+          "candidates": ["onion", "garlic"],
+          "amount_per_adult": "30",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        }
+      ],
+      "pantry_basics": ["oil", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Na oleji opekaj {aromatic.amount} {aromatic.name} {aromatic.cut} 4 minúty."},
+        {"text": "Pridaj {vegetable.amount} {vegetable.name} {vegetable.cut} a var 5 minút."},
+        {"text": "Prisyp {protein.amount} {protein.name}, podlej vodou a var 18 až 20 minút domäkka."},
+        {"text": "Dochuť a rozdeľ na {portions} porcií."}
+      ]
+    }
+  ]
+}
