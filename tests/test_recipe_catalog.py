@@ -79,6 +79,14 @@ def _write_library(tmp_path, recipes, manifest=None):
     return root
 
 
+def _write_raw_library(tmp_path, manifest_text, recipes_text):
+    root = tmp_path / "recipes"
+    root.mkdir()
+    (root / "manifest.json").write_text(manifest_text, encoding="utf-8")
+    (root / "fixtures.json").write_text(recipes_text, encoding="utf-8")
+    return root
+
+
 def test_loads_only_active_templates_by_default(ingredients, tmp_path):
     inactive = _recipe(id="inactive_recipe", active=False)
     root = _write_library(tmp_path, [_recipe(), inactive])
@@ -359,6 +367,40 @@ def test_manifest_is_the_only_source_of_positive_integer_library_version(
     root = _write_library(tmp_path, [_recipe(version=99)], manifest=manifest)
 
     with pytest.raises(ValueError, match=message):
+        load_recipe_catalog(ingredients, root)
+
+
+def test_rejects_duplicate_json_key_in_manifest(ingredients, tmp_path):
+    root = _write_raw_library(
+        tmp_path,
+        '{"library_version":1,"library_version":1}',
+        json.dumps({"recipes": [_recipe()]}, ensure_ascii=False),
+    )
+
+    with pytest.raises(ValueError, match="duplicitný JSON kľúč: library_version"):
+        load_recipe_catalog(ingredients, root)
+
+
+@pytest.mark.parametrize(
+    ("needle", "replacement", "duplicate_key"),
+    [
+        ('"unit": "g"', '"unit": "g", "unit": "g"', "unit"),
+        ('"text": ', '"text": "duplicitný krok", "text": ', "text"),
+    ],
+)
+def test_rejects_duplicate_json_key_recursively_in_recipe_data(
+    ingredients, tmp_path, needle, replacement, duplicate_key
+):
+    recipes_text = json.dumps({"recipes": [_recipe()]}, ensure_ascii=False)
+    assert needle in recipes_text
+    recipes_text = recipes_text.replace(needle, replacement, 1)
+    root = _write_raw_library(
+        tmp_path,
+        '{"library_version":1}',
+        recipes_text,
+    )
+
+    with pytest.raises(ValueError, match=f"duplicitný JSON kľúč: {duplicate_key}"):
         load_recipe_catalog(ingredients, root)
 
 

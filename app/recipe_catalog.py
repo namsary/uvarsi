@@ -74,6 +74,20 @@ class RecipeCatalog:
         return self._values
 
 
+def _json_object_without_duplicates(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicitný JSON kľúč: {key}")
+        result[key] = value
+    return result
+
+
+def _load_strict_json(path: Path):
+    with path.open(encoding="utf-8") as stream:
+        return json.load(stream, object_pairs_hook=_json_object_without_duplicates)
+
+
 def _object(value, label: str) -> dict:
     if type(value) is not dict:
         raise ValueError(f"{label} musí byť objekt")
@@ -357,8 +371,7 @@ def _recipe_from_json(value, ingredient_catalog: IngredientCatalog) -> RecipeTem
 def _load_manifest(root: Path) -> int:
     path = root / "manifest.json"
     try:
-        with path.open(encoding="utf-8") as stream:
-            payload = _object(json.load(stream), "manifestu")
+        payload = _object(_load_strict_json(path), "manifestu")
     except FileNotFoundError as exc:
         raise ValueError("chýba manifest receptovej knižnice") from exc
     _exact_keys(payload, {"library_version"}, "manifestu")
@@ -376,8 +389,7 @@ def load_recipe_catalog(
     for path in sorted(source_root.glob("*.json")):
         if path.name == "manifest.json":
             continue
-        with path.open(encoding="utf-8") as stream:
-            payload = _object(json.load(stream), f"súboru {path.name}")
+        payload = _object(_load_strict_json(path), f"súboru {path.name}")
         _exact_keys(payload, {"recipes"}, f"súboru {path.name}")
         values = payload["recipes"]
         if type(values) is not list:
