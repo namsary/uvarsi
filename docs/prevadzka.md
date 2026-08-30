@@ -216,9 +216,11 @@ $testCredential = Get-Credential
 
 The helper verifies password login, two simultaneous sessions, `/api/me`
 capability and identity shape, current-session logout, the other session
-surviving, and password fallback. It keeps independent web sessions in memory
-and cleans them up. It never prints credentials, raw cookies/tokens, or
-response bodies.
+surviving, password fallback, logout-others from the current session, the
+current session surviving, and the other session becoming anonymous. It keeps
+independent web sessions in memory and verifies cleanup. It never prints
+credentials, raw cookies/tokens, or response bodies. Every REST request refuses
+redirects; a redirect is a failed phase, never a smoke success.
 
 Registration is not part of the normal smoke. Only when the controller has an
 approved disposable mailbox and explicitly accepts one test message may it add
@@ -226,13 +228,21 @@ approved disposable mailbox and explicitly accepts one test message may it add
 `-DisposableRegistrationCredential`. Verify only the generic registration
 response shape; never record the body.
 
-Repeat the user-visible flow on mobile browser and installed PWA with separate
-sessions: password login, optional supported-phone Passkey, current-device
-logout, other-device survival, password fallback, and reset flow. Record only
-device/browser class and pass/fail. Recheck the original old session last.
+WebAuthn is a manual browser/PWA ceremony, not a REST smoke operation. The
+PowerShell helper cannot verify authenticator prompts, RP/origin UI, or the
+device's user-verification ceremony. Passkey on a supported phone is required
+and must be completed manually in the mobile browser or installed PWA.
 
-**STOP GATE 6:** desktop, mobile, PWA, old-session preservation, and password
-fallback all pass. Any failure triggers Stage 7.
+Repeat the user-visible flow on mobile browser and installed PWA with separate
+sessions: password login, supported-phone Passkey registration and login,
+password fallback, reset flow, logout-current, and logout-others. Logout-current and logout-others are required: prove current-device logout preserves the other
+device, then prove logout-others preserves the initiating device and revokes the
+other device. Record only device/browser class and pass/fail. Recheck the
+original old session last.
+
+**STOP GATE 6:** desktop, mobile, PWA, required supported-phone Passkey,
+logout-current, logout-others, old-session preservation, and password fallback
+all pass. Any failure triggers Stage 7.
 
 ## Stage 7 — Rollback
 
@@ -269,9 +279,9 @@ ready and the controller restarts this runbook at Stage 1.
       contents of `uvarsi.env`.
 - [ ] Health release/week shape, current-week landing pass/fail, and fresh
       heartbeat timestamps; no authenticated response body.
-- [ ] Existing old session, second hosted app, desktop, mobile, PWA, Passkey,
-      reset, logout-current, other-session survival, and password fallback
-      pass/fail only.
+- [ ] Existing old session, second hosted app, desktop, mobile, PWA, required
+      supported-phone Passkey ceremony, reset, logout-current, logout-others,
+      both session postconditions, and password fallback pass/fail only.
 - [ ] Payments stay off; Taktik-mapa and Caddy were preserved and not touched.
 - [ ] If used, rollback phase, reason code, flag-off verification, and post-checks.
 - [ ] Explicit statement that no e-mail, password, cookie, token, challenge,

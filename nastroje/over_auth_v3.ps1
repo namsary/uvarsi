@@ -5,9 +5,10 @@
 Safely verifies the Auth v3 rollout without persisting credentials or cookies.
 
 .DESCRIPTION
-The default mode performs only health and anonymous capability checks. Password
-login, session creation, and logout require -AllowMutation. Registration is an
-additional opt-in probe and requires a separate disposable credential.
+The default post-activation mode performs only health and anonymous auth-v3
+capability checks. Password login, session creation, and logout require
+-AllowMutation. Registration is an additional opt-in probe and requires a
+separate disposable credential.
 
 .EXAMPLE
 .\nastroje\over_auth_v3.ps1 -BaseUrl https://uvar.si -ExpectedOrigin https://uvar.si
@@ -97,6 +98,7 @@ function Invoke-SafeJsonRequest {
     Uri = $script:ServiceOrigin + $Path
     Method = $Method
     TimeoutSec = $TimeoutSec
+    MaximumRedirection = 0
     ErrorAction = "Stop"
   }
   if ($null -ne $Session) { $parameters["WebSession"] = $Session }
@@ -159,11 +161,20 @@ function Assert-HealthShape($Response) {
   if ($null -eq $Response.plan_queue) { Fail-Phase }
 }
 
+function Assert-ExactBoolean {
+  param($Response, [string]$PropertyName, [bool]$ExpectedValue)
+
+  if ($null -eq $Response) { Fail-Phase }
+  $property = $Response.PSObject.Properties[$PropertyName]
+  if ($null -eq $property -or -not ($property.Value -is [bool]) -or
+      $property.Value -ne $ExpectedValue) {
+    Fail-Phase
+  }
+}
+
 function Assert-AnonymousCapabilityShape($Response) {
-  if ($null -eq $Response -or -not ($Response.prihlaseny -is [bool]) -or
-      $Response.prihlaseny -ne $false) { Fail-Phase }
-  $authProperty = $Response.PSObject.Properties["auth_v3"]
-  if ($null -ne $authProperty -and -not ($Response.auth_v3 -is [bool])) { Fail-Phase }
+  Assert-ExactBoolean $Response "prihlaseny" $false
+  Assert-ExactBoolean $Response "auth_v3" $true
 }
 
 function Assert-RegistrationResponseShape($Response) {
@@ -172,13 +183,14 @@ function Assert-RegistrationResponseShape($Response) {
     $Response.PSObject.Properties | ForEach-Object { $_.Name } | Sort-Object
   )
   if (($propertyNames -join ",") -ne "message,ok") { Fail-Phase }
-  if ($Response.ok -ne $true -or -not ($Response.message -is [string]) -or
+  Assert-ExactBoolean $Response "ok" $true
+  if (-not ($Response.message -is [string]) -or
       [string]::IsNullOrWhiteSpace($Response.message)) { Fail-Phase }
 }
 
 function Assert-LoginShape($Response) {
-  if ($null -eq $Response -or $Response.ok -ne $true -or
-      -not ($Response.redirect -is [string]) -or $Response.redirect -ne "/app") {
+  Assert-ExactBoolean $Response "ok" $true
+  if (-not ($Response.redirect -is [string]) -or $Response.redirect -ne "/app") {
     Fail-Phase
   }
 }
@@ -186,9 +198,9 @@ function Assert-LoginShape($Response) {
 function Assert-AuthenticatedIdentity {
   param($Response, [string]$ExpectedEmail, $ExpectedId)
 
-  if ($null -eq $Response -or $Response.prihlaseny -ne $true) { Fail-Phase }
-  if ($Response.auth_v3 -ne $true) { Fail-Phase }
-  if ($Response.password_configured -ne $true) { Fail-Phase }
+  Assert-ExactBoolean $Response "prihlaseny" $true
+  Assert-ExactBoolean $Response "auth_v3" $true
+  Assert-ExactBoolean $Response "password_configured" $true
   if ($null -eq $Response.id -or -not ($Response.email -is [string])) { Fail-Phase }
   if ($Response.email -ne $ExpectedEmail) { Fail-Phase }
   if ($null -ne $ExpectedId -and $Response.id -ne $ExpectedId) { Fail-Phase }
@@ -196,7 +208,7 @@ function Assert-AuthenticatedIdentity {
 }
 
 function Assert-LogoutShape($Response) {
-  if ($null -eq $Response -or $Response.ok -ne $true) { Fail-Phase }
+  Assert-ExactBoolean $Response "ok" $true
 }
 
 function Invoke-BestEffortLogout {
@@ -327,6 +339,37 @@ try {
       -Session $sessionA -Headers $originHeaders
     $null = Assert-AuthenticatedIdentity $fallbackMe $expectedEmail $identityId
     Complete-Phase "password-fallback"
+
+    $script:CurrentPhase = "logout-others"
+    $logoutOthers = Invoke-SafeJsonRequest -Method "POST" `
+      -Path "/api/auth/sessions/logout-others" -Session $sessionA `
+      -Headers $originHeaders -JsonBody "{}"
+    Assert-LogoutShape $logoutOthers
+    Complete-Phase "logout-others"
+
+    $script:CurrentPhase = "logout-others-current-survives"
+    $currentAfterLogoutOthers = Invoke-SafeJsonRequest -Method "GET" `
+      -Path "/api/me" -Session $sessionA -Headers $originHeaders
+    $null = Assert-AuthenticatedIdentity $currentAfterLogoutOthers `
+      $expectedEmail $identityId
+    Complete-Phase "logout-others-current-survives"
+
+    $script:CurrentPhase = "logout-others-other-revoked"
+    $otherAfterLogoutOthers = Invoke-SafeJsonRequest -Method "GET" `
+      -Path "/api/me" -Session $sessionB -Headers $originHeaders
+    Assert-AnonymousCapabilityShape $otherAfterLogoutOthers
+    $sessionBActive = $false
+    Complete-Phase "logout-others-other-revoked"
+
+    $script:CurrentPhase = "cleanup-current-session"
+    $cleanupA = Invoke-SafeJsonRequest -Method "POST" -Path "/api/auth/logout" `
+      -Session $sessionA -Headers $originHeaders -JsonBody "{}"
+    Assert-LogoutShape $cleanupA
+    $sessionAActive = $false
+    $cleanedA = Invoke-SafeJsonRequest -Method "GET" -Path "/api/me" `
+      -Session $sessionA -Headers $originHeaders
+    Assert-AnonymousCapabilityShape $cleanedA
+    Complete-Phase "cleanup-current-session"
   } finally {
     if ($sessionAActive) { Invoke-BestEffortLogout $sessionA $originHeaders }
     if ($sessionBActive) { Invoke-BestEffortLogout $sessionB $originHeaders }
