@@ -1685,6 +1685,22 @@ def test_accepts_a_safe_concise_mixing_step_after_slovak_normalization():
     assert plan["jedla"][0]["recept"]["kroky"][1] == "Dôkladne premiešaj."
 
 
+def test_accepts_two_self_explanatory_concise_steps_in_an_otherwise_complete_recipe():
+    """Stručné „premiešaj“ a „podávaj“ nie sú dôvod spáliť dva AI pokusy."""
+    payload = with_steps([
+        "Nakrájaj 2 cibule na kocky a opeč ich na 2 lyžiciach oleja 5 minút do sklovita.",
+        "Dôkladne premiešaj.",
+        "Prilej 200 ml vody a zmes var na strednom ohni ďalšie 3 minúty.",
+        "Prikry a duste 15 minút na miernom ohni, kým cibuľa úplne nezmäkne.",
+        "Podávaj teplé.",
+    ], name="Dusená cibuľa")
+
+    plan = build(payload)
+
+    assert plan["jedla"][0]["recept"]["kroky"][1] == "Dôkladne premiešaj."
+    assert plan["jedla"][0]["recept"]["kroky"][-1] == "Podávaj teplé."
+
+
 @pytest.mark.parametrize("unsafe_step", [
     "Pridaj surové kura.",
     "Osoľ a pridaj surové kura.",

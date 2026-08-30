@@ -29,8 +29,8 @@ ZAKLAD = dict(
 def test_algo_version_is_a_positive_integer():
     assert isinstance(plan_data.PLAN_ALGO_VERSION, int)
     assert not isinstance(plan_data.PLAN_ALGO_VERSION, bool)
-    assert plan_data.PLAN_ALGO_VERSION == 17, (
-        "mäkký fallback rozmanitosti musí zneplatniť v16 plány a zlyhané úlohy"
+    assert plan_data.PLAN_ALGO_VERSION == 18, (
+        "oprava stručných krokov musí zneplatniť v17 plány a zlyhané úlohy"
     )
 
 

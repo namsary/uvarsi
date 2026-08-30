@@ -849,11 +849,11 @@ def _cookable_steps(instructions):
         step for step in steps
         if len(step) < MIN_STEP_CHARS or len(step.split()) < MIN_STEP_WORDS
     ]
-    # V päť- až sedemkrokovom recepte je jeden krátky krok typu „osoľ a
-    # okoreň“ prirodzený. Kvalitu ďalej strážia konkrétne množstvá, časy,
+    # V päť- až sedemkrokovom recepte sú najviac dva krátke kroky typu „osoľ a
+    # okoreň“ prirodzené. Kvalitu ďalej strážia konkrétne množstvá, časy,
     # teplota, výsledný vzhľad a podávanie celého receptu. Viac stručných
     # krokov alebo stručný trojkrokový recept by už používateľovi nepomohli.
-    allowed_concise = 1 if len(steps) >= 5 else 0
+    allowed_concise = 2 if len(steps) >= 5 else 0
     unsafe_concise = [
         step for step in concise if not _SAFE_CONCISE_ACTION.fullmatch(_fold(step))
     ]
@@ -1138,8 +1138,9 @@ PLAN_VARIANT_HINTS = (
 #      spôsoby prípravy; podobné jedlá nejdú bezprostredne po sebe.
 # 17 = rozmanitosť sa po jednom opravnom pokuse zmení na mäkký cieľ; inak
 #      bezpečný plán už nezlyhá iba preto, že model zopakoval spôsob prípravy.
+# 18 = plán 7/4/3 môže mať dva bezpečné stručné kroky.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 17
+PLAN_ALGO_VERSION = 18
 
 
 def plan_variant_for(user_id, variants):
