@@ -4281,3 +4281,90 @@ def test_auth_task5_fix3_lease_wake_and_shutdown_drain_are_bounded(
         assert con.execute(
             "SELECT state, lease_expires_at FROM auth_password_reset_outbox"
         ).fetchone() == ("running", 40_030.0)
+
+
+def test_auth_task5_fix4_shutdown_stops_after_the_single_inflight_delivery(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    email = "bounded-shutdown@example.com"
+    seed_password_account(server, auth_data, email)
+    now = 50_000.0
+    with closing(server.db()) as con:
+        for _ in range(8):
+            auth_data.enqueue_password_reset_job(
+                con, email=email, requested_at=now
+            )
+
+    monkeypatch.setenv("RESEND_API_KEY", "test-only-key")
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now)
+    provider_entered = threading.Event()
+    release_provider = threading.Event()
+    calls = []
+
+    def post(url, **kwargs):
+        calls.append((url, kwargs))
+        if len(calls) == 1:
+            provider_entered.set()
+            if not release_provider.wait(5):
+                raise TimeoutError("test did not release the in-flight delivery")
+        return ProviderResponse()
+
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(post=post))
+
+    def state_counts():
+        with sqlite3.connect(database) as con:
+            return dict(
+                con.execute(
+                    "SELECT state, COUNT(*) FROM auth_password_reset_outbox GROUP BY state"
+                )
+            )
+
+    async def scenario():
+        server.AUTH_OUTBOX_SHUTTING_DOWN = False
+        worker = server.ensure_password_reset_worker()
+        for _ in range(200):
+            if provider_entered.is_set():
+                break
+            await asyncio.sleep(0.01)
+        assert provider_entered.is_set()
+
+        server.AUTH_OUTBOX_SHUTTING_DOWN = True
+        started = asyncio.get_running_loop().time()
+        drained = await server.drain_password_reset_workers(deadline=1.0)
+        elapsed = asyncio.get_running_loop().time() - started
+        states_at_deadline = state_counts()
+        calls_at_deadline = len(calls)
+
+        release_provider.set()
+        await asyncio.wait_for(worker, timeout=2)
+        await asyncio.sleep(0)
+        settled = await server.drain_password_reset_workers(deadline=0.1)
+        return drained, elapsed, states_at_deadline, calls_at_deadline, settled
+
+    try:
+        (
+            drained,
+            elapsed,
+            states_at_deadline,
+            calls_at_deadline,
+            settled,
+        ) = asyncio.run(scenario())
+    finally:
+        release_provider.set()
+
+    assert drained is False
+    assert 0.8 <= elapsed < 1.5
+    assert calls_at_deadline == 1
+    assert states_at_deadline == {"queued": 7, "running": 1}
+    assert settled is True
+    assert len(calls) == 1
+    assert 0 < calls[0][1]["timeout"] <= 30
+    assert state_counts() == {"queued": 7, "sent": 1}
+
+    server.AUTH_OUTBOX_SHUTTING_DOWN = False
+    assert (
+        server.process_password_reset_outbox_batch("recovery-worker", limit=1) == 1
+    )
+    assert state_counts() == {"queued": 6, "sent": 2}

@@ -151,7 +151,7 @@ AUTH_V3_ACCOUNT_LIMITER = ClientIpRateLimiter(
     max_requests=5, window_seconds=10 * 60, max_clients=50_000
 )
 AUTH_BACKGROUND_TASKS: set[asyncio.Task] = set()
-AUTH_OUTBOX_BATCH_SIZE = 8
+AUTH_OUTBOX_BATCH_SIZE = 1
 AUTH_OUTBOX_WORKER_ID = f"auth-reset-{os.getpid()}-{id(AUTH_BACKGROUND_TASKS)}"
 AUTH_OUTBOX_SHUTTING_DOWN = False
 AUTH_OUTBOX_SHUTDOWN_DEADLINE = 1.0
@@ -797,9 +797,13 @@ def action_email(
 def process_password_reset_outbox_batch(
     worker_id: str, *, limit: int = AUTH_OUTBOX_BATCH_SIZE
 ) -> int:
-    """Process a bounded durable batch without exposing delivery outcomes."""
+    """Process at most one durable delivery per executor invocation."""
+    if limit <= 0 or AUTH_OUTBOX_SHUTTING_DOWN:
+        return 0
     token_secret = env("RESEND_API_KEY")
     if not token_secret:
+        if AUTH_OUTBOX_SHUTTING_DOWN:
+            return 0
         with closing(db()) as con:
             claim_password_reset_job(
                 con,
@@ -808,38 +812,43 @@ def process_password_reset_outbox_batch(
                 token_secret=None,
             )
         return -1
-    processed = 0
-    for _ in range(limit):
-        with closing(db()) as con:
-            delivery = claim_password_reset_job(
-                con,
-                worker_id=worker_id,
-                now=AUTH_CLOCK(),
-                token_secret=token_secret,
-            )
-        if delivery is None:
-            break
-        processed += 1
-        if delivery.raw_token is None:
-            continue
-        link = f"{BASE_URL}/heslo#token={delivery.raw_token}&purpose=reset"
-        accepted = False
-        try:
-            action_email(
-                email=delivery.email,
-                subject="Obnova hesla Uvar.si",
-                heading="Nastav si nové heslo; odkaz platí 60 minút",
-                link=link,
-                idempotency_key=delivery.idempotency_key,
-            )
-            accepted = True
-        except Exception:
-            pass
+    if AUTH_OUTBOX_SHUTTING_DOWN:
+        return 0
+    with closing(db()) as con:
+        delivery = claim_password_reset_job(
+            con,
+            worker_id=worker_id,
+            now=AUTH_CLOCK(),
+            token_secret=token_secret,
+        )
+    if delivery is None:
+        return 0
+    if delivery.raw_token is None:
+        return 1
+    if AUTH_OUTBOX_SHUTTING_DOWN:
         with closing(db()) as con:
             finish_password_reset_job(
-                con, delivery, accepted=accepted, now=AUTH_CLOCK()
+                con, delivery, accepted=False, now=AUTH_CLOCK()
             )
-    return processed
+        return 1
+    link = f"{BASE_URL}/heslo#token={delivery.raw_token}&purpose=reset"
+    accepted = False
+    try:
+        action_email(
+            email=delivery.email,
+            subject="Obnova hesla Uvar.si",
+            heading="Nastav si nové heslo; odkaz platí 60 minút",
+            link=link,
+            idempotency_key=delivery.idempotency_key,
+        )
+        accepted = True
+    except Exception:
+        pass
+    with closing(db()) as con:
+        finish_password_reset_job(
+            con, delivery, accepted=accepted, now=AUTH_CLOCK()
+        )
+    return 1
 
 
 def schedule_password_reset_wake(wake_at: float) -> None:
@@ -923,6 +932,8 @@ async def drain_password_reset_workers(
     while True:
         active = [task for task in AUTH_BACKGROUND_TASKS if not task.done()]
         if not active:
+            if AUTH_OUTBOX_SHUTTING_DOWN:
+                return True
             if not env("RESEND_API_KEY"):
                 return True
             with closing(db()) as con:
