@@ -154,6 +154,32 @@ scp -q -r "$B\app\static\*" "jarvis:/opt/uvarsi/releases/manual-stage/app/static
 Vyzaduj "prenos zlyhal: app\static"
 Ok "static/ (PWA)"
 
+$ingredientCatalog = "$B\app\catalog\ingredients.json"
+$recipeManifest = "$B\app\catalog\recipes\manifest.json"
+foreach ($povinnyCatalogSubor in @($ingredientCatalog, $recipeManifest)) {
+  if (-not (Test-Path $povinnyCatalogSubor -PathType Leaf)) {
+    Zlyhaj "chyba lokalny subor $povinnyCatalogSubor"
+  }
+}
+$recipeJson = @(
+  Get-ChildItem "$B\app\catalog\recipes" -File -Filter "*.json" |
+    Where-Object { $_.Name -ne "manifest.json" }
+)
+if ($recipeJson.Count -eq 0) {
+  Zlyhaj "chyba lokalny receptovy JSON v $B\app\catalog\recipes"
+}
+ssh jarvis "mkdir -p /opt/uvarsi/releases/manual-stage/app/catalog/recipes"
+Vyzaduj "staging priecinka receptoveho katalogu zlyhal"
+scp -q $ingredientCatalog "jarvis:/opt/uvarsi/releases/manual-stage/app/catalog/ingredients.json"
+Vyzaduj "prenos zlyhal: app\catalog\ingredients.json"
+scp -q $recipeManifest "jarvis:/opt/uvarsi/releases/manual-stage/app/catalog/recipes/manifest.json"
+Vyzaduj "prenos zlyhal: app\catalog\recipes\manifest.json"
+foreach ($recept in $recipeJson) {
+  scp -q $recept.FullName "jarvis:/opt/uvarsi/releases/manual-stage/app/catalog/recipes/$($recept.Name)"
+  Vyzaduj "prenos zlyhal: app\catalog\recipes\$($recept.Name)"
+}
+Ok "receptovy katalog (bez vyvojovych candidates/)"
+
 # Windows uklada .sh s CRLF; po binarnom scp je shebang "#!/bin/bash\r" a Linux
 # hlada interpret /bin/bash\r -> "cannot execute: required file not found".
 ssh jarvis "sed -i 's/\r//' /opt/uvarsi/releases/manual-stage/hetzner/*.sh; chmod +x /opt/uvarsi/releases/manual-stage/hetzner/*.sh"

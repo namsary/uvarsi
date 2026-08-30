@@ -1,0 +1,291 @@
+"""Recipe-engine catalog assets must travel atomically with runtime code."""
+
+import os
+import re
+import shlex
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+MANUAL_DEPLOY = ROOT / "nasad.ps1"
+SAMOPULL = ROOT / "hetzner" / "samopull.sh"
+DEPLOY_STATE = ROOT / "hetzner" / "uvarsi-deploy-state.sh"
+BASH = Path("C:/Program Files/Git/bin/bash.exe")
+SWITCH_BOUNDARY = "# --- 3. záloha aktuálneho stavu a prepnutie ---"
+
+
+def _bash_path(path: Path) -> str:
+    return "/c" + path.resolve().as_posix()[2:]
+
+
+def _powershell() -> str:
+    executable = shutil.which("pwsh") or shutil.which("powershell.exe")
+    if executable is None:
+        pytest.skip("PowerShell is required for the manual deployment behavior test")
+    return executable
+
+
+def _prepare_manual_source(tmp_path: Path) -> Path:
+    source = MANUAL_DEPLOY.read_text(encoding="utf-8")
+    release = tmp_path / "manual source with spaces"
+    release.mkdir()
+    shutil.copyfile(MANUAL_DEPLOY, release / "nasad.ps1")
+
+    for relative in re.findall(r'l\s*=\s*"\$B\\([^"]+)"', source):
+        target = release / relative.replace("\\", "/")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("present\n", encoding="utf-8")
+
+    static = release / "app" / "static" / "app.html"
+    static.parent.mkdir(parents=True, exist_ok=True)
+    static.write_text("present\n", encoding="utf-8")
+
+    catalog = release / "app" / "catalog"
+    recipes = catalog / "recipes"
+    candidates = catalog / "candidates"
+    recipes.mkdir(parents=True)
+    candidates.mkdir(parents=True)
+    (catalog / "ingredients.json").write_text("{}\n", encoding="utf-8")
+    (recipes / "manifest.json").write_text("{}\n", encoding="utf-8")
+    (recipes / "smoke.json").write_text("{}\n", encoding="utf-8")
+    (candidates / "draft.json").write_text("{}\n", encoding="utf-8")
+    return release
+
+
+def _run_manual_deploy_offline(tmp_path: Path) -> tuple[subprocess.CompletedProcess, str]:
+    release = _prepare_manual_source(tmp_path)
+    calls = tmp_path / "remote-calls.txt"
+    harness = tmp_path / "manual-deploy-harness.ps1"
+    harness.write_text(
+        "param([string]$Deploy, [string]$Calls)\n"
+        "function global:ssh {\n"
+        "  begin { $body = @(); $rest = @($args) }\n"
+        "  process { if ($null -ne $_) { $body += $_ } }\n"
+        "  end {\n"
+        "    Add-Content -LiteralPath $Calls -Value (\"SSH \" + ($Rest -join ' '))\n"
+        "    if ($body.Count) { Add-Content -LiteralPath $Calls -Value ($body -join \"`n\") }\n"
+        "    $global:LASTEXITCODE = 0\n"
+        "  }\n"
+        "}\n"
+        "function global:scp {\n"
+        "  param([switch]$q, [switch]$r, "
+        "[Parameter(ValueFromRemainingArguments=$true)][object[]]$Rest)\n"
+        "  $switches = @(); if ($q) { $switches += '-q' }; if ($r) { $switches += '-r' }\n"
+        "  Add-Content -LiteralPath $Calls -Value (\"SCP \" + (($switches + $Rest) -join ' '))\n"
+        "  $global:LASTEXITCODE = 0\n"
+        "}\n"
+        ". $Deploy\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            _powershell(),
+            "-NoProfile",
+            "-NonInteractive",
+            "-File",
+            str(harness),
+            "-Deploy",
+            str(release / "nasad.ps1"),
+            "-Calls",
+            str(calls),
+        ],
+        cwd=release,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+    return result, calls.read_text(encoding="utf-8") if calls.exists() else ""
+
+
+def test_manual_deploy_stages_catalog_before_switch_without_candidates_or_live_copy(tmp_path):
+    """A recursive/live catalog copy would leak drafts or split code from data."""
+    result, raw_calls = _run_manual_deploy_offline(tmp_path)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    calls = raw_calls.replace("\\", "/")
+    staged = (
+        "jarvis:/opt/uvarsi/releases/manual-stage/app/catalog/ingredients.json",
+        "jarvis:/opt/uvarsi/releases/manual-stage/app/catalog/recipes/manifest.json",
+        "jarvis:/opt/uvarsi/releases/manual-stage/app/catalog/recipes/smoke.json",
+    )
+    for target in staged:
+        assert target in calls
+        assert calls.index(target) < calls.index(
+            "uvarsi_snapshot /opt/uvarsi/releases/manual-predosle"
+        )
+    assert "/app/catalog/candidates" not in calls
+    assert "draft.json" not in calls
+    assert "jarvis:/opt/uvarsi/app/catalog/" not in calls
+
+
+def _samopull_catalog_gate() -> str:
+    script = SAMOPULL.read_text(encoding="utf-8")
+    return script.split("# b) povinné súbory", 1)[1].split(SWITCH_BOUNDARY, 1)[0]
+
+
+def _required_release_files(gate: str) -> list[str]:
+    match = re.search(r"for f in ([^;\n]+); do", gate)
+    assert match, "samopull required-files gate was not found"
+    return shlex.split(match.group(1))
+
+
+def _run_samopull_catalog_gate(
+    tmp_path: Path,
+    *,
+    missing: str | None = None,
+    candidate_only: bool = False,
+) -> tuple[subprocess.CompletedProcess, Path]:
+    gate = _samopull_catalog_gate()
+    release = tmp_path / "release with spaces"
+    for relative in _required_release_files(gate):
+        target = release / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("present\n", encoding="utf-8")
+
+    ingredients = release / "app/catalog/ingredients.json"
+    manifest = release / "app/catalog/recipes/manifest.json"
+    recipe = release / "app/catalog/recipes/smoke.json"
+    for target in (ingredients, manifest):
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("{}\n", encoding="utf-8")
+    if not candidate_only:
+        recipe.write_text("{}\n", encoding="utf-8")
+    else:
+        candidate = release / "app/catalog/candidates/draft.json"
+        candidate.parent.mkdir(parents=True, exist_ok=True)
+        candidate.write_text("{}\n", encoding="utf-8")
+
+    missing_paths = {
+        "ingredients": ingredients,
+        "manifest": manifest,
+        "recipe": recipe,
+    }
+    if missing is not None and missing_paths[missing].exists():
+        missing_paths[missing].unlink()
+
+    mutation_marker = tmp_path / "live-mutation-reached"
+    command = (
+        "PATH=/usr/bin:/bin\n"
+        "log() { :; }\n"
+        "notify() { :; }\n"
+        f'CIEL="{_bash_path(release)}"\n'
+        f"{gate}\n"
+        f'printf reached > "{_bash_path(mutation_marker)}"\n'
+    )
+    result = subprocess.run(
+        [str(BASH), "-c", command],
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+    return result, mutation_marker
+
+
+def test_samopull_catalog_gate_accepts_one_top_level_recipe_json(tmp_path):
+    result, mutation_marker = _run_samopull_catalog_gate(tmp_path)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert mutation_marker.exists()
+
+
+@pytest.mark.parametrize("missing", ["ingredients", "manifest", "recipe"])
+def test_samopull_catalog_gate_rejects_incomplete_release_before_switch(tmp_path, missing):
+    """Deleting any runtime catalog component must close the pre-switch gate."""
+    result, mutation_marker = _run_samopull_catalog_gate(tmp_path, missing=missing)
+
+    assert result.returncode != 0
+    assert not mutation_marker.exists()
+
+
+def test_samopull_does_not_count_candidate_json_as_a_runtime_recipe(tmp_path):
+    result, mutation_marker = _run_samopull_catalog_gate(tmp_path, candidate_only=True)
+
+    assert result.returncode != 0
+    assert not mutation_marker.exists()
+
+
+def test_samopull_staging_excludes_development_candidates(tmp_path):
+    """Preparing the release must never stage candidate drafts."""
+    source = tmp_path / "source"
+    candidate = source / "app/catalog/candidates/draft.json"
+    candidate.parent.mkdir(parents=True)
+    candidate.write_text("{}\n", encoding="utf-8")
+    ingredient = source / "app/catalog/ingredients.json"
+    ingredient.parent.mkdir(parents=True, exist_ok=True)
+    ingredient.write_text("{}\n", encoding="utf-8")
+
+    script = SAMOPULL.read_text(encoding="utf-8")
+    staging = script[script.index('CIEL="$REL/${SHA:0:12}"'):].split(
+        "# --- 2. overenie PRED prepnutím ---", 1
+    )[0]
+    releases = tmp_path / "releases"
+    command = (
+        "PATH=/usr/bin:/bin\n"
+        "log() { :; }\n"
+        'ZDROJ="source"\n'
+        'REL="releases"\n'
+        'TMP="tmp"\n'
+        'mkdir -p "$TMP"\n'
+        'SHA="1234567890abcdef"\n'
+        f"{staging}\n"
+    )
+    result = subprocess.run(
+        [str(BASH), "-c", command],
+        cwd=tmp_path,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+
+    staged = releases / "1234567890ab" / "app/catalog"
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (staged / "ingredients.json").is_file()
+    assert not (staged / "candidates").exists()
+
+
+def test_directory_rollback_restores_code_and_catalog_together(tmp_path):
+    """Directory rollback must not combine old code with a new catalog."""
+    live = tmp_path / "live"
+    live_catalog = live / "app/catalog"
+    live_catalog.mkdir(parents=True)
+    (live / "app/code.txt").write_text("new-code\n", encoding="utf-8")
+    (live_catalog / "ingredients.json").write_text("new-catalog\n", encoding="utf-8")
+
+    snapshot = tmp_path / "snapshot"
+    snapshot_catalog = snapshot / "app/catalog"
+    snapshot_catalog.mkdir(parents=True)
+    (snapshot / "app/code.txt").write_text("old-code\n", encoding="utf-8")
+    (snapshot_catalog / "ingredients.json").write_text("old-catalog\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            str(BASH),
+            "-c",
+            f'. "{_bash_path(DEPLOY_STATE)}"\n_uvarsi_restore_app "{_bash_path(snapshot)}"',
+        ],
+        env=os.environ
+        | {
+            "UVARSI_DIR": _bash_path(live),
+            "UVARSI_CP": "/usr/bin/cp",
+            "UVARSI_MV": "/usr/bin/mv",
+        },
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (live / "app/code.txt").read_text(encoding="utf-8") == "old-code\n"
+    assert (live_catalog / "ingredients.json").read_text(encoding="utf-8") == "old-catalog\n"

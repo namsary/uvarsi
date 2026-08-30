@@ -63,7 +63,13 @@ SHA=$(git -C "$ZDROJ" rev-parse HEAD)
 log "nová verzia ${SHA:0:8} — pripravujem"
 CIEL="$REL/${SHA:0:12}"
 rm -rf "$CIEL"; mkdir -p "$CIEL"
-cp -a "$ZDROJ/." "$CIEL/" || { log "kópiu sa nepodarilo pripraviť"; exit 1; }
+RELEASE_ARCHIVE="$TMP/release.tar"
+tar -C "$ZDROJ" --exclude='./app/catalog/candidates' -cf "$RELEASE_ARCHIVE" . || {
+  log "archív vydania sa nepodarilo pripraviť"; exit 1; }
+tar -C "$CIEL" -xf "$RELEASE_ARCHIVE" || {
+  log "kópiu sa nepodarilo pripraviť"; exit 1; }
+rm -f "$RELEASE_ARCHIVE" || {
+  log "dočasný archív vydania sa nepodarilo odstrániť"; exit 1; }
 # Windows môže do gitu uložiť CRLF; shell skripty musia mať LF, inak je shebang rozbitý
 sed -i 's/\r//' "$CIEL"/hetzner/*.sh 2>/dev/null || true
 
@@ -80,10 +86,24 @@ if ! (cd "$CIEL/app" && UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$CIEL/VE
   exit 1
 fi
 # b) povinné súbory
-for f in app/server.py app/auth_data.py app/public_pages.py app/plan_jobs.py app/plan_calendar.py app/plan_shortlist.py app/plan_worker.py app/predpocet.py app/static/app.html hetzner/uvarsi-plan-worker.service hetzner/uvarsi-deploy-state.sh VERSION index.html sw.js; do
+for f in app/server.py app/auth_data.py app/public_pages.py app/plan_jobs.py app/plan_calendar.py app/plan_shortlist.py app/plan_worker.py app/predpocet.py app/static/app.html app/catalog/ingredients.json app/catalog/recipes/manifest.json hetzner/uvarsi-plan-worker.service hetzner/uvarsi-deploy-state.sh VERSION index.html sw.js; do
   [ -s "$CIEL/$f" ] || { log "vo vydaní chýba $f — NEPREPÍNAM"; \
     notify "Uvar.si: neúplné vydanie" "Chýba $f."; exit 1; }
 done
+RECEPT_JSON_NAJDENY=0
+for recept in "$CIEL"/app/catalog/recipes/*.json; do
+  [ -e "$recept" ] || continue
+  [ "$(basename "$recept")" = "manifest.json" ] && continue
+  if [ -s "$recept" ]; then
+    RECEPT_JSON_NAJDENY=1
+    break
+  fi
+done
+[ "$RECEPT_JSON_NAJDENY" -eq 1 ] || {
+  log "vo vydaní chýba receptový JSON — NEPREPÍNAM"
+  notify "Uvar.si: neúplné vydanie" "Chýba receptový JSON."
+  exit 1
+}
 
 # --- 3. záloha aktuálneho stavu a prepnutie ---
 PRED="$REL/predosle"
