@@ -317,7 +317,19 @@ CREATE TABLE IF NOT EXISTS pouzivatelia (
 CREATE TABLE IF NOT EXISTS spajza (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
-  nazov TEXT NOT NULL
+  nazov TEXT NOT NULL,
+  mnozstvo REAL NULL,
+  jednotka TEXT NULL,
+  CHECK (
+    (mnozstvo IS NULL AND jednotka IS NULL)
+    OR (
+      mnozstvo IS NOT NULL
+      AND jednotka IS NOT NULL
+      AND typeof(mnozstvo) IN ('integer', 'real')
+      AND mnozstvo > 0
+      AND jednotka IN ('g', 'ml', 'piece')
+    )
+  )
 );
 CREATE TABLE IF NOT EXISTS plany (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -409,12 +421,57 @@ def migrate_household_schema(con) -> None:
     con.execute("UPDATE pouzivatelia SET deti=0 WHERE deti IS NULL")
 
 
+def migrate_pantry_schema(con) -> None:
+    """Add optional pantry quantities and enforce their invariant in SQLite."""
+    columns = {row[1] for row in con.execute("PRAGMA table_info(spajza)")}
+    if "mnozstvo" not in columns:
+        con.execute("ALTER TABLE spajza ADD COLUMN mnozstvo REAL NULL")
+    if "jednotka" not in columns:
+        con.execute("ALTER TABLE spajza ADD COLUMN jednotka TEXT NULL")
+    con.executescript(
+        """
+        CREATE TRIGGER IF NOT EXISTS spajza_quantity_insert
+        BEFORE INSERT ON spajza
+        WHEN NOT (
+          (NEW.mnozstvo IS NULL AND NEW.jednotka IS NULL)
+          OR (
+            NEW.mnozstvo IS NOT NULL
+            AND NEW.jednotka IS NOT NULL
+            AND typeof(NEW.mnozstvo) IN ('integer', 'real')
+            AND NEW.mnozstvo > 0
+            AND NEW.jednotka IN ('g', 'ml', 'piece')
+          )
+        )
+        BEGIN
+          SELECT RAISE(ABORT, 'invalid pantry quantity');
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS spajza_quantity_update
+        BEFORE UPDATE ON spajza
+        WHEN NOT (
+          (NEW.mnozstvo IS NULL AND NEW.jednotka IS NULL)
+          OR (
+            NEW.mnozstvo IS NOT NULL
+            AND NEW.jednotka IS NOT NULL
+            AND typeof(NEW.mnozstvo) IN ('integer', 'real')
+            AND NEW.mnozstvo > 0
+            AND NEW.jednotka IN ('g', 'ml', 'piece')
+          )
+        )
+        BEGIN
+          SELECT RAISE(ABORT, 'invalid pantry quantity');
+        END;
+        """
+    )
+
+
 def migruj_schemu(con) -> None:
     """Celá schéma a všetky migrácie. Idempotentné, ale drahé — nie na požiadavku."""
     import plan_jobs
 
     con.executescript(SCHEMA)
     migrate_household_schema(con)
+    migrate_pantry_schema(con)
     migrate_auth_schema(con)
     migrate_akcie_schema(con)
     migrate_platby_schema(con)
