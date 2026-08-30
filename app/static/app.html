@@ -142,9 +142,22 @@ nav button.on{color:var(--accent)}nav button.on::before{content:"";position:abso
 .auth-link{border:0;background:transparent;color:var(--accent);font:800 .82rem "Manrope",sans-serif;
   text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:5px 0}
 .auth-status{min-height:1.5em;margin-top:12px}.setup-card{border-left:4px solid var(--highlight)}
+.auth-divider{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--muted);
+  font:600 .68rem "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.06em}
+.auth-divider::before,.auth-divider::after{content:"";height:1px;background:var(--border);flex:1}
 .setup-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}.setup-actions .btn{width:auto;flex:1}
+.security-list{display:grid;gap:9px;margin-top:14px}.security-row{display:grid;
+  grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px;
+  border:1px solid var(--border);border-radius:var(--radius-control);background:var(--surface)}
+.security-copy{min-width:0}.security-name{display:block;font-size:.88rem;font-weight:800;overflow-wrap:anywhere}
+.security-meta{display:block;margin-top:2px;color:var(--muted);font-size:.75rem}
+.security-row .btn{width:auto;min-height:42px;padding:9px 12px;font-size:.78rem;box-shadow:none}
+.security-current{display:inline-block;margin-left:6px;padding:2px 6px;border-radius:6px;
+  background:#FFF5BE;border:1px solid #E4CB48;font:600 .65rem "IBM Plex Mono",monospace}
+.security-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.security-actions .btn{width:auto;flex:1}
 @media (max-width:360px){.auth-shell{margin-top:20px}.auth-switch{padding:0 6px;font-size:.78rem}
-  .password-toggle{padding:0 9px;font-size:.72rem}}
+  .password-toggle{padding:0 9px;font-size:.72rem}.security-row{grid-template-columns:minmax(0,1fr)}
+  .security-row .btn{width:100%}.security-actions{display:grid;grid-template-columns:minmax(0,1fr)}}
 .spin{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);
   border-radius:50%;animation:sp .8s linear infinite;margin:34px auto}
 @keyframes sp{to{transform:rotate(360deg)}}
@@ -657,7 +670,149 @@ function viewLegacyLogin(sent, previousEmail) {
   };
 }
 
-function authScreenHtml(mode) {
+function passkeyUiAvailable(authEnabled, browser) {
+  return authEnabled === true && !!browser &&
+    typeof browser.PublicKeyCredential === 'function';
+}
+
+function base64urlToBuffer(value) {
+  if (typeof value !== 'string' || !value || !/^[A-Za-z0-9_-]+$/.test(value))
+    throw new Error('Passkey údaje majú nesprávny formát.');
+  const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(base64 + '='.repeat((4 - base64.length % 4) % 4));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1)
+    bytes[index] = binary.charCodeAt(index);
+  return bytes.buffer;
+}
+
+function bufferToBase64url(value) {
+  let bytes;
+  if (value instanceof ArrayBuffer) bytes = new Uint8Array(value);
+  else if (ArrayBuffer.isView(value))
+    bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  else throw new Error('Passkey údaje majú nesprávny formát.');
+  let binary = '';
+  for (let index = 0; index < bytes.length; index += 1)
+    binary += String.fromCharCode(bytes[index]);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function prepareRegistrationOptions(options) {
+  const prepared = Object.assign({}, options, {
+    challenge: base64urlToBuffer(options.challenge),
+    user: Object.assign({}, options.user, {id: base64urlToBuffer(options.user.id)})
+  });
+  prepared.excludeCredentials = (options.excludeCredentials || []).map(item =>
+    Object.assign({}, item, {id: base64urlToBuffer(item.id)}));
+  return prepared;
+}
+
+function prepareAuthenticationOptions(options) {
+  const prepared = Object.assign({}, options, {
+    challenge: base64urlToBuffer(options.challenge)
+  });
+  prepared.allowCredentials = (options.allowCredentials || []).map(item =>
+    Object.assign({}, item, {id: base64urlToBuffer(item.id)}));
+  return prepared;
+}
+
+function registrationCredentialJson(credential) {
+  const response = credential.response;
+  const transports = typeof response.getTransports === 'function'
+    ? response.getTransports().filter(item =>
+      ['ble', 'cable', 'hybrid', 'internal', 'nfc', 'smart-card', 'usb'].includes(item))
+    : [];
+  return {
+    credential: {
+      id: credential.id,
+      rawId: bufferToBase64url(credential.rawId),
+      type: credential.type,
+      response: {
+        clientDataJSON: bufferToBase64url(response.clientDataJSON),
+        attestationObject: bufferToBase64url(response.attestationObject)
+      },
+      clientExtensionResults: typeof credential.getClientExtensionResults === 'function'
+        ? credential.getClientExtensionResults() : {}
+    },
+    transports: transports
+  };
+}
+
+function authenticationCredentialJson(credential) {
+  const response = credential.response;
+  return {
+    id: credential.id,
+    rawId: bufferToBase64url(credential.rawId),
+    type: credential.type,
+    response: {
+      clientDataJSON: bufferToBase64url(response.clientDataJSON),
+      authenticatorData: bufferToBase64url(response.authenticatorData),
+      signature: bufferToBase64url(response.signature),
+      userHandle: response.userHandle == null ? null : bufferToBase64url(response.userHandle)
+    },
+    clientExtensionResults: typeof credential.getClientExtensionResults === 'function'
+      ? credential.getClientExtensionResults() : {}
+  };
+}
+
+async function performPasskeyLogin(email, credentialsApi) {
+  if (!email) throw new Error('Najprv zadaj e-mailovú adresu.');
+  const options = await accountApi({
+    url: '/api/auth/passkey/login/options',
+    options: {method: 'POST', body: JSON.stringify({email: email})}
+  });
+  let assertion;
+  try {
+    assertion = await credentialsApi.get({
+      publicKey: prepareAuthenticationOptions(options)
+    });
+  } catch (error) {
+    if (error && (error.name === 'NotAllowedError' || error.name === 'AbortError'))
+      throw new Error('Biometrické prihlásenie bolo zrušené. Heslom sa môžeš prihlásiť ďalej.');
+    throw new Error('Biometrické prihlásenie sa nepodarilo. Heslom sa môžeš prihlásiť ďalej.');
+  }
+  if (!assertion)
+    throw new Error('Biometrické prihlásenie bolo zrušené. Heslom sa môžeš prihlásiť ďalej.');
+  return accountApi({
+    url: '/api/auth/passkey/login/verify',
+    options: {method: 'POST', body: JSON.stringify({
+      challenge: options.challenge,
+      credential: authenticationCredentialJson(assertion),
+      device_name: 'Zariadenie s Passkey'
+    })}
+  });
+}
+
+async function performPasskeyRegistration(credentialsApi) {
+  const options = await accountApi({
+    url: '/api/auth/passkey/register/options',
+    options: {method: 'POST', body: '{}'}
+  });
+  let credential;
+  try {
+    credential = await credentialsApi.create({
+      publicKey: prepareRegistrationOptions(options)
+    });
+  } catch (error) {
+    if (error && (error.name === 'NotAllowedError' || error.name === 'AbortError'))
+      throw new Error('Pridanie Passkey bolo zrušené. Môžeš to skúsiť znova.');
+    throw new Error('Passkey sa nepodarilo pridať. Skús to znova.');
+  }
+  if (!credential) throw new Error('Pridanie Passkey bolo zrušené. Môžeš to skúsiť znova.');
+  const encoded = registrationCredentialJson(credential);
+  return accountApi({
+    url: '/api/auth/passkey/register/verify',
+    options: {method: 'POST', body: JSON.stringify({
+      challenge: options.challenge,
+      credential: encoded.credential,
+      transports: encoded.transports,
+      name: 'Toto zariadenie'
+    })}
+  });
+}
+
+function authScreenHtml(mode, passkeyReady) {
   const active = mode === 'register' ? 'register' : mode === 'forgot' ? 'forgot' : 'login';
   const isRegister = active === 'register';
   const isForgot = active === 'forgot';
@@ -687,6 +842,8 @@ function authScreenHtml(mode) {
       ${active === 'login' ? '<button class="auth-link" id="auth-forgot" type="button">Zabudol som heslo</button><div style="height:8px"></div>' : ''}
       ${isForgot ? '<button class="auth-link" id="auth-back" type="button">Späť na prihlásenie</button><div style="height:8px"></div>' : ''}
       <button class="btn" id="auth-submit" type="submit">${action}</button>
+      ${active === 'login' && passkeyReady ? `<div class="auth-divider"><span>alebo</span></div>
+        <button class="btn btn--ghost" id="auth-passkey" type="button">Prihlásiť biometriou</button>` : ''}
       <p class="muted auth-status" id="auth-status" role="status" aria-live="polite"></p>
     </form>
   </div>`;
@@ -730,7 +887,9 @@ function togglePasswordVisibility(input, button) {
 
 function viewAccountAuth(mode, previousEmail) {
   const active = mode === 'register' || mode === 'forgot' ? mode : 'login';
-  M.innerHTML = authScreenHtml(active);
+  const browser = typeof window === 'undefined' ? null : window;
+  const passkeyReady = passkeyUiAvailable(AUTH_V3_ENABLED, browser);
+  M.innerHTML = authScreenHtml(active, passkeyReady);
   if (previousEmail) $('#auth-email').value = previousEmail;
   $('#auth-login-mode').onclick = () => viewAccountAuth('login', $('#auth-email').value.trim());
   $('#auth-register-mode').onclick = () => viewAccountAuth('register', $('#auth-email').value.trim());
@@ -740,12 +899,18 @@ function viewAccountAuth(mode, previousEmail) {
   if (back) back.onclick = () => viewAccountAuth('login', $('#auth-email').value.trim());
   const password = $('#auth-password');
   const toggle = $('#auth-password-toggle');
+  const status = $('#auth-status');
   if (password && toggle) toggle.onclick = () => togglePasswordVisibility(password, toggle);
+  const passkey = $('#auth-passkey');
+  if (passkey) passkey.onclick = () => runGuardedAction(passkey, status, async () => {
+    const result = await performPasskeyLogin(
+      $('#auth-email').value.trim(), navigator.credentials);
+    location.replace(result.redirect || '/app');
+  });
   $('#auth-title').focus();
   $('#auth-form').onsubmit = event => {
     event.preventDefault();
     const button = $('#auth-submit');
-    const status = $('#auth-status');
     const email = $('#auth-email').value.trim();
     const secret = password ? password.value : '';
     runGuardedAction(button, status, async () => {
@@ -1544,6 +1709,151 @@ function passwordSetupCard(me, storage) {
   </section>`;
 }
 
+function deviceRevocationRequest(session) {
+  const identifier = session && session.session_hash;
+  if (typeof identifier !== 'string' || !/^[0-9a-f]{64}$/.test(identifier)) return null;
+  return {
+    url: '/api/auth/sessions/' + encodeURIComponent(identifier),
+    options: {method: 'DELETE'},
+    logsOutCurrent: session.current === true
+  };
+}
+
+function passkeyDeletionRequest(passkey) {
+  const identifier = passkey && passkey.credential_id;
+  if (typeof identifier !== 'string' ||
+      !/^[A-Za-z0-9_-]{1,1024}$/.test(identifier)) return null;
+  return {
+    url: '/api/auth/passkeys/' + encodeURIComponent(identifier),
+    options: {method: 'DELETE'}
+  };
+}
+
+function securityDateLabel(timestamp) {
+  const value = Number(timestamp);
+  if (!Number.isFinite(value)) return '';
+  try {
+    return new Intl.DateTimeFormat('sk-SK', {
+      day: 'numeric', month: 'short', year: 'numeric'
+    }).format(new Date(value * 1000));
+  } catch (error) { return ''; }
+}
+
+function securityPanelHtml(passkeyReady, passkeys, sessions, state) {
+  const loading = state && state.loading;
+  const error = state && state.error ? String(state.error) : '';
+  const notice = state && state.notice ? String(state.notice) : '';
+  const listedPasskeys = Object.prototype.toString.call(passkeys) === '[object Array]'
+    ? passkeys : [];
+  const listedSessions = Object.prototype.toString.call(sessions) === '[object Array]'
+    ? sessions : [];
+  const passkeyRows = listedPasskeys.map(item => {
+    const name = item && item.name ? item.name : 'Passkey';
+    const used = securityDateLabel(item && (item.last_used_at || item.created_at));
+    return `<div class="security-row"><span class="security-copy">
+      <span class="security-name">${esc(name)}</span>
+      <span class="security-meta">${used ? 'Použitý alebo pridaný ' + esc(used) : 'Pridaný Passkey'}</span></span>
+      <button class="btn btn--ghost" type="button" data-passkey-delete="${esc(item.credential_id)}"
+        aria-label="Odstrániť Passkey ${esc(name)}">Odstrániť</button></div>`;
+  }).join('');
+  const sessionRows = listedSessions.map(item => {
+    const name = item && item.device_name ? item.device_name : 'Zariadenie';
+    const seen = securityDateLabel(item && item.last_seen_at);
+    const current = item && item.current === true;
+    return `<div class="security-row"><span class="security-copy">
+      <span class="security-name">${esc(name)}${current ? '<span class="security-current">Toto zariadenie</span>' : ''}</span>
+      <span class="security-meta">${seen ? 'Aktívne ' + esc(seen) : 'Aktívna relácia'}</span></span>
+      <button class="btn btn--ghost" type="button" data-session-revoke="${esc(item.session_hash)}"
+        aria-label="${current ? 'Odhlásiť toto zariadenie' : 'Odhlásiť zariadenie ' + esc(name)}">${current ? 'Odhlásiť toto zariadenie' : 'Odhlásiť zariadenie'}</button></div>`;
+  }).join('');
+  return `<section class="card" aria-labelledby="passkey-security-title">
+    <span class="eyebrow">Prihlásenie</span>
+    <h2 class="display" id="passkey-security-title" style="font-size:1.25rem;margin:7px 0">Biometria a Passkey</h2>
+    <p class="muted">Biometrická kontrola ostáva v zariadení. Uvar.si na serveri ukladá iba verejné poverenie Passkey.</p>
+    ${passkeyReady ? '<div class="security-actions"><button class="btn btn--ghost" id="passkey-add" type="button">Pridať biometriu/Passkey</button></div>' : ''}
+    <div class="security-list" aria-label="Tvoje Passkey">${loading ? '<p class="muted">Načítavam Passkey…</p>' : passkeyRows || '<p class="muted">Zatiaľ nemáš pridaný Passkey.</p>'}</div>
+  </section>
+  <section class="card" aria-labelledby="device-security-title">
+    <span class="eyebrow">Relácie</span>
+    <h2 class="display" id="device-security-title" style="font-size:1.25rem;margin:7px 0">Tvoje zariadenia</h2>
+    <p class="muted">Odhlás zariadenie, ktoré už nepoužívaš. Identifikátory v tomto zozname nie sú prihlasovacie údaje.</p>
+    <div class="security-list" aria-label="Prihlásené zariadenia">${loading ? '<p class="muted">Načítavam zariadenia…</p>' : sessionRows || '<p class="muted">Nenašli sa aktívne zariadenia.</p>'}</div>
+    ${listedSessions.length > 1 ? '<div class="security-actions"><button class="btn btn--ghost" id="sessions-logout-others" type="button">Odhlásiť ostatné zariadenia</button></div>' : ''}
+  </section>
+  <p class="muted auth-status" id="security-status" role="status" aria-live="polite"${error ? ' style="color:var(--red)"' : notice ? ' style="color:var(--success)"' : ''}>${esc(error || notice)}</p>
+  ${error ? '<button class="auth-link" id="security-retry" type="button">Skúsiť načítať znova</button>' : ''}`;
+}
+
+function bindSecurityControls(passkeys, sessions) {
+  const status = $('#security-status');
+  const retry = $('#security-retry');
+  if (retry) retry.onclick = () => loadAccountSecurity();
+  const add = $('#passkey-add');
+  if (add) add.onclick = () => runGuardedAction(add, status, async () => {
+    await performPasskeyRegistration(navigator.credentials);
+    await loadAccountSecurity('Passkey bol pridaný.');
+  });
+  M.querySelectorAll('[data-passkey-delete]').forEach(button => button.onclick = () => {
+    const item = passkeys.find(candidate =>
+      candidate.credential_id === button.dataset.passkeyDelete);
+    const request = passkeyDeletionRequest(item);
+    if (!request || !confirm('Odstrániť tento Passkey? Heslo bude naďalej fungovať.')) return;
+    runGuardedAction(button, status, async () => {
+      await api(request.url, request.options);
+      await loadAccountSecurity('Passkey bol odstránený.');
+    });
+  });
+  M.querySelectorAll('[data-session-revoke]').forEach(button => button.onclick = () => {
+    const item = sessions.find(candidate =>
+      candidate.session_hash === button.dataset.sessionRevoke);
+    const request = deviceRevocationRequest(item);
+    const question = request && request.logsOutCurrent
+      ? 'Odhlásiť toto zariadenie? Potom sa budeš musieť znova prihlásiť.'
+      : 'Odhlásiť vybrané zariadenie?';
+    if (!request || !confirm(question)) return;
+    runGuardedAction(button, status, async () => {
+      await api(request.url, request.options);
+      if (request.logsOutCurrent) {
+        location.replace('/app');
+        return;
+      }
+      await loadAccountSecurity('Zariadenie bolo odhlásené.');
+    });
+  });
+  const logoutOthers = $('#sessions-logout-others');
+  if (logoutOthers) logoutOthers.onclick = () => {
+    if (!confirm('Odhlásiť všetky ostatné zariadenia? Toto zariadenie ostane prihlásené.')) return;
+    runGuardedAction(logoutOthers, status, async () => {
+      await api('/api/auth/sessions/logout-others', {method: 'POST', body: '{}'});
+      await loadAccountSecurity('Ostatné zariadenia boli odhlásené.');
+    });
+  };
+}
+
+async function loadAccountSecurity(notice) {
+  const root = $('#account-security');
+  if (!root) return;
+  const browser = typeof window === 'undefined' ? null : window;
+  const passkeyReady = passkeyUiAvailable(AUTH_V3_ENABLED, browser);
+  try {
+    const values = await Promise.all([
+      api('/api/auth/passkeys'), api('/api/auth/sessions')
+    ]);
+    if ($('#account-security') !== root) return;
+    const passkeys = values[0] && values[0].passkeys || [];
+    const sessions = values[1] && values[1].sessions || [];
+    root.innerHTML = securityPanelHtml(
+      passkeyReady, passkeys, sessions, {notice: notice || ''});
+    bindSecurityControls(passkeys, sessions);
+  } catch (error) {
+    if ($('#account-security') !== root || (error && error.authRequired)) return;
+    root.innerHTML = securityPanelHtml(passkeyReady, [], [], {
+      error: (error && error.message) || 'Zabezpečenie účtu sa nepodarilo načítať.'
+    });
+    bindSecurityControls([], []);
+  }
+}
+
 function vNast() {
   const varenie = ME.frekvencia === 1 ? 'Varím každý deň' :
     'Varím raz za ' + ME.frekvencia + ' dni';
@@ -1555,6 +1865,8 @@ function vNast() {
       <div class="ing" style="border:0"><span>Obchody</span><span class="r">${ME.obchody.join(' · ')}</span></div>
     </div>
     ${passwordSetupCard(ME, localStorage)}
+    ${ME.auth_v3 ? `<div id="account-security">${securityPanelHtml(
+      false, [], [], {loading: true})}</div>` : ''}
     <p class="muted" style="margin:-4px 0 16px">Porcie sú kuchársky odhad na plánovanie nákupu, nie individuálne výživové odporúčanie.</p>
     <button class="btn btn--ghost" id="zmen">Zmeniť nastavenie</button>
     <div style="height:10px"></div>
@@ -1565,6 +1877,7 @@ function vNast() {
     dismissPasswordSetup(ME, localStorage);
     $('#password-setup-card').remove();
   };
+  if (ME.auth_v3) loadAccountSecurity();
   $('#zmen').onclick = viewOnboarding;
   $('#odhl').onclick = () => runGuardedAction($('#odhl'), $('#nast-err'), async () => {
     await api('/api/auth/logout',{method:'POST'});

@@ -67,7 +67,8 @@ def test_account_screens_have_compact_tabs_correct_autocomplete_and_slovak_state
         "account-screen-markup.js",
         source
         + "\nprocess.stdout.write(JSON.stringify({"
-        + "login:authScreenHtml('login'),"
+        + "login:authScreenHtml('login',false),"
+        + "passkeyLogin:authScreenHtml('login',true),"
         + "register:authScreenHtml('register'),"
         + "forgot:authScreenHtml('forgot')}));\n",
     )
@@ -75,6 +76,9 @@ def test_account_screens_have_compact_tabs_correct_autocomplete_and_slovak_state
     assert result.returncode == 0, result.stdout + result.stderr
     screens = json.loads(result.stdout)
     assert "Prihlásiť sa" in screens["login"]
+    assert "Prihlásiť biometriou" not in screens["login"]
+    assert "Prihlásiť biometriou" in screens["passkeyLogin"]
+    assert 'autocomplete="current-password"' in screens["passkeyLogin"]
     assert "Vytvoriť účet" in screens["login"]
     assert 'autocomplete="email"' in screens["login"]
     assert 'autocomplete="current-password"' in screens["login"]
@@ -84,7 +88,10 @@ def test_account_screens_have_compact_tabs_correct_autocomplete_and_slovak_state
     assert "Poslať odkaz na obnovu" in screens["forgot"]
     assert 'type="password"' not in screens["forgot"]
     assert all('role="status"' in screen for screen in screens.values())
-    assert all("passkey" not in screen.lower() for screen in screens.values())
+    assert all(
+        "passkey" not in screens[name].lower()
+        for name in ("login", "register", "forgot")
+    )
     assert all('role="tab"' not in screen for screen in screens.values())
     assert all('role="tablist"' not in screen for screen in screens.values())
     assert all("aria-selected" not in screen for screen in screens.values())
@@ -95,16 +102,411 @@ def test_account_screens_have_compact_tabs_correct_autocomplete_and_slovak_state
 
 
 @needs_node
+def test_passkey_login_is_hidden_without_flag_or_browser_capability(tmp_path):
+    html = app_html()
+    capability = function_source(html, "passkeyUiAvailable")
+    markup = function_source(html, "authScreenHtml")
+    result = run_node(
+        tmp_path,
+        "passkey-capability.js",
+        capability
+        + "\n"
+        + markup
+        + r"""
+const unsupported={};
+const supported={PublicKeyCredential:function PublicKeyCredential(){}};
+const states={
+  flagOff:passkeyUiAvailable(false,supported),
+  unsupported:passkeyUiAvailable(true,unsupported),
+  supported:passkeyUiAvailable(true,supported)
+};
+const screens={
+  flagOff:authScreenHtml('login',states.flagOff),
+  unsupported:authScreenHtml('login',states.unsupported),
+  supported:authScreenHtml('login',states.supported),
+  register:authScreenHtml('register',states.supported)
+};
+process.stdout.write(JSON.stringify({states,screens}));
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    state = json.loads(result.stdout)
+    assert state["states"] == {
+        "flagOff": False,
+        "unsupported": False,
+        "supported": True,
+    }
+    assert "Prihlásiť biometriou" not in state["screens"]["flagOff"]
+    assert "Prihlásiť biometriou" not in state["screens"]["unsupported"]
+    assert "Prihlásiť biometriou" in state["screens"]["supported"]
+    assert "Prihlásiť biometriou" not in state["screens"]["register"]
+    assert all(
+        'id="auth-password"' in state["screens"][name]
+        for name in ("flagOff", "unsupported", "supported")
+    )
+
+
+@needs_node
+def test_passkey_binary_conversion_and_navigator_option_mapping(tmp_path):
+    html = app_html()
+    names = [
+        "base64urlToBuffer",
+        "bufferToBase64url",
+        "prepareRegistrationOptions",
+        "prepareAuthenticationOptions",
+        "registrationCredentialJson",
+        "authenticationCredentialJson",
+    ]
+    source = "\n".join(function_source(html, name) for name in names)
+    result = run_node(
+        tmp_path,
+        "passkey-binary-contract.js",
+        source
+        + r"""
+const roundTrip=bufferToBase64url(base64urlToBuffer('-__vAAE'));
+const createOptions=prepareRegistrationOptions({
+  challenge:'-_8A',user:{id:'AQID',name:'cook@example.com'},
+  excludeCredentials:[{type:'public-key',id:'BAUG',transports:['internal']}],
+  rp:{id:'uvar.si',name:'Uvar.si'}
+});
+const getOptions=prepareAuthenticationOptions({
+  challenge:'BwgJ',rpId:'uvar.si',
+  allowCredentials:[{type:'public-key',id:'CgsM',transports:['hybrid']}]
+});
+const registration=registrationCredentialJson({
+  id:'credential-id',type:'public-key',rawId:new Uint8Array([13,14]).buffer,
+  response:{
+    clientDataJSON:new Uint8Array([15]).buffer,
+    attestationObject:new Uint8Array([16,17]).buffer,
+    getTransports(){return ['internal','hybrid']}
+  },
+  getClientExtensionResults(){return {credProps:{rk:true}}}
+});
+const assertion=authenticationCredentialJson({
+  id:'credential-id',type:'public-key',rawId:new Uint8Array([18]).buffer,
+  response:{
+    clientDataJSON:new Uint8Array([19]).buffer,
+    authenticatorData:new Uint8Array([20]).buffer,
+    signature:new Uint8Array([21]).buffer,
+    userHandle:null
+  },
+  getClientExtensionResults(){return {}}
+});
+process.stdout.write(JSON.stringify({roundTrip,
+  create:{challenge:[...new Uint8Array(createOptions.challenge)],
+    user:[...new Uint8Array(createOptions.user.id)],
+    excluded:[...new Uint8Array(createOptions.excludeCredentials[0].id)],
+    rp:createOptions.rp},
+  get:{challenge:[...new Uint8Array(getOptions.challenge)],
+    allowed:[...new Uint8Array(getOptions.allowCredentials[0].id)],
+    rpId:getOptions.rpId},registration,assertion}));
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    state = json.loads(result.stdout)
+    assert state["roundTrip"] == "-__vAAE"
+    assert state["create"] == {
+        "challenge": [251, 255, 0],
+        "user": [1, 2, 3],
+        "excluded": [4, 5, 6],
+        "rp": {"id": "uvar.si", "name": "Uvar.si"},
+    }
+    assert state["get"] == {
+        "challenge": [7, 8, 9],
+        "allowed": [10, 11, 12],
+        "rpId": "uvar.si",
+    }
+    assert state["registration"] == {
+        "credential": {
+            "id": "credential-id",
+            "rawId": "DQ4",
+            "type": "public-key",
+            "response": {"clientDataJSON": "Dw", "attestationObject": "EBE"},
+            "clientExtensionResults": {"credProps": {"rk": True}},
+        },
+        "transports": ["internal", "hybrid"],
+    }
+    assert state["assertion"] == {
+        "id": "credential-id",
+        "rawId": "Eg",
+        "type": "public-key",
+        "response": {
+            "clientDataJSON": "Ew",
+            "authenticatorData": "FA",
+            "signature": "FQ",
+            "userHandle": None,
+        },
+        "clientExtensionResults": {},
+    }
+
+
+@needs_node
+def test_passkey_ceremonies_map_create_and_get_to_backend_verify_posts(tmp_path):
+    html = app_html()
+    names = [
+        "base64urlToBuffer",
+        "bufferToBase64url",
+        "prepareRegistrationOptions",
+        "prepareAuthenticationOptions",
+        "registrationCredentialJson",
+        "authenticationCredentialJson",
+        "performPasskeyLogin",
+        "performPasskeyRegistration",
+    ]
+    source = "\n".join(function_source(html, name) for name in names)
+    result = run_node(
+        tmp_path,
+        "passkey-ceremony-mapping.js",
+        source
+        + r"""
+const calls=[];const navigatorCalls=[];
+async function accountApi(request){
+  calls.push(request);
+  if(request.url.endsWith('/register/options'))return {
+    challenge:'AQID',user:{id:'BAUG',name:'cook@example.com'},rp:{id:'uvar.si'},
+    excludeCredentials:[]
+  };
+  if(request.url.endsWith('/login/options'))return {
+    challenge:'BwgJ',rpId:'uvar.si',allowCredentials:[]
+  };
+  return {ok:true,redirect:'/app'};
+}
+const registration={
+  id:'register-id',type:'public-key',rawId:new Uint8Array([10]).buffer,
+  response:{clientDataJSON:new Uint8Array([11]).buffer,
+    attestationObject:new Uint8Array([12]).buffer,
+    getTransports(){return ['internal']}},
+  getClientExtensionResults(){return {}}
+};
+const assertion={
+  id:'login-id',type:'public-key',rawId:new Uint8Array([13]).buffer,
+  response:{clientDataJSON:new Uint8Array([14]).buffer,
+    authenticatorData:new Uint8Array([15]).buffer,
+    signature:new Uint8Array([16]).buffer,userHandle:new Uint8Array([17]).buffer},
+  getClientExtensionResults(){return {}}
+};
+const credentialsApi={
+  async create(argument){navigatorCalls.push(['create',[...new Uint8Array(argument.publicKey.challenge)]]);return registration},
+  async get(argument){navigatorCalls.push(['get',[...new Uint8Array(argument.publicKey.challenge)]]);return assertion}
+};
+(async()=>{
+  await performPasskeyRegistration(credentialsApi);
+  await performPasskeyLogin('cook@example.com',credentialsApi);
+  process.stdout.write(JSON.stringify({navigatorCalls,calls:calls.map(call=>({
+    url:call.url,method:call.options.method,body:JSON.parse(call.options.body)}))}));
+})().catch(error=>{console.error(error);process.exit(1)});
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    state = json.loads(result.stdout)
+    assert state["navigatorCalls"] == [["create", [1, 2, 3]], ["get", [7, 8, 9]]]
+    assert [call["url"] for call in state["calls"]] == [
+        "/api/auth/passkey/register/options",
+        "/api/auth/passkey/register/verify",
+        "/api/auth/passkey/login/options",
+        "/api/auth/passkey/login/verify",
+    ]
+    assert all(call["method"] == "POST" for call in state["calls"])
+    register = state["calls"][1]["body"]
+    assert register == {
+        "challenge": "AQID",
+        "credential": {
+            "id": "register-id",
+            "rawId": "Cg",
+            "type": "public-key",
+            "response": {"clientDataJSON": "Cw", "attestationObject": "DA"},
+            "clientExtensionResults": {},
+        },
+        "transports": ["internal"],
+        "name": "Toto zariadenie",
+    }
+    login = state["calls"][3]["body"]
+    assert login["challenge"] == "BwgJ"
+    assert login["device_name"] == "Zariadenie s Passkey"
+    assert login["credential"]["response"] == {
+        "clientDataJSON": "Dg",
+        "authenticatorData": "Dw",
+        "signature": "EA",
+        "userHandle": "EQ",
+    }
+    assert "localStorage" not in source
+    assert "sessionStorage" not in source
+    assert "location.search" not in source
+
+
+@needs_node
+def test_passkey_ceremony_error_keeps_password_fallback_enabled(tmp_path):
+    html = app_html()
+    names = [
+        "runGuardedAction",
+        "base64urlToBuffer",
+        "bufferToBase64url",
+        "prepareAuthenticationOptions",
+        "authenticationCredentialJson",
+        "performPasskeyLogin",
+    ]
+    source = "\n".join(function_source(html, name) for name in names)
+    result = run_node(
+        tmp_path,
+        "passkey-cancel-fallback.js",
+        source
+        + r"""
+let calls=[];
+async function accountApi(request){
+  calls.push(request);
+  return {challenge:'AQID',rpId:'uvar.si',allowCredentials:[]};
+}
+const credentialsApi={get:async()=>{const error=new Error('cancelled');error.name='NotAllowedError';throw error}};
+const passkeyButton={disabled:false,textContent:'Prihlásiť biometriou'};
+const passwordButton={disabled:false,textContent:'Prihlásiť sa'};
+const password={value:'heslo zostáva použiteľné'};
+const status={textContent:'',style:{}};
+(async()=>{
+  const ok=await runGuardedAction(passkeyButton,status,
+    ()=>performPasskeyLogin('cook@example.com',credentialsApi));
+  process.stdout.write(JSON.stringify({ok,calls,password,passwordButton,passkeyButton,status}));
+})().catch(error=>{console.error(error);process.exit(1)});
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    state = json.loads(result.stdout)
+    assert state["ok"] is False
+    assert state["password"] == {"value": "heslo zostáva použiteľné"}
+    assert state["passwordButton"]["disabled"] is False
+    assert state["passkeyButton"] == {
+        "disabled": False,
+        "textContent": "Prihlásiť biometriou",
+    }
+    assert "zrušen" in state["status"]["textContent"].lower()
+    assert state["calls"][0]["url"] == "/api/auth/passkey/login/options"
+    assert len(state["calls"]) == 1
+
+
+@needs_node
+def test_device_and_passkey_controls_use_only_valid_opaque_list_identifiers(tmp_path):
+    html = app_html()
+    source = function_source(html, "deviceRevocationRequest")
+    source += "\n" + function_source(html, "passkeyDeletionRequest")
+    result = run_node(
+        tmp_path,
+        "device-revocation-contract.js",
+        source
+        + r"""
+const currentHash='a'.repeat(64),otherHash='b'.repeat(64);
+const current=deviceRevocationRequest({session_hash:currentHash,current:true});
+const other=deviceRevocationRequest({session_hash:otherHash,current:false});
+const malformed=deviceRevocationRequest({session_hash:'../../foreign',current:false});
+const passkey=passkeyDeletionRequest({credential_id:'AQID-_8'});
+const badPasskey=passkeyDeletionRequest({credential_id:'../foreign'});
+process.stdout.write(JSON.stringify({current,other,malformed,passkey,badPasskey}));
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    state = json.loads(result.stdout)
+    assert state["current"] == {
+        "url": "/api/auth/sessions/" + "a" * 64,
+        "options": {"method": "DELETE"},
+        "logsOutCurrent": True,
+    }
+    assert state["other"] == {
+        "url": "/api/auth/sessions/" + "b" * 64,
+        "options": {"method": "DELETE"},
+        "logsOutCurrent": False,
+    }
+    assert state["malformed"] is None
+    assert state["passkey"] == {
+        "url": "/api/auth/passkeys/AQID-_8",
+        "options": {"method": "DELETE"},
+    }
+    assert state["badPasskey"] is None
+
+    profile = function_source(html, "securityPanelHtml")
+    assert "Toto zariadenie" in profile
+    assert "Odhlásiť zariadenie" in profile
+    assert "Odhlásiť ostatné zariadenia" in profile
+    assert "Pridať biometriu/Passkey" in profile
+    assert "Biometrická kontrola ostáva" in profile
+    assert "verejné poverenie" in profile
+    assert "localStorage" not in source + profile
+    assert "sessionStorage" not in source + profile
+    assert "document.cookie" not in source + profile
+
+    handler_source = source + "\n" + function_source(html, "bindSecurityControls")
+    behavior = run_node(
+        tmp_path,
+        "device-handler-idor.js",
+        handler_source
+        + r"""
+const ownCurrent={session_hash:'a'.repeat(64),current:true};
+const ownOther={session_hash:'b'.repeat(64),current:false};
+const foreign={session_hash:'f'.repeat(64),current:false};
+const buttons={
+  current:{dataset:{sessionRevoke:ownCurrent.session_hash}},
+  other:{dataset:{sessionRevoke:ownOther.session_hash}},
+  foreign:{dataset:{sessionRevoke:foreign.session_hash}}
+};
+const calls=[];const loaded=[];const locations=[];
+const M={querySelectorAll(selector){
+  if(selector==='[data-session-revoke]')return [buttons.current,buttons.other,buttons.foreign];
+  if(selector==='[data-passkey-delete]')return [];
+  return [];
+}};
+function $(selector){return selector==='#security-status'?{textContent:''}:null}
+function confirm(){return true}
+async function runGuardedAction(_button,_status,action){await action();return true}
+async function api(url,options){calls.push({url,options});return {ok:true}}
+async function loadAccountSecurity(message){loaded.push(message)}
+const location={replace(url){locations.push(url)}};
+bindSecurityControls([], [ownCurrent,ownOther]);
+(async()=>{
+  await buttons.foreign.onclick();
+  await buttons.other.onclick();
+  await buttons.current.onclick();
+  process.stdout.write(JSON.stringify({calls,loaded,locations}));
+})().catch(error=>{console.error(error);process.exit(1)});
+""",
+    )
+    assert behavior.returncode == 0, behavior.stdout + behavior.stderr
+    handled = json.loads(behavior.stdout)
+    assert [call["url"] for call in handled["calls"]] == [
+        "/api/auth/sessions/" + "b" * 64,
+        "/api/auth/sessions/" + "a" * 64,
+    ]
+    assert handled["loaded"] == ["Zariadenie bolo odhlásené."]
+    assert handled["locations"] == ["/app"]
+
+
+def test_task8_security_controls_are_mobile_accessible_and_do_not_claim_biometrics_are_stored():
+    html = app_html()
+
+    assert ".security-list{" in html
+    assert ".security-row{" in html
+    assert "minmax(0,1fr)" in html
+    assert "@media (max-width:360px)" in html
+    assert 'aria-live="polite"' in function_source(html, "securityPanelHtml")
+    assert "biometrick" in html.lower()
+    assert "ostáva v zariadení" in html.lower()
+    assert "server ukladá odtlačok" not in html.lower()
+    assert "server ukladá tvár" not in html.lower()
+
+
+@needs_node
 def test_account_mode_buttons_preserve_email_and_focus_new_heading(tmp_path):
     html = app_html()
-    source = function_source(html, "authScreenHtml") + "\n" + function_source(
-        html, "viewAccountAuth"
-    )
+    source = function_source(html, "passkeyUiAvailable") + "\n"
+    source += function_source(html, "authScreenHtml") + "\n"
+    source += function_source(html, "viewAccountAuth")
     result = run_node(
         tmp_path,
         "account-mode-focus.js",
         source
         + r"""
+const AUTH_V3_ENABLED=false;
 const nodes=new Map();const focused=[];
 const M={html:'',set innerHTML(value){this.html=value;nodes.clear()},get innerHTML(){return this.html}};
 function $(selector){
