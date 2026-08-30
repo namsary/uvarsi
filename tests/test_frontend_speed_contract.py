@@ -11,6 +11,7 @@ Testy sú čisto v Pythone (prípadne cez node), aby bežali aj na Linuxe —
 na rozdiel od tests/test_app_html_contract.py, ktorý potrebuje cscript.exe.
 """
 import gzip
+import json
 import os
 import posixpath
 import re
@@ -24,7 +25,6 @@ import pytest
 APP = Path("app/static/app.html")
 LANDING = Path("index.html")
 FONT_DIR = Path("app/static/fonts")
-APP_DETAILS_CSS = Path("app/static/app-details.v1.css")
 NODE = os.environ.get("UVARSI_NODE") or shutil.which("node")
 needs_node = pytest.mark.skipif(NODE is None, reason="node runtime is not available")
 
@@ -44,6 +44,18 @@ def read(path):
 
 def head_of(html):
     return html.split("</head>", 1)[0]
+
+
+def local_render_blocking_stylesheets(page):
+    stylesheets = []
+    for tag in re.findall(r"<link\b[^>]*>", head_of(read(page))):
+        if not re.search(r"\brel=[\"']stylesheet[\"']", tag):
+            continue
+        href = re.search(r"\bhref=[\"']([^\"']+)[\"']", tag)
+        assert href, f"stylesheet bez href v {page}: {tag}"
+        assert href.group(1).startswith("/"), f"stylesheet nie je lokálny: {tag}"
+        stylesheets.append((href.group(1), repo_path_for_url(href.group(1))))
+    return stylesheets
 
 
 def font_faces(html):
@@ -361,6 +373,29 @@ def test_service_worker_behaviour_offline_shell_and_always_fresh_prices(tmp_path
     assert result.returncode == 0, f"exit {result.returncode}\n{result.stdout}{result.stderr}"
 
 
+@needs_node
+def test_offline_app_precaches_every_render_blocking_local_stylesheet(tmp_path):
+    stylesheet_urls = [url for url, _path in local_render_blocking_stylesheets(APP)]
+    script = tmp_path / "sw-offline-critical-styles.js"
+    script.write_text(
+        SW_HARNESS
+        + "\n(async () => {\n"
+        + worker_source()
+        + "\n  await dispatch('install');\n"
+        + f"  const required={json.dumps(stylesheet_urls)};\n"
+        + "  if(required.some(url=>!store.has(url))) process.exit(23);\n"
+        + "  process.exit(0);\n"
+        + "})().catch(error=>{console.error(error);process.exit(99)});\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [NODE, str(script)], capture_output=True, text=True, encoding="utf-8"
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 # ------------------------------------------------------------- štart appky
 @needs_node
 def test_profile_and_plan_are_requested_at_the_same_time_not_one_after_the_other(tmp_path):
@@ -669,12 +704,7 @@ def test_the_landing_ships_no_second_copy_of_the_receipt():
     assert 'id="landing-data" aria-live="polite" hidden' in html
 
 
-@pytest.mark.parametrize(
-    "page,budget",
-    [(APP, 27_000), (LANDING, 12_400)],
-    ids=lambda value: getattr(value, "name", str(value)),
-)
-def test_pages_stay_within_their_transfer_budget(page, budget):
+def test_app_render_critical_first_load_has_300_byte_gzip_headroom():
     """Strop, aby stránky ticho nenarástli späť.
 
     Caddy posiela gzip, takže rozhoduje komprimovaná veľkosť, nie tá na disku.
@@ -714,23 +744,33 @@ def test_pages_stay_within_their_transfer_budget(page, budget):
 
     30. 8. 2026: pribudla celá vrstva účtov — heslo, obnova, voliteľný Passkey,
     zoznam zariadení, bezpečné migračné stavy a ich prístupné mobilné UI.
-    app.html má 26 575 B gzip; nový vedomý strop 27 000 B ponecháva malú rezervu
-    a ďalej zabráni tichému rastu. Landing ostáva na pôvodnom limite.
+    Render-critical rozpočet ráta HTML aj každý lokálny blokujúci stylesheet.
+    Po spätnom inline kritických štýlov a cielenej minifikácii CSS/HTML whitespace
+    má jediný offline shell 26 544 B pri gzip level 5. Praktický strop 26 700 B
+    ponecháva aspoň 300 B pod pevným 27 000 B limitom. Landing ostáva nezmenený.
     """
-    compressed = len(gzip.compress(page.read_bytes(), 5))
-    assert compressed <= budget, (
-        f"{page} sa prenáša ako {compressed} B, strop je {budget} B"
+    assets = [("/app", APP), *local_render_blocking_stylesheets(APP)]
+    measured = [
+        (url, len(gzip.compress(path.read_bytes(), 5))) for url, path in assets
+    ]
+    compressed = sum(size for _url, size in measured)
+    assert compressed <= 26_700, (
+        f"render-critical prvé načítanie má {compressed} B pri gzip level 5; "
+        f"požadovaný strop s rezervou je 26700 B; aktíva: {measured}"
     )
 
 
-def test_app_detail_stylesheet_split_is_local_and_shipped():
-    html = read(APP)
+@pytest.mark.parametrize("page", PAGES, ids=lambda page: page.name)
+def test_every_local_render_blocking_stylesheet_is_shipped(page):
+    for url, path in local_render_blocking_stylesheets(page):
+        assert path.is_file(), f"{page} odkazuje na chýbajúci render-critical {url}"
 
-    assert 'href="/static/app-details.v1.css"' in head_of(html)
-    assert APP_DETAILS_CSS.is_file()
-    styles = read(APP_DETAILS_CSS)
-    assert ".meal{" in styles
-    assert ".storage-note{" in styles
+
+def test_landing_stays_within_its_transfer_budget_at_deployed_gzip_level():
+    compressed = len(gzip.compress(LANDING.read_bytes(), 5))
+    assert compressed <= 12_400, (
+        f"{LANDING} sa pri gzip level 5 prenáša ako {compressed} B; strop je 12400 B"
+    )
 
 
 def test_landing_keeps_practical_headroom_with_deployed_gzip_level():

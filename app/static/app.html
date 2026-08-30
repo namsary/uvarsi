@@ -9,117 +9,83 @@
 <link rel="manifest" href="/static/manifest.json">
 <link rel="preload" as="font" type="font/woff2" href="/static/fonts/manrope-400-800.7101939e.woff2" crossorigin>
 <link rel="preload" as="font" type="font/woff2" href="/static/fonts/anton-400.6d2997e3.woff2" crossorigin>
-<link rel="stylesheet" href="/static/app-details.v1.css">
 <style>
-@font-face{font-family:"Anton";font-style:normal;font-weight:400;font-display:swap;
-  src:url("/static/fonts/anton-400.6d2997e3.woff2") format("woff2")}
-@font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:400;font-display:swap;
-  src:url("/static/fonts/ibmplexmono-400.c55d055f.woff2") format("woff2")}
-@font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:600;font-display:swap;
-  src:url("/static/fonts/ibmplexmono-600.f4faf2fe.woff2") format("woff2")}
-@font-face{font-family:"Manrope";font-style:normal;font-weight:400 800;font-display:swap;
-  src:url("/static/fonts/manrope-400-800.7101939e.woff2") format("woff2")}
-:root{--canvas:#F7F5EF;--surface:#fff;--surface-soft:#F0EEE7;--ink:#183229;
-  --muted:#66746E;--accent:#C93427;--highlight:#F3C928;--success:#237A50;
-  --border:#DCD7CA;--radius-card:14px;--radius-control:10px;
-  --shadow-card:0 8px 24px rgba(24,50,41,.07);--paper:var(--canvas);
-  --paper-2:var(--surface-soft);--ink-soft:var(--muted);--yellow:var(--highlight);
-  --red:var(--accent);--green:var(--success);--line:var(--border)}
+@font-face{font-family:"Anton";font-style:normal;font-weight:400;font-display:swap;src:url("/static/fonts/anton-400.6d2997e3.woff2") format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:400;font-display:swap;src:url("/static/fonts/ibmplexmono-400.c55d055f.woff2") format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:600;font-display:swap;src:url("/static/fonts/ibmplexmono-600.f4faf2fe.woff2") format("woff2")}
+@font-face{font-family:"Manrope";font-style:normal;font-weight:400 800;font-display:swap;src:url("/static/fonts/manrope-400-800.7101939e.woff2") format("woff2")}
+:root{--canvas:#F7F5EF;--surface:#fff;--surface-soft:#F0EEE7;--ink:#183229;--muted:#66746E;--accent:#C93427;--highlight:#F3C928;--success:#237A50;--border:#DCD7CA;--radius-card:14px;--radius-control:10px;--shadow-card:0 8px 24px rgba(24,50,41,.07);}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 button,input,select{touch-action:manipulation}
 :focus-visible{outline:3px solid var(--highlight);outline-offset:3px}
-body{background:var(--canvas);color:var(--ink);font-family:"Manrope",system-ui,sans-serif;
-  line-height:1.55;padding-bottom:calc(86px + env(safe-area-inset-bottom));min-height:100vh}
+body{background:var(--canvas);color:var(--ink);font-family:"Manrope",system-ui,sans-serif;line-height:1.55;padding-bottom:calc(86px + env(safe-area-inset-bottom));min-height:100vh}
 .display{font-family:"Anton",sans-serif;font-weight:400;text-transform:uppercase;line-height:1.04;letter-spacing:.01em}
 .mono{font-family:"IBM Plex Mono",monospace}
 .wrap{max-width:680px;margin:0 auto;padding:0 18px}
-header{position:sticky;top:0;background:rgba(247,245,239,.97);border-bottom:1px solid var(--border);
-  padding:calc(11px + env(safe-area-inset-top)) 0 11px;z-index:20;box-shadow:0 3px 12px rgba(24,50,41,.04)}
+header{position:sticky;top:0;background:rgba(247,245,239,.97);border-bottom:1px solid var(--border);padding:calc(11px + env(safe-area-inset-top)) 0 11px;z-index:20;box-shadow:0 3px 12px rgba(24,50,41,.04)}
 .brand{font-family:"Anton",sans-serif;font-size:1.42rem;letter-spacing:.035em;text-transform:uppercase}
 .brand em{font-style:normal;color:var(--accent)}
-.btn{font-family:"Manrope",system-ui,sans-serif;font-weight:800;font-size:.93rem;padding:14px 18px;
-  min-height:48px;border:1px solid transparent;border-radius:var(--radius-control);background:var(--highlight);
-  color:var(--ink);cursor:pointer;display:block;width:100%;box-shadow:0 3px 0 #C9A816;
-  text-align:center;text-decoration:none;transition:transform .18s,box-shadow .18s,background .18s}
+.btn{font-family:"Manrope",system-ui,sans-serif;font-weight:800;font-size:.93rem;padding:14px 18px;min-height:48px;border:1px solid transparent;border-radius:var(--radius-control);background:var(--highlight);color:var(--ink);cursor:pointer;display:block;width:100%;box-shadow:0 3px 0 #C9A816;text-align:center;text-decoration:none;transition:transform .18s,box-shadow .18s,background .18s}
 .btn:hover{background:#F8D94E}.btn:active{transform:translateY(2px);box-shadow:0 1px 0 #C9A816}
 .btn:disabled{background:var(--surface-soft);color:var(--muted);border-color:var(--border);box-shadow:none;cursor:not-allowed}
 .btn--ghost{background:var(--surface);border-color:var(--border);box-shadow:none;color:var(--ink)}
 .btn--ghost:hover{background:var(--surface-soft)}
-input,select{width:100%;min-height:48px;padding:13px 14px;border:1px solid var(--border);
-  border-radius:var(--radius-control);background:var(--surface);font:inherit;font-size:1rem;color:var(--ink)}
+input,select{width:100%;min-height:48px;padding:13px 14px;border:1px solid var(--border);border-radius:var(--radius-control);background:var(--surface);font:inherit;font-size:1rem;color:var(--ink)}
 input:focus,select:focus{border-color:var(--ink)}
 label{font-size:.78rem;font-weight:800;color:var(--muted);display:block;margin-bottom:7px}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
-  padding:20px;margin-bottom:14px;box-shadow:var(--shadow-card)}
-.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.7rem;font-weight:600;
-  letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:20px;margin-bottom:14px;box-shadow:var(--shadow-card)}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.7rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
 .muted{color:var(--muted);font-size:.9rem}
 .center{text-align:center}
 .hidden{display:none!important}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
-.chip{font-family:"Manrope",system-ui,sans-serif;font-size:.84rem;font-weight:700;padding:10px 14px;
-  min-height:44px;border:1px solid var(--border);border-radius:9px;background:var(--surface);cursor:pointer}
+.chip{font-family:"Manrope",system-ui,sans-serif;font-size:.84rem;font-weight:700;padding:10px 14px;min-height:44px;border:1px solid var(--border);border-radius:9px;background:var(--surface);cursor:pointer}
 .chip:hover{border-color:var(--ink)}.chip.on{background:#FFF5BE;border-color:#D9B600;color:var(--ink)}
 .meal-chevron{width:18px;height:18px;color:var(--muted);transition:transform .18s;flex:none}
 .meal.open .meal-chevron{transform:rotate(180deg)}
-nav{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.98);border-top:1px solid var(--border);
-  display:flex;z-index:30;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -8px 24px rgba(24,50,41,.07)}
-nav button{position:relative;flex:1;background:none;border:0;min-height:64px;padding:8px 4px 7px;
-  font:700 .67rem "Manrope",sans-serif;color:var(--muted);cursor:pointer}
-nav button.on{color:var(--accent)}nav button.on::before{content:"";position:absolute;top:0;left:28%;right:28%;
-  height:3px;border-radius:0 0 4px 4px;background:var(--accent)}
+.meal{border:1px solid var(--border);border-radius:var(--radius-card);background:var(--surface);margin-bottom:12px;overflow:hidden;box-shadow:0 4px 16px rgba(24,50,41,.045)}
+.meal-h{display:flex;align-items:center;gap:12px;padding:14px 15px;cursor:pointer;width:100%;border:0;background:transparent;color:inherit;text-align:left;font:inherit;min-height:66px}.meal-h:hover{background:#FAF9F5}
+.meal-d{font-family:"Anton",sans-serif;font-size:1.05rem;min-width:42px;height:42px;border-radius:10px;background:var(--ink);color:#fff;display:grid;place-items:center}.meal-n{font-weight:800;font-size:1rem;line-height:1.3;flex:1}.meal-b{border-top:1px solid var(--border);padding:16px;display:none;background:#FCFBF8}.meal.open .meal-b{display:block}
+.ing{display:flex;justify-content:space-between;gap:12px;font-size:.85rem;padding:9px 0;border-bottom:1px solid var(--border)}.ing .r{white-space:nowrap;font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:.8rem}.ing .off{color:var(--accent);margin-left:7px}.ing-b{border-bottom:1px solid var(--border)}.ing-b .ing{border-bottom:0;padding-bottom:3px}.prov{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;font-family:"IBM Plex Mono",monospace;font-size:.66rem;line-height:1.45;color:var(--muted);padding:0 0 9px}.prov a{color:var(--muted);text-decoration:underline;text-underline-offset:2px}.prov a:active{color:var(--ink)}.prov .vld--dnes,.prov .vld--zajtra,.prov .vld--neplatna{color:var(--accent);font-weight:600}.ing--neplatna .r{color:var(--muted);text-decoration:line-through}
+.steps{list-style:none;counter-reset:s;margin-top:12px}.steps li{counter-increment:s;position:relative;padding-left:34px;margin-bottom:13px;font-size:.94rem}.steps li::before{content:counter(s);position:absolute;left:0;top:0;width:23px;height:23px;border-radius:50%;display:grid;place-items:center;background:var(--ink);color:#fff;font:600 .7rem "IBM Plex Mono",monospace}.rest{color:var(--muted);font-size:.86rem;padding:10px 14px;border:1px dashed var(--border);border-radius:10px;margin-bottom:12px;background:rgba(255,255,255,.45)}.rest--volno{border-style:dotted}.hint{background:var(--surface-soft);border:1px solid var(--border);border-radius:var(--radius-card);padding:16px;margin-bottom:14px}
+.save{position:relative;display:flex;justify-content:space-between;align-items:center;background:var(--highlight);padding:16px 20px 16px 16px;margin:18px 0;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%)}.save::after{content:"";position:absolute;right:5px;top:5px;width:8px;height:8px;border-radius:50%;background:var(--canvas)}.save b{font-family:"Anton",sans-serif;font-weight:400;font-size:1.9rem}.shop-h{font-size:.82rem;font-weight:800;background:var(--ink);color:#fff;padding:11px 14px;margin-top:16px;border-radius:12px 12px 0 0;letter-spacing:.04em}
+.item{display:flex;align-items:center;gap:11px;padding:13px 14px;border:1px solid var(--border);border-top:0;background:var(--surface);cursor:pointer;min-height:54px}.item:last-child{border-radius:0 0 12px 12px}.item.done{opacity:.5;text-decoration:line-through}.box{width:23px;height:23px;border:1.5px solid var(--border);border-radius:6px;flex-shrink:0;display:grid;place-items:center;font-weight:800;font-size:.82rem}.item.done .box{background:var(--success);border-color:var(--success);color:#fff}.item .nm{flex:1;font-size:.92rem;min-width:0}.item .pr{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:.8rem;white-space:nowrap;text-align:right}.item--doma{background:#F1F7F3;cursor:default}.item--doma .nm,.item--doma .pr{color:var(--muted)}.undo{display:block;font-family:"Manrope",sans-serif;font-size:.72rem;font-weight:800;text-decoration:underline;text-underline-offset:2px;cursor:pointer;color:var(--ink)}.item .doma-note,.item .buy-note{display:block;color:var(--muted);font-size:.72rem;line-height:1.4;margin-top:3px}.davky{margin:8px 0 2px;color:var(--muted)}.davky .d{padding:3px 0}.recipe-label{font-size:.76rem;font-weight:800;color:var(--ink);margin:18px 0 6px}.home-basics{display:flex;flex-wrap:wrap;gap:6px;margin:5px 0 12px}.home-basics span{font-size:.75rem;background:var(--surface-soft);border:1px solid var(--border);border-radius:7px;padding:5px 8px}.storage-note{margin:14px 0 4px;padding:11px 12px;background:#EFF7F1;border-left:3px solid var(--success);border-radius:0 9px 9px 0;color:var(--ink);font-size:.84rem}.item--partial{background:#FFFBEB}.item--partial .doma-note{color:var(--success)}
+nav{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.98);border-top:1px solid var(--border);display:flex;z-index:30;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -8px 24px rgba(24,50,41,.07)}
+nav button{position:relative;flex:1;background:none;border:0;min-height:64px;padding:8px 4px 7px;font:700 .67rem "Manrope",sans-serif;color:var(--muted);cursor:pointer}
+nav button.on{color:var(--accent)}nav button.on::before{content:"";position:absolute;top:0;left:28%;right:28%;height:3px;border-radius:0 0 4px 4px;background:var(--accent)}
 .nav-icon{display:block;width:22px;height:22px;margin:0 auto 3px;stroke:currentColor;fill:none;stroke-width:1.8}
 .icon-sprite{position:absolute;width:0;height:0;overflow:hidden}
 .state-icon{width:34px;height:34px;stroke:var(--accent);fill:none;stroke-width:1.7;margin-bottom:4px}
 .auth-shell{width:100%;max-width:460px;margin:30px auto 0}.auth-intro{margin-bottom:18px}
-.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);
-  white-space:nowrap;border:0}
-.auth-switcher{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px;padding:4px;
-  min-width:0;background:var(--highlight);border:1px solid #D5B118;border-radius:12px;margin:0 0 16px}
-.auth-switch{min-width:0;min-height:44px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:var(--ink);
-  font:800 .88rem "Manrope",sans-serif;cursor:pointer}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.auth-switcher{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px;padding:4px;min-width:0;background:var(--highlight);border:1px solid #D5B118;border-radius:12px;margin:0 0 16px}
+.auth-switch{min-width:0;min-height:44px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:var(--ink);font:800 .88rem "Manrope",sans-serif;cursor:pointer}
 .auth-switch.on{background:var(--surface);box-shadow:0 2px 7px rgba(24,50,41,.12)}
 .auth-title:focus{outline:3px solid var(--highlight);outline-offset:4px}
 .auth-field{margin-bottom:14px}.password-field{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}
 .password-field input{min-width:0}
-.password-toggle{min-height:48px;padding:0 13px;border:1px solid var(--border);border-radius:var(--radius-control);
-  background:var(--surface-soft);color:var(--ink);font:800 .78rem "Manrope",sans-serif;cursor:pointer}
-.auth-link{border:0;background:transparent;color:var(--accent);font:800 .82rem "Manrope",sans-serif;
-  text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:5px 0}
+.password-toggle{min-height:48px;padding:0 13px;border:1px solid var(--border);border-radius:var(--radius-control);background:var(--surface-soft);color:var(--ink);font:800 .78rem "Manrope",sans-serif;cursor:pointer}
+.auth-link{border:0;background:transparent;color:var(--accent);font:800 .82rem "Manrope",sans-serif;text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:5px 0}
 .auth-status{min-height:1.5em;margin-top:12px}.setup-card{border-left:4px solid var(--highlight)}
-.auth-divider{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--muted);
-  font:600 .68rem "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.06em}
+.auth-divider{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--muted);font:600 .68rem "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.06em}
 .auth-divider::before,.auth-divider::after{content:"";height:1px;background:var(--border);flex:1}
 .setup-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}.setup-actions .btn{width:auto;flex:1}
-.security-list{display:grid;gap:9px;margin-top:14px}.security-row{display:grid;
-  grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px;
-  border:1px solid var(--border);border-radius:var(--radius-control);background:var(--surface)}
+.security-list{display:grid;gap:9px;margin-top:14px}.security-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px;border:1px solid var(--border);border-radius:var(--radius-control);background:var(--surface)}
 .security-copy{min-width:0}.security-name{display:block;font-size:.88rem;font-weight:800;overflow-wrap:anywhere}
 .security-meta{display:block;margin-top:2px;color:var(--muted);font-size:.75rem}
 .security-row .btn{width:auto;min-height:42px;padding:9px 12px;font-size:.78rem;box-shadow:none}
-.security-current{display:inline-block;margin-left:6px;padding:2px 6px;border-radius:6px;
-  background:#FFF5BE;border:1px solid #E4CB48;font:600 .65rem "IBM Plex Mono",monospace}
+.security-current{display:inline-block;margin-left:6px;padding:2px 6px;border-radius:6px;background:#FFF5BE;border:1px solid #E4CB48;font:600 .65rem "IBM Plex Mono",monospace}
 .security-title:focus{outline:3px solid var(--highlight);outline-offset:4px}
 .security-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.security-actions .btn{width:auto;flex:1}
-@media (max-width:360px){.auth-shell{margin-top:20px}.auth-switch{padding:0 6px;font-size:.78rem}
-  .password-toggle{padding:0 9px;font-size:.72rem}.security-row{grid-template-columns:minmax(0,1fr)}
-  .security-row .btn{width:100%}.security-actions{display:grid;grid-template-columns:minmax(0,1fr)}}
-.spin{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);
-  border-radius:50%;animation:sp .8s linear infinite;margin:34px auto}
+@media (max-width:360px){.auth-shell{margin-top:20px}.auth-switch{padding:0 6px;font-size:.78rem}.password-toggle{padding:0 9px;font-size:.72rem}.security-row{grid-template-columns:minmax(0,1fr)}.security-row .btn{width:100%}.security-actions{display:grid;grid-template-columns:minmax(0,1fr)}}
+.spin{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;margin:34px auto}
 @keyframes sp{to{transform:rotate(360deg)}}
-.tag{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:.68rem;font-weight:600;
-  background:#FFF5BE;border:1px solid #E4CB48;border-radius:6px;padding:2px 6px;margin-left:6px}
-.plan-skeleton{margin-top:24px}.skeleton-head,.skeleton-meal{background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius-card);padding:18px;margin-bottom:12px}.skeleton-meal{display:flex;gap:12px;align-items:center}
-.skeleton-day{width:42px;height:42px;border-radius:10px}.skeleton-copy{flex:1}.skeleton-line{display:block;height:11px;
-  border-radius:8px;background:linear-gradient(90deg,#EAE7DF 25%,#F7F5EF 45%,#EAE7DF 65%);
-  background-size:240% 100%;animation:shimmer 1.4s ease-in-out infinite;margin:7px 0}
+.tag{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:.68rem;font-weight:600;background:#FFF5BE;border:1px solid #E4CB48;border-radius:6px;padding:2px 6px;margin-left:6px}
+.plan-skeleton{margin-top:24px}.skeleton-head,.skeleton-meal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:18px;margin-bottom:12px}.skeleton-meal{display:flex;gap:12px;align-items:center}
+.skeleton-day{width:42px;height:42px;border-radius:10px}.skeleton-copy{flex:1}.skeleton-line{display:block;height:11px;border-radius:8px;background:linear-gradient(90deg,#EAE7DF 25%,#F7F5EF 45%,#EAE7DF 65%);background-size:240% 100%;animation:shimmer 1.4s ease-in-out infinite;margin:7px 0}
 .skeleton-line.short{width:40%}.skeleton-line.medium{width:68%}@keyframes shimmer{to{background-position:-240% 0}}
-@media (min-width:700px){.wrap{padding:0 26px}body{padding-bottom:104px}nav{left:50%;right:auto;
-  width:680px;transform:translateX(-50%);bottom:14px;border:1px solid var(--border);border-radius:18px;
-  overflow:hidden;padding-bottom:0}.card{padding:22px}.meal-h{padding:16px 18px}}
-@media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;
-  animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+@media (min-width:700px){.wrap{padding:0 26px}body{padding-bottom:104px}nav{left:50%;right:auto;width:680px;transform:translateX(-50%);bottom:14px;border:1px solid var(--border);border-radius:18px;overflow:hidden;padding-bottom:0}.card{padding:22px}.meal-h{padding:16px 18px}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
 <body>
@@ -136,7 +102,7 @@ nav button.on{color:var(--accent)}nav button.on::before{content:"";position:abso
 
 <header><div class="wrap" style="display:flex;justify-content:space-between;align-items:center">
   <span class="brand">Uvar<em>.si</em></span>
-  <span id="hdr" class="mono" style="font-size:.72rem;color:var(--ink-soft)"></span>
+  <span id="hdr" class="mono" style="font-size:.72rem;color:var(--muted)"></span>
 </div></header>
 
 <main class="wrap" id="main"><div class="plan-skeleton" aria-label="Načítavam jedálniček">
@@ -561,14 +527,10 @@ function ingredientProvenance(item, today) {
 function ingredientRow(item, today) {
   if (!item) return '';
   if (item.spajza) {
-    return `<div class="ing-b"><div class="ing"><span>${esc(item.spajza)} · zo špajze</span>
-      <span class="r"></span></div></div>`;
+    return `<div class="ing-b"><div class="ing"><span>${esc(item.spajza)} · zo špajze</span><span class="r"></span></div></div>`;
   }
   var stav = offerValidity(item.valid_to, today).stav;
-  return `<div class="ing-b${stav === 'neplatna' ? ' ing--neplatna' : ''}">
-    <div class="ing"><span>${esc(item.nazov)}${item.obchod ? ' · ' + esc(item.obchod) : ''}</span>
-    <span class="r">${item.cena ? esc(item.cena) + ' €' : ''}${item.zlava ? `<span class="off">${esc(item.zlava)}</span>` : ''}</span></div>
-    ${ingredientProvenance(item, today)}</div>`;
+  return `<div class="ing-b${stav === 'neplatna' ? ' ing--neplatna' : ''}"><div class="ing"><span>${esc(item.nazov)}${item.obchod ? ' · ' + esc(item.obchod) : ''}</span><span class="r">${item.cena ? esc(item.cena) + ' €' : ''}${item.zlava ? `<span class="off">${esc(item.zlava)}</span>` : ''}</span></div> ${ingredientProvenance(item, today)}</div>`;
 }
 
 function armAuthResend(button, schedule) {
@@ -584,25 +546,7 @@ function viewLegacyLogin(sent, previousEmail) {
   clearAuthenticatedState();
   forgetProfile();
   $('#nav').classList.add('hidden');
-  M.innerHTML = sent ? `
-    <div class="card center" style="margin-top:40px">
-      <svg class="state-icon" aria-hidden="true"><use href="#i-mail"></use></svg>
-      <h2 class="display" style="font-size:1.5rem;margin:10px 0">Žiadosť je prijatá</h2>
-      <p class="muted">Poskytovateľ prijal žiadosť o prihlasovací e-mail. Odkaz platí 60 minút.</p>
-      <button class="btn btn--ghost" id="again">Poslať znova o 60 sekúnd</button>
-    </div>` : `
-    <div style="margin-top:36px">
-      <span class="eyebrow">Vitaj</span>
-      <h1 class="display" style="font-size:2.1rem;margin:8px 0 14px">Z letáka<br>rovno na tanier.</h1>
-      <p class="muted" style="margin-bottom:22px">Zadaj e-mail. Prihlasovací odkaz platí 60 minút.</p>
-      <div class="card">
-        <label>E-mail</label>
-        <input id="em" type="email" placeholder="tvoj@email.sk" autocomplete="email">
-        <div style="height:12px"></div>
-        <button class="btn" id="go">Poslať odkaz →</button>
-        <p id="err" class="muted" style="color:var(--red);margin-top:10px"></p>
-      </div>
-    </div>`;
+  M.innerHTML = sent ? ` <div class="card center" style="margin-top:40px"><svg class="state-icon" aria-hidden="true"><use href="#i-mail"></use></svg><h2 class="display" style="font-size:1.5rem;margin:10px 0">Žiadosť je prijatá</h2><p class="muted">Poskytovateľ prijal žiadosť o prihlasovací e-mail. Odkaz platí 60 minút.</p><button class="btn btn--ghost" id="again">Poslať znova o 60 sekúnd</button></div>` : ` <div style="margin-top:36px"><span class="eyebrow">Vitaj</span><h1 class="display" style="font-size:2.1rem;margin:8px 0 14px">Z letáka<br>rovno na tanier.</h1><p class="muted" style="margin-bottom:22px">Zadaj e-mail. Prihlasovací odkaz platí 60 minút.</p><div class="card"><label>E-mail</label><input id="em" type="email" placeholder="tvoj@email.sk" autocomplete="email"><div style="height:12px"></div><button class="btn" id="go">Poslať odkaz →</button><p id="err" class="muted" style="color:var(--accent);margin-top:10px"></p></div></div>`;
   if (sent) {
     const resend = $('#again');
     armAuthResend(resend);
@@ -776,30 +720,11 @@ function authScreenHtml(mode, passkeyReady) {
       ? 'Ak účet existuje, pošleme na e-mail bezpečný odkaz.'
       : 'Prihlás sa e-mailom a heslom.';
   const action = isRegister ? 'Vytvoriť účet' : isForgot ? 'Poslať odkaz na obnovu' : 'Prihlásiť sa';
-  return `<div class="auth-shell">
-    <div class="auth-intro"><span class="eyebrow">Tvoj účet</span>
-      <h1 class="display auth-title" id="auth-title" tabindex="-1" style="font-size:2rem;margin:8px 0 10px">${title}</h1>
-      <p class="muted">${note}</p></div>
-    <fieldset class="auth-switcher"><legend class="sr-only">Vyber spôsob prístupu k účtu</legend>
-      <button class="auth-switch${switchMode === 'login' ? ' on' : ''}" id="auth-login-mode" type="button"${switchMode === 'login' ? ' aria-current="page"' : ''}>Prihlásiť sa</button>
-      <button class="auth-switch${switchMode === 'register' ? ' on' : ''}" id="auth-register-mode" type="button"${switchMode === 'register' ? ' aria-current="page"' : ''}>Vytvoriť účet</button>
-    </fieldset>
-    <form class="card" id="auth-form" novalidate>
-      <div class="auth-field"><label for="auth-email">E-mail</label>
-        <input id="auth-email" name="email" type="email" inputmode="email" autocomplete="email" required placeholder="tvoj@email.sk"></div>
-      ${isForgot ? '' : `<div class="auth-field"><label for="auth-password">Heslo</label>
+  return `<div class="auth-shell"><div class="auth-intro"><span class="eyebrow">Tvoj účet</span><h1 class="display auth-title" id="auth-title" tabindex="-1" style="font-size:2rem;margin:8px 0 10px">${title}</h1><p class="muted">${note}</p></div><fieldset class="auth-switcher"><legend class="sr-only">Vyber spôsob prístupu k účtu</legend><button class="auth-switch${switchMode === 'login' ? ' on' : ''}" id="auth-login-mode" type="button"${switchMode === 'login' ? ' aria-current="page"' : ''}>Prihlásiť sa</button><button class="auth-switch${switchMode === 'register' ? ' on' : ''}" id="auth-register-mode" type="button"${switchMode === 'register' ? ' aria-current="page"' : ''}>Vytvoriť účet</button></fieldset><form class="card" id="auth-form" novalidate><div class="auth-field"><label for="auth-email">E-mail</label><input id="auth-email" name="email" type="email" inputmode="email" autocomplete="email" required placeholder="tvoj@email.sk"></div> ${isForgot ? '' : `<div class="auth-field"><label for="auth-password">Heslo</label>
         <div class="password-field"><input id="auth-password" name="password" type="password" autocomplete="${isRegister ? 'new-password' : 'current-password'}" minlength="10" maxlength="128" required>
           <button class="password-toggle" id="auth-password-toggle" type="button" aria-pressed="false">Zobraziť heslo</button></div>
-        ${isRegister ? '<p class="muted" style="margin-top:6px">Použi 10 až 128 znakov.</p>' : ''}</div>`}
-      ${active === 'login' ? '<button class="auth-link" id="auth-forgot" type="button">Zabudol som heslo</button><div style="height:8px"></div>' : ''}
-      ${active === 'login' ? '<button class="auth-link" id="auth-legacy-setup" type="button">Mám starý účet – nastaviť heslo</button>' : ''}
-      ${isForgot ? '<button class="auth-link" id="auth-back" type="button">Späť na prihlásenie</button><div style="height:8px"></div>' : ''}
-      <button class="btn" id="auth-submit" type="submit">${action}</button>
-      ${active === 'login' && passkeyReady ? `<div class="auth-divider"><span>alebo</span></div>
-        <button class="btn btn--ghost" id="auth-passkey" type="button">Prihlásiť biometriou</button>` : ''}
-      <p class="muted auth-status" id="auth-status" role="status" aria-live="polite"></p>
-    </form>
-  </div>`;
+        ${isRegister ? '<p class="muted" style="margin-top:6px">Použi 10 až 128 znakov.</p>' : ''}</div>`} ${active === 'login' ? '<button class="auth-link" id="auth-forgot" type="button">Zabudol som heslo</button><div style="height:8px"></div>' : ''} ${active === 'login' ? '<button class="auth-link" id="auth-legacy-setup" type="button">Mám starý účet – nastaviť heslo</button>' : ''} ${isForgot ? '<button class="auth-link" id="auth-back" type="button">Späť na prihlásenie</button><div style="height:8px"></div>' : ''} <button class="btn" id="auth-submit" type="submit">${action}</button> ${active === 'login' && passkeyReady ? `<div class="auth-divider"><span>alebo</span></div>
+        <button class="btn btn--ghost" id="auth-passkey" type="button">Prihlásiť biometriou</button>` : ''} <p class="muted auth-status" id="auth-status" role="status" aria-live="polite"></p></form></div>`;
 }
 
 function authRequest(mode, email, password) {
@@ -930,38 +855,8 @@ function viewOnboarding() {
   const frekvencia = profil.frekvencia || 2;
   const obchody = (profil.obchody && profil.obchody.length) ? profil.obchody : ['Kaufland','Tesco','Lidl'];
   const uzMaProfil = !!profil.onboarding;
-  M.innerHTML = `
-    <div style="margin-top:26px">
-      <span class="eyebrow">Nastavenie · 30 sekúnd</span>
-      <h1 class="display" style="font-size:1.8rem;margin:8px 0 18px">${uzMaProfil?'Uprav si nastavenie.':'Povedz mi tri veci.'}</h1>
-      ${uzMaProfil?`<p class="muted" style="margin:-8px 0 18px">Máš tu svoje doterajšie nastavenie. Zmeň, čo potrebuješ.</p>`:''}
-      <div class="card">
-        <label>Pre koho varíš?</label>
-        <label id="lbl-dospeli">Dospelí</label><div class="chips" id="c-dospeli" role="group" aria-labelledby="lbl-dospeli">
-          <button class="chip" type="button" data-step="-1" aria-label="Odobrať dospelého">−</button><output class="chip on" data-v="${adults}" aria-live="polite">${adults}</output><button class="chip" type="button" data-step="1" aria-label="Pridať dospelého">+</button>
-        </div><label id="lbl-deti" style="margin-top:12px">Deti</label><div class="chips" id="c-deti" role="group" aria-labelledby="lbl-deti">
-          <button class="chip" type="button" data-step="-1" aria-label="Odobrať dieťa">−</button><output class="chip on" data-v="${children}" aria-live="polite">${children}</output><button class="chip" type="button" data-step="1" aria-label="Pridať dieťa">+</button>
-        </div><p class="muted" style="margin-top:12px">Dieťa: 3–12 rokov, menšia kuchárska porcia. Porciu tínedžera rátame ako dospelú. Deti do 3 rokov neplánujeme.</p>
-      </div>
-      <div class="card">
-        <label>Ako často chceš variť?</label>
-        <div class="chips" id="c-frek">
-          ${[[1,'Každý deň'],[2,'Raz za 2 dni'],[3,'Raz za 3 dni']].map(([v,t])=>
-            `<div class="chip${v===frekvencia?' on':''}" data-v="${v}">${t}</div>`).join('')}
-        </div>
-      </div>
-      <div class="card">
-        <label>Kde nakupuješ?</label>
-        <div class="chips" id="c-obch">
-          ${['Kaufland','Tesco','Lidl'].map(o=>
-            `<div class="chip${obchody.indexOf(o)>=0?' on':''}" data-v="${o}">${o}</div>`).join('')}
-        </div>
-      </div>
-      <button class="btn" id="save">${uzMaProfil?'Uložiť nastavenia →':'Hotovo, ukáž mi plán →'}</button>
-      <p id="ob-err" class="muted" style="color:var(--red);margin-top:10px"></p>
-      ${uzMaProfil?`<div style="height:8px"></div>
-      <button class="btn btn--ghost" id="spat">Späť bez zmeny</button>`:''}
-    </div>`;
+  M.innerHTML = ` <div style="margin-top:26px"><span class="eyebrow">Nastavenie · 30 sekúnd</span><h1 class="display" style="font-size:1.8rem;margin:8px 0 18px">${uzMaProfil?'Uprav si nastavenie.':'Povedz mi tri veci.'}</h1> ${uzMaProfil?`<p class="muted" style="margin:-8px 0 18px">Máš tu svoje doterajšie nastavenie. Zmeň, čo potrebuješ.</p>`:''} <div class="card"><label>Pre koho varíš?</label><label id="lbl-dospeli">Dospelí</label><div class="chips" id="c-dospeli" role="group" aria-labelledby="lbl-dospeli"><button class="chip" type="button" data-step="-1" aria-label="Odobrať dospelého">−</button><output class="chip on" data-v="${adults}" aria-live="polite">${adults}</output><button class="chip" type="button" data-step="1" aria-label="Pridať dospelého">+</button></div><label id="lbl-deti" style="margin-top:12px">Deti</label><div class="chips" id="c-deti" role="group" aria-labelledby="lbl-deti"><button class="chip" type="button" data-step="-1" aria-label="Odobrať dieťa">−</button><output class="chip on" data-v="${children}" aria-live="polite">${children}</output><button class="chip" type="button" data-step="1" aria-label="Pridať dieťa">+</button></div><p class="muted" style="margin-top:12px">Dieťa: 3–12 rokov, menšia kuchárska porcia. Porciu tínedžera rátame ako dospelú. Deti do 3 rokov neplánujeme.</p></div><div class="card"><label>Ako často chceš variť?</label><div class="chips" id="c-frek"> ${[[1,'Každý deň'],[2,'Raz za 2 dni'],[3,'Raz za 3 dni']].map(([v,t])=> `<div class="chip${v===frekvencia?' on':''}" data-v="${v}">${t}</div>`).join('')} </div></div><div class="card"><label>Kde nakupuješ?</label><div class="chips" id="c-obch"> ${['Kaufland','Tesco','Lidl'].map(o=> `<div class="chip${obchody.indexOf(o)>=0?' on':''}" data-v="${o}">${o}</div>`).join('')} </div></div><button class="btn" id="save">${uzMaProfil?'Uložiť nastavenia →':'Hotovo, ukáž mi plán →'}</button><p id="ob-err" class="muted" style="color:var(--accent);margin-top:10px"></p> ${uzMaProfil?`<div style="height:8px"></div>
+      <button class="btn btn--ghost" id="spat">Späť bez zmeny</button>`:''} </div>`;
   const single = id => $(id).onclick = e => {
     if (!e.target.dataset.v) return;
     [...$(id).children].forEach(c=>c.classList.remove('on'));
@@ -1281,16 +1176,7 @@ async function nacitajPlan(gen) {
   } catch(e) {
     if (e.authRequired) return;
     showNav();
-    M.innerHTML = `<div class="card center" style="margin-top:30px">
-      <span class="eyebrow">Plán sa nepodaril</span>
-      <p style="margin-top:8px">${esc(e.message)}</p><div style="height:14px"></div>
-      <button class="btn" onclick="nacitajPlan(true)">Skúsiť znova</button>
-      <div style="height:10px"></div>
-      <button class="btn btn--ghost" id="plan-err-nast">Zmeniť obchody v nastaveniach</button>
-      <div style="height:10px"></div>
-      <button class="btn btn--ghost" id="plan-err-spajza">Otvoriť špajzu</button>
-      <p class="muted" style="margin-top:12px;font-size:.82rem">Dole v menu sa dostaneš aj na Špajzu a na Ja.</p>
-      </div>`;
+    M.innerHTML = `<div class="card center" style="margin-top:30px"><span class="eyebrow">Plán sa nepodaril</span><p style="margin-top:8px">${esc(e.message)}</p><div style="height:14px"></div><button class="btn" onclick="nacitajPlan(true)">Skúsiť znova</button><div style="height:10px"></div><button class="btn btn--ghost" id="plan-err-nast">Zmeniť obchody v nastaveniach</button><div style="height:10px"></div><button class="btn btn--ghost" id="plan-err-spajza">Otvoriť špajzu</button><p class="muted" style="margin-top:12px;font-size:.82rem">Dole v menu sa dostaneš aj na Špajzu a na Ja.</p></div>`;
     $('#plan-err-nast').onclick = () => { TAB = 'nastavenia'; render(); };
     $('#plan-err-spajza').onclick = () => { TAB = 'spajza'; render(); };
     return;
@@ -1299,11 +1185,7 @@ async function nacitajPlan(gen) {
 }
 
 function loadingSkeletonHtml(message) {
-  return `<div class="plan-skeleton" aria-label="${esc(message || 'Načítavam jedálniček')}">
-    <div class="skeleton-head"><span class="skeleton-line short"></span><span class="skeleton-line medium"></span></div>
-    <div class="skeleton-meal"><span class="skeleton-line skeleton-day"></span><span class="skeleton-copy"><span class="skeleton-line medium"></span><span class="skeleton-line short"></span></span></div>
-    <div class="skeleton-meal"><span class="skeleton-line skeleton-day"></span><span class="skeleton-copy"><span class="skeleton-line"></span><span class="skeleton-line short"></span></span></div>
-    <p class="center muted" style="margin-top:14px">${esc(message || 'Načítavam…')}</p></div>`;
+  return `<div class="plan-skeleton" aria-label="${esc(message || 'Načítavam jedálniček')}"><div class="skeleton-head"><span class="skeleton-line short"></span><span class="skeleton-line medium"></span></div><div class="skeleton-meal"><span class="skeleton-line skeleton-day"></span><span class="skeleton-copy"><span class="skeleton-line medium"></span><span class="skeleton-line short"></span></span></div><div class="skeleton-meal"><span class="skeleton-line skeleton-day"></span><span class="skeleton-copy"><span class="skeleton-line"></span><span class="skeleton-line short"></span></span></div><p class="center muted" style="margin-top:14px">${esc(message || 'Načítavam…')}</p></div>`;
 }
 
 function planPreparationHtml() {
@@ -1315,11 +1197,7 @@ function planFailureHtml() {
   const retryAllowed = !PLAN_FAILURE || PLAN_FAILURE.retry_allowed !== false;
   const message = (PLAN_FAILURE && PLAN_FAILURE.message) ||
     'Plán sa nepodarilo pripraviť. Skús to znova.';
-  return `<div class="card center" style="margin-top:30px">
-    <span class="eyebrow">Plán sa nepodaril</span>
-    <p style="margin:8px 0 14px">${esc(message)}</p>
-    <button class="btn" id="plan-retry"${retryAllowed ? '' : ' disabled'}>Skúsiť znova</button>
-    </div>`;
+  return `<div class="card center" style="margin-top:30px"><span class="eyebrow">Plán sa nepodaril</span><p style="margin:8px 0 14px">${esc(message)}</p><button class="btn" id="plan-retry"${retryAllowed ? '' : ' disabled'}>Skúsiť znova</button></div>`;
 }
 
 async function retryPlanPreparation() {
@@ -1394,78 +1272,38 @@ function vPlan() {
   }
   if (PLAN_NEEDS_REGEN) {
     const profil = PLAN_EMPTY_REASON === 'profil';
-    M.innerHTML = `<div class="card center" style="margin-top:30px">
-      <span class="eyebrow">${profil?'Nastavenia sa zmenili':'Špajza sa zmenila'}</span>
-      <p style="margin:8px 0 14px">${profil
-        ?'Pre nové nastavenia ešte nemáš aktuálny jedálniček.'
-        :'Predošlý jedálniček vznikol z iného obsahu špajze.'}</p>
-      <button class="btn" onclick="resumeInvalidatedPlan()">Vytvoriť aktuálny jedálniček →</button>
-      </div>`;
+    M.innerHTML = `<div class="card center" style="margin-top:30px"><span class="eyebrow">${profil?'Nastavenia sa zmenili':'Špajza sa zmenila'}</span><p style="margin:8px 0 14px">${profil ?'Pre nové nastavenia ešte nemáš aktuálny jedálniček.' :'Predošlý jedálniček vznikol z iného obsahu špajze.'}</p><button class="btn" onclick="resumeInvalidatedPlan()">Vytvoriť aktuálny jedálniček →</button></div>`;
     return;
   }
   if (!PLAN || !PLAN.jedla) return nacitajPlan(true);
   const dnes = todayIso();
   const spajzaSaZmenila = !PANTRY_HINT_HIDDEN && ME && ME.premium && pantryUnlocked(ME) &&
     pantryDiffers(PLAN.spajza, ME && ME.spajza);
-  let h = `<div style="margin:18px 0 6px"><span class="eyebrow">Tvoj týždeň</span>
-    <h1 class="display" style="font-size:1.5rem;margin-top:4px">Navarené z akcií</h1>
-    <p class="mono" style="font-size:.74rem;color:var(--ink-soft);margin-top:6px">
-      ${esc(weekLabel(PLAN.tyzden))} · ceny odčítané z letákov platných v tomto týždni</p>
-    <p class="mono" style="font-size:.7rem;color:var(--ink-soft);margin-top:4px">
-      Pri každej surovine je leták, strana a dokedy cena platí — otvor si ho a over si ju.</p></div>`;
+  let h = `<div style="margin:18px 0 6px"><span class="eyebrow">Tvoj týždeň</span><h1 class="display" style="font-size:1.5rem;margin-top:4px">Navarené z akcií</h1><p class="mono" style="font-size:.74rem;color:var(--muted);margin-top:6px"> ${esc(weekLabel(PLAN.tyzden))} · ceny odčítané z letákov platných v tomto týždni</p><p class="mono" style="font-size:.7rem;color:var(--muted);margin-top:4px"> Pri každej surovine je leták, strana a dokedy cena platí — otvor si ho a over si ju.</p></div>`;
   if (PLAN_NOTE) {
     h += `<div class="hint"><p style="margin:0">${esc(PLAN_NOTE)}</p></div>`;
   }
   if (spajzaSaZmenila) {
-    h += `<div class="hint" id="sp-hint">
-      <span class="eyebrow">Špajza sa zmenila</span>
-      <p style="margin:6px 0 4px">Nákupný zoznam to už zarátal. Chceš aj jedlá poskladať
-        okolo toho, čo máš doma?</p>
-       <p class="muted" style="margin-bottom:12px">Tento jedálniček nechávam tak, ako je,
-         kým to nepovieš. Nový sa pripraví na pozadí a berie jeden prepočet.</p>
-      <button class="btn" id="sp-hint-go">Navrhni jedlá z toho, čo mám doma →</button>
-      <div style="height:8px"></div>
-      <button class="btn btn--ghost" id="sp-hint-off">Nechať tak</button></div>`;
+    h += `<div class="hint" id="sp-hint"><span class="eyebrow">Špajza sa zmenila</span><p style="margin:6px 0 4px">Nákupný zoznam to už zarátal. Chceš aj jedlá poskladať okolo toho, čo máš doma?</p><p class="muted" style="margin-bottom:12px">Tento jedálniček nechávam tak, ako je, kým to nepovieš. Nový sa pripraví na pozadí a berie jeden prepočet.</p><button class="btn" id="sp-hint-go">Navrhni jedlá z toho, čo mám doma →</button><div style="height:8px"></div><button class="btn btn--ghost" id="sp-hint-off">Nechať tak</button></div>`;
   }
   planWeekDays(PLAN, ME && ME.frekvencia).forEach(row => {
     if (row.typ === 'jedlo') {
       const j = row.jedlo;
       const panelId = `meal-${String(row.den).toLowerCase()}`;
       const doma = j.recept?.skontroluj_doma || [];
-      h += `<div class="meal" data-d="${esc(row.den)}"><button type="button" class="meal-h"
-        aria-expanded="false" aria-controls="${esc(panelId)}">
-        <span class="meal-d">${esc(row.den)}</span><span class="meal-n">${esc(j.nazov)}</span>
-        <span class="mono" style="font-size:.72rem;color:var(--ink-soft)">${j.recept?.min||''} min</span>
-        <svg class="meal-chevron" aria-hidden="true"><use href="#i-chevron"></use></svg>
-      </button><div class="meal-b" id="${esc(panelId)}">
-        ${portionLine(j.recept)?`<p class="mono" style="font-size:.72rem;color:var(--ink-soft);margin-top:10px">${esc(portionLine(j.recept))}</p>`:''}
-        ${(j.recept?.davky||[]).length?`<div class="recipe-label">Na recept použiješ</div><div class="davky">${(j.recept?.davky||[]).map(d=>`<div class="d"><span>${esc(d)}</span></div>`).join('')}</div>`:''}
-        ${doma.length?`<div class="recipe-label">Skontroluj doma</div><div class="home-basics">${doma.map(d=>`<span>${esc(d)}</span>`).join('')}</div>`:''}
-        <div class="recipe-label">Akcie a ceny</div>
-        ${(j.suroviny||[]).map(s=>ingredientRow(s, dnes)).join('')}
-        <div class="recipe-label">Postup</div>
-        <ol class="steps">${(j.recept?.kroky||[]).map(k=>`<li>${esc(k)}</li>`).join('')}</ol>
-        ${j.recept?.uchovanie?`<div class="storage-note"><b>Uchovanie:</b> ${esc(j.recept.uchovanie)}</div>`:''}
-      </div></div>`;
+      h += `<div class="meal" data-d="${esc(row.den)}"><button type="button" class="meal-h" aria-expanded="false" aria-controls="${esc(panelId)}"><span class="meal-d">${esc(row.den)}</span><span class="meal-n">${esc(j.nazov)}</span><span class="mono" style="font-size:.72rem;color:var(--muted)">${j.recept?.min||''} min</span><svg class="meal-chevron" aria-hidden="true"><use href="#i-chevron"></use></svg></button><div class="meal-b" id="${esc(panelId)}"> ${portionLine(j.recept)?`<p class="mono" style="font-size:.72rem;color:var(--muted);margin-top:10px">${esc(portionLine(j.recept))}</p>`:''} ${(j.recept?.davky||[]).length?`<div class="recipe-label">Na recept použiješ</div><div class="davky">${(j.recept?.davky||[]).map(d=>`<div class="d"><span>${esc(d)}</span></div>`).join('')}</div>`:''} ${doma.length?`<div class="recipe-label">Skontroluj doma</div><div class="home-basics">${doma.map(d=>`<span>${esc(d)}</span>`).join('')}</div>`:''} <div class="recipe-label">Akcie a ceny</div> ${(j.suroviny||[]).map(s=>ingredientRow(s, dnes)).join('')} <div class="recipe-label">Postup</div><ol class="steps">${(j.recept?.kroky||[]).map(k=>`<li>${esc(k)}</li>`).join('')}</ol> ${j.recept?.uchovanie?`<div class="storage-note"><b>Uchovanie:</b> ${esc(j.recept.uchovanie)}</div>`:''} </div></div>`;
     } else if (row.typ === 'zvysok') {
       h += `<div class="rest">${esc(row.den)} · zvyšok z ${esc(dayGenitive(row.zdroj))}</div>`;
     } else {
       h += `<div class="rest rest--volno">${esc(row.den)} · voľno — nič naplánované</div>`;
     }
   });
-  h += `<div class="save"><span class="mono" style="font-size:.8rem;font-weight:600">UŠETRÍŠ</span>
-    <b>${esc(PLAN.usetris||'0,00')} €</b></div>
-    <p class="muted center mono" style="font-size:.74rem">Nákup ${esc(PLAN.nakup_spolu)} € ·
-    bežne ${esc(PLAN.bezne)} €</p>
-    <div style="height:14px"></div>`;
+  h += `<div class="save"><span class="mono" style="font-size:.8rem;font-weight:600">UŠETRÍŠ</span><b>${esc(PLAN.usetris||'0,00')} €</b></div><p class="muted center mono" style="font-size:.74rem">Nákup ${esc(PLAN.nakup_spolu)} € · bežne ${esc(PLAN.bezne)} €</p><div style="height:14px"></div>`;
   const zostava = regenerationsLeft(ME);
   if (zostava === 0) {
-    h += `<div class="hint" id="rg-strop">
-      <span class="eyebrow">Nový jedálniček dnes už nejde</span>
-      <p style="margin:6px 0 0">${esc(regenerationBlockedNote(ME, dnes))}</p></div>`;
+    h += `<div class="hint" id="rg-strop"><span class="eyebrow">Nový jedálniček dnes už nejde</span><p style="margin:6px 0 0">${esc(regenerationBlockedNote(ME, dnes))}</p></div>`;
   } else {
-    h += `<button class="btn btn--ghost" onclick="novyPlan()">Chcem iný plán ↻</button>
-      <p class="muted center mono" style="font-size:.7rem;margin-top:8px">${esc(regenerationNote(ME))}</p>`;
+    h += `<button class="btn btn--ghost" onclick="novyPlan()">Chcem iný plán ↻</button><p class="muted center mono" style="font-size:.7rem;margin-top:8px">${esc(regenerationNote(ME))}</p>`;
   }
   M.innerHTML = h;
   if (spajzaSaZmenila) {
@@ -1483,13 +1321,9 @@ function vZoznam() {
   if (!PLAN || !PLAN.nakupny_zoznam) { M.innerHTML = '<p class="muted">Najprv si vygeneruj plán.</p>'; return; }
   const doma = pantryOwnedCount(PLAN, PANTRY_OVERRIDE);
   const zaplatis = remainingTotal(PLAN, PANTRY_OVERRIDE);
-  let h = `<div style="margin:18px 0 6px"><span class="eyebrow">Nákupný zoznam</span>
-    <h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo kúpiť a kde</h1></div>`;
+  let h = `<div style="margin:18px 0 6px"><span class="eyebrow">Nákupný zoznam</span><h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo kúpiť a kde</h1></div>`;
   if (doma) {
-    h += `<div class="hint" id="doma-suhrn"><span class="eyebrow">Zo špajze</span>
-      <p style="margin:6px 0 4px">${doma} ${esc(itemsWord(doma))} nákupu pokrýva špajza
-        úplne alebo sčasti. Zaplatíš <b>${esc(zaplatis)} €</b> namiesto ${esc(PLAN.nakup_spolu||'')} €.</p>
-      <p class="muted" style="margin:0">Keď zhoda nesedí, ťukni na „Predsa kúpiť".</p></div>`;
+    h += `<div class="hint" id="doma-suhrn"><span class="eyebrow">Zo špajze</span><p style="margin:6px 0 4px">${doma} ${esc(itemsWord(doma))} nákupu pokrýva špajza úplne alebo sčasti. Zaplatíš <b>${esc(zaplatis)} €</b> namiesto ${esc(PLAN.nakup_spolu||'')} €.</p><p class="muted" style="margin:0">Keď zhoda nesedí, ťukni na „Predsa kúpiť".</p></div>`;
   }
   PLAN.nakupny_zoznam.forEach((s, si) => {
     h += `<div class="shop-h">${esc(s.obchod)}</div>`;
@@ -1498,27 +1332,14 @@ function vZoznam() {
       const id = String(p.offer_key || p.nazov || '');
       const mnozstvo = shoppingQuantityLabel(p) ? `<span class="tag">${esc(shoppingQuantityLabel(p))}</span>` : '';
       if (pantryOwned(p, PANTRY_OVERRIDE)) {
-        h += `<div class="item item--doma">
-          <span class="box">✓</span>
-          <span class="nm">${esc(p.nazov)}${mnozstvo}
-            <span class="doma-note">máš doma · zo špajze: ${esc(p.spajza || '')}</span></span>
-          <span class="pr">nekupuješ<br>
-            <span class="undo" data-doma="${esc(id)}">Predsa kúpiť</span></span></div>`;
+        h += `<div class="item item--doma"><span class="box">✓</span><span class="nm">${esc(p.nazov)}${mnozstvo} <span class="doma-note">máš doma · zo špajze: ${esc(p.spajza || '')}</span></span><span class="pr">nekupuješ<br><span class="undo" data-doma="${esc(id)}">Predsa kúpiť</span></span></div>`;
         return;
       }
       if (pantryPartial(p, PANTRY_OVERRIDE)) {
-        h += `<div class="item item--partial">
-          <span class="box">◐</span>
-          <span class="nm">${esc(p.nazov)}${mnozstvo}
-            <span class="doma-note">zo špajze použiješ ${esc(p.zo_spajze || '')} · na recept chýba ${esc(p.zostava || '')}${p.zostane_po_spajzi ? ' · z nákupu zostane približne ' + esc(p.zostane_po_spajzi) : ''}</span></span>
-          <span class="pr">${esc(p.cena_po_spajzi || p.cena || '')} €<br>
-            <span class="undo" data-doma="${esc(id)}">Kúpiť celé množstvo</span></span></div>`;
+        h += `<div class="item item--partial"><span class="box">◐</span><span class="nm">${esc(p.nazov)}${mnozstvo} <span class="doma-note">zo špajze použiješ ${esc(p.zo_spajze || '')} · na recept chýba ${esc(p.zostava || '')}${p.zostane_po_spajzi ? ' · z nákupu zostane približne ' + esc(p.zostane_po_spajzi) : ''}</span></span><span class="pr">${esc(p.cena_po_spajzi || p.cena || '')} €<br><span class="undo" data-doma="${esc(id)}">Kúpiť celé množstvo</span></span></div>`;
         return;
       }
-      h += `<div class="item${DONE[k]?' done':''}" data-k="${k}">
-        <span class="box">${DONE[k]?'✓':''}</span>
-        <span class="nm">${esc(p.nazov)}${mnozstvo}${p.pouzije ? `<span class="buy-note">na recept použiješ ${esc(p.pouzije)}${p.zostane ? ' · približne ' + esc(p.zostane) + ' zostane' : ''}</span>` : ''}</span>
-        <span class="pr">${p.cena?esc(p.cena)+' €':''}</span></div>`;
+      h += `<div class="item${DONE[k]?' done':''}" data-k="${k}"><span class="box">${DONE[k]?'✓':''}</span><span class="nm">${esc(p.nazov)}${mnozstvo}${p.pouzije ? `<span class="buy-note">na recept použiješ ${esc(p.pouzije)}${p.zostane ? ' · približne ' + esc(p.zostane) + ' zostane' : ''}</span>` : ''}</span><span class="pr">${p.cena?esc(p.cena)+' €':''}</span></div>`;
     });
   });
   M.innerHTML = h;
@@ -1548,20 +1369,8 @@ function vSpajzaZamknuta() {
     ? {popis: 'Chcem Premium →', zamknute: ''}
     : {popis: 'Premium sa zatiaľ nedá kúpiť', zamknute: ' disabled'};
   const poznamka = platbyIdu ? '' :
-    `<p class="muted" style="margin-top:10px">Platby ešte nie sú spustené. Keď ich
-       zapneme, nájdeš Premium presne tu.</p>`;
-  M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Špajza · Premium</span>
-    <h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo už máš doma</h1>
-    ${PANTRY_ACCESS_CHANGED ? '<div class="hint"><b>Prístup k Špajze sa zmenil.</b> Úpravy sú teraz zamknuté.</div>' : ''}
-    <p class="muted" style="margin:8px 0 16px">Zapíšeš, čo máš doma, a jedálniček aj nákupný
-      zoznam s tým rátajú. Zatiaľ skladáme plán len z akcií — o tvojej špajzi nevie.</p></div>
-    <div class="card">
-      <label>Pridať surovinu · zamknuté</label>
-      <input placeholder="napr. ${esc(SPAJZA_UKAZKA.join(', '))}" disabled>
-      <p class="muted" style="margin-top:10px">V bezplatnej verzii je zápis zamknutý —
-        hneď, nie až pri ukladaní.</p>
-    </div>
-    ${uspana && ulozenych > 0 ? `<div class="hint">
+    `<p class="muted" style="margin-top:10px">Platby ešte nie sú spustené. Keď ich zapneme, nájdeš Premium presne tu.</p>`;
+  M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Špajza · Premium</span><h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo už máš doma</h1> ${PANTRY_ACCESS_CHANGED ? '<div class="hint"><b>Prístup k Špajze sa zmenil.</b> Úpravy sú teraz zamknuté.</div>' : ''} <p class="muted" style="margin:8px 0 16px">Zapíšeš, čo máš doma, a jedálniček aj nákupný zoznam s tým rátajú. Zatiaľ skladáme plán len z akcií — o tvojej špajzi nevie.</p></div><div class="card"><label>Pridať surovinu · zamknuté</label><input placeholder="napr. ${esc(SPAJZA_UKAZKA.join(', '))}" disabled><p class="muted" style="margin-top:10px">V bezplatnej verzii je zápis zamknutý — hneď, nie až pri ukladaní.</p></div> ${uspana && ulozenych > 0 ? `<div class="hint">
       <span class="eyebrow">Tvoja špajza zostáva uložená</span>
       <p style="margin:6px 0 0">${esc(uspanaSprava)}</p>
     </div>` : `<div class="hint">
@@ -1569,26 +1378,19 @@ function vSpajzaZamknuta() {
       <p style="margin:6px 0 12px">Povedzme, že doma máš toto —
         <b>${esc(SPAJZA_UKAZKA.join(', '))}</b>. Potom sa stanú dve veci:</p>
       <p class="mono" style="font-size:.72rem;font-weight:600;margin-bottom:6px">1 · Vypadnú z nákupného zoznamu</p>
-      ${SPAJZA_UKAZKA.map(item => `<div class="item done"><span class="box">✓</span>
-        <span class="nm">${esc(item)}</span>
-        <span class="pr">${esc(SPAJZA_UKAZKA_CENY[item])} € · máš doma</span></div>`).join('')}
+      ${SPAJZA_UKAZKA.map(item => `<div class="item done"><span class="box">✓</span><span class="nm">${esc(item)}</span><span class="pr">${esc(SPAJZA_UKAZKA_CENY[item])} € · máš doma</span></div>`).join('')}
       <div class="save"><span class="mono" style="font-size:.74rem;font-weight:600">NÁKUP KLESNE O<br>
         24,90 € → 20,23 €</span><b>4,67 €</b></div>
       <p class="mono" style="font-size:.72rem;font-weight:600;margin:14px 0 6px">2 · Jedlá sa poskladajú okolo nich</p>
       <div class="meal"><div class="meal-h"><span class="meal-d">ST</span>
         <span class="meal-n">Rizoto z ryže a cibule</span>
-        <span class="mono" style="font-size:.72rem;color:var(--ink-soft)">30 min</span></div>
+        <span class="mono" style="font-size:.72rem;color:var(--muted)">30 min</span></div>
         <div class="meal-b" style="display:block">
           ${SPAJZA_UKAZKA.map(item => ingredientRow({spajza: item})).join('')}
         </div></div>
       <p class="muted" style="margin-top:12px">Dokupuješ už len to, čo k tomu chýba — a to
         z akcií. Nekúpiš druhýkrát to, čo doma máš, a menej jedla skončí v koši.</p>
-    </div>`}
-    <p style="margin:16px 0 12px"><b>Premium</b> skladá jedálniček z toho, čo máš doma,
-      a nákupný zoznam bez toho, čo už máš.</p>
-    <button class="btn" id="sp-premium"${tlacidlo.zamknute}>${esc(tlacidlo.popis)}</button>
-    ${poznamka}
-    <p id="sp-err" class="muted" style="color:var(--red);margin-top:10px"></p>`;
+    </div>`} <p style="margin:16px 0 12px"><b>Premium</b> skladá jedálniček z toho, čo máš doma, a nákupný zoznam bez toho, čo už máš.</p><button class="btn" id="sp-premium"${tlacidlo.zamknute}>${esc(tlacidlo.popis)}</button> ${poznamka} <p id="sp-err" class="muted" style="color:var(--accent);margin-top:10px"></p>`;
   if (!platbyIdu) return;
   $('#sp-premium').onclick = () => runGuardedAction($('#sp-premium'), $('#sp-err'), async () => {
     const platba = await api('/api/platba/start', {method:'POST'});
@@ -1599,26 +1401,8 @@ function vSpajzaZamknuta() {
 function vSpajza() {
   if (!pantryUnlocked(ME)) return vSpajzaZamknuta();
   const sp = ME.spajza || [];
-  M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Špajza</span>
-    <h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo už máš doma</h1>
-    <p class="muted" style="margin:8px 0 6px">Ukladá sa hneď a sama za seba.
-      Jedálniček sa tým nemení — v nákupnom zozname sa hneď odloží nabok to,
-      čo už doma máš.</p>
-    <p class="muted" style="margin:0 0 16px">Keď chceš aj jedlá poskladať okolo špajze,
-      povedz si o to tlačidlom dole.</p></div>
-    <div class="card"><label>Pridať surovinu a voliteľné množstvo</label>
-      <div style="display:flex;gap:8px"><input id="sp-new" placeholder="napr. ryža 500 g alebo vajcia 6 ks">
-      <button class="btn" style="width:auto;padding:14px 18px" id="sp-add">+</button></div>
-      <p class="muted" style="margin-top:10px">Ak množstvo nenapíšeš, budeme rátať, že máš suroviny dosť.</p>
-      <p id="sp-err" class="muted" style="color:var(--red);margin-top:10px"></p></div>
-    <div id="sp-list">${sp.map((s,i)=>`<div class="item"><span class="nm">${esc(s)}</span>
-      <span class="pr" data-i="${i}" style="color:var(--red);cursor:pointer">✕</span></div>`).join('')
-      || '<p class="muted center" style="padding:18px">Zatiaľ prázdna.</p>'}</div>
-    <div style="height:16px"></div>
-    <button class="btn btn--ghost" id="sp-navrhni"${sp.length ? '' : ' disabled'}>Navrhni jedlá z toho, čo mám doma →</button>
-    <p class="muted center mono" style="font-size:.7rem;margin-top:8px">${sp.length
-      ? 'Pripraví sa na pozadí a berie jeden prepočet z dnešného stropu.'
-      : 'Najprv napíš, čo máš doma.'}</p>`;
+  M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Špajza</span><h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo už máš doma</h1><p class="muted" style="margin:8px 0 6px">Ukladá sa hneď a sama za seba. Jedálniček sa tým nemení — v nákupnom zozname sa hneď odloží nabok to, čo už doma máš.</p><p class="muted" style="margin:0 0 16px">Keď chceš aj jedlá poskladať okolo špajze, povedz si o to tlačidlom dole.</p></div><div class="card"><label>Pridať surovinu a voliteľné množstvo</label><div style="display:flex;gap:8px"><input id="sp-new" placeholder="napr. ryža 500 g alebo vajcia 6 ks"><button class="btn" style="width:auto;padding:14px 18px" id="sp-add">+</button></div><p class="muted" style="margin-top:10px">Ak množstvo nenapíšeš, budeme rátať, že máš suroviny dosť.</p><p id="sp-err" class="muted" style="color:var(--accent);margin-top:10px"></p></div><div id="sp-list">${sp.map((s,i)=>`<div class="item"><span class="nm">${esc(s)}</span>
+      <span class="pr" data-i="${i}" style="color:var(--accent);cursor:pointer">✕</span></div>`).join('') || '<p class="muted center" style="padding:18px">Zatiaľ prázdna.</p>'}</div><div style="height:16px"></div><button class="btn btn--ghost" id="sp-navrhni"${sp.length ? '' : ' disabled'}>Navrhni jedlá z toho, čo mám doma →</button><p class="muted center mono" style="font-size:.7rem;margin-top:8px">${sp.length ? 'Pripraví sa na pozadí a berie jeden prepočet z dnešného stropu.' : 'Najprv napíš, čo máš doma.'}</p>`;
   const uloz = list => runGuardedAction($('#sp-add'), $('#sp-err'), async () => {
     try {
       await api('/api/spajza', {method:'POST', body:JSON.stringify({polozky:list})});
@@ -1672,13 +1456,7 @@ function passwordSetupCard(me, storage) {
   if (key && storage) {
     try { if (storage.getItem(key) === '1') return ''; } catch (error) {}
   }
-  return `<section class="card setup-card" id="password-setup-card">
-    <span class="eyebrow">Zabezpečenie účtu</span>
-    <h2 class="display" style="font-size:1.25rem;margin:7px 0">Nastaviť heslo</h2>
-    <p class="muted">Tvoje prihlásenie ostáva aktívne. Heslo si môžeš doplniť teraz alebo neskôr.</p>
-    <div class="setup-actions"><a class="btn" href="/api/auth/pages/heslo">Nastaviť heslo</a>
-      <button class="auth-link" id="skip-password-setup" type="button">Pokračovať bez nastavenia</button></div>
-  </section>`;
+  return `<section class="card setup-card" id="password-setup-card"><span class="eyebrow">Zabezpečenie účtu</span><h2 class="display" style="font-size:1.25rem;margin:7px 0">Nastaviť heslo</h2><p class="muted">Tvoje prihlásenie ostáva aktívne. Heslo si môžeš doplniť teraz alebo neskôr.</p><div class="setup-actions"><a class="btn" href="/api/auth/pages/heslo">Nastaviť heslo</a><button class="auth-link" id="skip-password-setup" type="button">Pokračovať bez nastavenia</button></div></section>`;
 }
 
 function deviceRevocationRequest(session) {
@@ -1722,45 +1500,15 @@ function securityPanelHtml(passkeyReady, passkeys, sessions, state) {
   const passkeyRows = listedPasskeys.map(item => {
     const name = item && item.name ? item.name : 'Passkey';
     const used = securityDateLabel(item && (item.last_used_at || item.created_at));
-    return `<div class="security-row"><span class="security-copy">
-      <span class="security-name">${esc(name)}</span>
-      <span class="security-meta">${used ? 'Použitý alebo pridaný ' + esc(used) : 'Pridaný Passkey'}</span></span>
-      <button class="btn btn--ghost" type="button" data-passkey-delete="${esc(item.credential_id)}"
-        aria-label="Odstrániť Passkey ${esc(name)}">Odstrániť</button></div>`;
+    return `<div class="security-row"><span class="security-copy"><span class="security-name">${esc(name)}</span><span class="security-meta">${used ? 'Použitý alebo pridaný ' + esc(used) : 'Pridaný Passkey'}</span></span><button class="btn btn--ghost" type="button" data-passkey-delete="${esc(item.credential_id)}" aria-label="Odstrániť Passkey ${esc(name)}">Odstrániť</button></div>`;
   }).join('');
   const sessionRows = listedSessions.map(item => {
     const name = item && item.device_name ? item.device_name : 'Zariadenie';
     const seen = securityDateLabel(item && item.last_seen_at);
     const current = item && item.current === true;
-    return `<div class="security-row"><span class="security-copy">
-      <span class="security-name">${esc(name)}${current ? '<span class="security-current">Toto zariadenie</span>' : ''}</span>
-      <span class="security-meta">${seen ? 'Aktívne ' + esc(seen) : 'Aktívna relácia'}</span></span>
-      <button class="btn btn--ghost" type="button" data-session-revoke="${esc(item.management_id)}"
-        aria-label="${current ? 'Odhlásiť toto zariadenie' : 'Odhlásiť zariadenie ' + esc(name)}">${current ? 'Odhlásiť toto zariadenie' : 'Odhlásiť zariadenie'}</button></div>`;
+    return `<div class="security-row"><span class="security-copy"><span class="security-name">${esc(name)}${current ? '<span class="security-current">Toto zariadenie</span>' : ''}</span><span class="security-meta">${seen ? 'Aktívne ' + esc(seen) : 'Aktívna relácia'}</span></span><button class="btn btn--ghost" type="button" data-session-revoke="${esc(item.management_id)}" aria-label="${current ? 'Odhlásiť toto zariadenie' : 'Odhlásiť zariadenie ' + esc(name)}">${current ? 'Odhlásiť toto zariadenie' : 'Odhlásiť zariadenie'}</button></div>`;
   }).join('');
-  return `<section class="card" aria-labelledby="passkey-security-title">
-    <span class="eyebrow">Prihlásenie</span>
-    <h2 class="display security-title" id="passkey-security-title" tabindex="-1" style="font-size:1.25rem;margin:7px 0">Biometria a Passkey</h2>
-    <p class="muted">Biometrická kontrola ostáva v zariadení. Uvar.si na serveri ukladá iba verejné poverenie Passkey.</p>
-    ${passkeyReady ? '<div class="security-actions"><button class="btn btn--ghost" id="passkey-add" type="button">Pridať biometriu/Passkey</button></div>' : ''}
-    <div class="security-list" aria-label="Tvoje Passkey">${loading
-      ? '<p class="muted">Načítavam Passkey…</p>'
-      : passkeyError
-        ? '<p class="muted" style="color:var(--red)">Passkey sa nepodarilo načítať.</p>'
-        : passkeyRows || '<p class="muted">Zatiaľ nemáš pridaný Passkey.</p>'}</div>
-  </section>
-  <section class="card" aria-labelledby="device-security-title">
-    <span class="eyebrow">Relácie</span>
-    <h2 class="display security-title" id="device-security-title" tabindex="-1" style="font-size:1.25rem;margin:7px 0">Tvoje zariadenia</h2>
-    <p class="muted">Odhlás zariadenie, ktoré už nepoužívaš. Identifikátory v tomto zozname nie sú prihlasovacie údaje.</p>
-    <div class="security-list" aria-label="Prihlásené zariadenia">${loading
-      ? '<p class="muted">Načítavam zariadenia…</p>'
-      : sessionError
-        ? '<p class="muted" style="color:var(--red)">Zariadenia sa nepodarilo načítať.</p>'
-        : sessionRows || '<p class="muted">Nenašli sa aktívne zariadenia.</p>'}</div>
-    ${!sessionError && listedSessions.length > 1 ? '<div class="security-actions"><button class="btn btn--ghost" id="sessions-logout-others" type="button">Odhlásiť ostatné zariadenia</button></div>' : ''}
-  </section>
-  ${passkeyError || sessionError ? '<button class="auth-link" id="security-retry" type="button">Skúsiť načítať znova</button>' : ''}`;
+  return `<section class="card" aria-labelledby="passkey-security-title"><span class="eyebrow">Prihlásenie</span><h2 class="display security-title" id="passkey-security-title" tabindex="-1" style="font-size:1.25rem;margin:7px 0">Biometria a Passkey</h2><p class="muted">Biometrická kontrola ostáva v zariadení. Uvar.si na serveri ukladá iba verejné poverenie Passkey.</p> ${passkeyReady ? '<div class="security-actions"><button class="btn btn--ghost" id="passkey-add" type="button">Pridať biometriu/Passkey</button></div>' : ''} <div class="security-list" aria-label="Tvoje Passkey">${loading ? '<p class="muted">Načítavam Passkey…</p>' : passkeyError ? '<p class="muted" style="color:var(--accent)">Passkey sa nepodarilo načítať.</p>' : passkeyRows || '<p class="muted">Zatiaľ nemáš pridaný Passkey.</p>'}</div></section><section class="card" aria-labelledby="device-security-title"><span class="eyebrow">Relácie</span><h2 class="display security-title" id="device-security-title" tabindex="-1" style="font-size:1.25rem;margin:7px 0">Tvoje zariadenia</h2><p class="muted">Odhlás zariadenie, ktoré už nepoužívaš. Identifikátory v tomto zozname nie sú prihlasovacie údaje.</p><div class="security-list" aria-label="Prihlásené zariadenia">${loading ? '<p class="muted">Načítavam zariadenia…</p>' : sessionError ? '<p class="muted" style="color:var(--accent)">Zariadenia sa nepodarilo načítať.</p>' : sessionRows || '<p class="muted">Nenašli sa aktívne zariadenia.</p>'}</div> ${!sessionError && listedSessions.length > 1 ? '<div class="security-actions"><button class="btn btn--ghost" id="sessions-logout-others" type="button">Odhlásiť ostatné zariadenia</button></div>' : ''} </section> ${passkeyError || sessionError ? '<button class="auth-link" id="security-retry" type="button">Skúsiť načítať znova</button>' : ''}`;
 }
 
 function securityStatusHtml() {
@@ -1853,7 +1601,7 @@ async function loadAccountSecurity(notice, focusTarget) {
   if (sessionError) announcements.push('Zariadenia sa nepodarilo načítať: ' + sessionError);
   status.textContent = announcements.join(' ');
   status.style.color = passkeyError || sessionError
-    ? 'var(--red)' : notice ? 'var(--success)' : '';
+    ? 'var(--accent)' : notice ? 'var(--success)' : '';
   bindSecurityControls(passkeys, sessions);
 
   if (focusTarget) {
@@ -1870,29 +1618,15 @@ async function loadAccountSecurity(notice, focusTarget) {
 function vNast() {
   const varenie = ME.frekvencia === 1 ? 'Varím každý deň' :
     'Varím raz za ' + ME.frekvencia + ' dni';
-  M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Nastavenia</span>
-    <h1 class="display" style="font-size:1.5rem;margin-top:4px">Tvoj profil</h1></div>
-    <div class="card"><div class="ing"><span>E-mail</span><span class="r">${esc(ME.email)}</span></div>
-      <div class="ing"><span>Varím pre</span><span class="r">${esc(householdLabel(ME))}</span></div>
-      <div class="ing"><span>Varenie</span><span class="r">${varenie}</span></div>
-      <div class="ing" style="border:0"><span>Obchody</span><span class="r">${ME.obchody.join(' · ')}</span></div>
-    </div>
-    ${passwordSetupCard(ME, localStorage)}
-    ${authV3Enabled(ME) && ME.password_configured ? `<div class="card">
+  M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Nastavenia</span><h1 class="display" style="font-size:1.5rem;margin-top:4px">Tvoj profil</h1></div><div class="card"><div class="ing"><span>E-mail</span><span class="r">${esc(ME.email)}</span></div><div class="ing"><span>Varím pre</span><span class="r">${esc(householdLabel(ME))}</span></div><div class="ing"><span>Varenie</span><span class="r">${varenie}</span></div><div class="ing" style="border:0"><span>Obchody</span><span class="r">${ME.obchody.join(' · ')}</span></div></div> ${passwordSetupCard(ME, localStorage)} ${authV3Enabled(ME) && ME.password_configured ? `<div class="card">
       <h2>Zmeniť heslo</h2><form id="pw">
         <label>Aktuálne heslo<input id="po" type="password" autocomplete="current-password"></label>
         <label>Nové heslo<input id="pn" type="password" autocomplete="new-password"></label>
         <button class="btn btn--ghost" id="pb">Zmeniť heslo</button><p id="pm"></p>
-      </form></div>` : ''}
-    ${authV3Enabled(ME) ? `<div id="account-security">
+      </form></div>` : ''} ${authV3Enabled(ME) ? `<div id="account-security">
       <div id="account-security-content">${securityPanelHtml(
         false, [], [], {loading: true})}</div>
-      ${securityStatusHtml()}</div>` : ''}
-    <p class="muted" style="margin:-4px 0 16px">Porcie sú kuchársky odhad na plánovanie nákupu, nie individuálne výživové odporúčanie.</p>
-    <button class="btn btn--ghost" id="zmen">Zmeniť nastavenie</button>
-    <div style="height:10px"></div>
-    <button class="btn btn--ghost" id="odhl" style="color:var(--red)">Odhlásiť sa</button>
-    <p id="nast-err" class="muted" style="color:var(--red);margin-top:10px"></p>`;
+      ${securityStatusHtml()}</div>` : ''} <p class="muted" style="margin:-4px 0 16px">Porcie sú kuchársky odhad na plánovanie nákupu, nie individuálne výživové odporúčanie.</p><button class="btn btn--ghost" id="zmen">Zmeniť nastavenie</button><div style="height:10px"></div><button class="btn btn--ghost" id="odhl" style="color:var(--accent)">Odhlásiť sa</button><p id="nast-err" class="muted" style="color:var(--accent);margin-top:10px"></p>`;
   const skipPasswordSetup = $('#skip-password-setup');
   if (skipPasswordSetup) skipPasswordSetup.onclick = () => {
     dismissPasswordSetup(ME, localStorage);
@@ -1927,11 +1661,7 @@ $('#nav').onclick = e => {
 
 function viewOffline(message) {
   $('#nav').classList.add('hidden');
-  M.innerHTML = `<div class="card center" style="margin-top:40px">
-    <svg class="state-icon" aria-hidden="true"><use href="#i-offline"></use></svg>
-    <h2 class="display" style="font-size:1.4rem;margin:10px 0">Bez spojenia</h2>
-    <p class="muted">${esc(message)}</p><div style="height:14px"></div>
-    <button class="btn" id="znova">Skúsiť znova</button></div>`;
+  M.innerHTML = `<div class="card center" style="margin-top:40px"><svg class="state-icon" aria-hidden="true"><use href="#i-offline"></use></svg><h2 class="display" style="font-size:1.4rem;margin:10px 0">Bez spojenia</h2><p class="muted">${esc(message)}</p><div style="height:14px"></div><button class="btn" id="znova">Skúsiť znova</button></div>`;
   $('#znova').onclick = () => { beginStartup(); start(); };
 }
 
