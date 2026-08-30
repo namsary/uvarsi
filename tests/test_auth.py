@@ -92,8 +92,9 @@ async function page(spec){
 (async()=>{
   const states=[];
   for(const scenario of scenarios){
-    await page(scenario);
-    states.push({stored:[...shared.entries()],calls:[...calls],replaced});
+    const rendered=await page(scenario);
+    states.push({stored:[...shared.entries()],calls:[...calls],replaced,
+      status:rendered.status});
   }
   process.stdout.write(JSON.stringify(states));
 })().catch(error=>{console.error(error);process.exit(1)});
@@ -956,74 +957,24 @@ def test_every_login_page_response_is_private_and_noindex(monkeypatch, tmp_path,
     assert '<meta name="robots" content="noindex,nofollow,noarchive">' in response.text
 
 
-def test_confirmation_page_contract_persists_fragment_ephemerally_before_hiding_it(monkeypatch, tmp_path):
+def test_migration_page_keeps_bearer_only_in_page_memory_and_scrubs_fragment(
+    monkeypatch, tmp_path
+):
     server, _ = load_auth_server(monkeypatch, tmp_path)
     html = TestClient(server.app).get("/prihlasenie").text
     script = confirmation_script(html)
 
-    assert "sessionStorage" in script
+    assert "sessionStorage" not in script
     assert "localStorage" not in script
-    assert script.index("sessionStorage") < script.index("history.replaceState")
-    assert re.search(r"sessionStorage\s*\.\s*setItem", script)
-    assert re.search(r"sessionStorage\s*\.\s*getItem", script)
-    assert re.search(r"sessionStorage\s*\.\s*removeItem", script)
-    assert "try" in script and "catch" in script
+    assert "location.search" not in script
+    assert "history.pushState" not in script
+    assert script.index("location.hash") < script.index("history.replaceState")
+    assert "fetch('/api/auth/verify'" in script
 
 
 @needs_node
-def test_fragment_token_survives_reload_then_confirms_once_from_session_storage(monkeypatch, tmp_path):
-    server, _ = load_auth_server(monkeypatch, tmp_path)
-    html = TestClient(server.app).get("/prihlasenie").text
-
-    result = run_confirmation_flow(
-        tmp_path,
-        html,
-        [
-            {"hash": "#token=fresh-secret", "status": 200},
-            {"hash": "", "confirm": True, "status": 200, "body": {"redirect": "/app"}},
-        ],
-    )
-
-    assert result.returncode == 0, result.stderr
-    states = json.loads(result.stdout)
-    assert states[0]["stored"]
-    assert states[0]["replaced"] == "/prihlasenie"
-    assert states[1]["calls"] == [
-        {"url": "/api/auth/verify", "body": {"token": "fresh-secret"}}
-    ]
-    assert states[1]["stored"] == []
-    assert states[1]["replaced"] == "/app"
-
-
-@needs_node
-def test_fresh_fragment_overrides_older_namespaced_session_token(monkeypatch, tmp_path):
-    server, _ = load_auth_server(monkeypatch, tmp_path)
-    html = TestClient(server.app).get("/prihlasenie").text
-
-    result = run_confirmation_flow(
-        tmp_path,
-        html,
-        [
-            {"hash": "#token=older-secret", "status": 200},
-            {"hash": "#token=fresh-secret", "status": 200},
-            {"hash": "", "confirm": True, "status": 200, "body": {"redirect": "/app"}},
-        ],
-    )
-
-    assert result.returncode == 0, result.stderr
-    states = json.loads(result.stdout)
-    assert states[0]["stored"] == [["uvarsi.auth.magic-token.v1", "older-secret"]]
-    assert states[1]["stored"] == [["uvarsi.auth.magic-token.v1", "fresh-secret"]]
-    assert states[2]["calls"] == [
-        {"url": "/api/auth/verify", "body": {"token": "fresh-secret"}}
-    ]
-    assert states[2]["stored"] == []
-
-
-@needs_node
-@pytest.mark.parametrize("status", [400, 410])
-def test_definitively_invalid_or_expired_token_is_removed_from_session_storage(
-    monkeypatch, tmp_path, status
+def test_fresh_migration_fragment_confirms_by_post_without_persisting_bearer(
+    monkeypatch, tmp_path
 ):
     server, _ = load_auth_server(monkeypatch, tmp_path)
     html = TestClient(server.app).get("/prihlasenie").text
@@ -1032,92 +983,47 @@ def test_definitively_invalid_or_expired_token_is_removed_from_session_storage(
         tmp_path,
         html,
         [
-            {"hash": "#token=bad-secret", "status": 200},
             {
-                "hash": "",
-                "confirm": True,
-                "status": status,
-                "body": {"detail": "Odkaz už nemožno použiť."},
-            },
-        ],
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout)[-1]["stored"] == []
-
-
-@needs_node
-def test_transient_network_failure_keeps_token_for_a_safe_reload_retry(monkeypatch, tmp_path):
-    server, _ = load_auth_server(monkeypatch, tmp_path)
-    html = TestClient(server.app).get("/prihlasenie").text
-
-    result = run_confirmation_flow(
-        tmp_path,
-        html,
-        [
-            {"hash": "#token=retry-secret", "status": 200},
-            {"hash": "", "confirm": True, "networkError": True, "status": 0},
-        ],
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout)[-1]["stored"]
-
-
-@needs_node
-def test_server_error_keeps_token_for_a_safe_reload_retry(monkeypatch, tmp_path):
-    server, _ = load_auth_server(monkeypatch, tmp_path)
-    html = TestClient(server.app).get("/prihlasenie").text
-
-    result = run_confirmation_flow(
-        tmp_path,
-        html,
-        [
-            {"hash": "#token=retry-after-5xx", "status": 200},
-            {
-                "hash": "",
-                "confirm": True,
-                "status": 503,
-                "body": {"detail": "Overenie je dočasne nedostupné."},
-            },
-        ],
-    )
-
-    assert result.returncode == 0, result.stderr
-    state = json.loads(result.stdout)[-1]
-    assert state["calls"] == [
-        {"url": "/api/auth/verify", "body": {"token": "retry-after-5xx"}}
-    ]
-    assert state["stored"] == [
-        ["uvarsi.auth.magic-token.v1", "retry-after-5xx"]
-    ]
-
-
-@needs_node
-def test_fresh_fragment_still_works_when_session_storage_is_unavailable(monkeypatch, tmp_path):
-    server, _ = load_auth_server(monkeypatch, tmp_path)
-    html = TestClient(server.app).get("/prihlasenie").text
-
-    result = run_confirmation_flow(
-        tmp_path,
-        html,
-        [
-            {
-                "hash": "#token=memory-only-secret",
-                "storage": False,
+                "hash": "#token=fresh-secret",
                 "confirm": True,
                 "status": 200,
-                "body": {"redirect": "/app"},
-            }
+                "body": {"redirect": "/heslo"},
+            },
         ],
     )
 
     assert result.returncode == 0, result.stderr
     state = json.loads(result.stdout)[0]
+    assert state["stored"] == []
     assert state["calls"] == [
-        {"url": "/api/auth/verify", "body": {"token": "memory-only-secret"}}
+        {"url": "/api/auth/verify", "body": {"token": "fresh-secret"}}
     ]
-    assert state["replaced"] == "/app"
+    assert state["replaced"] == "/heslo"
+
+
+@needs_node
+def test_reloaded_migration_page_has_no_bearer_and_requests_a_fresh_link(
+    monkeypatch, tmp_path
+):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    html = TestClient(server.app).get("/prihlasenie").text
+
+    result = run_confirmation_flow(
+        tmp_path,
+        html,
+        [
+            {"hash": "#token=page-closure-secret", "status": 200},
+            {"hash": "", "status": 200},
+        ],
+    )
+
+    assert result.returncode == 0, result.stderr
+    states = json.loads(result.stdout)
+    assert states[0]["stored"] == states[1]["stored"] == []
+    assert states[0]["replaced"] == states[1]["replaced"] == "/prihlasenie"
+    assert states[1]["calls"] == []
+    assert "odkaz už nie je v tejto karte" in states[1]["status"].lower()
+    assert "požiadaj o nový" in states[1]["status"].lower()
 
 
 def test_account_confirmation_and_password_pages_have_safe_accessible_controls(

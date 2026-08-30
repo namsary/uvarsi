@@ -85,6 +85,64 @@ def test_account_screens_have_compact_tabs_correct_autocomplete_and_slovak_state
     assert 'type="password"' not in screens["forgot"]
     assert all('role="status"' in screen for screen in screens.values())
     assert all("passkey" not in screen.lower() for screen in screens.values())
+    assert all('role="tab"' not in screen for screen in screens.values())
+    assert all('role="tablist"' not in screen for screen in screens.values())
+    assert all("aria-selected" not in screen for screen in screens.values())
+    assert 'id="auth-login-mode"' in screens["forgot"]
+    assert 'id="auth-login-mode" type="button" aria-current="page"' in screens[
+        "forgot"
+    ]
+
+
+@needs_node
+def test_account_mode_buttons_preserve_email_and_focus_new_heading(tmp_path):
+    html = app_html()
+    source = function_source(html, "authScreenHtml") + "\n" + function_source(
+        html, "viewAccountAuth"
+    )
+    result = run_node(
+        tmp_path,
+        "account-mode-focus.js",
+        source
+        + r"""
+const nodes=new Map();const focused=[];
+const M={html:'',set innerHTML(value){this.html=value;nodes.clear()},get innerHTML(){return this.html}};
+function $(selector){
+  const id=selector.startsWith('#')?selector.slice(1):selector;
+  if(!M.html.includes('id="'+id+'"'))return null;
+  if(!nodes.has(id))nodes.set(id,{value:'',onclick:null,onsubmit:null,
+    focus(){focused.push(id)},style:{},setAttribute(){}});
+  return nodes.get(id);
+}
+viewAccountAuth('forgot','cook@example.com');
+const forgotMarkup=M.innerHTML;const forgotEmail=$('#auth-email').value;
+$('#auth-register-mode').onclick();
+process.stdout.write(JSON.stringify({forgotMarkup,forgotEmail,
+  registerMarkup:M.innerHTML,registerEmail:$('#auth-email').value,focused}));
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    state = json.loads(result.stdout)
+    assert 'aria-current="page">Prihlásiť sa' in state["forgotMarkup"]
+    assert 'aria-current="page">Vytvoriť účet' in state["registerMarkup"]
+    assert state["forgotEmail"] == state["registerEmail"] == "cook@example.com"
+    assert state["focused"] == ["auth-title", "auth-title"]
+
+
+def test_account_controls_fit_320px_and_keep_native_visible_focus():
+    html = app_html()
+
+    assert ".auth-switcher{" in html
+    assert "grid-template-columns:minmax(0,1fr) minmax(0,1fr)" in html
+    switcher = html.split(".auth-switcher{", 1)[1].split("}", 1)[0]
+    switch = html.split(".auth-switch{", 1)[1].split("}", 1)[0]
+    assert "margin:0 0 16px" in switcher
+    assert "min-width:0" in switch
+    assert ".password-field{display:grid;grid-template-columns:minmax(0,1fr) auto" in html
+    assert ".password-field input{min-width:0}" in html
+    assert "@media (max-width:360px)" in html
+    assert ":focus-visible{outline:3px solid var(--highlight)" in html
 
 
 @needs_node
@@ -203,22 +261,52 @@ def test_feature_flag_keeps_legacy_magic_ui_and_enabled_ui_uses_guarded_actions(
 @needs_node
 def test_password_setup_card_is_non_blocking_and_only_shown_when_needed(tmp_path):
     html = app_html()
+    key_source = function_source(html, "passwordSetupDismissalKey")
     source = function_source(html, "passwordSetupCard")
+    dismiss_source = function_source(html, "dismissPasswordSetup")
     result = run_node(
         tmp_path,
         "password-setup-card.js",
-        source
-        + "\nprocess.stdout.write(JSON.stringify(["
-        + "passwordSetupCard({auth_v3:false,password_configured:false}),"
-        + "passwordSetupCard({auth_v3:true,password_configured:true}),"
-        + "passwordSetupCard({auth_v3:true,password_configured:false})]));\n",
+        key_source
+        + "\n"
+        + source
+        + "\n"
+        + dismiss_source
+        + r"""
+const values=new Map();const operations=[];
+const storage={
+  getItem(key){operations.push(['get',key]);return values.has(key)?values.get(key):null},
+  setItem(key,value){operations.push(['set',key,String(value)]);values.set(key,String(value))},
+  removeItem(key){operations.push(['remove',key]);values.delete(key)}
+};
+const first={id:7,email:'secret@example.com',auth_v3:true,password_configured:false};
+const other={id:8,email:'other@example.com',auth_v3:true,password_configured:false};
+const disabled=passwordSetupCard({...first,auth_v3:false},storage);
+const before=passwordSetupCard(first,storage);
+dismissPasswordSetup(first,storage);
+const dismissed=passwordSetupCard(first,storage);
+const otherUser=passwordSetupCard(other,storage);
+const configured=passwordSetupCard({...first,password_configured:true},storage);
+const resetAfterConfiguration=passwordSetupCard(first,storage);
+process.stdout.write(JSON.stringify({disabled,before,dismissed,otherUser,configured,
+  resetAfterConfiguration,entries:[...values.entries()],operations}));
+""",
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    disabled, configured, needed = json.loads(result.stdout)
-    assert disabled == ""
-    assert configured == ""
-    assert "Nastaviť heslo" in needed
-    assert "Pokračovať bez nastavenia" in needed
-    assert "/heslo" in needed
-    assert "passwordSetupCard(ME)" in function_source(html, "vNast")
+    state = json.loads(result.stdout)
+    assert state["disabled"] == ""
+    assert "Nastaviť heslo" in state["before"]
+    assert "Pokračovať bez nastavenia" in state["before"]
+    assert "/heslo" in state["before"]
+    assert state["dismissed"] == ""
+    assert "Nastaviť heslo" in state["otherUser"]
+    assert state["configured"] == ""
+    assert "Nastaviť heslo" in state["resetAfterConfiguration"]
+    assert state["entries"] == []
+    writes = [entry for entry in state["operations"] if entry[0] == "set"]
+    assert writes == [["set", "uvarsi.password-setup-dismissed.v1:7", "1"]]
+    assert "secret@example.com" not in json.dumps(state["operations"])
+    profile_source = function_source(html, "vNast")
+    assert "passwordSetupCard(ME, localStorage)" in profile_source
+    assert "dismissPasswordSetup(ME, localStorage)" in profile_source
