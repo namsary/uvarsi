@@ -327,6 +327,7 @@ CREATE TABLE IF NOT EXISTS spajza (
       AND jednotka IS NOT NULL
       AND typeof(mnozstvo) IN ('integer', 'real')
       AND mnozstvo > 0
+      AND mnozstvo < 1e999
       AND jednotka IN ('g', 'ml', 'piece')
     )
   )
@@ -439,6 +440,7 @@ def migrate_pantry_schema(con) -> None:
             AND NEW.jednotka IS NOT NULL
             AND typeof(NEW.mnozstvo) IN ('integer', 'real')
             AND NEW.mnozstvo > 0
+            AND NEW.mnozstvo < 1e999
             AND NEW.jednotka IN ('g', 'ml', 'piece')
           )
         )
@@ -455,6 +457,7 @@ def migrate_pantry_schema(con) -> None:
             AND NEW.jednotka IS NOT NULL
             AND typeof(NEW.mnozstvo) IN ('integer', 'real')
             AND NEW.mnozstvo > 0
+            AND NEW.mnozstvo < 1e999
             AND NEW.jednotka IN ('g', 'ml', 'piece')
           )
         )

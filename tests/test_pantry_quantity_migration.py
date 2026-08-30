@@ -109,6 +109,41 @@ def test_migration_rejects_invalid_quantities(server, connection, amount, unit):
         )
 
 
+def test_migration_rejects_positive_infinity_on_insert_and_update(
+    server, connection
+):
+    server.migrate_pantry_schema(connection)
+
+    with pytest.raises(sqlite3.IntegrityError):
+        connection.execute(
+            "INSERT INTO spajza(user_id,nazov,mnozstvo,jednotka) "
+            "VALUES(1,'ryža',?,'g')",
+            (float("inf"),),
+        )
+
+    connection.execute(
+        "INSERT INTO spajza(user_id,nazov,mnozstvo,jednotka) "
+        "VALUES(1,'ryža',250,'g')"
+    )
+    with pytest.raises(sqlite3.IntegrityError):
+        connection.execute(
+            "UPDATE spajza SET mnozstvo=? WHERE user_id=1",
+            (float("inf"),),
+        )
+
+
+def test_fresh_schema_rejects_positive_infinity(server):
+    with closing(sqlite3.connect(":memory:")) as con:
+        con.executescript(server.SCHEMA)
+
+        with pytest.raises(sqlite3.IntegrityError):
+            con.execute(
+                "INSERT INTO spajza(user_id,nazov,mnozstvo,jednotka) "
+                "VALUES(1,'ryža',?,'g')",
+                (float("inf"),),
+            )
+
+
 def test_migration_rejects_invalid_quantity_updates(server, connection):
     server.migrate_pantry_schema(connection)
     connection.execute(
