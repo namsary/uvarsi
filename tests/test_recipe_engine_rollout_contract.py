@@ -275,9 +275,19 @@ def test_post_smoke_health_requires_on_mode_and_ready_together(tmp_path):
     assert notifications.read_text(encoding="utf-8").count("Uvar.si: receptový engine") == 1
 
 
-@pytest.mark.parametrize("invalid", ["NaN", "Infinity", "-Infinity"])
-def test_non_finite_recipe_engine_health_fails_closed(tmp_path, invalid):
-    payload = _health("on", ready=True).replace('"p95_ms":null', f'"p95_ms":{invalid}')
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("p95_ms", "NaN"),
+        ("p95_ms", "Infinity"),
+        ("p95_ms", "-Infinity"),
+        ("last_shadow", '{"p95_ms":NaN}'),
+    ],
+)
+def test_non_finite_recipe_engine_health_fails_closed(tmp_path, field, invalid):
+    payload = _health("on", ready=True).replace(
+        f'"{field}":null', f'"{field}":{invalid}'
+    )
 
     result, calls, notifications = _run(tmp_path, [payload])
 

@@ -4104,17 +4104,29 @@ def _authenticated_isolated_recipe_smoke(rows, *, now):
             "costs_delta": after["costs"] - before["costs"],
         }
     finally:
+        cleanup_error = None
         try:
             if client is not None:
                 client.close()
-        finally:
-            DB = production_db
-            _SCHEMA_HOTOVA.discard(str(isolated_path))
-            if descriptor is not None:
+        except BaseException as error:
+            cleanup_error = error
+        DB = production_db
+        _SCHEMA_HOTOVA.discard(str(isolated_path))
+        if descriptor is not None:
+            try:
                 os.close(descriptor)
-            # Cleanup is part of the security contract. An undeleted database
-            # must invalidate the smoke instead of leaving passing evidence.
+            except BaseException as error:
+                if cleanup_error is None:
+                    cleanup_error = error
+        # Cleanup is part of the security contract. It is attempted even if a
+        # close operation failed, and any failure invalidates the smoke.
+        try:
             isolated_path.unlink(missing_ok=True)
+        except BaseException as error:
+            if cleanup_error is None:
+                cleanup_error = error
+        if cleanup_error is not None:
+            raise cleanup_error
 
 
 def run_recipe_engine_synthetic_smoke(*, state_path=None, now=None):

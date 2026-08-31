@@ -76,7 +76,10 @@ skontroluj_frontu_planov() {
   [ -n "$HEALTH" ] || { log "UNKNOWN — frontu plánov sa nedá overiť cez health; značka upozornenia ostáva"; return; }
   STAV_FRONTY=$(printf '%s' "$HEALTH" | "$HEALTH_PY" -c '
 import datetime as dt, json, sys
-payload = json.load(sys.stdin)
+payload = json.load(
+    sys.stdin,
+    parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)),
+)
 q = payload.get("plan_queue")
 if not isinstance(q, dict): raise SystemExit(2)
 required = {"queued", "oldest_seconds", "worker_alive", "heartbeat_seconds", "heartbeat_at", "last_ready", "failed", "blocking_code"}
@@ -143,7 +146,10 @@ recipe_engine_alert() {
 recipe_engine_health_state() {
   printf '%s' "$HEALTH" | "$HEALTH_PY" -c '
 import json, math, sys
-payload = json.load(sys.stdin)
+payload = json.load(
+    sys.stdin,
+    parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)),
+)
 engine = payload.get("recipe_engine")
 if not isinstance(engine, dict): raise SystemExit(3)
 required = {"mode","library_version","active_templates","coverage","last_shadow","p95_ms","ready","blockers"}
