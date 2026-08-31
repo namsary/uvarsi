@@ -117,6 +117,58 @@ def test_zbierac_zauctuje_kazde_volanie_modelu(monkeypatch, tmp_path, collector)
     assert klient.ucel == "zber_letakov"
 
 
+def test_zbierac_stale_zapise_skutocnu_spotrebu_modelu(monkeypatch, tmp_path, collector):
+    """Deterministické recepty nesmú vypnúť účtovanie AI čítania letákov."""
+    database = priprav_zbierac(monkeypatch, tmp_path, collector)
+    usage = types.SimpleNamespace(
+        input_tokens=8_000,
+        output_tokens=900,
+        cache_creation_input_tokens=0,
+        cache_read_input_tokens=2_000,
+    )
+
+    class Messages:
+        def create(self, **_kwargs):
+            return types.SimpleNamespace(usage=usage)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        types.SimpleNamespace(
+            Anthropic=lambda **_kwargs: types.SimpleNamespace(messages=Messages())
+        ),
+    )
+
+    def zbieraj(client, store):
+        client.messages.create(model=collector.MODEL_READ, messages=[])
+        return [{
+            "obchod": store.capitalize(),
+            "nazov": f"Potravina {index}",
+            "kategoria": "trvanlive",
+            "cena": 1.0,
+            "povodna": 2.0,
+            "zlava": "-50 %",
+            "jednotka": "1 kg",
+            "source_url": "https://flyers.example/lidl",
+            "source_page": index,
+            "valid_from": "2026-08-17",
+            "valid_to": "2026-08-23",
+        } for index in range(1, 21)]
+
+    monkeypatch.setattr(collector, "zbieraj", zbieraj)
+    collector.main()
+
+    with sqlite3.connect(database) as con:
+        row = con.execute(
+            """SELECT ucel,model,vstup,vystup,cache_read,eur,odhad
+               FROM naklady ORDER BY id DESC LIMIT 1"""
+        ).fetchone()
+
+    assert row[:5] == ("zber_letakov", "claude-opus-5", 8_000, 900, 2_000)
+    assert row[5] > 0
+    assert row[6] == 0
+
+
 # ------------------------------------------------------------------ bloček
 @pytest.fixture
 def refresh():
