@@ -3,6 +3,7 @@
 Testy sú čisto v Pythone (prípadne cez node), aby bežali aj na Linuxe — rovnako
 ako tests/test_premium_frontend_contract.py.
 """
+import os
 import re
 import shutil
 import subprocess
@@ -12,7 +13,7 @@ import pytest
 
 
 APP = Path("app/static/app.html")
-NODE = shutil.which("node")
+NODE = os.environ.get("UVARSI_NODE") or shutil.which("node")
 needs_node = pytest.mark.skipif(NODE is None, reason="node runtime is not available")
 
 
@@ -187,3 +188,150 @@ process.exit(0);
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+# ------------------------------------- množstevná špajza a zvyšky z nákupu
+@needs_node
+def test_old_string_pantry_and_structured_me_are_compared_by_name(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "pantry-diff-objects.js",
+        declaration(html, "function pantryName(value) ")
+        + declaration(html, "function pantryDiffers(planPantry, currentPantry) ")
+        + """
+if (pantryDiffers([' Ryža ','VAJCIA'],[
+  {nazov:'ryža',mnozstvo:500,jednotka:'g'},
+  {nazov:'vajcia',mnozstvo:6,jednotka:'piece'}
+])) process.exit(1);
+if (!pantryDiffers(['ryža'],[{nazov:'cestoviny',mnozstvo:500,jednotka:'g'}])) process.exit(2);
+if (pantryDiffers([],[])) process.exit(3);
+if (pantryDiffers(null,[{nazov:'ryža',mnozstvo:1,jednotka:'g'}])) process.exit(4);
+process.exit(0);
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
+def test_pantry_rows_show_real_quantities_and_legacy_prompt(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "pantry-row-html.js",
+        "function esc(value){return String(value == null ? '' : value);}\n"
+        + declaration(html, "function pantryRowHtml(item, index) ")
+        + """
+var measured=pantryRowHtml({nazov:'ryža',mnozstvo:500,jednotka:'g'},0);
+if (!measured.includes('ryža') || !measured.includes('500') || !measured.includes('g')) process.exit(1);
+if (measured.includes('[object Object]')) process.exit(2);
+if (!measured.includes('Upraviť') || !measured.includes('Odstrániť')) process.exit(3);
+var legacy=pantryRowHtml({nazov:'vajcia',mnozstvo:null,jednotka:null},1);
+if (!legacy.includes('vajcia') || !legacy.includes('Doplň množstvo')) process.exit(4);
+if (!legacy.includes('data-legacy="true"')) process.exit(5);
+process.exit(0);
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
+def test_new_pantry_item_requires_positive_amount_and_normalizes_units(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "pantry-item-fields.js",
+        declaration(html, "function pantryItemFromFields(name, amount, unit, allowLegacy) ")
+        + """
+var rice=pantryItemFromFields(' ryža ', '500', 'g', false);
+if (rice.nazov !== 'ryža' || rice.mnozstvo !== 500 || rice.jednotka !== 'g') process.exit(1);
+var eggs=pantryItemFromFields('vajcia','6','ks',false);
+if (eggs.jednotka !== 'piece' || eggs.mnozstvo !== 6) process.exit(2);
+for (const bad of ['', '0', '-2', 'x']) {
+  var failed=false; try { pantryItemFromFields('ryža',bad,'g',false); } catch(e) { failed=true; }
+  if (!failed) process.exit(3);
+}
+var legacy=pantryItemFromFields('soľ','','g',true);
+if (legacy.mnozstvo !== null || legacy.jednotka !== null) process.exit(4);
+process.exit(0);
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_pantry_uses_one_explicit_save_not_implicit_posts():
+    html = app_html()
+    pantry = declaration(html, "function vSpajza() ")
+    row = declaration(html, "function pantryRowHtml(item, index) ")
+    assert 'id="sp-name"' in pantry and 'id="sp-amount"' in pantry and 'id="sp-unit"' in pantry
+    assert 'id="sp-save"' in pantry and "Uložiť špajzu" in pantry
+    assert "savePantryList" in pantry
+    assert "/api/spajza" not in pantry, "vSpajza only edits a draft; persistence has one helper"
+    assert "sp-add" in pantry and "sp-remove" in row and "sp-edit" in row
+
+
+@needs_node
+def test_one_save_is_one_post_then_refetch_and_plan_refresh(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "pantry-one-save.js",
+        """
+var ME={premium:true}, PANTRY_HINT_HIDDEN=true, PANTRY_ACCESS_CHANGED=false;
+var calls=[], refreshed=0;
+async function api(url, options){calls.push([url,options]);return url==='/api/me'?{premium:true,spajza:[]}:{ok:true};}
+async function refreshPlanAfterPantrySave(){refreshed++;}
+"""
+        + declaration(html, "async function savePantryList(list) ")
+        + """
+(async function(){
+  await savePantryList([{nazov:'ryža',mnozstvo:500,jednotka:'g'}]);
+  if (calls.filter(c=>c[0]==='/api/spajza').length !== 1) process.exit(1);
+  if (calls.filter(c=>c[0]==='/api/me').length !== 1) process.exit(2);
+  if (refreshed !== 1) process.exit(3);
+  var body=JSON.parse(calls[0][1].body);
+  if (body.polozky[0].mnozstvo !== 500) process.exit(4);
+  process.exit(0);
+})().catch(e=>{console.error(e);process.exit(99)});
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
+def test_machine_readable_leftover_is_normalized_and_merged_safely(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "leftover-pantry.js",
+        declaration(html, "function pantryName(value) ")
+        + declaration(html, "function leftoverPantryItem(item) ")
+        + declaration(html, "function mergePantryItem(items, incoming) ")
+        + """
+var rice=leftoverPantryItem({nazov:'Ryža',zostane:'0,7 kg'});
+if (!rice || rice.mnozstvo !== 700 || rice.jednotka !== 'g') process.exit(1);
+var oil=leftoverPantryItem({nazov:'Olej',zostane_po_spajzi:'0.25 l',zostane:'800 ml'});
+if (!oil || oil.mnozstvo !== 250 || oil.jednotka !== 'ml') process.exit(2);
+if (leftoverPantryItem({nazov:'Ryža',zostane:'približne polovica balenia'}) !== null) process.exit(3);
+if (leftoverPantryItem({nazov:'',zostane:'500 g'}) !== null) process.exit(4);
+var merged=mergePantryItem([{nazov:' ryža ',mnozstvo:300,jednotka:'g'}],rice);
+if (merged.length !== 1 || merged[0].mnozstvo !== 1000 || merged[0].nazov !== 'ryža') process.exit(5);
+var split=mergePantryItem([{nazov:'ryža',mnozstvo:1,jednotka:'piece'}],rice);
+if (split.length !== 2) process.exit(6);
+process.exit(0);
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_shopping_list_adds_leftover_only_on_an_explicit_guarded_button():
+    html = app_html()
+    shopping = declaration(html, "function vZoznam() ")
+    add = declaration(html, "async function addLeftoverToPantry(button, item) ")
+    assert "Pridať zvyšok do špajze" in shopping
+    assert "leftoverPantryItem" in shopping
+    assert "data-leftover" in shopping
+    assert "stopPropagation" in shopping
+    assert "button.disabled = true" in add
+    assert "savePantryList" in add
+    assert "/api/spajza" not in shopping, "render and shopping checkbox must never persist pantry"

@@ -1,3 +1,4 @@
+import os
 import re
 import shutil
 import subprocess
@@ -7,7 +8,7 @@ import pytest
 
 
 CSCRIPT = Path("C:/Windows/System32/cscript.exe")
-NODE = shutil.which("node")
+NODE = os.environ.get("UVARSI_NODE") or shutil.which("node")
 needs_node = pytest.mark.skipif(NODE is None, reason="node runtime is not available")
 
 
@@ -274,7 +275,7 @@ def test_guarded_action_blocks_double_submit_and_reports_failure_in_slovak(tmp_p
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "runGuardedAction($('#save')" in html, "onboarding submit must be guarded"
-    assert "runGuardedAction($('#sp-add')" in html, "pantry save must be guarded"
+    assert "runGuardedAction($('#sp-save')" in html, "pantry save must be guarded"
     assert "runGuardedAction($('#odhl')" in html, "logout must be guarded"
 
 
@@ -302,10 +303,13 @@ def test_change_settings_prefills_current_profile_and_can_be_left_without_saving
 
 
 def test_profile_submit_sends_both_household_counts_and_rejects_zero_people():
-    onboarding = declaration(app_html(), "function viewOnboarding() ")
+    html = app_html()
+    onboarding = declaration(html, "function viewOnboarding() ")
+    payload = declaration(html, "function profilePayload(adults, children, frequency, stores, diet) ")
 
-    assert "adults:+val('#c-dospeli')" in onboarding
-    assert "children:+val('#c-deti')" in onboarding
+    assert "profilePayload(val('#c-dospeli'), val('#c-deti')" in onboarding
+    assert "adults:+adults" in payload and "children:+children" in payload
+    assert "stravovanie:diet" in payload
     assert "adults + children" in onboarding
     assert "aspoň" in onboarding.casefold()
 
@@ -575,10 +579,13 @@ def test_editing_the_pantry_saves_then_refetches_but_never_regenerates_the_plan(
     """Majiteľ: „pridám vajíčka a zrazu mi preskladá celý jedálniček bez vyzvania"."""
     html = app_html()
     pantry_view = declaration(html, "function vSpajza() ")
+    pantry_save = declaration(html, "async function savePantryList(list) ")
 
-    assert "/api/spajza" in pantry_view, "the pantry still has to save"
-    assert "refreshPlanAfterPantrySave" in pantry_view
+    assert "savePantryList" in pantry_view, "the explicit save button must persist the draft"
+    assert "/api/spajza" in pantry_save, "the pantry still has to save"
+    assert "refreshPlanAfterPantrySave" in pantry_save
     assert "/api/plan/generuj" not in pantry_view
+    assert "/api/plan/generuj" not in pantry_save
     assert "nacitajPlan(true)" not in pantry_view, (
         "a pantry edit must never trigger a paid regeneration as a side effect"
     )
@@ -599,7 +606,8 @@ def test_pantry_save_refresh_replaces_or_clears_the_visible_plan_without_generat
         tmp_path,
         "pantry-save-refresh.js",
         """
-var PLAN={old:true}, PLAN_NEEDS_REGEN=false, calls=[], rendered=0;
+var PLAN={old:true}, PLAN_NEEDS_REGEN=false, PLAN_CONTEXT_VERSION=0, calls=[], rendered=0;
+function invalidatePlanState() { PLAN_CONTEXT_VERSION++; }
 function setPlan(plan) { PLAN=plan; }
 function render() { rendered++; }
 async function api(path, options) {
@@ -628,7 +636,9 @@ async function api(path, options) {
 @needs_node
 def test_a_changed_pantry_is_only_a_dismissible_hint_with_an_explicit_recompute(tmp_path):
     html = app_html()
-    differs = declaration(html, "function pantryDiffers(planPantry, currentPantry) ")
+    differs = declaration(html, "function pantryName(value) ") + "\n" + declaration(
+        html, "function pantryDiffers(planPantry, currentPantry) "
+    )
     result = run_node(
         tmp_path,
         "pantry-hint-contract.js",
@@ -724,6 +734,8 @@ def test_settings_use_natural_slovak_cooking_frequency_text(tmp_path):
         "var M={innerHTML:''}; function $(selector){return {onclick:null};}\n"
         + "function viewOnboarding() {}\n"
         + "function esc(value){return String(value == null ? '' : value);}\n"
+        + "function passwordSetupCard(){return '';} function authV3Enabled(){return false;}\n"
+        + "var localStorage={}; function loadAccountSecurity(){};\n"
         + declaration(html, "function householdLabel(profil) ")
         + "\n"
         + declaration(html, "function vNast() ")
