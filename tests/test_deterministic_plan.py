@@ -904,6 +904,19 @@ def test_high_protein_claim_is_added_only_after_the_legal_energy_gate():
     )
 
 
+def test_recipe_payload_exposes_catalog_allergens_for_honest_ui_warning():
+    ingredients, recipes = _protein_setup()
+
+    plan = _build(
+        rows=(_offer("Pevné tofu", offer_key="offer_tofu"),),
+        mode="high_protein",
+        ingredient_catalog=ingredients,
+        recipe_catalog=recipes,
+    )
+
+    assert all(meal["recept"]["allergens"] == ["soy"] for meal in plan["jedla"])
+
+
 def test_high_protein_gate_uses_true_adult_serving_without_child_dilution():
     ingredients, recipes = _protein_setup(child_factor="0.1")
 

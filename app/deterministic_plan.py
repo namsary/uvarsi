@@ -816,6 +816,11 @@ def _meal_payload(
         for value in rendered.ingredients
     ]
     doses.extend(f"{name} zo špajze" for name in rendered.pantry_basics)
+    allergens = sorted({
+        allergen
+        for value in rendered.ingredients
+        for allergen in value.ingredient.allergens
+    })
     recipe = {
         "template_id": rendered.template_id,
         "family": template.family,
@@ -837,6 +842,7 @@ def _meal_payload(
             "total": _macro_payload(rendered.nutrition.total),
             "serving": _macro_payload(item.adult_nutrition.serving),
         },
+        "allergens": allergens,
     }
     storage = leftover_storage_note(rendered.instructions, rendered.covered_days)
     if storage:
