@@ -18,7 +18,7 @@ DEPLOY = Path("nasad.ps1")
 SAMOPULL = Path("hetzner/samopull.sh")
 
 # moduly, ktoré sa zámerne nenasadzujú (nie sú súčasťou runtime)
-NEDEPLOYOVANE: set[str] = set()
+NEDEPLOYOVANE: set[str] = {"recipe_candidates.py"}
 
 
 def _runtime_modules() -> list[str]:
@@ -63,6 +63,15 @@ def test_server_imports_are_all_deployed():
     assert not chybajuce, (
         "server.py ich importuje, ale deploy ich neprenáša: " + ", ".join(chybajuce)
     )
+
+
+def test_offline_candidate_workflow_is_not_a_runtime_dependency():
+    """Karanténa smie zostať mimo manuálneho deployu iba kým ju runtime neimportuje."""
+    server = (APP_DIR / "server.py").read_text(encoding="utf-8")
+    worker = (APP_DIR / "plan_worker.py").read_text(encoding="utf-8")
+
+    assert "recipe_candidates" not in server
+    assert "recipe_candidates" not in worker
 
 
 def test_samopull_preflight_rejects_incomplete_release_without_public_pages():
