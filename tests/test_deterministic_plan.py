@@ -119,6 +119,41 @@ def _rice_recipes(version=7, *, child_factor="0.5"):
     )
 
 
+def _rice_with_optional_recipes(
+    *,
+    optional_ingredient_id="tofu",
+    optional_amount="20",
+    optional_child_factor="0.25",
+):
+    templates = []
+    for method in ("pot", "pan", "oven"):
+        steps = RICE_STEPS
+        if optional_ingredient_id == "tofu":
+            steps = (
+                *RICE_STEPS[:-1],
+                "Pridaj tofu do hrnca a premiešaj.",
+                RICE_STEPS[-1],
+            )
+        base = _template(
+            f"rice-{method}-optional",
+            method=method,
+            steps=steps,
+        )
+        optional = IngredientSlot(
+            key="extra",
+            role="addition",
+            candidates=(optional_ingredient_id,),
+            amount_per_adult=Decimal(optional_amount),
+            unit="g",
+            child_factor=Decimal(optional_child_factor),
+            required=False,
+            use="addition",
+            cut=None,
+        )
+        templates.append(replace(base, slots=(*base.slots, optional)))
+    return RecipeCatalog(12, tuple(templates))
+
+
 def _build(*, frequency=3, pantry=(), pantry_driven=False, **overrides):
     values = {
         "week": WEEK,
@@ -266,6 +301,83 @@ def test_pantry_driven_sizing_uses_each_slots_exact_child_factor(
 
     assert sum(meal["pokryva_dni"] for meal in plan["jedla"]) == 7
     assert plan["nakupny_zoznam"] == []
+
+
+def test_pantry_driven_exposes_optional_only_pantry_to_candidate_selection():
+    plan = _build(
+        adults=1,
+        children=1,
+        pantry=(
+            PantryEntry("tofu", "tofu", Quantity(Decimal("175"), "g")),
+        ),
+        pantry_driven=True,
+        recipe_catalog=_rice_with_optional_recipes(),
+    )
+
+    assert all(
+        {"spajza": "tofu"} in meal["suroviny"] for meal in plan["jedla"]
+    )
+
+
+def test_optional_personal_pantry_does_not_affect_shareable_ranking():
+    recipes = _rice_with_optional_recipes()
+    rows = (
+        _offer(),
+        _offer("Pevné tofu", offer_key="offer_tofu"),
+    )
+    baseline = _build(rows=rows, recipe_catalog=recipes)
+    with_personal_pantry = _build(
+        rows=rows,
+        pantry=(
+            PantryEntry("tofu", "tofu", Quantity(Decimal("175"), "g")),
+        ),
+        pantry_driven=False,
+        recipe_catalog=recipes,
+    )
+
+    assert with_personal_pantry["jedla"] == baseline["jedla"]
+    assert all(
+        any(
+            ingredient.get("offer_key") == "offer_tofu"
+            for ingredient in meal["suroviny"]
+        )
+        for meal in with_personal_pantry["jedla"]
+    )
+
+
+def test_optional_pantry_uses_exact_factor_without_spending_required_reserve():
+    recipes = _rice_with_optional_recipes(optional_ingredient_id="rice")
+    required_only = _build(
+        rows=(),
+        adults=1,
+        children=1,
+        pantry=(
+            PantryEntry("rice", "ryža", Quantity(Decimal("787.5"), "g")),
+        ),
+        pantry_driven=True,
+        recipe_catalog=recipes,
+    )
+    exactly_enriched = _build(
+        rows=(),
+        adults=1,
+        children=1,
+        pantry=(
+            PantryEntry("rice", "ryža", Quantity(Decimal("962.5"), "g")),
+        ),
+        pantry_driven=True,
+        recipe_catalog=recipes,
+    )
+
+    assert all(
+        meal["suroviny"].count({"spajza": "ryža"}) == 1
+        for meal in required_only["jedla"]
+    )
+    assert all(
+        meal["suroviny"].count({"spajza": "ryža"}) == 2
+        for meal in exactly_enriched["jedla"]
+    )
+    assert required_only["nakupny_zoznam"] == []
+    assert exactly_enriched["nakupny_zoznam"] == []
 
 
 def test_meal_ingredients_preserve_established_offer_and_pantry_shapes():

@@ -114,15 +114,19 @@ def _ranking_pantry(
     adults: int,
     children: int,
     covered_days: int,
+    remaining_covered_days: int,
 ) -> tuple[PantryEntry, ...]:
-    requirements: dict[str, tuple[Fraction, Fraction]] = {}
+    required: dict[str, tuple[Fraction, Fraction, Fraction]] = {}
+    optional: dict[str, tuple[Fraction, Fraction]] = {}
     for slot in template.slots:
-        if not slot.required:
-            continue
-        equivalents = (
+        current_equivalents = (
             Fraction(adults)
             + Fraction(children) * Fraction(slot.child_factor)
         ) * covered_days
+        remaining_equivalents = (
+            Fraction(adults)
+            + Fraction(children) * Fraction(slot.child_factor)
+        ) * remaining_covered_days
         for ingredient_id in slot.candidates:
             ingredient = catalog.by_id(ingredient_id)
             per_adult = _grams(
@@ -130,19 +134,56 @@ def _ranking_pantry(
             )
             if per_adult is None:
                 continue
-            normalized, household = requirements.get(
-                ingredient_id, (Fraction(0), Fraction(0))
-            )
-            requirements[ingredient_id] = (
-                normalized + per_adult,
-                household + per_adult * equivalents,
-            )
+            if slot.required:
+                normalized, current, remaining = required.get(
+                    ingredient_id,
+                    (Fraction(0), Fraction(0), Fraction(0)),
+                )
+                required[ingredient_id] = (
+                    normalized + per_adult,
+                    current + per_adult * current_equivalents,
+                    remaining + per_adult * remaining_equivalents,
+                )
+            else:
+                normalized, current = optional.get(
+                    ingredient_id, (Fraction(0), Fraction(0))
+                )
+                optional[ingredient_id] = (
+                    normalized + per_adult,
+                    current + per_adult * current_equivalents,
+                )
 
     entries = []
-    for ingredient_id in sorted(requirements):
+    for ingredient_id in sorted(required.keys() | optional.keys()):
         available = balances.get(ingredient_id, Fraction(0))
-        normalized_required, household_required = requirements[ingredient_id]
-        if available <= 0 or household_required <= 0:
+        if available <= 0:
+            continue
+        normalized_required, current_required, remaining_required = required.get(
+            ingredient_id,
+            (Fraction(0), Fraction(0), Fraction(0)),
+        )
+        normalized_optional, current_optional = optional.get(
+            ingredient_id, (Fraction(0), Fraction(0))
+        )
+        required_available = (
+            min(
+                normalized_required,
+                available * normalized_required / current_required,
+            )
+            if current_required > 0
+            else Fraction(0)
+        )
+        optional_surplus = max(Fraction(0), available - remaining_required)
+        optional_available = (
+            min(
+                normalized_optional,
+                optional_surplus * normalized_optional / current_optional,
+            )
+            if current_optional > 0
+            else Fraction(0)
+        )
+        normalized_available = required_available + optional_available
+        if normalized_available <= 0:
             continue
         ingredient = catalog.by_id(ingredient_id)
         entries.append(
@@ -150,9 +191,7 @@ def _ranking_pantry(
                 ingredient_id,
                 ingredient.name,
                 Quantity(
-                    _fraction_to_decimal(
-                        available * normalized_required / household_required
-                    ),
+                    _fraction_to_decimal(normalized_available),
                     "g",
                 ),
             )
@@ -172,6 +211,7 @@ def _rank_for_day(
     adults: int,
     children: int,
     covered_days: int,
+    remaining_covered_days: int,
     recent_families,
     recent_methods,
 ) -> tuple[RecipeCandidate, ...]:
@@ -202,6 +242,7 @@ def _rank_for_day(
                     adults,
                     children,
                     covered_days,
+                    remaining_covered_days,
                 ),
                 mode,
                 seed,
@@ -287,8 +328,12 @@ def _select_week(
     )
 
     available_methods = set()
-    for day in days:
+    for index, day in enumerate(days):
         coverage = days_covered_by_meal(frequency, day)
+        remaining_coverage = sum(
+            days_covered_by_meal(frequency, remaining_day)
+            for remaining_day in days[index:]
+        )
         available_methods.update(
             candidate.template.method
             for candidate in _rank_for_day(
@@ -302,6 +347,7 @@ def _select_week(
                 adults=adults,
                 children=children,
                 covered_days=coverage,
+                remaining_covered_days=remaining_coverage,
                 recent_families=(),
                 recent_methods=(),
             )
@@ -322,6 +368,10 @@ def _select_week(
 
         day = days[index]
         coverage = days_covered_by_meal(frequency, day)
+        remaining_coverage = sum(
+            days_covered_by_meal(frequency, remaining_day)
+            for remaining_day in days[index:]
+        )
         candidates = _rank_for_day(
             templates=templates,
             offers=offers,
@@ -333,6 +383,7 @@ def _select_week(
             adults=adults,
             children=children,
             covered_days=coverage,
+            remaining_covered_days=remaining_coverage,
             recent_families=(
                 item.candidate.template.family for item in selected
             ),
