@@ -520,6 +520,61 @@ def test_renderer_rejects_unknown_ingredient_mixed_with_allowed_ingredient(
         render_meal(candidate, adults=4, children=0, covered_days=1)
 
 
+@pytest.mark.parametrize(
+    "addition",
+    [
+        "Pridaj šafran spolu s tofu.",
+        "Pridaj šafran s tofu.",
+        "Pridaj šafran so 640 g tofu.",
+        "Pridaj šafran do hrnca s tofu.",
+    ],
+)
+def test_controlled_addition_grammar_rejects_unknown_source_before_destination(
+    ingredients, addition
+):
+    candidate = _candidate(
+        ingredients.by_id("tofu"),
+        amount="160",
+        cut="na 2 cm kocky",
+        name_template="Chrumkavé {main.name} z panvice",
+        equipment=("panvica", "doska"),
+        pantry_basics=("oil",),
+        instructions=(*TOFU_STEPS[:-1], addition, TOFU_STEPS[-1]),
+    )
+
+    with pytest.raises(ValueError, match="šafran|zozname surovín"):
+        render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
+@pytest.mark.parametrize(
+    "addition",
+    [
+        "Pridaj štipku soli a premiešaj.",
+        "Pridaj štipku soli a potom premiešaj.",
+        "Pridaj štipku soli do panvice a premiešaj.",
+        "Pridaj štipku soli spolu s tofu a premiešaj.",
+        "Pridaj štipku soli s tofu a premiešaj.",
+        "Pridaj štipku soli so 640 g tofu a premiešaj.",
+    ],
+)
+def test_controlled_addition_grammar_accepts_follow_up_imperative(
+    ingredients, addition
+):
+    candidate = _candidate(
+        ingredients.by_id("tofu"),
+        amount="160",
+        cut="na 2 cm kocky",
+        name_template="Chrumkavé {main.name} z panvice",
+        equipment=("panvica", "doska"),
+        pantry_basics=("oil", "salt"),
+        instructions=(*TOFU_STEPS[:-1], addition, TOFU_STEPS[-1]),
+    )
+
+    meal = render_meal(candidate, adults=4, children=0, covered_days=1)
+
+    assert meal.pantry_basics == ("olej", "soľ")
+
+
 def test_renderer_rejects_unknown_prepared_ingredient_without_amount(ingredients):
     candidate = _candidate(
         ingredients.by_id("tofu"),

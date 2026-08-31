@@ -70,6 +70,14 @@ class _SlotWording:
     cut: str
 
 
+@dataclass(frozen=True)
+class _AdditionClause:
+    sources: tuple[str, ...]
+    destination_marker: str | None
+    destination: str | None
+    follow_up: str | None
+
+
 # Verified forms used after a displayed quantity. Titles and ingredient labels
 # continue to use Ingredient.name unchanged.
 _QUANTITY_NAMES: Mapping[str, str] = {
@@ -215,6 +223,18 @@ _INGREDIENT_INTRODUCTION = re.compile(
 _INGREDIENT_TARGET_START = re.compile(
     r"(?:^|[.!?]\s+)(?:dus|nakrajaj|opec|opekaj|oplachni|osus|osup|pec|"
     r"prehrievaj|preplachni|prived|rozloz|sced|upec|uvar|var|zohrej|zohrievaj)\b"
+)
+_ADDITION_DESTINATION_MARKERS = (
+    ("spolu", "s"),
+    ("spolu", "so"),
+    ("do",),
+    ("k",),
+    ("ku",),
+    ("s",),
+    ("so",),
+)
+_FOLLOW_UP_TARGET = re.compile(
+    r"(?:obsah\s+(?:hrnc\w*|panvic\w*|pekac\w*)|zmes|jedlo|ich|ju|ho)"
 )
 _PREHEAT_READY = re.compile(r"\b(?:kontrolk\w*|dosiahn\w*|nahriat\w*|signal\w*)\b")
 
@@ -516,6 +536,98 @@ def _validate_measured_ingredient_mentions(
         )
 
 
+def _starts_controlled_follow_up(value: str) -> bool:
+    words = value.split()
+    for index, word in enumerate(words):
+        if word not in _FOLDED_IMPERATIVES:
+            continue
+        prefix = " ".join(words[:index])
+        return (
+            not prefix
+            or prefix == "potom"
+            or _FOLLOW_UP_TARGET.fullmatch(prefix) is not None
+        )
+    return False
+
+
+def _marker_at(words: Sequence[str], index: int) -> tuple[str, int] | None:
+    for marker in _ADDITION_DESTINATION_MARKERS:
+        if tuple(words[index : index + len(marker)]) == marker:
+            return " ".join(marker), len(marker)
+    return None
+
+
+def _parse_addition_clause(value: str) -> _AdditionClause:
+    words = value.split()
+    follow_up = None
+    for index, word in enumerate(words):
+        if word != "a":
+            continue
+        candidate = " ".join(words[index + 1 :])
+        if _starts_controlled_follow_up(candidate):
+            follow_up = candidate
+            words = words[:index]
+            break
+
+    destination_marker = None
+    destination = None
+    for index in range(len(words)):
+        match = _marker_at(words, index)
+        if match is None:
+            continue
+        destination_marker, marker_length = match
+        destination = " ".join(words[index + marker_length :])
+        words = words[:index]
+        break
+
+    sources = tuple(
+        part.strip()
+        for part in " ".join(words).split(" a ")
+        if part.strip()
+    )
+    return _AdditionClause(
+        sources=sources,
+        destination_marker=destination_marker,
+        destination=destination,
+        follow_up=follow_up,
+    )
+
+
+def _is_allowed_ingredient_phrase(
+    value: str,
+    allowed_patterns: Sequence[re.Pattern[str]],
+    allowed_cuts: frozenset[str],
+) -> bool:
+    remainder = value.strip()
+    amount = _AMOUNT.match(remainder) or _PINCH_AMOUNT.match(remainder)
+    if amount is not None:
+        remainder = remainder[amount.end() :].lstrip()
+    for pattern in allowed_patterns:
+        ingredient = pattern.match(remainder)
+        if ingredient is None:
+            continue
+        suffix = remainder[ingredient.end() :].strip()
+        if not suffix or suffix in allowed_cuts:
+            return True
+    return False
+
+
+def _is_allowed_destination(
+    marker: str,
+    value: str,
+    allowed_patterns: Sequence[re.Pattern[str]],
+    allowed_cuts: frozenset[str],
+) -> bool:
+    if not value:
+        return False
+    if marker == "do" and _VESSEL.fullmatch(value) is not None:
+        return True
+    return all(
+        _is_allowed_ingredient_phrase(part, allowed_patterns, allowed_cuts)
+        for part in value.split(" a ")
+    )
+
+
 def _validate_ingredient_introductions(
     folded_steps: str,
     rendered: Sequence[RenderedIngredient],
@@ -524,18 +636,29 @@ def _validate_ingredient_introductions(
     allowed_patterns = tuple(
         _phrase_pattern(form) for form in _allowed_ingredient_forms(rendered, pantry_ids)
     )
-    introduction_actions = tuple(_INGREDIENT_INTRODUCTION.finditer(folded_steps))
-    for action in introduction_actions:
+    allowed_cuts = frozenset(
+        _fold(item.slot.cut) for item in rendered if item.slot.cut is not None
+    )
+    for action in _INGREDIENT_INTRODUCTION.finditer(folded_steps):
         clause = re.split(
             r"(?<!\d),(?!\d)|[.;]", folded_steps[action.end() :], maxsplit=1
         )[0]
-        for part in re.split(r"\s+(?:a|k|ku)\s+", clause):
-            if _COOKING_ACTION.search(part) or any(
-                pattern.search(part) for pattern in allowed_patterns
-            ):
-                continue
+        parsed = _parse_addition_clause(clause)
+        if not parsed.sources or not all(
+            _is_allowed_ingredient_phrase(source, allowed_patterns, allowed_cuts)
+            for source in parsed.sources
+        ):
             raise ValueError(
                 "Použitá surovina je v postupe, ale chýba v zozname surovín."
+            )
+        if parsed.destination_marker is not None and not _is_allowed_destination(
+            parsed.destination_marker,
+            parsed.destination or "",
+            allowed_patterns,
+            allowed_cuts,
+        ):
+            raise ValueError(
+                "Cieľ pridania musí byť nádoba alebo surovina zo zoznamu."
             )
 
     for action in _INGREDIENT_TARGET_START.finditer(folded_steps):
