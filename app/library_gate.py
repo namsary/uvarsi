@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence as SequenceABC
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from decimal import Decimal
@@ -11,7 +12,19 @@ import unicodedata
 from typing import Iterable, Sequence
 
 from .ingredient_catalog import IngredientCatalog, load_ingredient_catalog
-from .recipe_catalog import RecipeCatalog, RecipeTemplate, load_recipe_catalog
+from .recipe_catalog import (
+    ALLOWED_METHODS,
+    ALLOWED_MODES,
+    ALLOWED_UNITS,
+    ALLOWED_USES,
+    PANTRY_BASIC_NAMES,
+    SLOT_KEY_PATTERN,
+    IngredientSlot,
+    InstructionTemplate,
+    RecipeCatalog,
+    RecipeTemplate,
+    load_recipe_catalog,
+)
 from .recipe_matcher import RecipeCandidate, SlotSelection
 from .recipe_renderer import RenderedMeal, render_meal
 
@@ -29,24 +42,6 @@ _GENERIC_ONLY = re.compile(
     r"(?:vsetko|suroviny|jedlo)(?:\s+spolu)?\s+"
     r"(?:priprav|dochut|premiesaj|podavaj|serviruj|uvar|opec|dokonc))[.!]?$"
 )
-_DISTINCTION_MARKERS = (
-    "bolonsk",
-    "cili",
-    "cesnak",
-    "fasi",
-    "frittat",
-    "gulas",
-    "jogurt",
-    "kari",
-    "kokos",
-    "oregano",
-    "paprik",
-    "paradajk",
-    "pesto",
-    "polievk",
-    "rag",
-    "salat",
-)
 _SEASONING_ROOTS = {
     "black_pepper": ("cierne koren", "ciernym koren", "cierneho koren"),
     "curry_powder": ("kari",),
@@ -55,6 +50,57 @@ _SEASONING_ROOTS = {
     "paprika_powder": ("mleta paprik", "mletou paprik", "mletej paprik"),
     "salt": ("sol",),
 }
+_MODE_FLOORS = {
+    "standard": 50,
+    "high_protein": 24,
+    "vegetarian": 20,
+    "vegan": 12,
+}
+_MINIMUM_ACTIVE_RECIPES = 60
+_MINIMUM_MODE_FAMILIES = 3
+_MINIMUM_MODE_METHODS = 3
+
+# The launch catalog schema permits at most four slots with at most three
+# candidates in each slot. The audit derives its hard Cartesian ceiling from
+# those two schema limits instead of trusting unbounded catalog input.
+_LAUNCH_MAX_SLOTS = 4
+_LAUNCH_MAX_CANDIDATES_PER_SLOT = 3
+_MAX_AUDITED_VARIANTS = _LAUNCH_MAX_CANDIDATES_PER_SLOT**_LAUNCH_MAX_SLOTS
+
+_ACTION_PATTERNS = (
+    ("rinse", re.compile(r"\b(?:preplach\w*|oplach\w*|sced\w*)\b")),
+    ("cut", re.compile(r"\bnakraj\w*\b")),
+    ("boil", re.compile(r"\b(?:uvar\w*|var)\b")),
+    ("simmer", re.compile(r"\bdus\w*\b")),
+    ("fry", re.compile(r"\b(?:opek\w*|opraz\w*|restuj\w*)\b")),
+    ("bake", re.compile(r"\b(?:pec\w*|zapec\w*)\b")),
+    ("blend", re.compile(r"\brozmix\w*\b")),
+    ("add", re.compile(r"\b(?:pridaj\w*|prisyp\w*|prilej\w*|vloz\w*)\b")),
+    ("mix", re.compile(r"\b(?:premiesaj\w*|spoj\w*)\b")),
+    ("rest", re.compile(r"\bnechaj\w*\b")),
+    ("reduce", re.compile(r"\bredukuj\w*\b")),
+    ("thicken", re.compile(r"\bzahusti\w*\b")),
+    ("marinate", re.compile(r"\bmarinuj\w*\b")),
+    ("coat", re.compile(r"\bobal\w*\b")),
+    ("store", re.compile(r"\b(?:uchovaj\w*|ochlad\w*)\b")),
+    ("serve", _SERVING_ACTION),
+)
+_NAME_STOPWORDS = frozenset(
+    {
+        "a",
+        "chutne",
+        "domace",
+        "jednoduche",
+        "na",
+        "pre",
+        "rychle",
+        "s",
+        "so",
+        "vynikajuce",
+        "z",
+        "zo",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -82,14 +128,142 @@ def _fold(value: str) -> str:
     return "".join(character for character in normalized if not unicodedata.combining(character))
 
 
-def _recipes(values: RecipeCatalog | Iterable[RecipeTemplate]) -> tuple[RecipeTemplate, ...]:
-    if isinstance(values, RecipeCatalog):
-        return values.all()
-    return tuple(values)
-
-
 def _counts(values: Iterable[str]) -> tuple[tuple[str, int], ...]:
     return tuple(sorted(Counter(values).items()))
+
+
+def _is_sequence(value: object) -> bool:
+    return isinstance(value, SequenceABC) and not isinstance(value, (str, bytes))
+
+
+def _is_text(value: object) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _is_positive_decimal(value: object) -> bool:
+    return (
+        isinstance(value, Decimal)
+        and value.is_finite()
+        and value > 0
+    )
+
+
+def _is_valid_slot(ingredients: IngredientCatalog, value: object) -> bool:
+    if not isinstance(value, IngredientSlot):
+        return False
+    if not all(
+        (
+            _is_text(value.key),
+            SLOT_KEY_PATTERN.fullmatch(value.key) is not None,
+            _is_text(value.role),
+            _is_sequence(value.candidates),
+            bool(value.candidates),
+            all(_is_text(candidate) for candidate in value.candidates),
+            len(value.candidates) == len(set(value.candidates)),
+            _is_positive_decimal(value.amount_per_adult),
+            _is_positive_decimal(value.child_factor),
+            type(value.required) is bool,
+            value.unit in ALLOWED_UNITS,
+            value.use in ALLOWED_USES,
+            value.cut is None or _is_text(value.cut),
+        )
+    ):
+        return False
+    try:
+        candidates = tuple(ingredients.by_id(candidate) for candidate in value.candidates)
+        if not all(value.role in ingredient.roles for ingredient in candidates):
+            return False
+        if value.unit == "piece" and any(
+            ingredient.grams_per_piece is None for ingredient in candidates
+        ):
+            return False
+        if value.unit == "ml" and any(
+            ingredient.density_g_per_ml is None for ingredient in candidates
+        ):
+            return False
+        return True
+    except Exception:
+        return False
+
+
+def _is_valid_recipe(ingredients: IngredientCatalog, value: object) -> bool:
+    """Validate public audit input before any summary or render access."""
+    if not isinstance(value, RecipeTemplate):
+        return False
+    try:
+        if not all(
+            (
+                _is_text(value.id),
+                type(value.version) is int and value.version > 0,
+                type(value.active) is bool,
+                _is_text(value.name_template),
+                _is_text(value.family),
+                value.method in ALLOWED_METHODS,
+                type(value.minutes) is int and value.minutes > 0,
+                isinstance(value.modes, frozenset),
+                bool(value.modes),
+                value.modes <= ALLOWED_MODES,
+                _is_sequence(value.equipment),
+                all(_is_text(item) for item in value.equipment),
+                _is_sequence(value.slots),
+                bool(value.slots),
+                all(_is_valid_slot(ingredients, slot) for slot in value.slots),
+                _is_sequence(value.pantry_basics),
+                all(_is_text(item) for item in value.pantry_basics),
+                _is_sequence(value.instructions),
+                len(value.instructions) >= 3,
+                all(
+                    isinstance(step, InstructionTemplate) and _is_text(step.text)
+                    for step in value.instructions
+                ),
+            )
+        ):
+            return False
+        slot_keys = tuple(slot.key for slot in value.slots)
+        if len(slot_keys) != len(set(slot_keys)):
+            return False
+        if len(value.pantry_basics) != len(set(value.pantry_basics)):
+            return False
+        for ingredient_id in value.pantry_basics:
+            if ingredient_id not in PANTRY_BASIC_NAMES:
+                ingredients.by_id(ingredient_id)
+        _fingerprint(ingredients, value)
+        return True
+    except Exception:
+        return False
+
+
+def _collect_valid_recipes(
+    ingredients: IngredientCatalog,
+    values: RecipeCatalog | Iterable[RecipeTemplate],
+    errors: set[str],
+) -> tuple[RecipeTemplate, ...]:
+    try:
+        source = values.all() if isinstance(values, RecipeCatalog) else values
+        iterator = iter(source)
+    except Exception:
+        errors.add("invalid_recipe")
+        return ()
+
+    valid: list[RecipeTemplate] = []
+    while True:
+        try:
+            value = next(iterator)
+        except StopIteration:
+            break
+        except Exception:
+            errors.add("invalid_recipe")
+            break
+        if not _is_valid_recipe(ingredients, value):
+            errors.add("invalid_recipe")
+            continue
+        valid.append(value)
+
+    id_counts = Counter(recipe.id for recipe in valid)
+    if any(count > 1 for count in id_counts.values()):
+        errors.add("invalid_recipe")
+        valid = [recipe for recipe in valid if id_counts[recipe.id] == 1]
+    return tuple(sorted(valid, key=lambda recipe: recipe.id))
 
 
 def _fingerprint(
@@ -104,17 +278,68 @@ def _fingerprint(
     return recipe.family, recipe.method, roles, categories
 
 
-def _instruction_snapshot(recipe: RecipeTemplate) -> tuple[str, ...]:
-    return tuple(" ".join(_fold(step.text).split()) for step in recipe.instructions)
-
-
-def _named_distinction(recipe: RecipeTemplate) -> tuple[str, ...]:
-    text = _fold(
-        " ".join(
-            (recipe.name_template, *(step.text for step in recipe.instructions))
-        )
+def _seasoning_patterns(ingredients: IngredientCatalog) -> tuple[re.Pattern[str], ...]:
+    roots: set[str] = set()
+    for seasoning in ingredients.all():
+        if "seasoning" not in seasoning.roles:
+            continue
+        roots.update(_SEASONING_ROOTS.get(seasoning.id, ()))
+        roots.update(_fold(value) for value in (seasoning.name, *seasoning.synonyms))
+    return tuple(
+        re.compile(rf"\b{re.escape(root)}\w*\b")
+        for root in sorted(roots, key=lambda item: (-len(item), item))
+        if root
     )
-    return tuple(marker for marker in _DISTINCTION_MARKERS if marker in text)
+
+
+def _ingredient_roots(ingredients: IngredientCatalog) -> frozenset[str]:
+    roots: set[str] = set()
+    for ingredient in ingredients.all():
+        if "seasoning" in ingredient.roles:
+            continue
+        for value in (ingredient.name, *ingredient.synonyms):
+            for token in re.findall(r"\w+", _fold(value)):
+                if len(token) >= 4:
+                    roots.add(token[: max(3, min(4, len(token) - 1))])
+    return frozenset(roots)
+
+
+def _normalized_name(
+    ingredients: IngredientCatalog,
+    recipe: RecipeTemplate,
+) -> tuple[str, ...]:
+    text = _fold(recipe.name_template)
+    text = re.sub(r"\{[^{}]+\}", " ingredient ", text)
+    text = re.sub(r"\d+(?:[.,]\d+)?", " quantity ", text)
+    for pattern in _seasoning_patterns(ingredients):
+        text = pattern.sub(" ", text)
+    ingredient_roots = _ingredient_roots(ingredients)
+    tokens = []
+    for token in re.findall(r"\w+", text):
+        if token in _NAME_STOPWORDS:
+            continue
+        if any(token.startswith(root) for root in ingredient_roots):
+            tokens.append("ingredient")
+        else:
+            tokens.append(token)
+    collapsed = []
+    for token in tokens:
+        if token != "ingredient" or not collapsed or collapsed[-1] != token:
+            collapsed.append(token)
+    return tuple(collapsed)
+
+
+def _process_structure(recipe: RecipeTemplate) -> tuple[tuple[str, ...], ...]:
+    structure = []
+    for step in recipe.instructions:
+        folded = _fold(step.text)
+        actions = []
+        for label, pattern in _ACTION_PATTERNS:
+            actions.extend((match.start(), label) for match in pattern.finditer(folded))
+        ordered = tuple(label for _, label in sorted(actions))
+        if ordered:
+            structure.append(ordered)
+    return tuple(structure)
 
 
 def _audit_duplicates(
@@ -133,12 +358,13 @@ def _audit_duplicates(
     for group in groups.values():
         if len(group) <= 2:
             continue
-        snapshots = {_instruction_snapshot(recipe) for recipe in group}
-        distinctions = {_named_distinction(recipe) for recipe in group}
+        normalized_names = {_normalized_name(ingredients, recipe) for recipe in group}
+        process_structures = {_process_structure(recipe) for recipe in group}
         if (
-            len(snapshots) != len(group)
-            or () in distinctions
-            or len(distinctions) != len(group)
+            () in normalized_names
+            or len(normalized_names) != len(group)
+            or () in process_structures
+            or len(process_structures) != len(group)
         ):
             errors.add("duplicate_fingerprint")
 
@@ -260,6 +486,20 @@ def _raw_seasoning_errors(
     return set()
 
 
+def _variant_count_within_launch_schema(recipe: RecipeTemplate) -> int | None:
+    if len(recipe.slots) > _LAUNCH_MAX_SLOTS:
+        return None
+    count = 1
+    for slot in recipe.slots:
+        candidate_count = len(slot.candidates)
+        if candidate_count > _LAUNCH_MAX_CANDIDATES_PER_SLOT:
+            return None
+        count *= candidate_count
+        if count > _MAX_AUDITED_VARIANTS:
+            return None
+    return count
+
+
 def _candidate_variants(
     ingredients: IngredientCatalog,
     recipe: RecipeTemplate,
@@ -290,6 +530,9 @@ def _audit_recipe(
     recipe: RecipeTemplate,
     errors: set[str],
 ) -> None:
+    if _variant_count_within_launch_schema(recipe) is None:
+        errors.add("variant_limit_exceeded")
+        return
     try:
         errors.update(_raw_language_errors(recipe))
         errors.update(_raw_seasoning_errors(ingredients, recipe))
@@ -320,23 +563,32 @@ def _audit_recipe(
         errors.add("invalid_recipe")
 
 
+def _audit_content_floors(
+    active: Sequence[RecipeTemplate],
+    errors: set[str],
+) -> None:
+    if len(active) < _MINIMUM_ACTIVE_RECIPES:
+        errors.add(f"total_below_{_MINIMUM_ACTIVE_RECIPES}")
+    for mode, floor in _MODE_FLOORS.items():
+        eligible = tuple(recipe for recipe in active if mode in recipe.modes)
+        if len(eligible) < floor:
+            errors.add(f"mode_{mode}_below_{floor}")
+        if len({recipe.family for recipe in eligible}) < _MINIMUM_MODE_FAMILIES:
+            errors.add(f"mode_{mode}_families_below_{_MINIMUM_MODE_FAMILIES}")
+        if len({recipe.method for recipe in eligible}) < _MINIMUM_MODE_METHODS:
+            errors.add(f"mode_{mode}_methods_below_{_MINIMUM_MODE_METHODS}")
+
+
 def audit_library(
     ingredients: IngredientCatalog,
     recipes: RecipeCatalog | Iterable[RecipeTemplate],
 ) -> LibraryAudit:
     """Audit every active recipe variant and return stable release evidence."""
     errors: set[str] = set()
-    try:
-        active = tuple(
-            sorted(
-                (item for item in _recipes(recipes) if item.active),
-                key=lambda item: item.id,
-            )
-        )
-    except (AttributeError, TypeError, ValueError):
-        active = ()
-        errors.add("invalid_recipe")
+    valid = _collect_valid_recipes(ingredients, recipes, errors)
+    active = tuple(recipe for recipe in valid if recipe.active)
 
+    _audit_content_floors(active, errors)
     _audit_duplicates(ingredients, active, errors)
     for recipe in active:
         _audit_recipe(ingredients, recipe, errors)

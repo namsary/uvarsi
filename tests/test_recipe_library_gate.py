@@ -8,7 +8,7 @@ import pytest
 import app.library_gate as library_gate
 from app.ingredient_catalog import load_ingredient_catalog
 from app.library_gate import audit_library, main
-from app.recipe_catalog import load_recipe_catalog
+from app.recipe_catalog import InstructionTemplate, load_recipe_catalog
 from app.recipe_matcher import RecipeCandidate, SlotSelection
 from app.recipe_renderer import render_meal
 
@@ -387,3 +387,217 @@ def test_cli_fails_closed_when_catalog_loading_fails(monkeypatch, capsys):
         "error.catalog_load=1",
         "errors=1",
     ]
+
+
+MODE_FLOORS = {
+    "standard": 50,
+    "high_protein": 24,
+    "vegetarian": 20,
+    "vegan": 12,
+}
+
+
+@pytest.mark.parametrize(("mode", "floor"), MODE_FLOORS.items())
+def test_audit_enforces_hard_recipe_floor_for_every_mode(mode, floor):
+    ingredients = load_ingredient_catalog()
+    recipes = list(_active_library())
+    eligible_indexes = [
+        index for index, recipe in enumerate(recipes) if mode in recipe.modes
+    ]
+    replacement_mode = "vegetarian" if mode == "standard" else "standard"
+    for index in eligible_indexes[floor - 1 :]:
+        remaining = recipes[index].modes - {mode}
+        recipes[index] = replace(
+            recipes[index],
+            modes=remaining or frozenset({replacement_mode}),
+        )
+
+    audit = audit_library(ingredients, recipes)
+
+    assert f"mode_{mode}_below_{floor}" in audit.errors
+
+
+def test_audit_enforces_hard_total_recipe_floor():
+    ingredients = load_ingredient_catalog()
+
+    audit = audit_library(ingredients, _active_library()[:59])
+
+    assert "total_below_60" in audit.errors
+
+
+@pytest.mark.parametrize("mode", MODE_FLOORS)
+def test_audit_requires_three_families_and_methods_per_mode(mode):
+    ingredients = load_ingredient_catalog()
+    recipes = _active_library()
+    one_family = tuple(
+        replace(recipe, family="single_family")
+        if mode in recipe.modes
+        else recipe
+        for recipe in recipes
+    )
+    one_method = tuple(
+        replace(recipe, method="pan") if mode in recipe.modes else recipe
+        for recipe in recipes
+    )
+
+    family_audit = audit_library(ingredients, one_family)
+    method_audit = audit_library(ingredients, one_method)
+
+    assert f"mode_{mode}_families_below_3" in family_audit.errors
+    assert f"mode_{mode}_methods_below_3" in method_audit.errors
+
+
+def test_public_audit_excludes_each_partially_malformed_recipe_without_crashing():
+    ingredients = load_ingredient_catalog()
+    recipes = _active_library()
+    base = recipes[0]
+    malformed = (
+        object(),
+        replace(base, id=None),
+        replace(base, modes=None),
+        replace(base, slots=(object(),)),
+        replace(
+            base,
+            id="duplicate_slot_shape",
+            slots=(*base.slots, base.slots[0]),
+        ),
+        replace(
+            base,
+            id="duplicate_candidate_shape",
+            slots=(
+                replace(
+                    base.slots[0],
+                    candidates=(
+                        base.slots[0].candidates[0],
+                        base.slots[0].candidates[0],
+                    ),
+                ),
+                *base.slots[1:],
+            ),
+        ),
+        replace(
+            base,
+            id="invalid_unit_shape",
+            slots=(replace(base.slots[0], unit="bucket"), *base.slots[1:]),
+        ),
+        replace(
+            base,
+            id="invalid_slot_key_shape",
+            slots=(replace(base.slots[0], key=None), *base.slots[1:]),
+        ),
+        replace(
+            base,
+            id="unhashable_candidate_shape",
+            slots=(
+                replace(base.slots[0], candidates=(["chicken_breast"],)),
+                *base.slots[1:],
+            ),
+        ),
+    )
+    baseline = audit_library(ingredients, recipes)
+
+    audit = audit_library(ingredients, (*recipes, *malformed))
+
+    assert audit.active_recipes == baseline.active_recipes == 60
+    assert audit.mode_counts == baseline.mode_counts
+    assert audit.method_counts == baseline.method_counts
+    assert audit.family_counts == baseline.family_counts
+    assert audit.errors == ("invalid_recipe",)
+
+
+def test_public_audit_fails_closed_when_recipe_iterable_cannot_start():
+    ingredients = load_ingredient_catalog()
+
+    class ExplodingRecipes:
+        def __iter__(self):
+            raise RuntimeError("broken recipe source")
+
+    audit = audit_library(ingredients, ExplodingRecipes())
+
+    assert audit.active_recipes == 0
+    assert "invalid_recipe" in audit.errors
+
+
+def test_duplicate_fingerprint_cannot_be_bypassed_with_seasoning_keywords():
+    ingredients = load_ingredient_catalog()
+    base = next(
+        recipe
+        for recipe in _active_library()
+        if recipe.id == "pan_chicken_rice_vegetables"
+    )
+    cosmetic_variants = (
+        ("cesnakom", "garlic"),
+        ("oreganom", "oregano"),
+        ("mletou paprikou", "paprika_powder"),
+    )
+    recipes = tuple(
+        replace(
+            base,
+            id=f"cosmetic_{index}",
+            name_template=f"{base.name_template} s {wording}",
+            pantry_basics=tuple(dict.fromkeys((*base.pantry_basics, seasoning_id))),
+            instructions=(
+                *base.instructions,
+                InstructionTemplate(f"Posyp jedlo {wording}."),
+            ),
+        )
+        for index, (wording, seasoning_id) in enumerate(cosmetic_variants)
+    )
+
+    audit = audit_library(ingredients, recipes)
+
+    assert "duplicate_fingerprint" in audit.errors
+
+
+def test_duplicate_fingerprint_accepts_distinct_names_and_process_structures():
+    ingredients = load_ingredient_catalog()
+    by_id = {recipe.id: recipe for recipe in _active_library()}
+    recipes = tuple(
+        replace(
+            by_id[recipe_id],
+            family="shared_pan_process",
+            name_template=name,
+        )
+        for recipe_id, name in (
+            ("pan_chicken_rice_vegetables", "Kuracie soté s {vegetable.name}"),
+            ("pan_chicken_pasta_tomato", "Kuracie ragú s {vegetable.name}"),
+            (
+                "pan_turkey_couscous_zucchini",
+                "Morčací pilaf s {vegetable.name}",
+            ),
+        )
+    )
+
+    audit = audit_library(ingredients, recipes)
+
+    assert "duplicate_fingerprint" not in audit.errors
+
+
+def test_variant_audit_stops_before_cartesian_product_above_launch_schema(
+    monkeypatch,
+):
+    ingredients = load_ingredient_catalog()
+    base = next(
+        recipe
+        for recipe in _active_library()
+        if recipe.id == "pan_chicken_rice_vegetables"
+    )
+    protein = replace(
+        base.slots[0],
+        candidates=(
+            "chicken_breast",
+            "chicken_thigh",
+            "turkey_breast",
+            "pork_shoulder",
+        ),
+    )
+    oversized = replace(base, slots=(protein, *base.slots[1:]))
+
+    def cartesian_product_must_not_run(*args, **kwargs):
+        raise AssertionError("unbounded Cartesian product was reached")
+
+    monkeypatch.setattr(library_gate, "product", cartesian_product_must_not_run)
+
+    audit = audit_library(ingredients, (oversized,))
+
+    assert "variant_limit_exceeded" in audit.errors
