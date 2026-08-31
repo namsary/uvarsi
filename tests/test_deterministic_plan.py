@@ -183,6 +183,96 @@ def _heterogeneous_reserve_recipes():
     return RecipeCatalog(13, (replace(small, slots=(*small.slots, optional)), large))
 
 
+def _rank_boundary_reserve_recipes():
+    generic_steps = (
+        "Osuš {main.amount} {main.name} utierkou, kým povrch nebude suchý.",
+        "Nakrájaj {main.amount} {main.name} {main.cut} na doske.",
+        "Opekaj {main.amount} {main.name} na panvici 8 minút na strednom "
+        "ohni, kým bude povrch zlatistý.",
+        "Rozdeľ {main.name} na {portions} porcie a podávaj ho teplé.",
+    )
+    decoys = []
+    for index in range(11):
+        decoy = _template(
+            f"decoy-{index}",
+            ingredient_id="chicken_breast",
+            role="protein",
+            amount="10",
+            child_factor="0",
+            family="decoy-family",
+            method="pot",
+            cut="na kocky",
+            name="Opečené {main.name}",
+            steps=generic_steps,
+        )
+        absent = tuple(
+            IngredientSlot(
+                key=f"decoy-{index}-absent-{slot_index}",
+                role="vegetable",
+                candidates=("broccoli",),
+                amount_per_adult=Decimal("10"),
+                unit="g",
+                child_factor=Decimal("0"),
+                required=False,
+                use="addition",
+                cut=None,
+            )
+            for slot_index in range(17)
+        )
+        decoys.append(replace(decoy, slots=(*decoy.slots, *absent)))
+    safe = _template(
+        "safe-alternate",
+        ingredient_id="chicken_breast",
+        role="protein",
+        amount="10",
+        child_factor="0",
+        family="decoy-family",
+        method="pot",
+        cut="na kocky",
+        name="Pečené {main.name}",
+        steps=generic_steps,
+    )
+    absent_optional = tuple(
+        IngredientSlot(
+            key=f"absent-{index}",
+            role="vegetable",
+            candidates=("broccoli",),
+            amount_per_adult=Decimal("10"),
+            unit="g",
+            child_factor=Decimal("0"),
+            required=False,
+            use="addition",
+            cut=None,
+        )
+        for index in range(26)
+    )
+    safe = replace(safe, slots=(*safe.slots, *absent_optional))
+
+    mover = _template(
+        "optional-rank-mover",
+        amount="100",
+        child_factor="0",
+        family="mover-family",
+        method="pan",
+    )
+    mover_optional = tuple(
+        IngredientSlot(
+            key=f"extra-{index}",
+            role="addition",
+            candidates=("rice",),
+            amount_per_adult=Decimal("10"),
+            unit="g",
+            child_factor=Decimal("0"),
+            required=False,
+            use="addition",
+            cut=None,
+        )
+        for index in range(39)
+    )
+    mover = replace(mover, slots=(*mover.slots, *mover_optional))
+    return RecipeCatalog(15, (*decoys, safe, mover))
+
+
 def _build(*, frequency=3, pantry=(), pantry_driven=False, **overrides):
     values = {
         "week": WEEK,
@@ -464,6 +554,139 @@ def test_future_reserve_ignores_unrenderable_and_out_of_mode_candidates():
         meal["suroviny"].count({"spajza": "ryža"}) == 2
         for meal in plan["jedla"]
     )
+
+
+def test_stabilized_reserve_aligns_rank_boundary_and_prevents_future_starvation():
+    from app import deterministic_plan
+
+    ingredients = load_ingredient_catalog()
+    recipes = _rank_boundary_reserve_recipes()
+    rows = ()
+    pantry = (
+        PantryEntry("rice", "ryža", Quantity(Decimal("760"), "g")),
+        PantryEntry(
+            "chicken_breast",
+            "kuracie prsia",
+            Quantity(Decimal("30"), "g"),
+        ),
+    )
+    offers = tuple(deterministic_plan.match_offers(rows, ingredients))
+    balances = deterministic_plan._pantry_balances(pantry, ingredients)
+    rank_arguments = {
+        "templates": recipes.all(),
+        "offers": offers,
+        "balances": balances,
+        "pantry_driven": True,
+        "mode": "standard",
+        "seed": f"fixture-seed:{WEEK}:PO",
+        "ingredient_catalog": ingredients,
+        "adults": 1,
+        "children": 0,
+        "covered_days": 2,
+        "recent_families": (),
+        "recent_methods": (),
+    }
+    discovery = deterministic_plan._rank_for_day(
+        **rank_arguments,
+        required_reserve=balances,
+    )
+    exposed = deterministic_plan._rank_for_day(
+        **rank_arguments,
+        required_reserve={},
+    )
+
+    # Eleven pantry-backed decoys score exactly 1 / 18 * 14. The safe filler
+    # scores 1 / 27 * 14. The mover scores 1 / 40 * 14 = 0.35 when optional
+    # pantry is suppressed. With no rice reserve, 38 optional slots fit beside
+    # the required slot, so its exposed score is 39 / 40 * 14 = 13.65.
+    assert all(
+        candidate.score == Decimal("0.7777777777777777777777777778")
+        for candidate in discovery[:11]
+    )
+    assert (discovery[11].template.id, discovery[11].score) == (
+        "safe-alternate",
+        Decimal("0.5185185185185185185185185185"),
+    )
+    assert (discovery[12].template.id, discovery[12].score) == (
+        "optional-rank-mover",
+        Decimal("0.35"),
+    )
+    assert (exposed[0].template.id, exposed[0].score) == (
+        "optional-rank-mover",
+        Decimal("13.650"),
+    )
+    assert exposed[12].template.id == "safe-alternate"
+    assert len(
+        [
+            deterministic_plan.render_meal(
+                candidate,
+                adults=1,
+                children=0,
+                covered_days=2,
+            )
+            for candidate in discovery
+        ]
+    ) == 13
+
+    plan = _build(
+        rows=rows,
+        adults=1,
+        children=0,
+        frequency=2,
+        pantry=pantry,
+        pantry_driven=True,
+        recipe_catalog=recipes,
+    )
+
+    template_ids = [
+        meal["recept"]["template_id"] for meal in plan["jedla"]
+    ]
+    assert template_ids[::2] == ["optional-rank-mover"] * 2
+    assert all(
+        template_id.startswith("decoy-")
+        for template_id in template_ids[1::2]
+    )
+    assert "safe-alternate" not in template_ids
+    assert sum(meal["pokryva_dni"] for meal in plan["jedla"]) == 7
+    assert plan["nakupny_zoznam"] == []
+
+    stabilized = deterministic_plan._stabilized_pantry_state(
+        days=("PO", "ST", "PI", "NE"),
+        frequency=2,
+        templates=recipes.all(),
+        offers=offers,
+        balances=balances,
+        mode="standard",
+        seed="fixture-seed",
+        week=WEEK,
+        adults=1,
+        children=0,
+        ingredient_catalog=ingredients,
+        recent_families=(),
+        recent_methods=(),
+    )
+    reranked = tuple(
+        deterministic_plan._ranked_renderable_for_day(
+            day=day,
+            coverage=2 if day != "NE" else 1,
+            templates=recipes.all(),
+            offers=offers,
+            balances=balances,
+            mode="standard",
+            seed="fixture-seed",
+            week=WEEK,
+            adults=1,
+            children=0,
+            ingredient_catalog=ingredients,
+            recent_families=(),
+            recent_methods=(),
+            required_reserve=stabilized.reserve,
+        )
+        for day in ("PO", "ST", "PI", "NE")
+    )
+    assert tuple(
+        ranking.bounded_identity for ranking in stabilized.rankings
+    ) == tuple(ranking.bounded_identity for ranking in reranked)
 
 
 def test_meal_ingredients_preserve_established_offer_and_pantry_shapes():

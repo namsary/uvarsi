@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 from fractions import Fraction
+from math import prod
 from typing import Literal, Mapping, Sequence
 
 from .ingredient_catalog import Ingredient, IngredientCatalog, load_ingredient_catalog
@@ -53,6 +54,26 @@ class _SelectedMeal:
     candidate: RecipeCandidate
     rendered: RenderedMeal
     adult_nutrition: NutritionEstimate
+
+
+@dataclass(frozen=True)
+class _RankedRenderableMeal:
+    candidate: RecipeCandidate
+    rendered: RenderedMeal
+    adult_nutrition: NutritionEstimate
+    required_grams: tuple[tuple[str, Fraction], ...]
+
+
+@dataclass(frozen=True)
+class _PantryDayRanking:
+    bounded_identity: tuple[tuple[object, ...], ...]
+    candidates: tuple[_RankedRenderableMeal, ...]
+
+
+@dataclass(frozen=True)
+class _StabilizedPantryState:
+    reserve: Mapping[str, Fraction]
+    rankings: tuple[_PantryDayRanking, ...]
 
 
 def _raise_no_plan(code: str) -> None:
@@ -285,7 +306,167 @@ def _adult_serving_nutrition(
     return estimate_recipe_nutrition(lines, adult_servings=Decimal("1"))
 
 
-def _future_required_reserve(
+def _candidate_identity(candidate: RecipeCandidate) -> tuple[object, ...]:
+    return (
+        candidate.template.id,
+        candidate.key,
+        tuple(
+            (
+                selection.slot.key,
+                selection.ingredient.id,
+                "" if selection.offer is None else selection.offer.offer_key,
+                (
+                    None
+                    if selection.pantry is None
+                    else (
+                        str(selection.pantry.amount),
+                        selection.pantry.unit,
+                    )
+                ),
+            )
+            for selection in candidate.selections
+        ),
+    )
+
+
+def _ranked_renderable_for_day(
+    *,
+    day: str,
+    coverage: int,
+    templates: Sequence[RecipeTemplate],
+    offers,
+    balances: Mapping[str, Fraction],
+    mode: str,
+    seed: str,
+    week: str,
+    adults: int,
+    children: int,
+    ingredient_catalog: IngredientCatalog,
+    recent_families: Sequence[str],
+    recent_methods: Sequence[str],
+    required_reserve: Mapping[str, Fraction],
+    pantry_driven: bool = True,
+) -> _PantryDayRanking:
+    bounded = _rank_for_day(
+        templates=templates,
+        offers=offers,
+        balances=balances,
+        pantry_driven=pantry_driven,
+        mode=mode,
+        seed=f"{seed}:{week}:{day}",
+        ingredient_catalog=ingredient_catalog,
+        adults=adults,
+        children=children,
+        covered_days=coverage,
+        required_reserve=required_reserve,
+        recent_families=recent_families,
+        recent_methods=recent_methods,
+    )[:_MAX_CANDIDATES_PER_DAY]
+    candidates = []
+    for candidate in bounded:
+        try:
+            rendered = render_meal(
+                candidate,
+                adults=adults,
+                children=children,
+                covered_days=coverage,
+            )
+            adult_nutrition = _adult_serving_nutrition(
+                rendered,
+                adults=adults,
+                children=children,
+            )
+        except (TypeError, ValueError):
+            continue
+        if (
+            mode == "high_protein"
+            and adult_nutrition.serving.protein_g < _MINIMUM_HIGH_PROTEIN_G
+        ):
+            continue
+
+        required: dict[str, Fraction] = {}
+        for item in rendered.ingredients:
+            if not item.slot.required:
+                continue
+            grams = _grams(item.quantity, item.ingredient)
+            if grams is None:
+                break
+            required[item.ingredient.id] = (
+                required.get(item.ingredient.id, Fraction(0)) + grams
+            )
+        else:
+            candidates.append(
+                _RankedRenderableMeal(
+                    candidate,
+                    rendered,
+                    adult_nutrition,
+                    tuple(sorted(required.items())),
+                )
+            )
+
+    return _PantryDayRanking(
+        tuple(_candidate_identity(candidate) for candidate in bounded),
+        tuple(candidates),
+    )
+
+
+def _required_reserve_envelope(
+    rankings: Sequence[_PantryDayRanking],
+) -> dict[str, Fraction]:
+    reserve: dict[str, Fraction] = {}
+    for ranking in rankings:
+        daily_maximum: dict[str, Fraction] = {}
+        for ranked in ranking.candidates:
+            for ingredient_id, grams in ranked.required_grams:
+                daily_maximum[ingredient_id] = max(
+                    daily_maximum.get(ingredient_id, Fraction(0)),
+                    grams,
+                )
+        for ingredient_id in sorted(daily_maximum):
+            reserve[ingredient_id] = (
+                reserve.get(ingredient_id, Fraction(0))
+                + daily_maximum[ingredient_id]
+            )
+    return reserve
+
+
+def _reserve_convergence_bound(
+    *,
+    days: Sequence[str],
+    templates: Sequence[RecipeTemplate],
+    mode: str,
+) -> int:
+    compatible = tuple(
+        template
+        for template in templates
+        if template.active and mode in template.modes
+    )
+    ingredient_ids = {
+        ingredient_id
+        for template in compatible
+        for slot in template.slots
+        if slot.required
+        for ingredient_id in slot.candidates
+    }
+    required_variants = sum(
+        prod(
+            len(slot.candidates)
+            for slot in template.slots
+            if slot.required
+        )
+        for template in compatible
+    )
+    if not ingredient_ids or not days:
+        return 2
+
+    envelope_values_per_ingredient = (required_variants + 1) ** len(days)
+    strict_reserve_increases = len(ingredient_ids) * (
+        envelope_values_per_ingredient - 1
+    )
+    return strict_reserve_increases + 2
+
+
+def _stabilized_pantry_state(
     *,
     days: Sequence[str],
     frequency: int,
@@ -300,74 +481,51 @@ def _future_required_reserve(
     ingredient_catalog: IngredientCatalog,
     recent_families: Sequence[str],
     recent_methods: Sequence[str],
-) -> dict[str, Fraction]:
+) -> _StabilizedPantryState:
     reserve: dict[str, Fraction] = {}
-    for day in days:
-        coverage = days_covered_by_meal(frequency, day)
-        candidates = _rank_for_day(
-            templates=templates,
-            offers=offers,
-            balances=balances,
-            pantry_driven=True,
-            mode=mode,
-            seed=f"{seed}:{week}:{day}",
-            ingredient_catalog=ingredient_catalog,
-            adults=adults,
-            children=children,
-            covered_days=coverage,
-            required_reserve=balances,
-            recent_families=recent_families,
-            recent_methods=recent_methods,
-        )[:_MAX_CANDIDATES_PER_DAY]
-        daily_maximum: dict[str, Fraction] = {}
-        for candidate in candidates:
-            try:
-                rendered = render_meal(
-                    candidate,
-                    adults=adults,
-                    children=children,
-                    covered_days=coverage,
-                )
-                if (
-                    mode == "high_protein"
-                    and _adult_serving_nutrition(
-                        rendered,
-                        adults=adults,
-                        children=children,
-                    ).serving.protein_g
-                    < _MINIMUM_HIGH_PROTEIN_G
-                ):
-                    continue
-            except (TypeError, ValueError):
-                continue
-
-            candidate_required: dict[str, Fraction] = {}
-            measurable = True
-            for item in rendered.ingredients:
-                if not item.slot.required:
-                    continue
-                grams = _grams(item.quantity, item.ingredient)
-                if grams is None:
-                    measurable = False
-                    break
-                candidate_required[item.ingredient.id] = (
-                    candidate_required.get(item.ingredient.id, Fraction(0))
-                    + grams
-                )
-            if not measurable:
-                continue
-            for ingredient_id in sorted(candidate_required):
-                daily_maximum[ingredient_id] = max(
-                    daily_maximum.get(ingredient_id, Fraction(0)),
-                    candidate_required[ingredient_id],
-                )
-
-        for ingredient_id in sorted(daily_maximum):
-            reserve[ingredient_id] = (
-                reserve.get(ingredient_id, Fraction(0))
-                + daily_maximum[ingredient_id]
+    previous_identity = None
+    convergence_bound = _reserve_convergence_bound(
+        days=days,
+        templates=templates,
+        mode=mode,
+    )
+    iteration = 0
+    while iteration < convergence_bound:
+        iteration += 1
+        rankings = tuple(
+            _ranked_renderable_for_day(
+                day=day,
+                coverage=days_covered_by_meal(frequency, day),
+                templates=templates,
+                offers=offers,
+                balances=balances,
+                mode=mode,
+                seed=seed,
+                week=week,
+                adults=adults,
+                children=children,
+                ingredient_catalog=ingredient_catalog,
+                recent_families=recent_families,
+                recent_methods=recent_methods,
+                required_reserve=reserve,
             )
-    return reserve
+            for day in days
+        )
+        identity = tuple(ranking.bounded_identity for ranking in rankings)
+        envelope = _required_reserve_envelope(rankings)
+        updated_reserve = {
+            ingredient_id: max(
+                reserve.get(ingredient_id, Fraction(0)),
+                envelope.get(ingredient_id, Fraction(0)),
+            )
+            for ingredient_id in sorted(reserve.keys() | envelope.keys())
+        }
+        if updated_reserve == reserve and identity == previous_identity:
+            return _StabilizedPantryState(dict(reserve), rankings)
+        reserve = updated_reserve
+        previous_identity = identity
+
+    _raise_no_plan("insufficient_offers")
 
 
 def _has_unmeasurable_rows(rows: Sequence[Mapping[str, object]]) -> bool:
@@ -411,8 +569,8 @@ def _select_week(
     available_methods = set()
     for index, day in enumerate(days):
         coverage = days_covered_by_meal(frequency, day)
-        required_reserve = (
-            _future_required_reserve(
+        stabilized = (
+            _stabilized_pantry_state(
                 days=days[index:],
                 frequency=frequency,
                 templates=templates,
@@ -428,7 +586,7 @@ def _select_week(
                 recent_methods=(),
             )
             if pantry_driven
-            else {}
+            else None
         )
         available_methods.update(
             candidate.template.method
@@ -443,7 +601,9 @@ def _select_week(
                 adults=adults,
                 children=children,
                 covered_days=coverage,
-                required_reserve=required_reserve,
+                required_reserve=(
+                    stabilized.reserve if stabilized is not None else {}
+                ),
                 recent_families=(),
                 recent_methods=(),
             )
@@ -470,8 +630,8 @@ def _select_week(
         method_history = tuple(
             item.candidate.template.method for item in selected
         )
-        required_reserve = (
-            _future_required_reserve(
+        stabilized = (
+            _stabilized_pantry_state(
                 days=days[index:],
                 frequency=frequency,
                 templates=templates,
@@ -487,25 +647,31 @@ def _select_week(
                 recent_methods=method_history,
             )
             if pantry_driven
-            else {}
+            else None
         )
-        candidates = _rank_for_day(
-            templates=templates,
-            offers=offers,
-            balances=balances,
-            pantry_driven=pantry_driven,
-            mode=mode,
-            seed=f"{seed}:{week}:{day}",
-            ingredient_catalog=ingredient_catalog,
-            adults=adults,
-            children=children,
-            covered_days=coverage,
-            required_reserve=required_reserve,
-            recent_families=family_history,
-            recent_methods=method_history,
-        )[:_MAX_CANDIDATES_PER_DAY]
+        if stabilized is not None:
+            ranked_candidates = stabilized.rankings[0].candidates
+        else:
+            ranked_candidates = _ranked_renderable_for_day(
+                day=day,
+                coverage=coverage,
+                templates=templates,
+                offers=offers,
+                balances=balances,
+                mode=mode,
+                seed=seed,
+                week=week,
+                adults=adults,
+                children=children,
+                ingredient_catalog=ingredient_catalog,
+                recent_families=family_history,
+                recent_methods=method_history,
+                required_reserve={},
+                pantry_driven=False,
+            ).candidates
 
-        for candidate in candidates:
+        for ranked in ranked_candidates:
+            candidate = ranked.candidate
             if selected:
                 previous = selected[-1].candidate.template
                 current = candidate.template
@@ -514,20 +680,8 @@ def _select_week(
                     current.method,
                 ):
                     continue
-            try:
-                rendered = render_meal(
-                    candidate,
-                    adults=adults,
-                    children=children,
-                    covered_days=coverage,
-                )
-                adult_nutrition = _adult_serving_nutrition(
-                    rendered,
-                    adults=adults,
-                    children=children,
-                )
-            except (TypeError, ValueError):
-                continue
+            rendered = ranked.rendered
+            adult_nutrition = ranked.adult_nutrition
             if (
                 mode == "high_protein"
                 and adult_nutrition.serving.protein_g < _MINIMUM_HIGH_PROTEIN_G
