@@ -61,6 +61,18 @@ class InputChangedBeforeDispatch(RuntimeError):
         self.code = code
 
 
+class EngineReplaced(RuntimeError):
+    """A legacy recipe job must not reach AI after deterministic activation."""
+
+    kod = "engine_replaced"
+    _uvarsi_request_not_dispatched = True
+
+
+def _require_legacy_recipe_engine(server):
+    if server.recipe_engine_mode() == "on":
+        raise EngineReplaced("deterministic recipe engine is active")
+
+
 class _LeaseAwareClient:
     def __init__(self, server, job, client, clock, calendar_clock):
         self._server = server
@@ -77,6 +89,7 @@ class _LeaseAwareClient:
         self._context_identity = identity
 
     def prepare(self, factory):
+        _require_legacy_recipe_engine(self._server)
         if self._client is None:
             self._client = factory()
 
@@ -118,6 +131,7 @@ class _LeaseAwareClient:
         )
 
     def create(self, **kwargs):
+        _require_legacy_recipe_engine(self._server)
         with self._server.db() as con:
             con.execute("BEGIN IMMEDIATE")
             try:
@@ -204,13 +218,19 @@ def process_one(*, now=None, client=None) -> ProcessResult:
 
     guarded_client = _LeaseAwareClient(server, job, client, clock, calendar_clock)
     try:
+        _require_legacy_recipe_engine(server)
         server.build_and_store_job(job, client=guarded_client)
     except BaseException as error:
         code = _error_code(server, error)
         retryable = (
             not guarded_client.dispatched
             and not isinstance(
-                error, (server.StalePlanJob, LeaseLostBeforeDispatch, InputChangedBeforeDispatch),
+                error, (
+                    server.StalePlanJob,
+                    EngineReplaced,
+                    LeaseLostBeforeDispatch,
+                    InputChangedBeforeDispatch,
+                ),
             )
             and job.attempts < MAX_ATTEMPTS
             and code != server.naklady.KOD_KREDIT
