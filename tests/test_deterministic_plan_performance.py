@@ -11,6 +11,7 @@ from tests.test_deterministic_plan_invariants import STORES, WEEK, make_fixture
 
 BUILD_COUNT = 40
 P95_LIMIT_MS = 500.0
+BUILD_SEEDS = tuple(f"production-sized-performance-{index:02d}" for index in range(BUILD_COUNT))
 
 
 def test_production_sized_fixture_builds_under_p95_budget():
@@ -27,21 +28,20 @@ def test_production_sized_fixture_builds_under_p95_budget():
         "pantry": (),
         "pantry_driven": False,
         "mode": "standard",
-        "seed": "production-sized-performance-fixture",
         "ingredient_catalog": ingredients,
         "recipe_catalog": fixture.recipes,
     }
 
     # Warm catalog-backed caches and renderer validation before the measured builds.
-    warm_plan = build_deterministic_plan(**kwargs)
+    warm_plan = build_deterministic_plan(**kwargs, seed="performance-warmup")
     assert sum(meal["pokryva_dni"] for meal in warm_plan["jedla"]) == 7
 
     samples_ms = []
-    for _ in range(BUILD_COUNT):
+    for seed in BUILD_SEEDS:
         started = perf_counter_ns()
-        plan = build_deterministic_plan(**kwargs)
+        plan = build_deterministic_plan(**kwargs, seed=seed)
         samples_ms.append((perf_counter_ns() - started) / 1_000_000)
-        assert plan == warm_plan
+        assert sum(meal["pokryva_dni"] for meal in plan["jedla"]) == 7
 
     ordered = sorted(samples_ms)
     p95_index = math.ceil(0.95 * len(ordered)) - 1
@@ -57,4 +57,5 @@ def test_production_sized_fixture_builds_under_p95_budget():
     assert len(matched_offers) >= 850
     assert len(fixture.recipes.all()) >= 60
     assert len(samples_ms) == 40
+    assert len(set(BUILD_SEEDS)) == 40
     assert p95_ms < P95_LIMIT_MS

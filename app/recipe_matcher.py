@@ -6,6 +6,7 @@ from collections import Counter
 from dataclasses import dataclass
 from decimal import Context, Decimal, ROUND_HALF_EVEN
 from fractions import Fraction
+from functools import lru_cache
 from hashlib import sha256
 from typing import Iterable, Mapping, Sequence
 
@@ -296,9 +297,19 @@ def _best_offer(
     )
 
 
+@lru_cache(maxsize=4096)
+def _best_offer_cached(
+    slot: IngredientSlot,
+    ingredient: Ingredient,
+    offers: tuple[MatchedOffer, ...],
+    pantry: Quantity | None,
+) -> MatchedOffer | None:
+    return _best_offer(slot, ingredient, offers, pantry)
+
+
 def _slot_options(
     slot: IngredientSlot,
-    offers: Sequence[MatchedOffer],
+    offers_by_ingredient: Mapping[str, Sequence[MatchedOffer]],
     pantry_balances: dict[str, Decimal],
     ingredients: dict[str, Ingredient],
     mode: str,
@@ -309,7 +320,15 @@ def _slot_options(
         if ingredient is None or not _diet_compatible(ingredient, mode):
             continue
         pantry = _pantry_quantity(pantry_balances, slot, ingredient)
-        selected_offer = _best_offer(slot, ingredient, offers, pantry)
+        ingredient_offers = tuple(offers_by_ingredient.get(ingredient_id, ()))
+        try:
+            selected_offer = _best_offer_cached(
+                slot, ingredient, ingredient_offers, pantry
+            )
+        except TypeError:
+            selected_offer = _best_offer(
+                slot, ingredient, ingredient_offers, pantry
+            )
         pantry_covers_slot = (
             pantry is not None and pantry.amount >= slot.amount_per_adult
         )
@@ -339,7 +358,7 @@ def _slot_options(
 
 def _allocate_required_slots(
     slots: Sequence[tuple[int, IngredientSlot]],
-    offers: Sequence[MatchedOffer],
+    offers_by_ingredient: Mapping[str, Sequence[MatchedOffer]],
     pantry_balances: dict[str, Decimal],
     ingredients: dict[str, Ingredient],
     mode: str,
@@ -349,12 +368,12 @@ def _allocate_required_slots(
 
     slot_index, slot = slots[0]
     for selection in _slot_options(
-        slot, offers, pantry_balances, ingredients, mode
+        slot, offers_by_ingredient, pantry_balances, ingredients, mode
     ):
         remaining = dict(pantry_balances)
         _consume_pantry(remaining, selection)
         allocated = _allocate_required_slots(
-            slots[1:], offers, remaining, ingredients, mode
+            slots[1:], offers_by_ingredient, remaining, ingredients, mode
         )
         if allocated is None:
             continue
@@ -474,6 +493,9 @@ def rank_candidates(
 ) -> Sequence[RecipeCandidate]:
     """Return compatible candidates ordered by score and stable SHA-256 key."""
     offer_rows = tuple(offers)
+    offers_by_ingredient: dict[str, list[MatchedOffer]] = {}
+    for offer in offer_rows:
+        offers_by_ingredient.setdefault(offer.ingredient.id, []).append(offer)
     pantry_entries = tuple(pantry)
     ingredients = _ingredient_index(offer_rows, ingredient_catalog)
     family_history = frozenset(recent_families)
@@ -491,7 +513,7 @@ def rank_candidates(
         )
         allocated = _allocate_required_slots(
             required_slots,
-            offer_rows,
+            offers_by_ingredient,
             pantry_balances,
             ingredients,
             mode,
@@ -505,7 +527,7 @@ def rank_candidates(
                 continue
             options = _slot_options(
                 recipe_slot,
-                offer_rows,
+                offers_by_ingredient,
                 pantry_balances,
                 ingredients,
                 mode,

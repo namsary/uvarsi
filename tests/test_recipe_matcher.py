@@ -518,3 +518,22 @@ def test_public_results_are_immutable(ingredients):
     assert isinstance(candidate.selections[0], SlotSelection)
     with pytest.raises(FrozenInstanceError):
         candidate.score = Decimal("0")
+
+
+def test_cached_offer_choice_tracks_changed_price_values(ingredients):
+    rice = ingredients.by_id("rice")
+    recipe = template("price-cache-key", [slot([rice.id], role="starch")])
+    original = offer(rice, sale_price=Decimal("2"))
+
+    first = rank_candidates(
+        [recipe], [original], (), "standard", "price-cache-key"
+    )[0]
+    second = rank_candidates(
+        [recipe],
+        [replace(original, sale_price=Decimal("1"))],
+        (),
+        "standard",
+        "price-cache-key",
+    )[0]
+
+    assert second.score > first.score

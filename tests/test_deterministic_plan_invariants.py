@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 import math
+import re
+from string import Formatter
 import unicodedata
 
 import pytest
@@ -15,9 +17,11 @@ from app.recipe_catalog import (
     ALLOWED_MODES,
     IngredientSlot,
     InstructionTemplate,
+    PANTRY_BASIC_NAMES,
     RecipeCatalog,
     RecipeTemplate,
 )
+from app.recipe_renderer import _ingredient_forms
 
 
 WEEK = "2026-08-31"
@@ -28,6 +32,13 @@ MODE_INGREDIENT = {
     "vegetarian": "tofu",
     "vegan": "tofu",
 }
+MODE_CANDIDATES = {
+    "standard": ("rice", "pasta"),
+    "high_protein": ("chicken_breast", "chicken_thigh"),
+    "vegetarian": ("tofu", "chickpeas"),
+    "vegan": ("tofu", "chickpeas"),
+}
+OPTIONAL_CANDIDATES = ("zucchini", "broccoli")
 MODE_AMOUNT = {
     "standard": Decimal("75"),
     "high_protein": Decimal("200"),
@@ -40,12 +51,6 @@ MODE_ROLE = {
     "vegetarian": "protein",
     "vegan": "protein",
 }
-INGREDIENT_STEM = {
-    "rice": "ryz",
-    "tofu": "tofu",
-    "chicken_breast": "kurac",
-}
-
 RICE_STEPS = (
     "Prepláchni {main.amount} {main.name} v jemnom sitku pod studenou vodou, "
     "kým odtekajúca voda nebude takmer číra.",
@@ -54,9 +59,12 @@ RICE_STEPS = (
     "kým voda nezačne súvislo bublať.",
     "Var {main.amount} {main.name} v prikrytom hrnci 12 minút na miernom "
     "ohni, kým sa voda vsiakne.",
-    "Odstav hrniec a nechaj ryžu prikrytú 5 minút dôjsť, kým budú zrná "
-    "mäkké a oddelené.",
-    "Rozdeľ ryžu na {portions} porcie a podávaj ju horúcu.",
+    "Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}.",
+    "Pridaj {vegetable.amount} {vegetable.name} do hrnca a var na miernom "
+    "ohni 6 minút, kým zelenina zmäkne.",
+    "Odstav hrniec a nechaj obsah prikrytý 5 minút dôjsť, kým bude príloha "
+    "mäkká.",
+    "Rozdeľ uvarenú prílohu na {portions} porcie a podávaj ju horúcu.",
 )
 TOFU_STEPS = (
     "Osuš {main.amount} {main.name} čistou utierkou, kým povrch nebude suchý.",
@@ -65,7 +73,10 @@ TOFU_STEPS = (
     "kým sa olej začne ľahko lesknúť.",
     "Opekaj {main.amount} {main.name} v panvici 8 minút na strednom ohni, "
     "kým budú všetky strany zlatisté a chrumkavé.",
-    "Rozdeľ tofu na {portions} porcie a podávaj ho ihneď.",
+    "Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}.",
+    "Pridaj {vegetable.amount} {vegetable.name} do panvice a opekaj na "
+    "strednom ohni 6 minút, kým zelenina zmäkne.",
+    "Rozdeľ opečenú hlavnú surovinu na {portions} porcie a podávaj ju ihneď.",
 )
 CHICKEN_STEPS = (
     "Osuš {main.amount} {main.name} čistou utierkou, kým povrch nebude suchý.",
@@ -74,7 +85,10 @@ CHICKEN_STEPS = (
     "kým sa olej začne ľahko lesknúť.",
     "Opekaj {main.amount} {main.name} v panvici 12 minút na strednom ohni, "
     "kým bude mäso zlatisté a v strede prepečené.",
-    "Rozdeľ kuracie prsia na {portions} porcie a podávaj ich horúce.",
+    "Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}.",
+    "Pridaj {vegetable.amount} {vegetable.name} do panvice a opekaj na "
+    "strednom ohni 6 minút, kým zelenina zmäkne.",
+    "Rozdeľ upečené mäso na {portions} porcie a podávaj ho horúce.",
 )
 
 
@@ -106,10 +120,10 @@ def _steps_for(ingredient_id: str) -> tuple[str, ...]:
 def _template(mode: str, index: int) -> RecipeTemplate:
     ingredient_id = MODE_INGREDIENT[mode]
     method = ("pot", "pan", "oven")[index % 3]
-    slot = IngredientSlot(
+    main_slot = IngredientSlot(
         key="main",
         role=MODE_ROLE[mode],
-        candidates=(ingredient_id,),
+        candidates=MODE_CANDIDATES[mode],
         amount_per_adult=MODE_AMOUNT[mode],
         unit="g",
         child_factor=Decimal("0.6"),
@@ -117,17 +131,28 @@ def _template(mode: str, index: int) -> RecipeTemplate:
         use="main",
         cut=None if ingredient_id == "rice" else "na 2 cm kocky",
     )
+    vegetable_slot = IngredientSlot(
+        key="vegetable",
+        role="vegetable",
+        candidates=OPTIONAL_CANDIDATES,
+        amount_per_adult=Decimal("70"),
+        unit="g",
+        child_factor=Decimal("0.6"),
+        required=False,
+        use="addition",
+        cut="na malé kúsky",
+    )
     return RecipeTemplate(
         id=f"fixture-{mode}-{index:02d}",
         version=1,
         active=True,
-        name_template="Jednoduché jedlo z {main.name}",
+        name_template="Jednoduché jedlo z {main.name} a {vegetable.name}",
         family=f"fixture-{mode}-family-{index:02d}",
         method=method,
         minutes=30,
         modes=frozenset({mode}),
         equipment=("hrniec",) if method == "pot" else (method,),
-        slots=(slot,),
+        slots=(main_slot, vegetable_slot),
         pantry_basics=("water", "salt") if ingredient_id == "rice" else ("oil",),
         instructions=tuple(InstructionTemplate(step) for step in _steps_for(ingredient_id)),
     )
@@ -167,7 +192,11 @@ def make_fixture(*, offer_count: int, template_count: int) -> PlannerFixture:
                 "obchod": STORES[index % len(STORES)],
                 "nazov": ingredient.name,
                 "jednotka": "500 g",
-                "cena": "1.99",
+                "cena": (
+                    "0.99"
+                    if ingredient_id in {*MODE_INGREDIENT.values(), "zucchini"}
+                    else "1.99"
+                ),
                 "povodna": "2.99",
                 "zlava": "-33 %",
                 "valid_from": WEEK,
@@ -192,25 +221,30 @@ def invariant_fixture() -> PlannerFixture:
 
 
 def _pantry_state(mode: str, state: str) -> tuple[tuple[PantryEntry, ...], bool]:
-    ingredient_id = MODE_INGREDIENT[mode]
-    ingredient = load_ingredient_catalog().by_id(ingredient_id)
+    ingredients = load_ingredient_catalog()
     if state == "empty":
         return (), False
     if state == "partial":
-        return (
+        ingredient_ids = (MODE_INGREDIENT[mode], "zucchini")
+        return tuple(
             PantryEntry(
                 ingredient_id,
-                ingredient.name,
-                Quantity(Decimal("250"), "g"),
-            ),
+                ingredients.by_id(ingredient_id).name,
+                Quantity(Decimal("20"), "g"),
+            )
+            for ingredient_id in ingredient_ids
         ), False
     if state == "pantry_driven":
-        return (
+        ingredient_ids = tuple(
+            dict.fromkeys((*MODE_CANDIDATES[mode], *OPTIONAL_CANDIDATES))
+        )
+        return tuple(
             PantryEntry(
                 ingredient_id,
-                ingredient.name,
+                ingredients.by_id(ingredient_id).name,
                 Quantity(Decimal("25000"), "g"),
-            ),
+            )
+            for ingredient_id in ingredient_ids
         ), True
     raise AssertionError(f"unknown pantry state {state}")
 
@@ -243,21 +277,68 @@ def _build_case(
     return plan, pantry
 
 
+def _meal_ingredient_ids(meal: dict, fixture: PlannerFixture) -> set[str]:
+    catalog = load_ingredient_catalog()
+    result = set()
+    for row in meal["suroviny"]:
+        offer_key = row.get("offer_key")
+        if offer_key is not None:
+            result.add(fixture.offer_ingredient[offer_key])
+            continue
+        pantry_name = row.get("spajza")
+        ingredient = catalog.resolve(pantry_name) if pantry_name else None
+        if ingredient is not None:
+            result.add(ingredient.id)
+    return result
+
+
+def _ingredient_is_mentioned(ingredient, folded_instructions: str) -> bool:
+    for form in _ingredient_forms(ingredient):
+        words = re.findall(r"[a-z0-9]+", _fold(form))
+        if words and re.search(
+            r"\b" + r"\s+".join(map(re.escape, words)) + r"\b",
+            folded_instructions,
+        ):
+            return True
+    return False
+
+
+def _instruction_slot_keys(template: RecipeTemplate) -> set[str]:
+    return {
+        field_name.split(".", 1)[0]
+        for instruction in template.instructions
+        for _, field_name, _, _ in Formatter().parse(instruction.text)
+        if field_name is not None and field_name != "portions"
+    }
+
+
 def _assert_instruction_ingredients_are_declared(plan: dict, fixture: PlannerFixture) -> None:
     template_by_id = {template.id: template for template in fixture.recipes.all()}
-    all_fixture_stems = set(INGREDIENT_STEM.values())
+    catalog = load_ingredient_catalog()
     for meal in plan["jedla"]:
         template = template_by_id[meal["recept"]["template_id"]]
-        expected_ids = {
-            ingredient_id
-            for slot in template.slots
-            for ingredient_id in slot.candidates
-            if slot.required
+        selected_ids = _meal_ingredient_ids(meal, fixture)
+        folded_instructions = _fold(" ".join(meal["recept"]["kroky"]))
+        mentioned_ids = {
+            ingredient.id
+            for ingredient in catalog.all()
+            if _ingredient_is_mentioned(ingredient, folded_instructions)
         }
-        expected_stems = {INGREDIENT_STEM[item] for item in expected_ids}
-        instructions = _fold(" ".join(meal["recept"]["kroky"]))
-        mentioned_stems = {stem for stem in all_fixture_stems if stem in instructions}
-        assert mentioned_stems == expected_stems
+
+        assert mentioned_ids == selected_ids
+        referenced_slots = _instruction_slot_keys(template)
+        assert referenced_slots == {slot.key for slot in template.slots}
+        for slot in template.slots:
+            assert selected_ids.intersection(slot.candidates)
+
+        declared_pantry_names = {
+            _fold(row["spajza"])
+            for row in meal["suroviny"]
+            if "spajza" in row
+        }
+        for basic_id, basic_name in PANTRY_BASIC_NAMES.items():
+            if basic_id in template.pantry_basics:
+                assert _fold(basic_name) in declared_pantry_names
 
 
 def _assert_required_ingredients_are_covered(
@@ -269,11 +350,14 @@ def _assert_required_ingredients_are_covered(
     required: dict[str, Decimal] = {}
     for meal in plan["jedla"]:
         template = template_by_id[meal["recept"]["template_id"]]
+        selected_ids = _meal_ingredient_ids(meal, fixture)
         household = meal["recept"]["domacnost"]
         for slot in template.slots:
             if not slot.required:
                 continue
-            ingredient_id = slot.candidates[0]
+            selected_candidates = selected_ids.intersection(slot.candidates)
+            assert len(selected_candidates) == 1
+            ingredient_id = next(iter(selected_candidates))
             equivalents = Decimal(household["dospeli"]) + (
                 Decimal(household["deti"]) * slot.child_factor
             )
@@ -318,23 +402,27 @@ def _assert_nonnegative_whole_package_plan(plan: dict) -> None:
             assert Decimal(leftover_number) >= 0
 
 
+PANTRY_STATES = ("empty", "partial", "pantry_driven")
 HOUSEHOLD_MATRIX = tuple(
-    (size, frequency, mode)
+    (size, frequency, mode, pantry_state)
     for size in range(1, 13)
     for frequency in (1, 2, 3)
     for mode in sorted(ALLOWED_MODES)
+    for pantry_state in PANTRY_STATES
 )
 
 
-@pytest.mark.parametrize(("household_size", "frequency", "mode"), HOUSEHOLD_MATRIX)
+@pytest.mark.parametrize(
+    ("household_size", "frequency", "mode", "pantry_state"),
+    HOUSEHOLD_MATRIX,
+)
 def test_plan_invariants_hold_for_households_frequencies_modes_and_pantry_states(
     invariant_fixture,
     household_size,
     frequency,
     mode,
+    pantry_state,
 ):
-    states = ("empty", "partial", "pantry_driven")
-    pantry_state = states[(household_size + frequency + sorted(ALLOWED_MODES).index(mode)) % 3]
     plan, pantry = _build_case(
         invariant_fixture,
         household_size=household_size,
@@ -366,42 +454,37 @@ def test_plan_invariants_hold_for_households_frequencies_modes_and_pantry_states
         if mode == "high_protein":
             assert Decimal(meal["recept"]["nutrition"]["serving"]["protein_g"]) >= 30
 
+def test_fixture_matrix_really_covers_required_boundaries():
+    assert all(len(case) == 4 for case in HOUSEHOLD_MATRIX)
+    assert len(HOUSEHOLD_MATRIX) == math.prod((12, 3, len(ALLOWED_MODES), 3))
+    assert {size for size, _, _, _ in HOUSEHOLD_MATRIX} == set(range(1, 13))
+    assert {frequency for _, frequency, _, _ in HOUSEHOLD_MATRIX} == {1, 2, 3}
+    assert {mode for _, _, mode, _ in HOUSEHOLD_MATRIX} == set(ALLOWED_MODES)
+    assert {state for _, _, _, state in HOUSEHOLD_MATRIX} == set(PANTRY_STATES)
 
-@pytest.mark.parametrize("mode", sorted(ALLOWED_MODES))
-@pytest.mark.parametrize("pantry_state", ("empty", "partial", "pantry_driven"))
-def test_each_mode_preserves_invariants_in_every_relevant_pantry_state(
+
+def test_fixture_exercises_required_optional_and_alternative_slots(
     invariant_fixture,
-    mode,
-    pantry_state,
 ):
-    plan, pantry = _build_case(
-        invariant_fixture,
-        household_size=4,
-        frequency=3,
-        mode=mode,
-        pantry_state=pantry_state,
+    slots = tuple(
+        slot
+        for template in invariant_fixture.recipes.all()
+        for slot in template.slots
     )
 
-    assert sum(meal["pokryva_dni"] for meal in plan["jedla"]) == 7
-    _assert_nonnegative_whole_package_plan(plan)
-    _assert_instruction_ingredients_are_declared(plan, invariant_fixture)
-    _assert_required_ingredients_are_covered(plan, pantry, invariant_fixture)
-
-
-def test_fixture_matrix_really_covers_required_boundaries():
-    assert {size for size, _, _ in HOUSEHOLD_MATRIX} == set(range(1, 13))
-    assert {frequency for _, frequency, _ in HOUSEHOLD_MATRIX} == {1, 2, 3}
-    assert {mode for _, _, mode in HOUSEHOLD_MATRIX} == set(ALLOWED_MODES)
-    assert math.prod((12, 3, len(ALLOWED_MODES))) == len(HOUSEHOLD_MATRIX)
+    assert any(slot.required for slot in slots)
+    assert any(not slot.required for slot in slots)
+    assert any(len(slot.candidates) > 1 for slot in slots)
 
 
 def test_offer_cache_key_tracks_changed_row_values(invariant_fixture):
     row = dict(invariant_fixture.rows[0])
     catalog = load_ingredient_catalog()
+    initial_price = Decimal(str(row["cena"]))
 
     first = match_offers((row,), catalog)
     row["cena"] = "1.49"
     second = match_offers((row,), catalog)
 
-    assert first[0].sale_price == Decimal("1.99")
+    assert first[0].sale_price == initial_price
     assert second[0].sale_price == Decimal("1.49")

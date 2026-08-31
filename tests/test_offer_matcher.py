@@ -5,7 +5,7 @@ from decimal import Decimal
 import pytest
 
 from app.ingredient_catalog import IngredientCatalog, load_ingredient_catalog
-from app.offer_matcher import MatchedOffer, match_offers
+from app.offer_matcher import MatchedOffer, _alias_token_index, match_offers
 from app.quantity_math import PackageSize, Quantity
 
 
@@ -55,6 +55,24 @@ def test_maps_brand_product_to_canonical_ingredient_and_preserves_offer_facts(ca
 
 def test_unmapped_product_is_not_guessed(catalog):
     assert match_offers([offer(nazov="Rodinná dobrota")], catalog) == ()
+
+
+@pytest.mark.parametrize(
+    "row",
+    (
+        {"nazov": "Rodinná dobrota"},
+        {key: value for key, value in offer().items() if key != "cena"},
+    ),
+)
+def test_missing_price_fields_fail_closed_without_aborting_the_match(row, catalog):
+    assert match_offers([row], catalog) == ()
+
+
+def test_cached_alias_index_cannot_be_mutated_by_a_caller(catalog):
+    aliases, _ = _alias_token_index(catalog)
+
+    with pytest.raises(TypeError):
+        aliases[("ryža",)] = ("tofu",)
 
 
 def test_prefers_the_longest_matching_alias(catalog):

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from functools import lru_cache
+from types import MappingProxyType
 from typing import Iterable, Mapping, Sequence
 
 from .ingredient_catalog import Ingredient, IngredientCatalog, normalize_name
@@ -29,7 +30,7 @@ class MatchedOffer:
 @lru_cache(maxsize=8)
 def _alias_token_index(
     catalog: IngredientCatalog,
-) -> tuple[dict[tuple[str, ...], tuple[str, ...]], int]:
+) -> tuple[Mapping[tuple[str, ...], tuple[str, ...]], int]:
     """Index immutable catalog aliases once instead of rescanning them per row."""
     aliases: dict[tuple[str, ...], set[str]] = {}
     maximum_width = 0
@@ -41,7 +42,9 @@ def _alias_token_index(
             aliases.setdefault(alias_tokens, set()).add(item.id)
             maximum_width = max(maximum_width, len(alias_tokens))
     return (
-        {tokens: tuple(sorted(ids)) for tokens, ids in aliases.items()},
+        MappingProxyType(
+            {tokens: tuple(sorted(ids)) for tokens, ids in aliases.items()}
+        ),
         maximum_width,
     )
 
@@ -81,7 +84,7 @@ def _package_is_compatible(package: PackageSize, ingredient: Ingredient) -> bool
 
 
 def _matched_offer_from_values(
-    catalog: IngredientCatalog,
+    ingredient: Ingredient,
     offer_key,
     store,
     product_name,
@@ -92,9 +95,6 @@ def _matched_offer_from_values(
     valid_to,
     source_url,
 ) -> MatchedOffer | None:
-    ingredient = _match_ingredient(product_name, catalog)
-    if ingredient is None:
-        return None
     try:
         package = PackageSize(parse_quantity(unit))
     except (TypeError, ValueError):
@@ -127,18 +127,28 @@ def match_offers(
 ) -> Sequence[MatchedOffer]:
     matched = []
     for row in rows:
-        values = (
-            catalog,
-            row["offer_key"],
-            row["obchod"],
-            row["nazov"],
-            row["jednotka"],
-            row["cena"],
-            row["povodna"],
-            row["valid_from"],
-            row["valid_to"],
-            row["source_url"],
-        )
+        try:
+            product_name = row["nazov"]
+        except KeyError:
+            continue
+        ingredient = _match_ingredient(product_name, catalog)
+        if ingredient is None:
+            continue
+        try:
+            values = (
+                ingredient,
+                row["offer_key"],
+                row["obchod"],
+                product_name,
+                row["jednotka"],
+                row["cena"],
+                row["povodna"],
+                row["valid_from"],
+                row["valid_to"],
+                row["source_url"],
+            )
+        except KeyError:
+            continue
         try:
             hash(values)
         except TypeError:
