@@ -77,10 +77,14 @@ def _bomb_model_modules(monkeypatch):
 
 
 def _server(
-    monkeypatch, tmp_path, *, mode="on", premium=True, pantry=(), diet="standard"
+    monkeypatch, tmp_path, *, mode="on", premium=True, pantry=(), diet="standard",
+    offer_count=None,
 ):
     monkeypatch.setenv("UVARSI_RECIPE_ENGINE", mode)
-    server = load_server(monkeypatch, tmp_path, _realistic_offer_rows())
+    offer_rows = _realistic_offer_rows()
+    if offer_count is not None:
+        offer_rows = offer_rows[:offer_count]
+    server = load_server(monkeypatch, tmp_path, offer_rows)
     server.recipe_engine_mode.cache_clear()
     with server.db() as con:
         con.execute(
@@ -211,6 +215,49 @@ def test_on_cache_hit_does_not_consume_another_generation(monkeypatch, tmp_path)
     with server.db() as con:
         assert con.execute("SELECT SUM(pocet) FROM prepocty").fetchone()[0] == 1
     assert _counts(server)["jobs"] == _counts(server)["costs"] == 0
+
+
+def test_on_maps_exactly_fourteen_offers_to_an_actionable_typed_error(
+    monkeypatch, tmp_path
+):
+    server = _server(monkeypatch, tmp_path, offer_count=14)
+
+    response = plan_client(server, 1, wait_for_worker=False).post("/api/plan/generuj")
+
+    assert response.status_code == 503
+    payload = response.json()
+    assert payload["kod"] == "insufficient_offers"
+    assert [item["kod"] for item in payload["navrhy"]] == [
+        "add_store",
+        "wait_for_complete_flyer_refresh",
+    ]
+    assert all(item["text"] for item in payload["navrhy"])
+    counts = _counts(server)
+    assert counts["jobs"] == counts["costs"] == 0
+    with server.db() as con:
+        assert con.execute("SELECT COALESCE(SUM(pocet),0) FROM prepocty").fetchone()[0] == 0
+
+
+def test_identical_pantry_request_reuses_personal_cache_without_quota_or_cost(
+    monkeypatch, tmp_path
+):
+    server = _server(
+        monkeypatch,
+        tmp_path,
+        pantry=(("ryža", 950, "g"), ("tofu", 400, "g"), ("cícer", 500, "g")),
+    )
+    client = plan_client(server, 1, wait_for_worker=False)
+
+    first = client.post("/api/plan/zo-spajze")
+    second = client.post("/api/plan/zo-spajze")
+
+    assert first.status_code == second.status_code == 200
+    assert second.json() == first.json()
+    counts = _counts(server)
+    assert counts["personal"] == 1
+    assert counts["jobs"] == counts["costs"] == 0
+    with server.db() as con:
+        assert con.execute("SELECT COALESCE(SUM(pocet),0) FROM prepocty").fetchone()[0] == 1
 
 
 def test_regular_selection_ignores_pantry_but_personal_shopping_uses_it(

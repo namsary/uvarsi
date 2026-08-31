@@ -2703,6 +2703,15 @@ def _deterministic_error_response(error):
     return odmietni(status, detail, error.code, navrhy=suggestions)
 
 
+def _deterministic_insufficient_offers_response():
+    return _deterministic_error_response(
+        NoCompatiblePlan(
+            "insufficient_offers",
+            ("add_store", "wait_for_complete_flyer_refresh"),
+        )
+    )
+
+
 def _deterministic_public_plan(plan, spajza, *, pantry_driven):
     if not pantry_driven:
         return so_spajzou(plan, spajza)
@@ -3151,6 +3160,8 @@ def generuj_plan(req: Request, force: int = 0):
     obchody = u["obchody"].split(",")
     rows = akcie_pre(obchody)
     if len(rows) < MIN_OFFERS_FOR_PLAN:
+        if recipe_engine_mode() == "on":
+            return _deterministic_insufficient_offers_response()
         raise HTTPException(503, sprava_o_chybajucich_akciach())
 
     with closing(db()) as con:
@@ -3300,6 +3311,8 @@ def plan_zo_spajze(req: Request):
 
     rows = akcie_pre(obchody)
     if len(rows) < MIN_OFFERS_FOR_PLAN:
+        if recipe_engine_mode() == "on":
+            return _deterministic_insufficient_offers_response()
         raise HTTPException(503, sprava_o_chybajucich_akciach())
 
     podpis = podpis_planu(
@@ -3309,6 +3322,21 @@ def plan_zo_spajze(req: Request):
     )
     variant = plan_variant_for(u["id"], PLAN_VARIANTS)
     if recipe_engine_mode() == "on":
+        with closing(db()) as con:
+            row = con.execute(
+                "SELECT json FROM plany WHERE user_id=? AND tyzden=?",
+                (u["id"], tyz),
+            ).fetchone()
+            if row is not None:
+                try:
+                    cached = json.loads(row["json"])
+                except json.JSONDecodeError:
+                    cached = None
+                if (
+                    osobna_cache_plati(cached, sp, podpis=podpis)
+                    and cached_plan_is_current(cached, rows)
+                ):
+                    return so_spajzou(cached, sp)
         return _serve_deterministic_plan(
             u, tyz, obchody, rows, sp, podpis, variant, premium,
             zo_spajze=True,
