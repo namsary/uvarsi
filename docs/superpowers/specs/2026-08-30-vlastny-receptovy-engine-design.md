@@ -88,6 +88,24 @@ Každá šablóna bude obsahovať minimálne:
 
 Kroky nesmú byť všeobecné pokyny typu „priprav podľa chuti“. Musia uvádzať činnosť, surovinu, čas alebo jednoznačný výsledný stav. Zároveň nebudeme nútiť recept do umelo dlhého postupu, ak je jednoduchý pokyn sám osebe dostatočný.
 
+### Slovenský redakčný štandard
+
+Recept musí byť zrozumiteľný aj človeku, ktorý dané jedlo varí prvýkrát. Tón je dospelý, priamy a povzbudivý; nesmie byť detinský ani povýšenecký. Text používa prirodzenú súčasnú slovenčinu, zaužívané kuchárske spojenia a správne skloňovanie. Čechizmy, doslovné strojové preklady a neexistujúce tvary sú neprípustné.
+
+Každý krok začína slovesom v rozkazovacom spôsobe a opisuje jednu hlavnú činnosť. Podľa povahy kroku uvedie:
+
+- konkrétnu surovinu a množstvo,
+- nádobu alebo pomôcku, ak na výsledku záleží,
+- stupeň ohrevu alebo teplotu,
+- čas,
+- pozorovateľný výsledok, podľa ktorého používateľ spozná, že môže pokračovať.
+
+Zaužívané spojenia ako „opeč dosklovita“, „priveď do varu“, „var na miernom ohni“ alebo „peč dozlatista“ doplníme časom či viditeľným znakom vždy, keď by začiatočník mohol váhať. Nepoužijeme neurčité pokyny ako „spracuj“, „priprav podľa potreby“, „uprav“ alebo „var do hotova“ bez ďalšieho vysvetlenia.
+
+Názvy surovín musia zostať rovnaké v zozname surovín, postupe, špajze aj nákupnom zozname. V zozname surovín môžeme používať skratky `PL` a `ČL` s legendou; v postupe uprednostníme celé spojenia „polievková lyžica“ a „čajová lyžička“. Zobrazené množstvá budú kuchynsky prirodzené: napríklad `2 kg cukety`, nie `1 980 g cukety`, pričom interný výpočet zostane presný.
+
+Jazyková brána overí aspoň zakázané chybné tvary, nevyriešené šablónové značky, jednotnosť názvov, prítomnosť všetkých použitých surovín a úplnosť krokov. Každý aktívny recept navyše prejde ručnou kontrolou rodeným slovenským hovoriacim.
+
 ## Porcie a kalendár
 
 Jedna dospelá porcia znamená jednu hlavnú porciu jedla pre jedného dospelého na jedno jedlo. Detská porcia sa vypočíta samostatným koeficientom podľa typu suroviny; nebude iba slepou polovicou všetkého.

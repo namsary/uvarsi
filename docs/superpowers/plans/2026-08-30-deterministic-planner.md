@@ -205,6 +205,8 @@ Before nutrition calculation, convert `g` directly, `piece` through `Ingredient.
 
 Supported values are `slot.name`, `slot.amount`, `slot.cut` and `portions`. Teploty a časy sú overené literály šablóny, nie dynamické vstupy. Each template step must resolve to a complete Slovak imperative sentence. Reuse `plan_data.validate_recipe_language()` as a release gate, not as a generator. Add snapshot cases for rice, pasta, roasted vegetables, tofu and chicken thighs.
 
+Apply the binding Slovak editorial standard from the spec. A step aimed at a beginner must name the action and, where relevant, the quantity, heat, time and observable doneness cue. Keep exact quantities internally and round only the displayed wording. Add snapshots that reject Czechisms, malformed inflections, vague standalone instructions and inconsistent ingredient names across the ingredient list and steps.
+
 - [ ] **Step 5: Run tests and commit**
 
 Run: `pytest -q tests/test_recipe_renderer.py tests/test_recepty.py`
