@@ -62,18 +62,29 @@ def test_diet_modes_are_a_real_accessible_2_by_2_choice(tmp_path):
         tmp_path,
         "diet-options.js",
         "function esc(value){return String(value == null ? '' : value);}\n"
+        + function_source(html, "dietModeAvailable")
+        + "\n"
         + function_source(html, "dietOptionsHtml")
         + """
-var free=dietOptionsHtml('vegetarian', false);
+var free=dietOptionsHtml('vegetarian', false, 'on');
 for (const label of ['Bez obmedzenia','Viac bielkovín','Vegetariánsky','Vegánsky']) {
   if (!free.includes(label)) process.exit(1);
 }
 if ((free.match(/type="button"/g)||[]).length !== 4) process.exit(2);
 if ((free.match(/aria-pressed="true"/g)||[]).length !== 1) process.exit(3);
 if ((free.match(/Premium/g)||[]).length !== 3) process.exit(4);
-if (!free.includes('data-mode="vegetarian" aria-pressed="true"')) process.exit(5);
-var paid=dietOptionsHtml('vegan', true);
-if ((paid.match(/Premium/g)||[]).length !== 0) process.exit(6);
+if (!free.includes('data-mode="standard" aria-pressed="true"')) process.exit(5);
+if ((free.match(/aria-disabled="true"/g)||[]).length !== 3) process.exit(6);
+if ((free.match(/ disabled/g)||[]).length !== 3) process.exit(7);
+var paid=dietOptionsHtml('vegan', true, 'on');
+if ((paid.match(/Premium/g)||[]).length !== 0) process.exit(8);
+if (!paid.includes('data-mode="vegan" aria-pressed="true"')) process.exit(9);
+if (paid.includes(' disabled') || paid.includes('aria-disabled="true"')) process.exit(10);
+var shadow=dietOptionsHtml('vegan', true, 'shadow');
+if (!shadow.includes('Bez obmedzenia') || shadow.includes('data-mode="vegan"')) process.exit(11);
+if (!shadow.includes('Režimy stravovania')) process.exit(12);
+var absent=dietOptionsHtml('high_protein', true);
+if (absent.includes('data-mode="high_protein"')) process.exit(13);
 process.exit(0);
 """,
     )
@@ -86,20 +97,29 @@ def test_diet_selection_updates_aria_and_profile_payload(tmp_path):
     result = run_node(
         tmp_path,
         "diet-selection.js",
-        function_source(html, "selectDietMode")
+        function_source(html, "dietModeAvailable")
+        + "\n"
+        + function_source(html, "selectDietMode")
         + "\n"
         + function_source(html, "profilePayload")
         + """
-function button(mode){return {dataset:{mode:mode},classList:{toggle:function(n,on){this[n]=on;}},setAttribute:function(k,v){this[k]=v;}}}
-var buttons=['standard','high_protein','vegetarian','vegan'].map(button);
+function button(mode,disabled){return {dataset:{mode:mode},disabled:!!disabled,classList:{toggle:function(n,on){this[n]=on;}},attrs:{'aria-pressed':mode==='standard'?'true':'false','aria-disabled':disabled?'true':'false'},setAttribute:function(k,v){this.attrs[k]=v;},getAttribute:function(k){return this.attrs[k];}}}
+var buttons=[button('standard',false),button('high_protein',true),button('vegetarian',true),button('vegan',true)];
 var root={querySelectorAll:function(){return buttons;}};
-if (selectDietMode(root,'vegan') !== true) process.exit(1);
-if (buttons.filter(b=>b['aria-pressed']==='true').length !== 1) process.exit(2);
-if (buttons[3]['aria-pressed'] !== 'true' || !buttons[3].classList.on) process.exit(3);
+if (selectDietMode(root,'vegan') !== false) process.exit(1);
+if (buttons[0].attrs['aria-pressed'] !== 'true' || buttons[3].attrs['aria-pressed'] !== 'false') process.exit(2);
+buttons[3].disabled=false; buttons[3].attrs['aria-disabled']='false';
+if (selectDietMode(root,'vegan') !== true) process.exit(3);
+if (buttons.filter(b=>b.attrs['aria-pressed']==='true').length !== 1) process.exit(4);
+if (buttons[3].attrs['aria-pressed'] !== 'true' || !buttons[3].classList.on) process.exit(5);
+var paid={premium:true,recipe_engine:'on'};
 var payload=profilePayload(2,2,3,['Lidl','Tesco'],'high_protein');
 if (payload.stravovanie !== 'high_protein') process.exit(4);
-if (payload.adults !== 2 || payload.children !== 2 || payload.frekvencia !== 3) process.exit(5);
-if (payload.obchody.join('|') !== 'Lidl|Tesco') process.exit(6);
+if (payload.adults !== 2 || payload.children !== 2 || payload.frekvencia !== 3) process.exit(6);
+if (payload.obchody.join('|') !== 'Lidl|Tesco') process.exit(7);
+if (profilePayload(2,0,2,['Lidl'],'vegan').stravovanie !== 'vegan') process.exit(8);
+if (dietModeAvailable('vegetarian',paid) !== true) process.exit(10);
+if (dietModeAvailable('vegetarian',{premium:true}) !== false) process.exit(11);
 process.exit(0);
 """,
     )
@@ -111,6 +131,8 @@ def test_profile_save_sends_the_selected_mode_and_keeps_server_errors_visible():
     assert "dietOptionsHtml" in onboarding
     assert "selectDietMode" in onboarding
     assert "profilePayload" in onboarding
+    assert "profil.recipe_engine" in onboarding
+    assert "dietModeAvailable" in onboarding
     assert "stravovanie" in onboarding
     assert "runGuardedAction($('#save'), $('#ob-err')" in onboarding
     assert onboarding.index("await api('/api/profil'") < onboarding.index("ME = await api('/api/me')")
@@ -149,3 +171,19 @@ def test_plan_renders_recipe_facts_inside_each_recipe():
     assert "recipeFactsHtml(j.recept)" in plan
     assert "nutrition.serving.protein_g" not in plan, "formatting belongs in one tested helper"
 
+
+@needs_node
+def test_legacy_recipe_without_facts_stays_silent(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "recipe-facts-legacy.js",
+        "function esc(value){return String(value == null ? '' : value);}\n"
+        + function_source(html, "recipeFactsHtml")
+        + """
+if (recipeFactsHtml({}) !== '') process.exit(1);
+if (recipeFactsHtml(null) !== '') process.exit(2);
+process.exit(0);
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

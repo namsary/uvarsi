@@ -754,15 +754,20 @@ def test_app_render_critical_first_load_has_300_byte_gzip_headroom():
     vedomé uloženie zvyšku nákupu a výživová/alergénová páska pri recepte.
     Nameraných 30 134 B ostáva približne 30 kB gzip; strop 30 500 B necháva
     300 B rezervu a nemení počet požiadaviek ani blokujúcich aktív.
+
+    Následná kontrola schémy pridala podporu deterministických aj starších
+    súčtov, fail-closed režimy stravovania, prístupné editory a bezpečné ručné
+    uloženie zvyšku. Nameraných približne 30 750 B preto dostáva transparentný
+    strop 31 100 B; stále ostáva vyše 300 B rezervy bez minifikácie JavaScriptu.
     """
     assets = [("/app", APP), *local_render_blocking_stylesheets(APP)]
     measured = [
         (url, len(gzip.compress(path.read_bytes(), 5))) for url, path in assets
     ]
     compressed = sum(size for _url, size in measured)
-    assert compressed <= 30_500, (
+    assert compressed <= 31_100, (
         f"render-critical prvé načítanie má {compressed} B pri gzip level 5; "
-        f"požadovaný strop s rezervou je 30500 B; aktíva: {measured}"
+        f"požadovaný strop s rezervou je 31100 B; aktíva: {measured}"
     )
 
 

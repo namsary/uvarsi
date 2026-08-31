@@ -312,6 +312,8 @@ var rice=leftoverPantryItem({nazov:'Ryža',zostane:'0,7 kg'});
 if (!rice || rice.mnozstvo !== 700 || rice.jednotka !== 'g') process.exit(1);
 var oil=leftoverPantryItem({nazov:'Olej',zostane_po_spajzi:'0.25 l',zostane:'800 ml'});
 if (!oil || oil.mnozstvo !== 250 || oil.jednotka !== 'ml') process.exit(2);
+var deterministic=leftoverPantryItem({nazov:'Cestoviny',zostava:'0,4 kg',zostane:'800 g'});
+if (!deterministic || deterministic.mnozstvo !== 400 || deterministic.jednotka !== 'g') process.exit(7);
 if (leftoverPantryItem({nazov:'Ryža',zostane:'približne polovica balenia'}) !== null) process.exit(3);
 if (leftoverPantryItem({nazov:'',zostane:'500 g'}) !== null) process.exit(4);
 var merged=mergePantryItem([{nazov:' ryža ',mnozstvo:300,jednotka:'g'}],rice);
@@ -328,10 +330,70 @@ def test_shopping_list_adds_leftover_only_on_an_explicit_guarded_button():
     html = app_html()
     shopping = declaration(html, "function vZoznam() ")
     add = declaration(html, "async function addLeftoverToPantry(button, item) ")
-    assert "Pridať zvyšok do špajze" in shopping
-    assert "leftoverPantryItem" in shopping
-    assert "data-leftover" in shopping
+    button = declaration(html, "function leftoverButtonHtml(item, key, done, pantryAvailable) ")
+    assert "Pridať zvyšok do špajze" in button
+    assert "leftoverPantryItem" in button
+    assert "data-leftover" in button
+    assert "leftoverButtonHtml" in shopping
     assert "stopPropagation" in shopping
     assert "button.disabled = true" in add
     assert "savePantryList" in add
     assert "/api/spajza" not in shopping, "render and shopping checkbox must never persist pantry"
+
+
+@needs_node
+def test_leftover_action_exists_only_for_a_checked_shopping_row(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "leftover-checked.js",
+        "function esc(value){return String(value == null ? '' : value);}\n"
+        + declaration(html, "function pantryName(value) ")
+        + declaration(html, "function leftoverPantryItem(item) ")
+        + declaration(html, "function leftoverButtonHtml(item, key, done, pantryAvailable) ")
+        + """
+var item={nazov:'Ryža',zostava:'500 g'};
+if (leftoverButtonHtml(item,'0-0',false,true) !== '') process.exit(1);
+var checked=leftoverButtonHtml(item,'0-0',true,true);
+if (!checked.includes('Pridať zvyšok do špajze') || !checked.includes('data-leftover="0-0"')) process.exit(2);
+if (leftoverButtonHtml(item,'0-0',true,false) !== '') process.exit(3);
+if (leftoverButtonHtml({nazov:'Ryža',zostava:'asi polovica'},'0-0',true,true) !== '') process.exit(4);
+process.exit(0);
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
+def test_toggling_a_shopping_row_rerenders_leftover_state(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "shopping-done-rerender.js",
+        "var DONE={}, ME={id:1}, PLAN={tyzden:'2026-08-31'}, renders=0, writes=0;\n"
+        "var localStorage={setItem:function(){writes++;}};\n"
+        "function checkedStateKey(){return 'checked';}\n"
+        "function vZoznam(){renders++;}\n"
+        + declaration(html, "function toggleShoppingDone(key) ")
+        + """
+if (toggleShoppingDone('0-0') !== true || DONE['0-0'] !== true) process.exit(1);
+if (renders !== 1 || writes !== 1) process.exit(2);
+if (toggleShoppingDone('0-0') !== false || DONE['0-0'] !== false) process.exit(3);
+if (renders !== 2 || writes !== 2) process.exit(4);
+process.exit(0);
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_pantry_editors_have_visible_labels_and_controls_relationships():
+    html = app_html()
+    row = declaration(html, "function pantryRowHtml(item, index) ")
+    pantry = declaration(html, "function vSpajza() ")
+    assert "aria-controls" in row and "pantry-editor-" in row
+    assert 'id="${editorId}"' in row
+    for label in ["Názov", "Množstvo", "Jednotka"]:
+        assert f">{label}<" in row
+    assert '<label for="sp-name">Surovina</label>' in pantry
+    assert '<label for="sp-amount">Množstvo</label>' in pantry
+    assert '<label for="sp-unit">Jednotka</label>' in pantry

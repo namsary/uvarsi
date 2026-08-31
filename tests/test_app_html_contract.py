@@ -39,6 +39,63 @@ def run_cscript(script):
     return result
 
 
+@needs_node
+def test_plan_totals_support_deterministic_and_legacy_shapes(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "plan-totals.js",
+        declaration(html, "function moneyValue(text) ")
+        + declaration(html, "function moneyText(amount) ")
+        + declaration(html, "function planTotals(plan) ")
+        + """
+function same(actual, expected) {
+  return actual.nakup === expected[0] && actual.bezna === expected[1] && actual.usetris === expected[2];
+}
+if (!same(planTotals({nakup_spolu:'12,50',bezna_cena:'20',usetrene:'7,50'}),['12,50','20,00','7,50'])) process.exit(1);
+if (!same(planTotals({nakup_spolu:'12,50',bezne:'20',usetris:'7,50'}),['12,50','20,00','7,50'])) process.exit(2);
+if (!same(planTotals({nakup_spolu:0,bezna_cena:0,bezne:99,usetrene:0,usetris:88}),['0,00','0,00','0,00'])) process.exit(3);
+if (!same(planTotals({nakup_spolu:'10',bezna_cena:'15'}),['10,00','15,00','5,00'])) process.exit(4);
+if (!same(planTotals({nakup_spolu:'10',usetrene:'5'}),['10,00','15,00','5,00'])) process.exit(5);
+if (!same(planTotals({}),['0,00','0,00','0,00'])) process.exit(6);
+process.exit(0);
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_plan_view_uses_one_normalized_totals_contract():
+    plan_view = declaration(app_html(), "function vPlan() ")
+    assert "planTotals(PLAN)" in plan_view
+    assert "PLAN.usetris" not in plan_view
+    assert "PLAN.bezne" not in plan_view
+
+
+@needs_node
+def test_loading_skeleton_announces_status(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "loading-status.js",
+        "function esc(value){return String(value == null ? '' : value);}\n"
+        + declaration(html, "function loadingSkeletonHtml(message) ")
+        + """
+var rendered=loadingSkeletonHtml('Pripravujem plán…');
+if (!rendered.includes('role="status"')) process.exit(1);
+if (!rendered.includes('aria-live="polite"')) process.exit(2);
+if (!rendered.includes('Pripravujem plán…')) process.exit(3);
+process.exit(0);
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_initial_loading_shell_is_also_an_announced_status():
+    html = app_html()
+    marker = '<div class="plan-skeleton" aria-label="Načítavam jedálniček"'
+    assert marker + ' role="status" aria-live="polite">' in html
+
+
 def test_saving_profile_never_generates_a_plan_implicitly():
     """Zmena nastavení nesmie potichu minúť prepočet ani zavolať model."""
     html = app_html()
