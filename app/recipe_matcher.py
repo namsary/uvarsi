@@ -296,13 +296,13 @@ def _best_offer(
     )
 
 
-def _select_slot(
+def _slot_options(
     slot: IngredientSlot,
     offers: Sequence[MatchedOffer],
     pantry_balances: dict[str, Decimal],
     ingredients: dict[str, Ingredient],
     mode: str,
-) -> SlotSelection | None:
+) -> tuple[SlotSelection, ...]:
     options = []
     for ingredient_id in sorted(slot.candidates):
         ingredient = ingredients.get(ingredient_id)
@@ -323,18 +323,44 @@ def _select_slot(
                 pantry=pantry,
             )
         )
-    if not options:
-        return None
-    return min(
-        options,
-        key=lambda item: (
-            -_selection_value(
-                item.slot, item.ingredient, item.offer, item.pantry
+    return tuple(
+        sorted(
+            options,
+            key=lambda item: (
+                -_selection_value(
+                    item.slot, item.ingredient, item.offer, item.pantry
+                ),
+                item.ingredient.id,
+                "" if item.offer is None else item.offer.offer_key,
             ),
-            item.ingredient.id,
-            "" if item.offer is None else item.offer.offer_key,
-        ),
+        )
     )
+
+
+def _allocate_required_slots(
+    slots: Sequence[tuple[int, IngredientSlot]],
+    offers: Sequence[MatchedOffer],
+    pantry_balances: dict[str, Decimal],
+    ingredients: dict[str, Ingredient],
+    mode: str,
+) -> tuple[dict[int, SlotSelection], dict[str, Decimal]] | None:
+    if not slots:
+        return {}, pantry_balances
+
+    slot_index, slot = slots[0]
+    for selection in _slot_options(
+        slot, offers, pantry_balances, ingredients, mode
+    ):
+        remaining = dict(pantry_balances)
+        _consume_pantry(remaining, selection)
+        allocated = _allocate_required_slots(
+            slots[1:], offers, remaining, ingredients, mode
+        )
+        if allocated is None:
+            continue
+        selections, final_balances = allocated
+        return {slot_index: selection, **selections}, final_balances
+    return None
 
 
 def _candidate_score(selections: Sequence[SlotSelection], slot_count: int) -> Decimal:
@@ -458,27 +484,42 @@ def rank_candidates(
         if not recipe.active or mode not in recipe.modes:
             continue
         pantry_balances = _pantry_balances(pantry_entries, ingredients)
-        selections = []
-        compatible = True
-        for recipe_slot in recipe.slots:
-            selection = _select_slot(
+        required_slots = tuple(
+            (index, recipe_slot)
+            for index, recipe_slot in enumerate(recipe.slots)
+            if recipe_slot.required
+        )
+        allocated = _allocate_required_slots(
+            required_slots,
+            offer_rows,
+            pantry_balances,
+            ingredients,
+            mode,
+        )
+        if allocated is None:
+            continue
+        selections_by_index, pantry_balances = allocated
+
+        for index, recipe_slot in enumerate(recipe.slots):
+            if recipe_slot.required:
+                continue
+            options = _slot_options(
                 recipe_slot,
                 offer_rows,
                 pantry_balances,
                 ingredients,
                 mode,
             )
-            if selection is None:
-                if recipe_slot.required:
-                    compatible = False
-                    break
+            if not options:
                 continue
-            selections.append(selection)
+            selection = options[0]
+            selections_by_index[index] = selection
             _consume_pantry(pantry_balances, selection)
-        if not compatible:
-            continue
 
-        selection_rows = tuple(selections)
+        selection_rows = tuple(
+            selections_by_index[index]
+            for index in sorted(selections_by_index)
+        )
         if mode == "high_protein":
             protein_g = _protein_per_adult(selection_rows)
             if protein_g is None or protein_g < _MINIMUM_HIGH_PROTEIN_G:

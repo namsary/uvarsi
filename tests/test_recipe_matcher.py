@@ -170,6 +170,114 @@ def test_pantry_balance_is_allocated_once_across_slots(ingredients):
     ]
 
 
+def test_optional_slot_before_required_cannot_consume_reserved_pantry(ingredients):
+    rice = ingredients.by_id("rice")
+    recipe = template(
+        "optional-before-required",
+        [
+            slot(
+                [rice.id],
+                key="optional",
+                role="starch",
+                required=False,
+                use="addition",
+            ),
+            slot([rice.id], key="required", role="starch"),
+        ],
+    )
+
+    candidate = rank_candidates(
+        [recipe],
+        (),
+        [PantryEntry(rice.id, rice.name, Quantity(Decimal("100"), "g"))],
+        "standard",
+        "week-1",
+        ingredient_catalog=ingredients,
+    )[0]
+
+    assert [selection.slot.key for selection in candidate.selections] == [
+        "required"
+    ]
+    assert candidate.selections[0].pantry == Quantity(Decimal("100"), "g")
+
+
+def test_offered_alternative_preserves_pantry_for_required_slot(ingredients):
+    rice = ingredients.by_id("rice")
+    pasta = ingredients.by_id("pasta")
+    recipe = template(
+        "offered-alternative",
+        [
+            slot([rice.id, pasta.id], key="flexible", role="starch"),
+            slot([rice.id], key="rice_only", role="starch"),
+        ],
+    )
+
+    candidate = rank_candidates(
+        [recipe],
+        [offer(pasta)],
+        [PantryEntry(rice.id, rice.name, Quantity(Decimal("100"), "g"))],
+        "standard",
+        "week-1",
+        ingredient_catalog=ingredients,
+    )[0]
+
+    assert [selection.ingredient.id for selection in candidate.selections] == [
+        pasta.id,
+        rice.id,
+    ]
+    assert candidate.selections[0].offer is not None
+    assert candidate.selections[1].pantry == Quantity(Decimal("100"), "g")
+
+
+def test_required_reservations_do_not_double_use_or_reorder_pantry(ingredients):
+    rice = ingredients.by_id("rice")
+    recipe = template(
+        "required-around-optional",
+        [
+            slot([rice.id], key="first", role="starch"),
+            slot(
+                [rice.id],
+                key="optional",
+                role="starch",
+                required=False,
+                use="addition",
+            ),
+            slot([rice.id], key="last", role="starch"),
+        ],
+    )
+
+    candidate = rank_candidates(
+        [recipe],
+        [offer(rice)],
+        [PantryEntry(rice.id, rice.name, Quantity(Decimal("150"), "g"))],
+        "standard",
+        "week-1",
+    )[0]
+
+    assert [selection.slot.key for selection in candidate.selections] == [
+        "first",
+        "optional",
+        "last",
+    ]
+    pantry_by_slot = {
+        selection.slot.key: selection.pantry
+        for selection in candidate.selections
+    }
+    assert pantry_by_slot == {
+        "first": Quantity(Decimal("100"), "g"),
+        "optional": None,
+        "last": Quantity(Decimal("50"), "g"),
+    }
+    assert sum(
+        (
+            selection.pantry.amount
+            for selection in candidate.selections
+            if selection.pantry is not None
+        ),
+        Decimal("0"),
+    ) == Decimal("150")
+
+
 def test_optional_slot_is_omitted_when_it_has_no_source(ingredients):
     rice = ingredients.by_id("rice")
     tofu = ingredients.by_id("tofu")
