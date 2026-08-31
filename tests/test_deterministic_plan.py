@@ -1,3 +1,8 @@
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
 from dataclasses import replace
 from decimal import Decimal
 
@@ -54,9 +59,11 @@ def _offer(
         "jednotka": package,
         "cena": sale,
         "povodna": original,
+        "zlava": "-28 %",
         "valid_from": WEEK,
         "valid_to": "2026-09-06",
         "source_url": f"https://example.test/{offer_key}",
+        "source_page": 4,
     }
 
 
@@ -101,13 +108,13 @@ def _template(
     )
 
 
-def _rice_recipes(version=7):
+def _rice_recipes(version=7, *, child_factor="0.5"):
     return RecipeCatalog(
         version,
         (
-            _template("rice-pot", method="pot"),
-            _template("rice-pan", method="pan"),
-            _template("rice-oven", method="oven"),
+            _template("rice-pot", method="pot", child_factor=child_factor),
+            _template("rice-pan", method="pan", child_factor=child_factor),
+            _template("rice-oven", method="oven", child_factor=child_factor),
         ),
     )
 
@@ -165,6 +172,31 @@ def test_public_plan_is_deterministic_and_prices_whole_packages():
     assert first["nakupny_zoznam"][0]["polozky"][0]["mnozstvo"] == 2
 
 
+def test_serialized_plan_is_identical_across_python_processes():
+    script = (
+        "import json, runpy; "
+        "namespace = runpy.run_path('tests/test_deterministic_plan.py'); "
+        "print(json.dumps(namespace['_build'](), ensure_ascii=True, "
+        "sort_keys=True, separators=(',', ':')))"
+    )
+    outputs = []
+    for hash_seed in ("1", "987654"):
+        environment = dict(os.environ)
+        environment["PYTHONHASHSEED"] = hash_seed
+        completed = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=Path(__file__).resolve().parents[1],
+            env=environment,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+        outputs.append(completed.stdout)
+
+    assert outputs[0] == outputs[1]
+
+
 def test_week_uses_three_methods_and_never_repeats_adjacent_family_and_method():
     plan = _build(frequency=1)
     recipes = [meal["recept"] for meal in plan["jedla"]]
@@ -207,6 +239,35 @@ def test_pantry_driven_plan_can_fill_slots_without_an_offer_and_buys_nothing():
     )
 
 
+@pytest.mark.parametrize(
+    ("adults", "children", "child_factor", "exact_weekly_rice"),
+    (
+        (1, 1, "0.5", "787.5"),
+        (2, 1, "0.25", "1181.25"),
+    ),
+)
+def test_pantry_driven_sizing_uses_each_slots_exact_child_factor(
+    adults, children, child_factor, exact_weekly_rice
+):
+    plan = _build(
+        rows=(),
+        adults=adults,
+        children=children,
+        pantry=(
+            PantryEntry(
+                "rice",
+                "ryža",
+                Quantity(Decimal(exact_weekly_rice), "g"),
+            ),
+        ),
+        pantry_driven=True,
+        recipe_catalog=_rice_recipes(child_factor=child_factor),
+    )
+
+    assert sum(meal["pokryva_dni"] for meal in plan["jedla"]) == 7
+    assert plan["nakupny_zoznam"] == []
+
+
 def test_meal_ingredients_preserve_established_offer_and_pantry_shapes():
     offer_plan = _build()
     bought = offer_plan["jedla"][0]["suroviny"][0]
@@ -220,7 +281,9 @@ def test_meal_ingredients_preserve_established_offer_and_pantry_shapes():
         "davka": "230 g",
         "cena": "1,79",
         "povodna": "2,49",
+        "zlava": "-28 %",
         "source_url": "https://example.test/offer_rice",
+        "source_page": 4,
         "valid_from": WEEK,
         "valid_to": "2026-09-06",
     }
@@ -232,6 +295,70 @@ def test_meal_ingredients_preserve_established_offer_and_pantry_shapes():
     )
 
     assert pantry_plan["jedla"][0]["suroviny"][0] == {"spajza": "ryža"}
+
+
+def test_meal_serialization_preserves_complete_established_recipe_contract():
+    plan = _build(
+        adults=1,
+        children=1,
+        recipe_catalog=_rice_recipes(child_factor="0.5"),
+    )
+
+    meal = plan["jedla"][0]
+    recipe = meal["recept"]
+
+    assert meal["suroviny"] == [
+        {
+            "offer_key": "offer_rice",
+            "nazov": "Basmati ryža Golden Sun",
+            "obchod": "Lidl",
+            "jednotka": "500 g",
+            "mnozstvo": 1,
+            "davka": "340 g",
+            "cena": "1,79",
+            "povodna": "2,49",
+            "zlava": "-28 %",
+            "source_url": "https://example.test/offer_rice",
+            "source_page": 4,
+            "valid_from": WEEK,
+            "valid_to": "2026-09-06",
+        },
+        {"spajza": "voda"},
+        {"spajza": "soľ"},
+    ]
+    assert recipe.keys() >= {
+        "template_id",
+        "family",
+        "method",
+        "min",
+        "porcie",
+        "pre",
+        "davky",
+        "skontroluj_doma",
+        "kroky",
+        "uchovanie",
+        "domacnost",
+        "dni",
+        "dospely_ekvivalent",
+        "poznamka",
+        "nutrition",
+    }
+    assert recipe["porcie"] == 6
+    assert recipe["pre"] == "1 dospelý + 1 dieťa × 3 dni"
+    assert recipe["davky"] == [
+        "Basmati ryža Golden Sun – 340 g",
+        "voda zo špajze",
+        "soľ zo špajze",
+    ]
+    assert recipe["skontroluj_doma"] == ["voda"]
+    assert recipe["uchovanie"] == (
+        "Porcie na ďalšie dni do 1 hodiny schlaď. Porciu na tretí deň "
+        "hneď zamraz a po rozmrazení ju dôkladne zohrej iba raz."
+    )
+    assert recipe["domacnost"] == {"dospeli": 1, "deti": 1}
+    assert recipe["dni"] == 3
+    assert recipe["dospely_ekvivalent"] == "4,5"
+    assert recipe["poznamka"] == "Kuchársky odhad na plánovanie nákupu."
 
 
 def test_search_never_considers_candidate_thirteen(monkeypatch):
@@ -294,7 +421,9 @@ def test_impossible_plans_raise_typed_honest_errors(overrides, code):
     assert captured.value.suggestions
 
 
-def _protein_setup(*, protein="17.27", fat="8.72", child_factor="0.5"):
+def _protein_setup(
+    *, protein="17.27", fat="8.72", child_factor="0.5", amount="180"
+):
     default = load_ingredient_catalog().by_id("tofu")
     tofu = replace(
         default,
@@ -312,7 +441,7 @@ def _protein_setup(*, protein="17.27", fat="8.72", child_factor="0.5"):
                 f"tofu-{method}",
                 ingredient_id="tofu",
                 role="protein",
-                amount="180",
+                amount=amount,
                 child_factor=child_factor,
                 method=method,
                 mode="high_protein",
@@ -354,8 +483,29 @@ def test_high_protein_claim_is_added_only_after_the_legal_energy_gate():
     )
 
 
-def test_high_protein_final_gate_runs_after_household_rendering():
+def test_high_protein_gate_uses_true_adult_serving_without_child_dilution():
     ingredients, recipes = _protein_setup(child_factor="0.1")
+
+    plan = _build(
+        rows=(_offer("Pevné tofu", offer_key="offer_tofu"),),
+        adults=1,
+        children=1,
+        mode="high_protein",
+        ingredient_catalog=ingredients,
+        recipe_catalog=recipes,
+    )
+
+    assert all(
+        Decimal(meal["recept"]["nutrition"]["serving"]["protein_g"])
+        == Decimal("31.086")
+        for meal in plan["jedla"]
+    )
+
+
+def test_high_protein_gate_still_rejects_an_adult_serving_below_thirty_grams():
+    ingredients, recipes = _protein_setup(
+        child_factor="0.1", amount="170"
+    )
 
     with pytest.raises(NoCompatiblePlan) as captured:
         _build(

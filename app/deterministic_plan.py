@@ -8,11 +8,21 @@ from fractions import Fraction
 from typing import Literal, Mapping, Sequence
 
 from .ingredient_catalog import Ingredient, IngredientCatalog, load_ingredient_catalog
-from .nutrition import MacroValues, qualifies_high_protein
+from .nutrition import (
+    MacroValues,
+    NutritionEstimate,
+    estimate_recipe_nutrition,
+    qualifies_high_protein,
+)
 from .offer_matcher import match_offers
-from .plan_data import cooking_days_for_frequency, days_covered_by_meal
+from .plan_data import (
+    cooking_days_for_frequency,
+    days_covered_by_meal,
+    home_ingredients_in,
+    leftover_storage_note,
+)
 from .quantity_math import PantryEntry, Quantity, parse_quantity
-from .recipe_catalog import RecipeCatalog, load_recipe_catalog
+from .recipe_catalog import RecipeCatalog, RecipeTemplate, load_recipe_catalog
 from .recipe_matcher import RecipeCandidate, rank_candidates
 from .recipe_renderer import RenderedMeal, build_shopping_list, render_meal
 
@@ -42,6 +52,7 @@ class _SelectedMeal:
     day: str
     candidate: RecipeCandidate
     rendered: RenderedMeal
+    adult_nutrition: NutritionEstimate
 
 
 def _raise_no_plan(code: str) -> None:
@@ -99,14 +110,39 @@ def _pantry_balances(
 def _ranking_pantry(
     balances: Mapping[str, Fraction],
     catalog: IngredientCatalog,
-    household_servings: int,
+    template: RecipeTemplate,
+    adults: int,
+    children: int,
+    covered_days: int,
 ) -> tuple[PantryEntry, ...]:
-    if household_servings <= 0:
-        return ()
+    requirements: dict[str, tuple[Fraction, Fraction]] = {}
+    for slot in template.slots:
+        if not slot.required:
+            continue
+        equivalents = (
+            Fraction(adults)
+            + Fraction(children) * Fraction(slot.child_factor)
+        ) * covered_days
+        for ingredient_id in slot.candidates:
+            ingredient = catalog.by_id(ingredient_id)
+            per_adult = _grams(
+                Quantity(slot.amount_per_adult, slot.unit), ingredient
+            )
+            if per_adult is None:
+                continue
+            normalized, household = requirements.get(
+                ingredient_id, (Fraction(0), Fraction(0))
+            )
+            requirements[ingredient_id] = (
+                normalized + per_adult,
+                household + per_adult * equivalents,
+            )
+
     entries = []
-    for ingredient_id in sorted(balances):
-        amount = balances[ingredient_id]
-        if amount <= 0:
+    for ingredient_id in sorted(requirements):
+        available = balances.get(ingredient_id, Fraction(0))
+        normalized_required, household_required = requirements[ingredient_id]
+        if available <= 0 or household_required <= 0:
             continue
         ingredient = catalog.by_id(ingredient_id)
         entries.append(
@@ -114,12 +150,67 @@ def _ranking_pantry(
                 ingredient_id,
                 ingredient.name,
                 Quantity(
-                    _fraction_to_decimal(amount / household_servings),
+                    _fraction_to_decimal(
+                        available * normalized_required / household_required
+                    ),
                     "g",
                 ),
             )
         )
     return tuple(entries)
+
+
+def _rank_for_day(
+    *,
+    templates: Sequence[RecipeTemplate],
+    offers,
+    balances: Mapping[str, Fraction],
+    pantry_driven: bool,
+    mode: str,
+    seed: str,
+    ingredient_catalog: IngredientCatalog,
+    adults: int,
+    children: int,
+    covered_days: int,
+    recent_families,
+    recent_methods,
+) -> tuple[RecipeCandidate, ...]:
+    if not pantry_driven:
+        return tuple(
+            rank_candidates(
+                templates,
+                offers,
+                (),
+                mode,
+                seed,
+                ingredient_catalog=ingredient_catalog,
+                recent_families=recent_families,
+                recent_methods=recent_methods,
+            )
+        )
+
+    candidates = []
+    for template in templates:
+        candidates.extend(
+            rank_candidates(
+                (template,),
+                offers,
+                _ranking_pantry(
+                    balances,
+                    ingredient_catalog,
+                    template,
+                    adults,
+                    children,
+                    covered_days,
+                ),
+                mode,
+                seed,
+                ingredient_catalog=ingredient_catalog,
+                recent_families=recent_families,
+                recent_methods=recent_methods,
+            )
+        )
+    return tuple(sorted(candidates, key=lambda item: (-item.score, item.key)))
 
 
 def _consume_pantry(
@@ -133,6 +224,28 @@ def _consume_pantry(
             continue
         remaining[item.ingredient.id] = max(Fraction(0), available - required)
     return remaining
+
+
+def _adult_serving_nutrition(
+    rendered: RenderedMeal,
+    *,
+    adults: int,
+    children: int,
+) -> NutritionEstimate:
+    lines = []
+    for item in rendered.ingredients:
+        batch_equivalents = (
+            Fraction(adults)
+            + Fraction(children) * Fraction(item.slot.child_factor)
+        ) * rendered.covered_days
+        grams = _grams(item.quantity, item.ingredient)
+        if grams is None or batch_equivalents <= 0:
+            raise ValueError("Surovina nemá merateľnú dospelú porciu.")
+        edible_grams = (
+            grams * Fraction(item.ingredient.edible_ratio) / batch_equivalents
+        )
+        lines.append((item.ingredient, _fraction_to_decimal(edible_grams)))
+    return estimate_recipe_nutrition(lines, adult_servings=Decimal("1"))
 
 
 def _has_unmeasurable_rows(rows: Sequence[Mapping[str, object]]) -> bool:
@@ -176,24 +289,19 @@ def _select_week(
     available_methods = set()
     for day in days:
         coverage = days_covered_by_meal(frequency, day)
-        ranking_pantry = (
-            _ranking_pantry(
-                initial_balances,
-                ingredient_catalog,
-                (adults + children) * coverage,
-            )
-            if pantry_driven
-            else ()
-        )
         available_methods.update(
             candidate.template.method
-            for candidate in rank_candidates(
-                templates,
-                offers,
-                ranking_pantry,
-                mode,
-                f"{seed}:{week}:{day}",
+            for candidate in _rank_for_day(
+                templates=templates,
+                offers=offers,
+                balances=initial_balances,
+                pantry_driven=pantry_driven,
+                mode=mode,
+                seed=f"{seed}:{week}:{day}",
                 ingredient_catalog=ingredient_catalog,
+                adults=adults,
+                children=children,
+                covered_days=coverage,
                 recent_families=(),
                 recent_methods=(),
             )
@@ -214,22 +322,17 @@ def _select_week(
 
         day = days[index]
         coverage = days_covered_by_meal(frequency, day)
-        ranking_pantry = (
-            _ranking_pantry(
-                balances,
-                ingredient_catalog,
-                (adults + children) * coverage,
-            )
-            if pantry_driven
-            else ()
-        )
-        candidates = rank_candidates(
-            templates,
-            offers,
-            ranking_pantry,
-            mode,
-            f"{seed}:{week}:{day}",
+        candidates = _rank_for_day(
+            templates=templates,
+            offers=offers,
+            balances=balances,
+            pantry_driven=pantry_driven,
+            mode=mode,
+            seed=f"{seed}:{week}:{day}",
             ingredient_catalog=ingredient_catalog,
+            adults=adults,
+            children=children,
+            covered_days=coverage,
             recent_families=(
                 item.candidate.template.family for item in selected
             ),
@@ -254,18 +357,25 @@ def _select_week(
                     children=children,
                     covered_days=coverage,
                 )
+                adult_nutrition = _adult_serving_nutrition(
+                    rendered,
+                    adults=adults,
+                    children=children,
+                )
             except (TypeError, ValueError):
                 continue
             if (
                 mode == "high_protein"
-                and rendered.nutrition.serving.protein_g
-                < _MINIMUM_HIGH_PROTEIN_G
+                and adult_nutrition.serving.protein_g < _MINIMUM_HIGH_PROTEIN_G
             ):
                 continue
 
             result = search(
                 index + 1,
-                (*selected, _SelectedMeal(day, candidate, rendered)),
+                (
+                    *selected,
+                    _SelectedMeal(day, candidate, rendered, adult_nutrition),
+                ),
                 (
                     _consume_pantry(balances, rendered)
                     if pantry_driven
@@ -295,9 +405,16 @@ def _macro_payload(value: MacroValues) -> dict[str, str]:
     }
 
 
-def _ingredient_payload(item) -> dict:
+def _ingredient_payload(
+    item, offer_rows: Mapping[str, Mapping[str, object]]
+) -> dict:
     if item.offer is None:
         return {"spajza": item.ingredient.name}
+
+    try:
+        source = offer_rows[item.offer.offer_key]
+    except KeyError as exc:
+        raise ValueError("Ponuke chýbajú pôvodné verejné údaje.") from exc
 
     required_grams = _grams(item.quantity, item.ingredient)
     package_grams = _grams(item.offer.package.content, item.ingredient)
@@ -319,37 +436,105 @@ def _ingredient_payload(item) -> dict:
         "povodna": (
             None if original is None else _money(original * packages)
         ),
+        "zlava": source.get("zlava") or "",
         "source_url": item.offer.source_url,
+        "source_page": source.get("source_page"),
         "valid_from": item.offer.valid_from.isoformat(),
         "valid_to": item.offer.valid_to.isoformat(),
     }
 
 
-def _meal_payload(item: _SelectedMeal, mode: str) -> dict:
+def _household_text(adults: int, children: int) -> str:
+    parts = []
+    if adults:
+        word = "dospelý" if adults == 1 else "dospelí" if adults < 5 else "dospelých"
+        parts.append(f"{adults} {word}")
+    if children:
+        word = "dieťa" if children == 1 else "deti" if children < 5 else "detí"
+        parts.append(f"{children} {word}")
+    return " + ".join(parts)
+
+
+def _days_word(count: int) -> str:
+    return "deň" if count == 1 else "dni" if count < 5 else "dní"
+
+
+def _slovak_decimal_text(value: Fraction) -> str:
+    return _decimal_text(_fraction_to_decimal(value)).replace(".", ",")
+
+
+def _primary_adult_equivalents(
+    item: _SelectedMeal, adults: int, children: int
+) -> Fraction:
+    slots = item.candidate.template.slots
+    primary = next(
+        (slot for slot in slots if slot.required and slot.use == "main"),
+        next(slot for slot in slots if slot.required),
+    )
+    return (
+        Fraction(adults) + Fraction(children) * Fraction(primary.child_factor)
+    ) * item.rendered.covered_days
+
+
+def _meal_payload(
+    item: _SelectedMeal,
+    mode: str,
+    *,
+    adults: int,
+    children: int,
+    offer_rows: Mapping[str, Mapping[str, object]],
+) -> dict:
     template = item.candidate.template
     rendered = item.rendered
+    for_whom = _household_text(adults, children)
+    if rendered.covered_days > 1:
+        for_whom += f" × {rendered.covered_days} {_days_word(rendered.covered_days)}"
+    doses = [
+        (
+            f"{value.offer.product_name} – {value.display_amount}"
+            if value.offer is not None
+            else f"{value.ingredient.name} – {value.display_amount} zo špajze"
+        )
+        for value in rendered.ingredients
+    ]
+    doses.extend(f"{name} zo špajze" for name in rendered.pantry_basics)
     recipe = {
         "template_id": rendered.template_id,
         "family": template.family,
         "method": template.method,
         "min": template.minutes,
         "porcie": rendered.portions,
+        "pre": for_whom,
+        "davky": doses,
+        "skontroluj_doma": home_ingredients_in(rendered.instructions),
         "dni": rendered.covered_days,
+        "domacnost": {"dospeli": adults, "deti": children},
+        "dospely_ekvivalent": _slovak_decimal_text(
+            _primary_adult_equivalents(item, adults, children)
+        ),
+        "poznamka": "Kuchársky odhad na plánovanie nákupu.",
         "kroky": list(rendered.instructions),
         "nutrition": {
-            "estimated": rendered.nutrition.estimated,
+            "estimated": item.adult_nutrition.estimated,
             "total": _macro_payload(rendered.nutrition.total),
-            "serving": _macro_payload(rendered.nutrition.serving),
+            "serving": _macro_payload(item.adult_nutrition.serving),
         },
     }
-    if mode == "high_protein" and qualifies_high_protein(rendered.nutrition):
+    storage = leftover_storage_note(rendered.instructions, rendered.covered_days)
+    if storage:
+        recipe["uchovanie"] = storage
+    if mode == "high_protein" and qualifies_high_protein(item.adult_nutrition):
         recipe["high_protein_claim"] = True
+    ingredients = [
+        _ingredient_payload(value, offer_rows) for value in rendered.ingredients
+    ]
+    ingredients.extend({"spajza": name} for name in rendered.pantry_basics)
     return {
         "den": item.day,
         "nazov": rendered.name,
         "pokryva_dni": rendered.covered_days,
         "recept": recipe,
-        "suroviny": [_ingredient_payload(value) for value in rendered.ingredients],
+        "suroviny": ingredients,
     }
 
 
@@ -408,6 +593,7 @@ def build_deterministic_plan(
     selected_rows = tuple(
         row for row in rows if row["obchod"] in selected_stores
     )
+    offer_rows = {str(row["offer_key"]): row for row in selected_rows}
     offers = tuple(match_offers(selected_rows, ingredients))
 
     if not offers and not pantry_driven:
@@ -457,7 +643,16 @@ def build_deterministic_plan(
     sale_total, regular_total = _shopping_totals(shopping)
     return {
         "tyzden": week,
-        "jedla": [_meal_payload(item, mode) for item in selected],
+        "jedla": [
+            _meal_payload(
+                item,
+                mode,
+                adults=adults,
+                children=children,
+                offer_rows=offer_rows,
+            )
+            for item in selected
+        ],
         "nakupny_zoznam": shopping,
         "nakup_spolu": _money(sale_total),
         "bezna_cena": _money(regular_total),
