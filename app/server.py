@@ -9,9 +9,13 @@ Beh:  /opt/uvarsi/venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 
 Závislosti: fastapi uvicorn itsdangerous
 """
 import asyncio
+import copy
 import logging
 import os, re, json, sqlite3, datetime, threading, time, hashlib, math
 from contextlib import asynccontextmanager, closing
+from decimal import Decimal
+from pathlib import Path
+import sys
 from urllib.parse import urlsplit
 
 import anyio.to_thread
@@ -41,7 +45,7 @@ import db_rezim
 import naklady
 import plan_jobs
 import predpocet
-from config import public_base_url, admin_emails, release_id
+from config import public_base_url, admin_emails, recipe_engine_mode, release_id
 from landing_data import load_landing_data, validate_landing_data
 from public_pages import ROBOTS_TXT, render_evergreen_page, render_sitemap, render_weekly_page
 from weekly_data import offers_for_current_week, stores_missing_this_week
@@ -65,6 +69,17 @@ from plan_data import (
     plan_variant_for,
     plan_without_pantry,
 )
+
+# The production service imports ``server`` from /opt/uvarsi/app while the
+# deterministic engine deliberately uses package-relative imports.  Make the
+# release root available without changing the service working directory.
+_APP_PARENT = str(Path(__file__).resolve().parent.parent)
+if _APP_PARENT not in sys.path:
+    sys.path.insert(0, _APP_PARENT)
+from app.deterministic_plan import NoCompatiblePlan, build_deterministic_plan
+from app.ingredient_catalog import load_ingredient_catalog
+from app.quantity_math import PantryEntry, Quantity
+from app.recipe_catalog import RecipeCatalog, load_recipe_catalog
 from platby import (
     AKCIA_IGNOROVANE,
     AKCIA_NAD_KAPACITU,
@@ -2596,7 +2611,19 @@ def so_spajzou(plan, spajza):
     Počíta sa pri každej odpovedi nanovo a nikam sa neukladá. Vďaka tomu sa
     zmena špajze prejaví okamžite a do zdieľaného riadku sa nemá ako dostať.
     """
-    upraveny = apply_pantry_to_shopping_list(plan, spajza)
+    internal_meta = plan.get(PLAN_META_KEY) if isinstance(plan, dict) else None
+    public_meta = plan.get("meta") if isinstance(plan, dict) else None
+    pantry_already_applied = (
+        isinstance(internal_meta, dict)
+        and internal_meta.get("pantry_driven") is True
+        and isinstance(public_meta, dict)
+        and public_meta.get("engine") == "deterministic"
+    )
+    upraveny = (
+        copy.deepcopy(plan)
+        if pantry_already_applied
+        else apply_pantry_to_shopping_list(plan, spajza)
+    )
     upraveny.pop("_uvarsi_meta", None)
     # Plán si zatiaľ drží kompatibilný zoznam názvov; nový štruktúrovaný
     # kontrakt je v /api/me. Výpočet vyššie už používa aj množstvo a jednotku.
@@ -2615,6 +2642,180 @@ def podpis_spajze(spajza):
     normalizovane = pantry_signature_facts(spajza)
     payload = json.dumps(normalizovane, ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+DETERMINISTIC_ERROR_MESSAGES = {
+    "insufficient_offers": (
+        503,
+        "Z aktuálnych akcií sa zatiaľ nedá poskladať celý týždeň bez hluchých miest.",
+    ),
+    "diet_too_strict": (
+        422,
+        "Pre zvolený spôsob stravovania nemáme v aktuálnych akciách dosť vhodných surovín.",
+    ),
+    "unmeasurable_packages": (
+        503,
+        "V aktuálnych akciách chýbajú pri niektorých baleniach spoľahlivé množstvá.",
+    ),
+}
+DETERMINISTIC_SUGGESTIONS = {
+    "add_store": "Pridaj ďalší obchod.",
+    "use_standard_mode": "Skús štandardný režim stravovania.",
+    "wait_for_complete_flyer_refresh": "Počkaj na úplné obnovenie letákov.",
+}
+KOD_PLAN_INTERNAL_ERROR = "plan_internal_error"
+SPRAVA_PLAN_INTERNAL_ERROR = (
+    "Plán sa teraz nepodarilo pripraviť. Skús to znova o chvíľu."
+)
+
+
+def _deterministic_pantry_entries(spajza, catalog):
+    """Translate validated account rows to the engine's canonical pantry."""
+    entries = []
+    for row in spajza:
+        if isinstance(row, dict):
+            name = " ".join(str(row.get("nazov") or "").split())
+            amount = row.get("mnozstvo")
+            unit = row.get("jednotka")
+        else:
+            name = " ".join(str(row).split())
+            amount = unit = None
+        ingredient = catalog.resolve(name)
+        if ingredient is None:
+            continue
+        quantity = None
+        if amount is not None and unit in ("g", "ml", "piece"):
+            try:
+                quantity = Quantity(Decimal(str(amount)), unit)
+            except (ArithmeticError, TypeError, ValueError):
+                quantity = None
+        entries.append(PantryEntry(ingredient.id, name, quantity))
+    return tuple(entries)
+
+
+def _deterministic_error_response(error):
+    status, detail = DETERMINISTIC_ERROR_MESSAGES[error.code]
+    suggestions = [
+        {"kod": code, "text": DETERMINISTIC_SUGGESTIONS[code]}
+        for code in error.suggestions
+        if code in DETERMINISTIC_SUGGESTIONS
+    ]
+    return odmietni(status, detail, error.code, navrhy=suggestions)
+
+
+def _deterministic_public_plan(plan, spajza, *, pantry_driven):
+    if not pantry_driven:
+        return so_spajzou(plan, spajza)
+    result = copy.deepcopy(plan)
+    result.pop(PLAN_META_KEY, None)
+    result["spajza"] = [
+        item.get("nazov") if isinstance(item, dict) else str(item)
+        for item in spajza
+    ]
+    return result
+
+
+def _previous_plan_template_ids(user_id, week):
+    with closing(db()) as con:
+        row = con.execute(
+            "SELECT json FROM plany WHERE user_id=? AND tyzden=?",
+            (user_id, week),
+        ).fetchone()
+    if row is None:
+        return frozenset()
+    try:
+        plan = json.loads(row["json"])
+    except (TypeError, json.JSONDecodeError):
+        return frozenset()
+    return frozenset(
+        meal.get("recept", {}).get("template_id")
+        for meal in plan.get("jedla", ())
+        if isinstance(meal, dict)
+        and isinstance(meal.get("recept"), dict)
+        and isinstance(meal["recept"].get("template_id"), str)
+    )
+
+
+def _serve_deterministic_plan(
+    u, tyz, obchody, rows, spajza, podpis, variant, premium, *,
+    zo_spajze=False, force=False,
+):
+    """Build and persist a ready plan without queue, model or paid-cost paths."""
+    den = dnesok()
+    strop = limit_prepoctov(premium)
+    zostava = rezervuj_prepocet(u["id"], strop, den)
+    if zostava is None:
+        return odmietni(
+            429, sprava_o_limite(strop, premium), KOD_LIMIT_PREPOCTOV,
+            premium=premium, limit_prepoctov=strop, zostava_prepoctov=0,
+            obnova=zajtrajsok(den),
+        )
+
+    selected_variant = variant
+    if force:
+        used_before_this_request = strop - zostava - 1
+        selected_variant = (
+            variant + max(1, used_before_this_request)
+        ) % PLAN_VARIANTS
+
+    try:
+        catalog = load_ingredient_catalog()
+        recipe_catalog = load_recipe_catalog(catalog)
+        if force:
+            previous_templates = _previous_plan_template_ids(u["id"], tyz)
+            if previous_templates:
+                recipe_catalog = RecipeCatalog(
+                    recipe_catalog.version,
+                    (
+                        recipe for recipe in recipe_catalog.all()
+                        if recipe.id not in previous_templates
+                    ),
+                )
+        engine_pantry = _deterministic_pantry_entries(spajza, catalog)
+        adults, children = zlozenie_domacnosti(u)
+        plan = build_deterministic_plan(
+            week=tyz,
+            rows=rows,
+            stores=obchody,
+            adults=adults,
+            children=children,
+            frequency=u["frekvencia"],
+            pantry=engine_pantry if zo_spajze else (),
+            pantry_driven=zo_spajze,
+            mode=efektivne_stravovanie(u, premium),
+            seed=f"{tyz}:{podpis}:{selected_variant}",
+            ingredient_catalog=catalog,
+            recipe_catalog=recipe_catalog,
+        )
+        plan["meta"]["variant"] = selected_variant
+        stored = osobny_plan_na_ulozenie(
+            plan, spajza, zo_spajze, podpis=podpis,
+        )
+        with closing(db()) as con:
+            con.execute("BEGIN IMMEDIATE")
+            try:
+                if not zo_spajze:
+                    uloz_zdielany_plan(
+                        con, podpis, selected_variant, tyz, stored,
+                    )
+                con.execute(
+                    "INSERT OR REPLACE INTO plany (user_id,tyzden,json) VALUES (?,?,?)",
+                    (u["id"], tyz, json.dumps(stored, ensure_ascii=False)),
+                )
+                con.commit()
+            except BaseException:
+                if con.in_transaction:
+                    con.rollback()
+                raise
+    except NoCompatiblePlan as error:
+        vrat_prepocet(u["id"], den)
+        return _deterministic_error_response(error)
+    except Exception:
+        vrat_prepocet(u["id"], den)
+        LOG.exception("deterministický plán zlyhal")
+        return odmietni(500, SPRAVA_PLAN_INTERNAL_ERROR, KOD_PLAN_INTERNAL_ERROR)
+
+    return _deterministic_public_plan(stored, spajza, pantry_driven=zo_spajze)
 
 
 def osobny_plan_na_ulozenie(plan, spajza=(), zo_spajze=False, *, podpis=None):
@@ -3016,6 +3217,11 @@ def generuj_plan(req: Request, force: int = 0):
                 )
         con.commit()
 
+    if recipe_engine_mode() == "on":
+        return _serve_deterministic_plan(
+            u, tyz, obchody, rows, sp, podpis, variant, premium,
+            force=bool(force),
+        )
     return _enqueue_live_plan(
         u, tyz, obchody, podpis, variant, premium, spajza=sp,
         is_force=bool(force),
@@ -3102,6 +3308,11 @@ def plan_zo_spajze(req: Request):
         stravovanie=diet_mode,
     )
     variant = plan_variant_for(u["id"], PLAN_VARIANTS)
+    if recipe_engine_mode() == "on":
+        return _serve_deterministic_plan(
+            u, tyz, obchody, rows, sp, podpis, variant, premium,
+            zo_spajze=True,
+        )
     return _enqueue_live_plan(
         u, tyz, obchody, podpis, variant, premium,
         spajza=sp, zo_spajze=True,
@@ -3463,6 +3674,9 @@ def daj_plan(req: Request):
         status = _current_job_status(
             con, u["id"], tyz, podpis, pantry_podpis, variant
         )
+        if recipe_engine_mode() == "on":
+            # A legacy queued job must not obscure a newer synchronous result.
+            status = None
         if status is not None and status.state in ("queued", "running"):
             return JSONResponse(status_code=202, content=pending_payload(status))
 
