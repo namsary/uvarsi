@@ -199,8 +199,9 @@ _TIME = re.compile(
 )
 _DONENESS = re.compile(
     r"(?:\bbubl\w*\b|\bdozlatista\b|\bdosklovita\b|\bzlatist\w*\b|"
-    r"\bchrumkav\w*\b|\bcira\b|\bciru\b|\bhoruc\w*\b|"
-    r"\bleskn\w*\b|\bmakk\w*\b|\bpar\w*\b|\bvsiakn\w*\b|"
+    r"\bchrumkav\w*\b|\bcira\b|\bciru\b|\bje\s+povrch\s+horuc\w*\b|"
+    r"\bleskn\w*\b|\bmakk\w*\b|\b(?:zacne|prestane)\s+parit\b|"
+    r"\bvsiakn\w*\b|"
     r"\bzmakn\w*\b|\bstuh\w*\b|\b74\s*°\s*c\b)"
 )
 _AMOUNT = re.compile(
@@ -523,22 +524,28 @@ def _validate_ingredient_introductions(
     allowed_patterns = tuple(
         _phrase_pattern(form) for form in _allowed_ingredient_forms(rendered, pantry_ids)
     )
-    actions = sorted(
-        (
-            *_INGREDIENT_INTRODUCTION.finditer(folded_steps),
-            *_INGREDIENT_TARGET_START.finditer(folded_steps),
-        ),
-        key=lambda match: match.start(),
-    )
-    for action in actions:
+    introduction_actions = tuple(_INGREDIENT_INTRODUCTION.finditer(folded_steps))
+    for action in introduction_actions:
         clause = re.split(
             r"(?<!\d),(?!\d)|[.;]", folded_steps[action.end() :], maxsplit=1
         )[0]
-        if any(pattern.search(clause) for pattern in allowed_patterns):
-            continue
-        raise ValueError(
-            "Použitá surovina je v postupe, ale chýba v zozname surovín."
-        )
+        for part in re.split(r"\s+(?:a|k|ku)\s+", clause):
+            if _COOKING_ACTION.search(part) or any(
+                pattern.search(part) for pattern in allowed_patterns
+            ):
+                continue
+            raise ValueError(
+                "Použitá surovina je v postupe, ale chýba v zozname surovín."
+            )
+
+    for action in _INGREDIENT_TARGET_START.finditer(folded_steps):
+        clause = re.split(
+            r"(?<!\d),(?!\d)|[.;]", folded_steps[action.end() :], maxsplit=1
+        )[0]
+        if not any(pattern.search(clause) for pattern in allowed_patterns):
+            raise ValueError(
+                "Použitá surovina je v postupe, ale chýba v zozname surovín."
+            )
 
 
 def _validate_step_detail(step: str) -> None:

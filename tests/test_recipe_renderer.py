@@ -499,6 +499,27 @@ def test_renderer_rejects_unknown_added_ingredient_without_amount(ingredients):
         render_meal(candidate, adults=4, children=0, covered_days=1)
 
 
+def test_renderer_rejects_unknown_ingredient_mixed_with_allowed_ingredient(
+    ingredients,
+):
+    candidate = _candidate(
+        ingredients.by_id("tofu"),
+        amount="160",
+        cut="na 2 cm kocky",
+        name_template="Chrumkavé {main.name} z panvice",
+        equipment=("panvica", "doska"),
+        pantry_basics=("oil",),
+        instructions=(
+            *TOFU_STEPS[:-1],
+            "Pridaj šafran k tofu.",
+            TOFU_STEPS[-1],
+        ),
+    )
+
+    with pytest.raises(ValueError, match="šafran|zozname surovín"):
+        render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
 def test_renderer_rejects_unknown_prepared_ingredient_without_amount(ingredients):
     candidate = _candidate(
         ingredients.by_id("tofu"),
@@ -671,6 +692,43 @@ def test_bare_kym_without_observable_result_is_not_a_doneness_cue(ingredients):
             "ohni, kým môžeš pokračovať.",
             TOFU_STEPS[-1],
         ),
+    )
+
+    with pytest.raises(ValueError, match="hotov|výsled"):
+        render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
+@pytest.mark.parametrize(
+    ("ingredient_id", "amount", "instructions"),
+    [
+        (
+            "tofu",
+            "160",
+            (
+                "Osuš {main.amount} {main.name} čistou utierkou.",
+                "Opekaj {main.amount} {main.name} v horúcej panvici 8 minút "
+                "na strednom ohni.",
+                "Rozdeľ tofu na {portions} porcie a podávaj ho ihneď.",
+            ),
+        ),
+        (
+            "tomato",
+            "150",
+            (
+                "Opláchni {main.amount} {main.name} v sitku pod studenou vodou.",
+                "Var {main.amount} {main.name} v hrnci 8 minút na strednom ohni.",
+                "Rozdeľ paradajky na {portions} porcie a podávaj ich teplé.",
+            ),
+        ),
+    ],
+)
+def test_context_words_are_not_observable_doneness_cues(
+    ingredients, ingredient_id, amount, instructions
+):
+    candidate = _candidate(
+        ingredients.by_id(ingredient_id),
+        amount=amount,
+        instructions=instructions,
     )
 
     with pytest.raises(ValueError, match="hotov|výsled"):
