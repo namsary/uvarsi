@@ -9,6 +9,7 @@ from app import naklady, plan_jobs
 from app.plan_data import build_personal_plan
 from tests.test_server import (
     SHARED_VARIANT_USERS,
+    current_personal_signature,
     current_plan_rows,
     model_plan,
     plan_client as legacy_plan_client,
@@ -82,7 +83,9 @@ def publish_shared_plan(server, job_id):
 def cache_current_regular_plan(server, user_id=1):
     with server.db() as con:
         cached = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4)
-        cached = server.osobny_plan_na_ulozenie(cached)
+        cached = server.osobny_plan_na_ulozenie(
+            cached, podpis=current_personal_signature(server),
+        )
         con.execute(
             "INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)",
             (user_id, server.monday(), json.dumps(cached, ensure_ascii=False)),
@@ -210,7 +213,9 @@ def test_cache_hit_still_returns_plan_directly(monkeypatch, tmp_path):
     forbid_model_construction(monkeypatch)
     with server.db() as con:
         cached = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4)
-        cached = server.osobny_plan_na_ulozenie(cached)
+        cached = server.osobny_plan_na_ulozenie(
+            cached, podpis=current_personal_signature(server),
+        )
         con.execute(
             "INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)",
             (1, server.monday(), json.dumps(cached, ensure_ascii=False)),

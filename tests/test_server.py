@@ -22,6 +22,17 @@ from app.weekly_data import current_monday
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def current_personal_signature(
+        server, *, stores=("Lidl",), frequency=2, adults=4, children=0,
+        pantry=(), pantry_driven=False, diet_mode="standard"):
+    stores = list(stores)
+    return server.podpis_planu(
+        server.monday(), stores, frequency, server.akcie_pre(stores), pantry,
+        adults=adults, children=children, zo_spajze=pantry_driven,
+        stravovanie=diet_mode,
+    )
+
+
 def test_daily_limit_uses_bratislava_day_after_local_midnight(monkeypatch, tmp_path):
     server = load_server(monkeypatch, tmp_path, [])
     instant = datetime(2026, 8, 28, 22, 30, tzinfo=timezone.utc)
@@ -961,11 +972,13 @@ def test_plan_route_persists_only_reconstructed_server_commerce(monkeypatch, tmp
     # každom čítaní, aby nikdy nezostarol.
     with server.db() as con:
         ulozeny = json.loads(con.execute("SELECT json FROM plany WHERE user_id=1").fetchone()[0])
-        shared = [json.loads(row[0]) for row in con.execute("SELECT json FROM plany_zdielane")]
+        shared_rows = con.execute("SELECT podpis, json FROM plany_zdielane").fetchall()
+        shared = [json.loads(row["json"]) for row in shared_rows]
     assert ulozeny.pop("_uvarsi_meta") == {
         "algo_version": server.PLAN_ALGO_VERSION,
         "portion_standard_version": PORTION_STANDARD_VERSION,
         "pantry_driven": False,
+        "plan_signature": shared_rows[0]["podpis"],
     }
     assert shared and all("_uvarsi_meta" not in plan for plan in shared)
     assert ulozeny == server.plan_without_pantry(payload)
@@ -1037,7 +1050,9 @@ def test_invalid_model_plan_reports_failure_without_replacing_existing_valid_cac
         insert_hashed_session(server, con, "session-token", 1)
         con.execute("INSERT INTO spajza (user_id, nazov) VALUES (1, 'soľ')")
         current = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4, pantry=["soľ"])
-        current = server.osobny_plan_na_ulozenie(current)
+        current = server.osobny_plan_na_ulozenie(
+            current, podpis=current_personal_signature(server),
+        )
         con.execute("INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)", (1, current_monday(), json.dumps(current)))
         con.commit()
     grant_premium(server, 1)
@@ -1581,7 +1596,9 @@ def test_cached_plan_is_503_when_one_selected_offer_is_no_longer_current(monkeyp
         insert_hashed_session(server, con, "session-token", 1)
         con.execute("INSERT INTO spajza (user_id, nazov) VALUES (1, 'soľ')")
         cached = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4, pantry=["soľ"])
-        cached = server.osobny_plan_na_ulozenie(cached)
+        cached = server.osobny_plan_na_ulozenie(
+            cached, podpis=current_personal_signature(server),
+        )
         con.execute("INSERT INTO plany (user_id, tyzden, json) VALUES (?, ?, ?)", (1, current_monday(), json.dumps(cached)))
         con.execute("DELETE FROM akcie WHERE rowid=1")
         con.commit()
@@ -1606,7 +1623,9 @@ def test_get_invalidates_legacy_personal_plan_without_portion_version_for_free(
         )
         insert_hashed_session(server, con, "legacy-plan-session", 1)
         cached = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4)
-        cached = server.osobny_plan_na_ulozenie(cached)
+        cached = server.osobny_plan_na_ulozenie(
+            cached, podpis=current_personal_signature(server),
+        )
         cached["_uvarsi_meta"].pop("portion_standard_version", None)
         con.execute(
             "INSERT INTO plany (user_id, tyzden, json) VALUES (1, ?, ?)",
@@ -1643,7 +1662,9 @@ def test_portion_standard_bump_requires_get_then_allows_explicit_post_regenerati
         )
         insert_hashed_session(server, con, "version-bump-session", 1)
         cached = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4)
-        cached = server.osobny_plan_na_ulozenie(cached)
+        cached = server.osobny_plan_na_ulozenie(
+            cached, podpis=current_personal_signature(server),
+        )
         con.execute(
             "INSERT INTO plany (user_id, tyzden, json) VALUES (1, ?, ?)",
             (current_monday(), json.dumps(cached)),
@@ -2161,7 +2182,9 @@ def test_the_plan_a_free_user_is_reading_is_never_taken_away_by_the_lock(monkeyp
     with server.db() as con:
         plan = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4, pantry=["soľ"])
         plan["spajza"] = ["soľ"]
-        plan = server.osobny_plan_na_ulozenie(plan)
+        plan = server.osobny_plan_na_ulozenie(
+            plan, podpis=current_personal_signature(server),
+        )
         con.execute("INSERT INTO plany (user_id, tyzden, json) VALUES (1, ?, ?)",
                     (current_monday(), json.dumps(plan)))
         con.commit()

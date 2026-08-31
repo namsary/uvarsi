@@ -2509,20 +2509,22 @@ def podpis_spajze(spajza):
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def osobny_plan_na_ulozenie(plan, spajza=(), zo_spajze=False):
+def osobny_plan_na_ulozenie(plan, spajza=(), zo_spajze=False, *, podpis=None):
     ulozeny = dict(plan)
     meta = {
         "algo_version": PLAN_ALGO_VERSION,
         "portion_standard_version": PORTION_STANDARD_VERSION,
         "pantry_driven": bool(zo_spajze),
     }
+    if isinstance(podpis, str) and podpis:
+        meta["plan_signature"] = podpis
     if zo_spajze:
         meta["pantry_signature"] = podpis_spajze(spajza)
     ulozeny[PLAN_META_KEY] = meta
     return ulozeny
 
 
-def osobna_cache_plati(plan, spajza):
+def osobna_cache_ma_platne_meta(plan, spajza):
     if not isinstance(plan, dict) or not isinstance(plan.get(PLAN_META_KEY), dict):
         return False
     meta = plan[PLAN_META_KEY]
@@ -2530,9 +2532,19 @@ def osobna_cache_plati(plan, spajza):
         return False
     if meta.get("portion_standard_version") != PORTION_STANDARD_VERSION:
         return False
+    if not isinstance(meta.get("plan_signature"), str) or not meta["plan_signature"]:
+        return False
     if meta.get("pantry_driven") is True:
         return meta.get("pantry_signature") == podpis_spajze(spajza)
     return meta.get("pantry_driven") is False
+
+
+def osobna_cache_plati(plan, spajza, *, podpis):
+    if not osobna_cache_ma_platne_meta(plan, spajza):
+        return False
+    if not isinstance(podpis, str) or not podpis:
+        return False
+    return plan[PLAN_META_KEY]["plan_signature"] == podpis
 
 
 def obnova_neplatnej_osobnej_cache(plan, spajza):
@@ -2584,14 +2596,16 @@ def uloz_zdielany_plan(con, podpis, variant, tyzden, plan, predpocitany=False):
     con.execute("DELETE FROM plany_zdielane WHERE tyzden<>?", (tyzden,))
 
 
-def prevezmi_zdielany_plan(con, user_id, tyzden, zdielany, spajza):
+def prevezmi_zdielany_plan(con, user_id, tyzden, zdielany, spajza, podpis):
     """Prevezmi zdieľaný plán do vlastného riadku a podaj ho so svojou špajzou.
 
     Do `plany` sa ukladá plán BEZ špajze: pohľad so špajzou sa dopočíta pri
     každom čítaní, takže sa nikdy nestane zastaraným a nezaklincuje sa do
     databázy niečo, čo pri ďalšej zmene špajze prestane platiť.
     """
-    plan = osobny_plan_na_ulozenie(plan_without_pantry(zdielany))
+    plan = osobny_plan_na_ulozenie(
+        plan_without_pantry(zdielany), podpis=podpis,
+    )
     con.execute(
         "INSERT OR REPLACE INTO plany (user_id,tyzden,json) VALUES (?,?,?)",
         (user_id, tyzden, json.dumps(plan, ensure_ascii=False)),
@@ -2633,7 +2647,9 @@ def zahrej_plan_pre_pouzivatela(user_id):
         if not zdielany or not cached_plan_is_current(zdielany, rows):
             return None
         predpocet.zapocitaj_zasah(con, podpis, variant, tyzden)
-        plan = prevezmi_zdielany_plan(con, user_id, tyzden, zdielany, spajza)
+        plan = prevezmi_zdielany_plan(
+            con, user_id, tyzden, zdielany, spajza, podpis,
+        )
         con.commit()
     return plan
 
@@ -2837,6 +2853,10 @@ def generuj_plan(req: Request, force: int = 0):
                 "DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], tyz)
             )
             con.commit()
+        podpis = podpis_planu(
+            tyz, obchody, u["frekvencia"], rows, sp,
+            adults=adults, children=children, stravovanie=diet_mode,
+        )
         if not force:
             r = con.execute("SELECT json FROM plany WHERE user_id=? AND tyzden=?",
                             (u["id"], tyz)).fetchone()
@@ -2845,21 +2865,25 @@ def generuj_plan(req: Request, force: int = 0):
                     cached = json.loads(r["json"])
                 except json.JSONDecodeError:
                     cached = None
-                if osobna_cache_plati(cached, sp) and cached_plan_is_current(cached, rows):
+                cached_offers_current = cached_plan_is_current(cached, rows)
+                if (
+                    osobna_cache_plati(cached, sp, podpis=podpis)
+                    and cached_offers_current
+                ):
                     return so_spajzou(cached, sp)
                 con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], tyz))
                 con.commit()
-                if cached and osobna_cache_plati(cached, sp):
+                if (
+                    cached
+                    and osobna_cache_ma_platne_meta(cached, sp)
+                    and not cached_offers_current
+                ):
                     raise HTTPException(503, "Aktuálny plán už obsahuje neplatnú ponuku. Skús to o chvíľu.")
 
     # Plán závisí len od profilu a ponúk — špajza doň nevstupuje, takže sa
     # rovnaká domácnosť trafí do zdieľanej cache aj s plnou špajzou a čaká
     # milisekundy namiesto minút. Špajza sa dopočíta až nad nákupným zoznamom.
     # „Vygeneruj mi iný" (force) sa cache musí vyhnúť, inak by nič nezmenilo.
-    podpis = podpis_planu(
-        tyz, obchody, u["frekvencia"], rows, sp,
-        adults=adults, children=children, stravovanie=diet_mode,
-    )
     variant = plan_variant_for(u["id"], PLAN_VARIANTS)
     with closing(db()) as con:
         # Agregovaná evidencia dopytu: KOĽKO ráz taký profil niekto chcel.
@@ -2874,7 +2898,9 @@ def generuj_plan(req: Request, force: int = 0):
             if zdielany is not None:
                 if cached_plan_is_current(zdielany, rows):
                     predpocet.zapocitaj_zasah(con, podpis, variant, tyz)
-                    plan = prevezmi_zdielany_plan(con, u["id"], tyz, zdielany, sp)
+                    plan = prevezmi_zdielany_plan(
+                        con, u["id"], tyz, zdielany, sp, podpis,
+                    )
                     con.commit()
                     return plan
                 con.execute(
@@ -3237,7 +3263,9 @@ def build_and_store_job(job, *, client=None) -> dict:
         try:
             if revalidate_context is not None:
                 revalidate_context(con)
-            plan = osobny_plan_na_ulozenie(plan, pantry, pantry_driven)
+            plan = osobny_plan_na_ulozenie(
+                plan, pantry, pantry_driven, podpis=job.signature,
+            )
             compatibility_call = job.payload.get("_compat_rows") is not None
             if job.user_id is not None and (pantry_driven or compatibility_call):
                 con.execute(
@@ -3331,7 +3359,9 @@ def daj_plan(req: Request):
             return JSONResponse(status_code=202, content=pending_payload(status))
 
         valid_cached = bool(
-            cached and osobna_cache_plati(cached, sp) and cached_plan_is_current(cached, rows)
+            cached
+            and osobna_cache_plati(cached, sp, podpis=podpis)
+            and cached_plan_is_current(cached, rows)
         )
         retry_allowed = _retry_allowed(con, u, status, premium, sp)
         if (
@@ -3347,7 +3377,9 @@ def daj_plan(req: Request):
                 recovered = nacitaj_zdielany_plan(con, podpis, variant)
                 if recovered is not None and cached_plan_is_current(recovered, rows):
                     predpocet.zapocitaj_zasah(con, podpis, variant, tyz)
-                    plan = prevezmi_zdielany_plan(con, u["id"], tyz, recovered, sp)
+                    plan = prevezmi_zdielany_plan(
+                        con, u["id"], tyz, recovered, sp, podpis,
+                    )
                     con.commit()
                     return plan
             return failed_payload(status, retry_allowed)
@@ -3364,7 +3396,11 @@ def daj_plan(req: Request):
         stale_current_cache = False
         if r and not valid_cached:
             invalidation = obnova_neplatnej_osobnej_cache(cached, sp)
-            stale_current_cache = bool(cached and osobna_cache_plati(cached, sp))
+            stale_current_cache = bool(
+                cached
+                and osobna_cache_ma_platne_meta(cached, sp)
+                and not cached_plan_is_current(cached, rows)
+            )
             con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], tyz))
             con.commit()
 
@@ -3375,7 +3411,9 @@ def daj_plan(req: Request):
         if zdielany is not None:
             if cached_plan_is_current(zdielany, rows):
                 predpocet.zapocitaj_zasah(con, podpis, variant, tyz)
-                plan = prevezmi_zdielany_plan(con, u["id"], tyz, zdielany, sp)
+                plan = prevezmi_zdielany_plan(
+                    con, u["id"], tyz, zdielany, sp, podpis,
+                )
                 con.commit()
                 return plan
             con.execute(
@@ -3388,12 +3426,12 @@ def daj_plan(req: Request):
         response = _job_status_response(status, retry_allowed)
         if response is not None:
             return response
-        if invalidation and not osobna_cache_plati(cached, sp):
-            return {"prazdny": True, "vyzaduje_akciu": True, **invalidation}
         if stale_current_cache:
             raise HTTPException(
                 503, "Aktuálny plán už obsahuje neplatnú ponuku. Skús to o chvíľu."
             )
+        if invalidation:
+            return {"prazdny": True, "vyzaduje_akciu": True, **invalidation}
         return {"prazdny": True}
 
 
