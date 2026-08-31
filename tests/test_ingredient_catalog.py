@@ -53,6 +53,12 @@ TASK_1_REQUIRED_IDS = {
     "curry_powder",
     "oregano",
 }
+TASK_2_REQUIRED_IDS = {
+    "egg_noodles",
+    "mushrooms",
+    "plain_yogurt",
+    "tuna",
+}
 
 
 def _ingredient(**overrides):
@@ -225,6 +231,7 @@ def test_default_catalog_contains_verified_foundation_slice():
 
     assert REQUIRED_IDS <= catalog_ids
     assert TASK_1_REQUIRED_IDS <= catalog_ids
+    assert TASK_2_REQUIRED_IDS <= catalog_ids
     assert catalog.by_id("rice").nutrition.protein_g > 0
     assert catalog.by_id("egg").grams_per_piece == Decimal("50")
     assert catalog.by_id("milk").density_g_per_ml == Decimal("1")

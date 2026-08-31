@@ -564,6 +564,74 @@
       }
     },
     {
+      "id": "egg_noodles",
+      "name": "vaječné rezance",
+      "synonyms": ["polievkové rezance", "rezance do polievky", "vaječných rezancov"],
+      "category": "obilniny",
+      "roles": ["starch"],
+      "diet_tags": ["vegetarian"],
+      "allergens": ["egg", "wheat"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "384", "protein_g": "14.16", "fat_g": "4.44", "carbs_g": "71.27",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 169755, Noodles, egg, dry, unenriched; https://fdc.nal.usda.gov/fdc-app.html#/food-details/169755/nutrients",
+        "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "mushrooms",
+      "name": "biele šampiňóny",
+      "synonyms": ["šampiňóny", "čerstvé šampiňóny", "bielych šampiňónov"],
+      "category": "zelenina",
+      "roles": ["vegetable"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "22", "protein_g": "3.09", "fat_g": "0.34", "carbs_g": "3.26",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 169251, Mushrooms, white, raw; https://fdc.nal.usda.gov/fdc-app.html#/food-details/169251/nutrients",
+        "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "plain_yogurt",
+      "name": "biely plnotučný jogurt",
+      "synonyms": ["biely jogurt", "plnotučný biely jogurt", "bieleho plnotučného jogurtu"],
+      "category": "mliečne výrobky",
+      "roles": ["dairy"],
+      "diet_tags": ["vegetarian"],
+      "allergens": ["milk"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "61", "protein_g": "3.47", "fat_g": "3.25", "carbs_g": "4.66",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171284, Yogurt, plain, whole milk; https://fdc.nal.usda.gov/fdc-app.html#/food-details/171284/nutrients",
+        "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "tuna",
+      "name": "tuniak vo vlastnej šťave",
+      "synonyms": ["tuniak v konzerve", "tuniak vo vode", "tuniaka vo vlastnej šťave"],
+      "category": "ryby",
+      "roles": ["protein"],
+      "diet_tags": [],
+      "allergens": ["fish"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "86", "protein_g": "19.44", "fat_g": "0.96", "carbs_g": "0",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 173709, Fish, tuna, light, canned in water, drained solids; https://fdc.nal.usda.gov/fdc-app.html#/food-details/173709/nutrients",
+        "verified_on": "2026-08-30"
+      }
+    },
+    {
       "id": "milk",
       "name": "plnotučné mlieko",
       "synonyms": ["mlieko"],

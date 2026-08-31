@@ -103,13 +103,32 @@ def test_loads_only_active_templates_by_default(ingredients, tmp_path):
     ] == ["chicken_rice_pan", "inactive_recipe"]
 
 
-def test_default_smoke_templates_stay_inactive(ingredients):
-    assert load_recipe_catalog(ingredients, DEFAULT_RECIPE_ROOT).all() == ()
+def test_default_smoke_templates_stay_inactive_beside_active_library(ingredients):
+    active = load_recipe_catalog(ingredients, DEFAULT_RECIPE_ROOT).all()
+    launch_groups = {
+        "pan": ("pan_",),
+        "oven": ("oven_",),
+        "one_pot": ("pot_",),
+        "vegetarian": ("veg_",),
+        "vegan": ("vegan_",),
+        "soup_salad": ("soup_", "salad_"),
+    }
+
+    assert len(active) == 60
+    assert {
+        group: sum(recipe.id.startswith(prefixes) for recipe in active)
+        for group, prefixes in launch_groups.items()
+    } == {group: 10 for group in launch_groups}
+    assert all(
+        sum(recipe.id.startswith(prefixes) for prefixes in launch_groups.values()) == 1
+        for recipe in active
+    )
     assert [
         recipe.id
         for recipe in load_recipe_catalog(
             ingredients, DEFAULT_RECIPE_ROOT, include_inactive=True
         ).all()
+        if not recipe.active
     ] == ["chicken_rice_pan", "tofu_vegetable_pan", "lentil_tomato_pot"]
 
 

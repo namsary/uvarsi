@@ -1,0 +1,212 @@
+{
+  "recipes": [
+    {
+      "id": "veg_egg_rice_vegetables", "version": 1, "active": true,
+      "name_template": "Vajíčková ryža s {vegetable.name}",
+      "family": "vegetarian_egg_fried_rice", "method": "pan", "minutes": 32,
+      "modes": ["standard", "vegetarian"], "equipment": ["hrniec", "panvica", "misa"],
+      "slots": [
+        {"key":"protein","role":"protein","candidates":["egg"],"amount_per_adult":"2","unit":"piece","child_factor":"0.6","required":true,"use":"main","cut":null},
+        {"key":"starch","role":"starch","candidates":["rice"],"amount_per_adult":"70","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["bell_pepper","carrot"],"amount_per_adult":"150","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kocky"}
+      ],
+      "pantry_basics": ["oil","salt","black_pepper"],
+      "instructions": [
+        {"text":"Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou."},
+        {"text":"Uvar {starch.amount} {starch.name} v prikrytom hrnci 15 minút na miernom ohni, kým voda vsiakne."},
+        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Rozšľahaj {protein.amount} {protein.name} v mise."},
+        {"text":"Opekaj {protein.amount} {protein.name} v panvici 5 minút na strednom ohni, kým úplne stuhnú."},
+        {"text":"Pridaj {vegetable.amount} {vegetable.name} do panvice a opekaj ich 6 minút na strednom ohni, kým zmäknú."},
+        {"text":"Premiešaj vajcia a zeleninu s uvarenou ryžou, dochuť soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id": "veg_egg_tomato_pasta", "version": 1, "active": true,
+      "name_template": "Paradajkové cestoviny s vajcom", "family": "vegetarian_egg_tomato_pasta",
+      "method": "pan", "minutes": 30, "modes": ["standard", "vegetarian"],
+      "equipment": ["hrniec", "panvica", "misa"],
+      "slots": [
+        {"key":"protein","role":"protein","candidates":["egg"],"amount_per_adult":"2","unit":"piece","child_factor":"0.6","required":true,"use":"main","cut":null},
+        {"key":"starch","role":"starch","candidates":["pasta"],"amount_per_adult":"75","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["tomato"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kocky"}
+      ],
+      "pantry_basics": ["oil","salt","black_pepper","oregano"],
+      "instructions": [
+        {"text":"Uvar {starch.amount} {starch.name} v hrnci 9 minút na strednom ohni, kým zmäknú na skus."},
+        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Opekaj {vegetable.amount} {vegetable.name} v panvici 7 minút na strednom ohni, kým zmäknú."},
+        {"text":"Rozšľahaj {protein.amount} {protein.name} v mise."},
+        {"text":"Vlej {protein.amount} {protein.name} do panvice a opekaj ich 5 minút na miernom ohni, kým úplne stuhnú."},
+        {"text":"Premiešaj obsah panvice s cestovinami, dochuť oreganom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id": "veg_cottage_potato_spinach", "version": 1, "active": true,
+      "name_template": "Zapekané zemiaky s cottage cheesom a špenátom", "family": "vegetarian_cottage_potato_bake",
+      "method": "oven", "minutes": 48, "modes": ["standard", "vegetarian"],
+      "equipment": ["hrniec", "rúra", "pekáč"],
+      "slots": [
+        {"key":"protein","role":"protein","candidates":["cottage_cheese"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":null},
+        {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"260","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na tenké kolieska"},
+        {"key":"vegetable","role":"vegetable","candidates":["spinach"],"amount_per_adult":"120","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"nahrubo"}
+      ],
+      "pantry_basics": ["oil","salt","black_pepper","garlic"],
+      "instructions": [
+        {"text":"Predhrej rúru na 190 °C; správnu teplotu potvrdí kontrolka rúry."},
+        {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Uvar {starch.amount} {starch.name} v hrnci 8 minút na strednom ohni, kým mierne zmäknú."},
+        {"text":"Rozlož {starch.amount} {starch.name} do pekáča."},
+        {"text":"Pridaj {vegetable.amount} {vegetable.name} do pekáča."},
+        {"text":"Pridaj {protein.amount} {protein.name} do pekáča."},
+        {"text":"Peč {protein.amount} {protein.name} so zemiakmi a špenátom v rúre 22 minút pri 190 °C, kým bude povrch zlatistý; potom jedlo dochuť cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id": "veg_cottage_rice_zucchini", "version": 1, "active": true,
+      "name_template": "Ryžový nákyp s cottage cheesom a cuketou", "family": "vegetarian_cottage_rice_bake",
+      "method": "oven", "minutes": 46, "modes": ["standard", "vegetarian"],
+      "equipment": ["hrniec", "rúra", "pekáč"],
+      "slots": [
+        {"key":"protein","role":"protein","candidates":["cottage_cheese"],"amount_per_adult":"170","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":null},
+        {"key":"starch","role":"starch","candidates":["rice"],"amount_per_adult":"70","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["zucchini"],"amount_per_adult":"170","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kocky"}
+      ],
+      "pantry_basics": ["oil","salt","black_pepper","garlic"],
+      "instructions": [
+        {"text":"Predhrej rúru na 190 °C; správnu teplotu potvrdí kontrolka rúry."},
+        {"text":"Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou."},
+        {"text":"Uvar {starch.amount} {starch.name} v hrnci 12 minút na miernom ohni, kým voda vsiakne."},
+        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Rozlož uvarenú ryžu a {vegetable.amount} {vegetable.name} do pekáča."},
+        {"text":"Pridaj {protein.amount} {protein.name} do pekáča."},
+        {"text":"Peč {protein.amount} {protein.name} s ryžou a cuketou v rúre 20 minút pri 190 °C, kým bude povrch zlatistý; potom jedlo dochuť cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id": "veg_feta_couscous_vegetables", "version": 1, "active": true,
+      "name_template": "Kuskusový šalát s fetou a {vegetable.name}", "family": "vegetarian_feta_couscous_salad",
+      "method": "salad", "minutes": 25, "modes": ["standard", "vegetarian"],
+      "equipment": ["hrniec", "misa", "doska"],
+      "slots": [
+        {"key":"protein","role":"protein","candidates":["feta"],"amount_per_adult":"100","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé kocky"},
+        {"key":"starch","role":"starch","candidates":["couscous"],"amount_per_adult":"75","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["tomato","bell_pepper"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
+      ],
+      "pantry_basics": ["oil","salt","black_pepper","oregano"],
+      "instructions": [
+        {"text":"Uvar {starch.amount} {starch.name} v hrnci 8 minút na miernom ohni, kým zmäkne a voda vsiakne."},
+        {"text":"Nechaj uvarený kuskus 10 minút chladnúť, kým prestane pariť."},
+        {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut}."},
+        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Premiešaj kuskus, fetu a zeleninu v mise s olejom."},
+        {"text":"Dochuť šalát oreganom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id": "veg_cheese_broccoli_pasta", "version": 1, "active": true,
+      "name_template": "Zapekané cestoviny so syrom a brokolicou", "family": "vegetarian_cheese_broccoli_pasta_bake",
+      "method": "oven", "minutes": 42, "modes": ["standard", "vegetarian"],
+      "equipment": ["hrniec", "rúra", "pekáč"],
+      "slots": [
+        {"key":"protein","role":"protein","candidates":["hard_cheese"],"amount_per_adult":"90","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"nahrubo nastrúhaný"},
+        {"key":"starch","role":"starch","candidates":["pasta"],"amount_per_adult":"80","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["broccoli"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé ružičky"}
+      ],
+      "pantry_basics": ["oil","salt","black_pepper","garlic"],
+      "instructions": [
+        {"text":"Predhrej rúru na 195 °C; správnu teplotu potvrdí kontrolka rúry."},
+        {"text":"Uvar {starch.amount} {starch.name} v hrnci 7 minút na strednom ohni, kým mierne zmäknú."},
+        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Uvar {vegetable.amount} {vegetable.name} v hrnci 4 minúty na strednom ohni, kým mierne zmäkne."},
+        {"text":"Rozlož cestoviny a brokolicu do pekáča."},
+        {"text":"Pridaj {protein.amount} {protein.name} do pekáča."},
+        {"text":"Peč {protein.amount} {protein.name} s cestovinami a brokolicou v rúre 18 minút pri 195 °C, kým bude syr zlatistý; potom jedlo dochuť cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id": "veg_mushroom_barley_pan", "version": 1, "active": true,
+      "name_template": "Krúpová panvica so šampiňónmi", "family": "vegetarian_mushroom_barley_pan",
+      "method": "pan", "minutes": 40, "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["hrniec", "panvica", "doska"],
+      "slots": [
+        {"key":"protein","role":"protein","candidates":["chickpeas"],"amount_per_adult":"80","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
+        {"key":"starch","role":"starch","candidates":["barley"],"amount_per_adult":"70","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["mushrooms"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na tenké plátky"}
+      ],
+      "pantry_basics": ["oil","salt","black_pepper","garlic"],
+      "instructions": [
+        {"text":"Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou."},
+        {"text":"Uvar {starch.amount} {starch.name} v hrnci 25 minút na miernom ohni, kým zmäknú."},
+        {"text":"Opláchni {vegetable.name} a nakrájaj ich {vegetable.cut}."},
+        {"text":"Opekaj {vegetable.amount} bielych šampiňónov v panvici 8 minút na strednom ohni, kým zmäknú a okraje nezozlatnú."},
+        {"text":"Pridaj {protein.amount} {protein.name} do panvice a opekaj ho 5 minút na strednom ohni, kým je povrch zlatistý."},
+        {"text":"Premiešaj obsah panvice s krúpami, dochuť cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id": "veg_lentil_tomato_pasta", "version": 1, "active": true,
+      "name_template": "Cestoviny s paradajkovou šošovicou a syrom", "family": "vegetarian_lentil_tomato_pasta",
+      "method": "one_pot", "minutes": 36, "modes": ["standard", "vegetarian"],
+      "equipment": ["veľký hrniec"],
+      "slots": [
+        {"key":"protein","role":"protein","candidates":["red_lentils"],"amount_per_adult":"90","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"starch","role":"starch","candidates":["pasta"],"amount_per_adult":"70","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["tomato"],"amount_per_adult":"220","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kocky"},
+        {"key":"dairy","role":"dairy","candidates":["hard_cheese"],"amount_per_adult":"45","unit":"g","child_factor":"0.6","required":true,"use":"addition","cut":"najemno nastrúhaný"}
+      ],
+      "pantry_basics": ["water","oil","salt","black_pepper","garlic","oregano"],
+      "instructions": [
+        {"text":"Prepláchni {protein.amount} {protein.name} v sitku pod studenou vodou."},
+        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Var {protein.amount} {protein.name} a {vegetable.amount} {vegetable.name} v hrnci 14 minút na miernom ohni, kým šošovica zmäkne."},
+        {"text":"Pridaj {starch.amount} {starch.name} do hrnca."},
+        {"text":"Var {starch.amount} {starch.name} v hrnci 10 minút na miernom ohni, kým cestoviny zmäknú a omáčka zhustne."},
+        {"text":"Priprav {dairy.amount} {dairy.name}; syr nastrúhaj najemno."},
+        {"text":"Dochuť cestoviny cesnakom, oreganom, soľou a čiernym korením, rozdeľ ich na {portions} porcií a podávaj s nastrúhaným syrom."}
+      ]
+    },
+    {
+      "id": "veg_chickpea_spinach_rice", "version": 1, "active": true,
+      "name_template": "Cícerová ryža so špenátom", "family": "vegetarian_chickpea_spinach_rice",
+      "method": "one_pot", "minutes": 34, "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["hrniec"],
+      "slots": [
+        {"key":"protein","role":"protein","candidates":["chickpeas"],"amount_per_adult":"95","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
+        {"key":"starch","role":"starch","candidates":["rice"],"amount_per_adult":"70","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["spinach"],"amount_per_adult":"140","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"nahrubo"}
+      ],
+      "pantry_basics": ["water","oil","salt","black_pepper","garlic"],
+      "instructions": [
+        {"text":"Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou."},
+        {"text":"Var {starch.amount} {starch.name} v hrnci 12 minút na miernom ohni, kým sa voda takmer vsiakne."},
+        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Pridaj {protein.amount} {protein.name} do hrnca."},
+        {"text":"Pridaj {vegetable.amount} {vegetable.name} do hrnca."},
+        {"text":"Var {protein.amount} {protein.name} so špenátom a ryžou v hrnci 7 minút na miernom ohni, kým špenát zmäkne; potom jedlo dochuť cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id": "veg_bean_potato_stew", "version": 1, "active": true,
+      "name_template": "Fazuľový prívarok so zemiakmi a jogurtom", "family": "vegetarian_bean_potato_stew",
+      "method": "one_pot", "minutes": 42, "modes": ["standard", "vegetarian"],
+      "equipment": ["veľký hrniec"],
+      "slots": [
+        {"key":"protein","role":"protein","candidates":["beans"],"amount_per_adult":"100","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
+        {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"240","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na dvojcentimetrové kocky"},
+        {"key":"vegetable","role":"vegetable","candidates":["carrot","bell_pepper"],"amount_per_adult":"140","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"},
+        {"key":"dairy","role":"dairy","candidates":["plain_yogurt"],"amount_per_adult":"70","unit":"g","child_factor":"0.6","required":true,"use":"addition","cut":null}
+      ],
+      "pantry_basics": ["water","oil","salt","black_pepper","garlic","paprika_powder"],
+      "instructions": [
+        {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Var {starch.amount} {starch.name} a {vegetable.amount} {vegetable.name} v hrnci 18 minút na miernom ohni, kým zemiaky zmäknú."},
+        {"text":"Pridaj {protein.amount} {protein.name} do hrnca."},
+        {"text":"Var {protein.amount} {protein.name} so zemiakmi v hrnci 10 minút na miernom ohni, kým omáčka zhustne a začne bublať."},
+        {"text":"Odstav hrniec z ohňa."},
+        {"text":"Vmiešaj {dairy.amount} {dairy.name} do hrnca, kým bude omáčka hladká."},
+        {"text":"Dochuť prívarok cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    }
+  ]
+}
