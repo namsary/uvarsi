@@ -947,8 +947,6 @@ function viewOnboarding() {
     const vybrane = [...$('#c-obch').querySelectorAll('.on')].map(c=>c.dataset.v);
     const selectedDiet = $('#c-diet').querySelector('[aria-pressed="true"]')?.dataset.mode || 'standard';
     const availableDiet = dietModeAvailable(selectedDiet, profil) ? selectedDiet : 'standard';
-    // V off/shadow režime voľbu neposielame: server tak zachová uložený
-    // Premium režim namiesto jeho tichého prepísania na „Bez obmedzenia“.
     const diet = profil.recipe_engine === 'on' ? availableDiet : undefined;
     const adults = +val('#c-dospeli');
     const children = +val('#c-deti');
