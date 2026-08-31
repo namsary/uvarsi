@@ -220,6 +220,9 @@ def test_pantry_rows_show_real_quantities_and_legacy_prompt(tmp_path):
         tmp_path,
         "pantry-row-html.js",
         "function esc(value){return String(value == null ? '' : value);}\n"
+        + "var PANTRY_EDITOR_SEQUENCE=0;\n"
+        + declaration(html, "function nextPantryEditorId() ")
+        + "\n"
         + declaration(html, "function pantryRowHtml(item, index) ")
         + """
 var measured=pantryRowHtml({nazov:'ryža',mnozstvo:500,jednotka:'g'},0);
@@ -390,10 +393,30 @@ def test_pantry_editors_have_visible_labels_and_controls_relationships():
     html = app_html()
     row = declaration(html, "function pantryRowHtml(item, index) ")
     pantry = declaration(html, "function vSpajza() ")
-    assert "aria-controls" in row and "pantry-editor-" in row
+    editor_id = declaration(html, "function nextPantryEditorId() ")
+    assert "aria-controls" in row and "pantry-editor-" in editor_id
     assert 'id="${editorId}"' in row
     for label in ["Názov", "Množstvo", "Jednotka"]:
         assert f">{label}<" in row
     assert '<label for="sp-name">Surovina</label>' in pantry
     assert '<label for="sp-amount">Množstvo</label>' in pantry
     assert '<label for="sp-unit">Jednotka</label>' in pantry
+
+
+@needs_node
+def test_pantry_editor_ids_never_repeat_after_a_row_is_removed(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "pantry-editor-ids.js",
+        "var PANTRY_EDITOR_SEQUENCE=0;\n"
+        + declaration(html, "function nextPantryEditorId() ")
+        + "\nvar first=nextPantryEditorId(), second=nextPantryEditorId(), third=nextPantryEditorId();\n"
+        + "if (new Set([first,second,third]).size !== 3) process.exit(1);\n"
+        + "if (![first,second,third].every(id=>/^pantry-editor-[1-9][0-9]*$/.test(id))) process.exit(2);\n",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    row = declaration(html, "function pantryRowHtml(item, index) ")
+    assert "nextPantryEditorId()" in row
+    assert "'pantry-editor-' + index" not in row

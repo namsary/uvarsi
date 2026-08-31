@@ -56,7 +56,9 @@ def test_a_free_account_still_reaches_the_pantry_tab():
 
     assert 'data-t="spajza"' in html, "špajza musí ostať v menu aj pre bezplatný účet"
     rozcestie = declaration(html, "function vSpajza() ")
-    assert "premium" in rozcestie, "obrazovka sa musí rozhodnúť podľa nároku zo servera"
+    access = declaration(html, "function pantryUnlocked(me) ")
+    assert "premium" in access, "obrazovka sa musí rozhodnúť podľa nároku zo servera"
+    assert "pantryUnlocked(ME)" in rozcestie
     assert "vSpajzaZamknuta()" in rozcestie
 
 
@@ -149,7 +151,7 @@ def test_a_pantry_403_keeps_the_server_code_for_the_entitlement_recovery_branch(
 def test_a_revoked_pantry_save_refreshes_authoritative_me_and_renders_the_lock():
     """403 spajza_premium nesmie nechat na obrazovke stary editovatelny formular."""
     html = app_html()
-    pantry = declaration(html, "function vSpajza() ")
+    pantry = declaration(html, "async function savePantryList(list) ")
 
     assert "spajza_premium" in pantry, "ulozenie musi mat osobitnu vetvu pre odobraty narok"
     assert re.search(r"403|status", pantry), "vetva patri iba serverovemu odmietnutiu 403"
@@ -177,7 +179,7 @@ def test_a_locked_dormant_pantry_uses_only_the_server_summary_not_item_names():
 
 def test_a_live_entitlement_loss_is_explained_even_when_the_pantry_was_empty():
     html = app_html()
-    pantry = declaration(html, "function vSpajza() ")
+    pantry = declaration(html, "async function savePantryList(list) ")
     locked = declaration(html, "function vSpajzaZamknuta() ")
 
     assert "PANTRY_ACCESS_CHANGED = true" in pantry

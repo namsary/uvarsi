@@ -118,6 +118,8 @@ if (payload.stravovanie !== 'high_protein') process.exit(4);
 if (payload.adults !== 2 || payload.children !== 2 || payload.frekvencia !== 3) process.exit(6);
 if (payload.obchody.join('|') !== 'Lidl|Tesco') process.exit(7);
 if (profilePayload(2,0,2,['Lidl'],'vegan').stravovanie !== 'vegan') process.exit(8);
+var preserved=profilePayload(2,0,2,['Lidl'],undefined);
+if (Object.prototype.hasOwnProperty.call(preserved,'stravovanie')) process.exit(9);
 if (dietModeAvailable('vegetarian',paid) !== true) process.exit(10);
 if (dietModeAvailable('vegetarian',{premium:true}) !== false) process.exit(11);
 process.exit(0);
@@ -134,6 +136,8 @@ def test_profile_save_sends_the_selected_mode_and_keeps_server_errors_visible():
     assert "profil.recipe_engine" in onboarding
     assert "dietModeAvailable" in onboarding
     assert "stravovanie" in onboarding
+    assert "profil.recipe_engine === 'on'" in onboarding
+    assert "availableDiet : undefined" in onboarding
     assert "runGuardedAction($('#save'), $('#ob-err')" in onboarding
     assert onboarding.index("await api('/api/profil'") < onboarding.index("ME = await api('/api/me')")
 

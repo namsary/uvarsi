@@ -898,8 +898,10 @@ function selectDietMode(root, mode) {
 }
 
 function profilePayload(adults, children, frequency, stores, diet) {
-  return {adults:+adults, children:+children, frekvencia:+frequency,
-    obchody:stores, stravovanie:diet};
+  var payload = {adults:+adults, children:+children, frekvencia:+frequency,
+    obchody:stores};
+  if (diet !== undefined && diet !== null) payload.stravovanie = diet;
+  return payload;
 }
 
 function viewOnboarding() {
@@ -941,7 +943,10 @@ function viewOnboarding() {
     const val = id => $(id).querySelector('.on')?.dataset.v;
     const vybrane = [...$('#c-obch').querySelectorAll('.on')].map(c=>c.dataset.v);
     const selectedDiet = $('#c-diet').querySelector('[aria-pressed="true"]')?.dataset.mode || 'standard';
-    const diet = dietModeAvailable(selectedDiet, profil) ? selectedDiet : 'standard';
+    const availableDiet = dietModeAvailable(selectedDiet, profil) ? selectedDiet : 'standard';
+    // V off/shadow režime voľbu neposielame: server tak zachová uložený
+    // Premium režim namiesto jeho tichého prepísania na „Bez obmedzenia“.
+    const diet = profil.recipe_engine === 'on' ? availableDiet : undefined;
     const adults = +val('#c-dospeli');
     const children = +val('#c-deti');
     if (!Number.isInteger(adults) || !Number.isInteger(children) || adults + children < 1)
@@ -1420,6 +1425,13 @@ function pantryItemFromFields(name, amount, unit, allowLegacy) {
   return {nazov:clean, mnozstvo:value, jednotka:canonical};
 }
 
+var PANTRY_EDITOR_SEQUENCE = 0;
+
+function nextPantryEditorId() {
+  PANTRY_EDITOR_SEQUENCE += 1;
+  return 'pantry-editor-' + PANTRY_EDITOR_SEQUENCE;
+}
+
 function pantryRowHtml(item, index) {
   if (typeof item === 'string') item = {nazov:item,mnozstvo:null,jednotka:null};
   item = item || {nazov:'',mnozstvo:null,jednotka:null};
@@ -1427,7 +1439,7 @@ function pantryRowHtml(item, index) {
   var unit = item.jednotka === 'piece' ? 'ks' : item.jednotka || 'g';
   var amount = legacy ? '' : String(item.mnozstvo);
   var measure = legacy ? 'Doplň množstvo' : esc(amount + ' ' + unit);
-  var editorId = 'pantry-editor-' + index;
+  var editorId = nextPantryEditorId();
   return `<div class="pantry-shelf" data-pantry-row data-legacy="${legacy ? 'true' : 'false'}"><div class="pantry-row-main"><span class="pantry-name">${esc(item.nazov)}</span><span class="pantry-measure">${measure}</span><span class="pantry-actions"><button type="button" class="quiet-action sp-edit" aria-expanded="false" aria-controls="${editorId}">Upraviť</button><button type="button" class="quiet-action quiet-action--danger sp-remove">Odstrániť</button></span></div><div class="pantry-row-editor" id="${editorId}" hidden><label class="pf pf-name">Názov<input class="sp-row-name" maxlength="80" value="${esc(item.nazov)}"></label><label class="pf">Množstvo<input class="sp-row-amount" type="number" min="0" step="any" inputmode="decimal" value="${esc(amount)}" placeholder="množstvo"></label><label class="pf">Jednotka<select class="sp-row-unit">${['g','ml','ks'].map(function(value){return `<option${unit === value ? ' selected' : ''}>${value}</option>`;}).join('')}</select></label></div></div>`;
 }
 

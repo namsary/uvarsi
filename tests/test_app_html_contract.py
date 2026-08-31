@@ -366,7 +366,8 @@ def test_profile_submit_sends_both_household_counts_and_rejects_zero_people():
 
     assert "profilePayload(val('#c-dospeli'), val('#c-deti')" in onboarding
     assert "adults:+adults" in payload and "children:+children" in payload
-    assert "stravovanie:diet" in payload
+    assert "payload.stravovanie = diet" in payload
+    assert "diet !== undefined" in payload
     assert "adults + children" in onboarding
     assert "aspoň" in onboarding.casefold()
 
