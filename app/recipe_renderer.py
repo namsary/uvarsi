@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_CEILING, ROUND_HALF_UP
+from decimal import Context, Decimal, ROUND_CEILING, ROUND_HALF_EVEN, ROUND_HALF_UP
+from fractions import Fraction
 from functools import lru_cache
 from string import Formatter
 import re
@@ -13,7 +14,7 @@ from typing import Mapping, Sequence
 from .ingredient_catalog import Ingredient, load_ingredient_catalog
 from .nutrition import NutritionEstimate, estimate_recipe_nutrition
 from .plan_data import validate_recipe_language
-from .quantity_math import Quantity
+from .quantity_math import PackageSize, PantryEntry, Quantity, purchase_requirement
 from .recipe_catalog import IngredientSlot, PANTRY_BASIC_NAMES
 from .recipe_matcher import RecipeCandidate, SlotSelection
 
@@ -279,6 +280,61 @@ def _add_exact(left: Decimal, right: Decimal) -> Decimal:
 def _shift_exponent(value: Decimal, places: int) -> Decimal:
     coefficient, exponent = _coefficient_and_exponent(value)
     return _from_coefficient(coefficient, exponent + places)
+
+
+def _fraction_to_decimal(value: Fraction) -> Decimal:
+    denominator = value.denominator
+    twos = 0
+    fives = 0
+    while denominator % 2 == 0:
+        denominator //= 2
+        twos += 1
+    while denominator % 5 == 0:
+        denominator //= 5
+        fives += 1
+    if denominator == 1:
+        scale = max(twos, fives)
+        coefficient = value.numerator
+        coefficient *= 2 ** (scale - twos)
+        coefficient *= 5 ** (scale - fives)
+        return _from_coefficient(coefficient, -scale)
+
+    integer_digits = max(
+        1,
+        len(str(abs(value.numerator))) - len(str(value.denominator)) + 1,
+    )
+    context = Context(prec=integer_digits + 64, rounding=ROUND_HALF_EVEN)
+    return context.divide(Decimal(value.numerator), Decimal(value.denominator))
+
+
+def _quantity_in_unit(
+    quantity: Quantity, target_unit: str, ingredient: Ingredient
+) -> Quantity | None:
+    if quantity.unit == target_unit:
+        return quantity
+
+    if quantity.unit == "g":
+        grams = quantity.amount
+    elif quantity.unit == "ml" and ingredient.density_g_per_ml is not None:
+        grams = _multiply_exact(quantity.amount, ingredient.density_g_per_ml)
+    elif quantity.unit == "piece" and ingredient.grams_per_piece is not None:
+        grams = _multiply_exact(quantity.amount, ingredient.grams_per_piece)
+    else:
+        return None
+
+    if target_unit == "g":
+        amount = grams
+    elif target_unit == "ml" and ingredient.density_g_per_ml is not None:
+        amount = _fraction_to_decimal(
+            Fraction(grams) / Fraction(ingredient.density_g_per_ml)
+        )
+    elif target_unit == "piece" and ingredient.grams_per_piece is not None:
+        amount = _fraction_to_decimal(
+            Fraction(grams) / Fraction(ingredient.grams_per_piece)
+        )
+    else:
+        return None
+    return Quantity(amount, target_unit)
 
 
 def _round_to_step(value: Decimal, step: Decimal) -> Decimal:
@@ -907,3 +963,138 @@ def render_meal(
         instructions=instructions,
         nutrition=nutrition,
     )
+
+
+def _money_text(value: Decimal) -> str:
+    return format(value, ".2f").replace(".", ",")
+
+
+def _quantity_text(quantity: Quantity) -> str:
+    unit = "ks" if quantity.unit == "piece" else quantity.unit
+    return f"{_decimal_text(quantity.amount)} {unit}"
+
+
+def build_shopping_list(
+    rendered_meals: Sequence[RenderedMeal], pantry: Sequence[PantryEntry]
+) -> list[dict]:
+    """Build store-grouped purchases from exact rendered quantities."""
+    unknown_pantry = {
+        entry.ingredient_id for entry in pantry if entry.quantity is None
+    }
+    purchases: dict[tuple[object, ...], tuple[RenderedIngredient, Quantity]] = {}
+    ingredients: dict[str, Ingredient] = {}
+    for meal in rendered_meals:
+        for rendered in meal.ingredients:
+            offer = rendered.offer
+            if offer is None:
+                continue
+            ingredients[rendered.ingredient.id] = rendered.ingredient
+            key = (offer.offer_key, offer.package)
+            current = purchases.get(key)
+            if current is None:
+                purchases[key] = (rendered, rendered.quantity)
+                continue
+            if current[1].unit != rendered.quantity.unit:
+                raise ValueError(
+                    "Rovnaké balenie má nekompatibilné jednotky receptovej dávky."
+                )
+            purchases[key] = (
+                current[0],
+                Quantity(
+                    _add_exact(current[1].amount, rendered.quantity.amount),
+                    current[1].unit,
+                ),
+            )
+
+    pantry_balances: dict[str, Decimal] = {}
+    for entry in pantry:
+        ingredient = ingredients.get(entry.ingredient_id)
+        if ingredient is None or entry.quantity is None:
+            continue
+        converted = _quantity_in_unit(entry.quantity, "g", ingredient)
+        if converted is None:
+            continue
+        pantry_balances[entry.ingredient_id] = _add_exact(
+            pantry_balances.get(entry.ingredient_id, Decimal("0")),
+            converted.amount,
+        )
+
+    groups: dict[str, list[dict]] = {}
+    for rendered, required in purchases.values():
+        offer = rendered.offer
+        ingredient_id = rendered.ingredient.id
+        available = _quantity_in_unit(
+            Quantity(pantry_balances.get(ingredient_id, Decimal("0")), "g"),
+            required.unit,
+            rendered.ingredient,
+        )
+        if available is None:
+            available = Quantity(Decimal("0"), required.unit)
+        package_content = _quantity_in_unit(
+            offer.package.content, required.unit, rendered.ingredient
+        )
+        if package_content is None:
+            raise ValueError(
+                "Balenie ponuky nemá jednotku kompatibilnú s receptovou dávkou."
+            )
+        requirement = purchase_requirement(
+            required,
+            available,
+            PackageSize(package_content),
+        )
+        used_grams = _quantity_in_unit(
+            requirement.used_from_pantry, "g", rendered.ingredient
+        )
+        if used_grams is not None:
+            pantry_balances[ingredient_id] = _add_exact(
+                pantry_balances.get(ingredient_id, Decimal("0")),
+                -used_grams.amount,
+            )
+        total_price = _multiply_exact(
+            offer.sale_price, Decimal(requirement.packages)
+        )
+        original_price = (
+            None
+            if offer.original_price is None
+            else _multiply_exact(
+                offer.original_price, Decimal(requirement.packages)
+            )
+        )
+        groups.setdefault(offer.store, []).append(
+            {
+                "offer_key": offer.offer_key,
+                "nazov": offer.product_name,
+                "obchod": offer.store,
+                "jednotka": _display_amount(offer.package.content),
+                "mnozstvo": requirement.packages,
+                "cena": _money_text(total_price),
+                "povodna": (
+                    None
+                    if original_price is None
+                    else _money_text(original_price)
+                ),
+                "potrebne": _decimal_text(requirement.required.amount),
+                "potrebna_jednotka": (
+                    "ks"
+                    if requirement.required.unit == "piece"
+                    else requirement.required.unit
+                ),
+                "cena_za_balenie": _money_text(offer.sale_price),
+                "povodna_za_balenie": (
+                    None
+                    if offer.original_price is None
+                    else _money_text(offer.original_price)
+                ),
+                "zostava": _quantity_text(requirement.leftover),
+                "source_url": offer.source_url,
+                **(
+                    {"mnozstvo_nezname": True}
+                    if rendered.ingredient.id in unknown_pantry
+                    else {}
+                ),
+            }
+        )
+    return [
+        {"obchod": store, "polozky": items}
+        for store, items in groups.items()
+    ]
