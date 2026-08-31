@@ -839,23 +839,218 @@ process.exit(0);
     assert "dayGenitive(" in declaration(html, "function vPlan() ")
 
 
-# ------------------------------------------------------- príprava na pozadí (Task 5)
-def test_plan_generation_uses_background_acknowledgement_without_a_browser_timeout():
+# ------------------------------------------------------- hybridný prechod klienta (Task 5)
+@needs_node
+def test_immediate_plan_response_renders_without_preparing_or_polling(tmp_path):
+    """Ak sa 200 plán omylom spracuje ako ack, UI zostane v nekonečnom čakaní."""
     html = app_html()
+    functions = "\n".join(
+        declaration(html, signature)
+        for signature in (
+            "function onePlanRequest(request) ",
+            "function requestPlan(kind, url) ",
+            "function generujPlan() ",
+            "async function nacitajPlan(gen) ",
+        )
+    )
+    result = run_node(
+        tmp_path,
+        "immediate-plan-contract.js",
+        """
+var immediate={jedla:[{den:'Po',nazov:'Polievka'}],tyzden:'2026-08-31'};
+var PLAN_REQUEST_IN_FLIGHT=null, PLAN_PREPARATION=null, PLAN_FAILURE=null;
+var PLAN_CONTEXT_VERSION=0, PLAN=null, M={innerHTML:''};
+var calls=[], preparationCalls=0, renderCalls=0;
+function api(url, options) { calls.push({url:url,options:options}); return Promise.resolve(immediate); }
+function setPlanPreparation() { preparationCalls++; throw new Error('200 plan entered preparing'); }
+function setPlan(plan) { PLAN=plan; }
+function render() { renderCalls++; }
+function takePlanPrefetch() { return null; }
+function readStartupResponse(pending) { return pending; }
+function loadingSkeletonHtml() { return 'loading'; }
+"""
+        + functions
+        + """
+(async function() {
+  await nacitajPlan(true);
+  if (PLAN !== immediate) throw new Error('immediate plan was not stored');
+  if (preparationCalls !== 0 || PLAN_PREPARATION !== null) throw new Error('preparing state leaked');
+  if (calls.length !== 1 || calls[0].url !== '/api/plan/generuj') throw new Error('wrong request count');
+  if (!calls[0].options || calls[0].options.method !== 'POST') throw new Error('generation was not POST');
+  if (renderCalls !== 1) throw new Error('immediate plan did not render exactly once');
+})().catch(function(error) { console.error(error.stack || error); process.exit(1); });
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
-    assert "Plán pripravujeme. Pokojne pokračuj inde." in html
-    assert "PLAN_TIMEOUT_MS" not in html
-    assert "PLAN_TIMEOUT_TEXT" not in html
-    assert "150000" not in html
 
-    for signature in (
-        "function generujPlan() ",
-        "function preskladajPlan() ",
-        "function planZoSpajze() ",
-    ):
-        request = declaration(html, signature)
-        assert "method:'POST'" in request
-    assert "setPlanPreparation" in declaration(html, "function requestPlan(kind, url) ")
+@needs_node
+def test_legacy_preparing_response_starts_get_polling(tmp_path):
+    """Rollback na off/shadow musí stále prijať 202 ack a pokračovať iba cez GET."""
+    html = app_html()
+    functions = "\n".join(
+        declaration(html, signature)
+        for signature in (
+            "function onePlanRequest(request) ",
+            "function requestPlan(kind, url) ",
+            "function stopPlanPolling() ",
+            "function startPlanPolling() ",
+            "function setPlanPreparation(response) ",
+            "function generujPlan() ",
+            "async function nacitajPlan(gen) ",
+        )
+    )
+    result = run_node(
+        tmp_path,
+        "legacy-preparing-contract.js",
+        """
+var ack={status:'preparing',job_id:'legacy-7'};
+var document={visibilityState:'visible'}, timers=[], calls=[];
+var PLAN_REQUEST_IN_FLIGHT=null, PLAN_PREPARATION=null, PLAN_FAILURE=null;
+var PLAN_POLL_TIMER=null, PLAN_CONTEXT_VERSION=0, PLAN_NOTE='', PLAN=null;
+var M={innerHTML:''};
+function setTimeout(fn, milliseconds) { timers.push({fn:fn,milliseconds:milliseconds}); return timers.length; }
+function clearTimeout() {}
+function pollPlanStatus() {}
+function api(url, options) { calls.push({url:url,options:options}); return Promise.resolve(ack); }
+function setPlan(plan) { PLAN=plan; }
+function render() {}
+function takePlanPrefetch() { return null; }
+function readStartupResponse(pending) { return pending; }
+function loadingSkeletonHtml() { return 'loading'; }
+"""
+        + functions
+        + """
+(async function() {
+  await nacitajPlan(true);
+  if (!PLAN_PREPARATION || PLAN_PREPARATION.jobId !== 'legacy-7') throw new Error('legacy ack was not kept');
+  if (PLAN !== null) throw new Error('legacy ack replaced the plan object');
+  if (timers.length !== 1 || timers[0].milliseconds !== 4000) throw new Error('GET poll was not scheduled');
+  if (calls.length !== 1 || calls[0].url !== '/api/plan/generuj') throw new Error('duplicate POST');
+})().catch(function(error) { console.error(error.stack || error); process.exit(1); });
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
+def test_typed_deterministic_failure_renders_safe_actions_without_retry(tmp_path):
+    """Strata navrhov alebo retry CTA pri retry_allowed=false zavádza používateľa."""
+    html = app_html()
+    functions = "\n".join(
+        declaration(html, signature)
+        for signature in (
+            "function apiErrorMessage(status, payload) ",
+            "async function readApiResponse(r) ",
+            "function onePlanRequest(request) ",
+            "function requestPlan(kind, url) ",
+            "function generujPlan() ",
+            "function setPlanFailure(response, kind, version) ",
+            "function failPlan(e, kind, version) ",
+            "function planFailureHtml() ",
+            "async function nacitajPlan(gen) ",
+        )
+    )
+    result = run_node(
+        tmp_path,
+        "deterministic-plan-failure-contract.js",
+        """
+var payload={detail:'Pre zvolený spôsob stravovania nemáme v aktuálnych akciách dosť vhodných surovín.',
+  kod:'diet_too_strict',retry_allowed:false,navrhy:[
+    {kod:'add_store',text:'Pridaj ďalší obchod.'},
+    {kod:'use_standard_mode',text:'Skús štandardný režim stravovania.'}]};
+var response={ok:false,status:422,json:function(){return Promise.resolve(payload);}};
+var PLAN_REQUEST_IN_FLIGHT=null, PLAN_PREPARATION=null, PLAN_FAILURE=null;
+var PLAN_POLL_TIMER=null, PLAN_CONTEXT_VERSION=0, PLAN_NOTE='', PLAN=null;
+var M={innerHTML:''}, renderCalls=0;
+function handleApiUnauthorized() { return false; }
+function api() { return readApiResponse(response); }
+function stopPlanPolling() {}
+function setPlanPreparation() { throw new Error('typed failure entered preparing'); }
+function setPlan(plan) { PLAN=plan; }
+function esc(value) { return String(value == null ? '' : value).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+function render() { renderCalls++; M.innerHTML=planFailureHtml(); }
+function takePlanPrefetch() { return null; }
+function readStartupResponse(pending) { return pending; }
+function loadingSkeletonHtml() { return 'loading'; }
+function showNav() {}
+function $(selector) { return {}; }
+"""
+        + functions
+        + """
+(async function() {
+  await nacitajPlan(true);
+  if (!PLAN_FAILURE) throw new Error('typed failure did not enter failure state');
+  if (PLAN_FAILURE.message !== payload.detail) throw new Error('safe server message changed');
+  if (PLAN_FAILURE.retry_allowed !== false) throw new Error('non-retryable failure became retryable');
+  if (renderCalls !== 1) throw new Error('failure did not render once');
+  if (M.innerHTML.indexOf(payload.detail) === -1) throw new Error('safe message is missing');
+  for (var i=0;i<payload.navrhy.length;i++)
+    if (M.innerHTML.indexOf(payload.navrhy[i].text) === -1) throw new Error('actionable suggestion is missing');
+  if (M.innerHTML.indexOf('Skúsiť znova') !== -1 || M.innerHTML.indexOf('plan-retry') !== -1)
+    throw new Error('non-retryable failure encourages a blind retry');
+})().catch(function(error) { console.error(error.stack || error); process.exit(1); });
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_normal_plan_actions_do_not_promise_background_or_long_wait():
+    html = app_html()
+    plan_view = declaration(html, "function vPlan() ")
+    pantry_view = declaration(html, "function vSpajza() ")
+    normal_copy = plan_view + pantry_view
+
+    assert "pripraví na pozadí" not in normal_copy.lower()
+    assert "pripraví sa na pozadí" not in normal_copy.lower()
+    assert "dve minúty" not in normal_copy.lower()
+    assert "2 min" not in normal_copy.lower()
+    assert "120 sek" not in normal_copy.lower()
+
+
+@needs_node
+def test_profile_and_pantry_refresh_keep_plan_while_legacy_ack_is_pending(tmp_path):
+    """Ack počas refreshu nesmie zahodiť synchronný plán a vyvolať druhý POST."""
+    html = app_html()
+    functions = "\n".join(
+        declaration(html, signature)
+        for signature in (
+            "async function refreshPlanAfterPantrySave() ",
+            "async function refreshPlanAfterProfileSave() ",
+        )
+    )
+    result = run_node(
+        tmp_path,
+        "refresh-keeps-synchronous-plan-contract.js",
+        """
+var existing={jedla:[{den:'Po'}],tyzden:'2026-08-31'};
+var PLAN=existing, PLAN_CONTEXT_VERSION=0, PLAN_PREPARATION=null, PLAN_FAILURE=null;
+var PLAN_NEEDS_REGEN=false, PLAN_RESUME_ENDPOINT='', PLAN_EMPTY_REASON='', TAB='plan';
+var calls=[], renders=0;
+function invalidatePlanState() { PLAN_CONTEXT_VERSION++; PLAN_PREPARATION=null; PLAN_FAILURE=null; }
+function api(url) { calls.push(url); return Promise.resolve({status:'preparing',job_id:'rollback'}); }
+function setPlanPreparation(response, kind, version) {
+  PLAN_PREPARATION={response:response,jobId:response.job_id,kind:kind,version:version}; return true;
+}
+function setPlanFailure() { throw new Error('preparing ack entered failure'); }
+function setPlan(plan) { PLAN=plan; }
+function render() { renders++; }
+"""
+        + functions
+        + """
+(async function() {
+  await refreshPlanAfterPantrySave();
+  if (PLAN !== existing || !PLAN_PREPARATION) throw new Error('pantry refresh discarded the synchronous plan');
+  PLAN_PREPARATION=null;
+  await refreshPlanAfterProfileSave();
+  if (PLAN !== existing || !PLAN_PREPARATION) throw new Error('profile refresh discarded the synchronous plan');
+  if (calls.length !== 2 || calls[0] !== '/api/plan' || calls[1] !== '/api/plan')
+    throw new Error('refresh issued duplicate or non-GET requests');
+  if (renders !== 2) throw new Error('refresh did not render exactly once per response');
+})().catch(function(error) { console.error(error.stack || error); process.exit(1); });
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_pending_plan_keeps_navigation_available_and_polls_get_only():

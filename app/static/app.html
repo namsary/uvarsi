@@ -381,6 +381,9 @@ async function readApiResponse(r) {
     failure.status = r.status;
     const serverCode = payload && (payload.kod || payload.code);
     failure.code = typeof serverCode === 'string' ? serverCode.slice(0,100) : '';
+    failure.suggestions = (payload?.navrhy || []).map(item => item.text);
+    if (payload && typeof payload.retry_allowed === 'boolean')
+      failure.retry_allowed = payload.retry_allowed;
     throw failure;
   }
   return r.json();
@@ -1022,6 +1025,12 @@ function setPlanFailure(response, kind, version) {
   return true;
 }
 
+function failPlan(e, kind, version) {
+  if (!e || e.retry_allowed !== false && !e.suggestions?.length) return;
+  setPlanFailure(e, kind, version); render();
+  return true;
+}
+
 function invalidatePlanState() {
   PLAN_CONTEXT_VERSION += 1;
   stopPlanPolling();
@@ -1159,6 +1168,7 @@ async function navrhniZoSpajze() {
     } catch (ignored) {}
   } catch (error) {
     if (error && error.authRequired) return;
+    if (failPlan(error, 'pantry', version)) return;
     PLAN_NOTE = (error && error.message) ||
       'Jedálniček zo špajze sa teraz nepodaril. Skús to prosím znova.';
   }
@@ -1232,6 +1242,7 @@ async function novyPlan() {
     } catch (ignored) {}
   } catch (error) {
     if (error && error.authRequired) return;
+    if (failPlan(error, 'force', version)) return;
     PLAN_NOTE = (error && error.message) || 'Nový jedálniček sa teraz nepodaril. Skús to prosím znova.';
   }
   render();
@@ -1268,6 +1279,7 @@ async function nacitajPlan(gen) {
     setPlan(plan);
   } catch(e) {
     if (e.authRequired) return;
+    if (failPlan(e, 'regular', version)) return;
     showNav();
     M.innerHTML = `<div class="card center" style="margin-top:30px"><span class="eyebrow">Plán sa nepodaril</span><p style="margin-top:8px">${esc(e.message)}</p><div style="height:14px"></div><button class="btn" onclick="nacitajPlan(true)">Skúsiť znova</button><div style="height:10px"></div><button class="btn btn--ghost" id="plan-err-nast">Zmeniť obchody v nastaveniach</button><div style="height:10px"></div><button class="btn btn--ghost" id="plan-err-spajza">Otvoriť špajzu</button><p class="muted" style="margin-top:12px;font-size:.82rem">Dole v menu sa dostaneš aj na Špajzu a na Ja.</p></div>`;
     $('#plan-err-nast').onclick = () => { TAB = 'nastavenia'; render(); };
@@ -1287,10 +1299,12 @@ function planPreparationHtml() {
 }
 
 function planFailureHtml() {
-  const retryAllowed = !PLAN_FAILURE || PLAN_FAILURE.retry_allowed !== false;
   const message = (PLAN_FAILURE && PLAN_FAILURE.message) ||
     'Plán sa nepodarilo pripraviť. Skús to znova.';
-  return `<div class="card center" style="margin-top:30px"><span class="eyebrow">Plán sa nepodaril</span><p style="margin:8px 0 14px">${esc(message)}</p><button class="btn" id="plan-retry"${retryAllowed ? '' : ' disabled'}>Skúsiť znova</button></div>`;
+  const suggestions = PLAN_FAILURE && PLAN_FAILURE.suggestions || [];
+  const actions = suggestions.length ? `<ul>${suggestions.map(item => `<li>${esc(item)}</li>`).join('')}</ul>` : '';
+  const retry = PLAN_FAILURE && PLAN_FAILURE.retry_allowed === false ? '' : '<button class="btn" id="plan-retry">Skúsiť znova</button>';
+  return `<div class="card center" style="margin-top:30px"><span class="eyebrow">Plán sa nepodaril</span><p style="margin:8px 0 14px">${esc(message)}</p>${actions}${retry}</div>`;
 }
 
 async function retryPlanPreparation() {
@@ -1308,6 +1322,7 @@ async function refreshPlanAfterPantrySave() {
   const version = PLAN_CONTEXT_VERSION;
   const plan = await api('/api/plan');
   if (version !== PLAN_CONTEXT_VERSION) return;
+  if (plan && plan.status === 'preparing') { setPlanPreparation(plan, 'regular', version); return render(); }
   const empty = !!(plan && plan.prazdny);
   setPlan(empty ? null : plan);
   PLAN_NEEDS_REGEN = empty;
@@ -1321,11 +1336,12 @@ async function refreshPlanAfterProfileSave() {
   const version = PLAN_CONTEXT_VERSION;
   const plan = await api('/api/plan'), empty = !!(plan && plan.prazdny);
   if (version !== PLAN_CONTEXT_VERSION) return;
+  TAB = 'plan';
+  if (plan && plan.status === 'preparing') { setPlanPreparation(plan, 'regular', version); return render(); }
   setPlan(empty ? null : plan);
   PLAN_NEEDS_REGEN = empty;
   PLAN_RESUME_ENDPOINT = empty ? (plan.obnovit_cez || '') : '';
   PLAN_EMPTY_REASON = empty ? 'profil' : '';
-  TAB = 'plan';
   render();
 }
 
@@ -1360,7 +1376,8 @@ function vPlan() {
   }
   if (PLAN_FAILURE) {
     M.innerHTML = planFailureHtml();
-    $('#plan-retry').onclick = () => retryPlanPreparation();
+    const retry = $('#plan-retry');
+    if (retry) retry.onclick = () => retryPlanPreparation();
     return;
   }
   if (PLAN_NEEDS_REGEN) {
@@ -1378,7 +1395,7 @@ function vPlan() {
     h += `<div class="hint"><p style="margin:0">${esc(PLAN_NOTE)}</p></div>`;
   }
   if (spajzaSaZmenila) {
-    h += `<div class="hint" id="sp-hint"><span class="eyebrow">Špajza sa zmenila</span><p style="margin:6px 0 4px">Nákupný zoznam to už zarátal. Chceš aj jedlá poskladať okolo toho, čo máš doma?</p><p class="muted" style="margin-bottom:12px">Tento jedálniček nechávam tak, ako je, kým to nepovieš. Nový sa pripraví na pozadí a berie jeden prepočet.</p><button class="btn" id="sp-hint-go">Navrhni jedlá z toho, čo mám doma →</button><div style="height:8px"></div><button class="btn btn--ghost" id="sp-hint-off">Nechať tak</button></div>`;
+    h += `<div class="hint" id="sp-hint"><span class="eyebrow">Špajza sa zmenila</span><p style="margin:6px 0 12px">Nákupný zoznam to už zarátal. Chceš aj jedlá poskladať okolo toho, čo máš doma?</p><button class="btn" id="sp-hint-go">Navrhni jedlá z toho, čo mám doma →</button><div style="height:8px"></div><button class="btn btn--ghost" id="sp-hint-off">Nechať tak</button></div>`;
   }
   planWeekDays(PLAN, ME && ME.frekvencia).forEach(row => {
     if (row.typ === 'jedlo') {
@@ -1636,7 +1653,7 @@ function bindPantryRows(root) {
 function vSpajza() {
   if (!pantryUnlocked(ME)) return vSpajzaZamknuta();
   const sp = Array.isArray(ME.spajza) ? ME.spajza : [];
-  M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Špajza</span><h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo už máš doma</h1><p class="muted" style="margin:8px 0 16px">Doplň množstvá, aby nákup odrátal len to, čo naozaj máš. Jedálniček sa tým nemení.</p></div><div class="card"><label>Pridať surovinu</label><div class="pantry-compose"><div class="pf pf-name"><label for="sp-name">Surovina</label><input id="sp-name" maxlength="80" placeholder="napr. ryža"></div><div class="pf"><label for="sp-amount">Množstvo</label><input id="sp-amount" type="number" min="0" step="any" inputmode="decimal" placeholder="500"></div><div class="pf"><label for="sp-unit">Jednotka</label><select id="sp-unit"><option>g</option><option>ml</option><option>ks</option></select></div><button class="btn btn--ghost" type="button" id="sp-add">Pridať položku</button></div><p id="sp-err" class="muted" style="color:var(--accent);margin-top:10px" aria-live="polite"></p></div><div class="pantry-list" id="sp-list">${sp.map(pantryRowHtml).join('') || '<p class="muted center" style="padding:18px">Zatiaľ prázdna.</p>'}</div><div style="height:14px"></div><button class="btn" type="button" id="sp-save">Uložiť špajzu</button><div style="height:10px"></div><button class="btn btn--ghost" type="button" id="sp-navrhni"${sp.length ? '' : ' disabled'}>Navrhni jedlá z toho, čo mám doma →</button><p class="muted center mono" style="font-size:.7rem;margin-top:8px">${sp.length ? 'Pripraví sa na pozadí a berie jeden prepočet z dnešného stropu.' : 'Najprv pridaj a ulož aspoň jednu surovinu.'}</p>`;
+  M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Špajza</span><h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo už máš doma</h1><p class="muted" style="margin:8px 0 16px">Doplň množstvá, aby nákup odrátal len to, čo naozaj máš. Jedálniček sa tým nemení.</p></div><div class="card"><label>Pridať surovinu</label><div class="pantry-compose"><div class="pf pf-name"><label for="sp-name">Surovina</label><input id="sp-name" maxlength="80" placeholder="napr. ryža"></div><div class="pf"><label for="sp-amount">Množstvo</label><input id="sp-amount" type="number" min="0" step="any" inputmode="decimal" placeholder="500"></div><div class="pf"><label for="sp-unit">Jednotka</label><select id="sp-unit"><option>g</option><option>ml</option><option>ks</option></select></div><button class="btn btn--ghost" type="button" id="sp-add">Pridať položku</button></div><p id="sp-err" class="muted" style="color:var(--accent);margin-top:10px" aria-live="polite"></p></div><div class="pantry-list" id="sp-list">${sp.map(pantryRowHtml).join('') || '<p class="muted center" style="padding:18px">Zatiaľ prázdna.</p>'}</div><div style="height:14px"></div><button class="btn" type="button" id="sp-save">Uložiť špajzu</button><div style="height:10px"></div><button class="btn btn--ghost" type="button" id="sp-navrhni"${sp.length ? '' : ' disabled'}>Navrhni jedlá z toho, čo mám doma →</button>${sp.length ? '' : '<p class="muted center mono" style="font-size:.7rem;margin-top:8px">Najprv pridaj a ulož aspoň jednu surovinu.</p>'}`;
   bindPantryRows($('#sp-list'));
   $('#sp-add').onclick = function() {
     try {
