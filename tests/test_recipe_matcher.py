@@ -1,11 +1,11 @@
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from datetime import date
 from decimal import Decimal
 from hashlib import sha256
 
 import pytest
 
-from app.ingredient_catalog import DietTag, load_ingredient_catalog
+from app.ingredient_catalog import DietTag, IngredientCatalog, load_ingredient_catalog
 from app.offer_matcher import MatchedOffer
 from app.quantity_math import PackageSize, PantryEntry, Quantity
 from app.recipe_catalog import IngredientSlot, InstructionTemplate, RecipeTemplate
@@ -88,6 +88,7 @@ def test_required_slot_needs_an_offer_or_quantified_pantry(ingredients):
             [PantryEntry(rice.id, rice.name, Quantity(Decimal("100"), "g"))],
             "standard",
             "week-1",
+            ingredient_catalog=ingredients,
         )
     ) == 1
     assert (
@@ -97,9 +98,76 @@ def test_required_slot_needs_an_offer_or_quantified_pantry(ingredients):
             [PantryEntry(rice.id, rice.name, None)],
             "standard",
             "week-1",
+            ingredient_catalog=ingredients,
         )
         == ()
     )
+
+
+def test_partial_pantry_without_offer_cannot_satisfy_required_slot(ingredients):
+    rice = ingredients.by_id("rice")
+    recipe = template(
+        "rice-bowl",
+        [slot([rice.id], role="starch")],
+    )
+
+    candidates = rank_candidates(
+        [recipe],
+        (),
+        [PantryEntry(rice.id, rice.name, Quantity(Decimal("50"), "g"))],
+        "standard",
+        "week-1",
+        ingredient_catalog=ingredients,
+    )
+
+    assert candidates == ()
+
+
+def test_partial_pantry_with_offer_satisfies_required_slot(ingredients):
+    rice = ingredients.by_id("rice")
+    recipe = template(
+        "rice-bowl",
+        [slot([rice.id], role="starch")],
+    )
+
+    candidate = rank_candidates(
+        [recipe],
+        [offer(rice)],
+        [PantryEntry(rice.id, rice.name, Quantity(Decimal("50"), "g"))],
+        "standard",
+        "week-1",
+    )[0]
+
+    assert candidate.selections[0].pantry == Quantity(Decimal("50"), "g")
+    assert candidate.selections[0].offer is not None
+
+
+def test_pantry_balance_is_allocated_once_across_slots(ingredients):
+    rice = ingredients.by_id("rice")
+    recipe = template(
+        "double-rice",
+        [
+            slot([rice.id], key="first", role="starch"),
+            slot([rice.id], key="second", role="starch"),
+        ],
+    )
+
+    candidate = rank_candidates(
+        [recipe],
+        [offer(rice)],
+        [PantryEntry(rice.id, rice.name, Quantity(Decimal("150"), "g"))],
+        "standard",
+        "week-1",
+    )[0]
+
+    assert [selection.pantry for selection in candidate.selections] == [
+        Quantity(Decimal("100"), "g"),
+        Quantity(Decimal("50"), "g"),
+    ]
+    assert [selection.offer is not None for selection in candidate.selections] == [
+        False,
+        True,
+    ]
 
 
 def test_optional_slot_is_omitted_when_it_has_no_source(ingredients):
@@ -198,6 +266,44 @@ def test_score_uses_normalized_saving_coverage_store_and_leftover(ingredients):
     assert leftover_candidate.score == Decimal("40")
 
 
+def test_recent_family_and_method_apply_exact_score_penalties(ingredients):
+    rice = ingredients.by_id("rice")
+    recipe = template("recent", [slot([rice.id], role="starch")])
+    offers = [offer(rice)]
+
+    baseline = rank_candidates([recipe], offers, (), "standard", "week-1")[0]
+    recent_family = rank_candidates(
+        [recipe],
+        offers,
+        (),
+        "standard",
+        "week-1",
+        recent_families=("bowl",),
+    )[0]
+    recent_method = rank_candidates(
+        [recipe],
+        offers,
+        (),
+        "standard",
+        "week-1",
+        recent_methods=("pot",),
+    )[0]
+    both = rank_candidates(
+        [recipe],
+        offers,
+        (),
+        "standard",
+        "week-1",
+        recent_families=("bowl",),
+        recent_methods=("pot",),
+    )[0]
+
+    assert baseline.score == Decimal("43")
+    assert recent_family.score == Decimal("25")
+    assert recent_method.score == Decimal("31")
+    assert both.score == Decimal("13")
+
+
 def test_same_seed_and_input_produce_same_hash_order(ingredients):
     rice = ingredients.by_id("rice")
     recipes = [
@@ -259,6 +365,38 @@ def test_package_conversion_fails_closed_without_ingredient_metadata(ingredients
         rank_candidates([recipe], [incompatible], (), "standard", "week-1")
         == ()
     )
+
+
+def test_pantry_only_resolution_is_isolated_to_caller_catalog(ingredients):
+    caller_rice = replace(
+        ingredients.by_id("rice"),
+        name="ryža volajúceho",
+        synonyms=(),
+    )
+    caller_catalog = IngredientCatalog((caller_rice,))
+    recipe = template(
+        "caller-rice",
+        [slot([caller_rice.id], role="starch")],
+    )
+    pantry = [
+        PantryEntry(
+            caller_rice.id,
+            caller_rice.name,
+            Quantity(Decimal("100"), "g"),
+        )
+    ]
+
+    assert rank_candidates([recipe], (), pantry, "standard", "week-1") == ()
+    candidate = rank_candidates(
+        [recipe],
+        (),
+        pantry,
+        "standard",
+        "week-1",
+        ingredient_catalog=caller_catalog,
+    )[0]
+
+    assert candidate.selections[0].ingredient is caller_rice
 
 
 def test_public_results_are_immutable(ingredients):

@@ -7,9 +7,9 @@ from dataclasses import dataclass
 from decimal import Context, Decimal, ROUND_HALF_EVEN
 from fractions import Fraction
 from hashlib import sha256
-from typing import Iterable, Sequence
+from typing import Iterable, Mapping, Sequence
 
-from .ingredient_catalog import DietTag, Ingredient, load_ingredient_catalog
+from .ingredient_catalog import DietTag, Ingredient, IngredientCatalog
 from .nutrition import estimate_recipe_nutrition
 from .offer_matcher import MatchedOffer
 from .quantity_math import PackageSize, PantryEntry, Quantity, purchase_requirement
@@ -120,27 +120,84 @@ def _diet_compatible(ingredient: Ingredient, mode: str) -> bool:
     return True
 
 
-def _ingredient_index(offers: Sequence[MatchedOffer]) -> dict[str, Ingredient]:
-    result = {item.ingredient.id: item.ingredient for item in offers}
-    for ingredient in load_ingredient_catalog().all():
-        result.setdefault(ingredient.id, ingredient)
+def _ingredient_index(
+    offers: Sequence[MatchedOffer],
+    ingredient_catalog: IngredientCatalog | Mapping[str, Ingredient] | None,
+) -> dict[str, Ingredient]:
+    if ingredient_catalog is not None:
+        values = (
+            ((item.id, item) for item in ingredient_catalog.all())
+            if isinstance(ingredient_catalog, IngredientCatalog)
+            else ingredient_catalog.items()
+        )
+        return {
+            ingredient_id: ingredient
+            for ingredient_id, ingredient in values
+            if isinstance(ingredient, Ingredient)
+            and ingredient_id == ingredient.id
+        }
+
+    result: dict[str, Ingredient] = {}
+    ambiguous = set()
+    for offer in offers:
+        ingredient = offer.ingredient
+        previous = result.get(ingredient.id)
+        if previous is not None and previous != ingredient:
+            ambiguous.add(ingredient.id)
+            continue
+        result[ingredient.id] = ingredient
+    for ingredient_id in ambiguous:
+        result.pop(ingredient_id, None)
     return result
 
 
-def _pantry_quantity(
-    entries: Sequence[PantryEntry], slot: IngredientSlot, ingredient: Ingredient
-) -> Quantity | None:
-    amounts = []
+def _pantry_balances(
+    entries: Sequence[PantryEntry], ingredients: dict[str, Ingredient]
+) -> dict[str, Decimal]:
+    amounts: dict[str, Fraction] = {}
     for entry in entries:
-        if entry.ingredient_id != ingredient.id or entry.quantity is None:
+        ingredient = ingredients.get(entry.ingredient_id)
+        if ingredient is None or entry.quantity is None:
             continue
-        converted = _quantity_in_unit(entry.quantity, slot.unit, ingredient)
+        converted = _quantity_in_unit(entry.quantity, "g", ingredient)
         if converted is not None and converted.amount > _ZERO:
-            amounts.append(converted.amount)
-    if not amounts:
+            amounts[entry.ingredient_id] = amounts.get(
+                entry.ingredient_id, Fraction(0)
+            ) + Fraction(converted.amount)
+    return {
+        ingredient_id: _decimal_from_fraction(amount)
+        for ingredient_id, amount in amounts.items()
+    }
+
+
+def _pantry_quantity(
+    balances: dict[str, Decimal], slot: IngredientSlot, ingredient: Ingredient
+) -> Quantity | None:
+    available_grams = balances.get(ingredient.id)
+    if available_grams is None or available_grams <= _ZERO:
         return None
-    total = sum((Fraction(amount) for amount in amounts), Fraction(0))
-    return Quantity(_decimal_from_fraction(total), slot.unit)
+    available = _quantity_in_unit(
+        Quantity(available_grams, "g"), slot.unit, ingredient
+    )
+    if available is None:
+        return None
+    return Quantity(min(available.amount, slot.amount_per_adult), slot.unit)
+
+
+def _consume_pantry(
+    balances: dict[str, Decimal], selection: SlotSelection
+) -> None:
+    if selection.pantry is None:
+        return
+    used = _quantity_in_unit(
+        selection.pantry, "g", selection.ingredient
+    )
+    if used is None:
+        return
+    remaining = Fraction(balances[selection.ingredient.id]) - Fraction(used.amount)
+    if remaining < 0:
+        raise ValueError("pantry allocation cannot be negative")
+    balances[selection.ingredient.id] = _decimal_from_fraction(remaining)
 
 
 def _offer_leftover_ratio(
@@ -242,7 +299,7 @@ def _best_offer(
 def _select_slot(
     slot: IngredientSlot,
     offers: Sequence[MatchedOffer],
-    pantry_entries: Sequence[PantryEntry],
+    pantry_balances: dict[str, Decimal],
     ingredients: dict[str, Ingredient],
     mode: str,
 ) -> SlotSelection | None:
@@ -251,9 +308,12 @@ def _select_slot(
         ingredient = ingredients.get(ingredient_id)
         if ingredient is None or not _diet_compatible(ingredient, mode):
             continue
-        pantry = _pantry_quantity(pantry_entries, slot, ingredient)
+        pantry = _pantry_quantity(pantry_balances, slot, ingredient)
         selected_offer = _best_offer(slot, ingredient, offers, pantry)
-        if pantry is None and selected_offer is None:
+        pantry_covers_slot = (
+            pantry is not None and pantry.amount >= slot.amount_per_adult
+        )
+        if not pantry_covers_slot and selected_offer is None:
             continue
         options.append(
             SlotSelection(
@@ -381,23 +441,30 @@ def rank_candidates(
     pantry: Iterable[PantryEntry],
     mode: str,
     seed: str,
+    *,
+    ingredient_catalog: IngredientCatalog | Mapping[str, Ingredient] | None = None,
+    recent_families: Iterable[str] = (),
+    recent_methods: Iterable[str] = (),
 ) -> Sequence[RecipeCandidate]:
     """Return compatible candidates ordered by score and stable SHA-256 key."""
     offer_rows = tuple(offers)
     pantry_entries = tuple(pantry)
-    ingredients = _ingredient_index(offer_rows)
+    ingredients = _ingredient_index(offer_rows, ingredient_catalog)
+    family_history = frozenset(recent_families)
+    method_history = frozenset(recent_methods)
     candidates = []
 
     for recipe in templates:
         if not recipe.active or mode not in recipe.modes:
             continue
+        pantry_balances = _pantry_balances(pantry_entries, ingredients)
         selections = []
         compatible = True
         for recipe_slot in recipe.slots:
             selection = _select_slot(
                 recipe_slot,
                 offer_rows,
-                pantry_entries,
+                pantry_balances,
                 ingredients,
                 mode,
             )
@@ -407,6 +474,7 @@ def rank_candidates(
                     break
                 continue
             selections.append(selection)
+            _consume_pantry(pantry_balances, selection)
         if not compatible:
             continue
 
@@ -415,11 +483,16 @@ def rank_candidates(
             protein_g = _protein_per_adult(selection_rows)
             if protein_g is None or protein_g < _MINIMUM_HIGH_PROTEIN_G:
                 continue
+        score = _candidate_score(selection_rows, len(recipe.slots))
+        if recipe.family in family_history:
+            score -= PENALTY_RECENT_FAMILY
+        if recipe.method in method_history:
+            score -= PENALTY_RECENT_METHOD
         candidates.append(
             RecipeCandidate(
                 template=recipe,
                 selections=selection_rows,
-                score=_candidate_score(selection_rows, len(recipe.slots)),
+                score=score,
                 key=_candidate_key(seed, recipe, selection_rows),
             )
         )
