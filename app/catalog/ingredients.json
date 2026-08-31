@@ -343,6 +343,227 @@
       }
     },
     {
+      "id": "turkey_breast",
+      "name": "morčacie prsia",
+      "synonyms": ["morčacie prsné mäso", "morčací rezeň"],
+      "category": "mäso",
+      "roles": ["protein"],
+      "diet_tags": [],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "114", "protein_g": "23.66", "fat_g": "1.48", "carbs_g": "0.14",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171496, Turkey, whole, breast, meat only, raw; https://fdc.nal.usda.gov/fdc-app.html#/food-details/171496/nutrients",
+        "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "white_fish",
+      "name": "filet z bielej ryby",
+      "synonyms": ["treska", "filet z tresky"],
+      "category": "ryby",
+      "roles": ["protein"],
+      "diet_tags": [],
+      "allergens": ["fish"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "82", "protein_g": "17.81", "fat_g": "0.67", "carbs_g": "0",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171955, Fish, cod, Pacific, raw; https://fdc.nal.usda.gov/fdc-app.html#/food-details/171955/nutrients",
+        "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "bell_pepper",
+      "name": "paprika",
+      "synonyms": ["červená paprika", "zeleninová paprika"],
+      "category": "zelenina",
+      "roles": ["vegetable"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "31", "protein_g": "0.99", "fat_g": "0.3", "carbs_g": "6.03",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170108, Peppers, sweet, red, raw; https://fdc.nal.usda.gov/fdc-app.html#/food-details/170108/nutrients",
+        "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "spinach",
+      "name": "špenát",
+      "synonyms": ["listový špenát", "mrazený špenát"],
+      "category": "zelenina",
+      "roles": ["vegetable"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "23", "protein_g": "2.86", "fat_g": "0.39", "carbs_g": "3.63",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 168462, Spinach, raw; https://fdc.nal.usda.gov/fdc-app.html#/food-details/168462/nutrients",
+        "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "peas",
+      "name": "zelený hrášok",
+      "synonyms": ["hrášok", "mrazený hrášok"],
+      "category": "zelenina",
+      "roles": ["vegetable", "starch"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "81", "protein_g": "5.42", "fat_g": "0.4", "carbs_g": "14.45",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170419, Peas, green, raw; https://fdc.nal.usda.gov/fdc-app.html#/food-details/170419/nutrients",
+        "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "couscous",
+      "name": "kuskus",
+      "synonyms": ["pšeničný kuskus"],
+      "category": "obilniny",
+      "roles": ["starch"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": ["gluten"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "376", "protein_g": "12.76", "fat_g": "0.64", "carbs_g": "77.43",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 169699, Couscous, dry; https://fdc.nal.usda.gov/fdc-app.html#/food-details/169699/nutrients",
+        "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "barley",
+      "name": "jačmenné krúpy",
+      "synonyms": ["krúpy", "jačmeň"],
+      "category": "obilniny",
+      "roles": ["starch"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": ["gluten"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "354", "protein_g": "12.48", "fat_g": "2.3", "carbs_g": "73.48",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170283, Barley, hulled; https://fdc.nal.usda.gov/fdc-app.html#/food-details/170283/nutrients",
+        "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "feta",
+      "name": "syr feta",
+      "synonyms": ["feta", "balkánsky syr"],
+      "category": "mliečne výrobky",
+      "roles": ["protein", "dairy"],
+      "diet_tags": ["vegetarian"],
+      "allergens": ["milk"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "264", "protein_g": "14.21", "fat_g": "21.28", "carbs_g": "4.09",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 173420, Cheese, feta; https://fdc.nal.usda.gov/fdc-app.html#/food-details/173420/nutrients",
+        "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "beans",
+      "name": "červená fazuľa",
+      "synonyms": ["fazuľa", "červené fazule"],
+      "category": "strukoviny",
+      "roles": ["protein", "starch"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "333", "protein_g": "23.58", "fat_g": "0.83", "carbs_g": "60.01",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 173744, Beans, kidney, red, mature seeds, raw; https://fdc.nal.usda.gov/fdc-app.html#/food-details/173744/nutrients",
+        "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "coconut_milk",
+      "name": "kokosová smotana",
+      "synonyms": ["kokosový krém", "kokosovej smotany"],
+      "category": "rastlinné výrobky",
+      "roles": ["dairy", "fat"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": "1",
+      "nutrition": {
+        "kcal": "197", "protein_g": "2.02", "fat_g": "21.33", "carbs_g": "2.81",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170172, Nuts, coconut milk, raw; https://fdc.nal.usda.gov/fdc-app.html#/food-details/170172/nutrients",
+        "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "paprika_powder",
+      "name": "mletá paprika",
+      "synonyms": ["mletej papriky", "sladká mletá paprika"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "282", "protein_g": "14.14", "fat_g": "12.89", "carbs_g": "53.99",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171329, Spices, paprika; https://fdc.nal.usda.gov/fdc-app.html#/food-details/171329/nutrients",
+        "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "curry_powder",
+      "name": "karí korenie",
+      "synonyms": ["karí", "karí korením"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "325", "protein_g": "14.29", "fat_g": "14.01", "carbs_g": "55.83",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170924, Spices, curry powder; https://fdc.nal.usda.gov/fdc-app.html#/food-details/170924/nutrients",
+        "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "oregano",
+      "name": "sušené oregano",
+      "synonyms": ["oregano", "oreganom", "sušeným oreganom"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "265", "protein_g": "9", "fat_g": "4.28", "carbs_g": "68.92",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171328, Spices, oregano, dried; https://fdc.nal.usda.gov/fdc-app.html#/food-details/171328/nutrients",
+        "verified_on": "2026-08-30"
+      }
+    },
+    {
       "id": "milk",
       "name": "plnotučné mlieko",
       "synonyms": ["mlieko"],

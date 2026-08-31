@@ -1,0 +1,207 @@
+{
+  "recipes": [
+    {
+      "id":"pot_chicken_rice_peas","version":1,"active":true,
+      "name_template":"Kurací ryžový hrniec s {vegetable.name}",
+      "family":"chicken_pea_pilaf","method":"one_pot","minutes":35,
+      "modes":["standard","high_protein"],"equipment":["hrniec"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["chicken_breast","chicken_thigh"],"amount_per_adult":"180","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé kocky"},
+        {"key":"starch","role":"starch","candidates":["rice"],"amount_per_adult":"75","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["peas","carrot"],"amount_per_adult":"160","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
+      ],
+      "pantry_basics":["water","oil","salt","black_pepper","garlic"],
+      "instructions":[
+        {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Opekaj {protein.amount} {protein.name} v hrnci na strednom ohni 7 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Prepláchni {starch.amount} {starch.name}."},
+        {"text":"Pridaj {starch.amount} {starch.name} a {vegetable.amount} {vegetable.name} do hrnca."},
+        {"text":"Nalej 500 ml vody do hrnca."},
+        {"text":"Var {starch.amount} {starch.name} so zeleninou v hrnci na miernom ohni 16 minút, kým voda vsiakne a ryža zmäkne."},
+        {"text":"Dochuť jedlo cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id":"pot_chicken_paprika_pasta","version":1,"active":true,
+      "name_template":"Kurací paprikáš s cestovinami a {vegetable.name}",
+      "family":"chicken_paprika_pasta_pot","method":"one_pot","minutes":38,
+      "modes":["standard","high_protein"],"equipment":["hrniec"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["chicken_thigh","chicken_breast"],"amount_per_adult":"185","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na väčšie kocky"},
+        {"key":"starch","role":"starch","candidates":["pasta"],"amount_per_adult":"75","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["bell_pepper","tomato"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
+      ],
+      "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
+      "instructions":[
+        {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Opekaj {protein.amount} {protein.name} v hrnci na strednom ohni 8 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Pridaj {vegetable.amount} {vegetable.name} do hrnca a opekaj na miernom ohni 5 minút, kým zelenina zmäkne."},
+        {"text":"Prisyp {starch.amount} {starch.name} do hrnca."},
+        {"text":"Nalej 500 ml vody do hrnca."},
+        {"text":"Var {starch.amount} {starch.name} v hrnci na miernom ohni 10 minút, kým cestoviny zmäknú."},
+        {"text":"Dochuť jedlo cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id":"pot_pork_barley_vegetables","version":1,"active":true,
+      "name_template":"Bravčový hrniec s krúpami a {vegetable.name}",
+      "family":"pork_barley_stew","method":"one_pot","minutes":58,
+      "modes":["standard","high_protein"],"equipment":["hrniec"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["pork_shoulder"],"amount_per_adult":"195","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé kocky"},
+        {"key":"starch","role":"starch","candidates":["barley","rice"],"amount_per_adult":"75","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["carrot","onion"],"amount_per_adult":"170","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
+      ],
+      "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
+      "instructions":[
+        {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Opekaj {protein.amount} {protein.name} v hrnci na strednom ohni 10 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Pridaj {vegetable.amount} {vegetable.name} do hrnca a opekaj na miernom ohni 5 minút, kým zelenina zmäkne."},
+        {"text":"Prepláchni {starch.amount} {starch.name}."},
+        {"text":"Prisyp {starch.amount} {starch.name} do hrnca a prilej vodu."},
+        {"text":"Var {protein.amount} {protein.name} s prílohou a zeleninou v hrnci na miernom ohni 35 minút, kým mäso aj príloha zmäknú."},
+        {"text":"Dochuť jedlo cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id":"pot_beef_tomato_pasta","version":1,"active":true,
+      "name_template":"Hovädzie paradajkové cestoviny z jedného hrnca",
+      "family":"beef_tomato_pasta_pot","method":"one_pot","minutes":36,
+      "modes":["standard","high_protein"],"equipment":["hrniec"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["beef_mince"],"amount_per_adult":"175","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na drobné kúsky"},
+        {"key":"starch","role":"starch","candidates":["pasta"],"amount_per_adult":"75","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["tomato","bell_pepper"],"amount_per_adult":"210","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"nahrubo"}
+      ],
+      "pantry_basics":["water","oil","salt","black_pepper","oregano","garlic"],
+      "instructions":[
+        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Opekaj {protein.amount} {protein.name} v hrnci na strednom ohni 8 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Pridaj {vegetable.amount} {vegetable.name} do hrnca a var na miernom ohni 6 minút, kým zelenina zmäkne."},
+        {"text":"Prisyp {starch.amount} {starch.name} do hrnca."},
+        {"text":"Nalej 500 ml vody do hrnca."},
+        {"text":"Var {starch.amount} {starch.name} v hrnci na miernom ohni 11 minút, kým cestoviny zmäknú."},
+        {"text":"Dochuť jedlo cesnakom, oreganom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id":"pot_fish_tomato_potato","version":1,"active":true,
+      "name_template":"Rybací paradajkový hrniec so zemiakmi",
+      "family":"fish_tomato_chowder","method":"one_pot","minutes":38,
+      "modes":["standard","high_protein"],"equipment":["hrniec"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["white_fish","salmon"],"amount_per_adult":"190","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na väčšie kúsky"},
+        {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"240","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé kocky"},
+        {"key":"vegetable","role":"vegetable","candidates":["tomato","carrot"],"amount_per_adult":"190","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"nahrubo"}
+      ],
+      "pantry_basics":["water","oil","salt","black_pepper","garlic"],
+      "instructions":[
+        {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Var {starch.amount} {starch.name} so zeleninou v hrnci na miernom ohni 14 minút, kým zemiaky zmäknú."},
+        {"text":"Osuš {protein.amount} {protein.name} a nakrájaj ich {protein.cut}."},
+        {"text":"Pridaj {protein.amount} {protein.name} do hrnca a var na miernom ohni 8 minút, kým ryba zmäkne a ľahko sa oddeľuje vidličkou."},
+        {"text":"Dochuť jedlo cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id":"pot_turkey_lentil_tomato","version":1,"active":true,
+      "name_template":"Morčací hrniec so šošovicou a {vegetable.name}",
+      "family":"turkey_lentil_stew","method":"one_pot","minutes":42,
+      "modes":["standard","high_protein"],"equipment":["hrniec"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["turkey_breast","chicken_breast"],"amount_per_adult":"160","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé kocky"},
+        {"key":"starch","role":"starch","candidates":["red_lentils"],"amount_per_adult":"65","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["tomato","carrot"],"amount_per_adult":"200","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
+      ],
+      "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
+      "instructions":[
+        {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Opekaj {protein.amount} {protein.name} v hrnci na strednom ohni 7 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Prepláchni {starch.amount} {starch.name}."},
+        {"text":"Pridaj {starch.amount} {starch.name} a {vegetable.amount} {vegetable.name} do hrnca."},
+        {"text":"Nalej 500 ml vody do hrnca."},
+        {"text":"Var {starch.amount} {starch.name} so zeleninou v hrnci na miernom ohni 20 minút, kým šošovica zmäkne."},
+        {"text":"Dochuť jedlo cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id":"pot_red_lentil_curry_rice","version":1,"active":true,
+      "name_template":"Karí z červenej šošovice s ryžou a {vegetable.name}",
+      "family":"red_lentil_curry","method":"one_pot","minutes":34,
+      "modes":["standard","high_protein","vegetarian","vegan"],"equipment":["hrniec"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["red_lentils","chickpeas"],"amount_per_adult":"135","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"starch","role":"starch","candidates":["rice"],"amount_per_adult":"60","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["spinach","tomato"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"nahrubo"}
+      ],
+      "pantry_basics":["water","oil","salt","black_pepper","curry_powder","garlic"],
+      "instructions":[
+        {"text":"Prepláchni {protein.amount} {protein.name} a {starch.amount} {starch.name}."},
+        {"text":"Var {protein.amount} {protein.name} s ryžou v hrnci na miernom ohni 18 minút, kým šošovica aj ryža zmäknú."},
+        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Pridaj {vegetable.amount} {vegetable.name} do hrnca a var na miernom ohni 5 minút, kým zelenina zmäkne."},
+        {"text":"Dochuť jedlo cesnakom, karí korením, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id":"pot_chickpea_tomato_couscous","version":1,"active":true,
+      "name_template":"Cícerový hrniec s kuskusom a {vegetable.name}",
+      "family":"chickpea_couscous_stew","method":"one_pot","minutes":32,
+      "modes":["standard","high_protein","vegetarian","vegan"],"equipment":["hrniec"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["chickpeas","beans"],"amount_per_adult":"140","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"starch","role":"starch","candidates":["couscous"],"amount_per_adult":"65","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["tomato","bell_pepper"],"amount_per_adult":"200","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
+      ],
+      "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
+      "instructions":[
+        {"text":"Prepláchni {protein.amount} {protein.name}."},
+        {"text":"Uvar {protein.amount} {protein.name} v hrnci na miernom ohni 20 minút, kým strukovina zmäkne."},
+        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Pridaj {vegetable.amount} {vegetable.name} do hrnca a var na miernom ohni 6 minút, kým zelenina zmäkne."},
+        {"text":"Prisyp {starch.amount} {starch.name}, odstav hrniec a nechaj jedlo 7 minút, kým kuskus zmäkne."},
+        {"text":"Dochuť jedlo cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id":"pot_tofu_coconut_vegetables","version":1,"active":true,
+      "name_template":"Kokosový tofu hrniec s {vegetable.name}",
+      "family":"tofu_coconut_stew","method":"one_pot","minutes":30,
+      "modes":["standard","high_protein","vegetarian","vegan"],"equipment":["hrniec"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["tofu"],"amount_per_adult":"210","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na dvojcentimetrové kocky"},
+        {"key":"liquid","role":"dairy","candidates":["coconut_milk"],"amount_per_adult":"120","unit":"ml","child_factor":"0.6","required":true,"use":"addition","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["broccoli","bell_pepper","carrot"],"amount_per_adult":"210","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
+      ],
+      "pantry_basics":["oil","salt","black_pepper","curry_powder","garlic"],
+      "instructions":[
+        {"text":"Osuš {protein.amount} {protein.name} a nakrájaj ho {protein.cut}."},
+        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Opekaj {protein.amount} {protein.name} v hrnci na strednom ohni 8 minút, kým tofu bude chrumkavé."},
+        {"text":"Pridaj {vegetable.amount} {vegetable.name} a {liquid.amount} {liquid.name} do hrnca a var na miernom ohni 10 minút, kým zelenina zmäkne."},
+        {"text":"Dochuť jedlo cesnakom, karí korením, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    },
+    {
+      "id":"pot_bean_chili_rice","version":1,"active":true,
+      "name_template":"Fazuľové čili s ryžou a {vegetable.name}",
+      "family":"bean_chili_rice","method":"one_pot","minutes":40,
+      "modes":["standard","high_protein","vegetarian","vegan"],"equipment":["hrniec"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["beans","chickpeas"],"amount_per_adult":"140","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"starch","role":"starch","candidates":["rice"],"amount_per_adult":"65","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["tomato","bell_pepper"],"amount_per_adult":"220","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
+      ],
+      "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
+      "instructions":[
+        {"text":"Prepláchni {protein.amount} {protein.name}."},
+        {"text":"Uvar {protein.amount} {protein.name} v hrnci na miernom ohni 22 minút, kým strukovina zmäkne."},
+        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Pridaj {vegetable.amount} {vegetable.name} do hrnca a var na miernom ohni 7 minút, kým zelenina zmäkne."},
+        {"text":"Prisyp {starch.amount} {starch.name} do hrnca."},
+        {"text":"Var {starch.amount} {starch.name} v hrnci na miernom ohni 16 minút, kým ryža zmäkne."},
+        {"text":"Dochuť jedlo cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+      ]
+    }
+  ]
+}

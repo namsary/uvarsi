@@ -38,6 +38,21 @@ REQUIRED_IDS = {
     "salt",
     "black_pepper",
 }
+TASK_1_REQUIRED_IDS = {
+    "turkey_breast",
+    "white_fish",
+    "bell_pepper",
+    "spinach",
+    "peas",
+    "couscous",
+    "barley",
+    "feta",
+    "beans",
+    "coconut_milk",
+    "paprika_powder",
+    "curry_powder",
+    "oregano",
+}
 
 
 def _ingredient(**overrides):
@@ -206,8 +221,10 @@ def test_catalog_requires_supported_version_and_exact_nutrition_basis(
 
 def test_default_catalog_contains_verified_foundation_slice():
     catalog = load_ingredient_catalog()
+    catalog_ids = {item.id for item in catalog.all()}
 
-    assert {item.id for item in catalog.all()} == REQUIRED_IDS
+    assert REQUIRED_IDS <= catalog_ids
+    assert TASK_1_REQUIRED_IDS <= catalog_ids
     assert catalog.by_id("rice").nutrition.protein_g > 0
     assert catalog.by_id("egg").grams_per_piece == Decimal("50")
     assert catalog.by_id("milk").density_g_per_ml == Decimal("1")

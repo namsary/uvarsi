@@ -1,0 +1,211 @@
+{
+  "recipes": [
+    {
+      "id":"oven_chicken_thigh_potato_carrot","version":1,"active":true,
+      "name_template":"Pečené kuracie stehná so zemiakmi a {vegetable.name}",
+      "family":"roast_chicken_thigh_tray","method":"oven","minutes":55,
+      "modes":["standard","high_protein"],"equipment":["rúra","pekáč"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["chicken_thigh","chicken_breast"],"amount_per_adult":"190","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na porcie"},
+        {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"280","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na mesiačiky"},
+        {"key":"vegetable","role":"vegetable","candidates":["carrot","onion"],"amount_per_adult":"150","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na hrubšie kúsky"}
+      ],
+      "pantry_basics":["oil","salt","black_pepper","paprika_powder","garlic"],
+      "instructions":[
+        {"text":"Predhrej rúru na 200 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Rozlož {protein.amount} {protein.name}, {starch.amount} {starch.name} a {vegetable.amount} {vegetable.name} do pekáča."},
+        {"text":"Dochuť suroviny cesnakom, mletou paprikou, soľou a čiernym korením."},
+        {"text":"Peč {protein.amount} {protein.name} so zemiakmi a zeleninou v rúre pri 200 °C 40 minút, kým mäso dosiahne 74 °C a zemiaky zmäknú."},
+        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      ]
+    },
+    {
+      "id":"oven_chicken_breast_zucchini_rice","version":1,"active":true,
+      "name_template":"Kuracie prsia z rúry s ryžou a {vegetable.name}",
+      "family":"baked_chicken_rice_casserole","method":"oven","minutes":45,
+      "modes":["standard","high_protein"],"equipment":["rúra","pekáč"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["chicken_breast","turkey_breast"],"amount_per_adult":"175","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na hrubšie pásiky"},
+        {"key":"starch","role":"starch","candidates":["rice"],"amount_per_adult":"70","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["zucchini","bell_pepper"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kocky"}
+      ],
+      "pantry_basics":["water","oil","salt","black_pepper","oregano"],
+      "instructions":[
+        {"text":"Predhrej rúru na 190 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Prepláchni {starch.amount} {starch.name} a rozlož ju do pekáča."},
+        {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Rozlož {protein.amount} {protein.name} a {vegetable.amount} {vegetable.name} na ryžu a dochuť oreganom, soľou a čiernym korením."},
+        {"text":"Nalej 500 ml vody do pekáča."},
+        {"text":"Peč {protein.amount} {protein.name} s ryžou a zeleninou v rúre pri 190 °C 30 minút, kým mäso dosiahne 74 °C a ryža zmäkne."},
+        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      ]
+    },
+    {
+      "id":"oven_pork_shoulder_root_vegetables","version":1,"active":true,
+      "name_template":"Pomaly pečené bravčové pliecko s {vegetable.name}",
+      "family":"slow_roast_pork_roots","method":"oven","minutes":100,
+      "modes":["standard","high_protein"],"equipment":["rúra","pekáč"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["pork_shoulder"],"amount_per_adult":"200","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na väčšie kocky"},
+        {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"250","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na štvrtiny"},
+        {"key":"vegetable","role":"vegetable","candidates":["carrot","onion"],"amount_per_adult":"170","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na hrubé kúsky"}
+      ],
+      "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
+      "instructions":[
+        {"text":"Predhrej rúru na 175 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut}, {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Rozlož {protein.amount} {protein.name}, {starch.amount} {starch.name} a {vegetable.amount} {vegetable.name} do pekáča."},
+        {"text":"Dochuť suroviny cesnakom, mletou paprikou, soľou a čiernym korením a podlej vodou."},
+        {"text":"Peč {protein.amount} {protein.name} so zeleninou v rúre pri 175 °C 80 minút, kým mäso zmäkne a dá sa rozdeliť vidličkou."},
+        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      ]
+    },
+    {
+      "id":"oven_meatballs_tomato_potato","version":1,"active":true,
+      "name_template":"Pečené hovädzie guľky s {vegetable.name} a zemiakmi",
+      "family":"tomato_meatball_bake","method":"oven","minutes":48,
+      "modes":["standard","high_protein"],"equipment":["rúra","pekáč","miska"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["beef_mince"],"amount_per_adult":"180","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé guľky"},
+        {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"250","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé kocky"},
+        {"key":"vegetable","role":"vegetable","candidates":["tomato","bell_pepper"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"nahrubo"}
+      ],
+      "pantry_basics":["oil","salt","black_pepper","oregano","garlic"],
+      "instructions":[
+        {"text":"Predhrej rúru na 200 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Dochuť {protein.amount} {protein.name} cesnakom, soľou a čiernym korením a vytvaruj mäso {protein.cut}."},
+        {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Rozlož {protein.amount} {protein.name}, {starch.amount} {starch.name} a {vegetable.amount} {vegetable.name} do pekáča a posyp oreganom."},
+        {"text":"Peč {protein.amount} {protein.name} so zemiakmi a zeleninou v rúre pri 200 °C 32 minút, kým mäso dosiahne 74 °C a zemiaky zmäknú."},
+        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      ]
+    },
+    {
+      "id":"oven_salmon_potato_broccoli","version":1,"active":true,
+      "name_template":"Pečený losos so zemiakmi a {vegetable.name}",
+      "family":"salmon_broccoli_tray","method":"oven","minutes":38,
+      "modes":["standard","high_protein"],"equipment":["rúra","plech"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["salmon","white_fish"],"amount_per_adult":"180","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na porcie"},
+        {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"250","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na tenké mesiačiky"},
+        {"key":"vegetable","role":"vegetable","candidates":["broccoli","carrot"],"amount_per_adult":"170","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na menšie kúsky"}
+      ],
+      "pantry_basics":["oil","salt","black_pepper","garlic"],
+      "instructions":[
+        {"text":"Predhrej rúru na 200 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Peč {starch.amount} {starch.name} na plechu pri 200 °C 15 minút, kým zmäknú."},
+        {"text":"Osuš {protein.amount} {protein.name} a nakrájaj ich {protein.cut}."},
+        {"text":"Rozlož {protein.amount} {protein.name} a {vegetable.amount} {vegetable.name} na plech a dochuť suroviny cesnakom, soľou a čiernym korením."},
+        {"text":"Peč {protein.amount} {protein.name} so zeleninou v rúre pri 200 °C 14 minút, kým ryba zmäkne a ľahko sa oddeľuje vidličkou."},
+        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      ]
+    },
+    {
+      "id":"oven_white_fish_tomato_rice","version":1,"active":true,
+      "name_template":"Biela ryba pečená s {vegetable.name} a ryžou",
+      "family":"white_fish_tomato_bake","method":"oven","minutes":40,
+      "modes":["standard","high_protein"],"equipment":["rúra","pekáč"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["white_fish","salmon"],"amount_per_adult":"185","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na porcie"},
+        {"key":"starch","role":"starch","candidates":["rice"],"amount_per_adult":"70","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["tomato","zucchini"],"amount_per_adult":"200","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na tenké plátky"}
+      ],
+      "pantry_basics":["water","oil","salt","black_pepper","oregano"],
+      "instructions":[
+        {"text":"Predhrej rúru na 190 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Prepláchni {starch.amount} {starch.name} a rozlož ju do pekáča."},
+        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut} a rozlož ich na ryžu."},
+        {"text":"Osuš {protein.amount} {protein.name}, nakrájaj ich {protein.cut} a polož ich na zeleninu."},
+        {"text":"Dochuť suroviny oreganom, soľou a čiernym korením a podlej vodou."},
+        {"text":"Peč {protein.amount} {protein.name} s ryžou a zeleninou v rúre pri 190 °C 25 minút, kým ryža zmäkne a ryba sa oddeľuje vidličkou."},
+        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      ]
+    },
+    {
+      "id":"oven_tofu_vegetables_potato","version":1,"active":true,
+      "name_template":"Chrumkavé tofu z rúry so zemiakmi a {vegetable.name}",
+      "family":"crispy_tofu_tray","method":"oven","minutes":43,
+      "modes":["standard","high_protein","vegetarian","vegan"],"equipment":["rúra","plech"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["tofu"],"amount_per_adult":"210","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na dvojcentimetrové kocky"},
+        {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"240","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé mesiačiky"},
+        {"key":"vegetable","role":"vegetable","candidates":["broccoli","bell_pepper","carrot"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na menšie kúsky"}
+      ],
+      "pantry_basics":["oil","salt","black_pepper","paprika_powder","garlic"],
+      "instructions":[
+        {"text":"Predhrej rúru na 210 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Osuš {protein.amount} {protein.name} a nakrájaj ho {protein.cut}."},
+        {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Rozlož {protein.amount} {protein.name}, {starch.amount} {starch.name} a {vegetable.amount} {vegetable.name} na plech."},
+        {"text":"Dochuť suroviny cesnakom, mletou paprikou, soľou a čiernym korením."},
+        {"text":"Peč {protein.amount} {protein.name} so zemiakmi a zeleninou v rúre pri 210 °C 30 minút, kým tofu bude chrumkavé a zemiaky zmäknú."},
+        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      ]
+    },
+    {
+      "id":"oven_feta_tomato_pasta","version":1,"active":true,
+      "name_template":"Zapekané cestoviny so syrom feta a {vegetable.name}",
+      "family":"feta_tomato_pasta_bake","method":"oven","minutes":38,
+      "modes":["standard","high_protein","vegetarian"],"equipment":["rúra","pekáč","hrniec"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["feta","cottage_cheese"],"amount_per_adult":"180","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":"na väčšie kúsky"},
+        {"key":"starch","role":"starch","candidates":["pasta"],"amount_per_adult":"80","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["tomato","zucchini"],"amount_per_adult":"220","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
+      ],
+      "pantry_basics":["oil","salt","black_pepper","oregano","garlic"],
+      "instructions":[
+        {"text":"Predhrej rúru na 200 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Uvar {starch.amount} {starch.name} v hrnci na strednom ohni 7 minút, kým mierne zmäknú."},
+        {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Rozlož {starch.amount} {starch.name}, {protein.amount} {protein.name} a {vegetable.amount} {vegetable.name} do pekáča."},
+        {"text":"Dochuť suroviny cesnakom, oreganom, soľou a čiernym korením."},
+        {"text":"Peč {protein.amount} {protein.name} s cestovinami a zeleninou v rúre pri 200 °C 18 minút, kým povrch bude zlatistý."},
+        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      ]
+    },
+    {
+      "id":"oven_egg_vegetable_frittata","version":1,"active":true,
+      "name_template":"Pečená frittata s {vegetable.name}",
+      "family":"vegetable_frittata","method":"oven","minutes":35,
+      "modes":["standard","high_protein","vegetarian"],"equipment":["rúra","pekáč","miska"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["egg"],"amount_per_adult":"4","unit":"piece","child_factor":"0.5","required":true,"use":"main","cut":null},
+        {"key":"vegetable","role":"vegetable","candidates":["spinach","broccoli","zucchini"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"},
+        {"key":"dairy","role":"dairy","candidates":["hard_cheese","cottage_cheese"],"amount_per_adult":"60","unit":"g","child_factor":"0.5","required":true,"use":"addition","cut":"najemno"}
+      ],
+      "pantry_basics":["oil","salt","black_pepper","oregano"],
+      "instructions":[
+        {"text":"Predhrej rúru na 185 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Opekaj {vegetable.amount} {vegetable.name} v panvici na strednom ohni 6 minút, kým zelenina zmäkne."},
+        {"text":"Rozšľahaj {protein.amount} {protein.name} so soľou, čiernym korením a oreganom a vmiešaj {dairy.amount} {dairy.name}."},
+        {"text":"Vlož {vegetable.amount} {vegetable.name} do pekáča."},
+        {"text":"Vlej {protein.amount} {protein.name} do pekáča."},
+        {"text":"Peč {protein.amount} {protein.name} so zeleninou v rúre pri 185 °C 20 minút, kým vajcia stuhnú."},
+        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      ]
+    },
+    {
+      "id":"oven_lentil_vegetable_loaf","version":1,"active":true,
+      "name_template":"Šošovicová sekaná s {vegetable.name}",
+      "family":"lentil_vegetable_loaf","method":"oven","minutes":62,
+      "modes":["standard","high_protein","vegetarian"],"equipment":["rúra","hrniec","forma na pečenie"],
+      "slots":[
+        {"key":"protein","role":"protein","candidates":["red_lentils","chickpeas"],"amount_per_adult":"140","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"120","unit":"g","child_factor":"0.6","required":true,"use":"addition","cut":"najemno"},
+        {"key":"vegetable","role":"vegetable","candidates":["carrot","zucchini"],"amount_per_adult":"140","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"najemno"}
+      ],
+      "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
+      "instructions":[
+        {"text":"Predhrej rúru na 190 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Uvar {protein.amount} {protein.name} v hrnci na miernom ohni 18 minút, kým strukovina zmäkne."},
+        {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Rozmixuj {protein.amount} {protein.name}, pridaj {starch.amount} {starch.name} a {vegetable.amount} {vegetable.name} a premiešaj zmes."},
+        {"text":"Dochuť zmes cesnakom, mletou paprikou, soľou a čiernym korením a priprav ju vo forme na pečenie."},
+        {"text":"Peč {protein.amount} {protein.name} so zeleninou v rúre pri 190 °C 30 minút, kým povrch zozlatne a stred stuhne."},
+        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      ]
+    }
+  ]
+}
