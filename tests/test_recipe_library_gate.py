@@ -1,10 +1,13 @@
 import re
+from dataclasses import replace
 from decimal import Decimal
 from itertools import product
 
 import pytest
 
+import app.library_gate as library_gate
 from app.ingredient_catalog import load_ingredient_catalog
+from app.library_gate import audit_library, main
 from app.recipe_catalog import load_recipe_catalog
 from app.recipe_matcher import RecipeCandidate, SlotSelection
 from app.recipe_renderer import render_meal
@@ -319,3 +322,68 @@ def test_first_library_slice_renders_every_variant_safely(
             covered_days=1,
         )
         assert adult_meal.nutrition.serving.protein_g >= Decimal("30"), recipe.id
+
+
+def test_audit_rejects_duplicate_family_disguised_as_new_recipe():
+    ingredients = load_ingredient_catalog()
+    base = _active_library()[0]
+    recipes = tuple(
+        replace(base, id=f"{base.id}_copy_{index}")
+        for index in range(3)
+    )
+
+    audit = audit_library(ingredients, recipes)
+
+    assert "duplicate_fingerprint" in audit.errors
+
+
+def test_audit_rejects_unverified_high_protein_template():
+    ingredients = load_ingredient_catalog()
+    base = next(recipe for recipe in _active_library() if "high_protein" in recipe.modes)
+    slots = tuple(
+        replace(slot, amount_per_adult=Decimal("1"))
+        if slot.role == "protein"
+        else slot
+        for slot in base.slots
+    )
+
+    audit = audit_library(ingredients, (replace(base, slots=slots),))
+
+    assert "high_protein_below_30g" in audit.errors
+
+
+def test_audit_reports_stable_coverage_for_the_same_library():
+    ingredients = load_ingredient_catalog()
+    recipes = _active_library()
+
+    first = audit_library(ingredients, recipes)
+    second = audit_library(ingredients, tuple(reversed(recipes)))
+
+    assert first.coverage_lines() == second.coverage_lines()
+    assert first.coverage_lines()[0] == "recipes.active=60"
+    assert first.coverage_lines()[-1] == "errors=0"
+
+
+def test_cli_prints_stable_coverage_and_returns_success(capsys):
+    exit_code = main()
+
+    assert exit_code == 0
+    output = capsys.readouterr().out.splitlines()
+    assert output[0] == "recipes.active=60"
+    assert "modes.high_protein=35" in output
+    assert "methods.pan=15" in output
+    assert output[-1] == "errors=0"
+
+
+def test_cli_fails_closed_when_catalog_loading_fails(monkeypatch, capsys):
+    def fail_to_load(*args, **kwargs):
+        raise ValueError("poškodený katalóg")
+
+    monkeypatch.setattr(library_gate, "load_recipe_catalog", fail_to_load)
+
+    assert main() == 1
+    assert capsys.readouterr().out.splitlines() == [
+        "recipes.active=0",
+        "error.catalog_load=1",
+        "errors=1",
+    ]
