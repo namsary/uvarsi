@@ -78,6 +78,7 @@ if _APP_PARENT not in sys.path:
     sys.path.insert(0, _APP_PARENT)
 from app.deterministic_plan import NoCompatiblePlan, build_deterministic_plan
 from app.ingredient_catalog import load_ingredient_catalog
+from app.library_gate import audit_library
 from app.quantity_math import PantryEntry, Quantity
 from app.recipe_catalog import RecipeCatalog, load_recipe_catalog
 from platby import (
@@ -184,6 +185,12 @@ RETRY_AFTER_PUBLIC_DATA = "900"
 COMMUNITY_GOAL = 250
 COMMUNITY_VISIBILITY_THRESHOLD = 10
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
+RECIPE_SMOKE_STATE = os.environ.get(
+    "UVARSI_RECIPE_SMOKE_STATE", "/var/lib/uvarsi/recipe_engine_smoke.json"
+)
+RECIPE_SMOKE_MAX_AGE_SECONDS = 2 * 60 * 60
+RECIPE_SMOKE_MAX_LATENCY_MS = 2_000.0
+RECIPE_ENGINE_STORES = ("Kaufland", "Tesco", "Lidl")
 COOKIE = "uvarsi_session"
 SETUP_COOKIE = "uvarsi_setup"
 SESSION_MAX_AGE = SESSION_TTL_SECONDS
@@ -2439,7 +2446,10 @@ def me(req: Request):
               "spajza_ulozenych": ulozenych, "spajza_uspana": uspana,
               "spajza_sprava": sprava_o_uspanej_spajze(ulozenych) if uspana else None,
               "limit_prepoctov": limit, "zostava_prepoctov": zostava,
-              "prepocty_obnova": zajtrajsok(den)}
+              "prepocty_obnova": zajtrajsok(den),
+              # Verejný runtime prepínač pre fail-closed klienta; iba jedna
+              # z troch validovaných hodnôt, nikdy názov env premennej či tajomstvo.
+              "recipe_engine": recipe_engine_mode()}
     if auth_v3:
         result.update(auth_v3=True, password_configured=password_configured)
     return result
@@ -3814,6 +3824,254 @@ def recipe_engine_shadow_status(con, today=None):
         }
 
 
+_SMOKE_KEYS = {
+    "schema_version", "checked_at", "week", "release", "engine_mode",
+    "ok", "http_status", "latency_ms", "jobs_delta", "ai_costs_delta",
+    "payments_enabled", "plan_engine", "auth_scope", "blockers",
+}
+
+
+def _number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _load_recipe_smoke_state(path=None, *, now=None):
+    """Read only anonymous smoke evidence and reject every ambiguous shape."""
+    source = Path(path or RECIPE_SMOKE_STATE)
+    try:
+        payload = json.loads(source.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None, "smoke_missing"
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None, "smoke_invalid"
+    if type(payload) is not dict or set(payload) != _SMOKE_KEYS:
+        return None, "smoke_invalid"
+    integer = lambda value: type(value) is int
+    blockers = payload["blockers"]
+    valid = (
+        payload["schema_version"] == 1
+        and isinstance(payload["checked_at"], str)
+        and isinstance(payload["week"], str)
+        and isinstance(payload["release"], str) and bool(payload["release"])
+        and payload["engine_mode"] == "on"
+        and type(payload["ok"]) is bool
+        and integer(payload["http_status"])
+        and _number(payload["latency_ms"]) and payload["latency_ms"] >= 0
+        and integer(payload["jobs_delta"])
+        and integer(payload["ai_costs_delta"])
+        and type(payload["payments_enabled"]) is bool
+        and isinstance(payload["plan_engine"], str)
+        and payload["auth_scope"] == "server_local"
+        and type(blockers) is list
+        and all(isinstance(value, str) and value for value in blockers)
+    )
+    if not valid:
+        return None, "smoke_invalid"
+    try:
+        checked = datetime.datetime.fromisoformat(payload["checked_at"])
+        if checked.tzinfo is None:
+            raise ValueError("timezone missing")
+        current = now or datetime.datetime.now(datetime.timezone.utc)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=datetime.timezone.utc)
+        age = (current.astimezone(datetime.timezone.utc)
+               - checked.astimezone(datetime.timezone.utc)).total_seconds()
+    except (TypeError, ValueError, OverflowError):
+        return None, "smoke_invalid"
+    if age < -60 or age > RECIPE_SMOKE_MAX_AGE_SECONDS:
+        return payload, "smoke_stale"
+    if payload["week"] != monday(current.date()) or payload["release"] != release_id():
+        return payload, "smoke_stale"
+    if not (
+        payload["ok"]
+        and payload["http_status"] == 200
+        and payload["latency_ms"] < RECIPE_SMOKE_MAX_LATENCY_MS
+        and payload["jobs_delta"] == 0
+        and payload["ai_costs_delta"] == 0
+        and payload["payments_enabled"] is False
+        and payload["plan_engine"] == "deterministic"
+        and payload["blockers"] == []
+    ):
+        return payload, "smoke_failed"
+    return payload, None
+
+
+def _complete_recipe_offers(con, today):
+    try:
+        rows = offers_for_current_week(con, list(RECIPE_ENGINE_STORES), today)
+        missing = stores_missing_this_week(con, list(RECIPE_ENGINE_STORES), today)
+        represented = {row["obchod"] for row in rows}
+        return (
+            rows,
+            not missing
+            and len(rows) >= MIN_OFFERS_FOR_PLAN
+            and set(RECIPE_ENGINE_STORES).issubset(represented),
+        )
+    except (sqlite3.Error, OSError, TypeError, ValueError):
+        return (), False
+
+
+def recipe_engine_health(con, *, today=None):
+    """Public, aggregate-only readiness with stable machine blocker codes."""
+    today = today or datetime.date.today()
+    mode = recipe_engine_mode()
+    blockers = []
+    library_version = None
+    active_templates = 0
+    coverage = {value: 0 for value in ALLOWED_DIET_MODES}
+    try:
+        ingredients = load_ingredient_catalog()
+        recipes = load_recipe_catalog(ingredients)
+        audit = audit_library(ingredients, recipes)
+        library_version = recipes.version
+        active_templates = audit.active_recipes
+        coverage.update(dict(audit.mode_counts))
+        if audit.errors:
+            blockers.append("library_gate_failed")
+    except Exception:
+        blockers.append("catalog_load_failed")
+
+    _rows, complete_offers = _complete_recipe_offers(con, today)
+    if not complete_offers:
+        blockers.append("incomplete_offers")
+
+    last_shadow = recipe_engine_shadow_status(con, today=today)
+    if mode == "shadow" and not last_shadow.get("eligible", False):
+        blockers.append("shadow_not_ready")
+
+    if mode == "on":
+        if platby_su_zapnute():
+            blockers.append("payments_enabled")
+        _smoke, smoke_blocker = _load_recipe_smoke_state()
+        if smoke_blocker:
+            blockers.append(smoke_blocker)
+
+    blockers = list(dict.fromkeys(blockers))
+    return {
+        "mode": mode,
+        "library_version": library_version,
+        "active_templates": active_templates,
+        "coverage": {value: int(coverage[value]) for value in ALLOWED_DIET_MODES},
+        "last_shadow": last_shadow if last_shadow.get("complete") is not None else None,
+        "p95_ms": (
+            float(last_shadow["p95_ms"])
+            if _number(last_shadow.get("p95_ms")) else None
+        ),
+        "ready": not blockers,
+        "blockers": blockers,
+    }
+
+
+def _smoke_counts(con):
+    return {
+        "jobs": int(con.execute("SELECT COUNT(*) FROM plan_jobs").fetchone()[0]),
+        "costs": int(con.execute("SELECT COUNT(*) FROM naklady").fetchone()[0]),
+    }
+
+
+def _write_smoke_state(path, payload):
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(f".{target.name}.{os.getpid()}.tmp")
+    try:
+        temporary.write_text(
+            json.dumps(payload, ensure_ascii=True, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        try:
+            temporary.chmod(0o600)
+        except OSError:
+            pass
+        os.replace(temporary, target)
+    finally:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def run_recipe_engine_synthetic_smoke(*, state_path=None, now=None):
+    """Trusted local smoke: no route, account, session, cache write or model."""
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=datetime.timezone.utc)
+    started = time.perf_counter()
+    blockers = []
+    status = 503
+    plan_engine = "unavailable"
+    before = {"jobs": 0, "costs": 0}
+    after = before
+    payments_enabled = platby_su_zapnute()
+    try:
+        with closing(db()) as con:
+            before = _smoke_counts(con)
+            rows, complete = _complete_recipe_offers(con, now.date())
+        if payments_enabled:
+            blockers.append("payments_enabled")
+        elif recipe_engine_mode() != "on":
+            blockers.append("engine_not_on")
+        elif not complete:
+            blockers.append("incomplete_offers")
+        else:
+            ingredients = load_ingredient_catalog()
+            recipes = load_recipe_catalog(ingredients)
+            audit = audit_library(ingredients, recipes)
+            if audit.errors:
+                blockers.append("library_gate_failed")
+            else:
+                plan = build_deterministic_plan(
+                    week=monday(now.date()), rows=rows,
+                    stores=RECIPE_ENGINE_STORES,
+                    adults=2, children=2, frequency=2,
+                    pantry=(), pantry_driven=False, mode="standard",
+                    seed=f"smoke:{monday(now.date())}:{recipes.version}",
+                    ingredient_catalog=ingredients, recipe_catalog=recipes,
+                )
+                plan_engine = str(plan.get("meta", {}).get("engine") or "")
+                if plan_engine != "deterministic" or not plan.get("jedla"):
+                    blockers.append("invalid_output")
+                else:
+                    status = 200
+    except NoCompatiblePlan as error:
+        blockers.append(error.code if isinstance(error.code, str) else "plan_failed")
+    except Exception:
+        LOG.warning("local recipe-engine smoke failed")
+        blockers.append("internal_error")
+    finally:
+        with closing(db()) as con:
+            after = _smoke_counts(con)
+
+    latency_ms = round(max(0.0, (time.perf_counter() - started) * 1000), 3)
+    jobs_delta = after["jobs"] - before["jobs"]
+    costs_delta = after["costs"] - before["costs"]
+    if jobs_delta:
+        blockers.append("jobs_created")
+    if costs_delta:
+        blockers.append("ai_cost_created")
+    if latency_ms >= RECIPE_SMOKE_MAX_LATENCY_MS:
+        blockers.append("too_slow")
+    blockers = list(dict.fromkeys(blockers))
+    ok = status == 200 and not blockers
+    payload = {
+        "schema_version": 1,
+        "checked_at": now.isoformat(timespec="seconds"),
+        "week": monday(now.date()),
+        "release": release_id(),
+        "engine_mode": recipe_engine_mode(),
+        "ok": ok,
+        "http_status": 200 if ok else 503,
+        "latency_ms": latency_ms,
+        "jobs_delta": jobs_delta,
+        "ai_costs_delta": costs_delta,
+        "payments_enabled": payments_enabled,
+        "plan_engine": plan_engine,
+        "auth_scope": "server_local",
+        "blockers": blockers,
+    }
+    _write_smoke_state(state_path or RECIPE_SMOKE_STATE, payload)
+    return payload
+
+
 @app.get("/api/health")
 def health():
     """Čo naozaj beží: vydanie, týždeň a počet akcií.
@@ -3844,9 +4102,10 @@ def health():
         fronta_planov = plan_jobs.health(
             con, now=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         )
+        recipe_status = recipe_engine_health(con, today=today)
     return {"vydanie": release_id(), "tyzden": monday(today), "pocet": len(rows),
             "naklady": utrata, "predpocet": zahrievanie, "platby": platby_stav,
-            "plan_queue": fronta_planov}
+            "plan_queue": fronta_planov, "recipe_engine": recipe_status}
 
 
 @app.get("/api/naklady")
@@ -4117,3 +4376,22 @@ def app_index():
 
 if os.path.isdir(STATIC):
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
+
+def main(argv=None):
+    """Narrow local operations entrypoint; never starts or bypasses web auth."""
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="server.py")
+    parser.add_argument("--recipe-engine-smoke", action="store_true")
+    parser.add_argument("--state", default=RECIPE_SMOKE_STATE)
+    args = parser.parse_args(argv)
+    if not args.recipe_engine_smoke:
+        parser.error("chýba --recipe-engine-smoke")
+    payload = run_recipe_engine_synthetic_smoke(state_path=args.state)
+    print(json.dumps(payload, ensure_ascii=True, separators=(",", ":")))
+    return 0 if payload["ok"] else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

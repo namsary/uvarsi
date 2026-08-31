@@ -35,7 +35,11 @@ HEALTH_PY="${UVARSI_HEALTH_PY:-$PY}"
 CURL="${UVARSI_CURL:-curl}"
 STATE="$DIR/.dozorca_state"          # formát: "RRRR-MM-DD pocet_neuspechov blok"
 PLAN_QUEUE_ALERT_STATE="$DIR/.plan_queue_alert_state"
+RECIPE_ENGINE_ALERT_STATE="$DIR/.recipe_engine_alert_state"
+RECIPE_SMOKE_ATTEMPT_STATE="$DIR/.recipe_engine_smoke_attempt"
+RECIPE_SMOKE_STATE="${UVARSI_RECIPE_SMOKE_STATE:-/var/lib/uvarsi/recipe_engine_smoke.json}"
 PLAN_QUEUE_HEALTH_URL="${UVARSI_PLAN_QUEUE_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
+RECIPE_SMOKE_MIN_INTERVAL_SECONDS="${UVARSI_RECIPE_SMOKE_MIN_INTERVAL_SECONDS:-900}"
 MAX_TRIES=6                          # max pokusov za jeden deň
 NOTIFY_AT=2                          # po koľkých neúspechoch upozorniť
 EXIT_STRUCTURAL=3                    # kód, ktorým refresh_blocek hlási "neopakuj"
@@ -72,7 +76,8 @@ skontroluj_frontu_planov() {
   [ -n "$HEALTH" ] || { log "UNKNOWN — frontu plánov sa nedá overiť cez health; značka upozornenia ostáva"; return; }
   STAV_FRONTY=$(printf '%s' "$HEALTH" | "$HEALTH_PY" -c '
 import datetime as dt, json, sys
-q = json.load(sys.stdin).get("plan_queue")
+payload = json.load(sys.stdin)
+q = payload.get("plan_queue")
 if not isinstance(q, dict): raise SystemExit(2)
 required = {"queued", "oldest_seconds", "worker_alive", "heartbeat_seconds", "heartbeat_at", "last_ready", "failed", "blocking_code"}
 if not required.issubset(q): raise SystemExit(2)
@@ -90,7 +95,10 @@ if q["blocking_code"] is not None and not isinstance(q["blocking_code"], str): r
 if q["heartbeat_at"] is not None:
     parsed = dt.datetime.fromisoformat(q["heartbeat_at"])
     if parsed.tzinfo is None: parsed = parsed.replace(tzinfo=dt.timezone.utc)
-if not q["worker_alive"] or q["heartbeat_seconds"] > 60: print("WORKER")
+engine = payload.get("recipe_engine")
+mode = engine.get("mode") if isinstance(engine, dict) else None
+if mode == "on" and q["queued"] == 0: print("HEALTHY")
+elif not q["worker_alive"] or q["heartbeat_seconds"] > 60: print("WORKER")
 elif q["oldest_seconds"] is not None and q["oldest_seconds"] > 180: print("QUEUE")
 else: print("HEALTHY")' 2>/dev/null) || {
     log "UNKNOWN — plan_queue health je neúplný alebo má nesprávne typy; značka upozornenia ostáva"
@@ -121,6 +129,118 @@ else: print("HEALTHY")' 2>/dev/null) || {
 }
 
 skontroluj_frontu_planov
+
+recipe_engine_alert() {
+  REASON="$1"
+  if [ ! -f "$RECIPE_ENGINE_ALERT_STATE" ]; then
+    if notify "Uvar.si: receptový engine" "$REASON"; then
+      printf '%s\n' "$REASON" > "$RECIPE_ENGINE_ALERT_STATE"
+    fi
+  fi
+  log "CHYBA — receptový engine: $REASON"
+}
+
+recipe_engine_health_state() {
+  printf '%s' "$HEALTH" | "$HEALTH_PY" -c '
+import json, sys
+payload = json.load(sys.stdin)
+engine = payload.get("recipe_engine")
+if not isinstance(engine, dict): raise SystemExit(3)
+required = {"mode","library_version","active_templates","coverage","last_shadow","p95_ms","ready","blockers"}
+if not required.issubset(engine): raise SystemExit(2)
+mode = engine["mode"]
+if mode not in {"off","shadow","on"}: raise SystemExit(2)
+integer = lambda value: isinstance(value, int) and not isinstance(value, bool)
+number = lambda value: isinstance(value, (int,float)) and not isinstance(value, bool)
+if engine["library_version"] is not None and not integer(engine["library_version"]): raise SystemExit(2)
+if not integer(engine["active_templates"]) or engine["active_templates"] < 0: raise SystemExit(2)
+coverage = engine["coverage"]
+if not isinstance(coverage, dict) or set(coverage) != {"standard","high_protein","vegetarian","vegan"}: raise SystemExit(2)
+if any(not integer(value) or value < 0 for value in coverage.values()): raise SystemExit(2)
+if engine["last_shadow"] is not None and not isinstance(engine["last_shadow"], dict): raise SystemExit(2)
+if engine["p95_ms"] is not None and (not number(engine["p95_ms"]) or engine["p95_ms"] < 0): raise SystemExit(2)
+if not isinstance(engine["ready"], bool): raise SystemExit(2)
+blockers = engine["blockers"]
+if not isinstance(blockers, list) or any(not isinstance(value, str) or not value for value in blockers): raise SystemExit(2)
+print(mode + "|" + ("1" if engine["ready"] else "0") + "|" + ",".join(blockers))' 2>/dev/null
+}
+
+skontroluj_recipe_engine() {
+  [ -n "${HEALTH:-}" ] || { log "UNKNOWN — recipe_engine health nie je dostupný"; return 0; }
+  STAV_ENGINE=$(recipe_engine_health_state)
+  PARSE_RC=$?
+  # Kód 3 znamená starší release bez recipe_engine objektu. Existujúci off/shadow
+  # dohľad ostáva funkčný počas rollout okna; po nasadení nového servera sa už
+  # akýkoľvek neplatný objekt odmieta nižšie.
+  if [ "$PARSE_RC" -eq 3 ]; then
+    log "recipe_engine health ešte nie je v tomto vydaní dostupný"
+    return 0
+  fi
+  if [ "$PARSE_RC" -ne 0 ]; then
+    recipe_engine_alert "health má neplatnú schému alebo typy"
+    return 1
+  fi
+  MODE=${STAV_ENGINE%%|*}
+  REST=${STAV_ENGINE#*|}
+  READY=${REST%%|*}
+  BLOCKERS=${REST#*|}
+
+  if [ "$MODE" != "on" ]; then
+    if [ "$MODE" = "shadow" ] && [ "$READY" != "1" ]; then
+      log "shadow ešte nie je pripravený na aktiváciu — $BLOCKERS"
+    fi
+    return 0
+  fi
+  if [ "$READY" = "1" ]; then
+    rm -f "$RECIPE_ENGINE_ALERT_STATE"
+    return 0
+  fi
+
+  case "$BLOCKERS" in
+    smoke_missing|smoke_stale|smoke_failed) ;;
+    *) recipe_engine_alert "readiness blokuje: ${BLOCKERS:-unknown}"; return 1 ;;
+  esac
+
+  NOW_EPOCH="${UVARSI_NOW_EPOCH:-$(date +%s)}"
+  LAST_ATTEMPT=0
+  if [ -f "$RECIPE_SMOKE_ATTEMPT_STATE" ]; then
+    read -r LAST_ATTEMPT < "$RECIPE_SMOKE_ATTEMPT_STATE" || LAST_ATTEMPT=0
+  fi
+  case "$LAST_ATTEMPT" in *[!0-9]*|'') LAST_ATTEMPT=0 ;; esac
+  if [ $((NOW_EPOCH - LAST_ATTEMPT)) -lt "$RECIPE_SMOKE_MIN_INTERVAL_SECONDS" ]; then
+    recipe_engine_alert "syntetický smoke je po nedávnom pokuse stále neúspešný"
+    return 1
+  fi
+  printf '%s\n' "$NOW_EPOCH" > "$RECIPE_SMOKE_ATTEMPT_STATE"
+
+  if ! (
+    cd "$DIR/app" || exit 1
+    if [ -f "$DIR/uvarsi.env" ]; then set -a; . "$DIR/uvarsi.env"; set +a; fi
+    UVARSI_URL=https://uvar.si \
+    UVARSI_VERSION_FILE="$DIR/VERSION" \
+    UVARSI_DB="$DIR/uvarsi.db" \
+    UVARSI_RECIPE_SMOKE_STATE="$RECIPE_SMOKE_STATE" \
+      "$PY" -m server --recipe-engine-smoke --state "$RECIPE_SMOKE_STATE"
+  ) >/dev/null 2>&1; then
+    recipe_engine_alert "lokálny syntetický smoke zlyhal"
+    return 1
+  fi
+
+  HEALTH=$("$CURL" -fsS --max-time 1 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true)
+  STAV_ENGINE=$(recipe_engine_health_state) || {
+    recipe_engine_alert "health po smoke sa nedá overiť"
+    return 1
+  }
+  REST=${STAV_ENGINE#*|}
+  READY=${REST%%|*}
+  if [ "$READY" != "1" ]; then
+    recipe_engine_alert "health ostal nepripravený aj po smoke"
+    return 1
+  fi
+  rm -f "$RECIPE_ENGINE_ALERT_STATE"
+  log "receptový engine: syntetický smoke OK"
+  return 0
+}
 
 MON_ISO=$("$PY" -c 'from datetime import date, timedelta; import sys; d=date.fromisoformat(sys.argv[1]); print((d-timedelta(days=d.weekday())).isoformat())' "$TODAY")
 
@@ -206,6 +326,7 @@ if landing_data_is_current; then
   if [ "${POCET:-0}" -ge 30 ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]; then
     zahrej_plany
   fi
+  skontroluj_recipe_engine || exit 1
   rm -f "$STATE"
   exit 0
 fi
@@ -251,6 +372,7 @@ if [ "$RC" -eq 0 ] && landing_data_is_current; then
   if [ "${POCET:-0}" -ge 30 ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]; then
     zahrej_plany
   fi
+  skontroluj_recipe_engine || exit 1
   rm -f "$STATE"
   exit 0
 fi
