@@ -50,6 +50,7 @@ from plan_shortlist import select_offers
 from plan_jobs import JobRequest
 from plan_calendar import bratislava_day
 from plan_data import (
+    ALLOWED_DIET_MODES,
     PLAN_ALGO_VERSION,
     PlanDiversityError,
     PORTION_STANDARD_VERSION,
@@ -312,6 +313,7 @@ CREATE TABLE IF NOT EXISTS pouzivatelia (
   deti    INTEGER NOT NULL DEFAULT 0,
   frekvencia INTEGER DEFAULT 2,          -- variť raz za N dní
   obchody TEXT DEFAULT 'Kaufland,Tesco,Lidl',
+  stravovanie TEXT NOT NULL DEFAULT 'standard',
   onboarding INTEGER DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS spajza (
@@ -422,6 +424,22 @@ def migrate_household_schema(con) -> None:
     con.execute("UPDATE pouzivatelia SET deti=0 WHERE deti IS NULL")
 
 
+def migrate_diet_schema(con) -> None:
+    """Pridaj zapamätaný režim bez prepisovania účtov alebo sessions."""
+    columns = {row[1] for row in con.execute("PRAGMA table_info(pouzivatelia)")}
+    if "stravovanie" not in columns:
+        con.execute(
+            "ALTER TABLE pouzivatelia ADD COLUMN stravovanie "
+            "TEXT NOT NULL DEFAULT 'standard'"
+        )
+    placeholders = ",".join("?" for _ in ALLOWED_DIET_MODES)
+    con.execute(
+        f"UPDATE pouzivatelia SET stravovanie='standard' "
+        f"WHERE stravovanie IS NULL OR stravovanie NOT IN ({placeholders})",
+        ALLOWED_DIET_MODES,
+    )
+
+
 def migrate_pantry_schema(con) -> None:
     """Add optional pantry quantities and enforce their invariant in SQLite."""
     columns = {row[1] for row in con.execute("PRAGMA table_info(spajza)")}
@@ -474,6 +492,7 @@ def migruj_schemu(con) -> None:
 
     con.executescript(SCHEMA)
     migrate_household_schema(con)
+    migrate_diet_schema(con)
     migrate_pantry_schema(con)
     migrate_auth_schema(con)
     migrate_akcie_schema(con)
@@ -723,11 +742,29 @@ SPRAVA_SPAJZA_PREMIUM = (
 # reťazca, ktorý raz preformulujeme — a zámok by prestal fungovať potichu.
 KOD_SPAJZA_PREMIUM = "spajza_premium"
 KOD_LIMIT_PREPOCTOV = "limit_prepoctov"
+KOD_STRAVOVANIE_PREMIUM = "stravovanie_premium"
+SPRAVA_STRAVOVANIE_PREMIUM = (
+    "Viac bielkovín, vegetariánsky a vegánsky režim sú súčasťou Premium."
+)
 
 
 def je_premium(con, user_id) -> bool:
     """Odvodené na každej požiadavke nanovo: vrátená platba platí okamžite."""
     return ma_narok(con, user_id)
+
+
+def ulozene_stravovanie(row) -> str:
+    try:
+        mode = row["stravovanie"]
+    except (KeyError, IndexError, TypeError):
+        mode = "standard"
+    return mode if mode in ALLOWED_DIET_MODES else "standard"
+
+
+def efektivne_stravovanie(row, premium: bool) -> str:
+    """Bez nároku sa Pro preferencia iba uspí; v databáze ostáva zachovaná."""
+    stored = ulozene_stravovanie(row)
+    return stored if premium or stored == "standard" else "standard"
 
 
 def odmietni(status: int, sprava: str, kod: str, **navyse) -> JSONResponse:
@@ -2273,6 +2310,8 @@ def me(req: Request):
                 "SELECT 1 FROM auth_credentials WHERE user_id=?", (u["id"],)
             ).fetchone() is not None
         premium = je_premium(con, u["id"])
+        stored_diet = ulozene_stravovanie(u)
+        effective_diet = efektivne_stravovanie(u, premium)
         sp = spajza_pouzivatela(con, u["id"], premium)
         ulozenych = pocet_ulozenej_spajze(con, u["id"])
         limit = limit_prepoctov(premium)
@@ -2289,6 +2328,9 @@ def me(req: Request):
               # `platiaci` je len stĺpec; pravdu o platbe drží tabuľka nárokov.
               "platiaci": premium, "premium": premium,
               "platby_zapnute": platby_su_zapnute(),
+              "stravovanie": effective_diet,
+              "stravovanie_ulozene": stored_diet,
+              "stravovanie_moznosti": list(ALLOWED_DIET_MODES),
               "spajza": sp, "spajza_premium": premium, "spajza_dostupna": premium,
               "spajza_ulozenych": ulozenych, "spajza_uspana": uspana,
               "spajza_sprava": sprava_o_uspanej_spajze(ulozenych) if uspana else None,
@@ -2310,19 +2352,39 @@ async def uloz_profil(req: Request):
     obchody = [store for store in allowed_stores if store in d.get("obchody", [])]
     if not obchody:
         obchody = ["Kaufland", "Tesco", "Lidl"]
+    diet_supplied = "stravovanie" in d
+    requested_diet = d.get("stravovanie")
+    if diet_supplied and (
+        not isinstance(requested_diet, str)
+        or requested_diet not in ALLOWED_DIET_MODES
+    ):
+        raise HTTPException(422, "Neplatný režim stravovania.")
     with closing(db()) as con:
         old = con.execute(
-            "SELECT osoby, dospeli, deti, frekvencia, obchody "
+            "SELECT osoby, dospeli, deti, frekvencia, obchody, stravovanie "
             "FROM pouzivatelia WHERE id=?", (u["id"],)
         ).fetchone()
+        premium = je_premium(con, u["id"])
+        old_diet = ulozene_stravovanie(old)
+        new_diet = requested_diet if diet_supplied else old_diet
+        if diet_supplied and new_diet != "standard" and not premium:
+            return odmietni(
+                403,
+                SPRAVA_STRAVOVANIE_PREMIUM,
+                KOD_STRAVOVANIE_PREMIUM,
+                premium=False,
+                stravovanie="standard",
+                stravovanie_ulozene=old_diet,
+            )
         old_adults, old_children = zlozenie_domacnosti(old) if old is not None else (None, None)
         changed = old is None or (
-            old_adults, old_children, old["frekvencia"], old["obchody"]
-        ) != (adults, children, frek, ",".join(obchody))
+            old_adults, old_children, old["frekvencia"], old["obchody"], old_diet
+        ) != (adults, children, frek, ",".join(obchody), new_diet)
         con.execute(
-            "UPDATE pouzivatelia SET osoby=?,dospeli=?,deti=?,frekvencia=?,obchody=?,onboarding=1"
+            "UPDATE pouzivatelia SET osoby=?,dospeli=?,deti=?,frekvencia=?,"
+            "obchody=?,stravovanie=?,onboarding=1"
             " WHERE id=?",
-            (osoby, adults, children, frek, ",".join(obchody), u["id"]),
+            (osoby, adults, children, frek, ",".join(obchody), new_diet, u["id"]),
         )
         if changed:
             con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], monday()))
@@ -2404,7 +2466,7 @@ def pouzitie_modelu(usage):
 
 
 def podpis_planu(tyzden, obchody, frekvencia, rows, spajza, *, adults, children,
-                 zo_spajze=False):
+                 zo_spajze=False, stravovanie="standard"):
     """Podpis zdieľaného plánu. Špajza doň vstupuje len pri výslovnom vyžiadaní.
 
     Bežný plán sa skladá bez špajze, takže ho zdieľajú aj platiace účty a
@@ -2412,10 +2474,16 @@ def podpis_planu(tyzden, obchody, frekvencia, rows, spajza, *, adults, children,
     ktorá špajzu do kľúča (a do promptu) pustí — a taký plán sa neukladá
     zdieľane vôbec.
     """
+    kwargs = {
+        "pantry_driven": zo_spajze,
+        "adults": adults,
+        "children": children,
+    }
+    if stravovanie != "standard":
+        kwargs["diet_mode"] = stravovanie
     return plan_signature(
-        tyzden, obchody, None, frekvencia, [row["offer_key"] for row in rows], spajza,
-        pantry_driven=zo_spajze,
-        adults=adults, children=children,
+        tyzden, obchody, None, frekvencia,
+        [row["offer_key"] for row in rows], spajza, **kwargs,
     )
 
 
@@ -2541,12 +2609,14 @@ def zahrej_plan_pre_pouzivatela(user_id):
     tyzden = monday()
     with closing(db()) as con:
         profil = con.execute(
-            "SELECT osoby, dospeli, deti, frekvencia, obchody "
+            "SELECT osoby, dospeli, deti, frekvencia, obchody, stravovanie "
             "FROM pouzivatelia WHERE id=?", (user_id,)
         ).fetchone()
         if profil is None:
             return None
-        spajza = spajza_pouzivatela(con, user_id, je_premium(con, user_id))
+        premium = je_premium(con, user_id)
+        diet_mode = efektivne_stravovanie(profil, premium)
+        spajza = spajza_pouzivatela(con, user_id, premium)
 
     obchody = profil["obchody"].split(",")
     adults, children = zlozenie_domacnosti(profil)
@@ -2555,7 +2625,7 @@ def zahrej_plan_pre_pouzivatela(user_id):
         return None
     podpis = podpis_planu(
         tyzden, obchody, profil["frekvencia"], rows, spajza,
-        adults=adults, children=children,
+        adults=adults, children=children, stravovanie=diet_mode,
     )
     with closing(db()) as con:
         variant = plan_variant_for(user_id, PLAN_VARIANTS)
@@ -2760,7 +2830,13 @@ def generuj_plan(req: Request, force: int = 0):
 
     with closing(db()) as con:
         premium = je_premium(con, u["id"])
+        diet_mode = efektivne_stravovanie(u, premium)
         sp = spajza_pouzivatela(con, u["id"], premium)
+        if diet_mode != ulozene_stravovanie(u):
+            con.execute(
+                "DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], tyz)
+            )
+            con.commit()
         if not force:
             r = con.execute("SELECT json FROM plany WHERE user_id=? AND tyzden=?",
                             (u["id"], tyz)).fetchone()
@@ -2782,7 +2858,7 @@ def generuj_plan(req: Request, force: int = 0):
     # „Vygeneruj mi iný" (force) sa cache musí vyhnúť, inak by nič nezmenilo.
     podpis = podpis_planu(
         tyz, obchody, u["frekvencia"], rows, sp,
-        adults=adults, children=children,
+        adults=adults, children=children, stravovanie=diet_mode,
     )
     variant = plan_variant_for(u["id"], PLAN_VARIANTS)
     with closing(db()) as con:
@@ -2871,6 +2947,7 @@ def plan_zo_spajze(req: Request):
 
     with closing(db()) as con:
         premium = je_premium(con, u["id"])
+        diet_mode = efektivne_stravovanie(u, premium)
         if not premium:
             return odmietni(
                 403, SPRAVA_SPAJZA_PREMIUM, KOD_SPAJZA_PREMIUM,
@@ -2888,6 +2965,7 @@ def plan_zo_spajze(req: Request):
     podpis = podpis_planu(
         tyz, obchody, u["frekvencia"], rows, sp,
         adults=adults, children=children, zo_spajze=True,
+        stravovanie=diet_mode,
     )
     variant = plan_variant_for(u["id"], PLAN_VARIANTS)
     return _enqueue_live_plan(
@@ -2955,8 +3033,16 @@ def _current_job_context(job, stores, frequency, adults, children, *, con, now):
         raise StalePlanJob("incomplete_stores")
 
     pantry = []
+    diet_mode = "standard"
     if job.user_id is not None:
-        pantry = spajza_pouzivatela(con, job.user_id, je_premium(con, job.user_id))
+        premium = je_premium(con, job.user_id)
+        profile = con.execute(
+            "SELECT stravovanie FROM pouzivatelia WHERE id=?", (job.user_id,)
+        ).fetchone()
+        if profile is None:
+            raise StalePlanJob("invalid_profile")
+        diet_mode = efektivne_stravovanie(profile, premium)
+        pantry = spajza_pouzivatela(con, job.user_id, premium)
     pantry_driven = job.kind == "pantry"
     pantry_signature = podpis_spajze(pantry) if pantry_driven else None
     if pantry_driven and payload.get("pantry_signature") != pantry_signature:
@@ -2965,6 +3051,7 @@ def _current_job_context(job, stores, frequency, adults, children, *, con, now):
     current_signature = podpis_planu(
         job.week, stores, frequency, rows, pantry,
         adults=adults, children=children, zo_spajze=pantry_driven,
+        stravovanie=diet_mode,
     )
     if current_signature != job.signature:
         raise StalePlanJob("stale_signature")
@@ -3217,15 +3304,25 @@ def daj_plan(req: Request):
             offers_for_current_week(con, u["obchody"].split(","), datetime.date.today())
         )
         premium = je_premium(con, u["id"])
+        stored_diet = ulozene_stravovanie(u)
+        effective_diet = efektivne_stravovanie(u, premium)
         sp = spajza_pouzivatela(con, u["id"], premium)
+        if effective_diet != stored_diet:
+            con.execute(
+                "DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], tyz)
+            )
+            r = None
+            cached = None
+            con.commit()
         podpis = podpis_planu(
             tyz, obchody, u["frekvencia"], rows, sp,
-            adults=adults, children=children,
+            adults=adults, children=children, stravovanie=effective_diet,
         )
         variant = plan_variant_for(u["id"], PLAN_VARIANTS)
         pantry_podpis = podpis_planu(
             tyz, obchody, u["frekvencia"], rows, sp,
             adults=adults, children=children, zo_spajze=True,
+            stravovanie=effective_diet,
         )
         status = _current_job_status(
             con, u["id"], tyz, podpis, pantry_podpis, variant

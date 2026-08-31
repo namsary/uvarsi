@@ -7,6 +7,7 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_HALF_UP
+from pathlib import Path
 
 try:
     from .weekly_data import current_monday, current_verified_offers
@@ -19,6 +20,19 @@ except ImportError:
 CENT = Decimal("0.01")
 DAY_ORDER = ("PO", "UT", "ST", "ŠT", "PI", "SO", "NE")
 STORE_ORDER = ("Kaufland", "Lidl", "Tesco")
+ALLOWED_DIET_MODES = ("standard", "high_protein", "vegetarian", "vegan")
+
+
+def _recipe_library_version() -> int:
+    manifest = Path(__file__).resolve().parent / "catalog" / "recipes" / "manifest.json"
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    version = payload.get("library_version") if isinstance(payload, dict) else None
+    if not isinstance(version, int) or isinstance(version, bool) or version < 1:
+        raise ValueError("recipe library version must be a positive integer")
+    return version
+
+
+RECIPE_LIBRARY_VERSION = _recipe_library_version()
 _MODEL_TOP_LEVEL = frozenset({"meals"})
 _MODEL_MEAL = frozenset({"day", "name", "minutes", "instructions", "items", "pantry_ingredients"})
 _MODEL_ITEM = frozenset({
@@ -1139,8 +1153,10 @@ PLAN_VARIANT_HINTS = (
 # 17 = rozmanitosť sa po jednom opravnom pokuse zmení na mäkký cieľ; inak
 #      bezpečný plán už nezlyhá iba preto, že model zopakoval spôsob prípravy.
 # 18 = plán 7/4/3 môže mať dva bezpečné stručné kroky.
+# 19 = podpis rozlišuje serverom autorizovaný režim stravovania a verziu
+#      receptovej knižnice; zdieľaná cache tak nikdy nepomieša odlišné menu.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 18
+PLAN_ALGO_VERSION = 19
 
 
 def plan_variant_for(user_id, variants):
@@ -1151,7 +1167,8 @@ def plan_variant_for(user_id, variants):
 
 
 def plan_signature(week, stores, household_size, frequency, offer_keys, pantry=(),
-                   pantry_driven=False, adults=None, children=None):
+                   pantry_driven=False, adults=None, children=None,
+                   diet_mode="standard", recipe_library_version=None):
     """Všetko, od čoho plán závisí, v jednom kľúči — a nič iné.
 
     Podpis je zároveň pravidlo neplatnosti: keď sa zmení týždeň, profil alebo
@@ -1168,6 +1185,14 @@ def plan_signature(week, stores, household_size, frequency, offer_keys, pantry=(
     (`pantry_driven=True`). Ten plán je z podstaty osobný, preto dostane iný
     podpis — a do zdieľanej tabuľky sa neukladá vôbec.
     """
+    if diet_mode not in ALLOWED_DIET_MODES or not isinstance(diet_mode, str):
+        raise ValueError("invalid diet mode")
+    if recipe_library_version is None:
+        recipe_library_version = RECIPE_LIBRARY_VERSION
+    if (not isinstance(recipe_library_version, int)
+            or isinstance(recipe_library_version, bool)
+            or recipe_library_version < 1):
+        raise ValueError("invalid recipe library version")
     adults, children, _legacy = _household(household_size, adults, children)
     facts = {
         # Verzia generátora. MUSÍ sa zvýšiť pri každej zmene, ktorá mení podobu
@@ -1176,6 +1201,8 @@ def plan_signature(week, stores, household_size, frequency, offer_keys, pantry=(
         # opravu nikdy neuvidel — presne to sa 21. 8. 2026 stalo s rozvrhom dní.
         "algo": PLAN_ALGO_VERSION,
         "portion_standard": PORTION_STANDARD_VERSION,
+        "recipe_library": recipe_library_version,
+        "diet_mode": diet_mode,
         "week": week,
         "stores": sorted({str(store) for store in stores}),
         "adults": adults,

@@ -29,8 +29,8 @@ ZAKLAD = dict(
 def test_algo_version_is_a_positive_integer():
     assert isinstance(plan_data.PLAN_ALGO_VERSION, int)
     assert not isinstance(plan_data.PLAN_ALGO_VERSION, bool)
-    assert plan_data.PLAN_ALGO_VERSION == 18, (
-        "oprava stručných krokov musí zneplatniť v17 plány a zlyhané úlohy"
+    assert plan_data.PLAN_ALGO_VERSION == 19, (
+        "serverom autorizované stravovanie musí zneplatniť v18 plány"
     )
 
 
@@ -70,6 +70,26 @@ def test_changing_portion_standard_invalidates_the_shared_signature(monkeypatch)
         plan_data, "PORTION_STANDARD_VERSION", plan_data.PORTION_STANDARD_VERSION + 1
     )
     assert plan_data.plan_signature(**base) != old
+
+
+def test_diet_mode_changes_plan_signature():
+    standard = plan_data.plan_signature(**ZAKLAD, diet_mode="standard")
+    vegan = plan_data.plan_signature(**ZAKLAD, diet_mode="vegan")
+    assert standard != vegan
+
+
+def test_recipe_library_version_changes_plan_signature(monkeypatch):
+    old = plan_data.plan_signature(**ZAKLAD)
+    monkeypatch.setattr(
+        plan_data, "RECIPE_LIBRARY_VERSION", plan_data.RECIPE_LIBRARY_VERSION + 1
+    )
+    assert plan_data.plan_signature(**ZAKLAD) != old
+
+
+@pytest.mark.parametrize("mode", [None, "", "vegan ", "Vegan", "keto", 1, True])
+def test_plan_signature_rejects_unknown_or_untyped_diet_mode(mode):
+    with pytest.raises(ValueError, match="diet mode"):
+        plan_data.plan_signature(**ZAKLAD, diet_mode=mode)
 
 
 @pytest.mark.parametrize("pole,hodnota", [
