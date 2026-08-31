@@ -885,6 +885,57 @@ function loadingSkeletonHtml() { return 'loading'; }
 
 
 @needs_node
+def test_immediate_pantry_and_force_plans_render_before_profile_refresh(tmp_path):
+    """A hanging auxiliary /api/me must not hide an already complete plan."""
+    html = app_html()
+    functions = "\n".join(
+        declaration(html, signature)
+        for signature in (
+            "async function navrhniZoSpajze() ",
+            "async function novyPlan() ",
+        )
+    )
+    result = run_node(
+        tmp_path,
+        "immediate-plan-before-profile-contract.js",
+        """
+var pantryPlan={jedla:[{nazov:'Zo spajze'}]}, forcePlan={jedla:[{nazov:'Novy'}]};
+var PLAN={jedla:[{nazov:'Povodny'}]}, ME={}, PLAN_CONTEXT_VERSION=0, PLAN_NOTE='';
+var PANTRY_HINT_HIDDEN=false, TAB='plan', renders=0, profileResolvers=[];
+function regenerationsLeft() { return 1; }
+function planZoSpajze() { return Promise.resolve(pantryPlan); }
+function preskladajPlan() { return Promise.resolve(forcePlan); }
+function api(url) {
+  if (url !== '/api/me') throw new Error('unexpected auxiliary request');
+  return new Promise(function(resolve) { profileResolvers.push(resolve); });
+}
+function setPlan(plan) { PLAN=plan; }
+function render() { renders++; }
+function setPlanFailure() { throw new Error('immediate plan entered failure'); }
+function failPlan() { throw new Error('immediate plan entered catch path'); }
+"""
+        + functions
+        + """
+(async function() {
+  var pantryPending=navrhniZoSpajze();
+  await Promise.resolve(); await Promise.resolve();
+  if (PLAN !== pantryPlan || renders < 1) throw new Error('pantry plan waited for /api/me');
+  profileResolvers.shift()({id:'pantry-user'});
+  await pantryPending;
+
+  renders=0;
+  var forcePending=novyPlan();
+  await Promise.resolve(); await Promise.resolve();
+  if (PLAN !== forcePlan || renders < 1) throw new Error('force plan waited for /api/me');
+  profileResolvers.shift()({id:'force-user'});
+  await forcePending;
+})().catch(function(error) { console.error(error.stack || error); process.exit(1); });
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
 def test_legacy_preparing_response_starts_get_polling(tmp_path):
     """Rollback na off/shadow musí stále prijať 202 ack a pokračovať iba cez GET."""
     html = app_html()
@@ -989,6 +1040,42 @@ function $(selector) { return {}; }
     if (M.innerHTML.indexOf(payload.navrhy[i].text) === -1) throw new Error('actionable suggestion is missing');
   if (M.innerHTML.indexOf('Skúsiť znova') !== -1 || M.innerHTML.indexOf('plan-retry') !== -1)
     throw new Error('non-retryable failure encourages a blind retry');
+})().catch(function(error) { console.error(error.stack || error); process.exit(1); });
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
+def test_malformed_failure_suggestions_preserve_safe_server_message(tmp_path):
+    """A non-array navrhy field must not replace the safe detail with a TypeError."""
+    html = app_html()
+    functions = "\n".join(
+        declaration(html, signature)
+        for signature in (
+            "function apiErrorMessage(status, payload) ",
+            "async function readApiResponse(r) ",
+        )
+    )
+    result = run_node(
+        tmp_path,
+        "malformed-plan-suggestions-contract.js",
+        """
+var payload={detail:'Bezpecna sprava.',retry_allowed:false,navrhy:{text:'not-an-array'}};
+var response={ok:false,status:422,json:function(){return Promise.resolve(payload);}};
+function handleApiUnauthorized() { return false; }
+"""
+        + functions
+        + """
+(async function() {
+  try { await readApiResponse(response); }
+  catch (error) {
+    if (error.message !== payload.detail) throw new Error('safe message was masked: '+error.message);
+    if (!Array.isArray(error.suggestions) || error.suggestions.length)
+      throw new Error('malformed suggestions were not ignored');
+    return;
+  }
+  throw new Error('failure response resolved');
 })().catch(function(error) { console.error(error.stack || error); process.exit(1); });
 """,
     )

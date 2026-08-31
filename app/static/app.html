@@ -381,7 +381,7 @@ async function readApiResponse(r) {
     failure.status = r.status;
     const serverCode = payload && (payload.kod || payload.code);
     failure.code = typeof serverCode === 'string' ? serverCode.slice(0,100) : '';
-    failure.suggestions = (payload?.navrhy || []).map(item => item.text);
+    failure.suggestions = (Array.isArray(payload?.navrhy) ? payload.navrhy : []).map(item => item.text);
     if (payload && typeof payload.retry_allowed === 'boolean')
       failure.retry_allowed = payload.retry_allowed;
     throw failure;
@@ -1162,6 +1162,7 @@ async function navrhniZoSpajze() {
     setPlan(response);
     PLAN_NOTE = '';
     PANTRY_HINT_HIDDEN = true;
+    render();
     try {
       const me = await api('/api/me');
       if (version === PLAN_CONTEXT_VERSION) ME = me;
@@ -1236,6 +1237,7 @@ async function novyPlan() {
     }
     setPlan(response);
     PLAN_NOTE = '';
+    render();
     try {
       const me = await api('/api/me');
       if (version === PLAN_CONTEXT_VERSION) ME = me;
