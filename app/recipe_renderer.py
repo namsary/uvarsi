@@ -637,6 +637,27 @@ def _is_allowed_destination(
     )
 
 
+def _is_complete_follow_up_context(value: str) -> bool:
+    remainder = value.strip()
+    consumed = False
+    while remainder:
+        context = _FOLLOW_UP_ACTION_CONTEXT.match(remainder)
+        if context is not None:
+            remainder = remainder[context.end() :].lstrip()
+            consumed = True
+            continue
+
+        has_time_prefix = remainder.startswith("za ")
+        time_value = remainder[3:] if has_time_prefix else remainder
+        time = _TIME.match(time_value)
+        if time is None:
+            return False
+        consumed_length = time.end() + (3 if has_time_prefix else 0)
+        remainder = remainder[consumed_length:].lstrip()
+        consumed = True
+    return consumed
+
+
 def _validate_follow_up_payload(
     value: str,
     allowed_patterns: Sequence[re.Pattern[str]],
@@ -654,13 +675,12 @@ def _validate_follow_up_payload(
         target_context = payload[controlled_target.end() :].lstrip()
     if (
         not payload
-        or _FOLLOW_UP_ACTION_CONTEXT.match(payload) is not None
+        or _is_complete_follow_up_context(payload)
         or (
             target_context is not None
             and (
                 not target_context
-                or _TIME.match(target_context) is not None
-                or _FOLLOW_UP_ACTION_CONTEXT.match(target_context) is not None
+                or _is_complete_follow_up_context(target_context)
             )
         )
         or _is_allowed_ingredient_phrase(payload, allowed_patterns, allowed_cuts)
