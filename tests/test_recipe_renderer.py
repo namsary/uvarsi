@@ -1,0 +1,571 @@
+from dataclasses import replace
+from decimal import Decimal, localcontext
+
+import pytest
+
+from app.ingredient_catalog import load_ingredient_catalog
+from app.quantity_math import Quantity
+from app.recipe_catalog import IngredientSlot, InstructionTemplate, RecipeTemplate
+from app.recipe_matcher import RecipeCandidate, SlotSelection
+from app.recipe_renderer import render_meal
+
+
+@pytest.fixture(scope="module")
+def ingredients():
+    return load_ingredient_catalog()
+
+
+def _candidate(
+    ingredient,
+    *,
+    amount="75",
+    unit="g",
+    child_factor="0.5",
+    cut=None,
+    name_template="Jedlo z {main.name}",
+    equipment=("hrniec",),
+    pantry_basics=(),
+    instructions=(),
+):
+    slot = IngredientSlot(
+        key="main",
+        role=next(iter(ingredient.roles)),
+        candidates=(ingredient.id,),
+        amount_per_adult=Decimal(amount),
+        unit=unit,
+        child_factor=Decimal(child_factor),
+        required=True,
+        use="main",
+        cut=cut,
+    )
+    template = RecipeTemplate(
+        id=f"render-{ingredient.id}",
+        version=1,
+        active=True,
+        name_template=name_template,
+        family="renderer_snapshot",
+        method="pot",
+        minutes=30,
+        modes=frozenset({"standard"}),
+        equipment=equipment,
+        slots=(slot,),
+        pantry_basics=pantry_basics,
+        instructions=tuple(InstructionTemplate(text) for text in instructions),
+    )
+    return RecipeCandidate(
+        template=template,
+        selections=(
+            SlotSelection(
+                slot=slot,
+                ingredient=ingredient,
+                offer=None,
+                pantry=None,
+            ),
+        ),
+        score=Decimal("0"),
+        key=f"candidate-{ingredient.id}",
+    )
+
+
+def _with_instructions(candidate, instructions):
+    return replace(
+        candidate,
+        template=replace(
+            candidate.template,
+            instructions=tuple(InstructionTemplate(text) for text in instructions),
+        ),
+    )
+
+
+RICE_STEPS = (
+    "Prepláchni {main.amount} {main.name} v jemnom sitku pod studenou vodou, "
+    "kým odtekajúca voda nebude takmer číra.",
+    "Vlož {main.amount} {main.name} do hrnca, prilej 450 ml vody, pridaj "
+    "štipku soli a priveď na silnom ohni do varu.",
+    "Var {main.amount} {main.name} v prikrytom hrnci 12 minút na miernom "
+    "ohni, kým sa voda vsiakne.",
+    "Odstav hrniec a nechaj ryžu prikrytú 5 minút dôjsť, kým budú zrná "
+    "mäkké a oddelené.",
+    "Rozdeľ ryžu na {portions} porcie a podávaj ju horúcu.",
+)
+
+PASTA_STEPS = (
+    "Priveď v hrnci 2 l vody so štipkou soli do prudkého varu.",
+    "Vsyp {main.amount} {main.name} do hrnca a var ich 9 minút na strednom "
+    "ohni, kým budú mäkké, ale pri zahryznutí ešte pevné.",
+    "Odober z hrnca 100 ml vody z varenia a odlož ju na zriedenie omáčky.",
+    "Sceď cestoviny v sitku a nechaj ich 30 sekúnd odkvapkať, kým z nich "
+    "prestane tiecť voda.",
+    "Rozdeľ cestoviny na {portions} porcie a podávaj ich ešte teplé.",
+)
+
+ROASTED_VEGETABLE_STEPS = (
+    "Predhrej rúru na 200 °C; správnu teplotu potvrdí kontrolka rúry.",
+    "Nakrájaj {main.amount} {main.name} {main.cut} na doske na približne "
+    "1 cm hrubé kúsky.",
+    "Rozlož {main.amount} {main.name} v jednej vrstve na plech, pridaj "
+    "1 polievkovú lyžicu oleja a štipku soli.",
+    "Peč {main.amount} {main.name} na plechu 25 minút pri 200 °C, kým "
+    "zmäkne a okraje nezozlatnú.",
+    "Rozdeľ pečenú cuketu na {portions} porcie a podávaj ju horúcu.",
+)
+
+TOFU_STEPS = (
+    "Osuš {main.amount} {main.name} čistou utierkou, kým povrch nebude suchý.",
+    "Nakrájaj {main.amount} {main.name} {main.cut} na doske.",
+    "Rozohrej v panvici 1 polievkovú lyžicu oleja 2 minúty na strednom ohni, "
+    "kým sa olej začne ľahko lesknúť.",
+    "Opekaj {main.amount} {main.name} v panvici 8 minút na strednom ohni, "
+    "kým budú všetky strany zlatisté a chrumkavé.",
+    "Rozdeľ tofu na {portions} porcie a podávaj ho ihneď.",
+)
+
+CHICKEN_STEPS = (
+    "Osuš {main.amount} {main.name} papierovou utierkou a rovnomerne ich "
+    "osoľ a okoreň.",
+    "Predhrej rúru na 200 °C; správnu teplotu potvrdí kontrolka rúry.",
+    "Rozlož {main.amount} {main.name} na pekáč kožou nahor tak, aby sa "
+    "jednotlivé kúsky nedotýkali.",
+    "Peč {main.amount} {main.name} v pekáči 35 minút pri 200 °C, kým "
+    "teplomer v najhrubšej časti ukáže aspoň 74 °C a po narezaní vyteká "
+    "číra šťava.",
+    "Nechaj kuracie stehná na pekáči 5 minút odpočívať, kým sa šťava "
+    "prestane uvoľňovať.",
+    "Rozdeľ kuracie stehná na {portions} porcie a podávaj ich horúce.",
+)
+
+
+@pytest.mark.parametrize(
+    ("ingredient_id", "amount", "cut", "name_template", "equipment", "basics", "steps", "expected"),
+    [
+        (
+            "rice",
+            "75",
+            None,
+            "Absorpčne varená {main.name}",
+            ("hrniec", "sitko"),
+            ("salt",),
+            RICE_STEPS,
+            (
+                "Absorpčne varená ryža",
+                "300 g · ryža",
+                (
+                    "Prepláchni 300 g ryže v jemnom sitku pod studenou vodou, kým odtekajúca voda nebude takmer číra.",
+                    "Vlož 300 g ryže do hrnca, prilej 450 ml vody, pridaj štipku soli a priveď na silnom ohni do varu.",
+                    "Var 300 g ryže v prikrytom hrnci 12 minút na miernom ohni, kým sa voda vsiakne.",
+                    "Odstav hrniec a nechaj ryžu prikrytú 5 minút dôjsť, kým budú zrná mäkké a oddelené.",
+                    "Rozdeľ ryžu na 4 porcie a podávaj ju horúcu.",
+                ),
+            ),
+        ),
+        (
+            "pasta",
+            "75",
+            None,
+            "{main.name} al dente",
+            ("hrniec", "sitko"),
+            ("salt",),
+            PASTA_STEPS,
+            (
+                "Cestoviny al dente",
+                "300 g · cestoviny",
+                (
+                    "Priveď v hrnci 2 l vody so štipkou soli do prudkého varu.",
+                    "Vsyp 300 g cestovín do hrnca a var ich 9 minút na strednom ohni, kým budú mäkké, ale pri zahryznutí ešte pevné.",
+                    "Odober z hrnca 100 ml vody z varenia a odlož ju na zriedenie omáčky.",
+                    "Sceď cestoviny v sitku a nechaj ich 30 sekúnd odkvapkať, kým z nich prestane tiecť voda.",
+                    "Rozdeľ cestoviny na 4 porcie a podávaj ich ešte teplé.",
+                ),
+            ),
+        ),
+        (
+            "zucchini",
+            "150",
+            "na polkolieska",
+            "Pečená {main.name}",
+            ("rúra", "plech", "doska"),
+            ("oil", "salt"),
+            ROASTED_VEGETABLE_STEPS,
+            (
+                "Pečená cuketa",
+                "600 g · cuketa",
+                (
+                    "Predhrej rúru na 200 °C; správnu teplotu potvrdí kontrolka rúry.",
+                    "Nakrájaj 600 g cukety na polkolieska na doske na približne 1 cm hrubé kúsky.",
+                    "Rozlož 600 g cukety v jednej vrstve na plech, pridaj 1 polievkovú lyžicu oleja a štipku soli.",
+                    "Peč 600 g cukety na plechu 25 minút pri 200 °C, kým zmäkne a okraje nezozlatnú.",
+                    "Rozdeľ pečenú cuketu na 4 porcie a podávaj ju horúcu.",
+                ),
+            ),
+        ),
+        (
+            "tofu",
+            "160",
+            "na 2 cm kocky",
+            "Chrumkavé {main.name} z panvice",
+            ("panvica", "doska"),
+            ("oil",),
+            TOFU_STEPS,
+            (
+                "Chrumkavé tofu z panvice",
+                "640 g · tofu",
+                (
+                    "Osuš 640 g tofu čistou utierkou, kým povrch nebude suchý.",
+                    "Nakrájaj 640 g tofu na 2 cm kocky na doske.",
+                    "Rozohrej v panvici 1 polievkovú lyžicu oleja 2 minúty na strednom ohni, kým sa olej začne ľahko lesknúť.",
+                    "Opekaj 640 g tofu v panvici 8 minút na strednom ohni, kým budú všetky strany zlatisté a chrumkavé.",
+                    "Rozdeľ tofu na 4 porcie a podávaj ho ihneď.",
+                ),
+            ),
+        ),
+        (
+            "chicken_thigh",
+            "225",
+            None,
+            "Pečené {main.name}",
+            ("rúra", "pekáč"),
+            ("salt", "black_pepper"),
+            CHICKEN_STEPS,
+            (
+                "Pečené kuracie stehná",
+                "900 g · kuracie stehná",
+                (
+                    "Osuš 900 g kuracích stehien papierovou utierkou a rovnomerne ich osoľ a okoreň.",
+                    "Predhrej rúru na 200 °C; správnu teplotu potvrdí kontrolka rúry.",
+                    "Rozlož 900 g kuracích stehien na pekáč kožou nahor tak, aby sa jednotlivé kúsky nedotýkali.",
+                    "Peč 900 g kuracích stehien v pekáči 35 minút pri 200 °C, kým teplomer v najhrubšej časti ukáže aspoň 74 °C a po narezaní vyteká číra šťava.",
+                    "Nechaj kuracie stehná na pekáči 5 minút odpočívať, kým sa šťava prestane uvoľňovať.",
+                    "Rozdeľ kuracie stehná na 4 porcie a podávaj ich horúce.",
+                ),
+            ),
+        ),
+    ],
+)
+def test_beginner_friendly_slovak_language_snapshots(
+    ingredients,
+    ingredient_id,
+    amount,
+    cut,
+    name_template,
+    equipment,
+    basics,
+    steps,
+    expected,
+):
+    candidate = _candidate(
+        ingredients.by_id(ingredient_id),
+        amount=amount,
+        cut=cut,
+        name_template=name_template,
+        equipment=equipment,
+        pantry_basics=basics,
+        instructions=steps,
+    )
+
+    meal = render_meal(candidate, adults=4, children=0, covered_days=1)
+
+    assert (meal.name, meal.ingredients[0].label, meal.instructions) == expected
+    assert meal.portions == 4
+
+
+def test_batch_math_stays_exact_and_displayed_portions_are_people_meals(ingredients):
+    candidate = _candidate(
+        ingredients.by_id("rice"),
+        amount="75.125",
+        child_factor="0.625",
+        name_template="Absorpčne varená {main.name}",
+        equipment=("hrniec", "sitko"),
+        pantry_basics=("salt",),
+        instructions=RICE_STEPS,
+    )
+
+    with localcontext() as context:
+        context.prec = 4
+        meal = render_meal(candidate, adults=2, children=1, covered_days=3)
+
+    assert meal.ingredients[0].quantity == Quantity(Decimal("591.609375"), "g")
+    assert meal.ingredients[0].display_amount == "590 g"
+    assert meal.portions == 9
+    assert meal.covered_days == 3
+
+
+def test_display_rounds_1980_grams_to_two_kilos_without_changing_quantity(ingredients):
+    candidate = _candidate(
+        ingredients.by_id("chicken_thigh"),
+        amount="165",
+        name_template="Pečené {main.name}",
+        equipment=("rúra", "pekáč"),
+        pantry_basics=("salt", "black_pepper"),
+        instructions=CHICKEN_STEPS,
+    )
+
+    meal = render_meal(candidate, adults=4, children=0, covered_days=3)
+
+    assert meal.ingredients[0].quantity == Quantity(Decimal("1980"), "g")
+    assert meal.ingredients[0].display_amount == "2 kg"
+    assert meal.ingredients[0].label == "2 kg · kuracie stehná"
+    assert "1 980 g" not in " ".join(meal.instructions)
+    assert "2 kg kuracích stehien" in " ".join(meal.instructions)
+
+
+def test_millilitres_use_litres_with_one_useful_decimal(ingredients):
+    milk_steps = (
+        "Nalej {main.amount} {main.name} do hrnca.",
+        "Zohrievaj {main.amount} {main.name} v hrnci 5 minút na miernom ohni, "
+        "kým sa z mlieka začne pariť.",
+        "Odstav hrniec a nechaj mlieko 2 minúty chladnúť, kým prestane bublať.",
+        "Rozdeľ nápoj na {portions} porcie a podávaj ho teplý.",
+    )
+    candidate = _candidate(
+        ingredients.by_id("milk"),
+        amount="312.5",
+        unit="ml",
+        name_template="Teplé {main.name}",
+        instructions=milk_steps,
+    )
+
+    meal = render_meal(candidate, adults=4, children=0, covered_days=1)
+
+    assert meal.ingredients[0].quantity == Quantity(Decimal("1250.0"), "ml")
+    assert meal.ingredients[0].display_amount == "1,3 l"
+
+
+def test_nutrition_converts_pieces_before_using_edible_grams(ingredients):
+    egg_steps = (
+        "Rozšľahaj {main.amount} {main.name} v mise, kým sa bielky a žĺtky spoja.",
+        "Rozohrej panvicu 2 minúty na strednom ohni, kým je povrch horúci.",
+        "Vlej {main.amount} {main.name} do panvice a opekaj ich 4 minúty na "
+        "miernom ohni, kým úplne stuhnú.",
+        "Rozdeľ vajcia na {portions} porcie a podávaj ich horúce.",
+    )
+    candidate = _candidate(
+        ingredients.by_id("egg"),
+        amount="1",
+        unit="piece",
+        name_template="Pražené {main.name}",
+        equipment=("misa", "panvica"),
+        instructions=egg_steps,
+    )
+
+    meal = render_meal(candidate, adults=4, children=0, covered_days=1)
+
+    assert meal.ingredients[0].quantity == Quantity(Decimal("4"), "piece")
+    assert meal.nutrition.total.protein_g == Decimal("25.12")
+
+
+def test_nutrition_converts_millilitres_and_applies_edible_ratio(ingredients):
+    milk = replace(ingredients.by_id("milk"), edible_ratio=Decimal("0.8"))
+    milk_steps = (
+        "Nalej {main.amount} {main.name} do hrnca.",
+        "Zohrievaj {main.amount} {main.name} v hrnci 5 minút na miernom ohni, "
+        "kým sa z mlieka začne pariť.",
+        "Odstav hrniec a nechaj mlieko 2 minúty chladnúť, kým prestane bublať.",
+        "Rozdeľ nápoj na {portions} porcie a podávaj ho teplý.",
+    )
+    candidate = _candidate(
+        milk,
+        amount="100",
+        unit="ml",
+        name_template="Teplé {main.name}",
+        instructions=milk_steps,
+    )
+
+    meal = render_meal(candidate, adults=4, children=0, covered_days=1)
+
+    assert meal.ingredients[0].quantity == Quantity(Decimal("400"), "ml")
+    assert meal.nutrition.total.protein_g == Decimal("10.080")
+
+
+@pytest.mark.parametrize(
+    ("ingredient_id", "unit", "missing_field"),
+    [
+        ("egg", "piece", "grams_per_piece"),
+        ("milk", "ml", "density_g_per_ml"),
+    ],
+)
+def test_missing_nutrition_conversion_rejects_candidate(
+    ingredients, ingredient_id, unit, missing_field
+):
+    ingredient = replace(ingredients.by_id(ingredient_id), **{missing_field: None})
+    candidate = _candidate(
+        ingredient,
+        amount="1",
+        unit=unit,
+        instructions=(
+            "Priprav {main.amount} {main.name} v mise.",
+            "Zohrievaj {main.amount} {main.name} v hrnci 5 minút na miernom "
+            "ohni, kým sa začne pariť.",
+            "Rozdeľ jedlo na {portions} porcie a podávaj ho teplé.",
+        ),
+    )
+
+    with pytest.raises(ValueError, match="prepočet|conversion"):
+        render_meal(candidate, adults=1, children=0, covered_days=1)
+
+
+@pytest.mark.parametrize(
+    ("broken_steps", "message"),
+    [
+        (("Priprav suroviny.", "Uvar jedlo.", "Podávaj."), "všeobecn|neurčit"),
+        (("Nakrájaj {main.amount} {main.name.", *RICE_STEPS[1:]), "placeholder"),
+        (("Nakrájaj {main.amount} {main.temperature}.", *RICE_STEPS[1:]), "placeholder"),
+        (("Prepláchni {main.amount} {main.name} a potom ju sceďok.", *RICE_STEPS[1:]), "ryž|sceď"),
+    ],
+)
+def test_renderer_rejects_generic_steps_bad_placeholders_and_czechisms(
+    ingredients, broken_steps, message
+):
+    candidate = _candidate(
+        ingredients.by_id("rice"),
+        amount="75",
+        name_template="Absorpčne varená {main.name}",
+        equipment=("hrniec", "sitko"),
+        pantry_basics=("salt",),
+        instructions=broken_steps,
+    )
+
+    with pytest.raises(ValueError, match=message):
+        render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
+def test_renderer_rejects_malformed_chicken_thigh_inflection(ingredients):
+    candidate = _candidate(
+        ingredients.by_id("chicken_thigh"),
+        amount="225",
+        name_template="Pečené {main.name}",
+        equipment=("rúra", "pekáč"),
+        pantry_basics=("salt", "black_pepper"),
+        instructions=(
+            "Osuš 900 g stehenných rezíkov papierovou utierkou.",
+            *CHICKEN_STEPS[1:],
+        ),
+    )
+
+    with pytest.raises(ValueError, match="rezíkov|slovenč"):
+        render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
+def test_renderer_rejects_ingredient_used_in_steps_but_missing_from_list(ingredients):
+    candidate = _candidate(
+        ingredients.by_id("rice"),
+        amount="75",
+        name_template="Absorpčne varená {main.name}",
+        equipment=("hrniec", "sitko"),
+        pantry_basics=("salt",),
+        instructions=(*RICE_STEPS[:-1], "Rozdeľ ryžu a mrkvu na {portions} porcie."),
+    )
+
+    with pytest.raises(ValueError, match="mrkva|zozname surovín"):
+        render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
+def test_renderer_rejects_inconsistent_selected_ingredient_name(ingredients):
+    candidate = _candidate(
+        ingredients.by_id("chicken_thigh"),
+        amount="225",
+        name_template="Pečené {main.name}",
+        equipment=("rúra", "pekáč"),
+        pantry_basics=("salt", "black_pepper"),
+        instructions=(
+            "Osuš 900 g kuracích pŕs papierovou utierkou a osoľ ich.",
+            *CHICKEN_STEPS[1:],
+        ),
+    )
+
+    with pytest.raises(ValueError, match="kuracie prsia|zozname surovín"):
+        render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
+@pytest.mark.parametrize(
+    ("cooking_step", "message"),
+    [
+        (
+            "Opekaj {main.amount} {main.name} 8 minút na strednom ohni, "
+            "kým budú všetky strany zlatisté.",
+            "nádob|panvic",
+        ),
+        (
+            "Opekaj {main.amount} {main.name} v panvici 8 minút, kým budú "
+            "všetky strany zlatisté.",
+            "ohrev|teplot",
+        ),
+        (
+            "Opekaj {main.amount} {main.name} v panvici na strednom ohni, "
+            "kým budú všetky strany zlatisté.",
+            "čas|minút",
+        ),
+        (
+            "Opekaj {main.amount} {main.name} v panvici 8 minút na strednom ohni.",
+            "hotov|výsled",
+        ),
+        (
+            "Opekaj tofu v panvici 8 minút na strednom ohni, kým budú "
+            "všetky strany zlatisté.",
+            "množstv",
+        ),
+    ],
+)
+def test_each_cooking_step_requires_vessel_heat_time_and_doneness_cue(
+    ingredients, cooking_step, message
+):
+    candidate = _candidate(
+        ingredients.by_id("tofu"),
+        amount="160",
+        cut="na 2 cm kocky",
+        name_template="Chrumkavé {main.name} z panvice",
+        equipment=("panvica", "doska"),
+        pantry_basics=("oil",),
+        instructions=(*TOFU_STEPS[:3], cooking_step, TOFU_STEPS[-1]),
+    )
+
+    with pytest.raises(ValueError, match=message):
+        render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
+def test_preheating_requires_an_observable_readiness_cue(ingredients):
+    candidate = _candidate(
+        ingredients.by_id("zucchini"),
+        amount="150",
+        cut="na polkolieska",
+        name_template="Pečená {main.name}",
+        equipment=("rúra", "plech", "doska"),
+        pantry_basics=("oil", "salt"),
+        instructions=(
+            "Predhrej rúru na 200 °C.",
+            *ROASTED_VEGETABLE_STEPS[1:],
+        ),
+    )
+
+    with pytest.raises(ValueError, match="hotov|výsled|kontrol"):
+        render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
+@pytest.mark.parametrize(
+    ("adults", "children", "covered_days"),
+    [
+        (0, 0, 1),
+        (-1, 1, 1),
+        (1, -1, 1),
+        (True, 0, 1),
+        (1, 0, 0),
+        (1, 0, 4),
+    ],
+)
+def test_renderer_rejects_invalid_household_or_coverage(
+    ingredients, adults, children, covered_days
+):
+    candidate = _candidate(
+        ingredients.by_id("rice"),
+        name_template="Absorpčne varená {main.name}",
+        equipment=("hrniec", "sitko"),
+        pantry_basics=("salt",),
+        instructions=RICE_STEPS,
+    )
+
+    with pytest.raises(ValueError):
+        render_meal(
+            candidate,
+            adults=adults,
+            children=children,
+            covered_days=covered_days,
+        )
