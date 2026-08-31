@@ -17,6 +17,11 @@ DEPLOY_STATE = ROOT / "hetzner" / "uvarsi-deploy-state.sh"
 SWITCH_BOUNDARY = "# --- 3. záloha aktuálneho stavu a prepnutie ---"
 
 
+def _bash_path(path: Path) -> str:
+    resolved = path.resolve().as_posix()
+    return f"/{resolved[0].lower()}{resolved[2:]}" if resolved[1:3] == ":/" else resolved
+
+
 def _discover_bash() -> str | None:
     for name in ("bash", "bash.exe"):
         executable = shutil.which(name)
@@ -261,11 +266,23 @@ def _run_samopull_catalog_gate(
             raise AssertionError(f"unknown invalid kind: {invalid_kind}")
 
     mutation_marker = tmp_path / "live-mutation-reached"
+    python_calls = tmp_path / "python-calls"
+    fake_python = tmp_path / "python"
+    fake_python.write_text(
+        "#!/bin/sh\n"
+        f'printf "%s\\n" "$*" >> "{_bash_path(python_calls)}"\n'
+        "exit 0\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_python.chmod(0o755)
     command = (
         'PATH=/usr/bin:/bin:"$PATH"\n'
         "log() { :; }\n"
         "notify() { :; }\n"
         'CIEL="release with spaces"\n'
+        f'PY="{_bash_path(fake_python)}"\n'
+        f'TMP="{_bash_path(tmp_path)}"\n'
         f"{gate}\n"
         'printf reached > "live-mutation-reached"\n'
     )
@@ -286,6 +303,17 @@ def test_samopull_catalog_gate_accepts_one_top_level_recipe_json(
     result, mutation_marker = _run_samopull_catalog_gate(tmp_path, bash_executable)
 
     assert result.returncode == 0, result.stdout + result.stderr
+    assert mutation_marker.exists()
+
+
+def test_samopull_runs_library_and_isolated_deterministic_smoke_before_switch(
+        tmp_path, bash_executable):
+    result, mutation_marker = _run_samopull_catalog_gate(tmp_path, bash_executable)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    calls = (tmp_path / "python-calls").read_text(encoding="utf-8")
+    assert "-m app.library_gate" in calls
+    assert "-m server --recipe-engine-smoke" in calls
     assert mutation_marker.exists()
 
 

@@ -74,7 +74,11 @@ def test_release_installs_and_restarts_worker_without_touching_other_app():
     assert "ExecStart=/opt/uvarsi/venv/bin/python -u plan_worker.py" in unit
     assert "Environment=TZ=Europe/Bratislava" in unit
     assert "Environment=UVARSI_URL=https://uvar.si" in unit
-    assert "EnvironmentFile=" not in unit
+    assert unit.count("EnvironmentFile=-/opt/uvarsi/uvarsi-recipe-engine.env") == 1
+    app_unit = (ROOT / "hetzner" / "uvarsi.service").read_text(encoding="utf-8")
+    assert app_unit.count("EnvironmentFile=-/opt/uvarsi/uvarsi-recipe-engine.env") == 1
+    assert "/opt/uvarsi/uvarsi.env" not in unit
+    assert "/opt/uvarsi/uvarsi.env" not in app_unit
     assert "taktik-mapa" not in unit
     assert "uvarsi-plan-worker.service" in SAMOPULL
     assert "app/plan_shortlist.py" in SAMOPULL

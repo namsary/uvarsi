@@ -167,6 +167,25 @@ def test_samopull_starts_guardian_after_successful_release():
     assert '>> /var/log/uvarsi.log 2>&1 &' in script
 
 
+def test_both_release_paths_stage_the_autonomous_recipe_controller_after_health():
+    auto = SAMOPULL.read_text(encoding="utf-8")
+    manual = Path("nasad.ps1").read_text(encoding="utf-8")
+
+    for source in (auto, manual):
+        assert "recipe-engine-rollout.sh" in source
+        assert "recipe-engine.target" in source
+        assert "uvarsi-recipe-engine.env" in source
+
+    assert auto.index('log "OK — nasadené vydanie') < auto.index(
+        'nohup "$DIR/recipe-engine-rollout.sh"'
+    )
+    assert manual.index('$stav = $check | ssh jarvis') < manual.index(
+        "nohup /opt/uvarsi/recipe-engine-rollout.sh"
+    )
+    assert "EnvironmentFile=-/opt/uvarsi/uvarsi-recipe-engine.env" in manual
+    assert "if [ ! -f /opt/uvarsi/uvarsi-recipe-engine.env ]" in manual
+
+
 def test_samopull_preflight_rejects_missing_or_empty_root_assets():
     script = SAMOPULL.read_text(encoding="utf-8")
     preflight = script.split("# --- 2. overenie PRED prepnutím ---", 1)[1].split(

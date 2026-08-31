@@ -51,7 +51,8 @@ def deployment(tmp_path):
     (web / "index.html").write_bytes(b"old-index\r\n")
     (web / "sw.js").write_bytes(b"old-service-worker\n")
     for name in ("refresh_blocek.py", "dozorca.sh", "zaloha.sh",
-                 "uvarsi-deploy-state.sh"):
+                 "uvarsi-deploy-state.sh", "recipe-engine-rollout.sh",
+                 "recipe-engine.target"):
         (live / name).write_bytes(f"old-{name}\n".encode())
     (state / "enabled").write_text("0", encoding="ascii")
     (state / "active").write_text("0", encoding="ascii")
@@ -439,6 +440,8 @@ def test_manual_failure_restores_every_mutated_file_and_app_service_state(
         deployment["live"] / "dozorca.sh": b"old-dozorca.sh\n",
         deployment["live"] / "zaloha.sh": b"old-zaloha.sh\n",
         deployment["live"] / "uvarsi-deploy-state.sh": b"old-uvarsi-deploy-state.sh\n",
+        deployment["live"] / "recipe-engine-rollout.sh": b"old-recipe-engine-rollout.sh\n",
+        deployment["live"] / "recipe-engine.target": b"old-recipe-engine.target\n",
     }
     release = deployment["release"]
     (release / "app").mkdir(parents=True)
@@ -454,7 +457,8 @@ def test_manual_failure_restores_every_mutated_file_and_app_service_state(
         "new-app-unit", encoding="utf-8"
     )
     for name in ("refresh_blocek.py", "recepty.py", "dozorca.sh", "zaloha.sh",
-                 "uvarsi-deploy-state.sh"):
+                 "uvarsi-deploy-state.sh", "recipe-engine-rollout.sh",
+                 "recipe-engine.target"):
         (release / "hetzner" / name).write_bytes(f"new-{name}".encode())
 
     assert run_library(

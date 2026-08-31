@@ -106,7 +106,7 @@ if ! (cd "$CIEL/app" && UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$CIEL/VE
   exit 1
 fi
 # b) povinné súbory
-for f in app/server.py app/auth_data.py app/public_pages.py app/plan_jobs.py app/plan_calendar.py app/plan_shortlist.py app/plan_worker.py app/predpocet.py app/static/app.html app/catalog/ingredients.json app/catalog/recipes/manifest.json hetzner/uvarsi-plan-worker.service hetzner/uvarsi-deploy-state.sh VERSION index.html sw.js; do
+for f in app/server.py app/config.py app/auth_data.py app/public_pages.py app/plan_jobs.py app/plan_calendar.py app/plan_shortlist.py app/plan_worker.py app/predpocet.py app/deterministic_plan.py app/ingredient_catalog.py app/library_gate.py app/quantity_math.py app/recipe_catalog.py app/recipe_matcher.py app/recipe_renderer.py app/static/app.html app/catalog/ingredients.json app/catalog/recipes/manifest.json hetzner/uvarsi.service hetzner/uvarsi-plan-worker.service hetzner/uvarsi-deploy-state.sh hetzner/recipe-engine-rollout.sh hetzner/recipe-engine.target VERSION index.html sw.js; do
   [ -f "$CIEL/$f" ] && [ -s "$CIEL/$f" ] || { log "vo vydaní chýba platný $f — NEPREPÍNAM"; \
     notify "Uvar.si: neúplné vydanie" "Chýba $f."; exit 1; }
 done
@@ -129,6 +129,24 @@ done
   notify "Uvar.si: neúplné vydanie" "Chýba receptový JSON."
   exit 1
 }
+if ! (cd "$CIEL" && UVARSI_RECIPE_ENGINE=off "$PY" -m app.library_gate >/dev/null); then
+  log "receptový library gate zlyhal — NEPREPÍNAM"
+  notify "Uvar.si: vydanie odmietnuté" "Receptový katalóg neprešiel kontrolou."
+  exit 1
+fi
+PREFLIGHT_SMOKE="$TMP/recipe-engine-preflight-smoke.json"
+rm -f "$PREFLIGHT_SMOKE"
+if ! (cd "$CIEL/app" && \
+      UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$CIEL/VERSION" \
+      UVARSI_RECIPE_ENGINE=on PLATBY_ZAPNUTE=0 UVARSI_PAYMENTS_ENABLED=0 \
+      UVARSI_RECIPE_SMOKE_STATE="$PREFLIGHT_SMOKE" \
+      "$PY" -m server --recipe-engine-smoke --state "$PREFLIGHT_SMOKE" \
+      >/dev/null 2>"$TMP/recipe-smoke.err"); then
+  log "izolovaný deterministický smoke zlyhal — NEPREPÍNAM"
+  notify "Uvar.si: vydanie odmietnuté" "Deterministický plán neprešiel izolovaným smoke testom."
+  exit 1
+fi
+rm -f "$PREFLIGHT_SMOKE" "$TMP/recipe-smoke.err"
 
 # --- 3. záloha aktuálneho stavu a prepnutie ---
 PRED="$REL/predosle"
@@ -138,7 +156,7 @@ cp -a "/var/www/uvarsi/index.html" "$PRED/index.html" || {
   log "záloha živého index.html zlyhala — NEPREPÍNAM"; exit 1; }
 cp -a "/var/www/uvarsi/sw.js" "$PRED/sw.js" || {
   log "záloha živého sw.js zlyhala — NEPREPÍNAM"; exit 1; }
-for f in refresh_blocek.py recepty.py dozorca.sh zaloha.sh; do
+for f in refresh_blocek.py recepty.py dozorca.sh zaloha.sh recipe-engine-rollout.sh recipe-engine.target; do
   if [ -f "$DIR/$f" ]; then
     cp -a "$DIR/$f" "$PRED/$f" || { log "záloha $f zlyhala — NEPREPÍNAM"; exit 1; }
   else
@@ -155,6 +173,12 @@ nasad_z() {   # $1 = adresár s vydaním
   [ ! -f "$1/hetzner/recepty.py" ] || cp -a "$1/hetzner/recepty.py" "$DIR/recepty.py" || return 1
   [ ! -f "$1/hetzner/dozorca.sh" ] || { cp -a "$1/hetzner/dozorca.sh" "$DIR/dozorca.sh" && chmod +x "$DIR/dozorca.sh"; } || return 1
   [ ! -f "$1/hetzner/zaloha.sh" ] || { cp -a "$1/hetzner/zaloha.sh" "$DIR/zaloha.sh" && chmod +x "$DIR/zaloha.sh"; } || return 1
+  cp -a "$1/hetzner/recipe-engine-rollout.sh" "$DIR/recipe-engine-rollout.sh" || return 1
+  chmod +x "$DIR/recipe-engine-rollout.sh" || return 1
+  cp -a "$1/hetzner/recipe-engine.target" "$DIR/recipe-engine.target" || return 1
+  if [ ! -f "$DIR/uvarsi-recipe-engine.env" ]; then
+    (umask 077; printf 'UVARSI_RECIPE_ENGINE=off\n' > "$DIR/uvarsi-recipe-engine.env") || return 1
+  fi
   [ ! -f "$1/hetzner/samopull.sh" ] || cp -a "$1/hetzner/samopull.sh" "$DIR/samopull.sh.novy" || return 1
   cp -a "$1/hetzner/uvarsi-deploy-state.sh" "$DIR/uvarsi-deploy-state.sh" || return 1
   systemctl enable uvarsi >/dev/null 2>&1 || return 1
@@ -190,6 +214,8 @@ if [ "$LIVE_MUTATION" -eq 1 ] && zdravie && spusti_worker && uvarsi_wait_fresh_h
   # bezpečne ukončí, ak už práve beží iný zber.
   nohup "$DIR/dozorca.sh" >> /var/log/uvarsi.log 2>&1 &
   log "dozorca spustený na pozadí po nasadení"
+  nohup "$DIR/recipe-engine-rollout.sh" >> /var/log/uvarsi-recipe-rollout.log 2>&1 &
+  log "autonómny receptový rollout spustený na pozadí"
   notify "Uvar.si nasadené" "Vydanie $VER je živé. Appka odpovedá."
   exit 0
 fi
@@ -203,7 +229,7 @@ cp -a "$PRED/index.html" "/var/www/uvarsi/index.html" || {
   log "rollback index.html zlyhal"; NAVRAT_OK=0; }
 cp -a "$PRED/sw.js" "/var/www/uvarsi/sw.js" || {
   log "rollback sw.js zlyhal"; NAVRAT_OK=0; }
-for f in refresh_blocek.py recepty.py dozorca.sh zaloha.sh; do
+for f in refresh_blocek.py recepty.py dozorca.sh zaloha.sh recipe-engine-rollout.sh recipe-engine.target; do
   if [ -f "$PRED/$f" ]; then
     cp -a "$PRED/$f" "$DIR/$f" || { log "rollback $f zlyhal"; NAVRAT_OK=0; }
   elif [ -f "$PRED/$f.absent" ]; then

@@ -1,16 +1,16 @@
 [Unit]
-Description=Uvar.si meal plan worker
-After=network.target uvarsi.service
+Description=Uvar.si app
+After=network.target
 
 [Service]
 WorkingDirectory=/opt/uvarsi/app
 Environment=TZ=Europe/Bratislava
 Environment=UVARSI_URL=https://uvar.si
+Environment=UVARSI_LANDING_DATA=/var/lib/uvarsi/landing_data.json
 Environment=UVARSI_VERSION_FILE=/opt/uvarsi/VERSION
 EnvironmentFile=-/opt/uvarsi/uvarsi-recipe-engine.env
-ExecStart=/opt/uvarsi/venv/bin/python -u plan_worker.py
+ExecStart=/opt/uvarsi/venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8090
 Restart=always
-RestartSec=3
 
 [Install]
 WantedBy=multi-user.target

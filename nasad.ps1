@@ -90,6 +90,7 @@ WorkingDirectory=/opt/uvarsi/app
 Environment=UVARSI_URL=https://uvar.si
 Environment=UVARSI_LANDING_DATA=/var/lib/uvarsi/landing_data.json
 Environment=UVARSI_VERSION_FILE=/opt/uvarsi/VERSION
+EnvironmentFile=-/opt/uvarsi/uvarsi-recipe-engine.env
 ExecStart=/opt/uvarsi/venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8090
 Restart=always
 
@@ -137,6 +138,8 @@ $subory = @(
   @{ l = "$B\hetzner\dozorca.sh";       r = "/opt/uvarsi/dozorca.sh" },
   @{ l = "$B\hetzner\zaloha.sh";        r = "/opt/uvarsi/zaloha.sh" },
   @{ l = "$B\hetzner\uvarsi-deploy-state.sh"; r = "/opt/uvarsi/uvarsi-deploy-state.sh" },
+  @{ l = "$B\hetzner\recipe-engine-rollout.sh"; r = "/opt/uvarsi/recipe-engine-rollout.sh" },
+  @{ l = "$B\hetzner\recipe-engine.target"; r = "/opt/uvarsi/recipe-engine.target" },
   @{ l = "$B\hetzner\uvarsi-plan-worker.service"; r = "/etc/systemd/system/uvarsi-plan-worker.service" },
   @{ l = "$B\VERSION";                  r = "/opt/uvarsi/VERSION" },
   @{ l = "$B\index.html";               r = "/var/www/uvarsi/index.html" },
@@ -204,6 +207,30 @@ Ok "shell skripty maju LF konce riadkov"
 $svc | ssh jarvis "tr -d '\r' > /opt/uvarsi/releases/manual-stage/hetzner/uvarsi.service"
 Vyzaduj "staging systemd jednotky uvarsi zlyhal"
 
+$releasePreflight = @'
+set -eu
+STAGE=/opt/uvarsi/releases/manual-stage
+PY=/opt/uvarsi/venv/bin/python
+[ -x "$PY" ]
+cd "$STAGE"
+UVARSI_RECIPE_ENGINE=off PLATBY_ZAPNUTE=0 UVARSI_PAYMENTS_ENABLED=0 \
+  "$PY" -m app.library_gate >/dev/null
+rm -f /tmp/uvarsi-manual-recipe-smoke.json
+cd "$STAGE/app"
+UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$STAGE/VERSION" \
+  UVARSI_RECIPE_ENGINE=on PLATBY_ZAPNUTE=0 UVARSI_PAYMENTS_ENABLED=0 \
+  UVARSI_RECIPE_SMOKE_STATE=/tmp/uvarsi-manual-recipe-smoke.json \
+  "$PY" -m server --recipe-engine-smoke \
+  --state /tmp/uvarsi-manual-recipe-smoke.json >/dev/null
+rm -f /tmp/uvarsi-manual-recipe-smoke.json
+'@ -replace "`r`n", "`n"
+$releasePreflight | ssh jarvis "tr -d '\r' > /tmp/uvarsi_release_preflight.sh; bash /tmp/uvarsi_release_preflight.sh"
+Vyzaduj "receptovy library gate alebo izolovany smoke zlyhal pred prepnutim"
+Ok "receptovy katalog a izolovany smoke presli pred prepnutim"
+
+ssh jarvis "set -eu; if [ ! -f /opt/uvarsi/uvarsi-recipe-engine.env ]; then umask 077; printf 'UVARSI_RECIPE_ENGINE=off\n' > /opt/uvarsi/uvarsi-recipe-engine.env.tmp; chmod 600 /opt/uvarsi/uvarsi-recipe-engine.env.tmp; mv /opt/uvarsi/uvarsi-recipe-engine.env.tmp /opt/uvarsi/uvarsi-recipe-engine.env; fi"
+Vyzaduj "inicializacia receptoveho flagu zlyhala"
+
 $backup | ssh jarvis "tr -d '\r' > /tmp/uvarsi_backup.sh; bash /tmp/uvarsi_backup.sh"
 Vyzaduj "uplna zaloha Uvar.si suborov, jednotiek/stavov a heartbeat znacky zlyhala"
 Ok "vsetky menene Uvar.si subory a jednotky zalohovane"
@@ -219,7 +246,7 @@ uvarsi_install_manual_release "$STAGE" "$PRED"
 $install | ssh jarvis "tr -d '\r' > /tmp/uvarsi_install.sh; bash /tmp/uvarsi_install.sh"
 Vyzaduj "atomicka instalacia zo stagingu zlyhala"
 Ok "staging je kompletne nainstalovany"
-ssh jarvis "sed -i 's/\r//' /opt/uvarsi/dozorca.sh /opt/uvarsi/zaloha.sh /opt/uvarsi/uvarsi-deploy-state.sh; chmod +x /opt/uvarsi/dozorca.sh /opt/uvarsi/zaloha.sh /opt/uvarsi/uvarsi-deploy-state.sh"
+ssh jarvis "sed -i 's/\r//' /opt/uvarsi/dozorca.sh /opt/uvarsi/zaloha.sh /opt/uvarsi/uvarsi-deploy-state.sh /opt/uvarsi/recipe-engine-rollout.sh; chmod +x /opt/uvarsi/dozorca.sh /opt/uvarsi/zaloha.sh /opt/uvarsi/uvarsi-deploy-state.sh /opt/uvarsi/recipe-engine-rollout.sh"
 Vyzaduj "normalizacia nainstalovanych shell skriptov zlyhala"
 
 Krok "4/8  Python venv a zavislosti"
@@ -524,6 +551,10 @@ $stav | ForEach-Object { Write-Host "  $_" }
 if ($kodKontroly -ne 0) {
   Zlyhaj "kontrola po nasadeni nepresla - diagnostika na serveri: journalctl -u uvarsi -n 40 --no-pager"
 }
+
+ssh jarvis "nohup /opt/uvarsi/recipe-engine-rollout.sh >> /var/log/uvarsi-recipe-rollout.log 2>&1 </dev/null &"
+Vyzaduj "autonomny receptovy rollout sa nepodarilo spustit"
+Ok "autonomny receptovy rollout bezi na serveri"
 
 Write-Host "`nHOTOVO - vydanie $verzia." -ForegroundColor Green
 Write-Host "  Appka:   https://uvarsi.89.167.72.159.sslip.io/app"
