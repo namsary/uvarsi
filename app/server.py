@@ -941,7 +941,7 @@ def dnesok(dnes=None) -> str:
 
 def zajtrajsok(den=None) -> str:
     """Kedy sa denný strop obnoví. ISO dátum, aby si to appka nemusela rátať."""
-    zaklad = datetime.date.fromisoformat(den) if isinstance(den, str) else (den or datetime.date.today())
+    zaklad = datetime.date.fromisoformat(den) if isinstance(den, str) else (den or bratislava_day())
     return (zaklad + datetime.timedelta(days=1)).isoformat()
 
 
@@ -994,7 +994,7 @@ def vrat_prepocet(user_id, den):
 
 def sprava_o_limite(limit: int, premium: bool, dnes=None) -> str:
     """Nikdy holá chyba: povie koľko, prečo a odkedy to ide znova."""
-    zajtra = (dnes or datetime.date.today()) + datetime.timedelta(days=1)
+    zajtra = (dnes or bratislava_day()) + datetime.timedelta(days=1)
     kolko = "raz za deň" if limit == 1 else f"{limit}× za deň"
     text = (
         f"Nový jedálniček si môžeš dať poskladať {kolko} a dnešok už máš vyčerpaný."
@@ -3686,7 +3686,7 @@ def daj_plan(req: Request):
             except json.JSONDecodeError:
                 pass
         rows = measurable_offers(
-            offers_for_current_week(con, u["obchody"].split(","), datetime.date.today())
+            offers_for_current_week(con, u["obchody"].split(","), bratislava_day())
         )
         premium = je_premium(con, u["id"])
         stored_diet = ulozene_stravovanie(u)
@@ -3803,7 +3803,7 @@ def daj_plan(req: Request):
 
 @app.get("/api/akcie/pocet")
 def pocet_akcii():
-    today = datetime.date.today()
+    today = bratislava_day()
     with closing(db()) as con:
         rows = offers_for_current_week(con, ["Kaufland", "Tesco", "Lidl"], today)
     return {"tyzden": monday(today), "pocet": len(rows)}
@@ -3832,7 +3832,11 @@ _SMOKE_KEYS = {
 
 
 def _number(value):
-    return isinstance(value, (int, float)) and not isinstance(value, bool)
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
 
 
 def _load_recipe_smoke_state(path=None, *, now=None):
@@ -3880,7 +3884,8 @@ def _load_recipe_smoke_state(path=None, *, now=None):
         return None, "smoke_invalid"
     if age < -60 or age > RECIPE_SMOKE_MAX_AGE_SECONDS:
         return payload, "smoke_stale"
-    if payload["week"] != monday(current.date()) or payload["release"] != release_id():
+    if (payload["week"] != monday(bratislava_day(current))
+            or payload["release"] != release_id()):
         return payload, "smoke_stale"
     if not (
         payload["ok"]
@@ -3913,12 +3918,27 @@ def _complete_recipe_offers(con, today):
 
 def recipe_engine_health(con, *, today=None):
     """Public, aggregate-only readiness with stable machine blocker codes."""
-    today = today or datetime.date.today()
+    today = today or bratislava_day()
     mode = recipe_engine_mode()
-    blockers = []
     library_version = None
     active_templates = 0
     coverage = {value: 0 for value in ALLOWED_DIET_MODES}
+    # Vypnutý engine nie je kandidát na aktiváciu. Health endpoint musí zostať
+    # lacný aj počas prihlasovacej špičky; úplný katalógový gate robí release
+    # preflight a režimy shadow/on nižšie.
+    if mode == "off":
+        return {
+            "mode": mode,
+            "library_version": library_version,
+            "active_templates": active_templates,
+            "coverage": coverage,
+            "last_shadow": None,
+            "p95_ms": None,
+            "ready": True,
+            "blockers": [],
+        }
+
+    blockers = []
     try:
         ingredients = load_ingredient_catalog()
         recipes = load_recipe_catalog(ingredients)
@@ -3969,6 +3989,14 @@ def _smoke_counts(con):
     }
 
 
+def _readonly_database(path=None):
+    """Open the live SQLite file without migrations or any write capability."""
+    target = Path(path or DB).resolve()
+    con = sqlite3.connect(f"{target.as_uri()}?mode=ro", uri=True)
+    con.row_factory = sqlite3.Row
+    return con
+
+
 def _write_smoke_state(path, payload):
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -3997,16 +4025,13 @@ def _authenticated_isolated_recipe_smoke(rows, *, now):
     descriptor, isolated_name = tempfile.mkstemp(
         prefix="uvarsi-recipe-smoke-", suffix=".db"
     )
-    os.close(descriptor)
     isolated_path = Path(isolated_name)
-    try:
-        isolated_path.chmod(0o600)
-    except OSError:
-        pass
-
     production_db = DB
     client = None
     try:
+        os.close(descriptor)
+        descriptor = None
+        isolated_path.chmod(0o600)
         DB = str(isolated_path)
         _SCHEMA_HOTOVA.discard(DB)
         priprav_databazu(DB)
@@ -4085,10 +4110,11 @@ def _authenticated_isolated_recipe_smoke(rows, *, now):
         finally:
             DB = production_db
             _SCHEMA_HOTOVA.discard(str(isolated_path))
-            try:
-                isolated_path.unlink(missing_ok=True)
-            except OSError:
-                LOG.warning("temporary recipe-engine smoke database cleanup failed")
+            if descriptor is not None:
+                os.close(descriptor)
+            # Cleanup is part of the security contract. An undeleted database
+            # must invalidate the smoke instead of leaving passing evidence.
+            isolated_path.unlink(missing_ok=True)
 
 
 def run_recipe_engine_synthetic_smoke(*, state_path=None, now=None):
@@ -4107,7 +4133,7 @@ def run_recipe_engine_synthetic_smoke(*, state_path=None, now=None):
     isolated_costs_delta = 0
     payments_enabled = platby_su_zapnute()
     try:
-        with closing(db()) as con:
+        with closing(_readonly_database()) as con:
             production_before = _smoke_counts(con)
             rows, complete = _complete_recipe_offers(con, business_day)
         if payments_enabled:
@@ -4137,7 +4163,7 @@ def run_recipe_engine_synthetic_smoke(*, state_path=None, now=None):
         LOG.warning("local recipe-engine smoke failed")
         blockers.append("internal_error")
     finally:
-        with closing(db()) as con:
+        with closing(_readonly_database()) as con:
             production_after = _smoke_counts(con)
 
     latency_ms = round(max(0.0, (time.perf_counter() - started) * 1000), 3)
@@ -4198,7 +4224,7 @@ def health():
     Kým sú nenulové, niekto zaplatil a nedostal nič — a to sa nesmie dať
     prehliadnuť len preto, že sa majiteľ nemá ako prihlásiť na server.
     """
-    today = datetime.date.today()
+    today = bratislava_day()
     with closing(db()) as con:
         rows = offers_for_current_week(con, ["Kaufland", "Tesco", "Lidl"], today)
         utrata = naklady.stav(con)
@@ -4240,7 +4266,7 @@ def public_community(con) -> dict:
 def public_landing():
     try:
         payload = validate_landing_data(
-            load_landing_data(LANDING_DATA), datetime.date.today()
+            load_landing_data(LANDING_DATA), bratislava_day()
         )
     except (FileNotFoundError, ValueError):
         raise HTTPException(503, "Aktuálne letákové dáta sa obnovujú.")
@@ -4254,7 +4280,7 @@ def public_landing():
 
 
 def _weekly_public_page(today: datetime.date | None = None):
-    today = today or datetime.date.today()
+    today = today or bratislava_day()
     try:
         payload = load_landing_data(LANDING_DATA)
     except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError):
@@ -4295,7 +4321,7 @@ def robots_txt():
 
 @app.get("/sitemap.xml")
 def sitemap_xml():
-    today = datetime.date.today()
+    today = bratislava_day()
     weekly_page = _weekly_public_page(today)
     weekly_modified = weekly_page.last_modified if weekly_page.indexable else None
     xml = render_sitemap(today, weekly_modified)

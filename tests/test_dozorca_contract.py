@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -14,12 +15,55 @@ ROOT = Path(__file__).resolve().parents[1]
 BASH = Path("C:/Program Files/Git/bin/bash.exe")
 
 
+def health_json(plan_queue=None):
+    return json.dumps(
+        {
+            "plan_queue": plan_queue or {
+                "queued": 0,
+                "oldest_seconds": None,
+                "worker_alive": True,
+                "heartbeat_seconds": 1,
+                "heartbeat_at": "2026-08-28T16:10:20+00:00",
+                "last_ready": None,
+                "failed": 0,
+                "blocking_code": None,
+            },
+            "recipe_engine": {
+                "mode": "off",
+                "library_version": 1,
+                "active_templates": 60,
+                "coverage": {
+                    "standard": 60,
+                    "high_protein": 35,
+                    "vegetarian": 37,
+                    "vegan": 23,
+                },
+                "last_shadow": None,
+                "p95_ms": None,
+                "ready": True,
+                "blockers": [],
+            },
+        },
+        separators=(",", ":"),
+    )
+
+
 @pytest.fixture(autouse=True)
 def offline_queue_health(monkeypatch, tmp_path):
     """Existing Dozorca cases do not need a real local FastAPI service."""
-    monkeypatch.setenv("UVARSI_PLAN_QUEUE_HEALTH_URL", "http://127.0.0.1:9")
+    monkeypatch.setenv("UVARSI_PLAN_QUEUE_HEALTH_URL", "http://health.test/api/health")
+    monkeypatch.setenv("UVARSI_HEALTH_PY", bash_path(Path(sys.executable)))
+    monkeypatch.setenv("UVARSI_TEST_HEALTH", health_json())
     fake_curl = tmp_path / "curl"
-    fake_curl.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8", newline="\n")
+    fake_curl.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        "  *api/health*) printf '%s\\n' \"$UVARSI_TEST_HEALTH\" ;;\n"
+        "esac\n"
+        "exit 0\n",
+        encoding="utf-8",
+        newline="\n",
+    )
     fake_curl.chmod(0o755)
     monkeypatch.setenv("UVARSI_CURL", bash_path(fake_curl))
 
@@ -513,7 +557,10 @@ def test_dozorca_alerts_once_for_a_stalled_plan_queue_and_clears_after_recovery(
         "UVARSI_PLAN_QUEUE_HEALTH_URL": "http://queue.test/api/health",
         "UVARSI_CURL": bash_path(fake_curl),
         "UVARSI_HEALTH_PY": bash_path(Path(sys.executable)),
-        "UVARSI_TEST_HEALTH": '{"plan_queue":{"queued":1,"oldest_seconds":181,"worker_alive":false,"heartbeat_seconds":61,"heartbeat_at":"2026-08-28T16:10:20+00:00","last_ready":null,"failed":0,"blocking_code":"worker_heartbeat_stale"}}',
+        "UVARSI_TEST_HEALTH": health_json({"queued": 1, "oldest_seconds": 181,
+            "worker_alive": False, "heartbeat_seconds": 61,
+            "heartbeat_at": "2026-08-28T16:10:20+00:00", "last_ready": None,
+            "failed": 0, "blocking_code": "worker_heartbeat_stale"}),
         "PATH": f"{bash_path(tmp_path)}:/usr/bin",
     }
 
@@ -531,9 +578,13 @@ def test_dozorca_alerts_once_for_a_stalled_plan_queue_and_clears_after_recovery(
 
     original_marker = marker.read_text(encoding="utf-8")
     unknown_payloads = [
-        '{"plan_queue":{"worker_alive":true}}',
-        '{"plan_queue":{"queued":false,"oldest_seconds":null,"worker_alive":true,"heartbeat_seconds":1,"heartbeat_at":"2026-08-28T16:10:20+00:00","last_ready":null,"failed":0,"blocking_code":null}}',
-        '{"plan_queue":{"queued":0,"oldest_seconds":12,"worker_alive":true,"heartbeat_seconds":null,"heartbeat_at":"2026-08-28T16:10:20+00:00","last_ready":null,"failed":0,"blocking_code":null}}',
+        health_json({"worker_alive": True}),
+        health_json({"queued": False, "oldest_seconds": None, "worker_alive": True,
+            "heartbeat_seconds": 1, "heartbeat_at": "2026-08-28T16:10:20+00:00",
+            "last_ready": None, "failed": 0, "blocking_code": None}),
+        health_json({"queued": 0, "oldest_seconds": 12, "worker_alive": True,
+            "heartbeat_seconds": None, "heartbeat_at": "2026-08-28T16:10:20+00:00",
+            "last_ready": None, "failed": 0, "blocking_code": None}),
     ]
     for health in unknown_payloads:
         environment["UVARSI_TEST_HEALTH"] = health
@@ -547,7 +598,7 @@ def test_dozorca_alerts_once_for_a_stalled_plan_queue_and_clears_after_recovery(
         assert "UNKNOWN" in unknown.stdout
         assert notifications.read_text(encoding="utf-8").count("Uvar.si: fronta plánov") == 1
 
-    environment["UVARSI_TEST_HEALTH"] = '{"plan_queue":{"queued":0,"oldest_seconds":null,"worker_alive":true,"heartbeat_seconds":1,"heartbeat_at":"2026-08-28T16:10:20+00:00","last_ready":null,"failed":0,"blocking_code":null}}'
+    environment["UVARSI_TEST_HEALTH"] = health_json()
     recovered = subprocess.run(
         [str(BASH), bash_path(ROOT / "hetzner" / "dozorca.sh")],
         cwd=str(ROOT), env=environment, text=True, encoding="utf-8",
@@ -598,7 +649,10 @@ def test_dozorca_retries_http_500_queue_notification_then_suppresses_after_succe
         "UVARSI_PLAN_QUEUE_HEALTH_URL": "http://queue.test/api/health",
         "UVARSI_CURL": bash_path(fake_curl),
         "UVARSI_HEALTH_PY": bash_path(Path(sys.executable)),
-        "UVARSI_TEST_HEALTH": '{"plan_queue":{"queued":1,"oldest_seconds":181,"worker_alive":false,"heartbeat_seconds":61,"heartbeat_at":"2026-08-28T16:10:20+00:00","last_ready":null,"failed":0,"blocking_code":"worker_heartbeat_stale"}}',
+        "UVARSI_TEST_HEALTH": health_json({"queued": 1, "oldest_seconds": 181,
+            "worker_alive": False, "heartbeat_seconds": 61,
+            "heartbeat_at": "2026-08-28T16:10:20+00:00", "last_ready": None,
+            "failed": 0, "blocking_code": "worker_heartbeat_stale"}),
         "PATH": f"{bash_path(tmp_path)}:/usr/bin",
     }
     marker = tmp_path / ".plan_queue_alert_state"

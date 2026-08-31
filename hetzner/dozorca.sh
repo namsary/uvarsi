@@ -142,7 +142,7 @@ recipe_engine_alert() {
 
 recipe_engine_health_state() {
   printf '%s' "$HEALTH" | "$HEALTH_PY" -c '
-import json, sys
+import json, math, sys
 payload = json.load(sys.stdin)
 engine = payload.get("recipe_engine")
 if not isinstance(engine, dict): raise SystemExit(3)
@@ -151,7 +151,7 @@ if not required.issubset(engine): raise SystemExit(2)
 mode = engine["mode"]
 if mode not in {"off","shadow","on"}: raise SystemExit(2)
 integer = lambda value: isinstance(value, int) and not isinstance(value, bool)
-number = lambda value: isinstance(value, (int,float)) and not isinstance(value, bool)
+number = lambda value: isinstance(value, (int,float)) and not isinstance(value, bool) and math.isfinite(value)
 if engine["library_version"] is not None and not integer(engine["library_version"]): raise SystemExit(2)
 if not integer(engine["active_templates"]) or engine["active_templates"] < 0: raise SystemExit(2)
 coverage = engine["coverage"]

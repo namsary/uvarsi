@@ -9,6 +9,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 from app.landing_data import write_landing_data_atomic
 
 
@@ -271,6 +273,20 @@ def test_post_smoke_health_requires_on_mode_and_ready_together(tmp_path):
     assert result.returncode != 0
     assert calls.read_text(encoding="utf-8").count("--recipe-engine-smoke") == 1
     assert notifications.read_text(encoding="utf-8").count("Uvar.si: receptový engine") == 1
+
+
+@pytest.mark.parametrize("invalid", ["NaN", "Infinity", "-Infinity"])
+def test_non_finite_recipe_engine_health_fails_closed(tmp_path, invalid):
+    payload = _health("on", ready=True).replace('"p95_ms":null', f'"p95_ms":{invalid}')
+
+    result, calls, notifications = _run(tmp_path, [payload])
+
+    assert result.returncode != 0
+    recorded = calls.read_text(encoding="utf-8") if calls.exists() else ""
+    assert "--recipe-engine-smoke" not in recorded
+    assert notifications.read_text(encoding="utf-8").count(
+        "Uvar.si: receptový engine"
+    ) == 1
 
 
 def test_epoch_and_interval_payloads_are_rejected_without_evaluation(tmp_path):

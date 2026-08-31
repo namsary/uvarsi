@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import closing
 from datetime import date, datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -25,6 +26,10 @@ def _load(monkeypatch, tmp_path, *, mode="on", rows=None):
     monkeypatch.setenv("UVARSI_RECIPE_ENGINE", mode)
     monkeypatch.setenv("UVARSI_RECIPE_SMOKE_STATE", str(state))
     server = load_server(monkeypatch, tmp_path, _offer_rows() if rows is None else rows)
+    # Production is already migrated before the standalone guardian starts.
+    # The smoke itself must never use this writable migration path.
+    with closing(server.db()):
+        pass
     server.recipe_engine_mode.cache_clear()
     return server, state
 
@@ -55,7 +60,7 @@ def _write(path, payload):
 
 
 def _all_table_counts(server):
-    with closing(server.db()) as con:
+    with closing(sqlite3.connect(server.DB)) as con:
         tables = [
             row[0]
             for row in con.execute(
@@ -214,6 +219,7 @@ def test_local_synthetic_smoke_is_non_public_read_only_and_model_free(
 ):
     server, state = _load(monkeypatch, tmp_path)
     production_db = Path(server.DB)
+    production_digest = hashlib.sha256(production_db.read_bytes()).hexdigest()
     observed = []
 
     @server.app.middleware("http")
@@ -225,6 +231,7 @@ def test_local_synthetic_smoke_is_non_public_read_only_and_model_free(
                     {
                         "method": request.method,
                         "database": isolated_db,
+                        "mode": isolated_db.stat().st_mode & 0o777,
                         "has_session": bool(request.cookies.get(server.COOKIE)),
                         "users": con.execute(
                             "SELECT COUNT(*) FROM pouzivatelia"
@@ -251,6 +258,15 @@ def test_local_synthetic_smoke_is_non_public_read_only_and_model_free(
     monkeypatch.setitem(sys.modules, "anthropic", poison)
     monkeypatch.setitem(sys.modules, "openai", poison)
     before = _all_table_counts(server)
+    original_prepare = server.priprav_databazu
+
+    def isolated_prepare_only(path=None):
+        target = Path(path or server.DB)
+        if target == production_db:
+            raise AssertionError("synthetic smoke attempted a live database migration")
+        return original_prepare(path)
+
+    monkeypatch.setattr(server, "priprav_databazu", isolated_prepare_only)
 
     result = server.run_recipe_engine_synthetic_smoke(state_path=state)
 
@@ -269,15 +285,41 @@ def test_local_synthetic_smoke_is_non_public_read_only_and_model_free(
     assert all(item["offers"] >= server.MIN_OFFERS_FOR_PLAN for item in observed)
     assert observed[0]["database"] == observed[1]["database"]
     if os.name != "nt":
-        assert observed[0]["database"].stat().st_mode & 0o077 == 0
+        assert all(item["mode"] == 0o600 for item in observed)
     isolated_db = observed[0]["database"]
     assert not isolated_db.exists()
     after = _all_table_counts(server)
     assert after == before
+    assert hashlib.sha256(production_db.read_bytes()).hexdigest() == production_digest
     durable = state.read_text(encoding="utf-8")
     assert "@" not in durable
     assert "token" not in durable.casefold()
     assert "jedla" not in durable
+
+
+def test_synthetic_smoke_fails_when_temporary_database_cannot_be_deleted(
+    monkeypatch, tmp_path
+):
+    server, state = _load(monkeypatch, tmp_path)
+    original_unlink = server.Path.unlink
+    refused = []
+
+    def refuse_smoke_cleanup(path, *args, **kwargs):
+        if path.name.startswith("uvarsi-recipe-smoke-"):
+            refused.append(path)
+            raise OSError("cleanup refused")
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(server.Path, "unlink", refuse_smoke_cleanup)
+
+    result = server.run_recipe_engine_synthetic_smoke(state_path=state)
+
+    for path in refused:
+        original_unlink(path, missing_ok=True)
+
+    assert result["ok"] is False
+    assert result["http_status"] == 503
+    assert result["blockers"] == ["internal_error"]
 
 
 def test_synthetic_smoke_fails_closed_when_payments_are_enabled(monkeypatch, tmp_path):
