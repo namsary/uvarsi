@@ -549,22 +549,47 @@ def test_duplicate_fingerprint_cannot_be_bypassed_with_seasoning_keywords():
     assert "duplicate_fingerprint" in audit.errors
 
 
-def test_duplicate_fingerprint_accepts_distinct_names_and_process_structures():
+def test_duplicate_fingerprint_accepts_distinct_processes_with_same_action_sequence():
     ingredients = load_ingredient_catalog()
-    by_id = {recipe.id: recipe for recipe in _active_library()}
+    base = next(
+        recipe
+        for recipe in _active_library()
+        if recipe.id == "pan_chicken_rice_vegetables"
+    )
     recipes = tuple(
         replace(
-            by_id[recipe_id],
+            base,
+            id=f"same_sequence_{index}",
             family="shared_pan_process",
             name_template=name,
-        )
-        for recipe_id, name in (
-            ("pan_chicken_rice_vegetables", "Kuracie soté s {vegetable.name}"),
-            ("pan_chicken_pasta_tomato", "Kuracie ragú s {vegetable.name}"),
-            (
-                "pan_turkey_couscous_zucchini",
-                "Morčací pilaf s {vegetable.name}",
+            instructions=(
+                InstructionTemplate(
+                    "Pridaj {vegetable.name} ({vegetable.amount}) a 120 ml vody."
+                ),
+                InstructionTemplate(process_step),
+                InstructionTemplate(
+                    "Rozdeľ jedlo na {portions} porcií a podávaj ho teplé."
+                ),
             ),
+        )
+        for index, (name, process_step) in enumerate(
+            (
+                (
+                    "Kuracie v redukovanej zeleninovej šťave",
+                    "Dus 18 minút odkryté, kým sa zelenina rozvarí "
+                    "na hustú lesklú šťavu.",
+                ),
+                (
+                    "Kuracie v zamatovej krémovej omáčke",
+                    "Dus 18 minút na miernom ohni, kým vznikne "
+                    "jemná krémová omáčka.",
+                ),
+                (
+                    "Kuracie na pomaly dusenom základe",
+                    "Dus 18 minút pod pokrievkou, kým kúsky zmäknú "
+                    "a vytvoria šťavnatý základ.",
+                ),
+            )
         )
     )
 
@@ -573,31 +598,155 @@ def test_duplicate_fingerprint_accepts_distinct_names_and_process_structures():
     assert "duplicate_fingerprint" not in audit.errors
 
 
-def test_variant_audit_stops_before_cartesian_product_above_launch_schema(
-    monkeypatch,
-):
+def test_duplicate_fingerprint_rejects_cosmetic_names_and_minor_wording():
     ingredients = load_ingredient_catalog()
     base = next(
         recipe
         for recipe in _active_library()
         if recipe.id == "pan_chicken_rice_vegetables"
     )
-    protein = replace(
-        base.slots[0],
-        candidates=(
-            "chicken_breast",
-            "chicken_thigh",
-            "turkey_breast",
-            "pork_shoulder",
+    recipes = tuple(
+        replace(
+            base,
+            id=f"minor_wording_{index}",
+            name_template=f"{label} {base.name_template}",
+            instructions=(
+                InstructionTemplate(
+                    f"{base.instructions[0].text.rstrip('.')} {adverb}."
+                ),
+                *base.instructions[1:],
+            ),
+        )
+        for index, (label, adverb) in enumerate(
+            (
+                ("Kuracie ragú", "opatrne"),
+                ("Kuracie soté", "jemne"),
+                ("Kurací pilaf", "dôkladne"),
+            )
+        )
+    )
+
+    audit = audit_library(ingredients, recipes)
+
+    assert "duplicate_fingerprint" in audit.errors
+
+
+def test_duplicate_fingerprint_normalizes_substitutions_quantities_and_seasoning():
+    ingredients = load_ingredient_catalog()
+    base = next(
+        recipe
+        for recipe in _active_library()
+        if recipe.id == "pan_chicken_rice_vegetables"
+    )
+    variants = (
+        (
+            "Kuracie ragú",
+            "{vegetable.name} ({vegetable.amount})",
+            "cesnak",
+            "garlic",
+            "12 minút",
+        ),
+        ("Kuracie soté", "mrkvu (250 g)", "oregano", "oregano", "18 minút"),
+        (
+            "Kurací pilaf",
+            "cuketu (400 g)",
+            "mletú papriku",
+            "paprika_powder",
+            "24 minút",
         ),
     )
-    oversized = replace(base, slots=(protein, *base.slots[1:]))
+    recipes = tuple(
+        replace(
+            base,
+            id=f"normalized_cosmetic_{index}",
+            name_template=name,
+            pantry_basics=tuple(
+                dict.fromkeys((*base.pantry_basics, seasoning_id))
+            ),
+            instructions=(
+                InstructionTemplate(
+                    f"Pridaj {ingredient_text} a {seasoning_text}."
+                ),
+                InstructionTemplate(
+                    f"Dus {duration}, kým zmes zhustne na omáčku."
+                ),
+                InstructionTemplate(
+                    "Rozdeľ jedlo na {portions} porcií a podávaj ho teplé."
+                ),
+            ),
+        )
+        for index, (
+            name,
+            ingredient_text,
+            seasoning_text,
+            seasoning_id,
+            duration,
+        ) in enumerate(variants)
+    )
 
-    def cartesian_product_must_not_run(*args, **kwargs):
-        raise AssertionError("unbounded Cartesian product was reached")
+    audit = audit_library(ingredients, recipes)
 
-    monkeypatch.setattr(library_gate, "product", cartesian_product_must_not_run)
+    assert "duplicate_fingerprint" in audit.errors
 
-    audit = audit_library(ingredients, (oversized,))
 
-    assert "variant_limit_exceeded" in audit.errors
+def _recipe_with_candidate_counts(candidate_counts):
+    base = next(
+        recipe
+        for recipe in _active_library()
+        if recipe.id == "pan_chicken_rice_vegetables"
+    )
+    slots = tuple(
+        replace(
+            base.slots[0],
+            key=f"slot_{slot_index}",
+            candidates=tuple(
+                f"candidate_{slot_index}_{candidate_index}"
+                for candidate_index in range(candidate_count)
+            ),
+        )
+        for slot_index, candidate_count in enumerate(candidate_counts)
+    )
+    return replace(base, slots=slots)
+
+
+@pytest.mark.parametrize(
+    ("candidate_counts", "expected"),
+    (
+        ((1, 1, 1, 1, 1), 1),
+        ((4,), 4),
+        ((3, 3, 3, 3), 81),
+    ),
+)
+def test_variant_bound_accepts_any_shape_at_or_below_81(
+    candidate_counts,
+    expected,
+    monkeypatch,
+):
+    recipe = _recipe_with_candidate_counts(candidate_counts)
+    product_calls = []
+
+    def bounded_product(*candidate_groups):
+        product_calls.append(tuple(len(group) for group in candidate_groups))
+        return ()
+
+    monkeypatch.setattr(library_gate, "product", bounded_product)
+    errors = set()
+
+    assert library_gate._bounded_variant_count(recipe) == expected
+    library_gate._audit_recipe(load_ingredient_catalog(), recipe, errors)
+    assert product_calls == [candidate_counts]
+    assert "variant_limit_exceeded" not in errors
+
+
+def test_variant_bound_rejects_82_or_more_combinations(monkeypatch):
+    recipe = _recipe_with_candidate_counts((82,))
+
+    def unbounded_product_must_not_run(*candidate_groups):
+        raise AssertionError("Cartesian product above 81 was reached")
+
+    monkeypatch.setattr(library_gate, "product", unbounded_product_must_not_run)
+    errors = set()
+
+    assert library_gate._bounded_variant_count(recipe) is None
+    library_gate._audit_recipe(load_ingredient_catalog(), recipe, errors)
+    assert errors == {"variant_limit_exceeded"}

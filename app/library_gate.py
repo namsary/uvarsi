@@ -6,6 +6,7 @@ from collections.abc import Sequence as SequenceABC
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from decimal import Decimal
+from difflib import SequenceMatcher
 from itertools import product
 import re
 import unicodedata
@@ -60,30 +61,11 @@ _MINIMUM_ACTIVE_RECIPES = 60
 _MINIMUM_MODE_FAMILIES = 3
 _MINIMUM_MODE_METHODS = 3
 
-# The launch catalog schema permits at most four slots with at most three
-# candidates in each slot. The audit derives its hard Cartesian ceiling from
-# those two schema limits instead of trusting unbounded catalog input.
-_LAUNCH_MAX_SLOTS = 4
-_LAUNCH_MAX_CANDIDATES_PER_SLOT = 3
-_MAX_AUDITED_VARIANTS = _LAUNCH_MAX_CANDIDATES_PER_SLOT**_LAUNCH_MAX_SLOTS
-
-_ACTION_PATTERNS = (
-    ("rinse", re.compile(r"\b(?:preplach\w*|oplach\w*|sced\w*)\b")),
-    ("cut", re.compile(r"\bnakraj\w*\b")),
-    ("boil", re.compile(r"\b(?:uvar\w*|var)\b")),
-    ("simmer", re.compile(r"\bdus\w*\b")),
-    ("fry", re.compile(r"\b(?:opek\w*|opraz\w*|restuj\w*)\b")),
-    ("bake", re.compile(r"\b(?:pec\w*|zapec\w*)\b")),
-    ("blend", re.compile(r"\brozmix\w*\b")),
-    ("add", re.compile(r"\b(?:pridaj\w*|prisyp\w*|prilej\w*|vloz\w*)\b")),
-    ("mix", re.compile(r"\b(?:premiesaj\w*|spoj\w*)\b")),
-    ("rest", re.compile(r"\bnechaj\w*\b")),
-    ("reduce", re.compile(r"\bredukuj\w*\b")),
-    ("thicken", re.compile(r"\bzahusti\w*\b")),
-    ("marinate", re.compile(r"\bmarinuj\w*\b")),
-    ("coat", re.compile(r"\bobal\w*\b")),
-    ("store", re.compile(r"\b(?:uchovaj\w*|ochlad\w*)\b")),
-    ("serve", _SERVING_ACTION),
+_MAX_AUDITED_VARIANTS = 81
+_MAX_NAME_SIMILARITY = 0.82
+_MAX_INSTRUCTION_SIMILARITY = 0.82
+_QUANTITY = re.compile(
+    r"\b\d+(?:[.,]\d+)?(?:\s*(?:g|kg|ml|l|ks|kus\w*|min\w*))?\b"
 )
 _NAME_STOPWORDS = frozenset(
     {
@@ -308,38 +290,77 @@ def _normalized_name(
     ingredients: IngredientCatalog,
     recipe: RecipeTemplate,
 ) -> tuple[str, ...]:
-    text = _fold(recipe.name_template)
+    return tuple(
+        token
+        for token in _normalized_culinary_tokens(
+            ingredients,
+            recipe.name_template,
+        )
+        if token not in _NAME_STOPWORDS | {"ingredient", "quantity"}
+    )
+
+
+def _normalized_culinary_tokens(
+    ingredients: IngredientCatalog,
+    value: str,
+) -> tuple[str, ...]:
+    text = _fold(value)
+    text = re.sub(r"\{portions\}|\{[^{}]+\.amount\}", " quantity ", text)
     text = re.sub(r"\{[^{}]+\}", " ingredient ", text)
-    text = re.sub(r"\d+(?:[.,]\d+)?", " quantity ", text)
+    text = _QUANTITY.sub(" quantity ", text)
     for pattern in _seasoning_patterns(ingredients):
         text = pattern.sub(" ", text)
+
     ingredient_roots = _ingredient_roots(ingredients)
-    tokens = []
+    tokens: list[str] = []
     for token in re.findall(r"\w+", text):
-        if token in _NAME_STOPWORDS:
-            continue
-        if any(token.startswith(root) for root in ingredient_roots):
-            tokens.append("ingredient")
-        else:
-            tokens.append(token)
-    collapsed = []
-    for token in tokens:
-        if token != "ingredient" or not collapsed or collapsed[-1] != token:
-            collapsed.append(token)
-    return tuple(collapsed)
+        normalized = (
+            "ingredient"
+            if any(token.startswith(root) for root in ingredient_roots)
+            else token
+        )
+        if normalized not in {"g", "kg", "ml", "l"}:
+            tokens.append(normalized)
+
+    return tuple(
+        token
+        for index, token in enumerate(tokens)
+        if index == 0 or token != tokens[index - 1]
+    )
 
 
-def _process_structure(recipe: RecipeTemplate) -> tuple[tuple[str, ...], ...]:
-    structure = []
+def _normalized_instruction_snapshot(
+    ingredients: IngredientCatalog,
+    recipe: RecipeTemplate,
+) -> tuple[str, ...]:
+    snapshot: list[str] = []
     for step in recipe.instructions:
-        folded = _fold(step.text)
-        actions = []
-        for label, pattern in _ACTION_PATTERNS:
-            actions.extend((match.start(), label) for match in pattern.finditer(folded))
-        ordered = tuple(label for _, label in sorted(actions))
-        if ordered:
-            structure.append(ordered)
-    return tuple(structure)
+        tokens = _normalized_culinary_tokens(ingredients, step.text)
+        if tokens:
+            if snapshot:
+                snapshot.append("step")
+            snapshot.extend(tokens)
+    return tuple(snapshot)
+
+
+def _all_pairs_materially_distinct(
+    values: Sequence[Sequence[str]],
+    *,
+    maximum_similarity: float,
+) -> bool:
+    if any(not value for value in values):
+        return False
+    for index, left in enumerate(values):
+        for right in values[index + 1 :]:
+            similarity = SequenceMatcher(
+                None,
+                tuple(left),
+                tuple(right),
+                autojunk=False,
+            ).ratio()
+            if similarity > maximum_similarity:
+                return False
+    return True
 
 
 def _audit_duplicates(
@@ -358,13 +379,19 @@ def _audit_duplicates(
     for group in groups.values():
         if len(group) <= 2:
             continue
-        normalized_names = {_normalized_name(ingredients, recipe) for recipe in group}
-        process_structures = {_process_structure(recipe) for recipe in group}
-        if (
-            () in normalized_names
-            or len(normalized_names) != len(group)
-            or () in process_structures
-            or len(process_structures) != len(group)
+        normalized_names = [
+            _normalized_name(ingredients, recipe) for recipe in group
+        ]
+        instruction_snapshots = [
+            _normalized_instruction_snapshot(ingredients, recipe)
+            for recipe in group
+        ]
+        if not _all_pairs_materially_distinct(
+            normalized_names,
+            maximum_similarity=_MAX_NAME_SIMILARITY,
+        ) or not _all_pairs_materially_distinct(
+            instruction_snapshots,
+            maximum_similarity=_MAX_INSTRUCTION_SIMILARITY,
         ):
             errors.add("duplicate_fingerprint")
 
@@ -486,17 +513,15 @@ def _raw_seasoning_errors(
     return set()
 
 
-def _variant_count_within_launch_schema(recipe: RecipeTemplate) -> int | None:
-    if len(recipe.slots) > _LAUNCH_MAX_SLOTS:
-        return None
+def _bounded_variant_count(recipe: RecipeTemplate) -> int | None:
     count = 1
     for slot in recipe.slots:
         candidate_count = len(slot.candidates)
-        if candidate_count > _LAUNCH_MAX_CANDIDATES_PER_SLOT:
+        if candidate_count <= 0:
+            return None
+        if count > _MAX_AUDITED_VARIANTS // candidate_count:
             return None
         count *= candidate_count
-        if count > _MAX_AUDITED_VARIANTS:
-            return None
     return count
 
 
@@ -530,7 +555,7 @@ def _audit_recipe(
     recipe: RecipeTemplate,
     errors: set[str],
 ) -> None:
-    if _variant_count_within_launch_schema(recipe) is None:
+    if _bounded_variant_count(recipe) is None:
         errors.add("variant_limit_exceeded")
         return
     try:
