@@ -227,3 +227,65 @@ def test_converts_compatible_package_to_the_exact_recipe_unit_before_buying():
     assert milk["potrebna_jednotka"] == "ml"
     assert milk["cena"] == "1,19"
     assert milk["zostava"] == "700 ml"
+
+
+def test_aggregates_compatible_recipe_units_before_pantry_and_package_rounding():
+    offer = _milk_offer()
+
+    result = recipe_renderer.build_shopping_list(
+        [
+            _meal("300", offer, unit="ml", role="dairy"),
+            _meal("200", offer, unit="g", role="dairy"),
+        ],
+        [],
+    )
+
+    milk = result[0]["polozky"][0]
+    assert milk["potrebne"] == "500"
+    assert milk["potrebna_jednotka"] == "ml"
+    assert milk["mnozstvo"] == 1
+    assert milk["cena"] == "1,19"
+    assert milk["povodna"] == "1,49"
+    assert milk["zostava"] == "500 ml"
+
+
+def test_one_pantry_pool_is_consumed_once_in_returned_row_order():
+    first_lidl = replace(
+        _rice_offer(package="500", sale="0.80", original="1.00"),
+        offer_key="offer_rice_lidl_first",
+        product_name="Ryža Lidl prvá",
+    )
+    tesco = replace(
+        _rice_offer(package="500", sale="1.20", original="1.50"),
+        offer_key="offer_rice_tesco",
+        store="Tesco",
+        product_name="Ryža Tesco",
+    )
+    second_lidl = replace(
+        _rice_offer(package="500", sale="0.80", original="1.00"),
+        offer_key="offer_rice_lidl_second",
+        product_name="Ryža Lidl druhá",
+    )
+
+    result = recipe_renderer.build_shopping_list(
+        [
+            _meal("300", first_lidl),
+            _meal("300", tesco),
+            _meal("700", second_lidl),
+        ],
+        [PantryEntry("rice", "ryža", Quantity(Decimal("500"), "g"))],
+    )
+
+    rows = [item for group in result for item in group["polozky"]]
+    assert [row["offer_key"] for row in rows] == [
+        "offer_rice_lidl_first",
+        "offer_rice_lidl_second",
+        "offer_rice_tesco",
+    ]
+    assert [row["mnozstvo"] for row in rows] == [0, 1, 1]
+    assert [row["cena"] for row in rows] == ["0,00", "0,80", "1,20"]
+    assert [row["povodna"] for row in rows] == ["0,00", "1,00", "1,50"]
+    assert [row["zostava"] for row in rows] == ["0 g", "0 g", "200 g"]
+    assert sum(row["mnozstvo"] for row in rows) == 2
+    assert sum(Decimal(row["cena"].replace(",", ".")) for row in rows) == Decimal("2.00")
+    assert all(row["mnozstvo"] >= 0 for row in rows)

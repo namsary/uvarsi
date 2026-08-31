@@ -982,6 +982,7 @@ def build_shopping_list(
         entry.ingredient_id for entry in pantry if entry.quantity is None
     }
     purchases: dict[tuple[object, ...], tuple[RenderedIngredient, Quantity]] = {}
+    purchase_keys_by_store: dict[str, list[tuple[object, ...]]] = {}
     ingredients: dict[str, Ingredient] = {}
     for meal in rendered_meals:
         for rendered in meal.ingredients:
@@ -989,20 +990,24 @@ def build_shopping_list(
             if offer is None:
                 continue
             ingredients[rendered.ingredient.id] = rendered.ingredient
-            key = (offer.offer_key, offer.package)
+            required_grams = _quantity_in_unit(
+                rendered.quantity, "g", rendered.ingredient
+            )
+            if required_grams is None:
+                raise ValueError(
+                    "Receptová dávka nemá jednotku kompatibilnú so surovinou."
+                )
+            key = (offer.offer_key, offer.package, rendered.ingredient.id)
             current = purchases.get(key)
             if current is None:
-                purchases[key] = (rendered, rendered.quantity)
+                purchases[key] = (rendered, required_grams)
+                purchase_keys_by_store.setdefault(offer.store, []).append(key)
                 continue
-            if current[1].unit != rendered.quantity.unit:
-                raise ValueError(
-                    "Rovnaké balenie má nekompatibilné jednotky receptovej dávky."
-                )
             purchases[key] = (
                 current[0],
                 Quantity(
-                    _add_exact(current[1].amount, rendered.quantity.amount),
-                    current[1].unit,
+                    _add_exact(current[1].amount, required_grams.amount),
+                    "g",
                 ),
             )
 
@@ -1020,80 +1025,88 @@ def build_shopping_list(
         )
 
     groups: dict[str, list[dict]] = {}
-    for rendered, required in purchases.values():
-        offer = rendered.offer
-        ingredient_id = rendered.ingredient.id
-        available = _quantity_in_unit(
-            Quantity(pantry_balances.get(ingredient_id, Decimal("0")), "g"),
-            required.unit,
-            rendered.ingredient,
-        )
-        if available is None:
-            available = Quantity(Decimal("0"), required.unit)
-        package_content = _quantity_in_unit(
-            offer.package.content, required.unit, rendered.ingredient
-        )
-        if package_content is None:
-            raise ValueError(
-                "Balenie ponuky nemá jednotku kompatibilnú s receptovou dávkou."
+    for keys in purchase_keys_by_store.values():
+        for key in keys:
+            rendered, required_grams = purchases[key]
+            offer = rendered.offer
+            ingredient_id = rendered.ingredient.id
+            available_grams = Quantity(
+                pantry_balances.get(ingredient_id, Decimal("0")), "g"
             )
-        requirement = purchase_requirement(
-            required,
-            available,
-            PackageSize(package_content),
-        )
-        used_grams = _quantity_in_unit(
-            requirement.used_from_pantry, "g", rendered.ingredient
-        )
-        if used_grams is not None:
+            package_grams = _quantity_in_unit(
+                offer.package.content, "g", rendered.ingredient
+            )
+            if package_grams is None:
+                raise ValueError(
+                    "Balenie ponuky nemá jednotku kompatibilnú s receptovou dávkou."
+                )
+            requirement = purchase_requirement(
+                required_grams,
+                available_grams,
+                PackageSize(package_grams),
+            )
             pantry_balances[ingredient_id] = _add_exact(
                 pantry_balances.get(ingredient_id, Decimal("0")),
-                -used_grams.amount,
+                -requirement.used_from_pantry.amount,
             )
-        total_price = _multiply_exact(
-            offer.sale_price, Decimal(requirement.packages)
-        )
-        original_price = (
-            None
-            if offer.original_price is None
-            else _multiply_exact(
-                offer.original_price, Decimal(requirement.packages)
+            display_required = _quantity_in_unit(
+                requirement.required,
+                rendered.quantity.unit,
+                rendered.ingredient,
             )
-        )
-        groups.setdefault(offer.store, []).append(
-            {
-                "offer_key": offer.offer_key,
-                "nazov": offer.product_name,
-                "obchod": offer.store,
-                "jednotka": _display_amount(offer.package.content),
-                "mnozstvo": requirement.packages,
-                "cena": _money_text(total_price),
-                "povodna": (
-                    None
-                    if original_price is None
-                    else _money_text(original_price)
-                ),
-                "potrebne": _decimal_text(requirement.required.amount),
-                "potrebna_jednotka": (
-                    "ks"
-                    if requirement.required.unit == "piece"
-                    else requirement.required.unit
-                ),
-                "cena_za_balenie": _money_text(offer.sale_price),
-                "povodna_za_balenie": (
-                    None
-                    if offer.original_price is None
-                    else _money_text(offer.original_price)
-                ),
-                "zostava": _quantity_text(requirement.leftover),
-                "source_url": offer.source_url,
-                **(
-                    {"mnozstvo_nezname": True}
-                    if rendered.ingredient.id in unknown_pantry
-                    else {}
-                ),
-            }
-        )
+            display_leftover = _quantity_in_unit(
+                requirement.leftover,
+                rendered.quantity.unit,
+                rendered.ingredient,
+            )
+            if display_required is None or display_leftover is None:
+                raise ValueError(
+                    "Výsledok nákupu nemá jednotku kompatibilnú s receptovou dávkou."
+                )
+            total_price = _multiply_exact(
+                offer.sale_price, Decimal(requirement.packages)
+            )
+            original_price = (
+                None
+                if offer.original_price is None
+                else _multiply_exact(
+                    offer.original_price, Decimal(requirement.packages)
+                )
+            )
+            groups.setdefault(offer.store, []).append(
+                {
+                    "offer_key": offer.offer_key,
+                    "nazov": offer.product_name,
+                    "obchod": offer.store,
+                    "jednotka": _display_amount(offer.package.content),
+                    "mnozstvo": requirement.packages,
+                    "cena": _money_text(total_price),
+                    "povodna": (
+                        None
+                        if original_price is None
+                        else _money_text(original_price)
+                    ),
+                    "potrebne": _decimal_text(display_required.amount),
+                    "potrebna_jednotka": (
+                        "ks"
+                        if display_required.unit == "piece"
+                        else display_required.unit
+                    ),
+                    "cena_za_balenie": _money_text(offer.sale_price),
+                    "povodna_za_balenie": (
+                        None
+                        if offer.original_price is None
+                        else _money_text(offer.original_price)
+                    ),
+                    "zostava": _quantity_text(display_leftover),
+                    "source_url": offer.source_url,
+                    **(
+                        {"mnozstvo_nezname": True}
+                        if rendered.ingredient.id in unknown_pantry
+                        else {}
+                    ),
+                }
+            )
     return [
         {"obchod": store, "polozky": items}
         for store, items in groups.items()
