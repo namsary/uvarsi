@@ -886,6 +886,16 @@ def _validate_rendered_language(
     validate_recipe_language(name, list(instructions))
 
 
+@lru_cache(maxsize=4096)
+def _validate_rendered_language_cached(
+    name: str,
+    instructions: tuple[str, ...],
+    rendered: tuple[RenderedIngredient, ...],
+    pantry_ids: tuple[str, ...],
+) -> None:
+    _validate_rendered_language(name, instructions, rendered, pantry_ids)
+
+
 def render_meal(
     candidate: RecipeCandidate,
     *,
@@ -945,12 +955,12 @@ def render_meal(
         )
         for instruction in candidate.template.instructions
     )
-    _validate_rendered_language(
-        name,
-        instructions,
-        rendered,
-        candidate.template.pantry_basics,
-    )
+    pantry_ids = tuple(candidate.template.pantry_basics)
+    try:
+        _validate_rendered_language_cached(name, instructions, rendered, pantry_ids)
+    except TypeError:
+        # Keep accepting callers that construct Sequence fields with lists.
+        _validate_rendered_language(name, instructions, rendered, pantry_ids)
 
     return RenderedMeal(
         template_id=candidate.template.id,

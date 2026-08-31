@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from functools import lru_cache
 from typing import Iterable, Mapping, Sequence
 
 from .ingredient_catalog import Ingredient, IngredientCatalog, normalize_name
@@ -25,13 +26,23 @@ class MatchedOffer:
     source_url: str
 
 
-def _contains_token_sequence(
-    product_tokens: tuple[str, ...], alias_tokens: tuple[str, ...]
-) -> bool:
-    width = len(alias_tokens)
-    return any(
-        product_tokens[start : start + width] == alias_tokens
-        for start in range(len(product_tokens) - width + 1)
+@lru_cache(maxsize=8)
+def _alias_token_index(
+    catalog: IngredientCatalog,
+) -> tuple[dict[tuple[str, ...], tuple[str, ...]], int]:
+    """Index immutable catalog aliases once instead of rescanning them per row."""
+    aliases: dict[tuple[str, ...], set[str]] = {}
+    maximum_width = 0
+    for item in catalog.all():
+        for alias in (item.name, *item.synonyms):
+            alias_tokens = tuple(normalize_name(alias).split())
+            if not alias_tokens:
+                continue
+            aliases.setdefault(alias_tokens, set()).add(item.id)
+            maximum_width = max(maximum_width, len(alias_tokens))
+    return (
+        {tokens: tuple(sorted(ids)) for tokens, ids in aliases.items()},
+        maximum_width,
     )
 
 
@@ -39,28 +50,25 @@ def _match_ingredient(
     product_name: str, catalog: IngredientCatalog
 ) -> Ingredient | None:
     product_tokens = tuple(normalize_name(product_name).split())
+    aliases, maximum_width = _alias_token_index(catalog)
     longest = 0
-    candidates: dict[str, Ingredient] = {}
+    candidates: set[str] = set()
 
-    for item in catalog.all():
-        for alias in (item.name, *item.synonyms):
-            alias_tokens = tuple(normalize_name(alias).split())
-            if len(alias_tokens) < longest or not _contains_token_sequence(
-                product_tokens, alias_tokens
-            ):
+    for width in range(1, min(maximum_width, len(product_tokens)) + 1):
+        if width < longest:
+            continue
+        for start in range(len(product_tokens) - width + 1):
+            ingredient_ids = aliases.get(product_tokens[start : start + width])
+            if not ingredient_ids:
                 continue
-            resolved = catalog.resolve(alias)
-            if resolved is None:
-                continue
-            if len(alias_tokens) > longest:
-                longest = len(alias_tokens)
-                candidates = {resolved.id: resolved}
-            else:
-                candidates[resolved.id] = resolved
+            if width > longest:
+                longest = width
+                candidates.clear()
+            candidates.update(ingredient_ids)
 
     if len(candidates) != 1:
         return None
-    return next(iter(candidates.values()))
+    return catalog.by_id(next(iter(candidates)))
 
 
 def _package_is_compatible(package: PackageSize, ingredient: Ingredient) -> bool:
@@ -72,38 +80,71 @@ def _package_is_compatible(package: PackageSize, ingredient: Ingredient) -> bool
     )
 
 
+def _matched_offer_from_values(
+    catalog: IngredientCatalog,
+    offer_key,
+    store,
+    product_name,
+    unit,
+    sale_price,
+    original_price,
+    valid_from,
+    valid_to,
+    source_url,
+) -> MatchedOffer | None:
+    ingredient = _match_ingredient(product_name, catalog)
+    if ingredient is None:
+        return None
+    try:
+        package = PackageSize(parse_quantity(unit))
+    except (TypeError, ValueError):
+        return None
+    if not _package_is_compatible(package, ingredient):
+        return None
+    return MatchedOffer(
+        offer_key=offer_key,
+        store=store,
+        product_name=product_name,
+        ingredient=ingredient,
+        package=package,
+        sale_price=Decimal(str(sale_price)),
+        original_price=(
+            None if original_price is None else Decimal(str(original_price))
+        ),
+        valid_from=date.fromisoformat(valid_from),
+        valid_to=date.fromisoformat(valid_to),
+        source_url=source_url,
+    )
+
+
+@lru_cache(maxsize=4096)
+def _matched_offer_from_hashable_values(*values) -> MatchedOffer | None:
+    return _matched_offer_from_values(*values)
+
+
 def match_offers(
     rows: Iterable[Mapping[str, object]], catalog: IngredientCatalog
 ) -> Sequence[MatchedOffer]:
     matched = []
     for row in rows:
-        ingredient = _match_ingredient(row["nazov"], catalog)
-        if ingredient is None:
-            continue
-        try:
-            package = PackageSize(parse_quantity(row["jednotka"]))
-        except (TypeError, ValueError):
-            continue
-        if not _package_is_compatible(package, ingredient):
-            continue
-
-        original_price = row["povodna"]
-        matched.append(
-            MatchedOffer(
-                offer_key=row["offer_key"],
-                store=row["obchod"],
-                product_name=row["nazov"],
-                ingredient=ingredient,
-                package=package,
-                sale_price=Decimal(str(row["cena"])),
-                original_price=(
-                    None
-                    if original_price is None
-                    else Decimal(str(original_price))
-                ),
-                valid_from=date.fromisoformat(row["valid_from"]),
-                valid_to=date.fromisoformat(row["valid_to"]),
-                source_url=row["source_url"],
-            )
+        values = (
+            catalog,
+            row["offer_key"],
+            row["obchod"],
+            row["nazov"],
+            row["jednotka"],
+            row["cena"],
+            row["povodna"],
+            row["valid_from"],
+            row["valid_to"],
+            row["source_url"],
         )
+        try:
+            hash(values)
+        except TypeError:
+            offer = _matched_offer_from_values(*values)
+        else:
+            offer = _matched_offer_from_hashable_values(*values)
+        if offer is not None:
+            matched.append(offer)
     return tuple(matched)
