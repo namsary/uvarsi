@@ -63,6 +63,15 @@ def _match_ingredient(
     return next(iter(candidates.values()))
 
 
+def _package_is_compatible(package: PackageSize, ingredient: Ingredient) -> bool:
+    unit = package.content.unit
+    return (
+        unit == "g"
+        or unit == "ml" and ingredient.density_g_per_ml is not None
+        or unit == "piece" and ingredient.grams_per_piece is not None
+    )
+
+
 def match_offers(
     rows: Iterable[Mapping[str, object]], catalog: IngredientCatalog
 ) -> Sequence[MatchedOffer]:
@@ -74,6 +83,8 @@ def match_offers(
         try:
             package = PackageSize(parse_quantity(row["jednotka"]))
         except (TypeError, ValueError):
+            continue
+        if not _package_is_compatible(package, ingredient):
             continue
 
         original_price = row["povodna"]

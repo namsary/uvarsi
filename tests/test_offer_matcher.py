@@ -92,3 +92,25 @@ def test_alias_must_be_a_complete_normalized_token_sequence(catalog):
 @pytest.mark.parametrize("package", ["1 lb", "0 g"])
 def test_rejects_packages_quantity_math_cannot_convert(catalog, package):
     assert match_offers([offer(jednotka=package)], catalog) == ()
+
+
+@pytest.mark.parametrize("package", ["250 ml", "1 piece"])
+def test_rejects_supported_dimensions_without_ingredient_conversion(catalog, package):
+    assert match_offers([offer(jednotka=package)], catalog) == ()
+
+
+@pytest.mark.parametrize(
+    ("product_name", "package", "ingredient_id"),
+    [
+        ("Plnotučné mlieko Rajo 250 ml", "250 ml", "milk"),
+        ("Vajcia M 6 piece", "6 piece", "egg"),
+    ],
+)
+def test_accepts_dimensions_with_ingredient_conversion_metadata(
+    catalog, product_name, package, ingredient_id
+):
+    matched = match_offers(
+        [offer(nazov=product_name, jednotka=package)], catalog
+    )
+
+    assert matched[0].ingredient.id == ingredient_id
