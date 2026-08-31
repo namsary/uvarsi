@@ -236,6 +236,10 @@ _ADDITION_DESTINATION_MARKERS = (
 _FOLLOW_UP_TARGET = re.compile(
     r"(?:obsah\s+(?:hrnc\w*|panvic\w*|pekac\w*)|zmes|jedlo|ich|ju|ho)"
 )
+_FOLLOW_UP_ACTION_CONTEXT = re.compile(
+    r"(?:na\s+(?:miernom|strednom|silnom|nizkom|vysokom)\s+ohni\b|"
+    r"pri\s+\d+\s*°\s*c\b|do\s+(?:prudkeho\s+)?varu\b)"
+)
 _PREHEAT_READY = re.compile(r"\b(?:kontrolk\w*|dosiahn\w*|nahriat\w*|signal\w*)\b")
 
 
@@ -536,18 +540,23 @@ def _validate_measured_ingredient_mentions(
         )
 
 
-def _starts_controlled_follow_up(value: str) -> bool:
+def _controlled_follow_up_payload(value: str) -> str | None:
     words = value.split()
     for index, word in enumerate(words):
         if word not in _FOLDED_IMPERATIVES:
             continue
         prefix = " ".join(words[:index])
-        return (
+        if (
             not prefix
             or prefix == "potom"
             or _FOLLOW_UP_TARGET.fullmatch(prefix) is not None
-        )
-    return False
+        ):
+            return " ".join(words[index + 1 :])
+    return None
+
+
+def _starts_controlled_follow_up(value: str) -> bool:
+    return _controlled_follow_up_payload(value) is not None
 
 
 def _marker_at(words: Sequence[str], index: int) -> tuple[str, int] | None:
@@ -628,6 +637,40 @@ def _is_allowed_destination(
     )
 
 
+def _validate_follow_up_payload(
+    value: str,
+    allowed_patterns: Sequence[re.Pattern[str]],
+    allowed_cuts: frozenset[str],
+) -> None:
+    payload = _controlled_follow_up_payload(value)
+    if payload is None:
+        raise ValueError("Následný pokyn nemá podporovaný riadený tvar.")
+    controlled_target = _FOLLOW_UP_TARGET.match(payload)
+    target_context = None
+    if controlled_target is not None and (
+        controlled_target.end() == len(payload)
+        or payload[controlled_target.end()].isspace()
+    ):
+        target_context = payload[controlled_target.end() :].lstrip()
+    if (
+        not payload
+        or _FOLLOW_UP_ACTION_CONTEXT.match(payload) is not None
+        or (
+            target_context is not None
+            and (
+                not target_context
+                or _TIME.match(target_context) is not None
+                or _FOLLOW_UP_ACTION_CONTEXT.match(target_context) is not None
+            )
+        )
+        or _is_allowed_ingredient_phrase(payload, allowed_patterns, allowed_cuts)
+    ):
+        return
+    raise ValueError(
+        "Použitá surovina je v následnom pokyne, ale chýba v zozname surovín."
+    )
+
+
 def _validate_ingredient_introductions(
     folded_steps: str,
     rendered: Sequence[RenderedIngredient],
@@ -659,6 +702,12 @@ def _validate_ingredient_introductions(
         ):
             raise ValueError(
                 "Cieľ pridania musí byť nádoba alebo surovina zo zoznamu."
+            )
+        if parsed.follow_up is not None:
+            _validate_follow_up_payload(
+                parsed.follow_up,
+                allowed_patterns,
+                allowed_cuts,
             )
 
     for action in _INGREDIENT_TARGET_START.finditer(folded_steps):
