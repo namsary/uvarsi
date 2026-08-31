@@ -108,6 +108,23 @@ _QUANTITY_NAMES: Mapping[str, str] = {
     "oil": "oleja",
     "salt": "soli",
     "black_pepper": "čierneho korenia",
+    "turkey_breast": "morčacích pŕs",
+    "white_fish": "filetu z bielej ryby",
+    "bell_pepper": "papriky",
+    "spinach": "špenátu",
+    "peas": "zeleného hrášku",
+    "couscous": "kuskusu",
+    "barley": "jačmenných krúp",
+    "feta": "syra feta",
+    "beans": "červenej fazule",
+    "coconut_milk": "kokosovej smotany",
+    "paprika_powder": "mletej papriky",
+    "curry_powder": "karí korenia",
+    "oregano": "sušeného oregana",
+    "egg_noodles": "vaječných rezancov",
+    "mushrooms": "bielych šampiňónov",
+    "plain_yogurt": "bieleho plnotučného jogurtu",
+    "tuna": "tuniaka vo vlastnej šťave",
 }
 
 _EXTRA_INGREDIENT_FORMS: Mapping[str, tuple[str, ...]] = {

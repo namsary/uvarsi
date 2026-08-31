@@ -7,7 +7,7 @@ from app.ingredient_catalog import load_ingredient_catalog
 from app.quantity_math import Quantity
 from app.recipe_catalog import IngredientSlot, InstructionTemplate, RecipeTemplate
 from app.recipe_matcher import RecipeCandidate, SlotSelection
-from app.recipe_renderer import render_meal
+from app.recipe_renderer import _QUANTITY_NAMES, render_meal
 
 
 @pytest.fixture(scope="module")
@@ -289,6 +289,34 @@ def test_batch_math_stays_exact_and_displayed_portions_are_people_meals(ingredie
     assert meal.ingredients[0].display_amount == "590 g"
     assert meal.portions == 9
     assert meal.covered_days == 3
+
+
+@pytest.mark.parametrize(
+    ("ingredient_id", "quantity_form"),
+    [
+        ("turkey_breast", "morčacích pŕs"),
+        ("white_fish", "filetu z bielej ryby"),
+        ("bell_pepper", "papriky"),
+        ("spinach", "špenátu"),
+        ("peas", "zeleného hrášku"),
+        ("couscous", "kuskusu"),
+        ("barley", "jačmenných krúp"),
+        ("feta", "syra feta"),
+        ("beans", "červenej fazule"),
+        ("coconut_milk", "kokosovej smotany"),
+        ("paprika_powder", "mletej papriky"),
+        ("curry_powder", "karí korenia"),
+        ("oregano", "sušeného oregana"),
+        ("egg_noodles", "vaječných rezancov"),
+        ("mushrooms", "bielych šampiňónov"),
+        ("plain_yogurt", "bieleho plnotučného jogurtu"),
+        ("tuna", "tuniaka vo vlastnej šťave"),
+    ],
+)
+def test_launch_catalog_has_natural_slovak_forms_after_quantities(
+    ingredient_id, quantity_form
+):
+    assert _QUANTITY_NAMES[ingredient_id] == quantity_form
 
 
 def test_display_rounds_1980_grams_to_two_kilos_without_changing_quantity(ingredients):
