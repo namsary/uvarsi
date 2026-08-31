@@ -56,14 +56,19 @@ Ručne na serveri:
     UVARSI_URL=https://uvar.si ../venv/bin/python predpocet.py --stav
 """
 import datetime
+import hashlib
 import inspect
 import json
 import logging
+import math
 import os
 import re
 import sqlite3
+import time
+from collections import Counter
 from collections import namedtuple
 from contextlib import closing
+from decimal import Decimal, InvalidOperation
 
 try:
     from . import naklady
@@ -145,6 +150,41 @@ VYSVETLENIE = {
 # odpovedá nezmyslom, nemá zmysel prejsť celý zoznam a zaplatiť to.
 MAX_ZLYHANI_PO_SEBE = 3
 
+# Pevná anonymná matica pre shadow rollout. Nesmie sa odvodiť od účtov ani
+# dopytu: každý týždeň meriame presne rovnakých 36 verejne nevystopovateľných
+# kombinácií (4 režimy × 3 domácnosti × 3 rytmy).
+SHADOW_MODES = ("standard", "high_protein", "vegetarian", "vegan")
+SHADOW_HOUSEHOLDS = ((1, 0), (2, 2), (4, 0))
+SHADOW_FREQUENCIES = (1, 2, 3)
+SHADOW_MATRIX = tuple(
+    (mode, adults, children, frequency)
+    for mode in SHADOW_MODES
+    for adults, children in SHADOW_HOUSEHOLDS
+    for frequency in SHADOW_FREQUENCIES
+)
+SHADOW_SUCCESS_RATE_FLOOR = 0.98
+SHADOW_P95_LIMIT_MS = 500.0
+_SHADOW_PACKAGE = re.compile(
+    r"^[1-9]\d*(?:[,.]\d+)?\s+(?:g|kg|ml|l|ks)$", re.IGNORECASE
+)
+
+
+def build_deterministic_plan(**kwargs):
+    """Late import keeps the legacy direct-script deployment importable."""
+    from app.deterministic_plan import build_deterministic_plan as builder
+
+    return builder(**kwargs)
+
+
+def _shadow_catalogs():
+    from app.ingredient_catalog import load_ingredient_catalog
+    from app.library_gate import audit_library
+    from app.recipe_catalog import load_recipe_catalog
+
+    ingredients = load_ingredient_catalog()
+    recipes = load_recipe_catalog(ingredients)
+    return ingredients, recipes, audit_library(ingredients, recipes)
+
 
 class Profil(namedtuple("ProfilZaklad", "obchody dospeli deti frekvencia variant")):
     """Profil predpočtu s kompatibilným celkovým počtom osôb.
@@ -193,6 +233,31 @@ CREATE TABLE IF NOT EXISTS predpocet_behy (
   eur          REAL NOT NULL DEFAULT 0,
   zasahy       INTEGER NOT NULL DEFAULT 0,
   dovod        TEXT
+);
+
+-- Jediný trvalý výstup shadow porovnania. Neobsahuje plán, recept, špajzu,
+-- user_id ani e-mail; iba súhrn pevnej anonymnej matice za jeden týždeň.
+CREATE TABLE IF NOT EXISTS recipe_engine_shadow (
+  tyzden                 TEXT NOT NULL PRIMARY KEY,
+  zaciatok                TEXT NOT NULL,
+  koniec                  TEXT,
+  complete                INTEGER NOT NULL DEFAULT 0,
+  offer_fingerprint       TEXT NOT NULL,
+  library_version         INTEGER,
+  matrix_size             INTEGER NOT NULL,
+  samples_total           INTEGER NOT NULL DEFAULT 0,
+  samples_success         INTEGER NOT NULL DEFAULT 0,
+  success_rate            REAL NOT NULL DEFAULT 0,
+  p95_ms                  REAL,
+  error_counts            TEXT NOT NULL DEFAULT '{}',
+  family_count            INTEGER NOT NULL DEFAULT 0,
+  method_count            INTEGER NOT NULL DEFAULT 0,
+  price_comparisons       INTEGER NOT NULL DEFAULT 0,
+  price_delta_eur_avg     REAL,
+  dietary_violations      INTEGER NOT NULL DEFAULT 0,
+  negative_quantities     INTEGER NOT NULL DEFAULT 0,
+  invalid_package_counts  INTEGER NOT NULL DEFAULT 0,
+  library_gate_pass       INTEGER NOT NULL DEFAULT 0
 );
 """
 
@@ -625,6 +690,379 @@ def _ma_kompletny_povinny_zber(con, server, dnes) -> bool:
     )
 
 
+# -------------------------------------------------------- deterministic shadow
+def _shadow_offer_rows(con, server, today):
+    rows = server.offers_for_current_week(
+        con, list(VSETKY_OBCHODY), today
+    )
+    return tuple(server.measurable_offers(rows))
+
+
+def _shadow_offer_fingerprint(rows) -> str:
+    facts = [
+        (
+            str(row.get("offer_key") or ""),
+            str(row.get("obchod") or ""),
+            str(row.get("cena") or ""),
+            str(row.get("povodna") or ""),
+            str(row.get("jednotka") or ""),
+            str(row.get("valid_from") or ""),
+            str(row.get("valid_to") or ""),
+        )
+        for row in rows
+    ]
+    payload = json.dumps(sorted(facts), ensure_ascii=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _shadow_decimal(value):
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float, Decimal)):
+        raw = str(value)
+    elif isinstance(value, str):
+        match = re.search(r"-?\d+(?:[,.]\d+)?", value.replace(" ", ""))
+        if match is None:
+            return None
+        raw = match.group(0).replace(",", ".")
+    else:
+        return None
+    try:
+        result = Decimal(raw)
+    except (InvalidOperation, ValueError):
+        return None
+    return result if result.is_finite() else None
+
+
+def _shadow_plan_quality(plan, mode, templates):
+    """Return counters only; never return or persist recipe content."""
+    families, methods = set(), set()
+    dietary_violations = 0
+    negative_quantities = 0
+    invalid_package_counts = 0
+
+    for field in ("nakup_spolu", "bezna_cena", "usetrene"):
+        value = _shadow_decimal(plan.get(field))
+        if value is not None and value < 0:
+            negative_quantities += 1
+
+    for meal in plan.get("jedla", ()):
+        if not isinstance(meal, dict):
+            dietary_violations += 1
+            continue
+        recipe = meal.get("recept") if isinstance(meal.get("recept"), dict) else {}
+        template = templates.get(recipe.get("template_id"))
+        if template is None or mode not in template.modes:
+            dietary_violations += 1
+        else:
+            families.add(template.family)
+            methods.add(template.method)
+        if mode == "high_protein" and recipe.get("high_protein_claim") is not True:
+            dietary_violations += 1
+        for value in (meal.get("pokryva_dni"), recipe.get("porcie")):
+            parsed = _shadow_decimal(value)
+            if parsed is not None and parsed < 0:
+                negative_quantities += 1
+        nutrition = recipe.get("nutrition")
+        if isinstance(nutrition, dict):
+            for section in nutrition.values():
+                if not isinstance(section, dict):
+                    continue
+                for value in section.values():
+                    parsed = _shadow_decimal(value)
+                    if parsed is not None and parsed < 0:
+                        negative_quantities += 1
+        for item in meal.get("suroviny", ()):
+            if not isinstance(item, dict) or "offer_key" not in item:
+                continue
+            packages = item.get("mnozstvo")
+            unit = str(item.get("jednotka") or "").strip()
+            if type(packages) is not int or packages <= 0 or not _SHADOW_PACKAGE.fullmatch(unit):
+                invalid_package_counts += 1
+
+    for group in plan.get("nakupny_zoznam", ()):
+        if not isinstance(group, dict):
+            invalid_package_counts += 1
+            continue
+        for item in group.get("polozky", ()):
+            if not isinstance(item, dict):
+                invalid_package_counts += 1
+                continue
+            packages = item.get("mnozstvo")
+            unit = str(item.get("jednotka") or "").strip()
+            if type(packages) is not int or packages <= 0 or not _SHADOW_PACKAGE.fullmatch(unit):
+                invalid_package_counts += 1
+            for field in ("potrebne", "zostava"):
+                parsed = _shadow_decimal(item.get(field))
+                if parsed is not None and parsed < 0:
+                    negative_quantities += 1
+
+    return {
+        "families": families,
+        "methods": methods,
+        "dietary_violations": dietary_violations,
+        "negative_quantities": negative_quantities,
+        "invalid_package_counts": invalid_package_counts,
+    }
+
+
+def _shadow_reference_price(con, server, week, rows, *, mode, adults, children,
+                            frequency):
+    if mode != "standard":
+        return None
+    try:
+        signature = server.podpis_planu(
+            week, list(VSETKY_OBCHODY), frequency, rows, (),
+            adults=adults, children=children, stravovanie=mode,
+        )
+        previous = server.nacitaj_zdielany_plan(con, signature, 0)
+        return _shadow_decimal(previous.get("nakup_spolu")) if previous else None
+    except (AttributeError, KeyError, sqlite3.Error, TypeError, ValueError):
+        return None
+
+
+def _shadow_public_row(row):
+    if row is None:
+        return None
+    return {
+        "week": row["tyzden"],
+        "complete": bool(row["complete"]),
+        "samples_total": int(row["samples_total"]),
+        "samples_success": int(row["samples_success"]),
+        "success_rate": float(row["success_rate"]),
+        "p95_ms": None if row["p95_ms"] is None else float(row["p95_ms"]),
+        "error_counts": json.loads(row["error_counts"]),
+        "family_count": int(row["family_count"]),
+        "method_count": int(row["method_count"]),
+        "price_comparisons": int(row["price_comparisons"]),
+        "price_delta_eur_avg": (
+            None if row["price_delta_eur_avg"] is None
+            else float(row["price_delta_eur_avg"])
+        ),
+        "dietary_violations": int(row["dietary_violations"]),
+        "negative_quantities": int(row["negative_quantities"]),
+        "invalid_package_counts": int(row["invalid_package_counts"]),
+        "library_gate": "pass" if row["library_gate_pass"] else "fail",
+    }
+
+
+def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
+    """Build the fixed matrix in scheduled work, never in a user request."""
+    if server is None:
+        import server as server_module
+
+        server = server_module
+    now = now or datetime.datetime.now()
+    if isinstance(now, datetime.date) and not isinstance(now, datetime.datetime):
+        now = datetime.datetime.combine(now, datetime.time())
+    if server.recipe_engine_mode() != "shadow":
+        return {"complete": False, "reason": "mode_not_shadow"}
+
+    today = now.date()
+    week = server.monday(today)
+    started = now.isoformat(timespec="seconds")
+    with closing(server.db()) as con:
+        migrate_predpocet_schema(con)
+        rows = _shadow_offer_rows(con, server, today)
+        fingerprint = _shadow_offer_fingerprint(rows)
+        with con:
+            con.execute(
+                """INSERT INTO recipe_engine_shadow
+                     (tyzden,zaciatok,koniec,complete,offer_fingerprint,
+                      library_version,matrix_size,samples_total,samples_success,
+                      success_rate,p95_ms,error_counts,family_count,method_count,
+                      price_comparisons,price_delta_eur_avg,dietary_violations,
+                      negative_quantities,invalid_package_counts,library_gate_pass)
+                   VALUES (?,?,NULL,0,?,NULL,?,0,0,0,NULL,'{}',0,0,0,NULL,0,0,0,0)
+                   ON CONFLICT(tyzden) DO UPDATE SET
+                     zaciatok=excluded.zaciatok, koniec=NULL, complete=0,
+                     offer_fingerprint=excluded.offer_fingerprint,
+                     library_version=NULL, matrix_size=excluded.matrix_size,
+                     samples_total=0, samples_success=0, success_rate=0,
+                     p95_ms=NULL, error_counts='{}', family_count=0,
+                     method_count=0, price_comparisons=0,
+                     price_delta_eur_avg=NULL, dietary_violations=0,
+                     negative_quantities=0, invalid_package_counts=0,
+                     library_gate_pass=0""",
+                (week, started, fingerprint, len(SHADOW_MATRIX)),
+            )
+        if not _ma_kompletny_povinny_zber(con, server, today):
+            return {
+                "week": week, "complete": False,
+                "reason": "incomplete_flyer_week",
+            }
+
+        try:
+            ingredients, recipes, audit = _shadow_catalogs()
+        except Exception:
+            LOG.warning("shadow matrix: katalóg alebo library gate sa nedá načítať")
+            return {"week": week, "complete": False, "reason": "library_gate_failed"}
+
+        errors = Counter()
+        durations = []
+        families, methods = set(), set()
+        price_deltas = []
+        samples_success = 0
+        dietary_violations = 0
+        negative_quantities = 0
+        invalid_package_counts = 0
+        templates = {template.id: template for template in recipes.all()}
+
+        for mode, adults, children, frequency in SHADOW_MATRIX:
+            before = time.perf_counter()
+            try:
+                plan = build_deterministic_plan(
+                    week=week,
+                    rows=rows,
+                    stores=VSETKY_OBCHODY,
+                    adults=adults,
+                    children=children,
+                    frequency=frequency,
+                    pantry=(),
+                    pantry_driven=False,
+                    mode=mode,
+                    seed=f"shadow:{week}:{mode}:{adults}:{children}:{frequency}",
+                    ingredient_catalog=ingredients,
+                    recipe_catalog=recipes,
+                )
+                samples_success += 1
+                quality = _shadow_plan_quality(plan, mode, templates)
+                families.update(quality["families"])
+                methods.update(quality["methods"])
+                dietary_violations += quality["dietary_violations"]
+                negative_quantities += quality["negative_quantities"]
+                invalid_package_counts += quality["invalid_package_counts"]
+                reference = _shadow_reference_price(
+                    con, server, week, rows, mode=mode, adults=adults,
+                    children=children, frequency=frequency,
+                )
+                current = _shadow_decimal(plan.get("nakup_spolu"))
+                if reference is not None and current is not None:
+                    price_deltas.append(current - reference)
+            except Exception as exc:
+                code = getattr(exc, "code", None)
+                if code not in {
+                    "insufficient_offers", "diet_too_strict",
+                    "unmeasurable_packages",
+                }:
+                    code = "internal_error"
+                errors[code] += 1
+            finally:
+                durations.append(max(0.0, (time.perf_counter() - before) * 1000))
+
+        ordered = sorted(durations)
+        p95_index = max(0, math.ceil(0.95 * len(ordered)) - 1)
+        p95_ms = round(ordered[p95_index], 3) if ordered else None
+        total = len(SHADOW_MATRIX)
+        success_rate = samples_success / total if total else 0.0
+        price_delta = (
+            sum(price_deltas, Decimal("0")) / len(price_deltas)
+            if price_deltas else None
+        )
+        finished = datetime.datetime.now().isoformat(timespec="seconds")
+        with con:
+            con.execute(
+                """UPDATE recipe_engine_shadow SET
+                     koniec=?, complete=1, library_version=?, samples_total=?,
+                     samples_success=?, success_rate=?, p95_ms=?, error_counts=?,
+                     family_count=?, method_count=?, price_comparisons=?,
+                     price_delta_eur_avg=?, dietary_violations=?,
+                     negative_quantities=?, invalid_package_counts=?,
+                     library_gate_pass=?
+                   WHERE tyzden=?""",
+                (
+                    finished, recipes.version, total, samples_success,
+                    success_rate, p95_ms,
+                    json.dumps(dict(sorted(errors.items())), separators=(",", ":")),
+                    len(families), len(methods), len(price_deltas),
+                    None if price_delta is None else float(price_delta),
+                    dietary_violations, negative_quantities,
+                    invalid_package_counts, int(not audit.errors), week,
+                ),
+            )
+        row = con.execute(
+            "SELECT * FROM recipe_engine_shadow WHERE tyzden=?", (week,)
+        ).fetchone()
+
+    result = _shadow_public_row(row)
+    LOG.info(
+        "shadow matrix week=%s samples=%s success=%s p95_ms=%s violations=%s",
+        week, result["samples_total"], result["samples_success"],
+        result["p95_ms"],
+        result["dietary_violations"] + result["negative_quantities"]
+        + result["invalid_package_counts"],
+    )
+    return result
+
+
+def shadow_activation_status(con, *, server, today=None) -> dict:
+    """Fail-closed activation evidence for the current complete flyer week."""
+    today = today or datetime.date.today()
+    week = server.monday(today)
+    reasons = []
+    migrate_predpocet_schema(con)
+    complete_flyers = _ma_kompletny_povinny_zber(con, server, today)
+    if not complete_flyers:
+        reasons.append("incomplete_flyer_week")
+    row = con.execute(
+        "SELECT * FROM recipe_engine_shadow ORDER BY tyzden DESC LIMIT 1"
+    ).fetchone()
+    if row is None:
+        if complete_flyers:
+            reasons.append("missing_metrics")
+        return {"eligible": False, "reasons": reasons, "week": week}
+
+    result = _shadow_public_row(row)
+    result["eligible"] = False
+    result["reasons"] = reasons
+    try:
+        error_counts = result["error_counts"]
+        metrics_complete = (
+            result["complete"]
+            and row["matrix_size"] == len(SHADOW_MATRIX)
+            and result["samples_total"] == len(SHADOW_MATRIX)
+            and 0 <= result["samples_success"] <= result["samples_total"]
+            and sum(int(value) for value in error_counts.values())
+                == result["samples_total"] - result["samples_success"]
+        )
+    except (AttributeError, TypeError, ValueError):
+        metrics_complete = False
+    if not metrics_complete:
+        reasons.append("incomplete_metrics")
+
+    try:
+        rows = _shadow_offer_rows(con, server, today)
+        _, recipes, current_audit = _shadow_catalogs()
+        stale = (
+            row["tyzden"] != week
+            or row["offer_fingerprint"] != _shadow_offer_fingerprint(rows)
+            or row["library_version"] != recipes.version
+        )
+        if current_audit.errors:
+            reasons.append("library_gate_failed")
+    except Exception:
+        stale = True
+        reasons.append("library_gate_failed")
+    if stale:
+        reasons.append("stale_metrics")
+    if result["success_rate"] < SHADOW_SUCCESS_RATE_FLOOR:
+        reasons.append("success_rate_below_floor")
+    if result["p95_ms"] is None or result["p95_ms"] >= SHADOW_P95_LIMIT_MS:
+        reasons.append("p95_too_slow")
+    if result["dietary_violations"]:
+        reasons.append("dietary_violations")
+    if result["negative_quantities"]:
+        reasons.append("negative_quantities")
+    if result["invalid_package_counts"]:
+        reasons.append("invalid_package_counts")
+    if result["library_gate"] != "pass":
+        reasons.append("library_gate_failed")
+
+    result["reasons"] = list(dict.fromkeys(reasons))
+    result["eligible"] = not result["reasons"]
+    return result
+
+
 def enqueue_popular_profiles(*, count=None, now=None) -> dict:
     """Zaraď cielené predpočty do trvalej fronty bez volania Anthropic."""
     now = now or datetime.datetime.now()
@@ -751,10 +1189,21 @@ def enqueue_popular_profiles(*, count=None, now=None) -> dict:
 
 
 def zahrej(*, pocet=None, dnes=None, teraz=None, klient=None) -> dict:
-    """Kompatibilný názov CLI: iba zaradí prácu, nikdy neskladá plán."""
+    """Scheduled precompute; shadow work runs here, never in an HTTP request."""
     if teraz is None and dnes is not None:
         teraz = datetime.datetime.combine(dnes, datetime.time())
-    return enqueue_popular_profiles(count=pocet, now=teraz)
+    vysledok = enqueue_popular_profiles(count=pocet, now=teraz)
+    try:
+        import server
+
+        if server.recipe_engine_mode() == "shadow":
+            vysledok["shadow"] = run_recipe_engine_shadow(server=server, now=teraz)
+    except Exception:
+        # Shadow je pozorovanie, nie používateľská cesta. Zlyhanie sa prizná
+        # agregovaným kódom a nesmie zhodiť starý predpočet ani rannú appku.
+        LOG.warning("scheduled shadow comparison failed")
+        vysledok["shadow"] = {"complete": False, "reason": "internal_error"}
+    return vysledok
 
 
 def _minute_na_ucel(con, teraz) -> float:

@@ -3799,6 +3799,21 @@ def pocet_akcii():
     return {"tyzden": monday(today), "pocet": len(rows)}
 
 
+def recipe_engine_shadow_status(con, today=None):
+    """Aggregate-only rollout evidence; fail closed without leaking details."""
+    try:
+        return predpocet.shadow_activation_status(
+            con, server=sys.modules[__name__], today=today,
+        )
+    except Exception:
+        LOG.warning("shadow rollout status is unavailable")
+        return {
+            "eligible": False,
+            "reasons": ["observability_error"],
+            "week": monday(today),
+        }
+
+
 @app.get("/api/health")
 def health():
     """Čo naozaj beží: vydanie, týždeň a počet akcií.
