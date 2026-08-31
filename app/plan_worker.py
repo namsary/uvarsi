@@ -140,6 +140,7 @@ class _LeaseAwareClient:
                 except self._server.StalePlanJob as error:
                     raise InputChangedBeforeDispatch(error.code) from error
                 if not self.dispatched:
+                    _require_legacy_recipe_engine(self._server)
                     marked = plan_jobs.mark_dispatched(
                         con, self._job.id, worker_id=WORKER_ID, now=self._clock(),
                     )

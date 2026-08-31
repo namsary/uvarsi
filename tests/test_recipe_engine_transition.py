@@ -60,6 +60,8 @@ def test_on_mode_terminally_retires_claimed_legacy_recipe_jobs_without_ai(
     assert row["error_code"] == "engine_replaced"
     assert row["dispatched_at"] is None
     assert row["finished_at"] is not None
+    assert row["lease_owner"] is None
+    assert row["lease_expires_at"] is None
     assert row["attempts"] == 1
     with app_db.server.db() as con:
         assert con.execute("SELECT COUNT(*) FROM naklady").fetchone()[0] == 0
@@ -98,6 +100,39 @@ def test_flag_turning_on_immediately_before_dispatch_blocks_model_call(
     assert (result.status, result.error_code) == ("failed", "engine_replaced")
     assert model.calls == 0
     assert _job_row(app_db, job.id)["dispatched_at"] is None
+
+
+def test_flag_turning_on_during_revalidation_blocks_dispatch_in_same_transaction(
+        app_db, monkeypatch):
+    job = _queued_job(app_db, kind="regular")
+    mode = {"value": "shadow"}
+    monkeypatch.setattr(
+        app_db.server, "recipe_engine_mode", lambda: mode["value"],
+    )
+    original_revalidate = app_db.server.revalidate_job_context
+
+    def activate_engine_after_revalidation(*args, **kwargs):
+        original_revalidate(*args, **kwargs)
+        mode["value"] = "on"
+
+    monkeypatch.setattr(
+        app_db.server,
+        "revalidate_job_context",
+        activate_engine_after_revalidation,
+    )
+    model = _model_for(app_db)
+
+    result = process_one(client=model, now=NOW)
+
+    assert (result.status, result.error_code) == ("failed", "engine_replaced")
+    assert model.calls == 0
+    row = _job_row(app_db, job.id)
+    assert row["state"] == "failed"
+    assert row["error_code"] == "engine_replaced"
+    assert row["dispatched_at"] is None
+    assert row["finished_at"] is not None
+    assert row["lease_owner"] is None
+    assert row["lease_expires_at"] is None
 
 
 @pytest.mark.parametrize("mode", ("off", "shadow"))
