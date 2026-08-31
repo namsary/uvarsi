@@ -11,7 +11,7 @@ Závislosti: fastapi uvicorn itsdangerous
 import asyncio
 import copy
 import logging
-import os, re, json, sqlite3, datetime, threading, time, hashlib, math
+import os, re, json, sqlite3, datetime, threading, time, hashlib, math, tempfile
 from contextlib import asynccontextmanager, closing
 from decimal import Decimal
 from pathlib import Path
@@ -321,7 +321,7 @@ def env(key, default=None):
 
 
 def monday(d=None):
-    d = d or datetime.date.today()
+    d = d or bratislava_day()
     return (d - datetime.timedelta(days=d.weekday())).isoformat()
 
 
@@ -2570,7 +2570,7 @@ def akcie_pre(obchody):
     if not obchody:
         return []
 
-    today = datetime.date.today()
+    today = bratislava_day()
     with closing(db()) as con:
         rows = measurable_offers(offers_for_current_week(con, obchody, today))
 
@@ -3990,22 +3990,126 @@ def _write_smoke_state(path, payload):
             pass
 
 
+def _authenticated_isolated_recipe_smoke(rows, *, now):
+    """Exercise the real authenticated plan route without touching live data."""
+    global DB
+
+    descriptor, isolated_name = tempfile.mkstemp(
+        prefix="uvarsi-recipe-smoke-", suffix=".db"
+    )
+    os.close(descriptor)
+    isolated_path = Path(isolated_name)
+    try:
+        isolated_path.chmod(0o600)
+    except OSError:
+        pass
+
+    production_db = DB
+    client = None
+    try:
+        DB = str(isolated_path)
+        _SCHEMA_HOTOVA.discard(DB)
+        priprav_databazu(DB)
+        offers = [dict(row) for row in rows]
+        with closing(db()) as con:
+            columns = [
+                row[1] for row in con.execute("PRAGMA table_info(akcie)")
+                if row[1] != "id"
+            ]
+            copied_columns = [
+                column for column in columns
+                if offers and all(column in offer for offer in offers)
+            ]
+            if not copied_columns:
+                raise ValueError("synthetic smoke has no copyable offers")
+            marks = ",".join("?" for _ in copied_columns)
+            names = ",".join(f'"{column}"' for column in copied_columns)
+            con.executemany(
+                f"INSERT INTO akcie ({names}) VALUES ({marks})",
+                [tuple(offer[column] for column in copied_columns) for offer in offers],
+            )
+            user_id = con.execute(
+                """INSERT INTO pouzivatelia
+                   (email,platiaci,osoby,dospeli,deti,frekvencia,obchody,
+                    stravovanie,onboarding)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                (
+                    "recipe-smoke@local.invalid", 0, 4, 2, 2, 2,
+                    ",".join(RECIPE_ENGINE_STORES), "standard", 1,
+                ),
+            ).lastrowid
+            con.commit()
+            raw_session = create_session(
+                con, user_id=user_id, now=now.timestamp(), device_name="local-smoke"
+            )
+            before = _smoke_counts(con)
+
+        # Imported only by the local operations command. The public app never
+        # creates an in-process client during normal requests.
+        from fastapi.testclient import TestClient
+
+        client = TestClient(
+            app, base_url="https://uvarsi-smoke.invalid",
+            raise_server_exceptions=False,
+        )
+        client.cookies.set(COOKIE, raw_session)
+        responses = [
+            client.post("/api/plan/generuj"),
+            client.post("/api/plan/generuj"),
+        ]
+        bodies = [response.json() if response.status_code == 200 else None
+                  for response in responses]
+        valid = all(
+            response.status_code == 200
+            and isinstance(body, dict)
+            and bool(body.get("jedla"))
+            and body.get("meta", {}).get("engine") == "deterministic"
+            for response, body in zip(responses, bodies)
+        )
+        with closing(db()) as con:
+            after = _smoke_counts(con)
+        return {
+            "valid": valid,
+            "status": 200 if valid else 503,
+            "plan_engine": (
+                str(bodies[0].get("meta", {}).get("engine") or "")
+                if isinstance(bodies[0], dict) else ""
+            ),
+            "jobs_delta": after["jobs"] - before["jobs"],
+            "costs_delta": after["costs"] - before["costs"],
+        }
+    finally:
+        try:
+            if client is not None:
+                client.close()
+        finally:
+            DB = production_db
+            _SCHEMA_HOTOVA.discard(str(isolated_path))
+            try:
+                isolated_path.unlink(missing_ok=True)
+            except OSError:
+                LOG.warning("temporary recipe-engine smoke database cleanup failed")
+
+
 def run_recipe_engine_synthetic_smoke(*, state_path=None, now=None):
-    """Trusted local smoke: no route, account, session, cache write or model."""
+    """Trusted local smoke through auth + API, isolated from production data."""
     now = now or datetime.datetime.now(datetime.timezone.utc)
     if now.tzinfo is None:
         now = now.replace(tzinfo=datetime.timezone.utc)
+    business_day = bratislava_day(now)
     started = time.perf_counter()
     blockers = []
     status = 503
     plan_engine = "unavailable"
-    before = {"jobs": 0, "costs": 0}
-    after = before
+    production_before = {"jobs": 0, "costs": 0}
+    production_after = production_before
+    isolated_jobs_delta = 0
+    isolated_costs_delta = 0
     payments_enabled = platby_su_zapnute()
     try:
         with closing(db()) as con:
-            before = _smoke_counts(con)
-            rows, complete = _complete_recipe_offers(con, now.date())
+            production_before = _smoke_counts(con)
+            rows, complete = _complete_recipe_offers(con, business_day)
         if payments_enabled:
             blockers.append("payments_enabled")
         elif recipe_engine_mode() != "on":
@@ -4019,19 +4123,14 @@ def run_recipe_engine_synthetic_smoke(*, state_path=None, now=None):
             if audit.errors:
                 blockers.append("library_gate_failed")
             else:
-                plan = build_deterministic_plan(
-                    week=monday(now.date()), rows=rows,
-                    stores=RECIPE_ENGINE_STORES,
-                    adults=2, children=2, frequency=2,
-                    pantry=(), pantry_driven=False, mode="standard",
-                    seed=f"smoke:{monday(now.date())}:{recipes.version}",
-                    ingredient_catalog=ingredients, recipe_catalog=recipes,
-                )
-                plan_engine = str(plan.get("meta", {}).get("engine") or "")
-                if plan_engine != "deterministic" or not plan.get("jedla"):
+                result = _authenticated_isolated_recipe_smoke(rows, now=now)
+                plan_engine = result["plan_engine"]
+                isolated_jobs_delta = result["jobs_delta"]
+                isolated_costs_delta = result["costs_delta"]
+                if not result["valid"]:
                     blockers.append("invalid_output")
                 else:
-                    status = 200
+                    status = result["status"]
     except NoCompatiblePlan as error:
         blockers.append(error.code if isinstance(error.code, str) else "plan_failed")
     except Exception:
@@ -4039,11 +4138,17 @@ def run_recipe_engine_synthetic_smoke(*, state_path=None, now=None):
         blockers.append("internal_error")
     finally:
         with closing(db()) as con:
-            after = _smoke_counts(con)
+            production_after = _smoke_counts(con)
 
     latency_ms = round(max(0.0, (time.perf_counter() - started) * 1000), 3)
-    jobs_delta = after["jobs"] - before["jobs"]
-    costs_delta = after["costs"] - before["costs"]
+    jobs_delta = (
+        production_after["jobs"] - production_before["jobs"]
+        + isolated_jobs_delta
+    )
+    costs_delta = (
+        production_after["costs"] - production_before["costs"]
+        + isolated_costs_delta
+    )
     if jobs_delta:
         blockers.append("jobs_created")
     if costs_delta:
@@ -4055,7 +4160,7 @@ def run_recipe_engine_synthetic_smoke(*, state_path=None, now=None):
     payload = {
         "schema_version": 1,
         "checked_at": now.isoformat(timespec="seconds"),
-        "week": monday(now.date()),
+        "week": monday(business_day),
         "release": release_id(),
         "engine_mode": recipe_engine_mode(),
         "ok": ok,

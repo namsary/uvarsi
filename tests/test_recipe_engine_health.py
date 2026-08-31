@@ -5,6 +5,9 @@ from __future__ import annotations
 from contextlib import closing
 from datetime import date, datetime, timezone
 import json
+import os
+from pathlib import Path
+import sqlite3
 import sys
 import types
 
@@ -49,6 +52,21 @@ def _passing_smoke(server, **changes):
 
 def _write(path, payload):
     path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _all_table_counts(server):
+    with closing(server.db()) as con:
+        tables = [
+            row[0]
+            for row in con.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            )
+        ]
+        return {
+            table: con.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+            for table in tables
+        }
 
 
 def test_on_health_exposes_typed_recipe_engine_readiness(monkeypatch, tmp_path):
@@ -195,6 +213,29 @@ def test_local_synthetic_smoke_is_non_public_read_only_and_model_free(
     monkeypatch, tmp_path
 ):
     server, state = _load(monkeypatch, tmp_path)
+    production_db = Path(server.DB)
+    observed = []
+
+    @server.app.middleware("http")
+    async def observe_authenticated_plan_route(request, call_next):
+        if request.url.path == "/api/plan/generuj":
+            isolated_db = Path(server.DB)
+            with closing(sqlite3.connect(isolated_db)) as con:
+                observed.append(
+                    {
+                        "method": request.method,
+                        "database": isolated_db,
+                        "has_session": bool(request.cookies.get(server.COOKIE)),
+                        "users": con.execute(
+                            "SELECT COUNT(*) FROM pouzivatelia"
+                        ).fetchone()[0],
+                        "sessions": con.execute(
+                            "SELECT COUNT(*) FROM sessions_v2"
+                        ).fetchone()[0],
+                        "offers": con.execute("SELECT COUNT(*) FROM akcie").fetchone()[0],
+                    }
+                )
+        return await call_next(request)
 
     class ForbiddenClient:
         def __init__(self, *_args, **_kwargs):
@@ -209,32 +250,29 @@ def test_local_synthetic_smoke_is_non_public_read_only_and_model_free(
     )
     monkeypatch.setitem(sys.modules, "anthropic", poison)
     monkeypatch.setitem(sys.modules, "openai", poison)
-    with closing(server.db()) as con:
-        before = {
-            "users": con.execute("SELECT COUNT(*) FROM pouzivatelia").fetchone()[0],
-            "plans": con.execute("SELECT COUNT(*) FROM plany").fetchone()[0],
-            "shared": con.execute("SELECT COUNT(*) FROM plany_zdielane").fetchone()[0],
-            "jobs": con.execute("SELECT COUNT(*) FROM plan_jobs").fetchone()[0],
-            "costs": con.execute("SELECT COUNT(*) FROM naklady").fetchone()[0],
-        }
+    before = _all_table_counts(server)
 
     result = server.run_recipe_engine_synthetic_smoke(state_path=state)
 
-    assert result["ok"] is True
+    assert result["ok"] is True, json.dumps(result, sort_keys=True)
     assert result["http_status"] == 200
     assert result["latency_ms"] < 2_000
     assert result["jobs_delta"] == result["ai_costs_delta"] == 0
     assert result["payments_enabled"] is False
     assert result["plan_engine"] == "deterministic"
     assert result["auth_scope"] == "server_local"
-    with closing(server.db()) as con:
-        after = {
-            "users": con.execute("SELECT COUNT(*) FROM pouzivatelia").fetchone()[0],
-            "plans": con.execute("SELECT COUNT(*) FROM plany").fetchone()[0],
-            "shared": con.execute("SELECT COUNT(*) FROM plany_zdielane").fetchone()[0],
-            "jobs": con.execute("SELECT COUNT(*) FROM plan_jobs").fetchone()[0],
-            "costs": con.execute("SELECT COUNT(*) FROM naklady").fetchone()[0],
-        }
+    assert len(observed) == 2
+    assert all(item["method"] == "POST" for item in observed)
+    assert all(item["has_session"] is True for item in observed)
+    assert all(item["database"] != production_db for item in observed)
+    assert all(item["users"] == item["sessions"] == 1 for item in observed)
+    assert all(item["offers"] >= server.MIN_OFFERS_FOR_PLAN for item in observed)
+    assert observed[0]["database"] == observed[1]["database"]
+    if os.name != "nt":
+        assert observed[0]["database"].stat().st_mode & 0o077 == 0
+    isolated_db = observed[0]["database"]
+    assert not isolated_db.exists()
+    after = _all_table_counts(server)
     assert after == before
     durable = state.read_text(encoding="utf-8")
     assert "@" not in durable

@@ -166,15 +166,15 @@ print(mode + "|" + ("1" if engine["ready"] else "0") + "|" + ",".join(blockers))
 }
 
 skontroluj_recipe_engine() {
-  [ -n "${HEALTH:-}" ] || { log "UNKNOWN — recipe_engine health nie je dostupný"; return 0; }
+  [ -n "${HEALTH:-}" ] || {
+    recipe_engine_alert "health nie je dostupný"
+    return 1
+  }
   STAV_ENGINE=$(recipe_engine_health_state)
   PARSE_RC=$?
-  # Kód 3 znamená starší release bez recipe_engine objektu. Existujúci off/shadow
-  # dohľad ostáva funkčný počas rollout okna; po nasadení nového servera sa už
-  # akýkoľvek neplatný objekt odmieta nižšie.
   if [ "$PARSE_RC" -eq 3 ]; then
-    log "recipe_engine health ešte nie je v tomto vydaní dostupný"
-    return 0
+    recipe_engine_alert "health neobsahuje recipe_engine"
+    return 1
   fi
   if [ "$PARSE_RC" -ne 0 ]; then
     recipe_engine_alert "health má neplatnú schému alebo typy"
@@ -202,6 +202,12 @@ skontroluj_recipe_engine() {
   esac
 
   NOW_EPOCH="${UVARSI_NOW_EPOCH:-$(date +%s)}"
+  case "$NOW_EPOCH" in
+    ''|*[!0-9]*) recipe_engine_alert "čas smoke kontroly má neplatný formát"; return 1 ;;
+  esac
+  case "$RECIPE_SMOKE_MIN_INTERVAL_SECONDS" in
+    ''|*[!0-9]*|0) recipe_engine_alert "interval smoke kontroly má neplatný formát"; return 1 ;;
+  esac
   LAST_ATTEMPT=0
   if [ -f "$RECIPE_SMOKE_ATTEMPT_STATE" ]; then
     read -r LAST_ATTEMPT < "$RECIPE_SMOKE_ATTEMPT_STATE" || LAST_ATTEMPT=0
@@ -231,10 +237,11 @@ skontroluj_recipe_engine() {
     recipe_engine_alert "health po smoke sa nedá overiť"
     return 1
   }
+  MODE=${STAV_ENGINE%%|*}
   REST=${STAV_ENGINE#*|}
   READY=${REST%%|*}
-  if [ "$READY" != "1" ]; then
-    recipe_engine_alert "health ostal nepripravený aj po smoke"
+  if [ "$MODE" != "on" ] || [ "$READY" != "1" ]; then
+    recipe_engine_alert "health po smoke nie je v režime on a pripravený"
     return 1
   fi
   rm -f "$RECIPE_ENGINE_ALERT_STATE"

@@ -72,7 +72,7 @@ def _health(mode, *, ready, blockers=(), worker_alive=True, queued=0):
     )
 
 
-def _run(tmp_path, health_values, *, smoke_exit=0):
+def _run(tmp_path, health_values, *, smoke_exit=0, env_overrides=None):
     (tmp_path / "app").mkdir(exist_ok=True)
     landing = tmp_path / "landing_data.json"
     _landing(landing)
@@ -128,6 +128,7 @@ def _run(tmp_path, health_values, *, smoke_exit=0):
         "UVARSI_RECIPE_SMOKE_STATE": _bash(tmp_path / "recipe-smoke.json"),
         "PATH": f"{_bash(tmp_path)}:/usr/bin",
     }
+    env.update(env_overrides or {})
     result = subprocess.run(
         [str(BASH), _bash(ROOT / "hetzner" / "dozorca.sh")],
         cwd=ROOT,
@@ -229,3 +230,70 @@ def test_non_smoke_blocker_is_never_masked_by_smoke_missing(tmp_path):
     recorded = calls.read_text(encoding="utf-8") if calls.exists() else ""
     assert "--recipe-engine-smoke" not in recorded
     assert notifications.read_text(encoding="utf-8").count("Uvar.si: receptový engine") == 1
+
+
+def test_missing_health_fails_closed_notifies_once_and_keeps_cached_plan(tmp_path):
+    cache = tmp_path / "cached-plan.json"
+    cache.write_text("keep-me", encoding="utf-8")
+
+    result, calls, notifications = _run(tmp_path, [""])
+
+    assert result.returncode != 0
+    assert cache.read_text(encoding="utf-8") == "keep-me"
+    recorded = calls.read_text(encoding="utf-8") if calls.exists() else ""
+    assert "--recipe-engine-smoke" not in recorded
+    assert notifications.read_text(encoding="utf-8").count("Uvar.si: receptový engine") == 1
+
+
+def test_absent_recipe_engine_fails_closed_without_smoke(tmp_path):
+    payload = json.loads(_health("on", ready=True))
+    del payload["recipe_engine"]
+
+    result, calls, notifications = _run(
+        tmp_path, [json.dumps(payload, separators=(",", ":"))]
+    )
+
+    assert result.returncode != 0
+    recorded = calls.read_text(encoding="utf-8") if calls.exists() else ""
+    assert "--recipe-engine-smoke" not in recorded
+    assert notifications.read_text(encoding="utf-8").count("Uvar.si: receptový engine") == 1
+
+
+def test_post_smoke_health_requires_on_mode_and_ready_together(tmp_path):
+    result, calls, notifications = _run(
+        tmp_path,
+        [
+            _health("on", ready=False, blockers=("smoke_missing",), worker_alive=False),
+            _health("off", ready=True, worker_alive=False),
+        ],
+    )
+
+    assert result.returncode != 0
+    assert calls.read_text(encoding="utf-8").count("--recipe-engine-smoke") == 1
+    assert notifications.read_text(encoding="utf-8").count("Uvar.si: receptový engine") == 1
+
+
+def test_epoch_and_interval_payloads_are_rejected_without_evaluation(tmp_path):
+    cases = (
+        ("UVARSI_NOW_EPOCH", "1+$(printf pwned > marker-now)"),
+        ("UVARSI_RECIPE_SMOKE_MIN_INTERVAL_SECONDS", "1+$(printf pwned > marker-rate)"),
+        ("UVARSI_RECIPE_SMOKE_MIN_INTERVAL_SECONDS", "0"),
+    )
+    for index, (name, payload) in enumerate(cases):
+        case = tmp_path / str(index)
+        case.mkdir()
+        result, calls, notifications = _run(
+            case,
+            [_health("on", ready=False, blockers=("smoke_missing",), worker_alive=False)],
+            env_overrides={name: payload},
+        )
+
+        assert result.returncode != 0
+        assert not (ROOT / "marker-now").exists()
+        assert not (ROOT / "marker-rate").exists()
+        recorded = calls.read_text(encoding="utf-8") if calls.exists() else ""
+        assert "--recipe-engine-smoke" not in recorded
+        assert notifications.exists()
+        assert notifications.read_text(encoding="utf-8").count(
+            "Uvar.si: receptový engine"
+        ) == 1
