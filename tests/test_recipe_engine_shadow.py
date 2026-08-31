@@ -11,6 +11,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 import json
 import sys
+import threading
 import types
 
 from fastapi.testclient import TestClient
@@ -295,7 +296,6 @@ def test_activation_checks_every_numeric_and_library_floor(monkeypatch, tmp_path
     predpocet.run_recipe_engine_shadow(server=server)
 
     cases = (
-        ("success_rate", 0.979, "success_rate_below_floor"),
         ("p95_ms", 500.0, "p95_too_slow"),
         ("dietary_violations", 1, "dietary_violations"),
         ("negative_quantities", 1, "negative_quantities"),
@@ -304,6 +304,28 @@ def test_activation_checks_every_numeric_and_library_floor(monkeypatch, tmp_path
     )
     with closing(server.db()) as con:
         original = dict(con.execute("SELECT * FROM recipe_engine_shadow").fetchone())
+        con.execute(
+            """UPDATE recipe_engine_shadow
+                  SET samples_success=35, success_rate=?, error_counts=?
+                WHERE tyzden=?""",
+            (35 / 36, '{"internal_error":1}', original["tyzden"]),
+        )
+        con.commit()
+        below_floor = predpocet.shadow_activation_status(
+            con, server=server, today=date.today()
+        )
+        assert below_floor["eligible"] is False
+        assert "success_rate_below_floor" in below_floor["reasons"]
+        con.execute(
+            """UPDATE recipe_engine_shadow
+                  SET samples_success=?, success_rate=?, error_counts=?
+                WHERE tyzden=?""",
+            (
+                original["samples_success"], original["success_rate"],
+                original["error_counts"], original["tyzden"],
+            ),
+        )
+        con.commit()
         for column, value, reason in cases:
             con.execute(
                 f"UPDATE recipe_engine_shadow SET {column}=? WHERE tyzden=?",
@@ -339,3 +361,120 @@ def test_activation_rejects_an_incomplete_current_flyer_week(monkeypatch, tmp_pa
 
     assert status["eligible"] is False
     assert "incomplete_flyer_week" in status["reasons"]
+
+
+def test_concurrent_shadow_run_cannot_finalize_another_fingerprint(
+    monkeypatch, tmp_path
+):
+    server = _server(monkeypatch, tmp_path)
+    predpocet = server.predpocet
+    with closing(server.db()) as con:
+        offers_a = tuple(
+            dict(row) for row in predpocet._shadow_offer_rows(con, server, date.today())
+        )
+    offers_b = tuple(dict(row) for row in offers_a)
+    offers_b[0]["valid_to"] = (date.today() + timedelta(days=7)).isoformat()
+    fingerprint_b = predpocet._shadow_offer_fingerprint(offers_b)
+
+    a_started = threading.Event()
+    release_a = threading.Event()
+    results = {}
+    failures = []
+
+    def offers_for_run(_con, _server, _today):
+        return offers_a if threading.current_thread().name == "shadow-A" else offers_b
+
+    def builder_for_run(**_kwargs):
+        if threading.current_thread().name == "shadow-A":
+            if not a_started.is_set():
+                a_started.set()
+                assert release_a.wait(10)
+            return {
+                "jedla": [], "nakupny_zoznam": [], "nakup_spolu": "0,00",
+                "bezna_cena": "0,00", "usetrene": "0,00",
+            }
+        raise RuntimeError("B deliberately records a failed sample")
+
+    monkeypatch.setattr(predpocet, "_shadow_offer_rows", offers_for_run)
+    monkeypatch.setattr(predpocet, "build_deterministic_plan", builder_for_run)
+
+    def run(label):
+        try:
+            results[label] = predpocet.run_recipe_engine_shadow(server=server)
+        except Exception as exc:  # surfaced below without losing the other thread
+            failures.append(exc)
+
+    thread_a = threading.Thread(target=run, args=("A",), name="shadow-A")
+    thread_a.start()
+    assert a_started.wait(10)
+    thread_b = threading.Thread(target=run, args=("B",), name="shadow-B")
+    thread_b.start()
+    thread_b.join(10)
+    assert not thread_b.is_alive()
+    release_a.set()
+    thread_a.join(10)
+    assert not thread_a.is_alive()
+    assert failures == []
+
+    with closing(server.db()) as con:
+        row = dict(con.execute("SELECT * FROM recipe_engine_shadow").fetchone())
+    assert row["offer_fingerprint"] == fingerprint_b
+    assert row["complete"] == 1
+    assert row["samples_success"] == 0
+    assert results["B"]["complete"] is True
+    assert results["A"] == {
+        "week": current_monday(), "complete": False, "reason": "superseded"
+    }
+
+
+def test_activation_rejects_corrupt_inconsistent_or_non_finite_metrics(
+    monkeypatch, tmp_path
+):
+    server = _server(monkeypatch, tmp_path)
+    predpocet = server.predpocet
+    monkeypatch.setattr(predpocet.time, "perf_counter", _clock())
+    predpocet.run_recipe_engine_shadow(server=server)
+
+    corruptions = (
+        ("error_counts", "{"),
+        ("error_counts", "[]"),
+        ("success_rate", "NaN"),
+        ("success_rate", "inf"),
+        ("success_rate", -0.1),
+        ("success_rate", 0.5),
+        ("p95_ms", "NaN"),
+        ("p95_ms", "inf"),
+        ("p95_ms", -1),
+        ("price_delta_eur_avg", "NaN"),
+        ("price_delta_eur_avg", "inf"),
+        ("price_delta_eur_avg", -0.01),
+        ("matrix_size", 36.5),
+        ("samples_total", -1),
+        ("samples_success", 37),
+        ("family_count", -1),
+        ("method_count", -1),
+        ("price_comparisons", 37),
+        ("dietary_violations", -1),
+        ("negative_quantities", -1),
+        ("invalid_package_counts", -1),
+        ("library_gate_pass", 2),
+        ("complete", 2),
+    )
+    with closing(server.db()) as con:
+        original = dict(con.execute("SELECT * FROM recipe_engine_shadow").fetchone())
+        for column, value in corruptions:
+            con.execute(
+                f"UPDATE recipe_engine_shadow SET {column}=? WHERE tyzden=?",
+                (value, original["tyzden"]),
+            )
+            con.commit()
+            status = predpocet.shadow_activation_status(
+                con, server=server, today=date.today()
+            )
+            assert status["eligible"] is False, (column, value, status)
+            assert "invalid_metrics" in status["reasons"], (column, value, status)
+            con.execute(
+                f"UPDATE recipe_engine_shadow SET {column}=? WHERE tyzden=?",
+                (original[column], original["tyzden"]),
+            )
+            con.commit()

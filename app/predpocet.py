@@ -63,6 +63,7 @@ import logging
 import math
 import os
 import re
+import secrets
 import sqlite3
 import time
 from collections import Counter
@@ -164,6 +165,11 @@ SHADOW_MATRIX = tuple(
 )
 SHADOW_SUCCESS_RATE_FLOOR = 0.98
 SHADOW_P95_LIMIT_MS = 500.0
+SHADOW_COUNTER_LIMIT = len(SHADOW_MATRIX) * 1000
+SHADOW_ERROR_CODES = frozenset({
+    "insufficient_offers", "diet_too_strict", "unmeasurable_packages",
+    "internal_error",
+})
 _SHADOW_PACKAGE = re.compile(
     r"^[1-9]\d*(?:[,.]\d+)?\s+(?:g|kg|ml|l|ks)$", re.IGNORECASE
 )
@@ -239,6 +245,7 @@ CREATE TABLE IF NOT EXISTS predpocet_behy (
 -- user_id ani e-mail; iba súhrn pevnej anonymnej matice za jeden týždeň.
 CREATE TABLE IF NOT EXISTS recipe_engine_shadow (
   tyzden                 TEXT NOT NULL PRIMARY KEY,
+  run_token               TEXT,
   zaciatok                TEXT NOT NULL,
   koniec                  TEXT,
   complete                INTEGER NOT NULL DEFAULT 0,
@@ -296,6 +303,11 @@ def migrate_predpocet_schema(con) -> None:
         con.execute(
             "ALTER TABLE plany_zdielane ADD COLUMN predpocitany INTEGER NOT NULL DEFAULT 0"
         )
+    shadow_stlpce = {
+        riadok[1] for riadok in con.execute("PRAGMA table_info(recipe_engine_shadow)")
+    }
+    if shadow_stlpce and "run_token" not in shadow_stlpce:
+        con.execute("ALTER TABLE recipe_engine_shadow ADD COLUMN run_token TEXT")
 
 
 # ---------------------------------------------------------------- konfigurácia
@@ -821,28 +833,84 @@ def _shadow_reference_price(con, server, week, rows, *, mode, adults, children,
         return None
 
 
-def _shadow_public_row(row):
-    if row is None:
+def _shadow_int(value, *, maximum=SHADOW_COUNTER_LIMIT):
+    if type(value) is not int or value < 0 or value > maximum:
+        raise ValueError("invalid shadow integer")
+    return value
+
+
+def _shadow_float(value, *, optional=False):
+    if value is None and optional:
         return None
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise ValueError("invalid shadow float")
+    result = float(value)
+    if not math.isfinite(result) or result < 0:
+        raise ValueError("invalid shadow float")
+    return result
+
+
+def _shadow_metrics(row):
+    """Parse persisted aggregates without trusting SQLite affinity or JSON."""
+    if row is None:
+        raise ValueError("missing shadow metrics")
+    complete = _shadow_int(row["complete"], maximum=1)
+    library_gate = _shadow_int(row["library_gate_pass"], maximum=1)
+    matrix_size = _shadow_int(row["matrix_size"])
+    samples_total = _shadow_int(row["samples_total"], maximum=matrix_size)
+    samples_success = _shadow_int(row["samples_success"], maximum=samples_total)
+    family_count = _shadow_int(row["family_count"])
+    method_count = _shadow_int(row["method_count"])
+    library_version = _shadow_int(row["library_version"], maximum=2**63 - 1)
+    price_comparisons = _shadow_int(
+        row["price_comparisons"], maximum=samples_success
+    )
+    dietary_violations = _shadow_int(row["dietary_violations"])
+    negative_quantities = _shadow_int(row["negative_quantities"])
+    invalid_package_counts = _shadow_int(row["invalid_package_counts"])
+    p95_ms = _shadow_float(row["p95_ms"], optional=True)
+    price_delta = _shadow_float(row["price_delta_eur_avg"], optional=True)
+    stored_rate = _shadow_float(row["success_rate"])
+    if stored_rate > 1:
+        raise ValueError("invalid shadow success rate")
+
+    try:
+        error_counts = json.loads(row["error_counts"])
+    except (json.JSONDecodeError, TypeError):
+        raise ValueError("invalid shadow errors") from None
+    if not isinstance(error_counts, dict) or not set(error_counts) <= SHADOW_ERROR_CODES:
+        raise ValueError("invalid shadow errors")
+    parsed_errors = {
+        key: _shadow_int(value, maximum=samples_total)
+        for key, value in error_counts.items()
+    }
+    failures = samples_total - samples_success
+    if sum(parsed_errors.values()) != failures:
+        raise ValueError("inconsistent shadow errors")
+    derived_rate = samples_success / samples_total if samples_total else 0.0
+    if not math.isclose(stored_rate, derived_rate, rel_tol=0, abs_tol=1e-12):
+        raise ValueError("inconsistent shadow success rate")
+    if not isinstance(row["run_token"], str) or not row["run_token"]:
+        raise ValueError("missing shadow run owner")
+
     return {
         "week": row["tyzden"],
-        "complete": bool(row["complete"]),
-        "samples_total": int(row["samples_total"]),
-        "samples_success": int(row["samples_success"]),
-        "success_rate": float(row["success_rate"]),
-        "p95_ms": None if row["p95_ms"] is None else float(row["p95_ms"]),
-        "error_counts": json.loads(row["error_counts"]),
-        "family_count": int(row["family_count"]),
-        "method_count": int(row["method_count"]),
-        "price_comparisons": int(row["price_comparisons"]),
-        "price_delta_eur_avg": (
-            None if row["price_delta_eur_avg"] is None
-            else float(row["price_delta_eur_avg"])
-        ),
-        "dietary_violations": int(row["dietary_violations"]),
-        "negative_quantities": int(row["negative_quantities"]),
-        "invalid_package_counts": int(row["invalid_package_counts"]),
-        "library_gate": "pass" if row["library_gate_pass"] else "fail",
+        "complete": bool(complete),
+        "matrix_size": matrix_size,
+        "samples_total": samples_total,
+        "samples_success": samples_success,
+        "success_rate": derived_rate,
+        "p95_ms": p95_ms,
+        "error_counts": parsed_errors,
+        "family_count": family_count,
+        "method_count": method_count,
+        "library_version": library_version,
+        "price_comparisons": price_comparisons,
+        "price_delta_eur_avg": price_delta,
+        "dietary_violations": dietary_violations,
+        "negative_quantities": negative_quantities,
+        "invalid_package_counts": invalid_package_counts,
+        "library_gate": "pass" if library_gate else "fail",
     }
 
 
@@ -861,6 +929,7 @@ def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
     today = now.date()
     week = server.monday(today)
     started = now.isoformat(timespec="seconds")
+    run_token = secrets.token_hex(16)
     with closing(server.db()) as con:
         migrate_predpocet_schema(con)
         rows = _shadow_offer_rows(con, server, today)
@@ -868,14 +937,15 @@ def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
         with con:
             con.execute(
                 """INSERT INTO recipe_engine_shadow
-                     (tyzden,zaciatok,koniec,complete,offer_fingerprint,
+                     (tyzden,run_token,zaciatok,koniec,complete,offer_fingerprint,
                       library_version,matrix_size,samples_total,samples_success,
                       success_rate,p95_ms,error_counts,family_count,method_count,
                       price_comparisons,price_delta_eur_avg,dietary_violations,
                       negative_quantities,invalid_package_counts,library_gate_pass)
-                   VALUES (?,?,NULL,0,?,NULL,?,0,0,0,NULL,'{}',0,0,0,NULL,0,0,0,0)
+                   VALUES (?,?,?,NULL,0,?,NULL,?,0,0,0,NULL,'{}',0,0,0,NULL,0,0,0,0)
                    ON CONFLICT(tyzden) DO UPDATE SET
-                     zaciatok=excluded.zaciatok, koniec=NULL, complete=0,
+                     run_token=excluded.run_token, zaciatok=excluded.zaciatok,
+                     koniec=NULL, complete=0,
                      offer_fingerprint=excluded.offer_fingerprint,
                      library_version=NULL, matrix_size=excluded.matrix_size,
                      samples_total=0, samples_success=0, success_rate=0,
@@ -884,7 +954,7 @@ def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
                      price_delta_eur_avg=NULL, dietary_violations=0,
                      negative_quantities=0, invalid_package_counts=0,
                      library_gate_pass=0""",
-                (week, started, fingerprint, len(SHADOW_MATRIX)),
+                (week, run_token, started, fingerprint, len(SHADOW_MATRIX)),
             )
         if not _ma_kompletny_povinny_zber(con, server, today):
             return {
@@ -938,7 +1008,7 @@ def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
                 )
                 current = _shadow_decimal(plan.get("nakup_spolu"))
                 if reference is not None and current is not None:
-                    price_deltas.append(current - reference)
+                    price_deltas.append(abs(current - reference))
             except Exception as exc:
                 code = getattr(exc, "code", None)
                 if code not in {
@@ -961,7 +1031,7 @@ def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
         )
         finished = datetime.datetime.now().isoformat(timespec="seconds")
         with con:
-            con.execute(
+            updated = con.execute(
                 """UPDATE recipe_engine_shadow SET
                      koniec=?, complete=1, library_version=?, samples_total=?,
                      samples_success=?, success_rate=?, p95_ms=?, error_counts=?,
@@ -969,7 +1039,8 @@ def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
                      price_delta_eur_avg=?, dietary_violations=?,
                      negative_quantities=?, invalid_package_counts=?,
                      library_gate_pass=?
-                   WHERE tyzden=?""",
+                   WHERE tyzden=? AND run_token=?
+                     AND offer_fingerprint=? AND complete=0""",
                 (
                     finished, recipes.version, total, samples_success,
                     success_rate, p95_ms,
@@ -978,13 +1049,21 @@ def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
                     None if price_delta is None else float(price_delta),
                     dietary_violations, negative_quantities,
                     invalid_package_counts, int(not audit.errors), week,
+                    run_token, fingerprint,
                 ),
             )
+        if updated.rowcount != 1:
+            return {"week": week, "complete": False, "reason": "superseded"}
         row = con.execute(
-            "SELECT * FROM recipe_engine_shadow WHERE tyzden=?", (week,)
+            """SELECT * FROM recipe_engine_shadow
+                 WHERE tyzden=? AND run_token=? AND offer_fingerprint=?""",
+            (week, run_token, fingerprint),
         ).fetchone()
 
-    result = _shadow_public_row(row)
+    try:
+        result = _shadow_metrics(row)
+    except (KeyError, TypeError, ValueError):
+        return {"week": week, "complete": False, "reason": "invalid_metrics"}
     LOG.info(
         "shadow matrix week=%s samples=%s success=%s p95_ms=%s violations=%s",
         week, result["samples_total"], result["samples_success"],
@@ -1012,21 +1091,22 @@ def shadow_activation_status(con, *, server, today=None) -> dict:
             reasons.append("missing_metrics")
         return {"eligible": False, "reasons": reasons, "week": week}
 
-    result = _shadow_public_row(row)
+    try:
+        result = _shadow_metrics(row)
+    except (KeyError, TypeError, ValueError):
+        reasons.append("invalid_metrics")
+        return {
+            "eligible": False,
+            "reasons": list(dict.fromkeys(reasons)),
+            "week": row["tyzden"] if row["tyzden"] else week,
+        }
     result["eligible"] = False
     result["reasons"] = reasons
-    try:
-        error_counts = result["error_counts"]
-        metrics_complete = (
-            result["complete"]
-            and row["matrix_size"] == len(SHADOW_MATRIX)
-            and result["samples_total"] == len(SHADOW_MATRIX)
-            and 0 <= result["samples_success"] <= result["samples_total"]
-            and sum(int(value) for value in error_counts.values())
-                == result["samples_total"] - result["samples_success"]
-        )
-    except (AttributeError, TypeError, ValueError):
-        metrics_complete = False
+    metrics_complete = (
+        result["complete"]
+        and result["matrix_size"] == len(SHADOW_MATRIX)
+        and result["samples_total"] == len(SHADOW_MATRIX)
+    )
     if not metrics_complete:
         reasons.append("incomplete_metrics")
 
@@ -1036,7 +1116,7 @@ def shadow_activation_status(con, *, server, today=None) -> dict:
         stale = (
             row["tyzden"] != week
             or row["offer_fingerprint"] != _shadow_offer_fingerprint(rows)
-            or row["library_version"] != recipes.version
+            or result["library_version"] != recipes.version
         )
         if current_audit.errors:
             reasons.append("library_gate_failed")
