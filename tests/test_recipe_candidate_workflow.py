@@ -1,8 +1,12 @@
-from datetime import date
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+from datetime import date, timedelta
 import hashlib
 import json
 from pathlib import Path
 import shutil
+import threading
+from types import SimpleNamespace
 
 import pytest
 
@@ -212,6 +216,26 @@ def test_validate_candidate_rejects_id_already_present_in_active_library(
     assert report.passed is False
 
 
+def test_duplicate_id_does_not_suppress_other_reachable_gate_errors(
+    quarantined_catalog,
+):
+    candidates, _ = quarantined_catalog
+    recipe = _candidate_recipe(id="pan_chicken_rice_vegetables")
+    recipe["instructions"][-1] = {
+        "text": "Sceďok odváž na 1,5 g a jedlo nechaj na stole."
+    }
+    path = _write_candidate(candidates / "duplicate-with-errors.json", recipe)
+
+    report = recipe_candidates.validate_candidate(path, load_ingredient_catalog())
+
+    assert {
+        "duplicate_id:pan_chicken_rice_vegetables",
+        "forbidden_language",
+        "decimal_grams",
+        "missing_serving_action",
+    } <= set(report.errors)
+
+
 @pytest.mark.parametrize("reviewed_by", ["", "   ", None])
 def test_promotion_requires_nonempty_human_reviewer(
     quarantined_catalog, reviewed_by
@@ -242,6 +266,24 @@ def test_promotion_requires_valid_review_date(quarantined_catalog, reviewed_on):
     assert {item.name: item.read_bytes() for item in recipes.glob("*.json")} == before
 
 
+def test_promotion_rejects_future_review_date_without_writing(
+    quarantined_catalog,
+):
+    candidates, recipes = quarantined_catalog
+    path = _write_candidate(candidates / "future-review.json")
+    before = {item.name: item.read_bytes() for item in recipes.glob("*.json")}
+
+    with pytest.raises(ValueError, match="reviewed_on"):
+        recipe_candidates.promote_candidate(
+            path,
+            reviewed_by="Mária Kontrolórka",
+            reviewed_on=date.today() + timedelta(days=1),
+        )
+
+    assert {item.name: item.read_bytes() for item in recipes.glob("*.json")} == before
+    assert not path.with_suffix(".review.json").exists()
+
+
 @pytest.mark.parametrize(
     "source_file",
     [
@@ -266,6 +308,9 @@ def test_promotion_adds_passing_recipe_to_its_active_collection_atomically(
     version_before = json.loads(
         (recipes / "manifest.json").read_text(encoding="utf-8")
     )["library_version"]
+    revision_before = json.loads(
+        (recipes / "manifest.json").read_text(encoding="utf-8")
+    )["catalog_revision"]
 
     promoted_to = recipe_candidates.promote_candidate(
         path,
@@ -282,7 +327,10 @@ def test_promotion_adds_passing_recipe_to_its_active_collection_atomically(
     assert promoted_to == target.resolve()
     assert len(target_after["recipes"]) == len(target_before["recipes"]) + 1
     assert target_after["recipes"][-1]["id"].startswith("candidate_")
-    assert manifest_after == {"library_version": version_before + 1}
+    assert manifest_after == {
+        "library_version": version_before + 1,
+        "catalog_revision": revision_before + 2,
+    }
     assert path.read_bytes() == original
     assert audit == {
         "candidate_sha256": hashlib.sha256(original).hexdigest(),
@@ -373,6 +421,51 @@ def test_promotion_rolls_back_if_final_live_library_gate_fails(
     assert not path.with_suffix(".review.json").exists()
 
 
+def test_rollback_marks_manifest_odd_if_final_replace_fails_after_commit(
+    quarantined_catalog, monkeypatch
+):
+    candidates, recipes = quarantined_catalog
+    path = _write_candidate(candidates / "post-commit-failure.json")
+    manifest = (recipes / "manifest.json").resolve()
+    target = (recipes / "01-pan.json").resolve()
+    before = {item.name: item.read_bytes() for item in recipes.glob("*.json")}
+    version_before = json.loads(before["manifest.json"])["library_version"]
+    real_replace_json = recipe_candidates._replace_json
+    real_replace_bytes = recipe_candidates._replace_bytes
+    rollback_revisions = []
+
+    def fail_after_final_manifest_commit(destination, payload):
+        result = real_replace_json(destination, payload)
+        if (
+            Path(destination).resolve() == manifest
+            and payload.get("library_version") == version_before + 1
+            and payload.get("catalog_revision", 1) % 2 == 0
+        ):
+            raise OSError("simulated post-commit failure")
+        return result
+
+    def observe_target_rollback(destination, content):
+        if Path(destination).resolve() == target and content == before["01-pan.json"]:
+            rollback_revisions.append(
+                json.loads(manifest.read_text(encoding="utf-8"))["catalog_revision"]
+            )
+        return real_replace_bytes(destination, content)
+
+    monkeypatch.setattr(recipe_candidates, "_replace_json", fail_after_final_manifest_commit)
+    monkeypatch.setattr(recipe_candidates, "_replace_bytes", observe_target_rollback)
+
+    with pytest.raises(OSError, match="simulated post-commit failure"):
+        recipe_candidates.promote_candidate(
+            path,
+            reviewed_by="Mária Kontrolórka",
+            reviewed_on=date.today(),
+        )
+
+    assert rollback_revisions and rollback_revisions[0] % 2 == 1
+    assert {item.name: item.read_bytes() for item in recipes.glob("*.json")} == before
+    assert not path.with_suffix(".review.json").exists()
+
+
 def test_promotion_rejects_path_traversal_before_any_write(
     quarantined_catalog, tmp_path
 ):
@@ -388,3 +481,224 @@ def test_promotion_rejects_path_traversal_before_any_write(
         )
 
     assert {item.name: item.read_bytes() for item in recipes.glob("*.json")} == before
+
+
+def test_promotion_reopens_candidate_under_lock_and_rejects_symlink_swap(
+    quarantined_catalog, tmp_path, monkeypatch
+):
+    candidates, recipes = quarantined_catalog
+    path = _write_candidate(candidates / "swap.json")
+    outside = _write_candidate(tmp_path / "outside.json")
+    before = {item.name: item.read_bytes() for item in recipes.glob("*.json")}
+    real_lock = recipe_candidates._promotion_lock
+
+    @contextmanager
+    def swap_before_locked_read():
+        with real_lock():
+            path.unlink()
+            try:
+                path.symlink_to(outside)
+            except OSError as exc:
+                pytest.skip(f"symlink is unavailable: {exc}")
+            yield
+
+    monkeypatch.setattr(recipe_candidates, "_promotion_lock", swap_before_locked_read)
+
+    with pytest.raises(ValueError, match="unsafe_candidate_path|symlink"):
+        recipe_candidates.promote_candidate(
+            path,
+            reviewed_by="Mária Kontrolórka",
+            reviewed_on=date.today(),
+        )
+
+    assert {item.name: item.read_bytes() for item in recipes.glob("*.json")} == before
+
+
+def test_validation_rejects_candidate_identity_swap_during_open(
+    quarantined_catalog, monkeypatch
+):
+    candidates, _ = quarantined_catalog
+    path = _write_candidate(candidates / "identity-swap.json")
+    real_lstat = recipe_candidates.os.lstat
+    calls = 0
+
+    def swapped_lstat(target):
+        nonlocal calls
+        value = real_lstat(target)
+        if Path(target) == path:
+            calls += 1
+            if calls >= 2:
+                return SimpleNamespace(
+                    st_dev=value.st_dev,
+                    st_ino=value.st_ino + 1,
+                    st_mode=value.st_mode,
+                    st_size=value.st_size,
+                    st_mtime_ns=value.st_mtime_ns,
+                )
+        return value
+
+    monkeypatch.setattr(recipe_candidates.os, "lstat", swapped_lstat)
+
+    report = recipe_candidates.validate_candidate(path, load_ingredient_catalog())
+
+    assert any("unsafe_candidate_path:changed" in item for item in report.errors)
+
+
+def test_concurrent_promotions_preserve_both_recipes_and_both_version_steps(
+    quarantined_catalog, monkeypatch
+):
+    candidates, recipes = quarantined_catalog
+    first_id = "candidate_concurrent_first"
+    second_id = "candidate_concurrent_second"
+    first = _write_candidate(
+        candidates / "first.json",
+        _candidate_recipe(id=first_id, family="candidate_concurrent_family_first"),
+    )
+    second = _write_candidate(
+        candidates / "second.json",
+        _candidate_recipe(id=second_id, family="candidate_concurrent_family_second"),
+    )
+    manifest_before = json.loads(
+        (recipes / "manifest.json").read_text(encoding="utf-8")
+    )
+    real_replace = recipe_candidates._replace_json
+    guard = threading.Lock()
+    second_entered = threading.Event()
+    active = 0
+    maximum_active = 0
+    first_call_waited = False
+
+    def force_overlap_without_lock(target, payload):
+        nonlocal active, maximum_active, first_call_waited
+        with guard:
+            active += 1
+            maximum_active = max(maximum_active, active)
+            if active >= 2:
+                second_entered.set()
+            should_wait = not first_call_waited
+            first_call_waited = True
+        if should_wait:
+            second_entered.wait(0.25)
+        try:
+            return real_replace(target, payload)
+        finally:
+            with guard:
+                active -= 1
+
+    monkeypatch.setattr(recipe_candidates, "_replace_json", force_overlap_without_lock)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = tuple(
+            future.result(timeout=20)
+            for future in (
+                pool.submit(
+                    recipe_candidates.promote_candidate,
+                    first,
+                    "Mária Kontrolórka",
+                    date.today(),
+                ),
+                pool.submit(
+                    recipe_candidates.promote_candidate,
+                    second,
+                    "Ján Kontrolór",
+                    date.today(),
+                ),
+            )
+        )
+
+    target = recipes / "01-pan.json"
+    ids = {
+        item["id"]
+        for item in json.loads(target.read_text(encoding="utf-8"))["recipes"]
+    }
+    manifest_after = json.loads(
+        (recipes / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert len(results) == 2
+    assert maximum_active == 1
+    assert {first_id, second_id} <= ids
+    assert manifest_after == {
+        "library_version": manifest_before["library_version"] + 2,
+        "catalog_revision": manifest_before["catalog_revision"] + 4,
+    }
+
+
+def test_failing_concurrent_promotion_rollback_cannot_clobber_success(
+    quarantined_catalog, monkeypatch
+):
+    candidates, recipes = quarantined_catalog
+    failed_id = "candidate_concurrent_failure"
+    success_id = "candidate_concurrent_success"
+    failed = _write_candidate(
+        candidates / "failed.json",
+        _candidate_recipe(id=failed_id, family="candidate_concurrent_failure_family"),
+    )
+    success = _write_candidate(
+        candidates / "success.json",
+        _candidate_recipe(id=success_id, family="candidate_concurrent_success_family"),
+    )
+    manifest_before = json.loads(
+        (recipes / "manifest.json").read_text(encoding="utf-8")
+    )
+    live_manifest = (recipes / "manifest.json").resolve()
+    live_target = (recipes / "01-pan.json").resolve()
+    real_replace = recipe_candidates._replace_json
+    state = threading.local()
+    failed_target_written = threading.Event()
+    success_done = threading.Event()
+
+    def fail_after_target_while_success_contends(target, payload):
+        resolved = Path(target).resolve()
+        mode = getattr(state, "mode", None)
+        if mode == "fail" and resolved == live_manifest:
+            revision = payload.get("catalog_revision") if isinstance(payload, dict) else None
+            if isinstance(revision, int) and revision % 2 == 0:
+                success_done.wait(0.3)
+                raise OSError("simulated final manifest failure")
+        result = real_replace(target, payload)
+        if mode == "fail" and resolved == live_target:
+            failed_target_written.set()
+        return result
+
+    monkeypatch.setattr(
+        recipe_candidates, "_replace_json", fail_after_target_while_success_contends
+    )
+
+    def run_failed():
+        state.mode = "fail"
+        with pytest.raises(OSError, match="simulated final manifest failure"):
+            recipe_candidates.promote_candidate(
+                failed, "Mária Kontrolórka", date.today()
+            )
+
+    def run_success():
+        assert failed_target_written.wait(5)
+        state.mode = "success"
+        try:
+            return recipe_candidates.promote_candidate(
+                success, "Ján Kontrolór", date.today()
+            )
+        finally:
+            success_done.set()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        failed_future = pool.submit(run_failed)
+        success_future = pool.submit(run_success)
+        failed_future.result(timeout=20)
+        success_future.result(timeout=20)
+
+    ids = {
+        item["id"]
+        for item in json.loads((recipes / "01-pan.json").read_text(encoding="utf-8"))[
+            "recipes"
+        ]
+    }
+    manifest_after = json.loads(
+        (recipes / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert success_id in ids
+    assert failed_id not in ids
+    assert manifest_after == {
+        "library_version": manifest_before["library_version"] + 1,
+        "catalog_revision": manifest_before["catalog_revision"] + 2,
+    }

@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import re
 from string import Formatter
+import time
 from types import MappingProxyType
 from typing import Iterable, Literal, Mapping, Sequence
 
@@ -27,6 +28,8 @@ ALLOWED_USES = frozenset({"main", "addition"})
 ALLOWED_PLACEHOLDER_ATTRIBUTES = frozenset({"name", "amount", "cut"})
 SLOT_KEY_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 PANTRY_BASIC_NAMES: Mapping[str, str] = MappingProxyType({"water": "voda"})
+CATALOG_SNAPSHOT_RETRIES = 4
+CATALOG_SNAPSHOT_RETRY_DELAY_SECONDS = 0.01
 
 
 @dataclass(frozen=True)
@@ -382,23 +385,32 @@ def _recipe_from_json(value, ingredient_catalog: IngredientCatalog) -> RecipeTem
     )
 
 
-def _load_manifest(root: Path) -> int:
+def _load_manifest(root: Path) -> tuple[int, int | None]:
     path = root / "manifest.json"
     try:
         payload = _object(_load_strict_json(path), "manifestu")
     except FileNotFoundError as exc:
         raise ValueError("chýba manifest receptovej knižnice") from exc
-    _exact_keys(payload, {"library_version"}, "manifestu")
-    return _positive_int(payload["library_version"], "library_version")
+    keys = set(payload)
+    if keys not in (
+        {"library_version"},
+        {"library_version", "catalog_revision"},
+    ):
+        expected = {"library_version", "catalog_revision"}
+        _exact_keys(payload, expected, "manifestu")
+    version = _positive_int(payload["library_version"], "library_version")
+    if "catalog_revision" not in payload:
+        return version, None
+    revision = payload["catalog_revision"]
+    if type(revision) is not int or revision < 0:
+        raise ValueError("catalog_revision musí byť nezáporné celé číslo")
+    return version, revision
 
 
-def load_recipe_catalog(
+def _load_recipe_values(
     ingredient_catalog: IngredientCatalog,
-    root=None,
-    include_inactive: bool = False,
-) -> RecipeCatalog:
-    source_root = DEFAULT_RECIPE_ROOT if root is None else Path(root)
-    version = _load_manifest(source_root)
+    source_root: Path,
+) -> list[RecipeTemplate]:
     recipes = []
     for path in sorted(source_root.glob("*.json")):
         if path.name == "manifest.json":
@@ -409,8 +421,42 @@ def load_recipe_catalog(
         if type(values) is not list:
             raise ValueError(f"recipes v {path.name} musí byť zoznam")
         recipes.extend(_recipe_from_json(value, ingredient_catalog) for value in values)
+    return recipes
 
-    validated = RecipeCatalog(version, recipes)
-    if include_inactive:
-        return validated
-    return RecipeCatalog(version, (recipe for recipe in recipes if recipe.active))
+
+def load_recipe_catalog(
+    ingredient_catalog: IngredientCatalog,
+    root=None,
+    include_inactive: bool = False,
+) -> RecipeCatalog:
+    source_root = DEFAULT_RECIPE_ROOT if root is None else Path(root)
+    for attempt in range(CATALOG_SNAPSHOT_RETRIES):
+        before = _load_manifest(source_root)
+        if before[1] is not None and before[1] % 2:
+            if attempt + 1 < CATALOG_SNAPSHOT_RETRIES:
+                time.sleep(CATALOG_SNAPSHOT_RETRY_DELAY_SECONDS)
+            continue
+        try:
+            recipes = _load_recipe_values(ingredient_catalog, source_root)
+            validated = RecipeCatalog(before[0], recipes)
+        except Exception:
+            after_failure = _load_manifest(source_root)
+            if (
+                after_failure != before
+                or (after_failure[1] is not None and after_failure[1] % 2)
+            ):
+                if attempt + 1 < CATALOG_SNAPSHOT_RETRIES:
+                    time.sleep(CATALOG_SNAPSHOT_RETRY_DELAY_SECONDS)
+                continue
+            raise
+        after = _load_manifest(source_root)
+        if before != after or (after[1] is not None and after[1] % 2):
+            if attempt + 1 < CATALOG_SNAPSHOT_RETRIES:
+                time.sleep(CATALOG_SNAPSHOT_RETRY_DELAY_SECONDS)
+            continue
+        if include_inactive:
+            return validated
+        return RecipeCatalog(
+            before[0], (recipe for recipe in recipes if recipe.active)
+        )
+    raise ValueError("receptový katalóg nemá stabilný snapshot")

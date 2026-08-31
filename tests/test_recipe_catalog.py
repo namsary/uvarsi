@@ -1,5 +1,5 @@
 import json
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from decimal import Decimal
 from pathlib import Path
 import subprocess
@@ -7,6 +7,7 @@ import sys
 
 import pytest
 
+from app import recipe_catalog
 from app.ingredient_catalog import load_ingredient_catalog
 from app.recipe_catalog import load_recipe_catalog
 
@@ -446,6 +447,9 @@ def test_rejects_invalid_recipe_enums_and_positive_integers(
         ({"library_version": True}, "celé číslo"),
         ({"library_version": 0}, "kladná"),
         ({"library_version": 1, "extra": 2}, "manifest"),
+        ({"library_version": 1, "catalog_revision": "2"}, "catalog_revision"),
+        ({"library_version": 1, "catalog_revision": True}, "catalog_revision"),
+        ({"library_version": 1, "catalog_revision": -1}, "catalog_revision"),
     ],
 )
 def test_manifest_is_the_only_source_of_positive_integer_library_version(
@@ -454,6 +458,110 @@ def test_manifest_is_the_only_source_of_positive_integer_library_version(
     root = _write_library(tmp_path, [_recipe(version=99)], manifest=manifest)
 
     with pytest.raises(ValueError, match=message):
+        load_recipe_catalog(ingredients, root)
+
+
+def test_loader_accepts_legacy_manifest_without_catalog_revision(
+    ingredients, tmp_path
+):
+    root = _write_library(
+        tmp_path,
+        [_recipe()],
+        manifest={"library_version": 7},
+    )
+
+    assert load_recipe_catalog(ingredients, root).version == 7
+
+
+def test_production_manifest_uses_even_catalog_revision():
+    manifest = json.loads(
+        (DEFAULT_RECIPE_ROOT / "manifest.json").read_text(encoding="utf-8")
+    )
+
+    assert type(manifest["catalog_revision"]) is int
+    assert manifest["catalog_revision"] >= 0
+    assert manifest["catalog_revision"] % 2 == 0
+
+
+def test_loader_retries_when_manifest_changes_and_returns_only_stable_snapshot(
+    ingredients, tmp_path, monkeypatch
+):
+    root = _write_library(
+        tmp_path,
+        [_recipe()],
+        manifest={"library_version": 1, "catalog_revision": 2},
+    )
+    real_load = recipe_catalog._load_strict_json
+    real_load_recipes = recipe_catalog._load_recipe_values
+    recipe_loads = 0
+    snapshots = iter(
+        [
+            {"library_version": 1, "catalog_revision": 2},
+            {"library_version": 2, "catalog_revision": 4},
+            {"library_version": 2, "catalog_revision": 4},
+            {"library_version": 2, "catalog_revision": 4},
+        ]
+    )
+
+    def changing_manifest(path):
+        if Path(path).name == "manifest.json":
+            return next(snapshots)
+        return real_load(path)
+
+    def changing_recipes(ingredient_catalog, source_root):
+        nonlocal recipe_loads
+        recipe_loads += 1
+        values = real_load_recipes(ingredient_catalog, source_root)
+        if recipe_loads == 1:
+            return values
+        return [replace(values[0], id="new_snapshot_recipe")]
+
+    monkeypatch.setattr(recipe_catalog, "_load_strict_json", changing_manifest)
+    monkeypatch.setattr(recipe_catalog, "_load_recipe_values", changing_recipes)
+
+    catalog = load_recipe_catalog(ingredients, root)
+
+    assert catalog.version == 2
+    assert [item.id for item in catalog.all()] == ["new_snapshot_recipe"]
+
+
+def test_loader_retries_odd_revision_then_reads_even_snapshot(
+    ingredients, tmp_path, monkeypatch
+):
+    root = _write_library(
+        tmp_path,
+        [_recipe()],
+        manifest={"library_version": 1, "catalog_revision": 2},
+    )
+    real_load = recipe_catalog._load_strict_json
+    snapshots = iter(
+        [
+            {"library_version": 1, "catalog_revision": 3},
+            {"library_version": 2, "catalog_revision": 4},
+            {"library_version": 2, "catalog_revision": 4},
+        ]
+    )
+
+    def odd_then_even(path):
+        if Path(path).name == "manifest.json":
+            return next(snapshots)
+        return real_load(path)
+
+    monkeypatch.setattr(recipe_catalog, "_load_strict_json", odd_then_even)
+
+    assert load_recipe_catalog(ingredients, root).version == 2
+
+
+def test_loader_fails_closed_after_bounded_odd_revision_retries(
+    ingredients, tmp_path
+):
+    root = _write_library(
+        tmp_path,
+        [_recipe()],
+        manifest={"library_version": 1, "catalog_revision": 3},
+    )
+
+    with pytest.raises(ValueError, match="stabilný snapshot"):
         load_recipe_catalog(ingredients, root)
 
 
