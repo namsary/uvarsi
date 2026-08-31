@@ -154,6 +154,35 @@ def _rice_with_optional_recipes(
     return RecipeCatalog(12, tuple(templates))
 
 
+def _heterogeneous_reserve_recipes():
+    small = _template(
+        "small-optional",
+        amount="10",
+        child_factor="0.25",
+        family="small-family",
+        method="pot",
+    )
+    optional = IngredientSlot(
+        key="extra",
+        role="addition",
+        candidates=("rice",),
+        amount_per_adult=Decimal("10"),
+        unit="g",
+        child_factor=Decimal("0.25"),
+        required=False,
+        use="addition",
+        cut=None,
+    )
+    large = _template(
+        "large-future",
+        amount="100",
+        child_factor="1",
+        family="large-family",
+        method="pan",
+    )
+    return RecipeCatalog(13, (replace(small, slots=(*small.slots, optional)), large))
+
+
 def _build(*, frequency=3, pantry=(), pantry_driven=False, **overrides):
     values = {
         "week": WEEK,
@@ -378,6 +407,63 @@ def test_optional_pantry_uses_exact_factor_without_spending_required_reserve():
     )
     assert required_only["nakupny_zoznam"] == []
     assert exactly_enriched["nakupny_zoznam"] == []
+
+
+def test_future_candidate_maximum_reserve_withholds_current_optional_pantry():
+    plan = _build(
+        rows=(),
+        adults=1,
+        children=1,
+        pantry=(
+            PantryEntry("rice", "ryža", Quantity(Decimal("650"), "g")),
+        ),
+        pantry_driven=True,
+        recipe_catalog=_heterogeneous_reserve_recipes(),
+    )
+
+    assert [
+        meal["recept"]["template_id"] for meal in plan["jedla"]
+    ] == ["small-optional", "large-future", "small-optional"]
+    assert plan["jedla"][0]["suroviny"].count({"spajza": "ryža"}) == 1
+    assert plan["nakupny_zoznam"] == []
+    assert sum(meal["pokryva_dni"] for meal in plan["jedla"]) == 7
+
+
+def test_future_reserve_ignores_unrenderable_and_out_of_mode_candidates():
+    safe = _rice_with_optional_recipes(optional_ingredient_id="rice")
+    unrenderable = _template(
+        "huge-unrenderable",
+        amount="1000",
+        child_factor="1",
+        family="huge-family",
+        method="pressure",
+        steps=(
+            "Uvar {main.amount} {main.name}.",
+            "Premiešaj {main.amount} {main.name}.",
+            "Podávaj {main.amount} {main.name}.",
+        ),
+    )
+    out_of_mode = replace(
+        unrenderable,
+        id="huge-out-of-mode",
+        modes=frozenset({"vegan"}),
+    )
+    recipes = RecipeCatalog(14, (*safe.all(), unrenderable, out_of_mode))
+
+    plan = _build(
+        adults=1,
+        children=1,
+        pantry=(
+            PantryEntry("rice", "ryža", Quantity(Decimal("962.5"), "g")),
+        ),
+        pantry_driven=True,
+        recipe_catalog=recipes,
+    )
+
+    assert all(
+        meal["suroviny"].count({"spajza": "ryža"}) == 2
+        for meal in plan["jedla"]
+    )
 
 
 def test_meal_ingredients_preserve_established_offer_and_pantry_shapes():
