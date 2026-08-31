@@ -176,6 +176,14 @@ def test_rejects_vegetarian_recipe_with_nonvegetarian_pantry_basic(
         load_recipe_catalog(ingredients, root)
 
 
+def test_accepts_water_as_a_culinary_pantry_basic(ingredients, tmp_path):
+    root = _write_library(tmp_path, [_recipe(pantry_basics=["water", "salt"])])
+
+    recipe = load_recipe_catalog(ingredients, root).all()[0]
+
+    assert recipe.pantry_basics == ("water", "salt")
+
+
 def test_rejects_instruction_unknown_slot(ingredients, tmp_path):
     instructions = list(_recipe()["instructions"])
     instructions[1] = {"text": "Pridaj {mystery.name} a premiešaj."}

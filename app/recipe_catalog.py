@@ -8,7 +8,8 @@ import json
 from pathlib import Path
 import re
 from string import Formatter
-from typing import Iterable, Literal, Sequence
+from types import MappingProxyType
+from typing import Iterable, Literal, Mapping, Sequence
 
 if __package__:
     from .ingredient_catalog import ALLOWED_ROLES, DietTag, IngredientCatalog
@@ -25,6 +26,7 @@ ALLOWED_UNITS = frozenset({"g", "ml", "piece"})
 ALLOWED_USES = frozenset({"main", "addition"})
 ALLOWED_PLACEHOLDER_ATTRIBUTES = frozenset({"name", "amount", "cut"})
 SLOT_KEY_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
+PANTRY_BASIC_NAMES: Mapping[str, str] = MappingProxyType({"water": "voda"})
 
 
 @dataclass(frozen=True)
@@ -325,7 +327,8 @@ def _recipe_from_json(value, ingredient_catalog: IngredientCatalog) -> RecipeTem
     if len(pantry_basics) != len(set(pantry_basics)):
         raise ValueError("duplicitná základná surovina")
     for ingredient_id in pantry_basics:
-        _ingredient(ingredient_catalog, ingredient_id)
+        if ingredient_id not in PANTRY_BASIC_NAMES:
+            _ingredient(ingredient_catalog, ingredient_id)
 
     instructions_value = payload["instructions"]
     if type(instructions_value) is not list or len(instructions_value) < 3:
@@ -356,7 +359,11 @@ def _recipe_from_json(value, ingredient_catalog: IngredientCatalog) -> RecipeTem
         ingredient_id
         for slot in slots
         for ingredient_id in slot.candidates
-    ) + pantry_basics
+    ) + tuple(
+        ingredient_id
+        for ingredient_id in pantry_basics
+        if ingredient_id not in PANTRY_BASIC_NAMES
+    )
     _validate_diets(modes, all_ingredient_ids, ingredient_catalog)
 
     return RecipeTemplate(

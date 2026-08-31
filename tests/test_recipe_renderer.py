@@ -81,7 +81,8 @@ RICE_STEPS = (
     "Prepláchni {main.amount} {main.name} v jemnom sitku pod studenou vodou, "
     "kým odtekajúca voda nebude takmer číra.",
     "Vlož {main.amount} {main.name} do hrnca, prilej 450 ml vody, pridaj "
-    "štipku soli a priveď na silnom ohni do varu.",
+    "štipku soli a obsah hrnca priveď na silnom ohni za 5 minút do varu, "
+    "kým voda nezačne súvislo bublať.",
     "Var {main.amount} {main.name} v prikrytom hrnci 12 minút na miernom "
     "ohni, kým sa voda vsiakne.",
     "Odstav hrniec a nechaj ryžu prikrytú 5 minút dôjsť, kým budú zrná "
@@ -90,7 +91,8 @@ RICE_STEPS = (
 )
 
 PASTA_STEPS = (
-    "Priveď v hrnci 2 l vody so štipkou soli do prudkého varu.",
+    "Priveď v hrnci 2 l vody so štipkou soli na silnom ohni za 8 minút "
+    "do prudkého varu, kým voda nezačne súvislo bublať.",
     "Vsyp {main.amount} {main.name} do hrnca a var ich 9 minút na strednom "
     "ohni, kým budú mäkké, ale pri zahryznutí ešte pevné.",
     "Odober z hrnca 100 ml vody z varenia a odlož ju na zriedenie omáčky.",
@@ -144,14 +146,14 @@ CHICKEN_STEPS = (
             None,
             "Absorpčne varená {main.name}",
             ("hrniec", "sitko"),
-            ("salt",),
+            ("water", "salt"),
             RICE_STEPS,
             (
                 "Absorpčne varená ryža",
                 "300 g · ryža",
                 (
                     "Prepláchni 300 g ryže v jemnom sitku pod studenou vodou, kým odtekajúca voda nebude takmer číra.",
-                    "Vlož 300 g ryže do hrnca, prilej 450 ml vody, pridaj štipku soli a priveď na silnom ohni do varu.",
+                    "Vlož 300 g ryže do hrnca, prilej 450 ml vody, pridaj štipku soli a obsah hrnca priveď na silnom ohni za 5 minút do varu, kým voda nezačne súvislo bublať.",
                     "Var 300 g ryže v prikrytom hrnci 12 minút na miernom ohni, kým sa voda vsiakne.",
                     "Odstav hrniec a nechaj ryžu prikrytú 5 minút dôjsť, kým budú zrná mäkké a oddelené.",
                     "Rozdeľ ryžu na 4 porcie a podávaj ju horúcu.",
@@ -164,13 +166,13 @@ CHICKEN_STEPS = (
             None,
             "{main.name} al dente",
             ("hrniec", "sitko"),
-            ("salt",),
+            ("water", "salt"),
             PASTA_STEPS,
             (
                 "Cestoviny al dente",
                 "300 g · cestoviny",
                 (
-                    "Priveď v hrnci 2 l vody so štipkou soli do prudkého varu.",
+                    "Priveď v hrnci 2 l vody so štipkou soli na silnom ohni za 8 minút do prudkého varu, kým voda nezačne súvislo bublať.",
                     "Vsyp 300 g cestovín do hrnca a var ich 9 minút na strednom ohni, kým budú mäkké, ale pri zahryznutí ešte pevné.",
                     "Odober z hrnca 100 ml vody z varenia a odlož ju na zriedenie omáčky.",
                     "Sceď cestoviny v sitku a nechaj ich 30 sekúnd odkvapkať, kým z nich prestane tiecť voda.",
@@ -275,7 +277,7 @@ def test_batch_math_stays_exact_and_displayed_portions_are_people_meals(ingredie
         child_factor="0.625",
         name_template="Absorpčne varená {main.name}",
         equipment=("hrniec", "sitko"),
-        pantry_basics=("salt",),
+        pantry_basics=("water", "salt"),
         instructions=RICE_STEPS,
     )
 
@@ -420,7 +422,7 @@ def test_renderer_rejects_generic_steps_bad_placeholders_and_czechisms(
         amount="75",
         name_template="Absorpčne varená {main.name}",
         equipment=("hrniec", "sitko"),
-        pantry_basics=("salt",),
+        pantry_basics=("water", "salt"),
         instructions=broken_steps,
     )
 
@@ -451,12 +453,86 @@ def test_renderer_rejects_ingredient_used_in_steps_but_missing_from_list(ingredi
         amount="75",
         name_template="Absorpčne varená {main.name}",
         equipment=("hrniec", "sitko"),
-        pantry_basics=("salt",),
+        pantry_basics=("water", "salt"),
         instructions=(*RICE_STEPS[:-1], "Rozdeľ ryžu a mrkvu na {portions} porcie."),
     )
 
     with pytest.raises(ValueError, match="mrkva|zozname surovín"):
         render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
+def test_renderer_rejects_unknown_measured_ingredient_missing_from_list(ingredients):
+    candidate = _candidate(
+        ingredients.by_id("tofu"),
+        amount="160",
+        cut="na 2 cm kocky",
+        name_template="Chrumkavé {main.name} z panvice",
+        equipment=("panvica", "doska"),
+        pantry_basics=("oil",),
+        instructions=(
+            *TOFU_STEPS[:-1],
+            "Pridaj do panvice 5 g šafranu.",
+            TOFU_STEPS[-1],
+        ),
+    )
+
+    with pytest.raises(ValueError, match="šafran|zozname surovín"):
+        render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
+def test_renderer_rejects_unknown_added_ingredient_without_amount(ingredients):
+    candidate = _candidate(
+        ingredients.by_id("tofu"),
+        amount="160",
+        cut="na 2 cm kocky",
+        name_template="Chrumkavé {main.name} z panvice",
+        equipment=("panvica", "doska"),
+        pantry_basics=("oil",),
+        instructions=(
+            *TOFU_STEPS[:-1],
+            "Pridaj šafran do panvice.",
+            TOFU_STEPS[-1],
+        ),
+    )
+
+    with pytest.raises(ValueError, match="šafran|zozname surovín"):
+        render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
+def test_renderer_rejects_unknown_prepared_ingredient_without_amount(ingredients):
+    candidate = _candidate(
+        ingredients.by_id("tofu"),
+        amount="160",
+        cut="na 2 cm kocky",
+        name_template="Chrumkavé {main.name} z panvice",
+        equipment=("panvica", "doska"),
+        pantry_basics=("oil",),
+        instructions=(
+            *TOFU_STEPS[:-1],
+            "Nakrájaj šafran na doske.",
+            TOFU_STEPS[-1],
+        ),
+    )
+
+    with pytest.raises(ValueError, match="šafran|zozname surovín"):
+        render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
+def test_water_is_a_visible_declared_pantry_basic(ingredients):
+    candidate = _candidate(
+        ingredients.by_id("rice"),
+        amount="75",
+        name_template="Absorpčne varená {main.name}",
+        equipment=("hrniec", "sitko"),
+        pantry_basics=("water", "salt"),
+        instructions=RICE_STEPS,
+    )
+
+    meal = render_meal(candidate, adults=4, children=0, covered_days=1)
+
+    assert meal.pantry_basics == ("voda", "soľ")
+    assert meal.ingredients[0].quantity == Quantity(Decimal("300"), "g")
+    assert "450 ml vody" in meal.instructions[1]
 
 
 def test_renderer_rejects_inconsistent_selected_ingredient_name(ingredients):
@@ -522,6 +598,85 @@ def test_each_cooking_step_requires_vessel_heat_time_and_doneness_cue(
         render_meal(candidate, adults=4, children=0, covered_days=1)
 
 
+@pytest.mark.parametrize(
+    ("ingredient_id", "incomplete_step", "other_steps"),
+    [
+        (
+            "rice",
+            "Uvar {main.amount} {main.name}.",
+            (
+                "Prepláchni {main.amount} {main.name} v sitku pod studenou "
+                "vodou, kým odtekajúca voda nebude takmer číra.",
+                "Rozdeľ ryžu na {portions} porcie a podávaj ju horúcu.",
+            ),
+        ),
+        (
+            "zucchini",
+            "Upeč {main.amount} {main.name}.",
+            (
+                "Nakrájaj {main.amount} {main.name} na doske na 1 cm kúsky.",
+                "Rozdeľ cuketu na {portions} porcie a podávaj ju horúcu.",
+            ),
+        ),
+        (
+            "milk",
+            "Priveď {main.amount} {main.name} do varu.",
+            (
+                "Nalej {main.amount} {main.name} do hrnca.",
+                "Rozdeľ nápoj na {portions} porcie a podávaj ho teplý.",
+            ),
+        ),
+    ],
+)
+def test_prefixed_cooking_imperatives_cannot_bypass_step_detail_validation(
+    ingredients, ingredient_id, incomplete_step, other_steps
+):
+    candidate = _candidate(
+        ingredients.by_id(ingredient_id),
+        instructions=(other_steps[0], incomplete_step, other_steps[1]),
+    )
+
+    with pytest.raises(ValueError, match="nádob|ohrev|teplot|čas|minút|hotov|výsled"):
+        render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
+def test_boiling_result_does_not_replace_an_explicit_heat_level(ingredients):
+    candidate = _candidate(
+        ingredients.by_id("milk"),
+        amount="500",
+        unit="ml",
+        instructions=(
+            "Nalej {main.amount} {main.name} do hrnca.",
+            "Priveď {main.amount} {main.name} v hrnci za 5 minút do varu, "
+            "kým začne súvislo bublať.",
+            "Rozdeľ nápoj na {portions} porcie a podávaj ho teplý.",
+        ),
+    )
+
+    with pytest.raises(ValueError, match="ohrev|teplot"):
+        render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
+def test_bare_kym_without_observable_result_is_not_a_doneness_cue(ingredients):
+    candidate = _candidate(
+        ingredients.by_id("tofu"),
+        amount="160",
+        cut="na 2 cm kocky",
+        name_template="Chrumkavé {main.name} z panvice",
+        equipment=("panvica", "doska"),
+        pantry_basics=("oil",),
+        instructions=(
+            *TOFU_STEPS[:3],
+            "Opekaj {main.amount} {main.name} v panvici 8 minút na strednom "
+            "ohni, kým môžeš pokračovať.",
+            TOFU_STEPS[-1],
+        ),
+    )
+
+    with pytest.raises(ValueError, match="hotov|výsled"):
+        render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
 def test_preheating_requires_an_observable_readiness_cue(ingredients):
     candidate = _candidate(
         ingredients.by_id("zucchini"),
@@ -558,7 +713,7 @@ def test_renderer_rejects_invalid_household_or_coverage(
         ingredients.by_id("rice"),
         name_template="Absorpčne varená {main.name}",
         equipment=("hrniec", "sitko"),
-        pantry_basics=("salt",),
+        pantry_basics=("water", "salt"),
         instructions=RICE_STEPS,
     )
 

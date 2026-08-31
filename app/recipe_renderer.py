@@ -14,7 +14,7 @@ from .ingredient_catalog import Ingredient, load_ingredient_catalog
 from .nutrition import NutritionEstimate, estimate_recipe_nutrition
 from .plan_data import validate_recipe_language
 from .quantity_math import Quantity
-from .recipe_catalog import IngredientSlot
+from .recipe_catalog import IngredientSlot, PANTRY_BASIC_NAMES
 from .recipe_matcher import RecipeCandidate, SlotSelection
 
 
@@ -113,6 +113,10 @@ _EXTRA_INGREDIENT_FORMS: Mapping[str, tuple[str, ...]] = {
     "milk": ("plnotučné mlieko", "plnotučného mlieka", "mlieko", "mlieka"),
 }
 
+_EXTRA_PANTRY_FORMS: Mapping[str, tuple[str, ...]] = {
+    "water": ("voda", "vody", "vodu"),
+}
+
 _ALLOWED_IMPERATIVES = frozenset(
     {
         "dochuť",
@@ -180,26 +184,36 @@ _GENERIC_STEPS = frozenset(
 )
 
 _COOKING_ACTION = re.compile(
-    r"\b(?:dus|opec|opekaj|pec|predhrej|prehrievaj|rozohrej|smaz|var|zohrej|zohrievaj)\b"
+    r"\b(?:dus|opec|opekaj|pec|predhrej|prehrievaj|prived|rozohrej|smaz|"
+    r"upec|uvar|var|zohrej|zohrievaj)\b"
 )
 _VESSEL = re.compile(
     r"\b(?:hrnc\w*|panvic\w*|pekac\w*|plech\w*|rur\w*|wok\w*|rajnic\w*)\b"
 )
 _HEAT = re.compile(
     r"(?:\b(?:miernom|strednom|silnom|nizkom|vysokom)\s+ohni\b|"
-    r"\b(?:prudkeho|mierneho)\s+varu\b|\bdo\s+varu\b|\d+\s*°\s*c\b)"
+    r"\d+\s*°\s*c\b)"
 )
 _TIME = re.compile(
     r"\b\d+(?:[,.]\d+)?\s*(?:sekund|sekundy|minut|minuty|hodin|hodiny)\b"
 )
 _DONENESS = re.compile(
-    r"(?:\bkym\b|\bdozlatista\b|\bdosklovita\b|\bzlatist\w*\b|"
-    r"\bchrumkav\w*\b|\bcira\b|\bciru\b|\bvsiakn\w*\b|"
+    r"(?:\bbubl\w*\b|\bdozlatista\b|\bdosklovita\b|\bzlatist\w*\b|"
+    r"\bchrumkav\w*\b|\bcira\b|\bciru\b|\bhoruc\w*\b|"
+    r"\bleskn\w*\b|\bmakk\w*\b|\bpar\w*\b|\bvsiakn\w*\b|"
     r"\bzmakn\w*\b|\bstuh\w*\b|\b74\s*°\s*c\b)"
 )
 _AMOUNT = re.compile(
     r"\b\d+(?:[,.]\d+)?\s*(?:g|kg|ml|l|ks|kus|kusy|kusov|"
     r"polievkov\w*\s+lyzic\w*|cajov\w*\s+lyzic\w*)\b"
+)
+_PINCH_AMOUNT = re.compile(r"\bstipk\w*\b")
+_INGREDIENT_INTRODUCTION = re.compile(
+    r"\b(?:nalej|posyp|potri|pridaj|prilej|prisyp|vlej|vloz|vmiesaj|vsyp|zalej)\b"
+)
+_INGREDIENT_TARGET_START = re.compile(
+    r"(?:^|[.!?]\s+)(?:dus|nakrajaj|opec|opekaj|oplachni|osus|osup|pec|"
+    r"prehrievaj|preplachni|prived|rozloz|sced|upec|uvar|var|zohrej|zohrievaj)\b"
 )
 _PREHEAT_READY = re.compile(r"\b(?:kontrolk\w*|dosiahn\w*|nahriat\w*|signal\w*)\b")
 
@@ -449,11 +463,82 @@ def _pantry_names(candidate: RecipeCandidate) -> tuple[str, ...]:
     by_id = {ingredient.id: ingredient for ingredient in _catalog_ingredients()}
     names = []
     for ingredient_id in candidate.template.pantry_basics:
+        if ingredient_id in PANTRY_BASIC_NAMES:
+            names.append(PANTRY_BASIC_NAMES[ingredient_id])
+            continue
         ingredient = by_id.get(ingredient_id)
         if ingredient is None:
             raise ValueError(f"Neznáma základná surovina: {ingredient_id}")
         names.append(ingredient.name)
     return tuple(names)
+
+
+def _allowed_ingredient_forms(
+    rendered: Sequence[RenderedIngredient], pantry_ids: Sequence[str]
+) -> tuple[str, ...]:
+    forms = {
+        form
+        for item in rendered
+        for form in (*_ingredient_forms(item.ingredient), *item.ingredient.synonyms)
+    }
+    known = {ingredient.id: ingredient for ingredient in _catalog_ingredients()}
+    for ingredient_id in pantry_ids:
+        if ingredient_id in PANTRY_BASIC_NAMES:
+            forms.update(_EXTRA_PANTRY_FORMS[ingredient_id])
+            continue
+        ingredient = known.get(ingredient_id)
+        if ingredient is not None:
+            forms.update((*_ingredient_forms(ingredient), *ingredient.synonyms))
+    return tuple(sorted(forms))
+
+
+def _validate_measured_ingredient_mentions(
+    folded_steps: str,
+    rendered: Sequence[RenderedIngredient],
+    pantry_ids: Sequence[str],
+) -> None:
+    allowed_patterns = tuple(
+        _phrase_pattern(form) for form in _allowed_ingredient_forms(rendered, pantry_ids)
+    )
+    references = sorted(
+        (*_AMOUNT.finditer(folded_steps), *_PINCH_AMOUNT.finditer(folded_steps)),
+        key=lambda match: match.start(),
+    )
+    for reference in references:
+        remainder = folded_steps[reference.end() :].lstrip()
+        if any(pattern.match(remainder) for pattern in allowed_patterns):
+            continue
+        mentioned = re.match(r"\w+", remainder)
+        name = mentioned.group() if mentioned is not None else "uvedená po množstve"
+        raise ValueError(
+            f"Surovina {name} je v postupe, ale chýba v zozname surovín."
+        )
+
+
+def _validate_ingredient_introductions(
+    folded_steps: str,
+    rendered: Sequence[RenderedIngredient],
+    pantry_ids: Sequence[str],
+) -> None:
+    allowed_patterns = tuple(
+        _phrase_pattern(form) for form in _allowed_ingredient_forms(rendered, pantry_ids)
+    )
+    actions = sorted(
+        (
+            *_INGREDIENT_INTRODUCTION.finditer(folded_steps),
+            *_INGREDIENT_TARGET_START.finditer(folded_steps),
+        ),
+        key=lambda match: match.start(),
+    )
+    for action in actions:
+        clause = re.split(
+            r"(?<!\d),(?!\d)|[.;]", folded_steps[action.end() :], maxsplit=1
+        )[0]
+        if any(pattern.search(clause) for pattern in allowed_patterns):
+            continue
+        raise ValueError(
+            "Použitá surovina je v postupe, ale chýba v zozname surovín."
+        )
 
 
 def _validate_step_detail(step: str) -> None:
@@ -473,10 +558,6 @@ def _validate_step_detail(step: str) -> None:
             raise ValueError("Predhriatie musí uvádzať teplotu.")
         if _PREHEAT_READY.search(folded) is None:
             raise ValueError("Predhriatie musí uvádzať kontrolný znak hotovosti.")
-        return
-    if "prived" in folded and "do varu" in folded:
-        if _VESSEL.search(folded) is None or _HEAT.search(folded) is None:
-            raise ValueError("Privedenie do varu musí uvádzať nádobu a ohrev.")
         return
     if not folded.startswith("rozohrej") and _AMOUNT.search(folded) is None:
         raise ValueError("Tepelný krok musí uvádzať množstvo suroviny.")
@@ -522,6 +603,8 @@ def _validate_ingredient_mentions(
             raise ValueError(
                 f"Surovina {ingredient.name} je v postupe, ale chýba v zozname surovín."
             )
+    _validate_measured_ingredient_mentions(folded_steps, rendered, pantry_ids)
+    _validate_ingredient_introductions(folded_steps, rendered, pantry_ids)
 
 
 def _validate_rendered_language(
