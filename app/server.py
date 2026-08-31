@@ -10,7 +10,7 @@ Závislosti: fastapi uvicorn itsdangerous
 """
 import asyncio
 import logging
-import os, re, json, sqlite3, datetime, threading, time, hashlib
+import os, re, json, sqlite3, datetime, threading, time, hashlib, math
 from contextlib import asynccontextmanager, closing
 from urllib.parse import urlsplit
 
@@ -59,6 +59,7 @@ from plan_data import (
     cached_plan_is_current,
     measurable_offers,
     personal_plan_messages,
+    pantry_signature_facts,
     plan_output_config,
     plan_signature,
     plan_variant_for,
@@ -743,6 +744,13 @@ SPRAVA_SPAJZA_PREMIUM = (
 KOD_SPAJZA_PREMIUM = "spajza_premium"
 KOD_LIMIT_PREPOCTOV = "limit_prepoctov"
 KOD_STRAVOVANIE_PREMIUM = "stravovanie_premium"
+PANTRY_MAX_ITEMS = 60
+PANTRY_MAX_NAME_LENGTH = 80
+PANTRY_AMOUNT_LIMITS = {"g": 100_000, "ml": 100_000, "piece": 10_000}
+PANTRY_UNIT_ALIASES = {
+    "g": "g", "ml": "ml", "piece": "piece",
+    "ks": "piece", "kus": "piece", "kusy": "piece", "kusov": "piece",
+}
 SPRAVA_STRAVOVANIE_PREMIUM = (
     "Viac bielkovín, vegetariánsky a vegánsky režim sú súčasťou Premium."
 )
@@ -781,6 +789,85 @@ def limit_prepoctov(premium: bool) -> int:
     return LIMIT_PREPOCTOV_PREMIUM if premium else LIMIT_PREPOCTOV_ZDARMA
 
 
+def _pantry_name(value, index):
+    if not isinstance(value, str):
+        raise HTTPException(422, f"Položka špajze {index} nemá platný názov.")
+    name = " ".join(value.split())
+    if not name or len(name) > PANTRY_MAX_NAME_LENGTH:
+        raise HTTPException(
+            422, f"Názov položky špajze {index} musí mať 1 až 80 znakov."
+        )
+    return name
+
+
+def _pantry_amount(value, unit, index):
+    if value is None and unit is None:
+        return None, None
+    if value is None or unit is None:
+        raise HTTPException(
+            422, f"Položka špajze {index} potrebuje množstvo aj jednotku."
+        )
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise HTTPException(422, f"Položka špajze {index} nemá platné množstvo.")
+    if not isinstance(unit, str):
+        raise HTTPException(422, f"Položka špajze {index} nemá platnú jednotku.")
+    canonical_unit = PANTRY_UNIT_ALIASES.get(unit.strip().casefold())
+    if canonical_unit is None:
+        raise HTTPException(
+            422, f"Položka špajze {index} musí používať g, ml alebo ks."
+        )
+    try:
+        amount = float(value)
+    except (OverflowError, TypeError, ValueError):
+        raise HTTPException(422, f"Položka špajze {index} nemá platné množstvo.")
+    if (not math.isfinite(amount) or amount <= 0
+            or amount >= PANTRY_AMOUNT_LIMITS[canonical_unit]):
+        raise HTTPException(
+            422, f"Položka špajze {index} má množstvo mimo povoleného rozsahu."
+        )
+    return (int(amount) if amount.is_integer() else amount), canonical_unit
+
+
+def validuj_spajzu_payload(data):
+    """Validate the whole replacement before the transaction mutates a row.
+
+    Text entries remain accepted only for accounts and the current frontend
+    created before quantified pantry support. They are stored as explicit
+    legacy rows with both quantity fields NULL; all new clients use objects.
+    """
+    if not isinstance(data, dict) or "polozky" not in data:
+        raise HTTPException(422, "Pošli zoznam položiek špajze.")
+    values = data["polozky"]
+    if not isinstance(values, list) or len(values) > PANTRY_MAX_ITEMS:
+        raise HTTPException(422, "Špajza môže obsahovať najviac 60 položiek.")
+    result = []
+    for index, item in enumerate(values, 1):
+        if isinstance(item, str):
+            result.append({
+                "nazov": _pantry_name(item, index),
+                "mnozstvo": None,
+                "jednotka": None,
+            })
+            continue
+        if not isinstance(item, dict):
+            raise HTTPException(422, f"Položka špajze {index} nemá platný tvar.")
+        name = _pantry_name(item.get("nazov"), index)
+        amount, unit = _pantry_amount(
+            item.get("mnozstvo"), item.get("jednotka"), index,
+        )
+        result.append({"nazov": name, "mnozstvo": amount, "jednotka": unit})
+    return result
+
+
+def _pantry_row(row):
+    amount = row["mnozstvo"]
+    if isinstance(amount, float) and amount.is_integer():
+        amount = int(amount)
+    return {
+        "nazov": row["nazov"], "mnozstvo": amount, "jednotka": row["jednotka"],
+    }
+
+
 def spajza_pouzivatela(con, user_id, premium: bool):
     """Špajza vstupuje do plánu len platiacim.
 
@@ -789,8 +876,10 @@ def spajza_pouzivatela(con, user_id, premium: bool):
     """
     if not premium:
         return []
-    return [row["nazov"] for row in con.execute(
-        "SELECT nazov FROM spajza WHERE user_id=? ORDER BY id", (user_id,))]
+    return [_pantry_row(row) for row in con.execute(
+        "SELECT nazov,mnozstvo,jednotka FROM spajza WHERE user_id=? ORDER BY id",
+        (user_id,),
+    )]
 
 
 def pocet_ulozenej_spajze(con, user_id) -> int:
@@ -2406,27 +2495,41 @@ async def uloz_spajzu(req: Request):
     # Špajza je platená vlastnosť, tak sa zadarmo neuloží ani sa nezahodí ticho:
     # odmietnutie je jasné a appka ju bezplatnému účtu ani neponúkne. Kontrola je
     # tu vždy nanovo — nárok, ktorý medzitým zanikol, platí okamžite.
-    with closing(db()) as con:
-        if not je_premium(con, u["id"]):
-            # Uložené riadky ostávajú ležať — odmietnutie nie je mazanie.
-            return odmietni(
-                403, SPRAVA_SPAJZA_PREMIUM, KOD_SPAJZA_PREMIUM,
-                premium=False, spajza_dostupna=False,
-                spajza_ulozenych=pocet_ulozenej_spajze(con, u["id"]),
-            )
-    d = await req.json()
-    polozky = [str(x).strip()[:40] for x in d.get("polozky", []) if str(x).strip()][:60]
+    try:
+        d = await req.json()
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        raise HTTPException(422, "Pošli platný JSON so zoznamom položiek špajze.")
     # Špajza je oddelený systém: uloží sa okamžite a plán sa jej NIKDY nedotkne.
     # Predtým tu bolo DELETE FROM plany — jedno pridané vajíčko tak zahodilo
     # jedálniček, ktorý si používateľ práve čítal, a vynútilo platené volanie
     # modelu bez vyzvania. Rozdiel oproti plánu ukáže appka ako tichý návrh.
     with closing(db()) as con:
-        old = [row["nazov"] for row in con.execute(
-            "SELECT nazov FROM spajza WHERE user_id=? ORDER BY id", (u["id"],))]
+        con.execute("BEGIN IMMEDIATE")
+        if not je_premium(con, u["id"]):
+            # Uložené riadky ostávajú ležať — odmietnutie nie je mazanie.
+            ulozenych = pocet_ulozenej_spajze(con, u["id"])
+            con.rollback()
+            return odmietni(
+                403, SPRAVA_SPAJZA_PREMIUM, KOD_SPAJZA_PREMIUM,
+                premium=False, spajza_dostupna=False,
+                spajza_ulozenych=ulozenych,
+            )
+        # Najprv sa overí celý zoznam. Jediná chybná položka preto nemôže po
+        # DELETE zanechať prázdnu alebo iba napoly uloženú špajzu.
+        polozky = validuj_spajzu_payload(d)
+        old = [_pantry_row(row) for row in con.execute(
+            "SELECT nazov,mnozstvo,jednotka FROM spajza WHERE user_id=? ORDER BY id",
+            (u["id"],),
+        )]
         if old != polozky:
             con.execute("DELETE FROM spajza WHERE user_id=?", (u["id"],))
-            con.executemany("INSERT INTO spajza (user_id,nazov) VALUES (?,?)",
-                            [(u["id"], p) for p in polozky])
+            con.executemany(
+                "INSERT INTO spajza (user_id,nazov,mnozstvo,jednotka) VALUES (?,?,?,?)",
+                [
+                    (u["id"], item["nazov"], item["mnozstvo"], item["jednotka"])
+                    for item in polozky
+                ],
+            )
         con.commit()
     return {"ok": True, "pocet": len(polozky)}
 
@@ -2495,7 +2598,12 @@ def so_spajzou(plan, spajza):
     """
     upraveny = apply_pantry_to_shopping_list(plan, spajza)
     upraveny.pop("_uvarsi_meta", None)
-    upraveny["spajza"] = list(spajza)
+    # Plán si zatiaľ drží kompatibilný zoznam názvov; nový štruktúrovaný
+    # kontrakt je v /api/me. Výpočet vyššie už používa aj množstvo a jednotku.
+    upraveny["spajza"] = [
+        item.get("nazov") if isinstance(item, dict) else str(item)
+        for item in spajza
+    ]
     return upraveny
 
 
@@ -2504,7 +2612,7 @@ PLAN_META_KEY = "_uvarsi_meta"
 
 def podpis_spajze(spajza):
     """Stabilný odtlačok obsahu špajze bez ukladania ďalšej čitateľnej kópie."""
-    normalizovane = sorted({str(item).strip().casefold() for item in spajza if str(item).strip()})
+    normalizovane = pantry_signature_facts(spajza)
     payload = json.dumps(normalizovane, ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -3358,9 +3466,15 @@ def daj_plan(req: Request):
         if status is not None and status.state in ("queued", "running"):
             return JSONResponse(status_code=202, content=pending_payload(status))
 
+        cached_meta = cached.get(PLAN_META_KEY) if isinstance(cached, dict) else None
+        cached_signature = (
+            pantry_podpis
+            if isinstance(cached_meta, dict) and cached_meta.get("pantry_driven") is True
+            else podpis
+        )
         valid_cached = bool(
             cached
-            and osobna_cache_plati(cached, sp, podpis=podpis)
+            and osobna_cache_plati(cached, sp, podpis=cached_signature)
             and cached_plan_is_current(cached, rows)
         )
         retry_allowed = _retry_allowed(con, u, status, premium, sp)

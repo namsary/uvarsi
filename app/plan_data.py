@@ -1021,7 +1021,8 @@ def _model_meals(model_output, offers_by_key, frequency, pantry, adults, childre
     equivalents_by_day = {
         day: adult_equivalents_for(adults, children, frequency, day) for day in cooking_days
     }
-    pantry_by_name = {item.casefold(): item for item in pantry}
+    pantry_labels = [pantry_display_text(item) for item in pantry]
+    pantry_by_name = {item.casefold(): item for item in pantry_labels if item}
     seen_days = set()
     parsed = []
     for meal in meals:
@@ -1166,6 +1167,73 @@ def plan_variant_for(user_id, variants):
     return int(user_id) % variants
 
 
+def _canonical_decimal(value):
+    try:
+        amount = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return None
+    if not amount.is_finite() or amount <= 0:
+        return None
+    return format(amount.normalize(), "f")
+
+
+def pantry_signature_facts(pantry):
+    """Canonical pantry facts shared by plan and personal-cache signatures.
+
+    Text-only rows intentionally retain their former signature shape, keeping
+    already stored pantry-driven plans readable after the quantity migration.
+    As soon as a measured item exists, amount and unit become part of the
+    identity while list ordering remains irrelevant.
+    """
+    records = []
+    measured = False
+    for item in pantry or ():
+        if isinstance(item, dict):
+            name = " ".join(str(item.get("nazov") or "").split()).casefold()
+            amount = _canonical_decimal(item.get("mnozstvo"))
+            unit = item.get("jednotka")
+            unit = str(unit).strip().casefold() if unit is not None else None
+            if not name:
+                continue
+            if amount is None or unit not in ("g", "ml", "piece"):
+                amount = unit = None
+            else:
+                measured = True
+            records.append((name, amount, unit))
+        else:
+            name = " ".join(str(item).split()).casefold()
+            if name:
+                records.append((name, None, None))
+    if not measured:
+        # Exact legacy representation used before structured pantry rows.
+        return sorted({name for name, _amount, _unit in records})
+    ordered_records = sorted(
+        set(records),
+        key=lambda record: (
+            record[0],
+            record[1] is not None,
+            record[1] or "",
+            record[2] or "",
+        ),
+    )
+    return [
+        {"nazov": name, "mnozstvo": amount, "jednotka": unit}
+        for name, amount, unit in ordered_records
+    ]
+
+
+def pantry_display_text(item):
+    """Human-readable pantry entry accepted by the legacy model path."""
+    if not isinstance(item, dict):
+        return str(item).strip()
+    name = " ".join(str(item.get("nazov") or "").split())
+    amount = _canonical_decimal(item.get("mnozstvo"))
+    unit = item.get("jednotka")
+    if not name or amount is None or unit not in ("g", "ml", "piece"):
+        return name
+    return f"{name} {amount} {'ks' if unit == 'piece' else unit}"
+
+
 def plan_signature(week, stores, household_size, frequency, offer_keys, pantry=(),
                    pantry_driven=False, adults=None, children=None,
                    diet_mode="standard", recipe_library_version=None):
@@ -1211,8 +1279,7 @@ def plan_signature(week, stores, household_size, frequency, offer_keys, pantry=(
         "offers": sorted({str(key) for key in offer_keys}),
     }
     if pantry_driven:
-        facts["pantry"] = sorted(
-            {item.strip().casefold() for item in map(str, pantry) if item.strip()})
+        facts["pantry"] = pantry_signature_facts(pantry)
     canonical = json.dumps(facts, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
@@ -1472,7 +1539,9 @@ def personal_plan_prompt(rows, frequency, pantry, household_size=None, variant=0
             f" suroviny rátaj pre {_decimal_text(adult_equivalents)} dospelej kuchárskej porcie."
         )
     batch_text = "\n".join(batches)
-    pantry_text = ", ".join(str(item).strip() for item in pantry if str(item).strip())
+    pantry_text = ", ".join(
+        text for text in (pantry_display_text(item) for item in pantry) if text
+    )
     pantry_task = (
         f"\n\nČO MÁ POUŽÍVATEĽ DOMA (ŠPAJZA)\n{pantry_text}\n"
         "- Postav jedlá okolo týchto surovín: čo najviac ich zapoj, aby sa dokupovalo málo.\n"
@@ -1759,6 +1828,25 @@ def _pantry_amount(text):
     return _package_from_match(match) if match is not None else None
 
 
+def _pantry_entry(item):
+    """Return ``(name, measured amount)`` for legacy or structured stock."""
+    if not isinstance(item, dict):
+        name = str(item).strip()
+        return name, _pantry_amount(name)
+    name = " ".join(str(item.get("nazov") or "").split())
+    unit = item.get("jednotka")
+    base = "ks" if unit == "piece" else unit
+    if not name or base not in ("g", "ml", "ks"):
+        return name, None
+    try:
+        amount = Decimal(str(item.get("mnozstvo")))
+    except (InvalidOperation, ValueError):
+        return name, None
+    if not amount.is_finite() or amount <= 0:
+        return name, None
+    return name, (base, amount)
+
+
 def _item_required_amount(item):
     base = item.get("potrebna_jednotka")
     if base not in ("g", "ml", "ks"):
@@ -1777,12 +1865,20 @@ def apply_pantry_to_shopping_list(plan, pantry):
     načítaný z cache a číta ho viac ľudí naraz. Jedlá ostávajú presne také, aké
     boli — špajza nikdy nepreskladá jedálniček.
     """
-    pantry = [str(item).strip() for item in (pantry or []) if str(item).strip()]
+    pantry = [
+        (index, name, amount)
+        for index, item in enumerate(pantry or [])
+        for name, amount in (_pantry_entry(item),)
+        if name
+    ]
     upraveny = dict(plan)
     zoznam = []
     pokryte = []
     usetrene = Decimal("0")
     claimed = set()
+    remaining_pantry = {
+        index: amount for index, _name, amount in pantry if amount is not None
+    }
     exact_offer_names = {
         _fold(str(item.get("nazov") or "").strip())
         for group in plan.get("nakupny_zoznam") or []
@@ -1795,20 +1891,30 @@ def apply_pantry_to_shopping_list(plan, pantry):
             owner = None
             pantry_amount = None
             nazov = item.get("nazov")
-            for candidate in pantry:
-                if candidate in claimed:
-                    continue
+            owner_index = None
+            for candidate_index, candidate, candidate_amount in pantry:
+                if candidate_amount is None:
+                    if candidate_index in claimed:
+                        continue
+                    available_amount = None
+                else:
+                    available_amount = remaining_pantry.get(candidate_index)
+                    if available_amount is None or available_amount[1] <= 0:
+                        continue
                 candidate_exact = _fold(candidate)
                 offer_exact = _fold(str(nazov or "").strip())
                 if candidate_exact in exact_offer_names and candidate_exact != offer_exact:
                     continue
                 if pantry_matches_offer(candidate, nazov):
-                    measured = _pantry_amount(candidate)
                     required = _item_required_amount(item)
-                    if measured is not None and required is not None and measured[0] != required[0]:
-                        continue
+                    if available_amount is not None:
+                        # Keď starší plán nepozná potrebnú dávku, ani presne
+                        # zmeraná zásoba nesmie naslepo odstrániť celý nákup.
+                        if required is None or available_amount[0] != required[0]:
+                            continue
                     owner = candidate
-                    pantry_amount = measured
+                    owner_index = candidate_index
+                    pantry_amount = available_amount
                     break
             original_quantity = int(item.get("mnozstvo") or 0)
             try:
@@ -1826,6 +1932,7 @@ def apply_pantry_to_shopping_list(plan, pantry):
             leftover_after_text = item.get("zostane")
             partial = False
             full = False
+            used = None
             if owner is not None:
                 required = _item_required_amount(item)
                 if pantry_amount is None or required is None:
@@ -1861,7 +1968,13 @@ def apply_pantry_to_shopping_list(plan, pantry):
             polozky.append(oznaceny)
             if owner is None:
                 continue
-            claimed.add(owner)
+            if pantry_amount is None:
+                claimed.add(owner_index)
+            else:
+                base, available = pantry_amount
+                remaining_pantry[owner_index] = (
+                    base, max(Decimal("0"), available - (used or Decimal("0")))
+                )
             pokryte.append({
                 "offer_key": item.get("offer_key"), "nazov": nazov,
                 "spajza": owner, "cena": item.get("cena"),

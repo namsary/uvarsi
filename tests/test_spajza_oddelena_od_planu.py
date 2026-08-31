@@ -23,6 +23,7 @@ from app.plan_data import personal_plan_prompt, plan_signature
 from app import plan_data
 
 from tests.test_server import (
+    current_personal_signature,
     current_plan_rows,
     fake_anthropic,
     grant_premium,
@@ -298,6 +299,7 @@ def test_generated_personal_plan_stores_current_metadata_but_never_exposes_it(
         "algo_version": plan_data.PLAN_ALGO_VERSION,
         "portion_standard_version": plan_data.PORTION_STANDARD_VERSION,
         "pantry_driven": False,
+        "plan_signature": current_personal_signature(server),
     }
     assert all("_uvarsi_meta" not in plan for plan in shared)
 

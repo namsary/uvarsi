@@ -938,7 +938,10 @@ def test_the_served_plan_always_reports_the_readers_current_pantry(monkeypatch, 
     assert [item["nazov"] for item in cached.json()["spajza_pokryte"]] == ["Ponuka 2"]
     assert len(constructors) == 1, "prepočítanie špajze nesmie stáť volanie modelu"
     assert cached.json()["jedla"] == generated.json()["jedla"], "menu ostáva nedotknuté"
-    assert client.get("/api/me").json()["spajza"] == ["soľ", "Ponuka 2"]
+    assert client.get("/api/me").json()["spajza"] == [
+        {"nazov": "soľ", "mnozstvo": None, "jednotka": None},
+        {"nazov": "Ponuka 2", "mnozstvo": None, "jednotka": None},
+    ]
 
 
 def test_plan_route_persists_only_reconstructed_server_commerce(monkeypatch, tmp_path):
@@ -1782,7 +1785,10 @@ def test_a_premium_user_saves_the_pantry_exactly_as_before(monkeypatch, tmp_path
 
     assert response.status_code == 200
     assert response.json() == {"ok": True, "pocet": 2}
-    assert plan_client(server, 1).get("/api/me").json()["spajza"] == ["ryža", "vajcia"]
+    assert plan_client(server, 1).get("/api/me").json()["spajza"] == [
+        {"nazov": "ryža", "mnozstvo": None, "jednotka": None},
+        {"nazov": "vajcia", "mnozstvo": None, "jednotka": None},
+    ]
 
 
 def test_me_never_hands_a_free_user_a_pantry_that_does_not_count(monkeypatch, tmp_path):
@@ -2155,7 +2161,10 @@ def test_a_premium_pantry_is_active_and_never_called_sleeping(monkeypatch, tmp_p
 
     profil = plan_client(server, 1).get("/api/me").json()
 
-    assert profil["spajza"] == ["ryža", "vajcia"]
+    assert profil["spajza"] == [
+        {"nazov": "ryža", "mnozstvo": None, "jednotka": None},
+        {"nazov": "vajcia", "mnozstvo": None, "jednotka": None},
+    ]
     assert profil["spajza_dostupna"] is True
     assert profil["spajza_ulozenych"] == 2
     assert profil["spajza_uspana"] is False and profil["spajza_sprava"] is None
@@ -2173,7 +2182,10 @@ def test_a_pantry_survives_the_end_of_premium_and_comes_back_untouched(monkeypat
 
     assert uspana["spajza"] == [] and uspana["spajza_ulozenych"] == 2
     grant_premium(server, 1, order_id="ord-1-znova")
-    assert client.get("/api/me").json()["spajza"] == ["ryža", "vajcia"]
+    assert client.get("/api/me").json()["spajza"] == [
+        {"nazov": "ryža", "mnozstvo": None, "jednotka": None},
+        {"nazov": "vajcia", "mnozstvo": None, "jednotka": None},
+    ]
 
 
 def test_the_plan_a_free_user_is_reading_is_never_taken_away_by_the_lock(monkeypatch, tmp_path):
