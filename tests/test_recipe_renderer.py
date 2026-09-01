@@ -1,11 +1,18 @@
 from dataclasses import replace
 from decimal import Decimal, localcontext
+from itertools import product
+import re
 
 import pytest
 
 from app.ingredient_catalog import load_ingredient_catalog
 from app.quantity_math import Quantity
-from app.recipe_catalog import IngredientSlot, InstructionTemplate, RecipeTemplate
+from app.recipe_catalog import (
+    IngredientSlot,
+    InstructionTemplate,
+    RecipeTemplate,
+    load_recipe_catalog,
+)
 from app.recipe_matcher import RecipeCandidate, SlotSelection
 from app.recipe_renderer import _QUANTITY_NAMES, render_meal
 
@@ -68,6 +75,40 @@ def _candidate(
     )
 
 
+def _catalog_candidate(ingredients, recipe_id, candidate_ids):
+    recipe = next(
+        recipe
+        for recipe in load_recipe_catalog(ingredients).all()
+        if recipe.id == recipe_id
+    )
+    selections = tuple(
+        SlotSelection(
+            slot=slot,
+            ingredient=ingredients.by_id(candidate_id),
+            offer=None,
+            pantry=None,
+        )
+        for slot, candidate_id in zip(recipe.slots, candidate_ids, strict=True)
+    )
+    return RecipeCandidate(
+        template=recipe,
+        selections=selections,
+        score=Decimal("0"),
+        key=f"capacity-audit:{recipe.id}:{'+'.join(candidate_ids)}",
+    )
+
+
+def _rendered_grams(item):
+    quantity = item.quantity
+    if quantity.unit == "g":
+        grams = quantity.amount
+    elif quantity.unit == "piece":
+        grams = quantity.amount * item.ingredient.grams_per_piece
+    else:
+        grams = quantity.amount * item.ingredient.density_g_per_ml
+    return grams * item.ingredient.edible_ratio
+
+
 def test_large_multi_day_pan_batch_uses_capacity_safe_deterministic_guidance(
     ingredients,
 ):
@@ -96,6 +137,100 @@ def test_large_multi_day_pan_batch_uses_capacity_safe_deterministic_guidance(
     assert "ďalšiu panvicu" in cooking_step
     assert "kým mäso dosiahne 74 °C" in cooking_step
     assert "8 minút" not in cooking_step
+
+
+def test_large_tomato_pan_step_does_not_depend_on_opekaj_keyword(ingredients):
+    candidate = _catalog_candidate(
+        ingredients,
+        "pan_chicken_pasta_tomato",
+        ("chicken_breast", "pasta", "tomato"),
+    )
+
+    meal = render_meal(candidate, adults=4, children=0, covered_days=3)
+
+    tomato_step = next(
+        step
+        for step in meal.instructions
+        if "2,2 kg paradajok" in step and "panvic" in step
+    )
+    assert "ďalšiu panvicu" in tomato_step
+    assert "Každú dávku tepelne uprav v panvici na miernom ohni" in tomato_step
+    assert "kým zelenina zmäkne" in tomato_step
+    assert "7 minút" not in tomato_step
+
+
+def test_large_egg_pan_step_supports_vlej_and_preserves_doneness(ingredients):
+    candidate = _candidate(
+        ingredients.by_id("egg"),
+        amount="4",
+        unit="piece",
+        name_template="Vajcia z panvice",
+        method="pan",
+        equipment=("panvica", "misa"),
+        pantry_basics=("oil", "salt"),
+        instructions=(
+            "Rozšľahaj {main.amount} {main.name} v mise.",
+            "Vlej {main.amount} {main.name} do panvice a opekaj ich 5 minút "
+            "na miernom ohni, kým úplne stuhnú.",
+            "Rozdeľ vajcia na {portions} porcií a podávaj ich teplé.",
+        ),
+    )
+
+    meal = render_meal(candidate, adults=4, children=0, covered_days=3)
+
+    egg_step = next(
+        step
+        for step in meal.instructions
+        if "48 ks vajec" in step and "panvic" in step
+    )
+    assert "ďalšiu panvicu" in egg_step
+    assert "Každú dávku tepelne uprav v panvici na miernom ohni" in egg_step
+    assert "kým úplne stuhnú" in egg_step
+    assert "5 minút" not in egg_step
+
+
+def test_all_159_catalog_variants_are_capacity_safe_for_four_adults_three_days(
+    ingredients,
+):
+    recipes = load_recipe_catalog(ingredients).all()
+    rendered_count = 0
+    audited_capacity_steps = 0
+
+    for recipe in recipes:
+        for candidate_ids in product(*(slot.candidates for slot in recipe.slots)):
+            meal = render_meal(
+                _catalog_candidate(ingredients, recipe.id, candidate_ids),
+                adults=4,
+                children=0,
+                covered_days=3,
+            )
+            rendered_count += 1
+            for source, output in zip(
+                recipe.instructions, meal.instructions, strict=True
+            ):
+                source_text = source.text.casefold()
+                if not all(
+                    marker in source_text for marker in ("panvic", "minút", "kým")
+                ):
+                    continue
+                step_items = tuple(
+                    item
+                    for item in meal.ingredients
+                    if f"{{{item.slot.key}.amount}}" in source.text
+                )
+                step_grams = sum(
+                    (_rendered_grams(item) for item in step_items), Decimal("0")
+                )
+                if step_grams <= Decimal("800"):
+                    continue
+                audited_capacity_steps += 1
+                assert "ďalšiu panvicu" in output, (recipe.id, output)
+                assert "Každú dávku tepelne uprav v panvici" in output
+                assert re.search(r"\d+(?:[,.]\d+)?\s*minút", output) is None
+                assert "kým" in output
+
+    assert rendered_count == 159
+    assert audited_capacity_steps > 0
 
 
 @pytest.mark.parametrize(

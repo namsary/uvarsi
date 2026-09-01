@@ -218,7 +218,7 @@ _GENERIC_STEPS = frozenset(
 
 _COOKING_ACTION = re.compile(
     r"\b(?:dus|opec|opekaj|pec|predhrej|prehrievaj|prived|rozohrej|smaz|"
-    r"upec|uvar|var|zohrej|zohrievaj)\b"
+    r"tepelne\s+uprav|upec|uvar|var|zohrej|zohrievaj)\b"
 )
 _VESSEL = re.compile(
     r"\b(?:hrnc\w*|panvic\w*|pekac\w*|plech\w*|rur\w*|wok\w*|rajnic\w*)\b"
@@ -230,9 +230,12 @@ _HEAT = re.compile(
 _TIME = re.compile(
     r"\b\d+(?:[,.]\d+)?\s*(?:sekund|sekundy|minut|minuty|hodin|hodiny)\b"
 )
-_DISPLAYED_MINUTES = re.compile(
-    r"\s+\d+(?:[,.]\d+)?\s*min[uú]t(?:y)?\b", re.IGNORECASE
+_DISPLAYED_HEAT = re.compile(
+    r"\b(?:na\s+(?:miernom|strednom|silnom|nízkom|vysokom)\s+ohni|"
+    r"pri\s+\d+\s*°\s*C)\b",
+    re.IGNORECASE,
 )
+_DISPLAYED_DONENESS = re.compile(r"\bkým\b.+?(?:[.!?]|$)", re.IGNORECASE)
 _DONENESS = re.compile(
     r"(?:\bbubl\w*\b|\bdozlatista\b|\bdosklovita\b|\bzlatist\w*\b|"
     r"\bchrumkav\w*\b|\bcira\b|\bciru\b|\bje\s+povrch\s+horuc\w*\b|"
@@ -631,48 +634,46 @@ def _large_pan_batch_step(
     source_template: str,
     rendered_step: str,
     rendered: Sequence[RenderedIngredient],
-    *,
-    method: str,
 ) -> str:
     """Replace single-pan timing with capacity-safe guidance for large batches."""
     folded = _fold(rendered_step)
-    if method != "pan" or "opekaj" not in folded or "panvic" not in folded:
+    if (
+        "panvic" not in folded
+        or _TIME.search(folded) is None
+        or _DONENESS.search(folded) is None
+    ):
         return rendered_step
 
-    large_items = tuple(
+    step_items = tuple(
         item
         for item in rendered
         if f"{{{item.slot.key}.amount}}" in source_template
-        and _edible_grams(item) > _PAN_BATCH_LIMIT_GRAMS
     )
-    if not large_items:
+    step_grams = sum((_edible_grams(item) for item in step_items), Decimal("0"))
+    if not step_items or step_grams <= _PAN_BATCH_LIMIT_GRAMS:
         return rendered_step
 
-    direct = re.compile(r"^Opekaj\s+.+?\s+v panvici\s+", re.IGNORECASE)
-    addition = re.compile(
-        r"^Pridaj\s+.+?\s+do panvice\s+a\s+opekaj\s+", re.IGNORECASE
-    )
-    if direct.match(rendered_step):
-        per_batch = direct.sub("Každú dávku opekaj v panvici ", rendered_step, count=1)
-    elif addition.match(rendered_step):
-        per_batch = addition.sub(
-            "Každú dávku opekaj v panvici ", rendered_step, count=1
-        )
-    else:
+    heat = _DISPLAYED_HEAT.search(rendered_step)
+    doneness = _DISPLAYED_DONENESS.search(rendered_step)
+    if heat is None or doneness is None:
         raise ValueError(
             "Veľká panvicová dávka nemá podporovaný deterministický postup."
         )
 
-    per_batch = _normalize_rendered_text(_DISPLAYED_MINUTES.sub("", per_batch))
     amounts = _natural_join(
         tuple(
-            f"{item.display_amount} {_quantity_name(item)}" for item in large_items
+            f"{item.display_amount} {_quantity_name(item)}" for item in step_items
         )
     )
     guidance = (
-        f"Rozdeľ {amounts} na menšie dávky tak, aby boli suroviny pri "
-        "opekaní v panvici vždy rozložené v jednej vrstve; podľa potreby "
-        "použi ďalšiu panvicu."
+        f"Rozdeľ {amounts} na menšie dávky tak, aby panvica nebola "
+        "preplnená a pevné kúsky boli rozložené v jednej vrstve; podľa "
+        "potreby použi ďalšiu panvicu."
+    )
+    doneness_text = doneness.group(0).rstrip(".!?")
+    per_batch = (
+        f"Každú dávku tepelne uprav v panvici {heat.group(0)}, "
+        f"{doneness_text}."
     )
     return f"{guidance} {per_batch}"
 
@@ -1100,7 +1101,6 @@ def render_meal(
                 label="kroku receptu",
             ),
             rendered,
-            method=candidate.template.method,
         )
         for instruction in candidate.template.instructions
     )
