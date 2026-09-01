@@ -403,7 +403,7 @@ _uvarsi_apply_manual_targets() {
   done
   "$UVARSI_CP" -a "$release/index.html" "$UVARSI_WEB_DIR/index.html" || return 1
   "$UVARSI_CP" -a "$release/sw.js" "$UVARSI_WEB_DIR/sw.js" || return 1
-  for name in refresh_blocek.py recepty.py dozorca.sh zaloha.sh uvarsi-deploy-state.sh; do
+  for name in refresh_blocek.py recepty.py dozorca.sh zaloha.sh uvarsi-deploy-state.sh recipe-engine-rollout.sh recipe-engine.target; do
     "$UVARSI_CP" -a "$release/hetzner/$name" "$UVARSI_DIR/$name" || return 1
   done
   chmod +x "$UVARSI_DIR/dozorca.sh" "$UVARSI_DIR/zaloha.sh" \

@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -49,7 +50,7 @@ def rollout(tmp_path):
     target = live / "recipe-engine.target"
     target.write_text("on\n", encoding="utf-8")
     flag = live / "uvarsi-recipe-engine.env"
-    flag.write_text("UVARSI_RECIPE_ENGINE=off\n", encoding="utf-8")
+    flag.write_text("UVARSI_RECIPE_ENGINE=off\n", encoding="utf-8", newline="\n")
     state = tmp_path / "state"
     state.mkdir()
     calls = state / "calls.log"
@@ -60,6 +61,10 @@ def rollout(tmp_path):
         fake_python,
         "#!/bin/sh\n"
         "printf 'python %s\\n' \"$*\" >> \"$UVARSI_TEST_CALLS\"\n"
+        "if [ -f \"$UVARSI_TEST_STATE/require-payments-off-env\" ]; then\n"
+        "  [ \"${PLATBY_ZAPNUTE:-missing}\" = 0 ] || exit 91\n"
+        "  [ \"${UVARSI_PAYMENTS_ENABLED:-missing}\" = 0 ] || exit 92\n"
+        "fi\n"
         "case \"$*\" in\n"
         "  *app.library_gate*) [ ! -f \"$UVARSI_TEST_STATE/fail-library\" ] ;;\n"
         "  *run_recipe_engine_shadow*) [ ! -f \"$UVARSI_TEST_STATE/fail-shadow\" ] ;;\n"
@@ -73,20 +78,43 @@ def rollout(tmp_path):
         fake_systemctl,
         "#!/bin/sh\n"
         "printf 'systemctl %s\\n' \"$*\" >> \"$UVARSI_TEST_CALLS\"\n"
+        "cmd=$1; shift\n"
+        "[ \"${1:-}\" != --quiet ] || shift\n"
+        "service=${1:-}\n"
+        "IFS= read -r mode_line < \"$UVARSI_RECIPE_FLAG_FILE\" || mode_line=\n"
+        "mode=${mode_line#export }\n"
+        "mode=${mode#UVARSI_RECIPE_ENGINE=}\n"
         "case \"$*\" in\n"
         "  *taktik*|*caddy*|*cron*) exit 88 ;;\n"
-        "  *) exit 0 ;;\n"
-        "esac\n",
+        "esac\n"
+        "if [ \"$mode\" = off ] && [ -f \"$UVARSI_TEST_STATE/fail-rollback-$cmd-$service\" ]; then exit 73; fi\n"
+        "exit 0\n",
+    )
+    fake_mv = tmp_path / "mv"
+    executable(
+        fake_mv,
+        "#!/bin/sh\n"
+        "source_path=\n"
+        "for arg in \"$@\"; do\n"
+        "  case \"$arg\" in -*) ;; *) source_path=$arg; break ;; esac\n"
+        "done\n"
+        "IFS= read -r source_line < \"$source_path\" || source_line=\n"
+        "if [ -f \"$UVARSI_TEST_STATE/fail-off-write\" ] && "
+        "[ \"$source_line\" = 'UVARSI_RECIPE_ENGINE=off' ]; then exit 74; fi\n"
+        "exec /usr/bin/mv \"$@\"\n",
     )
     fake_curl = tmp_path / "curl"
     executable(
         fake_curl,
         "#!/bin/sh\n"
         "case \"$*\" in\n"
-        "  *notify.invalid*) printf 'alert\\n' >> \"$UVARSI_TEST_ALERTS\"; exit 0 ;;\n"
+        "  *notify.invalid*) printf '%s\\n' \"$*\" >> \"$UVARSI_TEST_ALERTS\"; exit 0 ;;\n"
         "esac\n"
+        "[ ! -f \"$UVARSI_TEST_STATE/health.json\" ] || { cat \"$UVARSI_TEST_STATE/health.json\"; exit 0; }\n"
         "[ ! -f \"$UVARSI_TEST_STATE/malformed-health\" ] || { printf '{'; exit 0; }\n"
-        "mode=$(sed -n 's/^[[:space:]]*\\(export[[:space:]][[:space:]]*\\)\\?UVARSI_RECIPE_ENGINE[[:space:]]*=[[:space:]]*//p' \"$UVARSI_RECIPE_FLAG_FILE\" | head -1)\n"
+        "IFS= read -r mode_line < \"$UVARSI_RECIPE_FLAG_FILE\" || mode_line=\n"
+        "mode=${mode_line#export }\n"
+        "mode=${mode#UVARSI_RECIPE_ENGINE=}\n"
         "printf '{\"recipe_engine\":{\"mode\":\"%s\",\"ready\":true,\"blockers\":[],\"last_shadow\":{\"complete\":true,\"eligible\":true,\"success_rate\":0.99,\"p95_ms\":120,\"dietary_violations\":0,\"negative_quantities\":0,\"invalid_package_counts\":0}}}' \"$mode\"\n",
     )
 
@@ -96,6 +124,7 @@ def rollout(tmp_path):
         "UVARSI_HEALTH_PY": bash_path(Path(sys.executable)),
         "UVARSI_CURL": bash_path(fake_curl),
         "UVARSI_SYSTEMCTL": bash_path(fake_systemctl),
+        "UVARSI_MV": bash_path(fake_mv),
         "UVARSI_RECIPE_TARGET": bash_path(target),
         "UVARSI_RECIPE_FLAG_FILE": bash_path(flag),
         "UVARSI_RECIPE_SMOKE_STATE": bash_path(state / "smoke.json"),
@@ -143,12 +172,14 @@ def test_successfully_activates_both_stages_without_touching_unrelated_services(
     assert set(
         line.removeprefix("systemctl ").split()[-1]
         for line in calls.splitlines()
-        if line.startswith("systemctl ") and line.split()[-1].startswith("uvarsi")
-    ) <= {"uvarsi", "uvarsi-plan-worker"}
+        if line.startswith("systemctl ")
+    ) == {"uvarsi", "uvarsi-plan-worker"}
 
 
 def test_existing_export_syntax_is_accepted_and_canonicalized(rollout):
-    rollout["flag"].write_text("export UVARSI_RECIPE_ENGINE=off\n", encoding="utf-8")
+    rollout["flag"].write_text(
+        "export UVARSI_RECIPE_ENGINE=off\n", encoding="utf-8", newline="\n"
+    )
 
     result = run_controller(rollout)
 
@@ -164,7 +195,9 @@ def test_any_gate_failure_rolls_back_to_off_and_emits_exactly_one_alert(rollout,
 
     assert result.returncode != 0
     assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=off\n"
-    assert rollout["alerts"].read_text(encoding="utf-8").splitlines() == ["alert"]
+    alerts = rollout["alerts"].read_text(encoding="utf-8").splitlines()
+    assert len(alerts) == 1
+    assert "rollback complete" in alerts[0].casefold()
 
 
 @pytest.mark.parametrize(
@@ -203,10 +236,185 @@ def test_invalid_target_is_data_not_shell_and_cannot_execute_commands(rollout):
     assert result.returncode != 0
     assert not marker.exists()
     assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=off\n"
+    assert len(rollout["alerts"].read_text(encoding="utf-8").splitlines()) == 1
+
+
+def test_malformed_target_rolls_shadow_mode_back_and_alerts_once(rollout):
+    rollout["flag"].write_text(
+        "UVARSI_RECIPE_ENGINE=shadow\n", encoding="utf-8", newline="\n"
+    )
+    rollout["target"].write_text("on\nextra", encoding="utf-8", newline="\n")
+
+    result = run_controller(rollout)
+
+    assert result.returncode != 0
+    assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=off\n"
+    assert len(rollout["alerts"].read_text(encoding="utf-8").splitlines()) == 1
+
+
+def test_missing_target_is_no_activation_without_mutation_or_alert(rollout):
+    rollout["target"].unlink()
+    rollout["flag"].write_text(
+        "UVARSI_RECIPE_ENGINE=shadow\n", encoding="utf-8", newline="\n"
+    )
+
+    result = run_controller(rollout)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=shadow\n"
+    assert not rollout["calls"].exists()
+    assert not rollout["alerts"].exists()
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("success_rate", "0.99"),
+        ("success_rate", True),
+        ("success_rate", float("nan")),
+        ("success_rate", float("inf")),
+        ("p95_ms", "120"),
+        ("p95_ms", True),
+        ("p95_ms", float("nan")),
+        ("p95_ms", float("-inf")),
+        ("dietary_violations", False),
+        ("negative_quantities", "0"),
+        ("invalid_package_counts", float("nan")),
+    ],
+)
+def test_shadow_health_rejects_non_numeric_or_non_finite_metrics(
+    rollout, field, invalid
+):
+    payload = {
+        "recipe_engine": {
+            "mode": "shadow",
+            "ready": True,
+            "blockers": [],
+            "last_shadow": {
+                "complete": True,
+                "eligible": True,
+                "success_rate": 0.99,
+                "p95_ms": 120,
+                "dietary_violations": 0,
+                "negative_quantities": 0,
+                "invalid_package_counts": 0,
+            },
+        }
+    }
+    payload["recipe_engine"]["last_shadow"][field] = invalid
+    rollout["state"].joinpath("health.json").write_text(
+        json.dumps(payload, separators=(",", ":")), encoding="utf-8"
+    )
+
+    result = run_controller(rollout)
+
+    assert result.returncode != 0
+    assert "--recipe-engine-smoke" not in rollout["calls"].read_text(encoding="utf-8")
+    assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=off\n"
+    assert len(rollout["alerts"].read_text(encoding="utf-8").splitlines()) == 1
+
+
+def test_every_python_gate_forces_both_payment_flags_false(rollout):
+    rollout["state"].joinpath("require-payments-off-env").write_text(
+        "1", encoding="ascii"
+    )
+    rollout["env"].update(
+        {"PLATBY_ZAPNUTE": "1", "UVARSI_PAYMENTS_ENABLED": "true"}
+    )
+
+    result = run_controller(rollout)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=on\n"
+
+
+@pytest.mark.parametrize(
+    "contents",
+    [
+        "UVARSI_RECIPE_ENGINE=off\nUVARSI_RECIPE_ENGINE=shadow\n",
+        "UVARSI_RECIPE_ENGINE=off\nUVARSI_RECIPE_ENGINE=shadow",
+        "UVARSI_RECIPE_ENGINE=off\nOTHER_FLAG=1\n",
+        "# comment\nUVARSI_RECIPE_ENGINE=off\n",
+        "UVARSI_RECIPE_ENGINE='off'\n",
+    ],
+)
+def test_flag_file_rejects_duplicate_or_extra_content_and_canonicalizes_off(
+    rollout, contents
+):
+    rollout["flag"].write_text(contents, encoding="utf-8", newline="\n")
+
+    result = run_controller(rollout)
+
+    assert result.returncode != 0
+    assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=off\n"
+    assert len(rollout["alerts"].read_text(encoding="utf-8").splitlines()) == 1
+
+
+def test_failed_rollback_flag_write_is_not_suppressed_and_alert_is_truthful(rollout):
+    rollout["state"].joinpath("fail-shadow").write_text("1", encoding="ascii")
+    rollout["state"].joinpath("fail-off-write").write_text("1", encoding="ascii")
+
+    result = run_controller(rollout)
+
+    assert result.returncode != 0
+    assert rollout["flag"].read_text(encoding="utf-8") == (
+        "UVARSI_RECIPE_ENGINE=shadow\n"
+    )
+    alerts = rollout["alerts"].read_text(encoding="utf-8").splitlines()
+    assert len(alerts) == 1
+    assert "rollback incomplete" in alerts[0].casefold()
+
+
+@pytest.mark.parametrize("failure", ["restart-uvarsi", "is-active-uvarsi"])
+def test_rollback_attempts_and_verifies_both_services_independently(rollout, failure):
+    rollout["state"].joinpath("fail-shadow").write_text("1", encoding="ascii")
+    rollout["state"].joinpath(f"fail-rollback-{failure}").write_text(
+        "1", encoding="ascii"
+    )
+
+    result = run_controller(rollout)
+
+    assert result.returncode != 0
+    calls = rollout["calls"].read_text(encoding="utf-8").splitlines()
+    assert calls.count("systemctl restart uvarsi") == 2
+    assert calls.count("systemctl restart uvarsi-plan-worker") == 2
+    assert calls.count("systemctl is-active --quiet uvarsi") == 2
+    assert calls.count("systemctl is-active --quiet uvarsi-plan-worker") == 2
+    alerts = rollout["alerts"].read_text(encoding="utf-8").splitlines()
+    assert len(alerts) == 1
+    assert "rollback incomplete" in alerts[0].casefold()
+
+
+def test_held_rollout_lock_exits_without_mutation(rollout):
+    env = rollout["env"].copy()
+    env.pop("UVARSI_ROLLOUT_LOCKED")
+    command = (
+        f'exec 9>"{bash_path(rollout["state"] / "rollout.lock")}"\n'
+        "flock -n 9\n"
+        f'"{bash_path(CONTROLLER)}"'
+    )
+
+    result = subprocess.run(
+        [str(BASH), "-c", command],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=off\n"
+    assert not rollout["calls"].exists()
+    assert not rollout["alerts"].exists()
 
 
 def test_healthy_on_rerun_is_idempotent_and_does_not_restart(rollout):
-    rollout["flag"].write_text("UVARSI_RECIPE_ENGINE=on\n", encoding="utf-8")
+    rollout["flag"].write_text(
+        "UVARSI_RECIPE_ENGINE=on\n", encoding="utf-8", newline="\n"
+    )
 
     result = run_controller(rollout)
 

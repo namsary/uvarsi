@@ -419,6 +419,46 @@ def test_fresh_heartbeat_rejects_old_marker_and_accepts_strictly_newer(deploymen
     assert fresh.returncode == 0, fresh.stdout + fresh.stderr
 
 
+def test_successful_manual_release_installs_rollout_controller_and_target(deployment):
+    release = deployment["release"]
+    (release / "app").mkdir(parents=True)
+    (release / "app" / "marker.txt").write_text("new-app", encoding="utf-8")
+    (release / "VERSION").write_text("new-version", encoding="utf-8")
+    (release / "index.html").write_bytes(b"new-index")
+    (release / "sw.js").write_bytes(b"new-service-worker")
+    (release / "hetzner").mkdir()
+    (release / "hetzner" / "uvarsi-plan-worker.service").write_text(
+        "new-worker-unit", encoding="utf-8"
+    )
+    (release / "hetzner" / "uvarsi.service").write_text(
+        "new-app-unit", encoding="utf-8"
+    )
+    for name in (
+        "refresh_blocek.py",
+        "recepty.py",
+        "dozorca.sh",
+        "zaloha.sh",
+        "uvarsi-deploy-state.sh",
+        "recipe-engine-rollout.sh",
+        "recipe-engine.target",
+    ):
+        (release / "hetzner" / name).write_bytes(f"new-{name}\n".encode())
+
+    result = run_library(
+        deployment,
+        'uvarsi_install_manual_release "$UVARSI_TEST_RELEASE" '
+        '"$UVARSI_TEST_SNAPSHOT"',
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (deployment["live"] / "recipe-engine-rollout.sh").read_bytes() == (
+        b"new-recipe-engine-rollout.sh\n"
+    )
+    assert (deployment["live"] / "recipe-engine.target").read_bytes() == (
+        b"new-recipe-engine.target\n"
+    )
+
+
 @pytest.mark.parametrize(
     ("unit_exists", "enabled", "active"),
     [(True, False, False), (True, True, True), (False, False, False)],

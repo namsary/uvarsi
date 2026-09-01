@@ -224,7 +224,7 @@ UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$STAGE/VERSION" \
   --state /tmp/uvarsi-manual-recipe-smoke.json >/dev/null
 rm -f /tmp/uvarsi-manual-recipe-smoke.json
 '@ -replace "`r`n", "`n"
-$releasePreflight | ssh jarvis "tr -d '\r' > /tmp/uvarsi_release_preflight.sh; bash /tmp/uvarsi_release_preflight.sh"
+$releasePreflight | ssh jarvis 'set -eu; SCRIPT=$(mktemp /tmp/uvarsi-release-preflight.XXXXXX); trap ''rm -f "$SCRIPT"'' EXIT; tr -d ''\r'' > "$SCRIPT"; bash "$SCRIPT"'
 Vyzaduj "receptovy library gate alebo izolovany smoke zlyhal pred prepnutim"
 Ok "receptovy katalog a izolovany smoke presli pred prepnutim"
 

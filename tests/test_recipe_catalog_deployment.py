@@ -178,6 +178,15 @@ def test_manual_deploy_stages_catalog_before_switch_without_candidates_or_live_c
     assert "jarvis:/opt/uvarsi/app/catalog/" not in calls
 
 
+def test_manual_release_preflight_uses_private_remote_script(tmp_path):
+    result, raw_calls = _run_manual_deploy_offline(tmp_path)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "mktemp /tmp/uvarsi-release-preflight.XXXXXX" in raw_calls
+    assert "uvarsi_release_preflight.sh" not in raw_calls
+    assert 'trap \'rm -f "$SCRIPT"\'' in raw_calls
+
+
 @pytest.mark.parametrize("asset", ["ingredients", "manifest", "recipe"])
 @pytest.mark.parametrize("invalid_kind", ["empty", "directory"])
 def test_manual_deploy_rejects_invalid_catalog_assets_before_snapshot(
