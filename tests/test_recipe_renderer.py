@@ -132,7 +132,8 @@ def test_large_multi_day_pan_batch_uses_capacity_safe_deterministic_guidance(
     meal = render_meal(candidate, adults=4, children=0, covered_days=3)
 
     cooking_step = next(step for step in meal.instructions if "Každú dávku" in step)
-    assert "2,2 kg kuracích pŕs" in cooking_step
+    assert "kuracie prsia" in cooking_step
+    assert "2,2 kg" not in cooking_step
     assert "jednej vrstve" in cooking_step
     assert "ďalšiu panvicu" in cooking_step
     assert "kým mäso dosiahne 74 °C" in cooking_step
@@ -151,7 +152,7 @@ def test_large_tomato_pan_step_does_not_depend_on_opekaj_keyword(ingredients):
     tomato_step = next(
         step
         for step in meal.instructions
-        if "2,2 kg paradajok" in step and "panvic" in step
+        if "paradajky" in step and "panvic" in step
     )
     assert "ďalšiu panvicu" in tomato_step
     assert "Každú dávku tepelne uprav v panvici na miernom ohni" in tomato_step
@@ -159,7 +160,7 @@ def test_large_tomato_pan_step_does_not_depend_on_opekaj_keyword(ingredients):
     assert "7 minút" not in tomato_step
 
 
-def test_ordinary_steps_measure_tomatoes_once_then_use_their_natural_name(
+def test_ordinary_steps_keep_tomato_weight_in_the_ingredient_list(
     ingredients,
 ):
     candidate = _catalog_candidate(
@@ -171,12 +172,8 @@ def test_ordinary_steps_measure_tomatoes_once_then_use_their_natural_name(
     meal = render_meal(candidate, adults=4, children=0, covered_days=2)
 
     assert meal.ingredients[2].display_amount == "1,6 kg"
-    tomato_amount_steps = [
-        step for step in meal.instructions if "1,6 kg paradajok" in step
-    ]
-    assert tomato_amount_steps == [
-        "Nakrájaj 1,6 kg paradajok na malé kúsky."
-    ]
+    assert all("1,6 kg" not in step for step in meal.instructions)
+    assert "Nakrájaj paradajky na malé kúsky." in meal.instructions
     assert any(
         "Pridaj paradajky do hrnca" in step for step in meal.instructions
     )
@@ -204,7 +201,7 @@ def test_large_egg_pan_step_supports_vlej_and_preserves_doneness(ingredients):
     egg_step = next(
         step
         for step in meal.instructions
-        if "48 ks vajec" in step and "panvic" in step
+        if "vajcia" in step and "panvic" in step
     )
     assert "ďalšiu panvicu" in egg_step
     assert "Každú dávku tepelne uprav v panvici na miernom ohni" in egg_step
@@ -256,7 +253,7 @@ def test_all_159_catalog_variants_are_capacity_safe_for_four_adults_three_days(
     assert audited_capacity_steps > 0
 
 
-def test_all_catalog_variants_measure_each_ingredient_once_unless_batching(
+def test_all_catalog_variants_keep_weights_in_ingredient_list_not_steps(
     ingredients,
 ):
     recipes = load_recipe_catalog(ingredients).all()
@@ -273,23 +270,55 @@ def test_all_catalog_variants_measure_each_ingredient_once_unless_batching(
             rendered_count += 1
             for item in meal.ingredients:
                 measured_phrase = f"{item.display_amount} {_quantity_name(item)}"
-                amount_steps = [
-                    step for step in meal.instructions if measured_phrase in step
-                ]
-                assert amount_steps, (recipe.id, item.slot.key, measured_phrase)
-                if len(amount_steps) > 1:
-                    assert len(amount_steps) == 2, (
-                        recipe.id,
-                        item.slot.key,
-                        amount_steps,
-                    )
-                    assert sum("menšie dávky" in step for step in amount_steps) == 1, (
-                        recipe.id,
-                        item.slot.key,
-                        amount_steps,
-                    )
+                assert all(
+                    measured_phrase not in step for step in meal.instructions
+                ), (recipe.id, item.slot.key, measured_phrase, meal.instructions)
 
     assert rendered_count == 159
+
+
+@pytest.mark.parametrize(
+    ("recipe_id", "candidate_ids", "expected", "forbidden"),
+    [
+        (
+            "pan_turkey_couscous_zucchini",
+            ("turkey_breast", "couscous", "zucchini"),
+            "Priprav kuskus v miske s 280 ml vody.",
+            "Prilej vodu k kuskus.",
+        ),
+        (
+            "soup_chicken_vegetable_noodle",
+            ("chicken_breast", "egg_noodles", "carrot"),
+            "Pridaj vaječné rezance do hrnca",
+            "Pridaj vaječných rezancov do hrnca",
+        ),
+        (
+            "veg_mushroom_barley_pan",
+            ("chickpeas", "barley", "mushrooms"),
+            "Opekaj biele šampiňóny v panvici",
+            "Opekaj bielych šampiňónov v panvici",
+        ),
+        (
+            "salad_chicken_potato_yogurt",
+            ("chicken_breast", "potato", "bell_pepper", "plain_yogurt"),
+            "Premiešaj biely plnotučný jogurt so zemiakmi",
+            "Premiešaj bieleho plnotučného jogurtu so zemiakmi",
+        ),
+    ],
+)
+def test_amountless_catalog_steps_keep_natural_slovak_cases(
+    ingredients, recipe_id, candidate_ids, expected, forbidden
+):
+    meal = render_meal(
+        _catalog_candidate(ingredients, recipe_id, candidate_ids),
+        adults=4,
+        children=0,
+        covered_days=1,
+    )
+
+    instructions = " ".join(meal.instructions)
+    assert expected in instructions
+    assert forbidden not in instructions
 
 
 @pytest.mark.parametrize(
@@ -402,9 +431,9 @@ CHICKEN_STEPS = (
                 "Absorpčne varená ryža",
                 "300 g · ryža",
                 (
-                    "Prepláchni 300 g ryže v jemnom sitku pod studenou vodou, kým odtekajúca voda nebude takmer číra.",
-                    "Vlož 300 g ryže do hrnca, prilej 450 ml vody, pridaj štipku soli a obsah hrnca priveď na silnom ohni za 5 minút do varu, kým voda nezačne súvislo bublať.",
-                    "Var 300 g ryže v prikrytom hrnci 12 minút na miernom ohni, kým sa voda vsiakne.",
+                    "Prepláchni ryžu v jemnom sitku pod studenou vodou, kým odtekajúca voda nebude takmer číra.",
+                    "Vlož ryžu do hrnca, prilej 450 ml vody, pridaj štipku soli a obsah hrnca priveď na silnom ohni za 5 minút do varu, kým voda nezačne súvislo bublať.",
+                    "Var ryžu v prikrytom hrnci 12 minút na miernom ohni, kým sa voda vsiakne.",
                     "Odstav hrniec a nechaj ryžu prikrytú 5 minút dôjsť, kým budú zrná mäkké a oddelené.",
                     "Rozdeľ ryžu na 4 porcie a podávaj ju horúcu.",
                 ),
@@ -423,7 +452,7 @@ CHICKEN_STEPS = (
                 "300 g · cestoviny",
                 (
                     "Priveď v hrnci 2 l vody so štipkou soli na silnom ohni za 8 minút do prudkého varu, kým voda nezačne súvislo bublať.",
-                    "Vsyp 300 g cestovín do hrnca a var ich 9 minút na strednom ohni, kým budú mäkké, ale pri zahryznutí ešte pevné.",
+                    "Vsyp cestoviny do hrnca a var ich 9 minút na strednom ohni, kým budú mäkké, ale pri zahryznutí ešte pevné.",
                     "Odober z hrnca 100 ml vody z varenia a odlož ju na zriedenie omáčky.",
                     "Sceď cestoviny v sitku a nechaj ich 30 sekúnd odkvapkať, kým z nich prestane tiecť voda.",
                     "Rozdeľ cestoviny na 4 porcie a podávaj ich ešte teplé.",
@@ -443,9 +472,9 @@ CHICKEN_STEPS = (
                 "600 g · cuketa",
                 (
                     "Predhrej rúru na 200 °C; správnu teplotu potvrdí kontrolka rúry.",
-                    "Nakrájaj 600 g cukety na polkolieska na doske na približne 1 cm hrubé kúsky.",
-                    "Rozlož 600 g cukety v jednej vrstve na plech, pridaj 1 polievkovú lyžicu oleja a štipku soli.",
-                    "Peč 600 g cukety na plechu 25 minút pri 200 °C, kým zmäkne a okraje nezozlatnú.",
+                    "Nakrájaj cuketu na polkolieska na doske na približne 1 cm hrubé kúsky.",
+                    "Rozlož cuketu v jednej vrstve na plech, pridaj 1 polievkovú lyžicu oleja a štipku soli.",
+                    "Peč cuketu na plechu 25 minút pri 200 °C, kým zmäkne a okraje nezozlatnú.",
                     "Rozdeľ pečenú cuketu na 4 porcie a podávaj ju horúcu.",
                 ),
             ),
@@ -462,10 +491,10 @@ CHICKEN_STEPS = (
                 "Chrumkavé tofu z panvice",
                 "640 g · tofu",
                 (
-                    "Osuš 640 g tofu čistou utierkou, kým povrch nebude suchý.",
-                    "Nakrájaj 640 g tofu na 2 cm kocky na doske.",
+                    "Osuš tofu čistou utierkou, kým povrch nebude suchý.",
+                    "Nakrájaj tofu na 2 cm kocky na doske.",
                     "Rozohrej v panvici 1 polievkovú lyžicu oleja 2 minúty na strednom ohni, kým sa olej začne ľahko lesknúť.",
-                    "Opekaj 640 g tofu v panvici 8 minút na strednom ohni, kým budú všetky strany zlatisté a chrumkavé.",
+                    "Opekaj tofu v panvici 8 minút na strednom ohni, kým budú všetky strany zlatisté a chrumkavé.",
                     "Rozdeľ tofu na 4 porcie a podávaj ho ihneď.",
                 ),
             ),
@@ -482,10 +511,10 @@ CHICKEN_STEPS = (
                 "Pečené kuracie stehná",
                 "900 g · kuracie stehná",
                 (
-                    "Osuš 900 g kuracích stehien papierovou utierkou a rovnomerne ich osoľ a okoreň.",
+                    "Osuš kuracie stehná papierovou utierkou a rovnomerne ich osoľ a okoreň.",
                     "Predhrej rúru na 200 °C; správnu teplotu potvrdí kontrolka rúry.",
-                    "Rozlož 900 g kuracích stehien na pekáč kožou nahor tak, aby sa jednotlivé kúsky nedotýkali.",
-                    "Peč 900 g kuracích stehien v pekáči 35 minút pri 200 °C, kým teplomer v najhrubšej časti ukáže aspoň 74 °C a po narezaní vyteká číra šťava.",
+                    "Rozlož kuracie stehná na pekáč kožou nahor tak, aby sa jednotlivé kúsky nedotýkali.",
+                    "Peč kuracie stehná v pekáči 35 minút pri 200 °C, kým teplomer v najhrubšej časti ukáže aspoň 74 °C a po narezaní vyteká číra šťava.",
                     "Nechaj kuracie stehná na pekáči 5 minút odpočívať, kým sa šťava prestane uvoľňovať.",
                     "Rozdeľ kuracie stehná na 4 porcie a podávaj ich horúce.",
                 ),
@@ -542,6 +571,31 @@ def test_batch_math_stays_exact_and_displayed_portions_are_people_meals(ingredie
 
 
 @pytest.mark.parametrize(
+    ("adults", "expected"),
+    [(1, "1 porciu"), (2, "2 porcie"), (4, "4 porcie"), (5, "5 porcií"), (12, "12 porcií")],
+)
+def test_serving_instruction_uses_the_correct_slovak_portion_form(
+    ingredients, adults, expected
+):
+    candidate = _candidate(
+        ingredients.by_id("tofu"),
+        amount="160",
+        name_template="Tofu z panvice",
+        equipment=("panvica",),
+        pantry_basics=("oil",),
+        instructions=(
+            "Nakrájaj {main.name} na rovnaké kocky.",
+            "Opekaj {main.name} v panvici 8 minút na strednom ohni, kým bude zlatisté.",
+            "Rozdeľ tofu na {portions} porcií a podávaj ho teplé.",
+        ),
+    )
+
+    meal = render_meal(candidate, adults=adults, children=0, covered_days=1)
+
+    assert expected in meal.instructions[-1]
+
+
+@pytest.mark.parametrize(
     ("ingredient_id", "quantity_form"),
     [
         ("turkey_breast", "morčacích pŕs"),
@@ -585,7 +639,8 @@ def test_display_rounds_1980_grams_to_two_kilos_without_changing_quantity(ingred
     assert meal.ingredients[0].display_amount == "2 kg"
     assert meal.ingredients[0].label == "2 kg · kuracie stehná"
     assert "1 980 g" not in " ".join(meal.instructions)
-    assert "2 kg kuracích stehien" in " ".join(meal.instructions)
+    assert "2 kg" not in " ".join(meal.instructions)
+    assert "kuracie stehná" in " ".join(meal.instructions)
 
 
 def test_millilitres_use_litres_with_one_useful_decimal(ingredients):

@@ -151,19 +151,31 @@ def test_recipe_nutrition_and_allergens_are_truthful_and_slovak(tmp_path):
         "function esc(value){return String(value == null ? '' : value);}\n"
         + function_source(html, "recipeFactsHtml")
         + """
-var claimed=recipeFactsHtml({nutrition:{serving:{protein_g:33.6}},high_protein_claim:true,allergens:['milk','egg','fish','soy','wheat']});
-if (!claimed.includes('Odhad: 34 g bielkovín na dospelú porciu')) process.exit(1);
+var claimed=recipeFactsHtml({nutrition:{serving:{kcal:637,protein_g:33.6}},high_protein_claim:true,allergens:['milk','egg','fish','soy','wheat']});
+if (!claimed.includes('≈ 640 kcal · 34 g bielkovín na dospelú porciu')) process.exit(1);
 if (!claimed.includes('Vysoký obsah bielkovín')) process.exit(2);
 for (const word of ['mlieko','vajcia','ryby','sója','lepok']) if (!claimed.includes(word)) process.exit(3);
 if (!claimed.includes('Pri alergii skontroluj zloženie konkrétneho výrobku na obale.')) process.exit(4);
-var unverified=recipeFactsHtml({nutrition:{serving:{protein_g:42}},high_protein_claim:false,allergens:[]});
+var unverified=recipeFactsHtml({nutrition:{serving:{kcal:614,protein_g:42}},high_protein_claim:false,allergens:[]});
 if (unverified.includes('Vysoký obsah bielkovín')) process.exit(5);
-if (!unverified.includes('Odhad: 42 g bielkovín na dospelú porciu')) process.exit(6);
+if (!unverified.includes('≈ 610 kcal · 42 g bielkovín na dospelú porciu')) process.exit(6);
 if (unverified.includes('Pri alergii')) process.exit(7);
-var malformed=recipeFactsHtml({nutrition:{serving:{protein_g:'n/a'}},high_protein_claim:true,allergens:['unknown']});
-if (malformed.includes('Odhad:')) process.exit(8);
+var malformed=recipeFactsHtml({nutrition:{serving:{kcal:'n/a',protein_g:'n/a'}},high_protein_claim:true,allergens:['unknown']});
+if (malformed.includes('na dospelú porciu')) process.exit(8);
 if (!malformed.includes('Vysoký obsah bielkovín')) process.exit(9);
 if (!malformed.includes('unknown')) process.exit(10);
+for (const serving of [
+  {kcal:true,protein_g:33},
+  {kcal:630,protein_g:[33]},
+  {kcal:'',protein_g:33},
+  {kcal:630,protein_g:''},
+  {kcal:0,protein_g:33},
+  {kcal:630,protein_g:0},
+  {kcal:630},
+  {protein_g:33}
+]) {
+  if (recipeFactsHtml({nutrition:{serving:serving}}).includes('na dospelú porciu')) process.exit(11);
+}
 process.exit(0);
 """,
     )

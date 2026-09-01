@@ -1207,11 +1207,10 @@ function portionLine(recept) {
 
 function recipeFactsHtml(recept) {
   recept = recept || {};
-  var protein = Number(recept.nutrition && recept.nutrition.serving &&
-    recept.nutrition.serving.protein_g);
-  var facts = [];
-  if (isFinite(protein) && protein > 0)
-    facts.push(`<span>Odhad: ${Math.round(protein)} g bielkovín na dospelú porciu</span>`);
+  var n = recept.nutrition && recept.nutrition.serving || {};
+  var k = n.kcal, p = n.protein_g, facts = [];
+  function pos(v) { return typeof v === 'number' && isFinite(v) && v > 0 || typeof v === 'string' && v.trim() !== '' && isFinite(+v) && +v > 0; }
+  if (pos(k) && pos(p)) facts.push(`<span>≈ ${Math.round(+k / 10) * 10} kcal · ${Math.round(+p)} g bielkovín na dospelú porciu</span>`);
   if (recept.high_protein_claim === true)
     facts.push('<span class="protein-claim">Vysoký obsah bielkovín</span>');
   var map = {milk:'mlieko',egg:'vajcia',fish:'ryby',soy:'sója',gluten:'lepok',wheat:'lepok',

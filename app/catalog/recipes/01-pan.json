@@ -114,7 +114,7 @@
       ],
       "pantry_basics": ["water","oil","salt","black_pepper","oregano"],
       "instructions": [
-        {"text":"Prilej vodu k {starch.amount} {starch.name}."},
+        {"text":"Priprav {starch.amount} {starch.name} v miske s {starch.water} vody."},
         {"text":"Nechaj kuskus v miske 8 minút, kým voda vsiakne."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Opekaj {protein.name} v panvici na strednom ohni 8 minút, kým mäso dosiahne 74 °C."},

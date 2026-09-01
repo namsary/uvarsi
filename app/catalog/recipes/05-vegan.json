@@ -185,7 +185,7 @@
         {"text":"Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou."},
         {"text":"Opláchni {vegetable.name} a nakrájaj ich {vegetable.cut}."},
         {"text":"Var {starch.name} v hrnci 24 minút na miernom ohni, kým krúpy mierne zmäknú."},
-        {"text":"Pridaj {vegetable.amount} bielych šampiňónov do hrnca."},
+        {"text":"Pridaj {vegetable.amount} {vegetable.name} do hrnca."},
         {"text":"Pridaj {protein.amount} {protein.name} do hrnca."},
         {"text":"Var {protein.name} so šampiňónmi a krúpami v hrnci 10 minút na miernom ohni, kým krúpy zmäknú a omáčka zhustne; potom jedlo dochuť cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]

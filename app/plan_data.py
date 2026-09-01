@@ -1177,8 +1177,10 @@ PLAN_VARIANT_HINTS = (
 #      už sa netvária ako skutočné položky používateľovej špajze.
 # 22 = množstvo vody pri absorpčnom varení sa škáluje s dávkou prílohy;
 #      veľká domácnosť už nedostane rovnakých 500 ml ako jedna porcia.
+# 23 = hmotnosti zostávajú v zozname surovín a v kuchárskych krokoch sa už
+#      neopakujú; zároveň sa správne skloňuje počet porcií.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 22
+PLAN_ALGO_VERSION = 23
 
 
 def plan_variant_for(user_id, variants):

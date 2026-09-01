@@ -139,7 +139,7 @@
         {"text":"Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou."},
         {"text":"Uvar {starch.name} v hrnci 25 minút na miernom ohni, kým zmäknú."},
         {"text":"Opláchni {vegetable.name} a nakrájaj ich {vegetable.cut}."},
-        {"text":"Opekaj {vegetable.amount} bielych šampiňónov v panvici 8 minút na strednom ohni, kým zmäknú a okraje nezozlatnú."},
+        {"text":"Opekaj {vegetable.amount} {vegetable.name} v panvici 8 minút na strednom ohni, kým zmäknú a okraje nezozlatnú."},
         {"text":"Pridaj {protein.amount} {protein.name} do panvice a opekaj ho 5 minút na strednom ohni, kým je povrch zlatistý."},
         {"text":"Premiešaj obsah panvice s krúpami, dochuť cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]

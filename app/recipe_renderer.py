@@ -282,7 +282,7 @@ _COOKING_ACTION = re.compile(
     r"tepelne\s+uprav|upec|uvar|var|zohrej|zohrievaj)\b"
 )
 _VESSEL = re.compile(
-    r"\b(?:hrnc\w*|panvic\w*|pekac\w*|plech\w*|rur\w*|wok\w*|rajnic\w*)\b"
+    r"\b(?:hrnc\w*|panvic\w*|pekac\w*|plech\w*|rur\w*|wok\w*|rajnic\w*|misk\w*)\b"
 )
 _HEAT = re.compile(
     r"(?:\b(?:miernom|strednom|silnom|nizkom|vysokom)\s+ohni\b|"
@@ -562,6 +562,14 @@ def _normalize_rendered_text(value: str) -> str:
     return re.sub(r"\s+([,.;:])", r"\1", value)
 
 
+def _portion_form(portions: int) -> str:
+    if portions == 1:
+        return "porciu"
+    if 2 <= portions <= 4:
+        return "porcie"
+    return "porcií"
+
+
 def _render_template(
     template: str,
     slots: Mapping[str, _SlotWording],
@@ -569,6 +577,7 @@ def _render_template(
     *,
     label: str,
     prepositional_names: bool = False,
+    omit_amounts: bool = False,
 ) -> str:
     chunks = []
     grammatical_case = None
@@ -591,6 +600,8 @@ def _render_template(
             wording = slots.get(parts[0])
             if wording is None:
                 raise ValueError(f"neznáma pozícia v placeholderi: {parts[0]}")
+            if parts[1] == "amount" and omit_amounts:
+                continue
             if parts[1] == "water" and wording.water is None:
                 raise ValueError(
                     f"chýba pomer vody pre surovinu: {wording.ingredient_id}"
@@ -599,7 +610,10 @@ def _render_template(
                 chunks.append(_title_name(wording, grammatical_case))
             elif (
                 parts[1] == "name"
-                and f"{{{parts[0]}.amount}}" not in template
+                and (
+                    omit_amounts
+                    or f"{{{parts[0]}.amount}}" not in template
+                )
             ):
                 chunks.append(wording.reference_name)
             else:
@@ -608,6 +622,12 @@ def _render_template(
         raise ValueError(f"neplatný placeholder v {label}: {template}") from exc
 
     result = _normalize_rendered_text("".join(chunks))
+    if "{portions}" in template:
+        result = re.sub(
+            rf"\b{portions}\s+porci(?:a|e|í|u)\b",
+            f"{portions} {_portion_form(portions)}",
+            result,
+        )
     if "{" in result or "}" in result:
         raise ValueError(f"nevyriešený placeholder v {label}: {template}")
     return result
@@ -747,13 +767,13 @@ def _large_pan_batch_step(
             "Veľká panvicová dávka nemá podporovaný deterministický postup."
         )
 
-    amounts = _natural_join(
+    ingredients = _natural_join(
         tuple(
-            f"{item.display_amount} {_quantity_name(item)}" for item in step_items
+            _REFERENCE_NAMES[item.ingredient.id] for item in step_items
         )
     )
     guidance = (
-        f"Rozdeľ {amounts} na menšie dávky tak, aby panvica nebola "
+        f"Rozdeľ {ingredients} na menšie dávky tak, aby panvica nebola "
         "preplnená a pevné kúsky boli rozložené v jednej vrstve; podľa "
         "potreby použi ďalšiu panvicu."
     )
@@ -1188,6 +1208,7 @@ def render_meal(
                 instruction_slots,
                 portions,
                 label="kroku receptu",
+                omit_amounts=True,
             ),
             rendered,
         )
