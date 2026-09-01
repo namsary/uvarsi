@@ -270,6 +270,43 @@ def test_required_slot_needs_name_and_amount_in_instructions(
         load_recipe_catalog(ingredients, root)
 
 
+def test_active_catalog_measures_every_slot_exactly_once(ingredients):
+    recipes = tuple(
+        recipe for recipe in load_recipe_catalog(ingredients).all() if recipe.active
+    )
+
+    assert len(recipes) == 60
+    for recipe in recipes:
+        for slot in recipe.slots:
+            amount_placeholder = f"{{{slot.key}.amount}}"
+            occurrences = sum(
+                instruction.text.count(amount_placeholder)
+                for instruction in recipe.instructions
+            )
+            assert occurrences == 1, (
+                recipe.id,
+                slot.key,
+                occurrences,
+            )
+
+
+def test_unmeasured_instruction_names_do_not_follow_case_changing_prepositions(
+    ingredients,
+):
+    recipes = load_recipe_catalog(ingredients).all()
+
+    for recipe in recipes:
+        for instruction in recipe.instructions:
+            for slot in recipe.slots:
+                for preposition in ("s", "so", "k", "ku", "z", "zo"):
+                    unsafe = f"{preposition} {{{slot.key}.name}}"
+                    assert unsafe not in instruction.text, (
+                        recipe.id,
+                        instruction.text,
+                        unsafe,
+                    )
+
+
 def test_malformed_inactive_template_cannot_hide_missing_instruction_contract(
     ingredients, tmp_path
 ):

@@ -13,11 +13,11 @@
       "pantry_basics":["water","oil","salt","black_pepper","garlic"],
       "instructions":[
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opekaj {protein.amount} {protein.name} v hrnci na strednom ohni 7 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Opekaj {protein.name} v hrnci na strednom ohni 7 minút, kým mäso dosiahne 74 °C."},
         {"text":"Prepláchni {starch.amount} {starch.name}."},
-        {"text":"Pridaj {starch.amount} {starch.name} a {vegetable.amount} {vegetable.name} do hrnca."},
+        {"text":"Pridaj {starch.name} a {vegetable.name} do hrnca."},
         {"text":"Nalej 500 ml vody do hrnca."},
-        {"text":"Var {starch.amount} {starch.name} so zeleninou v hrnci na miernom ohni 16 minút, kým voda vsiakne a ryža zmäkne."},
+        {"text":"Var {starch.name} so zeleninou v hrnci na miernom ohni 16 minút, kým voda vsiakne a ryža zmäkne."},
         {"text":"Dochuť jedlo cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
@@ -34,11 +34,11 @@
       "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
       "instructions":[
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opekaj {protein.amount} {protein.name} v hrnci na strednom ohni 8 minút, kým mäso dosiahne 74 °C."},
-        {"text":"Pridaj {vegetable.amount} {vegetable.name} do hrnca a opekaj na miernom ohni 5 minút, kým zelenina zmäkne."},
+        {"text":"Opekaj {protein.name} v hrnci na strednom ohni 8 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Pridaj {vegetable.name} do hrnca a opekaj na miernom ohni 5 minút, kým zelenina zmäkne."},
         {"text":"Prisyp {starch.amount} {starch.name} do hrnca."},
         {"text":"Nalej 500 ml vody do hrnca."},
-        {"text":"Var {starch.amount} {starch.name} v hrnci na miernom ohni 10 minút, kým cestoviny zmäknú."},
+        {"text":"Var {starch.name} v hrnci na miernom ohni 10 minút, kým cestoviny zmäknú."},
         {"text":"Dochuť jedlo cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
@@ -55,11 +55,11 @@
       "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
       "instructions":[
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opekaj {protein.amount} {protein.name} v hrnci na strednom ohni 10 minút, kým mäso dosiahne 74 °C."},
-        {"text":"Pridaj {vegetable.amount} {vegetable.name} do hrnca a opekaj na miernom ohni 5 minút, kým zelenina zmäkne."},
+        {"text":"Opekaj {protein.name} v hrnci na strednom ohni 10 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Pridaj {vegetable.name} do hrnca a opekaj na miernom ohni 5 minút, kým zelenina zmäkne."},
         {"text":"Prepláchni {starch.amount} {starch.name}."},
-        {"text":"Prisyp {starch.amount} {starch.name} do hrnca a prilej vodu."},
-        {"text":"Var {protein.amount} {protein.name} s prílohou a zeleninou v hrnci na miernom ohni 35 minút, kým mäso aj príloha zmäknú."},
+        {"text":"Prisyp {starch.name} do hrnca a prilej vodu."},
+        {"text":"Var {protein.name} s prílohou a zeleninou v hrnci na miernom ohni 35 minút, kým mäso aj príloha zmäknú."},
         {"text":"Dochuť jedlo cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
@@ -77,10 +77,10 @@
       "instructions":[
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Opekaj {protein.amount} {protein.name} v hrnci na strednom ohni 8 minút, kým mäso dosiahne 74 °C."},
-        {"text":"Pridaj {vegetable.amount} {vegetable.name} do hrnca a var na miernom ohni 6 minút, kým zelenina zmäkne."},
+        {"text":"Pridaj {vegetable.name} do hrnca a var na miernom ohni 6 minút, kým zelenina zmäkne."},
         {"text":"Prisyp {starch.amount} {starch.name} do hrnca."},
         {"text":"Nalej 500 ml vody do hrnca."},
-        {"text":"Var {starch.amount} {starch.name} v hrnci na miernom ohni 11 minút, kým cestoviny zmäknú."},
+        {"text":"Var {starch.name} v hrnci na miernom ohni 11 minút, kým cestoviny zmäknú."},
         {"text":"Dochuť jedlo cesnakom, oreganom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
@@ -97,9 +97,9 @@
       "pantry_basics":["water","oil","salt","black_pepper","garlic"],
       "instructions":[
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Var {starch.amount} {starch.name} so zeleninou v hrnci na miernom ohni 14 minút, kým zemiaky zmäknú."},
+        {"text":"Var {starch.name} so zeleninou v hrnci na miernom ohni 14 minút, kým zemiaky zmäknú."},
         {"text":"Osuš {protein.amount} {protein.name} a nakrájaj ich {protein.cut}."},
-        {"text":"Pridaj {protein.amount} {protein.name} do hrnca a var na miernom ohni 8 minút, kým ryba zmäkne a ľahko sa oddeľuje vidličkou."},
+        {"text":"Pridaj {protein.name} do hrnca a var na miernom ohni 8 minút, kým ryba zmäkne a ľahko sa oddeľuje vidličkou."},
         {"text":"Dochuť jedlo cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
@@ -116,11 +116,11 @@
       "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
       "instructions":[
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opekaj {protein.amount} {protein.name} v hrnci na strednom ohni 7 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Opekaj {protein.name} v hrnci na strednom ohni 7 minút, kým mäso dosiahne 74 °C."},
         {"text":"Prepláchni {starch.amount} {starch.name}."},
-        {"text":"Pridaj {starch.amount} {starch.name} a {vegetable.amount} {vegetable.name} do hrnca."},
+        {"text":"Pridaj {starch.name} a {vegetable.name} do hrnca."},
         {"text":"Nalej 500 ml vody do hrnca."},
-        {"text":"Var {starch.amount} {starch.name} so zeleninou v hrnci na miernom ohni 20 minút, kým šošovica zmäkne."},
+        {"text":"Var {starch.name} so zeleninou v hrnci na miernom ohni 20 minút, kým šošovica zmäkne."},
         {"text":"Dochuť jedlo cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
@@ -137,9 +137,9 @@
       "pantry_basics":["water","oil","salt","black_pepper","curry_powder","garlic"],
       "instructions":[
         {"text":"Prepláchni {protein.amount} {protein.name} a {starch.amount} {starch.name}."},
-        {"text":"Var {protein.amount} {protein.name} s ryžou v hrnci na miernom ohni 18 minút, kým šošovica aj ryža zmäknú."},
+        {"text":"Var {protein.name} s ryžou v hrnci na miernom ohni 18 minút, kým šošovica aj ryža zmäknú."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Pridaj {vegetable.amount} {vegetable.name} do hrnca a var na miernom ohni 5 minút, kým zelenina zmäkne."},
+        {"text":"Pridaj {vegetable.name} do hrnca a var na miernom ohni 5 minút, kým zelenina zmäkne."},
         {"text":"Dochuť jedlo cesnakom, karí korením, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
@@ -156,9 +156,9 @@
       "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
       "instructions":[
         {"text":"Prepláchni {protein.amount} {protein.name}."},
-        {"text":"Uvar {protein.amount} {protein.name} v hrnci na miernom ohni 20 minút, kým strukovina zmäkne."},
+        {"text":"Uvar {protein.name} v hrnci na miernom ohni 20 minút, kým strukovina zmäkne."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Pridaj {vegetable.amount} {vegetable.name} do hrnca a var na miernom ohni 6 minút, kým zelenina zmäkne."},
+        {"text":"Pridaj {vegetable.name} do hrnca a var na miernom ohni 6 minút, kým zelenina zmäkne."},
         {"text":"Prisyp {starch.amount} {starch.name}, odstav hrniec a nechaj jedlo 7 minút, kým kuskus zmäkne."},
         {"text":"Dochuť jedlo cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
@@ -177,8 +177,8 @@
       "instructions":[
         {"text":"Osuš {protein.amount} {protein.name} a nakrájaj ho {protein.cut}."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opekaj {protein.amount} {protein.name} v hrnci na strednom ohni 8 minút, kým tofu bude chrumkavé."},
-        {"text":"Pridaj {vegetable.amount} {vegetable.name} a {liquid.amount} {liquid.name} do hrnca a var na miernom ohni 10 minút, kým zelenina zmäkne."},
+        {"text":"Opekaj {protein.name} v hrnci na strednom ohni 8 minút, kým tofu bude chrumkavé."},
+        {"text":"Pridaj {vegetable.name} a {liquid.amount} {liquid.name} do hrnca a var na miernom ohni 10 minút, kým zelenina zmäkne."},
         {"text":"Dochuť jedlo cesnakom, karí korením, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
@@ -195,11 +195,11 @@
       "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
       "instructions":[
         {"text":"Prepláchni {protein.amount} {protein.name}."},
-        {"text":"Uvar {protein.amount} {protein.name} v hrnci na miernom ohni 22 minút, kým strukovina zmäkne."},
+        {"text":"Uvar {protein.name} v hrnci na miernom ohni 22 minút, kým strukovina zmäkne."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Pridaj {vegetable.amount} {vegetable.name} do hrnca a var na miernom ohni 7 minút, kým zelenina zmäkne."},
+        {"text":"Pridaj {vegetable.name} do hrnca a var na miernom ohni 7 minút, kým zelenina zmäkne."},
         {"text":"Prisyp {starch.amount} {starch.name} do hrnca."},
-        {"text":"Var {starch.amount} {starch.name} v hrnci na miernom ohni 16 minút, kým ryža zmäkne."},
+        {"text":"Var {starch.name} v hrnci na miernom ohni 16 minút, kým ryža zmäkne."},
         {"text":"Dochuť jedlo cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     }

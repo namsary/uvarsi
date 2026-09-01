@@ -12,9 +12,9 @@
       "pantry_basics":["water","salt","black_pepper","garlic"],
       "instructions":[
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}; priprav si aj {starch.name}."},
-        {"text":"Var {protein.amount} {protein.name} v hrnci 12 minút na miernom ohni, kým mäso dosiahne 74 °C."},
-        {"text":"Pridaj {vegetable.amount} {vegetable.name} do hrnca."},
-        {"text":"Var {vegetable.amount} {vegetable.name} v hrnci 8 minút na miernom ohni, kým zmäkne."},
+        {"text":"Var {protein.name} v hrnci 12 minút na miernom ohni, kým mäso dosiahne 74 °C."},
+        {"text":"Pridaj {vegetable.name} do hrnca."},
+        {"text":"Var {vegetable.name} v hrnci 8 minút na miernom ohni, kým zmäkne."},
         {"text":"Pridaj {starch.amount} vaječných rezancov do hrnca a var ich 6 minút na miernom ohni, kým zmäknú."},
         {"text":"Dochuť polievku cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."},
         {"text":"Nechaj zvyšné porcie chladnúť najviac 30 minút a potom ich uchovaj v chladničke najviac 2 dni."}
@@ -34,8 +34,8 @@
         {"text":"Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Opekaj {protein.amount} {protein.name} v hrnci 9 minút na strednom ohni, kým mäso dosiahne 74 °C."},
-        {"text":"Pridaj {starch.amount} {starch.name} do hrnca."},
-        {"text":"Pridaj {vegetable.amount} {vegetable.name} do hrnca a var ju 25 minút na miernom ohni, kým krúpy a zelenina zmäknú."},
+        {"text":"Pridaj {starch.name} do hrnca."},
+        {"text":"Pridaj {vegetable.name} do hrnca a var ju 25 minút na miernom ohni, kým krúpy a zelenina zmäknú."},
         {"text":"Dochuť polievku cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."},
         {"text":"Nechaj zvyšné porcie chladnúť najviac 30 minút a potom ich uchovaj v chladničke najviac 2 dni."}
       ]
@@ -52,10 +52,10 @@
       "pantry_basics":["water","oil","salt","black_pepper","garlic","oregano"],
       "instructions":[
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Var {starch.amount} {starch.name} a {vegetable.amount} {vegetable.name} v hrnci 16 minút na miernom ohni, kým zemiaky mierne zmäknú."},
+        {"text":"Var {starch.name} a {vegetable.name} v hrnci 16 minút na miernom ohni, kým zemiaky mierne zmäknú."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut}."},
-        {"text":"Pridaj {protein.amount} {protein.name} do hrnca."},
-        {"text":"Var {protein.amount} {protein.name} v hrnci 10 minút na miernom ohni, kým ryba zmäkne a ľahko sa oddeľuje."},
+        {"text":"Pridaj {protein.name} do hrnca."},
+        {"text":"Var {protein.name} v hrnci 10 minút na miernom ohni, kým ryba zmäkne a ľahko sa oddeľuje."},
         {"text":"Dochuť polievku cesnakom, oreganom, soľou a čiernym korením a rozdeľ na {portions} porcií."},
         {"text":"Nechaj zvyšné porcie chladnúť najviac 30 minút a potom ich uchovaj v chladničke najviac 2 dni."}
       ]
@@ -73,7 +73,7 @@
       "instructions":[
         {"text":"Prepláchni {protein.amount} {protein.name} v sitku pod studenou vodou."},
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Var {protein.amount} {protein.name}, {starch.amount} {starch.name} a {vegetable.amount} {vegetable.name} v hrnci 22 minút na miernom ohni, kým šošovica a zemiaky zmäknú."},
+        {"text":"Var {protein.name}, {starch.name} a {vegetable.name} v hrnci 22 minút na miernom ohni, kým šošovica a zemiaky zmäknú."},
         {"text":"Rozmixuj polovicu polievky v hrnci, kým bude polievka krémová."},
         {"text":"Dochuť polievku cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."},
         {"text":"Nechaj zvyšné porcie chladnúť najviac 30 minút a potom ich uchovaj v chladničke najviac 3 dni."}
@@ -91,10 +91,10 @@
       "pantry_basics":["water","oil","salt","black_pepper","garlic"],
       "instructions":[
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Var {starch.amount} {starch.name} a {vegetable.amount} {vegetable.name} v hrnci 17 minút na miernom ohni, kým zemiaky zmäknú."},
+        {"text":"Var {starch.name} a {vegetable.name} v hrnci 17 minút na miernom ohni, kým zemiaky zmäknú."},
         {"text":"Opláchni {protein.amount} {protein.name} v sitku pod studenou vodou."},
-        {"text":"Pridaj {protein.amount} {protein.name} do hrnca."},
-        {"text":"Var {protein.amount} {protein.name} v hrnci 8 minút na miernom ohni, kým polievka začne bublať."},
+        {"text":"Pridaj {protein.name} do hrnca."},
+        {"text":"Var {protein.name} v hrnci 8 minút na miernom ohni, kým polievka začne bublať."},
         {"text":"Dochuť polievku cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."},
         {"text":"Nechaj zvyšné porcie chladnúť najviac 30 minút a potom ich uchovaj v chladničke najviac 3 dni."}
       ]
@@ -112,9 +112,9 @@
       "pantry_basics":["oil","salt","black_pepper","garlic"],
       "instructions":[
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Uvar {starch.amount} {starch.name} v hrnci 12 minút na strednom ohni, kým zmäknú."},
+        {"text":"Uvar {starch.name} v hrnci 12 minút na strednom ohni, kým zmäknú."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut}."},
-        {"text":"Opekaj {protein.amount} {protein.name} v panvici 9 minút na strednom ohni, kým mäso dosiahne 74 °C."},
+        {"text":"Opekaj {protein.name} v panvici 9 minút na strednom ohni, kým mäso dosiahne 74 °C."},
         {"text":"Priprav {dairy.name} v mise a premiešaj ho s cesnakom, soľou a čiernym korením."},
         {"text":"Premiešaj {dairy.amount} bieleho plnotučného jogurtu so zemiakmi, zeleninou a kuracím mäsom a rozdeľ šalát na {portions} porcií."}
       ]
@@ -152,7 +152,7 @@
         {"text":"Uvar {starch.amount} {starch.name} v hrnci 9 minút na strednom ohni, kým zmäknú na skus."},
         {"text":"Uvar {protein.amount} {protein.name} v hrnci 10 minút na strednom ohni, kým žĺtky úplne stuhnú."},
         {"text":"Nechaj cestoviny a vajcia 10 minút chladnúť, kým prestanú pariť."},
-        {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Nakrájaj {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Premiešaj cestoviny, vajcia a zeleninu v mise s olejom."},
         {"text":"Dochuť šalát oreganom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
@@ -171,7 +171,7 @@
         {"text":"Uvar {starch.amount} {starch.name} v hrnci 15 minút na miernom ohni, kým voda vsiakne."},
         {"text":"Nechaj ryžu 10 minút chladnúť, kým prestane pariť."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opekaj {protein.amount} {protein.name} v panvici 8 minút na strednom ohni, kým budú kocky zlatisté."},
+        {"text":"Opekaj {protein.name} v panvici 8 minút na strednom ohni, kým budú kocky zlatisté."},
         {"text":"Premiešaj ryžu, tofu a zeleninu v mise s olejom."},
         {"text":"Dochuť šalát cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
@@ -189,7 +189,7 @@
       "instructions":[
         {"text":"Uvar {starch.amount} {starch.name} v hrnci 8 minút na miernom ohni, kým zmäkne a voda vsiakne."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Uvar {vegetable.amount} {vegetable.name} v hrnci 5 minút na strednom ohni, kým mierne zmäkne."},
+        {"text":"Uvar {vegetable.name} v hrnci 5 minút na strednom ohni, kým mierne zmäkne."},
         {"text":"Opláchni {protein.amount} {protein.name} v sitku pod studenou vodou."},
         {"text":"Premiešaj kuskus, cícer a brokolicu v mise s olejom."},
         {"text":"Dochuť šalát mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}

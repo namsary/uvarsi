@@ -13,11 +13,11 @@
       "pantry_basics": ["oil","salt","black_pepper"],
       "instructions": [
         {"text":"Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou."},
-        {"text":"Uvar {starch.amount} {starch.name} v prikrytom hrnci 15 minút na miernom ohni, kým voda vsiakne."},
+        {"text":"Uvar {starch.name} v prikrytom hrnci 15 minút na miernom ohni, kým voda vsiakne."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Rozšľahaj {protein.amount} {protein.name} v mise."},
-        {"text":"Opekaj {protein.amount} {protein.name} v panvici 5 minút na strednom ohni, kým úplne stuhnú."},
-        {"text":"Pridaj {vegetable.amount} {vegetable.name} do panvice a opekaj ich 6 minút na strednom ohni, kým zmäknú."},
+        {"text":"Opekaj {protein.name} v panvici 5 minút na strednom ohni, kým úplne stuhnú."},
+        {"text":"Pridaj {vegetable.name} do panvice a opekaj ich 6 minút na strednom ohni, kým zmäknú."},
         {"text":"Premiešaj vajcia a zeleninu s uvarenou ryžou, dochuť soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
@@ -35,9 +35,9 @@
       "instructions": [
         {"text":"Uvar {starch.amount} {starch.name} v hrnci 9 minút na strednom ohni, kým zmäknú na skus."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opekaj {vegetable.amount} {vegetable.name} v panvici 7 minút na strednom ohni, kým zmäknú."},
+        {"text":"Opekaj {vegetable.name} v panvici 7 minút na strednom ohni, kým zmäknú."},
         {"text":"Rozšľahaj {protein.amount} {protein.name} v mise."},
-        {"text":"Vlej {protein.amount} {protein.name} do panvice a opekaj ich 5 minút na miernom ohni, kým úplne stuhnú."},
+        {"text":"Vlej {protein.name} do panvice a opekaj ich 5 minút na miernom ohni, kým úplne stuhnú."},
         {"text":"Premiešaj obsah panvice s cestovinami, dochuť oreganom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
@@ -55,11 +55,11 @@
       "instructions": [
         {"text":"Predhrej rúru na 190 °C; správnu teplotu potvrdí kontrolka rúry."},
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Uvar {starch.amount} {starch.name} v hrnci 8 minút na strednom ohni, kým mierne zmäknú."},
-        {"text":"Rozlož {starch.amount} {starch.name} do pekáča."},
-        {"text":"Pridaj {vegetable.amount} {vegetable.name} do pekáča."},
+        {"text":"Uvar {starch.name} v hrnci 8 minút na strednom ohni, kým mierne zmäknú."},
+        {"text":"Rozlož {starch.name} do pekáča."},
+        {"text":"Pridaj {vegetable.name} do pekáča."},
         {"text":"Pridaj {protein.amount} {protein.name} do pekáča."},
-        {"text":"Peč {protein.amount} {protein.name} so zemiakmi a špenátom v rúre 22 minút pri 190 °C, kým bude povrch zlatistý; potom jedlo dochuť cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+        {"text":"Peč {protein.name} so zemiakmi a špenátom v rúre 22 minút pri 190 °C, kým bude povrch zlatistý; potom jedlo dochuť cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
     {
@@ -76,11 +76,11 @@
       "instructions": [
         {"text":"Predhrej rúru na 190 °C; správnu teplotu potvrdí kontrolka rúry."},
         {"text":"Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou."},
-        {"text":"Uvar {starch.amount} {starch.name} v hrnci 12 minút na miernom ohni, kým voda vsiakne."},
+        {"text":"Uvar {starch.name} v hrnci 12 minút na miernom ohni, kým voda vsiakne."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Rozlož uvarenú ryžu a {vegetable.amount} {vegetable.name} do pekáča."},
+        {"text":"Rozlož uvarenú ryžu a {vegetable.name} do pekáča."},
         {"text":"Pridaj {protein.amount} {protein.name} do pekáča."},
-        {"text":"Peč {protein.amount} {protein.name} s ryžou a cuketou v rúre 20 minút pri 190 °C, kým bude povrch zlatistý; potom jedlo dochuť cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+        {"text":"Peč {protein.name} s ryžou a cuketou v rúre 20 minút pri 190 °C, kým bude povrch zlatistý; potom jedlo dochuť cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
     {
@@ -118,10 +118,10 @@
         {"text":"Predhrej rúru na 195 °C; správnu teplotu potvrdí kontrolka rúry."},
         {"text":"Uvar {starch.amount} {starch.name} v hrnci 7 minút na strednom ohni, kým mierne zmäknú."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Uvar {vegetable.amount} {vegetable.name} v hrnci 4 minúty na strednom ohni, kým mierne zmäkne."},
+        {"text":"Uvar {vegetable.name} v hrnci 4 minúty na strednom ohni, kým mierne zmäkne."},
         {"text":"Rozlož cestoviny a brokolicu do pekáča."},
         {"text":"Pridaj {protein.amount} {protein.name} do pekáča."},
-        {"text":"Peč {protein.amount} {protein.name} s cestovinami a brokolicou v rúre 18 minút pri 195 °C, kým bude syr zlatistý; potom jedlo dochuť cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+        {"text":"Peč {protein.name} s cestovinami a brokolicou v rúre 18 minút pri 195 °C, kým bude syr zlatistý; potom jedlo dochuť cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
     {
@@ -137,7 +137,7 @@
       "pantry_basics": ["oil","salt","black_pepper","garlic"],
       "instructions": [
         {"text":"Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou."},
-        {"text":"Uvar {starch.amount} {starch.name} v hrnci 25 minút na miernom ohni, kým zmäknú."},
+        {"text":"Uvar {starch.name} v hrnci 25 minút na miernom ohni, kým zmäknú."},
         {"text":"Opláchni {vegetable.name} a nakrájaj ich {vegetable.cut}."},
         {"text":"Opekaj {vegetable.amount} bielych šampiňónov v panvici 8 minút na strednom ohni, kým zmäknú a okraje nezozlatnú."},
         {"text":"Pridaj {protein.amount} {protein.name} do panvice a opekaj ho 5 minút na strednom ohni, kým je povrch zlatistý."},
@@ -159,9 +159,9 @@
       "instructions": [
         {"text":"Prepláchni {protein.amount} {protein.name} v sitku pod studenou vodou."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Var {protein.amount} {protein.name} a {vegetable.amount} {vegetable.name} v hrnci 14 minút na miernom ohni, kým šošovica zmäkne."},
+        {"text":"Var {protein.name} a {vegetable.name} v hrnci 14 minút na miernom ohni, kým šošovica zmäkne."},
         {"text":"Pridaj {starch.amount} {starch.name} do hrnca."},
-        {"text":"Var {starch.amount} {starch.name} v hrnci 10 minút na miernom ohni, kým cestoviny zmäknú a omáčka zhustne."},
+        {"text":"Var {starch.name} v hrnci 10 minút na miernom ohni, kým cestoviny zmäknú a omáčka zhustne."},
         {"text":"Priprav {dairy.amount} {dairy.name}; syr nastrúhaj najemno."},
         {"text":"Dochuť cestoviny cesnakom, oreganom, soľou a čiernym korením, rozdeľ ich na {portions} porcií a podávaj s nastrúhaným syrom."}
       ]
@@ -179,11 +179,11 @@
       "pantry_basics": ["water","oil","salt","black_pepper","garlic"],
       "instructions": [
         {"text":"Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou."},
-        {"text":"Var {starch.amount} {starch.name} v hrnci 12 minút na miernom ohni, kým sa voda takmer vsiakne."},
+        {"text":"Var {starch.name} v hrnci 12 minút na miernom ohni, kým sa voda takmer vsiakne."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Pridaj {protein.amount} {protein.name} do hrnca."},
-        {"text":"Pridaj {vegetable.amount} {vegetable.name} do hrnca."},
-        {"text":"Var {protein.amount} {protein.name} so špenátom a ryžou v hrnci 7 minút na miernom ohni, kým špenát zmäkne; potom jedlo dochuť cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+        {"text":"Pridaj {vegetable.name} do hrnca."},
+        {"text":"Var {protein.name} so špenátom a ryžou v hrnci 7 minút na miernom ohni, kým špenát zmäkne; potom jedlo dochuť cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
     {
@@ -200,9 +200,9 @@
       "pantry_basics": ["water","oil","salt","black_pepper","garlic","paprika_powder"],
       "instructions": [
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Var {starch.amount} {starch.name} a {vegetable.amount} {vegetable.name} v hrnci 18 minút na miernom ohni, kým zemiaky zmäknú."},
+        {"text":"Var {starch.name} a {vegetable.name} v hrnci 18 minút na miernom ohni, kým zemiaky zmäknú."},
         {"text":"Pridaj {protein.amount} {protein.name} do hrnca."},
-        {"text":"Var {protein.amount} {protein.name} so zemiakmi v hrnci 10 minút na miernom ohni, kým omáčka zhustne a začne bublať."},
+        {"text":"Var {protein.name} so zemiakmi v hrnci 10 minút na miernom ohni, kým omáčka zhustne a začne bublať."},
         {"text":"Odstav hrniec z ohňa."},
         {"text":"Vmiešaj {dairy.amount} {dairy.name} do hrnca, kým bude omáčka hladká."},
         {"text":"Dochuť prívarok cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}

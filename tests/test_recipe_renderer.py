@@ -14,7 +14,7 @@ from app.recipe_catalog import (
     load_recipe_catalog,
 )
 from app.recipe_matcher import RecipeCandidate, SlotSelection
-from app.recipe_renderer import _QUANTITY_NAMES, render_meal
+from app.recipe_renderer import _QUANTITY_NAMES, _quantity_name, render_meal
 
 
 @pytest.fixture(scope="module")
@@ -159,6 +159,29 @@ def test_large_tomato_pan_step_does_not_depend_on_opekaj_keyword(ingredients):
     assert "7 minút" not in tomato_step
 
 
+def test_ordinary_steps_measure_tomatoes_once_then_use_their_natural_name(
+    ingredients,
+):
+    candidate = _catalog_candidate(
+        ingredients,
+        "pot_chickpea_tomato_couscous",
+        ("chickpeas", "couscous", "tomato"),
+    )
+
+    meal = render_meal(candidate, adults=4, children=0, covered_days=2)
+
+    assert meal.ingredients[2].display_amount == "1,6 kg"
+    tomato_amount_steps = [
+        step for step in meal.instructions if "1,6 kg paradajok" in step
+    ]
+    assert tomato_amount_steps == [
+        "Nakrájaj 1,6 kg paradajok na malé kúsky."
+    ]
+    assert any(
+        "Pridaj paradajky do hrnca" in step for step in meal.instructions
+    )
+
+
 def test_large_egg_pan_step_supports_vlej_and_preserves_doneness(ingredients):
     candidate = _candidate(
         ingredients.by_id("egg"),
@@ -231,6 +254,42 @@ def test_all_159_catalog_variants_are_capacity_safe_for_four_adults_three_days(
 
     assert rendered_count == 159
     assert audited_capacity_steps > 0
+
+
+def test_all_catalog_variants_measure_each_ingredient_once_unless_batching(
+    ingredients,
+):
+    recipes = load_recipe_catalog(ingredients).all()
+    rendered_count = 0
+
+    for recipe in recipes:
+        for candidate_ids in product(*(slot.candidates for slot in recipe.slots)):
+            meal = render_meal(
+                _catalog_candidate(ingredients, recipe.id, candidate_ids),
+                adults=4,
+                children=0,
+                covered_days=2,
+            )
+            rendered_count += 1
+            for item in meal.ingredients:
+                measured_phrase = f"{item.display_amount} {_quantity_name(item)}"
+                amount_steps = [
+                    step for step in meal.instructions if measured_phrase in step
+                ]
+                assert amount_steps, (recipe.id, item.slot.key, measured_phrase)
+                if len(amount_steps) > 1:
+                    assert len(amount_steps) == 2, (
+                        recipe.id,
+                        item.slot.key,
+                        amount_steps,
+                    )
+                    assert sum("menšie dávky" in step for step in amount_steps) == 1, (
+                        recipe.id,
+                        item.slot.key,
+                        amount_steps,
+                    )
+
+    assert rendered_count == 159
 
 
 @pytest.mark.parametrize(
@@ -922,11 +981,6 @@ def test_renderer_rejects_inconsistent_selected_ingredient_name(ingredients):
             "Opekaj {main.amount} {main.name} v panvici 8 minút na strednom ohni.",
             "hotov|výsled",
         ),
-        (
-            "Opekaj tofu v panvici 8 minút na strednom ohni, kým budú "
-            "všetky strany zlatisté.",
-            "množstv",
-        ),
     ],
 )
 def test_each_cooking_step_requires_vessel_heat_time_and_doneness_cue(
@@ -944,6 +998,32 @@ def test_each_cooking_step_requires_vessel_heat_time_and_doneness_cue(
 
     with pytest.raises(ValueError, match=message):
         render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
+def test_cooking_step_accepts_a_natural_ingredient_name_without_repeating_amount(
+    ingredients,
+):
+    candidate = _candidate(
+        ingredients.by_id("tofu"),
+        amount="160",
+        cut="na 2 cm kocky",
+        name_template="Chrumkavé {main.name} z panvice",
+        equipment=("panvica", "doska"),
+        pantry_basics=("oil",),
+        instructions=(
+            "Osuš {main.amount} {main.name} a nakrájaj ho {main.cut}.",
+            "Opekaj {main.name} v panvici 8 minút na strednom ohni, kým budú "
+            "všetky strany zlatisté.",
+            "Rozdeľ tofu na {portions} porcie a podávaj ho teplé.",
+        ),
+    )
+
+    meal = render_meal(candidate, adults=4, children=0, covered_days=1)
+
+    assert meal.instructions[1] == (
+        "Opekaj tofu v panvici 8 minút na strednom ohni, kým budú všetky "
+        "strany zlatisté."
+    )
 
 
 @pytest.mark.parametrize(

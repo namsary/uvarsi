@@ -74,6 +74,7 @@ class RenderedMeal:
 class _SlotWording:
     ingredient_id: str
     name: str
+    reference_name: str
     amount: str
     cut: str
 
@@ -131,6 +132,54 @@ _QUANTITY_NAMES: Mapping[str, str] = {
     "egg_noodles": "vaječných rezancov",
     "mushrooms": "bielych šampiňónov",
     "plain_yogurt": "bieleho plnotučného jogurtu",
+    "tuna": "tuniaka vo vlastnej šťave",
+}
+
+# Natural direct-object forms used after the ingredient was measured once.
+# These keep later cooking steps readable without repeating the quantity.
+_REFERENCE_NAMES: Mapping[str, str] = {
+    "chicken_breast": "kuracie prsia",
+    "chicken_thigh": "kuracie stehná",
+    "pork_shoulder": "bravčové pliecko",
+    "beef_mince": "mleté hovädzie mäso",
+    "salmon": "lososa",
+    "tofu": "tofu",
+    "red_lentils": "červenú šošovicu",
+    "chickpeas": "cícer",
+    "egg": "vajcia",
+    "cottage_cheese": "cottage cheese",
+    "rice": "ryžu",
+    "pasta": "cestoviny",
+    "potato": "zemiaky",
+    "bread": "biely chlieb",
+    "zucchini": "cuketu",
+    "tomato": "paradajky",
+    "onion": "cibuľu",
+    "garlic": "cesnak",
+    "carrot": "mrkvu",
+    "broccoli": "brokolicu",
+    "milk": "plnotučné mlieko",
+    "cream": "smotanu na šľahanie",
+    "hard_cheese": "tvrdý syr",
+    "oil": "olej",
+    "salt": "soľ",
+    "black_pepper": "čierne korenie",
+    "turkey_breast": "morčacie prsia",
+    "white_fish": "rybu",
+    "bell_pepper": "papriku",
+    "spinach": "špenát",
+    "peas": "zelený hrášok",
+    "couscous": "kuskus",
+    "barley": "jačmenné krúpy",
+    "feta": "syr feta",
+    "beans": "červenú fazuľu",
+    "coconut_milk": "kokosovú smotanu",
+    "paprika_powder": "mletú papriku",
+    "curry_powder": "karí korenie",
+    "oregano": "sušené oregano",
+    "egg_noodles": "vaječné rezance",
+    "mushrooms": "biele šampiňóny",
+    "plain_yogurt": "biely plnotučný jogurt",
     "tuna": "tuniaka vo vlastnej šťave",
 }
 
@@ -428,6 +477,7 @@ def _ingredient_forms(ingredient: Ingredient) -> tuple[str, ...]:
     forms = {
         ingredient.name,
         _QUANTITY_NAMES.get(ingredient.id, ingredient.name),
+        _REFERENCE_NAMES.get(ingredient.id, ingredient.name),
         *_EXTRA_INGREDIENT_FORMS.get(ingredient.id, ()),
     }
     return tuple(sorted(forms))
@@ -521,6 +571,11 @@ def _render_template(
                 raise ValueError(f"neznáma pozícia v placeholderi: {parts[0]}")
             if parts[1] == "name" and prepositional_names:
                 chunks.append(_title_name(wording, grammatical_case))
+            elif (
+                parts[1] == "name"
+                and f"{{{parts[0]}.amount}}" not in template
+            ):
+                chunks.append(wording.reference_name)
             else:
                 chunks.append(str(getattr(wording, parts[1])))
     except (AttributeError, KeyError, ValueError) as exc:
@@ -647,7 +702,13 @@ def _large_pan_batch_step(
     step_items = tuple(
         item
         for item in rendered
-        if f"{{{item.slot.key}.amount}}" in source_template
+        if any(
+            marker in source_template
+            for marker in (
+                f"{{{item.slot.key}.amount}}",
+                f"{{{item.slot.key}.name}}",
+            )
+        )
     )
     step_grams = sum((_edible_grams(item) for item in step_items), Decimal("0"))
     if not step_items or step_grams <= _PAN_BATCH_LIMIT_GRAMS:
@@ -952,8 +1013,6 @@ def _validate_step_detail(step: str) -> None:
         if _PREHEAT_READY.search(folded) is None:
             raise ValueError("Predhriatie musí uvádzať kontrolný znak hotovosti.")
         return
-    if not folded.startswith("rozohrej") and _AMOUNT.search(folded) is None:
-        raise ValueError("Tepelný krok musí uvádzať množstvo suroviny.")
     if _VESSEL.search(folded) is None:
         raise ValueError("Tepelný krok musí uvádzať nádobu alebo pomôcku.")
     if _HEAT.search(folded) is None:
@@ -1069,6 +1128,7 @@ def render_meal(
         item.slot.key: _SlotWording(
             ingredient_id=item.ingredient.id,
             name=item.ingredient.name,
+            reference_name=item.ingredient.name,
             amount=item.display_amount,
             cut=item.slot.cut or "",
         )
@@ -1078,6 +1138,7 @@ def render_meal(
         item.slot.key: _SlotWording(
             ingredient_id=item.ingredient.id,
             name=_quantity_name(item),
+            reference_name=_REFERENCE_NAMES[item.ingredient.id],
             amount=item.display_amount,
             cut=item.slot.cut or "",
         )
