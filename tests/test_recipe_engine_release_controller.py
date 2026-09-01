@@ -463,7 +463,10 @@ def test_held_rollout_lock_exits_without_mutation(rollout):
     assert result.returncode == 0, result.stdout + result.stderr
     assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=off\n"
     assert not rollout["calls"].exists()
-    assert not rollout["alerts"].exists()
+    alerts = rollout["alerts"].read_text(encoding="utf-8").splitlines()
+    assert len(alerts) == 1
+    assert "gate=lock_held" in alerts[0]
+    assert "engine unchanged" in alerts[0].casefold()
 
 
 def test_healthy_on_rerun_is_idempotent_and_does_not_restart(rollout):

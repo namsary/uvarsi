@@ -35,10 +35,16 @@ notify_failure(){
     -d "$BODY" "$NOTIFY_URL" \
     >/dev/null 2>&1 || true
 }
+notify_lock_held(){
+  [ -n "$NOTIFY_URL" ] || return 0
+  "$CURL" -sS --max-time 15 -H "Title: Uvar.si: receptový rollout čaká" \
+    -d "Rollout not started: gate=lock_held; engine unchanged." "$NOTIFY_URL" \
+    >/dev/null 2>&1 || true
+}
 
 if [ "${UVARSI_ROLLOUT_LOCKED:-0}" != "1" ]; then
   exec 8>"$LOCK" || exit 1
-  flock -n 8 || exit 0
+  flock -n 8 || { notify_lock_held; exit 0; }
 fi
 
 set_mode() {
