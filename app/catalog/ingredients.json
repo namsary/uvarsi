@@ -5,7 +5,7 @@
     {
       "id": "chicken_breast",
       "name": "kuracie prsia",
-      "synonyms": ["kuracie prsné rezne", "kuracie prsné mäso"],
+      "synonyms": ["kuracie prsné rezne", "kuracie rezne prsné", "kuracie prsné mäso"],
       "category": "mäso",
       "roles": ["protein"],
       "diet_tags": [],

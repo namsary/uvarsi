@@ -167,6 +167,10 @@ _PACKAGE = re.compile(
     r"(?:(\d+)\s*[x×]\s*)?(\d+(?:[.,]\d+)?)\s*"
     r"(dkg|kg|dl|ml|kusov|kus|ks|g|l)\b", re.IGNORECASE
 )
+_PACKAGE_RANGE = re.compile(
+    r"(\d+(?:[.,]\d+)?)\s*[-–]\s*(\d+(?:[.,]\d+)?)\s*"
+    r"(dkg|kg|dl|ml|kusov|kus|ks|g|l)\b", re.IGNORECASE
+)
 _WORD = re.compile(r"[^\W\d_]+", re.UNICODE)
 
 # Slová, ktoré v názve jedla nesľubujú surovinu, takže ich v postupe nehľadáme.
@@ -371,6 +375,16 @@ def _package_from_match(match):
     return (base, amount) if amount > 0 else None
 
 
+def _package_from_range_match(match):
+    """Use the lower, conservative size when a flyer covers several variants."""
+    base, factor = UNITS[match.group(3).lower()]
+    amount = min(
+        Decimal(match.group(1).replace(",", ".")),
+        Decimal(match.group(2).replace(",", ".")),
+    ) * factor
+    return (base, amount) if amount > 0 else None
+
+
 def _package_amount(jednotka, nazov=None):
     """Veľkosť balenia z overenej jednotky, napr. „500 g" alebo „4×125 g"."""
     if not isinstance(jednotka, str):
@@ -378,6 +392,9 @@ def _package_amount(jednotka, nazov=None):
     bare = jednotka.strip().casefold()
     # Pri cene za kus/balenie býva gramáž často iba v názve produktu.
     if bare in ("balenie", "bal.", "bal", "ks", "kus", "kusov") and isinstance(nazov, str):
+        ranged = _PACKAGE_RANGE.search(nazov)
+        if ranged is not None:
+            return _package_from_range_match(ranged)
         named = _PACKAGE.search(nazov)
         if named is not None:
             return _package_from_match(named)
@@ -1157,7 +1174,7 @@ PLAN_VARIANT_HINTS = (
 # 19 = podpis rozlišuje serverom autorizovaný režim stravovania a verziu
 #      receptovej knižnice; zdieľaná cache tak nikdy nepomieša odlišné menu.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 19
+PLAN_ALGO_VERSION = 20
 
 
 def plan_variant_for(user_id, variants):
@@ -1888,6 +1905,7 @@ def apply_pantry_to_shopping_list(plan, pantry):
     for group in plan.get("nakupny_zoznam") or []:
         polozky = []
         for item in group.get("polozky") or []:
+            weighted = item.get("predaj_na_vahu") is True
             owner = None
             pantry_amount = None
             nazov = item.get("nazov")
@@ -1949,22 +1967,47 @@ def apply_pantry_to_shopping_list(plan, pantry):
                     partial = not full and used > 0
                     if full:
                         buy_quantity = 0
+                        if weighted:
+                            leftover_after_text = None
                     else:
                         package = _package_amount(item.get("jednotka"), nazov)
                         if package and package[0] == base:
-                            buy_quantity = max(1, int(
-                                (remaining / package[1]).to_integral_value(rounding=ROUND_CEILING)))
-                            leftover_after = max(
-                                Decimal("0"), package[1] * buy_quantity - remaining)
-                            leftover_after_text = (
-                                _amount_text(base, leftover_after) if leftover_after else None)
-            price_after = unit_price * buy_quantity
+                            if weighted:
+                                buy_quantity = 1
+                                leftover_after_text = None
+                            else:
+                                buy_quantity = max(1, int(
+                                    (remaining / package[1]).to_integral_value(rounding=ROUND_CEILING)))
+                                leftover_after = max(
+                                    Decimal("0"), package[1] * buy_quantity - remaining)
+                                leftover_after_text = (
+                                    _amount_text(base, leftover_after) if leftover_after else None)
+            if not weighted:
+                price_after = unit_price * buy_quantity
+            elif owner is None:
+                price_after = total_price
+            elif full:
+                price_after = Decimal("0")
+            elif partial and package and package[0] == base:
+                price_after = unit_price * remaining / package[1]
+            else:
+                price_after = total_price
+            weighted_to_buy = None
+            if weighted:
+                if full:
+                    weighted_to_buy = "0"
+                elif partial:
+                    weighted_to_buy = _decimal_text(remaining)
+                else:
+                    weighted_to_buy = item.get("kupit")
             oznaceny = dict(
                 item, mas_doma=full, ciastocne_doma=partial, spajza=owner,
                 zo_spajze=pantry_text, zostava=remaining_text,
                 zostane_po_spajzi=leftover_after_text,
                 mnozstvo_po_spajzi=buy_quantity, cena_po_spajzi=_format(price_after),
             )
+            if weighted_to_buy is not None:
+                oznaceny["kupit_po_spajzi"] = weighted_to_buy
             polozky.append(oznaceny)
             if owner is None:
                 continue
@@ -2003,6 +2046,7 @@ PANTRY_PLAN_KEYS = ("spajza", "spajza_pokryte", "spajza_usetri", "nakup_bez_spaj
 PANTRY_ITEM_KEYS = (
     "spajza", "mas_doma", "ciastocne_doma", "zo_spajze", "zostava",
     "zostane_po_spajzi", "mnozstvo_po_spajzi", "cena_po_spajzi",
+    "kupit_po_spajzi",
 )
 PANTRY_DOSE_SUFFIX = "zo špajze"
 

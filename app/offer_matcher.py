@@ -7,10 +7,12 @@ from datetime import date
 from decimal import Decimal
 from functools import lru_cache
 from types import MappingProxyType
-from typing import Iterable, Mapping, Sequence
+from typing import Iterable, Literal, Mapping, Sequence
 
 from .ingredient_catalog import Ingredient, IngredientCatalog, normalize_name
+from .plan_data import _package_amount
 from .quantity_math import PackageSize, parse_quantity
+from .quantity_math import Quantity
 
 
 @dataclass(frozen=True)
@@ -25,6 +27,7 @@ class MatchedOffer:
     valid_from: date
     valid_to: date
     source_url: str
+    pricing_basis: Literal["package", "weight"] = "package"
 
 
 @lru_cache(maxsize=8)
@@ -83,6 +86,41 @@ def _package_is_compatible(package: PackageSize, ingredient: Ingredient) -> bool
     )
 
 
+def _recovered_package(recovered) -> PackageSize | None:
+    if recovered is None:
+        return None
+    base, amount = recovered
+    normalized_unit = {"g": "g", "ml": "ml", "ks": "piece"}.get(base)
+    if normalized_unit is None:
+        return None
+    try:
+        return PackageSize(Quantity(amount, normalized_unit))
+    except (TypeError, ValueError):
+        return None
+
+
+def _offer_package(unit, product_name) -> tuple[PackageSize, str] | None:
+    """Recover only quantities explicitly present in the flyer row or name."""
+    bare = unit.strip().casefold() if isinstance(unit, str) else ""
+    if bare in ("kg", "l"):
+        package = _recovered_package(_package_amount(unit, product_name))
+        return (package, "weight") if package is not None else None
+    try:
+        parsed = PackageSize(parse_quantity(unit))
+        if parsed.content.unit == "piece" and parsed.content.amount == 1:
+            return None
+        return parsed, "package"
+    except (TypeError, ValueError):
+        recovered = _package_amount(unit, product_name)
+    # Holé `ks` nehovorí, či je cena za vajce, kartón alebo multipack.
+    # Prijmeme ho iba vtedy, keď názov dodá inú, overiteľnú gramáž/objem
+    # alebo výslovný počet kusov väčší než jeden.
+    if recovered == ("ks", Decimal("1")):
+        return None
+    package = _recovered_package(recovered)
+    return (package, "package") if package is not None else None
+
+
 def _matched_offer_from_values(
     ingredient: Ingredient,
     offer_key,
@@ -95,10 +133,10 @@ def _matched_offer_from_values(
     valid_to,
     source_url,
 ) -> MatchedOffer | None:
-    try:
-        package = PackageSize(parse_quantity(unit))
-    except (TypeError, ValueError):
+    package_result = _offer_package(unit, product_name)
+    if package_result is None:
         return None
+    package, pricing_basis = package_result
     if not _package_is_compatible(package, ingredient):
         return None
     return MatchedOffer(
@@ -114,6 +152,7 @@ def _matched_offer_from_values(
         valid_from=date.fromisoformat(valid_from),
         valid_to=date.fromisoformat(valid_to),
         source_url=source_url,
+        pricing_basis=pricing_basis,
     )
 
 

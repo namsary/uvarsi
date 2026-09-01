@@ -288,6 +288,21 @@ def test_activation_fails_closed_when_metrics_are_missing_incomplete_or_stale(
     assert stale["eligible"] is False
     assert "stale_metrics" in stale["reasons"]
 
+    monkeypatch.setattr(server, "PLAN_ALGO_VERSION", server.PLAN_ALGO_VERSION + 1)
+    with closing(server.db()) as con:
+        con.execute(
+            "UPDATE recipe_engine_shadow SET offer_fingerprint=?",
+            (predpocet._shadow_offer_fingerprint(
+                predpocet._shadow_offer_rows(con, server, date.today())
+            ),),
+        )
+        con.commit()
+        stale_algorithm = predpocet.shadow_activation_status(
+            con, server=server, today=date.today()
+        )
+    assert stale_algorithm["eligible"] is False
+    assert "stale_metrics" in stale_algorithm["reasons"]
+
 
 def test_activation_checks_every_numeric_and_library_floor(monkeypatch, tmp_path):
     server = _server(monkeypatch, tmp_path)

@@ -1156,7 +1156,12 @@ def build_shopping_list(
                 raise ValueError(
                     "Receptová dávka nemá jednotku kompatibilnú so surovinou."
                 )
-            key = (offer.offer_key, offer.package, rendered.ingredient.id)
+            key = (
+                offer.offer_key,
+                offer.package,
+                offer.pricing_basis,
+                rendered.ingredient.id,
+            )
             current = purchases.get(key)
             if current is None:
                 purchases[key] = (rendered, required_grams)
@@ -1199,46 +1204,66 @@ def build_shopping_list(
                 raise ValueError(
                     "Balenie ponuky nemá jednotku kompatibilnú s receptovou dávkou."
                 )
-            requirement = purchase_requirement(
-                required_grams,
-                available_grams,
-                PackageSize(package_grams),
-            )
+            if offer.pricing_basis == "weight":
+                used_amount = min(required_grams.amount, available_grams.amount)
+                missing_amount = _add_exact(required_grams.amount, -used_amount)
+                bought_amount = max(Decimal("0"), missing_amount)
+                packages = 0 if bought_amount == 0 else 1
+                leftover_grams = Quantity(Decimal("0"), "g")
+            else:
+                requirement = purchase_requirement(
+                    required_grams,
+                    available_grams,
+                    PackageSize(package_grams),
+                )
+                used_amount = requirement.used_from_pantry.amount
+                bought_amount = requirement.to_buy.amount
+                packages = requirement.packages
+                leftover_grams = requirement.leftover
             pantry_balances[ingredient_id] = _add_exact(
                 pantry_balances.get(ingredient_id, Decimal("0")),
-                -requirement.used_from_pantry.amount,
+                -used_amount,
             )
             display_required = _quantity_in_unit(
-                requirement.required,
+                required_grams,
                 rendered.quantity.unit,
                 rendered.ingredient,
             )
             display_leftover = _quantity_in_unit(
-                requirement.leftover,
+                leftover_grams,
                 rendered.quantity.unit,
                 rendered.ingredient,
             )
-            if display_required is None or display_leftover is None:
+            display_to_buy = _quantity_in_unit(
+                Quantity(bought_amount, "g"),
+                rendered.quantity.unit,
+                rendered.ingredient,
+            )
+            if (
+                display_required is None
+                or display_leftover is None
+                or display_to_buy is None
+            ):
                 raise ValueError(
                     "Výsledok nákupu nemá jednotku kompatibilnú s receptovou dávkou."
                 )
-            total_price = _multiply_exact(
-                offer.sale_price, Decimal(requirement.packages)
+            price_multiplier = (
+                bought_amount / package_grams.amount
+                if offer.pricing_basis == "weight"
+                else Decimal(packages)
             )
+            total_price = _multiply_exact(offer.sale_price, price_multiplier)
             original_price = (
                 None
                 if offer.original_price is None
-                else _multiply_exact(
-                    offer.original_price, Decimal(requirement.packages)
-                )
+                else _multiply_exact(offer.original_price, price_multiplier)
             )
-            groups.setdefault(offer.store, []).append(
-                {
+            row = {
                     "offer_key": offer.offer_key,
                     "nazov": offer.product_name,
                     "obchod": offer.store,
                     "jednotka": _display_amount(offer.package.content),
-                    "mnozstvo": requirement.packages,
+                    "mnozstvo": packages,
                     "cena": _money_text(total_price),
                     "povodna": (
                         None
@@ -1265,7 +1290,12 @@ def build_shopping_list(
                         else {}
                     ),
                 }
-            )
+            if offer.pricing_basis == "weight":
+                row.update({
+                    "predaj_na_vahu": True,
+                    "kupit": _decimal_text(display_to_buy.amount),
+                })
+            groups.setdefault(offer.store, []).append(row)
     return [
         {"obchod": store, "polozky": items}
         for store, items in groups.items()

@@ -60,6 +60,23 @@ def _milk_offer():
     )
 
 
+def _chicken_weight_offer():
+    chicken = load_ingredient_catalog().by_id("chicken_breast")
+    return MatchedOffer(
+        offer_key="offer_chicken_weight",
+        store="Kaufland",
+        product_name="Kuracie prsia",
+        ingredient=chicken,
+        package=PackageSize(Quantity(Decimal("1000"), "g")),
+        sale_price=Decimal("5.15"),
+        original_price=Decimal("6.49"),
+        valid_from=date(2026, 8, 31),
+        valid_to=date(2026, 9, 6),
+        source_url="https://example.test/kaufland-kuracie-prsia",
+        pricing_basis="weight",
+    )
+
+
 def _meal(amount, offer, *, unit="g", role="starch"):
     ingredient = offer.ingredient
     quantity = Quantity(Decimal(amount), unit)
@@ -126,6 +143,34 @@ def test_shopping_list_uses_frontend_contract_and_whole_package_price():
     assert rice["zostava"] == "700 g"
     assert rice["cena"] == rice["cena_za_balenie"] == "1,49"
     assert rice["povodna"] == rice["povodna_za_balenie"] == "1,99"
+
+
+def test_weight_priced_food_uses_proportional_price_without_fake_packages():
+    result = recipe_renderer.build_shopping_list(
+        [_meal("1200", _chicken_weight_offer(), role="protein")], []
+    )
+
+    chicken = result[0]["polozky"][0]
+    assert chicken["predaj_na_vahu"] is True
+    assert chicken["jednotka"] == "1 kg"
+    assert chicken["mnozstvo"] == 1
+    assert chicken["kupit"] == "1 200"
+    assert chicken["potrebna_jednotka"] == "g"
+    assert chicken["cena"] == "6,18"
+    assert chicken["povodna"] == "7,79"
+    assert chicken["zostava"] == "0 g"
+
+
+def test_weight_priced_food_subtracts_pantry_before_proportional_price():
+    result = recipe_renderer.build_shopping_list(
+        [_meal("1200", _chicken_weight_offer(), role="protein")],
+        [PantryEntry("chicken_breast", "kuracie prsia", Quantity(Decimal("200"), "g"))],
+    )
+
+    chicken = result[0]["polozky"][0]
+    assert chicken["kupit"] == "1 000"
+    assert chicken["cena"] == "5,15"
+    assert chicken["povodna"] == "6,49"
 
 
 def test_groups_by_exact_offer_and_package_identity_before_rounding():

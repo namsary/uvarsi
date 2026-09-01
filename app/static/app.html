@@ -309,13 +309,20 @@ function itemsWord(count) {
 }
 
 function shoppingQuantityLabel(item) {
-  var overrides = typeof PANTRY_OVERRIDE === 'undefined' ? {} : PANTRY_OVERRIDE;
-  var id = String(item && (item.offer_key || item.nazov) || '');
-  var overridden = !!((overrides || {})[id]);
-  var quantity = !overridden && item && item.mnozstvo_po_spajzi != null
+  var o = typeof PANTRY_OVERRIDE === 'undefined' ? {} : PANTRY_OVERRIDE;
+  var x = !!o[item && (item.offer_key || item.nazov) || ''];
+  if (item && item.predaj_na_vahu) {
+    if (!x && item.mas_doma) return '';
+    var r = !x && item.kupit_po_spajzi != null && item.zostava;
+    var w = r || item.kupit || item.potrebne;
+    return w && item.potrebna_jednotka
+      ? w + (r ? '' : ' ' + item.potrebna_jednotka) + ' · na váhu'
+      : '';
+  }
+  var q = !x && item && item.mnozstvo_po_spajzi != null
     ? item.mnozstvo_po_spajzi : item && item.mnozstvo;
-  var unit = item && item.jednotka;
-  return quantity && unit ? String(quantity) + ' × ' + String(unit) : '';
+  var u = item && item.jednotka;
+  return q && u ? q + ' × ' + u : '';
 }
 
 function clearAuthenticatedState() {

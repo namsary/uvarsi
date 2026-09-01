@@ -190,6 +190,34 @@ process.exit(0);
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+@needs_node
+def test_weight_priced_items_show_amount_instead_of_fake_package_count(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "weighted-shopping-label.js",
+        "var PANTRY_OVERRIDE={};\n"
+        + declaration(html, "function shoppingQuantityLabel(item) ")
+        + """
+var fresh={offer_key:'meat',predaj_na_vahu:true,kupit:'1 200',potrebna_jednotka:'g'};
+if (shoppingQuantityLabel(fresh) !== '1 200 g · na váhu') process.exit(1);
+var raw={offer_key:'meat',predaj_na_vahu:true,kupit:'1 200',zostava:'0 g',potrebna_jednotka:'g'};
+if (shoppingQuantityLabel(raw) !== '1 200 g · na váhu') process.exit(6);
+var partial={offer_key:'meat',predaj_na_vahu:true,kupit:'1 200',kupit_po_spajzi:'1000',zostava:'1 kg',potrebna_jednotka:'g'};
+if (shoppingQuantityLabel(partial) !== '1 kg · na váhu') process.exit(2);
+var pack={offer_key:'rice',mnozstvo:1,jednotka:'1 kg'};
+if (shoppingQuantityLabel(pack) !== '1 × 1 kg') process.exit(3);
+var covered={offer_key:'meat',predaj_na_vahu:true,kupit:'1 200',kupit_po_spajzi:'0',mas_doma:true,potrebna_jednotka:'g'};
+if (shoppingQuantityLabel(covered) !== '') process.exit(4);
+PANTRY_OVERRIDE={meat:true};
+if (shoppingQuantityLabel(partial) !== '1 200 g · na váhu') process.exit(5);
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 # ------------------------------------- množstevná špajza a zvyšky z nákupu
 @needs_node
 def test_old_string_pantry_and_structured_me_are_compared_by_name(tmp_path):

@@ -206,23 +206,28 @@ def _offer_leftover_ratio(
     ingredient: Ingredient,
     selected_offer: MatchedOffer,
     pantry: Quantity | None,
-) -> tuple[Decimal, int] | None:
+) -> tuple[Decimal, Decimal] | None:
     package = _quantity_in_unit(
         selected_offer.package.content, slot.unit, ingredient
     )
     if package is None:
         return None
     available = pantry or Quantity(_ZERO, slot.unit)
+    missing = max(_ZERO, slot.amount_per_adult - available.amount)
+    if selected_offer.pricing_basis == "weight":
+        if missing == _ZERO:
+            return _ZERO, _ZERO
+        return _ZERO, _ratio(missing, package.amount)
     requirement = purchase_requirement(
         Quantity(slot.amount_per_adult, slot.unit),
         available,
         PackageSize(package),
     )
     if requirement.packages == 0:
-        return _ZERO, 0
+        return _ZERO, _ZERO
     return (
         _ratio(requirement.leftover.amount, requirement.to_buy.amount),
-        requirement.packages,
+        Decimal(requirement.packages),
     )
 
 
@@ -283,18 +288,18 @@ def _best_offer(
         leftover = _offer_leftover_ratio(slot, ingredient, candidate, pantry)
         if leftover is None or leftover[1] == 0:
             continue
-        compatible.append(candidate)
+        compatible.append((candidate, leftover[1]))
     if not compatible:
         return None
     return min(
         compatible,
         key=lambda item: (
-            -_selection_value(slot, ingredient, item, pantry),
-            item.sale_price,
-            item.store,
-            item.offer_key,
+            -_selection_value(slot, ingredient, item[0], pantry),
+            item[0].sale_price * item[1],
+            item[0].store,
+            item[0].offer_key,
         ),
-    )
+    )[0]
 
 
 @lru_cache(maxsize=4096)
@@ -420,7 +425,7 @@ def _candidate_score(selections: Sequence[SlotSelection], slot_count: int) -> De
 
     original_total = Fraction(0)
     saving_total = Fraction(0)
-    for selected_offer, packages in offer_rows:
+    for selected_offer, price_multiplier in offer_rows:
         original = selected_offer.original_price
         if (
             original is None
@@ -431,8 +436,10 @@ def _candidate_score(selections: Sequence[SlotSelection], slot_count: int) -> De
             or selected_offer.sale_price >= original
         ):
             continue
-        original_total += Fraction(original) * packages
-        saving_total += Fraction(original - selected_offer.sale_price) * packages
+        original_total += Fraction(original) * Fraction(price_multiplier)
+        saving_total += Fraction(
+            original - selected_offer.sale_price
+        ) * Fraction(price_multiplier)
     saving = (
         _ZERO
         if original_total == 0

@@ -250,6 +250,7 @@ CREATE TABLE IF NOT EXISTS recipe_engine_shadow (
   koniec                  TEXT,
   complete                INTEGER NOT NULL DEFAULT 0,
   offer_fingerprint       TEXT NOT NULL,
+  algo_version            INTEGER,
   library_version         INTEGER,
   matrix_size             INTEGER NOT NULL,
   samples_total           INTEGER NOT NULL DEFAULT 0,
@@ -308,6 +309,8 @@ def migrate_predpocet_schema(con) -> None:
     }
     if shadow_stlpce and "run_token" not in shadow_stlpce:
         con.execute("ALTER TABLE recipe_engine_shadow ADD COLUMN run_token TEXT")
+    if shadow_stlpce and "algo_version" not in shadow_stlpce:
+        con.execute("ALTER TABLE recipe_engine_shadow ADD COLUMN algo_version INTEGER")
 
 
 # ---------------------------------------------------------------- konfigurácia
@@ -863,6 +866,7 @@ def _shadow_metrics(row):
     samples_success = _shadow_int(row["samples_success"], maximum=samples_total)
     family_count = _shadow_int(row["family_count"])
     method_count = _shadow_int(row["method_count"])
+    algo_version = _shadow_int(row["algo_version"], maximum=2**63 - 1)
     library_version = _shadow_int(row["library_version"], maximum=2**63 - 1)
     price_comparisons = _shadow_int(
         row["price_comparisons"], maximum=samples_success
@@ -906,6 +910,7 @@ def _shadow_metrics(row):
         "error_counts": parsed_errors,
         "family_count": family_count,
         "method_count": method_count,
+        "algo_version": algo_version,
         "library_version": library_version,
         "price_comparisons": price_comparisons,
         "price_delta_eur_avg": price_delta,
@@ -940,15 +945,16 @@ def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
             con.execute(
                 """INSERT INTO recipe_engine_shadow
                      (tyzden,run_token,zaciatok,koniec,complete,offer_fingerprint,
-                      library_version,matrix_size,samples_total,samples_success,
+                      algo_version,library_version,matrix_size,samples_total,samples_success,
                       success_rate,p95_ms,error_counts,family_count,method_count,
                       price_comparisons,price_delta_eur_avg,dietary_violations,
                       negative_quantities,invalid_package_counts,library_gate_pass)
-                   VALUES (?,?,?,NULL,0,?,NULL,?,0,0,0,NULL,'{}',0,0,0,NULL,0,0,0,0)
+                   VALUES (?,?,?,NULL,0,?,?,NULL,?,0,0,0,NULL,'{}',0,0,0,NULL,0,0,0,0)
                    ON CONFLICT(tyzden) DO UPDATE SET
                      run_token=excluded.run_token, zaciatok=excluded.zaciatok,
                      koniec=NULL, complete=0,
                      offer_fingerprint=excluded.offer_fingerprint,
+                     algo_version=excluded.algo_version,
                      library_version=NULL, matrix_size=excluded.matrix_size,
                      samples_total=0, samples_success=0, success_rate=0,
                      p95_ms=NULL, error_counts='{}', family_count=0,
@@ -956,7 +962,10 @@ def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
                      price_delta_eur_avg=NULL, dietary_violations=0,
                      negative_quantities=0, invalid_package_counts=0,
                      library_gate_pass=0""",
-                (week, run_token, started, fingerprint, len(SHADOW_MATRIX)),
+                (
+                    week, run_token, started, fingerprint,
+                    server.PLAN_ALGO_VERSION, len(SHADOW_MATRIX),
+                ),
             )
         if not _ma_kompletny_povinny_zber(con, server, today):
             return {
@@ -1118,6 +1127,7 @@ def shadow_activation_status(con, *, server, today=None) -> dict:
         stale = (
             row["tyzden"] != week
             or row["offer_fingerprint"] != _shadow_offer_fingerprint(rows)
+            or result["algo_version"] != server.PLAN_ALGO_VERSION
             or result["library_version"] != recipes.version
         )
         if current_audit.errors:

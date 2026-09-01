@@ -739,20 +739,30 @@ def _ingredient_payload(
     if required_grams is None or package_grams is None or package_grams <= 0:
         raise ValueError("Balenie ponuky nemá merateľnú veľkosť.")
     package_ratio = required_grams / package_grams
-    packages = -(-package_ratio.numerator // package_ratio.denominator)
+    weighted = item.offer.pricing_basis == "weight"
+    packages = (
+        1
+        if weighted
+        else -(-package_ratio.numerator // package_ratio.denominator)
+    )
+    price_multiplier = (
+        _fraction_to_decimal(package_ratio)
+        if weighted
+        else Decimal(packages)
+    )
     original = item.offer.original_price
     package = item.offer.package.content
     package_unit = "ks" if package.unit == "piece" else package.unit
-    return {
+    result = {
         "offer_key": item.offer.offer_key,
         "nazov": item.offer.product_name,
         "obchod": item.offer.store,
         "jednotka": f"{_decimal_text(package.amount)} {package_unit}",
         "mnozstvo": packages,
         "davka": item.display_amount,
-        "cena": _money(item.offer.sale_price * packages),
+        "cena": _money(item.offer.sale_price * price_multiplier),
         "povodna": (
-            None if original is None else _money(original * packages)
+            None if original is None else _money(original * price_multiplier)
         ),
         "zlava": source.get("zlava") or "",
         "source_url": item.offer.source_url,
@@ -760,6 +770,9 @@ def _ingredient_payload(
         "valid_from": item.offer.valid_from.isoformat(),
         "valid_to": item.offer.valid_to.isoformat(),
     }
+    if weighted:
+        result["predaj_na_vahu"] = True
+    return result
 
 
 def _household_text(adults: int, children: int) -> str:

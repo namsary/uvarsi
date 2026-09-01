@@ -138,6 +138,41 @@ def test_pantry_grams_reduce_the_required_dose_before_whole_packages_are_bought(
     assert upraveny["nakup_bez_spajze"] == "6,49"
 
 
+def test_pantry_reduces_weight_priced_food_and_keeps_proportional_price():
+    zasoba = plan()
+    kuracie = zasoba["nakupny_zoznam"][0]["polozky"][1]
+    kuracie.update({
+        "nazov": "Kuracie prsia",
+        "potrebne": "1200",
+        "potrebna_jednotka": "g",
+        "jednotka": "1 kg",
+        "mnozstvo": 1,
+        "kupit": "1200",
+        "predaj_na_vahu": True,
+        "cena": "6,18",
+        "povodna": "7,79",
+        "cena_za_balenie": "5,15",
+        "povodna_za_balenie": "6,49",
+        "zostava": "0 g",
+    })
+    zasoba["nakup_spolu"] = "7,67"
+
+    upraveny = apply_pantry_to_shopping_list(
+        zasoba,
+        [{"nazov": "kuracie prsia", "mnozstvo": 200, "jednotka": "g"}],
+    )
+
+    kuracie = upraveny["nakupny_zoznam"][0]["polozky"][1]
+    assert kuracie["ciastocne_doma"] is True
+    assert kuracie["zostava"] == "1 kg"
+    assert kuracie["zostane_po_spajzi"] is None
+    assert kuracie["mnozstvo_po_spajzi"] == 1
+    assert kuracie["kupit_po_spajzi"] == "1000"
+    assert kuracie["cena_po_spajzi"] == "5,15"
+    cleaned = plan_without_pantry(upraveny)
+    assert "kupit_po_spajzi" not in cleaned["nakupny_zoznam"][0]["polozky"][1]
+
+
 def test_enough_quantified_pantry_stock_removes_the_purchase_completely():
     zasoba = plan()
     ryza = zasoba["nakupny_zoznam"][0]["polozky"][0]

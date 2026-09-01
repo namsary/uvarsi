@@ -132,3 +132,44 @@ def test_accepts_dimensions_with_ingredient_conversion_metadata(
     )
 
     assert matched[0].ingredient.id == ingredient_id
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit", "ingredient_id", "amount", "base"),
+    [
+        ("Basmati ryža Golden Sun 1 kg", "balenie", "rice", "1000", "g"),
+        ("Ryža 470-477 g", "ks", "rice", "470", "g"),
+        ("Ryža 500-400 g", "ks", "rice", "400", "g"),
+    ],
+)
+def test_recovers_verified_production_package_shapes(
+    catalog, product_name, unit, ingredient_id, amount, base
+):
+    matched = match_offers(
+        [offer(nazov=product_name, jednotka=unit)], catalog
+    )
+
+    assert matched[0].ingredient.id == ingredient_id
+    assert matched[0].package == PackageSize(Quantity(Decimal(amount), base))
+    assert matched[0].pricing_basis == "package"
+
+
+def test_bare_kilogram_is_weight_pricing_not_a_fixed_package(catalog):
+    matched = match_offers(
+        [offer(nazov="Kuracie rezne prsné", jednotka="kg")], catalog
+    )
+
+    assert matched[0].ingredient.id == "chicken_breast"
+    assert matched[0].package == PackageSize(Quantity(Decimal("1000"), "g"))
+    assert matched[0].pricing_basis == "weight"
+
+
+@pytest.mark.parametrize("unit", ["ks", "1 ks", "1 piece"])
+def test_single_piece_without_verified_pack_count_still_fails_closed(catalog, unit):
+    assert match_offers([offer(nazov="Vajcia M", jednotka=unit)], catalog) == ()
+
+
+def test_plain_package_without_weight_or_piece_metadata_still_fails_closed(catalog):
+    assert match_offers(
+        [offer(nazov="Kyslá smotana 16 %", jednotka="balenie")], catalog
+    ) == ()

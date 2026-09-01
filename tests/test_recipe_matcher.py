@@ -374,6 +374,64 @@ def test_score_uses_normalized_saving_coverage_store_and_leftover(ingredients):
     assert leftover_candidate.score == Decimal("40")
 
 
+def test_weight_priced_offer_is_not_penalized_as_a_whole_package(ingredients):
+    rice = ingredients.by_id("rice")
+    recipe = template(
+        "weighted-rice",
+        [slot([rice.id], role="starch", amount_per_adult=Decimal("180"))],
+    )
+    weighted = offer(
+        rice,
+        offer_key="weighted",
+        package=PackageSize(Quantity(Decimal("1000"), "g")),
+        sale_price=Decimal("5"),
+        original_price=Decimal("10"),
+        pricing_basis="weight",
+    )
+    fixed = offer(
+        rice,
+        offer_key="fixed",
+        package=PackageSize(Quantity(Decimal("500"), "g")),
+        sale_price=Decimal("2.50"),
+        original_price=Decimal("5"),
+    )
+
+    candidate = rank_candidates(
+        [recipe], [fixed, weighted], (), "standard", "week-1"
+    )[0]
+
+    assert candidate.selections[0].offer.offer_key == "weighted"
+
+
+def test_equal_score_offer_tie_uses_actual_required_cost(ingredients):
+    rice = ingredients.by_id("rice")
+    recipe = template(
+        "weighted-rice-tie",
+        [slot([rice.id], role="starch", amount_per_adult=Decimal("180"))],
+    )
+    weighted = offer(
+        rice,
+        offer_key="weighted",
+        package=PackageSize(Quantity(Decimal("1000"), "g")),
+        sale_price=Decimal("5"),
+        original_price=Decimal("10"),
+        pricing_basis="weight",
+    )
+    fixed = offer(
+        rice,
+        offer_key="fixed",
+        package=PackageSize(Quantity(Decimal("180"), "g")),
+        sale_price=Decimal("1.50"),
+        original_price=Decimal("3"),
+    )
+
+    candidate = rank_candidates(
+        [recipe], [fixed, weighted], (), "standard", "week-1"
+    )[0]
+
+    assert candidate.selections[0].offer.offer_key == "weighted"
+
+
 def test_recent_family_and_method_apply_exact_score_penalties(ingredients):
     rice = ingredients.by_id("rice")
     recipe = template("recent", [slot([rice.id], role="starch")])
