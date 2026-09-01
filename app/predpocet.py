@@ -685,20 +685,22 @@ def _novy_vysledok(tyzden=None, profilov=0):
 
 
 def _ma_kompletny_povinny_zber(con, server, dnes) -> bool:
-    """Fail closed, kým nie je overený aktuálny zber všetkých troch obchodov."""
+    """Fail closed bez bezpečného minima aktuálnych merateľných ponúk.
+
+    Výpadok jedného letáka nesmie odstaviť zdravé obchody. Profily, ktoré si
+    vybrali iba chýbajúci obchod, sa nižšie aj tak zablokujú vlastným minimom.
+    """
     try:
-        chybajuce = server.stores_missing_this_week(
-            con, list(VSETKY_OBCHODY), dnes)
-        rows = server.offers_for_current_week(
-            con, list(VSETKY_OBCHODY), dnes)
+        rows = server.measurable_offers(server.offers_for_current_week(
+            con, list(VSETKY_OBCHODY), dnes
+        ))
     except (sqlite3.Error, OSError, ValueError):
         LOG.warning("úplnosť zberu pre predpočet sa nedá overiť", exc_info=True)
         return False
     zastupene = {row["obchod"] for row in rows}
     return (
-        not chybajuce
-        and len(rows) >= server.MIN_OFFERS_FOR_PLAN
-        and set(VSETKY_OBCHODY).issubset(zastupene)
+        len(rows) >= server.MIN_OFFERS_FOR_PLAN
+        and bool(set(VSETKY_OBCHODY).intersection(zastupene))
     )
 
 

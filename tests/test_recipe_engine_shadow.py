@@ -344,23 +344,56 @@ def test_activation_checks_every_numeric_and_library_floor(monkeypatch, tmp_path
             con.commit()
 
 
-def test_activation_rejects_an_incomplete_current_flyer_week(monkeypatch, tmp_path):
+def test_partial_store_week_passes_shadow_and_on_smoke_when_offers_are_sufficient(
+    monkeypatch, tmp_path
+):
     server = _server(monkeypatch, tmp_path)
     predpocet = server.predpocet
     monkeypatch.setattr(predpocet.time, "perf_counter", _clock())
-    predpocet.run_recipe_engine_shadow(server=server)
     with closing(server.db()) as con:
+        con.execute("DELETE FROM akcie WHERE obchod='Lidl'")
         con.execute(
             "DELETE FROM zber_stav WHERE tyzden=? AND obchod='Lidl'",
             (current_monday(),),
         )
         con.commit()
+    shadow = predpocet.run_recipe_engine_shadow(server=server)
+    with closing(server.db()) as con:
         status = predpocet.shadow_activation_status(
             con, server=server, today=date.today()
         )
 
-    assert status["eligible"] is False
-    assert "incomplete_flyer_week" in status["reasons"]
+    monkeypatch.setenv("UVARSI_RECIPE_ENGINE", "on")
+    server.recipe_engine_mode.cache_clear()
+    smoke = server.run_recipe_engine_synthetic_smoke(
+        state_path=tmp_path / "partial-store-smoke.json"
+    )
+
+    assert shadow["complete"] is True
+    assert status["eligible"] is True
+    assert status["reasons"] == []
+    assert smoke["ok"] is True
+    assert smoke["blockers"] == []
+
+
+def test_shadow_still_rejects_a_week_below_safe_offer_minimum(monkeypatch, tmp_path):
+    server = _server(monkeypatch, tmp_path)
+    predpocet = server.predpocet
+    with closing(server.db()) as con:
+        kept = [row[0] for row in con.execute(
+            "SELECT rowid FROM akcie ORDER BY rowid LIMIT 14"
+        )]
+        marks = ",".join("?" for _ in kept)
+        con.execute(f"DELETE FROM akcie WHERE rowid NOT IN ({marks})", kept)
+        con.commit()
+
+    shadow = predpocet.run_recipe_engine_shadow(server=server)
+
+    assert shadow == {
+        "week": current_monday(),
+        "complete": False,
+        "reason": "incomplete_flyer_week",
+    }
 
 
 def test_concurrent_shadow_run_cannot_finalize_another_fingerprint(

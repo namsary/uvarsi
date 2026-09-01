@@ -154,7 +154,7 @@ def test_health_reports_catalog_failure_instead_of_returning_500(monkeypatch, tm
     assert "broken catalog" not in response.text
 
 
-def test_health_requires_complete_current_offers_from_all_three_stores(
+def test_health_stays_ready_with_enough_current_offers_when_one_store_is_missing(
     monkeypatch, tmp_path
 ):
     rows = [row for row in _offer_rows() if row[2] != "Lidl"]
@@ -163,8 +163,37 @@ def test_health_requires_complete_current_offers_from_all_three_stores(
 
     engine = TestClient(server.app).get("/api/health").json()["recipe_engine"]
 
+    assert engine["ready"] is True
+    assert "incomplete_offers" not in engine["blockers"]
+
+
+def test_synthetic_smoke_uses_available_stores_when_one_flyer_is_missing(
+    monkeypatch, tmp_path
+):
+    rows = [row for row in _offer_rows() if row[2] != "Lidl"]
+    server, state = _load(monkeypatch, tmp_path, rows=rows)
+
+    result = server.run_recipe_engine_synthetic_smoke(state_path=state)
+
+    assert result["ok"] is True, json.dumps(result, sort_keys=True)
+    assert result["plan_engine"] == "deterministic"
+    assert result["blockers"] == []
+
+
+def test_health_and_smoke_still_fail_closed_below_safe_offer_minimum(
+    monkeypatch, tmp_path
+):
+    rows = _offer_rows()[:14]
+    server, state = _load(monkeypatch, tmp_path, rows=rows)
+    _write(state, _passing_smoke(server))
+
+    engine = TestClient(server.app).get("/api/health").json()["recipe_engine"]
+    smoke = server.run_recipe_engine_synthetic_smoke(state_path=state)
+
     assert engine["ready"] is False
     assert "incomplete_offers" in engine["blockers"]
+    assert smoke["ok"] is False
+    assert smoke["blockers"] == ["incomplete_offers"]
 
 
 def test_shadow_health_requires_fresh_activation_evidence_but_not_on_smoke(

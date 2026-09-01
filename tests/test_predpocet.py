@@ -226,13 +226,14 @@ def test_precompute_queues_active_exact_profiles_before_demand_and_defaults(
     assert zakazane == []
 
 
-def test_precompute_blocks_every_job_when_one_required_collection_is_missing(
+def test_precompute_blocks_only_profile_without_offers_when_one_store_is_missing(
         monkeypatch, tmp_path):
     server, predpocet = priprav(monkeypatch, tmp_path)
     create_active_user(server, stores="Lidl")
     with closing(server.db()) as con:
+        con.execute("DELETE FROM akcie WHERE obchod='Lidl'")
         con.execute(
-            "DELETE FROM zber_stav WHERE tyzden=? AND obchod='Tesco'",
+            "DELETE FROM zber_stav WHERE tyzden=? AND obchod='Lidl'",
             (current_monday(),),
         )
         con.commit()
@@ -241,14 +242,16 @@ def test_precompute_blocks_every_job_when_one_required_collection_is_missing(
 
     result = predpocet.enqueue_popular_profiles(count=2, now=queue_now())
 
-    assert result["queued"] == 0
-    assert result["blocked"] == 2
+    assert result["queued"] == 1
+    assert result["blocked"] == 1
     assert result["dovod"] == predpocet.DOVOD_BLOKOVANE
-    assert queued_jobs(server) == []
+    jobs = queued_jobs(server)
+    assert len(jobs) == 1
+    assert json.loads(jobs[0]["payload_json"])["stores"] != ["Lidl"]
     assert zakazane == []
 
 
-def test_zahrej_cli_blocks_without_all_three_verified_collections(
+def test_zahrej_cli_uses_available_offers_when_one_collection_status_failed(
         monkeypatch, tmp_path, capsys):
     server, predpocet = priprav(monkeypatch, tmp_path)
     with closing(server.db()) as con:
@@ -263,9 +266,9 @@ def test_zahrej_cli_blocks_without_all_three_verified_collections(
     assert predpocet.cli(["--zahrej", "--pocet", "1"]) == 0
 
     output = capsys.readouterr().out
-    assert "zaradených 0" in output
-    assert "blokovaných 1" in output
-    assert queued_jobs(server) == []
+    assert "zaradených 1" in output
+    assert "blokovaných 0" in output
+    assert len(queued_jobs(server)) == 1
     assert zakazane == []
 
 

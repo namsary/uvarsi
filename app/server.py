@@ -3908,14 +3908,17 @@ def _load_recipe_smoke_state(path=None, *, now=None):
 
 def _complete_recipe_offers(con, today):
     try:
-        rows = offers_for_current_week(con, list(RECIPE_ENGINE_STORES), today)
-        missing = stores_missing_this_week(con, list(RECIPE_ENGINE_STORES), today)
+        rows = measurable_offers(
+            offers_for_current_week(con, list(RECIPE_ENGINE_STORES), today)
+        )
         represented = {row["obchod"] for row in rows}
+        # Výpadok jedného letáka nesmie odstaviť plány z ostatných obchodov.
+        # Jednotlivý používateľ aj tak dostane iba ponuky zo svojho výberu;
+        # tu strážime bezpečné minimum pre anonymný rollout smoke.
         return (
             rows,
-            not missing
-            and len(rows) >= MIN_OFFERS_FOR_PLAN
-            and set(RECIPE_ENGINE_STORES).issubset(represented),
+            len(rows) >= MIN_OFFERS_FOR_PLAN
+            and bool(set(RECIPE_ENGINE_STORES).intersection(represented)),
         )
     except (sqlite3.Error, OSError, TypeError, ValueError):
         return (), False
