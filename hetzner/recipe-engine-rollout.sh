@@ -15,6 +15,8 @@ HEALTH_URL="${UVARSI_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
 LOCK="${UVARSI_RECIPE_ROLLOUT_LOCK:-/var/lock/uvarsi-recipe-rollout.lock}"
 SMOKE_STATE="${UVARSI_RECIPE_SMOKE_STATE:-/var/lib/uvarsi/recipe_engine_smoke.json}"
 NOTIFY_URL="${UVARSI_NOTIFY_URL:-}"
+UVARSI_URL="${UVARSI_URL:-https://uvar.si}"
+export UVARSI_URL
 
 log(){ echo "[$(date '+%F %T')] RECIPE-ROLLOUT: $*"; }
 notify_failure(){

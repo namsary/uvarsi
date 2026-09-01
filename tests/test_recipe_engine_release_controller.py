@@ -69,6 +69,7 @@ def rollout(tmp_path):
         "  *run_recipe_engine_shadow*) [ ! -f \"$UVARSI_TEST_STATE/fail-shadow\" ] ;;\n"
         "  *--recipe-engine-smoke*) [ ! -f \"$UVARSI_TEST_STATE/fail-smoke\" ] ;;\n"
         "  *platby_su_zapnute*)\n"
+        "    [ \"${UVARSI_URL:-}\" = 'https://uvar.si' ] || exit 66\n"
         "    [ ! -f \"$UVARSI_TEST_STATE/payments-on\" ] || exit 1\n"
         "    case \"${PLATBY_ZAPNUTE:-}\" in 1|true|TRUE|ano|áno|yes|on) exit 1 ;; esac\n"
         "    case \"${UVARSI_PAYMENTS_ENABLED:-}\" in 1|true|TRUE|ano|áno|yes|on) exit 1 ;; esac\n"
@@ -168,6 +169,13 @@ def test_controller_source_does_not_publish_an_operational_notification_topic():
 
     assert "ntfy.sh/" not in source
     assert 'NOTIFY_URL="${UVARSI_NOTIFY_URL:-}"' in source
+
+
+def test_controller_supplies_public_url_to_cron_python_gates():
+    source = CONTROLLER.read_text(encoding="utf-8")
+
+    assert 'UVARSI_URL="${UVARSI_URL:-https://uvar.si}"' in source
+    assert "export UVARSI_URL" in source
 
 
 def test_successfully_activates_both_stages_without_touching_unrelated_services(rollout):
