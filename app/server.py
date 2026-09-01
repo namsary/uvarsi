@@ -189,7 +189,9 @@ RECIPE_SMOKE_STATE = os.environ.get(
     "UVARSI_RECIPE_SMOKE_STATE", "/var/lib/uvarsi/recipe_engine_smoke.json"
 )
 RECIPE_SMOKE_MAX_AGE_SECONDS = 2 * 60 * 60
-RECIPE_SMOKE_MAX_LATENCY_MS = 2_000.0
+# Syntetický smoke zahŕňa prípravu izolovanej DB, autentizáciu a dva celé
+# requesty. Rýchlosť jedného plánu samostatne stráži shadow p95 pod 500 ms.
+RECIPE_SMOKE_MAX_LATENCY_MS = 5_000.0
 RECIPE_ENGINE_STORES = ("Kaufland", "Tesco", "Lidl")
 COOKIE = "uvarsi_session"
 SETUP_COOKIE = "uvarsi_setup"

@@ -113,6 +113,20 @@ def test_on_health_fails_closed_without_a_current_passing_smoke(monkeypatch, tmp
     assert "token" not in json.dumps(failed).casefold()
 
 
+def test_smoke_allows_two_full_routes_over_two_seconds_but_still_caps_at_five(
+    monkeypatch, tmp_path
+):
+    server, state = _load(monkeypatch, tmp_path)
+
+    _write(state, _passing_smoke(server, latency_ms=2_500.0))
+    _payload, blocker = server._load_recipe_smoke_state(state)
+    assert blocker is None
+
+    _write(state, _passing_smoke(server, latency_ms=5_000.0))
+    _payload, blocker = server._load_recipe_smoke_state(state)
+    assert blocker == "smoke_failed"
+
+
 def test_authenticated_me_exposes_only_the_validated_public_engine_mode(
     monkeypatch, tmp_path
 ):
