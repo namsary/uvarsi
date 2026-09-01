@@ -68,6 +68,8 @@ def rollout(tmp_path):
         "  *app.library_gate*) [ ! -f \"$UVARSI_TEST_STATE/fail-library\" ] ;;\n"
         "  *run_recipe_engine_shadow*) [ ! -f \"$UVARSI_TEST_STATE/fail-shadow\" ] ;;\n"
         "  *--recipe-engine-smoke*)\n"
+        "    [ \"${UVARSI_VERSION_FILE:-}\" = \"$UVARSI_DIR/VERSION\" ] || exit 67\n"
+        "    [ \"${UVARSI_DB:-}\" = \"$UVARSI_DIR/uvarsi.db\" ] || exit 68\n"
         "    [ ! -f \"$UVARSI_TEST_STATE/smoke-output.json\" ] || "
         "/usr/bin/cp \"$UVARSI_TEST_STATE/smoke-output.json\" \"$UVARSI_RECIPE_SMOKE_STATE\"\n"
         "    [ ! -f \"$UVARSI_TEST_STATE/fail-smoke\" ] ;;\n"

@@ -249,7 +249,9 @@ restart_uvarsi || rollback_off
 payments_off on || rollback_off
 ROLLOUT_GATE=on_smoke
 rm -f "$SMOKE_STATE" || rollback_off
-(cd "$DIR/app" && UVARSI_RECIPE_ENGINE=on UVARSI_RECIPE_SMOKE_STATE="$SMOKE_STATE" \
+(cd "$DIR/app" && UVARSI_RECIPE_ENGINE=on \
+  UVARSI_VERSION_FILE="$DIR/VERSION" UVARSI_DB="$DIR/uvarsi.db" \
+  UVARSI_RECIPE_SMOKE_STATE="$SMOKE_STATE" \
   "$PY" -m server --recipe-engine-smoke --state "$SMOKE_STATE" >/dev/null) || rollback_off
 ROLLOUT_GATE=on_health
 health_gate on || rollback_off
