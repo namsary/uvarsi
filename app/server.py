@@ -4123,8 +4123,21 @@ def _authenticated_isolated_recipe_smoke(rows, *, now):
             client.post("/api/plan/generuj"),
             client.post("/api/plan/generuj"),
         ]
-        bodies = [response.json() if response.status_code == 200 else None
-                  for response in responses]
+        bodies = []
+        for response in responses:
+            try:
+                parsed = response.json()
+            except ValueError:
+                parsed = None
+            bodies.append(parsed if isinstance(parsed, dict) else None)
+        response_statuses = [response.status_code for response in responses]
+        error_codes = [
+            body["kod"]
+            for body in bodies
+            if isinstance(body, dict)
+            and isinstance(body.get("kod"), str)
+            and re.fullmatch(r"[a-z0-9_]{1,64}", body["kod"])
+        ]
         valid = all(
             response.status_code == 200
             and isinstance(body, dict)
@@ -4143,6 +4156,8 @@ def _authenticated_isolated_recipe_smoke(rows, *, now):
             ),
             "jobs_delta": after["jobs"] - before["jobs"],
             "costs_delta": after["costs"] - before["costs"],
+            "response_statuses": response_statuses,
+            "error_codes": error_codes,
         }
     finally:
         cleanup_error = None
@@ -4208,6 +4223,10 @@ def run_recipe_engine_synthetic_smoke(*, state_path=None, now=None):
                 isolated_costs_delta = result["costs_delta"]
                 if not result["valid"]:
                     blockers.append("invalid_output")
+                    blockers.extend(
+                        f"route_{code}"
+                        for code in dict.fromkeys(result.get("error_codes", ()))
+                    )
                 else:
                     status = result["status"]
     except NoCompatiblePlan as error:

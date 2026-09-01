@@ -458,3 +458,55 @@ def test_failed_preflight_cli_sends_only_aggregate_diagnostics(
     assert "recipe" not in body.casefold()
     assert "Uvar.si preflight detail" == request.headers["Title"]
     assert "too_slow" in capsys.readouterr().out
+
+
+def test_isolated_smoke_reports_only_stable_route_error_code(monkeypatch, tmp_path):
+    server, _state = _load(monkeypatch, tmp_path)
+    with closing(server._readonly_database()) as con:
+        rows, complete = server._complete_recipe_offers(
+            con, server.bratislava_day()
+        )
+    assert complete is True
+
+    def reject_plan(**_kwargs):
+        raise server.NoCompatiblePlan(
+            "unmeasurable_packages", ("wait_for_complete_flyer_refresh",)
+        )
+
+    monkeypatch.setattr(server, "build_deterministic_plan", reject_plan)
+
+    result = server._authenticated_isolated_recipe_smoke(
+        rows, now=datetime.now(timezone.utc)
+    )
+
+    assert result["valid"] is False
+    assert result["response_statuses"] == [503, 503]
+    assert result["error_codes"] == ["unmeasurable_packages", "unmeasurable_packages"]
+    assert "detail" not in json.dumps(result).casefold()
+
+
+def test_synthetic_smoke_adds_route_code_without_response_content(
+    monkeypatch, tmp_path
+):
+    server, state = _load(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        server,
+        "_authenticated_isolated_recipe_smoke",
+        lambda *_args, **_kwargs: {
+            "valid": False,
+            "status": 503,
+            "plan_engine": "",
+            "jobs_delta": 0,
+            "costs_delta": 0,
+            "response_statuses": [503, 503],
+            "error_codes": ["unmeasurable_packages", "unmeasurable_packages"],
+        },
+    )
+
+    result = server.run_recipe_engine_synthetic_smoke(state_path=state)
+
+    assert result["blockers"] == [
+        "invalid_output",
+        "route_unmeasurable_packages",
+    ]
+    assert "detail" not in json.dumps(result).casefold()
