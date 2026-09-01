@@ -16,7 +16,7 @@
         {"text":"Opekaj {protein.name} v hrnci na strednom ohni 7 minút, kým mäso dosiahne 74 °C."},
         {"text":"Prepláchni {starch.amount} {starch.name}."},
         {"text":"Pridaj {starch.name} a {vegetable.name} do hrnca."},
-        {"text":"Nalej 500 ml vody do hrnca."},
+        {"text":"Nalej {starch.water} vody do hrnca."},
         {"text":"Var {starch.name} so zeleninou v hrnci na miernom ohni 16 minút, kým voda vsiakne a ryža zmäkne."},
         {"text":"Dochuť jedlo cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
@@ -37,7 +37,7 @@
         {"text":"Opekaj {protein.name} v hrnci na strednom ohni 8 minút, kým mäso dosiahne 74 °C."},
         {"text":"Pridaj {vegetable.name} do hrnca a opekaj na miernom ohni 5 minút, kým zelenina zmäkne."},
         {"text":"Prisyp {starch.amount} {starch.name} do hrnca."},
-        {"text":"Nalej 500 ml vody do hrnca."},
+        {"text":"Nalej {starch.water} vody do hrnca."},
         {"text":"Var {starch.name} v hrnci na miernom ohni 10 minút, kým cestoviny zmäknú."},
         {"text":"Dochuť jedlo cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
@@ -58,7 +58,7 @@
         {"text":"Opekaj {protein.name} v hrnci na strednom ohni 10 minút, kým mäso dosiahne 74 °C."},
         {"text":"Pridaj {vegetable.name} do hrnca a opekaj na miernom ohni 5 minút, kým zelenina zmäkne."},
         {"text":"Prepláchni {starch.amount} {starch.name}."},
-        {"text":"Prisyp {starch.name} do hrnca a prilej vodu."},
+        {"text":"Prisyp {starch.name} do hrnca a prilej {starch.water} vody."},
         {"text":"Var {protein.name} s prílohou a zeleninou v hrnci na miernom ohni 35 minút, kým mäso aj príloha zmäknú."},
         {"text":"Dochuť jedlo cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
@@ -79,7 +79,7 @@
         {"text":"Opekaj {protein.amount} {protein.name} v hrnci na strednom ohni 8 minút, kým mäso dosiahne 74 °C."},
         {"text":"Pridaj {vegetable.name} do hrnca a var na miernom ohni 6 minút, kým zelenina zmäkne."},
         {"text":"Prisyp {starch.amount} {starch.name} do hrnca."},
-        {"text":"Nalej 500 ml vody do hrnca."},
+        {"text":"Nalej {starch.water} vody do hrnca."},
         {"text":"Var {starch.name} v hrnci na miernom ohni 11 minút, kým cestoviny zmäknú."},
         {"text":"Dochuť jedlo cesnakom, oreganom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
@@ -119,7 +119,7 @@
         {"text":"Opekaj {protein.name} v hrnci na strednom ohni 7 minút, kým mäso dosiahne 74 °C."},
         {"text":"Prepláchni {starch.amount} {starch.name}."},
         {"text":"Pridaj {starch.name} a {vegetable.name} do hrnca."},
-        {"text":"Nalej 500 ml vody do hrnca."},
+        {"text":"Nalej {starch.water} vody do hrnca."},
         {"text":"Var {starch.name} so zeleninou v hrnci na miernom ohni 20 minút, kým šošovica zmäkne."},
         {"text":"Dochuť jedlo cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]

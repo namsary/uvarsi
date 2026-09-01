@@ -88,6 +88,28 @@ def _write_raw_library(tmp_path, manifest_text, recipes_text):
     return root
 
 
+@pytest.mark.parametrize(
+    ("filename", "recipe_id"),
+    [
+        ("02-oven.json", "oven_chicken_breast_zucchini_rice"),
+        ("03-one-pot.json", "pot_chicken_rice_peas"),
+        ("03-one-pot.json", "pot_chicken_paprika_pasta"),
+        ("03-one-pot.json", "pot_pork_barley_vegetables"),
+        ("03-one-pot.json", "pot_beef_tomato_pasta"),
+        ("03-one-pot.json", "pot_turkey_lentil_tomato"),
+    ],
+)
+def test_absorption_recipes_use_scaled_water_instead_of_fixed_batch_amount(
+    filename, recipe_id
+):
+    payload = json.loads((DEFAULT_RECIPE_ROOT / filename).read_text(encoding="utf-8"))
+    recipe = next(item for item in payload["recipes"] if item["id"] == recipe_id)
+    instructions = " ".join(step["text"] for step in recipe["instructions"])
+
+    assert "{starch.water}" in instructions
+    assert "500 ml vody" not in instructions
+
+
 def test_loads_only_active_templates_by_default(ingredients, tmp_path):
     inactive = _recipe(id="inactive_recipe", active=False)
     root = _write_library(tmp_path, [_recipe(), inactive])

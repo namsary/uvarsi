@@ -36,7 +36,7 @@
         {"text":"Prepláchni {starch.amount} {starch.name} a rozlož ju do pekáča."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Rozlož {protein.name} a {vegetable.name} na ryžu a dochuť oreganom, soľou a čiernym korením."},
-        {"text":"Nalej 500 ml vody do pekáča."},
+        {"text":"Nalej {starch.water} vody do pekáča."},
         {"text":"Peč {protein.name} s ryžou a zeleninou v rúre pri 190 °C 30 minút, kým mäso dosiahne 74 °C a ryža zmäkne."},
         {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
       ]

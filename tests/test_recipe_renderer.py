@@ -330,7 +330,7 @@ def _with_instructions(candidate, instructions):
 RICE_STEPS = (
     "Prepláchni {main.amount} {main.name} v jemnom sitku pod studenou vodou, "
     "kým odtekajúca voda nebude takmer číra.",
-    "Vlož {main.amount} {main.name} do hrnca, prilej 450 ml vody, pridaj "
+    "Vlož {main.amount} {main.name} do hrnca, prilej {main.water} vody, pridaj "
     "štipku soli a obsah hrnca priveď na silnom ohni za 5 minút do varu, "
     "kým voda nezačne súvislo bublať.",
     "Var {main.amount} {main.name} v prikrytom hrnci 12 minút na miernom "
@@ -940,6 +940,23 @@ def test_water_is_a_visible_declared_pantry_basic(ingredients):
     assert meal.pantry_basics == ("voda", "soľ")
     assert meal.ingredients[0].quantity == Quantity(Decimal("300"), "g")
     assert "450 ml vody" in meal.instructions[1]
+
+
+def test_absorption_water_scales_with_household_and_covered_days(ingredients):
+    candidate = _candidate(
+        ingredients.by_id("rice"),
+        amount="75",
+        name_template="Absorpčne varená {main.name}",
+        equipment=("hrniec", "sitko"),
+        pantry_basics=("water", "salt"),
+        instructions=RICE_STEPS,
+    )
+
+    meal = render_meal(candidate, adults=4, children=0, covered_days=3)
+
+    assert meal.ingredients[0].quantity == Quantity(Decimal("900"), "g")
+    assert "1,4 l vody" in meal.instructions[1]
+    assert "450 ml vody" not in meal.instructions[1]
 
 
 def test_renderer_rejects_inconsistent_selected_ingredient_name(ingredients):

@@ -1020,11 +1020,17 @@ def uvolni_jednu_opravu_profilu(con, user_id, den) -> bool:
     )
     if cursor.rowcount != 1:
         return False
-    con.execute(
+    refund = con.execute(
         "UPDATE prepocty SET pocet=pocet-1 "
         "WHERE user_id=? AND den=? AND pocet>0",
         (user_id, den),
     )
+    if refund.rowcount != 1:
+        con.execute(
+            "DELETE FROM profilove_opravy WHERE user_id=? AND den=?",
+            (user_id, den),
+        )
+        return False
     con.execute("DELETE FROM profilove_opravy WHERE den<>?", (den,))
     return True
 

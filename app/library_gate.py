@@ -14,6 +14,7 @@ from typing import Iterable, Sequence
 
 from .ingredient_catalog import IngredientCatalog, load_ingredient_catalog
 from .recipe_catalog import (
+    ALLOWED_PLACEHOLDER_ATTRIBUTES,
     ALLOWED_METHODS,
     ALLOWED_MODES,
     ALLOWED_UNITS,
@@ -413,7 +414,7 @@ def _raw_language_errors(recipe: RecipeTemplate) -> set[str]:
             allowed_fields.update(
                 f"{slot.key}.{attribute}"
                 for slot in recipe.slots
-                for attribute in ("name", "amount", "cut")
+                for attribute in ALLOWED_PLACEHOLDER_ATTRIBUTES
             )
             if any(field not in allowed_fields for field in fields):
                 errors.add("unresolved_braces")

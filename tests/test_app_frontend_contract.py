@@ -791,7 +791,7 @@ def test_account_controls_fit_320px_and_keep_native_visible_focus():
     assert ".password-field{display:grid;grid-template-columns:minmax(0,1fr) auto" in html
     assert ".password-field input{min-width:0}" in html
     assert "@media (max-width:360px)" in html
-    assert ":focus-visible{outline:3px solid var(--highlight)" in html
+    assert ":focus-visible{outline:3px solid var(--accent)" in html
 
 
 @needs_node

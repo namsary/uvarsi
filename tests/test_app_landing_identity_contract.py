@@ -91,7 +91,7 @@ def test_app_keeps_its_task_shell_and_accessibility_contracts():
     assert "env(safe-area-inset-top)" in app
     assert "env(safe-area-inset-bottom)" in app
     assert "min-height:64px" in _rule(app, "nav button")
-    assert ":focus-visible" in app
+    assert "outline:3px solid var(--accent)" in _rule(app, ":focus-visible")
     assert ".btn:disabled" in app
     assert ".plan-skeleton" in app
     assert "@media (prefers-reduced-motion:reduce)" in app

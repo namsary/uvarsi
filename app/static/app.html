@@ -17,7 +17,7 @@
 :root{--paper:#F4F7F2;--paper-2:#EAF3EC;--surface:#FFFFFF;--ink:#12392E;--ink-soft:#586B64;--yellow:#F7D64A;--red:#A52F25;--green:#1C8B5C;--green-deep:#103C31;--line:#12392e24;--radius-sm:14px;--radius-lg:28px;--shadow-soft:0 22px 70px #12392e21;--shadow-card:0 10px 34px #12392e14;--canvas:var(--paper);--surface-soft:var(--paper-2);--muted:var(--ink-soft);--accent:var(--red);--highlight:var(--yellow);--success:var(--green);--border:var(--line);--radius-card:var(--radius-sm);--radius-control:var(--radius-sm);}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 button,input,select{touch-action:manipulation}
-:focus-visible{outline:3px solid var(--highlight);outline-offset:3px}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 body{background:var(--paper);color:var(--ink);font-family:"Manrope",system-ui,sans-serif;line-height:1.55;padding-bottom:calc(86px + env(safe-area-inset-bottom));min-height:100vh}
 .display{font-family:"Manrope",system-ui,sans-serif;font-weight:800;line-height:1.04;letter-spacing:-.035em}
 .mono{font-family:"IBM Plex Mono",monospace}
@@ -66,7 +66,7 @@ nav button.on{color:var(--accent)}nav button.on::before{content:"";position:abso
 .auth-switcher{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px;padding:4px;min-width:0;background:var(--highlight);border:1px solid #D5B118;border-radius:12px;margin:0 0 16px}
 .auth-switch{min-width:0;min-height:44px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:var(--ink);font:800 .88rem "Manrope",sans-serif;cursor:pointer}
 .auth-switch.on{background:var(--surface);box-shadow:0 2px 7px rgba(24,50,41,.12)}
-.auth-title:focus{outline:3px solid var(--highlight);outline-offset:4px}
+.auth-title:focus{outline:3px solid var(--accent);outline-offset:4px}
 .auth-field{margin-bottom:14px}.password-field{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}
 .password-field input{min-width:0}
 .password-toggle{min-height:48px;padding:0 13px;border:1px solid var(--border);border-radius:var(--radius-control);background:var(--surface-soft);color:var(--ink);font:800 .78rem "Manrope",sans-serif;cursor:pointer}
@@ -80,7 +80,7 @@ nav button.on{color:var(--accent)}nav button.on::before{content:"";position:abso
 .security-meta{display:block;margin-top:2px;color:var(--muted);font-size:.75rem}
 .security-row .btn{width:auto;min-height:42px;padding:9px 12px;font-size:.78rem;box-shadow:none}
 .security-current{display:inline-block;margin-left:6px;padding:2px 6px;border-radius:6px;background:#FFF5BE;border:1px solid #E4CB48;font:600 .65rem "IBM Plex Mono",monospace}
-.security-title:focus{outline:3px solid var(--highlight);outline-offset:4px}
+.security-title:focus{outline:3px solid var(--accent);outline-offset:4px}
 .security-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.security-actions .btn{width:auto;flex:1}
 @media (max-width:360px){.auth-shell{margin-top:20px}.auth-switch{padding:0 6px;font-size:.78rem}.password-toggle{padding:0 9px;font-size:.72rem}.security-row{grid-template-columns:minmax(0,1fr)}.security-row .btn{width:100%}.security-actions{display:grid;grid-template-columns:minmax(0,1fr)}.pantry-compose{grid-template-columns:minmax(0,1fr) 72px}.pantry-compose .pf-name,.pantry-row-editor .pf-name{grid-column:1/-1}.pantry-row-editor{grid-template-columns:minmax(0,1fr) 68px}.diet-choice{padding-inline:9px}}
 .spin{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;margin:34px auto}

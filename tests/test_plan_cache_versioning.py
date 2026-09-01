@@ -29,9 +29,8 @@ ZAKLAD = dict(
 def test_algo_version_is_a_positive_integer():
     assert isinstance(plan_data.PLAN_ALGO_VERSION, int)
     assert not isinstance(plan_data.PLAN_ALGO_VERSION, bool)
-    assert plan_data.PLAN_ALGO_VERSION == 21, (
-        "oddelenie kuchynských základov od skutočnej špajze musí "
-        "zneplatniť staršie plány"
+    assert plan_data.PLAN_ALGO_VERSION == 22, (
+        "škálovanie vody podľa dávky musí zneplatniť staršie plány"
     )
 
 
@@ -112,7 +111,6 @@ def test_version_is_documented_next_to_its_constant():
     assert "Zvýš" in kontext or "zvýš" in kontext, (
         "pri konštante musí byť pokyn, že sa zvyšuje pri zmene podoby plánu"
     )
-    assert "skontroluj_doma" in kontext and "špajz" in kontext, (
-        "komentár musí pomenovať oddelenie kuchynských základov od špajze, "
-        "kvôli ktorému cache neplatí"
+    assert "množstvo vody" in kontext and "škáluje" in kontext, (
+        "komentár musí pomenovať škálovanie vody, kvôli ktorému cache neplatí"
     )

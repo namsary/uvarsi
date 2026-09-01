@@ -77,6 +77,7 @@ class _SlotWording:
     reference_name: str
     amount: str
     cut: str
+    water: str | None
 
 
 @dataclass(frozen=True)
@@ -181,6 +182,17 @@ _REFERENCE_NAMES: Mapping[str, str] = {
     "mushrooms": "biele šampiňóny",
     "plain_yogurt": "biely plnotučný jogurt",
     "tuna": "tuniaka vo vlastnej šťave",
+}
+
+# Absorption/one-pot ratios in millilitres of water per gram of dry starch.
+# The rendered amount scales with the household and the number of covered days;
+# display rounding then turns it into a practical kitchen measure.
+_WATER_ML_PER_GRAM: Mapping[str, Decimal] = {
+    "rice": Decimal("1.5"),
+    "pasta": Decimal("1.67"),
+    "red_lentils": Decimal("1.92"),
+    "barley": Decimal("3"),
+    "couscous": Decimal("1"),
 }
 
 _EXTRA_INGREDIENT_FORMS: Mapping[str, tuple[str, ...]] = {
@@ -450,6 +462,16 @@ def _display_amount(quantity: Quantity) -> str:
     return f"{_decimal_text(rounded)} {quantity.unit}"
 
 
+def _water_amount(rendered: RenderedIngredient) -> str | None:
+    ratio = _WATER_ML_PER_GRAM.get(rendered.ingredient.id)
+    if ratio is None:
+        return None
+    if rendered.quantity.unit != "g":
+        raise ValueError("Pomer vody vyžaduje gramové množstvo suchej suroviny.")
+    millilitres = _multiply_exact(rendered.quantity.amount, ratio)
+    return _display_amount(Quantity(millilitres, "ml"))
+
+
 def _fold(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value.casefold())
     return "".join(
@@ -564,11 +586,15 @@ def _render_template(
                 chunks.append(str(portions))
                 continue
             parts = field.split(".")
-            if len(parts) != 2 or parts[1] not in {"name", "amount", "cut"}:
+            if len(parts) != 2 or parts[1] not in {"name", "amount", "cut", "water"}:
                 raise ValueError(f"nepovolený placeholder: {field}")
             wording = slots.get(parts[0])
             if wording is None:
                 raise ValueError(f"neznáma pozícia v placeholderi: {parts[0]}")
+            if parts[1] == "water" and wording.water is None:
+                raise ValueError(
+                    f"chýba pomer vody pre surovinu: {wording.ingredient_id}"
+                )
             if parts[1] == "name" and prepositional_names:
                 chunks.append(_title_name(wording, grammatical_case))
             elif (
@@ -1131,6 +1157,7 @@ def render_meal(
             reference_name=item.ingredient.name,
             amount=item.display_amount,
             cut=item.slot.cut or "",
+            water=_water_amount(item),
         )
         for item in rendered
     }
@@ -1141,6 +1168,7 @@ def render_meal(
             reference_name=_REFERENCE_NAMES[item.ingredient.id],
             amount=item.display_amount,
             cut=item.slot.cut or "",
+            water=_water_amount(item),
         )
         for item in rendered
     }

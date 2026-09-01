@@ -836,6 +836,58 @@ def test_first_daily_profile_correction_refunds_one_used_plan_slot(monkeypatch, 
     assert client.get("/api/me").json()["zostava_prepoctov"] == 1
 
 
+def test_profile_correction_without_used_slot_does_not_consume_daily_refund(
+    monkeypatch, tmp_path
+):
+    server = load_server(monkeypatch, tmp_path, [])
+    week = current_monday()
+    day = server.dnesok()
+    with server.db() as con:
+        con.execute(
+            "INSERT INTO pouzivatelia "
+            "(id, email, osoby, dospeli, deti, frekvencia, obchody) "
+            "VALUES (1, 'family@uvar.si', 4, 4, 0, 2, 'Lidl')"
+        )
+        insert_hashed_session(server, con, "family-session", 1)
+        con.execute(
+            "INSERT INTO plany (user_id, tyzden, json) VALUES (1, ?, '{}')",
+            (week,),
+        )
+        con.commit()
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "family-session")
+
+    assert client.post("/api/profil", json={
+        "adults": 2, "children": 2, "frekvencia": 2, "obchody": ["Lidl"],
+    }).status_code == 200
+    with server.db() as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM profilove_opravy WHERE user_id=1 AND den=?",
+            (day,),
+        ).fetchone()[0] == 0
+        con.execute(
+            "INSERT INTO plany (user_id, tyzden, json) VALUES (1, ?, '{}')",
+            (week,),
+        )
+        con.execute(
+            "INSERT INTO prepocty (user_id, den, pocet) VALUES (1, ?, 1)",
+            (day,),
+        )
+        con.commit()
+
+    assert client.post("/api/profil", json={
+        "adults": 3, "children": 1, "frekvencia": 2, "obchody": ["Lidl"],
+    }).status_code == 200
+    with server.db() as con:
+        assert con.execute(
+            "SELECT pocet FROM prepocty WHERE user_id=1 AND den=?", (day,)
+        ).fetchone()[0] == 0
+        assert con.execute(
+            "SELECT COUNT(*) FROM profilove_opravy WHERE user_id=1 AND den=?",
+            (day,),
+        ).fetchone()[0] == 1
+
+
 def test_profile_correction_refund_is_granted_at_most_once_per_day(monkeypatch, tmp_path):
     server = load_server(monkeypatch, tmp_path, [])
     week = current_monday()

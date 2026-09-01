@@ -1175,8 +1175,10 @@ PLAN_VARIANT_HINTS = (
 #      receptovej knižnice; zdieľaná cache tak nikdy nepomieša odlišné menu.
 # 21 = receptové základy (olej, soľ, voda) sú iba v `skontroluj_doma`;
 #      už sa netvária ako skutočné položky používateľovej špajze.
+# 22 = množstvo vody pri absorpčnom varení sa škáluje s dávkou prílohy;
+#      veľká domácnosť už nedostane rovnakých 500 ml ako jedna porcia.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 21
+PLAN_ALGO_VERSION = 22
 
 
 def plan_variant_for(user_id, variants):
