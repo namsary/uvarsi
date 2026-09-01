@@ -8,6 +8,7 @@ HEALTH_PY="${UVARSI_HEALTH_PY:-$PY}"
 CURL="${UVARSI_CURL:-curl}"
 SYSTEMCTL="${UVARSI_SYSTEMCTL:-systemctl}"
 MV="${UVARSI_MV:-mv}"
+SLEEP="${UVARSI_SLEEP:-sleep}"
 TARGET="${UVARSI_RECIPE_TARGET:-$DIR/recipe-engine.target}"
 TARGET_READER="${UVARSI_RECIPE_TARGET_READER:-cat}"
 FLAG="${UVARSI_RECIPE_FLAG_FILE:-$DIR/uvarsi-recipe-engine.env}"
@@ -132,8 +133,10 @@ restart_uvarsi() {
 
 health_gate() {
   EXPECTED="$1"
-  "$CURL" -fsS --max-time 5 "$HEALTH_URL" 2>/dev/null |
-    "$HEALTH_PY" -c '
+  HEALTH_ATTEMPT=1
+  while [ "$HEALTH_ATTEMPT" -le 30 ]; do
+    if "$CURL" -fsS --max-time 5 "$HEALTH_URL" 2>/dev/null |
+      "$HEALTH_PY" -c '
 import json, math, sys
 expected = sys.argv[1]
 payload = json.load(sys.stdin, parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)))
@@ -154,7 +157,15 @@ if expected == "shadow":
     for key in ("dietary_violations","negative_quantities","invalid_package_counts"):
         value = shadow.get(key)
         if not finite_number(value) or value != 0: raise SystemExit(2)
-' "$EXPECTED"
+' "$EXPECTED" 2>/dev/null
+    then
+      return 0
+    fi
+    [ "$HEALTH_ATTEMPT" -eq 30 ] && break
+    "$SLEEP" 1
+    HEALTH_ATTEMPT=$((HEALTH_ATTEMPT + 1))
+  done
+  return 1
 }
 
 payments_off() {

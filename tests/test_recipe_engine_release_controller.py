@@ -119,12 +119,24 @@ def rollout(tmp_path):
         "case \"$*\" in\n"
         "  *notify.invalid*) printf '%s\\n' \"$*\" >> \"$UVARSI_TEST_ALERTS\"; exit 0 ;;\n"
         "esac\n"
-        "[ ! -f \"$UVARSI_TEST_STATE/health.json\" ] || { cat \"$UVARSI_TEST_STATE/health.json\"; exit 0; }\n"
-        "[ ! -f \"$UVARSI_TEST_STATE/malformed-health\" ] || { printf '{'; exit 0; }\n"
         "IFS= read -r mode_line < \"$UVARSI_RECIPE_FLAG_FILE\" || mode_line=\n"
         "mode=${mode_line#export }\n"
         "mode=${mode#UVARSI_RECIPE_ENGINE=}\n"
+        "if [ \"$mode\" = on ] && [ -f \"$UVARSI_TEST_STATE/transient-health\" ]; then\n"
+        "  attempts_file=\"$UVARSI_TEST_STATE/health-attempts\"\n"
+        "  attempts=0; [ ! -f \"$attempts_file\" ] || IFS= read -r attempts < \"$attempts_file\"\n"
+        "  attempts=$((attempts + 1)); printf '%s\\n' \"$attempts\" > \"$attempts_file\"\n"
+        "  [ \"$attempts\" -gt 1 ] || exit 7\n"
+        "fi\n"
+        "[ ! -f \"$UVARSI_TEST_STATE/health.json\" ] || { cat \"$UVARSI_TEST_STATE/health.json\"; exit 0; }\n"
+        "[ ! -f \"$UVARSI_TEST_STATE/malformed-health\" ] || { printf '{'; exit 0; }\n"
         "printf '{\"recipe_engine\":{\"mode\":\"%s\",\"ready\":true,\"blockers\":[],\"last_shadow\":{\"complete\":true,\"eligible\":true,\"success_rate\":0.99,\"p95_ms\":120,\"dietary_violations\":0,\"negative_quantities\":0,\"invalid_package_counts\":0}}}' \"$mode\"\n",
+    )
+    fake_sleep = tmp_path / "sleep"
+    executable(
+        fake_sleep,
+        "#!/bin/sh\n"
+        "printf 'sleep %s\\n' \"$*\" >> \"$UVARSI_TEST_CALLS\"\n",
     )
 
     env = os.environ | {
@@ -132,6 +144,7 @@ def rollout(tmp_path):
         "UVARSI_PY": bash_path(fake_python),
         "UVARSI_HEALTH_PY": bash_path(Path(sys.executable)),
         "UVARSI_CURL": bash_path(fake_curl),
+        "UVARSI_SLEEP": bash_path(fake_sleep),
         "UVARSI_SYSTEMCTL": bash_path(fake_systemctl),
         "UVARSI_MV": bash_path(fake_mv),
         "UVARSI_RECIPE_TARGET": bash_path(target),
@@ -197,6 +210,21 @@ def test_successfully_activates_both_stages_without_touching_unrelated_services(
         for line in calls.splitlines()
         if line.startswith("systemctl ")
     ) == {"uvarsi", "uvarsi-plan-worker"}
+
+
+def test_transient_on_health_race_is_retried_before_rollback(rollout):
+    rollout["state"].joinpath("transient-health").write_text("1", encoding="ascii")
+
+    result = run_controller(rollout)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=on\n"
+    assert rollout["state"].joinpath("health-attempts").read_text(
+        encoding="ascii"
+    ).strip() == "2"
+    assert "sleep 1" in rollout["calls"].read_text(encoding="utf-8")
+    assert "Traceback" not in result.stderr
+    assert not rollout["alerts"].exists()
 
 
 def test_existing_export_syntax_is_accepted_and_canonicalized(rollout):
