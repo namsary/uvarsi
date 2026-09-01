@@ -44,6 +44,9 @@ def rollout(tmp_path):
     ):
         (app / name).write_text("# present\n", encoding="utf-8")
     (app / "catalog" / "ingredients.json").write_text("{}\n", encoding="utf-8")
+    (app / "catalog" / "slovak_ingredient_forms.json").write_text(
+        "{}\n", encoding="utf-8"
+    )
     (recipes / "manifest.json").write_text("{}\n", encoding="utf-8")
     (recipes / "recipe.json").write_text("{}\n", encoding="utf-8")
 

@@ -163,8 +163,9 @@ Vyzaduj "prenos zlyhal: app\static"
 Ok "static/ (PWA)"
 
 $ingredientCatalog = "$B\app\catalog\ingredients.json"
+$slovakFormsCatalog = "$B\app\catalog\slovak_ingredient_forms.json"
 $recipeManifest = "$B\app\catalog\recipes\manifest.json"
-foreach ($povinnyCatalogSubor in @($ingredientCatalog, $recipeManifest)) {
+foreach ($povinnyCatalogSubor in @($ingredientCatalog, $slovakFormsCatalog, $recipeManifest)) {
   if (
     -not (Test-Path $povinnyCatalogSubor -PathType Leaf) -or
     (Get-Item $povinnyCatalogSubor).Length -le 0
@@ -191,6 +192,8 @@ ssh jarvis "mkdir -p /opt/uvarsi/releases/manual-stage/app/catalog/recipes"
 Vyzaduj "staging priecinka receptoveho katalogu zlyhal"
 scp -q $ingredientCatalog "jarvis:/opt/uvarsi/releases/manual-stage/app/catalog/ingredients.json"
 Vyzaduj "prenos zlyhal: app\catalog\ingredients.json"
+scp -q $slovakFormsCatalog "jarvis:/opt/uvarsi/releases/manual-stage/app/catalog/slovak_ingredient_forms.json"
+Vyzaduj "prenos zlyhal: app\catalog\slovak_ingredient_forms.json"
 scp -q $recipeManifest "jarvis:/opt/uvarsi/releases/manual-stage/app/catalog/recipes/manifest.json"
 Vyzaduj "prenos zlyhal: app\catalog\recipes\manifest.json"
 foreach ($recept in $recipeJson) {

@@ -71,6 +71,9 @@ def _prepare_manual_source(tmp_path: Path) -> Path:
     recipes = catalog / "recipes"
     recipes.mkdir(parents=True)
     (catalog / "ingredients.json").write_text("{}\n", encoding="utf-8")
+    (catalog / "slovak_ingredient_forms.json").write_text(
+        "{}\n", encoding="utf-8"
+    )
     (recipes / "manifest.json").write_text("{}\n", encoding="utf-8")
     (recipes / "smoke.json").write_text("{}\n", encoding="utf-8")
     for relative in (
@@ -99,6 +102,7 @@ def _run_manual_deploy_offline(
         asset, invalid_kind = invalid_catalog_asset
         target = {
             "ingredients": release / "app/catalog/ingredients.json",
+            "slovak_forms": release / "app/catalog/slovak_ingredient_forms.json",
             "manifest": release / "app/catalog/recipes/manifest.json",
             "recipe": release / "app/catalog/recipes/smoke.json",
         }[asset]
@@ -163,6 +167,7 @@ def test_manual_deploy_stages_catalog_before_switch_without_candidates_or_live_c
     calls = raw_calls.replace("\\", "/")
     staged = (
         "jarvis:/opt/uvarsi/releases/manual-stage/app/catalog/ingredients.json",
+        "jarvis:/opt/uvarsi/releases/manual-stage/app/catalog/slovak_ingredient_forms.json",
         "jarvis:/opt/uvarsi/releases/manual-stage/app/catalog/recipes/manifest.json",
         "jarvis:/opt/uvarsi/releases/manual-stage/app/catalog/recipes/smoke.json",
     )
@@ -187,7 +192,7 @@ def test_manual_release_preflight_uses_private_remote_script(tmp_path):
     assert 'trap \'rm -f "$SCRIPT"\'' in raw_calls
 
 
-@pytest.mark.parametrize("asset", ["ingredients", "manifest", "recipe"])
+@pytest.mark.parametrize("asset", ["ingredients", "slovak_forms", "manifest", "recipe"])
 @pytest.mark.parametrize("invalid_kind", ["empty", "directory"])
 def test_manual_deploy_rejects_invalid_catalog_assets_before_snapshot(
         tmp_path, asset, invalid_kind):
@@ -240,9 +245,10 @@ def _run_samopull_catalog_gate(
         target.write_text("present\n", encoding="utf-8")
 
     ingredients = release / "app/catalog/ingredients.json"
+    slovak_forms = release / "app/catalog/slovak_ingredient_forms.json"
     manifest = release / "app/catalog/recipes/manifest.json"
     recipe = release / "app/catalog/recipes/smoke.json"
-    for target in (ingredients, manifest):
+    for target in (ingredients, slovak_forms, manifest):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("{}\n", encoding="utf-8")
     if not candidate_only:
@@ -256,6 +262,7 @@ def _run_samopull_catalog_gate(
 
     missing_paths = {
         "ingredients": ingredients,
+        "slovak_forms": slovak_forms,
         "manifest": manifest,
         "recipe": recipe,
     }
@@ -326,7 +333,7 @@ def test_samopull_runs_library_and_isolated_deterministic_smoke_before_switch(
     assert mutation_marker.exists()
 
 
-@pytest.mark.parametrize("missing", ["ingredients", "manifest", "recipe"])
+@pytest.mark.parametrize("missing", ["ingredients", "slovak_forms", "manifest", "recipe"])
 def test_samopull_catalog_gate_rejects_incomplete_release_before_switch(
         tmp_path, bash_executable, missing):
     """Deleting any runtime catalog component must close the pre-switch gate."""
@@ -348,7 +355,7 @@ def test_samopull_does_not_count_candidate_json_as_a_runtime_recipe(
     assert not mutation_marker.exists()
 
 
-@pytest.mark.parametrize("asset", ["ingredients", "manifest", "recipe"])
+@pytest.mark.parametrize("asset", ["ingredients", "slovak_forms", "manifest", "recipe"])
 @pytest.mark.parametrize("invalid_kind", ["empty", "directory"])
 def test_samopull_catalog_gate_rejects_invalid_file_before_switch(
         tmp_path, bash_executable, asset, invalid_kind):
@@ -387,6 +394,9 @@ def _run_samopull_staging(
     ingredient = catalog / "ingredients.json"
     ingredient.parent.mkdir(parents=True, exist_ok=True)
     ingredient.write_text("{}\n", encoding="utf-8")
+    (catalog / "slovak_ingredient_forms.json").write_text(
+        "{}\n", encoding="utf-8"
+    )
     recipes = catalog / "recipes"
     recipes.mkdir()
     (recipes / "manifest.json").write_text("{}\n", encoding="utf-8")
@@ -444,6 +454,7 @@ def test_samopull_staging_allowlists_only_runtime_catalog_assets(
         "ingredients.json",
         "recipes/manifest.json",
         "recipes/smoke.json",
+        "slovak_ingredient_forms.json",
     ]
 
 

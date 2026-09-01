@@ -155,6 +155,7 @@ for required in config.py server.py deterministic_plan.py ingredient_catalog.py 
   [ -s "$DIR/app/$required" ] || rollback_off
 done
 [ -s "$DIR/app/catalog/ingredients.json" ] || rollback_off
+[ -s "$DIR/app/catalog/slovak_ingredient_forms.json" ] || rollback_off
 [ -s "$DIR/app/catalog/recipes/manifest.json" ] || rollback_off
 payments_off off || rollback_off
 (cd "$DIR" && UVARSI_RECIPE_ENGINE=off \
