@@ -325,7 +325,12 @@ def _assert_instruction_ingredients_are_declared(plan: dict, fixture: PlannerFix
             if _ingredient_is_mentioned(ingredient, folded_instructions)
         }
 
-        assert mentioned_ids == selected_ids
+        catalog_basic_ids = {
+            ingredient_id
+            for ingredient_id in template.pantry_basics
+            if ingredient_id not in PANTRY_BASIC_NAMES
+        }
+        assert mentioned_ids == selected_ids | catalog_basic_ids
         referenced_slots = _instruction_slot_keys(template)
         assert referenced_slots == {slot.key for slot in template.slots}
         for slot in template.slots:
@@ -336,9 +341,17 @@ def _assert_instruction_ingredients_are_declared(plan: dict, fixture: PlannerFix
             for row in meal["suroviny"]
             if "spajza" in row
         }
+        declared_home_names = {
+            _fold(name) for name in meal["recept"]["skontroluj_doma"]
+        }
         for basic_id, basic_name in PANTRY_BASIC_NAMES.items():
             if basic_id in template.pantry_basics:
-                assert _fold(basic_name) in declared_pantry_names
+                assert _fold(basic_name) in declared_home_names
+                assert _fold(basic_name) not in declared_pantry_names
+        for basic_id in catalog_basic_ids:
+            basic_name = catalog.by_id(basic_id).name
+            assert _fold(basic_name) in declared_home_names
+            assert _fold(basic_name) not in declared_pantry_names
 
 
 def _assert_required_ingredients_are_covered(
