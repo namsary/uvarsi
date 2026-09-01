@@ -23,6 +23,7 @@ def _candidate(
     child_factor="0.5",
     cut=None,
     name_template="Jedlo z {main.name}",
+    method="pot",
     equipment=("hrniec",),
     pantry_basics=(),
     instructions=(),
@@ -44,7 +45,7 @@ def _candidate(
         active=True,
         name_template=name_template,
         family="renderer_snapshot",
-        method="pot",
+        method=method,
         minutes=30,
         modes=frozenset({"standard"}),
         equipment=equipment,
@@ -65,6 +66,61 @@ def _candidate(
         score=Decimal("0"),
         key=f"candidate-{ingredient.id}",
     )
+
+
+def test_large_multi_day_pan_batch_uses_capacity_safe_deterministic_guidance(
+    ingredients,
+):
+    candidate = _candidate(
+        ingredients.by_id("chicken_breast"),
+        amount="180",
+        cut="na kocky",
+        name_template="Kuracie kúsky z panvice",
+        method="pan",
+        equipment=("panvica", "doska"),
+        pantry_basics=("oil", "salt", "black_pepper"),
+        instructions=(
+            "Osuš {main.amount} {main.name} papierovou utierkou.",
+            "Nakrájaj {main.amount} {main.name} {main.cut}.",
+            "Opekaj {main.amount} {main.name} v panvici na strednom ohni "
+            "8 minút, kým mäso dosiahne 74 °C.",
+            "Rozdeľ mäso na {portions} porcií a podávaj ho horúce.",
+        ),
+    )
+
+    meal = render_meal(candidate, adults=4, children=0, covered_days=3)
+
+    cooking_step = next(step for step in meal.instructions if "Každú dávku" in step)
+    assert "2,2 kg kuracích pŕs" in cooking_step
+    assert "jednej vrstve" in cooking_step
+    assert "ďalšiu panvicu" in cooking_step
+    assert "kým mäso dosiahne 74 °C" in cooking_step
+    assert "8 minút" not in cooking_step
+
+
+@pytest.mark.parametrize(
+    ("name_template", "expected"),
+    [
+        ("Jedlo s {main.name}", "Jedlo s cuketou"),
+        ("Jedlo z {main.name}", "Jedlo z cukety"),
+    ],
+)
+def test_recipe_title_uses_catalogued_slovak_prepositional_form(
+    ingredients, name_template, expected
+):
+    candidate = _candidate(
+        ingredients.by_id("zucchini"),
+        name_template=name_template,
+        instructions=ROASTED_VEGETABLE_STEPS,
+        equipment=("rúra", "plech", "doska"),
+        pantry_basics=("oil", "salt"),
+        cut="na polkolieska",
+        amount="150",
+    )
+
+    meal = render_meal(candidate, adults=4, children=0, covered_days=1)
+
+    assert meal.name == expected
 
 
 def _with_instructions(candidate, instructions):

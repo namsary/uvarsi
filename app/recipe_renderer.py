@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from decimal import Context, Decimal, ROUND_CEILING, ROUND_HALF_EVEN, ROUND_HALF_UP
 from fractions import Fraction
 from functools import lru_cache
+import json
+from pathlib import Path
 from string import Formatter
 import re
 import unicodedata
@@ -21,6 +23,10 @@ from .recipe_matcher import RecipeCandidate, SlotSelection
 
 _ONE = Decimal("1")
 _THOUSAND = Decimal("1000")
+_PAN_BATCH_LIMIT_GRAMS = Decimal("800")
+_SLOVAK_FORMS_PATH = (
+    Path(__file__).with_name("catalog") / "slovak_ingredient_forms.json"
+)
 
 
 @dataclass(frozen=True)
@@ -66,6 +72,7 @@ class RenderedMeal:
 
 @dataclass(frozen=True)
 class _SlotWording:
+    ingredient_id: str
     name: str
     amount: str
     cut: str
@@ -222,6 +229,9 @@ _HEAT = re.compile(
 )
 _TIME = re.compile(
     r"\b\d+(?:[,.]\d+)?\s*(?:sekund|sekundy|minut|minuty|hodin|hodiny)\b"
+)
+_DISPLAYED_MINUTES = re.compile(
+    r"\s+\d+(?:[,.]\d+)?\s*min[uú]t(?:y)?\b", re.IGNORECASE
 )
 _DONENESS = re.compile(
     r"(?:\bbubl\w*\b|\bdozlatista\b|\bdosklovita\b|\bzlatist\w*\b|"
@@ -420,6 +430,51 @@ def _ingredient_forms(ingredient: Ingredient) -> tuple[str, ...]:
     return tuple(sorted(forms))
 
 
+@lru_cache(maxsize=1)
+def _slovak_title_forms() -> Mapping[str, Mapping[str, str]]:
+    with _SLOVAK_FORMS_PATH.open(encoding="utf-8") as stream:
+        payload = json.load(stream)
+    if set(payload) != {"catalog_version", "ingredients"}:
+        raise ValueError("Neplatná schéma katalógu slovenských tvarov.")
+    if payload["catalog_version"] != 1 or type(payload["ingredients"]) is not dict:
+        raise ValueError("Nepodporovaná verzia katalógu slovenských tvarov.")
+
+    known_ids = {ingredient.id for ingredient in _catalog_ingredients()}
+    result: dict[str, Mapping[str, str]] = {}
+    for ingredient_id, forms in payload["ingredients"].items():
+        if ingredient_id not in known_ids or type(forms) is not dict:
+            raise ValueError("Neplatná surovina v katalógu slovenských tvarov.")
+        if set(forms) != {"genitive", "instrumental"} or any(
+            not isinstance(value, str) or not value.strip() for value in forms.values()
+        ):
+            raise ValueError(
+                f"Neplatné slovenské tvary suroviny: {ingredient_id}"
+            )
+        result[ingredient_id] = dict(forms)
+    return result
+
+
+def _prepositional_case(literal: str, current: str | None) -> str | None:
+    for word in re.findall(r"\w+", _fold(literal), re.UNICODE):
+        if word in {"s", "so"}:
+            current = "instrumental"
+        elif word in {"z", "zo"}:
+            current = "genitive"
+    return current
+
+
+def _title_name(wording: _SlotWording, grammatical_case: str | None) -> str:
+    if grammatical_case is None:
+        return wording.name
+    forms = _slovak_title_forms().get(wording.ingredient_id)
+    if forms is None or grammatical_case not in forms:
+        raise ValueError(
+            "Chýba slovenský predložkový tvar suroviny: "
+            + wording.ingredient_id
+        )
+    return forms[grammatical_case]
+
+
 def _quantity_name(rendered: RenderedIngredient) -> str:
     if rendered.quantity.unit == "piece" and rendered.quantity.amount <= _ONE:
         if rendered.ingredient.id == "egg":
@@ -438,12 +493,16 @@ def _render_template(
     portions: int,
     *,
     label: str,
+    prepositional_names: bool = False,
 ) -> str:
     chunks = []
+    grammatical_case = None
     try:
         parsed = Formatter().parse(template)
         for literal, field, format_spec, conversion in parsed:
             chunks.append(literal)
+            if prepositional_names:
+                grammatical_case = _prepositional_case(literal, grammatical_case)
             if field is None:
                 continue
             if format_spec or conversion:
@@ -457,7 +516,10 @@ def _render_template(
             wording = slots.get(parts[0])
             if wording is None:
                 raise ValueError(f"neznáma pozícia v placeholderi: {parts[0]}")
-            chunks.append(str(getattr(wording, parts[1])))
+            if parts[1] == "name" and prepositional_names:
+                chunks.append(_title_name(wording, grammatical_case))
+            else:
+                chunks.append(str(getattr(wording, parts[1])))
     except (AttributeError, KeyError, ValueError) as exc:
         raise ValueError(f"neplatný placeholder v {label}: {template}") from exc
 
@@ -555,6 +617,64 @@ def _edible_grams(rendered: RenderedIngredient) -> Decimal:
             )
         grams = _multiply_exact(quantity.amount, ingredient.density_g_per_ml)
     return _multiply_exact(grams, ingredient.edible_ratio)
+
+
+def _natural_join(values: Sequence[str]) -> str:
+    if len(values) == 1:
+        return values[0]
+    if len(values) == 2:
+        return " a ".join(values)
+    return ", ".join(values[:-1]) + " a " + values[-1]
+
+
+def _large_pan_batch_step(
+    source_template: str,
+    rendered_step: str,
+    rendered: Sequence[RenderedIngredient],
+    *,
+    method: str,
+) -> str:
+    """Replace single-pan timing with capacity-safe guidance for large batches."""
+    folded = _fold(rendered_step)
+    if method != "pan" or "opekaj" not in folded or "panvic" not in folded:
+        return rendered_step
+
+    large_items = tuple(
+        item
+        for item in rendered
+        if f"{{{item.slot.key}.amount}}" in source_template
+        and _edible_grams(item) > _PAN_BATCH_LIMIT_GRAMS
+    )
+    if not large_items:
+        return rendered_step
+
+    direct = re.compile(r"^Opekaj\s+.+?\s+v panvici\s+", re.IGNORECASE)
+    addition = re.compile(
+        r"^Pridaj\s+.+?\s+do panvice\s+a\s+opekaj\s+", re.IGNORECASE
+    )
+    if direct.match(rendered_step):
+        per_batch = direct.sub("Každú dávku opekaj v panvici ", rendered_step, count=1)
+    elif addition.match(rendered_step):
+        per_batch = addition.sub(
+            "Každú dávku opekaj v panvici ", rendered_step, count=1
+        )
+    else:
+        raise ValueError(
+            "Veľká panvicová dávka nemá podporovaný deterministický postup."
+        )
+
+    per_batch = _normalize_rendered_text(_DISPLAYED_MINUTES.sub("", per_batch))
+    amounts = _natural_join(
+        tuple(
+            f"{item.display_amount} {_quantity_name(item)}" for item in large_items
+        )
+    )
+    guidance = (
+        f"Rozdeľ {amounts} na menšie dávky tak, aby boli suroviny pri "
+        "opekaní v panvici vždy rozložené v jednej vrstve; podľa potreby "
+        "použi ďalšiu panvicu."
+    )
+    return f"{guidance} {per_batch}"
 
 
 def _pantry_names(candidate: RecipeCandidate) -> tuple[str, ...]:
@@ -837,7 +957,11 @@ def _validate_step_detail(step: str) -> None:
         raise ValueError("Tepelný krok musí uvádzať nádobu alebo pomôcku.")
     if _HEAT.search(folded) is None:
         raise ValueError("Tepelný krok musí uvádzať intenzitu ohrevu alebo teplotu.")
-    if _TIME.search(folded) is None:
+    capacity_safe_batch = all(
+        marker in folded
+        for marker in ("kazdu davku", "jednej vrstve", "dalsiu panvicu")
+    )
+    if _TIME.search(folded) is None and not capacity_safe_batch:
         raise ValueError("Tepelný krok musí uvádzať čas prípravy v minútach.")
     if _DONENESS.search(folded) is None:
         raise ValueError("Tepelný krok musí uvádzať viditeľný výsledok hotovosti.")
@@ -942,6 +1066,7 @@ def render_meal(
 
     title_slots = {
         item.slot.key: _SlotWording(
+            ingredient_id=item.ingredient.id,
             name=item.ingredient.name,
             amount=item.display_amount,
             cut=item.slot.cut or "",
@@ -950,6 +1075,7 @@ def render_meal(
     }
     instruction_slots = {
         item.slot.key: _SlotWording(
+            ingredient_id=item.ingredient.id,
             name=_quantity_name(item),
             amount=item.display_amount,
             cut=item.slot.cut or "",
@@ -961,14 +1087,20 @@ def render_meal(
         title_slots,
         portions,
         label="názve receptu",
+        prepositional_names=True,
     )
     name = name[:1].upper() + name[1:]
     instructions = tuple(
-        _render_template(
+        _large_pan_batch_step(
             instruction.text,
-            instruction_slots,
-            portions,
-            label="kroku receptu",
+            _render_template(
+                instruction.text,
+                instruction_slots,
+                portions,
+                label="kroku receptu",
+            ),
+            rendered,
+            method=candidate.template.method,
         )
         for instruction in candidate.template.instructions
     )
