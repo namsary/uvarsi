@@ -275,6 +275,20 @@ def test_regular_selection_ignores_pantry_but_personal_shopping_uses_it(
     assert [meal["recept"]["template_id"] for meal in personal["jedla"]] == [
         meal["recept"]["template_id"] for meal in shared["jedla"]
     ]
+    for personal_meal, shared_meal in zip(personal["jedla"], shared["jedla"]):
+        assert personal_meal["recept"]["skontroluj_doma"] == (
+            shared_meal["recept"]["skontroluj_doma"]
+        )
+        assert all("spajza" not in item for item in personal_meal["suroviny"])
+        assert all("spajza" not in item for item in shared_meal["suroviny"])
+        assert not any(
+            dose.endswith(" zo špajze")
+            for dose in personal_meal["recept"]["davky"]
+        )
+        assert not any(
+            dose.endswith(" zo špajze")
+            for dose in shared_meal["recept"]["davky"]
+        )
     assert personal["nakupny_zoznam"] != shared["nakupny_zoznam"]
 
 

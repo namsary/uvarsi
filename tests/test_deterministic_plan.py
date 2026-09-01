@@ -715,7 +715,12 @@ def test_meal_ingredients_preserve_established_offer_and_pantry_shapes():
         pantry_driven=True,
     )
 
-    assert pantry_plan["jedla"][0]["suroviny"][0] == {"spajza": "ryža"}
+    pantry_meal = pantry_plan["jedla"][0]
+    assert pantry_meal["suroviny"] == [{"spajza": "ryža"}]
+    assert len(pantry_meal["recept"]["davky"]) == 1
+    assert pantry_meal["recept"]["davky"][0].startswith("ryža – ")
+    assert pantry_meal["recept"]["davky"][0].endswith(" zo špajze")
+    assert pantry_meal["recept"]["skontroluj_doma"] == ["voda", "soľ"]
 
 
 def test_meal_serialization_preserves_complete_established_recipe_contract():
@@ -728,25 +733,21 @@ def test_meal_serialization_preserves_complete_established_recipe_contract():
     meal = plan["jedla"][0]
     recipe = meal["recept"]
 
-    assert meal["suroviny"] == [
-        {
-            "offer_key": "offer_rice",
-            "nazov": "Basmati ryža Golden Sun",
-            "obchod": "Lidl",
-            "jednotka": "500 g",
-            "mnozstvo": 1,
-            "davka": "340 g",
-            "cena": "1,79",
-            "povodna": "2,49",
-            "zlava": "-28 %",
-            "source_url": "https://example.test/offer_rice",
-            "source_page": 4,
-            "valid_from": WEEK,
-            "valid_to": "2026-09-06",
-        },
-        {"spajza": "voda"},
-        {"spajza": "soľ"},
-    ]
+    assert meal["suroviny"] == [{
+        "offer_key": "offer_rice",
+        "nazov": "Basmati ryža Golden Sun",
+        "obchod": "Lidl",
+        "jednotka": "500 g",
+        "mnozstvo": 1,
+        "davka": "340 g",
+        "cena": "1,79",
+        "povodna": "2,49",
+        "zlava": "-28 %",
+        "source_url": "https://example.test/offer_rice",
+        "source_page": 4,
+        "valid_from": WEEK,
+        "valid_to": "2026-09-06",
+    }]
     assert recipe.keys() >= {
         "template_id",
         "family",
@@ -766,12 +767,8 @@ def test_meal_serialization_preserves_complete_established_recipe_contract():
     }
     assert recipe["porcie"] == 6
     assert recipe["pre"] == "1 dospelý + 1 dieťa × 3 dni"
-    assert recipe["davky"] == [
-        "Basmati ryža Golden Sun – 340 g",
-        "voda zo špajze",
-        "soľ zo špajze",
-    ]
-    assert recipe["skontroluj_doma"] == ["voda"]
+    assert recipe["davky"] == ["Basmati ryža Golden Sun – 340 g"]
+    assert recipe["skontroluj_doma"] == ["voda", "soľ"]
     assert recipe["uchovanie"] == (
         "Porcie na ďalšie dni do 1 hodiny schlaď. Porciu na tretí deň "
         "hneď zamraz a po rozmrazení ju dôkladne zohrej iba raz."

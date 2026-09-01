@@ -282,6 +282,10 @@ def test_a_personal_plan_with_a_different_algorithm_version_is_invalidated(monke
     assert response.json()["vyzaduje_akciu"] is True
 
 
+def test_algorithm_version_invalidates_cached_false_staple_pantry_labels():
+    assert plan_data.PLAN_ALGO_VERSION == 21
+
+
 def test_generated_personal_plan_stores_current_metadata_but_never_exposes_it(
         monkeypatch, tmp_path):
     server = shared_plan_server(monkeypatch, tmp_path, users=(1,), pantry={1: []})

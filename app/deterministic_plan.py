@@ -828,7 +828,6 @@ def _meal_payload(
         )
         for value in rendered.ingredients
     ]
-    doses.extend(f"{name} zo špajze" for name in rendered.pantry_basics)
     allergens = sorted({
         allergen
         for value in rendered.ingredients
@@ -842,7 +841,10 @@ def _meal_payload(
         "porcie": rendered.portions,
         "pre": for_whom,
         "davky": doses,
-        "skontroluj_doma": home_ingredients_in(rendered.instructions),
+        "skontroluj_doma": list(dict.fromkeys((
+            *home_ingredients_in(rendered.instructions),
+            *rendered.pantry_basics,
+        ))),
         "dni": rendered.covered_days,
         "domacnost": {"dospeli": adults, "deti": children},
         "dospely_ekvivalent": _slovak_decimal_text(
@@ -865,7 +867,6 @@ def _meal_payload(
     ingredients = [
         _ingredient_payload(value, offer_rows) for value in rendered.ingredients
     ]
-    ingredients.extend({"spajza": name} for name in rendered.pantry_basics)
     return {
         "den": item.day,
         "nazov": rendered.name,

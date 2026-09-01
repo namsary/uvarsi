@@ -1173,8 +1173,10 @@ PLAN_VARIANT_HINTS = (
 # 18 = plán 7/4/3 môže mať dva bezpečné stručné kroky.
 # 19 = podpis rozlišuje serverom autorizovaný režim stravovania a verziu
 #      receptovej knižnice; zdieľaná cache tak nikdy nepomieša odlišné menu.
+# 21 = receptové základy (olej, soľ, voda) sú iba v `skontroluj_doma`;
+#      už sa netvária ako skutočné položky používateľovej špajze.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 20
+PLAN_ALGO_VERSION = 21
 
 
 def plan_variant_for(user_id, variants):
