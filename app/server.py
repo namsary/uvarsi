@@ -392,6 +392,14 @@ CREATE TABLE IF NOT EXISTS prepocty (
   pocet   INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (user_id, den)
 );
+-- Jedna oprava zloženia domácnosti za deň môže nahradiť už minutý plán.
+-- Riadok zostáva do konca dňa aj po vrátení kvóty, aby opakované prepínanie
+-- profilu nevyrábalo ďalšie a ďalšie bezplatné varianty.
+CREATE TABLE IF NOT EXISTS profilove_opravy (
+  user_id INTEGER NOT NULL,
+  den     TEXT NOT NULL,
+  PRIMARY KEY (user_id, den)
+);
 CREATE TABLE IF NOT EXISTS tokeny (
   token TEXT PRIMARY KEY,
   email TEXT NOT NULL,
@@ -997,6 +1005,28 @@ def vrat_prepocet(user_id, den):
             (user_id, den),
         )
         con.commit()
+
+
+def uvolni_jednu_opravu_profilu(con, user_id, den) -> bool:
+    """Vráť nanajvýš jeden už minutý plán za prvú dnešnú opravu profilu.
+
+    Volajúci musí byť v tej istej transakcii, v ktorej zneplatňuje existujúci
+    plán. `INSERT OR IGNORE` je zároveň denný zámok: ďalšia zmena v ten istý
+    deň už kvótu neuvoľní.
+    """
+    cursor = con.execute(
+        "INSERT OR IGNORE INTO profilove_opravy (user_id, den) VALUES (?, ?)",
+        (user_id, den),
+    )
+    if cursor.rowcount != 1:
+        return False
+    con.execute(
+        "UPDATE prepocty SET pocet=pocet-1 "
+        "WHERE user_id=? AND den=? AND pocet>0",
+        (user_id, den),
+    )
+    con.execute("DELETE FROM profilove_opravy WHERE den<>?", (den,))
+    return True
 
 
 def sprava_o_limite(limit: int, premium: bool, dnes=None) -> str:
@@ -2506,6 +2536,10 @@ async def uloz_profil(req: Request):
         changed = old is None or (
             old_adults, old_children, old["frekvencia"], old["obchody"], old_diet
         ) != (adults, children, frek, ",".join(obchody), new_diet)
+        had_current_plan = changed and con.execute(
+            "SELECT 1 FROM plany WHERE user_id=? AND tyzden=?",
+            (u["id"], monday()),
+        ).fetchone() is not None
         con.execute(
             "UPDATE pouzivatelia SET osoby=?,dospeli=?,deti=?,frekvencia=?,"
             "obchody=?,stravovanie=?,onboarding=1"
@@ -2514,6 +2548,8 @@ async def uloz_profil(req: Request):
         )
         if changed:
             con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], monday()))
+            if had_current_plan:
+                uvolni_jednu_opravu_profilu(con, u["id"], dnesok())
         con.commit()
     # Až po commite, na vlastnom spojení: hotový plán pre nový profil sa
     # prevezme hneď, takže na obrazovke s jedálničkom sa už nečaká. Zlyhanie

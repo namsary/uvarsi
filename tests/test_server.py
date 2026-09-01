@@ -796,6 +796,130 @@ def test_household_composition_change_invalidates_plan_even_when_total_is_same(m
     assert [row[0] for row in rows] == [2]
 
 
+def test_first_daily_profile_correction_refunds_one_used_plan_slot(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [])
+    week = current_monday()
+    day = server.dnesok()
+    with server.db() as con:
+        con.execute(
+            "INSERT INTO pouzivatelia "
+            "(id, email, osoby, dospeli, deti, frekvencia, obchody) "
+            "VALUES (1, 'family@uvar.si', 4, 4, 0, 2, 'Lidl')"
+        )
+        insert_hashed_session(server, con, "family-session", 1)
+        con.execute(
+            "INSERT INTO plany (user_id, tyzden, json) VALUES (1, ?, '{}')",
+            (week,),
+        )
+        con.execute(
+            "INSERT INTO prepocty (user_id, den, pocet) VALUES (1, ?, ?)",
+            (day, server.LIMIT_PREPOCTOV_ZDARMA),
+        )
+        con.commit()
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "family-session")
+
+    response = client.post("/api/profil", json={
+        "adults": 2, "children": 2, "frekvencia": 2, "obchody": ["Lidl"],
+    })
+
+    assert response.status_code == 200
+    with server.db() as con:
+        used = con.execute(
+            "SELECT pocet FROM prepocty WHERE user_id=1 AND den=?", (day,)
+        ).fetchone()[0]
+        correction = con.execute(
+            "SELECT 1 FROM profilove_opravy WHERE user_id=1 AND den=?", (day,)
+        ).fetchone()
+    assert used == server.LIMIT_PREPOCTOV_ZDARMA - 1
+    assert correction is not None
+    assert client.get("/api/me").json()["zostava_prepoctov"] == 1
+
+
+def test_profile_correction_refund_is_granted_at_most_once_per_day(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [])
+    week = current_monday()
+    day = server.dnesok()
+    with server.db() as con:
+        con.execute(
+            "INSERT INTO pouzivatelia "
+            "(id, email, osoby, dospeli, deti, frekvencia, obchody) "
+            "VALUES (1, 'family@uvar.si', 4, 4, 0, 2, 'Lidl')"
+        )
+        insert_hashed_session(server, con, "family-session", 1)
+        con.execute(
+            "INSERT INTO plany (user_id, tyzden, json) VALUES (1, ?, '{}')",
+            (week,),
+        )
+        con.execute(
+            "INSERT INTO prepocty (user_id, den, pocet) VALUES (1, ?, 1)",
+            (day,),
+        )
+        con.commit()
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "family-session")
+
+    assert client.post("/api/profil", json={
+        "adults": 2, "children": 2, "frekvencia": 2, "obchody": ["Lidl"],
+    }).status_code == 200
+    with server.db() as con:
+        con.execute(
+            "INSERT INTO plany (user_id, tyzden, json) VALUES (1, ?, '{}')",
+            (week,),
+        )
+        con.execute(
+            "UPDATE prepocty SET pocet=1 WHERE user_id=1 AND den=?", (day,)
+        )
+        con.commit()
+
+    assert client.post("/api/profil", json={
+        "adults": 3, "children": 1, "frekvencia": 2, "obchody": ["Lidl"],
+    }).status_code == 200
+
+    with server.db() as con:
+        used = con.execute(
+            "SELECT pocet FROM prepocty WHERE user_id=1 AND den=?", (day,)
+        ).fetchone()[0]
+        corrections = con.execute(
+            "SELECT COUNT(*) FROM profilove_opravy WHERE user_id=1 AND den=?", (day,)
+        ).fetchone()[0]
+    assert used == 1, "a second settings change must not mint another plan"
+    assert corrections == 1
+
+
+def test_profile_change_without_an_existing_plan_never_refunds_quota(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [])
+    day = server.dnesok()
+    with server.db() as con:
+        con.execute(
+            "INSERT INTO pouzivatelia "
+            "(id, email, osoby, dospeli, deti, frekvencia, obchody) "
+            "VALUES (1, 'family@uvar.si', 4, 4, 0, 2, 'Lidl')"
+        )
+        insert_hashed_session(server, con, "family-session", 1)
+        con.execute(
+            "INSERT INTO prepocty (user_id, den, pocet) VALUES (1, ?, 1)",
+            (day,),
+        )
+        con.commit()
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "family-session")
+
+    assert client.post("/api/profil", json={
+        "adults": 2, "children": 2, "frekvencia": 2, "obchody": ["Lidl"],
+    }).status_code == 200
+
+    with server.db() as con:
+        used = con.execute(
+            "SELECT pocet FROM prepocty WHERE user_id=1 AND den=?", (day,)
+        ).fetchone()[0]
+        corrections = con.execute(
+            "SELECT COUNT(*) FROM profilove_opravy WHERE user_id=1 AND den=?", (day,)
+        ).fetchone()[0]
+    assert used == 1
+    assert corrections == 0
+
+
 def test_profile_api_persists_adults_children_and_total_compatibility(monkeypatch, tmp_path):
     server = load_server(monkeypatch, tmp_path, [])
     with server.db() as con:
