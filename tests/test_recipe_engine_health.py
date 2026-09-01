@@ -12,6 +12,7 @@ import sqlite3
 import sys
 import types
 
+import pytest
 from fastapi.testclient import TestClient
 
 from tests.test_recipe_engine_shadow import _offer_rows
@@ -411,11 +412,18 @@ def test_server_cli_runs_only_the_local_smoke_contract(monkeypatch, tmp_path, ca
     assert "@" not in output and "token" not in output.casefold()
 
 
+@pytest.mark.parametrize(
+    ("filename", "title"),
+    [
+        ("recipe-engine-preflight-smoke.json", "Uvar.si preflight detail"),
+        ("recipe_engine_smoke.json", "Uvar.si rollout smoke detail"),
+    ],
+)
 def test_failed_preflight_cli_sends_only_aggregate_diagnostics(
-    monkeypatch, tmp_path, capsys
+    monkeypatch, tmp_path, capsys, filename, title
 ):
     server, _state = _load(monkeypatch, tmp_path)
-    target = tmp_path / "recipe-engine-preflight-smoke.json"
+    target = tmp_path / filename
     sent = []
     monkeypatch.setattr(
         server,
@@ -456,7 +464,7 @@ def test_failed_preflight_cli_sends_only_aggregate_diagnostics(
     assert "@" not in body
     assert "token" not in body.casefold()
     assert "recipe" not in body.casefold()
-    assert "Uvar.si preflight detail" == request.headers["Title"]
+    assert title == request.headers["Title"]
     assert "too_slow" in capsys.readouterr().out
 
 
