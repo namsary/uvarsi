@@ -19,6 +19,47 @@ UVARSI_URL="${UVARSI_URL:-https://uvar.si}"
 export UVARSI_URL
 
 log(){ echo "[$(date '+%F %T')] RECIPE-ROLLOUT: $*"; }
+smoke_detail(){
+  [ -s "$SMOKE_STATE" ] || return 0
+  "$HEALTH_PY" -c '
+import json, math, re, sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    payload = json.load(
+        handle,
+        parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)),
+    )
+if not isinstance(payload, dict):
+    raise SystemExit(0)
+
+safe = {}
+blockers = payload.get("blockers")
+if isinstance(blockers, list):
+    safe["blockers"] = [
+        value
+        for value in blockers[:8]
+        if isinstance(value, str)
+        and re.fullmatch(r"[a-z0-9_:-]{1,64}", value)
+    ]
+for key in ("latency_ms", "jobs_delta", "ai_costs_delta"):
+    value = payload.get(key)
+    if (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    ):
+        safe[key] = value
+for key, allowed in {
+    "engine_mode": {"off", "shadow", "on"},
+    "plan_engine": {"deterministic", "legacy"},
+}.items():
+    value = payload.get(key)
+    if value in allowed:
+        safe[key] = value
+if safe:
+    print(json.dumps(safe, ensure_ascii=True, separators=(",", ":")))
+' "$SMOKE_STATE" 2>/dev/null
+}
 notify_failure(){
   STATUS="$1"
   GATE="${2:-unknown}"
@@ -30,6 +71,10 @@ notify_failure(){
     BODY="Rollback complete: recipe engine is off and both Uvar.si services are active. gate=$GATE"
   else
     BODY="Rollback incomplete: recipe-engine flag or Uvar.si service recovery failed. gate=$GATE"
+  fi
+  if [ "$GATE" = "on_smoke" ]; then
+    DETAIL=$(smoke_detail || true)
+    [ -z "$DETAIL" ] || BODY="$BODY detail=$DETAIL"
   fi
   "$CURL" -sS --max-time 15 -H "Title: Uvar.si: receptový rollout zlyhal" \
     -d "$BODY" "$NOTIFY_URL" \
@@ -203,6 +248,7 @@ set_mode on || rollback_off
 restart_uvarsi || rollback_off
 payments_off on || rollback_off
 ROLLOUT_GATE=on_smoke
+rm -f "$SMOKE_STATE" || rollback_off
 (cd "$DIR/app" && UVARSI_RECIPE_ENGINE=on UVARSI_RECIPE_SMOKE_STATE="$SMOKE_STATE" \
   "$PY" -m server --recipe-engine-smoke --state "$SMOKE_STATE" >/dev/null) || rollback_off
 ROLLOUT_GATE=on_health

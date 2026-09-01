@@ -67,7 +67,10 @@ def rollout(tmp_path):
         "case \"$*\" in\n"
         "  *app.library_gate*) [ ! -f \"$UVARSI_TEST_STATE/fail-library\" ] ;;\n"
         "  *run_recipe_engine_shadow*) [ ! -f \"$UVARSI_TEST_STATE/fail-shadow\" ] ;;\n"
-        "  *--recipe-engine-smoke*) [ ! -f \"$UVARSI_TEST_STATE/fail-smoke\" ] ;;\n"
+        "  *--recipe-engine-smoke*)\n"
+        "    [ ! -f \"$UVARSI_TEST_STATE/smoke-output.json\" ] || "
+        "/usr/bin/cp \"$UVARSI_TEST_STATE/smoke-output.json\" \"$UVARSI_RECIPE_SMOKE_STATE\"\n"
+        "    [ ! -f \"$UVARSI_TEST_STATE/fail-smoke\" ] ;;\n"
         "  *platby_su_zapnute*)\n"
         "    [ \"${UVARSI_URL:-}\" = 'https://uvar.si' ] || exit 66\n"
         "    [ ! -f \"$UVARSI_TEST_STATE/payments-on\" ] || exit 1\n"
@@ -227,6 +230,49 @@ def test_any_gate_failure_rolls_back_to_off_and_emits_exactly_one_alert(
     assert len(alerts) == 1
     assert "rollback complete" in alerts[0].casefold()
     assert f"gate={gate}" in alerts[0]
+
+
+def test_on_smoke_failure_appends_only_safe_aggregate_diagnostics(rollout):
+    rollout["state"].joinpath("fail-smoke").write_text("1", encoding="ascii")
+    rollout["state"].joinpath("smoke-output.json").write_text(
+        json.dumps(
+            {
+                "ok": False,
+                "blockers": ["too_slow"],
+                "latency_ms": 6_250.0,
+                "engine_mode": "on",
+                "plan_engine": "deterministic",
+                "jobs_delta": 0,
+                "ai_costs_delta": 0,
+                "email": "secret@example.test",
+                "recipe": "private recipe text",
+                "token": "private-token",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_controller(rollout)
+
+    assert result.returncode != 0
+    alerts = rollout["alerts"].read_text(encoding="utf-8").splitlines()
+    assert len(alerts) == 1
+    alert = alerts[0]
+    assert "gate=on_smoke" in alert
+    assert "detail=" in alert
+    for expected in (
+        "too_slow",
+        "latency_ms",
+        "6250.0",
+        "engine_mode",
+        "deterministic",
+        "jobs_delta",
+        "ai_costs_delta",
+    ):
+        assert expected in alert
+    assert "secret@example.test" not in alert
+    assert "private recipe text" not in alert
+    assert "private-token" not in alert
 
 
 @pytest.mark.parametrize(

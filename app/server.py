@@ -4034,13 +4034,8 @@ def _write_smoke_state(path, payload):
 
 
 def _notify_preflight_smoke_failure(path, payload):
-    """Best-effort aggregate diagnosis for preflight and live rollout smoke."""
-    titles = {
-        "recipe-engine-preflight-smoke.json": "Uvar.si preflight detail",
-        "recipe_engine_smoke.json": "Uvar.si rollout smoke detail",
-    }
-    title = titles.get(Path(path).name)
-    if title is None:
+    """Best-effort aggregate diagnosis for a candidate that cannot deploy."""
+    if Path(path).name != "recipe-engine-preflight-smoke.json":
         return
     safe = {
         "blockers": payload.get("blockers", []),
@@ -4055,7 +4050,7 @@ def _notify_preflight_smoke_failure(path, payload):
         RECIPE_SMOKE_ALERT_URL,
         data=body,
         method="POST",
-        headers={"Title": title},
+        headers={"Title": "Uvar.si preflight detail"},
     )
     try:
         with urlopen(request, timeout=3):
