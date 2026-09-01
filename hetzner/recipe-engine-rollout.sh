@@ -9,6 +9,7 @@ CURL="${UVARSI_CURL:-curl}"
 SYSTEMCTL="${UVARSI_SYSTEMCTL:-systemctl}"
 MV="${UVARSI_MV:-mv}"
 TARGET="${UVARSI_RECIPE_TARGET:-$DIR/recipe-engine.target}"
+TARGET_READER="${UVARSI_RECIPE_TARGET_READER:-cat}"
 FLAG="${UVARSI_RECIPE_FLAG_FILE:-$DIR/uvarsi-recipe-engine.env}"
 HEALTH_URL="${UVARSI_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
 LOCK="${UVARSI_RECIPE_ROLLOUT_LOCK:-/var/lock/uvarsi-recipe-rollout.lock}"
@@ -90,8 +91,8 @@ if expected == "shadow":
         return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
     success_rate = shadow.get("success_rate")
     p95_ms = shadow.get("p95_ms")
-    if not finite_number(success_rate) or success_rate < 0.98: raise SystemExit(2)
-    if not finite_number(p95_ms) or p95_ms >= 500: raise SystemExit(2)
+    if not finite_number(success_rate) or not (0.0 <= success_rate <= 1.0) or success_rate < 0.98: raise SystemExit(2)
+    if not finite_number(p95_ms) or not (0.0 <= p95_ms < 500): raise SystemExit(2)
     for key in ("dietary_violations","negative_quantities","invalid_package_counts"):
         value = shadow.get(key)
         if not finite_number(value) or value != 0: raise SystemExit(2)
@@ -99,9 +100,31 @@ if expected == "shadow":
 }
 
 payments_off() {
-  (cd "$DIR/app" && UVARSI_RECIPE_ENGINE="${1:-off}" \
-    PLATBY_ZAPNUTE=0 UVARSI_PAYMENTS_ENABLED=0 "$PY" -c \
-    'import server; raise SystemExit(1 if server.platby_su_zapnute() else 0)')
+  (cd "$DIR/app" && UVARSI_RECIPE_ENGINE="${1:-off}" "$PY" -c '
+import server
+enabled = server.platby_su_zapnute() or server.platby_zapnute(server.env("UVARSI_PAYMENTS_ENABLED"))
+raise SystemExit(1 if enabled else 0)
+')
+}
+
+read_activation_target() {
+  TARGET_COPY=$(mktemp "${FLAG}.target-read.XXXXXX") || return 1
+  umask 077
+  if ! "$TARGET_READER" "$TARGET" > "$TARGET_COPY"; then
+    rm -f "$TARGET_COPY"
+    return 1
+  fi
+
+  TARGET_VALID=1
+  {
+    IFS= read -r TARGET_VALUE || TARGET_VALID=0
+    TARGET_VALUE=${TARGET_VALUE%$'\r'}
+    [ "$TARGET_VALUE" = "on" ] || TARGET_VALID=0
+    TARGET_EXTRA=
+    if IFS= read -r TARGET_EXTRA || [ -n "$TARGET_EXTRA" ]; then TARGET_VALID=0; fi
+  } < "$TARGET_COPY"
+  rm -f "$TARGET_COPY" || return 1
+  [ "$TARGET_VALID" -eq 1 ]
 }
 
 rollback_off() {
@@ -120,13 +143,7 @@ rollback_off() {
 }
 
 [ -f "$TARGET" ] || { log "bez aktivačného cieľa — končím"; exit 0; }
-{
-  IFS= read -r TARGET_VALUE || rollback_off
-  TARGET_VALUE=${TARGET_VALUE%$'\r'}
-  [ "$TARGET_VALUE" = "on" ] || rollback_off
-  TARGET_EXTRA=
-  if IFS= read -r TARGET_EXTRA || [ -n "$TARGET_EXTRA" ]; then rollback_off; fi
-} < "$TARGET"
+read_activation_target || rollback_off
 
 [ -d "$DIR/app" ] && [ -s "$DIR/VERSION" ] || rollback_off
 for required in config.py server.py deterministic_plan.py ingredient_catalog.py \
@@ -136,8 +153,8 @@ done
 [ -s "$DIR/app/catalog/ingredients.json" ] || rollback_off
 [ -s "$DIR/app/catalog/recipes/manifest.json" ] || rollback_off
 payments_off off || rollback_off
-(cd "$DIR" && UVARSI_RECIPE_ENGINE=off PLATBY_ZAPNUTE=0 \
-  UVARSI_PAYMENTS_ENABLED=0 "$PY" -m app.library_gate >/dev/null) || rollback_off
+(cd "$DIR" && UVARSI_RECIPE_ENGINE=off \
+  "$PY" -m app.library_gate >/dev/null) || rollback_off
 
 MODE=$(current_mode)
 [ "$MODE" != "invalid" ] || rollback_off
@@ -146,22 +163,22 @@ if [ "$MODE" = "on" ]; then
   rollback_off
 fi
 
+payments_off shadow || rollback_off
 set_mode shadow || rollback_off
 restart_uvarsi || rollback_off
 payments_off shadow || rollback_off
-(cd "$DIR/app" && UVARSI_RECIPE_ENGINE=shadow PLATBY_ZAPNUTE=0 \
-  UVARSI_PAYMENTS_ENABLED=0 "$PY" -c '
+(cd "$DIR/app" && UVARSI_RECIPE_ENGINE=shadow "$PY" -c '
 import predpocet, server
 result = predpocet.run_recipe_engine_shadow(server=server)
 raise SystemExit(0 if result.get("complete") else 1)
 ') || rollback_off
 health_gate shadow || rollback_off
 
+payments_off on || rollback_off
 set_mode on || rollback_off
 restart_uvarsi || rollback_off
 payments_off on || rollback_off
-(cd "$DIR/app" && UVARSI_RECIPE_ENGINE=on PLATBY_ZAPNUTE=0 \
-  UVARSI_PAYMENTS_ENABLED=0 UVARSI_RECIPE_SMOKE_STATE="$SMOKE_STATE" \
+(cd "$DIR/app" && UVARSI_RECIPE_ENGINE=on UVARSI_RECIPE_SMOKE_STATE="$SMOKE_STATE" \
   "$PY" -m server --recipe-engine-smoke --state "$SMOKE_STATE" >/dev/null) || rollback_off
 health_gate on || rollback_off
 

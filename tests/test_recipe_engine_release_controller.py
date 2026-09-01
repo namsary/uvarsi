@@ -61,15 +61,15 @@ def rollout(tmp_path):
         fake_python,
         "#!/bin/sh\n"
         "printf 'python %s\\n' \"$*\" >> \"$UVARSI_TEST_CALLS\"\n"
-        "if [ -f \"$UVARSI_TEST_STATE/require-payments-off-env\" ]; then\n"
-        "  [ \"${PLATBY_ZAPNUTE:-missing}\" = 0 ] || exit 91\n"
-        "  [ \"${UVARSI_PAYMENTS_ENABLED:-missing}\" = 0 ] || exit 92\n"
-        "fi\n"
         "case \"$*\" in\n"
         "  *app.library_gate*) [ ! -f \"$UVARSI_TEST_STATE/fail-library\" ] ;;\n"
         "  *run_recipe_engine_shadow*) [ ! -f \"$UVARSI_TEST_STATE/fail-shadow\" ] ;;\n"
         "  *--recipe-engine-smoke*) [ ! -f \"$UVARSI_TEST_STATE/fail-smoke\" ] ;;\n"
-        "  *platby_su_zapnute*) [ ! -f \"$UVARSI_TEST_STATE/payments-on\" ] ;;\n"
+        "  *platby_su_zapnute*)\n"
+        "    [ ! -f \"$UVARSI_TEST_STATE/payments-on\" ] || exit 1\n"
+        "    case \"${PLATBY_ZAPNUTE:-}\" in 1|true|TRUE|ano|áno|yes|on) exit 1 ;; esac\n"
+        "    case \"${UVARSI_PAYMENTS_ENABLED:-}\" in 1|true|TRUE|ano|áno|yes|on) exit 1 ;; esac\n"
+        "    exit 0 ;;\n"
         "  *) exit 0 ;;\n"
         "esac\n",
     )
@@ -266,6 +266,27 @@ def test_missing_target_is_no_activation_without_mutation_or_alert(rollout):
     assert not rollout["alerts"].exists()
 
 
+def test_target_open_failure_after_existence_check_rolls_back_and_alerts_once(rollout):
+    rollout["flag"].write_text(
+        "UVARSI_RECIPE_ENGINE=shadow\n", encoding="utf-8", newline="\n"
+    )
+    failing_reader = rollout["state"] / "target-reader"
+    executable(
+        failing_reader,
+        "#!/bin/sh\n"
+        "/usr/bin/rm -f \"$1\"\n"
+        "/usr/bin/cat \"$1\"\n",
+    )
+    rollout["env"]["UVARSI_RECIPE_TARGET_READER"] = bash_path(failing_reader)
+
+    result = run_controller(rollout)
+
+    assert result.returncode != 0
+    assert not rollout["target"].exists()
+    assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=off\n"
+    assert len(rollout["alerts"].read_text(encoding="utf-8").splitlines()) == 1
+
+
 @pytest.mark.parametrize(
     ("field", "invalid"),
     [
@@ -273,10 +294,12 @@ def test_missing_target_is_no_activation_without_mutation_or_alert(rollout):
         ("success_rate", True),
         ("success_rate", float("nan")),
         ("success_rate", float("inf")),
+        ("success_rate", 2.0),
         ("p95_ms", "120"),
         ("p95_ms", True),
         ("p95_ms", float("nan")),
         ("p95_ms", float("-inf")),
+        ("p95_ms", -1),
         ("dietary_violations", False),
         ("negative_quantities", "0"),
         ("invalid_package_counts", float("nan")),
@@ -314,18 +337,21 @@ def test_shadow_health_rejects_non_numeric_or_non_finite_metrics(
     assert len(rollout["alerts"].read_text(encoding="utf-8").splitlines()) == 1
 
 
-def test_every_python_gate_forces_both_payment_flags_false(rollout):
-    rollout["state"].joinpath("require-payments-off-env").write_text(
-        "1", encoding="ascii"
-    )
-    rollout["env"].update(
-        {"PLATBY_ZAPNUTE": "1", "UVARSI_PAYMENTS_ENABLED": "true"}
-    )
+@pytest.mark.parametrize(
+    ("payment_flag", "enabled_value"),
+    [("PLATBY_ZAPNUTE", "1"), ("UVARSI_PAYMENTS_ENABLED", "true")],
+)
+def test_live_enabled_payment_flag_fails_closed_without_masking(
+    rollout, payment_flag, enabled_value
+):
+    rollout["env"][payment_flag] = enabled_value
 
     result = run_controller(rollout)
 
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=on\n"
+    assert result.returncode != 0
+    assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=off\n"
+    assert len(rollout["alerts"].read_text(encoding="utf-8").splitlines()) == 1
+    assert "run_recipe_engine_shadow" not in rollout["calls"].read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(
