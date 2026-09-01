@@ -17,6 +17,7 @@ from decimal import Decimal
 from pathlib import Path
 import sys
 from urllib.parse import urlsplit
+from urllib.request import Request as UrlRequest, urlopen
 
 import anyio.to_thread
 from fastapi import FastAPI, Request, HTTPException
@@ -187,6 +188,10 @@ COMMUNITY_VISIBILITY_THRESHOLD = 10
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 RECIPE_SMOKE_STATE = os.environ.get(
     "UVARSI_RECIPE_SMOKE_STATE", "/var/lib/uvarsi/recipe_engine_smoke.json"
+)
+RECIPE_SMOKE_ALERT_URL = os.environ.get(
+    "UVARSI_RECIPE_SMOKE_ALERT_URL",
+    "https://ntfy.sh/uvarsi-jarvis-8f3a2c",
 )
 RECIPE_SMOKE_MAX_AGE_SECONDS = 2 * 60 * 60
 # Syntetický smoke zahŕňa prípravu izolovanej DB, autentizáciu a dva celé
@@ -4028,6 +4033,32 @@ def _write_smoke_state(path, payload):
             pass
 
 
+def _notify_preflight_smoke_failure(path, payload):
+    """Best-effort aggregate diagnosis for a candidate that cannot deploy."""
+    if Path(path).name != "recipe-engine-preflight-smoke.json":
+        return
+    safe = {
+        "blockers": payload.get("blockers", []),
+        "latency_ms": payload.get("latency_ms"),
+        "engine_mode": payload.get("engine_mode"),
+        "plan_engine": payload.get("plan_engine"),
+        "jobs_delta": payload.get("jobs_delta"),
+        "ai_costs_delta": payload.get("ai_costs_delta"),
+    }
+    body = json.dumps(safe, ensure_ascii=True, separators=(",", ":")).encode()
+    request = UrlRequest(
+        RECIPE_SMOKE_ALERT_URL,
+        data=body,
+        method="POST",
+        headers={"Title": "Uvar.si preflight detail"},
+    )
+    try:
+        with urlopen(request, timeout=3):
+            pass
+    except (OSError, ValueError):
+        pass
+
+
 def _authenticated_isolated_recipe_smoke(rows, *, now):
     """Exercise the real authenticated plan route without touching live data."""
     global DB
@@ -4542,6 +4573,8 @@ def main(argv=None):
     if not args.recipe_engine_smoke:
         parser.error("chýba --recipe-engine-smoke")
     payload = run_recipe_engine_synthetic_smoke(state_path=args.state)
+    if not payload["ok"]:
+        _notify_preflight_smoke_failure(args.state, payload)
     print(json.dumps(payload, ensure_ascii=True, separators=(",", ":")))
     return 0 if payload["ok"] else 1
 

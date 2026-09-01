@@ -409,3 +409,52 @@ def test_server_cli_runs_only_the_local_smoke_contract(monkeypatch, tmp_path, ca
     output = capsys.readouterr().out
     assert '"ok":true' in output
     assert "@" not in output and "token" not in output.casefold()
+
+
+def test_failed_preflight_cli_sends_only_aggregate_diagnostics(
+    monkeypatch, tmp_path, capsys
+):
+    server, _state = _load(monkeypatch, tmp_path)
+    target = tmp_path / "recipe-engine-preflight-smoke.json"
+    sent = []
+    monkeypatch.setattr(
+        server,
+        "run_recipe_engine_synthetic_smoke",
+        lambda *, state_path: {
+            "ok": False,
+            "blockers": ["too_slow"],
+            "latency_ms": 6_250.0,
+            "engine_mode": "on",
+            "plan_engine": "deterministic",
+            "jobs_delta": 0,
+            "ai_costs_delta": 0,
+        },
+    )
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    def capture(request, timeout):
+        sent.append((request, timeout))
+        return Response()
+
+    monkeypatch.setattr(server, "urlopen", capture)
+
+    code = server.main(["--recipe-engine-smoke", "--state", str(target)])
+
+    assert code == 1
+    assert len(sent) == 1
+    request, timeout = sent[0]
+    body = request.data.decode("ascii")
+    assert timeout == 3
+    assert '"blockers":["too_slow"]' in body
+    assert '"latency_ms":6250.0' in body
+    assert "@" not in body
+    assert "token" not in body.casefold()
+    assert "recipe" not in body.casefold()
+    assert "Uvar.si preflight detail" == request.headers["Title"]
+    assert "too_slow" in capsys.readouterr().out
