@@ -11,6 +11,9 @@ from test_server import insert_hashed_session, load_server
 ROOT = Path(__file__).resolve().parents[1]
 SAMOPULL = (ROOT / "hetzner" / "samopull.sh").read_text(encoding="utf-8")
 NASAD = (ROOT / "nasad.ps1").read_text(encoding="utf-8")
+DEPLOY_STATE = (ROOT / "hetzner" / "uvarsi-deploy-state.sh").read_text(
+    encoding="utf-8"
+)
 
 
 def queue_request():
@@ -98,3 +101,11 @@ def test_manual_deploy_checks_heartbeat_and_restores_prior_app_and_unit():
     assert "uvarsi_wait_fresh_heartbeat" in NASAD
     assert "$script:LiveMutationStarted" in NASAD
     assert NASAD.count("VratPredosleUvarsi") >= 2
+
+
+def test_live_app_switch_uses_linux_atomic_directory_exchange():
+    """A request must never observe /opt/uvarsi/app missing or half-copied."""
+    assert 'rm -rf "$UVARSI_DIR/app"' not in DEPLOY_STATE
+    assert "renameat2" in DEPLOY_STATE
+    assert "RENAME_EXCHANGE" in DEPLOY_STATE
+    assert '_uvarsi_exchange_directories "$UVARSI_DIR/app" "$staged"' in DEPLOY_STATE

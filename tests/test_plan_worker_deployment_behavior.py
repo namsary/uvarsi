@@ -161,6 +161,18 @@ def deployment(tmp_path):
         "esac\n"
         "exec /usr/bin/mv \"$@\"\n",
     )
+    exchange = tmp_path / "atomic-exchange"
+    write_executable(
+        exchange,
+        "#!/bin/sh\n"
+        "first=$1\n"
+        "second=$2\n"
+        "temporary=\"${first}.test-exchange.$$\"\n"
+        "/usr/bin/mv \"$first\" \"$temporary\" || exit 1\n"
+        "/usr/bin/mv \"$second\" \"$first\" || { "
+        "/usr/bin/mv \"$temporary\" \"$first\"; exit 1; }\n"
+        "/usr/bin/mv \"$temporary\" \"$second\"\n",
+    )
     env = os.environ | {
         "UVARSI_DIR": bash_path(live),
         "UVARSI_SYSTEMD_DIR": bash_path(systemd),
@@ -172,6 +184,7 @@ def deployment(tmp_path):
         "UVARSI_SLEEP": bash_path(sleep),
         "UVARSI_CP": bash_path(cp),
         "UVARSI_MV": bash_path(mv),
+        "UVARSI_ATOMIC_EXCHANGE": bash_path(exchange),
         "UVARSI_FAKE_STATE": bash_path(state),
         "UVARSI_HEARTBEAT_ATTEMPTS": "1",
         "UVARSI_TEST_SNAPSHOT": "snapshot",

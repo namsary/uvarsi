@@ -10,12 +10,39 @@ UVARSI_HEALTH_PY="${UVARSI_HEALTH_PY:-$UVARSI_DIR/venv/bin/python}"
 UVARSI_SLEEP="${UVARSI_SLEEP:-sleep}"
 UVARSI_CP="${UVARSI_CP:-cp}"
 UVARSI_MV="${UVARSI_MV:-mv}"
+UVARSI_ATOMIC_EXCHANGE="${UVARSI_ATOMIC_EXCHANGE:-}"
 UVARSI_HEARTBEAT_ATTEMPTS="${UVARSI_HEARTBEAT_ATTEMPTS:-30}"
 UVARSI_HEALTH_URL="${UVARSI_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
 UVARSI_DB="${UVARSI_DB:-$UVARSI_DIR/uvarsi.db}"
 UVARSI_WEB_DIR="${UVARSI_WEB_DIR:-/var/www/uvarsi}"
 UVARSI_WORKER_UNIT="$UVARSI_SYSTEMD_DIR/uvarsi-plan-worker.service"
 UVARSI_APP_UNIT="$UVARSI_SYSTEMD_DIR/uvarsi.service"
+
+_uvarsi_exchange_directories() {
+  first=$1
+  second=$2
+  if [ -n "$UVARSI_ATOMIC_EXCHANGE" ]; then
+    "$UVARSI_ATOMIC_EXCHANGE" "$first" "$second"
+    return
+  fi
+  "$UVARSI_HEALTH_PY" -c '
+import ctypes, os, sys
+first, second = map(os.fsencode, sys.argv[1:3])
+libc = ctypes.CDLL(None, use_errno=True)
+renameat2 = getattr(libc, "renameat2", None)
+if renameat2 is None:
+    raise RuntimeError("renameat2 is unavailable")
+renameat2.argtypes = (
+    ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint,
+)
+renameat2.restype = ctypes.c_int
+AT_FDCWD = -100
+RENAME_EXCHANGE = 2
+if renameat2(AT_FDCWD, first, AT_FDCWD, second, RENAME_EXCHANGE) != 0:
+    error = ctypes.get_errno()
+    raise OSError(error, os.strerror(error))
+' "$first" "$second"
+}
 
 _uvarsi_snapshot_file() {
   source_path=$1
@@ -375,8 +402,26 @@ _uvarsi_apply_core() {
   [ -f "$release/VERSION" ] || return 1
   [ -f "$release/hetzner/uvarsi-plan-worker.service" ] || return 1
   [ -f "$release/hetzner/uvarsi.service" ] || return 1
-  rm -rf "$UVARSI_DIR/app" || return 1
-  "$UVARSI_CP" -a "$release/app" "$UVARSI_DIR/app" || return 1
+  staged="$UVARSI_DIR/.app-install-staged.$$"
+  rm -rf "$staged" || return 1
+  "$UVARSI_CP" -a "$release/app" "$staged" || {
+    rm -rf "$staged"
+    return 1
+  }
+  [ -d "$staged" ] || { rm -rf "$staged"; return 1; }
+  if [ -e "$UVARSI_DIR/app" ]; then
+    _uvarsi_exchange_directories "$UVARSI_DIR/app" "$staged" || {
+      rm -rf "$staged"
+      return 1
+    }
+    [ -d "$UVARSI_DIR/app" ] || {
+      _uvarsi_exchange_directories "$UVARSI_DIR/app" "$staged" || true
+      return 1
+    }
+    rm -rf "$staged" || return 1
+  else
+    "$UVARSI_MV" "$staged" "$UVARSI_DIR/app" || return 1
+  fi
   "$UVARSI_CP" -a "$release/VERSION" "$UVARSI_DIR/VERSION" || return 1
   "$UVARSI_CP" -a "$release/hetzner/uvarsi-plan-worker.service" "$UVARSI_WORKER_UNIT" || return 1
   "$UVARSI_CP" -a "$release/hetzner/uvarsi.service" "$UVARSI_APP_UNIT" || return 1
