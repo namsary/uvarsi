@@ -186,6 +186,15 @@ def test_both_release_paths_stage_the_autonomous_recipe_controller_after_health(
     assert "if [ ! -f /opt/uvarsi/uvarsi-recipe-engine.env ]" in manual
 
 
+def test_samopull_passes_its_notify_topic_to_recipe_rollout():
+    source = SAMOPULL.read_text(encoding="utf-8")
+
+    assert (
+        'UVARSI_NOTIFY_URL="https://ntfy.sh/$NTFY" '
+        'nohup "$DIR/recipe-engine-rollout.sh"'
+    ) in source
+
+
 def test_samopull_preflight_rejects_missing_or_empty_root_assets():
     script = SAMOPULL.read_text(encoding="utf-8")
     preflight = script.split("# --- 2. overenie PRED prepnutím ---", 1)[1].split(

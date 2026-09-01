@@ -21,14 +21,15 @@ export UVARSI_URL
 log(){ echo "[$(date '+%F %T')] RECIPE-ROLLOUT: $*"; }
 notify_failure(){
   STATUS="$1"
+  GATE="${2:-unknown}"
   if [ -z "$NOTIFY_URL" ]; then
     log "notifikačný kanál nie je nakonfigurovaný"
     return 0
   fi
   if [ "$STATUS" = "complete" ]; then
-    BODY="Rollback complete: recipe engine is off and both Uvar.si services are active."
+    BODY="Rollback complete: recipe engine is off and both Uvar.si services are active. gate=$GATE"
   else
-    BODY="Rollback incomplete: recipe-engine flag or Uvar.si service recovery failed."
+    BODY="Rollback incomplete: recipe-engine flag or Uvar.si service recovery failed. gate=$GATE"
   fi
   "$CURL" -sS --max-time 15 -H "Title: Uvar.si: receptový rollout zlyhal" \
     -d "$BODY" "$NOTIFY_URL" \
@@ -140,17 +141,19 @@ rollback_off() {
   restart_uvarsi || ROLLBACK_OK=0
   if [ "$ROLLBACK_OK" -eq 1 ]; then
     log "rollback complete — flag je off a obe Uvar.si služby sú aktívne"
-    notify_failure complete
+    notify_failure complete "$ROLLOUT_GATE"
   else
     log "rollback incomplete — flag alebo služby vyžadujú zásah"
-    notify_failure incomplete
+    notify_failure incomplete "$ROLLOUT_GATE"
   fi
   exit 1
 }
 
+ROLLOUT_GATE=target
 [ -f "$TARGET" ] || { log "bez aktivačného cieľa — končím"; exit 0; }
 read_activation_target || rollback_off
 
+ROLLOUT_GATE=package
 [ -d "$DIR/app" ] && [ -s "$DIR/VERSION" ] || rollback_off
 for required in config.py server.py deterministic_plan.py ingredient_catalog.py \
   library_gate.py quantity_math.py recipe_catalog.py recipe_matcher.py recipe_renderer.py; do
@@ -159,34 +162,44 @@ done
 [ -s "$DIR/app/catalog/ingredients.json" ] || rollback_off
 [ -s "$DIR/app/catalog/slovak_ingredient_forms.json" ] || rollback_off
 [ -s "$DIR/app/catalog/recipes/manifest.json" ] || rollback_off
+ROLLOUT_GATE=payments_off
 payments_off off || rollback_off
+ROLLOUT_GATE=library_gate
 (cd "$DIR" && UVARSI_RECIPE_ENGINE=off \
   "$PY" -m app.library_gate >/dev/null) || rollback_off
 
+ROLLOUT_GATE=flag
 MODE=$(current_mode)
 [ "$MODE" != "invalid" ] || rollback_off
 if [ "$MODE" = "on" ]; then
+  ROLLOUT_GATE=on_health
   payments_off on && health_gate on && { log "on je už zdravý — bez zmeny"; exit 0; }
   rollback_off
 fi
 
+ROLLOUT_GATE=shadow_restart
 payments_off shadow || rollback_off
 set_mode shadow || rollback_off
 restart_uvarsi || rollback_off
 payments_off shadow || rollback_off
+ROLLOUT_GATE=shadow_matrix
 (cd "$DIR/app" && UVARSI_RECIPE_ENGINE=shadow "$PY" -c '
 import predpocet, server
 result = predpocet.run_recipe_engine_shadow(server=server)
 raise SystemExit(0 if result.get("complete") else 1)
 ') || rollback_off
+ROLLOUT_GATE=shadow_health
 health_gate shadow || rollback_off
 
+ROLLOUT_GATE=on_restart
 payments_off on || rollback_off
 set_mode on || rollback_off
 restart_uvarsi || rollback_off
 payments_off on || rollback_off
+ROLLOUT_GATE=on_smoke
 (cd "$DIR/app" && UVARSI_RECIPE_ENGINE=on UVARSI_RECIPE_SMOKE_STATE="$SMOKE_STATE" \
   "$PY" -m server --recipe-engine-smoke --state "$SMOKE_STATE" >/dev/null) || rollback_off
+ROLLOUT_GATE=on_health
 health_gate on || rollback_off
 
 log "OK — deterministic recipe engine je on"

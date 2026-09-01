@@ -214,7 +214,7 @@ if [ "$LIVE_MUTATION" -eq 1 ] && zdravie && spusti_worker && uvarsi_wait_fresh_h
   # bezpečne ukončí, ak už práve beží iný zber.
   nohup "$DIR/dozorca.sh" >> /var/log/uvarsi.log 2>&1 &
   log "dozorca spustený na pozadí po nasadení"
-  nohup "$DIR/recipe-engine-rollout.sh" >> /var/log/uvarsi-recipe-rollout.log 2>&1 &
+  UVARSI_NOTIFY_URL="https://ntfy.sh/$NTFY" nohup "$DIR/recipe-engine-rollout.sh" >> /var/log/uvarsi-recipe-rollout.log 2>&1 &
   log "autonómny receptový rollout spustený na pozadí"
   notify "Uvar.si nasadené" "Vydanie $VER je živé. Appka odpovedá."
   exit 0

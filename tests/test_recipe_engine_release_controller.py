@@ -205,8 +205,18 @@ def test_existing_export_syntax_is_accepted_and_canonicalized(rollout):
     assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=on\n"
 
 
-@pytest.mark.parametrize("failure", ["fail-shadow", "fail-smoke", "malformed-health", "payments-on"])
-def test_any_gate_failure_rolls_back_to_off_and_emits_exactly_one_alert(rollout, failure):
+@pytest.mark.parametrize(
+    ("failure", "gate"),
+    [
+        ("fail-shadow", "shadow_matrix"),
+        ("fail-smoke", "on_smoke"),
+        ("malformed-health", "shadow_health"),
+        ("payments-on", "payments_off"),
+    ],
+)
+def test_any_gate_failure_rolls_back_to_off_and_emits_exactly_one_alert(
+    rollout, failure, gate
+):
     rollout["state"].joinpath(failure).write_text("1", encoding="ascii")
 
     result = run_controller(rollout)
@@ -216,6 +226,7 @@ def test_any_gate_failure_rolls_back_to_off_and_emits_exactly_one_alert(rollout,
     alerts = rollout["alerts"].read_text(encoding="utf-8").splitlines()
     assert len(alerts) == 1
     assert "rollback complete" in alerts[0].casefold()
+    assert f"gate={gate}" in alerts[0]
 
 
 @pytest.mark.parametrize(
