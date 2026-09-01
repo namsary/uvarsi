@@ -14,11 +14,15 @@ FLAG="${UVARSI_RECIPE_FLAG_FILE:-$DIR/uvarsi-recipe-engine.env}"
 HEALTH_URL="${UVARSI_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
 LOCK="${UVARSI_RECIPE_ROLLOUT_LOCK:-/var/lock/uvarsi-recipe-rollout.lock}"
 SMOKE_STATE="${UVARSI_RECIPE_SMOKE_STATE:-/var/lib/uvarsi/recipe_engine_smoke.json}"
-NOTIFY_URL="${UVARSI_NOTIFY_URL:-https://ntfy.sh/uvarsi-jarvis-8f3a2c}"
+NOTIFY_URL="${UVARSI_NOTIFY_URL:-}"
 
 log(){ echo "[$(date '+%F %T')] RECIPE-ROLLOUT: $*"; }
 notify_failure(){
   STATUS="$1"
+  if [ -z "$NOTIFY_URL" ]; then
+    log "notifikačný kanál nie je nakonfigurovaný"
+    return 0
+  fi
   if [ "$STATUS" = "complete" ]; then
     BODY="Rollback complete: recipe engine is off and both Uvar.si services are active."
   else

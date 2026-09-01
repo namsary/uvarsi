@@ -160,6 +160,13 @@ def run_controller(rollout):
     )
 
 
+def test_controller_source_does_not_publish_an_operational_notification_topic():
+    source = CONTROLLER.read_text(encoding="utf-8")
+
+    assert "ntfy.sh/" not in source
+    assert 'NOTIFY_URL="${UVARSI_NOTIFY_URL:-}"' in source
+
+
 def test_successfully_activates_both_stages_without_touching_unrelated_services(rollout):
     result = run_controller(rollout)
 

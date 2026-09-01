@@ -843,6 +843,36 @@ def test_profile_api_rejects_invalid_household_instead_of_clamping(
     assert response.status_code == 422
 
 
+@pytest.mark.parametrize("frequency", [0, 4, 7, 2.5, "2", "abc", True, None])
+def test_profile_api_rejects_frequency_outside_supported_cooking_rhythms(
+        monkeypatch, tmp_path, frequency):
+    server = load_server(monkeypatch, tmp_path, [])
+    with server.db() as con:
+        con.execute(
+            "INSERT INTO pouzivatelia (id, email, frekvencia) "
+            "VALUES (1, 'frequency@uvar.si', 2)"
+        )
+        insert_hashed_session(server, con, "frequency-session", 1)
+        con.commit()
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "frequency-session")
+
+    response = client.post("/api/profil", json={
+        "adults": 2,
+        "children": 0,
+        "frekvencia": frequency,
+        "obchody": ["Lidl"],
+    })
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Vyber si varenie každý deň, raz za 2 dni alebo raz za 3 dni."
+    with server.db() as con:
+        saved = con.execute(
+            "SELECT frekvencia FROM pouzivatelia WHERE id=1"
+        ).fetchone()[0]
+    assert saved == 2
+
+
 def test_legacy_osoby_payload_is_treated_as_adults_only(monkeypatch, tmp_path):
     server = load_server(monkeypatch, tmp_path, [])
     with server.db() as con:

@@ -2461,7 +2461,12 @@ async def uloz_profil(req: Request):
     d = await req.json()
     adults, children = validuj_zlozenie_domacnosti(d)
     osoby = adults + children
-    frek = max(1, min(7, int(d.get("frekvencia", 2))))
+    frek = d.get("frekvencia", 2)
+    if type(frek) is not int or frek not in (1, 2, 3):
+        raise HTTPException(
+            422,
+            "Vyber si varenie každý deň, raz za 2 dni alebo raz za 3 dni.",
+        )
     allowed_stores = ("Kaufland", "Tesco", "Lidl")
     obchody = [store for store in allowed_stores if store in d.get("obchody", [])]
     if not obchody:
