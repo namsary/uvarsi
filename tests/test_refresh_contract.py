@@ -151,6 +151,35 @@ def test_model_adapter_uses_api_key_from_environment(monkeypatch, tmp_path):
     assert constructors == [{"api_key": "environment-test-key", "timeout": 120.0, "max_retries": 1}]
 
 
+def test_model_adapter_forces_positive_integer_package_quantities(monkeypatch, tmp_path):
+    calls = []
+
+    class Messages:
+        def create(self, **kwargs):
+            calls.append(kwargs)
+            return types.SimpleNamespace(
+                content=[types.SimpleNamespace(type="text", text='{"meals": []}')]
+            )
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "environment-test-key")
+    monkeypatch.setenv("UVARSI_DB", str(tmp_path / "uvarsi.db"))
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        types.SimpleNamespace(
+            Anthropic=lambda **kwargs: types.SimpleNamespace(messages=Messages())
+        ),
+    )
+
+    compose_with_llm("prompt")
+
+    schema = calls[0]["output_config"]["format"]["schema"]
+    item = schema["properties"]["meals"]["items"]["properties"]["items"]["items"]
+    assert calls[0]["output_config"]["format"]["type"] == "json_schema"
+    assert item["properties"]["quantity"] == {"type": "integer", "minimum": 1}
+    assert item["additionalProperties"] is False
+
+
 def test_model_adapter_uses_api_key_from_env_file(monkeypatch, tmp_path):
     constructors = []
     env_file = tmp_path / "uvarsi.env"

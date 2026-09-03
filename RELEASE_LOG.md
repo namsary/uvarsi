@@ -114,3 +114,9 @@
 - Platený AI predvýpočet sa pri lokálnom generátore vôbec nezaraďuje a worker pred prípadným volaním znovu overí aktuálny profil aj oprávnenie.
 - Overenie: celý balík 2904 testov prešiel; 10 testov bolo podmienene preskočených.
 - Platby zostávajú vypnuté.
+
+## 2026-09-03 — Schémou chránený verejný bloček (vydanie 2026.09.03.5)
+
+- Anthropic musí pri skladaní ukážkového bločka vrátiť kladný celý počet balení; desatinná hodnota sa už nemôže dostať z modelu do validačnej vrstvy.
+- Pri chybe naďalej ostáva posledný platný bloček nedotknutý.
+- Overenie: 48 dotknutých testov prešlo. Platby zostávajú vypnuté.

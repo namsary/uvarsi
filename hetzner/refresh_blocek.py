@@ -74,6 +74,42 @@ def load_api_key():
 
 
 MODEL_BLOCEK = "claude-sonnet-5"
+RECEIPT_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "meals": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "day": {"type": "string", "minLength": 1},
+                    "name": {"type": "string", "minLength": 1},
+                    "instructions": {
+                        "type": "array", "minItems": 1,
+                        "items": {"type": "string", "minLength": 1},
+                    },
+                    "items": {
+                        "type": "array", "minItems": 1,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "offer_key": {"type": "string", "minLength": 1},
+                                "quantity": {"type": "integer", "minimum": 1},
+                            },
+                            "required": ["offer_key", "quantity"],
+                            "additionalProperties": False,
+                        },
+                    },
+                },
+                "required": ["day", "name", "instructions", "items"],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["meals"],
+    "additionalProperties": False,
+}
 
 
 def compose_with_llm(prompt):
@@ -93,6 +129,9 @@ def compose_with_llm(prompt):
         message = client.messages.create(
             model=MODEL_BLOCEK, max_tokens=4000,
             messages=[{"role": "user", "content": prompt}],
+            output_config={
+                "format": {"type": "json_schema", "schema": RECEIPT_OUTPUT_SCHEMA}
+            },
         )
     text = "".join(block.text for block in message.content if getattr(block, "type", None) == "text").strip()
     try:
