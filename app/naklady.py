@@ -482,6 +482,20 @@ def spolu_za_ucel_tyzden(con, ucel, tyzden) -> float:
     return _suma(con, "ucel = ? AND tyzden = ?", (ucel, tyzden))
 
 
+def spolu_za_ucel_obdobie(con, ucel, teraz) -> float:
+    """Súčet pre bezpečnostný strop v prirodzenom cykle danej operácie."""
+    if ucel == "zber_letakov":
+        zaciatok = _obdobie_behu(ucel, teraz)
+        koniec = teraz.date().isoformat()
+        return _suma(
+            con,
+            "ucel = ? AND den >= ? AND den <= ?",
+            (ucel, zaciatok, koniec),
+        )
+    _, _, tyzden = _obdobia(teraz)
+    return spolu_za_ucel_tyzden(con, ucel, tyzden)
+
+
 # ---------------------------------------------------------------- strop PRED volaním
 def skontroluj(con, ucel, odhad_eur=None, teraz=None, rezervovane_eur=0.0):
     """Smie sa teraz minúť? Keď nie, vyhodí RozpocetVycerpany a NIČ sa nevolá.
@@ -518,7 +532,7 @@ def skontroluj(con, ucel, odhad_eur=None, teraz=None, rezervovane_eur=0.0):
     try:
         dnes_eur = spolu_za_den(con, den)
         mesiac_eur = spolu_za_mesiac(con, mesiac)
-        ucel_eur = spolu_za_ucel_tyzden(con, ucel, tyzden)
+        ucel_eur = spolu_za_ucel_obdobie(con, ucel, teraz)
     except (sqlite3.Error, OSError) as chyba:
         # Nevieme, koľko už padlo → nesmieme minúť ani cent.
         raise RozpocetVycerpany(SPRAVA_NECITATELNY, kod=KOD_NECITATELNY, ucel=ucel) from chyba

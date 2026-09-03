@@ -251,6 +251,25 @@ def test_limit_zberu_sa_obnovi_pri_stvrtkovom_zaciatku_noveho_letaku(con):
     assert naklady.rezervuj_beh(con, "zber_letakov", teraz=stvrtok) == 1
 
 
+def test_eurovy_strop_zberu_sa_obnovi_so_stvrtkovym_letakom(con, monkeypatch):
+    """Cena starého letáka nesmie zablokovať nový leták v tom istom ISO týždni."""
+    streda = PONDELOK + datetime.timedelta(days=2, hours=12)
+    stvrtok = PONDELOK + datetime.timedelta(days=3, hours=5)
+    monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "100")
+    monkeypatch.setenv("UVARSI_MESACNY_STROP_EUR", "100")
+    monkeypatch.setenv("UVARSI_TYZDENNY_STROP_ZBER_EUR", "0.20")
+    naklady.zapis(
+        con, "zber_letakov", "claude-opus-5", None,
+        teraz=streda, odhad_eur=0.15,
+    )
+
+    stav = naklady.skontroluj(
+        con, "zber_letakov", odhad_eur=0.10, teraz=stvrtok,
+    )
+
+    assert stav["ucel_eur"] == 0.0
+
+
 def test_pod_limit_uctu_zastavi_aj_ked_denny_strop_este_nie(con, monkeypatch):
     monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "100")
     monkeypatch.setenv("UVARSI_MESACNY_STROP_EUR", "100")

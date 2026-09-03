@@ -84,6 +84,12 @@
 - Týždenná úspora aj ročná projekcia pochádzajú z aktuálneho bločka. Landing zobrazuje výpočet týždenná úspora × 52 a upozornenie, že nejde o garanciu.
 - Cenník rozlišuje fungujúci Free plán a zakladajúcu ponuku 39 € jednorazovo; platby zostávajú vypnuté.
 - Overenie: 1248 testov prešlo, 44 bolo podmienene preskočených; mobilný, tabletový a desktopový viewport bez horizontálneho pretekania.
+## 2026-09-03 — Štvrtkový eurový cyklus zberu (vydanie 2026.09.03.3)
+
+- Aj eurový strop zberu letákov sa obnovuje vo štvrtok; spotreba predošlého letáka už neblokuje nový leták v tom istom ISO týždni.
+- Denný a mesačný ochranný strop ostávajú nezmenené a platia naďalej.
+- Overenie: 82 testov nákladov a kreditných poistiek prešlo. Platby zostávajú vypnuté.
+
 ## 2026-09-03 — Spoľahlivý JSON z AI čítania (vydanie 2026.09.03.2)
 
 - Sken strán aj extrakcia akcií používajú schémou vynútený JSON výstup Anthropic API.
