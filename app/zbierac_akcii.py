@@ -44,7 +44,7 @@ READ_TOKENS = 16000
 MODEL_SCAN = "claude-haiku-4-5-20251001"     # lacné triedenie strán
 
 STORES = ["kaufland", "tesco", "lidl"]
-MIN_VERIFIED_OFFERS_PER_STORE = 10
+MIN_VERIFIED_OFFERS_PER_STORE = 20
 SCAN_BATCH_SIZE = 12
 READ_BATCH_SIZE = 4
 READ_PX = 1500

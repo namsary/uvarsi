@@ -43,7 +43,7 @@ RECIPE_SMOKE_MIN_INTERVAL_SECONDS="${UVARSI_RECIPE_SMOKE_MIN_INTERVAL_SECONDS:-9
 MAX_TRIES=6                          # max pokusov za jeden deň
 NOTIFY_AT=2                          # po koľkých neúspechoch upozorniť
 EXIT_STRUCTURAL=3                    # kód, ktorým refresh_blocek hlási "neopakuj"
-MIN_OFFERS_PER_STORE=10              # jeden náhodný produkt nie je zdravý leták
+MIN_OFFERS_PER_STORE=20              # malá vložka sa nesmie tváriť ako celý leták
 NTFY_TOPIC="uvarsi-jarvis-8f3a2c"    # notifikácie: ntfy.sh/<topic>
 
 log(){ echo "[$(date '+%F %T')] DOZORCA: $*"; }

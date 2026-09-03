@@ -17,6 +17,10 @@ TODAY = date(2026, 8, 20)
 NOW = datetime(2026, 8, 20, 9, 0, 0)
 
 
+def test_store_with_fourteen_offers_is_never_considered_complete():
+    assert collector.MIN_VERIFIED_OFFERS_PER_STORE > 14
+
+
 def test_collector_model_gate_preserves_capacity_reserved_by_the_plan_queue(
         tmp_path, monkeypatch):
     database = tmp_path / "uvarsi.db"

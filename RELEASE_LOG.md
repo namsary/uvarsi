@@ -125,3 +125,9 @@
 
 - Výstupná schéma používa Anthropicom podporovaný typ `integer`; kladnosť hodnoty naďalej povinne kontroluje server pred publikovaním.
 - Neplatný výstup nemôže prepísať posledný platný bloček. Platby zostávajú vypnuté.
+
+## 2026-09-03 — Poistka proti neúplnému letáku (vydanie 2026.09.03.7)
+
+- Zber ani dozorca už neoznačia obchod s 14 akciami za kompletný; minimum je 20 overených potravinových ponúk na obchod.
+- Aktuálny oficiálny Lidl leták poskytol 105 strán, z ktorých bolo 67 potravinových, a zber uložil 362 akcií.
+- Platby zostávajú vypnuté.
