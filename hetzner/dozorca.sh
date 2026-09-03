@@ -43,6 +43,7 @@ RECIPE_SMOKE_MIN_INTERVAL_SECONDS="${UVARSI_RECIPE_SMOKE_MIN_INTERVAL_SECONDS:-9
 MAX_TRIES=6                          # max pokusov za jeden deň
 NOTIFY_AT=2                          # po koľkých neúspechoch upozorniť
 EXIT_STRUCTURAL=3                    # kód, ktorým refresh_blocek hlási "neopakuj"
+MIN_OFFERS_PER_STORE=10              # jeden náhodný produkt nie je zdravý leták
 NTFY_TOPIC="uvarsi-jarvis-8f3a2c"    # notifikácie: ntfy.sh/<topic>
 
 log(){ echo "[$(date '+%F %T')] DOZORCA: $*"; }
@@ -300,7 +301,10 @@ zahrej_plany() {
 # --- 0. Databáza akcií pre appku: má aktuálny týždeň? ---
 # (appka skladá osobné plány z tejto DB; bez nej ľuďom nič nevygeneruje)
 POCET=$(sqlite3 "$DIR/uvarsi.db" \
-        "SELECT COUNT(*) FROM akcie WHERE tyzden='$MON_ISO'" 2>/dev/null || echo 0)
+        "SELECT COUNT(*) FROM akcie
+         WHERE valid_from IS NOT NULL AND valid_to IS NOT NULL
+           AND valid_from <= '$TODAY' AND '$TODAY' <= valid_to" \
+        2>/dev/null || echo 0)
 
 # Celkový počet nestačí: keď zlyhá JEDEN obchod, ostatné dva ľahko prekročia
 # prah a chýbajúci reťazec sa už nikdy nedobehne — používateľ potom dostane
@@ -308,7 +312,11 @@ POCET=$(sqlite3 "$DIR/uvarsi.db" \
 CHYBA_ZBER=$(sqlite3 "$DIR/uvarsi.db" \
   "SELECT COUNT(*) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
    WHERE NOT EXISTS (SELECT 1 FROM zber_stav s
-                     WHERE s.tyzden='$MON_ISO' AND s.obchod=v.o AND s.stav='ok')" \
+                     WHERE s.tyzden='$MON_ISO' AND s.obchod=v.o AND s.stav='ok')
+      OR (SELECT COUNT(*) FROM akcie a
+          WHERE a.obchod=v.o
+            AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
+            AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
   2>/dev/null || echo 3)
 
 if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
@@ -317,7 +325,29 @@ if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
   else
     log "akcie pre týždeň $MON_ISO chýbajú ($POCET) — spúšťam zbierač…"
   fi
-  if cd "$DIR/app" && "$PY" -u zbierac_akcii.py; then
+  # Opravujeme iba obchody, ktorým chýba zdravý a dnes platný leták. Opakovať
+  # úspešné Vision čítanie by míňalo kredit a znižovalo šancu, že sa chybný
+  # obchod zmestí do ochranného limitu behov. Pri nečitateľnej DB radšej
+  # spustíme všetky tri — fail-closed stav sa tým nezamaskuje.
+  NEUPLNE_OBCHODY=$(sqlite3 "$DIR/uvarsi.db" \
+    "SELECT lower(v.o) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
+     WHERE NOT EXISTS (SELECT 1 FROM zber_stav s
+                       WHERE s.tyzden='$MON_ISO' AND s.obchod=v.o AND s.stav='ok')
+        OR (SELECT COUNT(*) FROM akcie a
+            WHERE a.obchod=v.o
+              AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
+              AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
+    2>/dev/null || true)
+  ZBER_ARGS=()
+  for OBCHOD in $NEUPLNE_OBCHODY; do
+    case "$OBCHOD" in
+      kaufland|tesco|lidl) ZBER_ARGS+=(--store "$OBCHOD") ;;
+    esac
+  done
+  if [ "${#ZBER_ARGS[@]}" -eq 0 ]; then
+    ZBER_ARGS=(--store kaufland --store tesco --store lidl)
+  fi
+  if cd "$DIR/app" && "$PY" -u zbierac_akcii.py "${ZBER_ARGS[@]}"; then
     log "zbierač OK"
   else
     log "zbierač zlyhal — appka zatiaľ nemá aktuálne dáta"
@@ -328,11 +358,18 @@ fi
 # spustiť iba nad kompletnou trojicou obchodov a musí sa vedieť zotaviť pri
 # každom ďalšom hodinovom behu dozorcu.
 POCET=$(sqlite3 "$DIR/uvarsi.db" \
-        "SELECT COUNT(*) FROM akcie WHERE tyzden='$MON_ISO'" 2>/dev/null || echo 0)
+        "SELECT COUNT(*) FROM akcie
+         WHERE valid_from IS NOT NULL AND valid_to IS NOT NULL
+           AND valid_from <= '$TODAY' AND '$TODAY' <= valid_to" \
+        2>/dev/null || echo 0)
 CHYBA_ZBER=$(sqlite3 "$DIR/uvarsi.db" \
   "SELECT COUNT(*) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
    WHERE NOT EXISTS (SELECT 1 FROM zber_stav s
-                     WHERE s.tyzden='$MON_ISO' AND s.obchod=v.o AND s.stav='ok')" \
+                     WHERE s.tyzden='$MON_ISO' AND s.obchod=v.o AND s.stav='ok')
+      OR (SELECT COUNT(*) FROM akcie a
+          WHERE a.obchod=v.o
+            AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
+            AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
   2>/dev/null || echo 3)
 # --- 1. Už je aktuálny landing JSON pripravený? ---
 if landing_data_is_current; then

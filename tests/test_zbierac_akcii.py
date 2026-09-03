@@ -712,6 +712,30 @@ def test_successful_run_marks_every_store_as_collected(monkeypatch, tmp_path):
     ]
 
 
+def test_implausibly_small_store_result_is_failed_and_not_published(monkeypatch, tmp_path):
+    """Jedna náhodne prečítaná akcia nesmie prepísať zdravý obsah obchodu."""
+    database = run_main_over_stores(monkeypatch, tmp_path, {"lidl": True})
+    monkeypatch.setattr(
+        collector,
+        "zbieraj",
+        lambda client, store: [valid_offer(store, 1)],
+    )
+
+    with pytest.raises(SystemExit, match="lidl"):
+        collector.main()
+
+    con = sqlite3.connect(database)
+    outcome = con.execute(
+        "SELECT stav, pocet FROM zber_stav WHERE tyzden=? AND obchod='Lidl'",
+        ("2026-08-17",),
+    ).fetchone()
+    offers = con.execute("SELECT COUNT(*) FROM akcie").fetchone()[0]
+    con.close()
+
+    assert outcome == ("fail", 0)
+    assert offers == 0
+
+
 def test_targeted_recovery_collects_only_the_requested_store(monkeypatch, tmp_path):
     database = run_main_over_stores(
         monkeypatch, tmp_path, {"kaufland": True, "tesco": True, "lidl": True}

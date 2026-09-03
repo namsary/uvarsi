@@ -84,3 +84,10 @@
 - Týždenná úspora aj ročná projekcia pochádzajú z aktuálneho bločka. Landing zobrazuje výpočet týždenná úspora × 52 a upozornenie, že nejde o garanciu.
 - Cenník rozlišuje fungujúci Free plán a zakladajúcu ponuku 39 € jednorazovo; platby zostávajú vypnuté.
 - Overenie: 1248 testov prešlo, 44 bolo podmienene preskočených; mobilný, tabletový a desktopový viewport bez horizontálneho pretekania.
+## 2026-09-03 — Obnova štvrtkových letákov (vydanie 2026.09.03.1)
+
+- Zberný limit sa obnovuje so štvrtkovým cyklom letákov, nie až v pondelok.
+- Dozorca posudzuje dnešnú platnosť ponúk a opakuje iba obchod, ktorému chýba použiteľný leták.
+- Menej než 10 overených ponúk z jedného obchodu sa nepovažuje za úspešný zber a neprepíše zdravé dáta.
+- Overenie: 233 dotknutých testov a celý balík 2882 testov prešli; 10 testov bolo podmienene preskočených.
+- Platby zostávajú vypnuté; nasadenie nemení Caddy ani aplikáciu Taktik.

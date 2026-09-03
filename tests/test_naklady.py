@@ -240,6 +240,17 @@ def test_tyzdenny_strop_behov_sa_v_novom_tyzdni_uvolni(con):
     naklady.rezervuj_beh(con, "zber_letakov", teraz=BUDUCI_TYZDEN)
 
 
+def test_limit_zberu_sa_obnovi_pri_stvrtkovom_zaciatku_noveho_letaku(con):
+    """Tri pokusy zo starého letáka nesmú zablokovať nový štvrtkový leták."""
+    streda = PONDELOK + datetime.timedelta(days=2, hours=12)
+    stvrtok = PONDELOK + datetime.timedelta(days=3, hours=5)
+
+    for _ in range(naklady.limit_behov("zber_letakov")):
+        naklady.rezervuj_beh(con, "zber_letakov", teraz=streda)
+
+    assert naklady.rezervuj_beh(con, "zber_letakov", teraz=stvrtok) == 1
+
+
 def test_pod_limit_uctu_zastavi_aj_ked_denny_strop_este_nie(con, monkeypatch):
     monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "100")
     monkeypatch.setenv("UVARSI_MESACNY_STROP_EUR", "100")

@@ -425,6 +425,58 @@ def test_dozorca_nezohrieva_plan_nad_neuplnymi_ponukami(
     assert "predpocet.py" not in recorded
 
 
+def test_dozorca_retries_only_the_store_whose_current_flyer_is_missing(tmp_path):
+    """Pokazený Lidl nesmie znovu spustiť platené čítanie Tesca a Kauflandu."""
+    (tmp_path / "app").mkdir()
+    landing_data = tmp_path / "landing_data.json"
+    write_landing_data_atomic(landing_data, payload("2026-08-10"))
+    calls = tmp_path / "calls.txt"
+    fake_python = tmp_path / "python"
+    fake_python.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"-c\" ]; then exit 1; fi\n"
+        f"printf '%s\\n' \"$*\" >> '{bash_path(calls)}'\n"
+        "exit 1\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_python.chmod(0o755)
+    fake_sqlite = tmp_path / "sqlite3"
+    fake_sqlite.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        "  *\"SELECT lower(v.o)\"*) echo lidl ;;\n"
+        "  *\"SELECT COUNT(*) FROM (\"*) echo 1 ;;\n"
+        "  *) echo 40 ;;\n"
+        "esac\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_sqlite.chmod(0o755)
+
+    subprocess.run(
+        [str(BASH), bash_path(ROOT / "hetzner" / "dozorca.sh")],
+        cwd=str(ROOT),
+        env=os.environ | {
+            "UVARSI_DIR": bash_path(tmp_path),
+            "UVARSI_LANDING_DATA": bash_path(landing_data),
+            "UVARSI_PY": bash_path(fake_python),
+            "UVARSI_TODAY": "2026-09-03",
+            "UVARSI_DOZORCA_LOCKED": "1",
+            "PATH": f"{bash_path(tmp_path)}:/usr/bin",
+        },
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+
+    collection_calls = [line for line in calls.read_text(encoding="utf-8").splitlines()
+                        if "zbierac_akcii.py" in line]
+    assert collection_calls == ["-u zbierac_akcii.py --store lidl"]
+
+
 def test_dozorca_pri_stalom_landingu_najprv_obnovi_blocek_a_az_potom_zohrieva(tmp_path):
     (tmp_path / "app").mkdir()
     landing_data = tmp_path / "landing_data.json"

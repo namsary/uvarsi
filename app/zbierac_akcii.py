@@ -44,6 +44,7 @@ READ_TOKENS = 16000
 MODEL_SCAN = "claude-haiku-4-5-20251001"     # lacné triedenie strán
 
 STORES = ["kaufland", "tesco", "lidl"]
+MIN_VERIFIED_OFFERS_PER_STORE = 10
 SCAN_BATCH_SIZE = 12
 READ_BATCH_SIZE = 4
 READ_PX = 1500
@@ -676,6 +677,11 @@ def main(stores=None):
         for store in selected_stores:
             try:
                 akcie = zbieraj(client, store)
+                if len(akcie) < MIN_VERIFIED_OFFERS_PER_STORE:
+                    raise ValueError(
+                        f"{store}: iba {len(akcie)} overených akcií; "
+                        f"minimum je {MIN_VERIFIED_OFFERS_PER_STORE}"
+                    )
                 replace_store_week(con, tyz, store.capitalize(), akcie)
             except naklady.KreditVycerpany as odmietnutie:
                 # API odmietlo request EŠTE PRED prácou — nespotreboval sa ani

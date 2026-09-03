@@ -449,6 +449,20 @@ def _obdobia(teraz):
     return den.isoformat(), den.strftime("%Y-%m"), pondelok.isoformat()
 
 
+def _obdobie_behu(ucel, teraz):
+    """Počítadlo behov zarovnaj s cyklom práce, ktorú chráni.
+
+    Nákladové súčty ostávajú kalendárne pondelok–nedeľa. Zber letákov však
+    pracuje s novou sadou od štvrtka, preto jeho bezpečnostný limit musí dostať
+    nový kľúč vo štvrtok, nie až nasledujúci pondelok.
+    """
+    den = teraz.date()
+    if ucel == "zber_letakov":
+        posledny_stvrtok = den - datetime.timedelta(days=(den.weekday() - 3) % 7)
+        return posledny_stvrtok.isoformat()
+    return (den - datetime.timedelta(days=den.weekday())).isoformat()
+
+
 def _suma(con, kde, parametre) -> float:
     riadok = con.execute(
         f"SELECT COALESCE(SUM(eur), 0) FROM naklady WHERE {kde}", parametre
@@ -544,7 +558,7 @@ def rezervuj_beh(con, ucel, *, teraz=None):
     dostane odmietnutie — bez ohľadu na to, koľko ktorý beh stál.
     """
     teraz = _teraz(teraz)
-    _, _, tyzden = _obdobia(teraz)
+    tyzden = _obdobie_behu(ucel, teraz)
     limit = limit_behov(ucel)
     try:
         with con:
@@ -565,7 +579,10 @@ def rezervuj_beh(con, ucel, *, teraz=None):
                      pocet = pocet + 1, updated = excluded.updated""",
                 (tyzden, ucel, teraz.isoformat(timespec="seconds")),
             )
-            con.execute("DELETE FROM naklady_behy WHERE tyzden < ?", (tyzden,))
+            con.execute(
+                "DELETE FROM naklady_behy WHERE ucel=? AND tyzden < ?",
+                (ucel, tyzden),
+            )
     except RozpocetVycerpany:
         raise
     except (sqlite3.Error, OSError) as chyba:
@@ -582,7 +599,7 @@ def uvolni_beh(con, ucel, *, teraz=None):
     dvojité zavolanie počítadlo nerozbije — oprava smie bežať opakovane.
     """
     teraz = _teraz(teraz)
-    _, _, tyzden = _obdobia(teraz)
+    tyzden = _obdobie_behu(ucel, teraz)
     try:
         with con:
             con.execute(
@@ -853,11 +870,13 @@ def stav(con, teraz=None, limit_poslednych=5) -> dict:
             limit = limit_behov(ucel)
             if not limit:
                 continue
+            obdobie_behu = _obdobie_behu(ucel, teraz)
             riadok = con.execute(
-                "SELECT pocet FROM naklady_behy WHERE tyzden=? AND ucel=?", (tyzden, ucel)
+                "SELECT pocet FROM naklady_behy WHERE tyzden=? AND ucel=?",
+                (obdobie_behu, ucel),
             ).fetchone()
             behy[ucel] = {
-                "tyzden": tyzden,
+                "tyzden": obdobie_behu,
                 "pocet": int(riadok["pocet"]) if riadok else 0,
                 "limit": limit,
             }
@@ -959,15 +978,33 @@ def oprav_kredit(con, *, teraz=None, tyzden=None, vykonaj=False) -> dict:
             ).fetchone()[0]
             if float(zostatok) > 1e-9:
                 continue                     # v týždni sa naozaj míňalo — strop platí
-            riadok = con.execute(
-                "SELECT pocet FROM naklady_behy WHERE tyzden=? AND ucel=?", (tyz, ucel)
-            ).fetchone()
-            if riadok and int(riadok["pocet"]):
-                vysledok["vratene_behy"][ucel] = int(riadok["pocet"])
+            # Náklady sa účtujú v kalendárnom týždni, no zber letákov má
+            # limit behov viazaný na štvrtkový letákový cyklus. Nájdeme preto
+            # kľúč obdobia z dátumu odmietnutého volania. `tyz` ponechávame
+            # medzi kandidátmi kvôli starším databázam vytvoreným pred zmenou
+            # cyklu.
+            kluce_behov = {tyz}
+            for kandidat in kandidati:
+                if kandidat["ucel"] != ucel:
+                    continue
+                den_kandidata = datetime.datetime.fromisoformat(kandidat["den"])
+                kluce_behov.add(_obdobie_behu(ucel, den_kandidata))
+
+            vratene = 0
+            for kluc_behu in sorted(kluce_behov):
+                riadok = con.execute(
+                    "SELECT pocet FROM naklady_behy WHERE tyzden=? AND ucel=?",
+                    (kluc_behu, ucel),
+                ).fetchone()
+                if not riadok or not int(riadok["pocet"]):
+                    continue
+                vratene += int(riadok["pocet"])
                 con.execute(
                     "UPDATE naklady_behy SET pocet = 0, updated = ? WHERE tyzden=? AND ucel=?",
-                    (cas, tyz, ucel),
+                    (cas, kluc_behu, ucel),
                 )
+            if vratene:
+                vysledok["vratene_behy"][ucel] = vratene
     return vysledok
 
 
