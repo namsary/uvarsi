@@ -95,7 +95,7 @@ RECEIPT_OUTPUT_SCHEMA = {
                             "type": "object",
                             "properties": {
                                 "offer_key": {"type": "string", "minLength": 1},
-                                "quantity": {"type": "integer", "minimum": 1},
+                                "quantity": {"type": "integer"},
                             },
                             "required": ["offer_key", "quantity"],
                             "additionalProperties": False,

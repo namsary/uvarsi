@@ -176,7 +176,7 @@ def test_model_adapter_forces_positive_integer_package_quantities(monkeypatch, t
     schema = calls[0]["output_config"]["format"]["schema"]
     item = schema["properties"]["meals"]["items"]["properties"]["items"]["items"]
     assert calls[0]["output_config"]["format"]["type"] == "json_schema"
-    assert item["properties"]["quantity"] == {"type": "integer", "minimum": 1}
+    assert item["properties"]["quantity"] == {"type": "integer"}
     assert item["additionalProperties"] is False
 
 

@@ -120,3 +120,8 @@
 - Anthropic musí pri skladaní ukážkového bločka vrátiť kladný celý počet balení; desatinná hodnota sa už nemôže dostať z modelu do validačnej vrstvy.
 - Pri chybe naďalej ostáva posledný platný bloček nedotknutý.
 - Overenie: 48 dotknutých testov prešlo. Platby zostávajú vypnuté.
+
+## 2026-09-03 — Kompatibilná schéma bločka (vydanie 2026.09.03.6)
+
+- Výstupná schéma používa Anthropicom podporovaný typ `integer`; kladnosť hodnoty naďalej povinne kontroluje server pred publikovaním.
+- Neplatný výstup nemôže prepísať posledný platný bloček. Platby zostávajú vypnuté.
