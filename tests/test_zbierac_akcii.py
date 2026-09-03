@@ -165,6 +165,42 @@ def install_pipeline_fakes(monkeypatch, page_count, food_pages, extracted_pages=
     return manifest, thumbnail_reads, scan_batches, read_batches
 
 
+def _text_response(text):
+    return types.SimpleNamespace(
+        stop_reason="end_turn",
+        content=[types.SimpleNamespace(type="text", text=text)],
+    )
+
+
+def test_claude_json_uses_structured_array_output_for_flyer_scan():
+    calls = []
+
+    class Messages:
+        def create(self, **kwargs):
+            calls.append(kwargs)
+            return _text_response("[1,2]")
+
+    client = types.SimpleNamespace(messages=Messages())
+
+    assert collector.claude_json(client, collector.MODEL_SCAN, [], 500) == [1, 2]
+    output = calls[0]["output_config"]
+    assert output["format"]["type"] == "json_schema"
+    assert output["format"]["schema"] == {
+        "type": "array",
+        "items": {"type": "integer"},
+    }
+
+
+def test_claude_json_recovers_a_valid_array_from_legacy_markdown_wrapper():
+    class Messages:
+        def create(self, **_kwargs):
+            return _text_response("Výsledok:\n```json\n[1, 2]\n```\nHotovo.")
+
+    client = types.SimpleNamespace(messages=Messages())
+
+    assert collector.claude_json(client, collector.MODEL_SCAN, [], 500) == [1, 2]
+
+
 def test_discovers_ninety_sequential_pages_until_terminal_miss(monkeypatch):
     monkeypatch.setattr(collector, "kupino_meta", lambda store: kupino_flyer())
 

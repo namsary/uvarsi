@@ -485,12 +485,82 @@ def batches(items, size):
 
 
 # ---------------------------------------------------------------- Claude
+SCAN_OUTPUT_SCHEMA = {
+    "type": "array",
+    "items": {"type": "integer"},
+}
+EXTRACT_OUTPUT_SCHEMA = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "source_page": {"type": "integer"},
+            "nazov": {"type": "string"},
+            "kategoria": {
+                "type": "string",
+                "enum": ["maso", "zelenina", "ovocie", "mliecne", "trvanlive", "pecivo", "ine"],
+            },
+            "cena": {"type": "number"},
+            "povodna": {"anyOf": [{"type": "number"}, {"type": "null"}]},
+            "zlava": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+            "jednotka": {
+                "type": "string",
+                "enum": ["kg", "ks", "l", "balenie"],
+            },
+        },
+        "required": [
+            "source_page", "nazov", "kategoria", "cena",
+            "povodna", "zlava", "jednotka",
+        ],
+        "additionalProperties": False,
+    },
+}
+
+
+def _schema_pre_model(model):
+    return SCAN_OUTPUT_SCHEMA if model == MODEL_SCAN else EXTRACT_OUTPUT_SCHEMA
+
+
+def _parse_json_response(text):
+    """Read strict JSON and tolerate wrappers from an older SDK fallback.
+
+    Structured outputs should make the first ``json.loads`` succeed. The raw
+    decoder is a backwards-compatible safety net for an SDK that rejected the
+    format parameter and a model that surrounded otherwise valid JSON with a
+    short sentence or a Markdown fence.
+    """
+    cleaned = text.strip().lstrip("\ufeff")
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError as original:
+        decoder = json.JSONDecoder()
+        for index, char in enumerate(cleaned):
+            if char not in "[{":
+                continue
+            try:
+                value, _end = decoder.raw_decode(cleaned[index:])
+            except json.JSONDecodeError:
+                continue
+            return value
+        raise original
+
+
 def claude_json(client, model, content, max_tokens, effort=None):
-    kw = {"output_config": {"effort": effort}} if effort else {}
+    output_config = {
+        "format": {
+            "type": "json_schema",
+            "schema": _schema_pre_model(model),
+        }
+    }
+    if effort:
+        output_config["effort"] = effort
     try:
         msg = client.messages.create(model=model, max_tokens=max_tokens,
-                                     messages=[{"role": "user", "content": content}], **kw)
+                                     messages=[{"role": "user", "content": content}],
+                                     output_config=output_config)
     except TypeError:
+        # Starší SDK nepozná `output_config`. Nezastavíme celý týždenný zber;
+        # odpoveď ešte prísne parsujeme a ďalej kontrolujeme proti letáku.
         msg = client.messages.create(model=model, max_tokens=max_tokens,
                                      messages=[{"role": "user", "content": content}])
     if getattr(msg, "stop_reason", None) == "max_tokens":
@@ -498,7 +568,7 @@ def claude_json(client, model, content, max_tokens, effort=None):
     txt = "".join(b.text for b in msg.content
                   if getattr(b, "type", None) == "text").strip()
     txt = re.sub(r"^```(?:json)?|```$", "", txt, flags=re.M).strip()
-    return json.loads(txt)
+    return _parse_json_response(txt)
 
 
 def guarded_client(con, client):
@@ -575,7 +645,9 @@ def zbieraj(client, store):
             # zopakovali to isté odmietnutie. Preto ide von nezabalené.
             raise
         except Exception as exc:
-            raise ValueError(f"{store}: sken strán zlyhal") from exc
+            raise ValueError(
+                f"{store}: sken strán zlyhal ({type(exc).__name__}: {exc})"
+            ) from exc
         if not isinstance(selected, list):
             raise ValueError(f"{store}: sken nevrátil zoznam strán")
         for source_page in selected:
@@ -606,7 +678,9 @@ def zbieraj(client, store):
         except naklady.KreditVycerpany:
             raise
         except Exception as exc:
-            raise ValueError(f"{store}: extrakcia strán zlyhala") from exc
+            raise ValueError(
+                f"{store}: extrakcia strán zlyhala ({type(exc).__name__}: {exc})"
+            ) from exc
         if not isinstance(items, list):
             raise ValueError(f"{store}: extrakcia nevrátila zoznam akcií")
         for item in items:
