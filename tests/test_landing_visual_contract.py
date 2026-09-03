@@ -114,6 +114,16 @@ def test_pricing_shows_exactly_free_founding_and_annual_premium():
     assert "po skončení zakladajúcej ponuky" in premium
 
 
+def test_free_and_premium_store_promises_match_the_product_entitlements():
+    free, founding, premium = pricing_cards(html())
+
+    assert "1 obchod podľa výberu" in free
+    assert "Jedálniček na celý týždeň" in free
+    assert "Jedálniček na 3 dni" not in free
+    for paid in (founding, premium):
+        assert "Všetky podporované obchody" in paid
+
+
 def test_founding_is_the_only_highlighted_pricing_card():
     cards = pricing_cards(html())
 

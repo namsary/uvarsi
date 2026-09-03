@@ -66,9 +66,11 @@ def app_db(tmp_path, monkeypatch):
     database = tmp_path / "uvarsi.db"
     monkeypatch.setenv("UVARSI_DB", str(database))
     monkeypatch.setenv("UVARSI_URL", "https://uvar.si")
+    monkeypatch.setenv("UVARSI_RECIPE_ENGINE", "off")
     monkeypatch.syspath_prepend(str(ROOT / "app"))
     sys.modules.pop("server", None)
     server = importlib.import_module("server")
+    server.recipe_engine_mode.cache_clear()
     server.priprav_databazu()
 
     with server.db() as con:
@@ -185,6 +187,11 @@ def _grant_premium(app_db, user_id=1):
 
 def _queued_job(app_db, *, kind="regular", payload_changes=None, priority=100):
     server = app_db.server
+    if kind != "precompute":
+        with server.db() as con:
+            premium = server.je_premium(con, 1)
+        if not premium:
+            _grant_premium(app_db)
     rows = server.akcie_pre(STORES)
     pantry = []
     if kind == "pantry":
@@ -516,6 +523,25 @@ def test_invalid_persisted_profile_fails_before_dispatch(app_db):
     result = process_one(client=model, now=NOW)
 
     assert (result.status, result.error_code) == ("failed", "invalid_profile")
+    assert model.calls == 0
+    assert _job_row(app_db, job.id)["dispatched_at"] is None
+
+
+@pytest.mark.parametrize("mutation", ("profile", "entitlement"))
+def test_profile_or_entitlement_change_while_queued_fails_before_dispatch(
+        app_db, mutation):
+    job = _queued_regular_job(app_db)
+    with app_db.server.db() as con:
+        if mutation == "profile":
+            con.execute("UPDATE pouzivatelia SET frekvencia=3 WHERE id=1")
+        else:
+            con.execute("DELETE FROM naroky WHERE user_id=1")
+        con.commit()
+    model = FakeModel({})
+
+    result = process_one(client=model, now=NOW)
+
+    assert (result.status, result.error_code) == ("failed", "stale_profile")
     assert model.calls == 0
     assert _job_row(app_db, job.id)["dispatched_at"] is None
 

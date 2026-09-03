@@ -30,7 +30,7 @@ def _clear_recipe_engine_flag_cache():
         module.recipe_engine_mode.cache_clear()
 
 
-def _realistic_offer_rows():
+def _realistic_offer_rows(store_override=None):
     ingredients = load_ingredient_catalog()
     today = date.today()
     week = current_monday(today)
@@ -39,6 +39,7 @@ def _realistic_offer_rows():
     for page, (ingredient_id, store, package, sale, ordinary) in enumerate(
         VERIFIED_WEEKLY_OFFERS, start=1
     ):
+        store = store_override or store
         ingredient = ingredients.by_id(ingredient_id)
         discount = round((1 - Decimal(sale) / Decimal(ordinary)) * 100)
         rows.append(
@@ -78,10 +79,10 @@ def _bomb_model_modules(monkeypatch):
 
 def _server(
     monkeypatch, tmp_path, *, mode="on", premium=True, pantry=(), diet="standard",
-    offer_count=None,
+    offer_count=None, offer_store=None,
 ):
     monkeypatch.setenv("UVARSI_RECIPE_ENGINE", mode)
-    offer_rows = _realistic_offer_rows()
+    offer_rows = _realistic_offer_rows(store_override=offer_store)
     if offer_count is not None:
         offer_rows = offer_rows[:offer_count]
     server = load_server(monkeypatch, tmp_path, offer_rows)
@@ -195,11 +196,12 @@ def test_on_uses_only_the_server_authorized_diet_mode(
 ):
     server = _server(
         monkeypatch, tmp_path, premium=premium, diet=stored,
+        offer_store="Lidl",
     )
 
     response = plan_client(server, 1, wait_for_worker=False).post("/api/plan/generuj")
 
-    assert response.status_code == 200
+    assert response.status_code == 200, response.text
     assert response.json()["meta"]["mode"] == effective
 
 

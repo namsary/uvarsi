@@ -135,6 +135,7 @@ DOVOD_HOTOVO = "hotovo"
 DOVOD_ROZPOCET = "rozpocet"
 DOVOD_BEHY = "behy"
 DOVOD_VYPNUTE = "vypnute"
+DOVOD_DETERMINISTICKY = "deterministicky"
 DOVOD_CHYBY = "chyby"
 DOVOD_BLOKOVANE = "blokovane"
 
@@ -143,6 +144,9 @@ VYSVETLENIE = {
     DOVOD_ROZPOCET: "Zastavené pred stropom — zvyšok rozpočtu ostáva živým používateľom.",
     DOVOD_BEHY: "Tento týždeň už predpočet bežal dosť často; ďalší beh sa nespúšťa.",
     DOVOD_VYPNUTE: "Predpočet je vypnutý (UVARSI_PREDPOCET=0 alebo 0 profilov).",
+    DOVOD_DETERMINISTICKY: (
+        "Plány skladá lokálny generátor okamžite; platený AI predpočet netreba."
+    ),
     DOVOD_CHYBY: "Príliš veľa neúspešných pokusov po sebe — beh sa ukončil.",
     DOVOD_BLOKOVANE: "Niektoré profily sa zatiaľ nedajú zaradiť; dozorca to skúsi znova.",
 }
@@ -633,10 +637,7 @@ def aktivne_profily(con, server) -> list:
     """Aktuálne profily účtov, v poradí stabilnom pre opakovaný cron."""
     profily = []
     try:
-        riadky = con.execute(
-            "SELECT id, osoby, dospeli, deti, frekvencia, obchody "
-            "FROM pouzivatelia ORDER BY id"
-        ).fetchall()
+        riadky = con.execute("SELECT * FROM pouzivatelia ORDER BY id").fetchall()
     except (sqlite3.Error, OSError):
         LOG.warning("aktívne profily sa nedajú prečítať", exc_info=True)
         return profily
@@ -647,9 +648,10 @@ def aktivne_profily(con, server) -> list:
             if frekvencia not in (1, 2, 3):
                 continue
             variant = server.plan_variant_for(riadok["id"], server.PLAN_VARIANTS)
+            premium = server.je_premium(con, riadok["id"])
+            obchody = server.efektivne_obchody(riadok, premium)
             profily.append(Profil(
-                _normalizuj_obchody(riadok["obchody"]), int(dospeli), int(deti),
-                frekvencia, variant,
+                tuple(obchody), int(dospeli), int(deti), frekvencia, variant,
             ))
         except (KeyError, TypeError, ValueError):
             continue
@@ -1175,6 +1177,13 @@ def enqueue_popular_profiles(*, count=None, now=None) -> dict:
 
     tyzden = server.monday(now.date())
     vysledok["tyzden"] = tyzden
+    if server.recipe_engine_mode() == "on":
+        # Lokálny deterministický engine nevolá model a odpovie pod sekundu.
+        # Zaraďovať pri ňom staré Sonnet úlohy by iba míňalo kredit na cache,
+        # ktorú živá používateľská cesta vôbec nepotrebuje.
+        vysledok["dovod"] = DOVOD_DETERMINISTICKY
+        vysledok["profilov"] = 0
+        return vysledok
     con = None
     beh_zarezany = False
     try:

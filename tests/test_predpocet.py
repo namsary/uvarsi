@@ -219,11 +219,44 @@ def test_precompute_queues_active_exact_profiles_before_demand_and_defaults(
 
     assert jobs, result
     active_payload = json.loads(jobs[0]["payload_json"])
-    assert active_payload["stores"] == ["Lidl", "Tesco"]
+    assert active_payload["stores"] == ["Lidl"]
     assert active_payload["algo_version"] == server.PLAN_ALGO_VERSION
     assert all(job["priority"] == 20 for job in jobs)
     assert result["queued"] <= 3
     assert zakazane == []
+
+
+def test_active_premium_profile_keeps_multiple_stores(monkeypatch, tmp_path):
+    server, predpocet = priprav(
+        monkeypatch, tmp_path, rows_for_stores(("Kaufland", "Lidl", "Tesco")))
+    create_active_user(server, stores="Lidl,Tesco", adults=2, children=2, frequency=3)
+    with closing(server.db()) as con:
+        con.execute(
+            """INSERT INTO naroky (
+                   user_id, produkt, poskytovatel, objednavka_id, suma_centy,
+                   mena, stav, ziskany_o, zmeneny_o
+               ) VALUES (1, 'zakladajuci_clen', 'test', 'premium-1', 3900,
+                         'EUR', 'aktivny', 1, 1)"""
+        )
+        con.commit()
+
+    with closing(server.db()) as con:
+        profiles = predpocet.aktivne_profily(con, server)
+
+    assert profiles[0].obchody == ("Lidl", "Tesco")
+
+
+def test_deterministic_engine_nequeues_paid_precompute(monkeypatch, tmp_path):
+    server, predpocet = priprav(monkeypatch, tmp_path)
+    monkeypatch.setenv("UVARSI_RECIPE_ENGINE", "on")
+    server.recipe_engine_mode.cache_clear()
+    create_active_user(server, stores="Lidl", adults=2, children=0, frequency=2)
+
+    result = predpocet.enqueue_popular_profiles(count=3, now=queue_now())
+
+    assert result["queued"] == 0
+    assert result["dovod"] == predpocet.DOVOD_DETERMINISTICKY
+    assert queued_jobs(server) == []
 
 
 def test_precompute_blocks_only_profile_without_offers_when_one_store_is_missing(

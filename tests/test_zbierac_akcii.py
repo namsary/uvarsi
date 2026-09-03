@@ -1,3 +1,4 @@
+import json
 import re
 import sqlite3
 import sys
@@ -88,6 +89,107 @@ def fake_kupino_site(monkeypatch, index_html, page_html):
 FLYER_PAGE = (
     '<img src="https://img.kupino.sk/letaky/42/thumbs/lidl-letak-1_320.jpg">'
 )
+
+
+def _json_response(payload):
+    return types.SimpleNamespace(json=lambda: payload, text=json.dumps(payload))
+
+
+def _official_lidl_payload(page_count=105, valid_from="2026-08-17", valid_to="2026-08-23"):
+    return {
+        "success": True,
+        "flyer": {
+            "id": "01a-test-current-flyer",
+            "name": "Aktuálny leták",
+            "apiCountryCode": "SK",
+            "isActive": True,
+            "status": "current",
+            "offerStartDate": valid_from,
+            "offerEndDate": valid_to,
+            "flyerUrlAbsolute": (
+                "https://www.lidl.sk/l/sk/letak/"
+                "online-letak-platny-od-17-08-2026/ar/0"
+            ),
+            "pages": [
+                {
+                    "number": page,
+                    "thumbnail": f"https://imgproxy.leaflets.schwarz/thumb-{page}.jpg",
+                    "image": f"https://imgproxy.leaflets.schwarz/image-{page}.jpg",
+                    "zoom": f"https://imgproxy.leaflets.schwarz/zoom-{page}.jpg",
+                }
+                for page in range(1, page_count + 1)
+            ],
+        },
+    }
+
+
+def test_official_lidl_reads_the_complete_current_weekly_flyer(monkeypatch):
+    overview = (
+        '<a href="https://www.lidl.sk/l/sk/letak/'
+        'online-letak-platny-od-17-08-2026/ar/1">Pozri si leták</a>'
+    )
+    requested = []
+
+    def get(url, **_kwargs):
+        requested.append(url)
+        if url == collector.LIDL_OVERVIEW_URL:
+            return types.SimpleNamespace(text=overview)
+        return _json_response(_official_lidl_payload())
+
+    monkeypatch.setattr(collector.requests, "get", get)
+
+    pages, manifest = collector.official_lidl_pages(today=TODAY)
+
+    assert len(pages) == 105
+    assert pages[0] == (
+        "https://imgproxy.leaflets.schwarz/thumb-1.jpg",
+        "https://imgproxy.leaflets.schwarz/zoom-1.jpg",
+    )
+    assert pages[-1][1].endswith("zoom-105.jpg")
+    assert manifest["valid_from"] == "2026-08-17"
+    assert manifest["valid_to"] == "2026-08-23"
+    assert manifest["declared_pages"] == 105
+    assert manifest["pages"][-1]["source_page"] == 105
+    assert requested[-1].endswith("flyer_identifier=online-letak-platny-od-17-08-2026")
+
+
+def test_store_pages_prefers_official_lidl_over_third_party_sources(monkeypatch):
+    expected = flyer_fixture(105)
+    monkeypatch.setattr(collector, "official_lidl_pages", lambda today=None: expected)
+    monkeypatch.setattr(
+        collector,
+        "kupino_meta",
+        lambda store: pytest.fail("official Lidl must be tried before Kupino"),
+    )
+
+    assert collector.store_pages("lidl", today=TODAY) == expected
+
+
+def test_expired_official_lidl_falls_back_instead_of_publishing_old_prices(monkeypatch):
+    overview = (
+        '<a href="https://www.lidl.sk/l/sk/letak/'
+        'online-letak-platny-od-10-08-2026/ar/1">Pozri si leták</a>'
+    )
+
+    def get(url, **_kwargs):
+        if url == collector.LIDL_OVERVIEW_URL:
+            return types.SimpleNamespace(text=overview)
+        return _json_response(
+            _official_lidl_payload(valid_from="2026-08-10", valid_to="2026-08-16")
+        )
+
+    monkeypatch.setattr(collector.requests, "get", get)
+    monkeypatch.setattr(collector, "kupino_meta", lambda store: kupino_flyer())
+    monkeypatch.setattr(
+        collector,
+        "page_exists",
+        lambda url: "current-page" if "-1_320.jpg" in url else None,
+    )
+
+    pages, manifest = collector.store_pages("lidl", today=TODAY)
+
+    assert pages
+    assert manifest["source_url"].startswith("https://www.kupino.sk/")
 
 
 def flyer_fixture(page_count):

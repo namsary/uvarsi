@@ -260,7 +260,10 @@ def test_plan_sa_neposklada_ked_je_rozpocet_vycerpany(monkeypatch, tmp_path):
     server = load_server(monkeypatch, tmp_path, current_plan_rows())
     vycerpaj_denny_strop(tmp_path / "uvarsi.db", ucel="plan")
     with server.db() as con:
-        con.execute("INSERT INTO pouzivatelia (id,email) VALUES (1,'a@b.sk')")
+        con.execute(
+            "INSERT INTO pouzivatelia (id,email,obchody) "
+            "VALUES (1,'a@b.sk','Lidl')"
+        )
         insert_hashed_session(server, con, "session-token", 1)
         con.commit()
 

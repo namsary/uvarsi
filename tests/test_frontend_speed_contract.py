@@ -758,17 +758,22 @@ def test_app_render_critical_first_load_keeps_a_tight_gzip_budget():
     Následná kontrola schémy pridala podporu deterministických aj starších
     súčtov, fail-closed režimy stravovania, prístupné editory a bezpečné ručné
     uloženie zvyšku. Po doplnení približných kcal na dospelú porciu má shell
-    približne 31 157 B. Transparentný strop 31 450 B ponecháva 293 B rezervy
-    bez ďalšej požiadavky a bez plošnej minifikácie JavaScriptu.
+        približne 31 157 B. Transparentný strop 31 450 B ponecháva 293 B rezervy
+        bez ďalšej požiadavky a bez plošnej minifikácie JavaScriptu.
+
+        3. 9. 2026: Free plán dostal pravdivý výber jedného obchodu a Premium
+        viacobchodový výber vrátane prístupných tlačidiel a obnovy po zmene nároku.
+        Kontrolovaný shell má 31 532 B; strop 31 800 B ponecháva rezervu bez novej
+        požiadavky alebo blokujúceho aktíva.
     """
     assets = [("/app", APP), *local_render_blocking_stylesheets(APP)]
     measured = [
         (url, len(gzip.compress(path.read_bytes(), 5))) for url, path in assets
     ]
     compressed = sum(size for _url, size in measured)
-    assert compressed <= 31_450, (
+    assert compressed <= 31_800, (
         f"render-critical prvé načítanie má {compressed} B pri gzip level 5; "
-        f"požadovaný strop s rezervou je 31450 B; aktíva: {measured}"
+        f"požadovaný strop s rezervou je 31800 B; aktíva: {measured}"
     )
 
 

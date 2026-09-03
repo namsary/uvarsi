@@ -104,3 +104,13 @@
 - Menej než 10 overených ponúk z jedného obchodu sa nepovažuje za úspešný zber a neprepíše zdravé dáta.
 - Overenie: 233 dotknutých testov a celý balík 2882 testov prešli; 10 testov bolo podmienene preskočených.
 - Platby zostávajú vypnuté; nasadenie nemení Caddy ani aplikáciu Taktik.
+
+## 2026-09-03 — Pravdivé rozlíšenie Free a Premium (vydanie 2026.09.03.4)
+
+- Free vytvorí plnohodnotný jedálniček na celý týždeň z jedného obchodu podľa výberu; Premium môže porovnávať viac podporovaných obchodov.
+- Rozsah oprávnenia vynucuje server pri profile, generovaní, načítaní aj predvýpočte plánu; nemožno ho obísť upravenou požiadavkou z prehliadača.
+- Voľba obchodov používa prístupné tlačidlá: vo Free sa správa ako výber jedného obchodu, v Premium ako výber viacerých.
+- Lidl sa načítava priamo z oficiálneho aktuálneho letáka: endpoint poskytne presnú platnosť a úplný manifest všetkých strán; Kupino a mLetáky zostávajú iba ako zálohy.
+- Platený AI predvýpočet sa pri lokálnom generátore vôbec nezaraďuje a worker pred prípadným volaním znovu overí aktuálny profil aj oprávnenie.
+- Overenie: celý balík 2904 testov prešiel; 10 testov bolo podmienene preskočených.
+- Platby zostávajú vypnuté.

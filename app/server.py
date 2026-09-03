@@ -771,6 +771,7 @@ def validuj_zlozenie_domacnosti(data):
 # dôkazom o platbe. Kým sú platby vypnuté, nárok nemá nikto a všetci sú zadarmo.
 LIMIT_PREPOCTOV_ZDARMA = 1
 LIMIT_PREPOCTOV_PREMIUM = 5
+ALLOWED_STORES = ("Kaufland", "Tesco", "Lidl")
 
 SPRAVA_SPAJZA_PREMIUM = (
     "Špajza je súčasťou Premium. V bezplatnej verzii skladáme jedálniček "
@@ -781,6 +782,7 @@ SPRAVA_SPAJZA_PREMIUM = (
 KOD_SPAJZA_PREMIUM = "spajza_premium"
 KOD_LIMIT_PREPOCTOV = "limit_prepoctov"
 KOD_STRAVOVANIE_PREMIUM = "stravovanie_premium"
+KOD_OBCHODY_PREMIUM = "obchody_premium"
 PANTRY_MAX_ITEMS = 60
 PANTRY_MAX_NAME_LENGTH = 80
 PANTRY_AMOUNT_LIMITS = {"g": 100_000, "ml": 100_000, "piece": 10_000}
@@ -790,6 +792,10 @@ PANTRY_UNIT_ALIASES = {
 }
 SPRAVA_STRAVOVANIE_PREMIUM = (
     "Viac bielkovín, vegetariánsky a vegánsky režim sú súčasťou Premium."
+)
+SPRAVA_OBCHODY_PREMIUM = (
+    "Porovnanie viacerých obchodov je súčasťou Premium. "
+    "V bezplatnej verzii si vyber jeden obchod."
 )
 
 
@@ -810,6 +816,27 @@ def efektivne_stravovanie(row, premium: bool) -> str:
     """Bez nároku sa Pro preferencia iba uspí; v databáze ostáva zachovaná."""
     stored = ulozene_stravovanie(row)
     return stored if premium or stored == "standard" else "standard"
+
+
+def ulozene_obchody(row) -> list[str]:
+    """Vráť podporované obchody v poradí, ktoré si zvolil používateľ."""
+    try:
+        raw = row["obchody"]
+    except (KeyError, IndexError, TypeError):
+        raw = row
+    values = raw.split(",") if isinstance(raw, str) else list(raw or ())
+    selected = []
+    for value in values:
+        candidate = str(value).strip()
+        if candidate in ALLOWED_STORES and candidate not in selected:
+            selected.append(candidate)
+    return selected or list(ALLOWED_STORES)
+
+
+def efektivne_obchody(row, premium: bool) -> list[str]:
+    """Free plánuje z jedného obchodu; Premium môže porovnať všetky uložené."""
+    selected = ulozene_obchody(row)
+    return selected if premium else selected[:1]
 
 
 def odmietni(status: int, sprava: str, kod: str, **navyse) -> JSONResponse:
@@ -2477,7 +2504,8 @@ def me(req: Request):
     adults, children = zlozenie_domacnosti(u)
     result = {"prihlaseny": True, "id": u["id"], "email": u["email"],
               "adults": adults, "children": children, "osoby": adults + children,
-              "frekvencia": u["frekvencia"], "obchody": u["obchody"].split(","),
+              "frekvencia": u["frekvencia"],
+              "obchody": efektivne_obchody(u, premium),
               "onboarding": bool(u["onboarding"]),
               # `platiaci` je len stĺpec; pravdu o platbe drží tabuľka nárokov.
               "platiaci": premium, "premium": premium,
@@ -2510,10 +2538,16 @@ async def uloz_profil(req: Request):
             422,
             "Vyber si varenie každý deň, raz za 2 dni alebo raz za 3 dni.",
         )
-    allowed_stores = ("Kaufland", "Tesco", "Lidl")
-    obchody = [store for store in allowed_stores if store in d.get("obchody", [])]
-    if not obchody:
-        obchody = ["Kaufland", "Tesco", "Lidl"]
+    stores_supplied = "obchody" in d
+    requested_stores = d.get("obchody")
+    if stores_supplied and not isinstance(requested_stores, list):
+        raise HTTPException(422, "Vyber si aspoň jeden podporovaný obchod.")
+    obchody = None
+    if stores_supplied:
+        obchody = []
+        for store in requested_stores:
+            if store in ALLOWED_STORES and store not in obchody:
+                obchody.append(store)
     diet_supplied = "stravovanie" in d
     requested_diet = d.get("stravovanie")
     if diet_supplied and (
@@ -2527,6 +2561,18 @@ async def uloz_profil(req: Request):
             "FROM pouzivatelia WHERE id=?", (u["id"],)
         ).fetchone()
         premium = je_premium(con, u["id"])
+        if obchody is None:
+            obchody = ulozene_obchody(old)
+        elif not obchody:
+            raise HTTPException(422, "Vyber si aspoň jeden podporovaný obchod.")
+        if len(obchody) > 1 and not premium:
+            return odmietni(
+                403,
+                SPRAVA_OBCHODY_PREMIUM,
+                KOD_OBCHODY_PREMIUM,
+                premium=False,
+                obchody=efektivne_obchody(old, False),
+            )
         old_diet = ulozene_stravovanie(old)
         new_diet = requested_diet if diet_supplied else old_diet
         if diet_supplied and new_diet != "standard" and not premium:
@@ -3014,7 +3060,7 @@ def zahrej_plan_pre_pouzivatela(user_id):
         diet_mode = efektivne_stravovanie(profil, premium)
         spajza = spajza_pouzivatela(con, user_id, premium)
 
-    obchody = profil["obchody"].split(",")
+    obchody = efektivne_obchody(profil, premium)
     adults, children = zlozenie_domacnosti(profil)
     rows = akcie_pre(obchody)
     if len(rows) < MIN_OFFERS_FOR_PLAN:
@@ -3221,15 +3267,14 @@ def generuj_plan(req: Request, force: int = 0):
     u = require_user(req)
     adults, children = zlozenie_domacnosti(u)
     tyz = monday()
-    obchody = u["obchody"].split(",")
-    rows = akcie_pre(obchody)
-    if len(rows) < MIN_OFFERS_FOR_PLAN:
-        if recipe_engine_mode() == "on":
-            return _deterministic_insufficient_offers_response()
-        raise HTTPException(503, sprava_o_chybajucich_akciach())
-
     with closing(db()) as con:
         premium = je_premium(con, u["id"])
+        obchody = efektivne_obchody(u, premium)
+        rows = akcie_pre(obchody)
+        if len(rows) < MIN_OFFERS_FOR_PLAN:
+            if recipe_engine_mode() == "on":
+                return _deterministic_insufficient_offers_response()
+            raise HTTPException(503, sprava_o_chybajucich_akciach())
         diet_mode = efektivne_stravovanie(u, premium)
         sp = spajza_pouzivatela(con, u["id"], premium)
         if diet_mode != ulozene_stravovanie(u):
@@ -3358,10 +3403,9 @@ def plan_zo_spajze(req: Request):
     u = require_user(req)
     adults, children = zlozenie_domacnosti(u)
     tyz = monday()
-    obchody = u["obchody"].split(",")
-
     with closing(db()) as con:
         premium = je_premium(con, u["id"])
+        obchody = efektivne_obchody(u, premium)
         diet_mode = efektivne_stravovanie(u, premium)
         if not premium:
             return odmietni(
@@ -3458,6 +3502,31 @@ def _current_job_context(job, stores, frequency, adults, children, *, con, now):
     if payload.get("algo_version") != PLAN_ALGO_VERSION:
         raise StalePlanJob("stale_algorithm")
 
+    pantry = []
+    diet_mode = "standard"
+    if job.user_id is not None:
+        profile = con.execute(
+            "SELECT * FROM pouzivatelia WHERE id=?", (job.user_id,)
+        ).fetchone()
+        if profile is None:
+            raise StalePlanJob("invalid_profile")
+        premium = je_premium(con, job.user_id)
+        current_stores = efektivne_obchody(profile, premium)
+        current_adults, current_children = zlozenie_domacnosti(profile)
+        try:
+            current_frequency = int(profile["frekvencia"])
+        except (KeyError, TypeError, ValueError):
+            raise StalePlanJob("invalid_profile") from None
+        if (
+            stores != current_stores
+            or frequency != current_frequency
+            or adults != current_adults
+            or children != current_children
+        ):
+            raise StalePlanJob("stale_profile")
+        diet_mode = efektivne_stravovanie(profile, premium)
+        pantry = spajza_pouzivatela(con, job.user_id, premium)
+
     missing_stores = stores_missing_this_week(con, stores, today)
     if missing_stores:
         raise StalePlanJob("incomplete_stores")
@@ -3469,17 +3538,6 @@ def _current_job_context(job, stores, frequency, adults, children, *, con, now):
     if len(rows) < MIN_OFFERS_FOR_PLAN:
         raise StalePlanJob("incomplete_stores")
 
-    pantry = []
-    diet_mode = "standard"
-    if job.user_id is not None:
-        premium = je_premium(con, job.user_id)
-        profile = con.execute(
-            "SELECT stravovanie FROM pouzivatelia WHERE id=?", (job.user_id,)
-        ).fetchone()
-        if profile is None:
-            raise StalePlanJob("invalid_profile")
-        diet_mode = efektivne_stravovanie(profile, premium)
-        pantry = spajza_pouzivatela(con, job.user_id, premium)
     pantry_driven = job.kind == "pantry"
     pantry_signature = podpis_spajze(pantry) if pantry_driven else None
     if pantry_driven and payload.get("pantry_signature") != pantry_signature:
@@ -3728,9 +3786,10 @@ def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant, zo_spajze=Fa
 def daj_plan(req: Request):
     u = require_user(req)
     tyz = monday()
-    obchody = u["obchody"].split(",")
     adults, children = zlozenie_domacnosti(u)
     with closing(db()) as con:
+        premium = je_premium(con, u["id"])
+        obchody = efektivne_obchody(u, premium)
         r = con.execute("SELECT json, vytvoreny FROM plany WHERE user_id=? AND tyzden=?",
                         (u["id"], tyz)).fetchone()
         cached = None
@@ -3740,9 +3799,8 @@ def daj_plan(req: Request):
             except json.JSONDecodeError:
                 pass
         rows = measurable_offers(
-            offers_for_current_week(con, u["obchody"].split(","), bratislava_day())
+            offers_for_current_week(con, obchody, bratislava_day())
         )
-        premium = je_premium(con, u["id"])
         stored_diet = ulozene_stravovanie(u)
         effective_diet = efektivne_stravovanie(u, premium)
         sp = spajza_pouzivatela(con, u["id"], premium)
@@ -4146,6 +4204,17 @@ def _authenticated_isolated_recipe_smoke(rows, *, now):
                     ",".join(RECIPE_ENGINE_STORES), "standard", 1,
                 ),
             ).lastrowid
+            con.execute(
+                """INSERT INTO naroky
+                   (user_id,produkt,poskytovatel,objednavka_id,suma_centy,
+                    mena,stav,ziskany_o,zmeneny_o)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                (
+                    user_id, "zakladajuci_clen", "synthetic-smoke",
+                    "recipe-engine-smoke", 0, "EUR", "aktivny",
+                    now.timestamp(), now.timestamp(),
+                ),
+            )
             con.commit()
             raw_session = create_session(
                 con, user_id=user_id, now=now.timestamp(), device_name="local-smoke"

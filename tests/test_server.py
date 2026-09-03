@@ -22,6 +22,15 @@ from app.weekly_data import current_monday
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _reset_test_config_cache():
+    """A monkeypatched env must not inherit a cached mode from another test."""
+    for module_name in ("config", "app.config"):
+        module = sys.modules.get(module_name)
+        reset = getattr(module, "reset_config_cache_for_tests", None)
+        if callable(reset):
+            reset()
+
+
 def current_personal_signature(
         server, *, stores=("Lidl",), frequency=2, adults=4, children=0,
         pantry=(), pantry_driven=False, diet_mode="standard"):
@@ -91,6 +100,7 @@ def load_server(monkeypatch, tmp_path, rows, landing_data=None):
         write_landing_data_atomic(landing_path, landing_data)
         monkeypatch.setenv("UVARSI_LANDING_DATA", str(landing_path))
     monkeypatch.syspath_prepend(str(ROOT / "app"))
+    _reset_test_config_cache()
     sys.modules.pop("server", None)
     return importlib.import_module("server")
 
@@ -143,6 +153,7 @@ def load_server_with_landing_path(monkeypatch, tmp_path, rows, landing_path):
     monkeypatch.setenv("UVARSI_URL", "https://uvar.si")
     monkeypatch.setenv("UVARSI_LANDING_DATA", str(landing_path))
     monkeypatch.syspath_prepend(str(ROOT / "app"))
+    _reset_test_config_cache()
     sys.modules.pop("server", None)
     return importlib.import_module("server")
 
@@ -1958,6 +1969,101 @@ def test_an_active_entitlement_is_what_makes_an_account_premium(monkeypatch, tmp
     assert profil["premium"] is True
     assert profil["limit_prepoctov"] == server.LIMIT_PREPOCTOV_PREMIUM
     assert server.LIMIT_PREPOCTOV_PREMIUM > server.LIMIT_PREPOCTOV_ZDARMA
+
+
+def test_a_free_account_uses_exactly_one_saved_store(monkeypatch, tmp_path):
+    """Starý Free profil s tromi obchodmi nesmie dostať Premium porovnanie."""
+    server = premium_user_server(monkeypatch, tmp_path)
+    with server.db() as con:
+        con.execute(
+            "UPDATE pouzivatelia SET obchody='Kaufland,Tesco,Lidl' WHERE id=1"
+        )
+        con.commit()
+
+    profil = plan_client(server, 1).get("/api/me").json()
+
+    assert profil["premium"] is False
+    assert profil["obchody"] == ["Kaufland"]
+
+
+def test_a_free_account_keeps_the_users_first_saved_store(monkeypatch, tmp_path):
+    server = premium_user_server(monkeypatch, tmp_path)
+    with server.db() as con:
+        con.execute("UPDATE pouzivatelia SET obchody='Lidl,Tesco' WHERE id=1")
+        con.commit()
+
+    assert plan_client(server, 1).get("/api/me").json()["obchody"] == ["Lidl"]
+
+
+def test_a_free_account_cannot_save_multiple_stores(monkeypatch, tmp_path):
+    server = premium_user_server(monkeypatch, tmp_path)
+    client = plan_client(server, 1)
+
+    response = client.post("/api/profil", json={
+        "adults": 2,
+        "children": 2,
+        "frekvencia": 2,
+        "obchody": ["Kaufland", "Lidl"],
+        "stravovanie": "standard",
+    })
+
+    assert response.status_code == 403
+    assert response.json()["kod"] == server.KOD_OBCHODY_PREMIUM
+    with server.db() as con:
+        assert con.execute(
+            "SELECT obchody FROM pouzivatelia WHERE id=1"
+        ).fetchone()[0] == "Lidl"
+
+
+@pytest.mark.parametrize("stores", ([], ["Billa"], ["", "Billa"]))
+def test_profile_rejects_an_explicit_empty_or_unsupported_store_selection(
+        monkeypatch, tmp_path, stores):
+    server = premium_user_server(monkeypatch, tmp_path)
+    client = plan_client(server, 1)
+
+    response = client.post("/api/profil", json={
+        "adults": 2,
+        "children": 2,
+        "frekvencia": 2,
+        "obchody": stores,
+        "stravovanie": "standard",
+    })
+
+    assert response.status_code == 422
+    with server.db() as con:
+        assert con.execute(
+            "SELECT obchody FROM pouzivatelia WHERE id=1"
+        ).fetchone()[0] == "Lidl"
+
+
+def test_profile_patch_without_stores_preserves_the_saved_selection(monkeypatch, tmp_path):
+    server = premium_user_server(monkeypatch, tmp_path)
+    client = plan_client(server, 1)
+    response = client.post("/api/profil", json={
+        "adults": 2,
+        "children": 2,
+        "frekvencia": 3,
+        "stravovanie": "standard",
+    })
+
+    assert response.status_code == 200
+    assert client.get("/api/me").json()["obchody"] == ["Lidl"]
+
+
+def test_a_premium_account_can_save_all_supported_stores(monkeypatch, tmp_path):
+    server = premium_user_server(monkeypatch, tmp_path, premium=True)
+    client = plan_client(server, 1)
+
+    response = client.post("/api/profil", json={
+        "adults": 2,
+        "children": 2,
+        "frekvencia": 2,
+        "obchody": ["Kaufland", "Tesco", "Lidl"],
+        "stravovanie": "standard",
+    })
+
+    assert response.status_code == 200
+    assert client.get("/api/me").json()["obchody"] == ["Kaufland", "Tesco", "Lidl"]
 
 
 def test_a_returned_entitlement_takes_premium_away_again(monkeypatch, tmp_path):

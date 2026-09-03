@@ -111,6 +111,40 @@ def test_saving_profile_never_generates_a_plan_implicitly():
     assert "nacitajPlan(true)" not in refresh
 
 
+@needs_node
+def test_free_selects_one_store_while_premium_can_select_more(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "store-entitlements.js",
+        declaration(html, "function nextStoreSelection(selected, clicked, premium) ")
+        + """
+function same(a,b){return JSON.stringify(a)===JSON.stringify(b);}
+if (!same(nextStoreSelection(['Kaufland'], 'Lidl', false), ['Lidl'])) process.exit(1);
+if (!same(nextStoreSelection(['Kaufland'], 'Lidl', true), ['Kaufland','Lidl'])) process.exit(2);
+if (!same(nextStoreSelection(['Kaufland','Lidl'], 'Lidl', true), ['Kaufland'])) process.exit(3);
+process.exit(0);
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_store_choices_are_real_accessible_buttons():
+    onboarding = declaration(app_html(), "function viewOnboarding() ")
+
+    assert '<button type="button" class="chip' in onboarding
+    assert 'aria-pressed="${' in onboarding
+    assert "nextStoreSelection" in onboarding
+
+
+def test_store_entitlement_change_refreshes_the_open_profile_form():
+    onboarding = declaration(app_html(), "function viewOnboarding() ")
+
+    assert "error.code === 'obchody_premium'" in onboarding
+    assert "ME = await api('/api/me')" in onboarding
+    assert "viewOnboarding()" in onboarding
+
+
 def test_profile_save_empty_state_has_truthful_profile_copy_and_button_label():
     html = app_html()
     onboarding = declaration(html, "function viewOnboarding() ")

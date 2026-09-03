@@ -75,6 +75,13 @@ def _server(monkeypatch, tmp_path, *, mode="shadow"):
                VALUES (1,'shadow-person@example.test',4,2,2,2,
                        'Lidl,Kaufland,Tesco','standard')"""
         )
+        con.execute(
+            """INSERT INTO naroky
+               (user_id,produkt,poskytovatel,objednavka_id,suma_centy,
+                mena,stav,ziskany_o,zmeneny_o)
+               VALUES (1,'zakladajuci_clen','test','shadow-suite',0,
+                       'EUR','aktivny',1,1)"""
+        )
         insert_hashed_session(server, con, "shadow-session", 1)
         con.commit()
     return server

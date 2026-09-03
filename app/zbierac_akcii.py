@@ -7,13 +7,13 @@ potravinové akcie do SQLite. Osobné plány sa potom skladajú z tejto databáz
 lacnými textovými volaniami — takže jeden drahý beh týždenne obslúži
 neobmedzený počet používateľov.
 
-Zdroje strán letákov: kupino.sk (primárne), mletaky.sk (záložné).
+Zdroje strán letákov: oficiálny Lidl endpoint; kupino.sk a mletaky.sk ako zálohy.
 Beh:  /opt/uvarsi/venv/bin/python -u zbierac_akcii.py
 Opravný beh jedného zdroja:  ... zbierac_akcii.py --store lidl
 """
 import os, re, json, base64, datetime, hashlib, sqlite3, requests
 from io import BytesIO
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 try:
     from offer_data import migrate_akcie_schema, replace_store_week, validate_offer
@@ -57,6 +57,8 @@ MAX_PAGES = 200             # poistka proti nekonečnému prechádzaniu
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 H = {"User-Agent": UA}
+LIDL_OVERVIEW_URL = "https://www.lidl.sk/c/online-letak/"
+LIDL_API_URL = "https://endpoints.leaflets.schwarz/v4/flyer"
 
 
 def log(*a):
@@ -213,6 +215,101 @@ def kupino_meta(store):
 def flyer_is_current(valid_from, valid_to, today):
     """Leták je použiteľný, len ak DNES spadá do jeho platnosti."""
     return valid_from <= today.isoformat() <= valid_to
+
+
+def _safe_lidl_image_url(value):
+    if not isinstance(value, str):
+        return None
+    parsed = urlparse(value)
+    if parsed.scheme != "https" or parsed.hostname not in {
+        "imgproxy.leaflets.schwarz",
+        "assets.leaflets.schwarz",
+    }:
+        return None
+    return value
+
+
+def official_lidl_pages(today=None):
+    """Read the national weekly flyer from Lidl's own public viewer API.
+
+    The overview supplies the current weekly slug.  The viewer endpoint then
+    supplies a finite offer window and a complete, explicitly numbered page
+    manifest.  We never guess hashes or stop after the first missing image.
+    """
+    today = today or datetime.date.today()
+    overview = requests.get(LIDL_OVERVIEW_URL, headers=H, timeout=30).text
+    slugs = re.findall(
+        r'href=["\'](?:https://www\.lidl\.sk)?/l/sk/letak/'
+        r'(online-letak-platny-od-[^/"\'?]+)/(?:ar/1|view/flyer/page/1)',
+        overview,
+        flags=re.I,
+    )
+    slug = next(iter(dict.fromkeys(slugs)), None)
+    if not slug:
+        raise ValueError("oficiálna stránka neuvádza aktuálny týždenný leták")
+
+    endpoint = f"{LIDL_API_URL}?flyer_identifier={quote(slug, safe='')}"
+    payload = requests.get(endpoint, headers=H, timeout=30).json()
+    flyer = payload.get("flyer") if isinstance(payload, dict) and payload.get("success") is True else None
+    if not isinstance(flyer, dict):
+        raise ValueError("oficiálny endpoint nevrátil leták")
+    if flyer.get("apiCountryCode") != "SK":
+        raise ValueError("oficiálny endpoint vrátil leták pre inú krajinu")
+    if flyer.get("isActive") is not True or flyer.get("status") != "current":
+        raise ValueError("oficiálny endpoint neoznačil leták ako aktuálny")
+
+    raw_from = flyer.get("offerStartDate")
+    raw_to = flyer.get("offerEndDate")
+    if not isinstance(raw_from, str) or not isinstance(raw_to, str):
+        raise ValueError("oficiálny leták nemá konečnú platnosť ponuky")
+    valid_from, valid_to = parse_finite_validity(f"{raw_from[:10]} {raw_to[:10]}")
+    if not flyer_is_current(valid_from, valid_to, today):
+        raise ValueError(f"oficiálny leták dnes neplatí ({valid_from} – {valid_to})")
+
+    raw_pages = flyer.get("pages")
+    if not isinstance(raw_pages, list):
+        raise ValueError("oficiálny leták nemá zoznam strán")
+    normalized = []
+    seen = set()
+    for item in raw_pages:
+        if not isinstance(item, dict) or isinstance(item.get("number"), bool):
+            raise ValueError("oficiálny leták má neplatné číslo strany")
+        try:
+            number = int(item["number"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("oficiálny leták má neplatné číslo strany") from exc
+        thumbnail = _safe_lidl_image_url(item.get("thumbnail") or item.get("image"))
+        image = _safe_lidl_image_url(item.get("zoom") or item.get("image"))
+        if number < 1 or number in seen or not thumbnail or not image:
+            raise ValueError("oficiálny leták má neúplný manifest strán")
+        seen.add(number)
+        normalized.append((number, thumbnail, image))
+    normalized.sort(key=lambda row: row[0])
+    if len(normalized) < MIN_PLAUSIBLE_PAGES:
+        raise ValueError("oficiálny týždenný leták má podozrivo málo strán")
+    if [row[0] for row in normalized] != list(range(1, len(normalized) + 1)):
+        raise ValueError("oficiálnemu letáku chýbajú strany")
+
+    source_url = flyer.get("flyerUrlAbsolute")
+    parsed_source = urlparse(source_url) if isinstance(source_url, str) else None
+    if not parsed_source or parsed_source.scheme != "https" or parsed_source.hostname != "www.lidl.sk":
+        source_url = f"https://www.lidl.sk/l/sk/letak/{slug}/view/flyer/page/1"
+    pages = [(thumbnail, image) for _, thumbnail, image in normalized]
+    manifest = {
+        "source_url": source_url,
+        "valid_from": valid_from,
+        "valid_to": valid_to,
+        "declared_pages": len(normalized),
+        "pages": [
+            {
+                "source_page": number,
+                "thumbnail_url": thumbnail,
+                "image_url": image,
+            }
+            for number, thumbnail, image in normalized
+        ],
+    }
+    return pages, manifest
 
 
 def _mletaky_declared_page_counts(page_html, store):
@@ -384,6 +481,13 @@ def discover_pages(store, page_urls, start):
 def store_pages(store, today=None):
     """Return all sequential pages plus their exact finite-validity manifest."""
     today = today or datetime.date.today()
+    if store == "lidl":
+        try:
+            pages, manifest = official_lidl_pages(today=today)
+            log(f"[INFO] {store}: oficiálny leták má {len(pages)} strán")
+            return pages, manifest
+        except Exception as e:
+            log(f"[WARN] {store}: oficiálny leták odmietnutý ({e})")
     try:
         meta = kupino_meta(store)
     except Exception as e:

@@ -36,8 +36,8 @@ def profile(stravovanie=None, **overrides):
 def authenticated_client(server, *, user_id=1, email="diet@uvar.si"):
     with server.db() as con:
         con.execute(
-            "INSERT INTO pouzivatelia (id, email) VALUES (?, ?)",
-            (user_id, email),
+            "INSERT INTO pouzivatelia (id, email, obchody) VALUES (?, ?, ?)",
+            (user_id, email, "Lidl"),
         )
         insert_hashed_session(server, con, "diet-session", user_id)
         con.commit()
