@@ -70,7 +70,7 @@ def _candidate_recipe(**overrides):
             {"text": "Prepláchni {starch.amount} {starch.name} studenou vodou."},
             {"text": "Uvar {starch.amount} {starch.name} v hrnci na miernom ohni 15 minút, kým voda vsiakne."},
             {"text": "Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-            {"text": "Opekaj {protein.amount} {protein.name} v panvici na strednom ohni 8 minút, kým mäso dosiahne 74 °C."},
+            {"text": "Opekaj {protein.amount} {protein.name} v panvici na strednom ohni 8 minút, kým bude mäso zlatisté a v strede prepečené."},
             {"text": "Pridaj {vegetable.amount} {vegetable.name} do panvice a opekaj na strednom ohni 6 minút, kým zelenina zmäkne."},
             {"text": "Premiešaj jedlo s uvarenou ryžou."},
             {"text": "Dochuť jedlo cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."},

@@ -11,7 +11,7 @@
       ],
       "pantry_basics":["oil","salt","black_pepper","garlic"],
       "instructions":[
-        {"text":"Predhrej rúru na 200 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Predhrej rúru na 200 °C."},
         {"text":"Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou a var ju v hrnci 15 minút na miernom ohni, kým voda vsiakne."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Rozlož {protein.name} a {vegetable.name} do pekáča, pokvapkaj olejom a premiešaj."},

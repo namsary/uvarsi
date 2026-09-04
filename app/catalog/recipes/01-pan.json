@@ -6,7 +6,7 @@
       "family": "chicken_rice_stir_fry", "method": "pan", "minutes": 35,
       "modes": ["standard", "high_protein"], "equipment": ["panvica", "hrniec"],
       "slots": [
-        {"key":"protein","role":"protein","candidates":["chicken_breast","chicken_thigh"],"amount_per_adult":"180","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na kocky"},
+        {"key":"protein","role":"protein","candidates":["chicken_breast"],"amount_per_adult":"180","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na kocky"},
         {"key":"starch","role":"starch","candidates":["rice"],"amount_per_adult":"75","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
         {"key":"vegetable","role":"vegetable","candidates":["broccoli","carrot","zucchini"],"amount_per_adult":"160","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
       ],
@@ -15,7 +15,7 @@
         {"text":"Prepláchni {starch.amount} {starch.name} studenou vodou."},
         {"text":"Uvar {starch.name} v hrnci na miernom ohni 15 minút, kým voda vsiakne."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opekaj {protein.name} v panvici na strednom ohni 8 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Opekaj {protein.name} v panvici na strednom ohni 8 minút, kým bude mäso zlatisté a v strede prepečené."},
         {"text":"Pridaj {vegetable.name} do panvice a opekaj na strednom ohni 6 minút, kým zelenina zmäkne."},
         {"text":"Premiešaj jedlo s uvarenou ryžou."},
         {"text":"Dochuť jedlo cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
@@ -35,7 +35,7 @@
       "instructions": [
         {"text":"Uvar {starch.amount} {starch.name} v hrnci na strednom ohni 9 minút, kým zmäknú na skus."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opekaj {protein.name} v panvici na strednom ohni 8 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Opekaj {protein.name} v panvici na strednom ohni 8 minút, kým bude mäso zlatisté a v strede prepečené."},
         {"text":"Pridaj {vegetable.name} do panvice a var na miernom ohni 7 minút, kým zelenina zmäkne."},
         {"text":"Premiešaj jedlo s uvarenými cestovinami."},
         {"text":"Dochuť jedlo cesnakom, oreganom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
@@ -55,7 +55,7 @@
       "instructions": [
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut}, {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Uvar {starch.name} v hrnci na strednom ohni 8 minút, kým mierne zmäknú."},
-        {"text":"Opekaj {protein.name} v panvici na strednom ohni 10 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Opekaj {protein.name} v panvici na strednom ohni 10 minút, kým bude mäso zlatisté a v strede prepečené."},
         {"text":"Pridaj {starch.name} a {vegetable.name} do panvice a opekaj na strednom ohni 10 minút, kým budú zemiaky zlatisté."},
         {"text":"Dochuť jedlo mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
@@ -75,7 +75,7 @@
         {"text":"Prepláchni {starch.amount} {starch.name} studenou vodou."},
         {"text":"Uvar {starch.name} v hrnci na miernom ohni 15 minút, kým voda vsiakne."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opekaj {protein.amount} {protein.name} v panvici na silnom ohni 7 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Opekaj {protein.amount} {protein.name} v panvici na silnom ohni 7 minút, kým bude mäso zlatisté a v strede prepečené."},
         {"text":"Pridaj {vegetable.name} do panvice a opekaj na strednom ohni 6 minút, kým zelenina zmäkne."},
         {"text":"Premiešaj jedlo s uvarenou ryžou."},
         {"text":"Dochuť jedlo cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
@@ -117,7 +117,7 @@
         {"text":"Priprav {starch.amount} {starch.name} v miske s {starch.water} vody."},
         {"text":"Nechaj kuskus v miske 8 minút, kým voda vsiakne."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opekaj {protein.name} v panvici na strednom ohni 8 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Opekaj {protein.name} v panvici na strednom ohni 8 minút, kým bude mäso zlatisté a v strede prepečené."},
         {"text":"Pridaj {vegetable.name} do panvice a opekaj na strednom ohni 6 minút, kým zelenina zmäkne."},
         {"text":"Premiešaj jedlo s pripraveným kuskusom."},
         {"text":"Dochuť jedlo oreganom, soľou a čiernym korením a rozdeľ na {portions} porcií."}

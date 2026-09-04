@@ -53,7 +53,7 @@
       ],
       "pantry_basics": ["oil","salt","black_pepper","garlic"],
       "instructions": [
-        {"text":"Predhrej rúru na 190 °C; správnu teplotu potvrdí kontrolka rúry."},
+        {"text":"Predhrej rúru na 190 °C."},
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Uvar {starch.name} v hrnci 8 minút na strednom ohni, kým mierne zmäknú."},
         {"text":"Rozlož {starch.name} do pekáča."},
@@ -74,7 +74,7 @@
       ],
       "pantry_basics": ["oil","salt","black_pepper","garlic"],
       "instructions": [
-        {"text":"Predhrej rúru na 190 °C; správnu teplotu potvrdí kontrolka rúry."},
+        {"text":"Predhrej rúru na 190 °C."},
         {"text":"Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou."},
         {"text":"Uvar {starch.name} v hrnci 12 minút na miernom ohni, kým voda vsiakne."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
@@ -115,7 +115,7 @@
       ],
       "pantry_basics": ["oil","salt","black_pepper","garlic"],
       "instructions": [
-        {"text":"Predhrej rúru na 195 °C; správnu teplotu potvrdí kontrolka rúry."},
+        {"text":"Predhrej rúru na 195 °C."},
         {"text":"Uvar {starch.amount} {starch.name} v hrnci 7 minút na strednom ohni, kým mierne zmäknú."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Uvar {vegetable.name} v hrnci 4 minúty na strednom ohni, kým mierne zmäkne."},

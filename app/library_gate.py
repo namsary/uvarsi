@@ -36,6 +36,11 @@ _FORBIDDEN_LANGUAGE = (
     re.compile(r"\breziek\w*\b"),
     re.compile(r"\brezky\w*\b"),
 )
+_IMPRACTICAL_KITCHEN_INSTRUCTIONS = (
+    re.compile(r"\bkontrolk\w*\b"),
+    re.compile(r"\bteplomer\w*\b"),
+    re.compile(r"\b74\s*°?\s*c\b"),
+)
 _DECIMAL_GRAMS = re.compile(r"(?<!\w)\d+[.,]\d+\s*g\b", re.IGNORECASE)
 _SERVING_ACTION = re.compile(r"\b(?:rozdel\w*|podavaj\w*|serviruj\w*|naloz\w*)\b")
 _GENERIC_ONLY = re.compile(
@@ -405,6 +410,18 @@ def _raw_language_errors(recipe: RecipeTemplate) -> set[str]:
 
     if any(pattern.search(folded) for pattern in _FORBIDDEN_LANGUAGE):
         errors.add("forbidden_language")
+    if any(
+        pattern.search(folded)
+        for pattern in _IMPRACTICAL_KITCHEN_INSTRUCTIONS
+    ):
+        errors.add("impractical_kitchen_instruction")
+    if any(
+        "chicken_thigh" in slot.candidates
+        and slot.cut is not None
+        and re.search(r"\b(?:kock\w*|kociek)\b", _fold(slot.cut))
+        for slot in recipe.slots
+    ):
+        errors.add("incompatible_ingredient_cut")
     if "{" in joined or "}" in joined:
         # Valid placeholders are resolved during rendering; malformed or leftover
         # braces are classified there. A brace that cannot be parsed is rejected now.
@@ -448,6 +465,11 @@ def _rendered_language_errors(meal: RenderedMeal) -> set[str]:
 
     if any(pattern.search(folded) for pattern in _FORBIDDEN_LANGUAGE):
         errors.add("forbidden_language")
+    if any(
+        pattern.search(folded)
+        for pattern in _IMPRACTICAL_KITCHEN_INSTRUCTIONS
+    ):
+        errors.add("impractical_kitchen_instruction")
     if "{" in joined or "}" in joined:
         errors.add("unresolved_braces")
     if _DECIMAL_GRAMS.search(joined):

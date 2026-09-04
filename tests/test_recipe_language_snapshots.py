@@ -35,6 +35,45 @@ def test_language_snapshot_rejects_known_czech_or_garbled_terms(defect):
     assert "forbidden_language" in audit_library(ingredients, (broken,)).errors
 
 
+@pytest.mark.parametrize(
+    "defect",
+    [
+        "Počkaj, kým kontrolka signalizuje nahriatie.",
+        "Peč mäso, kým teplomer ukáže 74 °C.",
+        "Peč mäso, kým dosiahne 74 °C.",
+        "Peč mäso, kým bude zlatisté a bude mať 74 °C.",
+    ],
+)
+def test_language_snapshot_rejects_impractical_kitchen_instructions(defect):
+    ingredients, recipe = _base_recipe()
+    broken = _replace_step(
+        recipe,
+        -1,
+        recipe.instructions[-1].text + f" {defect}",
+    )
+
+    assert "impractical_kitchen_instruction" in audit_library(
+        ingredients,
+        (broken,),
+    ).errors
+
+
+@pytest.mark.parametrize("cut", ["na kocky", "do kociek"])
+def test_library_gate_rejects_cutting_bone_in_chicken_thighs_into_cubes(cut):
+    ingredients, recipe = _base_recipe()
+    broken_slot = replace(
+        recipe.slots[0],
+        candidates=("chicken_breast", "chicken_thigh"),
+        cut=cut,
+    )
+    broken = replace(recipe, slots=(broken_slot, *recipe.slots[1:]))
+
+    assert "incompatible_ingredient_cut" in audit_library(
+        ingredients,
+        (broken,),
+    ).errors
+
+
 @pytest.mark.parametrize("brace", ["{", "}", "{mystery}"])
 def test_language_snapshot_rejects_each_unresolved_template_brace(brace):
     ingredients, recipe = _base_recipe()

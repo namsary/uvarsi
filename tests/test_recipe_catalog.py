@@ -542,6 +542,15 @@ def test_production_manifest_uses_even_catalog_revision():
     assert manifest["catalog_revision"] % 2 == 0
 
 
+def test_production_manifest_invalidates_plans_from_old_recipe_wording():
+    manifest = json.loads(
+        (DEFAULT_RECIPE_ROOT / "manifest.json").read_text(encoding="utf-8")
+    )
+
+    assert manifest["library_version"] >= 2
+    assert manifest["catalog_revision"] >= 4
+
+
 def test_loader_retries_when_manifest_changes_and_returns_only_stable_snapshot(
     ingredients, tmp_path, monkeypatch
 ):

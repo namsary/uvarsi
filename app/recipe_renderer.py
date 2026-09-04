@@ -302,7 +302,7 @@ _DONENESS = re.compile(
     r"\bchrumkav\w*\b|\bcira\b|\bciru\b|\bje\s+povrch\s+horuc\w*\b|"
     r"\bleskn\w*\b|\bmakk\w*\b|\b(?:zacne|prestane)\s+parit\b|"
     r"\bvsiakn\w*\b|"
-    r"\bzmakn\w*\b|\bstuh\w*\b|\b74\s*°\s*c\b)"
+    r"\bprepec\w*\b|\bzmakn\w*\b|\bstuh\w*\b)"
 )
 _AMOUNT = re.compile(
     r"\b\d+(?:[,.]\d+)?\s*(?:g|kg|ml|l|ks|kus|kusy|kusov|"
@@ -332,9 +332,6 @@ _FOLLOW_UP_ACTION_CONTEXT = re.compile(
     r"(?:na\s+(?:miernom|strednom|silnom|nizkom|vysokom)\s+ohni\b|"
     r"pri\s+\d+\s*°\s*c\b|do\s+(?:prudkeho\s+)?varu\b)"
 )
-_PREHEAT_READY = re.compile(r"\b(?:kontrolk\w*|dosiahn\w*|nahriat\w*|signal\w*)\b")
-
-
 def _coefficient_and_exponent(value: Decimal) -> tuple[int, int]:
     parts = value.as_tuple()
     coefficient = 0
@@ -1056,8 +1053,6 @@ def _validate_step_detail(step: str) -> None:
     if folded.startswith("predhrej"):
         if _HEAT.search(folded) is None:
             raise ValueError("Predhriatie musí uvádzať teplotu.")
-        if _PREHEAT_READY.search(folded) is None:
-            raise ValueError("Predhriatie musí uvádzať kontrolný znak hotovosti.")
         return
     if _VESSEL.search(folded) is None:
         raise ValueError("Tepelný krok musí uvádzať nádobu alebo pomôcku.")

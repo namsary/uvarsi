@@ -12,7 +12,7 @@
       "pantry_basics":["water","salt","black_pepper","garlic"],
       "instructions":[
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}; priprav si aj {starch.name}."},
-        {"text":"Var {protein.name} v hrnci 12 minút na miernom ohni, kým mäso dosiahne 74 °C."},
+        {"text":"Var {protein.name} v hrnci 12 minút na miernom ohni, kým bude mäso v strede prepečené."},
         {"text":"Pridaj {vegetable.name} do hrnca."},
         {"text":"Var {vegetable.name} v hrnci 8 minút na miernom ohni, kým zmäkne."},
         {"text":"Pridaj {starch.amount} {starch.name} do hrnca a var ich 6 minút na miernom ohni, kým zmäknú."},
@@ -33,7 +33,7 @@
       "instructions":[
         {"text":"Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opekaj {protein.amount} {protein.name} v hrnci 9 minút na strednom ohni, kým mäso dosiahne 74 °C."},
+        {"text":"Opekaj {protein.amount} {protein.name} v hrnci 9 minút na strednom ohni, kým bude mäso zlatisté a v strede prepečené."},
         {"text":"Pridaj {starch.name} do hrnca."},
         {"text":"Pridaj {vegetable.name} do hrnca a var ju 25 minút na miernom ohni, kým krúpy a zelenina zmäknú."},
         {"text":"Dochuť polievku cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."},
@@ -114,7 +114,7 @@
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Uvar {starch.name} v hrnci 12 minút na strednom ohni, kým zmäknú."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut}."},
-        {"text":"Opekaj {protein.name} v panvici 9 minút na strednom ohni, kým mäso dosiahne 74 °C."},
+        {"text":"Opekaj {protein.name} v panvici 9 minút na strednom ohni, kým bude mäso zlatisté a v strede prepečené."},
         {"text":"Priprav {dairy.name} v mise a premiešaj ho s cesnakom, soľou a čiernym korením."},
         {"text":"Premiešaj {dairy.amount} {dairy.name} so zemiakmi, zeleninou a kuracím mäsom a rozdeľ šalát na {portions} porcií."}
       ]

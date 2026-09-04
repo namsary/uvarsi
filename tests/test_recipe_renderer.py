@@ -124,7 +124,7 @@ def test_large_multi_day_pan_batch_uses_capacity_safe_deterministic_guidance(
             "Osuš {main.amount} {main.name} papierovou utierkou.",
             "Nakrájaj {main.amount} {main.name} {main.cut}.",
             "Opekaj {main.amount} {main.name} v panvici na strednom ohni "
-            "8 minút, kým mäso dosiahne 74 °C.",
+            "8 minút, kým bude mäso zlatisté a v strede prepečené.",
             "Rozdeľ mäso na {portions} porcií a podávaj ho horúce.",
         ),
     )
@@ -136,7 +136,7 @@ def test_large_multi_day_pan_batch_uses_capacity_safe_deterministic_guidance(
     assert "2,2 kg" not in cooking_step
     assert "jednej vrstve" in cooking_step
     assert "ďalšiu panvicu" in cooking_step
-    assert "kým mäso dosiahne 74 °C" in cooking_step
+    assert "kým bude mäso zlatisté a v strede prepečené" in cooking_step
     assert "8 minút" not in cooking_step
 
 
@@ -209,7 +209,7 @@ def test_large_egg_pan_step_supports_vlej_and_preserves_doneness(ingredients):
     assert "5 minút" not in egg_step
 
 
-def test_all_159_catalog_variants_are_capacity_safe_for_four_adults_three_days(
+def test_all_150_catalog_variants_are_capacity_safe_for_four_adults_three_days(
     ingredients,
 ):
     recipes = load_recipe_catalog(ingredients).all()
@@ -249,7 +249,7 @@ def test_all_159_catalog_variants_are_capacity_safe_for_four_adults_three_days(
                 assert re.search(r"\d+(?:[,.]\d+)?\s*minút", output) is None
                 assert "kým" in output
 
-    assert rendered_count == 159
+    assert rendered_count == 150
     assert audited_capacity_steps > 0
 
 
@@ -274,7 +274,7 @@ def test_all_catalog_variants_keep_weights_in_ingredient_list_not_steps(
                     measured_phrase not in step for step in meal.instructions
                 ), (recipe.id, item.slot.key, measured_phrase, meal.instructions)
 
-    assert rendered_count == 159
+    assert rendered_count == 150
 
 
 @pytest.mark.parametrize(
@@ -381,7 +381,7 @@ PASTA_STEPS = (
 )
 
 ROASTED_VEGETABLE_STEPS = (
-    "Predhrej rúru na 200 °C; správnu teplotu potvrdí kontrolka rúry.",
+    "Predhrej rúru na 200 °C.",
     "Nakrájaj {main.amount} {main.name} {main.cut} na doske na približne "
     "1 cm hrubé kúsky.",
     "Rozlož {main.amount} {main.name} v jednej vrstve na plech, pridaj "
@@ -404,12 +404,12 @@ TOFU_STEPS = (
 CHICKEN_STEPS = (
     "Osuš {main.amount} {main.name} papierovou utierkou a rovnomerne ich "
     "osoľ a okoreň.",
-    "Predhrej rúru na 200 °C; správnu teplotu potvrdí kontrolka rúry.",
+    "Predhrej rúru na 200 °C.",
     "Rozlož {main.amount} {main.name} na pekáč kožou nahor tak, aby sa "
     "jednotlivé kúsky nedotýkali.",
-    "Peč {main.amount} {main.name} v pekáči 35 minút pri 200 °C, kým "
-    "teplomer v najhrubšej časti ukáže aspoň 74 °C a po narezaní vyteká "
-    "číra šťava.",
+    "Peč {main.amount} {main.name} v pekáči 40 minút pri 200 °C, kým "
+    "bude mäso prepečené až ku kosti a po narezaní z neho potečie číra "
+    "šťava.",
     "Nechaj kuracie stehná na pekáči 5 minút odpočívať, kým sa šťava "
     "prestane uvoľňovať.",
     "Rozdeľ kuracie stehná na {portions} porcie a podávaj ich horúce.",
@@ -471,7 +471,7 @@ CHICKEN_STEPS = (
                 "Pečená cuketa",
                 "600 g · cuketa",
                 (
-                    "Predhrej rúru na 200 °C; správnu teplotu potvrdí kontrolka rúry.",
+                    "Predhrej rúru na 200 °C.",
                     "Nakrájaj cuketu na polkolieska na doske na približne 1 cm hrubé kúsky.",
                     "Rozlož cuketu v jednej vrstve na plech, pridaj 1 polievkovú lyžicu oleja a štipku soli.",
                     "Peč cuketu na plechu 25 minút pri 200 °C, kým zmäkne a okraje nezozlatnú.",
@@ -512,9 +512,9 @@ CHICKEN_STEPS = (
                 "900 g · kuracie stehná",
                 (
                     "Osuš kuracie stehná papierovou utierkou a rovnomerne ich osoľ a okoreň.",
-                    "Predhrej rúru na 200 °C; správnu teplotu potvrdí kontrolka rúry.",
+                    "Predhrej rúru na 200 °C.",
                     "Rozlož kuracie stehná na pekáč kožou nahor tak, aby sa jednotlivé kúsky nedotýkali.",
-                    "Peč kuracie stehná v pekáči 35 minút pri 200 °C, kým teplomer v najhrubšej časti ukáže aspoň 74 °C a po narezaní vyteká číra šťava.",
+                    "Peč kuracie stehná v pekáči 40 minút pri 200 °C, kým bude mäso prepečené až ku kosti a po narezaní z neho potečie číra šťava.",
                     "Nechaj kuracie stehná na pekáči 5 minút odpočívať, kým sa šťava prestane uvoľňovať.",
                     "Rozdeľ kuracie stehná na 4 porcie a podávaj ich horúce.",
                 ),
@@ -1214,7 +1214,9 @@ def test_context_words_are_not_observable_doneness_cues(
         render_meal(candidate, adults=4, children=0, covered_days=1)
 
 
-def test_preheating_requires_an_observable_readiness_cue(ingredients):
+def test_preheating_does_not_require_an_appliance_specific_readiness_cue(
+    ingredients,
+):
     candidate = _candidate(
         ingredients.by_id("zucchini"),
         amount="150",
@@ -1228,8 +1230,9 @@ def test_preheating_requires_an_observable_readiness_cue(ingredients):
         ),
     )
 
-    with pytest.raises(ValueError, match="hotov|výsled|kontrol"):
-        render_meal(candidate, adults=4, children=0, covered_days=1)
+    meal = render_meal(candidate, adults=4, children=0, covered_days=1)
+
+    assert meal.instructions[0] == "Predhrej rúru na 200 °C."
 
 
 @pytest.mark.parametrize(

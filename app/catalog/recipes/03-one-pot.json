@@ -6,14 +6,14 @@
       "family":"chicken_pea_pilaf","method":"one_pot","minutes":35,
       "modes":["standard","high_protein"],"equipment":["hrniec"],
       "slots":[
-        {"key":"protein","role":"protein","candidates":["chicken_breast","chicken_thigh"],"amount_per_adult":"180","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé kocky"},
+        {"key":"protein","role":"protein","candidates":["chicken_breast"],"amount_per_adult":"180","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé kocky"},
         {"key":"starch","role":"starch","candidates":["rice"],"amount_per_adult":"75","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
         {"key":"vegetable","role":"vegetable","candidates":["peas","carrot"],"amount_per_adult":"160","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
       ],
       "pantry_basics":["water","oil","salt","black_pepper","garlic"],
       "instructions":[
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opekaj {protein.name} v hrnci na strednom ohni 7 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Opekaj {protein.name} v hrnci na strednom ohni 7 minút, kým bude mäso zlatisté a v strede prepečené."},
         {"text":"Prepláchni {starch.amount} {starch.name}."},
         {"text":"Pridaj {starch.name} a {vegetable.name} do hrnca."},
         {"text":"Nalej {starch.water} vody do hrnca."},
@@ -27,14 +27,14 @@
       "family":"chicken_paprika_pasta_pot","method":"one_pot","minutes":38,
       "modes":["standard","high_protein"],"equipment":["hrniec"],
       "slots":[
-        {"key":"protein","role":"protein","candidates":["chicken_thigh","chicken_breast"],"amount_per_adult":"185","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na väčšie kocky"},
+        {"key":"protein","role":"protein","candidates":["chicken_breast"],"amount_per_adult":"185","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na väčšie kocky"},
         {"key":"starch","role":"starch","candidates":["pasta"],"amount_per_adult":"75","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
         {"key":"vegetable","role":"vegetable","candidates":["bell_pepper","tomato"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
       ],
       "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
       "instructions":[
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opekaj {protein.name} v hrnci na strednom ohni 8 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Opekaj {protein.name} v hrnci na strednom ohni 8 minút, kým bude mäso zlatisté a v strede prepečené."},
         {"text":"Pridaj {vegetable.name} do hrnca a opekaj na miernom ohni 5 minút, kým zelenina zmäkne."},
         {"text":"Prisyp {starch.amount} {starch.name} do hrnca."},
         {"text":"Nalej {starch.water} vody do hrnca."},
@@ -55,7 +55,7 @@
       "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
       "instructions":[
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opekaj {protein.name} v hrnci na strednom ohni 10 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Opekaj {protein.name} v hrnci na strednom ohni 10 minút, kým bude mäso zlatisté a v strede prepečené."},
         {"text":"Pridaj {vegetable.name} do hrnca a opekaj na miernom ohni 5 minút, kým zelenina zmäkne."},
         {"text":"Prepláchni {starch.amount} {starch.name}."},
         {"text":"Prisyp {starch.name} do hrnca a prilej {starch.water} vody."},
@@ -76,7 +76,7 @@
       "pantry_basics":["water","oil","salt","black_pepper","oregano","garlic"],
       "instructions":[
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opekaj {protein.amount} {protein.name} v hrnci na strednom ohni 8 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Opekaj {protein.amount} {protein.name} v hrnci na strednom ohni 8 minút, kým bude mäso zlatisté a v strede prepečené."},
         {"text":"Pridaj {vegetable.name} do hrnca a var na miernom ohni 6 minút, kým zelenina zmäkne."},
         {"text":"Prisyp {starch.amount} {starch.name} do hrnca."},
         {"text":"Nalej {starch.water} vody do hrnca."},
@@ -116,7 +116,7 @@
       "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
       "instructions":[
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opekaj {protein.name} v hrnci na strednom ohni 7 minút, kým mäso dosiahne 74 °C."},
+        {"text":"Opekaj {protein.name} v hrnci na strednom ohni 7 minút, kým bude mäso zlatisté a v strede prepečené."},
         {"text":"Prepláchni {starch.amount} {starch.name}."},
         {"text":"Pridaj {starch.name} a {vegetable.name} do hrnca."},
         {"text":"Nalej {starch.water} vody do hrnca."},

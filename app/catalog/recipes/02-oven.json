@@ -6,17 +6,17 @@
       "family":"roast_chicken_thigh_tray","method":"oven","minutes":55,
       "modes":["standard","high_protein"],"equipment":["rúra","pekáč"],
       "slots":[
-        {"key":"protein","role":"protein","candidates":["chicken_thigh","chicken_breast"],"amount_per_adult":"190","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na porcie"},
+        {"key":"protein","role":"protein","candidates":["chicken_thigh"],"amount_per_adult":"190","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na porcie"},
         {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"280","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na mesiačiky"},
         {"key":"vegetable","role":"vegetable","candidates":["carrot","onion"],"amount_per_adult":"150","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na hrubšie kúsky"}
       ],
       "pantry_basics":["oil","salt","black_pepper","paprika_powder","garlic"],
       "instructions":[
-        {"text":"Predhrej rúru na 200 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Predhrej rúru na 200 °C."},
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Rozlož {protein.amount} {protein.name}, {starch.name} a {vegetable.name} do pekáča."},
         {"text":"Dochuť suroviny cesnakom, mletou paprikou, soľou a čiernym korením."},
-        {"text":"Peč {protein.name} so zemiakmi a zeleninou v rúre pri 200 °C 40 minút, kým mäso dosiahne 74 °C a zemiaky zmäknú."},
+        {"text":"Peč {protein.name} so zemiakmi a zeleninou v rúre pri 200 °C 40 minút, kým bude mäso v strede prepečené a zemiaky zmäknú."},
         {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
       ]
     },
@@ -32,12 +32,12 @@
       ],
       "pantry_basics":["water","oil","salt","black_pepper","oregano"],
       "instructions":[
-        {"text":"Predhrej rúru na 190 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Predhrej rúru na 190 °C."},
         {"text":"Prepláchni {starch.amount} {starch.name} a rozlož ju do pekáča."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Rozlož {protein.name} a {vegetable.name} na ryžu a dochuť oreganom, soľou a čiernym korením."},
         {"text":"Nalej {starch.water} vody do pekáča."},
-        {"text":"Peč {protein.name} s ryžou a zeleninou v rúre pri 190 °C 30 minút, kým mäso dosiahne 74 °C a ryža zmäkne."},
+        {"text":"Peč {protein.name} s ryžou a zeleninou v rúre pri 190 °C 30 minút, kým bude mäso v strede prepečené a ryža zmäkne."},
         {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
       ]
     },
@@ -53,7 +53,7 @@
       ],
       "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
       "instructions":[
-        {"text":"Predhrej rúru na 175 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Predhrej rúru na 175 °C."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut}, {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Rozlož {protein.name}, {starch.name} a {vegetable.name} do pekáča."},
         {"text":"Dochuť suroviny cesnakom, mletou paprikou, soľou a čiernym korením a podlej vodou."},
@@ -73,11 +73,11 @@
       ],
       "pantry_basics":["oil","salt","black_pepper","oregano","garlic"],
       "instructions":[
-        {"text":"Predhrej rúru na 200 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Predhrej rúru na 200 °C."},
         {"text":"Dochuť {protein.amount} {protein.name} cesnakom, soľou a čiernym korením a vytvaruj mäso {protein.cut}."},
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Rozlož {protein.name}, {starch.name} a {vegetable.name} do pekáča a posyp oreganom."},
-        {"text":"Peč {protein.name} so zemiakmi a zeleninou v rúre pri 200 °C 32 minút, kým mäso dosiahne 74 °C a zemiaky zmäknú."},
+        {"text":"Peč {protein.name} so zemiakmi a zeleninou v rúre pri 200 °C 32 minút, kým bude mäso v strede prepečené a zemiaky zmäknú."},
         {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
       ]
     },
@@ -93,7 +93,7 @@
       ],
       "pantry_basics":["oil","salt","black_pepper","garlic"],
       "instructions":[
-        {"text":"Predhrej rúru na 200 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Predhrej rúru na 200 °C."},
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Peč {starch.name} na plechu pri 200 °C 15 minút, kým zmäknú."},
         {"text":"Osuš {protein.amount} {protein.name} a nakrájaj ich {protein.cut}."},
@@ -114,7 +114,7 @@
       ],
       "pantry_basics":["water","oil","salt","black_pepper","oregano"],
       "instructions":[
-        {"text":"Predhrej rúru na 190 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Predhrej rúru na 190 °C."},
         {"text":"Prepláchni {starch.amount} {starch.name} a rozlož ju do pekáča."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut} a rozlož ich na ryžu."},
         {"text":"Osuš {protein.amount} {protein.name}, nakrájaj ich {protein.cut} a polož ich na zeleninu."},
@@ -135,7 +135,7 @@
       ],
       "pantry_basics":["oil","salt","black_pepper","paprika_powder","garlic"],
       "instructions":[
-        {"text":"Predhrej rúru na 210 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Predhrej rúru na 210 °C."},
         {"text":"Osuš {protein.amount} {protein.name} a nakrájaj ho {protein.cut}."},
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Rozlož {protein.name}, {starch.name} a {vegetable.name} na plech."},
@@ -156,7 +156,7 @@
       ],
       "pantry_basics":["oil","salt","black_pepper","oregano","garlic"],
       "instructions":[
-        {"text":"Predhrej rúru na 200 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Predhrej rúru na 200 °C."},
         {"text":"Uvar {starch.amount} {starch.name} v hrnci na strednom ohni 7 minút, kým mierne zmäknú."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Rozlož {starch.name}, {protein.name} a {vegetable.name} do pekáča."},
@@ -177,7 +177,7 @@
       ],
       "pantry_basics":["oil","salt","black_pepper","oregano"],
       "instructions":[
-        {"text":"Predhrej rúru na 185 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Predhrej rúru na 185 °C."},
         {"text":"Opekaj {vegetable.amount} {vegetable.name} v panvici na strednom ohni 6 minút, kým zelenina zmäkne."},
         {"text":"Rozšľahaj {protein.amount} {protein.name} so soľou, čiernym korením a oreganom a vmiešaj {dairy.amount} {dairy.name}."},
         {"text":"Vlož {vegetable.name} do pekáča."},
@@ -198,7 +198,7 @@
       ],
       "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
       "instructions":[
-        {"text":"Predhrej rúru na 190 °C a počkaj, kým kontrolka signalizuje nahriatie."},
+        {"text":"Predhrej rúru na 190 °C."},
         {"text":"Uvar {protein.amount} {protein.name} v hrnci na miernom ohni 18 minút, kým strukovina zmäkne."},
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Rozmixuj {protein.name}, pridaj {starch.name} a {vegetable.name} a premiešaj zmes."},
