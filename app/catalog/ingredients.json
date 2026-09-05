@@ -124,7 +124,7 @@
     {
       "id": "red_lentils",
       "name": "červená šošovica",
-      "synonyms": ["ružová šošovica"],
+      "synonyms": ["ružová šošovica", "šošovica červená"],
       "category": "strukoviny",
       "roles": ["protein", "starch"],
       "diet_tags": ["vegetarian", "vegan"],
@@ -134,7 +134,7 @@
       "density_g_per_ml": null,
       "nutrition": {
         "kcal": "358", "protein_g": "23.91", "fat_g": "2.17", "carbs_g": "63.1",
-        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 174284, Lentils, pink or red, raw; https://fdc.nal.usda.gov/fdc-app.html#/food-details/174284/nutrients",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 174284, Lentils, pink or red, raw; https://fdc.nal.usda.gov/download-datasets/",
         "verified_on": "2026-08-30"
       }
     },
@@ -782,6 +782,312 @@
         "kcal": "251", "protein_g": "10.39", "fat_g": "3.26", "carbs_g": "63.95",
         "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170931, Spices, pepper, black; https://fdc.nal.usda.gov/fdc-app.html#/food-details/170931/nutrients",
         "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "sauerkraut",
+      "name": "kyslá kapusta",
+      "synonyms": ["kvasená kapusta", "kapusta kvasená", "kyslej kapusty", "kyslú kapustu"],
+      "category": "zelenina",
+      "roles": ["vegetable"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "19", "protein_g": "0.91", "fat_g": "0.14", "carbs_g": "4.28",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 169279, Sauerkraut, canned, solids and liquids; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "white_cabbage",
+      "name": "biela hlávková kapusta",
+      "synonyms": ["biela kapusta", "hlávková kapusta", "kapusta"],
+      "category": "zelenina",
+      "roles": ["vegetable"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "0.8",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "25", "protein_g": "1.28", "fat_g": "0.1", "carbs_g": "5.8",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 169975, Cabbage, raw; https://fdc.nal.usda.gov/download-datasets/; edible yield from USDA Agriculture Handbook No. 102, Food Yields; https://www.ars.usda.gov/SP2UserFiles/Place/80400525/Data/Classics/ah102.pdf",
+        "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "wheat_flour",
+      "name": "hladká pšeničná múka",
+      "synonyms": ["hladká múka", "pšeničná múka", "múka"],
+      "category": "obilniny",
+      "roles": ["starch"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": ["gluten"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "364", "protein_g": "10.3", "fat_g": "0.98", "carbs_g": "76.3",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 169761, Wheat flour, white, all-purpose, unenriched; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "bryndza",
+      "name": "bryndza",
+      "synonyms": ["slovenská bryndza", "plnotučná bryndza"],
+      "category": "mliečne výrobky",
+      "roles": ["protein", "dairy"],
+      "diet_tags": ["vegetarian"],
+      "allergens": ["milk"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "270", "protein_g": "15.8", "fat_g": "22.8", "carbs_g": "0.5",
+        "source": "AGROFARMA, spol. s r.o., Bryndza plnotučná, výživové údaje na 100 g; https://www.agrofarma.sk/bryndza/bryndza-plnotucna/",
+        "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "beef_chuck",
+      "name": "hovädzie predné bez kosti",
+      "synonyms": ["hovädzie na guláš", "hovädzie mäso na guláš", "hovädzie kocky"],
+      "category": "mäso",
+      "roles": ["protein"],
+      "diet_tags": [],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "180", "protein_g": "19.2", "fat_g": "11.5", "carbs_g": "0",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 168660, Beef, chuck eye roast, boneless, separable lean and fat, raw; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "pork_loin",
+      "name": "bravčové karé bez kosti",
+      "synonyms": ["bravčové karé", "karé bez kosti"],
+      "category": "mäso",
+      "roles": ["protein"],
+      "diet_tags": [],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "198", "protein_g": "19.7", "fat_g": "12.6", "carbs_g": "0",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 167818, Pork, fresh, loin, whole, separable lean and fat, raw; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "apple",
+      "name": "jablká",
+      "synonyms": ["jablko", "jablká so šupkou"],
+      "category": "ovocie",
+      "roles": ["fruit"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "0.9",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "52", "protein_g": "0.26", "fat_g": "0.17", "carbs_g": "13.8",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171688, Apples, raw, with skin; https://fdc.nal.usda.gov/download-datasets/; edible yield from USDA Agriculture Handbook No. 102, Food Yields; https://www.ars.usda.gov/SP2UserFiles/Place/80400525/Data/Classics/ah102.pdf",
+        "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "cauliflower",
+      "name": "karfiol",
+      "synonyms": ["hlávka karfiolu"],
+      "category": "zelenina",
+      "roles": ["vegetable"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "0.39",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "25", "protein_g": "1.92", "fat_g": "0.28", "carbs_g": "4.97",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 169986, Cauliflower, raw; https://fdc.nal.usda.gov/download-datasets/; edible yield from USDA Agriculture Handbook No. 102, Food Yields; https://www.ars.usda.gov/SP2UserFiles/Place/80400525/Data/Classics/ah102.pdf",
+        "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "pumpkin",
+      "name": "tekvica na varenie",
+      "synonyms": ["tekvica", "tekvice"],
+      "category": "zelenina",
+      "roles": ["vegetable"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "0.7",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "26", "protein_g": "1", "fat_g": "0.1", "carbs_g": "6.5",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 168448, Pumpkin, raw; https://fdc.nal.usda.gov/download-datasets/; edible yield from USDA Agriculture Handbook No. 102, Food Yields; https://www.ars.usda.gov/SP2UserFiles/Place/80400525/Data/Classics/ah102.pdf",
+        "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "lentils",
+      "name": "šošovica",
+      "synonyms": ["hnedá šošovica", "zelená šošovica", "suchá šošovica"],
+      "category": "strukoviny",
+      "roles": ["protein", "starch"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "352", "protein_g": "24.6", "fat_g": "1.06", "carbs_g": "63.4",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 172420, Lentils, raw; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "dry_peas",
+      "name": "suchý polený hrach",
+      "synonyms": ["suchý hrach", "polený hrach", "žltý hrach"],
+      "category": "strukoviny",
+      "roles": ["protein", "starch"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "364", "protein_g": "23.1", "fat_g": "3.89", "carbs_g": "61.6",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 172428, Peas, green, split, mature seeds, raw; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "ham",
+      "name": "varená šunka",
+      "synonyms": ["šunka", "bravčová šunka", "krájaná šunka"],
+      "category": "mäso",
+      "roles": ["protein"],
+      "diet_tags": [],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "164", "protein_g": "16.6", "fat_g": "8.8", "carbs_g": "3.63",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 173864, Ham, sliced, regular; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "smoked_sausage",
+      "name": "údená klobása",
+      "synonyms": ["klobása", "údená klobáska"],
+      "category": "mäso",
+      "roles": ["protein", "fat"],
+      "diet_tags": [],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "320", "protein_g": "12", "fat_g": "28.7", "carbs_g": "2.42",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 174585, Sausage, smoked link sausage, pork and beef; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "sugar",
+      "name": "kryštálový cukor",
+      "synonyms": ["cukor", "biely cukor"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "387", "protein_g": "0", "fat_g": "0", "carbs_g": "100",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 169655, Sugars, granulated; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "apple_cider_vinegar",
+      "name": "jablčný ocot",
+      "synonyms": ["ocot"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": "1",
+      "nutrition": {
+        "kcal": "21", "protein_g": "0", "fat_g": "0", "carbs_g": "0.93",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 173469, Vinegar, cider; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "butter",
+      "name": "maslo",
+      "synonyms": ["kravské maslo"],
+      "category": "tuky",
+      "roles": ["fat", "dairy"],
+      "diet_tags": ["vegetarian"],
+      "allergens": ["milk"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "717", "protein_g": "0.85", "fat_g": "81.1", "carbs_g": "0.06",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 173410, Butter, salted; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "marjoram",
+      "name": "majorán",
+      "synonyms": ["majoránka", "sušený majorán"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "271", "protein_g": "12.7", "fat_g": "7.04", "carbs_g": "60.6",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170928, Spices, marjoram, dried; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "dill",
+      "name": "kôpor",
+      "synonyms": ["čerstvý kôpor", "kôpru"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "43", "protein_g": "3.46", "fat_g": "1.12", "carbs_g": "7.02",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 172233, Dill weed, fresh; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-05"
       }
     }
   ]

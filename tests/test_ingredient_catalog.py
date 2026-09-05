@@ -137,6 +137,24 @@ def test_catalog_keeps_practical_resolution_for_neutral_pantry_names(
     assert catalog.resolve(pantry_name).id == expected_id
 
 
+@pytest.mark.parametrize(
+    ("catalog_alias", "expected_id"),
+    (
+        ("múka", "wheat_flour"),
+        ("bravčové karé", "pork_loin"),
+        ("ocot", "apple_cider_vinegar"),
+        ("šunka", "ham"),
+        ("hovädzie na guláš", "beef_chuck"),
+    ),
+)
+def test_exact_catalog_resolution_remains_available_for_offer_ambiguous_aliases(
+    catalog_alias, expected_id
+):
+    catalog = load_ingredient_catalog()
+
+    assert catalog.resolve(catalog_alias).id == expected_id
+
+
 def test_catalog_rejects_duplicate_synonym(tmp_path):
     duplicate = _ingredient(
         id="chicken_thigh",
@@ -252,9 +270,13 @@ def test_default_catalog_contains_verified_foundation_slice():
     assert catalog.by_id("milk").density_g_per_ml == Decimal("1")
     assert catalog.by_id("oil").density_g_per_ml == Decimal("0.9")
     for item in catalog.all():
-        assert "USDA FoodData Central" in item.nutrition.source
-        assert "FDC ID" in item.nutrition.source
-        assert "https://fdc.nal.usda.gov/" in item.nutrition.source
+        if item.id == "bryndza":
+            assert "AGROFARMA" in item.nutrition.source
+            assert "agrofarma.sk" in item.nutrition.source
+        else:
+            assert "USDA FoodData Central" in item.nutrition.source
+            assert "FDC ID" in item.nutrition.source
+            assert "https://fdc.nal.usda.gov/" in item.nutrition.source
         assert item.nutrition.verified_on >= date(2026, 8, 30)
 
 

@@ -12,6 +12,8 @@ from typing import Iterable, Literal, Mapping, Sequence
 from .ingredient_catalog import (
     Ingredient,
     IngredientCatalog,
+    ingredient_ambiguous_offer_forms,
+    ingredient_forbidden_offer_qualifiers,
     normalize_name,
     product_family_ambiguous_offer_forms,
 )
@@ -83,11 +85,20 @@ def _match_ingredient(
     if len(candidates) != 1:
         return None
     ingredient = catalog.by_id(next(iter(candidates)))
-    ambiguous_forms = product_family_ambiguous_offer_forms(ingredient.id)
+    ambiguous_forms = product_family_ambiguous_offer_forms(
+        ingredient.id
+    ) | ingredient_ambiguous_offer_forms(ingredient.id)
     if ambiguous_forms and all(
         " ".join(alias) in ambiguous_forms for alias in matching_aliases
     ):
         return None
+    for qualifier in ingredient_forbidden_offer_qualifiers(ingredient.id):
+        width = len(qualifier)
+        if any(
+            product_tokens[start : start + width] == qualifier
+            for start in range(len(product_tokens) - width + 1)
+        ):
+            return None
     return ingredient
 
 

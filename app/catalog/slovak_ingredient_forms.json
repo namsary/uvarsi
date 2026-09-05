@@ -46,6 +46,24 @@
     "tuna": {"genitive": "tuniaka vo vlastnej šťave", "instrumental": "tuniakom vo vlastnej šťave"},
     "turkey_breast": {"genitive": "morčacích pŕs", "instrumental": "morčacími prsiami"},
     "white_fish": {"genitive": "filetu z bielej ryby", "instrumental": "filetom z bielej ryby"},
-    "zucchini": {"genitive": "cukety", "instrumental": "cuketou"}
+    "zucchini": {"genitive": "cukety", "instrumental": "cuketou"},
+    "apple": {"genitive": "jabĺk", "instrumental": "jablkami"},
+    "apple_cider_vinegar": {"genitive": "jablčného octu", "instrumental": "jablčným octom"},
+    "beef_chuck": {"genitive": "hovädzieho predného bez kosti", "instrumental": "hovädzím mäsom z predného bez kosti"},
+    "bryndza": {"genitive": "bryndze", "instrumental": "bryndzou"},
+    "butter": {"genitive": "masla", "instrumental": "maslom"},
+    "cauliflower": {"genitive": "karfiolu", "instrumental": "karfiolom"},
+    "dill": {"genitive": "kôpru", "instrumental": "kôprom"},
+    "dry_peas": {"genitive": "suchého poleného hrachu", "instrumental": "suchým poleným hrachom"},
+    "ham": {"genitive": "varenej šunky", "instrumental": "varenou šunkou"},
+    "lentils": {"genitive": "šošovice", "instrumental": "šošovicou"},
+    "marjoram": {"genitive": "majoránu", "instrumental": "majoránom"},
+    "pork_loin": {"genitive": "bravčového karé bez kosti", "instrumental": "bravčovým karé bez kosti"},
+    "pumpkin": {"genitive": "tekvice", "instrumental": "tekvicou"},
+    "sauerkraut": {"genitive": "kyslej kapusty", "instrumental": "kyslou kapustou"},
+    "smoked_sausage": {"genitive": "údenej klobásy", "instrumental": "údenou klobásou"},
+    "sugar": {"genitive": "kryštálového cukru", "instrumental": "kryštálovým cukrom"},
+    "wheat_flour": {"genitive": "hladkej pšeničnej múky", "instrumental": "hladkou pšeničnou múkou"},
+    "white_cabbage": {"genitive": "bielej hlávkovej kapusty", "instrumental": "bielou hlávkovou kapustou"}
   }
 }
