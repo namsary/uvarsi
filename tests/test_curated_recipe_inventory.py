@@ -380,13 +380,14 @@ def test_protein_beef_chili_is_a_distinct_baked_stuffed_sweet_potato():
     protein_target = target_by_id["protein_beef_bean_chili"]
     family_chili = candidate_by_id["modern_chili_con_carne"]
     expected_display_name = "Proteínový batat plnený hovädzím chilli"
+    old_food_network_url = (
+        "https://www.foodnetwork.com/recipes/food-network-kitchen/"
+        "chili-stuffed-sweet-potatoes-recipe-2120999"
+    )
     expected_references = [
         {
-            "url": (
-                "https://www.foodnetwork.com/recipes/food-network-kitchen/"
-                "chili-stuffed-sweet-potatoes-recipe-2120999"
-            ),
-            "title": "Chili-Stuffed Sweet Potatoes Recipe | Food Network Kitchen",
+            "url": "https://terianncarty.com/high-protein-stuffed-sweet-potatoes/",
+            "title": "High Protein Stuffed Sweet Potatoes | Teri-Ann Carty Recipes",
             "accessed_on": "2026-09-05",
         },
         {
@@ -406,6 +407,9 @@ def test_protein_beef_chili_is_a_distinct_baked_stuffed_sweet_potato():
         assert row["editorial_lane"] == "high_protein"
         assert row["expected_modes"] == ["standard", "high_protein"]
         assert row["references"] == expected_references
+        assert old_food_network_url not in {
+            reference["url"] for reference in row["references"]
+        }
         assert all(
             _looks_like_recipe_page(reference["url"])
             for reference in row["references"]
