@@ -62,6 +62,37 @@ def _recipe(**overrides):
     return value
 
 
+def _v2_recipe_payload(**overrides):
+    value = _recipe(
+        version=2,
+        instructions=[
+            {
+                "text": "Nakrájaj {protein.amount} {protein.name} {protein.cut}.",
+                "requires": ["protein:raw"],
+                "produces": ["protein:prepared"],
+            },
+            {
+                "text": "Opekaj mäso v panvici 8 minút.",
+                "requires": ["protein:prepared", "panvica:free"],
+                "produces": ["protein:cooked", "panvica:occupied"],
+            },
+            {
+                "text": "Rozdeľ jedlo na {portions} porcií.",
+                "requires": ["protein:cooked"],
+                "produces": ["protein:served", "panvica:free"],
+            },
+        ],
+        storage={
+            "refrigerated_days": 2,
+            "instruction": (
+                "Po vychladnutí odlož do chladničky a zjedz do 2 dní."
+            ),
+        },
+    )
+    value.update(overrides)
+    return value
+
+
 def _write_library(tmp_path, recipes, manifest=None):
     root = tmp_path / "recipes"
     root.mkdir()
@@ -183,8 +214,100 @@ def test_loaded_template_values_are_deeply_immutable(ingredients, tmp_path):
     assert recipe.slots[0].candidates == ("chicken_breast",)
     assert recipe.slots[0].amount_per_adult == Decimal("150")
     assert recipe.instructions[0].text.startswith("Nakrájaj")
+    assert recipe.instructions[0].requires == ()
+    assert recipe.instructions[0].produces == ()
+    assert recipe.storage is None
     with pytest.raises(FrozenInstanceError):
         recipe.active = False
+
+
+def test_loads_version_2_workflow_and_recipe_specific_storage(ingredients, tmp_path):
+    root = _write_library(tmp_path, [_v2_recipe_payload()])
+
+    recipe = load_recipe_catalog(ingredients, root).all()[0]
+
+    assert recipe.instructions[0].requires == ("protein:raw",)
+    assert recipe.instructions[0].produces == ("protein:prepared",)
+    assert recipe.storage.refrigerated_days == 2
+    assert recipe.storage.instruction.endswith("do 2 dní.")
+
+
+def test_v2_recipe_requires_recipe_specific_storage_rule(ingredients, tmp_path):
+    payload = _v2_recipe_payload()
+    payload.pop("storage")
+    root = _write_library(tmp_path, [payload])
+
+    with pytest.raises(ValueError, match="storage"):
+        load_recipe_catalog(ingredients, root)
+
+
+@pytest.mark.parametrize(
+    "storage",
+    [
+        {"refrigerated_days": 0, "instruction": "Platný text."},
+        {"refrigerated_days": 5, "instruction": "Platný text."},
+        {"refrigerated_days": 2, "instruction": ""},
+        {"refrigerated_days": 2, "instruction": "Platný text.", "extra": True},
+    ],
+)
+def test_v2_recipe_rejects_invalid_storage_rule(ingredients, tmp_path, storage):
+    root = _write_library(tmp_path, [_v2_recipe_payload(storage=storage)])
+
+    with pytest.raises(ValueError, match="storage|chladničke"):
+        load_recipe_catalog(ingredients, root)
+
+
+@pytest.mark.parametrize(
+    "instructions",
+    [
+        [
+            {"text": step["text"], "produces": step["produces"]}
+            for step in _v2_recipe_payload()["instructions"]
+        ],
+        [
+            {**step, "extra": []}
+            for step in _v2_recipe_payload()["instructions"]
+        ],
+    ],
+)
+def test_v2_recipe_requires_exact_instruction_workflow_keys(
+    ingredients, tmp_path, instructions
+):
+    root = _write_library(
+        tmp_path,
+        [_v2_recipe_payload(instructions=instructions)],
+    )
+
+    with pytest.raises(ValueError, match="schéma.*kroku"):
+        load_recipe_catalog(ingredients, root)
+
+
+@pytest.mark.parametrize("token", ["protein", "mystery:raw"])
+def test_v2_recipe_rejects_malformed_or_unknown_workflow_tokens(
+    ingredients, tmp_path, token
+):
+    payload = _v2_recipe_payload()
+    payload["instructions"][0]["requires"] = [token]
+    root = _write_library(tmp_path, [payload])
+
+    with pytest.raises(ValueError, match="token|mystery"):
+        load_recipe_catalog(ingredients, root)
+
+
+def test_manifest_exposes_dormant_curated_generation(ingredients, tmp_path):
+    root = _write_library(
+        tmp_path,
+        [_recipe()],
+        manifest={
+            "library_version": 7,
+            "catalog_revision": 2,
+            "curation_generation": 1,
+        },
+    )
+
+    catalog = load_recipe_catalog(ingredients, root)
+
+    assert catalog.curation_generation == 1
 
 
 @pytest.mark.parametrize(
@@ -508,6 +631,7 @@ def test_rejects_invalid_recipe_enums_and_positive_integers(
         ({"library_version": 1, "extra": 2}, "manifest"),
         ({"library_version": 1, "catalog_revision": "2"}, "catalog_revision"),
         ({"library_version": 1, "catalog_revision": True}, "catalog_revision"),
+        ({"library_version": 1, "catalog_revision": None}, "catalog_revision"),
         ({"library_version": 1, "catalog_revision": -1}, "catalog_revision"),
     ],
 )

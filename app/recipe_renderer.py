@@ -73,6 +73,7 @@ class RenderedMeal:
     pantry_basics: Sequence[str]
     instructions: Sequence[str]
     nutrition: NutritionEstimate
+    storage: str | None = None
 
 
 @dataclass(frozen=True)
@@ -1170,6 +1171,13 @@ def render_meal(
     if not isinstance(candidate, RecipeCandidate):
         raise TypeError("candidate must be a RecipeCandidate")
     _validate_inputs(adults, children, covered_days)
+    storage_rule = candidate.template.storage
+    if (
+        candidate.template.version >= 2
+        and storage_rule is not None
+        and covered_days > storage_rule.refrigerated_days
+    ):
+        raise ValueError("Plán presahuje bezpečnú dobu uchovania v chladničke.")
     selections = _validated_selections(candidate)
     rendered = tuple(
         _render_ingredient(
@@ -1247,6 +1255,13 @@ def render_meal(
         pantry_basics=_pantry_names(candidate),
         instructions=instructions,
         nutrition=nutrition,
+        storage=(
+            storage_rule.instruction
+            if candidate.template.version >= 2
+            and storage_rule is not None
+            and covered_days > 1
+            else None
+        ),
     )
 
 

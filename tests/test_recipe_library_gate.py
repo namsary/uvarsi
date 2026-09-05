@@ -8,7 +8,12 @@ import pytest
 import app.library_gate as library_gate
 from app.ingredient_catalog import load_ingredient_catalog
 from app.library_gate import audit_library, main
-from app.recipe_catalog import InstructionTemplate, load_recipe_catalog
+from app.recipe_catalog import (
+    InstructionTemplate,
+    RecipeCatalog,
+    StorageRule,
+    load_recipe_catalog,
+)
 from app.recipe_matcher import RecipeCandidate, SlotSelection
 from app.recipe_renderer import render_meal
 
@@ -108,6 +113,72 @@ def _second_slice():
 def _active_library():
     ingredients = load_ingredient_catalog()
     return load_recipe_catalog(ingredients).all()
+
+
+def _with_valid_v2_workflow(recipe):
+    required_keys = tuple(slot.key for slot in recipe.slots if slot.required)
+    instructions = list(recipe.instructions)
+    instructions[0] = replace(
+        instructions[0],
+        requires=tuple(f"{key}:raw" for key in required_keys),
+        produces=tuple(f"{key}:prepared" for key in required_keys),
+    )
+    instructions[-1] = replace(
+        instructions[-1],
+        requires=tuple(f"{key}:prepared" for key in required_keys),
+        produces=tuple(f"{key}:served" for key in required_keys),
+    )
+    return replace(
+        recipe,
+        version=2,
+        instructions=tuple(instructions),
+        storage=StorageRule(
+            refrigerated_days=3,
+            instruction=(
+                "Po vychladnutí odlož do chladničky a zjedz do 3 dní."
+            ),
+        ),
+    )
+
+
+def test_audit_merges_workflow_errors_for_active_version_2_recipe():
+    ingredients = load_ingredient_catalog()
+    recipes = list(_active_library())
+    recipes[0] = replace(
+        _with_valid_v2_workflow(recipes[0]),
+        instructions=tuple(
+            replace(step, produces=())
+            if index == len(recipes[0].instructions) - 1
+            else step
+            for index, step in enumerate(
+                _with_valid_v2_workflow(recipes[0]).instructions
+            )
+        ),
+    )
+
+    audit = audit_library(ingredients, recipes)
+
+    assert any(
+        error.startswith("workflow_unserved_ingredient:")
+        for error in audit.errors
+    )
+
+
+def test_audit_rejects_active_v1_recipe_only_in_curated_generation_one():
+    ingredients = load_ingredient_catalog()
+    recipes = _active_library()
+
+    dormant = audit_library(
+        ingredients,
+        RecipeCatalog(3, recipes, curation_generation=0),
+    )
+    curated = audit_library(
+        ingredients,
+        RecipeCatalog(4, recipes, curation_generation=1),
+    )
+
+    assert "legacy_recipe_active" not in dormant.errors
+    assert "legacy_recipe_active" in curated.errors
 
 
 def test_first_library_slice_has_thirty_unique_active_templates():

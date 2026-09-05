@@ -11,6 +11,7 @@ from app.recipe_catalog import (
     IngredientSlot,
     InstructionTemplate,
     RecipeTemplate,
+    StorageRule,
     load_recipe_catalog,
 )
 from app.recipe_matcher import RecipeCandidate, SlotSelection
@@ -96,6 +97,84 @@ def _catalog_candidate(ingredients, recipe_id, candidate_ids):
         score=Decimal("0"),
         key=f"capacity-audit:{recipe.id}:{'+'.join(candidate_ids)}",
     )
+
+
+def _v2_storage_candidate(ingredients, *, refrigerated_days=2):
+    candidate = _candidate(
+        ingredients.by_id("tofu"),
+        amount="160",
+        name_template="Tofu z panvice",
+        equipment=("panvica",),
+        pantry_basics=("oil",),
+        instructions=(
+            "Nakrájaj {main.amount} {main.name} na rovnaké kocky.",
+            "Opekaj tofu v panvici 8 minút na strednom ohni, kým bude zlatisté.",
+            "Rozdeľ tofu na {portions} porcií a podávaj ho teplé.",
+        ),
+    )
+    workflow_steps = (
+        replace(
+            candidate.template.instructions[0],
+            requires=("main:raw",),
+            produces=("main:prepared",),
+        ),
+        replace(
+            candidate.template.instructions[1],
+            requires=("main:prepared", "panvica:free"),
+            produces=("main:cooked", "panvica:occupied"),
+        ),
+        replace(
+            candidate.template.instructions[2],
+            requires=("main:cooked",),
+            produces=("main:served", "panvica:free"),
+        ),
+    )
+    template = replace(
+        candidate.template,
+        version=2,
+        instructions=workflow_steps,
+        storage=StorageRule(
+            refrigerated_days=refrigerated_days,
+            instruction=(
+                "Po vychladnutí odlož do chladničky a zjedz do 2 dní."
+            ),
+        ),
+    )
+    return replace(candidate, template=template)
+
+
+def test_renderer_uses_recipe_specific_storage_rule(ingredients):
+    meal = render_meal(
+        _v2_storage_candidate(ingredients),
+        adults=2,
+        children=0,
+        covered_days=2,
+    )
+
+    assert meal.storage == (
+        "Po vychladnutí odlož do chladničky a zjedz do 2 dní."
+    )
+
+
+def test_renderer_omits_storage_for_one_day_v2_meal(ingredients):
+    meal = render_meal(
+        _v2_storage_candidate(ingredients),
+        adults=2,
+        children=0,
+        covered_days=1,
+    )
+
+    assert meal.storage is None
+
+
+def test_renderer_rejects_batch_beyond_recipe_storage_limit(ingredients):
+    with pytest.raises(ValueError, match="chladničke|storage"):
+        render_meal(
+            _v2_storage_candidate(ingredients, refrigerated_days=2),
+            adults=2,
+            children=0,
+            covered_days=3,
+        )
 
 
 def _rendered_grams(item):
