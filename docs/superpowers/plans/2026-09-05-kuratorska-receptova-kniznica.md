@@ -20,6 +20,7 @@
 - Recipe steps use natural modern Slovak and repeat quantities only when a later split depends on the amount.
 - Allergens and nutrition are calculated from the selected canonical ingredients; each version-2 recipe carries its own refrigerated-storage rule.
 - Dry/canned legumes and bone-in/boneless meat remain distinct.
+- One template may substitute only kitchen-equivalent products; a different technique or materially different cooking time requires a separate archetype.
 - The active library contains at least 24 high-protein, 24 vegetarian, and 16 vegan recipes, including cross-tagged recipes outside the primary editorial lane.
 - Plan creation p95 remains below 500 ms on the existing Hetzner server.
 - Payments remain off throughout this work.
