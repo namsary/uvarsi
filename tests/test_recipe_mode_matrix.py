@@ -38,13 +38,16 @@ EXPECTED_MEALS = {1: 7, 2: 4, 3: 3}
 VERIFIED_WEEKLY_OFFERS = (
     ("barley", "Kaufland", "500 g", "1.19", "1.69"),
     ("beans", "Tesco", "500 g", "1.29", "1.79"),
+    ("beans_canned", "Lidl", "400 g", "0.99", "1.49"),
     ("beef_mince", "Lidl", "500 g", "3.99", "5.49"),
     ("bell_pepper", "Kaufland", "500 g", "1.49", "2.19"),
     ("broccoli", "Tesco", "500 g", "1.29", "1.99"),
     ("carrot", "Lidl", "1 kg", "0.79", "1.19"),
     ("chicken_breast", "Kaufland", "500 g", "2.99", "4.49"),
     ("chicken_thigh", "Tesco", "500 g", "2.49", "3.49"),
+    ("chicken_thigh_meat", "Kaufland", "500 g", "2.99", "4.19"),
     ("chickpeas", "Lidl", "500 g", "1.09", "1.59"),
+    ("chickpeas_canned", "Tesco", "400 g", "0.99", "1.49"),
     ("coconut_milk", "Kaufland", "400 ml", "1.39", "1.99"),
     ("cottage_cheese", "Tesco", "200 g", "1.19", "1.69"),
     ("couscous", "Lidl", "500 g", "1.29", "1.89"),
@@ -71,6 +74,11 @@ VERIFIED_WEEKLY_OFFERS = (
     ("white_fish", "Lidl", "500 g", "3.99", "5.49"),
     ("zucchini", "Kaufland", "500 g", "1.19", "1.79"),
 )
+
+MATCHABLE_PRODUCT_NAMES = {
+    "beans_canned": "červená fazuľa v konzerve",
+    "chickpeas_canned": "cícer v konzerve",
+}
 
 MATRIX = tuple(
     (mode, household, frequency)
@@ -116,7 +124,9 @@ def verified_offer_rows(production_catalogs):
             {
                 "offer_key": f"verified-{ingredient_id}",
                 "obchod": store,
-                "nazov": ingredient.name,
+                "nazov": MATCHABLE_PRODUCT_NAMES.get(
+                    ingredient_id, ingredient.name
+                ),
                 "jednotka": package,
                 "cena": sale,
                 "povodna": ordinary,

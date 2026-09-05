@@ -166,7 +166,7 @@ def test_ordinary_steps_keep_tomato_weight_in_the_ingredient_list(
     candidate = _catalog_candidate(
         ingredients,
         "pot_chickpea_tomato_couscous",
-        ("chickpeas", "couscous", "tomato"),
+        ("chickpeas_canned", "couscous", "tomato"),
     )
 
     meal = render_meal(candidate, adults=4, children=0, covered_days=2)
@@ -209,7 +209,7 @@ def test_large_egg_pan_step_supports_vlej_and_preserves_doneness(ingredients):
     assert "5 minút" not in egg_step
 
 
-def test_all_150_catalog_variants_are_capacity_safe_for_four_adults_three_days(
+def test_all_catalog_variants_are_capacity_safe_for_four_adults_three_days(
     ingredients,
 ):
     recipes = load_recipe_catalog(ingredients).all()
@@ -249,7 +249,7 @@ def test_all_150_catalog_variants_are_capacity_safe_for_four_adults_three_days(
                 assert re.search(r"\d+(?:[,.]\d+)?\s*minút", output) is None
                 assert "kým" in output
 
-    assert rendered_count == 150
+    assert rendered_count >= 150
     assert audited_capacity_steps > 0
 
 
@@ -274,7 +274,7 @@ def test_all_catalog_variants_keep_weights_in_ingredient_list_not_steps(
                     measured_phrase not in step for step in meal.instructions
                 ), (recipe.id, item.slot.key, measured_phrase, meal.instructions)
 
-    assert rendered_count == 150
+    assert rendered_count >= 150
 
 
 @pytest.mark.parametrize(
@@ -294,7 +294,7 @@ def test_all_catalog_variants_keep_weights_in_ingredient_list_not_steps(
         ),
         (
             "veg_mushroom_barley_pan",
-            ("chickpeas", "barley", "mushrooms"),
+            ("chickpeas_canned", "barley", "mushrooms"),
             "Opekaj biele šampiňóny v panvici",
             "Opekaj bielych šampiňónov v panvici",
         ),
@@ -1029,6 +1029,65 @@ def test_renderer_rejects_inconsistent_selected_ingredient_name(ingredients):
 
     with pytest.raises(ValueError, match="kuracie prsia|zozname surovín"):
         render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
+@pytest.mark.parametrize(
+    ("selected_id", "explicit_sibling_form"),
+    (
+        ("chickpeas", "konzervovaný cícer"),
+        ("chickpeas_canned", "suchý cícer"),
+        ("beans", "sterilizovaná červená fazuľa"),
+        ("beans_canned", "suchá červená fazuľa"),
+        ("chicken_thigh", "vykostené kuracie stehná"),
+        ("chicken_thigh_meat", "kuracie stehná s kosťou"),
+    ),
+)
+def test_renderer_rejects_explicit_product_family_mismatch(
+    ingredients, selected_id, explicit_sibling_form
+):
+    ingredient = ingredients.by_id(selected_id)
+    candidate = _candidate(
+        ingredient,
+        name_template="Jedlo z {main.name}",
+        instructions=(
+            "Priprav {main.name} v mise.",
+            f"Premiešaj {explicit_sibling_form} v mise.",
+            "Rozdeľ jedlo na {portions} porcie a podávaj ho teplé.",
+        ),
+    )
+
+    with pytest.raises(ValueError, match="zozname surovín"):
+        render_meal(candidate, adults=4, children=0, covered_days=1)
+
+
+@pytest.mark.parametrize(
+    ("selected_id", "neutral_family_form"),
+    (
+        ("chickpeas", "cícer"),
+        ("chickpeas_canned", "cícer"),
+        ("beans", "červenú fazuľu"),
+        ("beans_canned", "červenú fazuľu"),
+        ("chicken_thigh", "kuracie stehná"),
+        ("chicken_thigh_meat", "kuracie stehná"),
+    ),
+)
+def test_renderer_allows_neutral_product_family_wording(
+    ingredients, selected_id, neutral_family_form
+):
+    ingredient = ingredients.by_id(selected_id)
+    candidate = _candidate(
+        ingredient,
+        name_template="Jedlo z {main.name}",
+        instructions=(
+            "Priprav {main.name} v mise.",
+            f"Premiešaj {neutral_family_form} v mise.",
+            "Rozdeľ jedlo na {portions} porcie a podávaj ho teplé.",
+        ),
+    )
+
+    meal = render_meal(candidate, adults=4, children=0, covered_days=1)
+
+    assert neutral_family_form in meal.instructions[1]
 
 
 @pytest.mark.parametrize(

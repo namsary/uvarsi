@@ -4,7 +4,7 @@
       "id": "chicken_rice_pan",
       "version": 1,
       "active": false,
-      "name_template": "Kuracia panvica s {protein.name}, {starch.name} a {vegetable.name}",
+      "name_template": "Hydinová panvica s ryžou a {vegetable.name}",
       "family": "rice_pan",
       "method": "pan",
       "minutes": 35,
@@ -14,7 +14,7 @@
         {
           "key": "protein",
           "role": "protein",
-          "candidates": ["chicken_breast", "chicken_thigh"],
+          "candidates": ["chicken_breast", "turkey_breast"],
           "amount_per_adult": "150",
           "unit": "g",
           "child_factor": "0.6",
@@ -45,19 +45,22 @@
           "cut": "na menšie kúsky"
         }
       ],
-      "pantry_basics": ["oil", "salt", "black_pepper"],
+      "pantry_basics": ["water", "oil", "salt", "black_pepper"],
       "instructions": [
-        {"text": "Uvar {starch.amount} {starch.name} domäkka podľa času na obale."},
-        {"text": "Nakrájaj {protein.amount} {protein.name} {protein.cut} a opekaj na panvici 8 až 10 minút."},
-        {"text": "Pridaj {vegetable.amount} {vegetable.name} {vegetable.cut} a opekaj ďalších 6 minút."},
-        {"text": "Spoj suroviny, dochuť a rozdeľ na {portions} porcií."}
+        {"text": "Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou."},
+        {"text": "Vlož {starch.name} do hrnca, nalej {starch.water} vody."},
+        {"text": "Var ryžu v prikrytom hrnci na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne."},
+        {"text": "Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text": "Opekaj {protein.name} v panvici na strednom ohni 8 minút, kým bude mäso zlatisté a v strede prepečené."},
+        {"text": "Pridaj {vegetable.name} do panvice, potom ju opekaj na miernom ohni 6 minút, kým zelenina zmäkne."},
+        {"text": "Premiešaj {protein.name} s {vegetable.name} a ryžou, dochuť soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
     {
       "id": "tofu_vegetable_pan",
       "version": 1,
       "active": false,
-      "name_template": "Tofu panvica z {protein.name}, {vegetable.name} a {starch.name}",
+      "name_template": "Tofu so zeleninou a ryžou",
       "family": "vegetable_pan",
       "method": "pan",
       "minutes": 30,
@@ -98,19 +101,22 @@
           "cut": null
         }
       ],
-      "pantry_basics": ["oil", "salt", "black_pepper"],
+      "pantry_basics": ["water", "oil", "salt", "black_pepper"],
       "instructions": [
-        {"text": "Uvar {starch.amount} {starch.name} domäkka podľa času na obale."},
-        {"text": "Opekaj {protein.amount} {protein.name} {protein.cut} na oleji 6 minút."},
-        {"text": "Pridaj {vegetable.amount} {vegetable.name} {vegetable.cut} a opekaj ďalších 7 minút."},
-        {"text": "Dochuť, premiešaj s prílohou a rozdeľ na {portions} porcií."}
+        {"text": "Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou."},
+        {"text": "Vlož {starch.name} do hrnca, nalej {starch.water} vody."},
+        {"text": "Var ryžu v prikrytom hrnci na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne."},
+        {"text": "Osuš a nakrájaj {protein.amount} {protein.name} {protein.cut}; {vegetable.amount} {vegetable.name} nakrájaj {vegetable.cut}."},
+        {"text": "Opekaj {protein.name} v panvici na strednom ohni 7 minút, kým bude tofu zo všetkých strán zlatisté."},
+        {"text": "Pridaj {vegetable.name} do panvice, potom ju opekaj na miernom ohni 7 minút, kým zelenina zmäkne."},
+        {"text": "Premiešaj tofu s {vegetable.name} a ryžou, dochuť soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
     {
       "id": "lentil_tomato_pot",
       "version": 1,
       "active": false,
-      "name_template": "Šošovicový hrniec z {protein.name}, {vegetable.name} a {aromatic.name}",
+      "name_template": "Paradajkový hrniec s červenou šošovicou",
       "family": "lentil_stew",
       "method": "pot",
       "minutes": 40,
@@ -151,12 +157,15 @@
           "cut": "nadrobno"
         }
       ],
-      "pantry_basics": ["oil", "salt", "black_pepper"],
+      "pantry_basics": ["water", "oil", "salt", "black_pepper"],
       "instructions": [
-        {"text": "Na oleji opekaj {aromatic.amount} {aromatic.name} {aromatic.cut} 4 minúty."},
-        {"text": "Pridaj {vegetable.amount} {vegetable.name} {vegetable.cut} a var 5 minút."},
-        {"text": "Prisyp {protein.amount} {protein.name}, podlej vodou a var 18 až 20 minút domäkka."},
-        {"text": "Dochuť a rozdeľ na {portions} porcií."}
+        {"text": "Nakrájaj {aromatic.amount} {aromatic.name} {aromatic.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text": "Opekaj {aromatic.name} v hrnci na miernom ohni 4 minúty, kým aromatická surovina zmäkne."},
+        {"text": "Pridaj {vegetable.name} do hrnca a var na miernom ohni 5 minút, kým paradajky zmäknú a pustia šťavu."},
+        {"text": "Prepláchni {protein.amount} {protein.name} v sitku pod studenou vodou."},
+        {"text": "Prisyp {protein.name} do hrnca, nalej {protein.water} vody."},
+        {"text": "Var {protein.name} s {vegetable.name} v hrnci na miernom ohni 20 minút, kým šošovica zmäkne a jedlo zhustne."},
+        {"text": "Dochuť soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     }
   ]

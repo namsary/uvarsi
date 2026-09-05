@@ -66,7 +66,8 @@ def test_diet_modes_are_a_real_accessible_2_by_2_choice(tmp_path):
         + "\n"
         + function_source(html, "dietOptionsHtml")
         + """
-var free=dietOptionsHtml('vegetarian', false, 'on');
+var available=['standard','high_protein','vegetarian','vegan'];
+var free=dietOptionsHtml('vegetarian', false, 'on', available);
 for (const label of ['Bez obmedzenia','Viac bielkovín','Vegetariánsky','Vegánsky']) {
   if (!free.includes(label)) process.exit(1);
 }
@@ -76,7 +77,7 @@ if ((free.match(/Premium/g)||[]).length !== 3) process.exit(4);
 if (!free.includes('data-mode="standard" aria-pressed="true"')) process.exit(5);
 if ((free.match(/aria-disabled="true"/g)||[]).length !== 3) process.exit(6);
 if ((free.match(/ disabled/g)||[]).length !== 3) process.exit(7);
-var paid=dietOptionsHtml('vegan', true, 'on');
+var paid=dietOptionsHtml('vegan', true, 'on', available);
 if ((paid.match(/Premium/g)||[]).length !== 0) process.exit(8);
 if (!paid.includes('data-mode="vegan" aria-pressed="true"')) process.exit(9);
 if (paid.includes(' disabled') || paid.includes('aria-disabled="true"')) process.exit(10);
@@ -85,6 +86,10 @@ if (!shadow.includes('Bez obmedzenia') || shadow.includes('data-mode="vegan"')) 
 if (!shadow.includes('Režimy stravovania')) process.exit(12);
 var absent=dietOptionsHtml('high_protein', true);
 if (absent.includes('data-mode="high_protein"')) process.exit(13);
+var noMode=dietOptionsHtml('standard', true, 'on', []);
+if (!noMode.includes('data-mode="standard" aria-pressed="true" aria-disabled="true" disabled')) process.exit(14);
+if (!noMode.includes('Tento týždeň nedostupné')) process.exit(15);
+if (!noMode.includes('Pridaj obchod alebo vyber iný režim.')) process.exit(16);
 process.exit(0);
 """,
     )
@@ -112,7 +117,7 @@ buttons[3].disabled=false; buttons[3].attrs['aria-disabled']='false';
 if (selectDietMode(root,'vegan') !== true) process.exit(3);
 if (buttons.filter(b=>b.attrs['aria-pressed']==='true').length !== 1) process.exit(4);
 if (buttons[3].attrs['aria-pressed'] !== 'true' || !buttons[3].classList.on) process.exit(5);
-var paid={premium:true,recipe_engine:'on'};
+    var paid={premium:true,recipe_engine:'on',stravovanie_dostupne:['standard','high_protein','vegetarian','vegan']};
 var payload=profilePayload(2,2,3,['Lidl','Tesco'],'high_protein');
 if (payload.stravovanie !== 'high_protein') process.exit(4);
 if (payload.adults !== 2 || payload.children !== 2 || payload.frekvencia !== 3) process.exit(6);
@@ -120,8 +125,11 @@ if (payload.obchody.join('|') !== 'Lidl|Tesco') process.exit(7);
 if (profilePayload(2,0,2,['Lidl'],'vegan').stravovanie !== 'vegan') process.exit(8);
 var preserved=profilePayload(2,0,2,['Lidl'],undefined);
 if (Object.prototype.hasOwnProperty.call(preserved,'stravovanie')) process.exit(9);
-if (dietModeAvailable('vegetarian',paid) !== true) process.exit(10);
-if (dietModeAvailable('vegetarian',{premium:true}) !== false) process.exit(11);
+    if (dietModeAvailable('vegetarian',paid) !== true) process.exit(10);
+    if (dietModeAvailable('vegetarian',{premium:true}) !== false) process.exit(11);
+    if (dietModeAvailable('vegetarian',{premium:true,recipe_engine:'on'}) !== false) process.exit(12);
+    if (dietModeAvailable('standard',{premium:true,recipe_engine:'on',stravovanie_dostupne:[]}) !== false) process.exit(13);
+    if (dietModeAvailable('standard',{premium:false,recipe_engine:'on',stravovanie_dostupne:['standard']}) !== true) process.exit(14);
 process.exit(0);
 """,
     )
@@ -134,12 +142,13 @@ def test_profile_save_sends_the_selected_mode_and_keeps_server_errors_visible():
     assert "selectDietMode" in onboarding
     assert "profilePayload" in onboarding
     assert "profil.recipe_engine" in onboarding
-    assert "dietModeAvailable" in onboarding
     assert "stravovanie" in onboarding
     assert "profil.recipe_engine === 'on'" in onboarding
-    assert "availableDiet : undefined" in onboarding
+    assert "selectedDiet : undefined" in onboarding
     assert "runGuardedAction($('#save'), $('#ob-err')" in onboarding
     assert onboarding.index("await api('/api/profil'") < onboarding.index("ME = await api('/api/me')")
+    assert "dietModeAvailable(ME.stravovanie, ME)" in onboarding
+    assert onboarding.index("dietModeAvailable(ME.stravovanie, ME)") < onboarding.index("await refreshPlanAfterProfileSave()")
 
 
 @needs_node

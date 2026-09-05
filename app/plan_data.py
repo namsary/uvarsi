@@ -914,7 +914,10 @@ def validate_recipe_language(name, steps):
     text = _fold(f"{name} {' '.join(steps)}")
     if re.search(r"\bstehennych\s+rez(?:e|i)k\b", text):
         raise ValueError("Recept obsahuje nesprávnu slovenčinu; správne je stehenných rezňov.")
-    if re.search(r"\bryz\w*\b[^.]{0,45}\bsced\w*\b", text):
+    if any(
+        re.search(r"\bryz\w*\b[^.]{0,45}\bsced\w*\b", _fold(step))
+        for step in steps
+    ):
         raise ValueError("Recept používa neurčitý kuchársky postup pri ryži; ryža sa má variť absorpčne.")
 
 

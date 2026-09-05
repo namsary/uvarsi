@@ -34,11 +34,15 @@ MODE_INGREDIENT = {
 }
 MODE_CANDIDATES = {
     "standard": ("rice", "pasta"),
-    "high_protein": ("chicken_breast", "chicken_thigh"),
-    "vegetarian": ("tofu", "chickpeas"),
-    "vegan": ("tofu", "chickpeas"),
+    "high_protein": ("chicken_breast", "chicken_thigh_meat"),
+    "vegetarian": ("tofu", "chickpeas_canned"),
+    "vegan": ("tofu", "chickpeas_canned"),
 }
 OPTIONAL_CANDIDATES = ("zucchini", "broccoli")
+MATCHABLE_PRODUCT_NAMES = {
+    "beans_canned": "červená fazuľa v konzerve",
+    "chickpeas_canned": "cícer v konzerve",
+}
 MODE_AMOUNT = {
     "standard": Decimal("75"),
     "high_protein": Decimal("200"),
@@ -190,7 +194,9 @@ def make_fixture(*, offer_count: int, template_count: int) -> PlannerFixture:
             {
                 "offer_key": offer_key,
                 "obchod": STORES[index % len(STORES)],
-                "nazov": ingredient.name,
+                "nazov": MATCHABLE_PRODUCT_NAMES.get(
+                    ingredient_id, ingredient.name
+                ),
                 "jednotka": "500 g",
                 "cena": (
                     "0.99"
@@ -312,6 +318,14 @@ def _instruction_slot_keys(template: RecipeTemplate) -> set[str]:
     }
 
 
+def _product_family_key(ingredient_id: str) -> str:
+    return {
+        "beans_canned": "beans",
+        "chickpeas_canned": "chickpeas",
+        "chicken_thigh_meat": "chicken_thigh",
+    }.get(ingredient_id, ingredient_id)
+
+
 def _assert_instruction_ingredients_are_declared(plan: dict, fixture: PlannerFixture) -> None:
     template_by_id = {template.id: template for template in fixture.recipes.all()}
     catalog = load_ingredient_catalog()
@@ -330,7 +344,11 @@ def _assert_instruction_ingredients_are_declared(plan: dict, fixture: PlannerFix
             for ingredient_id in template.pantry_basics
             if ingredient_id not in PANTRY_BASIC_NAMES
         }
-        assert mentioned_ids == selected_ids | catalog_basic_ids
+        assert {
+            _product_family_key(item) for item in mentioned_ids
+        } == {
+            _product_family_key(item) for item in selected_ids | catalog_basic_ids
+        }
         referenced_slots = _instruction_slot_keys(template)
         assert referenced_slots == {slot.key for slot in template.slots}
         for slot in template.slots:

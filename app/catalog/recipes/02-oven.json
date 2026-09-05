@@ -6,7 +6,7 @@
       "family":"roast_chicken_thigh_tray","method":"oven","minutes":55,
       "modes":["standard","high_protein"],"equipment":["rúra","pekáč"],
       "slots":[
-        {"key":"protein","role":"protein","candidates":["chicken_thigh"],"amount_per_adult":"190","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na porcie"},
+        {"key":"protein","role":"protein","candidates":["chicken_thigh"],"amount_per_adult":"245","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
         {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"280","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na mesiačiky"},
         {"key":"vegetable","role":"vegetable","candidates":["carrot","onion"],"amount_per_adult":"150","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na hrubšie kúsky"}
       ],
@@ -83,7 +83,7 @@
     },
     {
       "id":"oven_salmon_potato_broccoli","version":1,"active":true,
-      "name_template":"Pečený losos so zemiakmi a {vegetable.name}",
+      "name_template":"Pečená ryba so zemiakmi a {vegetable.name}",
       "family":"salmon_broccoli_tray","method":"oven","minutes":38,
       "modes":["standard","high_protein"],"equipment":["rúra","plech"],
       "slots":[
@@ -104,7 +104,7 @@
     },
     {
       "id":"oven_white_fish_tomato_rice","version":1,"active":true,
-      "name_template":"Biela ryba pečená s {vegetable.name} a ryžou",
+      "name_template":"Ryba pečená s {vegetable.name} a ryžou",
       "family":"white_fish_tomato_bake","method":"oven","minutes":40,
       "modes":["standard","high_protein"],"equipment":["rúra","pekáč"],
       "slots":[
@@ -118,7 +118,7 @@
         {"text":"Prepláchni {starch.amount} {starch.name} a rozlož ju do pekáča."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut} a rozlož ich na ryžu."},
         {"text":"Osuš {protein.amount} {protein.name}, nakrájaj ich {protein.cut} a polož ich na zeleninu."},
-        {"text":"Dochuť suroviny oreganom, soľou a čiernym korením a podlej vodou."},
+        {"text":"Dochuť suroviny oreganom, soľou a čiernym korením a nalej {starch.water} vody do pekáča."},
         {"text":"Peč {protein.name} s ryžou a zeleninou v rúre pri 190 °C 25 minút, kým ryža zmäkne a ryba sa oddeľuje vidličkou."},
         {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
       ]
@@ -146,11 +146,11 @@
     },
     {
       "id":"oven_feta_tomato_pasta","version":1,"active":true,
-      "name_template":"Zapekané cestoviny so syrom feta a {vegetable.name}",
+      "name_template":"Zapekané cestoviny so syrom a {vegetable.name}",
       "family":"feta_tomato_pasta_bake","method":"oven","minutes":38,
       "modes":["standard","high_protein","vegetarian"],"equipment":["rúra","pekáč","hrniec"],
       "slots":[
-        {"key":"protein","role":"protein","candidates":["feta","cottage_cheese"],"amount_per_adult":"180","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":"na väčšie kúsky"},
+        {"key":"protein","role":"protein","candidates":["feta","cottage_cheese"],"amount_per_adult":"180","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
         {"key":"starch","role":"starch","candidates":["pasta"],"amount_per_adult":"80","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
         {"key":"vegetable","role":"vegetable","candidates":["tomato","zucchini"],"amount_per_adult":"220","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
       ],
@@ -158,7 +158,7 @@
       "instructions":[
         {"text":"Predhrej rúru na 200 °C."},
         {"text":"Uvar {starch.amount} {starch.name} v hrnci na strednom ohni 7 minút, kým mierne zmäknú."},
-        {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Priprav {protein.amount} {protein.name} a nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Rozlož {starch.name}, {protein.name} a {vegetable.name} do pekáča."},
         {"text":"Dochuť suroviny cesnakom, oreganom, soľou a čiernym korením."},
         {"text":"Peč {protein.name} s cestovinami a zeleninou v rúre pri 200 °C 18 minút, kým povrch bude zlatistý."},
@@ -167,21 +167,21 @@
     },
     {
       "id":"oven_egg_vegetable_frittata","version":1,"active":true,
-      "name_template":"Pečená frittata s {vegetable.name}",
+      "name_template":"Pečená omeleta s {vegetable.name}",
       "family":"vegetable_frittata","method":"oven","minutes":35,
-      "modes":["standard","high_protein","vegetarian"],"equipment":["rúra","pekáč","miska"],
+      "modes":["standard","high_protein","vegetarian"],"equipment":["rúra","pekáč","miska","panvica"],
       "slots":[
         {"key":"protein","role":"protein","candidates":["egg"],"amount_per_adult":"4","unit":"piece","child_factor":"0.5","required":true,"use":"main","cut":null},
         {"key":"vegetable","role":"vegetable","candidates":["spinach","broccoli","zucchini"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"},
-        {"key":"dairy","role":"dairy","candidates":["hard_cheese","cottage_cheese"],"amount_per_adult":"60","unit":"g","child_factor":"0.5","required":true,"use":"addition","cut":"najemno"}
+        {"key":"dairy","role":"dairy","candidates":["hard_cheese","cottage_cheese"],"amount_per_adult":"60","unit":"g","child_factor":"0.5","required":true,"use":"addition","cut":null}
       ],
       "pantry_basics":["oil","salt","black_pepper","oregano"],
       "instructions":[
         {"text":"Predhrej rúru na 185 °C."},
-        {"text":"Opekaj {vegetable.amount} {vegetable.name} v panvici na strednom ohni 6 minút, kým zelenina zmäkne."},
+        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Opekaj {vegetable.name} v panvici na strednom ohni 6 minút, kým zelenina zmäkne."},
         {"text":"Rozšľahaj {protein.amount} {protein.name} so soľou, čiernym korením a oreganom a vmiešaj {dairy.amount} {dairy.name}."},
-        {"text":"Vlož {vegetable.name} do pekáča."},
-        {"text":"Vlej {protein.name} do pekáča."},
+        {"text":"Vlož {vegetable.name}, {protein.name} a {dairy.name} do pekáča."},
         {"text":"Peč {protein.name} so zeleninou v rúre pri 185 °C 20 minút, kým vajcia stuhnú."},
         {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
       ]
@@ -192,7 +192,7 @@
       "family":"lentil_vegetable_loaf","method":"oven","minutes":62,
       "modes":["standard","high_protein","vegetarian"],"equipment":["rúra","hrniec","forma na pečenie"],
       "slots":[
-        {"key":"protein","role":"protein","candidates":["red_lentils","chickpeas"],"amount_per_adult":"140","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"protein","role":"protein","candidates":["red_lentils"],"amount_per_adult":"140","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
         {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"120","unit":"g","child_factor":"0.6","required":true,"use":"addition","cut":"najemno"},
         {"key":"vegetable","role":"vegetable","candidates":["carrot","zucchini"],"amount_per_adult":"140","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"najemno"}
       ],

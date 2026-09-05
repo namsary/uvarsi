@@ -157,6 +157,8 @@ def test_scheduled_shadow_builds_the_fixed_anonymous_matrix_and_only_persists_ag
     assert len(seen) == len(EXPECTED_MATRIX) == 36
     assert result["samples_total"] == result["samples_success"] == 36
     assert result["success_rate"] == 1.0
+    assert result["mode_success_counts"] == {mode: 9 for mode in MODES}
+    assert result["available_modes"] == list(MODES)
     assert result["p95_ms"] == 100.0
     assert result["complete"] is True
     assert result["library_gate"] == "pass"
@@ -198,6 +200,7 @@ def test_shadow_records_only_error_codes_and_never_exception_text(monkeypatch, t
 
     assert result["samples_success"] == 27
     assert result["error_counts"] == {"internal_error": 9}
+    assert result["valid_outcome_rate"] == 0.75
     with closing(server.db()) as con:
         durable = con.execute(
             "SELECT error_counts FROM recipe_engine_shadow"
@@ -205,6 +208,69 @@ def test_shadow_records_only_error_codes_and_never_exception_text(monkeypatch, t
     assert json.loads(durable) == {"internal_error": 9}
     assert "example.test" not in durable
     assert "secret recipe" not in durable
+
+
+def test_shadow_does_not_trust_a_forged_error_code_on_an_unknown_exception(
+    monkeypatch, tmp_path
+):
+    server = _server(monkeypatch, tmp_path)
+    predpocet = server.predpocet
+
+    class ForgedAvailabilityError(RuntimeError):
+        code = "diet_too_strict"
+
+    monkeypatch.setattr(
+        predpocet,
+        "build_deterministic_plan",
+        lambda **_kwargs: (_ for _ in ()).throw(ForgedAvailabilityError()),
+    )
+    monkeypatch.setattr(predpocet.time, "perf_counter", _clock())
+
+    result = predpocet.run_recipe_engine_shadow(server=server)
+
+    assert result["samples_success"] == 0
+    assert result["error_counts"] == {"internal_error": 36}
+    assert result["valid_outcome_rate"] == 0.0
+
+
+def test_expected_diet_unavailability_does_not_block_a_healthy_core_rollout(
+    monkeypatch, tmp_path
+):
+    server = _server(monkeypatch, tmp_path)
+    predpocet = server.predpocet
+    original_builder = build_deterministic_plan
+
+    def availability_limited_builder(**kwargs):
+        if kwargs["mode"] == "vegan":
+            raise server.NoCompatiblePlan(
+                "diet_too_strict", ("add_store", "use_standard_mode")
+            )
+        return original_builder(**kwargs)
+
+    monkeypatch.setattr(predpocet, "build_deterministic_plan", availability_limited_builder)
+    monkeypatch.setattr(predpocet.time, "perf_counter", _clock())
+
+    result = predpocet.run_recipe_engine_shadow(server=server)
+    with closing(server.db()) as con:
+        status = predpocet.shadow_activation_status(
+            con, server=server, today=date.today()
+        )
+
+    assert result["samples_success"] == 27
+    assert result["success_rate"] == 0.75
+    assert result["error_counts"] == {"diet_too_strict": 9}
+    assert result["valid_outcome_rate"] == 1.0
+    assert result["mode_success_counts"] == {
+        "standard": 9,
+        "high_protein": 9,
+        "vegetarian": 9,
+        "vegan": 0,
+    }
+    assert result["available_modes"] == [
+        "standard", "high_protein", "vegetarian"
+    ]
+    assert status["eligible"] is True
+    assert status["reasons"] == []
 
 
 def test_scheduled_precompute_invokes_shadow_sampler_only_in_shadow_mode(
@@ -328,9 +394,15 @@ def test_activation_checks_every_numeric_and_library_floor(monkeypatch, tmp_path
         original = dict(con.execute("SELECT * FROM recipe_engine_shadow").fetchone())
         con.execute(
             """UPDATE recipe_engine_shadow
-                  SET samples_success=35, success_rate=?, error_counts=?
+                  SET samples_success=26, success_rate=?, error_counts=?,
+                      mode_success_counts=?
                 WHERE tyzden=?""",
-            (35 / 36, '{"internal_error":1}', original["tyzden"]),
+            (
+                26 / 36,
+                '{"diet_too_strict":10}',
+                '{"standard":9,"high_protein":9,"vegetarian":8,"vegan":0}',
+                original["tyzden"],
+            ),
         )
         con.commit()
         below_floor = predpocet.shadow_activation_status(
@@ -340,11 +412,49 @@ def test_activation_checks_every_numeric_and_library_floor(monkeypatch, tmp_path
         assert "success_rate_below_floor" in below_floor["reasons"]
         con.execute(
             """UPDATE recipe_engine_shadow
-                  SET samples_success=?, success_rate=?, error_counts=?
+                  SET samples_success=35, success_rate=?, error_counts=?,
+                      mode_success_counts=?
+                WHERE tyzden=?""",
+            (
+                35 / 36,
+                '{"internal_error":1}',
+                '{"standard":8,"high_protein":9,"vegetarian":9,"vegan":9}',
+                original["tyzden"],
+            ),
+        )
+        con.commit()
+        invalid_outcome = predpocet.shadow_activation_status(
+            con, server=server, today=date.today()
+        )
+        assert invalid_outcome["eligible"] is False
+        assert "valid_outcome_rate_below_floor" in invalid_outcome["reasons"]
+        con.execute(
+            """UPDATE recipe_engine_shadow
+                  SET samples_success=27, success_rate=?, error_counts=?,
+                      mode_success_counts=?
+                WHERE tyzden=?""",
+            (
+                27 / 36,
+                '{"diet_too_strict":9}',
+                '{"standard":0,"high_protein":9,"vegetarian":9,"vegan":9}',
+                original["tyzden"],
+            ),
+        )
+        con.commit()
+        missing_core = predpocet.shadow_activation_status(
+            con, server=server, today=date.today()
+        )
+        assert missing_core["eligible"] is False
+        assert "standard_mode_unavailable" in missing_core["reasons"]
+        con.execute(
+            """UPDATE recipe_engine_shadow
+                  SET samples_success=?, success_rate=?, error_counts=?,
+                      mode_success_counts=?
                 WHERE tyzden=?""",
             (
                 original["samples_success"], original["success_rate"],
-                original["error_counts"], original["tyzden"],
+                original["error_counts"], original["mode_success_counts"],
+                original["tyzden"],
             ),
         )
         con.commit()

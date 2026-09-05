@@ -13,7 +13,12 @@ import re
 import unicodedata
 from typing import Mapping, Sequence
 
-from .ingredient_catalog import Ingredient, load_ingredient_catalog
+from .ingredient_catalog import (
+    Ingredient,
+    load_ingredient_catalog,
+    product_family,
+    product_family_shared_forms,
+)
 from .nutrition import NutritionEstimate, estimate_recipe_nutrition
 from .plan_data import validate_recipe_language
 from .quantity_math import PackageSize, PantryEntry, Quantity, purchase_requirement
@@ -93,12 +98,14 @@ class _AdditionClause:
 _QUANTITY_NAMES: Mapping[str, str] = {
     "chicken_breast": "kuracích pŕs",
     "chicken_thigh": "kuracích stehien",
+    "chicken_thigh_meat": "vykosteného kuracieho stehenného mäsa",
     "pork_shoulder": "bravčového pliecka",
     "beef_mince": "mletého hovädzieho mäsa",
     "salmon": "lososa",
     "tofu": "tofu",
     "red_lentils": "červenej šošovice",
     "chickpeas": "cíceru",
+    "chickpeas_canned": "cíceru",
     "egg": "vajec",
     "cottage_cheese": "cottage cheesu",
     "rice": "ryže",
@@ -126,6 +133,7 @@ _QUANTITY_NAMES: Mapping[str, str] = {
     "barley": "jačmenných krúp",
     "feta": "syra feta",
     "beans": "červenej fazule",
+    "beans_canned": "červenej fazule",
     "coconut_milk": "kokosovej smotany",
     "paprika_powder": "mletej papriky",
     "curry_powder": "karí korenia",
@@ -141,12 +149,14 @@ _QUANTITY_NAMES: Mapping[str, str] = {
 _REFERENCE_NAMES: Mapping[str, str] = {
     "chicken_breast": "kuracie prsia",
     "chicken_thigh": "kuracie stehná",
+    "chicken_thigh_meat": "vykostené kuracie stehenné mäso",
     "pork_shoulder": "bravčové pliecko",
     "beef_mince": "mleté hovädzie mäso",
     "salmon": "lososa",
     "tofu": "tofu",
     "red_lentils": "červenú šošovicu",
     "chickpeas": "cícer",
+    "chickpeas_canned": "cícer",
     "egg": "vajcia",
     "cottage_cheese": "cottage cheese",
     "rice": "ryžu",
@@ -174,6 +184,7 @@ _REFERENCE_NAMES: Mapping[str, str] = {
     "barley": "jačmenné krúpy",
     "feta": "syr feta",
     "beans": "červenú fazuľu",
+    "beans_canned": "červenú fazuľu",
     "coconut_milk": "kokosovú smotanu",
     "paprika_powder": "mletú papriku",
     "curry_powder": "karí korenie",
@@ -198,6 +209,9 @@ _WATER_ML_PER_GRAM: Mapping[str, Decimal] = {
 _EXTRA_INGREDIENT_FORMS: Mapping[str, tuple[str, ...]] = {
     "chicken_breast": ("kuracie prsia", "kuracích pŕs"),
     "chicken_thigh": ("kuracie stehná", "kuracích stehien"),
+    "chicken_thigh_meat": ("vykostené kuracie stehenné mäso", "vykosteného kuracieho stehenného mäsa"),
+    "chickpeas_canned": ("cícer", "cíceru"),
+    "beans_canned": ("červená fazuľa", "červenej fazule", "červenú fazuľu"),
     "rice": ("ryža", "ryže", "ryžu"),
     "pasta": ("cestoviny", "cestovín", "cestoviny"),
     "zucchini": ("cuketa", "cukety", "cuketu"),
@@ -217,6 +231,7 @@ _ALLOWED_IMPERATIVES = frozenset(
         "dus",
         "nechaj",
         "nalej",
+        "namoč",
         "nakrájaj",
         "odober",
         "odokry",
@@ -1096,6 +1111,12 @@ def _validate_ingredient_mentions(
             _QUANTITY_NAMES.get(ingredient_id, ingredient.name),
             *_EXTRA_INGREDIENT_FORMS.get(ingredient_id, ()),
         }
+        family = product_family(ingredient_id)
+        if family is not None and not family.isdisjoint(allowed_ids):
+            shared_forms = {
+                _fold(form) for form in product_family_shared_forms(ingredient_id)
+            }
+            terms = {term for term in terms if _fold(term) not in shared_forms}
         if any(_phrase_pattern(term).search(folded_steps) for term in terms):
             raise ValueError(
                 f"Surovina {ingredient.name} je v postupe, ale chýba v zozname surovín."

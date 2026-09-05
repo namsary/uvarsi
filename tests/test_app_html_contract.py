@@ -145,6 +145,34 @@ def test_store_entitlement_change_refreshes_the_open_profile_form():
     assert "viewOnboarding()" in onboarding
 
 
+@needs_node
+def test_weekly_unavailable_diet_is_disabled_without_hiding_other_pro_modes(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "diet-weekly-availability.js",
+        "function esc(value){return String(value == null ? '' : value);}\n"
+        + declaration(html, "function dietModeAvailable(mode, me) ")
+        + declaration(html, "function dietOptionsHtml(selected, premium, recipeEngine, availableModes) ")
+        + """
+var ME={premium:true,recipe_engine:'on',stravovanie_dostupne:['standard','high_protein','vegetarian']};
+var rendered=dietOptionsHtml('vegan', true, 'on', ME.stravovanie_dostupne);
+var vegan=rendered.match(/<button[^>]*data-mode="vegan"[^>]*>.*?<\/button>/)[0];
+var vegetarian=rendered.match(/<button[^>]*data-mode="vegetarian"[^>]*>.*?<\/button>/)[0];
+var standard=rendered.match(/<button[^>]*data-mode="standard"[^>]*>.*?<\/button>/)[0];
+if (!vegan.includes('disabled') || !vegan.includes('Tento týždeň nedostupné')) process.exit(1);
+if (vegetarian.includes('disabled')) process.exit(2);
+if (!vegan.includes('class="diet-choice on"')) process.exit(3);
+if (standard.includes('class="diet-choice on"')) process.exit(6);
+if (!rendered.includes('Tvoj uložený režim zostáva zachovaný')) process.exit(7);
+if (dietModeAvailable('vegan', ME)) process.exit(4);
+if (!dietModeAvailable('vegetarian', ME)) process.exit(5);
+process.exit(0);
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_profile_save_empty_state_has_truthful_profile_copy_and_button_label():
     html = app_html()
     onboarding = declaration(html, "function viewOnboarding() ")

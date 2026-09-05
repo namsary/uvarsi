@@ -177,10 +177,11 @@ def test_second_slice_is_distinct_beginner_complete_and_correctly_classified():
     for recipe in recipes:
         instructions = " ".join(step.text for step in recipe.instructions)
         assert len(recipe.instructions) in range(3, 8), recipe.id
-        assert re.search(
-            r"(?:\d+\s*°C|(?:miernom|strednom|silnom) ohni)", instructions
-        ), recipe.id
-        assert re.search(r"\d+ (?:až \d+ )?minút", instructions), recipe.id
+        if recipe.method != "salad":
+            assert re.search(
+                r"(?:\d+\s*°C|(?:miernom|strednom|silnom) ohni)", instructions
+            ), recipe.id
+            assert re.search(r"\d+ (?:až \d+ )?minút", instructions), recipe.id
         assert "soľ" in instructions and "čiernym korením" in instructions, recipe.id
         assert "{portions}" in instructions, recipe.id
         assert all(slot.candidates for slot in recipe.slots), recipe.id
@@ -370,7 +371,7 @@ def test_cli_prints_stable_coverage_and_returns_success(capsys):
     assert exit_code == 0
     output = capsys.readouterr().out.splitlines()
     assert output[0] == "recipes.active=60"
-    assert "modes.high_protein=35" in output
+    assert "modes.high_protein=32" in output
     assert "methods.pan=15" in output
     assert output[-1] == "errors=0"
 

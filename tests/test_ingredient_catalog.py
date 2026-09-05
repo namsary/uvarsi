@@ -122,6 +122,21 @@ def test_catalog_resolves_slovak_synonym_without_guessing(tmp_path):
     assert catalog.resolve("kuracie prsia v akcii") is None
 
 
+@pytest.mark.parametrize(
+    ("pantry_name", "expected_id"),
+    (
+        ("cícer", "chickpeas_canned"),
+        ("červená fazuľa", "beans_canned"),
+    ),
+)
+def test_catalog_keeps_practical_resolution_for_neutral_pantry_names(
+    pantry_name, expected_id
+):
+    catalog = load_ingredient_catalog()
+
+    assert catalog.resolve(pantry_name).id == expected_id
+
+
 def test_catalog_rejects_duplicate_synonym(tmp_path):
     duplicate = _ingredient(
         id="chicken_thigh",
@@ -240,7 +255,7 @@ def test_default_catalog_contains_verified_foundation_slice():
         assert "USDA FoodData Central" in item.nutrition.source
         assert "FDC ID" in item.nutrition.source
         assert "https://fdc.nal.usda.gov/" in item.nutrition.source
-        assert item.nutrition.verified_on == date(2026, 8, 30)
+        assert item.nutrition.verified_on >= date(2026, 8, 30)
 
 
 def test_loaded_catalog_values_are_deeply_immutable(tmp_path):

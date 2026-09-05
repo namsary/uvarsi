@@ -31,6 +31,23 @@ def _load(monkeypatch, tmp_path, *, mode="on", rows=None):
     with closing(server.db()):
         pass
     server.recipe_engine_mode.cache_clear()
+    if mode == "on":
+        monkeypatch.setattr(
+            server,
+            "recipe_engine_shadow_status",
+            lambda _con, today=None: {
+                "complete": True,
+                "eligible": True,
+                "week": server.monday(today),
+                "success_rate": 0.75,
+                "valid_outcome_rate": 1.0,
+                "p95_ms": 120.0,
+                "dietary_violations": 0,
+                "negative_quantities": 0,
+                "invalid_package_counts": 0,
+                "available_modes": list(MODES),
+            },
+        )
     return server, state
 
 
@@ -88,6 +105,7 @@ def test_on_health_exposes_typed_recipe_engine_readiness(monkeypatch, tmp_path):
     assert all(type(payload["coverage"][mode]) is int for mode in MODES)
     assert payload["last_shadow"] is None or type(payload["last_shadow"]) is dict
     assert payload["p95_ms"] is None or type(payload["p95_ms"]) in (int, float)
+    assert payload["available_modes"] == list(MODES)
     assert payload["ready"] is True
     assert payload["blockers"] == []
 
@@ -220,6 +238,28 @@ def test_shadow_health_requires_fresh_activation_evidence_but_not_on_smoke(
     assert engine["ready"] is False
     assert "shadow_not_ready" in engine["blockers"]
     assert "smoke_missing" not in engine["blockers"]
+
+
+def test_on_health_fails_closed_when_shadow_evidence_is_no_longer_eligible(
+    monkeypatch, tmp_path
+):
+    server, state = _load(monkeypatch, tmp_path)
+    _write(state, _passing_smoke(server))
+    monkeypatch.setattr(
+        server,
+        "recipe_engine_shadow_status",
+        lambda _con, today=None: {
+            "complete": True,
+            "eligible": False,
+            "available_modes": ["standard", "vegetarian"],
+        },
+    )
+
+    engine = TestClient(server.app).get("/api/health").json()["recipe_engine"]
+
+    assert engine["ready"] is False
+    assert "shadow_not_ready" in engine["blockers"]
+    assert engine["available_modes"] == ["standard"]
 
 
 def test_off_health_does_not_require_shadow_or_synthetic_smoke(monkeypatch, tmp_path):

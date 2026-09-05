@@ -122,6 +122,16 @@ def rollout(tmp_path):
         "IFS= read -r mode_line < \"$UVARSI_RECIPE_FLAG_FILE\" || mode_line=\n"
         "mode=${mode_line#export }\n"
         "mode=${mode#UVARSI_RECIPE_ENGINE=}\n"
+        "if [ \"$mode\" = on ] && [ -f \"$UVARSI_TEST_STATE/stale-on-health\" ] && "
+        "! /usr/bin/grep -q run_recipe_engine_shadow \"$UVARSI_TEST_CALLS\" 2>/dev/null; then\n"
+        "  printf '{\"recipe_engine\":{\"mode\":\"on\",\"ready\":false,\"blockers\":[\"smoke_stale\"]}}'\n"
+        "  exit 0\n"
+        "fi\n"
+        "if [ \"$mode\" = on ] && [ -f \"$UVARSI_TEST_STATE/stale-on-shadow\" ] && "
+        "! /usr/bin/grep -q run_recipe_engine_shadow \"$UVARSI_TEST_CALLS\" 2>/dev/null; then\n"
+        "  printf '{\"recipe_engine\":{\"mode\":\"on\",\"ready\":true,\"blockers\":[],\"last_shadow\":{\"complete\":true,\"eligible\":false,\"success_rate\":0.75,\"valid_outcome_rate\":1.0,\"p95_ms\":120,\"dietary_violations\":0,\"negative_quantities\":0,\"invalid_package_counts\":0}}}'\n"
+        "  exit 0\n"
+        "fi\n"
         "if [ \"$mode\" = on ] && [ -f \"$UVARSI_TEST_STATE/transient-health\" ]; then\n"
         "  attempts_file=\"$UVARSI_TEST_STATE/health-attempts\"\n"
         "  attempts=0; [ ! -f \"$attempts_file\" ] || IFS= read -r attempts < \"$attempts_file\"\n"
@@ -130,7 +140,7 @@ def rollout(tmp_path):
         "fi\n"
         "[ ! -f \"$UVARSI_TEST_STATE/health.json\" ] || { cat \"$UVARSI_TEST_STATE/health.json\"; exit 0; }\n"
         "[ ! -f \"$UVARSI_TEST_STATE/malformed-health\" ] || { printf '{'; exit 0; }\n"
-        "printf '{\"recipe_engine\":{\"mode\":\"%s\",\"ready\":true,\"blockers\":[],\"last_shadow\":{\"complete\":true,\"eligible\":true,\"success_rate\":0.99,\"p95_ms\":120,\"dietary_violations\":0,\"negative_quantities\":0,\"invalid_package_counts\":0}}}' \"$mode\"\n",
+        "printf '{\"recipe_engine\":{\"mode\":\"%s\",\"ready\":true,\"blockers\":[],\"last_shadow\":{\"complete\":true,\"eligible\":true,\"success_rate\":0.75,\"valid_outcome_rate\":1.0,\"p95_ms\":120,\"dietary_violations\":0,\"negative_quantities\":0,\"invalid_package_counts\":0}}}' \"$mode\"\n",
     )
     fake_sleep = tmp_path / "sleep"
     executable(
@@ -260,6 +270,7 @@ def test_any_gate_failure_rolls_back_to_off_and_emits_exactly_one_alert(
     assert len(alerts) == 1
     assert "rollback complete" in alerts[0].casefold()
     assert f"gate={gate}" in alerts[0]
+    assert f"gate={gate}" in result.stdout
 
 
 def test_on_smoke_failure_appends_only_safe_aggregate_diagnostics(rollout):
@@ -400,6 +411,11 @@ def test_target_open_failure_after_existence_check_rolls_back_and_alerts_once(ro
         ("success_rate", float("nan")),
         ("success_rate", float("inf")),
         ("success_rate", 2.0),
+        ("valid_outcome_rate", "1.0"),
+        ("valid_outcome_rate", True),
+        ("valid_outcome_rate", float("nan")),
+        ("valid_outcome_rate", float("inf")),
+        ("valid_outcome_rate", 2.0),
         ("p95_ms", "120"),
         ("p95_ms", True),
         ("p95_ms", float("nan")),
@@ -421,7 +437,8 @@ def test_shadow_health_rejects_non_numeric_or_non_finite_metrics(
             "last_shadow": {
                 "complete": True,
                 "eligible": True,
-                "success_rate": 0.99,
+                "success_rate": 0.75,
+                "valid_outcome_rate": 1.0,
                 "p95_ms": 120,
                 "dietary_violations": 0,
                 "negative_quantities": 0,
@@ -557,3 +574,36 @@ def test_healthy_on_rerun_is_idempotent_and_does_not_restart(rollout):
     assert "systemctl" not in calls
     assert "run_recipe_engine_shadow" not in calls
     assert "--recipe-engine-smoke" not in calls
+
+
+def test_stale_on_rerun_revalidates_shadow_and_smoke_before_remaining_on(rollout):
+    rollout["flag"].write_text(
+        "UVARSI_RECIPE_ENGINE=on\n", encoding="utf-8", newline="\n"
+    )
+    rollout["state"].joinpath("stale-on-health").write_text("1", encoding="ascii")
+
+    result = run_controller(rollout)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=on\n"
+    calls = rollout["calls"].read_text(encoding="utf-8")
+    assert calls.count("run_recipe_engine_shadow") == 1
+    assert calls.count("--recipe-engine-smoke") == 1
+    assert "systemctl restart uvarsi" in calls
+    assert "systemctl restart uvarsi-plan-worker" in calls
+    assert not rollout["alerts"].exists()
+
+
+def test_ready_on_with_ineligible_shadow_is_revalidated_before_remaining_on(rollout):
+    rollout["flag"].write_text(
+        "UVARSI_RECIPE_ENGINE=on\n", encoding="utf-8", newline="\n"
+    )
+    rollout["state"].joinpath("stale-on-shadow").write_text("1", encoding="ascii")
+
+    result = run_controller(rollout)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    calls = rollout["calls"].read_text(encoding="utf-8")
+    assert calls.count("run_recipe_engine_shadow") == 1
+    assert calls.count("--recipe-engine-smoke") == 1
+    assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=on\n"

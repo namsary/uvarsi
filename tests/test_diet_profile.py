@@ -2,6 +2,8 @@
 import json
 import sqlite3
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from fastapi.testclient import TestClient
@@ -46,6 +48,24 @@ def authenticated_client(server, *, user_id=1, email="diet@uvar.si"):
     return client
 
 
+def availability_profile(adults):
+    return {
+        "osoby": adults,
+        "dospeli": adults,
+        "deti": 0,
+        "frekvencia": 2,
+        "obchody": "Lidl",
+        "stravovanie": "standard",
+    }
+
+
+def availability_rows(server):
+    return tuple(
+        {"offer_key": f"availability-{index}", "obchod": "Lidl"}
+        for index in range(server.MIN_OFFERS_FOR_PLAN)
+    )
+
+
 def test_additive_migration_preserves_existing_account_and_session(monkeypatch, tmp_path):
     server = load_server(monkeypatch, tmp_path, [])
     con = sqlite3.connect(":memory:")
@@ -81,6 +101,248 @@ def test_me_returns_effective_and_remembered_default_with_strict_options(
     assert body["stravovanie"] == "standard"
     assert body["stravovanie_ulozene"] == "standard"
     assert body["stravovanie_moznosti"] == list(ALL_MODES)
+    assert body["stravovanie_dostupne"] == ["standard"]
+
+
+def test_me_exposes_only_diet_modes_proven_for_the_current_week(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("UVARSI_RECIPE_ENGINE", "on")
+    server = load_server(monkeypatch, tmp_path, [])
+    server.recipe_engine_mode.cache_clear()
+    monkeypatch.setattr(
+        server,
+        "recipe_engine_profile_available_modes",
+        lambda _con, _profile, _premium, today=None, rows=None: (
+            "standard", "high_protein", "vegetarian"
+        ),
+    )
+    client = authenticated_client(server)
+
+    body = client.get("/api/me").json()
+
+    assert body["stravovanie_moznosti"] == list(ALL_MODES)
+    assert body["stravovanie_dostupne"] == [
+        "standard", "high_protein", "vegetarian"
+    ]
+    assert "vegan" not in body["stravovanie_dostupne"]
+
+
+def test_partial_shadow_success_does_not_hide_a_mode_the_profile_can_build(
+        monkeypatch, tmp_path):
+    monkeypatch.setenv("UVARSI_RECIPE_ENGINE", "on")
+    server = load_server(monkeypatch, tmp_path, current_plan_rows())
+    server.recipe_engine_mode.cache_clear()
+    client = authenticated_client(server)
+    grant_premium(server, 1)
+    monkeypatch.setattr(
+        server,
+        "recipe_engine_shadow_status",
+        lambda _con, today=None: {
+            "eligible": True,
+            "available_modes": ["standard"],
+        },
+    )
+
+    def build_for_profile(**kwargs):
+        if kwargs["mode"] != "vegetarian":
+            raise server.NoCompatiblePlan("diet_too_strict", ("add_store",))
+        return {"jedla": []}
+
+    monkeypatch.setattr(
+        server, "match_offers", lambda _rows, _catalog: ("matched-offer",),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        server,
+        "_deterministic_mode_is_feasible",
+        lambda **kwargs: kwargs["mode"] == "vegetarian",
+        raising=False,
+    )
+    monkeypatch.setattr(server, "build_deterministic_plan", build_for_profile)
+
+    body = client.get("/api/me").json()
+
+    assert body["stravovanie_dostupne"] == ["vegetarian"]
+
+
+def test_me_checks_each_entitled_mode_once_without_building_complete_plans(
+        monkeypatch, tmp_path):
+    from test_deterministic_plan_invariants import WEEK, make_fixture
+
+    fixture = make_fixture(offer_count=24, template_count=12)
+    fields = (
+        "tyzden", "nazov", "obchod", "cena", "povodna", "zlava",
+        "jednotka", "kategoria", "source_url", "source_page",
+        "valid_from", "valid_to",
+    )
+    fixture_rows = [
+        tuple(
+            WEEK if field == "tyzden"
+            else "trvanlive" if field == "kategoria"
+            else row.get(field)
+            for field in fields
+        )
+        for row in fixture.rows
+    ]
+    monkeypatch.setenv("UVARSI_RECIPE_ENGINE", "on")
+    server = load_server(monkeypatch, tmp_path, fixture_rows)
+    server.recipe_engine_mode.cache_clear()
+    client = authenticated_client(server)
+    grant_premium(server, 1)
+    with server.db() as con:
+        con.execute(
+            "UPDATE pouzivatelia SET obchody='Kaufland,Tesco,Lidl' WHERE id=1"
+        )
+        con.commit()
+    checks = []
+    complete_builds = []
+    match_calls = []
+    real_match_offers = server.match_offers
+    real_feasibility_check = server._deterministic_mode_is_feasible
+
+    def match_once(rows, catalog):
+        match_calls.append(rows)
+        return real_match_offers(rows, catalog)
+
+    monkeypatch.setattr(server, "match_offers", match_once)
+    monkeypatch.setattr(server, "load_recipe_catalog", lambda _catalog: fixture.recipes)
+
+    def check_mode(**kwargs):
+        checks.append(kwargs)
+        return real_feasibility_check(**kwargs)
+
+    def complete_build(**kwargs):
+        complete_builds.append(kwargs)
+        raise AssertionError("/api/me must not build a complete weekly plan")
+
+    monkeypatch.setattr(
+        server, "_deterministic_mode_is_feasible", check_mode,
+    )
+    monkeypatch.setattr(server, "build_deterministic_plan", complete_build)
+
+    body = client.get("/api/me").json()
+    repeated = client.get("/api/me").json()
+
+    assert body["stravovanie_dostupne"] == list(ALL_MODES)
+    assert repeated["stravovanie_dostupne"] == body["stravovanie_dostupne"]
+    assert complete_builds == []
+    assert len(match_calls) == 1
+    assert {call["mode"] for call in checks} == set(ALL_MODES)
+    assert len(checks) == len(ALL_MODES)
+    assert all(call["stores"] == ["Kaufland", "Tesco", "Lidl"] for call in checks)
+    assert all(call["offers"] for call in checks)
+    assert all(call["adults"] == 4 and call["children"] == 0 for call in checks)
+    assert all(call["frequency"] == 2 for call in checks)
+
+
+def test_profile_mode_cache_evicts_only_the_least_recently_used_entry(
+        monkeypatch, tmp_path):
+    monkeypatch.setenv("UVARSI_RECIPE_ENGINE", "on")
+    server = load_server(monkeypatch, tmp_path, [])
+    server.recipe_engine_mode.cache_clear()
+    server._PROFILE_MODE_CACHE_MAX = 2
+    checks = []
+    rows = availability_rows(server)
+    monkeypatch.setattr(
+        server, "match_offers", lambda _rows, _catalog: ("matched-offer",),
+    )
+
+    def feasible(**kwargs):
+        checks.append((kwargs["adults"], kwargs["mode"]))
+        return True
+
+    monkeypatch.setattr(server, "_deterministic_mode_is_feasible", feasible)
+
+    first = availability_profile(1)
+    second = availability_profile(2)
+    third = availability_profile(3)
+    server.recipe_engine_profile_available_modes(None, first, True, rows=rows)
+    server.recipe_engine_profile_available_modes(None, second, True, rows=rows)
+    server.recipe_engine_profile_available_modes(None, first, True, rows=rows)
+    server.recipe_engine_profile_available_modes(None, third, True, rows=rows)
+    server.recipe_engine_profile_available_modes(None, first, True, rows=rows)
+
+    assert len(checks) == 3 * len(ALL_MODES)
+
+
+def test_concurrent_profile_requests_share_one_mode_feasibility_check(
+        monkeypatch, tmp_path):
+    monkeypatch.setenv("UVARSI_RECIPE_ENGINE", "on")
+    server = load_server(monkeypatch, tmp_path, [])
+    server.recipe_engine_mode.cache_clear()
+    checks = []
+    checks_lock = threading.Lock()
+    start_together = threading.Barrier(8)
+    yield_to_competitors = threading.Event()
+    rows = availability_rows(server)
+    profile_row = availability_profile(4)
+    monkeypatch.setattr(
+        server, "match_offers", lambda _rows, _catalog: ("matched-offer",),
+    )
+
+    def feasible(**kwargs):
+        with checks_lock:
+            checks.append(kwargs["mode"])
+        yield_to_competitors.wait(0.03)
+        return True
+
+    monkeypatch.setattr(server, "_deterministic_mode_is_feasible", feasible)
+
+    def available_modes():
+        start_together.wait()
+        return server.recipe_engine_profile_available_modes(
+            None, profile_row, True, rows=rows,
+        )
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = tuple(pool.map(lambda _index: available_modes(), range(8)))
+
+    assert results == (ALL_MODES,) * 8
+    assert len(checks) == len(ALL_MODES)
+
+
+def test_failed_offer_matching_releases_profile_mode_waiters(monkeypatch, tmp_path):
+    monkeypatch.setenv("UVARSI_RECIPE_ENGINE", "on")
+    server = load_server(monkeypatch, tmp_path, [])
+    server.recipe_engine_mode.cache_clear()
+
+    def fail_matching(_rows, _catalog):
+        raise ValueError("broken offer row")
+
+    monkeypatch.setattr(server, "match_offers", fail_matching)
+
+    result = server.recipe_engine_profile_available_modes(
+        None, availability_profile(4), True, rows=availability_rows(server),
+    )
+
+    assert result == ()
+    assert server._PROFILE_MODE_PENDING == {}
+
+
+def test_unavailable_saved_diet_is_not_silently_changed_to_meat_mode(
+        monkeypatch, tmp_path):
+    monkeypatch.setenv("UVARSI_RECIPE_ENGINE", "on")
+    server = load_server(monkeypatch, tmp_path, current_plan_rows())
+    server.recipe_engine_mode.cache_clear()
+    client = authenticated_client(server)
+    grant_premium(server, 1)
+    with server.db() as con:
+        con.execute("UPDATE pouzivatelia SET stravovanie='vegan' WHERE id=1")
+        con.commit()
+    monkeypatch.setattr(
+        server,
+        "recipe_engine_profile_available_modes",
+        lambda _con, _profile, _premium, today=None, rows=None: (
+            "standard", "vegetarian"
+        ),
+    )
+
+    body = client.get("/api/me").json()
+
+    assert body["stravovanie"] == "vegan"
+    assert body["stravovanie_ulozene"] == "vegan"
+    assert "vegan" not in body["stravovanie_dostupne"]
 
 
 @pytest.mark.parametrize("mode", PRO_MODES)

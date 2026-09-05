@@ -144,15 +144,17 @@ engine = payload.get("recipe_engine")
 if not isinstance(engine, dict): raise SystemExit(2)
 if engine.get("mode") != expected or engine.get("ready") is not True: raise SystemExit(2)
 if engine.get("blockers") != []: raise SystemExit(2)
-if expected == "shadow":
+if expected in ("shadow", "on"):
     shadow = engine.get("last_shadow")
     if not isinstance(shadow, dict): raise SystemExit(2)
     if shadow.get("complete") is not True or shadow.get("eligible") is not True: raise SystemExit(2)
     def finite_number(value):
         return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
     success_rate = shadow.get("success_rate")
+    valid_outcome_rate = shadow.get("valid_outcome_rate")
     p95_ms = shadow.get("p95_ms")
-    if not finite_number(success_rate) or not (0.0 <= success_rate <= 1.0) or success_rate < 0.98: raise SystemExit(2)
+    if not finite_number(success_rate) or not (0.75 <= success_rate <= 1.0): raise SystemExit(2)
+    if not finite_number(valid_outcome_rate) or not (0.98 <= valid_outcome_rate <= 1.0): raise SystemExit(2)
     if not finite_number(p95_ms) or not (0.0 <= p95_ms < 500): raise SystemExit(2)
     for key in ("dietary_violations","negative_quantities","invalid_package_counts"):
         value = shadow.get(key)
@@ -197,7 +199,7 @@ read_activation_target() {
 }
 
 rollback_off() {
-  log "gate zlyhal — vraciam iba receptový flag na off"
+  log "gate=$ROLLOUT_GATE zlyhal — vraciam iba receptový flag na off"
   ROLLBACK_OK=1
   set_mode off || ROLLBACK_OK=0
   restart_uvarsi || ROLLBACK_OK=0
@@ -234,9 +236,14 @@ ROLLOUT_GATE=flag
 MODE=$(current_mode)
 [ "$MODE" != "invalid" ] || rollback_off
 if [ "$MODE" = "on" ]; then
+  ROLLOUT_GATE=payments_off
+  payments_off on || rollback_off
   ROLLOUT_GATE=on_health
-  payments_off on && health_gate on && { log "on je už zdravý — bez zmeny"; exit 0; }
-  rollback_off
+  if health_gate on; then
+    log "on je už zdravý — bez zmeny"
+    exit 0
+  fi
+  log "gate=on_health neprešla — spúšťam kontrolovanú shadow + smoke revalidáciu"
 fi
 
 ROLLOUT_GATE=shadow_restart

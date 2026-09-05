@@ -2,17 +2,17 @@
   "recipes": [
     {
       "id":"soup_chicken_vegetable_noodle","version":1,"active":true,
-      "name_template":"Kuracia polievka so zeleninou a rezancami","family":"soup_chicken_noodle","method":"soup","minutes":38,
+      "name_template":"Hydinová polievka so zeleninou a rezancami","family":"soup_chicken_noodle","method":"soup","minutes":38,
       "modes":["standard","high_protein"],"equipment":["veľký hrniec","doska"],
       "slots":[
-        {"key":"protein","role":"protein","candidates":["chicken_breast"],"amount_per_adult":"180","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé kocky"},
+        {"key":"protein","role":"protein","candidates":["chicken_breast","turkey_breast"],"amount_per_adult":"180","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé kocky"},
         {"key":"starch","role":"starch","candidates":["egg_noodles"],"amount_per_adult":"65","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
         {"key":"vegetable","role":"vegetable","candidates":["carrot","broccoli"],"amount_per_adult":"170","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
       ],
       "pantry_basics":["water","salt","black_pepper","garlic"],
       "instructions":[
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}; priprav si aj {starch.name}."},
-        {"text":"Var {protein.name} v hrnci 12 minút na miernom ohni, kým bude mäso v strede prepečené."},
+        {"text":"Vlož {protein.name} do hrnca; prilej vodu, aby bolo mäso ponorené, a var ho 12 minút na miernom ohni, kým bude v strede prepečené."},
         {"text":"Pridaj {vegetable.name} do hrnca."},
         {"text":"Var {vegetable.name} v hrnci 8 minút na miernom ohni, kým zmäkne."},
         {"text":"Pridaj {starch.amount} {starch.name} do hrnca a var ich 6 minút na miernom ohni, kým zmäknú."},
@@ -27,32 +27,32 @@
       "slots":[
         {"key":"protein","role":"protein","candidates":["beef_mince"],"amount_per_adult":"180","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé kúsky"},
         {"key":"starch","role":"starch","candidates":["barley"],"amount_per_adult":"65","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
-        {"key":"vegetable","role":"vegetable","candidates":["carrot","bell_pepper"],"amount_per_adult":"170","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
+        {"key":"vegetable","role":"vegetable","candidates":["carrot","bell_pepper","zucchini"],"amount_per_adult":"170","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
       ],
       "pantry_basics":["water","oil","salt","black_pepper","garlic","paprika_powder"],
       "instructions":[
         {"text":"Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Opekaj {protein.amount} {protein.name} v hrnci 9 minút na strednom ohni, kým bude mäso zlatisté a v strede prepečené."},
-        {"text":"Pridaj {starch.name} do hrnca."},
-        {"text":"Pridaj {vegetable.name} do hrnca a var ju 25 minút na miernom ohni, kým krúpy a zelenina zmäknú."},
+        {"text":"Vlož {starch.name} a {vegetable.name} do hrnca; prilej vodu, aby boli suroviny ponorené."},
+        {"text":"Var {starch.name} so zeleninou v hrnci 25 minút na miernom ohni, kým krúpy a zelenina zmäknú."},
         {"text":"Dochuť polievku cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."},
         {"text":"Nechaj zvyšné porcie chladnúť najviac 30 minút a potom ich uchovaj v chladničke najviac 2 dni."}
       ]
     },
     {
       "id":"soup_fish_tomato_potato","version":1,"active":true,
-      "name_template":"Rybacia paradajková polievka so zemiakmi","family":"soup_fish_tomato_potato","method":"soup","minutes":36,
+      "name_template":"Rybia paradajková polievka so zemiakmi","family":"soup_fish_tomato_potato","method":"soup","minutes":36,
       "modes":["standard","high_protein"],"equipment":["veľký hrniec","doska"],
       "slots":[
-        {"key":"protein","role":"protein","candidates":["white_fish"],"amount_per_adult":"190","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na väčšie kocky"},
+        {"key":"protein","role":"protein","candidates":["white_fish","salmon"],"amount_per_adult":"190","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na väčšie kocky"},
         {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"230","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé kocky"},
         {"key":"vegetable","role":"vegetable","candidates":["tomato"],"amount_per_adult":"220","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kocky"}
       ],
       "pantry_basics":["water","oil","salt","black_pepper","garlic","oregano"],
       "instructions":[
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Var {starch.name} a {vegetable.name} v hrnci 16 minút na miernom ohni, kým zemiaky mierne zmäknú."},
+        {"text":"Vlož {starch.name} a {vegetable.name} do hrnca; prilej vodu, aby boli ponorené, a var ich 16 minút na miernom ohni, kým zemiaky mierne zmäknú."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut}."},
         {"text":"Pridaj {protein.name} do hrnca."},
         {"text":"Var {protein.name} v hrnci 10 minút na miernom ohni, kým ryba zmäkne a ľahko sa oddeľuje."},
@@ -73,7 +73,7 @@
       "instructions":[
         {"text":"Prepláchni {protein.amount} {protein.name} v sitku pod studenou vodou."},
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Var {protein.name}, {starch.name} a {vegetable.name} v hrnci 22 minút na miernom ohni, kým šošovica a zemiaky zmäknú."},
+        {"text":"Vlož {protein.name}, {starch.name} a {vegetable.name} do hrnca; prilej vodu, aby boli suroviny ponorené, a var ich 22 minút na miernom ohni, kým šošovica a zemiaky zmäknú."},
         {"text":"Rozmixuj polovicu polievky v hrnci, kým bude polievka krémová."},
         {"text":"Dochuť polievku cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."},
         {"text":"Nechaj zvyšné porcie chladnúť najviac 30 minút a potom ich uchovaj v chladničke najviac 3 dni."}
@@ -81,7 +81,7 @@
     },
     {
       "id":"soup_chickpea_vegetable","version":1,"active":true,
-      "name_template":"Cícerová zeleninová polievka","family":"soup_chickpea_vegetable","method":"soup","minutes":34,
+      "name_template":"Cícerová zeleninová polievka","family":"soup_chickpea_vegetable","method":"soup","minutes":95,
       "modes":["standard","vegetarian","vegan"],"equipment":["veľký hrniec","doska"],
       "slots":[
         {"key":"protein","role":"protein","candidates":["chickpeas"],"amount_per_adult":"105","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
@@ -90,21 +90,21 @@
       ],
       "pantry_basics":["water","oil","salt","black_pepper","garlic"],
       "instructions":[
+        {"text":"Priprav {protein.amount} {protein.name} deň vopred v hrnci s dostatkom vody a nechaj ho 12 hodín namočený."},
+        {"text":"Sceď cícer a var ho v hrnci s čerstvou vodou na miernom ohni 60 minút, kým cícer zmäkne."},
+        {"text":"Sceď uvarený {protein.name} a vráť ho do hrnca."},
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Var {starch.name} a {vegetable.name} v hrnci 17 minút na miernom ohni, kým zemiaky zmäknú."},
-        {"text":"Opláchni {protein.amount} {protein.name} v sitku pod studenou vodou."},
-        {"text":"Pridaj {protein.name} do hrnca."},
-        {"text":"Var {protein.name} v hrnci 8 minút na miernom ohni, kým polievka začne bublať."},
-        {"text":"Dochuť polievku cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."},
-        {"text":"Nechaj zvyšné porcie chladnúť najviac 30 minút a potom ich uchovaj v chladničke najviac 3 dni."}
+        {"text":"Pridaj {starch.name} a {vegetable.name} k cíceru; podľa potreby dolej vodu."},
+        {"text":"Var {starch.name} so zeleninou v hrnci 17 minút na miernom ohni, kým zemiaky a zelenina zmäknú."},
+        {"text":"Dochuť polievku cesnakom, soľou a čiernym korením a rozdeľ ju na {portions} porcií; zvyšné porcie nechaj chladnúť najviac 30 minút a potom ich uchovaj v chladničke najviac 3 dni."}
       ]
     },
     {
       "id":"salad_chicken_potato_yogurt","version":1,"active":true,
-      "name_template":"Zemiakový šalát s kuracím mäsom a jogurtom","family":"salad_chicken_potato_yogurt","method":"salad","minutes":38,
+      "name_template":"Zemiakový šalát s hydinou a jogurtom","family":"salad_chicken_potato_yogurt","method":"salad","minutes":38,
       "modes":["standard","high_protein"],"equipment":["hrniec","panvica","misa","doska"],
       "slots":[
-        {"key":"protein","role":"protein","candidates":["chicken_breast"],"amount_per_adult":"175","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na tenké pásiky"},
+        {"key":"protein","role":"protein","candidates":["chicken_breast","turkey_breast"],"amount_per_adult":"175","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na tenké pásiky"},
         {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"230","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé kocky"},
         {"key":"vegetable","role":"vegetable","candidates":["bell_pepper","tomato"],"amount_per_adult":"160","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"},
         {"key":"dairy","role":"dairy","candidates":["plain_yogurt"],"amount_per_adult":"80","unit":"g","child_factor":"0.6","required":true,"use":"addition","cut":null}
@@ -121,20 +121,18 @@
     },
     {
       "id":"salad_tuna_bean_tomato","version":1,"active":true,
-      "name_template":"Fazuľový šalát s tuniakom a paradajkami","family":"salad_tuna_bean_tomato","method":"salad","minutes":22,
-      "modes":["standard","high_protein"],"equipment":["hrniec","sitko","misa","doska"],
+      "name_template":"Fazuľový šalát s tuniakom a paradajkami","family":"salad_tuna_bean_tomato","method":"salad","minutes":20,
+      "modes":["standard","high_protein"],"equipment":["sitko","misa","doska"],
       "slots":[
         {"key":"protein","role":"protein","candidates":["tuna"],"amount_per_adult":"170","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
-        {"key":"starch","role":"starch","candidates":["beans"],"amount_per_adult":"100","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
+        {"key":"starch","role":"starch","candidates":["beans_canned"],"amount_per_adult":"220","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
         {"key":"vegetable","role":"vegetable","candidates":["tomato"],"amount_per_adult":"200","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kocky"}
       ],
-      "pantry_basics":["oil","salt","black_pepper","oregano"],
+      "pantry_basics":["water","oil","salt","black_pepper","oregano"],
       "instructions":[
-        {"text":"Prehrievaj {starch.amount} {starch.name} v hrnci 5 minút na miernom ohni, kým začnú bublať."},
-        {"text":"Nechaj fazuľu 10 minút chladnúť, kým prestane pariť."},
-        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Sceď {protein.name} v sitku."},
-        {"text":"Premiešaj {protein.amount} tuniaka vo vlastnej šťave s fazuľou a paradajkami v mise."},
+        {"text":"Sceď {starch.amount} {starch.name} v sitku a prepláchni ju pod studenou vodou."},
+        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut} a sceď {protein.amount} {protein.name}."},
+        {"text":"Premiešaj tuniaka, fazuľu a paradajky v mise."},
         {"text":"Dochuť šalát olejom, oreganom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
@@ -166,9 +164,9 @@
         {"key":"starch","role":"starch","candidates":["rice"],"amount_per_adult":"70","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
         {"key":"vegetable","role":"vegetable","candidates":["bell_pepper","tomato"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
       ],
-      "pantry_basics":["oil","salt","black_pepper","garlic"],
+      "pantry_basics":["water","oil","salt","black_pepper","garlic"],
       "instructions":[
-        {"text":"Uvar {starch.amount} {starch.name} v hrnci 15 minút na miernom ohni, kým voda vsiakne."},
+        {"text":"Prepláchni {starch.amount} {starch.name}; nalej {starch.water} vody do hrnca. Var ryžu 15 minút na miernom ohni, kým voda vsiakne."},
         {"text":"Nechaj ryžu 10 minút chladnúť, kým prestane pariť."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Opekaj {protein.name} v panvici 8 minút na strednom ohni, kým budú kocky zlatisté."},
@@ -178,19 +176,19 @@
     },
     {
       "id":"salad_chickpea_couscous_vegetable","version":1,"active":true,
-      "name_template":"Teplý kuskusový šalát s cícerom a brokolicou","family":"salad_chickpea_couscous_vegetable","method":"salad","minutes":28,
-      "modes":["standard","vegetarian","vegan"],"equipment":["dva hrnce","misa","doska"],
+      "name_template":"Teplý kuskusový šalát s cícerom a brokolicou","family":"salad_chickpea_couscous_vegetable","method":"salad","minutes":30,
+      "modes":["standard","vegetarian","vegan"],"equipment":["hrniec","sitko","misa","doska"],
       "slots":[
-        {"key":"protein","role":"protein","candidates":["chickpeas"],"amount_per_adult":"105","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
+        {"key":"protein","role":"protein","candidates":["chickpeas_canned"],"amount_per_adult":"220","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
         {"key":"starch","role":"starch","candidates":["couscous"],"amount_per_adult":"70","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
         {"key":"vegetable","role":"vegetable","candidates":["broccoli"],"amount_per_adult":"190","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé ružičky"}
       ],
-      "pantry_basics":["oil","salt","black_pepper","paprika_powder"],
+      "pantry_basics":["water","oil","salt","black_pepper","paprika_powder"],
       "instructions":[
-        {"text":"Uvar {starch.amount} {starch.name} v hrnci 8 minút na miernom ohni, kým zmäkne a voda vsiakne."},
+        {"text":"Sceď {protein.amount} {protein.name} v sitku a prepláchni ho pod studenou vodou."},
+        {"text":"Zohrej {starch.water} vody v hrnci na silnom ohni 4 minúty, kým začne bublať; vlož {starch.amount} {starch.name} do misky a prilej vodu, prikry kuskus a nechaj ho 8 minút, kým voda vsiakne."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Uvar {vegetable.name} v hrnci 5 minút na strednom ohni, kým mierne zmäkne."},
-        {"text":"Opláchni {protein.amount} {protein.name} v sitku pod studenou vodou."},
         {"text":"Premiešaj kuskus, cícer a brokolicu v mise s olejom."},
         {"text":"Dochuť šalát mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]

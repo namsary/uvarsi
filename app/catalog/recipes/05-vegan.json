@@ -9,10 +9,10 @@
         {"key":"starch","role":"starch","candidates":["rice"],"amount_per_adult":"70","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
         {"key":"vegetable","role":"vegetable","candidates":["broccoli","bell_pepper"],"amount_per_adult":"170","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
       ],
-      "pantry_basics":["oil","salt","black_pepper","garlic"],
+      "pantry_basics":["water","oil","salt","black_pepper","garlic"],
       "instructions":[
         {"text":"Predhrej rúru na 200 °C."},
-        {"text":"Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou a var ju v hrnci 15 minút na miernom ohni, kým voda vsiakne."},
+        {"text":"Prepláchni {starch.amount} {starch.name}; nalej {starch.water} vody do hrnca. Var ryžu 15 minút na miernom ohni, kým voda vsiakne."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Rozlož {protein.name} a {vegetable.name} do pekáča, pokvapkaj olejom a premiešaj."},
         {"text":"Peč {protein.name} so zeleninou v pekáči 20 minút pri 200 °C, kým bude tofu na okrajoch zlatisté a zelenina mäkká."},
@@ -33,7 +33,7 @@
         {"text":"Uvar {starch.amount} {starch.name} v hrnci 9 minút na strednom ohni, kým zmäknú na skus."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Opekaj {protein.name} v panvici 8 minút na strednom ohni, kým budú kocky zlatisté."},
-        {"text":"Pridaj {vegetable.name} do panvice a var ich 8 minút na miernom ohni, kým zmäknú a omáčka začne bublať."},
+        {"text":"Pridaj {vegetable.name} do panvice a var ich 8 minút na miernom ohni, kým zmäknú a pustia šťavu."},
         {"text":"Premiešaj omáčku s cestovinami, dochuť cesnakom, oreganom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
@@ -51,6 +51,7 @@
       "instructions":[
         {"text":"Prepláchni {protein.amount} {protein.name} a {starch.amount} {starch.name} v sitku pod studenou vodou."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Vlož {protein.name}, {starch.name} a {vegetable.name} do hrnca a nalej {starch.water} vody. Ak suroviny nie sú ponorené, dolej trochu vody."},
         {"text":"Var {protein.name}, {starch.name} a {vegetable.name} v hrnci 18 minút na miernom ohni, kým šošovica a ryža zmäknú."},
         {"text":"Prilej {dairy.amount} {dairy.name} do hrnca."},
         {"text":"Var {dairy.name} s karí v hrnci 6 minút na miernom ohni, kým omáčka zhustne a začne bublať."},
@@ -70,6 +71,7 @@
       "instructions":[
         {"text":"Prepláchni {protein.amount} {protein.name} v sitku pod studenou vodou."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Vlož {protein.name} a {vegetable.name} do hrnca; prilej vodu, aby boli suroviny tesne ponorené."},
         {"text":"Var {protein.name} a {vegetable.name} v hrnci 15 minút na miernom ohni, kým šošovica zmäkne."},
         {"text":"Pridaj {starch.amount} {starch.name} do hrnca."},
         {"text":"Var {starch.name} v hrnci 10 minút na miernom ohni, kým cestoviny zmäknú a omáčka zhustne."},
@@ -78,26 +80,26 @@
     },
     {
       "id":"vegan_chickpea_couscous_salad","version":1,"active":true,
-      "name_template":"Kuskusový šalát s cícerom a {vegetable.name}","family":"vegan_chickpea_couscous_salad","method":"salad","minutes":24,
-      "modes":["standard","vegetarian","vegan"],"equipment":["hrniec","misa","doska"],
+      "name_template":"Kuskusový šalát s cícerom a {vegetable.name}","family":"vegan_chickpea_couscous_salad","method":"salad","minutes":30,
+      "modes":["standard","vegetarian","vegan"],"equipment":["hrniec","sitko","misa","doska"],
       "slots":[
-        {"key":"protein","role":"protein","candidates":["chickpeas"],"amount_per_adult":"100","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
+        {"key":"protein","role":"protein","candidates":["chickpeas_canned"],"amount_per_adult":"230","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
         {"key":"starch","role":"starch","candidates":["couscous"],"amount_per_adult":"70","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
         {"key":"vegetable","role":"vegetable","candidates":["tomato","bell_pepper"],"amount_per_adult":"190","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
       ],
-      "pantry_basics":["oil","salt","black_pepper","oregano"],
+      "pantry_basics":["water","oil","salt","black_pepper","oregano"],
       "instructions":[
-        {"text":"Uvar {starch.amount} {starch.name} v hrnci 8 minút na miernom ohni, kým zmäkne a voda vsiakne."},
+        {"text":"Sceď {protein.amount} {protein.name} v sitku a prepláchni ho pod studenou vodou."},
+        {"text":"Zohrej {starch.water} vody v hrnci na silnom ohni 4 minúty, kým začne bublať; vlož {starch.amount} {starch.name} do misky a prilej vodu, prikry kuskus a nechaj ho 8 minút, kým voda vsiakne."},
         {"text":"Nechaj uvarený kuskus 10 minút chladnúť, kým prestane pariť."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opláchni {protein.amount} {protein.name} v sitku pod studenou vodou."},
         {"text":"Premiešaj kuskus, cícer a zeleninu v mise s olejom."},
         {"text":"Dochuť šalát oreganom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
     {
       "id":"vegan_chickpea_tomato_stew","version":1,"active":true,
-      "name_template":"Paradajkový cícerový hrniec","family":"vegan_chickpea_tomato_stew","method":"one_pot","minutes":33,
+      "name_template":"Paradajkový cícerový hrniec","family":"vegan_chickpea_tomato_stew","method":"one_pot","minutes":95,
       "modes":["standard","vegetarian","vegan"],"equipment":["hrniec"],
       "slots":[
         {"key":"protein","role":"protein","candidates":["chickpeas"],"amount_per_adult":"105","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
@@ -106,37 +108,37 @@
       ],
       "pantry_basics":["water","oil","salt","black_pepper","garlic","paprika_powder"],
       "instructions":[
+        {"text":"Priprav {protein.amount} {protein.name} deň vopred v hrnci s dostatkom vody a nechaj ho 12 hodín namočený."},
+        {"text":"Sceď cícer a var ho v hrnci s čerstvou vodou na miernom ohni 60 minút, kým cícer zmäkne."},
+        {"text":"Sceď uvarený {protein.name} a vráť ho do hrnca."},
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Var {starch.name} a {vegetable.name} v hrnci 17 minút na miernom ohni, kým zemiaky zmäknú."},
-        {"text":"Pridaj {protein.amount} {protein.name} do hrnca."},
-        {"text":"Var {protein.name} so zemiakmi a paradajkami v hrnci 9 minút na miernom ohni, kým omáčka zhustne a začne bublať."},
+        {"text":"Pridaj {starch.name} a {vegetable.name} k cíceru; podľa potreby dolej vodu."},
+        {"text":"Var {starch.name} s paradajkami v hrnci 17 minút na miernom ohni, kým zemiaky zmäknú a omáčka zhustne."},
         {"text":"Dochuť jedlo cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
     {
       "id":"vegan_bean_chili_rice","version":1,"active":true,
-      "name_template":"Fazuľové čili s tofu a ryžou","family":"vegan_bean_chili_rice","method":"one_pot","minutes":41,
-      "modes":["standard","vegetarian","vegan"],"equipment":["veľký hrniec"],
+      "name_template":"Fazuľové čili s tofu a ryžou","family":"vegan_bean_chili_rice","method":"one_pot","minutes":40,
+      "modes":["standard","vegetarian","vegan"],"equipment":["veľký hrniec","sitko"],
       "slots":[
-        {"key":"protein","role":"protein","candidates":["beans"],"amount_per_adult":"105","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
+        {"key":"protein","role":"protein","candidates":["beans_canned"],"amount_per_adult":"230","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
         {"key":"extra_protein","role":"protein","candidates":["tofu"],"amount_per_adult":"100","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé kocky"},
         {"key":"starch","role":"starch","candidates":["rice"],"amount_per_adult":"70","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
         {"key":"vegetable","role":"vegetable","candidates":["tomato","bell_pepper"],"amount_per_adult":"200","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kocky"}
       ],
       "pantry_basics":["water","oil","salt","black_pepper","garlic","paprika_powder"],
       "instructions":[
-        {"text":"Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou."},
-        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Var {starch.name} a {vegetable.name} v hrnci 14 minút na miernom ohni, kým ryža zmäkne."},
-        {"text":"Nakrájaj {extra_protein.amount} {extra_protein.name} {extra_protein.cut}."},
-        {"text":"Pridaj {extra_protein.name} a {protein.amount} {protein.name} do hrnca."},
-        {"text":"Var {protein.name} a {extra_protein.name} s ryžou v hrnci 9 minút na miernom ohni, kým čili zhustne a začne bublať."},
+        {"text":"Sceď {protein.amount} {protein.name} v sitku a prepláchni ju pod studenou vodou."},
+        {"text":"Prepláchni {starch.amount} {starch.name}; nakrájaj {extra_protein.amount} {extra_protein.name} {extra_protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
+        {"text":"Pridaj {protein.name}, {starch.name}, {extra_protein.name} a {vegetable.name} do hrnca a nalej {starch.water} vody."},
+        {"text":"Var {protein.name} s ryžou, tofu a zeleninou v hrnci 16 minút na miernom ohni, kým ryža zmäkne a omáčka zhustne."},
         {"text":"Dochuť čili cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
     {
       "id":"vegan_bean_potato_goulash","version":1,"active":true,
-      "name_template":"Fazuľový guláš so zemiakmi","family":"vegan_bean_potato_goulash","method":"one_pot","minutes":41,
+      "name_template":"Fazuľový guláš so zemiakmi","family":"vegan_bean_potato_goulash","method":"one_pot","minutes":110,
       "modes":["standard","vegetarian","vegan"],"equipment":["veľký hrniec"],
       "slots":[
         {"key":"protein","role":"protein","candidates":["beans"],"amount_per_adult":"105","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
@@ -145,10 +147,12 @@
       ],
       "pantry_basics":["water","oil","salt","black_pepper","garlic","paprika_powder"],
       "instructions":[
+        {"text":"Namoč {protein.amount} {protein.name} v hrnci s dostatkom vody na 12 hodín."},
+        {"text":"Sceď {protein.name} a uvar ju v hrnci s čerstvou vodou: najprv na silnom ohni 10 minút, kým voda prudko buble, potom na miernom ohni ďalších 50 minút, kým fazuľa zmäkne (spolu 60 minút)."},
+        {"text":"Sceď uvarenú {protein.name} a vráť ju do hrnca."},
         {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Var {starch.name} a {vegetable.name} v hrnci 19 minút na miernom ohni, kým zemiaky zmäknú."},
-        {"text":"Pridaj {protein.amount} {protein.name} do hrnca."},
-        {"text":"Var {protein.name} so zemiakmi v hrnci 9 minút na miernom ohni, kým guláš zhustne a začne bublať."},
+        {"text":"Pridaj {starch.name} a {vegetable.name} do hrnca; podľa potreby dolej vodu."},
+        {"text":"Var {starch.name} so zeleninou v hrnci 19 minút na miernom ohni, kým zemiaky zmäknú a omáčka zhustne."},
         {"text":"Dochuť guláš cesnakom, mletou paprikou, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
@@ -167,27 +171,27 @@
         {"text":"Uvar {starch.name} v hrnci 9 minút na strednom ohni, kým mierne zmäknú."},
         {"text":"Opekaj {protein.name} v panvici 7 minút na strednom ohni, kým budú kocky zlatisté."},
         {"text":"Pridaj {starch.name} do panvice."},
-        {"text":"Pridaj {vegetable.amount} {vegetable.name} do panvice a opekaj ho 8 minút na strednom ohni, kým hrášok zmäkne a zemiaky budú zlatisté."},
+        {"text":"Pridaj {vegetable.amount} {vegetable.name} do panvice; opekaj hrášok so zemiakmi a tofu 8 minút na strednom ohni, kým hrášok zmäkne a zemiaky budú zlatisté."},
         {"text":"Dochuť panvicu cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
     {
       "id":"vegan_mushroom_barley_pot","version":1,"active":true,
-      "name_template":"Krúpový hrniec so šampiňónmi a cícerom","family":"vegan_mushroom_barley_pot","method":"one_pot","minutes":45,
-      "modes":["standard","vegetarian","vegan"],"equipment":["veľký hrniec","doska"],
+      "name_template":"Krúpový hrniec so šampiňónmi a cícerom","family":"vegan_mushroom_barley_pot","method":"one_pot","minutes":40,
+      "modes":["standard","vegetarian","vegan"],"equipment":["veľký hrniec","sitko","doska"],
       "slots":[
-        {"key":"protein","role":"protein","candidates":["chickpeas"],"amount_per_adult":"90","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
+        {"key":"protein","role":"protein","candidates":["chickpeas_canned"],"amount_per_adult":"220","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
         {"key":"starch","role":"starch","candidates":["barley"],"amount_per_adult":"75","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
         {"key":"vegetable","role":"vegetable","candidates":["mushrooms"],"amount_per_adult":"190","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na tenké plátky"}
       ],
       "pantry_basics":["water","oil","salt","black_pepper","garlic"],
       "instructions":[
-        {"text":"Prepláchni {starch.amount} {starch.name} v sitku pod studenou vodou."},
-        {"text":"Opláchni {vegetable.name} a nakrájaj ich {vegetable.cut}."},
-        {"text":"Var {starch.name} v hrnci 24 minút na miernom ohni, kým krúpy mierne zmäknú."},
-        {"text":"Pridaj {vegetable.amount} {vegetable.name} do hrnca."},
-        {"text":"Pridaj {protein.amount} {protein.name} do hrnca."},
-        {"text":"Var {protein.name} so šampiňónmi a krúpami v hrnci 10 minút na miernom ohni, kým krúpy zmäknú a omáčka zhustne; potom jedlo dochuť cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+        {"text":"Sceď {protein.amount} {protein.name} v sitku a prepláchni ho pod studenou vodou."},
+        {"text":"Prepláchni {starch.amount} {starch.name}; nalej {starch.water} vody do hrnca. Var krúpy 24 minút na miernom ohni, kým zmäknú."},
+        {"text":"Osuš {vegetable.amount} {vegetable.name} a nakrájaj ich {vegetable.cut}."},
+        {"text":"Opekaj šampiňóny vo veľkom hrnci 8 minút na strednom ohni, kým zmäknú a okraje zozlatnú."},
+        {"text":"Prehrievaj cícer, šampiňóny a krúpy v hrnci 5 minút na miernom ohni, kým sa jedlo začne pariť."},
+        {"text":"Dochuť jedlo cesnakom, soľou a čiernym korením a rozdeľ ho na {portions} porcií."}
       ]
     }
   ]

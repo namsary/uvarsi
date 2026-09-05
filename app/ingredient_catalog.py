@@ -38,6 +38,34 @@ INGREDIENT_KEYS = frozenset(
 NUTRITION_KEYS = frozenset(
     {"kcal", "protein_g", "fat_g", "carbs_g", "source", "verified_on"}
 )
+PRODUCT_FAMILIES = (
+    frozenset(("chickpeas", "chickpeas_canned")),
+    frozenset(("beans", "beans_canned")),
+    frozenset(("chicken_thigh", "chicken_thigh_meat")),
+)
+PRODUCT_FAMILY_SHARED_FORMS = MappingProxyType(
+    {
+        PRODUCT_FAMILIES[0]: frozenset(("cícer", "cíceru")),
+        PRODUCT_FAMILIES[1]: frozenset(
+            (
+                "fazuľa",
+                "červená fazuľa",
+                "červené fazule",
+                "červenej fazule",
+                "červenú fazuľu",
+            )
+        ),
+        PRODUCT_FAMILIES[2]: frozenset(
+            ("kuracie stehno", "kuracie stehná", "kuracích stehien")
+        ),
+    }
+)
+PRODUCT_FAMILY_AMBIGUOUS_OFFER_FORMS = MappingProxyType(
+    {
+        PRODUCT_FAMILIES[0]: PRODUCT_FAMILY_SHARED_FORMS[PRODUCT_FAMILIES[0]],
+        PRODUCT_FAMILIES[1]: PRODUCT_FAMILY_SHARED_FORMS[PRODUCT_FAMILIES[1]],
+    }
+)
 
 
 class DietTag(str, Enum):
@@ -73,6 +101,27 @@ class Ingredient:
 def normalize_name(text: str) -> str:
     """Return the exact alias key without stemming or fuzzy matching."""
     return " ".join(unicodedata.normalize("NFKC", text).split()).casefold()
+
+
+def product_family(ingredient_id: str) -> frozenset[str] | None:
+    return next(
+        (family for family in PRODUCT_FAMILIES if ingredient_id in family),
+        None,
+    )
+
+
+def product_family_shared_forms(ingredient_id: str) -> frozenset[str]:
+    family = product_family(ingredient_id)
+    if family is None:
+        return frozenset()
+    return PRODUCT_FAMILY_SHARED_FORMS[family]
+
+
+def product_family_ambiguous_offer_forms(ingredient_id: str) -> frozenset[str]:
+    family = product_family(ingredient_id)
+    if family is None:
+        return frozenset()
+    return PRODUCT_FAMILY_AMBIGUOUS_OFFER_FORMS.get(family, frozenset())
 
 
 def build_alias_index(ingredients: Iterable[Ingredient]):

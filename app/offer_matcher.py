@@ -9,7 +9,12 @@ from functools import lru_cache
 from types import MappingProxyType
 from typing import Iterable, Literal, Mapping, Sequence
 
-from .ingredient_catalog import Ingredient, IngredientCatalog, normalize_name
+from .ingredient_catalog import (
+    Ingredient,
+    IngredientCatalog,
+    normalize_name,
+    product_family_ambiguous_offer_forms,
+)
 from .plan_data import _package_amount
 from .quantity_math import PackageSize, parse_quantity
 from .quantity_math import Quantity
@@ -59,6 +64,7 @@ def _match_ingredient(
     aliases, maximum_width = _alias_token_index(catalog)
     longest = 0
     candidates: set[str] = set()
+    matching_aliases: set[tuple[str, ...]] = set()
 
     for width in range(1, min(maximum_width, len(product_tokens)) + 1):
         if width < longest:
@@ -70,11 +76,19 @@ def _match_ingredient(
             if width > longest:
                 longest = width
                 candidates.clear()
+                matching_aliases.clear()
             candidates.update(ingredient_ids)
+            matching_aliases.add(product_tokens[start : start + width])
 
     if len(candidates) != 1:
         return None
-    return catalog.by_id(next(iter(candidates)))
+    ingredient = catalog.by_id(next(iter(candidates)))
+    ambiguous_forms = product_family_ambiguous_offer_forms(ingredient.id)
+    if ambiguous_forms and all(
+        " ".join(alias) in ambiguous_forms for alias in matching_aliases
+    ):
+        return None
+    return ingredient
 
 
 def _package_is_compatible(package: PackageSize, ingredient: Ingredient) -> bool:

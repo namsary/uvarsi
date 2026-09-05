@@ -62,6 +62,8 @@ from plan_data import (
     apply_pantry_to_shopping_list,
     build_personal_plan,
     cached_plan_is_current,
+    cooking_days_for_frequency,
+    days_covered_by_meal,
     measurable_offers,
     personal_plan_messages,
     pantry_signature_facts,
@@ -80,8 +82,11 @@ if _APP_PARENT not in sys.path:
 from app.deterministic_plan import NoCompatiblePlan, build_deterministic_plan
 from app.ingredient_catalog import load_ingredient_catalog
 from app.library_gate import audit_library
+from app.offer_matcher import match_offers
 from app.quantity_math import PantryEntry, Quantity
 from app.recipe_catalog import RecipeCatalog, load_recipe_catalog
+from app.recipe_matcher import rank_candidates
+from app.recipe_renderer import render_meal
 from platby import (
     AKCIA_IGNOROVANE,
     AKCIA_NAD_KAPACITU,
@@ -2491,8 +2496,9 @@ def me(req: Request):
                 "SELECT 1 FROM auth_credentials WHERE user_id=?", (u["id"],)
             ).fetchone() is not None
         premium = je_premium(con, u["id"])
-        stored_diet = ulozene_stravovanie(u)
-        effective_diet = efektivne_stravovanie(u, premium)
+        stored_diet, effective_diet, available_diets = diet_context_for_week(
+            con, u, premium
+        )
         sp = spajza_pouzivatela(con, u["id"], premium)
         ulozenych = pocet_ulozenej_spajze(con, u["id"])
         limit = limit_prepoctov(premium)
@@ -2513,6 +2519,7 @@ def me(req: Request):
               "stravovanie": effective_diet,
               "stravovanie_ulozene": stored_diet,
               "stravovanie_moznosti": list(ALLOWED_DIET_MODES),
+              "stravovanie_dostupne": list(available_diets),
               "spajza": sp, "spajza_premium": premium, "spajza_dostupna": premium,
               "spajza_ulozenych": ulozenych, "spajza_uspana": uspana,
               "spajza_sprava": sprava_o_uspanej_spajze(ulozenych) if uspana else None,
@@ -2856,7 +2863,7 @@ def _previous_plan_template_ids(user_id, week):
 
 
 def _serve_deterministic_plan(
-    u, tyz, obchody, rows, spajza, podpis, variant, premium, *,
+    u, tyz, obchody, rows, spajza, podpis, variant, premium, diet_mode, *,
     zo_spajze=False, force=False,
 ):
     """Build and persist a ready plan without queue, model or paid-cost paths."""
@@ -2901,7 +2908,7 @@ def _serve_deterministic_plan(
             frequency=u["frekvencia"],
             pantry=engine_pantry if zo_spajze else (),
             pantry_driven=zo_spajze,
-            mode=efektivne_stravovanie(u, premium),
+            mode=diet_mode,
             seed=f"{tyz}:{podpis}:{selected_variant}",
             ingredient_catalog=catalog,
             recipe_catalog=recipe_catalog,
@@ -3057,7 +3064,9 @@ def zahrej_plan_pre_pouzivatela(user_id):
         if profil is None:
             return None
         premium = je_premium(con, user_id)
-        diet_mode = efektivne_stravovanie(profil, premium)
+        _stored_diet, diet_mode, _available_diets = diet_context_for_week(
+            con, profil, premium, check_availability=False
+        )
         spajza = spajza_pouzivatela(con, user_id, premium)
 
     obchody = efektivne_obchody(profil, premium)
@@ -3275,7 +3284,9 @@ def generuj_plan(req: Request, force: int = 0):
             if recipe_engine_mode() == "on":
                 return _deterministic_insufficient_offers_response()
             raise HTTPException(503, sprava_o_chybajucich_akciach())
-        diet_mode = efektivne_stravovanie(u, premium)
+        _stored_diet, diet_mode, _available_diets = diet_context_for_week(
+            con, u, premium, rows=rows, check_availability=False
+        )
         sp = spajza_pouzivatela(con, u["id"], premium)
         if diet_mode != ulozene_stravovanie(u):
             con.execute(
@@ -3339,7 +3350,7 @@ def generuj_plan(req: Request, force: int = 0):
 
     if recipe_engine_mode() == "on":
         return _serve_deterministic_plan(
-            u, tyz, obchody, rows, sp, podpis, variant, premium,
+            u, tyz, obchody, rows, sp, podpis, variant, premium, diet_mode,
             force=bool(force),
         )
     return _enqueue_live_plan(
@@ -3406,7 +3417,6 @@ def plan_zo_spajze(req: Request):
     with closing(db()) as con:
         premium = je_premium(con, u["id"])
         obchody = efektivne_obchody(u, premium)
-        diet_mode = efektivne_stravovanie(u, premium)
         if not premium:
             return odmietni(
                 403, SPRAVA_SPAJZA_PREMIUM, KOD_SPAJZA_PREMIUM,
@@ -3422,6 +3432,11 @@ def plan_zo_spajze(req: Request):
         if recipe_engine_mode() == "on":
             return _deterministic_insufficient_offers_response()
         raise HTTPException(503, sprava_o_chybajucich_akciach())
+
+    with closing(db()) as con:
+        _stored_diet, diet_mode, _available_diets = diet_context_for_week(
+            con, u, premium, rows=rows, check_availability=False
+        )
 
     podpis = podpis_planu(
         tyz, obchody, u["frekvencia"], rows, sp,
@@ -3446,7 +3461,7 @@ def plan_zo_spajze(req: Request):
                 ):
                     return so_spajzou(cached, sp)
         return _serve_deterministic_plan(
-            u, tyz, obchody, rows, sp, podpis, variant, premium,
+            u, tyz, obchody, rows, sp, podpis, variant, premium, diet_mode,
             zo_spajze=True,
         )
     return _enqueue_live_plan(
@@ -3524,7 +3539,6 @@ def _current_job_context(job, stores, frequency, adults, children, *, con, now):
             or children != current_children
         ):
             raise StalePlanJob("stale_profile")
-        diet_mode = efektivne_stravovanie(profile, premium)
         pantry = spajza_pouzivatela(con, job.user_id, premium)
 
     missing_stores = stores_missing_this_week(con, stores, today)
@@ -3537,6 +3551,12 @@ def _current_job_context(job, stores, frequency, adults, children, *, con, now):
     # inak by chybná jednotka zablokovala celý nákup.
     if len(rows) < MIN_OFFERS_FOR_PLAN:
         raise StalePlanJob("incomplete_stores")
+
+    if job.user_id is not None:
+        _stored_diet, diet_mode, _available_diets = diet_context_for_week(
+            con, profile, premium, today=today, rows=rows,
+            check_availability=False,
+        )
 
     pantry_driven = job.kind == "pantry"
     pantry_signature = podpis_spajze(pantry) if pantry_driven else None
@@ -3801,8 +3821,9 @@ def daj_plan(req: Request):
         rows = measurable_offers(
             offers_for_current_week(con, obchody, bratislava_day())
         )
-        stored_diet = ulozene_stravovanie(u)
-        effective_diet = efektivne_stravovanie(u, premium)
+        stored_diet, effective_diet, _available_diets = diet_context_for_week(
+            con, u, premium, rows=rows, check_availability=False
+        )
         sp = spajza_pouzivatela(con, u["id"], premium)
         if effective_diet != stored_diet:
             con.execute(
@@ -3936,6 +3957,189 @@ def recipe_engine_shadow_status(con, today=None):
         }
 
 
+def recipe_engine_available_modes(con, today=None):
+    """Modes currently proven by the anonymous weekly matrix."""
+    if recipe_engine_mode() != "on":
+        return ("standard",)
+    status = recipe_engine_shadow_status(con, today=today)
+    if status.get("eligible") is not True:
+        return ("standard",)
+    reported = status.get("available_modes")
+    if not isinstance(reported, list):
+        return ("standard",)
+    available = tuple(
+        mode for mode in ALLOWED_DIET_MODES if mode in reported
+    )
+    return available if "standard" in available else ("standard",)
+
+
+_PROFILE_MODE_CACHE = {}
+_PROFILE_MODE_CACHE_LOCK = threading.Lock()
+_PROFILE_MODE_CACHE_MAX = 256
+_PROFILE_MODE_PENDING = {}
+
+
+def _deterministic_mode_is_feasible(
+    *, mode, offers, stores, adults, children, frequency,
+    ingredient_catalog, recipe_catalog,
+):
+    """Check schedule feasibility without assembling a complete plan."""
+    if not stores or not offers:
+        return False
+    candidates = tuple(
+        rank_candidates(
+            recipe_catalog.all(), offers, (), mode,
+            seed=f"availability:{mode}",
+            ingredient_catalog=ingredient_catalog,
+        )
+    )
+    if not candidates:
+        return False
+
+    days = cooking_days_for_frequency(frequency)
+    coverages = tuple(days_covered_by_meal(frequency, day) for day in days)
+    required_methods = 3 if len({
+        candidate.template.method for candidate in candidates
+    }) >= 3 else 0
+    viable_pairs = {}
+    for coverage in dict.fromkeys(coverages):
+        pairs = set()
+        for candidate in candidates:
+            try:
+                render_meal(
+                    candidate,
+                    adults=adults,
+                    children=children,
+                    covered_days=coverage,
+                )
+            except (TypeError, ValueError):
+                continue
+            pairs.add((candidate.template.family, candidate.template.method))
+        if not pairs:
+            return False
+        viable_pairs[coverage] = tuple(sorted(pairs))
+
+    failed_states = set()
+
+    def schedule_exists(index, previous, methods):
+        state = (index, previous, methods)
+        if state in failed_states:
+            return False
+        if index == len(coverages):
+            return not required_methods or len(methods) >= required_methods
+        for pair in viable_pairs[coverages[index]]:
+            if pair == previous:
+                continue
+            if schedule_exists(index + 1, pair, methods | {pair[1]}):
+                return True
+        failed_states.add(state)
+        return False
+
+    return schedule_exists(0, None, frozenset())
+
+
+def recipe_engine_profile_available_modes(
+    con, profile, premium, *, today=None, rows=None
+):
+    """Modes that can build for this exact household and store selection.
+
+    The anonymous shadow matrix gates engine health, not an individual
+    profile.  Each entitled mode is checked against this person's inputs.
+    No model or network call happens.
+    """
+    if recipe_engine_mode() != "on":
+        return ("standard",)
+    candidates = tuple(
+        mode for mode in ALLOWED_DIET_MODES
+        if premium or mode == "standard"
+    )
+    if not candidates:
+        return ()
+
+    day = today or bratislava_day()
+    stores = efektivne_obchody(profile, premium)
+    current_rows = list(rows) if rows is not None else measurable_offers(
+        offers_for_current_week(con, stores, day)
+    )
+    if len(current_rows) < MIN_OFFERS_FOR_PLAN:
+        return ()
+    adults, children = zlozenie_domacnosti(profile)
+    try:
+        frequency = int(profile["frekvencia"])
+    except (KeyError, IndexError, TypeError, ValueError):
+        return ()
+
+    catalog = load_ingredient_catalog()
+    recipes = load_recipe_catalog(catalog)
+    try:
+        offer_keys = tuple(sorted(str(row["offer_key"]) for row in current_rows))
+    except (KeyError, TypeError):
+        return ()
+    cache_key = (
+        monday(day), tuple(stores), adults, children, frequency, candidates,
+        recipes.version, offer_keys,
+    )
+    while True:
+        with _PROFILE_MODE_CACHE_LOCK:
+            cached = _PROFILE_MODE_CACHE.pop(cache_key, None)
+            if cached is not None:
+                _PROFILE_MODE_CACHE[cache_key] = cached
+                return cached
+            pending = _PROFILE_MODE_PENDING.get(cache_key)
+            if pending is None:
+                pending = threading.Event()
+                _PROFILE_MODE_PENDING[cache_key] = pending
+                break
+        pending.wait()
+
+    available = []
+    try:
+        offers = tuple(match_offers(current_rows, catalog))
+        for mode in candidates:
+            feasible = _deterministic_mode_is_feasible(
+                mode=mode, offers=offers, stores=stores,
+                adults=adults, children=children, frequency=frequency,
+                ingredient_catalog=catalog, recipe_catalog=recipes,
+            )
+            if feasible:
+                available.append(mode)
+        result = tuple(available)
+    except Exception:
+        LOG.exception("kontrola dostupnosti režimov pre profil zlyhala")
+        result = ()
+    except BaseException:
+        with _PROFILE_MODE_CACHE_LOCK:
+            _PROFILE_MODE_PENDING.pop(cache_key).set()
+        raise
+    with _PROFILE_MODE_CACHE_LOCK:
+        _PROFILE_MODE_CACHE[cache_key] = result
+        while len(_PROFILE_MODE_CACHE) > _PROFILE_MODE_CACHE_MAX:
+            oldest = next(iter(_PROFILE_MODE_CACHE))
+            _PROFILE_MODE_CACHE.pop(oldest)
+        _PROFILE_MODE_PENDING.pop(cache_key).set()
+    return result
+
+
+def diet_context_for_week(
+    con, profile, premium, *, today=None, rows=None, check_availability=True
+):
+    """One authority for preference, entitlement and weekly availability.
+
+    An unavailable vegetarian or vegan preference is never silently replaced
+    with a meat plan.  The UI receives availability separately and can ask the
+    person to add another store or explicitly choose another mode.
+    """
+    stored = ulozene_stravovanie(profile)
+    effective = efektivne_stravovanie(profile, premium)
+    available = (
+        recipe_engine_profile_available_modes(
+            con, profile, premium, today=today, rows=rows
+        )
+        if check_availability else ()
+    )
+    return stored, effective, available
+
+
 _SMOKE_KEYS = {
     "schema_version", "checked_at", "week", "release", "engine_mode",
     "ok", "http_status", "latency_ms", "jobs_delta", "ai_costs_delta",
@@ -4047,6 +4251,7 @@ def recipe_engine_health(con, *, today=None):
             "library_version": library_version,
             "active_templates": active_templates,
             "coverage": coverage,
+            "available_modes": ["standard"],
             "last_shadow": None,
             "p95_ms": None,
             "ready": True,
@@ -4071,7 +4276,7 @@ def recipe_engine_health(con, *, today=None):
         blockers.append("incomplete_offers")
 
     last_shadow = recipe_engine_shadow_status(con, today=today)
-    if mode == "shadow" and not last_shadow.get("eligible", False):
+    if mode in ("shadow", "on") and not last_shadow.get("eligible", False):
         blockers.append("shadow_not_ready")
 
     if mode == "on":
@@ -4087,6 +4292,7 @@ def recipe_engine_health(con, *, today=None):
         "library_version": library_version,
         "active_templates": active_templates,
         "coverage": {value: int(coverage[value]) for value in ALLOWED_DIET_MODES},
+        "available_modes": list(recipe_engine_available_modes(con, today=today)),
         "last_shadow": last_shadow if last_shadow.get("complete") is not None else None,
         "p95_ms": (
             float(last_shadow["p95_ms"])

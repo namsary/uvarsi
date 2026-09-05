@@ -167,7 +167,14 @@ SHADOW_MATRIX = tuple(
     for adults, children in SHADOW_HOUSEHOLDS
     for frequency in SHADOW_FREQUENCIES
 )
-SHADOW_SUCCESS_RATE_FLOOR = 0.98
+# Reálny leták nemusí obsahovať rastlinnú bielkovinu. V takom týždni je
+# typované ``diet_too_strict`` korektný, bezpečný výsledok, nie pád enginu.
+# Stále však vyžadujeme, aby aspoň tri zo štyroch režimov vedeli poskladať
+# plány a aby takmer každá vzorka skončila plánom alebo týmto jediným
+# očakávaným stavom nedostupnosti.
+SHADOW_SUCCESS_RATE_FLOOR = 0.75
+SHADOW_VALID_OUTCOME_RATE_FLOOR = 0.98
+SHADOW_EXPECTED_UNAVAILABLE_CODES = frozenset({"diet_too_strict"})
 SHADOW_P95_LIMIT_MS = 500.0
 SHADOW_COUNTER_LIMIT = len(SHADOW_MATRIX) * 1000
 SHADOW_ERROR_CODES = frozenset({
@@ -262,6 +269,7 @@ CREATE TABLE IF NOT EXISTS recipe_engine_shadow (
   success_rate            REAL NOT NULL DEFAULT 0,
   p95_ms                  REAL,
   error_counts            TEXT NOT NULL DEFAULT '{}',
+  mode_success_counts     TEXT NOT NULL DEFAULT '{}',
   family_count            INTEGER NOT NULL DEFAULT 0,
   method_count            INTEGER NOT NULL DEFAULT 0,
   price_comparisons       INTEGER NOT NULL DEFAULT 0,
@@ -315,6 +323,11 @@ def migrate_predpocet_schema(con) -> None:
         con.execute("ALTER TABLE recipe_engine_shadow ADD COLUMN run_token TEXT")
     if shadow_stlpce and "algo_version" not in shadow_stlpce:
         con.execute("ALTER TABLE recipe_engine_shadow ADD COLUMN algo_version INTEGER")
+    if shadow_stlpce and "mode_success_counts" not in shadow_stlpce:
+        con.execute(
+            "ALTER TABLE recipe_engine_shadow ADD COLUMN "
+            "mode_success_counts TEXT NOT NULL DEFAULT '{}'"
+        )
 
 
 # ---------------------------------------------------------------- konfigurácia
@@ -895,11 +908,42 @@ def _shadow_metrics(row):
     failures = samples_total - samples_success
     if sum(parsed_errors.values()) != failures:
         raise ValueError("inconsistent shadow errors")
+    try:
+        mode_success_counts = json.loads(row["mode_success_counts"])
+    except (json.JSONDecodeError, TypeError):
+        raise ValueError("invalid shadow mode coverage") from None
+    if not isinstance(mode_success_counts, dict):
+        raise ValueError("invalid shadow mode coverage")
+    parsed_mode_successes = {
+        key: _shadow_int(value, maximum=len(SHADOW_HOUSEHOLDS) * len(SHADOW_FREQUENCIES))
+        for key, value in mode_success_counts.items()
+        if key in SHADOW_MODES
+    }
+    if set(mode_success_counts) != set(parsed_mode_successes):
+        raise ValueError("invalid shadow mode coverage")
+    if complete and (
+        set(parsed_mode_successes) != set(SHADOW_MODES)
+        or sum(parsed_mode_successes.values()) != samples_success
+    ):
+        raise ValueError("inconsistent shadow mode coverage")
     derived_rate = samples_success / samples_total if samples_total else 0.0
     if not math.isclose(stored_rate, derived_rate, rel_tol=0, abs_tol=1e-12):
         raise ValueError("inconsistent shadow success rate")
     if not isinstance(row["run_token"], str) or not row["run_token"]:
         raise ValueError("missing shadow run owner")
+    expected_unavailable = sum(
+        parsed_errors.get(code, 0) for code in SHADOW_EXPECTED_UNAVAILABLE_CODES
+    )
+    valid_outcome_rate = (
+        (samples_success + expected_unavailable) / samples_total
+        if samples_total else 0.0
+    )
+    available_modes = [
+        mode
+        for mode in SHADOW_MODES
+        if parsed_mode_successes.get(mode, 0)
+        == len(SHADOW_HOUSEHOLDS) * len(SHADOW_FREQUENCIES)
+    ]
 
     return {
         "week": row["tyzden"],
@@ -908,8 +952,11 @@ def _shadow_metrics(row):
         "samples_total": samples_total,
         "samples_success": samples_success,
         "success_rate": derived_rate,
+        "valid_outcome_rate": valid_outcome_rate,
         "p95_ms": p95_ms,
         "error_counts": parsed_errors,
+        "mode_success_counts": parsed_mode_successes,
+        "available_modes": available_modes,
         "family_count": family_count,
         "method_count": method_count,
         "algo_version": algo_version,
@@ -959,7 +1006,7 @@ def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
                      algo_version=excluded.algo_version,
                      library_version=NULL, matrix_size=excluded.matrix_size,
                      samples_total=0, samples_success=0, success_rate=0,
-                     p95_ms=NULL, error_counts='{}', family_count=0,
+                     p95_ms=NULL, error_counts='{}', mode_success_counts='{}', family_count=0,
                      method_count=0, price_comparisons=0,
                      price_delta_eur_avg=NULL, dietary_violations=0,
                      negative_quantities=0, invalid_package_counts=0,
@@ -982,6 +1029,7 @@ def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
             return {"week": week, "complete": False, "reason": "library_gate_failed"}
 
         errors = Counter()
+        mode_successes = Counter()
         durations = []
         families, methods = set(), set()
         price_deltas = []
@@ -1009,6 +1057,7 @@ def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
                     recipe_catalog=recipes,
                 )
                 samples_success += 1
+                mode_successes[mode] += 1
                 quality = _shadow_plan_quality(plan, mode, templates)
                 families.update(quality["families"])
                 methods.update(quality["methods"])
@@ -1023,12 +1072,17 @@ def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
                 if reference is not None and current is not None:
                     price_deltas.append(abs(current - reference))
             except Exception as exc:
-                code = getattr(exc, "code", None)
-                if code not in {
-                    "insufficient_offers", "diet_too_strict",
-                    "unmeasurable_packages",
-                }:
-                    code = "internal_error"
+                from app.deterministic_plan import NoCompatiblePlan
+
+                code = (
+                    exc.code
+                    if isinstance(exc, NoCompatiblePlan)
+                    and exc.code in {
+                        "insufficient_offers", "diet_too_strict",
+                        "unmeasurable_packages",
+                    }
+                    else "internal_error"
+                )
                 errors[code] += 1
             finally:
                 durations.append(max(0.0, (time.perf_counter() - before) * 1000))
@@ -1048,6 +1102,7 @@ def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
                 """UPDATE recipe_engine_shadow SET
                      koniec=?, complete=1, library_version=?, samples_total=?,
                      samples_success=?, success_rate=?, p95_ms=?, error_counts=?,
+                     mode_success_counts=?,
                      family_count=?, method_count=?, price_comparisons=?,
                      price_delta_eur_avg=?, dietary_violations=?,
                      negative_quantities=?, invalid_package_counts=?,
@@ -1058,6 +1113,10 @@ def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
                     finished, recipes.version, total, samples_success,
                     success_rate, p95_ms,
                     json.dumps(dict(sorted(errors.items())), separators=(",", ":")),
+                    json.dumps(
+                        {mode: mode_successes.get(mode, 0) for mode in SHADOW_MODES},
+                        separators=(",", ":"),
+                    ),
                     len(families), len(methods), len(price_deltas),
                     None if price_delta is None else float(price_delta),
                     dietary_violations, negative_quantities,
@@ -1141,6 +1200,12 @@ def shadow_activation_status(con, *, server, today=None) -> dict:
         reasons.append("stale_metrics")
     if result["success_rate"] < SHADOW_SUCCESS_RATE_FLOOR:
         reasons.append("success_rate_below_floor")
+    if result["valid_outcome_rate"] < SHADOW_VALID_OUTCOME_RATE_FLOOR:
+        reasons.append("valid_outcome_rate_below_floor")
+    if "standard" not in result["available_modes"]:
+        # Bezplatný a východzí režim je jadro produktu. Čiastočný rollout
+        # nikdy nesmie označiť engine za zdravý, ak nefunguje práve on.
+        reasons.append("standard_mode_unavailable")
     if result["p95_ms"] is None or result["p95_ms"] >= SHADOW_P95_LIMIT_MS:
         reasons.append("p95_too_slow")
     if result["dietary_violations"]:

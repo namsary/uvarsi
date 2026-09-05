@@ -22,7 +22,24 @@
     {
       "id": "chicken_thigh",
       "name": "kuracie stehná",
-      "synonyms": ["kuracie stehno", "kuracie stehenné mäso"],
+      "synonyms": ["kuracie stehno", "kuracie stehná s kosťou", "kuracie stehno s kosťou", "kuracie stehná s kožou"],
+      "category": "mäso",
+      "roles": ["protein"],
+      "diet_tags": [],
+      "allergens": [],
+      "edible_ratio": "0.79",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "188", "protein_g": "17.11", "fat_g": "13.35", "carbs_g": "0",
+        "source": "USDA FoodData Central Foundation, FDC ID 2727567, Chicken, thigh, meat and skin, raw; 79% edible yield from SR Legacy FDC ID 172385 (21% refuse); https://fdc.nal.usda.gov/fdc-app.html#/food-details/2727567/nutrients",
+        "verified_on": "2026-09-04"
+      }
+    },
+    {
+      "id": "chicken_thigh_meat",
+      "name": "vykostené kuracie stehenné mäso",
+      "synonyms": ["kuracie stehenné mäso", "kuracie stehná bez kosti", "kuracie stehná bez kostí", "vykostené kuracie stehná", "kuracie stehenné rezne", "stehenné rezne"],
       "category": "mäso",
       "roles": ["protein"],
       "diet_tags": [],
@@ -31,9 +48,9 @@
       "grams_per_piece": null,
       "density_g_per_ml": null,
       "nutrition": {
-        "kcal": "121", "protein_g": "19.66", "fat_g": "4.12", "carbs_g": "0",
-        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 173627, Chicken, broilers or fryers, dark meat, thigh, meat only, raw; https://fdc.nal.usda.gov/fdc-app.html#/food-details/173627/nutrients",
-        "verified_on": "2026-08-30"
+        "kcal": "144", "protein_g": "18.61", "fat_g": "7.92", "carbs_g": "0",
+        "source": "USDA FoodData Central Foundation, FDC ID 2646171, Chicken, thigh, boneless, skinless, raw; https://fdc.nal.usda.gov/fdc-app.html#/food-details/2646171/nutrients",
+        "verified_on": "2026-09-04"
       }
     },
     {
@@ -123,8 +140,8 @@
     },
     {
       "id": "chickpeas",
-      "name": "cícer",
-      "synonyms": ["cícer suchý"],
+      "name": "suchý cícer",
+      "synonyms": ["cícer suchý", "cícer sušený"],
       "category": "strukoviny",
       "roles": ["protein", "starch"],
       "diet_tags": ["vegetarian", "vegan"],
@@ -136,6 +153,23 @@
         "kcal": "378", "protein_g": "20.47", "fat_g": "6.04", "carbs_g": "62.95",
         "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 173756, Chickpeas (garbanzo beans, bengal gram), mature seeds, raw; https://fdc.nal.usda.gov/fdc-app.html#/food-details/173756/nutrients",
         "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "chickpeas_canned",
+      "name": "cícer",
+      "synonyms": ["cícer v konzerve", "konzervovaný cícer", "cícer sterilizovaný", "sterilizovaný cícer", "cícer v náleve"],
+      "category": "strukoviny",
+      "roles": ["protein", "starch"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "0.6",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "137.22", "protein_g": "7.02", "fat_g": "3.10", "carbs_g": "20.32",
+        "source": "USDA FoodData Central Foundation, FDC ID 2644288, Chickpeas, canned, sodium added, drained and rinsed; nutrition per drained edible portion, 60% package yield modeled for a typical 400 g can; https://fdc.nal.usda.gov/fdc-app.html#/food-details/2644288/nutrients",
+        "verified_on": "2026-09-04"
       }
     },
     {
@@ -480,8 +514,8 @@
     },
     {
       "id": "beans",
-      "name": "červená fazuľa",
-      "synonyms": ["fazuľa", "červené fazule"],
+      "name": "suchá červená fazuľa",
+      "synonyms": ["červená fazuľa suchá", "suchá fazuľa", "fazuľa suchá", "suché červené fazule", "sušená červená fazuľa", "sušená fazuľa"],
       "category": "strukoviny",
       "roles": ["protein", "starch"],
       "diet_tags": ["vegetarian", "vegan"],
@@ -493,6 +527,23 @@
         "kcal": "333", "protein_g": "23.58", "fat_g": "0.83", "carbs_g": "60.01",
         "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 173744, Beans, kidney, red, mature seeds, raw; https://fdc.nal.usda.gov/fdc-app.html#/food-details/173744/nutrients",
         "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "beans_canned",
+      "name": "červená fazuľa",
+      "synonyms": ["fazuľa", "červené fazule", "červená fazuľa v konzerve", "fazuľa v konzerve", "konzervovaná červená fazuľa", "konzervovaná fazuľa", "sterilizovaná fazuľa", "sterilizovaná červená fazuľa", "červená fazuľa v náleve"],
+      "category": "strukoviny",
+      "roles": ["protein", "starch"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "0.6",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "127", "protein_g": "7.80", "fat_g": "1.26", "carbs_g": "21.03",
+        "source": "USDA FoodData Central Foundation, FDC ID 2644289, Beans, kidney, dark red, canned, drained and rinsed; nutrition per drained edible portion, 60% package yield modeled for a typical 400 g can; https://fdc.nal.usda.gov/fdc-app.html#/food-details/2644289/nutrients",
+        "verified_on": "2026-09-04"
       }
     },
     {

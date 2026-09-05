@@ -877,23 +877,31 @@ function householdLabel(profil) {
 }
 
 function dietModeAvailable(mode, me) {
-  return mode === 'standard' || ['high_protein','vegetarian','vegan'].indexOf(mode) >= 0 &&
-    !!(me && me.premium && me.recipe_engine === 'on');
+  if (['standard','high_protein','vegetarian','vegan'].indexOf(mode) < 0) return false;
+  if (!me || me.recipe_engine !== 'on') return mode === 'standard';
+  const weekly = Array.isArray(me.stravovanie_dostupne) ? me.stravovanie_dostupne : [];
+  return weekly.includes(mode) && (mode === 'standard' || !!me.premium);
 }
 
-function dietOptionsHtml(selected, premium, recipeEngine) {
+function dietOptionsHtml(selected, premium, recipeEngine, availableModes) {
   var choices = [
     ['standard', 'Bez obmedzenia'], ['high_protein', 'Viac bielkovín'],
     ['vegetarian', 'Vegetariánsky'], ['vegan', 'Vegánsky']
   ];
   if (recipeEngine !== 'on') return '<div class="diet-grid" id="c-diet" role="group" aria-labelledby="lbl-diet"><button class="diet-choice on" type="button" data-mode="standard" aria-pressed="true">Bez obmedzenia</button></div><p class="muted" style="margin-top:10px">Režimy stravovania zatiaľ nie sú aktívne.</p>';
-  selected = dietModeAvailable(selected, {premium:premium,recipe_engine:recipeEngine}) ? selected : 'standard';
+  availableModes = Array.isArray(availableModes) ? availableModes :
+    typeof ME !== 'undefined' && ME && Array.isArray(ME.stravovanie_dostupne) ? ME.stravovanie_dostupne : [];
+  if (!choices.some(choice => choice[0] === selected)) selected = 'standard';
+  if (!premium && selected !== 'standard') selected = 'standard';
+  var selectedUnavailable = !availableModes.includes(selected);
   return `<div class="diet-grid" id="c-diet" role="group" aria-labelledby="lbl-diet">${choices.map(function(choice) {
     var active = choice[0] === selected;
     var locked = choice[0] !== 'standard' && !premium;
-    var tag = locked ? '<span class="diet-premium">Premium</span>' : '';
-    return `<button class="diet-choice${active ? ' on' : ''}" type="button" data-mode="${choice[0]}" aria-pressed="${active ? 'true' : 'false'}"${locked ? ' aria-disabled="true" disabled' : ''}>${esc(choice[1])}${tag}</button>`;
-  }).join('')}</div>`;
+    var unavailable = !availableModes.includes(choice[0]), disabled = locked || unavailable;
+    var tag = locked ? '<span class="diet-premium">Premium</span>'
+      : unavailable ? '<span class="diet-premium">Tento týždeň nedostupné</span>' : '';
+    return `<button class="diet-choice${active ? ' on' : ''}" type="button" data-mode="${choice[0]}" aria-pressed="${active ? 'true' : 'false'}"${disabled ? ' aria-disabled="true" disabled' : ''}>${esc(choice[1])}${tag}</button>`;
+  }).join('')}</div><p class="muted" style="margin-top:10px">${selectedUnavailable ? 'Tvoj uložený režim zostáva zachovaný. Pridaj obchod alebo vyber iný režim.' : 'Režimy podľa akcií v obchodoch.'}</p>`;
 }
 
 function selectDietMode(root, mode) {
@@ -974,8 +982,7 @@ function viewOnboarding() {
     const val = id => $(id).querySelector('.on')?.dataset.v;
     const vybrane = [...$('#c-obch').querySelectorAll('.on')].map(c=>c.dataset.v);
     const selectedDiet = $('#c-diet').querySelector('[aria-pressed="true"]')?.dataset.mode || 'standard';
-    const availableDiet = dietModeAvailable(selectedDiet, profil) ? selectedDiet : 'standard';
-    const diet = profil.recipe_engine === 'on' ? availableDiet : undefined;
+    const diet = profil.recipe_engine === 'on' ? selectedDiet : undefined;
     const adults = +val('#c-dospeli');
     const children = +val('#c-deti');
     if (!Number.isInteger(adults) || !Number.isInteger(children) || adults + children < 1)
@@ -992,9 +999,15 @@ function viewOnboarding() {
       throw error;
     }
     ME = await api('/api/me');
+    if (!dietModeAvailable(ME.stravovanie, ME)) {
+      viewOnboarding();
+      const message = $('#ob-err');
+      if (message) message.textContent = 'Z týchto akcií zvolený jedálniček neposkladáme. Pridaj obchod alebo vyber iný režim.';
+      return;
+    }
     await refreshPlanAfterProfileSave();
     });
-    if (!saved) selectDietMode($('#c-diet'), dietModeAvailable(stravovanie, profil) ? stravovanie : 'standard');
+    if (!saved) selectDietMode($('#c-diet'), stravovanie);
   };
 }
 

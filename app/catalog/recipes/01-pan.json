@@ -2,17 +2,17 @@
   "recipes": [
     {
       "id": "pan_chicken_rice_vegetables", "version": 1, "active": true,
-      "name_template": "Kuracia ryžová panvica s {vegetable.name}",
+      "name_template": "Hydinová ryžová panvica s {vegetable.name}",
       "family": "chicken_rice_stir_fry", "method": "pan", "minutes": 35,
       "modes": ["standard", "high_protein"], "equipment": ["panvica", "hrniec"],
       "slots": [
-        {"key":"protein","role":"protein","candidates":["chicken_breast"],"amount_per_adult":"180","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na kocky"},
+        {"key":"protein","role":"protein","candidates":["chicken_breast","turkey_breast","chicken_thigh_meat"],"amount_per_adult":"180","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na kocky"},
         {"key":"starch","role":"starch","candidates":["rice"],"amount_per_adult":"75","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
-        {"key":"vegetable","role":"vegetable","candidates":["broccoli","carrot","zucchini"],"amount_per_adult":"160","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
+        {"key":"vegetable","role":"vegetable","candidates":["broccoli","carrot","zucchini","bell_pepper"],"amount_per_adult":"160","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
       ],
-      "pantry_basics": ["oil","salt","black_pepper","garlic"],
+      "pantry_basics": ["water","oil","salt","black_pepper","garlic"],
       "instructions": [
-        {"text":"Prepláchni {starch.amount} {starch.name} studenou vodou."},
+        {"text":"Prepláchni {starch.amount} {starch.name}; nalej {starch.water} vody do hrnca."},
         {"text":"Uvar {starch.name} v hrnci na miernom ohni 15 minút, kým voda vsiakne."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Opekaj {protein.name} v panvici na strednom ohni 8 minút, kým bude mäso zlatisté a v strede prepečené."},
@@ -27,7 +27,7 @@
       "family": "chicken_tomato_pasta", "method": "pan", "minutes": 32,
       "modes": ["standard", "high_protein"], "equipment": ["panvica", "hrniec"],
       "slots": [
-        {"key":"protein","role":"protein","candidates":["chicken_breast","turkey_breast"],"amount_per_adult":"170","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na tenké pásiky"},
+        {"key":"protein","role":"protein","candidates":["chicken_breast","turkey_breast","chicken_thigh_meat"],"amount_per_adult":"170","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na tenké pásiky"},
         {"key":"starch","role":"starch","candidates":["pasta"],"amount_per_adult":"75","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
         {"key":"vegetable","role":"vegetable","candidates":["tomato","spinach"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"nahrubo"}
       ],
@@ -49,7 +49,7 @@
       "slots": [
         {"key":"protein","role":"protein","candidates":["pork_shoulder"],"amount_per_adult":"190","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé kocky"},
         {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"260","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na dvojcentimetrové kocky"},
-        {"key":"vegetable","role":"vegetable","candidates":["onion","bell_pepper","carrot"],"amount_per_adult":"100","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na tenké prúžky"}
+        {"key":"vegetable","role":"vegetable","candidates":["onion","bell_pepper","carrot","zucchini"],"amount_per_adult":"100","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na tenké prúžky"}
       ],
       "pantry_basics": ["oil","salt","black_pepper","paprika_powder"],
       "instructions": [
@@ -68,11 +68,11 @@
       "slots": [
         {"key":"protein","role":"protein","candidates":["beef_mince"],"amount_per_adult":"170","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na menšie kúsky"},
         {"key":"starch","role":"starch","candidates":["rice"],"amount_per_adult":"70","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
-        {"key":"vegetable","role":"vegetable","candidates":["bell_pepper","zucchini"],"amount_per_adult":"170","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na prúžky"}
+        {"key":"vegetable","role":"vegetable","candidates":["bell_pepper","zucchini","carrot"],"amount_per_adult":"170","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na prúžky"}
       ],
-      "pantry_basics": ["oil","salt","black_pepper","paprika_powder","garlic"],
+      "pantry_basics": ["water","oil","salt","black_pepper","paprika_powder","garlic"],
       "instructions": [
-        {"text":"Prepláchni {starch.amount} {starch.name} studenou vodou."},
+        {"text":"Prepláchni {starch.amount} {starch.name}; nalej {starch.water} vody do hrnca."},
         {"text":"Uvar {starch.name} v hrnci na miernom ohni 15 minút, kým voda vsiakne."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Opekaj {protein.amount} {protein.name} v panvici na silnom ohni 7 minút, kým bude mäso zlatisté a v strede prepečené."},
@@ -98,24 +98,24 @@
         {"text":"Osuš {protein.amount} {protein.name} a nakrájaj ich {protein.cut}."},
         {"text":"Opekaj {protein.name} v panvici na strednom ohni 8 minút, kým ryba zmäkne a ľahko sa oddeľuje vidličkou."},
         {"text":"Pridaj {vegetable.name} do panvice a dus na miernom ohni 5 minút, kým zelenina zmäkne."},
-        {"text":"Podávaj rybu s uvarenými zemiakmi a zeleninou."},
-        {"text":"Dochuť jedlo cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií."}
+        {"text":"Dochuť rybu a zeleninu cesnakom, soľou a čiernym korením."},
+        {"text":"Rozdeľ rybu, zemiaky a zeleninu na {portions} porcií a podávaj ich teplé."}
       ]
     },
     {
       "id": "pan_turkey_couscous_zucchini", "version": 1, "active": true,
       "name_template": "Morčacia panvica s kuskusom a {vegetable.name}",
       "family": "turkey_couscous_pan", "method": "pan", "minutes": 28,
-      "modes": ["standard", "high_protein"], "equipment": ["panvica", "miska"],
+      "modes": ["standard", "high_protein"], "equipment": ["panvica", "hrniec", "miska"],
       "slots": [
-        {"key":"protein","role":"protein","candidates":["turkey_breast","chicken_breast"],"amount_per_adult":"170","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na tenké pásiky"},
+        {"key":"protein","role":"protein","candidates":["turkey_breast","chicken_breast","chicken_thigh_meat"],"amount_per_adult":"170","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na tenké pásiky"},
         {"key":"starch","role":"starch","candidates":["couscous"],"amount_per_adult":"70","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
         {"key":"vegetable","role":"vegetable","candidates":["zucchini","bell_pepper"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kocky"}
       ],
       "pantry_basics": ["water","oil","salt","black_pepper","oregano"],
       "instructions": [
-        {"text":"Priprav {starch.amount} {starch.name} v miske s {starch.water} vody."},
-        {"text":"Nechaj kuskus v miske 8 minút, kým voda vsiakne."},
+        {"text":"Zohrej vodu v hrnci na silnom ohni 4 minúty, kým začne bublať."},
+        {"text":"Priprav {starch.amount} {starch.name} v miske s {starch.water} vody. Prikry misku a nechaj kuskus 8 minút odstáť, kým voda vsiakne."},
         {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Opekaj {protein.name} v panvici na strednom ohni 8 minút, kým bude mäso zlatisté a v strede prepečené."},
         {"text":"Pridaj {vegetable.name} do panvice a opekaj na strednom ohni 6 minút, kým zelenina zmäkne."},
@@ -132,7 +132,7 @@
         {"key":"protein","role":"protein","candidates":["egg"],"amount_per_adult":"4","unit":"piece","child_factor":"0.5","required":true,"use":"main","cut":null},
         {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"220","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na tenké plátky"},
         {"key":"vegetable","role":"vegetable","candidates":["spinach","zucchini"],"amount_per_adult":"140","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"nahrubo"},
-        {"key":"dairy","role":"dairy","candidates":["hard_cheese","cottage_cheese"],"amount_per_adult":"50","unit":"g","child_factor":"0.5","required":true,"use":"addition","cut":"najemno"}
+        {"key":"dairy","role":"dairy","candidates":["hard_cheese","cottage_cheese"],"amount_per_adult":"50","unit":"g","child_factor":"0.5","required":true,"use":"addition","cut":null}
       ],
       "pantry_basics": ["oil","salt","black_pepper"],
       "instructions": [
@@ -141,7 +141,7 @@
         {"text":"Pridaj {vegetable.name} do panvice a opekaj na miernom ohni 4 minúty, kým zelenina zmäkne."},
         {"text":"Rozšľahaj {protein.amount} {protein.name} so soľou a čiernym korením."},
         {"text":"Vlej {protein.name} do panvice a pridaj {dairy.amount} {dairy.name}."},
-        {"text":"Peč {protein.name} so zeleninou a syrom v panvici na miernom ohni 8 minút, kým vajcia stuhnú."},
+        {"text":"Prikry panvicu a nechaj vajcia na miernom ohni 8 minút, kým úplne stuhnú."},
         {"text":"Dochuť jedlo soľou a čiernym korením a rozdeľ na {portions} porcií."}
       ]
     },
@@ -152,12 +152,12 @@
       "modes": ["standard", "high_protein", "vegetarian", "vegan"], "equipment": ["panvica", "hrniec"],
       "slots": [
         {"key":"protein","role":"protein","candidates":["tofu"],"amount_per_adult":"200","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na dvojcentimetrové kocky"},
-        {"key":"starch","role":"starch","candidates":["rice","couscous"],"amount_per_adult":"70","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"starch","role":"starch","candidates":["rice"],"amount_per_adult":"70","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
         {"key":"vegetable","role":"vegetable","candidates":["broccoli","carrot"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
       ],
-      "pantry_basics": ["oil","salt","black_pepper","garlic"],
+      "pantry_basics": ["water","oil","salt","black_pepper","garlic"],
       "instructions": [
-        {"text":"Uvar {starch.amount} {starch.name} v hrnci na miernom ohni 15 minút, kým príloha zmäkne."},
+        {"text":"Prepláchni {starch.amount} {starch.name}; nalej {starch.water} vody do hrnca. Var ryžu na miernom ohni 15 minút, kým voda vsiakne."},
         {"text":"Osuš {protein.amount} {protein.name} a nakrájaj ho {protein.cut}."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
         {"text":"Opekaj {protein.name} v panvici na strednom ohni 9 minút, kým bude povrch chrumkavý."},
@@ -169,16 +169,16 @@
     {
       "id": "pan_chickpea_tomato_spinach", "version": 1, "active": true,
       "name_template": "Cícerová panvica s {vegetable.name}",
-      "family": "chickpea_tomato_saute", "method": "pan", "minutes": 30,
-      "modes": ["standard", "high_protein", "vegetarian", "vegan"], "equipment": ["panvica", "hrniec"],
+      "family": "chickpea_tomato_saute", "method": "pan", "minutes": 25,
+      "modes": ["standard", "vegetarian", "vegan"], "equipment": ["panvica", "sitko", "doska"],
       "slots": [
-        {"key":"protein","role":"protein","candidates":["chickpeas","beans"],"amount_per_adult":"140","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
+        {"key":"protein","role":"protein","candidates":["chickpeas_canned"],"amount_per_adult":"230","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
         {"key":"vegetable","role":"vegetable","candidates":["tomato","spinach"],"amount_per_adult":"200","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"nahrubo"},
         {"key":"aromatic","role":"aromatic","candidates":["onion","garlic"],"amount_per_adult":"35","unit":"g","child_factor":"0.5","required":true,"use":"addition","cut":"nadrobno"}
       ],
       "pantry_basics": ["water","oil","salt","black_pepper","paprika_powder"],
       "instructions": [
-        {"text":"Prepláchni {protein.amount} {protein.name} a uvar ich v hrnci na miernom ohni 20 minút, kým zmäknú."},
+        {"text":"Sceď {protein.amount} {protein.name} v sitku a prepláchni ho pod studenou vodou."},
         {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut} a {aromatic.amount} {aromatic.name} {aromatic.cut}."},
         {"text":"Opekaj {aromatic.name} v panvici na miernom ohni 4 minúty, kým aromatická surovina zmäkne."},
         {"text":"Pridaj {vegetable.name} do panvice a var na miernom ohni 7 minút, kým zelenina zmäkne."},
@@ -188,7 +188,7 @@
     },
     {
       "id": "pan_cottage_pasta_zucchini", "version": 1, "active": true,
-      "name_template": "Krémové cestoviny s cottage cheesom a {vegetable.name}",
+      "name_template": "Krémové cestoviny s cottage syrom a {vegetable.name}",
       "family": "cottage_zucchini_pasta", "method": "pan", "minutes": 25,
       "modes": ["standard", "high_protein", "vegetarian"], "equipment": ["panvica", "hrniec"],
       "slots": [
