@@ -25,10 +25,12 @@ from .recipe_catalog import (
     _recipe_from_json,
     load_recipe_catalog,
 )
+from .recipe_provenance import _recipe_provenance, load_recipe_provenance
 
 
 CANDIDATE_ROOT = Path(__file__).with_name("catalog") / "candidates"
 RECIPE_ROOT = Path(__file__).with_name("catalog") / "recipes"
+SOURCE_REGISTRY_NAME = "recipe_sources.json"
 _LOCAL_LOCKS: dict[str, threading.Lock] = {}
 _LOCAL_LOCKS_GUARD = threading.Lock()
 
@@ -120,20 +122,43 @@ def _validate_candidate_content(
     candidate: Path,
     content: bytes,
     ingredients: IngredientCatalog,
-) -> tuple[CandidateReport, object | None, object | None]:
+) -> tuple[
+    CandidateReport,
+    object | None,
+    object | None,
+    object | None,
+    object | None,
+]:
     try:
         payload = _candidate_payload(content)
     except (JSONDecodeError, UnicodeError, ValueError) as exc:
-        return CandidateReport(candidate, (), (f"malformed_json:{exc}",)), None, None
+        return (
+            CandidateReport(candidate, (), (f"malformed_json:{exc}",)),
+            None,
+            None,
+            None,
+            None,
+        )
 
     try:
-        _exact_keys(payload, {"recipes"}, "kandidáta")
+        _exact_keys(payload, {"recipes", "source_record"}, "kandidáta")
         values = payload["recipes"]
         if type(values) is not list or len(values) != 1:
             raise ValueError("kandidát musí obsahovať presne jeden recept")
         recipe = _recipe_from_json(values[0], ingredients)
+        source_record = _recipe_provenance(
+            payload["source_record"], "candidate source record"
+        )
+        if source_record.recipe_id != recipe.id:
+            raise ValueError("source_record recipe_id must match recipe id")
     except (KeyError, TypeError, ValueError) as exc:
-        return CandidateReport(candidate, (), (f"schema:{exc}",)), None, None
+        return (
+            CandidateReport(candidate, (), (f"schema:{exc}",)),
+            None,
+            None,
+            None,
+            None,
+        )
 
     errors: set[str] = set()
     if not recipe.active:
@@ -150,6 +175,8 @@ def _validate_candidate_content(
             CandidateReport(candidate, (recipe.id,), tuple(sorted(errors))),
             values[0],
             recipe,
+            payload["source_record"],
+            source_record,
         )
 
     active_ids = {item.id for item in active}
@@ -166,6 +193,8 @@ def _validate_candidate_content(
         CandidateReport(candidate, (recipe.id,), tuple(sorted(errors))),
         values[0],
         recipe,
+        payload["source_record"],
+        source_record,
     )
 
 
@@ -280,11 +309,41 @@ def _promotion_lock():
                     fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
 
 
+def _source_registry_path(root: Path) -> Path:
+    return root.parent / SOURCE_REGISTRY_NAME
+
+
+def _source_registry(path: Path) -> tuple[dict, dict]:
+    payload = _object(_load_strict_json(path), "recipe source registry")
+    _exact_keys(
+        payload,
+        {"schema_version", "recipes"},
+        "recipe source registry",
+    )
+    if type(payload["schema_version"]) is not int or payload["schema_version"] != 1:
+        raise ValueError("recipe source registry schema_version must be 1")
+    values = payload["recipes"]
+    if type(values) is not list:
+        raise ValueError("recipe source registry recipes must be a list")
+    claimed_ids = {
+        value.get("recipe_id")
+        for value in values
+        if type(value) is dict and isinstance(value.get("recipe_id"), str)
+    }
+    records = dict(load_recipe_provenance(claimed_ids, path))
+    return payload, records
+
+
 def _audit_root(ingredients: IngredientCatalog, root: Path) -> None:
     catalog = load_recipe_catalog(ingredients, root, include_inactive=True)
     audit = audit_library(ingredients, catalog)
     if audit.errors:
         raise ValueError("library gate failed: " + ", ".join(audit.errors))
+    _, sources = _source_registry(_source_registry_path(root))
+    active_ids = {recipe.id for recipe in catalog.all() if recipe.active}
+    inactive_sources = sorted(set(sources) - active_ids)
+    if inactive_sources:
+        raise ValueError("inactive provenance: " + ", ".join(inactive_sources))
 
 
 def _manifest_state(path: Path) -> tuple[dict, int, int]:
@@ -293,8 +352,13 @@ def _manifest_state(path: Path) -> tuple[dict, int, int]:
     if keys not in (
         {"library_version"},
         {"library_version", "catalog_revision"},
+        {"library_version", "catalog_revision", "curation_generation"},
     ):
-        _exact_keys(payload, {"library_version", "catalog_revision"}, "manifestu")
+        _exact_keys(
+            payload,
+            {"library_version", "catalog_revision", "curation_generation"},
+            "manifestu",
+        )
     version = payload["library_version"]
     if type(version) is not int or version <= 0:
         raise ValueError("library_version must be a positive integer")
@@ -303,97 +367,201 @@ def _manifest_state(path: Path) -> tuple[dict, int, int]:
         raise ValueError("catalog_revision must be a non-negative integer")
     if revision % 2:
         raise ValueError("catalog manifest is mid-promotion")
+    curation_generation = payload.get("curation_generation", 0)
+    if type(curation_generation) is not int or curation_generation < 0:
+        raise ValueError("curation_generation must be a non-negative integer")
     return payload, version, revision
 
 
-def promote_candidate(path, reviewed_by, reviewed_on) -> Path:
-    """Promote one reviewed draft without exposing a partial live catalog."""
+def promote_candidates(paths, reviewed_by, reviewed_on) -> tuple[Path, ...]:
+    """Promote one reviewed batch without exposing a partial live catalog."""
     if not isinstance(reviewed_by, str) or not reviewed_by.strip():
         raise ValueError("reviewed_by must be non-empty")
     reviewer = reviewed_by.strip()
     review_day = _review_date(reviewed_on)
+    if isinstance(paths, (str, bytes, Path)):
+        raise ValueError("paths must be an iterable of candidate paths")
+    try:
+        requested_paths = tuple(paths)
+    except TypeError as exc:
+        raise ValueError("paths must be an iterable of candidate paths") from exc
+    if not requested_paths:
+        raise ValueError("paths must contain at least one candidate")
+
     ingredients = load_ingredient_catalog()
     with _promotion_lock():
-        try:
-            candidate_path, candidate_bytes = _read_candidate_secure(path)
-        except _CandidatePathError as exc:
-            raise ValueError(
-                "candidate validation failed: " + exc.code
-            ) from exc
-        report, raw_recipe, recipe = _validate_candidate_content(
-            candidate_path, candidate_bytes, ingredients
-        )
-        if not report.passed:
-            raise ValueError(
-                "candidate validation failed: " + ", ".join(report.errors)
+        validated = []
+        failures = []
+        for requested_path in requested_paths:
+            try:
+                candidate_path, candidate_bytes = _read_candidate_secure(
+                    requested_path
+                )
+            except _CandidatePathError as exc:
+                failures.append(exc.code)
+                continue
+            report, raw_recipe, recipe, raw_source, source_record = (
+                _validate_candidate_content(
+                    candidate_path, candidate_bytes, ingredients
+                )
             )
-        if raw_recipe is None or recipe is None:
-            raise ValueError("candidate validation failed")
+            if not report.passed:
+                failures.extend(report.errors)
+                continue
+            if any(
+                item is None
+                for item in (raw_recipe, recipe, raw_source, source_record)
+            ):
+                failures.append("invalid_candidate")
+                continue
+            validated.append(
+                (
+                    candidate_path,
+                    candidate_bytes,
+                    report,
+                    raw_recipe,
+                    recipe,
+                    raw_source,
+                )
+            )
 
-        target = RECIPE_ROOT / _destination_name(recipe)
+        if failures:
+            raise ValueError(
+                "candidate validation failed: " + ", ".join(sorted(failures))
+            )
+
+        recipe_ids = [entry[4].id for entry in validated]
+        duplicate_ids = sorted(
+            recipe_id
+            for recipe_id in set(recipe_ids)
+            if recipe_ids.count(recipe_id) > 1
+        )
+        if duplicate_ids:
+            raise ValueError(
+                "duplicate candidate ID: " + ", ".join(duplicate_ids)
+            )
+
         manifest = RECIPE_ROOT / "manifest.json"
-        audit_path = candidate_path.with_suffix(".review.json")
-        if audit_path.exists():
+        source_path = _source_registry_path(RECIPE_ROOT)
+        audit_paths = tuple(
+            entry[0].with_suffix(".review.json") for entry in validated
+        )
+        if any(path.exists() for path in audit_paths):
             raise ValueError("candidate already has a review audit record")
 
-        target_payload = _object(_load_strict_json(target), target.name)
-        _exact_keys(target_payload, {"recipes"}, target.name)
-        if type(target_payload["recipes"]) is not list:
-            raise ValueError(f"recipes in {target.name} must be a list")
-        promoted_payload = {
-            "recipes": [*target_payload["recipes"], raw_recipe],
+        source_payload, existing_sources = _source_registry(source_path)
+        duplicate_source_ids = sorted(set(recipe_ids) & set(existing_sources))
+        if duplicate_source_ids:
+            raise ValueError(
+                "duplicate source recipe_id: " + ", ".join(duplicate_source_ids)
+            )
+        promoted_sources = {
+            "schema_version": source_payload["schema_version"],
+            "recipes": [
+                *source_payload["recipes"],
+                *(entry[5] for entry in validated),
+            ],
         }
-        _, version, revision = _manifest_state(manifest)
+
+        target_payloads: dict[Path, dict] = {}
+        target_paths = []
+        for entry in validated:
+            raw_recipe = entry[3]
+            recipe = entry[4]
+            target = RECIPE_ROOT / _destination_name(recipe)
+            target_paths.append(target)
+            if target not in target_payloads:
+                target_payload = _object(_load_strict_json(target), target.name)
+                _exact_keys(target_payload, {"recipes"}, target.name)
+                if type(target_payload["recipes"]) is not list:
+                    raise ValueError(f"recipes in {target.name} must be a list")
+                target_payloads[target] = {
+                    "recipes": list(target_payload["recipes"]),
+                }
+            target_payloads[target]["recipes"].append(raw_recipe)
+
+        manifest_payload, version, revision = _manifest_state(manifest)
         odd_manifest = {
+            **manifest_payload,
             "library_version": version,
             "catalog_revision": revision + 1,
         }
         promoted_manifest = {
+            **manifest_payload,
             "library_version": version + 1,
             "catalog_revision": revision + 2,
         }
 
-        # Gate the exact target and final manifest before publishing either one.
+        # Gate the exact recipes, source registry, and final manifest together.
         with tempfile.TemporaryDirectory(
             prefix="recipe-promotion-", dir=RECIPE_ROOT.parent
         ) as temporary_directory:
             staged = Path(temporary_directory) / "recipes"
             shutil.copytree(RECIPE_ROOT, staged)
-            _replace_json(staged / target.name, promoted_payload)
+            staged_source = _source_registry_path(staged)
+            shutil.copy2(source_path, staged_source)
+            for target, payload in target_payloads.items():
+                _replace_json(staged / target.name, payload)
+            _replace_json(staged_source, promoted_sources)
             _replace_json(staged / manifest.name, promoted_manifest)
             _audit_root(ingredients, staged)
 
-        target_before = target.read_bytes()
-        manifest_before = manifest.read_bytes()
-        audit_payload = {
-            "candidate_sha256": hashlib.sha256(candidate_bytes).hexdigest(),
-            "promoted_to": target.name,
-            "recipe_ids": list(report.recipe_ids),
-            "reviewed_by": reviewer,
-            "reviewed_on": review_day,
+        target_before = {
+            target: target.read_bytes() for target in target_payloads
         }
-        live_started = False
-        final_published = False
+        source_before = source_path.read_bytes()
+        manifest_before = manifest.read_bytes()
+        audit_payloads = tuple(
+            (
+                candidate_path.with_suffix(".review.json"),
+                {
+                    "candidate_sha256": hashlib.sha256(candidate_bytes).hexdigest(),
+                    "promoted_to": target.name,
+                    "recipe_ids": list(report.recipe_ids),
+                    "reviewed_by": reviewer,
+                    "reviewed_on": review_day,
+                },
+            )
+            for (
+                candidate_path,
+                candidate_bytes,
+                report,
+                _,
+                _,
+                _,
+            ), target in zip(validated, target_paths, strict=True)
+        )
+        transition_started = False
         try:
-            # Record review first; runtime remains unchanged if this write fails.
-            _replace_json(audit_path, audit_payload)
+            # Record every review first; runtime remains unchanged if one fails.
+            for audit_path, audit_payload in audit_payloads:
+                _replace_json(audit_path, audit_payload)
+            transition_started = True
             _replace_json(manifest, odd_manifest)
-            live_started = True
-            _replace_json(target, promoted_payload)
-            final_published = True
+            for target, payload in target_payloads.items():
+                _replace_json(target, payload)
+            _replace_json(source_path, promoted_sources)
             _replace_json(manifest, promoted_manifest)
             _audit_root(ingredients, RECIPE_ROOT)
         except Exception:
-            if live_started:
-                if final_published:
-                    rollback_odd = {
-                        "library_version": version + 1,
-                        "catalog_revision": revision + 3,
-                    }
-                    _replace_bytes(manifest, _json_bytes(rollback_odd))
-                _replace_bytes(target, target_before)
+            if transition_started:
+                rollback_odd = {
+                    **manifest_payload,
+                    "library_version": version + 1,
+                    "catalog_revision": revision + 3,
+                }
+                _replace_bytes(manifest, _json_bytes(rollback_odd))
+                for target, content in target_before.items():
+                    _replace_bytes(target, content)
+                _replace_bytes(source_path, source_before)
                 _replace_bytes(manifest, manifest_before)
-            if audit_path.exists():
-                audit_path.unlink()
+            for audit_path in audit_paths:
+                if audit_path.exists():
+                    audit_path.unlink()
             raise
-        return target.resolve()
+        return tuple(target.resolve() for target in target_paths)
+
+
+def promote_candidate(path, reviewed_by, reviewed_on) -> Path:
+    """Promote one reviewed draft through the atomic batch workflow."""
+    return promote_candidates((path,), reviewed_by, reviewed_on)[0]

@@ -17,6 +17,7 @@ from app.recipe_catalog import load_recipe_catalog
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ACTIVE_RECIPES = PROJECT_ROOT / "app" / "catalog" / "recipes"
+ACTIVE_SOURCES = PROJECT_ROOT / "app" / "catalog" / "recipe_sources.json"
 
 
 def _candidate_recipe(**overrides):
@@ -80,13 +81,116 @@ def _candidate_recipe(**overrides):
     return recipe
 
 
-def _write_candidate(path: Path, recipe=None) -> Path:
+def _source_record(recipe_id, **overrides):
+    record = {
+        "recipe_id": recipe_id,
+        "editorial_lane": "modern_family",
+        "core": False,
+        "references": [
+            {
+                "url": f"https://example.sk/recepty/{recipe_id}",
+                "title": f"Zdroj pre {recipe_id}",
+                "accessed_on": "2026-09-05",
+            }
+        ],
+    }
+    record.update(overrides)
+    return record
+
+
+def _write_candidate(path: Path, recipe=None, source_record=None) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
+    recipe = recipe or _candidate_recipe()
+    source_record = source_record or _source_record(recipe["id"])
     path.write_text(
-        json.dumps({"recipes": [recipe or _candidate_recipe()]}, ensure_ascii=False),
+        json.dumps(
+            {"recipes": [recipe], "source_record": source_record},
+            ensure_ascii=False,
+        ),
         encoding="utf-8",
     )
     return path
+
+
+def _write_candidate_payload(path: Path, payload) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+def _catalog_snapshot(recipes: Path) -> dict[str, bytes]:
+    paths = [*recipes.glob("*.json"), recipes.parent / "recipe_sources.json"]
+    return {
+        path.relative_to(recipes.parent).as_posix(): path.read_bytes()
+        for path in paths
+    }
+
+
+def _source_ids(recipes: Path) -> set[str]:
+    payload = json.loads(
+        (recipes.parent / "recipe_sources.json").read_text(encoding="utf-8")
+    )
+    return {record["recipe_id"] for record in payload["recipes"]}
+
+
+def _v2_candidate_recipe(**overrides):
+    recipe = _candidate_recipe(version=2)
+    recipe["instructions"] = [
+        {
+            "text": "Prepláchni {starch.amount} {starch.name} studenou vodou.",
+            "requires": ["starch:raw"],
+            "produces": ["starch:rinsed"],
+        },
+        {
+            "text": "Uvar {starch.amount} {starch.name} v hrnci na miernom ohni 15 minút, kým voda vsiakne.",
+            "requires": ["starch:rinsed", "hrniec:free"],
+            "produces": ["starch:cooked", "hrniec:free"],
+        },
+        {
+            "text": "Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}.",
+            "requires": ["protein:raw", "vegetable:raw"],
+            "produces": ["protein:cut", "vegetable:cut"],
+        },
+        {
+            "text": "Opekaj {protein.amount} {protein.name} v panvici na strednom ohni 8 minút, kým bude mäso zlatisté a v strede prepečené.",
+            "requires": ["protein:cut", "panvica:free"],
+            "produces": ["protein:cooked", "panvica:occupied"],
+        },
+        {
+            "text": "Pridaj {vegetable.amount} {vegetable.name} do panvice a opekaj na strednom ohni 6 minút, kým zelenina zmäkne.",
+            "requires": ["vegetable:cut", "panvica:occupied"],
+            "produces": ["vegetable:cooked"],
+        },
+        {
+            "text": "Premiešaj jedlo s uvarenou ryžou.",
+            "requires": [
+                "protein:cooked",
+                "vegetable:cooked",
+                "starch:cooked",
+            ],
+            "produces": [
+                "protein:served",
+                "vegetable:served",
+                "starch:served",
+                "panvica:free",
+            ],
+        },
+        {
+            "text": "Dochuť jedlo cesnakom, soľou a čiernym korením a rozdeľ na {portions} porcií.",
+            "requires": [
+                "protein:served",
+                "vegetable:served",
+                "starch:served",
+            ],
+            "produces": [],
+        },
+    ]
+    recipe["storage"] = {
+        "refrigerated_days": 2,
+        "instruction": "Po vychladnutí odlož do chladničky a zjedz do 2 dní.",
+    }
+    recipe.update(overrides)
+    return recipe
 
 
 def _candidate_from_active_file(filename: str):
@@ -103,6 +207,7 @@ def quarantined_catalog(tmp_path, monkeypatch):
     recipes = catalog / "recipes"
     candidates = catalog / "candidates"
     shutil.copytree(ACTIVE_RECIPES, recipes)
+    shutil.copy2(ACTIVE_SOURCES, catalog / "recipe_sources.json")
     candidates.mkdir()
     monkeypatch.setattr(recipe_candidates, "RECIPE_ROOT", recipes)
     monkeypatch.setattr(recipe_candidates, "CANDIDATE_ROOT", candidates)
@@ -122,6 +227,77 @@ def test_validate_candidate_returns_passing_report_for_valid_quarantined_recipe(
     assert report.recipe_ids == ("candidate_chicken_rice_zucchini",)
     assert report.errors == ()
     assert report.passed is True
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (lambda payload: payload.pop("source_record"), "source_record"),
+        (lambda payload: payload.update(notes="unexpected"), "notes"),
+        (
+            lambda payload: payload["source_record"].update(
+                recipe_id="different_recipe"
+            ),
+            "must match",
+        ),
+        (
+            lambda payload: payload["source_record"]["references"][0].update(
+                url="http://example.sk/recept"
+            ),
+            "HTTPS",
+        ),
+        (
+            lambda payload: payload["source_record"].update(notes="unexpected"),
+            "source record schema",
+        ),
+    ],
+)
+def test_validate_candidate_requires_exact_matching_source_record(
+    quarantined_catalog, change, message
+):
+    candidates, _ = quarantined_catalog
+    recipe = _candidate_recipe()
+    payload = {
+        "recipes": [recipe],
+        "source_record": _source_record(recipe["id"]),
+    }
+    change(payload)
+    path = _write_candidate_payload(candidates / "invalid-source.json", payload)
+
+    report = recipe_candidates.validate_candidate(path, load_ingredient_catalog())
+
+    assert any(
+        error.startswith("schema:") and message in error
+        for error in report.errors
+    )
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (lambda recipe: recipe.pop("storage"), "storage"),
+        (
+            lambda recipe: recipe["instructions"][2]["produces"].append(
+                "protein:cubed"
+            ),
+            "incompatible_ingredient_transition",
+        ),
+    ],
+)
+def test_validate_candidate_applies_v2_storage_and_workflow_rules(
+    quarantined_catalog, change, message
+):
+    candidates, _ = quarantined_catalog
+    recipe = _v2_candidate_recipe()
+    if message == "incompatible_ingredient_transition":
+        recipe["slots"][0]["candidates"] = ["chicken_thigh"]
+        recipe["slots"][0]["cut"] = None
+    change(recipe)
+    path = _write_candidate(candidates / "invalid-v2.json", recipe)
+
+    report = recipe_candidates.validate_candidate(path, load_ingredient_catalog())
+
+    assert any(message in error for error in report.errors)
 
 
 def test_candidate_file_is_not_visible_to_runtime_catalog(quarantined_catalog):
@@ -242,28 +418,28 @@ def test_promotion_requires_nonempty_human_reviewer(
 ):
     candidates, recipes = quarantined_catalog
     path = _write_candidate(candidates / "draft.json")
-    before = {item.name: item.read_bytes() for item in recipes.glob("*.json")}
+    before = _catalog_snapshot(recipes)
 
     with pytest.raises(ValueError, match="reviewed_by"):
         recipe_candidates.promote_candidate(
             path, reviewed_by=reviewed_by, reviewed_on=date(2026, 8, 31)
         )
 
-    assert {item.name: item.read_bytes() for item in recipes.glob("*.json")} == before
+    assert _catalog_snapshot(recipes) == before
 
 
 @pytest.mark.parametrize("reviewed_on", ["", "31-08-2026", None, object()])
 def test_promotion_requires_valid_review_date(quarantined_catalog, reviewed_on):
     candidates, recipes = quarantined_catalog
     path = _write_candidate(candidates / "draft.json")
-    before = {item.name: item.read_bytes() for item in recipes.glob("*.json")}
+    before = _catalog_snapshot(recipes)
 
     with pytest.raises(ValueError, match="reviewed_on"):
         recipe_candidates.promote_candidate(
             path, reviewed_by="Mária Kontrolórka", reviewed_on=reviewed_on
         )
 
-    assert {item.name: item.read_bytes() for item in recipes.glob("*.json")} == before
+    assert _catalog_snapshot(recipes) == before
 
 
 def test_promotion_rejects_future_review_date_without_writing(
@@ -271,7 +447,7 @@ def test_promotion_rejects_future_review_date_without_writing(
 ):
     candidates, recipes = quarantined_catalog
     path = _write_candidate(candidates / "future-review.json")
-    before = {item.name: item.read_bytes() for item in recipes.glob("*.json")}
+    before = _catalog_snapshot(recipes)
 
     with pytest.raises(ValueError, match="reviewed_on"):
         recipe_candidates.promote_candidate(
@@ -280,8 +456,210 @@ def test_promotion_rejects_future_review_date_without_writing(
             reviewed_on=date.today() + timedelta(days=1),
         )
 
-    assert {item.name: item.read_bytes() for item in recipes.glob("*.json")} == before
+    assert _catalog_snapshot(recipes) == before
     assert not path.with_suffix(".review.json").exists()
+
+
+def test_batch_promotion_publishes_recipes_sources_and_one_version(
+    quarantined_catalog, monkeypatch
+):
+    candidates, recipes = quarantined_catalog
+    first_recipe = _candidate_from_active_file("01-pan.json")
+    first_recipe.update(
+        id="candidate_batch_first",
+        family="candidate_batch_first_family",
+    )
+    second_recipe = _candidate_from_active_file("02-oven.json")
+    second_recipe.update(
+        id="candidate_batch_second",
+        family="candidate_batch_second_family",
+    )
+    first = _write_candidate(candidates / "batch-first.json", first_recipe)
+    second = _write_candidate(candidates / "batch-second.json", second_recipe)
+    manifest_path = (recipes / "manifest.json").resolve()
+    manifest_before = json.loads(manifest_path.read_text(encoding="utf-8"))
+    real_replace = recipe_candidates._replace_json
+    live_manifest_writes = []
+
+    def observe_manifest_transition(destination, payload):
+        if Path(destination).resolve() == manifest_path:
+            live_manifest_writes.append(dict(payload))
+        return real_replace(destination, payload)
+
+    monkeypatch.setattr(
+        recipe_candidates, "_replace_json", observe_manifest_transition
+    )
+
+    promoted = recipe_candidates.promote_candidates(
+        (first, second),
+        reviewed_by="Martin",
+        reviewed_on=date(2026, 9, 5),
+    )
+
+    manifest_after = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert promoted == (
+        (recipes / "01-pan.json").resolve(),
+        (recipes / "02-oven.json").resolve(),
+    )
+    assert manifest_after["library_version"] == (
+        manifest_before["library_version"] + 1
+    )
+    assert manifest_after["catalog_revision"] == (
+        manifest_before["catalog_revision"] + 2
+    )
+    assert manifest_after.get("curation_generation") == manifest_before.get(
+        "curation_generation"
+    )
+    assert live_manifest_writes == [
+        {
+            **manifest_before,
+            "library_version": manifest_before["library_version"],
+            "catalog_revision": manifest_before["catalog_revision"] + 1,
+        },
+        {
+            **manifest_before,
+            "library_version": manifest_before["library_version"] + 1,
+            "catalog_revision": manifest_before["catalog_revision"] + 2,
+        },
+    ]
+    assert _source_ids(recipes) >= {
+        "candidate_batch_first",
+        "candidate_batch_second",
+    }
+    assert first.with_suffix(".review.json").exists()
+    assert second.with_suffix(".review.json").exists()
+
+
+def test_batch_promotion_validates_all_candidates_before_writing(
+    quarantined_catalog,
+):
+    candidates, recipes = quarantined_catalog
+    first = _write_candidate(
+        candidates / "preflight-first.json",
+        _candidate_recipe(
+            id="candidate_preflight_first",
+            family="candidate_preflight_first_family",
+        ),
+    )
+    second = _write_candidate(
+        candidates / "preflight-invalid.json",
+        _candidate_recipe(
+            id="pan_chicken_rice_vegetables",
+            family="candidate_preflight_invalid_family",
+        ),
+    )
+    before = _catalog_snapshot(recipes)
+
+    with pytest.raises(ValueError, match="candidate validation failed"):
+        recipe_candidates.promote_candidates(
+            (first, second), "Martin", date(2026, 9, 5)
+        )
+
+    assert _catalog_snapshot(recipes) == before
+    assert not first.with_suffix(".review.json").exists()
+    assert not second.with_suffix(".review.json").exists()
+
+
+def test_batch_promotion_rejects_duplicate_ids_before_writing(
+    quarantined_catalog,
+):
+    candidates, recipes = quarantined_catalog
+    first = _write_candidate(
+        candidates / "duplicate-first.json",
+        _candidate_recipe(
+            id="candidate_batch_duplicate",
+            family="candidate_batch_duplicate_first",
+        ),
+    )
+    second = _write_candidate(
+        candidates / "duplicate-second.json",
+        _candidate_recipe(
+            id="candidate_batch_duplicate",
+            family="candidate_batch_duplicate_second",
+        ),
+    )
+    before = _catalog_snapshot(recipes)
+
+    with pytest.raises(ValueError, match="duplicate candidate ID"):
+        recipe_candidates.promote_candidates(
+            (first, second), "Martin", date(2026, 9, 5)
+        )
+
+    assert _catalog_snapshot(recipes) == before
+    assert not first.with_suffix(".review.json").exists()
+    assert not second.with_suffix(".review.json").exists()
+
+
+def test_batch_promotion_rejects_source_records_without_active_recipes(
+    quarantined_catalog,
+):
+    candidates, recipes = quarantined_catalog
+    source_path = recipes.parent / "recipe_sources.json"
+    source_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "recipes": [_source_record("future_research_only")],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    candidate = _write_candidate(
+        candidates / "active-source-only.json",
+        _candidate_recipe(
+            id="candidate_active_source_only",
+            family="candidate_active_source_only_family",
+        ),
+    )
+    before = _catalog_snapshot(recipes)
+
+    with pytest.raises(ValueError, match="inactive provenance"):
+        recipe_candidates.promote_candidates(
+            (candidate,), "Martin", date(2026, 9, 5)
+        )
+
+    assert _catalog_snapshot(recipes) == before
+    assert not candidate.with_suffix(".review.json").exists()
+
+
+def test_batch_promotion_rolls_back_every_file_when_final_audit_fails(
+    quarantined_catalog, monkeypatch
+):
+    candidates, recipes = quarantined_catalog
+    first_recipe = _candidate_from_active_file("01-pan.json")
+    first_recipe.update(
+        id="candidate_rollback_first",
+        family="candidate_rollback_first_family",
+    )
+    second_recipe = _candidate_from_active_file("02-oven.json")
+    second_recipe.update(
+        id="candidate_rollback_second",
+        family="candidate_rollback_second_family",
+    )
+    first = _write_candidate(candidates / "rollback-first.json", first_recipe)
+    second = _write_candidate(candidates / "rollback-second.json", second_recipe)
+    before = _catalog_snapshot(recipes)
+    real_audit_root = recipe_candidates._audit_root
+    calls = 0
+
+    def fail_live_gate(ingredients, root):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise ValueError("simulated final batch library gate failure")
+        return real_audit_root(ingredients, root)
+
+    monkeypatch.setattr(recipe_candidates, "_audit_root", fail_live_gate)
+
+    with pytest.raises(ValueError, match="simulated final batch library gate failure"):
+        recipe_candidates.promote_candidates(
+            (first, second), "Martin", date(2026, 9, 5)
+        )
+
+    assert _catalog_snapshot(recipes) == before
+    assert not first.with_suffix(".review.json").exists()
+    assert not second.with_suffix(".review.json").exists()
 
 
 @pytest.mark.parametrize(
@@ -305,12 +683,9 @@ def test_promotion_adds_passing_recipe_to_its_active_collection_atomically(
     original = path.read_bytes()
     target = recipes / source_file
     target_before = json.loads(target.read_text(encoding="utf-8"))
-    version_before = json.loads(
+    manifest_before = json.loads(
         (recipes / "manifest.json").read_text(encoding="utf-8")
-    )["library_version"]
-    revision_before = json.loads(
-        (recipes / "manifest.json").read_text(encoding="utf-8")
-    )["catalog_revision"]
+    )
 
     promoted_to = recipe_candidates.promote_candidate(
         path,
@@ -328,10 +703,12 @@ def test_promotion_adds_passing_recipe_to_its_active_collection_atomically(
     assert len(target_after["recipes"]) == len(target_before["recipes"]) + 1
     assert target_after["recipes"][-1]["id"].startswith("candidate_")
     assert manifest_after == {
-        "library_version": version_before + 1,
-        "catalog_revision": revision_before + 2,
+        **manifest_before,
+        "library_version": manifest_before["library_version"] + 1,
+        "catalog_revision": manifest_before["catalog_revision"] + 2,
     }
     assert path.read_bytes() == original
+    assert target_after["recipes"][-1]["id"] in _source_ids(recipes)
     assert audit == {
         "candidate_sha256": hashlib.sha256(original).hexdigest(),
         "promoted_to": source_file,
@@ -349,7 +726,7 @@ def test_promotion_rejects_failing_candidate_without_changing_catalog(
         candidates / "duplicate.json",
         _candidate_recipe(id="pan_chicken_rice_vegetables"),
     )
-    before = {item.name: item.read_bytes() for item in recipes.glob("*.json")}
+    before = _catalog_snapshot(recipes)
 
     with pytest.raises(ValueError, match="candidate validation failed"):
         recipe_candidates.promote_candidate(
@@ -358,26 +735,37 @@ def test_promotion_rejects_failing_candidate_without_changing_catalog(
             reviewed_on=date(2026, 8, 31),
         )
 
-    assert {item.name: item.read_bytes() for item in recipes.glob("*.json")} == before
+    assert _catalog_snapshot(recipes) == before
     assert not path.with_suffix(".review.json").exists()
 
 
-@pytest.mark.parametrize("failure_call", [4, 5])
+@pytest.mark.parametrize("failure_point", ["odd_manifest", "target", "sources"])
 def test_promotion_rolls_back_target_manifest_and_audit_after_live_write_failure(
-    quarantined_catalog, monkeypatch, failure_call
+    quarantined_catalog, monkeypatch, failure_point
 ):
     candidates, recipes = quarantined_catalog
     path = _write_candidate(candidates / "rollback.json")
-    before = {item.name: item.read_bytes() for item in recipes.glob("*.json")}
+    before = _catalog_snapshot(recipes)
     real_replace = recipe_candidates._replace_json
-    calls = 0
+    manifest = (recipes / "manifest.json").resolve()
+    target = (recipes / "01-pan.json").resolve()
+    sources = (recipes.parent / "recipe_sources.json").resolve()
+    failed = False
 
-    def fail_once(target, payload):
-        nonlocal calls
-        calls += 1
-        if calls == failure_call:
+    def fail_once(destination, payload):
+        nonlocal failed
+        resolved = Path(destination).resolve()
+        is_failure_point = (
+            failure_point == "odd_manifest"
+            and resolved == manifest
+            and payload["catalog_revision"] % 2 == 1
+        ) or (failure_point == "target" and resolved == target) or (
+            failure_point == "sources" and resolved == sources
+        )
+        if is_failure_point and not failed:
+            failed = True
             raise OSError("simulated live write failure")
-        return real_replace(target, payload)
+        return real_replace(destination, payload)
 
     monkeypatch.setattr(recipe_candidates, "_replace_json", fail_once)
 
@@ -388,7 +776,7 @@ def test_promotion_rolls_back_target_manifest_and_audit_after_live_write_failure
             reviewed_on=date(2026, 8, 31),
         )
 
-    assert {item.name: item.read_bytes() for item in recipes.glob("*.json")} == before
+    assert _catalog_snapshot(recipes) == before
     assert not path.with_suffix(".review.json").exists()
 
 
@@ -397,7 +785,7 @@ def test_promotion_rolls_back_if_final_live_library_gate_fails(
 ):
     candidates, recipes = quarantined_catalog
     path = _write_candidate(candidates / "gate-rollback.json")
-    before = {item.name: item.read_bytes() for item in recipes.glob("*.json")}
+    before = _catalog_snapshot(recipes)
     real_audit_root = recipe_candidates._audit_root
     calls = 0
 
@@ -417,7 +805,7 @@ def test_promotion_rolls_back_if_final_live_library_gate_fails(
             reviewed_on=date(2026, 8, 31),
         )
 
-    assert {item.name: item.read_bytes() for item in recipes.glob("*.json")} == before
+    assert _catalog_snapshot(recipes) == before
     assert not path.with_suffix(".review.json").exists()
 
 
@@ -428,8 +816,8 @@ def test_rollback_marks_manifest_odd_if_final_replace_fails_after_commit(
     path = _write_candidate(candidates / "post-commit-failure.json")
     manifest = (recipes / "manifest.json").resolve()
     target = (recipes / "01-pan.json").resolve()
-    before = {item.name: item.read_bytes() for item in recipes.glob("*.json")}
-    version_before = json.loads(before["manifest.json"])["library_version"]
+    before = _catalog_snapshot(recipes)
+    version_before = json.loads(before["recipes/manifest.json"])["library_version"]
     real_replace_json = recipe_candidates._replace_json
     real_replace_bytes = recipe_candidates._replace_bytes
     rollback_revisions = []
@@ -445,7 +833,10 @@ def test_rollback_marks_manifest_odd_if_final_replace_fails_after_commit(
         return result
 
     def observe_target_rollback(destination, content):
-        if Path(destination).resolve() == target and content == before["01-pan.json"]:
+        if (
+            Path(destination).resolve() == target
+            and content == before["recipes/01-pan.json"]
+        ):
             rollback_revisions.append(
                 json.loads(manifest.read_text(encoding="utf-8"))["catalog_revision"]
             )
@@ -462,7 +853,7 @@ def test_rollback_marks_manifest_odd_if_final_replace_fails_after_commit(
         )
 
     assert rollback_revisions and rollback_revisions[0] % 2 == 1
-    assert {item.name: item.read_bytes() for item in recipes.glob("*.json")} == before
+    assert _catalog_snapshot(recipes) == before
     assert not path.with_suffix(".review.json").exists()
 
 
@@ -471,7 +862,7 @@ def test_promotion_rejects_path_traversal_before_any_write(
 ):
     _, recipes = quarantined_catalog
     escaped = _write_candidate(tmp_path / "escaped-promotion.json")
-    before = {item.name: item.read_bytes() for item in recipes.glob("*.json")}
+    before = _catalog_snapshot(recipes)
 
     with pytest.raises(ValueError, match="candidate validation failed"):
         recipe_candidates.promote_candidate(
@@ -480,7 +871,7 @@ def test_promotion_rejects_path_traversal_before_any_write(
             reviewed_on=date(2026, 8, 31),
         )
 
-    assert {item.name: item.read_bytes() for item in recipes.glob("*.json")} == before
+    assert _catalog_snapshot(recipes) == before
 
 
 def test_promotion_reopens_candidate_under_lock_and_rejects_symlink_swap(
@@ -489,7 +880,7 @@ def test_promotion_reopens_candidate_under_lock_and_rejects_symlink_swap(
     candidates, recipes = quarantined_catalog
     path = _write_candidate(candidates / "swap.json")
     outside = _write_candidate(tmp_path / "outside.json")
-    before = {item.name: item.read_bytes() for item in recipes.glob("*.json")}
+    before = _catalog_snapshot(recipes)
     real_lock = recipe_candidates._promotion_lock
 
     @contextmanager
@@ -511,7 +902,7 @@ def test_promotion_reopens_candidate_under_lock_and_rejects_symlink_swap(
             reviewed_on=date.today(),
         )
 
-    assert {item.name: item.read_bytes() for item in recipes.glob("*.json")} == before
+    assert _catalog_snapshot(recipes) == before
 
 
 def test_validation_rejects_candidate_identity_swap_during_open(
@@ -618,6 +1009,7 @@ def test_concurrent_promotions_preserve_both_recipes_and_both_version_steps(
     assert maximum_active == 1
     assert {first_id, second_id} <= ids
     assert manifest_after == {
+        **manifest_before,
         "library_version": manifest_before["library_version"] + 2,
         "catalog_revision": manifest_before["catalog_revision"] + 4,
     }
@@ -699,6 +1091,7 @@ def test_failing_concurrent_promotion_rollback_cannot_clobber_success(
     assert success_id in ids
     assert failed_id not in ids
     assert manifest_after == {
+        **manifest_before,
         "library_version": manifest_before["library_version"] + 1,
         "catalog_revision": manifest_before["catalog_revision"] + 2,
     }
