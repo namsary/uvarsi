@@ -343,6 +343,89 @@ def test_references_have_exact_schema_and_strong_selected_provenance():
                 assert len(_reference_hosts(row)) >= 2
 
 
+def test_quick_orzo_has_two_direct_sources_and_no_tesco_collection():
+    candidates, targets = _load_inventories()
+    rows = (
+        {row["id"]: row for row in candidates}["quick_orzo_chicken_one_pan"],
+        {row["id"]: row for row in targets}["quick_orzo_chicken_one_pan"],
+    )
+    food_network_reference = {
+        "url": (
+            "https://www.foodnetwork.com/recipes/valerie-bertinelli/"
+            "one-pot-chicken-and-orzo-12667478"
+        ),
+        "title": "One Pot Chicken and Orzo Recipe | Valerie Bertinelli | Food Network",
+        "accessed_on": "2026-09-05",
+    }
+    expected_urls = {
+        "https://www.bbcgoodfood.com/recipes/marry-me-chicken-orzo",
+        food_network_reference["url"],
+    }
+    tesco_collection_url = "https://realfood.tesco.com/chicken-recipes.html"
+
+    for row in rows:
+        urls = {reference["url"] for reference in row["references"]}
+        assert urls == expected_urls
+        assert tesco_collection_url not in urls
+        assert food_network_reference in row["references"]
+        assert all(_looks_like_recipe_page(url) for url in urls)
+        assert len(_reference_hosts(row)) == 2
+
+
+def test_protein_beef_chili_is_a_distinct_baked_stuffed_sweet_potato():
+    candidates, targets = _load_inventories()
+    candidate_by_id = {row["id"]: row for row in candidates}
+    target_by_id = {row["id"]: row for row in targets}
+    protein_candidate = candidate_by_id["protein_beef_bean_chili"]
+    protein_target = target_by_id["protein_beef_bean_chili"]
+    family_chili = candidate_by_id["modern_chili_con_carne"]
+    expected_display_name = "Proteínový batat plnený hovädzím chilli"
+    expected_references = [
+        {
+            "url": (
+                "https://www.foodnetwork.com/recipes/food-network-kitchen/"
+                "chili-stuffed-sweet-potatoes-recipe-2120999"
+            ),
+            "title": "Chili-Stuffed Sweet Potatoes Recipe | Food Network Kitchen",
+            "accessed_on": "2026-09-05",
+        },
+        {
+            "url": (
+                "https://www.hellofresh.co.uk/recipes/"
+                "easy-cheesy-beef-chilli-loaded-sweet-potato-67bdff0a8e41cf2506379267"
+            ),
+            "title": "Easy Cheesy Beef Chilli Loaded Sweet Potato Recipe | HelloFresh",
+            "accessed_on": "2026-09-05",
+        },
+    ]
+
+    assert family_chili["display_name"] == "Chilli con carne"
+    assert protein_candidate["display_name"] != family_chili["display_name"]
+    for row in (protein_candidate, protein_target):
+        assert row["display_name"] == expected_display_name
+        assert row["editorial_lane"] == "high_protein"
+        assert row["expected_modes"] == ["standard", "high_protein"]
+        assert row["references"] == expected_references
+        assert all(
+            _looks_like_recipe_page(reference["url"])
+            for reference in row["references"]
+        )
+        assert len(_reference_hosts(row)) == 2
+
+    editorial_texts = (
+        protein_candidate["familiarity_evidence"],
+        protein_candidate["selection_notes"]["summary"],
+        protein_target["selection_reason"],
+    )
+    for text in editorial_texts:
+        normalized = text.casefold()
+        assert "batat" in normalized
+        assert re.search(r"\b(?:peč|upeč)\w*", normalized)
+        assert re.search(r"\bpln\w*", normalized)
+        assert "chilli con carne" in normalized
+        assert "odliš" in normalized or "iný" in normalized
+
+
 def test_candidate_selection_notes_have_exact_scores_and_slovak_text():
     candidates, _ = _load_inventories()
 

@@ -2766,8 +2766,8 @@
           "accessed_on": "2026-09-05"
         },
         {
-          "url": "https://realfood.tesco.com/chicken-recipes.html",
-          "title": "Chicken recipes and chicken dishes | Tesco Real Food",
+          "url": "https://www.foodnetwork.com/recipes/valerie-bertinelli/one-pot-chicken-and-orzo-12667478",
+          "title": "One Pot Chicken and Orzo Recipe | Valerie Bertinelli | Food Network",
           "accessed_on": "2026-09-05"
         }
       ],
@@ -3840,7 +3840,7 @@
     },
     {
       "id": "protein_beef_bean_chili",
-      "display_name": "Hovädzie čili s fazuľou",
+      "display_name": "Proteínový batat plnený hovädzím chilli",
       "editorial_lane": "high_protein",
       "expected_modes": [
         "standard",
@@ -3849,19 +3849,19 @@
       "core": true,
       "references": [
         {
-          "url": "https://www.bbcgoodfood.com/recipes/chunky-chilli",
-          "title": "Healthy chilli con carne recipe | Good Food",
+          "url": "https://www.foodnetwork.com/recipes/food-network-kitchen/chili-stuffed-sweet-potatoes-recipe-2120999",
+          "title": "Chili-Stuffed Sweet Potatoes Recipe | Food Network Kitchen",
           "accessed_on": "2026-09-05"
         },
         {
-          "url": "https://www.hellofresh.co.uk/recipes/quick-beef-and-bean-chilli-68c8685604558429ef01fccf",
-          "title": "Quick Beef & Bean Chilli Recipe | HelloFresh",
+          "url": "https://www.hellofresh.co.uk/recipes/easy-cheesy-beef-chilli-loaded-sweet-potato-67bdff0a8e41cf2506379267",
+          "title": "Easy Cheesy Beef Chilli Loaded Sweet Potato Recipe | HelloFresh",
           "accessed_on": "2026-09-05"
         }
       ],
-      "familiarity_evidence": "Nezávislé recepty používajú hovädzie mäso, červenú fazuľu a paradajkový základ; rýchla verzia HelloFresh uvádza 47 g bielkovín na porciu.",
+      "familiarity_evidence": "Dva nezávislé recepty pečú celý batat domäkka a potom ho plnia chilli z chudého hovädzieho mäsa, fazule a paradajok. Pečenie a plnené podanie tvoria iný postup než hrncové chilli con carne.",
       "selection_notes": {
-        "summary": "Veľmi známe rodinné jedlo z jedného hrnca s dobrým potenciálom na väčšiu dávku; pikantnosť sa dá upraviť bez zmeny identity.",
+        "summary": "Vybraný ako vysokobielkovinové plnené jedlo: celý batat sa najprv upečie a až potom naplní hovädzím fazuľovým chilli, takže sa odlišuje od moderného chilli con carne vareného v hrnci.",
         "scores": {
           "slovak_familiarity": 5,
           "flyer_availability": 5,
