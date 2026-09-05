@@ -1,0 +1,41 @@
+{
+  "recipes": [
+    {
+      "id": "quick_tuna_cheese_tortilla",
+      "version": 2,
+      "active": true,
+      "name_template": "Tuniakovo-syrová tortilla",
+      "family": "quick_tuna_cheese_tortilla",
+      "method": "pan",
+      "minutes": 20,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["panvica", "misa", "sitko", "vidlička", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "tuna", "role": "protein", "candidates": ["tuna"], "amount_per_adult": "140", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "cheese", "role": "protein", "candidates": ["hard_cheese"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nahrubo nastrúhaný"},
+        {"key": "tortilla", "role": "starch", "candidates": ["tortilla"], "amount_per_adult": "2", "unit": "piece", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["salt", "black_pepper"],
+      "instructions": [
+        {"text": "Sceď {tuna.amount} {tuna.name}. Nakrájaj {tomato.amount} {tomato.name} na malé kocky a {onion.amount} {onion.name} najemno. Nahrubo nastrúhaj {cheese.amount} {cheese.name}.", "requires": ["tuna:raw", "tomato:raw", "onion:raw", "cheese:raw", "sitko:free"], "produces": ["tuna:drained", "tomato:cut", "onion:cut", "cheese:grated", "sitko:free"]},
+        {"text": "Premiešaj tuniaka, paradajku a cibuľu s {yogurt.amount} {yogurt.name} v mise. Zmes jemne osoľ a okoreň.", "requires": ["tuna:drained", "tomato:cut", "onion:cut", "yogurt:raw", "misa:free"], "produces": ["tuna:mixed", "tomato:mixed", "onion:mixed", "yogurt:mixed", "misa:occupied"]},
+        {"text": "Rozlož {tortilla.amount} {tortilla.name}. Na polovicu každej daj tuniakovú náplň a syr, nechaj voľný okraj a tortilly prelož napoly.", "requires": ["tortilla:raw", "tuna:mixed", "tomato:mixed", "onion:mixed", "yogurt:mixed", "cheese:grated", "misa:occupied"], "produces": ["tortilla:filled", "tuna:filled", "tomato:filled", "onion:filled", "yogurt:filled", "cheese:filled", "misa:free"]},
+        {"text": "Opekaj {tortilla.name} nasucho v panvici na strednom ohni 2 až 3 minúty z každej strany, kým bude zlatistá a syr sa roztopí. Pri väčšej dávke priprav tortilly po častiach.", "requires": ["tortilla:filled", "tuna:filled", "tomato:filled", "onion:filled", "yogurt:filled", "cheese:filled", "panvica:free"], "produces": ["tortilla:cooked", "tuna:hot", "tomato:hot", "onion:hot", "yogurt:hot", "cheese:melted", "panvica:free"]},
+        {"text": "Podávaj tuniakovo-syrové tortilly horúce, prekrojené a rozdelené na {portions} porcií.", "requires": ["tortilla:cooked", "tuna:hot", "tomato:hot", "onion:hot", "yogurt:hot", "cheese:melted", "panvica:free"], "produces": ["tortilla:served", "tuna:served", "tomato:served", "onion:served", "yogurt:served", "cheese:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Nevyužitú náplň odlož do plytkej uzatvárateľnej nádoby najneskôr do 2 hodín a uchovaj ju v chladničke najviac 2 dni. Tortilly napĺňaj a opekaj až tesne pred podávaním."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_tuna_cheese_tortilla",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.tesco.com/recipes/en-GB/recipe/tuna-melt-quesadillas", "title": "Tuna Melt Quesadillas Recipe | Tesco Recipes", "accessed_on": "2026-09-05"},
+      {"url": "https://www.family-action.org.uk/content/uploads/2019/07/meals-more-recipes.pdf", "title": "Meals & More Recipe Book | Family Action", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "recipes": [
+    {
+      "id": "quick_tomato_mozzarella_pasta",
+      "version": 2,
+      "active": true,
+      "name_template": "Cestoviny s paradajkami a mozzarellou",
+      "family": "quick_tomato_mozzarella_pasta",
+      "method": "pot",
+      "minutes": 25,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["hrniec", "sitko", "veľká miska", "nôž", "doska na krájanie", "varecha"],
+      "slots": [
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "90", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na malé kúsky"},
+        {"key": "mozzarella", "role": "protein", "candidates": ["mozzarella"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "pesto", "role": "seasoning", "candidates": ["basil_pesto"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {tomato.amount} {tomato.name} a {mozzarella.amount} {mozzarella.name} na malé kúsky a {garlic.amount} {garlic.name} najemno.", "requires": ["tomato:raw", "mozzarella:raw", "garlic:raw"], "produces": ["tomato:cut", "mozzarella:cut", "garlic:cut"]},
+        {"text": "Premiešaj paradajky, mozzarellu a cesnak s {pesto.amount} {pesto.name}, {oil.amount} {oil.name}, soľou a čiernym korením vo veľkej miske. Nechaj zmes 10 minút postáť, aby paradajky pustili šťavu.", "requires": ["tomato:cut", "mozzarella:cut", "garlic:cut", "pesto:raw", "oil:raw", "velka_miska:free"], "produces": ["tomato:marinated", "mozzarella:marinated", "garlic:marinated", "pesto:mixed", "oil:mixed", "velka_miska:occupied"]},
+        {"text": "Uvar {pasta.amount} {pasta.name} v hrnci vo vriacej osolenej vode na strednom ohni približne 9 minút, kým budú mäkké, ale pevné na zahryznutie.", "requires": ["pasta:raw", "hrniec:free"], "produces": ["pasta:cooked", "hrniec:occupied"]},
+        {"text": "Sceď cestoviny cez sitko. Vlož cestoviny do veľkej misky. Premiešaj ich s paradajkovou zmesou, kým ich šťava s pestom rovnomerne obalí a mozzarella začne mäknúť.", "requires": ["pasta:cooked", "tomato:marinated", "mozzarella:marinated", "garlic:marinated", "pesto:mixed", "oil:mixed", "hrniec:occupied", "sitko:free", "velka_miska:occupied"], "produces": ["pasta:mixed", "tomato:mixed", "mozzarella:softened", "garlic:mixed", "pesto:combined", "oil:combined", "hrniec:free", "sitko:free"]},
+        {"text": "Podávaj cestoviny s paradajkami a mozzarellou hneď a rozdeľ ich na {portions} porcií.", "requires": ["pasta:mixed", "tomato:mixed", "mozzarella:softened", "garlic:mixed", "pesto:combined", "oil:combined", "velka_miska:occupied"], "produces": ["pasta:served", "tomato:served", "mozzarella:served", "garlic:served", "pesto:served", "oil:served", "velka_miska:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Cestoviny rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní; podávaj ich studené alebo ich krátko zohrej, kým budú teplé."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_tomato_mozzarella_pasta",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/classic-spaghetti", "title": "Classic spaghetti recipe | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://jessicaseinfeld.com/recipes/fresh-tomato-and-mozzarella-pasta", "title": "Fresh Tomato and Mozzarella Pasta | Jessica Seinfeld", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

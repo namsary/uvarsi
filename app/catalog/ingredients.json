@@ -1123,6 +1123,261 @@
         "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 172233, Dill weed, fresh; https://fdc.nal.usda.gov/download-datasets/",
         "verified_on": "2026-09-05"
       }
+    },
+    {
+      "id": "tortilla",
+      "name": "pšeničná tortilla",
+      "synonyms": ["tortilla", "tortillová placka"],
+      "category": "obilniny",
+      "roles": ["starch"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": ["gluten"],
+      "edible_ratio": "1",
+      "grams_per_piece": "60",
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "297", "protein_g": "8.01", "fat_g": "7.58", "carbs_g": "49.27",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 167535, Tortillas, ready-to-bake or -fry, flour, shelf stable; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-06"
+      }
+    },
+    {
+      "id": "soy_sauce",
+      "name": "sójová omáčka",
+      "synonyms": ["fermentovaná sójová omáčka", "sójovka"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": ["soy", "wheat"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": "1.16",
+      "nutrition": {
+        "kcal": "53", "protein_g": "8.14", "fat_g": "0.57", "carbs_g": "4.93",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 174277, Soy sauce made from soy and wheat (shoyu); https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-06"
+      }
+    },
+    {
+      "id": "lettuce",
+      "name": "rímsky šalát",
+      "synonyms": ["listový šalát", "rímske šalátové listy"],
+      "category": "zelenina",
+      "roles": ["vegetable"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "0.94",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "17", "protein_g": "1.23", "fat_g": "0.3", "carbs_g": "3.29",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 169247, Lettuce, cos or romaine, raw; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-06"
+      }
+    },
+    {
+      "id": "lemon",
+      "name": "citrón",
+      "synonyms": ["citróny", "čerstvý citrón"],
+      "category": "ovocie",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "0.64",
+      "grams_per_piece": "84",
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "29", "protein_g": "1.1", "fat_g": "0.3", "carbs_g": "9.32",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 167746, Lemons, raw, without peel; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-06"
+      }
+    },
+    {
+      "id": "basil_pesto",
+      "name": "bazalkové pesto",
+      "synonyms": ["pesto", "zelené pesto"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning", "fat"],
+      "diet_tags": ["vegetarian"],
+      "allergens": ["milk", "tree_nuts"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": "1",
+      "nutrition": {
+        "kcal": "418", "protein_g": "9.83", "fat_g": "37.6", "carbs_g": "10.09",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171579, Sauce, pesto, ready-to-serve, refrigerated; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-06"
+      }
+    },
+    {
+      "id": "gnocchi",
+      "name": "zemiakové gnocchi",
+      "synonyms": ["gnocchi", "zemiakové halušky gnocchi"],
+      "category": "obilniny",
+      "roles": ["starch"],
+      "diet_tags": ["vegetarian"],
+      "allergens": ["gluten"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "195", "protein_g": "5.26", "fat_g": "6.14", "carbs_g": "29.64",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 169779, potato-filled dumpling used as the closest verified gnocchi reference; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-06"
+      }
+    },
+    {
+      "id": "mozzarella",
+      "name": "mozzarella",
+      "synonyms": ["syr mozzarella", "mozzarella v náleve"],
+      "category": "mliečne výrobky",
+      "roles": ["protein", "dairy"],
+      "diet_tags": ["vegetarian"],
+      "allergens": ["milk"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "299", "protein_g": "22.17", "fat_g": "22.14", "carbs_g": "2.4",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170845, Cheese, mozzarella, whole milk; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-06"
+      }
+    },
+    {
+      "id": "grilling_cheese",
+      "name": "syr na grilovanie",
+      "synonyms": ["grilovací syr", "halloumi"],
+      "category": "mliečne výrobky",
+      "roles": ["protein", "dairy"],
+      "diet_tags": ["vegetarian"],
+      "allergens": ["milk"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "265", "protein_g": "14.21", "fat_g": "21.49", "carbs_g": "3.88",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 173420, feta used as the closest verified brined grilling-cheese reference; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-06"
+      }
+    },
+    {
+      "id": "cumin",
+      "name": "mletá rímska rasca",
+      "synonyms": ["rímska rasca", "mletý kumín"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "375", "protein_g": "17.81", "fat_g": "22.27", "carbs_g": "44.24",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170923, Spices, cumin seed; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-06"
+      }
+    },
+    {
+      "id": "chili_powder",
+      "name": "mleté čili",
+      "synonyms": ["čili korenie", "mleté chilli"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "282", "protein_g": "13.46", "fat_g": "14.28", "carbs_g": "49.7",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171319, Spices, chili powder; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-06"
+      }
+    },
+    {
+      "id": "bulgur",
+      "name": "bulgur",
+      "synonyms": ["pšeničný bulgur", "bulgurová pšenica"],
+      "category": "obilniny",
+      "roles": ["starch"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": ["gluten"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "342", "protein_g": "12.29", "fat_g": "1.33", "carbs_g": "75.87",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170688, Bulgur, dry; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-06"
+      }
+    },
+    {
+      "id": "skyr",
+      "name": "biely skyr",
+      "synonyms": ["skyr", "neochutený skyr"],
+      "category": "mliečne výrobky",
+      "roles": ["protein", "dairy"],
+      "diet_tags": ["vegetarian"],
+      "allergens": ["milk"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "59", "protein_g": "10.19", "fat_g": "0.39", "carbs_g": "3.6",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170894, plain nonfat Greek yogurt used as the closest verified skyr reference; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-06"
+      }
+    },
+    {
+      "id": "sweet_potato",
+      "name": "batat",
+      "synonyms": ["sladký zemiak", "bataty", "sladké zemiaky"],
+      "category": "zelenina",
+      "roles": ["starch", "vegetable"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "0.86",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "86", "protein_g": "1.57", "fat_g": "0.05", "carbs_g": "20.12",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 168482, Sweet potato, raw, unprepared; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-06"
+      }
+    },
+    {
+      "id": "turkey_mince",
+      "name": "mleté morčacie mäso",
+      "synonyms": ["morčacie mleté mäso", "mleté mäso z moriaka"],
+      "category": "mäso",
+      "roles": ["protein"],
+      "diet_tags": [],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "150", "protein_g": "18.73", "fat_g": "8.34", "carbs_g": "0",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 172850, Turkey, ground, 93% lean, 7% fat, raw; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-06"
+      }
+    },
+    {
+      "id": "cucumber",
+      "name": "šalátová uhorka",
+      "synonyms": ["uhorka", "šalátové uhorky"],
+      "category": "zelenina",
+      "roles": ["vegetable"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "0.97",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "15", "protein_g": "0.65", "fat_g": "0.11", "carbs_g": "3.63",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 168409, Cucumber, with peel, raw; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-06"
+      }
     }
   ]
 }

@@ -164,6 +164,21 @@ _QUANTITY_NAMES: Mapping[str, str] = {
     "sugar": "kryštálového cukru",
     "wheat_flour": "hladkej pšeničnej múky",
     "white_cabbage": "bielej hlávkovej kapusty",
+    "tortilla": "pšeničnej tortilly",
+    "soy_sauce": "sójovej omáčky",
+    "lettuce": "rímskeho šalátu",
+    "lemon": "citróna",
+    "basil_pesto": "bazalkového pesta",
+    "gnocchi": "zemiakových gnocchi",
+    "mozzarella": "mozzarelly",
+    "grilling_cheese": "syra na grilovanie",
+    "cumin": "mletej rímskej rasce",
+    "chili_powder": "mletého čili",
+    "bulgur": "bulguru",
+    "skyr": "bieleho skyru",
+    "sweet_potato": "batatu",
+    "turkey_mince": "mletého morčacieho mäsa",
+    "cucumber": "šalátovej uhorky",
 }
 
 # Natural direct-object forms used after the ingredient was measured once.
@@ -235,6 +250,21 @@ _REFERENCE_NAMES: Mapping[str, str] = {
     "sugar": "kryštálový cukor",
     "wheat_flour": "hladkú pšeničnú múku",
     "white_cabbage": "bielu hlávkovú kapustu",
+    "tortilla": "pšeničnú tortillu",
+    "soy_sauce": "sójovú omáčku",
+    "lettuce": "rímsky šalát",
+    "lemon": "citrón",
+    "basil_pesto": "bazalkové pesto",
+    "gnocchi": "zemiakové gnocchi",
+    "mozzarella": "mozzarellu",
+    "grilling_cheese": "syr na grilovanie",
+    "cumin": "mletú rímsku rascu",
+    "chili_powder": "mleté čili",
+    "bulgur": "bulgur",
+    "skyr": "biely skyr",
+    "sweet_potato": "batat",
+    "turkey_mince": "mleté morčacie mäso",
+    "cucumber": "šalátovú uhorku",
 }
 
 # Absorption/one-pot ratios in millilitres of water per gram of dry starch.
@@ -246,6 +276,7 @@ _WATER_ML_PER_GRAM: Mapping[str, Decimal] = {
     "red_lentils": Decimal("1.92"),
     "barley": Decimal("3"),
     "couscous": Decimal("1"),
+    "bulgur": Decimal("2"),
 }
 
 _EXTRA_INGREDIENT_FORMS: Mapping[str, tuple[str, ...]] = {

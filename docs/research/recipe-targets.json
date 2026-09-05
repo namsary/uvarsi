@@ -674,7 +674,8 @@
       "editorial_lane": "slovak_classic",
       "expected_modes": [
         "standard",
-        "vegetarian"
+        "vegetarian",
+        "vegan"
       ],
       "core": true,
       "references": [

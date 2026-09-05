@@ -555,23 +555,23 @@ Commit all 42 exact candidate paths and the snapshot tests with `feat: curate Sl
 - Consumes: source inventory, ingredient catalog, workflow schema.
 - Produces: 36 individually valid modern candidates; no runtime activation.
 
-- [ ] **Step 1: Add failing modern-family contracts**
+- [x] **Step 1: Add failing modern-family contracts**
 
 Assert all 36 reports pass, every recipe uses no more than three vessels, quick-prefixed recipes take at most 35 minutes, and each recipe contains a recognizable completion cue.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: 36 missing candidates.
 
-- [ ] **Step 3: Author 20 family meals**
+- [x] **Step 3: Author 20 family meals**
 
 Cover curry, pasta, one-pot rice, tortillas, meatballs, chili, fish, and risotto. Preserve defining flavour profiles; do not allow a universal seasoning set.
 
-- [ ] **Step 4: Author 16 quick meals**
+- [x] **Step 4: Author 16 quick meals**
 
 Use ordinary supermarket ingredients and short practical methods. A quick recipe must not hide overnight soaking, long marinating, or multi-hour cooking.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run the snapshot, candidate, renderer, and language suites. Commit with `feat: curate modern family recipes`.
 
@@ -584,7 +584,7 @@ Run the snapshot, candidate, renderer, and language suites. Commit with `feat: c
 **Interfaces:**
 - Produces: 16 candidates whose rendered adult portion has at least 30 g protein.
 
-- [ ] **Step 1: Add failing nutritional contracts**
+- [x] **Step 1: Add failing nutritional contracts**
 
 ```python
 @pytest.mark.parametrize("recipe_id", HIGH_PROTEIN_IDS)
@@ -595,15 +595,15 @@ def test_high_protein_candidate_reaches_30g_per_adult(recipe_id):
 
 Also assert that no child factor is raised merely to satisfy the adult target.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: candidate files are missing.
 
-- [ ] **Step 3: Author and render all 16 candidates**
+- [x] **Step 3: Author and render all 16 candidates**
 
 Use meat, fish, eggs, cottage cheese, skyr, tofu, beans, and lentils across the set. Keep adult energy and portion size plausible; use the neutral product label „Viac bielkovín“ unless the legal 20%-of-energy threshold also passes.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run nutrition, candidate, renderer, and language suites. Commit with `feat: curate high protein recipes`.
 
@@ -616,7 +616,7 @@ Run nutrition, candidate, renderer, and language suites. Commit with `feat: cura
 **Interfaces:**
 - Produces: 10 plant-based candidates plus enough vegan/vegetarian cross-tags to meet 16/24 after promotion.
 
-- [ ] **Step 1: Add failing diet coverage tests**
+- [x] **Step 1: Add failing diet coverage tests**
 
 ```python
 def test_curated_candidates_meet_diet_floors():
@@ -625,19 +625,19 @@ def test_curated_candidates_meet_diet_floors():
     assert sum("vegan" in item.modes for item in recipes) >= 16
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: plant-based files are missing and vegan coverage is below 16.
 
-- [ ] **Step 3: Author the 10 candidates**
+- [x] **Step 3: Author the 10 candidates**
 
 Use explicit dry/canned states and suitable hydration. Every main meal combines a meaningful protein source with starch or sufficient vegetables; no recipe is merely a side dish relabelled as dinner.
 
-- [ ] **Step 4: Tag eligible classics and modern meals**
+- [x] **Step 4: Tag eligible classics and modern meals**
 
 Apply vegan or vegetarian modes only where every candidate ingredient and pantry basic passes the existing ingredient-level diet validator. Do not create a separate weaker diet check.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run all curated snapshots, diet tests, candidate workflow, and full library gate against the quarantined set. Commit with `feat: curate plant based recipes`.
 
@@ -652,7 +652,7 @@ Run all curated snapshots, diet tests, candidate workflow, and full library gate
 - Consumes: recipe IDs and provenance lane map.
 - Produces: deterministic tie-breaking that favours curated recipes only during mixed-generation shadow runs.
 
-- [ ] **Step 1: Write failing mixed-generation tests**
+- [x] **Step 1: Write failing mixed-generation tests**
 
 ```python
 def test_curated_candidate_wins_equal_score_against_legacy_candidate():
@@ -663,15 +663,15 @@ def test_curated_candidate_wins_equal_score_against_legacy_candidate():
 
 Add a seven-day invariant requiring at least three families, three methods, and no repeated primary protein on consecutive cooking days when enough candidates exist.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: equal-score ordering ignores curated status.
 
-- [ ] **Step 3: Add an explicit curated tie-break**
+- [x] **Step 3: Add an explicit curated tie-break**
 
 Pass `curated_ids: frozenset[str] = frozenset()` into ranking and place the curated bit after real saving/coverage score but before stable hash ordering. Never let curated status make an incompatible or more expensive recipe eligible.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run matcher and deterministic invariant suites. Commit with `feat: prefer curated recipe archetypes`.
 

@@ -1,0 +1,44 @@
+{
+  "recipes": [
+    {
+      "id": "modern_tuna_tomato_pasta",
+      "version": 2,
+      "active": true,
+      "name_template": "Cestoviny s tuniakom a paradajkami",
+      "family": "modern_tuna_tomato_pasta",
+      "method": "pan",
+      "minutes": 30,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "panvica", "sitko", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "25"},
+        {"key": "tuna", "role": "protein", "candidates": ["tuna"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na menšie kúsky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "45", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oregano", "role": "seasoning", "candidates": ["oregano"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {tomato.amount} {tomato.name} na menšie kúsky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno. Sceď {tuna.amount} {tuna.name}.", "requires": ["tomato:raw", "onion:raw", "garlic:raw", "tuna:raw", "sitko:free"], "produces": ["tomato:cut", "onion:cut", "garlic:cut", "tuna:drained", "sitko:free"]},
+        {"text": "Uvar {pasta.amount} {pasta.name} v hrnci vo vriacej osolenej vode na strednom ohni 9 minút, kým budú mäkké, ale stále pevné na zahryznutie.", "requires": ["pasta:raw", "hrniec:free"], "produces": ["pasta:cooked", "hrniec:occupied"]},
+        {"text": "Odober z hrnca {pasta.water} vody, potom cestoviny sceď cez sitko.", "requires": ["pasta:cooked", "hrniec:occupied", "sitko:free"], "produces": ["pasta:drained", "hrniec:free", "sitko:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť. Pridaj cibuľu a opekaj ju 4 minúty, kým zmäkne.", "requires": ["oil:raw", "onion:cut", "panvica:free"], "produces": ["oil:used", "onion:cooked", "panvica:occupied"]},
+        {"text": "Pridaj paradajky do panvice. Vmiešaj cesnak a {oregano.amount} {oregano.name}. Var paradajky v panvici na miernom ohni 10 minút, kým zmäknú a omáčka zhustne.", "requires": ["tomato:cut", "garlic:cut", "oregano:raw", "onion:cooked", "oil:used", "panvica:occupied"], "produces": ["tomato:cooked", "garlic:cooked", "oregano:cooked", "oil:cooked"]},
+        {"text": "Vmiešaj {tuna.reference_name} a cestoviny do panvice. Prehrievaj cestoviny s tuniakom na miernom ohni 3 minúty, kým omáčka začne jemne bublať; ak je príliš hustá, použi časť odloženej vody.", "requires": ["tuna:drained", "pasta:drained", "tomato:cooked", "garlic:cooked", "oregano:cooked", "oil:cooked", "panvica:occupied"], "produces": ["tuna:cooked", "pasta:combined"]},
+        {"text": "Dochuť jedlo soľou a čiernym korením. Podávaj ho teplé a rozdeľ na {portions} porcií.", "requires": ["tuna:cooked", "pasta:combined", "tomato:cooked", "onion:cooked", "garlic:cooked", "oil:cooked", "oregano:cooked", "panvica:occupied"], "produces": ["tuna:served", "pasta:served", "tomato:served", "onion:served", "garlic:served", "oil:served", "oregano:served", "panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Jedlo rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní a ohrievaj iba porciu, ktorú práve podávaš."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "modern_tuna_tomato_pasta",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/healthy-tuna-pasta", "title": "Healthy tuna pasta recipe | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://www.tesco.sk/hello/recepty/pappardelle-s-paradajkovou-omackou-a-tuniakom/596741/", "title": "Pappardelle s paradajkovou omáčkou a tuniakom | Hello Tesco", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "recipes": [
+    {
+      "id": "protein_cottage_potato_spinach",
+      "version": 2,
+      "active": true,
+      "name_template": "Plnené zemiaky s cottage syrom a špenátom",
+      "family": "protein_cottage_potato_spinach",
+      "method": "oven",
+      "minutes": 65,
+      "modes": ["standard", "high_protein", "vegetarian"],
+      "equipment": ["rúra", "plech", "panvica", "misa", "lyžica", "vidlička"],
+      "slots": [
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "300", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": null},
+        {"key": "cottage", "role": "protein", "candidates": ["cottage_cheese"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "spinach", "role": "vegetable", "candidates": ["spinach"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 210 °C.", "requires": ["rura:free"], "produces": ["rura:hot"]},
+        {"text": "Priprav {potato.amount} {potato.name} na pečenie: umy ich, popichaj vidličkou a polož na plech.", "requires": ["rura:hot", "potato:raw", "plech:free"], "produces": ["potato:prepared", "plech:occupied"]},
+        {"text": "Peč zemiaky na plechu pri 210 °C 40 až 50 minút, kým budú po prepichnutí vidličkou mäkké aj v strede.", "requires": ["potato:prepared", "plech:occupied", "rura:hot"], "produces": ["potato:baked"]},
+        {"text": "Priprav si {spinach.amount} {spinach.name}. Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 1 minútu, kým sa začne lesknúť.", "requires": ["oil:raw", "spinach:raw", "panvica:free"], "produces": ["oil:hot", "spinach:ready", "panvica:occupied"]},
+        {"text": "Pridaj špenát do panvice. Prehrievaj špenát 3 minúty na strednom ohni, kým zmäkne, zvädne a prebytočná voda sa odparí. Pri väčšej dávke ho priprav po častiach.", "requires": ["oil:hot", "spinach:ready", "panvica:occupied"], "produces": ["oil:cooked", "spinach:cooked", "panvica:free"]},
+        {"text": "Priprav upečené zemiaky na plnenie: rozkroj ich pozdĺžne a lyžicou vyber väčšinu vnútra do misy. Šupku nechaj celú, aby držala náplň.", "requires": ["potato:baked", "misa:free", "lyzica:free"], "produces": ["potato:scooped", "misa:occupied", "lyzica:free"]},
+        {"text": "Premiešaj zemiakové vnútro, {cottage.amount} {cottage.name}, pripravený špenát a {egg.amount} {egg.name} v mise. Náplň osoľ, okoreň a naplň ňou zemiakové šupky.", "requires": ["potato:scooped", "cottage:raw", "spinach:cooked", "egg:raw", "oil:cooked", "misa:occupied"], "produces": ["potato:filled", "cottage:filled", "spinach:filled", "egg:filled", "oil:filled"]},
+        {"text": "Vráť plnené zemiaky na plech a peč ich pri 210 °C 12 minút, kým náplň spevnie a povrch sa jemne zafarbí dozlatista.", "requires": ["potato:filled", "cottage:filled", "spinach:filled", "egg:filled", "oil:filled", "plech:occupied", "rura:hot"], "produces": ["potato:cooked", "cottage:cooked", "spinach:cooked_in_filling", "egg:cooked", "oil:cooked_in_filling"]},
+        {"text": "Podávaj plnené zemiaky teplé a rozdeľ ich na {portions} porcií.", "requires": ["potato:cooked", "cottage:cooked", "spinach:cooked_in_filling", "egg:cooked", "oil:cooked_in_filling", "plech:occupied", "misa:occupied"], "produces": ["potato:served", "cottage:served", "spinach:served", "egg:served", "oil:served", "plech:free", "misa:free", "rura:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Plnené zemiaky nechaj krátko vychladnúť, potom ich najneskôr do 2 hodín odlož do uzatvárateľnej nádoby v chladničke. Zjedz ich do 3 dní a pred podávaním ich dôkladne zohrej."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "protein_cottage_potato_spinach",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://potatogoodness.com/recipes/green-veggie-twice-baked-potatoes/", "title": "Green Veggie Twice Baked Potatoes | Potato Goodness", "accessed_on": "2026-09-05"},
+      {"url": "https://healthdor.com/recipe/jacket-potato-with-spinach-and-cottage-cheese", "title": "Jacket Potato with Spinach and Cottage Cheese Recipe", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

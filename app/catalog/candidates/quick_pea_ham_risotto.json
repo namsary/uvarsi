@@ -1,0 +1,44 @@
+{
+  "recipes": [
+    {
+      "id": "quick_pea_ham_risotto",
+      "version": 2,
+      "active": true,
+      "name_template": "Hráškové rizoto so šunkou",
+      "family": "quick_pea_ham_risotto",
+      "method": "one_pot",
+      "minutes": 30,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["široký hrniec s pokrievkou", "nôž", "doska na krájanie", "strúhadlo", "varecha"],
+      "slots": [
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "250"},
+        {"key": "ham", "role": "protein", "candidates": ["ham"], "amount_per_adult": "140", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na malé kocky"},
+        {"key": "peas", "role": "vegetable", "candidates": ["peas"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": null},
+        {"key": "cheese", "role": "protein", "candidates": ["hard_cheese"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "najemno nastrúhaný"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {ham.amount} {ham.name} na malé kocky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno. Priprav {peas.amount} {peas.name} a najemno nastrúhaj {cheese.amount} {cheese.name}.", "requires": ["ham:raw", "onion:raw", "garlic:raw", "peas:raw", "cheese:raw"], "produces": ["ham:cut", "onion:cut", "garlic:cut", "cheese:grated"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v širokom hrnci. Cibuľu opekaj na strednom ohni 4 minúty, kým zmäkne.", "requires": ["oil:raw", "onion:cut", "siroky_hrniec_s_pokrievkou:free"], "produces": ["oil:hot", "onion:softened", "siroky_hrniec_s_pokrievkou:occupied"]},
+        {"text": "Pridaj cesnak a {rice.amount} {rice.name}. Miešaj 1 minútu, kým budú zrnká na okrajoch priesvitné.", "requires": ["garlic:cut", "rice:raw", "oil:hot", "onion:softened", "siroky_hrniec_s_pokrievkou:occupied"], "produces": ["garlic:toasted", "rice:toasted"]},
+        {"text": "Prilej {rice.water} vody do hrnca. Priveď vodu s ryžou v hrnci na strednom ohni do varu. Prikry hrniec a var ryžu na miernom ohni 15 minút, kým bude takmer mäkká; počas varenia ju dvakrát premiešaj.", "requires": ["rice:toasted", "garlic:toasted", "siroky_hrniec_s_pokrievkou:occupied"], "produces": ["rice:partly_cooked", "onion:cooked", "garlic:cooked", "oil:cooked"]},
+        {"text": "Vmiešaj hrášok a {ham.name} do hrnca. Var ryžu, hrášok a šunku v hrnci na miernom ohni bez pokrievky ďalšie 4 minúty, kým ryža zmäkne, hrášok bude jasne zelený a šunka horúca.", "requires": ["peas:raw", "ham:cut", "rice:partly_cooked", "siroky_hrniec_s_pokrievkou:occupied"], "produces": ["rice:cooked", "peas:cooked", "ham:cooked"]},
+        {"text": "Odstav hrniec z ohňa, vmiešaj {cheese.name} a čierne korenie. Nechaj rizoto 2 minúty prikryté, kým sa syr roztopí a rizoto bude krémové.", "requires": ["cheese:grated", "rice:cooked", "peas:cooked", "ham:cooked", "siroky_hrniec_s_pokrievkou:occupied"], "produces": ["cheese:melted"]},
+        {"text": "Podávaj hráškové rizoto so šunkou horúce a rozdeľ ho na {portions} porcií.", "requires": ["rice:cooked", "ham:cooked", "peas:cooked", "cheese:melted", "onion:cooked", "garlic:cooked", "oil:cooked", "siroky_hrniec_s_pokrievkou:occupied"], "produces": ["rice:served", "ham:served", "peas:served", "cheese:served", "onion:served", "garlic:served", "oil:served", "siroky_hrniec_s_pokrievkou:free"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Rizoto rozprestri do plytkej nádoby, do jednej hodiny ho schlaď a odlož do chladničky. Zjedz ho do 24 hodín a zohrej ho iba raz, kým bude celé horúce."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_pea_ham_risotto",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://realfood.tesco.com/recipes/cheesy-ham-and-pea-risotto.html", "title": "Cheesy ham and pea risotto | Tesco Real Food", "accessed_on": "2026-09-05"},
+      {"url": "https://www.bbcgoodfoodme.com/recipes/cheese-ham-pea-risotto/", "title": "Cheese, ham & pea risotto | Good Food Middle East", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

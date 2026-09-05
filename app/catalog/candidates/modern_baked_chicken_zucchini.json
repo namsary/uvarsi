@@ -1,0 +1,48 @@
+{
+  "recipes": [
+    {
+      "id": "modern_baked_chicken_zucchini",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené kura s cuketou a zemiakmi",
+      "family": "modern_baked_chicken_zucchini",
+      "method": "oven",
+      "minutes": 55,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["plech", "miska", "rúra", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "190", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "pozdĺžne na tenšie plátky"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na menšie kocky"},
+        {"key": "zucchini", "role": "vegetable", "candidates": ["zucchini"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na hrubšie polkolieska"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na mesiačiky"},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na väčšie kúsky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "na mesiačiky"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "pesto", "role": "seasoning", "candidates": ["basil_pesto"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oregano", "role": "seasoning", "candidates": ["oregano"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 200 °C.", "requires": ["rura:free"], "produces": ["rura:hot"]},
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} pozdĺžne na tenšie plátky, {potato.amount} {potato.name} na menšie kocky, {zucchini.amount} {zucchini.name} na hrubšie polkolieska, {tomato.amount} {tomato.name} na mesiačiky a {pepper.amount} {pepper.name} na väčšie kúsky. {onion.amount} {onion.name} nakrájaj na mesiačiky a {garlic.amount} {garlic.name} najemno.", "requires": ["chicken:raw", "potato:raw", "zucchini:raw", "tomato:raw", "pepper:raw", "onion:raw", "garlic:raw"], "produces": ["chicken:cut", "potato:cut", "zucchini:cut", "tomato:cut", "pepper:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Premiešaj v miske {pesto.amount} {pesto.name}, {oregano.amount} {oregano.name}, cesnak, {oil.amount} {oil.name}, soľ a čierne korenie. Kuracie prsia v zmesi dôkladne obaľ.", "requires": ["pesto:raw", "oregano:raw", "garlic:cut", "oil:raw", "chicken:cut", "miska:free"], "produces": ["pesto:seasoned", "oregano:seasoned", "garlic:seasoned", "oil:seasoned", "chicken:seasoned", "miska:occupied"]},
+        {"text": "Rozlož zemiaky, cuketu, paradajky, papriku a cibuľu na plech. Pri väčšej dávke rozdeľ zeleninu do dvoch plechov, aby neležala v hrubej vrstve.", "requires": ["potato:cut", "zucchini:cut", "tomato:cut", "pepper:cut", "onion:cut", "plech:free"], "produces": ["potato:arranged", "zucchini:arranged", "tomato:arranged", "pepper:arranged", "onion:arranged", "plech:occupied"]},
+        {"text": "Peč zemiaky s cuketou na plechu pri 200 °C 15 minút, kým zemiaky začnú mäknúť a okraje zeleniny budú miestami zlatisté.", "requires": ["potato:arranged", "zucchini:arranged", "tomato:arranged", "pepper:arranged", "onion:arranged", "plech:occupied", "rura:hot"], "produces": ["potato:part_cooked", "zucchini:part_cooked", "tomato:part_cooked", "pepper:part_cooked", "onion:part_cooked"]},
+        {"text": "Rozlož kuracie prsia medzi zeleninu. Zvyšok zmesi z misky rozotri po mäse.", "requires": ["chicken:seasoned", "pesto:seasoned", "oregano:seasoned", "garlic:seasoned", "oil:seasoned", "miska:occupied", "plech:occupied"], "produces": ["chicken:arranged", "pesto:arranged", "oregano:arranged", "garlic:arranged", "oil:arranged", "miska:free"]},
+        {"text": "Peč kuracie prsia so zeleninou na plechu pri 200 °C 25 minút, kým budú zemiaky mäkké, mäso zlatisté a po narezaní v strede už nebude ružové.", "requires": ["chicken:arranged", "potato:part_cooked", "zucchini:part_cooked", "tomato:part_cooked", "pepper:part_cooked", "onion:part_cooked", "pesto:arranged", "oregano:arranged", "garlic:arranged", "oil:arranged", "plech:occupied", "rura:hot"], "produces": ["chicken:cooked", "potato:cooked", "zucchini:cooked", "tomato:cooked", "pepper:cooked", "onion:cooked", "pesto:cooked", "oregano:cooked", "garlic:cooked", "oil:cooked"]},
+        {"text": "Nechaj jedlo 5 minút odpočívať a rozdeľ ho na {portions} porcií.", "requires": ["chicken:cooked", "potato:cooked", "zucchini:cooked", "tomato:cooked", "pepper:cooked", "onion:cooked", "pesto:cooked", "oregano:cooked", "garlic:cooked", "oil:cooked", "plech:occupied"], "produces": ["chicken:served", "potato:served", "zucchini:served", "tomato:served", "pepper:served", "onion:served", "pesto:served", "oregano:served", "garlic:served", "oil:served", "plech:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Jedlo rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "modern_baked_chicken_zucchini",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.tesco.sk/hello/recepty/kuracia-zivanska-s-baklazanom-a-cuketou/510518", "title": "Kuracia živánska s baklažánom a cuketou | Hello Tesco", "accessed_on": "2026-09-05"},
+      {"url": "https://www.bbcgoodfood.com/recipes/mediterranean-chicken-roasted-vegetables", "title": "Mediterranean chicken with roasted vegetables recipe | Good Food", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

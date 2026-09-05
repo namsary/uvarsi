@@ -1,0 +1,52 @@
+{
+  "recipes": [
+    {
+      "id": "protein_cottage_lentil_lasagne",
+      "version": 2,
+      "active": true,
+      "name_template": "Šošovicové lasagne s cottage syrom",
+      "family": "protein_cottage_lentil_lasagne",
+      "method": "oven",
+      "minutes": 60,
+      "modes": ["standard", "high_protein", "vegetarian"],
+      "equipment": ["panvica", "zapekacia misa", "rúra", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "cottage", "role": "protein", "candidates": ["cottage_cheese"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": null},
+        {"key": "lentils", "role": "protein", "candidates": ["red_lentils"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "150"},
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.7", "required": true, "use": "addition", "cut": "na menšie kúsky"},
+        {"key": "zucchini", "role": "vegetable", "candidates": ["zucchini"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nahrubo nastrúhaný"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 190 °C.", "requires": ["rura:free"], "produces": ["rura:hot"]},
+        {"text": "Prepláchni {lentils.amount} {lentils.name} v sitku pod studenou vodou.", "requires": ["lentils:raw"], "produces": ["lentils:rinsed"]},
+        {"text": "Nakrájaj {tomato.amount} {tomato.name} a {zucchini.amount} {zucchini.name} na malé kúsky. {onion.amount} {onion.name} nakrájaj nadrobno a {garlic.amount} {garlic.name} najemno.", "requires": ["tomato:raw", "zucchini:raw", "onion:raw", "garlic:raw"], "produces": ["tomato:cut", "zucchini:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Priprav {pasta.amount} {pasta.name}, {cottage.amount} {cottage.name} a {cheese.amount} {cheese.name} na vrstvenie.", "requires": ["pasta:raw", "cottage:raw", "cheese:raw"], "produces": ["pasta:ready", "cottage:ready", "cheese:ready"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "panvica:free"], "produces": ["oil:hot", "panvica:occupied"]},
+        {"text": "Opekaj cibuľu a cuketu v panvici na strednom ohni 5 minút, kým cibuľa zosklovatie a cuketa trochu zmäkne.", "requires": ["onion:cut", "zucchini:cut", "oil:hot", "panvica:occupied"], "produces": ["onion:cooked", "zucchini:partly_cooked"]},
+        {"text": "Premiešaj šošovicu, paradajky a cesnak v panvici.", "requires": ["lentils:rinsed", "tomato:cut", "garlic:cut", "onion:cooked", "zucchini:partly_cooked", "panvica:occupied"], "produces": ["lentils:in_pan", "tomato:in_pan", "garlic:in_pan"]},
+        {"text": "Prilej {lentils.water} vody do panvice.", "requires": ["lentils:in_pan", "tomato:in_pan", "garlic:in_pan", "panvica:occupied"], "produces": ["lentils:covered"]},
+        {"text": "Dus paradajky so šošovicou v panvici na miernom ohni 18 minút, kým šošovica zmäkne a omáčka zhustne.", "requires": ["lentils:covered", "tomato:in_pan", "garlic:in_pan", "onion:cooked", "zucchini:partly_cooked", "panvica:occupied"], "produces": ["lentils:cooked", "tomato:cooked", "garlic:cooked", "onion:finished", "zucchini:cooked", "oil:used"]},
+        {"text": "Rozlož paradajky so šošovicou v tenkej vrstve na dno zapekacej misy. Rozlož na ne časť cestovín a cottage cheese. Vrstvy zopakuj a skonči omáčkou.", "requires": ["lentils:cooked", "tomato:cooked", "garlic:cooked", "onion:finished", "zucchini:cooked", "oil:used", "pasta:ready", "cottage:ready", "zapekacia_misa:free"], "produces": ["lentils:layered", "tomato:layered", "garlic:layered", "onion:layered", "zucchini:layered", "oil:layered", "pasta:layered", "cottage:layered", "zapekacia_misa:occupied", "panvica:free"]},
+        {"text": "Rozlož tvrdý syr na vrch lasagní.", "requires": ["cheese:ready", "zapekacia_misa:occupied"], "produces": ["cheese:layered"]},
+        {"text": "Peč cestoviny so šošovicovou omáčkou v zapekacej mise v rúre pri 190 °C 30 minút, kým bude omáčka pri okrajoch bublať, cestoviny zmäknú a syr zozlatne.", "requires": ["lentils:layered", "tomato:layered", "garlic:layered", "onion:layered", "zucchini:layered", "oil:layered", "pasta:layered", "cottage:layered", "cheese:layered", "zapekacia_misa:occupied", "rura:hot"], "produces": ["lentils:cooked_bake", "tomato:cooked_bake", "garlic:cooked_bake", "onion:cooked_bake", "zucchini:cooked_bake", "oil:cooked_bake", "pasta:cooked", "cottage:cooked", "cheese:cooked"]},
+        {"text": "Nechaj lasagne 10 minút postáť, potom ich rozdeľ na {portions} porcií a podávaj.", "requires": ["lentils:cooked_bake", "tomato:cooked_bake", "garlic:cooked_bake", "onion:cooked_bake", "zucchini:cooked_bake", "oil:cooked_bake", "pasta:cooked", "cottage:cooked", "cheese:cooked", "zapekacia_misa:occupied"], "produces": ["lentils:served", "tomato:served", "garlic:served", "onion:served", "zucchini:served", "oil:served", "pasta:served", "cottage:served", "cheese:served", "zapekacia_misa:free", "rura:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Lasagne nechaj vychladnúť, rozdeľ ich na porcie a najneskôr do 2 hodín odlož do chladničky. Zjedz ich do 3 dní alebo jednotlivé porcie zamraz."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "protein_cottage_lentil_lasagne",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://acooksplot.com/2018-11-01-lentil-lasagne", "title": "Lentil Lasagne | A Cook's Plot", "accessed_on": "2026-09-05"},
+      {"url": "https://thehappyfoodie.co.uk/recipes/cheats-veggie-lasagne/", "title": "Cheat's Veggie Lasagne | The Happy Foodie", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "recipes": [
+    {
+      "id": "quick_shakshuka",
+      "version": 2,
+      "active": true,
+      "name_template": "Šakšuka",
+      "family": "quick_shakshuka",
+      "method": "pan",
+      "minutes": 30,
+      "modes": ["standard", "high_protein", "vegetarian"],
+      "equipment": ["panvica s pokrievkou", "nôž", "doska na krájanie", "strúhadlo", "varecha"],
+      "slots": [
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "3", "unit": "piece", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "300", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "nasekaná"},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "cheese", "role": "protein", "candidates": ["hard_cheese"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nahrubo nastrúhaný"},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "cumin", "role": "seasoning", "candidates": ["cumin"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {pepper.amount} {pepper.name} na malé kocky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno. Priprav {tomato.amount} {tomato.name} a nahrubo nastrúhaj {cheese.amount} {cheese.name}.", "requires": ["pepper:raw", "onion:raw", "garlic:raw", "tomato:raw", "cheese:raw"], "produces": ["pepper:cut", "onion:cut", "garlic:cut", "tomato:prepared", "cheese:grated"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni. Opekaj cibuľu a papriku 5 minút, kým zmäknú.", "requires": ["oil:raw", "onion:cut", "pepper:cut", "panvica_s_pokrievkou:free"], "produces": ["oil:hot", "onion:softened", "pepper:softened", "panvica_s_pokrievkou:occupied"]},
+        {"text": "Prisyp {paprika.amount} {paprika.name} a {cumin.amount} {cumin.name} do panvice, potom vmiešaj cesnak. Miešaj 30 sekúnd, kým sa korenie rozvonia. Vmiešaj paradajky, osoľ ich a okoreň. Var paradajky v panvici na strednom ohni 10 minút, kým omáčka zhustne a začne jemne bublať.", "requires": ["paprika:raw", "cumin:raw", "garlic:cut", "tomato:prepared", "oil:hot", "onion:softened", "pepper:softened", "panvica_s_pokrievkou:occupied"], "produces": ["paprika:cooked", "cumin:cooked", "garlic:cooked", "tomato:thickened", "onion:cooked", "pepper:cooked", "oil:cooked"]},
+        {"text": "Priprav v omáčke jamky a rozklep do nich {egg.amount} {egg.name}. Prikry panvicu a var vajcia na miernom ohni 6 až 8 minút, kým bielky stuhnú.", "requires": ["egg:raw", "tomato:thickened", "panvica_s_pokrievkou:occupied"], "produces": ["egg:cooked"]},
+        {"text": "Pridaj {cheese.name} do panvice. Prikry ju ešte na 1 minútu, kým sa syr začne topiť, potom šakšuku rozdeľ na {portions} porcií a podávaj.", "requires": ["cheese:grated", "egg:cooked", "tomato:thickened", "pepper:cooked", "onion:cooked", "garlic:cooked", "paprika:cooked", "cumin:cooked", "oil:cooked", "panvica_s_pokrievkou:occupied"], "produces": ["egg:served", "tomato:served", "pepper:served", "onion:served", "garlic:served", "cheese:served", "paprika:served", "cumin:served", "oil:served", "panvica_s_pokrievkou:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Zvyšnú šakšuku prelož do plytkej nádoby a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 2 dní a prikrytú ju zohrej, kým bude omáčka aj vajíčka horúce."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_shakshuka",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/shakshuka", "title": "Easy shakshuka recipe | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://realfood.tesco.com/recipes/microwave-shakshuka.html", "title": "Microwave shakshuka | Tesco Real Food", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "recipes": [
+    {
+      "id": "quick_chickpea_tomato_couscous",
+      "version": 2,
+      "active": true,
+      "name_template": "Paradajkový kuskus s cícerom",
+      "family": "quick_chickpea_tomato_couscous",
+      "method": "pan",
+      "minutes": 25,
+      "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["panvica", "miska s pokrievkou", "sitko", "nôž", "doska na krájanie", "vidlička"],
+      "slots": [
+        {"key": "couscous", "role": "starch", "candidates": ["couscous"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "90"},
+        {"key": "chickpeas", "role": "protein", "candidates": ["chickpeas_canned"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kúsky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "cumin", "role": "seasoning", "candidates": ["cumin"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na dieliky"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Sceď a prepláchni {chickpeas.amount} {chickpeas.name}. Nakrájaj {tomato.amount} {tomato.name} na malé kúsky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno. Rozkroj {lemon.amount} {lemon.name} na dieliky.", "requires": ["chickpeas:raw", "tomato:raw", "onion:raw", "garlic:raw", "lemon:raw", "sitko:free"], "produces": ["chickpeas:drained", "tomato:cut", "onion:cut", "garlic:cut", "lemon:cut", "sitko:free"]},
+        {"text": "Vsyp {couscous.amount} {couscous.name} do misky. Nalej {couscous.water} vody do misky; použi čerstvo zovretú vodu. Kuskus jemne osoľ, prikry a nechaj 5 minút napučať, potom ho načechraj vidličkou.", "requires": ["couscous:raw", "miska_s_pokrievkou:free"], "produces": ["couscous:cooked", "miska_s_pokrievkou:occupied"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici. Cibuľu opekaj na strednom ohni 4 minúty, kým zmäkne.", "requires": ["oil:raw", "onion:cut", "panvica:free"], "produces": ["oil:hot", "onion:softened", "panvica:occupied"]},
+        {"text": "Prisyp {cumin.amount} {cumin.name} do panvice. Pridaj cesnak do panvice. Miešaj 30 sekúnd. Vmiešaj cícer a paradajky do panvice. Opekaj cícer a paradajky v panvici na strednom ohni 6 minút, kým paradajky zmäknú a cícer bude horúci.", "requires": ["cumin:raw", "garlic:cut", "chickpeas:drained", "tomato:cut", "oil:hot", "onion:softened", "panvica:occupied"], "produces": ["cumin:cooked", "garlic:cooked", "chickpeas:cooked", "tomato:cooked", "onion:cooked", "oil:cooked"]},
+        {"text": "Odstav panvicu, vytlač do nej citrónovú šťavu a primiešaj kuskus. Dochuť soľou a čiernym korením.", "requires": ["lemon:cut", "couscous:cooked", "cumin:cooked", "garlic:cooked", "chickpeas:cooked", "tomato:cooked", "onion:cooked", "oil:cooked", "panvica:occupied", "miska_s_pokrievkou:occupied"], "produces": ["lemon:mixed", "couscous:mixed", "chickpeas:mixed", "tomato:mixed", "onion:mixed", "garlic:mixed", "cumin:mixed", "oil:mixed", "miska_s_pokrievkou:free"]},
+        {"text": "Podávaj paradajkový kuskus s cícerom teplý alebo pri izbovej teplote a rozdeľ ho na {portions} porcií.", "requires": ["couscous:mixed", "chickpeas:mixed", "tomato:mixed", "onion:mixed", "garlic:mixed", "cumin:mixed", "lemon:mixed", "oil:mixed", "panvica:occupied"], "produces": ["couscous:served", "chickpeas:served", "tomato:served", "onion:served", "garlic:served", "cumin:served", "lemon:served", "oil:served", "panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Kuskus rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní studený alebo ho raz zohrej, kým bude celý horúci."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_chickpea_tomato_couscous",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.epicurious.com/recipes/food/views/couscous-with-chick-peas-and-tomatoes-2709", "title": "Couscous with Chick-Peas and Tomatoes Recipe | Epicurious", "accessed_on": "2026-09-05"},
+      {"url": "https://www.boylefrc.ie/uploadedfiles/Roast%20Cherry%20Tomato%20%20Chickpea%20Couscous.pdf", "title": "Roast Cherry Tomato & Chickpea Couscous | Boyle Family Resource Centre", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "recipes": [
+    {
+      "id": "plant_tofu_coconut_curry",
+      "version": 2,
+      "active": true,
+      "name_template": "Tofu kari s kokosovým mliekom",
+      "family": "plant_tofu_coconut_curry",
+      "method": "pan",
+      "minutes": 35,
+      "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["hlboká panvica s pokrievkou", "hrniec", "tanier", "sitko", "nôž", "doska na krájanie", "varecha"],
+      "slots": [
+        {"key": "tofu", "role": "protein", "candidates": ["tofu"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na kocky"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "120"},
+        {"key": "coconut", "role": "dairy", "candidates": ["coconut_milk"], "amount_per_adult": "70", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "broccoli", "role": "vegetable", "candidates": ["broccoli"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé ružičky"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na tenké kolieska"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "curry", "role": "seasoning", "candidates": ["curry_powder"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.35", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "6", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku. Nalej {rice.water} vody do hrnca. Vsyp ryžu do hrnca. Osoľ ju.", "requires": ["rice:raw", "sitko:free", "hrniec:free"], "produces": ["rice:ready", "sitko:free", "hrniec:occupied"]},
+        {"text": "Priveď ryžu v hrnci do varu, prikry ju a var na miernom ohni 15 minút, kým zmäkne a vsiakne vodu. Potom ju odstav.", "requires": ["rice:ready", "hrniec:occupied"], "produces": ["rice:cooked", "hrniec:free"]},
+        {"text": "Osuš {tofu.amount} {tofu.name} a nakrájaj ho na kocky. Rozober {broccoli.amount} {broccoli.name} na malé ružičky, {carrot.amount} {carrot.name} nakrájaj na tenké kolieska, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno.", "requires": ["tofu:raw", "broccoli:raw", "carrot:raw", "onion:raw", "garlic:raw"], "produces": ["tofu:cut", "broccoli:cut", "carrot:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v hlbokej panvici. Tofu opekaj na strednom ohni 7 až 8 minút a priebežne ho obracaj, kým bude z viacerých strán zlatisté.", "requires": ["oil:raw", "tofu:cut", "hlboka_panvica_s_pokrievkou:free", "tanier:free"], "produces": ["oil:hot", "tofu:browned", "hlboka_panvica_s_pokrievkou:occupied"]},
+        {"text": "Vyber tofu na tanier. Do panvice daj cibuľu, mrkvu a brokolicu a opekaj ich na strednom ohni 5 minút, kým trochu zmäknú.", "requires": ["tofu:browned", "oil:hot", "onion:cut", "carrot:cut", "broccoli:cut", "hlboka_panvica_s_pokrievkou:occupied", "tanier:free"], "produces": ["tofu:resting", "onion:softened", "carrot:softened", "broccoli:softened", "tanier:occupied"]},
+        {"text": "Prisyp {curry.amount} {curry.name} do panvice. Pridaj cesnak do panvice. Miešaj 30 sekúnd, kým sa korenie rozvonia.", "requires": ["curry:raw", "garlic:cut", "onion:softened", "carrot:softened", "broccoli:softened", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["curry:toasted", "garlic:cooked"]},
+        {"text": "Vráť tofu do panvice. Prilej {coconut.amount} {coconut.name} do panvice. Prikry ju a var kari na miernom ohni 6 minút, kým brokolica zmäkne, ale zostane pevná, a omáčka začne jemne bublať.", "requires": ["tofu:resting", "coconut:raw", "curry:toasted", "garlic:cooked", "onion:softened", "carrot:softened", "broccoli:softened", "hlboka_panvica_s_pokrievkou:occupied", "tanier:occupied"], "produces": ["tofu:cooked", "coconut:cooked", "curry:cooked", "garlic:finished", "onion:cooked", "carrot:cooked", "broccoli:cooked", "oil:cooked", "tanier:free"]},
+        {"text": "Dochuť kari soľou a čiernym korením. Podávaj ho s ryžou a jedlo rozdeľ na {portions} porcií.", "requires": ["tofu:cooked", "coconut:cooked", "curry:cooked", "garlic:finished", "onion:cooked", "carrot:cooked", "broccoli:cooked", "oil:cooked", "rice:cooked", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["tofu:served", "coconut:served", "curry:served", "garlic:served", "onion:served", "carrot:served", "broccoli:served", "oil:served", "rice:served", "hlboka_panvica_s_pokrievkou:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Kari a ryžu rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a pri ohrievaní ich dôkladne prehrej."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "plant_tofu_coconut_curry",
+    "editorial_lane": "plant_based",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/tofu-curry", "title": "Tofu curry", "accessed_on": "2026-09-05"},
+      {"url": "https://gymbeam.sk/blog/fitness-recept-veganske-kari-s-tofu-a-cicerom/", "title": "Fitness recept: Vegánske kari s tofu a cícerom", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

@@ -547,6 +547,39 @@ def _failure_code(
     return "insufficient_offers"
 
 
+def _primary_protein_id(candidate: RecipeCandidate) -> str | None:
+    protein_rows = tuple(
+        selection
+        for selection in candidate.selections
+        if selection.slot.required and selection.slot.role == "protein"
+    )
+    if not protein_rows:
+        return None
+    main_rows = tuple(
+        selection for selection in protein_rows if selection.slot.use == "main"
+    )
+    return (main_rows or protein_rows)[0].ingredient.id
+
+
+def _prefer_a_different_primary_protein(
+    ranked_candidates: Sequence[_RankedRenderableMeal],
+    previous_protein: str | None,
+) -> tuple[_RankedRenderableMeal, ...]:
+    if previous_protein is None:
+        return tuple(ranked_candidates)
+    different = tuple(
+        item
+        for item in ranked_candidates
+        if _primary_protein_id(item.candidate) != previous_protein
+    )
+    repeated = tuple(
+        item
+        for item in ranked_candidates
+        if _primary_protein_id(item.candidate) == previous_protein
+    )
+    return (*different, *repeated)
+
+
 def _select_week(
     *,
     days: Sequence[str],
@@ -567,6 +600,7 @@ def _select_week(
     )
 
     available_methods = set()
+    available_families = set()
     for index, day in enumerate(days):
         coverage = days_covered_by_meal(frequency, day)
         stabilized = (
@@ -588,27 +622,34 @@ def _select_week(
             if pantry_driven
             else None
         )
-        available_methods.update(
-            candidate.template.method
-            for candidate in _rank_for_day(
+        if stabilized is not None:
+            renderable = stabilized.rankings[0].candidates
+        else:
+            renderable = _ranked_renderable_for_day(
+                day=day,
+                coverage=coverage,
                 templates=templates,
                 offers=offers,
                 balances=initial_balances,
-                pantry_driven=pantry_driven,
                 mode=mode,
-                seed=f"{seed}:{week}:{day}",
+                seed=seed,
+                week=week,
                 ingredient_catalog=ingredient_catalog,
                 adults=adults,
                 children=children,
-                covered_days=coverage,
-                required_reserve=(
-                    stabilized.reserve if stabilized is not None else {}
-                ),
                 recent_families=(),
                 recent_methods=(),
-            )
+                required_reserve={},
+                pantry_driven=False,
+            ).candidates
+        available_methods.update(
+            item.candidate.template.method for item in renderable
+        )
+        available_families.update(
+            item.candidate.template.family for item in renderable
         )
     require_three_methods = len(available_methods) >= 3
+    require_three_families = len(available_families) >= 3
 
     def search(
         index: int,
@@ -618,6 +659,10 @@ def _select_week(
         if index == len(days):
             if require_three_methods and len(
                 {item.candidate.template.method for item in selected}
+            ) < 3:
+                return None
+            if require_three_families and len(
+                {item.candidate.template.family for item in selected}
             ) < 3:
                 return None
             return selected
@@ -670,7 +715,12 @@ def _select_week(
                 pantry_driven=False,
             ).candidates
 
-        for ranked in ranked_candidates:
+        previous_protein = (
+            _primary_protein_id(selected[-1].candidate) if selected else None
+        )
+        for ranked in _prefer_a_different_primary_protein(
+            ranked_candidates, previous_protein
+        ):
             candidate = ranked.candidate
             if selected:
                 previous = selected[-1].candidate.template

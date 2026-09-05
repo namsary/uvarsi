@@ -1,0 +1,41 @@
+{
+  "recipes": [
+    {
+      "id": "protein_egg_cottage_salad",
+      "version": 2,
+      "active": true,
+      "name_template": "Vajíčkový šalát s cottage syrom",
+      "family": "protein_egg_cottage_salad",
+      "method": "salad",
+      "minutes": 20,
+      "modes": ["standard", "high_protein", "vegetarian"],
+      "equipment": ["hrniec", "misa", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "3", "unit": "piece", "child_factor": "0.5", "required": true, "use": "main", "cut": "nahrubo"},
+        {"key": "cottage", "role": "protein", "candidates": ["cottage_cheese"], "amount_per_adult": "170", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "cucumber", "role": "vegetable", "candidates": ["cucumber"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na menšie kúsky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": "najemno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Priprav hrniec so studenou vodou.", "requires": ["hrniec:free"], "produces": ["hrniec:ready"]},
+        {"text": "Vlož {egg.amount} {egg.name} do hrnca. Priveď vodu v hrnci na silnom ohni do varu a potom vajcia var na miernom ohni 9 minút, kým bielky aj žĺtky úplne stuhnú.", "requires": ["egg:raw", "hrniec:ready"], "produces": ["egg:cooked", "hrniec:occupied"]},
+        {"text": "Priprav uvarené vajcia na krájanie: schlaď ich v studenej vode, ošúp a nakrájaj nahrubo.", "requires": ["egg:cooked", "hrniec:occupied"], "produces": ["egg:cut", "hrniec:free"]},
+        {"text": "Nakrájaj {cucumber.amount} {cucumber.name} na malé kocky, {tomato.amount} {tomato.name} na menšie kúsky a {onion.amount} {onion.name} najemno.", "requires": ["cucumber:raw", "tomato:raw", "onion:raw"], "produces": ["cucumber:cut", "tomato:cut", "onion:cut"]},
+        {"text": "Premiešaj {cottage.amount} {cottage.name} v mise s vajcami, uhorkou, paradajkami a cibuľou. Šalát osoľ a okoreň.", "requires": ["cottage:raw", "egg:cut", "cucumber:cut", "tomato:cut", "onion:cut", "misa:free"], "produces": ["cottage:mixed", "egg:mixed", "cucumber:mixed", "tomato:mixed", "onion:mixed", "misa:occupied"]},
+        {"text": "Rozdeľ vajíčkový šalát na {portions} porcií a podávaj ho hneď alebo vychladený.", "requires": ["cottage:mixed", "egg:mixed", "cucumber:mixed", "tomato:mixed", "onion:mixed", "misa:occupied"], "produces": ["cottage:served", "egg:served", "cucumber:served", "tomato:served", "onion:served", "misa:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Šalát odlož do uzatvárateľnej nádoby v chladničke hneď po príprave. Zjedz ho do 3 dní a mimo chladničky ho nenechávaj dlhšie než 2 hodiny."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "protein_egg_cottage_salad",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://thebalancednutritionist.com/cottage-cheese-egg-salad/", "title": "Cottage Cheese Egg Salad - The Balanced Nutritionist", "accessed_on": "2026-09-05"},
+      {"url": "https://reallifenutritionist.com/cottage-cheese-egg-salad/", "title": "High Protein Cottage Cheese Egg Salad - Real Life Nutritionist", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

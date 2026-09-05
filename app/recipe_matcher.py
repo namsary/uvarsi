@@ -497,8 +497,9 @@ def rank_candidates(
     ingredient_catalog: IngredientCatalog | Mapping[str, Ingredient] | None = None,
     recent_families: Iterable[str] = (),
     recent_methods: Iterable[str] = (),
+    curated_ids: Iterable[str] = (),
 ) -> Sequence[RecipeCandidate]:
-    """Return compatible candidates ordered by score and stable SHA-256 key."""
+    """Return compatible candidates ordered by score, curation and stable key."""
     offer_rows = tuple(offers)
     offers_by_ingredient: dict[str, list[MatchedOffer]] = {}
     for offer in offer_rows:
@@ -507,6 +508,7 @@ def rank_candidates(
     ingredients = _ingredient_index(offer_rows, ingredient_catalog)
     family_history = frozenset(recent_families)
     method_history = frozenset(recent_methods)
+    curated = frozenset(curated_ids)
     candidates = []
 
     for recipe in templates:
@@ -567,4 +569,13 @@ def rank_candidates(
             )
         )
 
-    return tuple(sorted(candidates, key=lambda item: (-item.score, item.key)))
+    return tuple(
+        sorted(
+            candidates,
+            key=lambda item: (
+                -item.score,
+                item.template.id not in curated,
+                item.key,
+            ),
+        )
+    )

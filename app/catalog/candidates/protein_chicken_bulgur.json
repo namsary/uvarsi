@@ -1,0 +1,43 @@
+{
+  "recipes": [
+    {
+      "id": "protein_chicken_bulgur",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuracie bulguroto",
+      "family": "protein_chicken_bulgur",
+      "method": "one_pot",
+      "minutes": 35,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľký hrniec", "misa", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na menšie kúsky"},
+        {"key": "bulgur", "role": "starch", "candidates": ["bulgur"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "150"},
+        {"key": "zucchini", "role": "vegetable", "candidates": ["zucchini"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} na menšie kúsky, {zucchini.amount} {zucchini.name} a {carrot.amount} {carrot.name} na malé kocky a {onion.amount} {onion.name} nadrobno.", "requires": ["chicken:raw", "zucchini:raw", "carrot:raw", "onion:raw"], "produces": ["chicken:cut", "zucchini:cut", "carrot:cut", "onion:cut"]},
+        {"text": "Priprav si {bulgur.amount} {bulgur.name} a {bulgur.water} vody.", "requires": ["bulgur:raw"], "produces": ["bulgur:measured"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj kuracie prsia 6 minút, kým budú na povrchu zlatisté. Pri väčšej dávke ich opeč po častiach a odlož do misy.", "requires": ["oil:raw", "chicken:cut", "velky_hrniec:free", "misa:free"], "produces": ["oil:used", "chicken:browned", "velky_hrniec:occupied", "misa:occupied"]},
+        {"text": "Pridaj cibuľu a mrkvu do hrnca. Opekaj cibuľu s mrkvou na strednom ohni 5 minút, kým cibuľa zosklovatie a mrkva trochu zmäkne.", "requires": ["onion:cut", "carrot:cut", "oil:used", "velky_hrniec:occupied"], "produces": ["onion:cooked", "carrot:softened"]},
+        {"text": "Prisyp bulgur do hrnca. Prilej vodu do hrnca. Vráť kuracie mäso do hrnca, prikry ho a var jedlo na miernom ohni 12 minút, kým bulgur zmäkne a vsiakne väčšinu vody.", "requires": ["bulgur:measured", "chicken:browned", "onion:cooked", "carrot:softened", "velky_hrniec:occupied", "misa:occupied"], "produces": ["bulgur:cooked", "chicken:cooked", "onion:cooked_with_bulgur", "carrot:cooked", "misa:free"]},
+        {"text": "Vmiešaj cuketu do hrnca. Var bulgur na miernom ohni ešte 5 minút, kým cuketa zmäkne a kuracie mäso nebude v strede ružové.", "requires": ["zucchini:cut", "bulgur:cooked", "chicken:cooked", "onion:cooked_with_bulgur", "carrot:cooked", "velky_hrniec:occupied"], "produces": ["zucchini:cooked", "bulgur:finished", "chicken:finished"]},
+        {"text": "Dochuť bulguroto soľou a čiernym korením. Rozdeľ ho na {portions} porcií a podávaj teplé.", "requires": ["bulgur:finished", "chicken:finished", "zucchini:cooked", "onion:cooked_with_bulgur", "carrot:cooked", "oil:used", "velky_hrniec:occupied"], "produces": ["bulgur:served", "chicken:served", "zucchini:served", "onion:served", "carrot:served", "oil:served", "velky_hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Bulguroto rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní a pred podávaním ho dôkladne zohrej."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "protein_chicken_bulgur",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://aktin.cz/bulgureto-s-kurecim-masem", "title": "Bulgureto s kuřecím masem | Aktin recepty", "accessed_on": "2026-09-05"},
+      {"url": "https://www.bbcgoodfood.com/recipes/harissa-spiced-chicken-bulgur-wheat", "title": "Harissa-spiced chicken with bulgur wheat recipe | Good Food", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 import math
 import re
@@ -492,6 +492,54 @@ def test_fixture_matrix_really_covers_required_boundaries():
     assert {frequency for _, frequency, _, _ in HOUSEHOLD_MATRIX} == {1, 2, 3}
     assert {mode for _, _, mode, _ in HOUSEHOLD_MATRIX} == set(ALLOWED_MODES)
     assert {state for _, _, _, state in HOUSEHOLD_MATRIX} == set(PANTRY_STATES)
+
+
+def test_full_week_uses_three_families_methods_and_alternating_primary_proteins(
+    invariant_fixture,
+):
+    protein_by_template = {}
+    templates = []
+    proteins = ("chicken_breast", "chicken_thigh_meat")
+    for index in range(6):
+        template = _template("high_protein", index)
+        protein_id = proteins[index % len(proteins)]
+        main_slot = replace(template.slots[0], candidates=(protein_id,))
+        template = replace(
+            template,
+            id=f"diverse-high-protein-{index}",
+            family=f"diverse-family-{index % 3}",
+            slots=(main_slot, *template.slots[1:]),
+        )
+        templates.append(template)
+        protein_by_template[template.id] = protein_id
+
+    plan = build_deterministic_plan(
+        week=WEEK,
+        rows=invariant_fixture.rows,
+        stores=STORES,
+        adults=2,
+        children=2,
+        frequency=1,
+        pantry=(),
+        pantry_driven=False,
+        mode="high_protein",
+        seed="diverse-seven-day-week",
+        ingredient_catalog=load_ingredient_catalog(),
+        recipe_catalog=RecipeCatalog(7001, tuple(templates)),
+    )
+
+    chosen = [
+        next(item for item in templates if item.id == meal["recept"]["template_id"])
+        for meal in plan["jedla"]
+    ]
+    proteins_in_order = [protein_by_template[item.id] for item in chosen]
+
+    assert len({item.family for item in chosen}) >= 3
+    assert len({item.method for item in chosen}) >= 3
+    assert all(
+        current != following
+        for current, following in zip(proteins_in_order, proteins_in_order[1:])
+    )
 
 
 def test_fixture_exercises_required_optional_and_alternative_slots(

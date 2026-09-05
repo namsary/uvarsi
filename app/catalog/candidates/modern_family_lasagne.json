@@ -1,0 +1,52 @@
+{
+  "recipes": [
+    {
+      "id": "modern_family_lasagne",
+      "version": 2,
+      "active": true,
+      "name_template": "Rodinné lasagne",
+      "family": "modern_family_lasagne",
+      "method": "oven",
+      "minutes": 75,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľký hrniec", "pekáč", "miska", "rúra", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "beef", "role": "protein", "candidates": ["beef_mince"], "amount_per_adult": "170", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": null},
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "90", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "30"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "nahrubo"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "60", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "mozzarella", "role": "dairy", "candidates": ["mozzarella"], "amount_per_adult": "45", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nahrubo nastrúhaná"},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno nastrúhaný"},
+        {"key": "oregano", "role": "seasoning", "candidates": ["oregano"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 190 °C.", "requires": ["rura:free"], "produces": ["rura:hot"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} a {garlic.amount} {garlic.name} nadrobno, {carrot.amount} {carrot.name} najemno a nastrúhaj {mozzarella.amount} {mozzarella.name} aj {cheese.amount} {cheese.name}.", "requires": ["onion:raw", "garlic:raw", "carrot:raw", "mozzarella:raw", "cheese:raw"], "produces": ["onion:cut", "garlic:cut", "carrot:cut", "mozzarella:grated", "cheese:grated"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "velky_hrniec:free"], "produces": ["oil:heated", "velky_hrniec:hot"]},
+        {"text": "Opekaj {beef.amount} {beef.name} vo veľkom hrnci na strednom ohni 8 minút, kým sa rozdelí na drobné kúsky a bude zlatisté. Pri väčšej dávke mäso opekaj po častiach.", "requires": ["beef:raw", "oil:heated", "velky_hrniec:hot"], "produces": ["beef:browned", "oil:used"]},
+        {"text": "Pridaj cibuľu, mrkvu a cesnak do veľkého hrnca. Opekaj cibuľu s mrkvou, cesnakom a mäsom vo veľkom hrnci na strednom ohni 6 minút, kým cibuľa zmäkne.", "requires": ["onion:cut", "carrot:cut", "garlic:cut", "beef:browned", "velky_hrniec:hot"], "produces": ["onion:cooked", "carrot:cooked", "garlic:cooked"]},
+        {"text": "Pridaj {tomato.amount} {tomato.name} a {oregano.amount} {oregano.name} do hrnca. Var paradajky s mletým hovädzím mäsom vo veľkom hrnci bez pokrievky na miernom ohni 25 minút, kým omáčka jemne bublá a zhustne.", "requires": ["tomato:raw", "oregano:raw", "beef:browned", "onion:cooked", "carrot:cooked", "garlic:cooked", "velky_hrniec:hot"], "produces": ["tomato:sauce", "oregano:sauce", "beef:sauce", "onion:sauce", "carrot:sauce", "garlic:sauce", "velky_hrniec:free"]},
+        {"text": "Premiešaj v miske {cream.amount} {cream.name} s {pasta.water} vody, štipkou soli a čierneho korenia.", "requires": ["cream:raw", "miska:free"], "produces": ["cream:mixed", "miska:occupied"]},
+        {"text": "Rozlož tretinu mletého hovädzieho mäsa s paradajkami do pekáča. Prikry ho časťou {pasta.amount} {pasta.name} a polej smotanovou zmesou. Vrstvy zopakuj, kým spotrebuješ omáčku aj cestoviny. Pri väčšej dávke rozdeľ všetko do dvoch pekáčov, aby lasagne neboli príliš vysoké.", "requires": ["beef:sauce", "tomato:sauce", "onion:sauce", "carrot:sauce", "garlic:sauce", "oregano:sauce", "pasta:raw", "cream:mixed", "miska:occupied", "pekac:free"], "produces": ["beef:arranged", "tomato:arranged", "onion:arranged", "carrot:arranged", "garlic:arranged", "oregano:arranged", "pasta:arranged", "cream:arranged", "miska:free", "pekac:occupied"]},
+        {"text": "Rozlož mozzarellu a tvrdý syr po povrchu lasagní.", "requires": ["mozzarella:grated", "cheese:grated", "pekac:occupied"], "produces": ["mozzarella:arranged", "cheese:arranged"]},
+        {"text": "Peč cestoviny s mletým hovädzím mäsom v pekáči pri 190 °C 35 minút, kým bude omáčka na okrajoch bublať, cestoviny zmäknú a syr bude zlatistý.", "requires": ["beef:arranged", "tomato:arranged", "onion:arranged", "carrot:arranged", "garlic:arranged", "oregano:arranged", "pasta:arranged", "cream:arranged", "mozzarella:arranged", "cheese:arranged", "pekac:occupied", "rura:hot"], "produces": ["beef:cooked", "tomato:cooked", "onion:cooked_final", "carrot:cooked_final", "garlic:cooked_final", "oregano:cooked", "pasta:cooked", "cream:cooked", "mozzarella:cooked", "cheese:cooked"]},
+        {"text": "Nechaj lasagne 10 minút odpočívať a rozdeľ ich na {portions} porcií.", "requires": ["beef:cooked", "tomato:cooked", "onion:cooked_final", "carrot:cooked_final", "garlic:cooked_final", "oregano:cooked", "pasta:cooked", "cream:cooked", "mozzarella:cooked", "cheese:cooked", "oil:used", "pekac:occupied"], "produces": ["beef:served", "tomato:served", "onion:served", "carrot:served", "garlic:served", "oregano:served", "pasta:served", "cream:served", "mozzarella:served", "cheese:served", "oil:served", "pekac:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Lasagne rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "modern_family_lasagne",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://realfood.tesco.com/recipes/dan-and-liams-made-for-you-lasagne.html", "title": "Dan and Liam’s ‘made for you’ lasagne | Tesco Real Food", "accessed_on": "2026-09-05"},
+      {"url": "https://www.bbcgoodfood.com/recipes/classic-lasagne", "title": "Easy classic lasagne recipe | Good Food", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

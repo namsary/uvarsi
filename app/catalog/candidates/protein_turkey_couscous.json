@@ -1,0 +1,42 @@
+{
+  "recipes": [
+    {
+      "id": "protein_turkey_couscous",
+      "version": 2,
+      "active": true,
+      "name_template": "Morčací kuskus so zeleninou",
+      "family": "protein_turkey_couscous",
+      "method": "pan",
+      "minutes": 30,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["panvica", "hrniec", "misa", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "turkey", "role": "protein", "candidates": ["turkey_mince"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "couscous", "role": "starch", "candidates": ["couscous"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "85"},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kúsky"},
+        {"key": "zucchini", "role": "vegetable", "candidates": ["zucchini"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kúsky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {pepper.amount} {pepper.name} a {zucchini.amount} {zucchini.name} na malé kúsky a {onion.amount} {onion.name} nadrobno. Priprav si {turkey.amount} {turkey.name}.", "requires": ["pepper:raw", "zucchini:raw", "onion:raw", "turkey:raw"], "produces": ["pepper:cut", "zucchini:cut", "onion:cut", "turkey:ready"]},
+        {"text": "Nalej {couscous.water} vody do hrnca a priveď ju na silnom ohni do varu. Odstav hrniec, nasyp doň {couscous.amount} {couscous.name}, prikry ho a nechaj kuskus 8 minút napučať, kým zmäkne a vsiakne vodu.", "requires": ["couscous:raw", "hrniec:free"], "produces": ["couscous:hydrated", "hrniec:occupied"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj cibuľu 4 minúty, kým zosklovatie.", "requires": ["oil:raw", "onion:cut", "panvica:free"], "produces": ["oil:used", "onion:cooked", "panvica:occupied"]},
+        {"text": "Pridaj mleté morčacie mäso do panvice, rozdeľ ho vareškou na menšie kúsky a opekaj na strednom ohni 7 minút, kým bude mäso zlatisté a nezostanú v ňom ružové miesta. Pri väčšej dávke mäso opeč po častiach.", "requires": ["turkey:ready", "onion:cooked", "oil:used", "panvica:occupied"], "produces": ["turkey:cooked"]},
+        {"text": "Prisyp papriku a cuketu do panvice. Opekaj papriku s cuketou a morčacím mäsom na strednom ohni 6 minút, kým zelenina zmäkne, ale stále si zachová tvar.", "requires": ["pepper:cut", "zucchini:cut", "turkey:cooked", "panvica:occupied"], "produces": ["pepper:cooked", "zucchini:cooked"]},
+        {"text": "Premiešaj kuskus vidličkou, aby bol sypký, a spoj ho v mise s morčacím mäsom a zeleninou. Jedlo osoľ, okoreň a rozdeľ na {portions} porcií.", "requires": ["couscous:hydrated", "turkey:cooked", "pepper:cooked", "zucchini:cooked", "onion:cooked", "oil:used", "misa:free", "hrniec:occupied", "panvica:occupied"], "produces": ["couscous:served", "turkey:served", "pepper:served", "zucchini:served", "onion:served", "oil:served", "misa:occupied", "hrniec:free", "panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Hotové jedlo rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní a pred podávaním ho dôkladne zohrej."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "protein_turkey_couscous",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfoodme.com/recipes/quick-turkey-couscous/", "title": "Quick turkey couscous - Good Food Middle East", "accessed_on": "2026-09-05"},
+      {"url": "https://goodgather.co.uk/recipes/turkey-and-roasted-veg-couscous.html", "title": "Turkey & roasted veg couscous recipe | GoodGather", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

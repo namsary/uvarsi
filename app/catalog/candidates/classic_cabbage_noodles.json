@@ -10,7 +10,8 @@
       "minutes": 40,
       "modes": [
         "standard",
-        "vegetarian"
+        "vegetarian",
+        "vegan"
       ],
       "equipment": [
         "veľký hrniec",

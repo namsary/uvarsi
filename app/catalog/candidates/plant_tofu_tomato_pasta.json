@@ -1,0 +1,30 @@
+{
+  "recipes": [{
+    "id": "plant_tofu_tomato_pasta", "version": 2, "active": true,
+    "name_template": "Cestoviny s paradajkovo-tofu omáčkou", "family": "plant_tofu_tomato_pasta", "method": "pot", "minutes": 30,
+    "modes": ["standard", "vegetarian", "vegan"],
+    "equipment": ["hrniec", "hlboká panvica", "sitko", "nôž", "doska na krájanie", "varecha"],
+    "slots": [
+      {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+      {"key": "tofu", "role": "protein", "candidates": ["tofu"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "rozmrvené"},
+      {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "nahrubo"},
+      {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "45", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+      {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+      {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "7", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+    ],
+    "pantry_basics": ["water", "salt", "black_pepper"],
+    "instructions": [
+      {"text": "Nakrájaj {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno. Rozdrv {tofu.amount} {tofu.name} vidličkou na drobné kúsky.", "requires": ["onion:raw", "garlic:raw", "tofu:raw"], "produces": ["onion:cut", "garlic:cut", "tofu:crumbled"]},
+      {"text": "Uvar {pasta.amount} {pasta.name} v hrnci v osolenej vode na strednom ohni 8 až 12 minút podľa obalu, kým budú mäkké na zahryznutie. Pred scedením si odlož trochu vody z varenia.", "requires": ["pasta:raw", "hrniec:free"], "produces": ["pasta:cooked", "hrniec:free"]},
+      {"text": "Rozohrej {oil.amount} {oil.name} v hlbokej panvici. Cibuľu opekaj na strednom ohni 4 minúty, kým zmäkne.", "requires": ["oil:raw", "onion:cut", "hlboka_panvica:free"], "produces": ["oil:hot", "onion:softened", "hlboka_panvica:occupied"]},
+      {"text": "Pridaj cesnak a tofu do panvice. Opekaj cesnak s tofu v panvici na strednom ohni 5 minút, kým bude tofu miestami zlatisté.", "requires": ["garlic:cut", "tofu:crumbled", "oil:hot", "onion:softened", "hlboka_panvica:occupied"], "produces": ["garlic:cooked", "tofu:browned", "onion:cooked", "oil:cooked"]},
+      {"text": "Vmiešaj {tomato.amount} {tomato.name}. Var paradajky s tofu v panvici na miernom ohni 10 minút, kým omáčka začne jemne bublať a bude hustejšia. Ak je príliš hustá, prilej vodu do panvice.", "requires": ["tomato:raw", "tofu:browned", "garlic:cooked", "onion:cooked", "oil:cooked", "hlboka_panvica:occupied"], "produces": ["tomato:cooked", "tofu:cooked"]},
+      {"text": "Vmiešaj cestoviny do panvice, dochuť ich soľou a čiernym korením a rozdeľ na {portions} porcií.", "requires": ["pasta:cooked", "tomato:cooked", "tofu:cooked", "garlic:cooked", "onion:cooked", "oil:cooked", "hlboka_panvica:occupied"], "produces": ["pasta:served", "tomato:served", "tofu:served", "garlic:served", "onion:served", "oil:served", "hlboka_panvica:free"]}
+    ],
+    "storage": {"refrigerated_days": 3, "instruction": "Cestoviny rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a zohrej ich, kým budú celé horúce."}
+  }],
+  "source_record": {"recipe_id": "plant_tofu_tomato_pasta", "editorial_lane": "plant_based", "core": true, "references": [
+    {"url": "https://veganuary.com/recipes/creamy-vegan-tofu-tomato-pasta-sauce/", "title": "Creamy Vegan Tofu & Tomato Pasta Sauce", "accessed_on": "2026-09-05"},
+    {"url": "https://simpleveganizer.com/easy-tofu-tomato-pasta-recipe-vegan-wfpb/", "title": "Easy Tofu Tomato Pasta Recipe (Vegan, WFPB)", "accessed_on": "2026-09-05"}
+  ]}
+}

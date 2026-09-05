@@ -489,6 +489,29 @@ def test_same_seed_and_input_produce_same_hash_order(ingredients):
     assert [candidate.key for candidate in second] == expected_keys
 
 
+def test_curated_candidate_wins_an_equal_score_without_changing_eligibility(
+    ingredients,
+):
+    rice = ingredients.by_id("rice")
+    legacy = template("legacy", [slot([rice.id], role="starch")])
+    curated = template("curated", [slot([rice.id], role="starch")])
+
+    candidates = rank_candidates(
+        [legacy, curated],
+        [offer(rice)],
+        (),
+        "standard",
+        "week-1",
+        curated_ids={"curated"},
+    )
+
+    assert [candidate.template.id for candidate in candidates] == [
+        "curated",
+        "legacy",
+    ]
+    assert candidates[0].score == candidates[1].score
+
+
 def test_high_protein_mode_discards_selection_below_thirty_grams(ingredients):
     rice = ingredients.by_id("rice")
     chicken = ingredients.by_id("chicken_breast")

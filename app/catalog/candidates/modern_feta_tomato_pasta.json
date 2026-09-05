@@ -1,0 +1,43 @@
+{
+  "recipes": [
+    {
+      "id": "modern_feta_tomato_pasta",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené cestoviny s fetou a paradajkami",
+      "family": "modern_feta_tomato_pasta",
+      "method": "oven",
+      "minutes": 45,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["pekáč", "rúra", "hrniec", "sitko", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "85", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "25"},
+        {"key": "feta", "role": "dairy", "candidates": ["feta"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "230", "unit": "g", "child_factor": "0.7", "required": true, "use": "main", "cut": "na polovice alebo menšie kúsky"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oregano", "role": "seasoning", "candidates": ["oregano"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 200 °C. Nakrájaj {tomato.amount} {tomato.name} na polovice alebo menšie kúsky a {garlic.amount} {garlic.name} najemno.", "requires": ["rura:free", "tomato:raw", "garlic:raw"], "produces": ["rura:hot", "tomato:cut", "garlic:cut"]},
+        {"text": "Nalej {oil.amount} {oil.name} do pekáča. Rozlož po dne paradajky s cesnakom a do stredu polož {feta.amount} {feta.name}. Prisyp {oregano.amount} {oregano.name}. Okoreň čiernym korením. Pri väčšej dávke rozdeľ suroviny v rovnakom pomere do dvoch pekáčov.", "requires": ["oil:raw", "tomato:cut", "feta:raw", "garlic:cut", "oregano:raw", "pekac:free"], "produces": ["oil:arranged", "tomato:arranged", "feta:arranged", "garlic:arranged", "oregano:arranged", "pekac:occupied"]},
+        {"text": "Peč paradajky so syrom feta v pekáči pri 200 °C 25 minút, kým paradajky zmäknú a syr bude na okrajoch zlatistý.", "requires": ["oil:arranged", "tomato:arranged", "feta:arranged", "garlic:arranged", "oregano:arranged", "pekac:occupied", "rura:hot"], "produces": ["oil:cooked", "tomato:cooked", "feta:cooked", "garlic:cooked", "oregano:cooked"]},
+        {"text": "Uvar {pasta.amount} {pasta.name} v hrnci vo vriacej osolenej vode na strednom ohni 9 minút, kým budú mäkké, ale stále pevné na zahryznutie.", "requires": ["pasta:raw", "hrniec:free"], "produces": ["pasta:cooked", "hrniec:occupied"]},
+        {"text": "Odober pred scedením {pasta.water} vody z cestovín, potom ich sceď cez sitko.", "requires": ["pasta:cooked", "hrniec:occupied", "sitko:free"], "produces": ["pasta:drained", "hrniec:free", "sitko:free"]},
+        {"text": "Rozdrv fetu s paradajkami vidličkou priamo v pekáči. Vmiešaj cestoviny. Použi odloženú vodu, aby vznikla hladká omáčka.", "requires": ["feta:cooked", "tomato:cooked", "garlic:cooked", "oregano:cooked", "oil:cooked", "pasta:drained", "pekac:occupied"], "produces": ["feta:combined", "tomato:combined", "garlic:combined", "oregano:combined", "oil:combined", "pasta:combined"]},
+        {"text": "Podávaj cestoviny teplé a rozdeľ ich na {portions} porcií.", "requires": ["feta:combined", "tomato:combined", "garlic:combined", "oregano:combined", "oil:combined", "pasta:combined", "pekac:occupied"], "produces": ["feta:served", "tomato:served", "garlic:served", "oregano:served", "oil:served", "pasta:served", "pekac:free", "rura:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Cestoviny rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a pri ohrievaní pridaj lyžicu vody, aby omáčka zostala vláčna."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "modern_feta_tomato_pasta",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/baked-feta-tomato-pasta", "title": "Baked feta & tomato pasta recipe | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://www.foodnetwork.com/recipes/food-network-kitchen/baked-feta-pasta-9867689", "title": "Baked Feta Pasta Recipe | Food Network Kitchen", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "recipes": [
+    {
+      "id": "modern_pumpkin_risotto",
+      "version": 2,
+      "active": true,
+      "name_template": "Krémové tekvicové rizoto",
+      "family": "modern_pumpkin_risotto",
+      "method": "one_pot",
+      "minutes": 40,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["hrniec", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "85", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "230"},
+        {"key": "pumpkin", "role": "vegetable", "candidates": ["pumpkin"], "amount_per_adult": "190", "unit": "g", "child_factor": "0.7", "required": true, "use": "main", "cut": "na malé kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "12", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "najemno nastrúhaný"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {pumpkin.amount} {pumpkin.name} na malé kocky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno. Nastrúhaj {cheese.amount} {cheese.name} najemno.", "requires": ["pumpkin:raw", "onion:raw", "garlic:raw", "cheese:raw"], "produces": ["pumpkin:cut", "onion:cut", "garlic:cut", "cheese:grated"]},
+        {"text": "Rozohrej {butter.amount} {butter.name} v hrnci na strednom ohni 2 minúty, kým sa roztopí a začne peniť. Pridaj cibuľu a opekaj ju 4 minúty, kým zmäkne.", "requires": ["butter:raw", "onion:cut", "hrniec:free"], "produces": ["butter:used", "onion:cooked", "hrniec:occupied"]},
+        {"text": "Pridaj tekvicu do hrnca. Opekaj tekvicu na strednom ohni 8 minút, kým začne na okrajoch mäknúť. Vmiešaj cesnak do hrnca. Opekaj cesnak na strednom ohni ešte 1 minútu, kým bude jemne zlatistý a rozvonia sa.", "requires": ["pumpkin:cut", "garlic:cut", "butter:used", "onion:cooked", "hrniec:occupied"], "produces": ["pumpkin:softened", "garlic:cooked"]},
+        {"text": "Prisyp {rice.amount} {rice.name} do hrnca. Opekaj ryžu na strednom ohni 2 minúty, kým sa začne lesknúť a zrnká budú na okrajoch priesvitné.", "requires": ["rice:raw", "pumpkin:softened", "garlic:cooked", "onion:cooked", "hrniec:occupied"], "produces": ["rice:toasted"]},
+        {"text": "Rozdeľ {rice.water} vody na tri približne rovnaké dávky. Vodu prilievaj k ryži s tekvicou postupne, vždy až keď ryža predchádzajúcu dávku takmer vsiakne. Var ryžu s tekvicou v hrnci na miernom ohni približne 18 minút, kým bude ryža mäkká, tekvica sa začne rozpadať a rizoto zhustne.", "requires": ["rice:toasted", "pumpkin:softened", "hrniec:occupied"], "produces": ["rice:cooked", "pumpkin:cooked"]},
+        {"text": "Odstav hrniec z ohňa. Prisyp tvrdý syr do hrnca a premiešaj, kým sa rozpustí. Dochuť soľou a čiernym korením.", "requires": ["rice:cooked", "pumpkin:cooked", "cheese:grated", "hrniec:occupied"], "produces": ["cheese:melted", "butter:cooked"]},
+        {"text": "Podávaj rizoto hneď a rozdeľ ho na {portions} porcií.", "requires": ["rice:cooked", "pumpkin:cooked", "onion:cooked", "garlic:cooked", "butter:cooked", "cheese:melted", "hrniec:occupied"], "produces": ["rice:served", "pumpkin:served", "onion:served", "garlic:served", "butter:served", "cheese:served", "hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Rizoto rozprestri do plytkých nádob, do jednej hodiny ho schlaď a odlož do chladničky. Zjedz ho do 3 dní a ohrievaj iba porciu, ktorú práve podávaš."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "modern_pumpkin_risotto",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/pumpkin-risotto", "title": "Pumpkin risotto recipe | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://www.thekitchn.com/recipe-pumpkin-risotto-237477", "title": "Pumpkin Risotto Recipe | The Kitchn", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

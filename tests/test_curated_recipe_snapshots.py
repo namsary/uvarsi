@@ -8,6 +8,7 @@ import unicodedata
 import pytest
 
 from app.ingredient_catalog import load_ingredient_catalog
+from app.nutrition import estimate_recipe_nutrition
 from app.recipe_candidates import validate_candidate
 from app.recipe_catalog import load_recipe_catalog
 from app.recipe_matcher import RecipeCandidate, SlotSelection
@@ -62,6 +63,152 @@ CLASSIC_IDS = (
     "classic_rice_pudding",
     "classic_apple_bread_pudding",
 )
+
+MODERN_IDS = (
+    "modern_chicken_curry_rice",
+    "modern_chicken_mushroom_pasta",
+    "modern_one_pot_chicken_rice",
+    "modern_teriyaki_chicken_broccoli",
+    "modern_chicken_fajita_tortilla",
+    "modern_chicken_caesar_salad",
+    "modern_baked_chicken_zucchini",
+    "modern_pork_noodle_stir_fry",
+    "modern_meatballs_tomato_pasta",
+    "modern_chili_con_carne",
+    "modern_cottage_shepherd_pie",
+    "modern_family_lasagne",
+    "modern_tuna_tomato_pasta",
+    "modern_tuna_pasta_salad",
+    "modern_salmon_potato_broccoli",
+    "modern_white_fish_tomato_rice",
+    "modern_fish_tacos_yogurt",
+    "modern_feta_tomato_pasta",
+    "modern_mushroom_risotto",
+    "modern_pumpkin_risotto",
+    "quick_broccoli_cheese_pasta",
+    "quick_pesto_chicken_pasta",
+    "quick_gnocchi_spinach",
+    "quick_couscous_grilled_cheese",
+    "quick_egg_fried_rice",
+    "quick_shakshuka",
+    "quick_vegetable_frittata",
+    "quick_tuna_cheese_tortilla",
+    "quick_baked_potato_cottage",
+    "quick_zucchini_fritters",
+    "quick_cauliflower_curry",
+    "quick_orzo_chicken_one_pan",
+    "quick_tomato_mozzarella_pasta",
+    "quick_pea_ham_risotto",
+    "quick_egg_potato_spinach_pan",
+    "quick_chickpea_tomato_couscous",
+)
+
+QUICK_MODERN_IDS = frozenset(
+    recipe_id for recipe_id in MODERN_IDS if recipe_id.startswith("quick_")
+)
+
+HIGH_PROTEIN_IDS = (
+    "protein_turkey_couscous",
+    "protein_chicken_bulgur",
+    "protein_chicken_yogurt_potato",
+    "protein_beef_rice_bowl",
+    "protein_cottage_tomato_pasta",
+    "protein_cottage_potato_spinach",
+    "protein_tuna_bean_salad",
+    "protein_egg_cottage_salad",
+    "protein_salmon_couscous_salad",
+    "protein_chicken_lentil_stew",
+    "protein_turkey_meatballs",
+    "protein_tofu_broccoli_rice",
+    "protein_cottage_lentil_lasagne",
+    "protein_beef_bean_chili",
+    "protein_chicken_yogurt_traybake",
+    "protein_skyr_chicken_wrap",
+)
+
+HIGH_PROTEIN_CHARACTERISTIC_INGREDIENTS = {
+    "protein_turkey_couscous": ({"turkey_breast", "turkey_mince"}, {"couscous"}),
+    "protein_chicken_bulgur": ({"chicken_breast", "chicken_thigh_meat"}, {"bulgur"}),
+    "protein_chicken_yogurt_potato": ({"chicken_breast"}, {"potato"}, {"plain_yogurt", "skyr"}),
+    "protein_beef_rice_bowl": ({"beef_mince", "beef_chuck"}, {"rice"}),
+    "protein_cottage_tomato_pasta": ({"cottage_cheese"}, {"tomato"}, {"pasta"}),
+    "protein_cottage_potato_spinach": ({"cottage_cheese"}, {"potato"}, {"spinach"}),
+    "protein_tuna_bean_salad": ({"tuna"}, {"beans_canned"}),
+    "protein_egg_cottage_salad": ({"egg"}, {"cottage_cheese"}),
+    "protein_salmon_couscous_salad": ({"salmon"}, {"couscous"}),
+    "protein_chicken_lentil_stew": ({"chicken_breast", "chicken_thigh_meat"}, {"red_lentils", "lentils"}),
+    "protein_turkey_meatballs": ({"turkey_mince"}, {"tomato"}),
+    "protein_tofu_broccoli_rice": ({"tofu"}, {"broccoli"}, {"rice"}),
+    "protein_cottage_lentil_lasagne": ({"cottage_cheese"}, {"red_lentils", "lentils"}, {"pasta"}),
+    "protein_beef_bean_chili": ({"beef_mince"}, {"beans_canned"}, {"sweet_potato"}),
+    "protein_chicken_yogurt_traybake": ({"chicken_breast", "chicken_thigh_meat"}, {"plain_yogurt", "skyr"}),
+    "protein_skyr_chicken_wrap": ({"chicken_breast"}, {"skyr"}, {"tortilla"}),
+}
+
+PLANT_IDS = (
+    "plant_red_lentil_dal",
+    "plant_chickpea_curry",
+    "plant_bean_chili",
+    "plant_lentil_bolognese",
+    "plant_tofu_coconut_curry",
+    "plant_tofu_tomato_pasta",
+    "plant_chickpea_couscous_salad",
+    "plant_bean_potato_goulash",
+    "plant_mushroom_barley",
+    "plant_lentil_loaf",
+)
+
+PLANT_CHARACTERISTIC_INGREDIENTS = {
+    "plant_red_lentil_dal": ({"red_lentils"}, {"curry_powder"}),
+    "plant_chickpea_curry": ({"chickpeas_canned"}, {"spinach"}, {"coconut_milk"}),
+    "plant_bean_chili": ({"beans_canned"}, {"tomato"}, {"cumin", "chili_powder"}),
+    "plant_lentil_bolognese": ({"red_lentils", "lentils"}, {"tomato"}, {"pasta"}),
+    "plant_tofu_coconut_curry": ({"tofu"}, {"coconut_milk"}, {"curry_powder"}),
+    "plant_tofu_tomato_pasta": ({"tofu"}, {"tomato"}, {"pasta"}),
+    "plant_chickpea_couscous_salad": ({"chickpeas_canned"}, {"couscous"}),
+    "plant_bean_potato_goulash": ({"beans_canned"}, {"potato"}, {"paprika_powder"}),
+    "plant_mushroom_barley": ({"mushrooms"}, {"barley"}, {"beans_canned", "tofu", "red_lentils"}),
+    "plant_lentil_loaf": ({"red_lentils", "lentils"}, {"tomato"}),
+}
+
+MODERN_CHARACTERISTIC_INGREDIENTS = {
+    "modern_chicken_curry_rice": ({"chicken_breast", "chicken_thigh_meat"}, {"curry_powder"}, {"rice"}),
+    "modern_chicken_mushroom_pasta": ({"chicken_breast", "chicken_thigh_meat"}, {"mushrooms"}, {"pasta"}),
+    "modern_one_pot_chicken_rice": ({"chicken_breast", "chicken_thigh_meat"}, {"rice"}),
+    "modern_teriyaki_chicken_broccoli": ({"chicken_breast", "chicken_thigh_meat"}, {"broccoli"}, {"soy_sauce"}),
+    "modern_chicken_fajita_tortilla": ({"chicken_breast", "chicken_thigh_meat"}, {"tortilla"}, {"bell_pepper"}, {"cumin", "chili_powder"}),
+    "modern_chicken_caesar_salad": ({"chicken_breast"}, {"lettuce"}, {"hard_cheese"}, {"bread"}),
+    "modern_baked_chicken_zucchini": ({"chicken_breast", "chicken_thigh"}, {"zucchini"}),
+    "modern_pork_noodle_stir_fry": ({"pork_loin"}, {"egg_noodles"}, {"soy_sauce"}),
+    "modern_meatballs_tomato_pasta": ({"beef_mince", "pork_mince"}, {"tomato"}, {"pasta"}),
+    "modern_chili_con_carne": ({"beef_mince"}, {"beans_canned"}, {"tomato"}, {"cumin", "chili_powder"}),
+    "modern_cottage_shepherd_pie": ({"beef_mince", "pork_mince"}, {"potato"}, {"carrot"}),
+    "modern_family_lasagne": ({"beef_mince", "pork_mince"}, {"pasta"}, {"tomato"}, {"hard_cheese", "mozzarella"}),
+    "modern_tuna_tomato_pasta": ({"tuna"}, {"tomato"}, {"pasta"}),
+    "modern_tuna_pasta_salad": ({"tuna"}, {"pasta"}),
+    "modern_salmon_potato_broccoli": ({"salmon"}, {"potato"}, {"broccoli"}),
+    "modern_white_fish_tomato_rice": ({"white_fish"}, {"tomato"}, {"rice"}),
+    "modern_fish_tacos_yogurt": ({"white_fish"}, {"tortilla"}, {"plain_yogurt"}),
+    "modern_feta_tomato_pasta": ({"feta"}, {"tomato"}, {"pasta"}),
+    "modern_mushroom_risotto": ({"mushrooms"}, {"rice"}),
+    "modern_pumpkin_risotto": ({"pumpkin"}, {"rice"}),
+    "quick_broccoli_cheese_pasta": ({"broccoli"}, {"hard_cheese"}, {"pasta"}),
+    "quick_pesto_chicken_pasta": ({"basil_pesto"}, {"chicken_breast", "chicken_thigh_meat"}, {"pasta"}),
+    "quick_gnocchi_spinach": ({"gnocchi"}, {"spinach"}),
+    "quick_couscous_grilled_cheese": ({"couscous"}, {"grilling_cheese"}),
+    "quick_egg_fried_rice": ({"egg"}, {"rice"}, {"soy_sauce"}),
+    "quick_shakshuka": ({"egg"}, {"tomato"}, {"bell_pepper"}),
+    "quick_vegetable_frittata": ({"egg"}, {"zucchini", "spinach", "bell_pepper"}),
+    "quick_tuna_cheese_tortilla": ({"tuna"}, {"hard_cheese"}, {"tortilla"}),
+    "quick_baked_potato_cottage": ({"potato"}, {"cottage_cheese"}),
+    "quick_zucchini_fritters": ({"zucchini"}, {"egg"}, {"wheat_flour"}),
+    "quick_cauliflower_curry": ({"cauliflower"}, {"curry_powder"}, {"coconut_milk"}),
+    "quick_orzo_chicken_one_pan": ({"pasta"}, {"chicken_breast", "chicken_thigh_meat"}),
+    "quick_tomato_mozzarella_pasta": ({"tomato"}, {"mozzarella"}, {"pasta"}),
+    "quick_pea_ham_risotto": ({"peas"}, {"ham"}, {"rice"}),
+    "quick_egg_potato_spinach_pan": ({"egg"}, {"potato"}, {"spinach"}),
+    "quick_chickpea_tomato_couscous": ({"chickpeas_canned"}, {"tomato"}, {"couscous"}),
+}
 
 # Each inner set is one defining ingredient choice. The recipe must declare at
 # least one member of every set; wording and quantities remain free to evolve.
@@ -365,6 +512,30 @@ def target_rows():
     )
 
 
+@pytest.fixture(scope="module")
+def modern_target_rows():
+    payload = json.loads(TARGETS_PATH.read_text(encoding="utf-8"))
+    return tuple(
+        row for row in payload["targets"] if row["editorial_lane"] == "modern_family"
+    )
+
+
+@pytest.fixture(scope="module")
+def high_protein_target_rows():
+    payload = json.loads(TARGETS_PATH.read_text(encoding="utf-8"))
+    return tuple(
+        row for row in payload["targets"] if row["editorial_lane"] == "high_protein"
+    )
+
+
+@pytest.fixture(scope="module")
+def plant_target_rows():
+    payload = json.loads(TARGETS_PATH.read_text(encoding="utf-8"))
+    return tuple(
+        row for row in payload["targets"] if row["editorial_lane"] == "plant_based"
+    )
+
+
 def _fold(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value.casefold())
     return "".join(
@@ -612,6 +783,225 @@ def test_curated_slovak_classic_candidate_snapshot(
             else:
                 expected = one_item.quantity.amount * 12
             assert batch_item.quantity.amount == expected
+
+
+@pytest.mark.parametrize("recipe_id", MODERN_IDS, ids=MODERN_IDS)
+def test_curated_modern_family_candidate_snapshot(
+    recipe_id,
+    ingredient_catalog,
+    modern_target_rows,
+    tmp_path,
+):
+    path = _candidate_path(recipe_id)
+    assert path.is_file(), f"{recipe_id}: candidate_missing: {path}"
+
+    assert len(MODERN_IDS) == 36
+    assert len(set(MODERN_IDS)) == 36
+    assert tuple(row["id"] for row in modern_target_rows) == MODERN_IDS
+    target = next(row for row in modern_target_rows if row["id"] == recipe_id)
+
+    report = validate_candidate(path, ingredient_catalog)
+    assert report.errors == (), f"{recipe_id}: {report.errors}"
+    assert report.recipe_ids == (recipe_id,)
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["source_record"] == {
+        "recipe_id": recipe_id,
+        "editorial_lane": "modern_family",
+        "core": True,
+        "references": target["references"],
+    }
+
+    recipe = _load_recipe_with_public_catalog(
+        payload, ingredient_catalog, tmp_path / "catalog"
+    )
+    assert recipe.id == recipe_id == path.stem
+    assert recipe.version == 2
+    assert recipe.active is True
+    assert recipe.modes == frozenset(target["expected_modes"])
+    assert recipe.storage is not None
+    assert set(recipe.pantry_basics) <= {"water", "salt", "black_pepper"}
+
+    declared = _declared_ids(recipe)
+    for alternatives in MODERN_CHARACTERISTIC_INGREDIENTS[recipe_id]:
+        assert declared & alternatives, (
+            f"{recipe_id}: missing characteristic ingredient; expected one of "
+            f"{sorted(alternatives)}"
+        )
+
+    animal_ingredients = {
+        "beef_mince",
+        "chicken_breast",
+        "chicken_thigh",
+        "chicken_thigh_meat",
+        "egg",
+        "feta",
+        "grilling_cheese",
+        "ham",
+        "hard_cheese",
+        "milk",
+        "mozzarella",
+        "plain_yogurt",
+        "pork_loin",
+        "pork_mince",
+        "salmon",
+        "tuna",
+        "white_fish",
+    }
+    if declared & animal_ingredients:
+        assert "vegan" not in recipe.modes
+
+    vessel_roots = ("hrnc", "panvic", "pekac", "plech", "wok", "rajnic")
+    cooking_vessels = tuple(
+        item
+        for item in recipe.equipment
+        if any(root in _fold(item) for root in vessel_roots)
+    )
+    assert len(cooking_vessels) <= 3
+    if recipe_id in QUICK_MODERN_IDS:
+        assert recipe.minutes <= 35
+
+    recipe_text = _fold(" ".join(step.text for step in recipe.instructions))
+    assert COMPLETION_CUE.search(recipe_text)
+    assert IMPRactical_LANGUAGE.search(recipe_text) is None
+    for slot in recipe.slots:
+        assert recipe_text.count(_fold(f"{{{slot.key}.amount}}")) <= 1, (
+            f"{recipe_id}:{slot.key} repeats its exact amount"
+        )
+
+    candidate = _render_candidate(recipe, ingredient_catalog)
+    one_day = render_meal(candidate, adults=1, children=0, covered_days=1)
+    _assert_readable_render(one_day, portions=1, days=1)
+
+    if recipe.storage.refrigerated_days >= 3:
+        three_days = render_meal(candidate, adults=4, children=0, covered_days=3)
+        _assert_readable_render(three_days, portions=12, days=3)
+        assert three_days.storage == recipe.storage.instruction
+
+
+@pytest.mark.parametrize("recipe_id", HIGH_PROTEIN_IDS, ids=HIGH_PROTEIN_IDS)
+def test_curated_high_protein_candidate_snapshot(
+    recipe_id,
+    ingredient_catalog,
+    high_protein_target_rows,
+    tmp_path,
+):
+    path = _candidate_path(recipe_id)
+    assert path.is_file(), f"{recipe_id}: candidate_missing: {path}"
+
+    assert len(HIGH_PROTEIN_IDS) == 16
+    assert tuple(row["id"] for row in high_protein_target_rows) == HIGH_PROTEIN_IDS
+    target = next(row for row in high_protein_target_rows if row["id"] == recipe_id)
+
+    report = validate_candidate(path, ingredient_catalog)
+    assert report.errors == (), f"{recipe_id}: {report.errors}"
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["source_record"] == {
+        "recipe_id": recipe_id,
+        "editorial_lane": "high_protein",
+        "core": True,
+        "references": target["references"],
+    }
+    recipe = _load_recipe_with_public_catalog(
+        payload, ingredient_catalog, tmp_path / "catalog"
+    )
+    assert recipe.version == 2
+    assert recipe.active is True
+    assert recipe.modes == frozenset(target["expected_modes"])
+    assert recipe.storage is not None
+    assert set(recipe.pantry_basics) <= {"water", "salt", "black_pepper"}
+    assert all(Decimal("0") < slot.child_factor <= Decimal("0.75") for slot in recipe.slots)
+
+    declared = _declared_ids(recipe)
+    for alternatives in HIGH_PROTEIN_CHARACTERISTIC_INGREDIENTS[recipe_id]:
+        assert declared & alternatives, (
+            f"{recipe_id}: missing characteristic ingredient; expected one of "
+            f"{sorted(alternatives)}"
+        )
+
+    candidate = _render_candidate(recipe, ingredient_catalog)
+    meal = render_meal(candidate, adults=1, children=0, covered_days=1)
+    _assert_readable_render(meal, portions=1, days=1)
+    edible_lines = tuple(
+        (item.ingredient, _rendered_edible_grams(item)) for item in meal.ingredients
+    )
+    nutrition = estimate_recipe_nutrition(edible_lines, adult_servings=Decimal("1"))
+    assert nutrition.serving.protein_g >= Decimal("30")
+    assert Decimal("250") <= nutrition.serving.kcal <= Decimal("900")
+    assert Decimal("250") <= sum(amount for _, amount in edible_lines) <= Decimal("1000")
+
+
+@pytest.mark.parametrize("recipe_id", PLANT_IDS, ids=PLANT_IDS)
+def test_curated_plant_candidate_snapshot(
+    recipe_id,
+    ingredient_catalog,
+    plant_target_rows,
+    tmp_path,
+):
+    path = _candidate_path(recipe_id)
+    assert path.is_file(), f"{recipe_id}: candidate_missing: {path}"
+
+    assert len(PLANT_IDS) == 10
+    assert tuple(row["id"] for row in plant_target_rows) == PLANT_IDS
+    target = next(row for row in plant_target_rows if row["id"] == recipe_id)
+    report = validate_candidate(path, ingredient_catalog)
+    assert report.errors == (), f"{recipe_id}: {report.errors}"
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["source_record"] == {
+        "recipe_id": recipe_id,
+        "editorial_lane": "plant_based",
+        "core": True,
+        "references": target["references"],
+    }
+    recipe = _load_recipe_with_public_catalog(
+        payload, ingredient_catalog, tmp_path / "catalog"
+    )
+    assert recipe.version == 2
+    assert recipe.active is True
+    assert recipe.modes == frozenset(target["expected_modes"])
+    assert "vegetarian" in recipe.modes and "vegan" in recipe.modes
+    assert recipe.storage is not None
+    assert set(recipe.pantry_basics) <= {"water", "salt", "black_pepper"}
+
+    declared = _declared_ids(recipe)
+    for alternatives in PLANT_CHARACTERISTIC_INGREDIENTS[recipe_id]:
+        assert declared & alternatives, (
+            f"{recipe_id}: missing characteristic ingredient; expected one of "
+            f"{sorted(alternatives)}"
+        )
+    _assert_legume_workflow(recipe)
+
+    candidate = _render_candidate(recipe, ingredient_catalog)
+    meal = render_meal(candidate, adults=1, children=0, covered_days=1)
+    _assert_readable_render(meal, portions=1, days=1)
+    edible_lines = tuple(
+        (item.ingredient, _rendered_edible_grams(item)) for item in meal.ingredients
+    )
+    nutrition = estimate_recipe_nutrition(edible_lines, adult_servings=Decimal("1"))
+    assert nutrition.serving.protein_g >= Decimal("12")
+    assert Decimal("280") <= nutrition.serving.kcal <= Decimal("850")
+    assert Decimal("300") <= sum(amount for _, amount in edible_lines) <= Decimal("1000")
+
+    if recipe.storage.refrigerated_days >= 3:
+        batch = render_meal(candidate, adults=4, children=0, covered_days=3)
+        _assert_readable_render(batch, portions=12, days=3)
+
+
+def test_curated_candidates_meet_diet_floors(ingredient_catalog, tmp_path):
+    recipes = []
+    for index, path in enumerate(sorted(CANDIDATE_ROOT.glob("*.json"))):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        recipes.append(
+            _load_recipe_with_public_catalog(
+                payload, ingredient_catalog, tmp_path / f"candidate-{index}"
+            )
+        )
+
+    assert len(recipes) == 104
+    assert sum("vegetarian" in item.modes for item in recipes) >= 24
+    assert sum("vegan" in item.modes for item in recipes) >= 16
 
 
 @pytest.mark.parametrize("recipe_id", CLASSIC_IDS, ids=CLASSIC_IDS)

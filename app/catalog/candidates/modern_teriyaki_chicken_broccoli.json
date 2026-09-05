@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "modern_teriyaki_chicken_broccoli",
+      "version": 2,
+      "active": true,
+      "name_template": "Teriyaki kura s brokolicou a ryžou",
+      "family": "modern_teriyaki_chicken_broccoli",
+      "method": "pan",
+      "minutes": 35,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["panvica", "hrniec", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_thigh_meat"], "amount_per_adult": "190", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na menšie kúsky"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "140"},
+        {"key": "broccoli", "role": "vegetable", "candidates": ["broccoli"], "amount_per_adult": "140", "unit": "g", "child_factor": "0.7", "required": true, "use": "main", "cut": "na malé ružičky", "water_ml_per_adult": "25"},
+        {"key": "soy", "role": "seasoning", "candidates": ["soy_sauce"], "amount_per_adult": "18", "unit": "ml", "child_factor": "0.45", "required": true, "use": "addition", "cut": null},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.45", "required": true, "use": "addition", "cut": null},
+        {"key": "vinegar", "role": "seasoning", "candidates": ["apple_cider_vinegar"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} studenou vodou. Nalej {rice.water} vody do hrnca, prikry ho a priveď na strednom ohni do varu. Potom var ryžu na miernom ohni 15 minút, kým zmäkne a vsiakne vodu.", "requires": ["rice:raw", "hrniec:free"], "produces": ["rice:cooked", "hrniec:free"]},
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} na menšie kúsky, {broccoli.amount} {broccoli.name} na malé ružičky a {garlic.amount} {garlic.name} najemno.", "requires": ["chicken:raw", "broccoli:raw", "garlic:raw"], "produces": ["chicken:cut", "broccoli:cut", "garlic:cut"]},
+        {"text": "Premiešaj v miske {soy.amount} {soy.name}, {sugar.amount} {sugar.name}, {vinegar.amount} {vinegar.name}, cesnak a trochu čierneho korenia, kým sa cukor takmer rozpustí.", "requires": ["soy:raw", "sugar:raw", "vinegar:raw", "garlic:cut", "miska:free"], "produces": ["soy:sauce", "sugar:sauce", "vinegar:sauce", "garlic:sauce", "miska:occupied"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "panvica:free"], "produces": ["oil:heated", "panvica:occupied"]},
+        {"text": "Opekaj vykostené kuracie stehenné mäso v panvici na strednom ohni 7 minút, kým bude zlatisté. Pri väčšej dávke ho opekaj po častiach.", "requires": ["chicken:cut", "oil:heated", "panvica:occupied"], "produces": ["chicken:browned", "oil:used"]},
+        {"text": "Pridaj brokolicu a {broccoli.water} vody do panvice. Prikry ju a var brokolicu s kuracím mäsom na strednom ohni 5 minút, kým bude sýtozelená a mäkká na zahryznutie.", "requires": ["broccoli:cut", "chicken:browned", "panvica:occupied"], "produces": ["broccoli:cooked", "chicken:cooking"]},
+        {"text": "Prilej sójovú omáčku do panvice. Var vykostené kuracie stehenné mäso s brokolicou v panvici bez pokrievky na strednom ohni 4 minúty, kým omáčka začne jemne bublať, obalí mäso a kuracie kúsky nebudú v strede ružové.", "requires": ["soy:sauce", "sugar:sauce", "vinegar:sauce", "garlic:sauce", "broccoli:cooked", "chicken:cooking", "miska:occupied", "panvica:occupied"], "produces": ["soy:cooked", "sugar:cooked", "vinegar:cooked", "garlic:cooked", "broccoli:glazed", "chicken:cooked", "miska:free", "panvica:free"]},
+        {"text": "Podávaj teriyaki s ryžou a rozdeľ jedlo na {portions} porcií.", "requires": ["chicken:cooked", "rice:cooked", "broccoli:glazed", "soy:cooked", "sugar:cooked", "vinegar:cooked", "garlic:cooked", "oil:used"], "produces": ["chicken:served", "rice:served", "broccoli:served", "soy:served", "sugar:served", "vinegar:served", "garlic:served", "oil:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Teriyaki a ryžu rozdeľ do oddelených plytkých nádob, rýchlo schlaď a najneskôr do 1 hodiny ich odlož do chladničky. Zjedz ich do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "modern_teriyaki_chicken_broccoli",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/easy-teriyaki-chicken", "title": "Easy teriyaki chicken recipe | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://www.foodnetwork.com/recipes/food-network-kitchen/one-pot-chicken-teriyaki-6548694", "title": "One-Pot Chicken Teriyaki Recipe | Food Network Kitchen", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

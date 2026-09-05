@@ -1,0 +1,47 @@
+{
+  "recipes": [
+    {
+      "id": "protein_chicken_lentil_stew",
+      "version": 2,
+      "active": true,
+      "name_template": "Kurací šošovicový hrniec",
+      "family": "protein_chicken_lentil_stew",
+      "method": "one_pot",
+      "minutes": 45,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na menšie kúsky"},
+        {"key": "lentils", "role": "protein", "candidates": ["red_lentils"], "amount_per_adult": "65", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "280"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.7", "required": true, "use": "addition", "cut": "na menšie kúsky"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na tenké kolieska"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {lentils.amount} {lentils.name} v sitku pod studenou vodou.", "requires": ["lentils:raw"], "produces": ["lentils:rinsed"]},
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} a {tomato.amount} {tomato.name} na menšie kúsky. {carrot.amount} {carrot.name} nakrájaj na tenké kolieska, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno.", "requires": ["chicken:raw", "tomato:raw", "carrot:raw", "onion:raw", "garlic:raw"], "produces": ["chicken:cut", "tomato:cut", "carrot:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v hrnci na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "hrniec:free"], "produces": ["oil:hot", "hrniec:occupied"]},
+        {"text": "Opekaj cibuľu a mrkvu v hrnci na strednom ohni 5 minút, kým cibuľa a mrkva trochu zmäknú.", "requires": ["onion:cut", "carrot:cut", "oil:hot", "hrniec:occupied"], "produces": ["onion:cooked", "carrot:partly_cooked"]},
+        {"text": "Pridaj kuracie prsia do hrnca a opekaj ich na strednom ohni 6 minút, kým budú miestami zlatisté.", "requires": ["chicken:cut", "onion:cooked", "carrot:partly_cooked", "hrniec:occupied"], "produces": ["chicken:browned"]},
+        {"text": "Premiešaj šošovicu, paradajky a cesnak v hrnci.", "requires": ["lentils:rinsed", "tomato:cut", "garlic:cut", "chicken:browned", "hrniec:occupied"], "produces": ["lentils:in_pot", "tomato:in_pot", "garlic:in_pot"]},
+        {"text": "Prilej {lentils.water} vody do hrnca.", "requires": ["lentils:in_pot", "tomato:in_pot", "garlic:in_pot", "hrniec:occupied"], "produces": ["lentils:covered"]},
+        {"text": "Priveď obsah hrnca s kúskami kuracích pŕs na silnom ohni do varu za 5 minút, kým začne rovnomerne bublať.", "requires": ["lentils:covered", "hrniec:occupied"], "produces": ["lentils:boiling"]},
+        {"text": "Prikry hrniec a var jedlo v hrnci na miernom ohni 22 minút, kým šošovica a mrkva zmäknú a mäso nebude v strede ružové.", "requires": ["lentils:boiling", "chicken:browned", "carrot:partly_cooked", "onion:cooked", "tomato:in_pot", "garlic:in_pot", "hrniec:occupied"], "produces": ["lentils:cooked", "chicken:cooked", "carrot:cooked", "onion:finished", "tomato:cooked", "garlic:cooked", "oil:used"]},
+        {"text": "Dochuť jedlo soľou a čiernym korením. Podávaj ho teplé a rozdeľ na {portions} porcií.", "requires": ["lentils:cooked", "chicken:cooked", "carrot:cooked", "onion:finished", "tomato:cooked", "garlic:cooked", "oil:used", "hrniec:occupied"], "produces": ["lentils:served", "chicken:served", "carrot:served", "onion:served", "tomato:served", "garlic:served", "oil:served", "hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Jedlo rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní alebo jednotlivé porcie zamraz."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "protein_chicken_lentil_stew",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/one-pot-lentil-chicken", "title": "One-pot lentil chicken recipe | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://www.nyp.org/nutrition/recipes/moroccan-chicken-chickpea-lentil-stew", "title": "Moroccan Chicken with Chickpea and Lentil Stew | NewYork-Presbyterian", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "modern_chicken_mushroom_pasta",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuracie cestoviny so šampiňónmi",
+      "family": "modern_chicken_mushroom_pasta",
+      "method": "pan",
+      "minutes": 40,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["panvica", "hrniec", "sitko", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "170", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na rezance"},
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "mushrooms", "role": "vegetable", "candidates": ["mushrooms"], "amount_per_adult": "140", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na plátky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "45", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "55", "unit": "ml", "child_factor": "0.55", "required": true, "use": "addition", "cut": null},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno nastrúhaný"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} na rezance, {mushrooms.amount} {mushrooms.name} na plátky a {onion.amount} {onion.name} nadrobno. Cesnak nakrájaj najemno a {cheese.amount} {cheese.name} nastrúhaj.", "requires": ["chicken:raw", "mushrooms:raw", "onion:raw", "garlic:raw", "cheese:raw"], "produces": ["chicken:cut", "mushrooms:cut", "onion:cut", "garlic:cut", "cheese:grated"]},
+        {"text": "Uvar {pasta.amount} {pasta.name} v hrnci s osolenou vodou na strednom ohni asi 9 minút, kým budú mäkké, ale stále pevné. Potom ich sceď cez sitko.", "requires": ["pasta:raw", "hrniec:free", "sitko:free"], "produces": ["pasta:cooked", "hrniec:free", "sitko:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj cibuľu 4 minúty, kým zmäkne.", "requires": ["oil:raw", "onion:cut", "panvica:free"], "produces": ["oil:used", "onion:cooked", "panvica:occupied"]},
+        {"text": "Opekaj kuracie prsia v panvici na strednom ohni 6 minút, kým budú zlatisté. Pri väčšej dávke mäso priprav po častiach.", "requires": ["chicken:cut", "oil:used", "onion:cooked", "panvica:occupied"], "produces": ["chicken:browned"]},
+        {"text": "Pridaj šampiňóny a {garlic.amount} {garlic.name} do panvice. Opekaj šampiňóny s cesnakom v panvici na strednom ohni 6 minút, kým huby zmäknú a na dne nezostane takmer žiadna šťava.", "requires": ["mushrooms:cut", "garlic:cut", "chicken:browned", "panvica:occupied"], "produces": ["mushrooms:cooked", "garlic:cooked"]},
+        {"text": "Prilej {cream.amount} {cream.name} do panvice. Var kuracie prsia v smotanovej omáčke na miernom ohni 4 minúty, kým omáčka začne jemne bublať a mäso nebude v strede ružové.", "requires": ["cream:raw", "mushrooms:cooked", "garlic:cooked", "chicken:browned", "panvica:occupied"], "produces": ["cream:cooked", "chicken:cooked"]},
+        {"text": "Pridaj cestoviny do panvice. Zohrievaj cestoviny v omáčke na miernom ohni 2 minúty, kým omáčka jemne bublá a cestoviny sa ňou rovnomerne obalia.", "requires": ["pasta:cooked", "cream:cooked", "chicken:cooked", "mushrooms:cooked", "panvica:occupied"], "produces": ["pasta:combined", "panvica:free"]},
+        {"text": "Dochuť jedlo soľou a čiernym korením. Rozdeľ ho na {portions} porcií, navrch nasyp syr a podávaj.", "requires": ["chicken:cooked", "pasta:combined", "mushrooms:cooked", "onion:cooked", "garlic:cooked", "cream:cooked", "cheese:grated", "oil:used"], "produces": ["chicken:served", "pasta:served", "mushrooms:served", "onion:served", "garlic:served", "cream:served", "cheese:served", "oil:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Cestoviny s omáčkou rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "modern_chicken_mushroom_pasta",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.itesco.cz/hello/recepty/penne-s-houbovou-omackou-s-nizkym-obsahem-laktozy/557148/", "title": "Penne s houbovou omáčkou s nízkým obsahem laktózy | Hello Tesco", "accessed_on": "2026-09-05"},
+      {"url": "https://www.bbcgoodfood.com/recipes/chicken-broccoli-pasta-bake", "title": "Chicken & broccoli pasta bake recipe | Good Food", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

@@ -251,3 +251,40 @@ def test_every_recipe_that_uses_a_pan_lists_it_as_equipment():
     )
 
     assert offenders == ()
+
+
+def test_modern_family_signature_ingredients_exist():
+    catalog = load_ingredient_catalog()
+    required = {
+        "basil_pesto",
+        "chili_powder",
+        "cumin",
+        "gnocchi",
+        "grilling_cheese",
+        "lemon",
+        "lettuce",
+        "mozzarella",
+        "soy_sauce",
+        "tortilla",
+    }
+
+    for ingredient_id in required:
+        ingredient = catalog.by_id(ingredient_id)
+        assert ingredient.name
+        assert ingredient.synonyms
+
+
+def test_high_protein_signature_ingredients_exist():
+    catalog = load_ingredient_catalog()
+    required = {
+        "bulgur",
+        "cucumber",
+        "skyr",
+        "sweet_potato",
+        "turkey_mince",
+    }
+
+    for ingredient_id in required:
+        ingredient = catalog.by_id(ingredient_id)
+        assert ingredient.name
+        assert ingredient.synonyms

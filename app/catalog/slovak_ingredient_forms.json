@@ -66,6 +66,21 @@
     "smoked_sausage": {"genitive": "údenej klobásy", "instrumental": "údenou klobásou"},
     "sugar": {"genitive": "kryštálového cukru", "instrumental": "kryštálovým cukrom"},
     "wheat_flour": {"genitive": "hladkej pšeničnej múky", "instrumental": "hladkou pšeničnou múkou"},
-    "white_cabbage": {"genitive": "bielej hlávkovej kapusty", "instrumental": "bielou hlávkovou kapustou"}
+    "white_cabbage": {"genitive": "bielej hlávkovej kapusty", "instrumental": "bielou hlávkovou kapustou"},
+    "tortilla": {"genitive": "pšeničnej tortilly", "instrumental": "pšeničnou tortillou"},
+    "soy_sauce": {"genitive": "sójovej omáčky", "instrumental": "sójovou omáčkou"},
+    "lettuce": {"genitive": "rímskeho šalátu", "instrumental": "rímskym šalátom"},
+    "lemon": {"genitive": "citróna", "instrumental": "citrónom"},
+    "basil_pesto": {"genitive": "bazalkového pesta", "instrumental": "bazalkovým pestom"},
+    "gnocchi": {"genitive": "zemiakových gnocchi", "instrumental": "zemiakovými gnocchi"},
+    "mozzarella": {"genitive": "mozzarelly", "instrumental": "mozzarellou"},
+    "grilling_cheese": {"genitive": "syra na grilovanie", "instrumental": "syrom na grilovanie"},
+    "cumin": {"genitive": "mletej rímskej rasce", "instrumental": "mletou rímskou rascou"},
+    "chili_powder": {"genitive": "mletého čili", "instrumental": "mletým čili"},
+    "bulgur": {"genitive": "bulguru", "instrumental": "bulgurom"},
+    "skyr": {"genitive": "bieleho skyru", "instrumental": "bielym skyrom"},
+    "sweet_potato": {"genitive": "batatu", "instrumental": "batatom"},
+    "turkey_mince": {"genitive": "mletého morčacieho mäsa", "instrumental": "mletým morčacím mäsom"},
+    "cucumber": {"genitive": "šalátovej uhorky", "instrumental": "šalátovou uhorkou"}
   }
 }

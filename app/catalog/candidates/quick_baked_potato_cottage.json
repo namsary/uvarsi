@@ -1,0 +1,41 @@
+{
+  "recipes": [
+    {
+      "id": "quick_baked_potato_cottage",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečený zemiak s cottage syrom",
+      "family": "quick_baked_potato_cottage",
+      "method": "oven",
+      "minutes": 30,
+      "modes": ["standard", "high_protein", "vegetarian"],
+      "equipment": ["mikrovlnná rúra", "rúra", "plech", "misa", "vidlička", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "300", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": null},
+        {"key": "cottage", "role": "protein", "candidates": ["cottage_cheese"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 220 °C. Dôkladne umy {potato.amount} {potato.name}, popichaj ich vidličkou a potri {oil.amount} {oil.name} so štipkou soli.", "requires": ["rura:free", "potato:raw", "oil:raw"], "produces": ["rura:hot", "potato:prepared", "oil:coated"]},
+        {"text": "Priprav zemiaky v mikrovlnnej rúre: ohrievaj ich pri vysokom výkone 8 až 10 minút a v polovici času ich otoč. Majú začať mäknúť, ale ešte držať tvar.", "requires": ["potato:prepared", "oil:coated", "mikrovlnna_rura:free"], "produces": ["potato:softened", "oil:warmed", "mikrovlnna_rura:free"]},
+        {"text": "Peč zemiaky na plechu pri 220 °C 12 až 15 minút, kým bude šupka chrumkavá a stred úplne mäkký.", "requires": ["potato:softened", "oil:warmed", "plech:free", "rura:hot"], "produces": ["potato:baked", "oil:cooked", "plech:occupied"]},
+        {"text": "Nakrájaj {tomato.amount} {tomato.name} na malé kocky a {onion.amount} {onion.name} najemno, kým sa zemiaky pečú. Premiešaj ich v mise s {cottage.amount} {cottage.name}, soľou a čiernym korením.", "requires": ["tomato:raw", "onion:raw", "cottage:raw", "misa:free"], "produces": ["tomato:mixed", "onion:mixed", "cottage:mixed", "misa:occupied"]},
+        {"text": "Priprav každý zemiak na plnenie: pozdĺžne ho narež, vnútro načechraj vidličkou a naplň cottage zmesou.", "requires": ["potato:baked", "tomato:mixed", "onion:mixed", "cottage:mixed", "misa:occupied", "plech:occupied"], "produces": ["potato:filled", "tomato:filled", "onion:filled", "cottage:filled", "misa:free"]},
+        {"text": "Podávaj pečené zemiaky ešte teplé a rozdeľ ich na {portions} porcií.", "requires": ["potato:filled", "cottage:filled", "tomato:filled", "onion:filled", "oil:cooked", "plech:occupied"], "produces": ["potato:served", "cottage:served", "tomato:served", "onion:served", "oil:served", "plech:free", "rura:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Zemiaky a cottage náplň odlož do samostatných plytkých nádob najneskôr do 2 hodín a uchovaj ich v chladničke. Zjedz ich do 2 dní; zemiak zohrej, kým bude horúci, a studenú náplň pridaj až potom."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_baked_potato_cottage",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/collection/cottage-cheese-recipes", "title": "Cottage cheese recipes | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://www.mccain.co.uk/recipes/cottage-cheese-loaded-jacket-potato/", "title": "Cottage Cheese Loaded Jacket Potato | McCain UK", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

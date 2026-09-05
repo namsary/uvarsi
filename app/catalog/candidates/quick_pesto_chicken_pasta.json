@@ -1,0 +1,43 @@
+{
+  "recipes": [
+    {
+      "id": "quick_pesto_chicken_pasta",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuracie cestoviny s pestom",
+      "family": "quick_pesto_chicken_pasta",
+      "method": "pan",
+      "minutes": 30,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "panvica", "sitko", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenké prúžky"},
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "25"},
+        {"key": "broccoli", "role": "vegetable", "candidates": ["broccoli"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé ružičky"},
+        {"key": "pesto", "role": "seasoning", "candidates": ["basil_pesto"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "6", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} na tenké prúžky a {broccoli.amount} {broccoli.name} na malé ružičky.", "requires": ["chicken:raw", "broccoli:raw"], "produces": ["chicken:cut", "broccoli:cut"]},
+        {"text": "Uvar {pasta.amount} {pasta.name} v hrnci vo vriacej osolenej vode na strednom ohni 6 minút, kým čiastočne zmäknú.", "requires": ["pasta:raw", "hrniec:free"], "produces": ["pasta:partly_cooked", "hrniec:occupied"]},
+        {"text": "Pridaj brokolicu do hrnca. Var cestoviny s brokolicou v hrnci na strednom ohni ďalšie 4 minúty, kým budú cestoviny mäkké, ale stále pevné na zahryznutie a brokolica zmäkne.", "requires": ["pasta:partly_cooked", "broccoli:cut", "hrniec:occupied"], "produces": ["pasta:cooked", "broccoli:cooked"]},
+        {"text": "Odober z hrnca {pasta.water} vody, potom cestoviny s brokolicou sceď cez sitko.", "requires": ["pasta:cooked", "broccoli:cooked", "hrniec:occupied", "sitko:free"], "produces": ["pasta:drained", "broccoli:drained", "hrniec:free", "sitko:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na stredne silnom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "panvica:free"], "produces": ["oil:hot", "panvica:occupied"]},
+        {"text": "Pridaj kuracie prsia do panvice. Opekaj kuracie prsia na stredne silnom ohni 8 minút, kým budú z oboch strán zlatisté a po prekrojení biele bez ružového stredu. Pri väčšej dávke priprav kuracie prsia po častiach.", "requires": ["chicken:cut", "oil:hot", "panvica:occupied"], "produces": ["chicken:cooked", "oil:used"]},
+        {"text": "Vmiešaj {pesto.amount} {pesto.name}, cestoviny a brokolicu do panvice. Prehrievaj cestoviny s kuracím mäsom na miernom ohni 2 minúty, kým omáčka začne jemne bublať; ak je príliš hustá, použi časť odloženej vody.", "requires": ["pesto:raw", "pasta:drained", "broccoli:drained", "chicken:cooked", "oil:used", "panvica:occupied"], "produces": ["pesto:cooked", "pasta:combined", "broccoli:combined", "chicken:combined", "oil:cooked"]},
+        {"text": "Dochuť cestoviny soľou a čiernym korením. Podávaj ich teplé a rozdeľ na {portions} porcií.", "requires": ["pesto:cooked", "pasta:combined", "broccoli:combined", "chicken:combined", "oil:cooked", "panvica:occupied"], "produces": ["pesto:served", "pasta:served", "broccoli:served", "chicken:served", "oil:served", "panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Cestoviny rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a ohrievaj iba porciu, ktorú práve podávaš."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_pesto_chicken_pasta",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/creamy-chicken-green-bean-pesto-pasta", "title": "Chicken and pesto pasta recipe | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://instantpot.com/blogs/recipes/chicken-pesto-fettuccine", "title": "Chicken Pesto Fettuccine | Instant Pot", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

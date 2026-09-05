@@ -1,0 +1,43 @@
+{
+  "recipes": [
+    {
+      "id": "plant_mushroom_barley",
+      "version": 2,
+      "active": true,
+      "name_template": "Hubové krupoto",
+      "family": "plant_mushroom_barley",
+      "method": "one_pot",
+      "minutes": 55,
+      "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["hlboká panvica s pokrievkou", "sitko", "nôž", "doska na krájanie", "varecha"],
+      "slots": [
+        {"key": "barley", "role": "starch", "candidates": ["barley"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "270"},
+        {"key": "tofu", "role": "protein", "candidates": ["tofu"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na dvojcentimetrové kocky"},
+        {"key": "mushrooms", "role": "vegetable", "candidates": ["mushrooms"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na plátky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.35", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {barley.amount} {barley.name} v sitku. Nakrájaj {tofu.amount} {tofu.name} na dvojcentimetrové kocky, {mushrooms.amount} {mushrooms.name} na plátky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno.", "requires": ["barley:raw", "tofu:raw", "mushrooms:raw", "onion:raw", "garlic:raw", "sitko:free"], "produces": ["barley:rinsed", "tofu:cut", "mushrooms:cut", "onion:cut", "garlic:cut", "sitko:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v hlbokej panvici. Cibuľu opekaj na strednom ohni 4 minúty, kým zmäkne.", "requires": ["oil:raw", "onion:cut", "hlboka_panvica_s_pokrievkou:free"], "produces": ["oil:hot", "onion:softened", "hlboka_panvica_s_pokrievkou:occupied"]},
+        {"text": "Pridaj šampiňóny a tofu do panvice. Opekaj šampiňóny a tofu v panvici na strednom ohni 7 až 8 minút a občas premiešaj, kým bude tofu zlatisté a šampiňóny zmäknú.", "requires": ["mushrooms:cut", "tofu:cut", "oil:hot", "onion:softened", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["mushrooms:browned", "tofu:browned", "onion:cooked", "oil:cooking"]},
+        {"text": "Prisyp {marjoram.amount} {marjoram.name}, cesnak a krúpy. Miešaj 1 minútu, aby cesnak zavonial a krúpy sa obalili výpekom.", "requires": ["marjoram:raw", "garlic:cut", "barley:rinsed", "mushrooms:browned", "tofu:browned", "onion:cooked", "oil:cooking", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["marjoram:toasted", "garlic:toasted", "barley:toasted"]},
+        {"text": "Prilej {barley.water} vody, osoľ a priveď obsah panvice do varu. Prikry panvicu a var krupoto na miernom ohni 35 až 40 minút. Každých 10 minút ho premiešaj; hotové je, keď sú krúpy mäkké a väčšina tekutiny vsiakne.", "requires": ["barley:toasted", "mushrooms:browned", "tofu:browned", "onion:cooked", "garlic:toasted", "marjoram:toasted", "oil:cooking", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["barley:cooked", "mushrooms:cooked", "tofu:cooked", "onion:finished", "garlic:cooked", "marjoram:cooked", "oil:cooked"]},
+        {"text": "Odstav panvicu, dochuť krupoto soľou a čiernym korením a nechaj ho 5 minút prikryté postáť. Potom ho rozdeľ na {portions} porcií a podávaj.", "requires": ["barley:cooked", "mushrooms:cooked", "tofu:cooked", "onion:finished", "garlic:cooked", "marjoram:cooked", "oil:cooked", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["barley:served", "mushrooms:served", "tofu:served", "onion:served", "garlic:served", "marjoram:served", "oil:served", "hlboka_panvica_s_pokrievkou:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Krupoto rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní a pri ohrievaní pridaj lyžicu vody, aby zostalo vláčne."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "plant_mushroom_barley",
+    "editorial_lane": "plant_based",
+    "core": true,
+    "references": [
+      {"url": "https://www.veganfoodandliving.com/vegan-recipes/mushroom-pearl-barley-risotto/", "title": "King Oyster Mushroom and Leek Pearl Barley Risotto", "accessed_on": "2026-09-05"},
+      {"url": "https://viedelavegan.com/vegan-mushroom-barley-risotto/", "title": "Vegan Mushroom Barley Risotto", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

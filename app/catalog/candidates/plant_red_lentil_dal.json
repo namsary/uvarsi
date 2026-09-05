@@ -1,0 +1,44 @@
+{
+  "recipes": [
+    {
+      "id": "plant_red_lentil_dal",
+      "version": 2,
+      "active": true,
+      "name_template": "Dhal z červenej šošovice",
+      "family": "plant_red_lentil_dal",
+      "method": "pot",
+      "minutes": 35,
+      "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["hlboký hrniec s pokrievkou", "sitko", "nôž", "doska na krájanie", "varecha"],
+      "slots": [
+        {"key": "lentils", "role": "protein", "candidates": ["red_lentils"], "amount_per_adult": "90", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "220"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "nahrubo"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "curry", "role": "seasoning", "candidates": ["curry_powder"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.35", "required": true, "use": "addition", "cut": null},
+        {"key": "cumin", "role": "seasoning", "candidates": ["cumin"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.3", "required": true, "use": "addition", "cut": null},
+        {"key": "coconut", "role": "dairy", "candidates": ["coconut_milk"], "amount_per_adult": "60", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "6", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {lentils.amount} {lentils.name} v sitku. Nakrájaj {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno.", "requires": ["lentils:raw", "onion:raw", "garlic:raw", "sitko:free"], "produces": ["lentils:rinsed", "onion:cut", "garlic:cut", "sitko:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v hlbokom hrnci. Cibuľu opekaj na strednom ohni 4 minúty, kým zmäkne.", "requires": ["oil:raw", "onion:cut", "hlboky_hrniec_s_pokrievkou:free"], "produces": ["oil:hot", "onion:softened", "hlboky_hrniec_s_pokrievkou:occupied"]},
+        {"text": "Prisyp {curry.amount} {curry.name} a {cumin.amount} {cumin.name} do hrnca. Pridaj cesnak do hrnca. Miešaj približne 30 sekúnd, kým sa korenie rozvonia.", "requires": ["curry:raw", "cumin:raw", "garlic:cut", "oil:hot", "onion:softened", "hlboky_hrniec_s_pokrievkou:occupied"], "produces": ["curry:toasted", "cumin:toasted", "garlic:cooked"]},
+        {"text": "Vmiešaj {tomato.amount} {tomato.name}, šošovicu a {lentils.water} vody. Osoľ, prikry a var šošovicu s paradajkami v hrnci na miernom ohni 18 až 20 minút, kým šošovica zmäkne a dhal zhustne.", "requires": ["tomato:raw", "lentils:rinsed", "curry:toasted", "cumin:toasted", "garlic:cooked", "hlboky_hrniec_s_pokrievkou:occupied"], "produces": ["tomato:cooked", "lentils:cooked", "onion:cooked", "garlic:finished", "curry:cooked", "cumin:cooked", "oil:cooked"]},
+        {"text": "Prilej {coconut.amount} {coconut.name} do hrnca. Var {lentils.name} s kokosovou smotanou v hrnci na miernom ohni bez pokrievky ešte 3 minúty, kým bude dhal krémový a začne jemne bublať. Dochuť soľou a čiernym korením.", "requires": ["coconut:raw", "tomato:cooked", "lentils:cooked", "hlboky_hrniec_s_pokrievkou:occupied"], "produces": ["coconut:cooked"]},
+        {"text": "Podávaj dhal horúci a rozdeľ ho na {portions} porcií.", "requires": ["lentils:cooked", "tomato:cooked", "onion:cooked", "garlic:finished", "curry:cooked", "cumin:cooked", "coconut:cooked", "oil:cooked", "hlboky_hrniec_s_pokrievkou:occupied"], "produces": ["lentils:served", "tomato:served", "onion:served", "garlic:served", "curry:served", "cumin:served", "coconut:served", "oil:served", "hlboky_hrniec_s_pokrievkou:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Dhal rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní a pri ohrievaní ho nechaj prevrieť."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "plant_red_lentil_dal",
+    "editorial_lane": "plant_based",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/creamy-spiced-dhal", "title": "Creamy spiced dhal", "accessed_on": "2026-09-05"},
+      {"url": "https://www.mojadm.sk/inspiracia-a-poradenstvo/vyziva/recepty-a-tipy-pri-vareni/-dhal-z-cervenej-sosovice-3117024", "title": "Dhal z červenej šošovice", "accessed_on": "2026-09-05"}
+    ]
+  }
+}
