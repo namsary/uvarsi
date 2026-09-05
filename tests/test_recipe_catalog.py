@@ -221,6 +221,22 @@ def test_loaded_template_values_are_deeply_immutable(ingredients, tmp_path):
         recipe.active = False
 
 
+def test_v1_recipe_preserves_legacy_equipment_text_and_workflow_defaults(
+    ingredients, tmp_path
+):
+    root = _write_library(
+        tmp_path,
+        [_recipe(equipment=["2 l hrniec"])],
+    )
+
+    recipe = load_recipe_catalog(ingredients, root).all()[0]
+
+    assert recipe.equipment == ("2 l hrniec",)
+    assert all(step.requires == () for step in recipe.instructions)
+    assert all(step.produces == () for step in recipe.instructions)
+    assert recipe.storage is None
+
+
 def test_loads_version_2_workflow_and_recipe_specific_storage(ingredients, tmp_path):
     root = _write_library(tmp_path, [_v2_recipe_payload()])
 

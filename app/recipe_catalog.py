@@ -367,11 +367,12 @@ def _recipe_from_json(value, ingredient_catalog: IngredientCatalog) -> RecipeTem
     if len(slot_keys) != len(set(slot_keys)):
         raise ValueError("duplicitná pozícia receptu")
 
-    equipment_keys = tuple(_equipment_key(item) for item in equipment)
-    workflow_resources = (*slot_keys, *equipment_keys)
-    if version >= 2 and len(workflow_resources) != len(set(workflow_resources)):
-        raise ValueError("duplicitný workflow resource")
-    workflow_resource_set = frozenset(workflow_resources)
+    if version >= 2:
+        equipment_keys = tuple(_equipment_key(item) for item in equipment)
+        workflow_resources = (*slot_keys, *equipment_keys)
+        if len(workflow_resources) != len(set(workflow_resources)):
+            raise ValueError("duplicitný workflow resource")
+        workflow_resource_set = frozenset(workflow_resources)
 
     pantry_basics = _texts(payload["pantry_basics"], "základné suroviny")
     if len(pantry_basics) != len(set(pantry_basics)):
