@@ -16,6 +16,7 @@ from app.recipe_catalog import (
     InstructionTemplate,
     RecipeCatalog,
     RecipeTemplate,
+    StorageRule,
 )
 
 
@@ -117,6 +118,58 @@ def _rice_recipes(version=7, *, child_factor="0.5"):
             _template("rice-oven", method="oven", child_factor=child_factor),
         ),
     )
+
+
+def _curated_storage_recipes():
+    storage_instruction = (
+        "Tofu rozdeľ do plytkých nádob, do 1 hodiny schlaď a zjedz do 3 dní."
+    )
+    recipes = []
+    for method in ("pot", "pan", "oven"):
+        recipe = _template(
+            f"tofu-{method}-storage",
+            ingredient_id="tofu",
+            role="protein",
+            amount="160",
+            child_factor="0.75",
+            method=method,
+            name="Tofu z panvice",
+            steps=(
+                "Nakrájaj {main.amount} {main.name} na rovnaké kocky.",
+                "Opekaj tofu v panvici 8 minút na strednom ohni, kým bude zlatisté.",
+                "Rozdeľ tofu na {portions} porcií a podávaj ho teplé.",
+            ),
+        )
+        recipe = replace(recipe, equipment=("panvica",))
+        workflow_steps = (
+            replace(
+                recipe.instructions[0],
+                requires=("main:raw",),
+                produces=("main:prepared",),
+            ),
+            replace(
+                recipe.instructions[1],
+                requires=("main:prepared", "panvica:free"),
+                produces=("main:cooked", "panvica:occupied"),
+            ),
+            replace(
+                recipe.instructions[2],
+                requires=("main:cooked",),
+                produces=("main:served", "panvica:free"),
+            ),
+        )
+        recipes.append(
+            replace(
+                recipe,
+                version=2,
+                instructions=workflow_steps,
+                storage=StorageRule(
+                    refrigerated_days=3,
+                    instruction=storage_instruction,
+                ),
+            )
+        )
+    return RecipeCatalog(21, tuple(recipes))
 
 
 def _rice_with_optional_recipes(
@@ -777,6 +830,23 @@ def test_meal_serialization_preserves_complete_established_recipe_contract():
     assert recipe["dni"] == 3
     assert recipe["dospely_ekvivalent"] == "4,5"
     assert recipe["poznamka"] == "Kuchársky odhad na plánovanie nákupu."
+
+
+def test_curated_storage_instruction_reaches_the_user_facing_plan_unchanged():
+    plan = _build(
+        rows=(
+            _offer(
+                ingredient_name="Tofu",
+                offer_key="offer_tofu",
+                package="180 g",
+            ),
+        ),
+        recipe_catalog=_curated_storage_recipes(),
+    )
+
+    assert plan["jedla"][0]["recept"]["uchovanie"] == (
+        "Tofu rozdeľ do plytkých nádob, do 1 hodiny schlaď a zjedz do 3 dní."
+    )
 
 
 def test_search_never_considers_candidate_thirteen(monkeypatch):

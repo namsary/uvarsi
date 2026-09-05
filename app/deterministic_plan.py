@@ -859,7 +859,9 @@ def _meal_payload(
         },
         "allergens": allergens,
     }
-    storage = leftover_storage_note(rendered.instructions, rendered.covered_days)
+    storage = rendered.storage or leftover_storage_note(
+        rendered.instructions, rendered.covered_days
+    )
     if storage:
         recipe["uchovanie"] = storage
     if mode == "high_protein" and qualifies_high_protein(item.adult_nutrition):
