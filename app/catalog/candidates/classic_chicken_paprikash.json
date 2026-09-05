@@ -1,0 +1,162 @@
+{
+  "recipes": [
+    {
+      "id": "classic_chicken_paprikash",
+      "version": 2,
+      "active": true,
+      "name_template": "Kurací paprikáš s cestovinami",
+      "family": "classic_chicken_paprikash",
+      "method": "pot",
+      "minutes": 60,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľký hrniec", "malý hrniec", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {
+          "key": "chicken",
+          "role": "protein",
+          "candidates": ["chicken_thigh"],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": ["onion"],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": ["oil"],
+          "amount_per_adult": "10",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": ["paprika_powder"],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cream",
+          "role": "dairy",
+          "candidates": ["cream"],
+          "amount_per_adult": "50",
+          "unit": "ml",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "pasta",
+          "role": "starch",
+          "candidates": ["pasta"],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null
+        }
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {
+          "text": "Nakrájaj {onion.amount} {onion.name} nadrobno.",
+          "requires": ["onion:raw"],
+          "produces": ["onion:cut"]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni a opekaj na ňom cibuľu 6 minút, kým bude mäkká a dosklovita.",
+          "requires": ["onion:cut", "oil:raw", "velky_hrniec:free"],
+          "produces": ["onion:cooked", "oil:used", "velky_hrniec:occupied"]
+        },
+        {
+          "text": "Osuš {chicken.amount} {chicken.name} a nechaj stehná celé.",
+          "requires": ["chicken:raw"],
+          "produces": ["chicken:prepared"]
+        },
+        {
+          "text": "Pridaj {chicken.name} do hrnca. Opekaj kuracie stehná na strednom ohni 8 minút, kým bude koža miestami zlatistá.",
+          "requires": ["chicken:prepared", "onion:cooked", "oil:used", "velky_hrniec:occupied"],
+          "produces": ["chicken:browned", "oil:cooked"]
+        },
+        {
+          "text": "Odstav veľký hrniec z ohňa. Prisyp {paprika.amount} {paprika.name}. Hneď premiešaj.",
+          "requires": ["paprika:raw", "chicken:browned", "velky_hrniec:occupied"],
+          "produces": ["paprika:combined"]
+        },
+        {
+          "text": "Prilej vodu do hrnca. Tekutina má siahať do polovice stehien. Dus kuracie stehná vo veľkom hrnci na miernom ohni 35 minút, kým mäso pri kosti zmäkne a šťava jemne bublá.",
+          "requires": ["chicken:browned", "paprika:combined", "velky_hrniec:occupied"],
+          "produces": ["chicken:tender"]
+        },
+        {
+          "text": "Uvar {pasta.amount} {pasta.name} v malom hrnci na miernom ohni 8 minút, kým cestoviny zmäknú, potom ich sceď.",
+          "requires": ["pasta:raw", "maly_hrniec:free"],
+          "produces": ["pasta:cooked", "maly_hrniec:free"]
+        },
+        {
+          "text": "Rozšľahaj {cream.amount} {cream.name} v miske s trochou horúcej šťavy.",
+          "requires": ["cream:raw", "miska:free"],
+          "produces": ["cream:tempered", "miska:free"]
+        },
+        {
+          "text": "Vlej {cream.name} do hrnca. Zohrievaj {cream.name} s mäsom vo veľkom hrnci na miernom ohni 3 minúty, kým omáčka zhustne a začne bublať.",
+          "requires": ["cream:tempered", "chicken:tender", "velky_hrniec:occupied"],
+          "produces": ["cream:cooked", "chicken:cooked", "velky_hrniec:free"]
+        },
+        {
+          "text": "Dochuť paprikáš soľou a čiernym korením.",
+          "requires": ["chicken:cooked", "cream:cooked", "onion:cooked", "paprika:combined"],
+          "produces": []
+        },
+        {
+          "text": "Podávaj kurací paprikáš s cestovinami a rozdeľ ho na {portions} porcií.",
+          "requires": ["chicken:cooked", "onion:cooked", "oil:cooked", "paprika:combined", "cream:cooked", "pasta:cooked"],
+          "produces": ["chicken:served", "onion:served", "oil:served", "paprika:served", "cream:served", "pasta:served"]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Zvyšný paprikáš rozdeľ do plytkých nádob a odlož do chladničky najneskôr do 2 hodín. Zjedz ho do 2 dní."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_chicken_paprikash",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://varecha.pravda.sk/recepty/moj-tradicny-kuraci-paprikas/63768-recept.html",
+        "title": "Môj tradičný kurací paprikáš",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://nanicmama.sme.sk/recept/hlavne-jedla/kuraci-paprikas",
+        "title": "Kurací paprikáš",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

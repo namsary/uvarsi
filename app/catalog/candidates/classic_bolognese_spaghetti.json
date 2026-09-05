@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "classic_bolognese_spaghetti",
+      "version": 2,
+      "active": true,
+      "name_template": "Bolonské špagety",
+      "family": "classic_bolognese_spaghetti",
+      "method": "pot",
+      "minutes": 50,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec na omáčku", "hrniec na cestoviny", "sitko", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "meat", "role": "protein", "candidates": ["beef_mince"], "amount_per_adult": "170", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "85", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "nahrubo"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno nastrúhaný"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {onion.amount} {onion.name} nadrobno, {carrot.amount} {carrot.name} na malé kocky a {tomato.amount} {tomato.name} nahrubo. Nastrúhaj {cheese.amount} {cheese.name} najemno.", "requires": ["onion:raw", "carrot:raw", "tomato:raw", "cheese:raw"], "produces": ["onion:cut", "carrot:cut", "tomato:prepared", "cheese:grated"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v hrnci na omáčku a na strednom ohni opekaj cibuľu 5 minút, kým bude mäkká a zlatistá.", "requires": ["onion:cut", "oil:raw", "hrniec_na_omacku:free"], "produces": ["onion:cooked", "oil:used", "hrniec_na_omacku:occupied"]},
+        {"text": "Pridaj {meat.amount} {meat.name} a mrkvu do hrnca. Pri väčšej dávke opekaj mäso po častiach, aby sa namiesto dusenia opieklo. Každú časť opekaj na strednom ohni asi 8 minút a varechou mäso rozdeľ na malé kúsky, kým bude miestami zlatisté.", "requires": ["meat:raw", "carrot:cut", "onion:cooked", "oil:used", "hrniec_na_omacku:occupied"], "produces": ["meat:browned", "carrot:cooked", "oil:cooked"]},
+        {"text": "Pridaj paradajky a {garlic.amount} {garlic.name} do hrnca. Dus paradajky s mletým hovädzím mäsom na miernom ohni 25 minút, kým omáčka jemne bublá a je hustá.", "requires": ["tomato:prepared", "garlic:raw", "meat:browned", "carrot:cooked", "onion:cooked", "hrniec_na_omacku:occupied"], "produces": ["tomato:cooked", "garlic:cooked", "meat:cooked"]},
+        {"text": "Uvar {pasta.amount} {pasta.name}; na tento recept zvoľ špagety a var ich v hrnci s osolenou vodou na strednom ohni asi 9 minút, kým budú mäkké, ale stále pevné.", "requires": ["pasta:raw", "hrniec_na_cestoviny:free"], "produces": ["pasta:cooked", "hrniec_na_cestoviny:free"]},
+        {"text": "Sceď cestoviny cez sitko a nechaj ich krátko odkvapkať.", "requires": ["pasta:cooked", "sitko:free"], "produces": ["pasta:drained", "sitko:free"]},
+        {"text": "Dochuť omáčku soľou a čiernym korením.", "requires": ["tomato:cooked", "meat:cooked", "carrot:cooked", "onion:cooked"], "produces": []},
+        {"text": "Podávaj špagety s omáčkou a najemno nastrúhaným tvrdým syrom. Jedlo rozdeľ na {portions} porcií.", "requires": ["pasta:drained", "tomato:cooked", "garlic:cooked", "meat:cooked", "carrot:cooked", "onion:cooked", "oil:cooked", "cheese:grated", "hrniec_na_omacku:occupied"], "produces": ["pasta:served", "tomato:served", "garlic:served", "meat:served", "carrot:served", "onion:served", "oil:served", "cheese:served", "hrniec_na_omacku:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Omáčku a cestoviny rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_bolognese_spaghetti",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/bolonske-spagety-videorecept/71694-recept.html", "title": "Bolonské špagety, VIDEORECEPT", "accessed_on": "2026-09-05"},
+      {"url": "https://dobruchut.aktuality.sk/bolonske-spagety/", "title": "Recepty na bolonské špagety", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

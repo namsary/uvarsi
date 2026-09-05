@@ -1,0 +1,45 @@
+{
+  "recipes": [
+    {
+      "id": "classic_pea_stew_egg",
+      "version": 2,
+      "active": true,
+      "name_template": "Hrachový prívarok s vajcom",
+      "family": "classic_pea_stew_egg",
+      "method": "pot",
+      "minutes": 60,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["nôž", "doska", "hrniec", "sitko", "malý hrniec", "vareška"],
+      "slots": [
+        {"key": "peas", "role": "protein", "candidates": ["dry_peas"], "amount_per_adult": "90", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "320"},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "40", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.75", "required": true, "use": "main", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {peas.amount} {peas.name} v sitku pod studenou vodou.", "requires": ["peas:raw", "sitko:free"], "produces": ["peas:rinsed", "sitko:free"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} {garlic.cut}.", "requires": ["onion:raw", "garlic:raw"], "produces": ["onion:cut", "garlic:cut"]},
+        {"text": "Nalej {oil.amount} {oil.name} do hrnca. Opekaj cibuľu na strednom ohni 5 minút, kým bude dosklovita. Pridaj cesnak. Opekaj cesnak v hrnci na strednom ohni ešte 30 sekúnd, kým zavonia.", "requires": ["oil:raw", "onion:cut", "garlic:cut", "hrniec:free"], "produces": ["oil:cooked", "onion:cooked", "garlic:cooked", "hrniec:occupied"]},
+        {"text": "Vsyp {peas.name} do hrnca. Prilej {peas.water} vody a prikry. Var {peas.name} v hrnci na miernom ohni 45 minút, kým zmäkne a začne sa rozpadať.", "requires": ["peas:rinsed", "onion:cooked", "garlic:cooked", "oil:cooked", "hrniec:occupied"], "produces": ["peas:cooked"]},
+        {"text": "Rozdrv vareškou asi tretinu hrachu o bok hrnca, aby prívarok zhustol.", "requires": ["peas:cooked", "onion:cooked", "hrniec:occupied"], "produces": ["peas:thickened"]},
+        {"text": "Vmiešaj {cream.amount} {cream.name} a {marjoram.amount} {marjoram.name}. Prívarok povar 3 minúty, kým bude krémový a začne jemne bublať.", "requires": ["cream:raw", "marjoram:raw", "peas:thickened", "onion:cooked", "garlic:cooked", "oil:cooked", "hrniec:occupied"], "produces": ["cream:cooked", "marjoram:cooked", "peas:finished", "onion:finished", "garlic:finished", "oil:finished"]},
+        {"text": "Uvar {egg.amount} {egg.name} natvrdo v malom hrnci na strednom ohni. Od začiatku varu počítaj 9 minút, kým bielok aj žĺtok stuhnú. Potom {egg.reference_name} schlaď v studenej vode a ošúp.", "requires": ["egg:raw", "maly_hrniec:free"], "produces": ["egg:cooked", "maly_hrniec:free"]},
+        {"text": "Dochuť hrachový prívarok soľou a čiernym korením, podávaj ho s vajcom a rozdeľ na {portions} porcií.", "requires": ["peas:finished", "cream:cooked", "marjoram:cooked", "onion:finished", "garlic:finished", "oil:finished", "egg:cooked", "hrniec:occupied"], "produces": ["peas:served", "cream:served", "marjoram:served", "onion:served", "garlic:served", "oil:served", "egg:served", "hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Prívarok rozdeľ do plytkých nádob a do jednej hodiny ho odlož do chladničky. Vajcia uchovaj oddelene a všetko spotrebuj do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_pea_stew_egg",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/hrachovy-privarok-/83982-recept.html", "title": "Hrachový prívarok", "accessed_on": "2026-09-05"},
+      {"url": "https://dobruchut.aktuality.sk/recept/72859/hrachovy-privarok/", "title": "Hrachový prívarok", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "recipes": [
+    {
+      "id": "classic_roast_pork_root_veg",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené bravčové s koreňovou zeleninou",
+      "family": "classic_roast_pork_root_veg",
+      "method": "oven",
+      "minutes": 120,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["pekáč", "rúra", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "meat", "role": "protein", "candidates": ["pork_shoulder"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na 5 cm kúsky", "water_ml_per_adult": "75"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na väčšie kúsky"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na hrubšie kolieska"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na mesiačiky"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 170 °C.", "requires": ["rura:free"], "produces": ["rura:hot"]},
+        {"text": "Nakrájaj {meat.amount} {meat.name} {meat.cut}, {potato.amount} {potato.name} {potato.cut}, {carrot.amount} {carrot.name} {carrot.cut} a {onion.amount} {onion.name} {onion.cut}.", "requires": ["meat:raw", "potato:raw", "carrot:raw", "onion:raw"], "produces": ["meat:cut", "potato:cut", "carrot:cut", "onion:cut"]},
+        {"text": "Premiešaj {oil.amount} {oil.name}, {garlic.amount} {garlic.name}, soľ a čierne korenie. Kúsky mäsa obaľ v ochutenom oleji zo všetkých strán.", "requires": ["meat:cut", "garlic:raw", "oil:raw"], "produces": ["meat:seasoned", "garlic:seasoned", "oil:seasoned"]},
+        {"text": "Vlož bravčové pliecko a cibuľu do pekáča. Prilej {meat.water} vody do pekáča. Prikry pekáč.", "requires": ["meat:seasoned", "garlic:seasoned", "oil:seasoned", "onion:cut", "pekac:free"], "produces": ["meat:arranged", "garlic:arranged", "oil:arranged", "onion:arranged", "pekac:covered"]},
+        {"text": "Peč bravčové pliecko prikryté v pekáči pri 170 °C 55 minút, kým kúsky mäsa čiastočne zmäknú.", "requires": ["meat:arranged", "garlic:arranged", "oil:arranged", "onion:arranged", "pekac:covered", "rura:hot"], "produces": ["meat:partly_cooked", "garlic:cooked", "oil:cooked", "onion:cooked"]},
+        {"text": "Pridaj zemiaky a mrkvu do pekáča, znovu ho prikry a peč pri 170 °C 35 minút, kým zelenina zmäkne.", "requires": ["meat:partly_cooked", "onion:cooked", "potato:cut", "carrot:cut", "pekac:covered"], "produces": ["potato:cooked", "carrot:cooked", "meat:tender"]},
+        {"text": "Odokry pekáč a peč mäso so zeleninou pri 190 °C 15 minút, kým bude mäso zlatisté a mäkké pod vidličkou.", "requires": ["meat:tender", "potato:cooked", "carrot:cooked", "onion:cooked", "pekac:covered"], "produces": ["meat:cooked", "potato:browned", "carrot:browned", "onion:browned", "pekac:free"]},
+        {"text": "Nechaj mäso 5 minút odpočívať a potom ho rozdeľ so zeleninou na {portions} porcií.", "requires": ["meat:cooked", "garlic:cooked", "potato:browned", "carrot:browned", "onion:browned", "oil:cooked"], "produces": ["meat:served", "garlic:served", "potato:served", "carrot:served", "onion:served", "oil:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Mäso so zeleninou rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_roast_pork_root_veg",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://www.gastro-tipy.sk/recepty/pecene-bravcove-maso-na-korenovej-zelenine-a-pive", "title": "Pečené bravčové mäso na koreňovej zelenine a pive", "accessed_on": "2026-09-05"},
+      {"url": "https://chefino.sk/recept/pomaly-pecene-bravcove-pliecko/", "title": "Pomaly pečené bravčové pliecko", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

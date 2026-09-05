@@ -27,7 +27,9 @@ ALLOWED_MODES = frozenset(
 ALLOWED_METHODS = frozenset({"pan", "oven", "pot", "one_pot", "salad", "soup"})
 ALLOWED_UNITS = frozenset({"g", "ml", "piece"})
 ALLOWED_USES = frozenset({"main", "addition"})
-ALLOWED_PLACEHOLDER_ATTRIBUTES = frozenset({"name", "amount", "cut", "water"})
+ALLOWED_PLACEHOLDER_ATTRIBUTES = frozenset(
+    {"name", "reference_name", "amount", "cut", "water"}
+)
 SLOT_KEY_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 PANTRY_BASIC_NAMES: Mapping[str, str] = MappingProxyType({"water": "voda"})
 CATALOG_SNAPSHOT_RETRIES = 4
@@ -45,6 +47,7 @@ class IngredientSlot:
     required: bool
     use: Literal["main", "addition"]
     cut: str | None
+    water_ml_per_adult: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -173,19 +176,22 @@ def _ingredient(ingredient_catalog: IngredientCatalog, ingredient_id: str):
 
 def _slot_from_json(value, ingredient_catalog: IngredientCatalog) -> IngredientSlot:
     payload = _object(value, "pozície")
+    expected_keys = {
+        "key",
+        "role",
+        "candidates",
+        "amount_per_adult",
+        "unit",
+        "child_factor",
+        "required",
+        "use",
+        "cut",
+    }
+    if "water_ml_per_adult" in payload:
+        expected_keys.add("water_ml_per_adult")
     _exact_keys(
         payload,
-        {
-            "key",
-            "role",
-            "candidates",
-            "amount_per_adult",
-            "unit",
-            "child_factor",
-            "required",
-            "use",
-            "cut",
-        },
+        expected_keys,
         "pozície",
     )
     key = _text(payload["key"], "kľúč pozície")
@@ -242,6 +248,13 @@ def _slot_from_json(value, ingredient_catalog: IngredientCatalog) -> IngredientS
         required=required,
         use=use,
         cut=cut,
+        water_ml_per_adult=(
+            _positive_decimal(
+                payload["water_ml_per_adult"], "voda na dospelého"
+            )
+            if "water_ml_per_adult" in payload
+            else None
+        ),
     )
 
 

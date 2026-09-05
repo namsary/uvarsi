@@ -1,0 +1,163 @@
+{
+  "recipes": [
+    {
+      "id": "classic_slovak_chicken_risotto",
+      "version": 2,
+      "active": true,
+      "name_template": "Slovenské kuracie rizoto so zeleninou",
+      "family": "classic_slovak_chicken_risotto",
+      "method": "one_pot",
+      "minutes": 35,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "nôž", "doska na krájanie"],
+      "slots": [
+        {
+          "key": "chicken",
+          "role": "protein",
+          "candidates": ["chicken_breast"],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na malé kocky"
+        },
+        {
+          "key": "rice",
+          "role": "starch",
+          "candidates": ["rice"],
+          "amount_per_adult": "75",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "peas",
+          "role": "vegetable",
+          "candidates": ["peas"],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "carrot",
+          "role": "vegetable",
+          "candidates": ["carrot"],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "addition",
+          "cut": "na malé kocky"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": ["onion"],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "cheese",
+          "role": "dairy",
+          "candidates": ["hard_cheese"],
+          "amount_per_adult": "15",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno nastrúhaný"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": ["oil"],
+          "amount_per_adult": "10",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {
+          "text": "Prepláchni {rice.amount} {rice.name} studenou vodou.",
+          "requires": ["rice:raw"],
+          "produces": ["rice:rinsed"]
+        },
+        {
+          "text": "Nakrájaj {chicken.amount} {chicken.name} na malé kocky, {carrot.amount} {carrot.name} na malé kocky a {onion.amount} {onion.name} nadrobno.",
+          "requires": ["chicken:raw", "carrot:raw", "onion:raw"],
+          "produces": ["chicken:cut", "carrot:cut", "onion:cut"]
+        },
+        {
+          "text": "Rozohrej v hrnci {oil.amount} {oil.name} na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj v ňom cibuľu 3 minúty, kým bude dosklovita.",
+          "requires": ["onion:cut", "oil:raw", "hrniec:free"],
+          "produces": ["onion:cooked", "oil:used", "hrniec:occupied"]
+        },
+        {
+          "text": "Pridaj {chicken.name} do hrnca. Opekaj kuracie prsia na strednom ohni 7 minút, kým bude mäso na okrajoch zlatisté.",
+          "requires": ["chicken:cut", "onion:cooked", "oil:used", "hrniec:occupied"],
+          "produces": ["chicken:browned"]
+        },
+        {
+          "text": "Pridaj {carrot.name} a {rice.name} do hrnca. Prilej {rice.water} vody do hrnca a prikry ho. Var ryžu s kuracím mäsom a mrkvou na miernom ohni 14 minút, kým voda vsiakne a ryža zmäkne.",
+          "requires": ["carrot:cut", "rice:rinsed", "chicken:browned", "oil:used", "hrniec:occupied"],
+          "produces": ["carrot:cooked", "rice:cooked", "chicken:cooked", "oil:cooked"]
+        },
+        {
+          "text": "Pridaj {peas.amount} {peas.name} do hrnca. Dus zelený hrášok s rizotom v hrnci na miernom ohni 5 minút, kým hrášok zmäkne a ryža zostane sypká.",
+          "requires": ["peas:raw", "rice:cooked", "chicken:cooked", "oil:cooked", "hrniec:occupied"],
+          "produces": ["peas:cooked", "hrniec:free"]
+        },
+        {
+          "text": "Priprav {cheese.amount} {cheese.name} na posypanie.",
+          "requires": ["cheese:raw"],
+          "produces": ["cheese:prepared"]
+        },
+        {
+          "text": "Dochuť rizoto soľou a čiernym korením.",
+          "requires": ["chicken:cooked", "rice:cooked", "peas:cooked", "carrot:cooked", "onion:cooked", "oil:cooked"],
+          "produces": []
+        },
+        {
+          "text": "Podávaj rizoto posypané tvrdým syrom a rozdeľ ho na {portions} porcií.",
+          "requires": ["chicken:cooked", "rice:cooked", "peas:cooked", "carrot:cooked", "onion:cooked", "cheese:prepared", "oil:cooked"],
+          "produces": ["chicken:served", "rice:served", "peas:served", "carrot:served", "onion:served", "cheese:served", "oil:served"]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 1,
+        "instruction": "Rizoto rozlož do plytkej nádoby, odlož do chladničky do jednej hodiny a zjedz do 24 hodín."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_slovak_chicken_risotto",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://nanicmama.sme.sk/recept/hlavne-jedla/kuracie-rizoto",
+        "title": "Kuracie rizoto",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://dobruchut.aktuality.sk/recept/1939/kuracie-rizoto/",
+        "title": "Kuracie rizoto",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

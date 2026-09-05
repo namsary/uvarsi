@@ -1,0 +1,44 @@
+{
+  "recipes": [
+    {
+      "id": "classic_goulash_soup",
+      "version": 2,
+      "active": true,
+      "name_template": "Gulášová polievka",
+      "family": "classic_goulash_soup",
+      "method": "soup",
+      "minutes": 90,
+      "modes": ["standard"],
+      "equipment": ["veľký hrniec", "nôž", "doska na krájanie", "varecha"],
+      "slots": [
+        {"key": "meat", "role": "protein", "candidates": ["beef_chuck"], "amount_per_adult": "140", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na 2 cm kocky", "water_ml_per_adult": "450"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na malé kocky"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "nahrubo"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {meat.amount} {meat.name} {meat.cut}, {potato.amount} {potato.name} {potato.cut}, {tomato.amount} {tomato.name} {tomato.cut} a {onion.amount} {onion.name} {onion.cut}.", "requires": ["meat:raw", "potato:raw", "tomato:raw", "onion:raw"], "produces": ["meat:cut", "potato:cut", "tomato:cut", "onion:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci a opekaj na ňom cibuľu na strednom ohni 6 minút, kým bude zlatistá.", "requires": ["onion:cut", "oil:raw", "velky_hrniec:free"], "produces": ["onion:cooked", "oil:used", "velky_hrniec:occupied"]},
+        {"text": "Opekaj {meat.name} s cibuľou vo veľkom hrnci na strednom ohni 8 minút, kým bude mäso zo všetkých strán zlatisté.", "requires": ["meat:cut", "onion:cooked", "oil:used", "velky_hrniec:occupied"], "produces": ["meat:browned", "oil:cooked"]},
+        {"text": "Odstav veľký hrniec z ohňa. Prisyp {paprika.amount} {paprika.name}. Hneď premiešaj.", "requires": ["paprika:raw", "meat:browned", "onion:cooked"], "produces": ["paprika:combined", "meat:seasoned"]},
+        {"text": "Pridaj paradajky a {garlic.amount} {garlic.name} do hrnca a nalej {meat.water} vody. Var {meat.name} s paradajkami vo veľkom hrnci na miernom ohni asi 45 minút, kým mäso takmer zmäkne.", "requires": ["tomato:cut", "garlic:raw", "paprika:combined", "meat:seasoned", "onion:cooked", "oil:cooked", "velky_hrniec:occupied"], "produces": ["tomato:cooked", "garlic:cooked", "paprika:cooked", "meat:partly_cooked"]},
+        {"text": "Pridaj zemiaky do hrnca. Var zemiaky s hovädzím mäsom na miernom ohni 20 minút, kým sú zemiaky aj mäso mäkké.", "requires": ["potato:cut", "tomato:cooked", "meat:partly_cooked", "onion:cooked", "velky_hrniec:occupied"], "produces": ["potato:cooked", "meat:cooked"]},
+        {"text": "Dochuť polievku soľou a čiernym korením a rozdeľ ju na {portions} porcií.", "requires": ["potato:cooked", "tomato:cooked", "garlic:cooked", "paprika:cooked", "meat:cooked", "onion:cooked", "oil:cooked", "velky_hrniec:occupied"], "produces": ["potato:served", "tomato:served", "garlic:served", "paprika:served", "meat:served", "onion:served", "oil:served", "velky_hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Gulášovú polievku rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_goulash_soup",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/gulasova-polievka-fotorecept/60909-recept.html", "title": "Gulášová polievka", "accessed_on": "2026-09-05"},
+      {"url": "https://dobruchut.aktuality.sk/recept/78856/tradicna-gulasova-polievka/", "title": "Tradičná gulášová polievka", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

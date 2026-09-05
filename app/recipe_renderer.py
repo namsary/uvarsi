@@ -29,6 +29,7 @@ from .recipe_matcher import RecipeCandidate, SlotSelection
 _ONE = Decimal("1")
 _THOUSAND = Decimal("1000")
 _PAN_BATCH_LIMIT_GRAMS = Decimal("800")
+_LARGE_VESSEL_BATCH_LIMIT = Decimal("5000")
 _SLOVAK_FORMS_PATH = (
     Path(__file__).with_name("catalog") / "slovak_ingredient_forms.json"
 )
@@ -100,7 +101,9 @@ _QUANTITY_NAMES: Mapping[str, str] = {
     "chicken_breast": "kuracích pŕs",
     "chicken_thigh": "kuracích stehien",
     "chicken_thigh_meat": "vykosteného kuracieho stehenného mäsa",
-    "pork_shoulder": "bravčového pliecka",
+    "cinnamon": "mletej škorice",
+    "pork_shoulder": "bravčového pliecka bez kosti",
+    "pork_mince": "mletého bravčového mäsa",
     "beef_mince": "mletého hovädzieho mäsa",
     "salmon": "lososa",
     "tofu": "tofu",
@@ -169,7 +172,9 @@ _REFERENCE_NAMES: Mapping[str, str] = {
     "chicken_breast": "kuracie prsia",
     "chicken_thigh": "kuracie stehná",
     "chicken_thigh_meat": "vykostené kuracie stehenné mäso",
-    "pork_shoulder": "bravčové pliecko",
+    "cinnamon": "mletá škorica",
+    "pork_shoulder": "bravčové pliecko bez kosti",
+    "pork_mince": "mleté bravčové mäso",
     "beef_mince": "mleté hovädzie mäso",
     "salmon": "lososa",
     "tofu": "tofu",
@@ -334,14 +339,14 @@ _COOKING_ACTION = re.compile(
     r"tepelne\s+uprav|upec|uvar|var|zohrej|zohrievaj)\b"
 )
 _VESSEL = re.compile(
-    r"\b(?:hrnc\w*|panvic\w*|pekac\w*|plech\w*|rur\w*|wok\w*|rajnic\w*|misk\w*)\b"
+    r"\b(?:(?:velk\w*|mal\w*)\s+)?(?:hrnc\w*|panvic\w*|pekac\w*|plech\w*|rur\w*|wok\w*|rajnic\w*|misk\w*)\b"
 )
 _HEAT = re.compile(
     r"(?:\b(?:miernom|strednom|silnom|nizkom|vysokom)\s+ohni\b|"
     r"\d+\s*°\s*c\b)"
 )
 _TIME = re.compile(
-    r"\b\d+(?:[,.]\d+)?\s*(?:sekund|sekundy|minut|minuty|hodin|hodiny)\b"
+    r"\b\d+(?:[,.]\d+)?\s*(?:sekund(?:u|y)?|minut(?:u|y)?|hodin(?:u|y)?)\b"
 )
 _DISPLAYED_HEAT = re.compile(
     r"\b(?:na\s+(?:miernom|strednom|silnom|nízkom|vysokom)\s+ohni|"
@@ -503,6 +508,8 @@ def _display_amount(quantity: Quantity) -> str:
     else:
         step = Decimal("100")
     rounded = _round_to_step(amount, step)
+    if amount > 0 and rounded == 0:
+        rounded = Decimal("1")
 
     if rounded >= _THOUSAND:
         larger = _shift_exponent(rounded, -3)
@@ -512,6 +519,11 @@ def _display_amount(quantity: Quantity) -> str:
 
 
 def _water_amount(rendered: RenderedIngredient) -> str | None:
+    per_adult = rendered.slot.water_ml_per_adult
+    if per_adult is not None:
+        adult_equivalents = rendered.quantity.amount / rendered.slot.amount_per_adult
+        millilitres = _multiply_exact(adult_equivalents, per_adult)
+        return _display_amount(Quantity(millilitres, "ml"))
     ratio = _WATER_ML_PER_GRAM.get(rendered.ingredient.id)
     if ratio is None:
         return None
@@ -606,6 +618,16 @@ def _quantity_name(rendered: RenderedIngredient) -> str:
     return _QUANTITY_NAMES.get(rendered.ingredient.id, rendered.ingredient.name)
 
 
+def _reference_name(rendered: RenderedIngredient) -> str:
+    if (
+        rendered.ingredient.id == "egg"
+        and rendered.quantity.unit == "piece"
+        and rendered.quantity.amount <= _ONE
+    ):
+        return "vajce"
+    return _REFERENCE_NAMES[rendered.ingredient.id]
+
+
 def _normalize_rendered_text(value: str) -> str:
     value = re.sub(r"\s+", " ", value).strip()
     return re.sub(r"\s+([,.;:])", r"\1", value)
@@ -644,7 +666,13 @@ def _render_template(
                 chunks.append(str(portions))
                 continue
             parts = field.split(".")
-            if len(parts) != 2 or parts[1] not in {"name", "amount", "cut", "water"}:
+            if len(parts) != 2 or parts[1] not in {
+                "name",
+                "reference_name",
+                "amount",
+                "cut",
+                "water",
+            }:
                 raise ValueError(f"nepovolený placeholder: {field}")
             wording = slots.get(parts[0])
             if wording is None:
@@ -742,6 +770,8 @@ def _render_ingredient(
     adult_equivalents = _add_exact(Decimal(adults), child_equivalents)
     batch_equivalents = _multiply_exact(adult_equivalents, Decimal(covered_days))
     amount = _multiply_exact(selection.slot.amount_per_adult, batch_equivalents)
+    if selection.slot.unit == "piece":
+        amount = amount.to_integral_value(rounding=ROUND_CEILING)
     quantity = Quantity(amount, selection.slot.unit)
     display_amount = _display_amount(quantity)
     return RenderedIngredient(
@@ -832,6 +862,47 @@ def _large_pan_batch_step(
         f"{doneness_text}."
     )
     return f"{guidance} {per_batch}"
+
+
+def _large_vessel_batch_steps(
+    instructions: tuple[str, ...],
+    rendered: Sequence[RenderedIngredient],
+) -> tuple[str, ...]:
+    """Add practical capacity guidance for every vessel used by a large batch."""
+    total = sum((_edible_grams(item) for item in rendered), Decimal("0"))
+    for item in rendered:
+        if item.slot.water_ml_per_adult is None:
+            continue
+        adult_equivalents = item.quantity.amount / item.slot.amount_per_adult
+        total += _multiply_exact(adult_equivalents, item.slot.water_ml_per_adult)
+    if total <= _LARGE_VESSEL_BATCH_LIMIT:
+        return instructions
+
+    result = list(instructions)
+    vessels = (
+        ("pekac", "dva pekáče", "dva pekace"),
+        ("plech", "dva plechy", "dva plechy"),
+        ("hrnc", "dva alebo viac veľkých hrncov", "viac velkych hrncov"),
+    )
+    for vessel_root, vessel_text, existing_marker in vessels:
+        folded = tuple(_fold(step) for step in result)
+        if any(existing_marker in step for step in folded):
+            continue
+        target = next(
+            (
+                index
+                for index, step in enumerate(folded)
+                if vessel_root in step and _COOKING_ACTION.search(step) is not None
+            ),
+            None,
+        )
+        if target is None:
+            continue
+        result[target] = (
+            f"Rozdeľ túto veľkú dávku medzi {vessel_text} a v každom zachovaj "
+            f"rovnaký pomer surovín. {result[target]}"
+        )
+    return tuple(result)
 
 
 def _pantry_names(candidate: RecipeCandidate) -> tuple[str, ...]:
@@ -1245,7 +1316,7 @@ def render_meal(
         item.slot.key: _SlotWording(
             ingredient_id=item.ingredient.id,
             name=_quantity_name(item),
-            reference_name=_REFERENCE_NAMES[item.ingredient.id],
+            reference_name=_reference_name(item),
             amount=item.display_amount,
             cut=item.slot.cut or "",
             water=_water_amount(item),
@@ -1274,6 +1345,7 @@ def render_meal(
         )
         for instruction in candidate.template.instructions
     )
+    instructions = _large_vessel_batch_steps(instructions, rendered)
     pantry_ids = tuple(candidate.template.pantry_basics)
     try:
         _validate_rendered_language_cached(name, instructions, rendered, pantry_ids)

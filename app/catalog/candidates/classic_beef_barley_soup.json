@@ -1,0 +1,44 @@
+{
+  "recipes": [
+    {
+      "id": "classic_beef_barley_soup",
+      "version": 2,
+      "active": true,
+      "name_template": "Hovädzia polievka s krúpami",
+      "family": "classic_beef_barley_soup",
+      "method": "soup",
+      "minutes": 95,
+      "modes": ["standard"],
+      "equipment": ["veľký hrniec", "sitko", "nôž", "doska na krájanie", "varecha"],
+      "slots": [
+        {"key": "meat", "role": "protein", "candidates": ["beef_chuck"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na 2 cm kocky"},
+        {"key": "barley", "role": "starch", "candidates": ["barley"], "amount_per_adult": "55", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "500"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na kolieska"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "45", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {barley.amount} {barley.name} v sitku pod studenou vodou.", "requires": ["barley:raw", "sitko:free"], "produces": ["barley:rinsed", "sitko:free"]},
+        {"text": "Nakrájaj {meat.amount} {meat.name} {meat.cut}, {carrot.amount} {carrot.name} {carrot.cut}, {potato.amount} {potato.name} {potato.cut} a {onion.amount} {onion.name} {onion.cut}.", "requires": ["meat:raw", "carrot:raw", "potato:raw", "onion:raw"], "produces": ["meat:cut", "carrot:cut", "potato:cut", "onion:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci a opekaj na ňom cibuľu na strednom ohni 5 minút, kým bude mäkká a zlatistá.", "requires": ["onion:cut", "oil:raw", "velky_hrniec:free"], "produces": ["onion:cooked", "oil:used", "velky_hrniec:occupied"]},
+        {"text": "Opekaj {meat.name} s cibuľou vo veľkom hrnci na strednom ohni 8 minút, kým bude mäso zo všetkých strán zlatisté.", "requires": ["meat:cut", "onion:cooked", "oil:used", "velky_hrniec:occupied"], "produces": ["meat:browned", "oil:cooked"]},
+        {"text": "Pridaj {barley.name} a {garlic.amount} {garlic.name} do hrnca a nalej {barley.water} vody. Var krúpy s mäsom vo veľkom hrnci na miernom ohni 55 minút, kým mäso takmer zmäkne a krúpy napučia.", "requires": ["barley:rinsed", "garlic:raw", "meat:browned", "onion:cooked", "oil:cooked", "velky_hrniec:occupied"], "produces": ["barley:partly_cooked", "garlic:cooked", "meat:partly_cooked"]},
+        {"text": "Pridaj {carrot.name} a {potato.name} do hrnca. Var mrkvu a zemiaky s mäsom a krúpami vo veľkom hrnci na miernom ohni ďalších 20 minút, kým budú mäso, krúpy aj zelenina mäkké.", "requires": ["barley:partly_cooked", "meat:partly_cooked", "carrot:cut", "potato:cut", "onion:cooked", "velky_hrniec:occupied"], "produces": ["barley:cooked", "meat:cooked", "carrot:cooked", "potato:cooked"]},
+        {"text": "Dochuť polievku soľou a čiernym korením a rozdeľ ju na {portions} porcií.", "requires": ["barley:cooked", "garlic:cooked", "meat:cooked", "carrot:cooked", "potato:cooked", "onion:cooked", "oil:cooked", "velky_hrniec:occupied"], "produces": ["barley:served", "garlic:served", "meat:served", "carrot:served", "potato:served", "onion:served", "oil:served", "velky_hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Hovädziu polievku rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_beef_barley_soup",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://www.receptia.sk/polievka-z-udeneho-hovadzieho-s-krupami/", "title": "Polievka z údeného hovädzieho s krúpami", "accessed_on": "2026-09-05"},
+      {"url": "https://dobruchut.aktuality.sk/recept/12957/sedliacka-polievka/", "title": "Sedliacka polievka", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

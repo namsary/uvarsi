@@ -1,0 +1,147 @@
+{
+  "recipes": [
+    {
+      "id": "classic_roast_chicken_thighs_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené kuracie stehná so zemiakmi",
+      "family": "classic_roast_chicken_thighs_potatoes",
+      "method": "oven",
+      "minutes": 65,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["rúra", "pekáč", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {
+          "key": "chicken",
+          "role": "protein",
+          "candidates": ["chicken_thigh"],
+          "amount_per_adult": "260",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": ["potato"],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na mesiačiky"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": ["onion"],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": "na hrubšie mesiačiky"
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": ["paprika_powder"],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": ["garlic"],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": ["oil"],
+          "amount_per_adult": "15",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": ["salt", "black_pepper"],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C.",
+          "requires": ["rura:free"],
+          "produces": ["rura:heated"]
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj zemiaky na mesiačiky.",
+          "requires": ["potato:raw"],
+          "produces": ["potato:cut"]
+        },
+        {
+          "text": "Nakrájaj {onion.amount} {onion.name} na hrubšie mesiačiky.",
+          "requires": ["onion:raw"],
+          "produces": ["onion:cut"]
+        },
+        {
+          "text": "Osuš {chicken.amount} {chicken.name} a nechaj ich celé.",
+          "requires": ["chicken:raw"],
+          "produces": ["chicken:prepared"]
+        },
+        {
+          "text": "Premiešaj v miske {oil.amount} {oil.name}, {paprika.amount} {paprika.name}, {garlic.amount} {garlic.name}, soľ a čierne korenie.",
+          "requires": ["oil:raw", "paprika:raw", "garlic:raw", "miska:free"],
+          "produces": ["oil:seasoned", "paprika:paste", "garlic:paste", "miska:free"]
+        },
+        {
+          "text": "Priprav kuracie stehná s paprikovou zmesou tak, aby bola koža rovnomerne pokrytá. Rozlož kuracie stehná do pekáča.",
+          "requires": ["chicken:prepared", "oil:seasoned", "paprika:paste", "garlic:paste", "pekac:free"],
+          "produces": ["chicken:seasoned", "oil:combined", "paprika:combined", "garlic:combined", "pekac:occupied"]
+        },
+        {
+          "text": "Pridaj zemiaky a cibuľu do pekáča. Peč kuracie stehná so zemiakmi a cibuľou pri 200 °C približne 50 minút, kým koža zozlatne, zemiaky zmäknú a po narezaní pri kosti mäso nie je ružové a vyteká z neho číra šťava.",
+          "requires": ["chicken:seasoned", "potato:cut", "onion:cut", "oil:combined", "paprika:combined", "garlic:combined", "pekac:occupied", "rura:heated"],
+          "produces": ["chicken:cooked", "potato:cooked", "onion:cooked", "oil:cooked", "paprika:cooked", "garlic:cooked", "pekac:free", "rura:free"]
+        },
+        {
+          "text": "Podávaj celé kuracie stehná so zemiakmi a rozdeľ jedlo na {portions} porcií.",
+          "requires": ["chicken:cooked", "potato:cooked", "onion:cooked", "oil:cooked", "paprika:cooked", "garlic:cooked"],
+          "produces": ["chicken:served", "potato:served", "onion:served", "oil:served", "paprika:served", "garlic:served"]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Zvyšné pečené stehná a zemiaky rozdeľ do plytkých nádob a odlož do chladničky najneskôr do 2 hodín. Zjedz ich do 2 dní."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_roast_chicken_thighs_potatoes",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://varecha.pravda.sk/recepty/pecene-kuracie-stehna-so-zemiakmi-fotorecept/78800-recept.html",
+        "title": "Pečené kuracie stehná so zemiakmi",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://kuchynalidla.sk/recepty/pecene-kuracie-s-bylinkami-cesnakom-zemiakmi",
+        "title": "Pečené kura s bylinkami, cesnakom a zemiakmi",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

@@ -1,0 +1,264 @@
+{
+  "recipes": [
+    {
+      "id": "classic_garlic_soup",
+      "version": 2,
+      "active": true,
+      "name_template": "Cesnaková polievka",
+      "family": "slovak_garlic_soup",
+      "method": "soup",
+      "minutes": 35,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "veľký hrniec",
+        "panvica",
+        "ponorný mixér",
+        "nôž",
+        "doska na krájanie",
+        "varecha"
+      ],
+      "slots": [
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": 180,
+          "unit": "g",
+          "child_factor": 0.65,
+          "required": true,
+          "use": "main",
+          "cut": "na 2 cm kocky",
+          "water_ml_per_adult": "350"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": 12,
+          "unit": "g",
+          "child_factor": 0.45,
+          "required": true,
+          "use": "addition",
+          "cut": "rozdrvený"
+        },
+        {
+          "key": "bread",
+          "role": "starch",
+          "candidates": [
+            "bread"
+          ],
+          "amount_per_adult": 50,
+          "unit": "g",
+          "child_factor": 0.6,
+          "required": true,
+          "use": "addition",
+          "cut": "na 2 cm kocky"
+        },
+        {
+          "key": "cheese",
+          "role": "dairy",
+          "candidates": [
+            "hard_cheese"
+          ],
+          "amount_per_adult": 25,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": "najemno nastrúhaný"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": 15,
+          "unit": "ml",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "salt",
+          "role": "seasoning",
+          "candidates": [
+            "salt"
+          ],
+          "amount_per_adult": 2,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "pepper",
+          "role": "seasoning",
+          "candidates": [
+            "black_pepper"
+          ],
+          "amount_per_adult": 0.5,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water"
+      ],
+      "instructions": [
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na 2 cm kocky. Rozdrv {garlic.amount} {garlic.name} plochou stranou noža.",
+          "requires": [
+            "potato:raw",
+            "garlic:raw",
+            "noz:free",
+            "doska_na_krajanie:free"
+          ],
+          "produces": [
+            "potato:cubed",
+            "garlic:crushed",
+            "noz:used",
+            "doska_na_krajanie:used"
+          ]
+        },
+        {
+          "text": "Pridaj zemiaky a cesnak do hrnca. Nalej {potato.water} vody do hrnca. Var zemiaky vo veľkom hrnci na strednom ohni asi 18 minút, kým zmäknú a ľahko ich rozpučíš vidličkou.",
+          "requires": [
+            "potato:cubed",
+            "garlic:crushed",
+            "velky_hrniec:free"
+          ],
+          "produces": [
+            "potato:cooked",
+            "garlic:cooked",
+            "velky_hrniec:used"
+          ]
+        },
+        {
+          "text": "Prisyp {salt.amount} {salt.name} a {pepper.amount} {pepper.name} do hrnca. Rozmixuj obsah hrnca ponorným mixérom 1 minútu, kým je polievka hladká.",
+          "requires": [
+            "potato:cooked",
+            "garlic:cooked",
+            "salt:raw",
+            "pepper:raw",
+            "ponorny_mixer:free",
+            "velky_hrniec:used"
+          ],
+          "produces": [
+            "potato:pureed",
+            "garlic:pureed",
+            "salt:mixed",
+            "pepper:mixed",
+            "ponorny_mixer:used"
+          ]
+        },
+        {
+          "text": "Nakrájaj {bread.amount} {bread.name} na 2 cm kocky na doske na krájanie.",
+          "requires": [
+            "bread:raw",
+            "noz:used",
+            "doska_na_krajanie:used"
+          ],
+          "produces": [
+            "bread:cubed"
+          ]
+        },
+        {
+          "text": "Nalej {oil.amount} {oil.name} do panvice.",
+          "requires": [
+            "oil:raw",
+            "panvica:free"
+          ],
+          "produces": [
+            "oil:heated",
+            "panvica:used"
+          ]
+        },
+        {
+          "text": "Opekaj biely chlieb v panvici na strednom ohni 5 minút, kým je dozlatista a chrumkavý.",
+          "requires": [
+            "bread:cubed",
+            "oil:heated",
+            "panvica:used"
+          ],
+          "produces": [
+            "bread:toasted",
+            "oil:used"
+          ]
+        },
+        {
+          "text": "Prisyp {cheese.amount} {cheese.name} do hrnca. Premiešaj obsah hrnca 1 minútu, kým sa tvrdý syr čiastočne roztopí.",
+          "requires": [
+            "potato:pureed",
+            "garlic:pureed",
+            "salt:mixed",
+            "pepper:mixed",
+            "cheese:raw",
+            "velky_hrniec:used"
+          ],
+          "produces": [
+            "potato:ready",
+            "garlic:ready",
+            "salt:ready",
+            "pepper:ready",
+            "cheese:softened"
+          ]
+        },
+        {
+          "text": "Rozdeľ polievku s chrumkavými krutónmi do misiek. Ak varíš na viac dní, krutóny k neskorším porciám odlož bokom a nasyp ich až po zohriatí polievky.",
+          "requires": [
+            "potato:ready",
+            "garlic:ready",
+            "bread:toasted",
+            "cheese:softened",
+            "oil:used",
+            "salt:ready",
+            "pepper:ready"
+          ],
+          "produces": [
+            "potato:served",
+            "garlic:served",
+            "bread:served",
+            "cheese:served",
+            "oil:served",
+            "salt:served",
+            "pepper:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Polievku bez opečeného chleba rozdeľ do plytkých nádob a odlož do chladničky najneskôr do 2 hodín. Zjedz ju do 2 dní; chlieb drž oddelene v suchej nádobe."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_garlic_soup",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://kuchynalidla.sk/recepty/cesnakova-polievka",
+        "title": "Cesnaková polievka",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://varecha.pravda.sk/recepty/cesnakova-polievka/14730-recept.html",
+        "title": "Cesnaková polievka",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

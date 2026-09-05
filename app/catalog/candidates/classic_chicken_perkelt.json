@@ -1,0 +1,174 @@
+{
+  "recipes": [
+    {
+      "id": "classic_chicken_perkelt",
+      "version": 2,
+      "active": true,
+      "name_template": "Kurací perkelt s chlebom",
+      "family": "classic_chicken_perkelt",
+      "method": "pot",
+      "minutes": 60,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "nôž", "doska na krájanie"],
+      "slots": [
+        {
+          "key": "chicken",
+          "role": "protein",
+          "candidates": ["chicken_thigh"],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": ["onion"],
+          "amount_per_adult": "90",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": ["oil"],
+          "amount_per_adult": "10",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": ["garlic"],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": ["paprika_powder"],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "pepper",
+          "role": "vegetable",
+          "candidates": ["bell_pepper"],
+          "amount_per_adult": "60",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na pásiky"
+        },
+        {
+          "key": "tomato",
+          "role": "vegetable",
+          "candidates": ["tomato"],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na menšie kúsky"
+        },
+        {
+          "key": "bread",
+          "role": "starch",
+          "candidates": ["bread"],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": "na krajce"
+        }
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {
+          "text": "Nakrájaj {onion.amount} {onion.name} nadrobno, {pepper.amount} {pepper.name} na pásiky, {tomato.amount} {tomato.name} na menšie kúsky a {garlic.amount} {garlic.name} najemno.",
+          "requires": ["onion:raw", "pepper:raw", "tomato:raw", "garlic:raw"],
+          "produces": ["onion:cut", "pepper:cut", "tomato:cut", "garlic:cut"]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} v hrnci na strednom ohni a opekaj na ňom cibuľu 7 minút, kým bude zlatistá.",
+          "requires": ["onion:cut", "oil:raw", "hrniec:free"],
+          "produces": ["onion:cooked", "oil:used", "hrniec:occupied"]
+        },
+        {
+          "text": "Osuš {chicken.amount} {chicken.name} a nechaj porcie celé.",
+          "requires": ["chicken:raw"],
+          "produces": ["chicken:prepared"]
+        },
+        {
+          "text": "Pridaj {chicken.name} do hrnca. Opekaj kuracie stehná na strednom ohni 8 minút, kým bude koža zlatistá.",
+          "requires": ["chicken:prepared", "onion:cooked", "oil:used", "hrniec:occupied"],
+          "produces": ["chicken:browned", "oil:cooked"]
+        },
+        {
+          "text": "Odstav hrniec z ohňa. Prisyp {paprika.amount} {paprika.name} do hrnca a premiešaj.",
+          "requires": ["paprika:raw", "chicken:browned", "hrniec:occupied"],
+          "produces": ["paprika:combined"]
+        },
+        {
+          "text": "Pridaj papriku, paradajky a cesnak do hrnca. Opekaj cesnak s pripravenou zeleninou v hrnci na strednom ohni 2 minúty, kým zavonia. Prilej vodu do hrnca. Tekutina má siahať tesne pod mäso. Prikry a dus kuracie stehná vo veľkom hrnci na miernom ohni 35 minút, kým mäso pri kosti zmäkne a papriková šťava zhustne.",
+          "requires": ["chicken:browned", "paprika:combined", "pepper:cut", "tomato:cut", "garlic:cut", "oil:cooked", "hrniec:occupied"],
+          "produces": ["chicken:cooked", "pepper:cooked", "tomato:cooked", "garlic:cooked", "hrniec:free"]
+        },
+        {
+          "text": "Nakrájaj {bread.amount} {bread.name} na krajce.",
+          "requires": ["bread:raw"],
+          "produces": ["bread:prepared"]
+        },
+        {
+          "text": "Dochuť perkelt soľou a čiernym korením.",
+          "requires": ["chicken:cooked", "pepper:cooked", "tomato:cooked"],
+          "produces": []
+        },
+        {
+          "text": "Podávaj kurací perkelt s chlebom a rozdeľ ho na {portions} porcií.",
+          "requires": ["chicken:cooked", "onion:cooked", "oil:cooked", "garlic:cooked", "paprika:combined", "pepper:cooked", "tomato:cooked", "bread:prepared"],
+          "produces": ["chicken:served", "onion:served", "oil:served", "garlic:served", "paprika:served", "pepper:served", "tomato:served", "bread:served"]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Zvyšný kurací perkelt rozdeľ do plytkých nádob a odlož do chladničky najneskôr do 2 hodín. Zjedz ho do 2 dní."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_chicken_perkelt",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://varecha.pravda.sk/recepty/kuraci-perkelt/62209-recept.html",
+        "title": "Kurací perkelt",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://dobruchut.aktuality.sk/recept/80240/kuraci-perkelt-fotorecept/",
+        "title": "Kurací perkelt, FOTORECEPT",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

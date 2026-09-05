@@ -248,6 +248,17 @@ def test_loads_version_2_workflow_and_recipe_specific_storage(ingredients, tmp_p
     assert recipe.storage.instruction.endswith("do 2 dní.")
 
 
+def test_slot_can_declare_scaled_recipe_specific_water(ingredients, tmp_path):
+    payload = _v2_recipe_payload(
+        slots=[_slot(water_ml_per_adult="250")],
+    )
+    root = _write_library(tmp_path, [payload])
+
+    recipe = load_recipe_catalog(ingredients, root).all()[0]
+
+    assert recipe.slots[0].water_ml_per_adult == Decimal("250")
+
+
 def test_v2_recipe_requires_recipe_specific_storage_rule(ingredients, tmp_path):
     payload = _v2_recipe_payload()
     payload.pop("storage")
@@ -548,6 +559,7 @@ def test_rejects_fewer_than_three_instructions(ingredients, tmp_path):
         ("amount_per_adult", "0"),
         ("amount_per_adult", "NaN"),
         ("child_factor", "0"),
+        ("water_ml_per_adult", "0"),
     ],
 )
 def test_rejects_nonpositive_slot_quantities(

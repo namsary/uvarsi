@@ -1,0 +1,153 @@
+{
+  "recipes": [
+    {
+      "id": "classic_pork_shoulder_onion",
+      "version": 2,
+      "active": true,
+      "name_template": "Bravčové pliecko na cibuli s ryžou",
+      "family": "classic_pork_shoulder_onion",
+      "method": "pot",
+      "minutes": 90,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec s hrubým dnom", "malý hrniec", "nôž", "doska na krájanie"],
+      "slots": [
+        {
+          "key": "pork",
+          "role": "protein",
+          "candidates": ["pork_shoulder"],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na hrubšie plátky",
+          "water_ml_per_adult": "75"
+        },
+        {
+          "key": "rice",
+          "role": "starch",
+          "candidates": ["rice"],
+          "amount_per_adult": "65",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": ["onion"],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": "na polmesiačiky"
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": ["paprika_powder"],
+          "amount_per_adult": "2",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": ["garlic"],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": ["oil"],
+          "amount_per_adult": "8",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {
+          "text": "Prepláchni {rice.amount} {rice.name} studenou vodou.",
+          "requires": ["rice:raw"],
+          "produces": ["rice:rinsed"]
+        },
+        {
+          "text": "Nalej {rice.water} vody do hrnca. Vsyp ryžu do hrnca. Prikry ho a var ryžu v malom hrnci na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne.",
+          "requires": ["rice:rinsed", "maly_hrniec:free"],
+          "produces": ["rice:cooked", "maly_hrniec:free"]
+        },
+        {
+          "text": "Nakrájaj {pork.amount} {pork.name} na hrubšie plátky a {onion.amount} {onion.name} na polmesiačiky.",
+          "requires": ["pork:raw", "onion:raw"],
+          "produces": ["pork:cut", "onion:cut"]
+        },
+        {
+          "text": "Rozohrej v hrnci s hrubým dnom {oil.amount} {oil.name} na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj v ňom cibuľu s {garlic.amount} {garlic.name} 6 minút, kým cibuľa zozlatne.",
+          "requires": ["onion:cut", "garlic:raw", "oil:raw", "hrniec_s_hrubym_dnom:free"],
+          "produces": ["onion:cooked", "garlic:cooked", "oil:used", "hrniec_s_hrubym_dnom:occupied"]
+        },
+        {
+          "text": "Pridaj {pork.name} do hrnca. Opekaj bravčové pliecko v hrnci s hrubým dnom na strednom ohni 8 minút, kým bude mäso na povrchu zlatisté.",
+          "requires": ["pork:cut", "onion:cooked", "oil:used", "hrniec_s_hrubym_dnom:occupied"],
+          "produces": ["pork:browned"]
+        },
+        {
+          "text": "Odstav hrniec z ohňa. Prisyp {paprika.amount} {paprika.name}. Hneď premiešaj.",
+          "requires": ["paprika:raw", "pork:browned", "hrniec_s_hrubym_dnom:occupied"],
+          "produces": ["paprika:combined"]
+        },
+        {
+          "text": "Prilej {pork.water} vody do hrnca. Hrniec prikry a dus bravčové pliecko na miernom ohni 60 minút, kým bude mäkké a cibuľová šťava začne bublať.",
+          "requires": ["pork:browned", "paprika:combined", "hrniec_s_hrubym_dnom:occupied"],
+          "produces": ["pork:cooked", "oil:cooked", "hrniec_s_hrubym_dnom:free"]
+        },
+        {
+          "text": "Dochuť mäso soľou a čiernym korením.",
+          "requires": ["pork:cooked", "onion:cooked", "oil:cooked"],
+          "produces": []
+        },
+        {
+          "text": "Podávaj bravčové pliecko s cibuľovou šťavou a ryžou a rozdeľ jedlo na {portions} porcií.",
+          "requires": ["pork:cooked", "rice:cooked", "onion:cooked", "garlic:cooked", "paprika:combined", "oil:cooked"],
+          "produces": ["pork:served", "rice:served", "onion:served", "garlic:served", "paprika:served", "oil:served"]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 1,
+        "instruction": "Mäso s ryžou rozlož do plytkej nádoby, odlož do chladničky do jednej hodiny a zjedz do 24 hodín."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_pork_shoulder_onion",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://varecha.pravda.sk/recepty/bravcove-pliecko-na-cibuli-v-pomalom-hrnci-fotorecept/67781-recept.html",
+        "title": "Bravčové pliecko na cibuli v pomalom hrnci",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://bonvivani.sk/recepty/bravcove-pliecko-na-cibuli",
+        "title": "Bravčové pliecko na cibuli",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

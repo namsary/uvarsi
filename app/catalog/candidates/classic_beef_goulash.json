@@ -1,0 +1,43 @@
+{
+  "recipes": [
+    {
+      "id": "classic_beef_goulash",
+      "version": 2,
+      "active": true,
+      "name_template": "Hovädzí guláš",
+      "family": "classic_beef_goulash",
+      "method": "pot",
+      "minutes": 135,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľký hrniec", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "beef", "role": "protein", "candidates": ["beef_chuck"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na 3 cm kocky", "water_ml_per_adult": "220"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {beef.amount} {beef.name} {beef.cut} a {onion.amount} {onion.name} nadrobno.", "requires": ["beef:raw", "onion:raw"], "produces": ["beef:cut", "onion:cut"]},
+        {"text": "Nalej {oil.amount} {oil.name} do hrnca.", "requires": ["oil:raw", "velky_hrniec:free"], "produces": ["oil:heated", "velky_hrniec:hot"]},
+        {"text": "Opekaj cibuľu vo veľkom hrnci na strednom ohni 12 minút, kým bude mäkká a tmavozlatistá.", "requires": ["onion:cut", "oil:heated", "velky_hrniec:hot"], "produces": ["onion:cooked", "oil:used", "velky_hrniec:occupied"]},
+        {"text": "Pridaj {beef.name} do hrnca. Pri väčšej dávke opekaj mäso po častiach, aby sa namiesto dusenia opieklo. Každú časť opekaj na strednom ohni asi 10 minút, kým bude mäso na povrchu zlatisté a uvoľnená šťava sa odparí.", "requires": ["beef:cut", "onion:cooked", "oil:used", "velky_hrniec:occupied"], "produces": ["beef:browned", "oil:cooked"]},
+        {"text": "Odstav hrniec z ohňa. Prisyp {paprika.amount} {paprika.name} do hrnca a premiešaj.", "requires": ["paprika:raw", "beef:browned", "velky_hrniec:occupied"], "produces": ["paprika:combined"]},
+        {"text": "Pridaj {garlic.amount} {garlic.name} do hrnca. Prilej {beef.water} vody do hrnca. Priveď {beef.name} s cibuľou vo veľkom hrnci na silnom ohni do varu za 5 minút, kým šťava začne bublať. Stíš oheň a dus {beef.name} vo veľkom hrnci na miernom ohni 95 minút, kým mäso zmäkne.", "requires": ["garlic:raw", "beef:browned", "onion:cooked", "paprika:combined", "velky_hrniec:occupied"], "produces": ["garlic:cooked", "beef:tender", "onion:sauce", "paprika:cooked"]},
+        {"text": "Dochuť mäso aj omáčku soľou a čiernym korením. Var {beef.name} s cibuľou vo veľkom hrnci na miernom ohni ešte 5 minút, kým omáčka zhustne a začne bublať.", "requires": ["beef:tender", "onion:sauce", "oil:cooked", "paprika:cooked", "velky_hrniec:occupied"], "produces": ["beef:cooked", "onion:cooked", "oil:cooked", "velky_hrniec:free"]},
+        {"text": "Podávaj hovädzí guláš a rozdeľ ho na {portions} porcií.", "requires": ["beef:cooked", "onion:cooked", "garlic:cooked", "oil:cooked", "paprika:cooked"], "produces": ["beef:served", "onion:served", "garlic:served", "oil:served", "paprika:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Hovädzí guláš rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_beef_goulash",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/hovadzi-gulas-s-paprikou/85785-recept.html", "title": "Hovädzí guláš s paprikou", "accessed_on": "2026-09-05"},
+      {"url": "https://dobruchut.aktuality.sk/recept/29108/hovadzi-gulas/", "title": "Hovädzí guláš", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

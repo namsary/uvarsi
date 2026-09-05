@@ -1,0 +1,273 @@
+{
+  "recipes": [
+    {
+      "id": "classic_rice_pudding",
+      "version": 2,
+      "active": true,
+      "name_template": "Ryžový nákyp s jablkami",
+      "family": "slovak_rice_pudding",
+      "method": "oven",
+      "minutes": 65,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "hrniec",
+        "sitko",
+        "veľká misa",
+        "menšia misa",
+        "metlička",
+        "strúhadlo",
+        "zapekacia misa",
+        "rúra",
+        "varecha"
+      ],
+      "slots": [
+        {
+          "key": "rice",
+          "role": "starch",
+          "candidates": [
+            "rice"
+          ],
+          "amount_per_adult": 60,
+          "unit": "g",
+          "child_factor": 0.65,
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "milk",
+          "role": "dairy",
+          "candidates": [
+            "milk"
+          ],
+          "amount_per_adult": 200,
+          "unit": "ml",
+          "child_factor": 0.65,
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "apple",
+          "role": "fruit",
+          "candidates": [
+            "apple"
+          ],
+          "amount_per_adult": 100,
+          "unit": "g",
+          "child_factor": 0.65,
+          "required": true,
+          "use": "addition",
+          "cut": "nahrubo nastrúhané"
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": 1,
+          "unit": "piece",
+          "child_factor": 0.75,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "sugar",
+          "role": "seasoning",
+          "candidates": [
+            "sugar"
+          ],
+          "amount_per_adult": 20,
+          "unit": "g",
+          "child_factor": 0.55,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": 5,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": ["water"],
+      "instructions": [
+        {
+          "text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.",
+          "requires": [
+            "rice:raw",
+            "sitko:free"
+          ],
+          "produces": [
+            "rice:rinsed",
+            "sitko:used"
+          ]
+        },
+        {
+          "text": "Vlož ryžu do hrnca, prilej {milk.amount} {milk.name} a {rice.water} vody. Hrniec prikry s malou medzerou a var ryžu na miernom ohni 20 minút; občas ju premiešaj, kým zmäkne a vsiakne väčšinu tekutiny.",
+          "requires": [
+            "rice:rinsed",
+            "milk:raw",
+            "hrniec:free",
+            "varecha:free"
+          ],
+          "produces": [
+            "rice:cooked",
+            "milk:absorbed",
+            "hrniec:used",
+            "varecha:used"
+          ]
+        },
+        {
+          "text": "Rozlož mliečnu ryžu vo veľkej mise a nechaj ju 10 minút chladnúť.",
+          "requires": [
+            "rice:cooked",
+            "milk:absorbed",
+            "hrniec:used",
+            "velka_misa:free"
+          ],
+          "produces": [
+            "rice:cooled",
+            "milk:cooled",
+            "hrniec:free",
+            "velka_misa:used"
+          ]
+        },
+        {
+          "text": "Priprav {apple.amount} {apple.name}: nahrubo ich nastrúhaj.",
+          "requires": [
+            "apple:raw",
+            "struhadlo:free"
+          ],
+          "produces": [
+            "apple:grated",
+            "struhadlo:used"
+          ]
+        },
+        {
+          "text": "Rozšľahaj v menšej mise {egg.amount} {egg.name} a primiešaj {sugar.amount} {sugar.name}, kým sa cukor čiastočne rozpustí.",
+          "requires": [
+            "egg:raw",
+            "sugar:raw",
+            "mensia_misa:free",
+            "metlicka:free"
+          ],
+          "produces": [
+            "egg:beaten",
+            "sugar:dissolved",
+            "mensia_misa:used",
+            "metlicka:used"
+          ]
+        },
+        {
+          "text": "Premiešaj vychladnutú ryžu, jablká a rozšľahané {egg.reference_name} s cukrom.",
+          "requires": [
+            "rice:cooled",
+            "milk:cooled",
+            "apple:grated",
+            "egg:beaten",
+            "sugar:dissolved",
+            "velka_misa:used",
+            "varecha:used"
+          ],
+          "produces": [
+            "rice:batter",
+            "milk:batter",
+            "apple:batter",
+            "egg:batter",
+            "sugar:batter"
+          ]
+        },
+        {
+          "text": "Predhrej rúru na 180 °C a zapekaciu misu vytri {butter.amount} {butter.name}.",
+          "requires": [
+            "butter:raw",
+            "rura:free",
+            "zapekacia_misa:free"
+          ],
+          "produces": [
+            "butter:greased",
+            "rura:heated",
+            "zapekacia_misa:greased"
+          ]
+        },
+        {
+          "text": "Rozlož ryžu s jablkami do zapekacej misy a peč ju v rúre pri 180 °C 30 minút, kým nákyp na okrajoch zozlatne a v strede stuhne.",
+          "requires": [
+            "rice:batter",
+            "milk:batter",
+            "apple:batter",
+            "egg:batter",
+            "sugar:batter",
+            "butter:greased",
+            "rura:heated",
+            "zapekacia_misa:greased"
+          ],
+          "produces": [
+            "rice:baked",
+            "milk:baked",
+            "apple:baked",
+            "egg:baked",
+            "sugar:baked",
+            "butter:baked",
+            "rura:used",
+            "zapekacia_misa:used"
+          ]
+        },
+        {
+          "text": "Nechaj ryžový nákyp 10 minút postáť, potom ho nakrájaj a podávaj teplý.",
+          "requires": [
+            "rice:baked",
+            "milk:baked",
+            "apple:baked",
+            "egg:baked",
+            "sugar:baked",
+            "butter:baked"
+          ],
+          "produces": [
+            "rice:served",
+            "milk:served",
+            "apple:served",
+            "egg:served",
+            "sugar:served",
+            "butter:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 1,
+        "instruction": "Nákyp rozlož do plytkej nádoby, odlož do chladničky do jednej hodiny a zjedz do 24 hodín. Zohrievaj iba porciu, ktorú hneď zješ."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_rice_pudding",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://varecha.pravda.sk/recepty/ryzovy-nakyp/10268-recept.html",
+        "title": "Ryžový nákyp",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://dobruchut.aktuality.sk/recept/43203/ryzovy-nakyp/",
+        "title": "Ryžový nákyp",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

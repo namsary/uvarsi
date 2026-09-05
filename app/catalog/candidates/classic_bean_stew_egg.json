@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "classic_bean_stew_egg",
+      "version": 2,
+      "active": true,
+      "name_template": "Fazuľový prívarok s vajcom",
+      "family": "classic_bean_stew_egg",
+      "method": "pot",
+      "minutes": 600,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["nôž", "doska", "hrniec", "malý hrniec", "sitko", "vareška"],
+      "slots": [
+        {"key": "beans", "role": "protein", "candidates": ["beans"], "amount_per_adult": "85", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "350"},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "50", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.75", "required": true, "use": "main", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "vinegar", "role": "seasoning", "candidates": ["apple_cider_vinegar"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Namoč {beans.amount} {beans.name} v hrnci v studenej vode a nechaj 8 hodín napučať. Voda má siahať aspoň 5 cm nad fazuľu.", "requires": ["beans:raw", "hrniec:free"], "produces": ["beans:soaked", "hrniec:occupied"]},
+        {"text": "Sceď {beans.name} cez sitko, vodu vylej a fazuľu opláchni čistou vodou.", "requires": ["beans:soaked", "hrniec:occupied", "sitko:free"], "produces": ["beans:drained", "hrniec:free", "sitko:free"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} {garlic.cut}.", "requires": ["onion:raw", "garlic:raw"], "produces": ["onion:cut", "garlic:cut"]},
+        {"text": "Nalej {oil.amount} {oil.name} do hrnca. Opekaj cibuľu na strednom ohni 5 minút, kým bude dosklovita. Pridaj cesnak. Opekaj cesnak v hrnci na strednom ohni ešte 30 sekúnd, kým zavonia.", "requires": ["oil:raw", "onion:cut", "garlic:cut", "hrniec:free"], "produces": ["oil:cooked", "onion:cooked", "garlic:cooked", "hrniec:occupied"]},
+        {"text": "Odstav hrniec, prisyp {paprika.amount} {paprika.name} a premiešaj. Pridaj {beans.name} do hrnca. Nalej {beans.water} vody do hrnca; použi čerstvú vodu, nie vodu z namáčania. Priveď vodu na silnom ohni do prudkého varu a bez pokrievky var 30 minút. Potom stíš plameň, prikry a var {beans.name} v hrnci na miernom ohni ešte 40 minút, kým celkom zmäkne a dá sa ľahko roztlačiť lyžicou.", "requires": ["paprika:raw", "beans:drained", "onion:cooked", "garlic:cooked", "oil:cooked", "hrniec:occupied"], "produces": ["paprika:cooked", "beans:cooked"]},
+        {"text": "Rozdrv časť fazule v hrnci, aby prívarok zhustol.", "requires": ["beans:cooked", "onion:cooked", "hrniec:occupied"], "produces": ["beans:thickened"]},
+        {"text": "Prilej {cream.amount} {cream.name}. Var {beans.name} so smotanou v hrnci na miernom ohni 4 minúty, kým zhustne a začne jemne bublať.", "requires": ["cream:raw", "beans:thickened", "paprika:cooked", "onion:cooked", "garlic:cooked", "oil:cooked", "hrniec:occupied"], "produces": ["cream:cooked", "beans:finished", "paprika:finished", "onion:finished", "garlic:finished", "oil:finished"]},
+        {"text": "Odstav hrniec a vmiešaj {vinegar.amount} {vinegar.name}. Fazuľový prívarok dochuť soľou a čiernym korením.", "requires": ["vinegar:raw", "beans:finished", "cream:cooked", "paprika:finished", "onion:finished", "garlic:finished", "oil:finished", "hrniec:occupied"], "produces": ["vinegar:combined"]},
+        {"text": "Uvar {egg.amount} {egg.name} natvrdo v malom hrnci na strednom ohni. Od začiatku varu počítaj 9 minút, kým bielok aj žĺtok stuhnú. Potom {egg.reference_name} schlaď v studenej vode a ošúp.", "requires": ["egg:raw", "maly_hrniec:free"], "produces": ["egg:cooked", "maly_hrniec:free"]},
+        {"text": "Podávaj fazuľový prívarok s vajcom a rozdeľ ho na {portions} porcií.", "requires": ["beans:finished", "cream:cooked", "paprika:finished", "onion:finished", "garlic:finished", "oil:finished", "vinegar:combined", "egg:cooked", "hrniec:occupied"], "produces": ["beans:served", "cream:served", "paprika:served", "onion:served", "garlic:served", "oil:served", "vinegar:served", "egg:served", "hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Prívarok rozdeľ do plytkých nádob a do jednej hodiny ho odlož do chladničky. Vajcia uchovaj oddelene a všetko spotrebuj do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_bean_stew_egg",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/fazulovy-privarok-zo-suchej-fazule/7339-recept.html", "title": "Fazuľový prívarok zo suchej fazule", "accessed_on": "2026-09-05"},
+      {"url": "https://kuchynalidla.sk/recepty/fazulovy-privarok-so-stratenym-vajcom", "title": "Fazuľový prívarok so strateným vajcom", "accessed_on": "2026-09-05"},
+      {"url": "https://www.fda.gov/food/chemical-contaminants-pesticides/natural-toxins-food", "title": "Natural Toxins in Food", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

@@ -1093,6 +1093,38 @@ def test_absorption_water_scales_with_household_and_covered_days(ingredients):
     assert "450 ml vody" not in meal.instructions[1]
 
 
+def test_recipe_specific_water_scales_with_adult_equivalents_and_days(ingredients):
+    candidate = _candidate(
+        ingredients.by_id("potato"),
+        amount="280",
+        child_factor="0.6",
+        name_template="Zemiaky na prívarok",
+        equipment=("hrniec",),
+        pantry_basics=("water",),
+        instructions=(
+            "Nakrájaj {main.amount} {main.name} na kocky.",
+            "Pridaj {main.name} do hrnca a prilej {main.water} vody.",
+            "Var zemiaky v hrnci na miernom ohni 15 minút, kým zmäknú.",
+        ),
+    )
+    slot = replace(
+        candidate.template.slots[0],
+        water_ml_per_adult=Decimal("250"),
+    )
+    candidate = replace(
+        candidate,
+        template=replace(candidate.template, slots=(slot,)),
+        selections=(
+            replace(candidate.selections[0], slot=slot),
+        ),
+    )
+
+    meal = render_meal(candidate, adults=2, children=1, covered_days=2)
+
+    assert meal.ingredients[0].quantity == Quantity(Decimal("1456.0"), "g")
+    assert "1,3 l vody" in meal.instructions[1]
+
+
 def test_renderer_rejects_inconsistent_selected_ingredient_name(ingredients):
     candidate = _candidate(
         ingredients.by_id("chicken_thigh"),

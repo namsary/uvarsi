@@ -506,7 +506,7 @@ Run the inventory test and commit both research files plus its test.
 - Consumes: Task 5 target records and Task 3 version-2 workflow schema.
 - Produces: 42 individually valid candidate recipes; no runtime activation.
 
-- [ ] **Step 1: Write failing classic snapshot tests**
+- [x] **Step 1: Write failing classic snapshot tests**
 
 ```python
 @pytest.mark.parametrize("recipe_id", CLASSIC_IDS)
@@ -523,19 +523,19 @@ def test_bone_in_roast_thigh_is_never_cut_into_cubes():
 
 Add golden assertions for paprikáš, slovenské rizoto, segedín, francúzske zemiaky, prívarky, and soups: characteristic ingredients must appear, and unrelated curry/oregano seasoning must not.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: all 42 candidate files are missing.
 
-- [ ] **Step 3: Write the 22 meat classics**
+- [x] **Step 3: Write the 22 meat classics**
 
 Use original Slovak wording, exact product states, natural quantities, recipe-specific seasonings, and explicit workflow tokens. Restrict substitutions to the same culinary cut. Render each recipe for one adult/one day and four adults/three days before moving to the next candidate.
 
-- [ ] **Step 4: Write the 20 meatless classics and soups**
+- [x] **Step 4: Write the 20 meatless classics and soups**
 
 Model eggs and dairy explicitly where used. Mark only genuinely animal-free variants vegan. Dry legumes require soaking/cooking workflow; canned legumes require draining and no soaking.
 
-- [ ] **Step 5: Verify all variants and commit**
+- [x] **Step 5: Verify all variants and commit**
 
 Run:
 

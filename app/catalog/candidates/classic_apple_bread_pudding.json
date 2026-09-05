@@ -1,0 +1,273 @@
+{
+  "recipes": [
+    {
+      "id": "classic_apple_bread_pudding",
+      "version": 2,
+      "active": true,
+      "name_template": "Jablková žemľovka",
+      "family": "slovak_apple_bread_pudding",
+      "method": "oven",
+      "minutes": 60,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "nôž",
+        "doska na krájanie",
+        "strúhadlo",
+        "misa",
+        "metlička",
+        "zapekacia misa",
+        "rúra"
+      ],
+      "slots": [
+        {
+          "key": "bread",
+          "role": "starch",
+          "candidates": [
+            "bread"
+          ],
+          "amount_per_adult": 110,
+          "unit": "g",
+          "child_factor": 0.65,
+          "required": true,
+          "use": "main",
+          "cut": "na tenké plátky"
+        },
+        {
+          "key": "apple",
+          "role": "fruit",
+          "candidates": [
+            "apple"
+          ],
+          "amount_per_adult": 180,
+          "unit": "g",
+          "child_factor": 0.65,
+          "required": true,
+          "use": "main",
+          "cut": "nahrubo nastrúhané"
+        },
+        {
+          "key": "milk",
+          "role": "dairy",
+          "candidates": [
+            "milk"
+          ],
+          "amount_per_adult": 130,
+          "unit": "ml",
+          "child_factor": 0.65,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": 1,
+          "unit": "piece",
+          "child_factor": 0.75,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "sugar",
+          "role": "seasoning",
+          "candidates": [
+            "sugar"
+          ],
+          "amount_per_adult": 15,
+          "unit": "g",
+          "child_factor": 0.55,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cinnamon",
+          "role": "seasoning",
+          "candidates": [
+            "cinnamon"
+          ],
+          "amount_per_adult": 1,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": 8,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [],
+      "instructions": [
+        {
+          "text": "Nakrájaj {bread.amount} {bread.name} na tenké plátky. Nahrubo nastrúhaj {apple.amount} {apple.name}.",
+          "requires": [
+            "bread:raw",
+            "apple:raw",
+            "noz:free",
+            "doska_na_krajanie:free",
+            "struhadlo:free"
+          ],
+          "produces": [
+            "bread:sliced",
+            "apple:grated",
+            "noz:used",
+            "doska_na_krajanie:used",
+            "struhadlo:used"
+          ]
+        },
+        {
+          "text": "Rozšľahaj {milk.amount} {milk.name}, {egg.amount} {egg.name} a {sugar.amount} {sugar.name} v mise, kým sa cukor čiastočne rozpustí.",
+          "requires": [
+            "milk:raw",
+            "egg:raw",
+            "sugar:raw",
+            "misa:free",
+            "metlicka:free"
+          ],
+          "produces": [
+            "milk:custard",
+            "egg:custard",
+            "sugar:dissolved",
+            "misa:used",
+            "metlicka:used"
+          ]
+        },
+        {
+          "text": "Predhrej rúru na 180 °C a zapekaciu misu vytri {butter.amount} {butter.name}.",
+          "requires": [
+            "butter:raw",
+            "rura:free",
+            "zapekacia_misa:free"
+          ],
+          "produces": [
+            "butter:greased",
+            "rura:heated",
+            "zapekacia_misa:greased"
+          ]
+        },
+        {
+          "text": "Namoč polovicu chleba vo vaječnom mlieku a ulož ho na dno misy. Rozlož naň jablká. Pridaj {cinnamon.amount} {cinnamon.name}. Prikry zvyšným chlebom a prelej zvyškom mliečnej zmesi.",
+          "requires": [
+            "bread:sliced",
+            "apple:grated",
+            "cinnamon:raw",
+            "milk:custard",
+            "egg:custard",
+            "sugar:dissolved",
+            "butter:greased",
+            "misa:used",
+            "zapekacia_misa:greased"
+          ],
+          "produces": [
+            "bread:layered",
+            "apple:layered",
+            "cinnamon:layered",
+            "milk:absorbing",
+            "egg:absorbing",
+            "sugar:layered",
+            "butter:layered",
+            "zapekacia_misa:used"
+          ]
+        },
+        {
+          "text": "Nechaj žemľovku 10 minút postáť, aby chlieb vsiakol mliečnu zmes.",
+          "requires": [
+            "bread:layered",
+            "milk:absorbing",
+            "egg:absorbing",
+            "zapekacia_misa:used"
+          ],
+          "produces": [
+            "bread:soaked",
+            "milk:absorbed",
+            "egg:absorbed"
+          ]
+        },
+        {
+          "text": "Peč chlieb s jablkami v rúre pri 180 °C 35 minút, kým povrch žemľovky zozlatne a vaječná zmes v strede stuhne.",
+          "requires": [
+            "bread:soaked",
+            "apple:layered",
+            "cinnamon:layered",
+            "milk:absorbed",
+            "egg:absorbed",
+            "sugar:layered",
+            "butter:layered",
+            "rura:heated",
+            "zapekacia_misa:used"
+          ],
+          "produces": [
+            "bread:baked",
+            "apple:baked",
+            "cinnamon:baked",
+            "milk:baked",
+            "egg:baked",
+            "sugar:baked",
+            "butter:baked",
+            "rura:used"
+          ]
+        },
+        {
+          "text": "Nechaj jablkovú žemľovku 10 minút chladnúť, potom ju nakrájaj a podávaj teplú.",
+          "requires": [
+            "bread:baked",
+            "apple:baked",
+            "cinnamon:baked",
+            "milk:baked",
+            "egg:baked",
+            "sugar:baked",
+            "butter:baked"
+          ],
+          "produces": [
+            "bread:served",
+            "apple:served",
+            "cinnamon:served",
+            "milk:served",
+            "egg:served",
+            "sugar:served",
+            "butter:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Jablkovú žemľovku rozdeľ do plytkých nádob a odlož do chladničky najneskôr do 2 hodín. Zjedz ju do 2 dní a zohrievaj iba porciu, ktorú hneď zješ."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_apple_bread_pudding",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://varecha.pravda.sk/recepty/jablkova-zemlovka/60769-recept.html",
+        "title": "Jablková žemľovka",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://dobruchut.aktuality.sk/recept/10187/zemlovka-s-jablkami/",
+        "title": "Žemľovka s jablkami",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

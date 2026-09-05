@@ -1,0 +1,45 @@
+{
+  "recipes": [
+    {
+      "id": "classic_pumpkin_stew_egg",
+      "version": 2,
+      "active": true,
+      "name_template": "Tekvicový prívarok s vajcom",
+      "family": "classic_pumpkin_stew_egg",
+      "method": "pot",
+      "minutes": 35,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["nôž", "doska", "hrniec", "malý hrniec", "strúhadlo", "misa", "metlička", "naberačka", "vareška"],
+      "slots": [
+        {"key": "pumpkin", "role": "vegetable", "candidates": ["pumpkin"], "amount_per_adult": "300", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "nahrubo nastrúhanú", "water_ml_per_adult": "120"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na 2 cm kocky"},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.75", "required": true, "use": "main", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "12", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "vinegar", "role": "seasoning", "candidates": ["apple_cider_vinegar"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {pumpkin.amount} {pumpkin.name}, rozkroj ju a lyžicou vyber semená. Dužinu nastrúhaj nahrubo. Nakrájaj {potato.amount} {potato.name} na 2 cm kocky a {onion.amount} {onion.name} nadrobno.", "requires": ["pumpkin:raw", "potato:raw", "onion:raw", "struhadlo:free"], "produces": ["pumpkin:cut", "potato:cut", "onion:cut", "struhadlo:free"]},
+        {"text": "Nalej {oil.amount} {oil.name} do hrnca. Opekaj cibuľu na strednom ohni 5 minút, kým bude dosklovita.", "requires": ["oil:raw", "onion:cut", "hrniec:free"], "produces": ["oil:cooked", "onion:cooked", "hrniec:occupied"]},
+        {"text": "Pridaj zemiaky do hrnca. Prilej {pumpkin.water} vody. Prikry hrniec a var zemiaky na miernom ohni 10 minút. Potom pridaj tekvicu do hrnca. Var tekvicu so zemiakmi ďalších 12 minút, kým zemiaky zmäknú a tekvica sa začne rozvárať.", "requires": ["pumpkin:cut", "potato:cut", "onion:cooked", "oil:cooked", "hrniec:occupied"], "produces": ["pumpkin:cooked", "potato:cooked"]},
+        {"text": "Priprav v mise hladkú zálievku: rozšľahaj {yogurt.amount} {yogurt.name} metličkou. Prisyp {flour.amount} {flour.name}. Zálievku zrieď naberačkou horúcej tekvicovej šťavy a premiešaj ju dohladka.", "requires": ["yogurt:raw", "flour:raw", "pumpkin:cooked", "misa:free", "metlicka:free"], "produces": ["yogurt:mixed", "flour:mixed", "misa:occupied", "metlicka:free"]},
+        {"text": "Premiešaj zálievku s tekvicou a zemiakmi v hrnci. Prívarok var na miernom ohni 4 minúty, kým zhustne a začne jemne bublať. Odstav hrniec a vmiešaj {vinegar.amount} {vinegar.name}.", "requires": ["yogurt:mixed", "flour:mixed", "vinegar:raw", "pumpkin:cooked", "potato:cooked", "onion:cooked", "oil:cooked", "hrniec:occupied", "misa:occupied"], "produces": ["yogurt:cooked", "flour:cooked", "vinegar:combined", "pumpkin:finished", "potato:finished", "onion:finished", "oil:finished", "misa:free"]},
+        {"text": "Uvar {egg.amount} {egg.name} natvrdo v malom hrnci na strednom ohni. Od začiatku varu počítaj 9 minút, kým bielok aj žĺtok stuhnú. Potom {egg.reference_name} schlaď v studenej vode a ošúp.", "requires": ["egg:raw", "maly_hrniec:free"], "produces": ["egg:cooked", "maly_hrniec:free"]},
+        {"text": "Dochuť tekvicový prívarok soľou a čiernym korením, podávaj ho s vajcom a rozdeľ na {portions} porcií.", "requires": ["pumpkin:finished", "potato:finished", "yogurt:cooked", "flour:cooked", "vinegar:combined", "onion:finished", "oil:finished", "egg:cooked", "hrniec:occupied"], "produces": ["pumpkin:served", "potato:served", "yogurt:served", "flour:served", "vinegar:served", "onion:served", "oil:served", "egg:served", "hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Prívarok rozdeľ do plytkých nádob a do jednej hodiny ho odlož do chladničky. Vajcia uchovaj oddelene a všetko spotrebuj do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_pumpkin_stew_egg",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://kuchynalidla.sk/recepty/tekvicovo-zemiakovy-privarok-so-stratenym-vajickom", "title": "Tekvicovo-zemiakový prívarok so strateným vajíčkom", "accessed_on": "2026-09-05"},
+      {"url": "https://dobruchut.aktuality.sk/recept/78411/tekvicovy-privarok-fotorecept/", "title": "Tekvicový prívarok, FOTORECEPT", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

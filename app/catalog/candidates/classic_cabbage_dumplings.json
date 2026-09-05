@@ -1,0 +1,279 @@
+{
+  "recipes": [
+    {
+      "id": "classic_cabbage_dumplings",
+      "version": 2,
+      "active": true,
+      "name_template": "Strapačky s kyslou kapustou",
+      "family": "slovak_cabbage_dumplings",
+      "method": "pan",
+      "minutes": 50,
+      "modes": [
+        "standard"
+      ],
+      "equipment": [
+        "veľký hrniec",
+        "misa",
+        "jemné strúhadlo",
+        "haluškár",
+        "cedidlo",
+        "panvica",
+        "škrabka",
+        "nôž",
+        "doska na krájanie",
+        "varecha"
+      ],
+      "slots": [
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": 300,
+          "unit": "g",
+          "child_factor": 0.65,
+          "required": true,
+          "use": "main",
+          "cut": "najemno nastrúhané"
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": 100,
+          "unit": "g",
+          "child_factor": 0.6,
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "sauerkraut",
+          "role": "vegetable",
+          "candidates": [
+            "sauerkraut"
+          ],
+          "amount_per_adult": 180,
+          "unit": "g",
+          "child_factor": 0.65,
+          "required": true,
+          "use": "main",
+          "cut": "nahrubo"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": 50,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": 15,
+          "unit": "ml",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "salt",
+          "role": "seasoning",
+          "candidates": [
+            "salt"
+          ],
+          "amount_per_adult": 2,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "pepper",
+          "role": "seasoning",
+          "candidates": [
+            "black_pepper"
+          ],
+          "amount_per_adult": 1,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water"
+      ],
+      "instructions": [
+        {
+          "text": "Ošúp {potato.amount} {potato.name}, najemno ich nastrúhaj do misy a nechaj 5 minút postáť.",
+          "requires": [
+            "potato:raw",
+            "misa:free",
+            "jemne_struhadlo:free",
+            "skrabka:free"
+          ],
+          "produces": [
+            "potato:grated",
+            "misa:used",
+            "jemne_struhadlo:used",
+            "skrabka:used"
+          ]
+        },
+        {
+          "text": "Prisyp {flour.amount} {flour.name} a {salt.amount} {salt.name}. Varechou vypracuj husté, stále mäkké cesto.",
+          "requires": [
+            "potato:grated",
+            "flour:raw",
+            "salt:raw",
+            "misa:used",
+            "varecha:free"
+          ],
+          "produces": [
+            "potato:dough",
+            "flour:dough",
+            "salt:dough",
+            "varecha:used"
+          ]
+        },
+        {
+          "text": "Priveď vo veľkom hrnci vodu do varu na silnom ohni. Cesto pretlač cez haluškár a var 3 minúty, kým strapačky vyplávajú a vo vnútri sú mäkké.",
+          "requires": [
+            "potato:dough",
+            "flour:dough",
+            "salt:dough",
+            "velky_hrniec:free",
+            "haluskar:free"
+          ],
+          "produces": [
+            "potato:cooked",
+            "flour:cooked",
+            "salt:cooked",
+            "velky_hrniec:used",
+            "haluskar:used",
+            "misa:free"
+          ]
+        },
+        {
+          "text": "Sceď strapačky zo zemiakov a nechaj ich dobre odkvapkať.",
+          "requires": [
+            "potato:cooked",
+            "flour:cooked",
+            "salt:cooked",
+            "velky_hrniec:used",
+            "cedidlo:free"
+          ],
+          "produces": [
+            "potato:drained",
+            "flour:drained",
+            "salt:drained",
+            "velky_hrniec:free",
+            "cedidlo:used"
+          ]
+        },
+        {
+          "text": "Nakrájaj {onion.amount} {onion.name} najemno. Ak sú vlákna dlhé, prekroj {sauerkraut.amount} {sauerkraut.name} nahrubo.",
+          "requires": [
+            "onion:raw",
+            "sauerkraut:raw",
+            "noz:free",
+            "doska_na_krajanie:free"
+          ],
+          "produces": [
+            "onion:chopped",
+            "sauerkraut:chopped",
+            "noz:used",
+            "doska_na_krajanie:used"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} v panvici a opekaj cibuľu na strednom ohni 6 minút dozlatista.",
+          "requires": [
+            "oil:raw",
+            "onion:chopped",
+            "panvica:free"
+          ],
+          "produces": [
+            "oil:used",
+            "onion:browned",
+            "panvica:used"
+          ]
+        },
+        {
+          "text": "Pridaj kyslú kapustu a {pepper.amount} {pepper.name}. Opekaj kyslú kapustu v panvici na strednom ohni 10 minút, kým zmäkne a väčšina šťavy sa odparí.",
+          "requires": [
+            "sauerkraut:chopped",
+            "pepper:raw",
+            "onion:browned",
+            "oil:used",
+            "panvica:used"
+          ],
+          "produces": [
+            "sauerkraut:cooked",
+            "pepper:mixed",
+            "onion:cooked",
+            "oil:cooked"
+          ]
+        },
+        {
+          "text": "Premiešaj strapačky s kyslou kapustou a prehrievaj ich v panvici na strednom ohni 2 minúty, kým zmes začne pariť. Podávaj ich horúce.",
+          "requires": [
+            "potato:drained",
+            "flour:drained",
+            "salt:drained",
+            "sauerkraut:cooked",
+            "pepper:mixed",
+            "onion:cooked",
+            "oil:cooked",
+            "panvica:used"
+          ],
+          "produces": [
+            "potato:served",
+            "flour:served",
+            "salt:served",
+            "sauerkraut:served",
+            "pepper:served",
+            "onion:served",
+            "oil:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Strapačky s kapustou rozdeľ do plytkých nádob a odlož do chladničky najneskôr do 2 hodín. Zjedz ich do 2 dní; pri ohrievaní pridaj lyžicu vody."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_cabbage_dumplings",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://varecha.pravda.sk/recepty/strapacky-s-kyslou-kapustou/7965-recept.html",
+        "title": "Strapačky s kyslou kapustou",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://www.gastro-tipy.sk/recepty/strapacky-s-kapustou",
+        "title": "Strapačky s kapustou",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

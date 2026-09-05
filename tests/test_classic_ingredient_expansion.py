@@ -25,6 +25,7 @@ CLASSIC_REQUIRED_IDS = frozenset(
         "lentils",
         "marjoram",
         "pork_loin",
+        "pork_mince",
         "pumpkin",
         "sauerkraut",
         "smoked_sausage",
@@ -87,6 +88,12 @@ CLASSIC_RENDER_FORMS = {
         "bravčové karé bez kosti",
         "bravčového karé bez kosti",
         "bravčovým karé bez kosti",
+    ),
+    "pork_mince": (
+        "mletého bravčového mäsa",
+        "mleté bravčové mäso",
+        "mletého bravčového mäsa",
+        "mletým bravčovým mäsom",
     ),
     "pumpkin": ("tekvice", "tekvicu", "tekvice", "tekvicou"),
     "sauerkraut": (
@@ -209,6 +216,17 @@ def test_dill_nutrition_matches_sr_legacy_fdc_172233():
     assert dill.nutrition.protein_g == Decimal("3.46")
     assert dill.nutrition.fat_g == Decimal("1.12")
     assert dill.nutrition.carbs_g == Decimal("7.02")
+
+
+def test_ground_pork_uses_the_usda_foundation_food_record():
+    pork = load_ingredient_catalog().by_id("pork_mince")
+
+    assert pork.nutrition.kcal == Decimal("228")
+    assert pork.nutrition.protein_g == Decimal("17.8")
+    assert pork.nutrition.fat_g == Decimal("17.5")
+    assert "USDA FoodData Central Foundation Foods" in pork.nutrition.source
+    assert "FDC ID 2514745" in pork.nutrition.source
+    assert "https://fdc.nal.usda.gov/download-datasets/" in pork.nutrition.source
 
 
 def test_new_ingredients_render_literal_slovak_quantity_reference_and_title_forms():

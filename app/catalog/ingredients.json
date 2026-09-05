@@ -55,8 +55,8 @@
     },
     {
       "id": "pork_shoulder",
-      "name": "bravčové pliecko",
-      "synonyms": ["bravčové plece"],
+      "name": "bravčové pliecko bez kosti",
+      "synonyms": ["bravčové pliecko", "bravčové plece bez kosti", "bravčové plece"],
       "category": "mäso",
       "roles": ["protein"],
       "diet_tags": [],
@@ -68,6 +68,23 @@
         "kcal": "236", "protein_g": "17.18", "fat_g": "17.99", "carbs_g": "0",
         "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 167843, Pork, fresh, shoulder, whole, separable lean and fat, raw; https://fdc.nal.usda.gov/fdc-app.html#/food-details/167843/nutrients",
         "verified_on": "2026-08-30"
+      }
+    },
+    {
+      "id": "pork_mince",
+      "name": "mleté bravčové mäso",
+      "synonyms": ["bravčové mleté mäso"],
+      "category": "mäso",
+      "roles": ["protein"],
+      "diet_tags": [],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "228", "protein_g": "17.8", "fat_g": "17.5", "carbs_g": "0",
+        "source": "USDA FoodData Central Foundation Foods, FDC ID 2514745, Pork, ground, raw; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-05"
       }
     },
     {
@@ -419,7 +436,7 @@
       "diet_tags": ["vegetarian", "vegan"],
       "allergens": [],
       "edible_ratio": "1",
-      "grams_per_piece": null,
+      "grams_per_piece": "160",
       "density_g_per_ml": null,
       "nutrition": {
         "kcal": "31", "protein_g": "0.99", "fat_g": "0.3", "carbs_g": "6.03",
@@ -1053,6 +1070,23 @@
       "nutrition": {
         "kcal": "717", "protein_g": "0.85", "fat_g": "81.1", "carbs_g": "0.06",
         "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 173410, Butter, salted; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "cinnamon",
+      "name": "mletá škorica",
+      "synonyms": ["škorica", "mletej škorice"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "247", "protein_g": "3.99", "fat_g": "1.24", "carbs_g": "80.59",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171320, Spices, cinnamon, ground; https://fdc.nal.usda.gov/fdc-app.html#/food-details/171320/nutrients",
         "verified_on": "2026-09-05"
       }
     },

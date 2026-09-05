@@ -119,6 +119,7 @@ INGREDIENT_FORBIDDEN_OFFER_QUALIFIERS = MappingProxyType(
             (("červená",), ("cervena",), ("ružová",), ("ruzova",))
         ),
         "pork_loin": frozenset((("s", "kosťou"), ("s", "kostou"))),
+        "pork_shoulder": frozenset((("s", "kosťou"), ("s", "kostou"))),
         "smoked_sausage": frozenset(
             (
                 ("s",),

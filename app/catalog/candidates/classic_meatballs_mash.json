@@ -1,0 +1,207 @@
+{
+  "recipes": [
+    {
+      "id": "classic_meatballs_mash",
+      "version": 2,
+      "active": true,
+      "name_template": "Fašírky so zemiakovou kašou",
+      "family": "classic_meatballs_mash",
+      "method": "pan",
+      "minutes": 55,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["miska", "hrniec", "panvica", "pučidlo na zemiaky", "nôž", "doska na krájanie"],
+      "slots": [
+        {
+          "key": "beef",
+          "role": "protein",
+          "candidates": ["beef_mince"],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "bread",
+          "role": "starch",
+          "candidates": ["bread"],
+          "amount_per_adult": "30",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": "na kúsky",
+          "water_ml_per_adult": "40"
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": ["egg"],
+          "amount_per_adult": "0.5",
+          "unit": "piece",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": ["onion"],
+          "amount_per_adult": "40",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": ["paprika_powder"],
+          "amount_per_adult": "2",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": ["garlic"],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": ["potato"],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na rovnaké kúsky"
+        },
+        {
+          "key": "milk",
+          "role": "dairy",
+          "candidates": ["milk"],
+          "amount_per_adult": "50",
+          "unit": "ml",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": ["butter"],
+          "amount_per_adult": "10",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": ["oil"],
+          "amount_per_adult": "15",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {
+          "text": "Namoč {bread.amount} {bread.name} v miske do {bread.water} vody na 5 minút. Potom chlieb rukami vytlač.",
+          "requires": ["bread:raw", "miska:free"],
+          "produces": ["bread:soaked", "miska:free"]
+        },
+        {
+          "text": "Nakrájaj {onion.amount} {onion.name} nadrobno.",
+          "requires": ["onion:raw"],
+          "produces": ["onion:cut"]
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj zemiaky na rovnaké kúsky.",
+          "requires": ["potato:raw"],
+          "produces": ["potato:cut"]
+        },
+        {
+          "text": "Vlož zemiaky do hrnca. Dolej studenú vodu tak, aby boli ponorené. Var zemiaky v hrnci na miernom ohni 18 minút, kým zmäknú, potom ich sceď.",
+          "requires": ["potato:cut", "hrniec:free"],
+          "produces": ["potato:cooked", "hrniec:occupied"]
+        },
+        {
+          "text": "Premiešaj v miske {beef.amount} {beef.name}, cibuľu, vytlačený chlieb, {egg.amount} {egg.name}, {paprika.amount} {paprika.name}, {garlic.amount} {garlic.name}, soľ a čierne korenie. Zmes mies rukami 2 minúty, kým bude držať pokope.",
+          "requires": ["beef:raw", "onion:cut", "bread:soaked", "egg:raw", "paprika:raw", "garlic:raw", "miska:free"],
+          "produces": ["beef:mixed", "onion:mixed", "bread:mixed", "egg:mixed", "paprika:mixed", "garlic:mixed", "miska:occupied"]
+        },
+        {
+          "text": "Priprav zo zmesi ploché fašírky hrubé asi dva centimetre.",
+          "requires": ["beef:mixed", "onion:mixed", "bread:mixed", "egg:mixed", "paprika:mixed", "garlic:mixed", "miska:occupied"],
+          "produces": ["beef:shaped", "onion:shaped", "bread:shaped", "egg:shaped", "paprika:shaped", "garlic:shaped", "miska:free"]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.",
+          "requires": ["oil:raw", "panvica:free"],
+          "produces": ["oil:heated", "panvica:hot"]
+        },
+        {
+          "text": "Opekaj fašírky z mletého hovädzieho mäsa v panvici na strednom ohni 6 minút z každej strany, kým budú zlatisté a v strede prepečené.",
+          "requires": ["beef:shaped", "onion:shaped", "bread:shaped", "egg:shaped", "paprika:shaped", "garlic:shaped", "oil:heated", "panvica:hot"],
+          "produces": ["beef:cooked", "onion:cooked", "bread:cooked", "egg:cooked", "paprika:cooked", "garlic:cooked", "oil:used", "panvica:free"]
+        },
+        {
+          "text": "Pridaj {butter.amount} {butter.name}. Prilej {milk.amount} {milk.name}. Všetko roztlač pučidlom na hladkú kašu.",
+          "requires": ["butter:raw", "milk:raw", "potato:cooked", "hrniec:occupied"],
+          "produces": ["butter:combined", "milk:combined", "potato:mashed", "hrniec:free"]
+        },
+        {
+          "text": "Dochuť zemiakovú kašu soľou.",
+          "requires": ["potato:mashed", "milk:combined"],
+          "produces": []
+        },
+        {
+          "text": "Podávaj fašírky so zemiakovou kašou a rozdeľ jedlo na {portions} porcií.",
+          "requires": ["beef:cooked", "onion:cooked", "bread:cooked", "egg:cooked", "paprika:cooked", "garlic:cooked", "oil:used", "potato:mashed", "milk:combined", "butter:combined"],
+          "produces": ["beef:served", "onion:served", "bread:served", "egg:served", "paprika:served", "garlic:served", "oil:served", "potato:served", "milk:served", "butter:served"]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Zvyšné fašírky a kašu rozdeľ do plytkých nádob a odlož do chladničky najneskôr do 2 hodín. Zjedz ich do 2 dní."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_meatballs_mash",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://varecha.pravda.sk/recepty/fasirky-so-zemiakovou-kasou-a-zeleninovym-salatom/93292-recept.html",
+        "title": "Fašírky so zemiakovou kašou a zeleninovým šalátom",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://dobruchut.aktuality.sk/recept/78172/nase-klasicke-fasirky-videorecept/",
+        "title": "Naše klasické fašírky, VIDEORECEPT",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}
