@@ -365,6 +365,33 @@ def test_schema_migration_has_two_bounded_recovery_runs_after_first_failure(con,
     assert stav["ucel_eur"] == 0.0
 
 
+def test_only_last_migration_recovery_can_use_bounded_daily_burst(con, monkeypatch):
+    monkeypatch.setenv("UVARSI_MESACNY_STROP_EUR", "100")
+    monkeypatch.setenv("UVARSI_TYZDENNY_STROP_MIGRACIA_EUR", "7")
+    naklady.zapis(
+        con,
+        "plan",
+        "claude-opus-5",
+        usage(vystup=200_000),
+        teraz=PONDELOK,
+        notifikuj=lambda _sprava: None,
+    )
+    assert naklady.spolu_za_den(con, "2026-08-17") > naklady.VYCHODZI_DENNY_STROP_EUR
+
+    naklady.rezervuj_beh(con, "zber_migracia", teraz=PONDELOK)
+    with pytest.raises(naklady.RozpocetVycerpany) as pred_poslednym:
+        naklady.skontroluj(con, "zber_migracia", odhad_eur=0.10, teraz=PONDELOK)
+    assert pred_poslednym.value.kod == naklady.KOD_DENNY
+
+    naklady.rezervuj_beh(con, "zber_migracia", teraz=PONDELOK)
+    stav = naklady.skontroluj(con, "zber_migracia", odhad_eur=0.10, teraz=PONDELOK)
+    assert stav["dnes_eur"] > naklady.VYCHODZI_DENNY_STROP_EUR
+
+    with pytest.raises(naklady.RozpocetVycerpany) as bezna_prevadzka:
+        naklady.skontroluj(con, "plan", odhad_eur=0.10, teraz=PONDELOK)
+    assert bezna_prevadzka.value.kod == naklady.KOD_DENNY
+
+
 def test_schema_migration_collection_budget_resets_with_thursday_cycle(con):
     streda = PONDELOK + datetime.timedelta(days=2, hours=12)
     stvrtok = PONDELOK + datetime.timedelta(days=3, hours=5)

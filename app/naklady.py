@@ -115,6 +115,11 @@ PRAHY_UPOZORNENIA = (50, 80)
 # potravinových strán) alebo cena modelu, tieto čísla treba prepočítať znova.
 # Strop pod skutočnou cenou poctivého behu nie je ochrana, je to tichý výpadok.
 VYCHODZI_DENNY_STROP_EUR = 4.00
+# Iba posledný povolený dobeh migrácie smie dokončiť už rozčítané letáky aj
+# nad bežným denným stropom. Nie je to nový všeobecný limit: plán, bloček,
+# prvý ani druhý migračný pokus ho nikdy nedostanú. Týždenný 7 € a mesačný
+# 25 € strop zostávajú nadradené poistky.
+VYCHODZI_DENNY_STROP_POSLEDNY_DOBEH_MIGRACIE_EUR = 6.50
 VYCHODZI_MESACNY_STROP_EUR = 25.00
 VYCHODZI_TYZDENNY_STROP_ZBER_EUR = 4.00
 VYCHODZI_TYZDENNY_STROP_MIGRACIA_EUR = 7.00
@@ -506,6 +511,22 @@ def spolu_za_ucel_obdobie(con, ucel, teraz) -> float:
     return spolu_za_ucel_tyzden(con, ucel, tyzden)
 
 
+def je_posledny_migracny_dobeh(con, ucel, teraz) -> bool:
+    """Povoľ rozpočtový burst iba tesne pred poslednou rezerváciou a po nej."""
+    if ucel != "zber_migracia":
+        return False
+    limit = limit_behov(ucel)
+    if limit < 3:
+        return False
+    obdobie = _obdobie_behu(ucel, teraz)
+    riadok = con.execute(
+        "SELECT pocet FROM naklady_behy WHERE tyzden=? AND ucel=?",
+        (obdobie, ucel),
+    ).fetchone()
+    pocet = int(riadok[0]) if riadok is not None else 0
+    return pocet >= limit - 1
+
+
 # ---------------------------------------------------------------- strop PRED volaním
 def skontroluj(con, ucel, odhad_eur=None, teraz=None, rezervovane_eur=0.0):
     """Smie sa teraz minúť? Keď nie, vyhodí RozpocetVycerpany a NIČ sa nevolá.
@@ -547,11 +568,23 @@ def skontroluj(con, ucel, odhad_eur=None, teraz=None, rezervovane_eur=0.0):
         # Nevieme, koľko už padlo → nesmieme minúť ani cent.
         raise RozpocetVycerpany(SPRAVA_NECITATELNY, kod=KOD_NECITATELNY, ucel=ucel) from chyba
 
-    if dnes_eur + rezervovane + odhad > limity.denny:
+    denny_strop = limity.denny
+    try:
+        if je_posledny_migracny_dobeh(con, ucel, teraz):
+            denny_strop = max(
+                denny_strop,
+                VYCHODZI_DENNY_STROP_POSLEDNY_DOBEH_MIGRACIE_EUR,
+            )
+    except (sqlite3.Error, OSError) as chyba:
         raise RozpocetVycerpany(
-            f"Dnešný rozpočet na AI je vyčerpaný ({dnes_eur:.2f} € z {limity.denny:.2f} €). "
+            SPRAVA_NECITATELNY, kod=KOD_NECITATELNY, ucel=ucel,
+        ) from chyba
+
+    if dnes_eur + rezervovane + odhad > denny_strop:
+        raise RozpocetVycerpany(
+            f"Dnešný rozpočet na AI je vyčerpaný ({dnes_eur:.2f} € z {denny_strop:.2f} €). "
             "Skús to zajtra.",
-            kod=KOD_DENNY, ucel=ucel, minute_eur=dnes_eur, strop_eur=limity.denny,
+            kod=KOD_DENNY, ucel=ucel, minute_eur=dnes_eur, strop_eur=denny_strop,
         )
     if mesiac_eur + rezervovane + odhad > limity.mesacny:
         raise RozpocetVycerpany(
