@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "108c061db1c4d7f7ece1ab49430397e750f7bc7d6e03104b2b9dbef5079c8fd1",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "protein_cottage_tomato_pasta"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

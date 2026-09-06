@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "5aa0a9a678e1f77d22f402ba83de323c5dc67cf50f0fd2c3e0074e90e4fc1428",
+  "promoted_to": "05-vegan.json",
+  "recipe_ids": [
+    "plant_bean_chili"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

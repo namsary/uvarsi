@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "modern_fish_tacos_yogurt",
+      "version": 2,
+      "active": true,
+      "name_template": "Rybie tacos s jogurtovou omáčkou",
+      "family": "modern_fish_tacos_yogurt",
+      "method": "pan",
+      "minutes": 45,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["panvica", "misa", "malá miska", "tanier", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "fish", "role": "protein", "candidates": ["white_fish"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na širšie pásiky"},
+        {"key": "tortilla", "role": "starch", "candidates": ["tortilla"], "amount_per_adult": "2", "unit": "piece", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "cabbage", "role": "vegetable", "candidates": ["white_cabbage"], "amount_per_adult": "90", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na tenké rezance"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kúsky"},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": null},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na polovice"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cumin", "role": "seasoning", "candidates": ["cumin"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {fish.amount} {fish.name} na širšie pásiky, {cabbage.amount} {cabbage.name} na tenké rezance a {tomato.amount} {tomato.name} na malé kúsky. Rozkroj {lemon.amount} {lemon.name} na polovice.", "requires": ["fish:raw", "cabbage:raw", "tomato:raw", "lemon:raw"], "produces": ["fish:cut", "cabbage:cut", "tomato:cut", "lemon:cut"]},
+        {"text": "Premiešaj kapustu so šťavou z polovice citróna a štipkou soli vo veľkej mise. V malej miske zmiešaj {yogurt.amount} {yogurt.name} so šťavou zo zvyšného citróna a čiernym korením.", "requires": ["cabbage:cut", "lemon:cut", "yogurt:raw", "misa:free", "mala_miska:free"], "produces": ["cabbage:dressed", "lemon:mixed", "yogurt:mixed", "misa:occupied", "mala_miska:occupied"]},
+        {"text": "Premiešaj rybu na tanieri s {paprika.amount} {paprika.name}, {cumin.amount} {cumin.name} a štipkou soli.", "requires": ["fish:cut", "paprika:raw", "cumin:raw", "tanier:free"], "produces": ["fish:seasoned", "paprika:used", "cumin:used", "tanier:occupied"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "panvica:free"], "produces": ["oil:hot", "panvica:occupied"]},
+        {"text": "Opekaj rybu v panvici na strednom ohni 3 minúty z každej strany, kým bude povrch zlatistý a mäso sa začne ľahko oddeľovať vidličkou. Pri väčšej dávke ju priprav po častiach v jednej vrstve.", "requires": ["fish:seasoned", "oil:hot", "paprika:used", "cumin:used", "panvica:occupied"], "produces": ["fish:cooked", "oil:cooked", "paprika:cooked", "cumin:cooked", "panvica:free", "tanier:free"]},
+        {"text": "Zohrej {tortilla.amount} {tortilla.name} nasucho v panvici na strednom ohni 1 minútu z každej strany, kým zmäknú a objavia sa na nich zlatisté škvrny. Pri väčšej dávke ich zohrievaj po častiach a hotové tortilly prikry utierkou.", "requires": ["tortilla:raw", "panvica:free"], "produces": ["tortilla:warmed", "panvica:free"]},
+        {"text": "Rozdeľ kapustu, paradajky a rybu do tortíll. Pokvapkaj ich jogurtovou omáčkou a podávaj po dve tacos na osobu. Jedlo rozdeľ na {portions} porcií.", "requires": ["tortilla:warmed", "cabbage:dressed", "lemon:mixed", "tomato:cut", "fish:cooked", "oil:cooked", "paprika:cooked", "cumin:cooked", "yogurt:mixed", "panvica:free", "misa:occupied", "mala_miska:occupied"], "produces": ["tortilla:served", "cabbage:served", "lemon:served", "tomato:served", "fish:served", "oil:served", "paprika:served", "cumin:served", "yogurt:served", "misa:free", "mala_miska:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Rybu, tortilly, kapustový šalát a omáčku odlož do samostatných plytkých nádob najneskôr do 2 hodín. Uchovaj ich v chladničke a zjedz do 3 dní; tacos skladaj až pred podávaním."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "modern_fish_tacos_yogurt",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfoodme.com/recipes/fish-tacos-baja-sauce/", "title": "Fish tacos with Baja sauce | Good Food Middle East", "accessed_on": "2026-09-05"},
+      {"url": "https://www.bhf.org.uk/informationsupport/support/healthy-living/healthy-eating/recipe-finder/fish-tacos", "title": "Fish tacos | British Heart Foundation", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

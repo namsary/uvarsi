@@ -1,0 +1,287 @@
+{
+  "recipes": [
+    {
+      "id": "classic_tomato_soup",
+      "version": 2,
+      "active": true,
+      "name_template": "Paradajková polievka",
+      "family": "slovak_tomato_soup",
+      "method": "soup",
+      "minutes": 40,
+      "modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "equipment": [
+        "veľký hrniec",
+        "ponorný mixér",
+        "nôž",
+        "doska na krájanie",
+        "varecha"
+      ],
+      "slots": [
+        {
+          "key": "tomato",
+          "role": "vegetable",
+          "candidates": [
+            "tomato"
+          ],
+          "amount_per_adult": 300,
+          "unit": "g",
+          "child_factor": 0.65,
+          "required": true,
+          "use": "main",
+          "cut": "na štvrtiny",
+          "water_ml_per_adult": "250"
+        },
+        {
+          "key": "carrot",
+          "role": "vegetable",
+          "candidates": [
+            "carrot"
+          ],
+          "amount_per_adult": 50,
+          "unit": "g",
+          "child_factor": 0.6,
+          "required": true,
+          "use": "addition",
+          "cut": "na tenké kolieska"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": 40,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": 4,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": "rozdrvený"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": 10,
+          "unit": "ml",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "pasta",
+          "role": "starch",
+          "candidates": ["pasta"],
+          "amount_per_adult": 70,
+          "unit": "g",
+          "child_factor": 0.55,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "salt",
+          "role": "seasoning",
+          "candidates": [
+            "salt"
+          ],
+          "amount_per_adult": 2,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "pepper",
+          "role": "seasoning",
+          "candidates": [
+            "black_pepper"
+          ],
+          "amount_per_adult": 0.5,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water"
+      ],
+      "instructions": [
+        {
+          "text": "Nakrájaj {tomato.amount} {tomato.name} na štvrtiny, {carrot.amount} {carrot.name} na tenké kolieska a {onion.amount} {onion.name} najemno. Rozdrv {garlic.amount} {garlic.name} plochou stranou noža.",
+          "requires": [
+            "tomato:raw",
+            "carrot:raw",
+            "onion:raw",
+            "garlic:raw",
+            "noz:free",
+            "doska_na_krajanie:free"
+          ],
+          "produces": [
+            "tomato:quartered",
+            "carrot:sliced",
+            "onion:chopped",
+            "garlic:crushed",
+            "noz:used",
+            "doska_na_krajanie:used"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 2 minúty, kým sa začne lesknúť.",
+          "requires": [
+            "oil:raw",
+            "velky_hrniec:free"
+          ],
+          "produces": [
+            "oil:heated",
+            "velky_hrniec:used"
+          ]
+        },
+        {
+          "text": "Opekaj cibuľu a mrkvu vo veľkom hrnci na strednom ohni 6 minút, kým cibuľa zmäkne.",
+          "requires": [
+            "onion:chopped",
+            "carrot:sliced",
+            "oil:heated",
+            "velky_hrniec:used"
+          ],
+          "produces": [
+            "onion:softened",
+            "carrot:softened",
+            "oil:used"
+          ]
+        },
+        {
+          "text": "Pridaj paradajky a cesnak do hrnca. Prilej {tomato.water} vody a obsah hrnca priveď do varu. Potom var paradajky vo veľkom hrnci na miernom ohni 25 minút, kým paradajky a mrkva zmäknú.",
+          "requires": [
+            "tomato:quartered",
+            "garlic:crushed",
+            "onion:softened",
+            "carrot:softened",
+            "oil:used",
+            "velky_hrniec:used"
+          ],
+          "produces": [
+            "tomato:cooked",
+            "garlic:cooked",
+            "onion:cooked",
+            "carrot:cooked",
+            "oil:cooked"
+          ]
+        },
+        {
+          "text": "Rozmixuj obsah hrnca ponorným mixérom 1 minútu, kým je polievka hladká.",
+          "requires": [
+            "tomato:cooked",
+            "garlic:cooked",
+            "onion:cooked",
+            "carrot:cooked",
+            "oil:cooked",
+            "ponorny_mixer:free"
+          ],
+          "produces": [
+            "tomato:pureed",
+            "garlic:pureed",
+            "onion:pureed",
+            "carrot:pureed",
+            "oil:mixed",
+            "ponorny_mixer:used"
+          ]
+        },
+        {
+          "text": "Vsyp {pasta.amount} {pasta.name} do hrnca. Var cestoviny vo veľkom hrnci na miernom ohni 9 minút, kým budú mäkké, ale ešte pevné na zahryznutie.",
+          "requires": [
+            "pasta:raw",
+            "tomato:pureed",
+            "velky_hrniec:used"
+          ],
+          "produces": [
+            "pasta:cooked"
+          ]
+        },
+        {
+          "text": "Prisyp {salt.amount} {salt.name} a {pepper.amount} {pepper.name} do hrnca. Prehrievaj rozmixované paradajky vo veľkom hrnci na miernom ohni 3 minúty, kým polievka začne jemne bublať.",
+          "requires": [
+            "tomato:pureed",
+            "pasta:cooked",
+            "salt:raw",
+            "pepper:raw",
+            "velky_hrniec:used"
+          ],
+          "produces": [
+            "tomato:hot",
+            "pasta:hot",
+            "salt:dissolved",
+            "pepper:dissolved"
+          ]
+        },
+        {
+          "text": "Podávaj paradajkovú polievku horúcu, keď je hladká a jemne bublá.",
+          "requires": [
+            "tomato:hot",
+            "pasta:hot",
+            "carrot:pureed",
+            "onion:pureed",
+            "garlic:pureed",
+            "oil:mixed",
+            "salt:dissolved",
+            "pepper:dissolved"
+          ],
+          "produces": [
+            "tomato:served",
+            "pasta:served",
+            "carrot:served",
+            "onion:served",
+            "garlic:served",
+            "oil:served",
+            "salt:served",
+            "pepper:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Paradajkovú polievku rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 3 dní a pred podávaním ju priveď k miernemu varu."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_tomato_soup",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://kuchynalidla.sk/recepty/paradajkova-polievka",
+        "title": "Paradajková polievka",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://dobruchut.aktuality.sk/recept/80279/paradajkova-polievka/",
+        "title": "Paradajková polievka",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

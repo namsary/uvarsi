@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "0431a0841b5c4ea283f911bd4b1e78020c9d90decfd509bf484184271342bbe5",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "classic_lentil_stew_egg"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

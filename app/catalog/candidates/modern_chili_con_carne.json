@@ -1,0 +1,53 @@
+{
+  "recipes": [
+    {
+      "id": "modern_chili_con_carne",
+      "version": 2,
+      "active": true,
+      "name_template": "Chilli con carne s ryžou",
+      "family": "modern_chili_con_carne",
+      "method": "pot",
+      "minutes": 55,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľký hrniec", "hrniec na ryžu", "sitko", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "beef", "role": "protein", "candidates": ["beef_mince"], "amount_per_adult": "170", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": null},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "65", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "130"},
+        {"key": "beans", "role": "protein", "candidates": ["beans_canned"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "nahrubo"},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "cumin", "role": "seasoning", "candidates": ["cumin"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.35", "required": true, "use": "addition", "cut": null},
+        {"key": "chili", "role": "seasoning", "candidates": ["chili_powder"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.15", "required": true, "use": "addition", "cut": null},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} studenou vodou. Sceď a prepláchni aj {beans.amount} {beans.name} cez sitko.", "requires": ["rice:raw", "beans:raw", "sitko:free"], "produces": ["rice:rinsed", "beans:rinsed", "sitko:free"]},
+        {"text": "Nalej {rice.water} vody do hrnca, prikry ho a priveď na strednom ohni do varu. Potom var ryžu v hrnci na miernom ohni 15 minút, kým zmäkne a vsiakne vodu.", "requires": ["rice:rinsed", "hrniec_na_ryzu:free"], "produces": ["rice:cooked", "hrniec_na_ryzu:free"]},
+        {"text": "Nakrájaj {pepper.amount} {pepper.name} na malé kocky a {onion.amount} {onion.name} s {garlic.amount} {garlic.name} nadrobno.", "requires": ["pepper:raw", "onion:raw", "garlic:raw"], "produces": ["pepper:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "velky_hrniec:free"], "produces": ["oil:heated", "velky_hrniec:hot"]},
+        {"text": "Opekaj {beef.amount} {beef.name} vo veľkom hrnci na strednom ohni 8 minút, kým sa rozdelí na drobné kúsky a bude zlatisté. Pri väčšej dávke mäso opekaj po častiach.", "requires": ["beef:raw", "oil:heated", "velky_hrniec:hot"], "produces": ["beef:browned", "oil:used"]},
+        {"text": "Pridaj papriku, cibuľu a cesnak do veľkého hrnca. Opekaj papriku s cibuľou, cesnakom a mletým hovädzím mäsom vo veľkom hrnci na strednom ohni 6 minút, kým cibuľa zmäkne a paprika stratí surovú chrumkavosť.", "requires": ["pepper:cut", "onion:cut", "garlic:cut", "beef:browned", "velky_hrniec:hot"], "produces": ["pepper:cooked", "onion:cooked", "garlic:cooked"]},
+        {"text": "Odstav hrniec z ohňa. Prisyp {paprika.amount} {paprika.name}, {cumin.amount} {cumin.name}, {chili.amount} {chili.name} a {marjoram.amount} {marjoram.name}. Hneď premiešaj.", "requires": ["paprika:raw", "cumin:raw", "chili:raw", "marjoram:raw", "beef:browned", "pepper:cooked", "onion:cooked", "garlic:cooked", "velky_hrniec:hot"], "produces": ["paprika:combined", "cumin:combined", "chili:combined", "marjoram:combined"]},
+        {"text": "Pridaj {tomato.amount} {tomato.name} a {sugar.amount} {sugar.name} do hrnca. Var paradajky s mletým hovädzím mäsom vo veľkom hrnci na miernom ohni 25 minút, kým zmes jemne bublá a omáčka zhustne.", "requires": ["tomato:raw", "sugar:raw", "beef:browned", "paprika:combined", "cumin:combined", "chili:combined", "marjoram:combined", "velky_hrniec:hot"], "produces": ["tomato:cooked", "sugar:cooked", "beef:cooked", "paprika:cooked", "cumin:cooked", "chili:cooked", "marjoram:cooked"]},
+        {"text": "Pridaj červenú fazuľu do hrnca. Var červenú fazuľu s paradajkami vo veľkom hrnci na miernom ohni 8 minút, kým bude horúca a omáčka začne znovu jemne bublať.", "requires": ["beans:rinsed", "tomato:cooked", "beef:cooked", "velky_hrniec:hot"], "produces": ["beans:cooked", "pepper:finished", "onion:finished", "garlic:finished", "velky_hrniec:free"]},
+        {"text": "Dochuť chilli soľou a čiernym korením. Podávaj ho s ryžou a rozdeľ jedlo na {portions} porcií.", "requires": ["beef:cooked", "rice:cooked", "beans:cooked", "tomato:cooked", "pepper:finished", "onion:finished", "garlic:finished", "paprika:cooked", "cumin:cooked", "chili:cooked", "marjoram:cooked", "sugar:cooked", "oil:used"], "produces": ["beef:served", "rice:served", "beans:served", "tomato:served", "pepper:served", "onion:served", "garlic:served", "paprika:served", "cumin:served", "chili:served", "marjoram:served", "sugar:served", "oil:served"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Chilli a ryžu rozdeľ do plytkých nádob a do jednej hodiny ich schlaď. V chladničke ich zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým budú celé horúce."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "modern_chili_con_carne",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/chilli-con-carne-recipe", "title": "Chilli con carne recipe | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://www.tesco.com/recipes/en-GB/recipe/easy-chilli-con-carne", "title": "Easy chilli con carne | Tesco Recipes", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

@@ -1861,6 +1861,16 @@ def test_leftover_storage_note_is_specific_for_rice_and_multi_day_cooking():
     assert "zohrej" in note
 
 
+def test_legacy_storage_fallback_keeps_a_deadline_and_separates_eggs():
+    note = plan_data.leftover_storage_note(
+        ["Uvar vajcia natvrdo a podávaj ich s prívarkom."], covered_days=3,
+    )
+
+    assert "do 2 hodín" in note
+    assert "do 3 dní" in note
+    assert "vajcia" in note.casefold() and "oddelene" in note.casefold()
+
+
 @pytest.mark.parametrize(("name", "steps"), [
     ("Kuracie zo stehenných reziek", ["Mäso priprav podľa receptu."]),
     ("Kuracie s ryžou", ["Ryžu uvar vo vode 12 minút a potom ryžu sceď."]),

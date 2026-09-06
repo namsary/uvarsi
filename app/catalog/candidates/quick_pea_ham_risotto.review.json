@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "8b3509d02ca2e143607b79d03f04ee0ccbb98cb58f61d813c76667a4c43cde6c",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "quick_pea_ham_risotto"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

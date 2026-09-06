@@ -1,0 +1,41 @@
+{
+  "recipes": [
+    {
+      "id": "protein_tuna_bean_salad",
+      "version": 2,
+      "active": true,
+      "name_template": "Tuniakovo-fazuľový šalát",
+      "family": "protein_tuna_bean_salad",
+      "method": "salad",
+      "minutes": 15,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["misa", "sitko", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "tuna", "role": "protein", "candidates": ["tuna"], "amount_per_adult": "140", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "beans", "role": "protein", "candidates": ["beans_canned"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "cucumber", "role": "vegetable", "candidates": ["cucumber"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na menšie kúsky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.45", "required": true, "use": "addition", "cut": "na tenké pásiky"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["salt", "black_pepper"],
+      "instructions": [
+        {"text": "Sceď {tuna.amount} {tuna.name} a {beans.amount} {beans.name} prepláchni v sitku studenou vodou a nechaj dobre odkvapkať.", "requires": ["tuna:raw", "beans:raw", "sitko:free"], "produces": ["tuna:drained", "beans:drained", "sitko:free"]},
+        {"text": "Nakrájaj {cucumber.amount} {cucumber.name} na malé kocky, {tomato.amount} {tomato.name} na menšie kúsky a {onion.amount} {onion.name} na tenké pásiky.", "requires": ["cucumber:raw", "tomato:raw", "onion:raw"], "produces": ["cucumber:cut", "tomato:cut", "onion:cut"]},
+        {"text": "Premiešaj {oil.amount} {oil.name} v mise so štipkou soli a čiernym korením.", "requires": ["oil:raw", "misa:free"], "produces": ["oil:seasoned", "misa:occupied"]},
+        {"text": "Pridaj {tuna.reference_name}, {beans.reference_name}, {cucumber.reference_name}, {tomato.reference_name} a {onion.reference_name} do misy. Všetko zľahka premiešaj, kým sa suroviny rovnomerne obalia olejom; zeleninu pritom nerozpuč.", "requires": ["tuna:drained", "beans:drained", "cucumber:cut", "tomato:cut", "onion:cut", "oil:seasoned", "misa:occupied"], "produces": ["tuna:mixed", "beans:mixed", "cucumber:mixed", "tomato:mixed", "onion:mixed", "oil:mixed"]},
+        {"text": "Dochuť šalát podľa potreby soľou a čiernym korením a rozdeľ ho na {portions} porcií. Podávaj ho hneď alebo vychladený.", "requires": ["tuna:mixed", "beans:mixed", "cucumber:mixed", "tomato:mixed", "onion:mixed", "oil:mixed", "misa:occupied"], "produces": ["tuna:served", "beans:served", "cucumber:served", "tomato:served", "onion:served", "oil:served", "misa:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Šalát odlož do uzatvárateľnej nádoby v chladničke hneď po príprave. Zjedz ho do 3 dní a mimo chladničky ho nenechávaj dlhšie než 2 hodiny."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "protein_tuna_bean_salad",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/10-minute-tuna-bean-salad", "title": "10-minute tuna & bean salad recipe | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://www.foodnetwork.com/recipes/tuna-bean-salad-2124468", "title": "Tuna Bean Salad Recipe | Food Network", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

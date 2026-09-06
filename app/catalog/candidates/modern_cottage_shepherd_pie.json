@@ -1,0 +1,53 @@
+{
+  "recipes": [
+    {
+      "id": "modern_cottage_shepherd_pie",
+      "version": 2,
+      "active": true,
+      "name_template": "Pastiersky nákyp s mletým mäsom",
+      "family": "modern_cottage_shepherd_pie",
+      "method": "oven",
+      "minutes": 65,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "panvica", "pekáč", "rúra", "pučidlo na zemiaky", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "beef", "role": "protein", "candidates": ["beef_mince"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": null},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na rovnaké kúsky"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na malé kocky"},
+        {"key": "peas", "role": "vegetable", "candidates": ["peas"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null, "water_ml_per_adult": "50"},
+        {"key": "milk", "role": "dairy", "candidates": ["milk"], "amount_per_adult": "50", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno nastrúhaný"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 200 °C.", "requires": ["rura:free"], "produces": ["rura:hot"]},
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na rovnaké kúsky. {carrot.amount} {carrot.name} nakrájaj na malé kocky, {onion.amount} {onion.name} a {garlic.amount} {garlic.name} nadrobno a {cheese.amount} {cheese.name} nastrúhaj.", "requires": ["potato:raw", "carrot:raw", "onion:raw", "garlic:raw", "cheese:raw"], "produces": ["potato:cut", "carrot:cut", "onion:cut", "garlic:cut", "cheese:grated"]},
+        {"text": "Vlož zemiaky do hrnca. Dolej studenú vodu tak, aby boli ponorené. Var zemiaky v hrnci na miernom ohni 18 minút, kým zmäknú, potom ich sceď.", "requires": ["potato:cut", "hrniec:free"], "produces": ["potato:cooked", "hrniec:occupied"]},
+        {"text": "Vlož {butter.amount} {butter.name} a {milk.amount} {milk.name} do hrnca. Zemiaky roztlač pučidlom na hladkú kašu a dochuť soľou.", "requires": ["potato:cooked", "butter:raw", "milk:raw", "hrniec:occupied"], "produces": ["potato:mashed", "butter:combined", "milk:combined", "hrniec:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "panvica:free"], "produces": ["oil:heated", "panvica:hot"]},
+        {"text": "Opekaj {beef.amount} {beef.name} v panvici na strednom ohni 8 minút, kým sa rozdelí na drobné kúsky a bude zlatisté. Pri väčšej dávke mäso opekaj po častiach.", "requires": ["beef:raw", "oil:heated", "panvica:hot"], "produces": ["beef:browned", "oil:used"]},
+        {"text": "Pridaj cibuľu, mrkvu a cesnak do panvice. Opekaj cibuľu s mrkvou, cesnakom a mäsom v panvici na strednom ohni 6 minút, kým cibuľa zmäkne.", "requires": ["onion:cut", "carrot:cut", "garlic:cut", "beef:browned", "panvica:hot"], "produces": ["onion:cooked", "carrot:cooked", "garlic:cooked"]},
+        {"text": "Prisyp {flour.amount} {flour.name}. Opekaj hladkú pšeničnú múku s mletým hovädzím mäsom v panvici na strednom ohni 1 minútu, kým bude zmes jemne zlatistá.", "requires": ["flour:raw", "beef:browned", "onion:cooked", "carrot:cooked", "garlic:cooked", "panvica:hot"], "produces": ["flour:cooked"]},
+        {"text": "Pridaj {peas.amount} {peas.name} a prilej {flour.water} vody. Všetko var v panvici na miernom ohni 12 minút, kým omáčka jemne bublá, zhustne a mrkva zmäkne.", "requires": ["peas:raw", "flour:cooked", "beef:browned", "onion:cooked", "carrot:cooked", "garlic:cooked", "panvica:hot"], "produces": ["peas:cooked", "beef:cooked", "onion:finished", "carrot:finished", "garlic:finished", "panvica:free"]},
+        {"text": "Rozlož mleté hovädzie mäso so zeleninou do pekáča. Prikry ho zemiakovou kašou a rozlož tvrdý syr po povrchu. Pri väčšej dávke rozdeľ jedlo do dvoch pekáčov, aby sa prepieklo rovnomerne.", "requires": ["beef:cooked", "onion:finished", "carrot:finished", "garlic:finished", "peas:cooked", "flour:cooked", "potato:mashed", "butter:combined", "milk:combined", "cheese:grated", "pekac:free"], "produces": ["beef:arranged", "onion:arranged", "carrot:arranged", "garlic:arranged", "peas:arranged", "flour:arranged", "potato:arranged", "butter:arranged", "milk:arranged", "cheese:arranged", "pekac:occupied"]},
+        {"text": "Peč mleté hovädzie mäso so zemiakovou kašou v pekáči pri 200 °C 25 minút, kým bude omáčka na okrajoch bublať a povrch bude zlatistý.", "requires": ["beef:arranged", "onion:arranged", "carrot:arranged", "garlic:arranged", "peas:arranged", "flour:arranged", "potato:arranged", "butter:arranged", "milk:arranged", "cheese:arranged", "pekac:occupied", "rura:hot"], "produces": ["beef:cooked_final", "onion:cooked_final", "carrot:cooked_final", "garlic:cooked_final", "peas:cooked_final", "flour:cooked_final", "potato:cooked_final", "butter:cooked_final", "milk:cooked_final", "cheese:cooked"]},
+        {"text": "Nechaj nákyp 10 minút odpočívať a rozdeľ ho na {portions} porcií.", "requires": ["beef:cooked_final", "onion:cooked_final", "carrot:cooked_final", "garlic:cooked_final", "peas:cooked_final", "flour:cooked_final", "potato:cooked_final", "butter:cooked_final", "milk:cooked_final", "cheese:cooked", "oil:used", "pekac:occupied"], "produces": ["beef:served", "onion:served", "carrot:served", "garlic:served", "peas:served", "flour:served", "potato:served", "butter:served", "milk:served", "cheese:served", "oil:served", "pekac:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Nákyp rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "modern_cottage_shepherd_pie",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.tesco.com/recipes/en-GB/recipe/cottage-pie", "title": "Cottage pie | Tesco Recipes", "accessed_on": "2026-09-05"},
+      {"url": "https://www.bbcgoodfood.com/recipes/cottage-pie", "title": "Cottage pie recipe | Good Food", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

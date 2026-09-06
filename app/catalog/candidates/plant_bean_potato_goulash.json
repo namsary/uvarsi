@@ -1,0 +1,32 @@
+{
+  "recipes": [{
+    "id": "plant_bean_potato_goulash", "version": 2, "active": true,
+    "name_template": "Fazuľovo-zemiakový guláš", "family": "plant_bean_potato_goulash", "method": "pot", "minutes": 40,
+    "modes": ["standard", "vegetarian", "vegan"],
+    "equipment": ["veľký hrniec s pokrievkou", "sitko", "nôž", "doska na krájanie", "varecha"],
+    "slots": [
+      {"key": "beans", "role": "protein", "candidates": ["beans_canned"], "amount_per_adult": "300", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+      {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na dvojcentimetrové kocky", "water_ml_per_adult": "250"},
+      {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "nahrubo"},
+      {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "55", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+      {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+      {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.35", "required": true, "use": "addition", "cut": null},
+      {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.35", "required": true, "use": "addition", "cut": null},
+      {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+    ],
+    "pantry_basics": ["water", "salt", "black_pepper"],
+    "instructions": [
+      {"text": "Sceď a prepláchni {beans.amount} {beans.name}. Nakrájaj {potato.amount} {potato.name} na dvojcentimetrové kocky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno.", "requires": ["beans:raw", "potato:raw", "onion:raw", "garlic:raw", "sitko:free"], "produces": ["beans:drained", "potato:cut", "onion:cut", "garlic:cut", "sitko:free"]},
+      {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci. Cibuľu opekaj na strednom ohni 5 minút, kým zmäkne.", "requires": ["oil:raw", "onion:cut", "velky_hrniec_s_pokrievkou:free"], "produces": ["oil:hot", "onion:softened", "velky_hrniec_s_pokrievkou:occupied"]},
+      {"text": "Odstav hrniec z ohňa. Prisyp {paprika.amount} {paprika.name} do hrnca. Pridaj cesnak do hrnca. Hneď premiešaj, aby korenie nezhorklo.", "requires": ["paprika:raw", "garlic:cut", "oil:hot", "onion:softened", "velky_hrniec_s_pokrievkou:occupied"], "produces": ["paprika:combined", "garlic:combined"]},
+      {"text": "Vmiešaj {tomato.amount} {tomato.name}, zemiaky a {potato.water} vody. Osoľ, prikry a var zemiaky v hrnci na miernom ohni 18 až 20 minút, kým zmäknú.", "requires": ["tomato:raw", "potato:cut", "paprika:combined", "garlic:combined", "velky_hrniec_s_pokrievkou:occupied"], "produces": ["tomato:cooked", "potato:cooked", "onion:cooked", "garlic:cooked", "paprika:cooked", "oil:cooked"]},
+      {"text": "Pridaj {beans.reference_name} a {marjoram.amount} {marjoram.name} do hrnca. Var {beans.reference_name} so zemiakmi v hrnci na miernom ohni bez pokrievky ďalších 8 minút, kým guláš začne jemne bublať a mierne zhustne. Dochuť soľou a čiernym korením.", "requires": ["beans:drained", "marjoram:raw", "tomato:cooked", "potato:cooked", "velky_hrniec_s_pokrievkou:occupied"], "produces": ["beans:cooked", "marjoram:cooked"]},
+      {"text": "Podávaj guláš horúci a rozdeľ ho na {portions} porcií.", "requires": ["beans:cooked", "potato:cooked", "tomato:cooked", "onion:cooked", "garlic:cooked", "paprika:cooked", "marjoram:cooked", "oil:cooked", "velky_hrniec_s_pokrievkou:occupied"], "produces": ["beans:served", "potato:served", "tomato:served", "onion:served", "garlic:served", "paprika:served", "marjoram:served", "oil:served", "velky_hrniec_s_pokrievkou:free"]}
+    ],
+    "storage": {"refrigerated_days": 3, "instruction": "Guláš rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní a pri ohrievaní ho nechaj prevrieť."}
+  }],
+  "source_record": {"recipe_id": "plant_bean_potato_goulash", "editorial_lane": "plant_based", "core": true, "references": [
+    {"url": "https://veganskaspolocnost.sk/recept/vegansky-fazulovy-gulas/", "title": "Vegánsky fazuľový guláš", "accessed_on": "2026-09-05"},
+    {"url": "https://www.vegan.sk/vegansky-fazulovy-gulas-recept/", "title": "Vegánsky fazuľový guláš – recept", "accessed_on": "2026-09-05"}
+  ]}
+}

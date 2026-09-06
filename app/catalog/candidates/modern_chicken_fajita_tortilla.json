@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "modern_chicken_fajita_tortilla",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuracie fajitas v tortille",
+      "family": "modern_chicken_fajita_tortilla",
+      "method": "pan",
+      "minutes": 45,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["panvica", "miska", "tanier", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na tenké pásiky"},
+        {"key": "tortilla", "role": "starch", "candidates": ["tortilla"], "amount_per_adult": "2", "unit": "piece", "child_factor": "0.5", "required": true, "use": "main", "cut": null},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na pásiky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "na tenké mesiačiky"},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": null},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "cumin", "role": "seasoning", "candidates": ["cumin"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.35", "required": true, "use": "addition", "cut": null},
+        {"key": "chili", "role": "seasoning", "candidates": ["chili_powder"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.2", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} na tenké pásiky, {pepper.amount} {pepper.name} na pásiky a {onion.amount} {onion.name} na tenké mesiačiky. {garlic.amount} {garlic.name} nakrájaj najemno, z {lemon.amount} {lemon.name} vytlač šťavu a priprav {tortilla.amount} {tortilla.name}.", "requires": ["chicken:raw", "pepper:raw", "onion:raw", "garlic:raw", "lemon:raw", "tortilla:raw"], "produces": ["chicken:cut", "pepper:cut", "onion:cut", "garlic:cut", "lemon:juice", "tortilla:ready"]},
+        {"text": "Premiešaj v miske kuracie prsia, {paprika.amount} {paprika.name}, {cumin.amount} {cumin.name}, {chili.amount} {chili.name}, {oil.amount} {oil.name}, soľ a čierne korenie.", "requires": ["chicken:cut", "paprika:raw", "cumin:raw", "chili:raw", "oil:raw", "miska:free"], "produces": ["chicken:seasoned", "paprika:seasoned", "cumin:seasoned", "chili:seasoned", "oil:seasoned", "miska:occupied"]},
+        {"text": "Rozohrej suchú panvicu na strednom ohni 2 minúty, kým bude jej povrch horúci. Opekaj pšeničnú tortillu v panvici po 30 sekúnd z každej strany, kým sa na nej objavia zlatisté bodky, potom ju odlož na tanier a rovnako zohrej ostatné.", "requires": ["tortilla:ready", "panvica:free", "tanier:free"], "produces": ["tortilla:warm", "panvica:hot", "tanier:occupied"]},
+        {"text": "Opekaj kuracie prsia v panvici na strednom ohni 7 minút, kým budú zlatisté a v strede už nebudú ružové. Pri väčšej dávke mäso opekaj po častiach, potom ho odlož na tanier.", "requires": ["chicken:seasoned", "paprika:seasoned", "cumin:seasoned", "chili:seasoned", "oil:seasoned", "miska:occupied", "panvica:hot", "tanier:occupied"], "produces": ["chicken:cooked", "paprika:cooked", "cumin:cooked", "chili:cooked", "oil:used", "miska:free"]},
+        {"text": "Pridaj papriku a cibuľu do panvice. Opekaj papriku a cibuľu v panvici na strednom ohni 7 minút, kým zmäknú a na okrajoch budú zlatisté.", "requires": ["pepper:cut", "onion:cut", "panvica:hot"], "produces": ["pepper:cooked", "onion:cooked"]},
+        {"text": "Premiešaj v čistej miske {yogurt.amount} {yogurt.name}, cesnak, citrónovú šťavu a štipku soli. Ak používaš misku po surovom mäse, najprv ju umy horúcou vodou so saponátom.", "requires": ["yogurt:raw", "garlic:cut", "lemon:juice", "miska:free"], "produces": ["yogurt:sauce", "garlic:sauce", "lemon:sauce", "miska:occupied"]},
+        {"text": "Vráť kuracie prsia do panvice. Zohrievaj kuracie prsia s paprikou a cibuľou v panvici na miernom ohni 2 minúty, kým sa z panvice začne pariť.", "requires": ["chicken:cooked", "pepper:cooked", "onion:cooked", "panvica:hot"], "produces": ["chicken:hot", "pepper:hot", "onion:hot", "panvica:free"]},
+        {"text": "Podávaj teplé tortilly s kuracím mäsom, paprikou, cibuľou a jogurtovou omáčkou. Rozdeľ jedlo na {portions} porcií.", "requires": ["tortilla:warm", "chicken:hot", "pepper:hot", "onion:hot", "yogurt:sauce", "garlic:sauce", "lemon:sauce", "paprika:cooked", "cumin:cooked", "chili:cooked", "oil:used"], "produces": ["tortilla:served", "chicken:served", "pepper:served", "onion:served", "yogurt:served", "garlic:served", "lemon:served", "paprika:served", "cumin:served", "chili:served", "oil:served", "miska:free", "tanier:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Mäso, zeleninu a omáčku odlož do oddelených plytkých nádob najneskôr do 2 hodín a tortilly nechaj zabalené zvlášť. Chladené suroviny zjedz do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "modern_chicken_fajita_tortilla",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/chicken-fajitas", "title": "Chicken fajitas recipe | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://www.tesco.com/recipes/en-GB/recipe/chicken-fajitas-with-guacamole", "title": "Chicken fajitas with guacamole | Tesco Recipes", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

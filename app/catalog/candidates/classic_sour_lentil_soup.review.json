@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "0659f4d71aacb2d8019a04d23c84c1974cc8f63236ee30133996ad3584e65732",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "classic_sour_lentil_soup"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

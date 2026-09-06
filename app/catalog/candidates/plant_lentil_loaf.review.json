@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "d663bb9eec7de087d12e90d53a94a7fd470fb861ce6821960472acacaea10cef",
+  "promoted_to": "05-vegan.json",
+  "recipe_ids": [
+    "plant_lentil_loaf"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

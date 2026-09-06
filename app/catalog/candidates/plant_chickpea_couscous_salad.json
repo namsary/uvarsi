@@ -1,0 +1,30 @@
+{
+  "recipes": [{
+    "id": "plant_chickpea_couscous_salad", "version": 2, "active": true,
+    "name_template": "Kuskusový šalát s cícerom", "family": "plant_chickpea_couscous_salad", "method": "salad", "minutes": 20,
+    "modes": ["standard", "vegetarian", "vegan"],
+    "equipment": ["miska s pokrievkou", "veľká misa", "sitko", "nôž", "doska na krájanie", "vidlička"],
+    "slots": [
+      {"key": "couscous", "role": "starch", "candidates": ["couscous"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "85"},
+      {"key": "chickpeas", "role": "protein", "candidates": ["chickpeas_canned"], "amount_per_adult": "260", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+      {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kúsky"},
+      {"key": "cucumber", "role": "vegetable", "candidates": ["cucumber"], "amount_per_adult": "140", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kocky"},
+      {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": "nadrobno"},
+      {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na dieliky"},
+      {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "7", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+    ],
+    "pantry_basics": ["water", "salt", "black_pepper"],
+    "instructions": [
+      {"text": "Sceď a prepláchni {chickpeas.amount} {chickpeas.name}. Nakrájaj {tomato.amount} {tomato.name} na malé kúsky, {cucumber.amount} {cucumber.name} na malé kocky a {onion.amount} {onion.name} nadrobno. Rozkroj {lemon.amount} {lemon.name} na dieliky.", "requires": ["chickpeas:raw", "tomato:raw", "cucumber:raw", "onion:raw", "lemon:raw", "sitko:free"], "produces": ["chickpeas:drained", "tomato:cut", "cucumber:cut", "onion:cut", "lemon:cut", "sitko:free"]},
+      {"text": "Vsyp {couscous.amount} {couscous.name} do misky. Nalej {couscous.water} vody do misky; použi čerstvo zovretú vodu. Kuskus jemne osoľ, prikry a nechaj 5 minút napučať. Potom ho načechraj vidličkou.", "requires": ["couscous:raw", "miska_s_pokrievkou:free"], "produces": ["couscous:cooked", "miska_s_pokrievkou:occupied"]},
+      {"text": "Premiešaj {oil.amount} {oil.name} vo veľkej mise so šťavou vytlačenou z citróna, soľou a čiernym korením.", "requires": ["oil:raw", "lemon:cut", "velka_misa:free"], "produces": ["oil:seasoned", "lemon:mixed", "velka_misa:occupied"]},
+      {"text": "Pridaj kuskus, cícer, paradajky, uhorku a cibuľu do misy. Miešaj šalát, kým sa všetky suroviny rovnomerne obalia zálievkou.", "requires": ["couscous:cooked", "chickpeas:drained", "tomato:cut", "cucumber:cut", "onion:cut", "oil:seasoned", "lemon:mixed", "velka_misa:occupied", "miska_s_pokrievkou:occupied"], "produces": ["couscous:mixed", "chickpeas:mixed", "tomato:mixed", "cucumber:mixed", "onion:mixed", "oil:mixed", "miska_s_pokrievkou:free"]},
+      {"text": "Rozdeľ šalát na {portions} porcií a podávaj ho hneď alebo vychladený.", "requires": ["couscous:mixed", "chickpeas:mixed", "tomato:mixed", "cucumber:mixed", "onion:mixed", "oil:mixed", "lemon:mixed", "velka_misa:occupied"], "produces": ["couscous:served", "chickpeas:served", "tomato:served", "cucumber:served", "onion:served", "oil:served", "lemon:served", "velka_misa:free"]}
+    ],
+    "storage": {"refrigerated_days": 3, "instruction": "Šalát odlož do uzatvárateľnej nádoby v chladničke hneď po príprave. Zjedz ho do 3 dní; pred podávaním ho premiešaj."}
+  }],
+  "source_record": {"recipe_id": "plant_chickpea_couscous_salad", "editorial_lane": "plant_based", "core": true, "references": [
+    {"url": "https://www.coles.com.au/recipes-inspiration/recipes/vegan-chickpea-and-couscous-salad", "title": "Vegan chickpea and couscous salad", "accessed_on": "2026-09-05"},
+    {"url": "https://www.theppk.com/2026/04/couscous-salad-with-chickpeas/", "title": "Couscous Salad With Smashed Chickpeas", "accessed_on": "2026-09-05"}
+  ]}
+}

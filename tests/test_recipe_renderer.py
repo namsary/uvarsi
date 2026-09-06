@@ -11,6 +11,7 @@ from app.recipe_catalog import (
     IngredientSlot,
     InstructionTemplate,
     RecipeTemplate,
+    StorageRule,
     load_recipe_catalog,
 )
 from app.recipe_matcher import RecipeCandidate, SlotSelection
@@ -98,6 +99,84 @@ def _catalog_candidate(ingredients, recipe_id, candidate_ids):
     )
 
 
+def _v2_storage_candidate(ingredients, *, refrigerated_days=2):
+    candidate = _candidate(
+        ingredients.by_id("tofu"),
+        amount="160",
+        name_template="Tofu z panvice",
+        equipment=("panvica",),
+        pantry_basics=("oil",),
+        instructions=(
+            "Nakrájaj {main.amount} {main.name} na rovnaké kocky.",
+            "Opekaj tofu v panvici 8 minút na strednom ohni, kým bude zlatisté.",
+            "Rozdeľ tofu na {portions} porcií a podávaj ho teplé.",
+        ),
+    )
+    workflow_steps = (
+        replace(
+            candidate.template.instructions[0],
+            requires=("main:raw",),
+            produces=("main:prepared",),
+        ),
+        replace(
+            candidate.template.instructions[1],
+            requires=("main:prepared", "panvica:free"),
+            produces=("main:cooked", "panvica:occupied"),
+        ),
+        replace(
+            candidate.template.instructions[2],
+            requires=("main:cooked",),
+            produces=("main:served", "panvica:free"),
+        ),
+    )
+    template = replace(
+        candidate.template,
+        version=2,
+        instructions=workflow_steps,
+        storage=StorageRule(
+            refrigerated_days=refrigerated_days,
+            instruction=(
+                "Po vychladnutí odlož do chladničky a zjedz do 2 dní."
+            ),
+        ),
+    )
+    return replace(candidate, template=template)
+
+
+def test_renderer_uses_recipe_specific_storage_rule(ingredients):
+    meal = render_meal(
+        _v2_storage_candidate(ingredients),
+        adults=2,
+        children=0,
+        covered_days=2,
+    )
+
+    assert meal.storage == (
+        "Po vychladnutí odlož do chladničky a zjedz do 2 dní."
+    )
+
+
+def test_renderer_omits_storage_for_one_day_v2_meal(ingredients):
+    meal = render_meal(
+        _v2_storage_candidate(ingredients),
+        adults=2,
+        children=0,
+        covered_days=1,
+    )
+
+    assert meal.storage is None
+
+
+def test_renderer_rejects_batch_beyond_recipe_storage_limit(ingredients):
+    with pytest.raises(ValueError, match="chladničke|storage"):
+        render_meal(
+            _v2_storage_candidate(ingredients, refrigerated_days=2),
+            adults=2,
+            children=0,
+            covered_days=3,
+        )
+
+
 def _rendered_grams(item):
     quantity = item.quantity
     if quantity.unit == "g":
@@ -143,8 +222,8 @@ def test_large_multi_day_pan_batch_uses_capacity_safe_deterministic_guidance(
 def test_large_tomato_pan_step_does_not_depend_on_opekaj_keyword(ingredients):
     candidate = _catalog_candidate(
         ingredients,
-        "pan_chicken_pasta_tomato",
-        ("chicken_breast", "pasta", "tomato"),
+        "plant_tofu_tomato_pasta",
+        ("pasta", "tofu", "tomato", "onion", "garlic", "oil"),
     )
 
     meal = render_meal(candidate, adults=4, children=0, covered_days=3)
@@ -156,8 +235,8 @@ def test_large_tomato_pan_step_does_not_depend_on_opekaj_keyword(ingredients):
     )
     assert "ďalšiu panvicu" in tomato_step
     assert "Každú dávku tepelne uprav v panvici na miernom ohni" in tomato_step
-    assert "kým zelenina zmäkne" in tomato_step
-    assert "7 minút" not in tomato_step
+    assert "kým omáčka začne jemne bublať a bude hustejšia" in tomato_step
+    assert "10 minút" not in tomato_step
 
 
 def test_ordinary_steps_keep_tomato_weight_in_the_ingredient_list(
@@ -165,17 +244,30 @@ def test_ordinary_steps_keep_tomato_weight_in_the_ingredient_list(
 ):
     candidate = _catalog_candidate(
         ingredients,
-        "pot_chickpea_tomato_couscous",
-        ("chickpeas_canned", "couscous", "tomato"),
+        "quick_chickpea_tomato_couscous",
+        (
+            "couscous",
+            "chickpeas_canned",
+            "tomato",
+            "onion",
+            "garlic",
+            "cumin",
+            "lemon",
+            "oil",
+        ),
     )
 
     meal = render_meal(candidate, adults=4, children=0, covered_days=2)
 
-    assert meal.ingredients[2].display_amount == "1,6 kg"
-    assert all("1,6 kg" not in step for step in meal.instructions)
-    assert "Nakrájaj paradajky na malé kúsky." in meal.instructions
+    tomato = next(item for item in meal.ingredients if item.slot.key == "tomato")
+    assert tomato.display_amount == "1,4 kg"
+    assert all("1,4 kg" not in step for step in meal.instructions)
     assert any(
-        "Pridaj paradajky do hrnca" in step for step in meal.instructions
+        "Nakrájaj paradajky na malé kúsky" in step for step in meal.instructions
+    )
+    assert any(
+        "Vmiešaj cícer a paradajky do panvice" in step
+        for step in meal.instructions
     )
 
 
@@ -209,7 +301,7 @@ def test_large_egg_pan_step_supports_vlej_and_preserves_doneness(ingredients):
     assert "5 minút" not in egg_step
 
 
-def test_all_catalog_variants_are_capacity_safe_for_four_adults_three_days(
+def test_all_catalog_variants_are_capacity_safe_through_refrigerated_limit(
     ingredients,
 ):
     recipes = load_recipe_catalog(ingredients).all()
@@ -217,12 +309,14 @@ def test_all_catalog_variants_are_capacity_safe_for_four_adults_three_days(
     audited_capacity_steps = 0
 
     for recipe in recipes:
+        assert recipe.storage is not None
+        covered_days = min(3, recipe.storage.refrigerated_days)
         for candidate_ids in product(*(slot.candidates for slot in recipe.slots)):
             meal = render_meal(
                 _catalog_candidate(ingredients, recipe.id, candidate_ids),
                 adults=4,
                 children=0,
-                covered_days=3,
+                covered_days=covered_days,
             )
             rendered_count += 1
             for source, output in zip(
@@ -249,7 +343,7 @@ def test_all_catalog_variants_are_capacity_safe_for_four_adults_three_days(
                 assert re.search(r"\d+(?:[,.]\d+)?\s*minút", output) is None
                 assert "kým" in output
 
-    assert rendered_count >= 150
+    assert rendered_count == 105
     assert audited_capacity_steps > 0
 
 
@@ -260,12 +354,14 @@ def test_all_catalog_variants_keep_weights_in_ingredient_list_not_steps(
     rendered_count = 0
 
     for recipe in recipes:
+        assert recipe.storage is not None
+        covered_days = min(2, recipe.storage.refrigerated_days)
         for candidate_ids in product(*(slot.candidates for slot in recipe.slots)):
             meal = render_meal(
                 _catalog_candidate(ingredients, recipe.id, candidate_ids),
                 adults=4,
                 children=0,
-                covered_days=2,
+                covered_days=covered_days,
             )
             rendered_count += 1
             for item in meal.ingredients:
@@ -274,35 +370,53 @@ def test_all_catalog_variants_keep_weights_in_ingredient_list_not_steps(
                     measured_phrase not in step for step in meal.instructions
                 ), (recipe.id, item.slot.key, measured_phrase, meal.instructions)
 
-    assert rendered_count >= 150
+    assert rendered_count == 105
 
 
 @pytest.mark.parametrize(
     ("recipe_id", "candidate_ids", "expected", "forbidden"),
     [
         (
-            "pan_turkey_couscous_zucchini",
-            ("turkey_breast", "couscous", "zucchini"),
-            "Priprav kuskus v miske s 280 ml vody.",
-            "Prilej vodu k kuskus.",
+            "protein_turkey_couscous",
+            (
+                "turkey_mince",
+                "couscous",
+                "bell_pepper",
+                "zucchini",
+                "onion",
+                "oil",
+            ),
+            "Premiešaj kuskus vidličkou",
+            "Premiešaj kuskusu vidličkou",
         ),
         (
-            "soup_chicken_vegetable_noodle",
-            ("chicken_breast", "egg_noodles", "carrot"),
-            "Pridaj vaječné rezance do hrnca",
-            "Pridaj vaječných rezancov do hrnca",
+            "modern_pork_noodle_stir_fry",
+            (
+                "pork_loin",
+                "egg_noodles",
+                "bell_pepper",
+                "carrot",
+                "broccoli",
+                "soy_sauce",
+                "apple_cider_vinegar",
+                "sugar",
+                "garlic",
+                "oil",
+            ),
+            "Vmiešaj vaječné rezance do woku",
+            "Vmiešaj vaječných rezancov do woku",
         ),
         (
-            "veg_mushroom_barley_pan",
-            ("chickpeas_canned", "barley", "mushrooms"),
-            "Opekaj biele šampiňóny v panvici",
-            "Opekaj bielych šampiňónov v panvici",
+            "plant_mushroom_barley",
+            ("barley", "tofu", "mushrooms", "onion", "garlic", "marjoram", "oil"),
+            "Opekaj šampiňóny a tofu v panvici",
+            "Opekaj bielych šampiňónov a tofu v panvici",
         ),
         (
-            "salad_chicken_potato_yogurt",
-            ("chicken_breast", "potato", "bell_pepper", "plain_yogurt"),
-            "Premiešaj biely plnotučný jogurt so zemiakmi",
-            "Premiešaj bieleho plnotučného jogurtu so zemiakmi",
+            "modern_salmon_potato_broccoli",
+            ("salmon", "potato", "broccoli", "plain_yogurt", "garlic", "oil"),
+            "Premiešaj biely plnotučný jogurt s cesnakom",
+            "Premiešaj bieleho plnotučného jogurtu s cesnakom",
         ),
     ],
 )
@@ -1012,6 +1126,38 @@ def test_absorption_water_scales_with_household_and_covered_days(ingredients):
     assert meal.ingredients[0].quantity == Quantity(Decimal("900"), "g")
     assert "1,4 l vody" in meal.instructions[1]
     assert "450 ml vody" not in meal.instructions[1]
+
+
+def test_recipe_specific_water_scales_with_adult_equivalents_and_days(ingredients):
+    candidate = _candidate(
+        ingredients.by_id("potato"),
+        amount="280",
+        child_factor="0.6",
+        name_template="Zemiaky na prívarok",
+        equipment=("hrniec",),
+        pantry_basics=("water",),
+        instructions=(
+            "Nakrájaj {main.amount} {main.name} na kocky.",
+            "Pridaj {main.name} do hrnca a prilej {main.water} vody.",
+            "Var zemiaky v hrnci na miernom ohni 15 minút, kým zmäknú.",
+        ),
+    )
+    slot = replace(
+        candidate.template.slots[0],
+        water_ml_per_adult=Decimal("250"),
+    )
+    candidate = replace(
+        candidate,
+        template=replace(candidate.template, slots=(slot,)),
+        selections=(
+            replace(candidate.selections[0], slot=slot),
+        ),
+    )
+
+    meal = render_meal(candidate, adults=2, children=1, covered_days=2)
+
+    assert meal.ingredients[0].quantity == Quantity(Decimal("1456.0"), "g")
+    assert "1,3 l vody" in meal.instructions[1]
 
 
 def test_renderer_rejects_inconsistent_selected_ingredient_name(ingredients):

@@ -1,0 +1,218 @@
+{
+  "recipes": [
+    {
+      "id": "classic_stuffed_peppers",
+      "version": 2,
+      "active": true,
+      "name_template": "Plnená paprika v paradajkovej omáčke",
+      "family": "classic_stuffed_peppers",
+      "method": "pot",
+      "minutes": 70,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľký hrniec", "malý hrniec", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {
+          "key": "beef",
+          "role": "protein",
+          "candidates": ["beef_mince"],
+          "amount_per_adult": "120",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "pepper",
+          "role": "vegetable",
+          "candidates": ["bell_pepper"],
+          "amount_per_adult": "2",
+          "unit": "piece",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "rice",
+          "role": "starch",
+          "candidates": ["rice"],
+          "amount_per_adult": "30",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": ["egg"],
+          "amount_per_adult": "0.25",
+          "unit": "piece",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": ["onion"],
+          "amount_per_adult": "20",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "tomato",
+          "role": "vegetable",
+          "candidates": ["tomato"],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": ["oil"],
+          "amount_per_adult": "10",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": ["wheat_flour"],
+          "amount_per_adult": "6",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null,
+          "water_ml_per_adult": "100"
+        },
+        {
+          "key": "sugar",
+          "role": "seasoning",
+          "candidates": ["sugar"],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.4",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "marjoram",
+          "role": "seasoning",
+          "candidates": ["marjoram"],
+          "amount_per_adult": "0.5",
+          "unit": "g",
+          "child_factor": "0.4",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": ["garlic"],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {
+          "text": "Prepláchni {rice.amount} {rice.name} studenou vodou.",
+          "requires": ["rice:raw"],
+          "produces": ["rice:rinsed"]
+        },
+        {
+          "text": "Nalej {rice.water} vody do hrnca. Vsyp ryžu do hrnca. Prikry ho a var ryžu v malom hrnci na miernom ohni 8 minút, kým voda vsiakne a ryža zostane ešte pevná, potom ju nechaj vychladnúť.",
+          "requires": ["rice:rinsed", "maly_hrniec:free"],
+          "produces": ["rice:partly_cooked", "maly_hrniec:free"]
+        },
+        {
+          "text": "Priprav {pepper.amount} {pepper.name}: odrež vršky a vyber jadrovníky, aby zostali celé duté struky.",
+          "requires": ["pepper:raw"],
+          "produces": ["pepper:hollowed"]
+        },
+        {
+          "text": "Premiešaj v miske {beef.amount} {beef.name}, {onion.amount} {onion.name}, predvarenú ryžu, {egg.amount} {egg.name}, {marjoram.amount} {marjoram.name}, {garlic.amount} {garlic.name}, soľ a čierne korenie.",
+          "requires": ["beef:raw", "onion:raw", "rice:partly_cooked", "egg:raw", "marjoram:raw", "garlic:raw", "miska:free"],
+          "produces": ["beef:filling", "onion:filling", "rice:filling", "egg:filling", "marjoram:filling", "garlic:filling", "miska:occupied"]
+        },
+        {
+          "text": "Rozdeľ mäsovú zmes do dutých paprík a pri okraji nechaj trochu miesta, pretože ryža pri varení zväčší objem.",
+          "requires": ["pepper:hollowed", "beef:filling", "onion:filling", "rice:filling", "egg:filling", "marjoram:filling", "garlic:filling", "miska:occupied"],
+          "produces": ["pepper:stuffed", "beef:stuffed", "onion:stuffed", "rice:stuffed", "egg:stuffed", "marjoram:stuffed", "garlic:stuffed", "miska:free"]
+        },
+        {
+          "text": "Nakrájaj {tomato.amount} {tomato.name} nadrobno.",
+          "requires": ["tomato:raw"],
+          "produces": ["tomato:cut"]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 2 minúty, kým sa začne lesknúť.",
+          "requires": ["oil:raw", "velky_hrniec:free"],
+          "produces": ["oil:heated", "velky_hrniec:hot"]
+        },
+        {
+          "text": "Prisyp {flour.amount} {flour.name} do veľkého hrnca. Opekaj hladkú pšeničnú múku za stáleho miešania na miernom ohni asi 1 minútu, kým zápražka nebude jemne zlatistá.",
+          "requires": ["flour:raw", "oil:heated", "velky_hrniec:hot"],
+          "produces": ["flour:roux", "oil:used", "velky_hrniec:occupied"]
+        },
+        {
+          "text": "Prilej {flour.water} vody do veľkého hrnca. Prilievaj ju po častiach a miešaj metličkou, aby v omáčke nezostali hrudky. Pridaj paradajky a {sugar.amount} {sugar.name}. Omáčku var v hrnci na miernom ohni 8 minút, kým zhustne a začne jemne bublať. Ochutnaj ju; ak treba, dochuť ju soľou a cukrom.",
+          "requires": ["tomato:cut", "sugar:raw", "flour:roux", "oil:used", "velky_hrniec:occupied"],
+          "produces": ["tomato:sauce", "sugar:sauce", "flour:sauce", "oil:used", "velky_hrniec:occupied"]
+        },
+        {
+          "text": "Vlož papriky do veľkého hrnca. Prikry ho a var papriky v omáčke na miernom ohni približne 35 minút, kým zmäknú a mäsová náplň bude uvarená aj v strede.",
+          "requires": ["pepper:stuffed", "beef:stuffed", "onion:stuffed", "rice:stuffed", "egg:stuffed", "marjoram:stuffed", "garlic:stuffed", "tomato:sauce", "sugar:sauce", "flour:sauce", "oil:used", "velky_hrniec:occupied"],
+          "produces": ["pepper:cooked", "beef:cooked", "onion:cooked", "rice:cooked", "egg:cooked", "marjoram:cooked", "garlic:cooked", "tomato:cooked", "sugar:cooked", "flour:cooked", "oil:cooked", "velky_hrniec:free"]
+        },
+        {
+          "text": "Podávaj plnenú papriku s paradajkovou omáčkou a rozdeľ jedlo na {portions} porcií.",
+          "requires": ["pepper:cooked", "beef:cooked", "onion:cooked", "rice:cooked", "egg:cooked", "marjoram:cooked", "garlic:cooked", "tomato:cooked", "sugar:cooked", "flour:cooked", "oil:cooked"],
+          "produces": ["pepper:served", "beef:served", "onion:served", "rice:served", "egg:served", "marjoram:served", "garlic:served", "tomato:served", "sugar:served", "flour:served", "oil:served"]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 1,
+        "instruction": "Plnenú papriku s ryžou rozdeľ do plytkých nádob a do jednej hodiny ju schlaď. V chladničke ju zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým bude celá horúca."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_stuffed_peppers",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://varecha.pravda.sk/recepty/klasicka-plnena-paprika/1996-recept.html",
+        "title": "Klasická plnená paprika",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://nanicmama.sme.sk/recept/hlavne-jedla/plnena-paprika",
+        "title": "Plnená paprika",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

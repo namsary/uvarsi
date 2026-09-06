@@ -1,0 +1,2423 @@
+{
+  "schema_version": 1,
+  "targets": [
+    {
+      "id": "classic_chicken_paprikash",
+      "display_name": "Kurací paprikáš",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/moj-tradicny-kuraci-paprikas/63768-recept.html",
+          "title": "Môj tradičný kurací paprikáš",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://nanicmama.sme.sk/recept/hlavne-jedla/kuraci-paprikas",
+          "title": "Kurací paprikáš",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Silná domáca klasika s dostupnými surovinami. Porcie kurčaťa s kosťou sa dusia celé; nesmú sa meniť na kocky určené na soté."
+    },
+    {
+      "id": "classic_chicken_perkelt",
+      "display_name": "Kurací perkelt",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuraci-perkelt/62209-recept.html",
+          "title": "Kurací perkelt",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/80240/kuraci-perkelt-fotorecept/",
+          "title": "Kurací perkelt, FOTORECEPT",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Od paprikáša ho odlišuje dôraz na redukovanú paprikovú šťavu, nie smotanovú omáčku. Kúsky s kosťou zostávajú pri dusení celé."
+    },
+    {
+      "id": "classic_slovak_chicken_risotto",
+      "display_name": "Slovenské kuracie rizoto",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://nanicmama.sme.sk/recept/hlavne-jedla/kuracie-rizoto",
+          "title": "Kuracie rizoto",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/1939/kuracie-rizoto/",
+          "title": "Kuracie rizoto",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Praktický spôsob využitia ryže a mrazenej zeleniny. Na kocky sa krájajú iba vykostené prsia alebo vykostené stehná."
+    },
+    {
+      "id": "classic_roast_chicken_thighs_potatoes",
+      "display_name": "Pečené kuracie stehná so zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/pecene-kuracie-stehna-so-zemiakmi-fotorecept/78800-recept.html",
+          "title": "Pečené kuracie stehná so zemiakmi",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://kuchynalidla.sk/recepty/pecene-kuracie-s-bylinkami-cesnakom-zemiakmi",
+          "title": "Pečené kura s bylinkami, cesnakom a zemiakmi",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Jednopekáčové rodinné jedlo s vysokou dostupnosťou surovín. Stehná s kosťou sa pečú celé; krájať možno zemiaky, nie mäso cez kosť."
+    },
+    {
+      "id": "classic_chicken_noodle_soup",
+      "display_name": "Kuracia polievka s rezancami",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuracia-polievka-s-domacimi-rezancami/74527-recept.html",
+          "title": "Kuracia polievka s domácimi rezancami",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/20351/kuracia-polievka-s-rezancami/",
+          "title": "Kuracia polievka s rezancami",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Rozširuje knižnicu o vývarovú techniku. Skelet a časti s kosťou sa varia celé; mäso sa z kostí oberá až po dovarení."
+    },
+    {
+      "id": "classic_chicken_sote_rice",
+      "display_name": "Kuracie soté s ryžou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://kuchynalidla.sk/recepty/kuracie-sote-so-zeleninou-a-ryzou",
+          "title": "Kuracie soté so zeleninou a ryžou",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/lahodne-kuracie-sote-s-ryzou/94648-recept.html",
+          "title": "Lahodné kuracie soté s ryžou",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Rýchle všednodenné jedlo vhodné na obmeny zeleniny. Na soté patrí vykostené mäso nakrájané na kúsky, nikdy stehno s kosťou."
+    },
+    {
+      "id": "classic_pork_natural_rice",
+      "display_name": "Bravčové na prírodno s ryžou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/20409/bravcove-na-prirodno-s-ryzou/",
+          "title": "Bravčové na prírodno s ryžou",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcove-na-prirodno-fotorecept/12251-recept.html",
+          "title": "Bravčové na prírodno",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Jednoduchý mäsový obed bez ťažkej omáčky. Použiť vykostené karé alebo stehno v plátkoch; kus s kosťou sa na túto techniku nehodí."
+    },
+    {
+      "id": "classic_pork_shoulder_onion",
+      "display_name": "Bravčové pliecko na cibuli",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcove-pliecko-na-cibuli-v-pomalom-hrnci-fotorecept/67781-recept.html",
+          "title": "Bravčové pliecko na cibuli v pomalom hrnci",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://bonvivani.sk/recepty/bravcove-pliecko-na-cibuli",
+          "title": "Bravčové pliecko na cibuli",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Lacnejší rez mäsa dáva rodinné porcie a šťavu k prílohe. Na porciovanie sa používa vykostené pliecko; kosť sa neseká na kúsky."
+    },
+    {
+      "id": "classic_segedin_goulash",
+      "display_name": "Segedínsky guláš",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://kuchynalidla.sk/recepty/segedinsky-gulas",
+          "title": "Segedínsky guláš",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/segedinsky-gulas/79697-recept.html",
+          "title": "Segedínsky guláš",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Kyslá kapusta vytvára samostatný archetyp oproti hovädziemu gulášu aj perkeltu. Kocky sa režú z vykosteného pliecka alebo stehna."
+    },
+    {
+      "id": "classic_pork_perkelt",
+      "display_name": "Bravčový perkelt",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcovy-perkelt/639-recept.html",
+          "title": "Bravčový perkelt",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/bravcovy-perkelt/",
+          "title": "Recepty na bravčový perkelt",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Udržiava obľúbenú bravčovú vetvu paprikových jedál. Mäso sa krája len po vykostení; vhodné je pliecko alebo stehno."
+    },
+    {
+      "id": "classic_french_potatoes",
+      "display_name": "Francúzske zemiaky",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/francuzske-zemiaky/2736-recept.html",
+          "title": "Francúzske zemiaky",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/19489/fotorecept-moje-francuzske-zemiaky/",
+          "title": "Moje francúzske zemiaky, FOTORECEPT",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Veľmi známe pekáčové jedlo vhodné na rodinnú dávku. Údeninu možno meniť v rámci rovnakej funkcie bez straty identity."
+    },
+    {
+      "id": "classic_meatballs_mash",
+      "display_name": "Fašírky so zemiakovou kašou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/fasirky-so-zemiakovou-kasou-a-zeleninovym-salatom/93292-recept.html",
+          "title": "Fašírky so zemiakovou kašou a zeleninovým šalátom",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/78172/nase-klasicke-fasirky-videorecept/",
+          "title": "Naše klasické fašírky, VIDEORECEPT",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Rodinne známy archetyp s jasnou textúrou a prílohou. Mleté mäso umožňuje bezpečne meniť pomer bravčového a hovädzieho."
+    },
+    {
+      "id": "classic_stuffed_peppers",
+      "display_name": "Plnená paprika v paradajkovej omáčke",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/klasicka-plnena-paprika/1996-recept.html",
+          "title": "Klasická plnená paprika",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://nanicmama.sme.sk/recept/hlavne-jedla/plnena-paprika",
+          "title": "Plnená paprika",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Výrazná letná klasika s vlastnou plnenou formou. Nemožno ju zlúčiť s mäsovými guľkami, hoci používajú príbuznú omáčku."
+    },
+    {
+      "id": "classic_beef_goulash",
+      "display_name": "Hovädzí guláš",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/hovadzi-gulas-s-paprikou/85785-recept.html",
+          "title": "Hovädzí guláš s paprikou",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/29108/hovadzi-gulas/",
+          "title": "Hovädzí guláš",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Základný pomaly dusený mäsový archetyp, odlišný od redšej gulášovej polievky. Na kocky patrí vykostené hovädzie."
+    },
+    {
+      "id": "classic_tomato_meatballs",
+      "display_name": "Mäsové guľky v paradajkovej omáčke",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/masove-gulky-v-paradajkovej-omacke/77282-recept.html",
+          "title": "Mäsové guľky v paradajkovej omáčke",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/72879/paradajkova-omacka-s-masovymi-gulickami/",
+          "title": "Paradajková omáčka s mäsovými guľkami",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Guľky poskytujú inú textúru a porciovanie než plnená paprika. Pomer druhov mletého mäsa sa dá meniť bez zásahu do techniky."
+    },
+    {
+      "id": "classic_bolognese_spaghetti",
+      "display_name": "Bolonské špagety",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/bolonske-spagety-videorecept/71694-recept.html",
+          "title": "Bolonské špagety, VIDEORECEPT",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/bolonske-spagety/",
+          "title": "Recepty na bolonské špagety",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Hoci má zahraničný pôvod, v domácom repertoári je samostatným a veľmi praktickým cestovinovým archetypom."
+    },
+    {
+      "id": "classic_baked_pasta_ham",
+      "display_name": "Zapekané cestoviny so šunkou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/69344/zapekane-cestoviny-so-sunkou-a-syrom/",
+          "title": "Zapekané cestoviny so šunkou a syrom",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/zapekane-cestoviny/26700-recept.html",
+          "title": "Zapekané cestoviny",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Praktické jedlo na celý pekáč a využitie zvyškov údeniny. Druh krátkych cestovín možno bezpečne zameniť."
+    },
+    {
+      "id": "classic_pork_cabbage_bake",
+      "display_name": "Koložvárska kapusta",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kolozvarska-kapusta-/74787-recept.html",
+          "title": "Koložvárska kapusta",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://nanicmama.sme.sk/recept/hlavne-jedla/kolozvarska-kapusta",
+          "title": "Koložvárska kapusta",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Pekáčová skladba ju jasne odlišuje od segedínskeho guláša. Mleté mäso je vhodné na rovnomerné vrstvenie."
+    },
+    {
+      "id": "classic_meatloaf_potatoes",
+      "display_name": "Sekaná so zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://kuchynalidla.sk/recepty/sekana-s-opekanymi-zemiakmi",
+          "title": "Sekaná s opekanými zemiakmi",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/10117/sekana/",
+          "title": "Sekaná",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Pečenie vcelku ju odlišuje od jednotlivých fašírok. Zmes bravčového a hovädzieho možno upraviť pri zachovaní väzby vajcom a pečivom."
+    },
+    {
+      "id": "classic_roast_pork_root_veg",
+      "display_name": "Pečené bravčové s koreňovou zeleninou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.gastro-tipy.sk/recepty/pecene-bravcove-maso-na-korenovej-zelenine-a-pive",
+          "title": "Pečené bravčové mäso na koreňovej zelenine a pive",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://chefino.sk/recept/pomaly-pecene-bravcove-pliecko/",
+          "title": "Pomaly pečené bravčové pliecko",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Ponúka inú prácu s mäsom než dusené kocky. Vykostený kus sa pečie vcelku a krája až po odpočinutí; kosť sa neporciuje."
+    },
+    {
+      "id": "classic_beef_barley_soup",
+      "display_name": "Hovädzia polievka s krúpami",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.receptia.sk/polievka-z-udeneho-hovadzieho-s-krupami/",
+          "title": "Polievka z údeného hovädzieho s krúpami",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/12957/sedliacka-polievka/",
+          "title": "Sedliacka polievka",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Krúpy prinášajú samostatnú obilninovú textúru. Ak sa použije mäso s kosťou, varí sa celé a oberie sa až po uvarení."
+    },
+    {
+      "id": "classic_goulash_soup",
+      "display_name": "Gulášová polievka",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/gulasova-polievka-fotorecept/60909-recept.html",
+          "title": "Gulášová polievka",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/78856/tradicna-gulasova-polievka/",
+          "title": "Tradičná gulášová polievka",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Zemiaky a polievková konzistencia ju oddeľujú od hlavného hovädzieho guláša. Na kocky sa používa vykostené mäso."
+    },
+    {
+      "id": "classic_potato_stew_egg",
+      "display_name": "Zemiakový prívarok s vajcom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/zemiakovy-privarok/47133-recept.html",
+          "title": "Zemiakový prívarok",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/77445/zemiaky-na-kyslo-na-moj-sposob/",
+          "title": "Zemiaky na kyslo na môj spôsob",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Lacný a sýty bezmäsitý obed s celoročnými surovinami. Varené, volské alebo stratené vajce nemení identitu prívarku."
+    },
+    {
+      "id": "classic_lentil_stew_egg",
+      "display_name": "Šošovicový prívarok s vajcom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/sosovicovy-privarok/57295-recept.html",
+          "title": "Šošovicový prívarok",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://nanicmama.sme.sk/varime-pecieme-zavarame/privarky-a-omacky",
+          "title": "15 receptov na obľúbené tradičné prívarky",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Dáva knižnici strukovinový bezmäsitý hlavný chod. Počíta so suchou šošovicou, jej prepláchnutím a varením; konzervovaná je iná technika."
+    },
+    {
+      "id": "classic_bean_stew_egg",
+      "display_name": "Fazuľový prívarok s vajcom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/fazulovy-privarok-zo-suchej-fazule/7339-recept.html",
+          "title": "Fazuľový prívarok zo suchej fazule",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://kuchynalidla.sk/recepty/fazulovy-privarok-so-stratenym-vajcom",
+          "title": "Fazuľový prívarok so strateným vajcom",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.fda.gov/food/chemical-contaminants-pesticides/natural-toxins-food",
+          "title": "Natural Toxins in Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Kurátorský archetyp má používať suchú fazuľu s namočením a varením do mäkka. Konzervovaná fazuľa je rýchla obmena, nie rovnaký postup."
+    },
+    {
+      "id": "classic_pumpkin_stew_egg",
+      "display_name": "Tekvicový prívarok s vajcom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://kuchynalidla.sk/recepty/tekvicovo-zemiakovy-privarok-so-stratenym-vajickom",
+          "title": "Tekvicovo-zemiakový prívarok so strateným vajíčkom",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/78411/tekvicovy-privarok-fotorecept/",
+          "title": "Tekvicový prívarok, FOTORECEPT",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Sezónny bezmäsitý obed má inú chuť aj štruktúru než zemiakový prívarok. Tekvicu možno doplniť zemiakom na stabilnú hustotu."
+    },
+    {
+      "id": "classic_pea_stew_egg",
+      "display_name": "Hrachový prívarok s vajcom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/hrachovy-privarok-/83982-recept.html",
+          "title": "Hrachový prívarok",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/72859/hrachovy-privarok/",
+          "title": "Hrachový prívarok",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Rozširuje strukovinové obedy bez opakovania šošovice či fazule. Suchý hrach treba prepláchnuť a uvariť; mrazený hrášok tvorí iné jedlo."
+    },
+    {
+      "id": "classic_lecho_egg",
+      "display_name": "Lečo s vajcom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/leco-s-vajcom-a-klobasou-fotorecept/9222-recept.html",
+          "title": "Lečo s vajcom a klobásou",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/77599/leco-s-vajcom-rychla-vecera-z-letnej-urody/",
+          "title": "Lečo s vajcom: Rýchla večera z letnej úrody",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Rýchly sezónny archetyp funguje bez mäsa; klobása je voliteľná nadstavba. Nezamieňať ho za zeleninové soté bez vajca."
+    },
+    {
+      "id": "classic_granadir",
+      "display_name": "Granadír",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/granadir/47753-recept.html",
+          "title": "Granadír",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/40818/fotorecept-granadir-z-domacich-cestovin/",
+          "title": "Granadír z domácich cestovín, FOTORECEPT",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Lacná bezmäsitá klasika využíva dve odlišné škrobové suroviny. Maslo možno zameniť za olej bez zmeny hlavnej techniky."
+    },
+    {
+      "id": "classic_cabbage_noodles",
+      "display_name": "Kapustové fliačky",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kapustove-fliacky/93517-recept.html",
+          "title": "Kapustové fliačky",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://nanicmama.sme.sk/recept/hlavne-jedla/domace-kapustove-fliacky",
+          "title": "Domáce kapustové fliačky",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Výrazná kapustová cestovina sa neprekrýva s granadírom, ktorý stojí na zemiakoch a paprike. Typ fliačkov možno meniť."
+    },
+    {
+      "id": "classic_bryndza_dumplings",
+      "display_name": "Bryndzové halušky",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/bryndzove-halusky/84724-recept.html",
+          "title": "Bryndzové halušky",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://kuchynalidla.sk/recepty/bryndzove-halusky-s-cibulkou-a-slaninou",
+          "title": "Bryndzové halušky s cibuľkou a slaninou",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Kľúčový slovenský archetyp s chránenou chuťovou identitou. Tvaroh ani bežný syr nie sú rovnocennou náhradou bryndze."
+    },
+    {
+      "id": "classic_cabbage_dumplings",
+      "display_name": "Strapačky s kyslou kapustou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/strapacky-s-kyslou-kapustou/7965-recept.html",
+          "title": "Strapačky s kyslou kapustou",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.gastro-tipy.sk/recepty/strapacky-s-kapustou",
+          "title": "Strapačky s kapustou",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Kapustová kyslosť a halušková textúra vytvárajú iný archetyp než bryndzové halušky. Kapusta musí zostať určujúcou zložkou."
+    },
+    {
+      "id": "classic_potato_pancakes",
+      "display_name": "Zemiakové placky",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://kuchynalidla.sk/recepty/zemiakove-placky",
+          "title": "Zemiakové placky",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://nanicmama.sme.sk/recept/hlavne-jedla/zemiakove-placky",
+          "title": "Zemiakové placky",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Má vlastnú chrumkavú panvicovú techniku a funguje ako bezmäsité hlavné jedlo. Druh zemiakov ovplyvňuje množstvo múky."
+    },
+    {
+      "id": "classic_sauerkraut_soup",
+      "display_name": "Kapustnica",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/slovenska-kapustnica/72574-recept.html",
+          "title": "Slovenská kapustnica",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://nanicmama.sme.sk/varime-pecieme-zavarame/kapustnica-kapustova-polievka-polievka-z-kyslej-kapusty",
+          "title": "Kapustnica a polievky z kyslej kapusty",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Nezameniteľná sviatočná aj zimná klasika. Regionálne prídavky sa môžu meniť, ale kyslá kapusta a jej nálev musia zostať jadrom."
+    },
+    {
+      "id": "classic_bean_soup",
+      "display_name": "Fazuľová polievka",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://kuchynalidla.sk/recepty/fazulova-polievka",
+          "title": "Fazuľová polievka",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://nanicmama.sme.sk/recept/polievky/fazulovica",
+          "title": "Fazuľovica",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.fda.gov/food/chemical-contaminants-pesticides/natural-toxins-food",
+          "title": "Natural Toxins in Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Samostatný polievkový archetyp odlišný od hustého prívarku. Suchá fazuľa potrebuje namočenie a dlhšie varenie; konzervovaná nie je priamy ekvivalent."
+    },
+    {
+      "id": "classic_sour_lentil_soup",
+      "display_name": "Kyslá šošovicová polievka",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kysla-sosovicova-polievka/90590-recept.html",
+          "title": "Kyslá šošovicová polievka",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/76122/kysla-sosovicova-polievka-od-mamy/",
+          "title": "Kyslá šošovicová polievka od mamy",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Redšia konzistencia ju oddeľuje od šošovicového prívarku. Suchú šošovicu treba prepláchnuť a uvariť; údenina môže zostať voliteľná."
+    },
+    {
+      "id": "classic_potato_soup",
+      "display_name": "Zemiaková polievka",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/zemiakova-polievka/92131-recept.html",
+          "title": "Zemiaková polievka",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://nanicmama.sme.sk/recept/polievky/jednoducha-zemiakova-polievka",
+          "title": "Jednoduchá zemiaková polievka",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Celoročná lacná polievka s vysokou toleranciou k dostupnej koreňovej zelenine. Zemiaky musia zostať hlavnou zložkou."
+    },
+    {
+      "id": "classic_garlic_soup",
+      "display_name": "Cesnaková polievka",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://kuchynalidla.sk/recepty/cesnakova-polievka",
+          "title": "Cesnaková polievka",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/cesnakova-polievka/14730-recept.html",
+          "title": "Cesnaková polievka",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Má jasnú chuťovú identitu a využíva lacné zásobné suroviny. Zeleninový vývar udrží vegetariánsku verziu bez zmeny techniky."
+    },
+    {
+      "id": "classic_tomato_soup",
+      "display_name": "Paradajková polievka",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://kuchynalidla.sk/recepty/paradajkova-polievka",
+          "title": "Paradajková polievka",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/80279/paradajkova-polievka/",
+          "title": "Paradajková polievka",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Dostupný celoročný archetyp prirodzene funguje aj na rastlinnom základe. Syr či maslo sú doplnky, nie podmienka identity."
+    },
+    {
+      "id": "classic_cauliflower_soup",
+      "display_name": "Karfiolová polievka",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/80396/karfiolova-polievka-jednoducha-vyborna/",
+          "title": "Karfiolová polievka: Jednoduchá a výborná",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://nanicmama.sme.sk/varime-pecieme-zavarame/karfiolova-polievka-recepty",
+          "title": "Karfiolová polievka: overené recepty",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Sezónne odlišná zeleninová polievka s jednoduchou prípravou. Základ z vody alebo zeleninového vývaru prirodzene podporuje vegánsky režim."
+    },
+    {
+      "id": "classic_rice_pudding",
+      "display_name": "Ryžový nákyp",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/ryzovy-nakyp/10268-recept.html",
+          "title": "Ryžový nákyp",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/43203/ryzovy-nakyp/",
+          "title": "Ryžový nákyp",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Zachytáva rozšírenú slovenskú kategóriu sladkých obedov. Ovocie možno meniť, no mliečna ryža a pečenie zostávajú určujúce."
+    },
+    {
+      "id": "classic_apple_bread_pudding",
+      "display_name": "Jablková žemľovka",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/jablkova-zemlovka/60769-recept.html",
+          "title": "Jablková žemľovka",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/10187/zemlovka-s-jablkami/",
+          "title": "Žemľovka s jablkami",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Využíva staršie pečivo a lacné ovocie, preto je praktická pre domácnosti. Jablká sú identitné; hrušky by tvorili inú obmenu."
+    },
+    {
+      "id": "modern_chicken_curry_rice",
+      "display_name": "Kuracie kari s ryžou",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://kuchynelidlu.cz/recept/kureci-kari-s-ryzi-basmati",
+          "title": "Kuřecí kari s rýží basmati | Kuchyně Lidlu",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.itesco.cz/hello/recepty/lehke-kureci-kari/575658",
+          "title": "Lehké kuřecí kari | Hello Tesco",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Má dostupné suroviny, znesie jemné korenie pre deti a omáčka sa dobre varí vo väčšej dávke."
+    },
+    {
+      "id": "modern_chicken_mushroom_pasta",
+      "display_name": "Kuracie cestoviny so šampiňónmi",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.itesco.cz/hello/recepty/penne-s-houbovou-omackou-s-nizkym-obsahem-laktozy/557148/",
+          "title": "Penne s houbovou omáčkou s nízkým obsahem laktózy | Hello Tesco",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/chicken-broccoli-pasta-bake",
+          "title": "Chicken & broccoli pasta bake recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Je to sýte jedlo na pracovný deň, ktoré využíva bežné akciové suroviny a dobre sa ohrieva."
+    },
+    {
+      "id": "modern_one_pot_chicken_rice",
+      "display_name": "Kuracie mäso s ryžou z jedného hrnca",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/one-pot-chicken-rice",
+          "title": "One-pot chicken & rice recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://kuchynalidla.sk/recepty/rychly-obed-z-jedneho-hrnca",
+          "title": "Rýchly obed z jedného hrnca | Kuchyňa Lidla",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Jedna nádoba znižuje prácu aj umývanie a recept sa dá násobiť na viac porcií."
+    },
+    {
+      "id": "modern_teriyaki_chicken_broccoli",
+      "display_name": "Teriyaki kura s brokolicou",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/easy-teriyaki-chicken",
+          "title": "Easy teriyaki chicken recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.foodnetwork.com/recipes/food-network-kitchen/one-pot-chicken-teriyaki-6548694",
+          "title": "One-Pot Chicken Teriyaki Recipe | Food Network Kitchen",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Príprava je krátka, brokolica býva celoročne dostupná a omáčku možno držať miernu pre celú rodinu."
+    },
+    {
+      "id": "modern_chicken_fajita_tortilla",
+      "display_name": "Kuracie fajitas v tortille",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/chicken-fajitas",
+          "title": "Chicken fajitas recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.tesco.com/recipes/en-GB/recipe/chicken-fajitas-with-guacamole",
+          "title": "Chicken fajitas with guacamole | Tesco Recipes",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Oddelené komponenty vyhovujú rôznym chutiam v rodine a zvyšné mäso sa dá použiť na obed."
+    },
+    {
+      "id": "modern_chicken_caesar_salad",
+      "display_name": "Kurací Caesar šalát",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/chicken-caesar-salad",
+          "title": "Chicken caesar salad recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.tesco.com/recipes/en-GB/recipe/lighter-chicken-caesar-salad",
+          "title": "Lighter chicken Caesar salad | Tesco Recipes",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Dopĺňa knižnicu o praktický hlavný šalát a umožňuje spotrebovať pečené kura aj pečivo."
+    },
+    {
+      "id": "modern_baked_chicken_zucchini",
+      "display_name": "Pečené kura s cuketou",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.tesco.sk/hello/recepty/kuracia-zivanska-s-baklazanom-a-cuketou/510518",
+          "title": "Kuracia živánska s baklažánom a cuketou | Hello Tesco",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/mediterranean-chicken-roasted-vegetables",
+          "title": "Mediterranean chicken with roasted vegetables recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Je sezónne vhodné, škáluje sa na celý plech a cuketu možno bezpečne doplniť baklažánom či paprikou."
+    },
+    {
+      "id": "modern_pork_noodle_stir_fry",
+      "display_name": "Bravčová rezancová panvička",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.tesco.com/recipes/en-GB/recipe/simple-noodle-stir-fry",
+          "title": "Simple noodle stir fry recipe | Tesco Recipes",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/pork-noodle-stir-fry",
+          "title": "Pork noodle stir-fry recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Využíva lacnejšie kúsky mäsa, hotová je rýchlo a zeleninu možno meniť podľa letáku."
+    },
+    {
+      "id": "modern_meatballs_tomato_pasta",
+      "display_name": "Cestoviny s mäsovými guľkami v paradajkovej omáčke",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.tesco.com/recipes/en-GB/recipe/pasta-with-meatballs",
+          "title": "Pasta with meatballs recipe | Tesco Recipes",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/spaghetti-meatballs",
+          "title": "Spaghetti & meatballs recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Guľky aj omáčka sa dajú pripraviť do zásoby, zamraziť a podať s rôznym tvarom cestovín."
+    },
+    {
+      "id": "modern_chili_con_carne",
+      "display_name": "Chilli con carne",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/chilli-con-carne-recipe",
+          "title": "Chilli con carne recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.tesco.com/recipes/en-GB/recipe/easy-chilli-con-carne",
+          "title": "Easy chilli con carne | Tesco Recipes",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Výborne sa varí vo veľkom, mrazí a úroveň pálivosti možno prispôsobiť deťom."
+    },
+    {
+      "id": "modern_cottage_shepherd_pie",
+      "display_name": "Pastiersky nákyp s mletým mäsom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.tesco.com/recipes/en-GB/recipe/cottage-pie",
+          "title": "Cottage pie | Tesco Recipes",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/cottage-pie",
+          "title": "Cottage pie recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Domáce suroviny sú lacné a známe; jedlo využije zvyšnú kašu a dobre sa porciuje aj mrazí."
+    },
+    {
+      "id": "modern_family_lasagne",
+      "display_name": "Rodinné lasagne",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://realfood.tesco.com/recipes/dan-and-liams-made-for-you-lasagne.html",
+          "title": "Dan and Liam’s ‘made for you’ lasagne | Tesco Real Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/classic-lasagne",
+          "title": "Easy classic lasagne recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Sú prirodzene viacporciové, vhodné na prípravu vopred a na využitie akciového mletého mäsa."
+    },
+    {
+      "id": "modern_tuna_tomato_pasta",
+      "display_name": "Cestoviny s tuniakom a paradajkami",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/healthy-tuna-pasta",
+          "title": "Healthy tuna pasta recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.tesco.sk/hello/recepty/pappardelle-s-paradajkovou-omackou-a-tuniakom/596741/",
+          "title": "Pappardelle s paradajkovou omáčkou a tuniakom | Hello Tesco",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Stojí na trvanlivých zásobách, nepotrebuje čerstvé mäso a porcie sa ľahko navýšia."
+    },
+    {
+      "id": "modern_tuna_pasta_salad",
+      "display_name": "Cestovinový šalát s tuniakom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/pasta-salad-with-tuna-mayo",
+          "title": "Tuna pasta salad recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://realfood.tesco.com/recipes/nicoise-pasta-salad.html",
+          "title": "Niçoise pasta salad | Tesco Real Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Je vhodný do krabičky, využíva konzervy a dá sa pripraviť z cestovín uvarených deň vopred."
+    },
+    {
+      "id": "modern_salmon_potato_broccoli",
+      "display_name": "Losos so zemiakmi a brokolicou",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/salmon-broccoli-potato-bake",
+          "title": "Salmon, broccoli & potato bake recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.thedoctorskitchen.com/recipes/salmon-broccoli-and-potato-traybake-with-harissa-yoghurt",
+          "title": "Salmon, Broccoli and Potato Traybake with Harissa Yoghurt | The Doctor's Kitchen",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Prináša rybu do týždenného plánu, škáluje sa na plech a mrazená brokolica zvyšuje dostupnosť."
+    },
+    {
+      "id": "modern_white_fish_tomato_rice",
+      "display_name": "Biela ryba s paradajkovou ryžou",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.ricardocuisine.com/en/recipes/5736-mexican-style-tomato-rice-with-fish",
+          "title": "Mexican-Style Tomato Rice with Fish | RICARDO",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.jamieoliver.com/recipes/fish/one-pan-fabulous-fish/",
+          "title": "One-pan fabulous fish | Jamie Oliver",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Mrazené filety sú praktické, jedlo má málo riadu a paradajkový základ znesie sezónne obmeny."
+    },
+    {
+      "id": "modern_fish_tacos_yogurt",
+      "display_name": "Rybie tacos s jogurtovou omáčkou",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfoodme.com/recipes/fish-tacos-baja-sauce/",
+          "title": "Fish tacos with Baja sauce | Good Food Middle East",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.bhf.org.uk/informationsupport/support/healthy-living/healthy-eating/recipe-finder/fish-tacos",
+          "title": "Fish tacos | British Heart Foundation",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Je to odlišný spôsob podania dostupnej mrazenej ryby a jednotlivé náplne si rodina skladá podľa chuti."
+    },
+    {
+      "id": "modern_feta_tomato_pasta",
+      "display_name": "Pečené cestoviny s fetou a paradajkami",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/baked-feta-tomato-pasta",
+          "title": "Baked feta & tomato pasta recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.foodnetwork.com/recipes/food-network-kitchen/baked-feta-pasta-9867689",
+          "title": "Baked Feta Pasta Recipe | Food Network Kitchen",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Má krátku aktívnu prípravu, minimum krájania a predstavuje výrazný bezmäsitý rodinný obed."
+    },
+    {
+      "id": "modern_mushroom_risotto",
+      "display_name": "Hubové rizoto",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.tesco.com/recipes/en-GB/recipe/mushroom-risotto",
+          "title": "Mushroom risotto | Tesco Recipes",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/next-level-mushroom-risotto",
+          "title": "Next level mushroom risotto recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Šampiňóny sú bežne dostupné a recept poskytuje plnohodnotnú vegetariánsku voľbu bez špeciálnych surovín."
+    },
+    {
+      "id": "modern_pumpkin_risotto",
+      "display_name": "Tekvicové rizoto",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/pumpkin-risotto",
+          "title": "Pumpkin risotto recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.thekitchn.com/recipe-pumpkin-risotto-237477",
+          "title": "Pumpkin Risotto Recipe | The Kitchn",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Dobre využíva jesenné akcie na tekvicu a pyré možno pripraviť vopred pre viac jedál."
+    },
+    {
+      "id": "quick_broccoli_cheese_pasta",
+      "display_name": "Rýchle cestoviny s brokolicou a syrom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://realfood.tesco.com/recipes/broccoli-pasta.html",
+          "title": "Broccoli pasta | Tesco Real Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/broccoli-pasta-shells",
+          "title": "Easy broccoli pasta recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Je lacné, hotové z jedného hrnca a funguje aj s mrazenou brokolicou či rôznymi tvrdými syrmi."
+    },
+    {
+      "id": "quick_pesto_chicken_pasta",
+      "display_name": "Kuracie cestoviny s pestom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/creamy-chicken-green-bean-pesto-pasta",
+          "title": "Chicken and pesto pasta recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://instantpot.com/blogs/recipes/chicken-pesto-fettuccine",
+          "title": "Chicken Pesto Fettuccine | Instant Pot",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Hotové pesto skracuje prípravu, recept má málo surovín a možno doň pridať akciovú zeleninu."
+    },
+    {
+      "id": "quick_gnocchi_spinach",
+      "display_name": "Gnocchi so špenátom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.tesco.sk/hello/recepty/spenatove-gnocchi-pre-styroch/595491",
+          "title": "Špenátové gnocchi pre štyroch | Hello Tesco",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/collection/gnocchi-recipes",
+          "title": "Gnocchi recipes | Good Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Chladené gnocchi výrazne skracujú varenie a mrazený špenát drží jedlo dostupné počas celého roka."
+    },
+    {
+      "id": "quick_couscous_grilled_cheese",
+      "display_name": "Kuskus s grilovaným syrom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.tesco.com/recipes/en-GB/recipe/courgette-couscous-and-halloumi-salad",
+          "title": "Courgette, couscous and halloumi salad | Tesco Recipes",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.bbcgoodfoodme.com/recipes/grilled-halloumi-with-spiced-couscous/",
+          "title": "Grilled halloumi with spiced couscous | Good Food Middle East",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Kuskus nepotrebuje varenie, syr dodá sýtosť a zeleninová časť sa dá meniť podľa sezóny."
+    },
+    {
+      "id": "quick_egg_fried_rice",
+      "display_name": "Opekaná ryža s vajíčkom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.tesco.com/recipes/en-GB/recipe/egg-fried-rice",
+          "title": "Egg-fried rice | Tesco Recipes",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/egg-fried-rice",
+          "title": "Easy egg-fried rice | Good Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Výborne spracuje zvyšky, suroviny sú lacné a rodina si môže pridať ďalší proteín samostatne."
+    },
+    {
+      "id": "quick_shakshuka",
+      "display_name": "Šakšuka",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/shakshuka",
+          "title": "Easy shakshuka recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://realfood.tesco.com/recipes/microwave-shakshuka.html",
+          "title": "Microwave shakshuka | Tesco Real Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Využíva lacné vajcia a konzervované paradajky, pripravuje sa v jednej panvici a ľahko sa porciuje."
+    },
+    {
+      "id": "quick_vegetable_frittata",
+      "display_name": "Zeleninová frittata",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/collection/fritatta-recipes",
+          "title": "Frittata recipes | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://realfood.tesco.com/recipes/air-fryer-classic-frittata.html",
+          "title": "Air-fryer classic frittata | Tesco Real Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Spotrebuje malé zvyšky zeleniny, dobre sa krája do krabičiek a chutí aj pri izbovej teplote."
+    },
+    {
+      "id": "quick_tuna_cheese_tortilla",
+      "display_name": "Tuniakovo-syrová tortilla",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.tesco.com/recipes/en-GB/recipe/tuna-melt-quesadillas",
+          "title": "Tuna Melt Quesadillas Recipe | Tesco Recipes",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.family-action.org.uk/content/uploads/2019/07/meals-more-recipes.pdf",
+          "title": "Meals & More Recipe Book | Family Action",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Hotová je za pár minút, nevyžaduje čerstvé mäso a možno ju pripraviť na panvici bez rúry."
+    },
+    {
+      "id": "quick_baked_potato_cottage",
+      "display_name": "Pečený zemiak s cottage syrom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/collection/cottage-cheese-recipes",
+          "title": "Cottage cheese recipes | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.mccain.co.uk/recipes/cottage-cheese-loaded-jacket-potato/",
+          "title": "Cottage Cheese Loaded Jacket Potato | McCain UK",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Suroviny sú lacné a známe, zemiaky možno upiecť naraz a náplne dopĺňať pri podávaní."
+    },
+    {
+      "id": "quick_zucchini_fritters",
+      "display_name": "Cuketové placky",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/sweetcorn-courgette-fritters",
+          "title": "Sweetcorn & courgette fritters recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://realfood.tesco.com/recipes/veg-and-white-bean-fritters-with-slaw.html",
+          "title": "Veg and white bean fritters with slaw | Tesco Real Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Sú výborné na letnú nadúrodu, dajú sa pripraviť do zásoby a podávať s jednoduchým jogurtovým dipom."
+    },
+    {
+      "id": "quick_cauliflower_curry",
+      "display_name": "Karfiolové kari",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.tesco.com/recipes/en-GB/recipe/cauliflower-and-pea-curry",
+          "title": "Cauliflower and pea curry | Tesco Recipes",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/cauliflower-potato-curry",
+          "title": "Cauliflower & potato curry recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Jedlo je prirodzene rastlinné, lacné a dobre funguje s čerstvým aj mrazeným karfiolom."
+    },
+    {
+      "id": "quick_orzo_chicken_one_pan",
+      "display_name": "Kuracie orzo z jednej panvice",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/marry-me-chicken-orzo",
+          "title": "‘Marry me’ chicken & orzo | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.foodnetwork.com/recipes/valerie-bertinelli/one-pot-chicken-and-orzo-12667478",
+          "title": "One Pot Chicken and Orzo Recipe | Valerie Bertinelli | Food Network",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Má pohodlie jedného hrnca, dobre sa násobí a orzo možno v obchode nahradiť slovenskou cestovinovou ryžou."
+    },
+    {
+      "id": "quick_tomato_mozzarella_pasta",
+      "display_name": "Cestoviny s paradajkami a mozzarellou",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/classic-spaghetti",
+          "title": "Classic spaghetti recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://jessicaseinfeld.com/recipes/fresh-tomato-and-mozzarella-pasta",
+          "title": "Fresh Tomato and Mozzarella Pasta | Jessica Seinfeld",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Majú krátky zoznam surovín, využijú čerstvé aj konzervované paradajky a oslovia deti jemnou chuťou."
+    },
+    {
+      "id": "quick_pea_ham_risotto",
+      "display_name": "Hráškové rizoto so šunkou",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://realfood.tesco.com/recipes/cheesy-ham-and-pea-risotto.html",
+          "title": "Cheesy ham and pea risotto | Tesco Real Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.bbcgoodfoodme.com/recipes/cheese-ham-pea-risotto/",
+          "title": "Cheese, ham & pea risotto | Good Food Middle East",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Mrazený hrášok a balená šunka sú stále dostupné; recept vie zužitkovať aj zvyšné pečené mäso."
+    },
+    {
+      "id": "quick_egg_potato_spinach_pan",
+      "display_name": "Zemiaková panvička s vajíčkom a špenátom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.marthastewart.com/859191/potato-hash-spinach-and-eggs",
+          "title": "Potato Hash with Spinach and Eggs | Martha Stewart",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://realfood.tesco.com/recipes/artichoke-potato-and-spinach-tortilla.html",
+          "title": "Artichoke, potato and spinach tortilla | Tesco Real Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Spotrebuje uvarené zemiaky, stojí na lacných vajciach a funguje ako večera bez mäsa."
+    },
+    {
+      "id": "quick_chickpea_tomato_couscous",
+      "display_name": "Paradajkový kuskus s cícerom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.epicurious.com/recipes/food/views/couscous-with-chick-peas-and-tomatoes-2709",
+          "title": "Couscous with Chick-Peas and Tomatoes Recipe | Epicurious",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.boylefrc.ie/uploadedfiles/Roast%20Cherry%20Tomato%20%20Chickpea%20Couscous.pdf",
+          "title": "Roast Cherry Tomato & Chickpea Couscous | Boyle Family Resource Centre",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Je prirodzene rastlinný, hotový bez dlhého varenia a vhodný do krabičky aj na násobenie porcií."
+    },
+    {
+      "id": "protein_turkey_couscous",
+      "display_name": "Morčací kuskus so zeleninou",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfoodme.com/recipes/quick-turkey-couscous/",
+          "title": "Quick turkey couscous - Good Food Middle East",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://goodgather.co.uk/recipes/turkey-and-roasted-veg-couscous.html",
+          "title": "Turkey & roasted veg couscous recipe | GoodGather",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Praktický obed z bežných surovín, ktorý sa dá stavať z morčacích plátkov aj mletého mäsa bez zmeny identity jedla."
+    },
+    {
+      "id": "protein_chicken_bulgur",
+      "display_name": "Kuracie bulguroto",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://aktin.cz/bulgureto-s-kurecim-masem",
+          "title": "Bulgureto s kuřecím masem | Aktin recepty",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/harissa-spiced-chicken-bulgur-wheat",
+          "title": "Harissa-spiced chicken with bulgur wheat recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Bulguroto je zrozumiteľná obmena rizota, dobre sa porciuje do krabičky a nosnú bielkovinovú časť tvorí kuracie mäso."
+    },
+    {
+      "id": "protein_chicken_yogurt_potato",
+      "display_name": "Kuracie prsia so zemiakmi a jogurtovým dipom",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.tesco.com/recipes/en-GB/recipe/coriander-chicken-with-minted-yogurt",
+          "title": "Coriander chicken with minted yogurt recipe | Tesco Recipes",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.healthyfood.com/healthy-recipes/chicken-and-new-potato-bake-with-summer-herbs-and-yoghurt-lemon-dressing/",
+          "title": "Chicken and new potato bake with summer herbs and yoghurt lemon dressing - Healthy Food Guide",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Známy formát mäso-zemiaky-dip je vhodný pre rodinu; od plechovej verzie sa odlišuje samostatne pripraveným mäsom a studeným dipom."
+    },
+    {
+      "id": "protein_beef_rice_bowl",
+      "display_name": "Hovädzia ryžová miska so zeleninou",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.healthyfood.com/healthy-recipes/teriyaki-beef-rice-bowl/",
+          "title": "Teriyaki beef rice bowl - Healthy Food Guide",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.foodnetwork.com/recipes/food-network-kitchen/grilled-steak-and-rice-bowl-3364198",
+          "title": "Grilled Steak and Rice Bowl Recipe | Food Network",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Miska umožňuje oddelené porcie mäsa, ryže a zeleniny, takže sa dá bezpečne prispôsobiť letákovej zelenine bez zmeny jadra."
+    },
+    {
+      "id": "protein_cottage_tomato_pasta",
+      "display_name": "Paradajkové cestoviny s cottage syrom",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://feelgoodfoodie.net/recipe/tomato-cottage-cheese-pasta/",
+          "title": "Cottage Cheese Pasta Sauce | Feel Good Foodie",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://kaynutrition.com/tomato-cottage-cheese-pasta/",
+          "title": "Tomato Cottage Cheese Pasta - Stephanie Kay Nutrition",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Vegetariánsky smer je užitočný, ale produkčná verzia musí zvýšiť podiel cottage syra alebo použiť bielkovinovejšie cestoviny a prejsť výpočtovým limitom."
+    },
+    {
+      "id": "protein_cottage_potato_spinach",
+      "display_name": "Plnené zemiaky s cottage syrom a špenátom",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://potatogoodness.com/recipes/green-veggie-twice-baked-potatoes/",
+          "title": "Green Veggie Twice Baked Potatoes | Potato Goodness",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://healthdor.com/recipe/jacket-potato-with-spinach-and-cottage-cheese",
+          "title": "Jacket Potato with Spinach and Cottage Cheese Recipe",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Jedlo je lacné a ľahko pochopiteľné, no high_protein verzia potrebuje vyššiu gramáž cottage syra alebo vajce a následné výpočtové overenie."
+    },
+    {
+      "id": "protein_tuna_bean_salad",
+      "display_name": "Tuniakovo-fazuľový šalát",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/10-minute-tuna-bean-salad",
+          "title": "10-minute tuna & bean salad recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.foodnetwork.com/recipes/tuna-bean-salad-2124468",
+          "title": "Tuna Bean Salad Recipe | Food Network",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Bez varenia alebo s minimálnou prípravou využíva trvanlivé suroviny; porciu tuniaka a fazule možno upraviť bez zmeny jedla."
+    },
+    {
+      "id": "protein_egg_cottage_salad",
+      "display_name": "Vajíčkový šalát s cottage syrom",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://thebalancednutritionist.com/cottage-cheese-egg-salad/",
+          "title": "Cottage Cheese Egg Salad - The Balanced Nutritionist",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://reallifenutritionist.com/cottage-cheese-egg-salad/",
+          "title": "High Protein Cottage Cheese Egg Salad - Real Life Nutritionist",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Zrozumiteľný studený obed s vajcami a cottage syrom; hlavná porcia musí byť nastavená väčšia než bežná nátierková dávka."
+    },
+    {
+      "id": "protein_salmon_couscous_salad",
+      "display_name": "Kuskusový šalát s lososom",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfoodme.com/recipes/superhealthy-salmon-salad/",
+          "title": "Superhealthy salmon salad - Good Food Middle East",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://foodnetwork.co.uk/recipes/wild-alaska-salmon-and-couscous-salad-with-pomegranate-and-mint",
+          "title": "Wild Alaska salmon and couscous salad with pomegranate and mint | Food Network UK",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Odlišný studený rybí formát rozširuje knižnicu mimo teplých panvíc; zeleninové prílohy sa dajú meniť bez zásahu do jadra losos-kuskus."
+    },
+    {
+      "id": "protein_chicken_lentil_stew",
+      "display_name": "Kurací šošovicový hrniec",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/one-pot-lentil-chicken",
+          "title": "One-pot lentil chicken recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.nyp.org/nutrition/recipes/moroccan-chicken-chickpea-lentil-stew",
+          "title": "Moroccan Chicken with Chickpea and Lentil Stew | NewYork-Presbyterian",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Dvojitý zdroj bielkovín a príprava v jednom hrnci dávajú silný rodinný základ vhodný aj na mrazenie a opätovné ohriatie."
+    },
+    {
+      "id": "protein_turkey_meatballs",
+      "display_name": "Morčacie mäsové guľky v paradajkovej omáčke",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/collection/turkey-meatball-recipes",
+          "title": "Turkey meatball recipes | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://health.clevelandclinic.org/recipe-sweet-sour-meatballs",
+          "title": "Recipe: Sweet and Sour Turkey Meatballs | Cleveland Clinic",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Mäsové guľky sú rodinne známy formát, dajú sa piecť vo väčšej dávke a podávať s rôznymi neutrálnymi prílohami."
+    },
+    {
+      "id": "protein_tofu_broccoli_rice",
+      "display_name": "Tofu s brokolicou a ryžou",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dietitianmade.net/recipe-tofu-broccoli-brown-rice-bowl",
+          "title": "Ginger Tofu and Broccoli Brown Rice Bowl | Dietitian Made",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.henryford.com/blog/2024/01/recipe-video-crispy-baked-chili-lime-tofu-bowl",
+          "title": "Crispy Baked Chili Lime Tofu Bowl | Henry Ford Health",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Jednoduché vegánske jadro s presne oddelenými zložkami; mrkvu či inú doplnkovú zeleninu možno bezpečne meniť podľa dostupnosti."
+    },
+    {
+      "id": "protein_cottage_lentil_lasagne",
+      "display_name": "Šošovicové lasagne s cottage syrom",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://acooksplot.com/2018-11-01-lentil-lasagne",
+          "title": "Lentil Lasagne | A Cook's Plot",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://thehappyfoodie.co.uk/recipes/cheats-veggie-lasagne/",
+          "title": "Cheat's Veggie Lasagne | The Happy Foodie",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Lasagne prinášajú sýty vegetariánsky formát odlišný od misiek a šalátov; dobre sa porciujú a zvyšok možno zamraziť."
+    },
+    {
+      "id": "protein_beef_bean_chili",
+      "display_name": "Proteínový batat plnený hovädzím chilli",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://terianncarty.com/high-protein-stuffed-sweet-potatoes/",
+          "title": "High Protein Stuffed Sweet Potatoes | Teri-Ann Carty Recipes",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.hellofresh.co.uk/recipes/easy-cheesy-beef-chilli-loaded-sweet-potato-67bdff0a8e41cf2506379267",
+          "title": "Easy Cheesy Beef Chilli Loaded Sweet Potato Recipe | HelloFresh",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Vybraný ako vysokobielkovinové plnené jedlo: celý batat sa najprv upečie a až potom naplní hovädzím fazuľovým chilli, takže sa odlišuje od moderného chilli con carne vareného v hrnci."
+    },
+    {
+      "id": "protein_chicken_yogurt_traybake",
+      "display_name": "Jogurtom marinované kurča so zeleninou z jedného plechu",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/curried-chicken-new-potato-traybake",
+          "title": "Curried chicken & new potato traybake recipe | Good Food",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.canada.ca/en/health-canada/services/food-guide/eating-support/kitchen/recipes/zaatar-chicken-sheet-pan-dinner.html",
+          "title": "Za'atar chicken sheet pan dinner - Canada.ca",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Plechové jedlo minimalizuje riad a prijíma sezónnu zeleninu; od samostatného kurčaťa s dipom sa odlišuje marinovaním a spoločným pečením."
+    },
+    {
+      "id": "protein_skyr_chicken_wrap",
+      "display_name": "Kurací wrap so skyrom",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://elodieboredieteticienne.fr/2025/05/25/wrap-au-poulet-et-concombre-facon-tzatziki/",
+          "title": "Wrap au poulet et concombre façon tzatziki | Élodie Boré",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.puregym.com/blog/tandoori-chicken-wraps-recipe/",
+          "title": "Tandoori Chicken Wraps Recipe | PureGym",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Prenosný obed s jasným jadrom kurča-skyr; šalátová zelenina a korenie sa dajú obmieňať bez vzniku nového jedla."
+    },
+    {
+      "id": "plant_red_lentil_dal",
+      "display_name": "Dhal z červenej šošovice",
+      "editorial_lane": "plant_based",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/creamy-spiced-dhal",
+          "title": "Creamy spiced dhal",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.mojadm.sk/inspiracia-a-poradenstvo/vyziva/recepty-a-tipy-pri-vareni/-dhal-z-cervenej-sosovice-3117024",
+          "title": "Dhal z červenej šošovice",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Rýchla sýta večera stojí najmä na lacných trvanlivých surovinách a prináša do knižnice jasne rozpoznateľný indický typ jedla."
+    },
+    {
+      "id": "plant_chickpea_curry",
+      "display_name": "Cícerové kari so špenátom",
+      "editorial_lane": "plant_based",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/kadala-curry",
+          "title": "Chickpea curry",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.vegan.sk/spenatove-a-cicerove-kari/",
+          "title": "Recept na špenátové a cícerové kari",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Cícer z konzervy skracuje prípravu a špenát sa dá bezpečne nahradiť inou listovou zeleninou bez straty identity jedla."
+    },
+    {
+      "id": "plant_bean_chili",
+      "display_name": "Fazuľové chilli sin carne",
+      "editorial_lane": "plant_based",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/vegetable-bean-chilli",
+          "title": "Vegetable & bean chilli",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/rychla-vecera-vegan-chilli-sin-carne-fotorecept/81750-recept.html",
+          "title": "Rýchla večera vegan chilli sin carne",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Jednohrncové chilli dobre využíva konzervy a mrazenú či čerstvú zeleninu a zostáva čitateľné aj pri zámene druhu fazule."
+    },
+    {
+      "id": "plant_lentil_bolognese",
+      "display_name": "Šošovicová boloňská omáčka so špagetami",
+      "editorial_lane": "plant_based",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/vegan-bolognese",
+          "title": "Vegan bolognese",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.vegan.sk/veganske-bolonske-spagety/",
+          "title": "Vegánske bolonské špagety – recept",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Veľmi známy rodinný formát znižuje bariéru rastlinného jedla a omáčka sa hodí na varenie vo väčšej dávke aj mrazenie."
+    },
+    {
+      "id": "plant_tofu_coconut_curry",
+      "display_name": "Tofu kari s kokosovým mliekom",
+      "editorial_lane": "plant_based",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.bbcgoodfood.com/recipes/tofu-curry",
+          "title": "Tofu curry",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://gymbeam.sk/blog/fitness-recept-veganske-kari-s-tofu-a-cicerom/",
+          "title": "Fitness recept: Vegánske kari s tofu a cícerom",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Tofu dostáva jasnú úlohu hlavnej bielkoviny a kokosová omáčka vytvára odlišný profil od paradajkového cícerového kari."
+    },
+    {
+      "id": "plant_tofu_tomato_pasta",
+      "display_name": "Cestoviny s paradajkovo-tofu omáčkou",
+      "editorial_lane": "plant_based",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://veganuary.com/recipes/creamy-vegan-tofu-tomato-pasta-sauce/",
+          "title": "Creamy Vegan Tofu & Tomato Pasta Sauce",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://simpleveganizer.com/easy-tofu-tomato-pasta-recipe-vegan-wfpb/",
+          "title": "Easy Tofu Tomato Pasta Recipe (Vegan, WFPB)",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Známy cestovinový formát nenápadne zapája tofu a ponúka rodinnú alternatívu bez smotany či syra."
+    },
+    {
+      "id": "plant_chickpea_couscous_salad",
+      "display_name": "Kuskusový šalát s cícerom",
+      "editorial_lane": "plant_based",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.coles.com.au/recipes-inspiration/recipes/vegan-chickpea-and-couscous-salad",
+          "title": "Vegan chickpea and couscous salad",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.theppk.com/2026/04/couscous-salad-with-chickpeas/",
+          "title": "Couscous Salad With Smashed Chickpeas",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Jedlo nevyžaduje dlhé varenie, dobre funguje do krabičky a bezpečne prijme sezónnu zeleninu bez zmeny základného formátu."
+    },
+    {
+      "id": "plant_bean_potato_goulash",
+      "display_name": "Fazuľovo-zemiakový guláš",
+      "editorial_lane": "plant_based",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://veganskaspolocnost.sk/recept/vegansky-fazulovy-gulas/",
+          "title": "Vegánsky fazuľový guláš",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.vegan.sk/vegansky-fazulovy-gulas-recept/",
+          "title": "Vegánsky fazuľový guláš – recept",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Gulášový profil je domácemu publiku blízky a recept využíva lacné skladovateľné suroviny bez potreby náhrad mäsa."
+    },
+    {
+      "id": "plant_mushroom_barley",
+      "display_name": "Hubové krupoto",
+      "editorial_lane": "plant_based",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.veganfoodandliving.com/vegan-recipes/mushroom-pearl-barley-risotto/",
+          "title": "King Oyster Mushroom and Leek Pearl Barley Risotto",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://viedelavegan.com/vegan-mushroom-barley-risotto/",
+          "title": "Vegan Mushroom Barley Risotto",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Krupoto využíva tradičnú obilninu v modernom formáte a odlišuje sa textúrou aj technikou od cestovín, kari a strukovinových gulášov."
+    },
+    {
+      "id": "plant_lentil_loaf",
+      "display_name": "Šošovicová sekaná s paradajkovou glazúrou",
+      "editorial_lane": "plant_based",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.alecooks.com/vegan-lentil-loaf/",
+          "title": "Vegan Lentil Loaf with Tomato Glaze",
+          "accessed_on": "2026-09-05"
+        },
+        {
+          "url": "https://www.noracooks.com/lentil-loaf/",
+          "title": "Vegan Lentil Loaf",
+          "accessed_on": "2026-09-05"
+        }
+      ],
+      "selection_reason": "Sekaná ponúka odlišný pečený rodinný stredobod a dá sa servírovať so známymi zemiakovými či zeleninovými prílohami."
+    }
+  ]
+}

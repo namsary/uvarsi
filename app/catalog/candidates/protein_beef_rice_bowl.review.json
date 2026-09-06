@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "1bedc7460cf35a1932e6dc45ea119fb6f9ab3a0c008f0286dd98bae148dc3f1f",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "protein_beef_rice_bowl"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

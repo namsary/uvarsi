@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "3abd6a74f5fbedcd89e330fffc159020c16d0a15f7f6efadfc636330b621bff2",
+  "promoted_to": "05-vegan.json",
+  "recipe_ids": [
+    "plant_bean_potato_goulash"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "89ed39b294db03afffa1f2bb79bb59492e5c9a4c4ea6ef80c4ef94bddff5452a",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "classic_potato_pancakes"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

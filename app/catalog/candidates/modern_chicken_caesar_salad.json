@@ -1,0 +1,45 @@
+{
+  "recipes": [
+    {
+      "id": "modern_chicken_caesar_salad",
+      "version": 2,
+      "active": true,
+      "name_template": "Kurací šalát s jogurtovým dresingom",
+      "family": "modern_chicken_caesar_salad",
+      "method": "salad",
+      "minutes": 35,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["panvica", "miska", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": null},
+        {"key": "lettuce", "role": "vegetable", "candidates": ["lettuce"], "amount_per_adult": "130", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na širšie pásy"},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "na kocky"},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "65", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": null},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno nastrúhaný"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {lettuce.amount} {lettuce.name} na širšie pásy a {bread.amount} {bread.name} na kocky. {garlic.amount} {garlic.name} nakrájaj najemno, {cheese.amount} {cheese.name} nastrúhaj a z {lemon.amount} {lemon.name} vytlač šťavu.", "requires": ["lettuce:raw", "bread:raw", "garlic:raw", "cheese:raw", "lemon:raw"], "produces": ["lettuce:cut", "bread:cut", "garlic:cut", "cheese:grated", "lemon:juice"]},
+        {"text": "Osuš {chicken.amount} {chicken.name}, zľahka ich osoľ a okoreň. Hrubšie kusy rozrež pozdĺžne na dva tenšie plátky, aby sa prepiekli rovnomerne.", "requires": ["chicken:raw"], "produces": ["chicken:seasoned"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj biely chlieb v panvici 5 minút, kým bude zlatistý a chrumkavý, potom krutóny odlož bokom.", "requires": ["oil:raw", "bread:cut", "panvica:free"], "produces": ["oil:used", "bread:toasted", "panvica:hot"]},
+        {"text": "Opekaj kuracie prsia v panvici na strednom ohni 4 až 5 minút z každej strany, kým budú zlatisté a po narezaní v najhrubšej časti už nebudú ružové. Pri väčšej dávke ich opekaj po častiach a hotové mäso nechaj 5 minút odpočívať.", "requires": ["chicken:seasoned", "panvica:hot"], "produces": ["chicken:cooked", "panvica:free"]},
+        {"text": "Premiešaj v miske {yogurt.amount} {yogurt.name}, tvrdý syr, cesnak, citrónovú šťavu, soľ a čierne korenie.", "requires": ["yogurt:raw", "cheese:grated", "garlic:cut", "lemon:juice", "miska:free"], "produces": ["yogurt:dressing", "cheese:dressing", "garlic:dressing", "lemon:dressing", "miska:occupied"]},
+        {"text": "Nakrájaj upečené kuracie prsia na plátky. Pri každom podávaní premiešaj iba potrebnú časť rímskeho šalátu s dressingom a krutóny nechaj navrchu, aby zostali chrumkavé.", "requires": ["chicken:cooked", "lettuce:cut", "yogurt:dressing", "cheese:dressing", "garlic:dressing", "lemon:dressing", "bread:toasted"], "produces": ["chicken:sliced"]},
+        {"text": "Rozdeľ šalát na {portions} porcií spolu s plátkami kuracích pŕs.", "requires": ["chicken:sliced", "lettuce:cut", "bread:toasted", "yogurt:dressing", "cheese:dressing", "garlic:dressing", "lemon:dressing", "oil:used"], "produces": ["chicken:served", "lettuce:served", "bread:served", "yogurt:served", "cheese:served", "garlic:served", "lemon:served", "oil:served", "miska:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Mäso a dressing odlož do samostatných plytkých nádob najneskôr do 2 hodín. Šalát a krutóny uschovaj oddelene, všetko chladené zjedz do 3 dní a spájaj až pred podávaním."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "modern_chicken_caesar_salad",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/chicken-caesar-salad", "title": "Chicken caesar salad recipe | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://www.tesco.com/recipes/en-GB/recipe/lighter-chicken-caesar-salad", "title": "Lighter chicken Caesar salad | Tesco Recipes", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

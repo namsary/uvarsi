@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from decimal import Decimal
 import json
 import sys
+import threading
+import time
 import types
 
 import pytest
@@ -118,14 +121,16 @@ def _counts(server):
 
 
 @pytest.mark.parametrize("mode", ("off", "shadow"))
-def test_off_and_shadow_keep_the_existing_queue_contract(monkeypatch, tmp_path, mode):
+def test_off_and_shadow_keep_the_deterministic_no_queue_contract(monkeypatch, tmp_path, mode):
     server = _server(monkeypatch, tmp_path, mode=mode)
 
     response = plan_client(server, 1, wait_for_worker=False).post("/api/plan/generuj")
 
-    assert response.status_code == 202
-    assert response.json()["status"] == "preparing"
-    assert _counts(server)["jobs"] == 1
+    assert response.status_code == 200
+    assert response.json()["meta"]["engine"] == "deterministic"
+    counts = _counts(server)
+    assert counts["jobs"] == counts["costs"] == 0
+    assert counts["personal"] == 1
 
 
 def test_on_returns_a_ready_regular_plan_without_jobs_or_model_costs(monkeypatch, tmp_path):
@@ -219,6 +224,159 @@ def test_on_cache_hit_does_not_consume_another_generation(monkeypatch, tmp_path)
     assert _counts(server)["jobs"] == _counts(server)["costs"] == 0
 
 
+def test_concurrent_identical_regular_requests_share_one_build_and_one_quota(
+    monkeypatch, tmp_path
+):
+    server = _server(monkeypatch, tmp_path)
+    original_builder = server.build_deterministic_plan
+    entered = threading.Event()
+    release = threading.Event()
+    calls = []
+
+    def slow_builder(**kwargs):
+        calls.append(kwargs)
+        entered.set()
+        assert release.wait(5), "test did not release the deterministic builder"
+        return original_builder(**kwargs)
+
+    monkeypatch.setattr(server, "build_deterministic_plan", slow_builder)
+    start = threading.Barrier(2)
+
+    def request_plan():
+        client = plan_client(server, 1, wait_for_worker=False)
+        start.wait(timeout=5)
+        return client.post("/api/plan/generuj")
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(request_plan)
+        second = pool.submit(request_plan)
+        assert entered.wait(5), "neither request reached the deterministic builder"
+        time.sleep(0.15)
+        release.set()
+        responses = (first.result(timeout=10), second.result(timeout=10))
+
+    assert [response.status_code for response in responses] == [200, 200]
+    assert responses[0].json() == responses[1].json()
+    assert len(calls) == 1
+    with server.db() as con:
+        assert con.execute("SELECT SUM(pocet) FROM prepocty").fetchone()[0] == 1
+
+
+def test_concurrent_identical_failed_requests_share_the_same_failure(
+    monkeypatch, tmp_path
+):
+    server = _server(monkeypatch, tmp_path)
+    entered = threading.Event()
+    release = threading.Event()
+    calls = []
+
+    def failing_builder(**kwargs):
+        calls.append(kwargs)
+        entered.set()
+        assert release.wait(5), "test did not release the deterministic builder"
+        raise NoCompatiblePlan("diet_too_strict", ("use_standard_mode",))
+
+    monkeypatch.setattr(server, "build_deterministic_plan", failing_builder)
+    client = plan_client(server, 1, wait_for_worker=False)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(client.post, "/api/plan/generuj")
+        second = pool.submit(client.post, "/api/plan/generuj")
+        assert entered.wait(5), "neither request reached the deterministic builder"
+        time.sleep(0.15)
+        release.set()
+        responses = (first.result(timeout=10), second.result(timeout=10))
+
+    assert [response.status_code for response in responses] == [422, 422]
+    assert responses[0].json() == responses[1].json()
+    assert len(calls) == 1
+    with server.db() as con:
+        assert con.execute("SELECT COALESCE(SUM(pocet),0) FROM prepocty").fetchone()[0] == 0
+
+
+def test_concurrent_force_requests_from_the_same_plan_share_one_regeneration(
+    monkeypatch, tmp_path
+):
+    server = _server(monkeypatch, tmp_path)
+    client = plan_client(server, 1, wait_for_worker=False)
+    assert client.post("/api/plan/generuj").status_code == 200
+
+    original_builder = server.build_deterministic_plan
+    entered = threading.Event()
+    release = threading.Event()
+    calls = []
+
+    def slow_builder(**kwargs):
+        calls.append(kwargs)
+        entered.set()
+        assert release.wait(5), "test did not release the deterministic builder"
+        return original_builder(**kwargs)
+
+    monkeypatch.setattr(server, "build_deterministic_plan", slow_builder)
+    start = threading.Barrier(2)
+
+    def regenerate():
+        request_client = plan_client(server, 1, wait_for_worker=False)
+        start.wait(timeout=5)
+        return request_client.post("/api/plan/generuj?force=1")
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(regenerate)
+        second = pool.submit(regenerate)
+        assert entered.wait(5), "neither request reached the deterministic builder"
+        time.sleep(0.15)
+        release.set()
+        responses = (first.result(timeout=10), second.result(timeout=10))
+
+    assert [response.status_code for response in responses] == [200, 200]
+    assert responses[0].json() == responses[1].json()
+    assert len(calls) == 1
+    with server.db() as con:
+        assert con.execute("SELECT SUM(pocet) FROM prepocty").fetchone()[0] == 2
+
+
+def test_concurrent_identical_pantry_requests_share_one_build_and_one_quota(
+    monkeypatch, tmp_path
+):
+    server = _server(
+        monkeypatch,
+        tmp_path,
+        pantry=(("ryža", 950, "g"), ("tofu", 400, "g"), ("cícer", 500, "g")),
+    )
+    original_builder = server.build_deterministic_plan
+    entered = threading.Event()
+    release = threading.Event()
+    calls = []
+
+    def slow_builder(**kwargs):
+        calls.append(kwargs)
+        entered.set()
+        assert release.wait(5), "test did not release the deterministic builder"
+        return original_builder(**kwargs)
+
+    monkeypatch.setattr(server, "build_deterministic_plan", slow_builder)
+    start = threading.Barrier(2)
+
+    def request_pantry_plan():
+        client = plan_client(server, 1, wait_for_worker=False)
+        start.wait(timeout=5)
+        return client.post("/api/plan/zo-spajze")
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(request_pantry_plan)
+        second = pool.submit(request_pantry_plan)
+        assert entered.wait(5), "neither request reached the deterministic builder"
+        time.sleep(0.15)
+        release.set()
+        responses = (first.result(timeout=10), second.result(timeout=10))
+
+    assert [response.status_code for response in responses] == [200, 200]
+    assert responses[0].json() == responses[1].json()
+    assert len(calls) == 1
+    with server.db() as con:
+        assert con.execute("SELECT SUM(pocet) FROM prepocty").fetchone()[0] == 1
+
+
 def test_on_maps_exactly_fourteen_offers_to_an_actionable_typed_error(
     monkeypatch, tmp_path
 ):
@@ -292,6 +450,32 @@ def test_regular_selection_ignores_pantry_but_personal_shopping_uses_it(
             for dose in shared_meal["recept"]["davky"]
         )
     assert personal["nakupny_zoznam"] != shared["nakupny_zoznam"]
+
+
+def test_regular_plan_reports_the_pantry_snapshot_from_generation_time(
+    monkeypatch, tmp_path
+):
+    server = _server(monkeypatch, tmp_path, pantry=(("ryža", 500, "g"),))
+    client = plan_client(server, 1, wait_for_worker=False)
+
+    created = client.post("/api/plan/generuj")
+    assert created.status_code == 200
+    assert created.json()["spajza"] == [
+        {"nazov": "ryža", "mnozstvo": 500.0, "jednotka": "g"}
+    ]
+
+    with server.db() as con:
+        con.execute(
+            "UPDATE spajza SET mnozstvo=250 WHERE user_id=1 AND nazov='ryža'"
+        )
+        con.commit()
+
+    reread = client.get("/api/plan")
+    assert reread.status_code == 200
+    assert reread.json()["spajza"] == created.json()["spajza"]
+    assert client.get("/api/me").json()["spajza"] == [
+        {"nazov": "ryža", "mnozstvo": 250.0, "jednotka": "g"}
+    ]
 
 
 def test_force_uses_the_next_bounded_variant_and_still_respects_daily_limit(

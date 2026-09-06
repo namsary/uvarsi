@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "906ed19fd243b9029f3462ff0eabbf7f97178bfc380996051d0e974829f41f3b",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "classic_meatballs_mash"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

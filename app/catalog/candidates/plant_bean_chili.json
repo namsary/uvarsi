@@ -1,0 +1,44 @@
+{
+  "recipes": [
+    {
+      "id": "plant_bean_chili",
+      "version": 2,
+      "active": true,
+      "name_template": "Fazuľové chilli sin carne",
+      "family": "plant_bean_chili",
+      "method": "one_pot",
+      "minutes": 35,
+      "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["hlboká panvica s pokrievkou", "sitko", "nôž", "doska na krájanie", "varecha"],
+      "slots": [
+        {"key": "beans", "role": "protein", "candidates": ["beans_canned"], "amount_per_adult": "300", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na menšie kúsky", "water_ml_per_adult": "50"},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "cumin", "role": "seasoning", "candidates": ["cumin"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.35", "required": true, "use": "addition", "cut": null},
+        {"key": "chili", "role": "seasoning", "candidates": ["chili_powder"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.25", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "6", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Sceď a prepláchni {beans.amount} {beans.name}. Nakrájaj {tomato.amount} {tomato.name} a {pepper.amount} {pepper.name} na malé kúsky, {carrot.amount} {carrot.name} na malé kocky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno.", "requires": ["beans:raw", "tomato:raw", "pepper:raw", "carrot:raw", "onion:raw", "garlic:raw", "sitko:free"], "produces": ["beans:drained", "tomato:cut", "pepper:cut", "carrot:cut", "onion:cut", "garlic:cut", "sitko:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v hlbokej panvici. Cibuľu, mrkvu a papriku opekaj na strednom ohni 6 minút, kým trochu zmäknú.", "requires": ["oil:raw", "onion:cut", "carrot:cut", "pepper:cut", "hlboka_panvica_s_pokrievkou:free"], "produces": ["oil:hot", "onion:softened", "carrot:softened", "pepper:softened", "hlboka_panvica_s_pokrievkou:occupied"]},
+        {"text": "Prisyp {cumin.amount} {cumin.name} a {chili.amount} {chili.name} do panvice. Pridaj cesnak do panvice. Miešaj 30 sekúnd, kým sa korenie rozvonia.", "requires": ["cumin:raw", "chili:raw", "garlic:cut", "oil:hot", "onion:softened", "carrot:softened", "pepper:softened", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["cumin:toasted", "chili:toasted", "garlic:cooked"]},
+        {"text": "Vmiešaj paradajky, fazuľu a {tomato.water} vody do panvice. Prikry ju a var chilli na miernom ohni 15 minút, kým mrkva zmäkne a omáčka zhustne.", "requires": ["tomato:cut", "beans:drained", "cumin:toasted", "chili:toasted", "garlic:cooked", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["tomato:cooked", "beans:cooked", "onion:cooked", "carrot:cooked", "pepper:cooked", "garlic:finished", "cumin:cooked", "chili:cooked", "oil:cooked"]},
+        {"text": "Dochuť chilli soľou a čiernym korením. Podávaj ho horúce a rozdeľ na {portions} porcií.", "requires": ["tomato:cooked", "beans:cooked", "onion:cooked", "carrot:cooked", "pepper:cooked", "garlic:finished", "cumin:cooked", "chili:cooked", "oil:cooked", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["tomato:served", "beans:served", "onion:served", "carrot:served", "pepper:served", "garlic:served", "cumin:served", "chili:served", "oil:served", "hlboka_panvica_s_pokrievkou:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Chilli rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní alebo jednotlivé porcie zamraz."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "plant_bean_chili",
+    "editorial_lane": "plant_based",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/vegetable-bean-chilli", "title": "Vegetable & bean chilli", "accessed_on": "2026-09-05"},
+      {"url": "https://varecha.pravda.sk/recepty/rychla-vecera-vegan-chilli-sin-carne-fotorecept/81750-recept.html", "title": "Rýchla večera vegan chilli sin carne", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

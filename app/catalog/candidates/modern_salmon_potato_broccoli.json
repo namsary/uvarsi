@@ -1,0 +1,43 @@
+{
+  "recipes": [
+    {
+      "id": "modern_salmon_potato_broccoli",
+      "version": 2,
+      "active": true,
+      "name_template": "Losos so zemiakmi a brokolicou",
+      "family": "modern_salmon_potato_broccoli",
+      "method": "oven",
+      "minutes": 45,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["plech", "rúra", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "salmon", "role": "protein", "candidates": ["salmon"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na porcie"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "230", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na menšie mesiačiky"},
+        {"key": "broccoli", "role": "vegetable", "candidates": ["broccoli"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.7", "required": true, "use": "addition", "cut": "na ružičky"},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 210 °C. Nakrájaj {potato.amount} {potato.name} na menšie mesiačiky, rozdeľ {broccoli.amount} {broccoli.name} na ružičky a {garlic.amount} {garlic.name} nasekaj najemno. Rozdeľ {salmon.amount} {salmon.name} na porcie.", "requires": ["rura:free", "potato:raw", "broccoli:raw", "garlic:raw", "salmon:raw"], "produces": ["rura:hot", "potato:cut", "broccoli:cut", "garlic:cut", "salmon:portioned"]},
+        {"text": "Premiešaj zemiaky v miske s {oil.amount} {oil.name}, soľou a čiernym korením. Rozlož zemiaky na plech v jednej vrstve; pri väčšej dávke použi dva plechy.", "requires": ["potato:cut", "oil:raw", "miska:free", "plech:free"], "produces": ["potato:arranged", "oil:used", "miska:free", "plech:occupied"]},
+        {"text": "Peč zemiaky na plechu pri 210 °C 20 minút, kým budú na okrajoch zlatisté.", "requires": ["potato:arranged", "oil:used", "plech:occupied", "rura:hot"], "produces": ["potato:partly_cooked", "oil:cooked"]},
+        {"text": "Rozlož brokolicu k zemiakom a porcie lososa medzi zeleninu na plechu.", "requires": ["broccoli:cut", "salmon:portioned", "potato:partly_cooked", "oil:cooked", "plech:occupied"], "produces": ["broccoli:arranged", "salmon:arranged"]},
+        {"text": "Peč lososa so zeleninou na plechu pri 210 °C ďalších 15 minút, kým sa ryba bude ľahko oddeľovať vidličkou, brokolica zmäkne a zemiaky budú zlatisté.", "requires": ["broccoli:arranged", "salmon:arranged", "potato:partly_cooked", "oil:cooked", "plech:occupied", "rura:hot"], "produces": ["broccoli:cooked", "salmon:cooked", "potato:cooked"]},
+        {"text": "Premiešaj {yogurt.amount} {yogurt.name} s cesnakom, štipkou soli a čiernym korením v miske.", "requires": ["yogurt:raw", "garlic:cut", "miska:free"], "produces": ["yogurt:mixed", "garlic:mixed", "miska:occupied"]},
+        {"text": "Podávaj lososa so zemiakmi, brokolicou a jogurtovou omáčkou. Jedlo rozdeľ na {portions} porcií.", "requires": ["salmon:cooked", "potato:cooked", "broccoli:cooked", "oil:cooked", "yogurt:mixed", "garlic:mixed", "plech:occupied", "miska:occupied"], "produces": ["salmon:served", "potato:served", "broccoli:served", "oil:served", "yogurt:served", "garlic:served", "plech:free", "miska:free", "rura:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Jedlo rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní; jogurtovú omáčku skladuj oddelene a rybu ohrievaj len raz."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "modern_salmon_potato_broccoli",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/salmon-broccoli-potato-bake", "title": "Salmon, broccoli & potato bake recipe | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://www.thedoctorskitchen.com/recipes/salmon-broccoli-and-potato-traybake-with-harissa-yoghurt", "title": "Salmon, Broccoli and Potato Traybake with Harissa Yoghurt | The Doctor's Kitchen", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "5d6a1d81fd4e664f69ecd61f31549de592af38237fa42b96f935970a4c2ad7e5",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "protein_chicken_yogurt_traybake"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

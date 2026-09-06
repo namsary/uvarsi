@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "f10ecfc7de056e0b253da8384f0f82e0026648eabd8571ce9d0168555c127178",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "modern_salmon_potato_broccoli"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

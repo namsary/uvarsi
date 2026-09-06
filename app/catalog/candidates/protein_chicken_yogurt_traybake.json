@@ -1,0 +1,48 @@
+{
+  "recipes": [
+    {
+      "id": "protein_chicken_yogurt_traybake",
+      "version": 2,
+      "active": true,
+      "name_template": "Jogurtové kurča so zeleninou z jedného plechu",
+      "family": "protein_chicken_yogurt_traybake",
+      "method": "oven",
+      "minutes": 50,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["plech", "miska", "rúra", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na väčšie kúsky"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na malé mesiačiky"},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": null},
+        {"key": "zucchini", "role": "vegetable", "candidates": ["zucchini"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na hrubšie polkolieska"},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na väčšie kúsky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "na mesiačiky"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "curry", "role": "seasoning", "candidates": ["curry_powder"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 210 °C.", "requires": ["rura:free"], "produces": ["rura:hot"]},
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} na väčšie kúsky a {potato.amount} {potato.name} na malé mesiačiky. {zucchini.amount} {zucchini.name} nakrájaj na hrubšie polkolieska, {pepper.amount} {pepper.name} na väčšie kúsky a {onion.amount} {onion.name} na mesiačiky. {garlic.amount} {garlic.name} nasekaj najemno.", "requires": ["chicken:raw", "potato:raw", "zucchini:raw", "pepper:raw", "onion:raw", "garlic:raw"], "produces": ["chicken:cut", "potato:cut", "zucchini:cut", "pepper:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Premiešaj {yogurt.amount} {yogurt.name}, cesnak, {curry.amount} {curry.name}, {oil.amount} {oil.name}, soľ a čierne korenie v miske.", "requires": ["yogurt:raw", "garlic:cut", "curry:raw", "oil:raw", "miska:free"], "produces": ["yogurt:mixed", "garlic:mixed", "curry:mixed", "oil:mixed", "miska:occupied"]},
+        {"text": "Premiešaj kuracie prsia s jogurtovou marinádou v miske.", "requires": ["chicken:cut", "yogurt:mixed", "garlic:mixed", "curry:mixed", "oil:mixed", "miska:occupied"], "produces": ["chicken:marinated", "yogurt:coating", "garlic:coating", "curry:coating", "oil:coating"]},
+        {"text": "Rozlož zemiaky a cibuľu na plech v jednej vrstve.", "requires": ["potato:cut", "onion:cut", "plech:free"], "produces": ["potato:arranged", "onion:arranged", "plech:occupied"]},
+        {"text": "Peč zemiaky s cibuľou na plechu pri 210 °C 15 minút, kým sa okraje zemiakov začnú sfarbovať dozlatista.", "requires": ["potato:arranged", "onion:arranged", "plech:occupied", "rura:hot"], "produces": ["potato:partly_cooked", "onion:partly_cooked"]},
+        {"text": "Rozlož marinované kuracie prsia, cuketu a papriku na plech.", "requires": ["chicken:marinated", "yogurt:coating", "garlic:coating", "curry:coating", "oil:coating", "zucchini:cut", "pepper:cut", "potato:partly_cooked", "onion:partly_cooked", "plech:occupied"], "produces": ["chicken:arranged", "yogurt:arranged", "garlic:arranged", "curry:arranged", "oil:arranged", "zucchini:arranged", "pepper:arranged", "miska:free"]},
+        {"text": "Peč kuracie prsia so zeleninou na plechu pri 210 °C 25 minút, kým budú zemiaky mäkké, zelenina na okrajoch opečená a mäso v strede bez ružových miest.", "requires": ["chicken:arranged", "yogurt:arranged", "garlic:arranged", "curry:arranged", "oil:arranged", "zucchini:arranged", "pepper:arranged", "potato:partly_cooked", "onion:partly_cooked", "plech:occupied", "rura:hot"], "produces": ["chicken:cooked", "yogurt:cooked", "garlic:cooked", "curry:cooked", "oil:cooked", "zucchini:cooked", "pepper:cooked", "potato:cooked", "onion:cooked"]},
+        {"text": "Podávaj kurča so zemiakmi a zeleninou. Jedlo rozdeľ na {portions} porcií.", "requires": ["chicken:cooked", "yogurt:cooked", "garlic:cooked", "curry:cooked", "oil:cooked", "zucchini:cooked", "pepper:cooked", "potato:cooked", "onion:cooked", "plech:occupied"], "produces": ["chicken:served", "yogurt:served", "garlic:served", "curry:served", "oil:served", "zucchini:served", "pepper:served", "potato:served", "onion:served", "plech:free", "rura:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Jedlo rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní a pri ohrievaní ho dôkladne prehrej."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "protein_chicken_yogurt_traybake",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/curried-chicken-new-potato-traybake", "title": "Curried chicken & new potato traybake recipe | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://www.canada.ca/en/health-canada/services/food-guide/eating-support/kitchen/recipes/zaatar-chicken-sheet-pan-dinner.html", "title": "Za'atar chicken sheet pan dinner - Canada.ca", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

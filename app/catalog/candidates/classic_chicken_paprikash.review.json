@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "fe690a50d58dc0257bdc19d71a30c876ac0e6e39b39ddb5f40fde093929cc9bc",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_chicken_paprikash"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

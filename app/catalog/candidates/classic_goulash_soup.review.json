@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "48528ec3e5e8d7e1f1f87bc15be00caa8c615fa87ca71c70afaf6f866389564b",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "classic_goulash_soup"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

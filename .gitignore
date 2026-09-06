@@ -1,6 +1,8 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+.pytest-*-deps/
+.pytest-*/
 .venv/
 venv/
 *.env
@@ -12,3 +14,4 @@ vsetko_log.txt
 nastroje/autopush.log
 .worktrees/
 .superpowers/
+app/catalog/.recipe-promotion.lock

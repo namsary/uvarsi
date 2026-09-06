@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "3923de54284fd78686da6b72d5511c20b8e42ec47fc790356a98e614142db2e3",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "modern_cottage_shepherd_pie"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

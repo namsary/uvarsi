@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "classic_lentil_stew_egg",
+      "version": 2,
+      "active": true,
+      "name_template": "Šošovicový prívarok s vajcom",
+      "family": "classic_lentil_stew_egg",
+      "method": "pot",
+      "minutes": 50,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["nôž", "doska", "hrniec", "malý hrniec", "sitko", "vareška"],
+      "slots": [
+        {"key": "lentils", "role": "protein", "candidates": ["lentils"], "amount_per_adult": "85", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "280"},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "50", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.75", "required": true, "use": "main", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "vinegar", "role": "seasoning", "candidates": ["apple_cider_vinegar"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {lentils.amount} {lentils.name} v sitku pod studenou vodou.", "requires": ["lentils:raw", "sitko:free"], "produces": ["lentils:rinsed", "sitko:free"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} {garlic.cut}.", "requires": ["onion:raw", "garlic:raw"], "produces": ["onion:cut", "garlic:cut"]},
+        {"text": "Nalej {oil.amount} {oil.name} do hrnca. Opekaj cibuľu na strednom ohni 5 minút, kým bude dosklovita.", "requires": ["oil:raw", "onion:cut", "hrniec:free"], "produces": ["oil:cooked", "onion:cooked", "hrniec:occupied"]},
+        {"text": "Pridaj cesnak do hrnca a opekaj ho 30 sekúnd, kým zavonia. Vsyp šošovicu, prilej {lentils.water} vody a prikry. Var šošovicu v hrnci na miernom ohni 25 minút, kým celkom zmäkne.", "requires": ["garlic:cut", "lentils:rinsed", "onion:cooked", "oil:cooked", "hrniec:occupied"], "produces": ["garlic:cooked", "lentils:cooked"]},
+        {"text": "Rozdrv časť šošovice v hrnci, aby prívarok zhustol.", "requires": ["lentils:cooked", "onion:cooked", "hrniec:occupied"], "produces": ["lentils:thickened"]},
+        {"text": "Prilej {cream.amount} {cream.name}. Var šošovicu so smotanou v hrnci na miernom ohni 3 minúty, kým bude krémová a začne jemne bublať.", "requires": ["cream:raw", "lentils:thickened", "garlic:cooked", "onion:cooked", "oil:cooked", "hrniec:occupied"], "produces": ["cream:cooked", "lentils:finished", "garlic:finished", "onion:finished", "oil:finished"]},
+        {"text": "Odstav hrniec a vmiešaj {vinegar.amount} {vinegar.name}. Dochuť prívarok soľou a čiernym korením.", "requires": ["vinegar:raw", "lentils:finished", "cream:cooked", "garlic:finished", "onion:finished", "oil:finished", "hrniec:occupied"], "produces": ["vinegar:combined"]},
+        {"text": "Uvar {egg.amount} {egg.name} natvrdo v malom hrnci na strednom ohni. Od začiatku varu počítaj 9 minút, kým bielok aj žĺtok stuhnú. Potom {egg.reference_name} schlaď v studenej vode a ošúp.", "requires": ["egg:raw", "maly_hrniec:free"], "produces": ["egg:cooked", "maly_hrniec:free"]},
+        {"text": "Podávaj šošovicový prívarok s vajcom a rozdeľ ho na {portions} porcií.", "requires": ["lentils:finished", "cream:cooked", "garlic:finished", "onion:finished", "oil:finished", "vinegar:combined", "egg:cooked", "hrniec:occupied"], "produces": ["lentils:served", "cream:served", "garlic:served", "onion:served", "oil:served", "vinegar:served", "egg:served", "hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Prívarok rozdeľ do plytkých nádob a do jednej hodiny ho odlož do chladničky. Vajcia uchovaj oddelene a všetko spotrebuj do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_lentil_stew_egg",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/sosovicovy-privarok/57295-recept.html", "title": "Šošovicový prívarok", "accessed_on": "2026-09-05"},
+      {"url": "https://nanicmama.sme.sk/varime-pecieme-zavarame/privarky-a-omacky", "title": "15 receptov na obľúbené tradičné prívarky", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

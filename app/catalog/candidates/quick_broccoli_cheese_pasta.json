@@ -1,0 +1,42 @@
+{
+  "recipes": [
+    {
+      "id": "quick_broccoli_cheese_pasta",
+      "version": 2,
+      "active": true,
+      "name_template": "Rýchle cestoviny s brokolicou a syrom",
+      "family": "quick_broccoli_cheese_pasta",
+      "method": "one_pot",
+      "minutes": 25,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["hrniec", "sitko", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "90", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "25"},
+        {"key": "broccoli", "role": "vegetable", "candidates": ["broccoli"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na malé ružičky"},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "najemno nastrúhaný"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "12", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {broccoli.amount} {broccoli.name} na malé ružičky a {garlic.amount} {garlic.name} najemno. Nastrúhaj {cheese.amount} {cheese.name} najemno.", "requires": ["broccoli:raw", "garlic:raw", "cheese:raw"], "produces": ["broccoli:cut", "garlic:cut", "cheese:grated"]},
+        {"text": "Uvar {pasta.amount} {pasta.name} v hrnci vo vriacej osolenej vode na strednom ohni 6 minút, kým čiastočne zmäknú.", "requires": ["pasta:raw", "hrniec:free"], "produces": ["pasta:partly_cooked", "hrniec:occupied"]},
+        {"text": "Pridaj brokolicu do hrnca. Var cestoviny s brokolicou v hrnci na strednom ohni ďalšie 4 minúty, kým budú cestoviny mäkké, ale stále pevné na zahryznutie a brokolica zmäkne.", "requires": ["pasta:partly_cooked", "broccoli:cut", "hrniec:occupied"], "produces": ["pasta:cooked", "broccoli:cooked"]},
+        {"text": "Odober z hrnca {pasta.water} vody, potom cestoviny s brokolicou sceď cez sitko.", "requires": ["pasta:cooked", "broccoli:cooked", "hrniec:occupied", "sitko:free"], "produces": ["pasta:drained", "broccoli:drained", "hrniec:free", "sitko:free"]},
+        {"text": "Rozohrej {butter.amount} {butter.name} v prázdnom hrnci na miernom ohni 1 minútu, kým sa roztopí a začne peniť. Vmiešaj cesnak do hrnca. Opekaj cesnak na miernom ohni 1 minútu, kým bude jemne zlatistý.", "requires": ["butter:raw", "garlic:cut", "hrniec:free"], "produces": ["butter:used", "garlic:cooked", "hrniec:occupied"]},
+        {"text": "Vráť cestoviny s brokolicou do hrnca a prisyp tvrdý syr. Prehrievaj cestoviny v hrnci na miernom ohni 2 minúty, kým sa syr rozpustí a omáčka začne jemne bublať; ak je príliš hustá, použi časť odloženej vody.", "requires": ["pasta:drained", "broccoli:drained", "cheese:grated", "butter:used", "garlic:cooked", "hrniec:occupied"], "produces": ["pasta:combined", "broccoli:combined", "cheese:melted", "butter:cooked", "garlic:combined"]},
+        {"text": "Dochuť cestoviny soľou a čiernym korením. Podávaj ich teplé a rozdeľ na {portions} porcií.", "requires": ["pasta:combined", "broccoli:combined", "cheese:melted", "butter:cooked", "garlic:combined", "hrniec:occupied"], "produces": ["pasta:served", "broccoli:served", "cheese:served", "butter:served", "garlic:served", "hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Cestoviny rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a pri ohrievaní pridaj lyžicu vody."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_broccoli_cheese_pasta",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://realfood.tesco.com/recipes/broccoli-pasta.html", "title": "Broccoli pasta | Tesco Real Food", "accessed_on": "2026-09-05"},
+      {"url": "https://www.bbcgoodfood.com/recipes/broccoli-pasta-shells", "title": "Easy broccoli pasta recipe | Good Food", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

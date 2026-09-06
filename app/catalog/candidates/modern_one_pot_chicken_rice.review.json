@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "381ee62c93478209719428afe6732ee9bf2405bf29eaae4729190ee68428e311",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "modern_one_pot_chicken_rice"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

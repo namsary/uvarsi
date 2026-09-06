@@ -968,10 +968,14 @@ def leftover_storage_note(steps, covered_days):
             "Zvyšnú porciu s ryžou do 1 hodiny schlaď, ulož do chladničky "
             "a pri podávaní ju dôkladne zohrej iba raz."
         )
-    return (
-        "Zvyšné porcie čo najskôr schlaď, ulož do chladničky a pri podávaní "
-        "ich dôkladne prehrej."
+    note = (
+        "Zvyšné porcie rozdeľ do plytkých nádob, do 2 hodín ich odlož do "
+        f"chladničky a zjedz do {covered_days} dní. Pri podávaní ich dôkladne "
+        "prehrej."
     )
+    if re.search(r"\bvajc\w*\b", folded):
+        note += " Uvarené vajcia uskladni oddelene."
+    return note
 
 
 def _name_fits_recipe(name, steps):
@@ -2013,7 +2017,10 @@ def apply_pantry_to_shopping_list(plan, pantry):
                 item, mas_doma=full, ciastocne_doma=partial, spajza=owner,
                 zo_spajze=pantry_text, zostava=remaining_text,
                 zostane_po_spajzi=leftover_after_text,
-                mnozstvo_po_spajzi=buy_quantity, cena_po_spajzi=_format(price_after),
+                mnozstvo_po_spajzi=buy_quantity,
+                cena_po_spajzi=(
+                    None if item.get("cena_neznama") else _format(price_after)
+                ),
             )
             if weighted_to_buy is not None:
                 oznaceny["kupit_po_spajzi"] = weighted_to_buy

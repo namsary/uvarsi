@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "18df4d10e5ef42bc9183f4e05c852cf24e5a33a8cacbeb0946ad0ba13814be56",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "modern_chili_con_carne"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

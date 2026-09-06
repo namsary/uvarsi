@@ -1,0 +1,48 @@
+{
+  "recipes": [
+    {
+      "id": "modern_pork_noodle_stir_fry",
+      "version": 2,
+      "active": true,
+      "name_template": "Bravčová rezancová panvička",
+      "family": "modern_pork_noodle_stir_fry",
+      "method": "pan",
+      "minutes": 35,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["wok", "hrniec", "miska", "sitko", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "pork", "role": "protein", "candidates": ["pork_loin"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na tenké pásiky"},
+        {"key": "noodles", "role": "starch", "candidates": ["egg_noodles"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na tenké pásiky"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na tenké pásiky"},
+        {"key": "broccoli", "role": "vegetable", "candidates": ["broccoli"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé ružičky"},
+        {"key": "soy", "role": "seasoning", "candidates": ["soy_sauce"], "amount_per_adult": "18", "unit": "ml", "child_factor": "0.45", "required": true, "use": "addition", "cut": null},
+        {"key": "vinegar", "role": "seasoning", "candidates": ["apple_cider_vinegar"], "amount_per_adult": "6", "unit": "ml", "child_factor": "0.45", "required": true, "use": "addition", "cut": null},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {pork.amount} {pork.name}, {pepper.amount} {pepper.name} a {carrot.amount} {carrot.name} na tenké pásiky. {broccoli.amount} {broccoli.name} rozdeľ na malé ružičky a {garlic.amount} {garlic.name} nakrájaj najemno.", "requires": ["pork:raw", "pepper:raw", "carrot:raw", "broccoli:raw", "garlic:raw"], "produces": ["pork:cut", "pepper:cut", "carrot:cut", "broccoli:cut", "garlic:cut"]},
+        {"text": "Premiešaj v miske {soy.amount} {soy.name}, {vinegar.amount} {vinegar.name}, {sugar.amount} {sugar.name}, cesnak a trochu čierneho korenia.", "requires": ["soy:raw", "vinegar:raw", "sugar:raw", "garlic:cut", "miska:free"], "produces": ["soy:sauce", "vinegar:sauce", "sugar:sauce", "garlic:sauce", "miska:occupied"]},
+        {"text": "Uvar {noodles.amount} {noodles.name} v hrnci s vodou na strednom ohni 4 minúty, kým zmäknú, ale zostanú pevné. Potom ich sceď cez sitko.", "requires": ["noodles:raw", "hrniec:free", "sitko:free"], "produces": ["noodles:cooked", "hrniec:free", "sitko:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo woku na silnom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "wok:free"], "produces": ["oil:heated", "wok:hot"]},
+        {"text": "Opekaj bravčové karé vo woku na silnom ohni 6 minút, kým bude zlatisté a v strede prepečené. Pri väčšej dávke mäso opekaj po častiach.", "requires": ["pork:cut", "oil:heated", "wok:hot"], "produces": ["pork:cooked", "oil:used"]},
+        {"text": "Pridaj papriku do woku. Vmiešaj mrkvu a brokolicu. Opekaj papriku s mrkvou, brokolicou a bravčovým karé vo woku na silnom ohni 6 minút, kým zostane zelenina farebná a bude mäkká na zahryznutie.", "requires": ["pepper:cut", "carrot:cut", "broccoli:cut", "pork:cooked", "wok:hot"], "produces": ["pepper:cooked", "carrot:cooked", "broccoli:cooked"]},
+        {"text": "Vmiešaj vaječné rezance do woku. Prilej sójovú omáčku. Zohrievaj vaječné rezance s bravčovým karé a zeleninou vo woku na strednom ohni 3 minúty, kým omáčka jemne bublá a všetko sa ňou rovnomerne obalí.", "requires": ["soy:sauce", "vinegar:sauce", "sugar:sauce", "garlic:sauce", "noodles:cooked", "pork:cooked", "pepper:cooked", "carrot:cooked", "broccoli:cooked", "miska:occupied", "wok:hot"], "produces": ["soy:cooked", "vinegar:cooked", "sugar:cooked", "garlic:cooked", "noodles:combined", "pork:combined", "pepper:combined", "carrot:combined", "broccoli:combined", "miska:free", "wok:free"]},
+        {"text": "Podávaj rezancovú panvičku a rozdeľ ju na {portions} porcií.", "requires": ["soy:cooked", "vinegar:cooked", "sugar:cooked", "garlic:cooked", "noodles:combined", "pork:combined", "pepper:combined", "carrot:combined", "broccoli:combined", "oil:used"], "produces": ["soy:served", "vinegar:served", "sugar:served", "garlic:served", "noodles:served", "pork:served", "pepper:served", "carrot:served", "broccoli:served", "oil:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Jedlo rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "modern_pork_noodle_stir_fry",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.tesco.com/recipes/en-GB/recipe/simple-noodle-stir-fry", "title": "Simple noodle stir fry recipe | Tesco Recipes", "accessed_on": "2026-09-05"},
+      {"url": "https://www.bbcgoodfood.com/recipes/pork-noodle-stir-fry", "title": "Pork noodle stir-fry recipe | Good Food", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

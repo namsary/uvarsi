@@ -1,0 +1,45 @@
+{
+  "recipes": [
+    {
+      "id": "quick_egg_fried_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Opekaná ryža s vajíčkom",
+      "family": "quick_egg_fried_rice",
+      "method": "pan",
+      "minutes": 30,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["hrniec", "sitko", "panvica", "misa", "metlička", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "150"},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "2", "unit": "piece", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "peas", "role": "vegetable", "candidates": ["peas"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": null},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "soy", "role": "seasoning", "candidates": ["soy_sauce"], "amount_per_adult": "12", "unit": "ml", "child_factor": "0.45", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name}. Nakrájaj {carrot.amount} {carrot.name} na malé kocky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno. Priprav si {peas.amount} {peas.name}.", "requires": ["rice:raw", "carrot:raw", "onion:raw", "garlic:raw", "peas:raw"], "produces": ["rice:rinsed", "carrot:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Nalej {rice.water} vody do hrnca, priveď ju do varu a vsyp ryžu. Var ryžu prikrytú na miernom ohni 12 minút, kým zmäkne a vsiakne vodu. Rozprestri ju na široký tanier a nechaj 5 minút odpariť.", "requires": ["rice:rinsed", "hrniec:free"], "produces": ["rice:cooled", "hrniec:free"]},
+        {"text": "Rozšľahaj {egg.amount} {egg.name} s {soy.amount} {soy.name} a čiernym korením v mise.", "requires": ["egg:raw", "soy:raw", "misa:free"], "produces": ["egg:beaten", "soy:mixed", "misa:occupied"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu a mrkvu 5 minút, kým budú mäkké a zlatisté.", "requires": ["oil:raw", "onion:cut", "carrot:cut", "panvica:free"], "produces": ["oil:hot", "onion:cooked", "carrot:cooked", "panvica:occupied"]},
+        {"text": "Pridaj hrášok a cesnak do panvice. Opekaj hrášok a cesnak na strednom ohni 2 minúty, kým hrášok zmäkne. Potom prisyp ryžu. Opekaj ryžu za častého miešania 3 minúty, kým bude horúca a zrnká sa oddelia.", "requires": ["peas:raw", "garlic:cut", "rice:cooled", "oil:hot", "onion:cooked", "carrot:cooked", "panvica:occupied"], "produces": ["peas:cooked", "garlic:cooked", "rice:fried"]},
+        {"text": "Pridaj vajcia a sójovú omáčku do panvice. Miešaj ich s ryžou 2 minúty, kým sa vajcia úplne zrazia a obalia zrnká ryže.", "requires": ["egg:beaten", "soy:mixed", "peas:cooked", "garlic:cooked", "rice:fried", "panvica:occupied", "misa:occupied"], "produces": ["egg:cooked", "soy:cooked", "oil:cooked", "misa:free"]},
+        {"text": "Podávaj opekanú ryžu hneď a rozdeľ ju na {portions} porcií.", "requires": ["rice:fried", "egg:cooked", "peas:cooked", "carrot:cooked", "onion:cooked", "garlic:cooked", "soy:cooked", "oil:cooked", "panvica:occupied"], "produces": ["rice:served", "egg:served", "peas:served", "carrot:served", "onion:served", "garlic:served", "soy:served", "oil:served", "panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Opekanú ryžu rozdeľ do plytkých nádob a do jednej hodiny ju schlaď. V chladničke ju zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým bude celá horúca."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_egg_fried_rice",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.tesco.com/recipes/en-GB/recipe/egg-fried-rice", "title": "Egg-fried rice | Tesco Recipes", "accessed_on": "2026-09-05"},
+      {"url": "https://www.bbcgoodfood.com/recipes/egg-fried-rice", "title": "Easy egg-fried rice | Good Food", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

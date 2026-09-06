@@ -1,0 +1,228 @@
+{
+  "recipes": [
+    {
+      "id": "classic_bryndza_dumplings",
+      "version": 2,
+      "active": true,
+      "name_template": "Bryndzové halušky",
+      "family": "slovak_bryndza_dumplings",
+      "method": "pot",
+      "minutes": 40,
+      "modes": [
+        "standard"
+      ],
+      "equipment": [
+        "veľký hrniec",
+        "misa",
+        "jemné strúhadlo",
+        "haluškár",
+        "cedidlo",
+        "panvica",
+        "škrabka",
+        "varecha"
+      ],
+      "slots": [
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": 240,
+          "unit": "g",
+          "child_factor": 0.65,
+          "required": true,
+          "use": "main",
+          "cut": "najemno nastrúhané"
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": 80,
+          "unit": "g",
+          "child_factor": 0.6,
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "bryndza",
+          "role": "dairy",
+          "candidates": [
+            "bryndza"
+          ],
+          "amount_per_adult": 80,
+          "unit": "g",
+          "child_factor": 0.55,
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": 8,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "salt",
+          "role": "seasoning",
+          "candidates": [
+            "salt"
+          ],
+          "amount_per_adult": 2,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water"
+      ],
+      "instructions": [
+        {
+          "text": "Ošúp {potato.amount} {potato.name}, najemno ich nastrúhaj do misy a nechaj 5 minút postáť.",
+          "requires": [
+            "potato:raw",
+            "misa:free",
+            "jemne_struhadlo:free",
+            "skrabka:free"
+          ],
+          "produces": [
+            "potato:grated",
+            "misa:used",
+            "jemne_struhadlo:used",
+            "skrabka:used"
+          ]
+        },
+        {
+          "text": "Prisyp {flour.amount} {flour.name} a {salt.amount} {salt.name}. Varechou vypracuj husté, stále mäkké cesto.",
+          "requires": [
+            "potato:grated",
+            "flour:raw",
+            "salt:raw",
+            "misa:used",
+            "varecha:free"
+          ],
+          "produces": [
+            "potato:dough",
+            "flour:dough",
+            "salt:dough",
+            "varecha:used"
+          ]
+        },
+        {
+          "text": "Priveď vo veľkom hrnci vodu do varu na silnom ohni. Cesto pretlač cez haluškár a var 3 minúty, kým halušky vyplávajú a vo vnútri sú mäkké.",
+          "requires": [
+            "potato:dough",
+            "flour:dough",
+            "salt:dough",
+            "velky_hrniec:free",
+            "haluskar:free"
+          ],
+          "produces": [
+            "potato:cooked",
+            "flour:cooked",
+            "salt:cooked",
+            "velky_hrniec:used",
+            "haluskar:used",
+            "misa:free"
+          ]
+        },
+        {
+          "text": "Sceď halušky zo zemiakov, odlož trochu horúcej vody z varenia a nechaj ich dobre odkvapkať.",
+          "requires": [
+            "potato:cooked",
+            "flour:cooked",
+            "salt:cooked",
+            "velky_hrniec:used",
+            "cedidlo:free"
+          ],
+          "produces": [
+            "potato:drained",
+            "flour:drained",
+            "salt:drained",
+            "velky_hrniec:free",
+            "cedidlo:used"
+          ]
+        },
+        {
+          "text": "Premiešaj {bryndza.amount} {bryndza.name} v mise s trochou odloženej vody na hladký krém.",
+          "requires": [
+            "bryndza:raw",
+            "misa:free",
+            "varecha:used"
+          ],
+          "produces": [
+            "bryndza:creamy",
+            "misa:used"
+          ]
+        },
+        {
+          "text": "Rozohrej {butter.amount} {butter.name} v panvici na miernom ohni 2 minúty, kým sa maslo roztopí a začne jemne bublať.",
+          "requires": [
+            "butter:raw",
+            "panvica:free"
+          ],
+          "produces": [
+            "butter:melted",
+            "panvica:used"
+          ]
+        },
+        {
+          "text": "Vráť halušky do hrnca a premiešaj ich s bryndzovým krémom a maslom. Podávaj ich horúce.",
+          "requires": [
+            "potato:drained",
+            "flour:drained",
+            "salt:drained",
+            "bryndza:creamy",
+            "butter:melted",
+            "velky_hrniec:free"
+          ],
+          "produces": [
+            "potato:served",
+            "flour:served",
+            "salt:served",
+            "bryndza:served",
+            "butter:served",
+            "velky_hrniec:used",
+            "panvica:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 1,
+        "instruction": "Bryndzové halušky rozdeľ do plytkých nádob a odlož do chladničky najneskôr do 2 hodín. Zjedz ich nasledujúci deň; pri ohrievaní pridaj lyžicu vody."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_bryndza_dumplings",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://varecha.pravda.sk/recepty/bryndzove-halusky/84724-recept.html",
+        "title": "Bryndzové halušky",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://kuchynalidla.sk/recepty/bryndzove-halusky-s-cibulkou-a-slaninou",
+        "title": "Bryndzové halušky s cibuľkou a slaninou",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "recipes": [
+    {
+      "id": "plant_lentil_bolognese",
+      "version": 2,
+      "active": true,
+      "name_template": "Šošovicová boloňská omáčka so špagetami",
+      "family": "plant_lentil_bolognese",
+      "method": "pan",
+      "minutes": 40,
+      "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["hlboká panvica s pokrievkou", "hrniec", "sitko", "nôž", "doska na krájanie", "varecha"],
+      "slots": [
+        {"key": "lentils", "role": "protein", "candidates": ["red_lentils"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "180"},
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "nahrubo"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "6", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {lentils.amount} {lentils.name} v sitku. Nakrájaj {onion.amount} {onion.name} nadrobno, {carrot.amount} {carrot.name} a {garlic.amount} {garlic.name} najemno. Priprav {tomato.amount} {tomato.name}.", "requires": ["lentils:raw", "onion:raw", "carrot:raw", "garlic:raw", "tomato:raw", "sitko:free"], "produces": ["lentils:rinsed", "onion:cut", "carrot:cut", "garlic:cut", "tomato:prepared", "sitko:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v hlbokej panvici. Cibuľu a mrkvu opekaj na strednom ohni 5 minút, kým zmäknú.", "requires": ["oil:raw", "onion:cut", "carrot:cut", "hlboka_panvica_s_pokrievkou:free"], "produces": ["oil:hot", "onion:softened", "carrot:softened", "hlboka_panvica_s_pokrievkou:occupied"]},
+        {"text": "Pridaj cesnak do panvice. Miešaj 30 sekúnd, kým zavonia. Vmiešaj paradajky, šošovicu a {lentils.water} vody.", "requires": ["garlic:cut", "tomato:prepared", "lentils:rinsed", "oil:hot", "onion:softened", "carrot:softened", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["garlic:cooked", "tomato:in_pan", "lentils:covered"]},
+        {"text": "Priveď paradajky s červenou šošovicou v panvici do varu, prikry ich a var na miernom ohni 18 až 20 minút, kým šošovica zmäkne a omáčka zhustne.", "requires": ["garlic:cooked", "tomato:in_pan", "lentils:covered", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["lentils:cooked", "tomato:cooked", "onion:cooked", "carrot:cooked", "garlic:finished", "oil:cooked"]},
+        {"text": "Uvar {pasta.amount} {pasta.name} v hrnci s vriacou osolenou vodou na strednom ohni 8 až 10 minút alebo podľa času na obale, kým budú mäkké, ale stále pevné na zahryznutie. Potom ich sceď.", "requires": ["pasta:raw", "hrniec:free", "sitko:free"], "produces": ["pasta:cooked", "hrniec:free", "sitko:free"]},
+        {"text": "Dochuť šošovicovú omáčku soľou a čiernym korením. Podávaj ju so špagetami a jedlo rozdeľ na {portions} porcií.", "requires": ["lentils:cooked", "tomato:cooked", "onion:cooked", "carrot:cooked", "garlic:finished", "oil:cooked", "pasta:cooked", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["lentils:served", "tomato:served", "onion:served", "carrot:served", "garlic:served", "oil:served", "pasta:served", "hlboka_panvica_s_pokrievkou:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Omáčku a cestoviny odlož do oddelených uzatvárateľných nádob najneskôr do 2 hodín. V chladničke ich uchovaj najviac 3 dni; omáčku môžeš aj zamraziť."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "plant_lentil_bolognese",
+    "editorial_lane": "plant_based",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/vegan-bolognese", "title": "Vegan bolognese", "accessed_on": "2026-09-05"},
+      {"url": "https://www.vegan.sk/veganske-bolonske-spagety/", "title": "Vegánske bolonské špagety – recept", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "cb8ae83286bc038251ad770ad3bdb6aea1e4bd4a121498773974a7e8e7b97175",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "quick_tuna_cheese_tortilla"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "8d060cc32dbd6510484e9e4d796761917ba75b0877fc2679d9b7d11db3566d65",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "modern_chicken_caesar_salad"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

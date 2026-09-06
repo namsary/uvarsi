@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "595d2196041175c20cd1ea687300f05bd578ba0dcd7189105f4f65221a9ee127",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_stuffed_peppers"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

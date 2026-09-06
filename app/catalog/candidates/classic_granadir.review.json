@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "2a9c2e19d5de73c223471b025a03c3fc3e72a9e5caaeb31a50902f8ce64eb229",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "classic_granadir"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

@@ -1,0 +1,141 @@
+{
+  "recipes": [
+    {
+      "id": "classic_chicken_noodle_soup",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuracia polievka s vaječnými rezancami",
+      "family": "classic_chicken_noodle_soup",
+      "method": "soup",
+      "minutes": 80,
+      "modes": ["standard"],
+      "equipment": ["veľký hrniec", "malý hrniec", "nôž", "doska na krájanie"],
+      "slots": [
+        {
+          "key": "chicken",
+          "role": "protein",
+          "candidates": ["chicken_thigh"],
+          "amount_per_adult": "245",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null,
+          "water_ml_per_adult": "500"
+        },
+        {
+          "key": "noodles",
+          "role": "starch",
+          "candidates": ["egg_noodles"],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "carrot",
+          "role": "vegetable",
+          "candidates": ["carrot"],
+          "amount_per_adult": "100",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "addition",
+          "cut": "na kolieska"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": ["onion"],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {
+          "text": "Osuš {chicken.amount} {chicken.name} a nechaj stehná celé.",
+          "requires": ["chicken:raw"],
+          "produces": ["chicken:prepared"]
+        },
+        {
+          "text": "Ošúp {carrot.amount} {carrot.name} a {onion.amount} {onion.name}. Nakrájaj mrkvu na kolieska a cibuľu nechaj vcelku.",
+          "requires": ["carrot:raw", "onion:raw"],
+          "produces": ["carrot:cut", "onion:prepared"]
+        },
+        {
+          "text": "Vlož kuracie stehná do hrnca. Pridaj mrkvu a cibuľu do hrnca.",
+          "requires": ["chicken:prepared", "carrot:cut", "onion:prepared", "velky_hrniec:free"],
+          "produces": ["velky_hrniec:occupied"]
+        },
+        {
+          "text": "Nalej {chicken.water} vody do hrnca. Priveď kuracie stehná so zeleninou vo veľkom hrnci na strednom ohni do varu asi za 12 minút, kým voda začne jemne bublať.",
+          "requires": ["chicken:prepared", "carrot:cut", "onion:prepared", "velky_hrniec:occupied"],
+          "produces": ["chicken:heating"]
+        },
+        {
+          "text": "Stíš oheň. Var kuracie stehná s mrkvou a cibuľou vo veľkom hrnci na miernom ohni 55 minút, kým mäso zmäkne a vývar zostane číry.",
+          "requires": ["chicken:heating", "carrot:cut", "onion:prepared", "velky_hrniec:occupied"],
+          "produces": ["chicken:tender", "carrot:cooked", "onion:cooked"]
+        },
+        {
+          "text": "Vyber kuracie stehná z hrnca a nechaj ich krátko vychladnúť.",
+          "requires": ["chicken:tender", "velky_hrniec:occupied"],
+          "produces": ["chicken:removed"]
+        },
+        {
+          "text": "Priprav mäso do polievky: ober ho z kostí a kožu s kosťami odlož.",
+          "requires": ["chicken:removed"],
+          "produces": ["chicken:deboned"]
+        },
+        {
+          "text": "Uvar {noodles.amount} {noodles.name} v malom hrnci na miernom ohni 6 minút, kým rezance zmäknú, potom ich sceď.",
+          "requires": ["noodles:raw", "maly_hrniec:free"],
+          "produces": ["noodles:cooked", "maly_hrniec:free"]
+        },
+        {
+          "text": "Vráť mäso z kuracích stehien do veľkého hrnca. Zohrievaj mäso z kuracích stehien s vývarom vo veľkom hrnci na miernom ohni 3 minúty, kým polievka začne bublať.",
+          "requires": ["chicken:deboned", "carrot:cooked", "onion:cooked", "velky_hrniec:occupied"],
+          "produces": ["chicken:cooked", "velky_hrniec:free"]
+        },
+        {
+          "text": "Dochuť polievku soľou a čiernym korením.",
+          "requires": ["chicken:cooked", "carrot:cooked", "onion:cooked"],
+          "produces": []
+        },
+        {
+          "text": "Podávaj kuraciu polievku s vaječnými rezancami a rozdeľ ju na {portions} porcií.",
+          "requires": ["chicken:cooked", "noodles:cooked", "carrot:cooked", "onion:cooked"],
+          "produces": ["chicken:served", "noodles:served", "carrot:served", "onion:served"]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Polievku a rezance rozdeľ oddelene do plytkých nádob a odlož do chladničky najneskôr do 2 hodín. Zjedz ich do 2 dní."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_chicken_noodle_soup",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://varecha.pravda.sk/recepty/kuracia-polievka-s-domacimi-rezancami/74527-recept.html",
+        "title": "Kuracia polievka s domácimi rezancami",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://dobruchut.aktuality.sk/recept/20351/kuracia-polievka-s-rezancami/",
+        "title": "Kuracia polievka s rezancami",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

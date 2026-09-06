@@ -104,6 +104,74 @@ def test_required_slot_needs_an_offer_or_quantified_pantry(ingredients):
     )
 
 
+def test_curated_recipe_allows_ordinary_required_ingredient_beside_deal_anchor(
+    ingredients,
+):
+    rice = ingredients.by_id("rice")
+    oil = ingredients.by_id("oil")
+    recipe = template(
+        "curated-rice-bowl",
+        [
+            slot([rice.id], key="main", role="starch", use="main"),
+            slot(
+                [oil.id],
+                key="fat",
+                role="fat",
+                amount_per_adult=Decimal("10"),
+                unit="ml",
+                use="addition",
+            ),
+        ],
+        version=2,
+    )
+
+    candidate = rank_candidates(
+        [recipe],
+        [offer(rice)],
+        (),
+        "standard",
+        "week-1",
+        ingredient_catalog=ingredients,
+    )[0]
+
+    selections = {item.slot.key: item for item in candidate.selections}
+    assert selections["main"].source == "offer"
+    assert selections["fat"].source == "regular"
+    assert selections["fat"].pantry is None
+
+
+def test_curated_recipe_without_a_main_deal_or_pantry_anchor_is_rejected(ingredients):
+    rice = ingredients.by_id("rice")
+    oil = ingredients.by_id("oil")
+    recipe = template(
+        "curated-rice-bowl",
+        [
+            slot([rice.id], key="main", role="starch", use="main"),
+            slot(
+                [oil.id],
+                key="fat",
+                role="fat",
+                amount_per_adult=Decimal("10"),
+                unit="ml",
+                use="addition",
+            ),
+        ],
+        version=2,
+    )
+
+    assert (
+        rank_candidates(
+            [recipe],
+            [offer(oil)],
+            (),
+            "standard",
+            "week-1",
+            ingredient_catalog=ingredients,
+        )
+        == ()
+    )
+
+
 def test_partial_pantry_without_offer_cannot_satisfy_required_slot(ingredients):
     rice = ingredients.by_id("rice")
     recipe = template(
@@ -487,6 +555,29 @@ def test_same_seed_and_input_produce_same_hash_order(ingredients):
 
     assert [candidate.key for candidate in first] == expected_keys
     assert [candidate.key for candidate in second] == expected_keys
+
+
+def test_curated_candidate_wins_an_equal_score_without_changing_eligibility(
+    ingredients,
+):
+    rice = ingredients.by_id("rice")
+    legacy = template("legacy", [slot([rice.id], role="starch")])
+    curated = template("curated", [slot([rice.id], role="starch")])
+
+    candidates = rank_candidates(
+        [legacy, curated],
+        [offer(rice)],
+        (),
+        "standard",
+        "week-1",
+        curated_ids={"curated"},
+    )
+
+    assert [candidate.template.id for candidate in candidates] == [
+        "curated",
+        "legacy",
+    ]
+    assert candidates[0].score == candidates[1].score
 
 
 def test_high_protein_mode_discards_selection_below_thirty_grams(ingredients):

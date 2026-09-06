@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "80f15d8bc50ef33c52eb968aa300e8da17f1463e47f9c1cc46f37e4a458d5116",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "quick_tomato_mozzarella_pasta"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

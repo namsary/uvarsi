@@ -1,0 +1,44 @@
+{
+  "recipes": [
+    {
+      "id": "quick_vegetable_frittata",
+      "version": 2,
+      "active": true,
+      "name_template": "Zeleninová frittata",
+      "family": "quick_vegetable_frittata",
+      "method": "oven",
+      "minutes": 30,
+      "modes": ["standard", "high_protein", "vegetarian"],
+      "equipment": ["panvica vhodná do rúry", "rúra", "misa", "metlička", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "3", "unit": "piece", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "zucchini", "role": "vegetable", "candidates": ["zucchini"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "spinach", "role": "vegetable", "candidates": ["spinach"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": null},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "cheese", "role": "protein", "candidates": ["hard_cheese"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nahrubo nastrúhaný"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 200 °C. Nakrájaj {zucchini.amount} {zucchini.name} a {pepper.amount} {pepper.name} na malé kocky, {onion.amount} {onion.name} nadrobno, priprav {spinach.amount} {spinach.name} a nastrúhaj {cheese.amount} {cheese.name}.", "requires": ["rura:free", "zucchini:raw", "pepper:raw", "onion:raw", "spinach:raw", "cheese:raw"], "produces": ["rura:hot", "zucchini:cut", "pepper:cut", "onion:cut", "cheese:grated"]},
+        {"text": "Rozšľahaj {egg.amount} {egg.name} so soľou a čiernym korením v mise.", "requires": ["egg:raw", "misa:free"], "produces": ["egg:beaten", "misa:occupied"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici vhodnej do rúry. Opekaj cibuľu, papriku a cuketu na strednom ohni 6 minút, kým zelenina zmäkne a cuketa sa začne farbiť.", "requires": ["oil:raw", "onion:cut", "pepper:cut", "zucchini:cut", "panvica_vhodna_do_rury:free"], "produces": ["oil:hot", "onion:cooked", "pepper:cooked", "zucchini:cooked", "panvica_vhodna_do_rury:occupied"]},
+        {"text": "Pridaj špenát do panvice. Miešaj 1 minútu, kým zvädne. Rozlož cuketu, papriku, cibuľu a špenát rovnomerne po panvici.", "requires": ["spinach:raw", "onion:cooked", "pepper:cooked", "zucchini:cooked", "panvica_vhodna_do_rury:occupied"], "produces": ["spinach:cooked"]},
+        {"text": "Vlej vajcia do panvice a prisyp {cheese.name}. Zohrievaj vajcia so zeleninou na miernom ohni 3 minúty, kým okraje stuhnú.", "requires": ["egg:beaten", "cheese:grated", "spinach:cooked", "panvica_vhodna_do_rury:occupied", "misa:occupied"], "produces": ["egg:partly_cooked", "cheese:added", "misa:free"]},
+        {"text": "Peč vajcia so zeleninou v panvici v rúre pri 200 °C 8 až 10 minút, kým bude stred pevný a povrch jemne zlatistý.", "requires": ["egg:partly_cooked", "cheese:added", "rura:hot", "panvica_vhodna_do_rury:occupied"], "produces": ["egg:cooked", "cheese:melted", "oil:cooked"]},
+        {"text": "Nechaj frittatu 5 minút odpočívať, nakrájaj ju a podávaj rozdelenú na {portions} porcií.", "requires": ["egg:cooked", "cheese:melted", "zucchini:cooked", "spinach:cooked", "pepper:cooked", "onion:cooked", "oil:cooked", "panvica_vhodna_do_rury:occupied"], "produces": ["egg:served", "zucchini:served", "spinach:served", "pepper:served", "onion:served", "cheese:served", "oil:served", "panvica_vhodna_do_rury:free", "rura:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Frittatu nakrájaj, rozlož do plytkej uzatvárateľnej nádoby a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 3 dní studenú alebo ju zohrej, kým bude horúca."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_vegetable_frittata",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/collection/fritatta-recipes", "title": "Frittata recipes | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://realfood.tesco.com/recipes/air-fryer-classic-frittata.html", "title": "Air-fryer classic frittata | Tesco Real Food", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

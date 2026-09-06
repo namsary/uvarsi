@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "66a0a5519c19d6d35f97ba09e34754207806d8403746fe9c0afd5bf9d5d1d825",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "modern_fish_tacos_yogurt"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

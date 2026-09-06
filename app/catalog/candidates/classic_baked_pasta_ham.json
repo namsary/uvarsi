@@ -1,0 +1,45 @@
+{
+  "recipes": [
+    {
+      "id": "classic_baked_pasta_ham",
+      "version": 2,
+      "active": true,
+      "name_template": "Zapekané cestoviny so šunkou",
+      "family": "classic_baked_pasta_ham",
+      "method": "oven",
+      "minutes": 50,
+      "modes": ["standard"],
+      "equipment": ["hrniec", "sitko", "misa", "pekáč", "rúra", "nôž", "doska na krájanie", "strúhadlo", "metlička"],
+      "slots": [
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "85", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "ham", "role": "protein", "candidates": ["ham"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na malé kúsky"},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.65", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "50", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 190 °C.", "requires": ["rura:free"], "produces": ["rura:hot"]},
+        {"text": "Uvar {pasta.amount} {pasta.name} v hrnci vo vriacej osolenej vode na strednom ohni 8 minút, kým mierne zmäknú, ale zostanú pevné na zahryznutie.", "requires": ["pasta:raw", "hrniec:free"], "produces": ["pasta:cooked", "hrniec:occupied"]},
+        {"text": "Sceď cestoviny cez sitko a nechaj ich odkvapkať.", "requires": ["pasta:cooked", "hrniec:occupied", "sitko:free"], "produces": ["pasta:drained", "hrniec:free", "sitko:free"]},
+        {"text": "Nakrájaj {ham.amount} {ham.name} {ham.cut} a nastrúhaj {cheese.amount} {cheese.name}.", "requires": ["ham:raw", "cheese:raw"], "produces": ["ham:cut", "cheese:grated"]},
+        {"text": "Rozšľahaj {egg.amount} {egg.name} v mise. Prilej {cream.amount} {cream.name}, pridaj soľ a čierne korenie a zmes premiešaj.", "requires": ["egg:raw", "cream:raw", "misa:free"], "produces": ["egg:mixed", "cream:mixed", "misa:occupied"]},
+        {"text": "Nalej {oil.amount} {oil.name} do pekáča. Rozlož doň cestoviny so šunkou. Pri väčšej dávke rozdeľ všetko rovnomerne do dvoch pekáčov, aby vrstva nebola vyššia než 5 cm.", "requires": ["pasta:drained", "ham:cut", "oil:raw", "pekac:free"], "produces": ["pasta:arranged", "ham:arranged", "oil:arranged", "pekac:occupied"]},
+        {"text": "Premiešaj cestoviny v pekáči s vaječnou zmesou. Rozlož {cheese.name} po povrchu.", "requires": ["pasta:arranged", "ham:arranged", "egg:mixed", "cream:mixed", "cheese:grated", "misa:occupied", "pekac:occupied"], "produces": ["egg:arranged", "cream:arranged", "cheese:arranged", "misa:free"]},
+        {"text": "Peč cestoviny v pekáči pri 190 °C 25 minút, kým náplň stuhne a syr bude zlatistý.", "requires": ["pasta:arranged", "ham:arranged", "oil:arranged", "egg:arranged", "cream:arranged", "cheese:arranged", "pekac:occupied", "rura:hot"], "produces": ["pasta:cooked", "ham:cooked", "oil:cooked", "egg:cooked", "cream:cooked", "cheese:cooked"]},
+        {"text": "Nechaj zapekané cestoviny 5 minút odpočívať a rozdeľ ich na {portions} porcií.", "requires": ["pasta:cooked", "ham:cooked", "oil:cooked", "egg:cooked", "cream:cooked", "cheese:cooked", "pekac:occupied"], "produces": ["pasta:served", "ham:served", "oil:served", "egg:served", "cream:served", "cheese:served", "pekac:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Zapekané cestoviny rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_baked_pasta_ham",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/69344/zapekane-cestoviny-so-sunkou-a-syrom/", "title": "Zapekané cestoviny so šunkou a syrom", "accessed_on": "2026-09-05"},
+      {"url": "https://varecha.pravda.sk/recepty/zapekane-cestoviny/26700-recept.html", "title": "Zapekané cestoviny", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

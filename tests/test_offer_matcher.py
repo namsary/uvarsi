@@ -107,6 +107,76 @@ def test_alias_must_be_a_complete_normalized_token_sequence(catalog):
     assert match_offers([offer(nazov="Superryža Golden Sun 1 kg")], catalog) == ()
 
 
+@pytest.mark.parametrize(
+    ("product_name", "expected_id"),
+    (
+        ("Šošovica červená 500 g", "red_lentils"),
+        ("Kapusta kvasená 500 g", "sauerkraut"),
+    ),
+)
+def test_reversed_specific_offer_labels_do_not_fall_back_to_generic_ingredients(
+    catalog, product_name, expected_id
+):
+    matched = match_offers([offer(nazov=product_name, jednotka="500 g")], catalog)
+
+    assert len(matched) == 1
+    assert matched[0].ingredient.id == expected_id
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit"),
+    (
+        ("Kapusta červená 500 g", "500 g"),
+        ("Údená klobása so syrom 500 g", "500 g"),
+        ("Údená klobása so syrovou náplňou 500 g", "500 g"),
+        ("Údená klobása s čedarom 500 g", "500 g"),
+        ("Syrová údená klobása 500 g", "500 g"),
+        ("Údená klobása s chilli 500 g", "500 g"),
+        ("Polohrubá múka 1 kg", "1 kg"),
+        ("Hrubá pšeničná múka 1 kg", "1 kg"),
+        ("Bravčové karé s kosťou 1 kg", "1 kg"),
+        ("Vínny ocot 1 l", "1 l"),
+        ("Liehový ocot 1 l", "1 l"),
+        ("Morčacia šunka 100 g", "100 g"),
+        ("Kuracia šunka 100 g", "100 g"),
+        ("Hovädzie na guláš 500 g", "500 g"),
+        ("Hovädzie mäso na guláš 500 g", "500 g"),
+        ("Hovädzie kocky zo stehna 500 g", "500 g"),
+        ("Karfiolové ružičky 500 g", "500 g"),
+        ("Karfiol ružičky 500 g", "500 g"),
+        ("Ružičky karfiolu 500 g", "500 g"),
+        ("Chilli údená klobása 500 g", "500 g"),
+        ("Údená klobása chilli 500 g", "500 g"),
+        ("Jablká Gala 6 ks", "6 piece"),
+    ),
+)
+def test_unsafe_offer_state_cut_composition_and_piece_assumptions_fail_closed(
+    catalog, product_name, unit
+):
+    assert match_offers([offer(nazov=product_name, jednotka=unit)], catalog) == ()
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit", "expected_id"),
+    (
+        ("Hladká pšeničná múka 1 kg", "1 kg", "wheat_flour"),
+        ("Bravčové karé bez kosti 1 kg", "1 kg", "pork_loin"),
+        ("Jablčný ocot 1 l", "1 l", "apple_cider_vinegar"),
+        ("Bravčová šunka 100 g", "100 g", "ham"),
+        ("Hovädzie predné bez kosti 500 g", "500 g", "beef_chuck"),
+        ("Údená klobása 500 g", "500 g", "smoked_sausage"),
+        ("Jablká Gala 1 kg", "1 kg", "apple"),
+    ),
+)
+def test_specific_safe_offer_labels_remain_matchable(
+    catalog, product_name, unit, expected_id
+):
+    matched = match_offers([offer(nazov=product_name, jednotka=unit)], catalog)
+
+    assert len(matched) == 1
+    assert matched[0].ingredient.id == expected_id
+
+
 @pytest.mark.parametrize("package", ["1 lb", "0 g"])
 def test_rejects_packages_quantity_math_cannot_convert(catalog, package):
     assert match_offers([offer(jednotka=package)], catalog) == ()

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "cc9f0a37fb0273e26768a2767c57ae8e82949eda32821eda257874a0aec06510",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "protein_cottage_potato_spinach"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

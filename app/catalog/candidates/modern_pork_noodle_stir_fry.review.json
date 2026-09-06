@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "03ee4f5925aa6aadfd6b65a26d2b44e465cb3cc746e5ba971623592e5a883206",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "modern_pork_noodle_stir_fry"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

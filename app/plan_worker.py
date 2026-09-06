@@ -69,8 +69,7 @@ class EngineReplaced(RuntimeError):
 
 
 def _require_legacy_recipe_engine(server):
-    if server.recipe_engine_mode() == "on":
-        raise EngineReplaced("deterministic recipe engine is active")
+    raise EngineReplaced("model-written recipe plans are permanently retired")
 
 
 class _LeaseAwareClient:

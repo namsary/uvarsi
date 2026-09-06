@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "86c674c519645b07eb0c9874a9aaf77d7c6c83eb8fa537b815dc38d344f981a3",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "modern_mushroom_risotto"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

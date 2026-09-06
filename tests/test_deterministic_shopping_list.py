@@ -7,7 +7,9 @@ from app.nutrition import estimate_recipe_nutrition
 from app.offer_matcher import MatchedOffer
 from app.quantity_math import PackageSize, PantryEntry, Quantity
 from app.recipe_catalog import IngredientSlot
+from app.recipe_catalog import load_recipe_catalog
 from app.recipe_matcher import SlotSelection
+from app.regular_purchase import regular_purchase_rule
 from app import recipe_renderer
 from app.recipe_renderer import RenderedIngredient, RenderedMeal
 
@@ -124,6 +126,125 @@ def _meal(amount, offer, *, unit="g", role="starch"):
             adult_servings=Decimal("1"),
         ),
     )
+
+
+def _regular_meal(ingredient_id, amount, *, unit="g", role="starch"):
+    ingredient = load_ingredient_catalog().by_id(ingredient_id)
+    quantity = Quantity(Decimal(amount), unit)
+    slot = IngredientSlot(
+        key=role,
+        role=role,
+        candidates=(ingredient.id,),
+        amount_per_adult=quantity.amount,
+        unit=quantity.unit,
+        child_factor=Decimal("0.5"),
+        required=True,
+        use="addition",
+        cut=None,
+    )
+    selection = SlotSelection(
+        slot=slot,
+        ingredient=ingredient,
+        offer=None,
+        pantry=None,
+    )
+    rendered = RenderedIngredient(
+        selection=selection,
+        quantity=quantity,
+        display_amount=f"{amount} {unit}",
+        label="ordinary purchase",
+    )
+    return RenderedMeal(
+        template_id=f"regular-{ingredient.id}",
+        candidate_key=f"regular-{ingredient.id}-{amount}",
+        name=f"Jedlo: {ingredient.name}",
+        portions=1,
+        covered_days=1,
+        ingredients=(rendered,),
+        pantry_basics=(),
+        instructions=(),
+        nutrition=estimate_recipe_nutrition(
+            [(ingredient, quantity.amount)], adult_servings=Decimal("1")
+        ),
+    )
+
+
+def test_regular_rice_is_a_whole_package_with_unknown_price_not_fake_pantry():
+    result = recipe_renderer.build_shopping_list(
+        [_regular_meal("rice", "300")], []
+    )
+
+    assert result[0]["obchod"] == "Dokúpiť bežne"
+    rice = result[0]["polozky"][0]
+    assert rice["offer_key"] == "regular:rice"
+    assert rice["bez_akcie"] is True
+    assert rice["cena_neznama"] is True
+    assert rice["jednotka"] == "1 kg"
+    assert rice["mnozstvo"] == 1
+    assert rice["potrebne"] == "300"
+    assert rice["zostava"] == "700 g"
+    assert rice["cena"] is None
+    assert rice["povodna"] is None
+
+
+def test_regular_purchase_subtracts_pantry_but_never_invents_a_price():
+    result = recipe_renderer.build_shopping_list(
+        [_regular_meal("rice", "300")],
+        [PantryEntry("rice", "ryža", Quantity(Decimal("200"), "g"))],
+    )
+
+    rice = result[0]["polozky"][0]
+    assert rice["mnozstvo"] == 1
+    assert rice["zostava"] == "900 g"
+    assert rice["cena"] is None
+
+
+def test_pantry_used_by_one_meal_is_not_subtracted_twice_from_another_purchase():
+    offered = _meal("300", _rice_offer())
+    pantry_item = offered.ingredients[0]
+    pantry_meal = replace(
+        offered,
+        candidate_key="pantry-rice-300",
+        ingredients=(
+            replace(
+                pantry_item,
+                selection=replace(
+                    pantry_item.selection,
+                    offer=None,
+                    pantry=Quantity(Decimal("300"), "g"),
+                ),
+            ),
+        ),
+    )
+
+    result = recipe_renderer.build_shopping_list(
+        [pantry_meal, offered],
+        [PantryEntry("rice", "ryža", Quantity(Decimal("300"), "g"))],
+    )
+
+    rice = result[0]["polozky"][0]
+    assert rice["mnozstvo"] == 1
+    assert rice["cena"] == "1,49"
+
+
+def test_every_active_required_ingredient_has_a_compatible_regular_buying_unit():
+    ingredients = load_ingredient_catalog()
+    recipes = load_recipe_catalog(ingredients)
+
+    for recipe in recipes.all():
+        for slot in recipe.slots:
+            if not slot.required:
+                continue
+            for ingredient_id in slot.candidates:
+                ingredient = ingredients.by_id(ingredient_id)
+                rule = regular_purchase_rule(ingredient, slot.unit)
+                assert rule.package.amount > 0
+                assert (
+                    recipe_renderer._quantity_in_unit(
+                        rule.package, slot.unit, ingredient
+                    )
+                    is not None
+                ), (recipe.id, slot.key, ingredient_id)
 
 
 def test_shopping_list_uses_frontend_contract_and_whole_package_price():

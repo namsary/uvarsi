@@ -1,0 +1,174 @@
+{
+  "recipes": [
+    {
+      "id": "classic_chicken_sote_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuracie soté so zeleninou a ryžou",
+      "family": "classic_chicken_sote_rice",
+      "method": "pan",
+      "minutes": 35,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["panvica", "hrniec", "nôž", "doska na krájanie"],
+      "slots": [
+        {
+          "key": "chicken",
+          "role": "protein",
+          "candidates": ["chicken_breast"],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na rezance"
+        },
+        {
+          "key": "rice",
+          "role": "starch",
+          "candidates": ["rice"],
+          "amount_per_adult": "75",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "pepper",
+          "role": "vegetable",
+          "candidates": ["bell_pepper"],
+          "amount_per_adult": "100",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "addition",
+          "cut": "na pásiky"
+        },
+        {
+          "key": "peas",
+          "role": "vegetable",
+          "candidates": ["peas"],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": ["onion"],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": ["garlic"],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": ["oil"],
+          "amount_per_adult": "10",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": ["paprika_powder"],
+          "amount_per_adult": "2",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {
+          "text": "Prepláchni {rice.amount} {rice.name} studenou vodou.",
+          "requires": ["rice:raw"],
+          "produces": ["rice:rinsed"]
+        },
+        {
+          "text": "Nalej {rice.water} vody do hrnca, prikry pokrievkou a priveď na strednom ohni do varu. Potom stíš oheň a var ryžu prikrytú na miernom ohni asi 15 minút, kým vsiakne vodu a zmäkne.",
+          "requires": ["rice:rinsed", "hrniec:free"],
+          "produces": ["rice:cooked", "hrniec:free"]
+        },
+        {
+          "text": "Nakrájaj {chicken.amount} {chicken.name} na rezance, {pepper.amount} {pepper.name} na pásiky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno. Priprav si {peas.amount} {peas.name}.",
+          "requires": ["chicken:raw", "pepper:raw", "onion:raw", "garlic:raw"],
+          "produces": ["chicken:cut", "pepper:cut", "onion:cut", "garlic:cut"]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni a opekaj na ňom cibuľu 5 minút, kým bude mäkká a dosklovita.",
+          "requires": ["onion:cut", "oil:raw", "panvica:free"],
+          "produces": ["onion:cooked", "oil:used", "panvica:occupied"]
+        },
+        {
+          "text": "Pridaj {chicken.name} do panvice. Pri väčšej dávke opekaj mäso po častiach, aby sa namiesto dusenia opieklo. Každú časť opekaj na strednom ohni asi 7 minút, kým budú kuracie prsia na povrchu zlatisté.",
+          "requires": ["chicken:cut", "onion:cooked", "oil:used", "panvica:occupied"],
+          "produces": ["chicken:browned", "oil:cooked"]
+        },
+        {
+          "text": "Odstav panvicu z ohňa. Prisyp {paprika.amount} {paprika.name}. Hneď premiešaj.",
+          "requires": ["paprika:raw", "chicken:browned", "panvica:occupied"],
+          "produces": ["paprika:combined"]
+        },
+        {
+          "text": "Vráť panvicu na sporák. Pridaj {pepper.name} do panvice. Prisyp {peas.name} a {garlic.name}. Opekaj {pepper.name}, {peas.name}, {garlic.name} a {chicken.name} na strednom ohni 6 minút, kým zelenina zmäkne a mäso nebude v strede ružové.",
+          "requires": ["pepper:cut", "peas:raw", "garlic:cut", "chicken:browned", "oil:cooked", "paprika:combined", "panvica:occupied"],
+          "produces": ["pepper:cooked", "peas:cooked", "garlic:cooked", "chicken:cooked", "panvica:free"]
+        },
+        {
+          "text": "Dochuť soté soľou a čiernym korením.",
+          "requires": ["chicken:cooked", "pepper:cooked", "peas:cooked"],
+          "produces": []
+        },
+        {
+          "text": "Podávaj kuracie soté s ryžou a rozdeľ jedlo na {portions} porcií.",
+          "requires": ["chicken:cooked", "rice:cooked", "pepper:cooked", "peas:cooked", "onion:cooked", "garlic:cooked", "oil:cooked", "paprika:combined"],
+          "produces": ["chicken:served", "rice:served", "pepper:served", "peas:served", "onion:served", "garlic:served", "oil:served", "paprika:served"]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 1,
+        "instruction": "Ryžu aj soté rozdeľ do plytkých nádob a do jednej hodiny ich schlaď. V chladničke ich zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým budú celé horúce."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_chicken_sote_rice",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://kuchynalidla.sk/recepty/kuracie-sote-so-zeleninou-a-ryzou",
+        "title": "Kuracie soté so zeleninou a ryžou",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://varecha.pravda.sk/recepty/lahodne-kuracie-sote-s-ryzou/94648-recept.html",
+        "title": "Lahodné kuracie soté s ryžou",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

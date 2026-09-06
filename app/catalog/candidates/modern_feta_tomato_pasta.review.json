@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "65c4a5b9c2a103285acb3fb9d33e9629cdeacf4f5755d5cf9e5f6974ce9aaa23",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "modern_feta_tomato_pasta"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

@@ -1,0 +1,43 @@
+{
+  "recipes": [
+    {
+      "id": "quick_egg_potato_spinach_pan",
+      "version": 2,
+      "active": true,
+      "name_template": "Zemiaková panvička s vajíčkom a špenátom",
+      "family": "quick_egg_potato_spinach_pan",
+      "method": "pan",
+      "minutes": 30,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["hrniec", "sitko", "panvica s pokrievkou", "nôž", "doska na krájanie", "varecha"],
+      "slots": [
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na dvojcentimetrové kocky"},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "2", "unit": "piece", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "spinach", "role": "vegetable", "candidates": ["spinach"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {potato.amount} {potato.name} na dvojcentimetrové kocky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno. Priprav {spinach.amount} {spinach.name}.", "requires": ["potato:raw", "onion:raw", "garlic:raw", "spinach:raw"], "produces": ["potato:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Vlož zemiaky do hrnca. Nalej vodu do hrnca; zemiaky majú byť ponorené asi 2 cm pod hladinou. Vodu osoľ a priveď so zemiakmi na silnom ohni do varu. Var zemiaky v hrnci na miernom ohni 8 minút, kým budú takmer mäkké, potom ich sceď.", "requires": ["potato:cut", "hrniec:free", "sitko:free"], "produces": ["potato:parboiled", "hrniec:free", "sitko:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici. Opekaj cibuľu na strednom ohni 4 minúty, kým zmäkne.", "requires": ["oil:raw", "onion:cut", "panvica_s_pokrievkou:free"], "produces": ["oil:hot", "onion:cooked", "panvica_s_pokrievkou:occupied"]},
+        {"text": "Pridaj zemiaky do panvice. Opekaj zemiaky v panvici na strednom ohni 6 minút bez pokrievky a občas ich obráť, kým budú na hranách zlatisté.", "requires": ["potato:parboiled", "oil:hot", "onion:cooked", "panvica_s_pokrievkou:occupied"], "produces": ["potato:browned", "oil:cooked"]},
+        {"text": "Vmiešaj cesnak a špenát do panvice. Miešaj cesnak a špenát v panvici na strednom ohni 2 minúty, kým špenát zmäkne.", "requires": ["garlic:cut", "spinach:raw", "potato:browned", "panvica_s_pokrievkou:occupied"], "produces": ["garlic:cooked", "spinach:cooked"]},
+        {"text": "Priprav v zemiakoch jamky a rozklep do nich {egg.amount} {egg.name}. Var vajcia v prikrytej panvici na miernom ohni 4 až 6 minút, kým bielky úplne stuhnú. Osoľ a okoreň.", "requires": ["egg:raw", "potato:browned", "spinach:cooked", "garlic:cooked", "panvica_s_pokrievkou:occupied"], "produces": ["egg:cooked"]},
+        {"text": "Podávaj zemiakovú panvičku horúcu a rozdeľ ju na {portions} porcií.", "requires": ["potato:browned", "egg:cooked", "spinach:cooked", "onion:cooked", "garlic:cooked", "oil:cooked", "panvica_s_pokrievkou:occupied"], "produces": ["potato:served", "egg:served", "spinach:served", "onion:served", "garlic:served", "oil:served", "panvica_s_pokrievkou:free"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Zvyšok rozdeľ do plytkej nádoby a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 24 hodín a prikrytý ho zohrej, kým budú zemiaky aj vajíčka horúce."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_egg_potato_spinach_pan",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.marthastewart.com/859191/potato-hash-spinach-and-eggs", "title": "Potato Hash with Spinach and Eggs | Martha Stewart", "accessed_on": "2026-09-05"},
+      {"url": "https://realfood.tesco.com/recipes/artichoke-potato-and-spinach-tortilla.html", "title": "Artichoke, potato and spinach tortilla | Tesco Real Food", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

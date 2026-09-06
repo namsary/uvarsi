@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "79c96f0cc0029c9a88427a8f6157ea409965cbc354587c21452ab982fa6e4c56",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "classic_roast_pork_root_veg"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

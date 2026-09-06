@@ -10,8 +10,10 @@ Závislosti: fastapi uvicorn itsdangerous
 """
 import asyncio
 import copy
+import functools
 import logging
 import os, re, json, sqlite3, datetime, threading, time, hashlib, math, tempfile
+from concurrent.futures import Future
 from contextlib import asynccontextmanager, closing
 from decimal import Decimal
 from pathlib import Path
@@ -86,6 +88,7 @@ from app.offer_matcher import match_offers
 from app.quantity_math import PantryEntry, Quantity
 from app.recipe_catalog import RecipeCatalog, load_recipe_catalog
 from app.recipe_matcher import rank_candidates
+from app.recipe_provenance import load_recipe_provenance
 from app.recipe_renderer import render_meal
 from platby import (
     AKCIA_IGNOROVANE,
@@ -180,6 +183,13 @@ from auth_data import (
     verify_password_and_rehash,
 )
 
+
+@functools.lru_cache(maxsize=1)
+def _deterministic_catalogs():
+    """Load immutable release catalogs once per web process."""
+    ingredients = load_ingredient_catalog()
+    return ingredients, load_recipe_catalog(ingredients)
+
 DB = os.environ.get("UVARSI_DB", "/opt/uvarsi/uvarsi.db")
 STATIC = os.environ.get("UVARSI_STATIC", "/opt/uvarsi/app/static")
 LANDING_DATA = os.environ.get("UVARSI_LANDING_DATA", "/var/lib/uvarsi/landing_data.json")
@@ -203,6 +213,8 @@ RECIPE_SMOKE_MAX_AGE_SECONDS = 2 * 60 * 60
 # requesty. Rýchlosť jedného plánu samostatne stráži shadow p95 pod 500 ms.
 RECIPE_SMOKE_MAX_LATENCY_MS = 5_000.0
 RECIPE_ENGINE_STORES = ("Kaufland", "Tesco", "Lidl")
+CURATED_RECIPE_COUNT = 104
+RECIPE_PLAN_P95_LIMIT_MS = 500.0
 COOKIE = "uvarsi_session"
 SETUP_COOKIE = "uvarsi_setup"
 SESSION_MAX_AGE = SESSION_TTL_SECONDS
@@ -575,6 +587,38 @@ def db():
 PLAN_VLAKNA_STROP = 160
 PLAN_SUBEZNE_MAX = 12
 PLAN_MIESTA = threading.BoundedSemaphore(PLAN_SUBEZNE_MAX)
+_PLAN_FLIGHTS_GUARD = threading.Lock()
+_PLAN_FLIGHTS = {}
+
+
+def _join_plan_flight(key):
+    """Return one shared future and whether this request must do the work."""
+    with _PLAN_FLIGHTS_GUARD:
+        future = _PLAN_FLIGHTS.get(key)
+        if future is not None:
+            return future, False
+        future = Future()
+        _PLAN_FLIGHTS[key] = future
+        return future, True
+
+
+async def _run_plan_flight(key, operation):
+    """Share a result or failure without parking duplicate AnyIO threads."""
+    future, leader = _join_plan_flight(key)
+    if not leader:
+        return await asyncio.wrap_future(future)
+    try:
+        result = await anyio.to_thread.run_sync(operation)
+    except BaseException as error:
+        future.set_exception(error)
+        raise
+    else:
+        future.set_result(result)
+        return result
+    finally:
+        with _PLAN_FLIGHTS_GUARD:
+            if _PLAN_FLIGHTS.get(key) is future:
+                _PLAN_FLIGHTS.pop(key, None)
 SPRAVA_PLAN_ZANEPRAZDNENY = (
     "Momentálne skladáme veľa jedálničkov naraz. Skús to prosím o minútu — "
     "dnešný prepočet ti zostáva."
@@ -2742,12 +2786,16 @@ def so_spajzou(plan, spajza):
         else apply_pantry_to_shopping_list(plan, spajza)
     )
     upraveny.pop("_uvarsi_meta", None)
-    # Plán si zatiaľ drží kompatibilný zoznam názvov; nový štruktúrovaný
-    # kontrakt je v /api/me. Výpočet vyššie už používa aj množstvo a jednotku.
-    upraveny["spajza"] = [
-        item.get("nazov") if isinstance(item, dict) else str(item)
-        for item in spajza
-    ]
+    # UI porovnáva dnešnú špajzu so stavom pri zostavení plánu. Nákupný
+    # zoznam už používa dnešné množstvá, no jedlá sa bez výslovného kliknutia
+    # samy nepreskladajú. Staré plány bez snapshotu zostávajú kompatibilné.
+    snapshot = (
+        internal_meta.get("pantry_snapshot")
+        if isinstance(internal_meta, dict) else None
+    )
+    upraveny["spajza"] = copy.deepcopy(
+        snapshot if isinstance(snapshot, list) else list(spajza)
+    )
     return upraveny
 
 
@@ -2830,15 +2878,11 @@ def _deterministic_insufficient_offers_response():
 
 
 def _deterministic_public_plan(plan, spajza, *, pantry_driven):
-    if not pantry_driven:
-        return so_spajzou(plan, spajza)
-    result = copy.deepcopy(plan)
-    result.pop(PLAN_META_KEY, None)
-    result["spajza"] = [
-        item.get("nazov") if isinstance(item, dict) else str(item)
-        for item in spajza
-    ]
-    return result
+    # The same serializer keeps the generation-time pantry snapshot stable on
+    # the first response and every cache read. For pantry-driven plans it
+    # detects that the shopping list was already adjusted and does not apply
+    # the pantry twice.
+    return so_spajzou(plan, spajza)
 
 
 def _previous_plan_template_ids(user_id, week):
@@ -2866,6 +2910,25 @@ def _serve_deterministic_plan(
     u, tyz, obchody, rows, spajza, podpis, variant, premium, diet_mode, *,
     zo_spajze=False, force=False,
 ):
+    """Fail fast under load and leave capacity for auth and ordinary reads."""
+    if not PLAN_MIESTA.acquire(blocking=False):
+        return odmietni(
+            503, SPRAVA_PLAN_ZANEPRAZDNENY, KOD_PLAN_ZANEPRAZDNENY,
+            retry_after=2,
+        )
+    try:
+        return _serve_deterministic_plan_with_slot(
+            u, tyz, obchody, rows, spajza, podpis, variant, premium, diet_mode,
+            zo_spajze=zo_spajze, force=force,
+        )
+    finally:
+        PLAN_MIESTA.release()
+
+
+def _serve_deterministic_plan_with_slot(
+    u, tyz, obchody, rows, spajza, podpis, variant, premium, diet_mode, *,
+    zo_spajze=False, force=False,
+):
     """Build and persist a ready plan without queue, model or paid-cost paths."""
     den = dnesok()
     strop = limit_prepoctov(premium)
@@ -2885,8 +2948,7 @@ def _serve_deterministic_plan(
         ) % PLAN_VARIANTS
 
     try:
-        catalog = load_ingredient_catalog()
-        recipe_catalog = load_recipe_catalog(catalog)
+        catalog, recipe_catalog = _deterministic_catalogs()
         if force:
             previous_templates = _previous_plan_template_ids(u["id"], tyz)
             if previous_templates:
@@ -2950,6 +3012,7 @@ def osobny_plan_na_ulozenie(plan, spajza=(), zo_spajze=False, *, podpis=None):
         "algo_version": PLAN_ALGO_VERSION,
         "portion_standard_version": PORTION_STANDARD_VERSION,
         "pantry_driven": bool(zo_spajze),
+        "pantry_snapshot": copy.deepcopy(list(spajza)),
     }
     if isinstance(podpis, str) and podpis:
         meta["plan_signature"] = podpis
@@ -3039,7 +3102,7 @@ def prevezmi_zdielany_plan(con, user_id, tyzden, zdielany, spajza, podpis):
     databázy niečo, čo pri ďalšej zmene špajze prestane platiť.
     """
     plan = osobny_plan_na_ulozenie(
-        plan_without_pantry(zdielany), podpis=podpis,
+        plan_without_pantry(zdielany), spajza, podpis=podpis,
     )
     con.execute(
         "INSERT OR REPLACE INTO plany (user_id,tyzden,json) VALUES (?,?,?)",
@@ -3271,19 +3334,19 @@ def _retry_allowed(con, u, status, premium, sp):
     return True
 
 
-@app.post("/api/plan/generuj")
-def generuj_plan(req: Request, force: int = 0):
+def _generuj_plan_sync(req: Request, force: int = 0):
     u = require_user(req)
     adults, children = zlozenie_domacnosti(u)
     tyz = monday()
+    force_baseline_json = None
     with closing(db()) as con:
         premium = je_premium(con, u["id"])
         obchody = efektivne_obchody(u, premium)
         rows = akcie_pre(obchody)
-        if len(rows) < MIN_OFFERS_FOR_PLAN:
-            if recipe_engine_mode() == "on":
-                return _deterministic_insufficient_offers_response()
+        if not rows:
             raise HTTPException(503, sprava_o_chybajucich_akciach())
+        if len(rows) < MIN_OFFERS_FOR_PLAN:
+            return _deterministic_insufficient_offers_response()
         _stored_diet, diet_mode, _available_diets = diet_context_for_week(
             con, u, premium, rows=rows, check_availability=False
         )
@@ -3297,7 +3360,13 @@ def generuj_plan(req: Request, force: int = 0):
             tyz, obchody, u["frekvencia"], rows, sp,
             adults=adults, children=children, stravovanie=diet_mode,
         )
-        if not force:
+        if force:
+            baseline = con.execute(
+                "SELECT json FROM plany WHERE user_id=? AND tyzden=?",
+                (u["id"], tyz),
+            ).fetchone()
+            force_baseline_json = None if baseline is None else baseline["json"]
+        else:
             r = con.execute("SELECT json FROM plany WHERE user_id=? AND tyzden=?",
                             (u["id"], tyz)).fetchone()
             if r:
@@ -3326,9 +3395,30 @@ def generuj_plan(req: Request, force: int = 0):
     # „Vygeneruj mi iný" (force) sa cache musí vyhnúť, inak by nič nezmenilo.
     variant = plan_variant_for(u["id"], PLAN_VARIANTS)
     with closing(db()) as con:
+        row = con.execute(
+            "SELECT json FROM plany WHERE user_id=? AND tyzden=?",
+            (u["id"], tyz),
+        ).fetchone()
+        if row is not None:
+            try:
+                cached = json.loads(row["json"])
+            except json.JSONDecodeError:
+                cached = None
+            if force:
+                if (
+                    row["json"] != force_baseline_json
+                    and osobna_cache_plati(cached, sp, podpis=podpis)
+                    and cached_plan_is_current(cached, rows)
+                ):
+                    return so_spajzou(cached, sp)
+            elif (
+                osobna_cache_plati(cached, sp, podpis=podpis)
+                and cached_plan_is_current(cached, rows)
+            ):
+                return so_spajzou(cached, sp)
+
         # Agregovaná evidencia dopytu: KOĽKO ráz taký profil niekto chcel.
-        # Bez user_id a bez e-mailu — je to podklad pre nočné zahrievanie
-        # (predpocet.py), nie záznam o človeku. Nikdy nesmie zhodiť požiadavku.
+        # Bez user_id a bez e-mailu — je to podklad pre nočné zahrievanie.
         predpocet.zaznamenaj_dopyt(
             con, tyz, obchody, dospeli=adults, deti=children,
             frekvencia=u["frekvencia"], variant=variant,
@@ -3344,18 +3434,24 @@ def generuj_plan(req: Request, force: int = 0):
                     con.commit()
                     return plan
                 con.execute(
-                    "DELETE FROM plany_zdielane WHERE podpis=? AND variant=?", (podpis, variant)
+                    "DELETE FROM plany_zdielane WHERE podpis=? AND variant=?",
+                    (podpis, variant),
                 )
         con.commit()
 
-    if recipe_engine_mode() == "on":
-        return _serve_deterministic_plan(
-            u, tyz, obchody, rows, sp, podpis, variant, premium, diet_mode,
-            force=bool(force),
-        )
-    return _enqueue_live_plan(
-        u, tyz, obchody, podpis, variant, premium, spajza=sp,
-        is_force=bool(force),
+    return _serve_deterministic_plan(
+        u, tyz, obchody, rows, sp, podpis, variant, premium, diet_mode,
+        force=bool(force),
+    )
+
+
+@app.post("/api/plan/generuj")
+async def generuj_plan(req: Request, force: int = 0):
+    user = await anyio.to_thread.run_sync(lambda: require_user(req))
+    kind = "force" if force else "regular"
+    key = (kind, user["id"], monday())
+    return await _run_plan_flight(
+        key, lambda: _generuj_plan_sync(req, force=force)
     )
 
 
@@ -3401,8 +3497,7 @@ SPRAVA_SPAJZA_PRAZDNA = (
 KOD_SPAJZA_PRAZDNA = "spajza_prazdna"
 
 
-@app.post("/api/plan/zo-spajze")
-def plan_zo_spajze(req: Request):
+def _plan_zo_spajze_sync(req: Request):
     """Výslovné „Navrhni jedlá z toho, čo mám doma".
 
     Toto je JEDINÁ cesta, ktorou sa špajza dostane do promptu a do podpisu.
@@ -3428,10 +3523,10 @@ def plan_zo_spajze(req: Request):
         return odmietni(400, SPRAVA_SPAJZA_PRAZDNA, KOD_SPAJZA_PRAZDNA)
 
     rows = akcie_pre(obchody)
-    if len(rows) < MIN_OFFERS_FOR_PLAN:
-        if recipe_engine_mode() == "on":
-            return _deterministic_insufficient_offers_response()
+    if not rows:
         raise HTTPException(503, sprava_o_chybajucich_akciach())
+    if len(rows) < MIN_OFFERS_FOR_PLAN:
+        return _deterministic_insufficient_offers_response()
 
     with closing(db()) as con:
         _stored_diet, diet_mode, _available_diets = diet_context_for_week(
@@ -3444,31 +3539,32 @@ def plan_zo_spajze(req: Request):
         stravovanie=diet_mode,
     )
     variant = plan_variant_for(u["id"], PLAN_VARIANTS)
-    if recipe_engine_mode() == "on":
-        with closing(db()) as con:
-            row = con.execute(
-                "SELECT json FROM plany WHERE user_id=? AND tyzden=?",
-                (u["id"], tyz),
-            ).fetchone()
-            if row is not None:
-                try:
-                    cached = json.loads(row["json"])
-                except json.JSONDecodeError:
-                    cached = None
-                if (
-                    osobna_cache_plati(cached, sp, podpis=podpis)
-                    and cached_plan_is_current(cached, rows)
-                ):
-                    return so_spajzou(cached, sp)
-        return _serve_deterministic_plan(
-            u, tyz, obchody, rows, sp, podpis, variant, premium, diet_mode,
-            zo_spajze=True,
-        )
-    return _enqueue_live_plan(
-        u, tyz, obchody, podpis, variant, premium,
-        spajza=sp, zo_spajze=True,
-        job_key=f"pantry:{u['id']}:{podpis}:{variant}",
+    with closing(db()) as con:
+        row = con.execute(
+            "SELECT json FROM plany WHERE user_id=? AND tyzden=?",
+            (u["id"], tyz),
+        ).fetchone()
+        if row is not None:
+            try:
+                cached = json.loads(row["json"])
+            except json.JSONDecodeError:
+                cached = None
+            if (
+                osobna_cache_plati(cached, sp, podpis=podpis)
+                and cached_plan_is_current(cached, rows)
+            ):
+                return so_spajzou(cached, sp)
+    return _serve_deterministic_plan(
+        u, tyz, obchody, rows, sp, podpis, variant, premium, diet_mode,
+        zo_spajze=True,
     )
+
+
+@app.post("/api/plan/zo-spajze")
+async def plan_zo_spajze(req: Request):
+    user = await anyio.to_thread.run_sync(lambda: require_user(req))
+    key = ("pantry", user["id"], monday())
+    return await _run_plan_flight(key, lambda: _plan_zo_spajze_sync(req))
 
 
 class StalePlanJob(ValueError):
@@ -3483,13 +3579,13 @@ class WorkerLeaseLostAfterDispatch(RuntimeError):
     pass
 
 
-def _new_plan_model_client():
-    import anthropic
+class RecipePlanEngineRetired(RuntimeError):
+    """Model-written recipes are forbidden; AI is reserved for flyer reading."""
 
-    return anthropic.Anthropic(
-        api_key=env("ANTHROPIC_API_KEY"),
-        timeout=PLAN_TIMEOUT_SECONDS,
-        max_retries=PLAN_MAX_RETRIES,
+
+def _new_plan_model_client():
+    raise RecipePlanEngineRetired(
+        "recipe model client is retired; plans are built from the local catalog"
     )
 
 
@@ -3619,6 +3715,9 @@ def revalidate_job_context(job, expected_identity, *, con, now):
 
 def build_and_store_job(job, *, client=None) -> dict:
     """Build one plan; one semantic correction is allowed after a complete response."""
+    raise RecipePlanEngineRetired(
+        "legacy queued recipe generation is retired"
+    )
     stores, frequency, adults, children, rows, pantry, context_identity = _job_context(job, client)
     bind_context = getattr(client, "bind_job_context", None)
     if bind_context is not None:
@@ -3778,6 +3877,9 @@ def build_and_store_job(job, *, client=None) -> dict:
 
 def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant, zo_spajze=False):
     """Temporary synchronous compatibility wrapper until the API enqueues jobs."""
+    raise RecipePlanEngineRetired(
+        "legacy synchronous recipe generation is retired"
+    )
     from types import SimpleNamespace
 
     adults, children = zlozenie_domacnosti(u)
@@ -3845,9 +3947,10 @@ def daj_plan(req: Request):
         status = _current_job_status(
             con, u["id"], tyz, podpis, pantry_podpis, variant
         )
-        if recipe_engine_mode() == "on":
-            # A legacy queued job must not obscure a newer synchronous result.
-            status = None
+        # Model-written recipe jobs were retired permanently. An old queued
+        # row must never obscure a newer synchronous deterministic result,
+        # including while a release flag is in off or shadow mode.
+        status = None
         if status is not None and status.state in ("queued", "running"):
             return JSONResponse(status_code=202, content=pending_payload(status))
 
@@ -4069,8 +4172,7 @@ def recipe_engine_profile_available_modes(
     except (KeyError, IndexError, TypeError, ValueError):
         return ()
 
-    catalog = load_ingredient_catalog()
-    recipes = load_recipe_catalog(catalog)
+    catalog, recipes = _deterministic_catalogs()
     try:
         offer_keys = tuple(sorted(str(row["offer_key"]) for row in current_rows))
     except (KeyError, TypeError):
@@ -4235,6 +4337,51 @@ def _complete_recipe_offers(con, today):
         return (), False
 
 
+@functools.lru_cache(maxsize=8)
+def _recipe_catalog_health_snapshot_cached(
+    catalog_loader, library_auditor, provenance_loader,
+):
+    """Cache one immutable audit per concrete release dependency set."""
+    ingredients = load_ingredient_catalog()
+    recipes = catalog_loader(ingredients)
+    audit = library_auditor(ingredients, recipes)
+    active_ids = frozenset(recipe.id for recipe in recipes.all())
+    try:
+        provenance_loader(active_ids)
+        provenance_complete = True
+    except (OSError, TypeError, ValueError):
+        provenance_complete = False
+    return {
+        "library_version": recipes.version,
+        "curation_generation": recipes.curation_generation,
+        "active_recipes": audit.active_recipes,
+        "mode_counts": tuple(audit.mode_counts),
+        "audit_errors": tuple(audit.errors),
+        "provenance_complete": provenance_complete,
+    }
+
+
+def _recipe_catalog_health_snapshot():
+    """Audit live release assets once while remaining test- and reload-safe."""
+    return _recipe_catalog_health_snapshot_cached(
+        load_recipe_catalog, audit_library, load_recipe_provenance,
+    )
+
+
+_recipe_catalog_health_snapshot.cache_clear = (
+    _recipe_catalog_health_snapshot_cached.cache_clear
+)
+
+
+# Katalóg je nemenná súčasť vydania. Načítaj ho pri štarte procesu, nie počas
+# prvej požiadavky na /api/health. Chybu tu nezamaskujeme: neúspešný výsledok
+# sa neuloží do lru_cache a samotný health ju následne oznámi ako blocker.
+try:
+    _recipe_catalog_health_snapshot()
+except Exception:
+    LOG.warning("receptový katalóg sa pri štarte nepodarilo prednačítať")
+
+
 def recipe_engine_health(con, *, today=None):
     """Public, aggregate-only readiness with stable machine blocker codes."""
     today = today or bratislava_day()
@@ -4242,31 +4389,39 @@ def recipe_engine_health(con, *, today=None):
     library_version = None
     active_templates = 0
     coverage = {value: 0 for value in ALLOWED_DIET_MODES}
-    # Vypnutý engine nie je kandidát na aktiváciu. Health endpoint musí zostať
-    # lacný aj počas prihlasovacej špičky; úplný katalógový gate robí release
-    # preflight a režimy shadow/on nižšie.
-    if mode == "off":
-        return {
-            "mode": mode,
-            "library_version": library_version,
-            "active_templates": active_templates,
-            "coverage": coverage,
-            "available_modes": ["standard"],
-            "last_shadow": None,
-            "p95_ms": None,
-            "ready": True,
-            "blockers": [],
-        }
-
+    release_gate = {
+        "active_recipes": 0,
+        "curation_generation": None,
+        "provenance_complete": False,
+        "library_errors": 0,
+        "workflow_errors": 0,
+    }
+    # Recepty sú deterministické vo všetkých troch režimoch. Aj `off` preto
+    # musí overiť presne tú knižnicu a ponuky, z ktorých živé endpointy varia;
+    # vypnutie rollout príznaku nesmie zamaskovať poškodený katalóg. Snapshot
+    # sa načíta iba raz za proces, takže kontrola nezaťažuje bežné požiadavky.
     blockers = []
     try:
-        ingredients = load_ingredient_catalog()
-        recipes = load_recipe_catalog(ingredients)
-        audit = audit_library(ingredients, recipes)
-        library_version = recipes.version
-        active_templates = audit.active_recipes
-        coverage.update(dict(audit.mode_counts))
-        if audit.errors:
+        snapshot = _recipe_catalog_health_snapshot()
+        library_version = snapshot["library_version"]
+        active_templates = snapshot["active_recipes"]
+        coverage.update(dict(snapshot["mode_counts"]))
+        release_gate.update(
+            active_recipes=active_templates,
+            curation_generation=snapshot["curation_generation"],
+            library_errors=len(snapshot["audit_errors"]),
+            workflow_errors=sum(
+                error.startswith("workflow_") for error in snapshot["audit_errors"]
+            ),
+            provenance_complete=snapshot["provenance_complete"],
+        )
+        if active_templates != CURATED_RECIPE_COUNT:
+            blockers.append("active_recipe_count_mismatch")
+        if snapshot["curation_generation"] != 1:
+            blockers.append("curation_generation_mismatch")
+        if not snapshot["provenance_complete"]:
+            blockers.append("provenance_incomplete")
+        if snapshot["audit_errors"]:
             blockers.append("library_gate_failed")
     except Exception:
         blockers.append("catalog_load_failed")
@@ -4279,9 +4434,19 @@ def recipe_engine_health(con, *, today=None):
     if mode in ("shadow", "on") and not last_shadow.get("eligible", False):
         blockers.append("shadow_not_ready")
 
+    p95_ms = (
+        float(last_shadow["p95_ms"])
+        if _number(last_shadow.get("p95_ms")) else None
+    )
+    if mode in ("shadow", "on") and (
+        p95_ms is None or p95_ms >= RECIPE_PLAN_P95_LIMIT_MS
+    ):
+        blockers.append("p95_too_slow")
+
+    payments_enabled = platby_su_zapnute()
+    if payments_enabled:
+        blockers.append("payments_enabled")
     if mode == "on":
-        if platby_su_zapnute():
-            blockers.append("payments_enabled")
         _smoke, smoke_blocker = _load_recipe_smoke_state()
         if smoke_blocker:
             blockers.append(smoke_blocker)
@@ -4294,10 +4459,9 @@ def recipe_engine_health(con, *, today=None):
         "coverage": {value: int(coverage[value]) for value in ALLOWED_DIET_MODES},
         "available_modes": list(recipe_engine_available_modes(con, today=today)),
         "last_shadow": last_shadow if last_shadow.get("complete") is not None else None,
-        "p95_ms": (
-            float(last_shadow["p95_ms"])
-            if _number(last_shadow.get("p95_ms")) else None
-        ),
+        "p95_ms": p95_ms,
+        "release_gate": release_gate,
+        "payments_enabled": payments_enabled,
         "ready": not blockers,
         "blockers": blockers,
     }
@@ -4436,10 +4600,14 @@ def _authenticated_isolated_recipe_smoke(rows, *, now):
             raise_server_exceptions=False,
         )
         client.cookies.set(COOKIE, raw_session)
+        route_started = time.perf_counter()
         responses = [
             client.post("/api/plan/generuj"),
             client.post("/api/plan/generuj"),
         ]
+        route_latency_ms = round(
+            max(0.0, (time.perf_counter() - route_started) * 1000), 3
+        )
         bodies = []
         for response in responses:
             try:
@@ -4475,6 +4643,7 @@ def _authenticated_isolated_recipe_smoke(rows, *, now):
             "costs_delta": after["costs"] - before["costs"],
             "response_statuses": response_statuses,
             "error_codes": error_codes,
+            "latency_ms": route_latency_ms,
         }
     finally:
         cleanup_error = None
@@ -4516,6 +4685,7 @@ def run_recipe_engine_synthetic_smoke(*, state_path=None, now=None):
     production_after = production_before
     isolated_jobs_delta = 0
     isolated_costs_delta = 0
+    route_latency_ms = None
     payments_enabled = platby_su_zapnute()
     try:
         with closing(_readonly_database()) as con:
@@ -4528,16 +4698,18 @@ def run_recipe_engine_synthetic_smoke(*, state_path=None, now=None):
         elif not complete:
             blockers.append("incomplete_offers")
         else:
-            ingredients = load_ingredient_catalog()
-            recipes = load_recipe_catalog(ingredients)
-            audit = audit_library(ingredients, recipes)
-            if audit.errors:
+            catalog_health = _recipe_catalog_health_snapshot()
+            if (
+                catalog_health["audit_errors"]
+                or not catalog_health["provenance_complete"]
+            ):
                 blockers.append("library_gate_failed")
             else:
                 result = _authenticated_isolated_recipe_smoke(rows, now=now)
                 plan_engine = result["plan_engine"]
                 isolated_jobs_delta = result["jobs_delta"]
                 isolated_costs_delta = result["costs_delta"]
+                route_latency_ms = result.get("latency_ms")
                 if not result["valid"]:
                     blockers.append("invalid_output")
                     blockers.extend(
@@ -4555,7 +4727,14 @@ def run_recipe_engine_synthetic_smoke(*, state_path=None, now=None):
         with closing(_readonly_database()) as con:
             production_after = _smoke_counts(con)
 
-    latency_ms = round(max(0.0, (time.perf_counter() - started) * 1000), 3)
+    # The rollout threshold protects the waiting time users experience at the
+    # authenticated plan endpoint. Static catalog auditing and isolated DB
+    # setup are preflight work, not request latency.
+    latency_ms = (
+        route_latency_ms
+        if route_latency_ms is not None
+        else round(max(0.0, (time.perf_counter() - started) * 1000), 3)
+    )
     jobs_delta = (
         production_after["jobs"] - production_before["jobs"]
         + isolated_jobs_delta

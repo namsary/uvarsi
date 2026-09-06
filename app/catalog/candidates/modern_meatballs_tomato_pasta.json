@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "modern_meatballs_tomato_pasta",
+      "version": 2,
+      "active": true,
+      "name_template": "Cestoviny s mäsovými guľkami v paradajkovej omáčke",
+      "family": "modern_meatballs_tomato_pasta",
+      "method": "pan",
+      "minutes": 55,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["panvica", "hrniec", "miska", "sitko", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "beef", "role": "protein", "candidates": ["beef_mince"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": null},
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "nahrubo"},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na malé kúsky", "water_ml_per_adult": "15"},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.4", "unit": "piece", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno nastrúhaný"},
+        {"key": "oregano", "role": "seasoning", "candidates": ["oregano"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {onion.amount} {onion.name} a {garlic.amount} {garlic.name} nadrobno, {bread.amount} {bread.name} natrhaj na malé kúsky a {cheese.amount} {cheese.name} nastrúhaj.", "requires": ["onion:raw", "garlic:raw", "bread:raw", "cheese:raw"], "produces": ["onion:cut", "garlic:cut", "bread:cut", "cheese:grated"]},
+        {"text": "Namoč v miske biely chlieb do {bread.water} vody a nechaj ho 2 minúty zmäknúť. Pridaj {beef.amount} {beef.name}, {egg.amount} {egg.name}, soľ a čierne korenie. Zmes krátko premiešaj rukami, len kým začne držať pokope.", "requires": ["beef:raw", "bread:cut", "egg:raw", "miska:free"], "produces": ["beef:mixed", "bread:mixed", "egg:mixed", "miska:occupied"]},
+        {"text": "Priprav zo zmesi guľky veľké približne ako vlašský orech.", "requires": ["beef:mixed", "bread:mixed", "egg:mixed", "miska:occupied"], "produces": ["beef:shaped", "bread:shaped", "egg:shaped", "miska:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "panvica:free"], "produces": ["oil:heated", "panvica:hot"]},
+        {"text": "Opekaj guľky z mletého hovädzieho mäsa v panvici na strednom ohni 8 minút, kým budú zo všetkých strán zlatisté. Pri väčšej dávke ich opekaj po častiach.", "requires": ["beef:shaped", "bread:shaped", "egg:shaped", "oil:heated", "panvica:hot"], "produces": ["beef:browned", "bread:browned", "egg:browned", "oil:used"]},
+        {"text": "Pridaj cibuľu a cesnak do panvice. Opekaj cibuľu a cesnak v panvici na strednom ohni 5 minút, kým cibuľa zmäkne.", "requires": ["onion:cut", "garlic:cut", "beef:browned", "panvica:hot"], "produces": ["onion:cooked", "garlic:cooked"]},
+        {"text": "Pridaj {tomato.amount} {tomato.name} a {oregano.amount} {oregano.name} do panvice. Var paradajky s guľkami z mletého hovädzieho mäsa v panvici na miernom ohni 15 minút, kým omáčka jemne bublá a guľky budú v strede prepečené.", "requires": ["tomato:raw", "oregano:raw", "beef:browned", "bread:browned", "egg:browned", "onion:cooked", "garlic:cooked", "panvica:hot"], "produces": ["tomato:cooked", "oregano:cooked", "beef:cooked", "bread:cooked", "egg:cooked", "onion:sauce", "garlic:sauce", "panvica:free"]},
+        {"text": "Uvar {pasta.amount} {pasta.name} v hrnci s osolenou vodou na strednom ohni asi 9 minút, kým budú mäkké, ale stále pevné. Potom ich sceď cez sitko.", "requires": ["pasta:raw", "hrniec:free", "sitko:free"], "produces": ["pasta:cooked", "hrniec:free", "sitko:free"]},
+        {"text": "Podávaj cestoviny s mäsovými guľkami a omáčkou, navrch nasyp tvrdý syr a rozdeľ jedlo na {portions} porcií.", "requires": ["pasta:cooked", "beef:cooked", "bread:cooked", "egg:cooked", "tomato:cooked", "onion:sauce", "garlic:sauce", "oregano:cooked", "cheese:grated", "oil:used"], "produces": ["pasta:served", "beef:served", "bread:served", "egg:served", "tomato:served", "onion:served", "garlic:served", "oregano:served", "cheese:served", "oil:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Guľky s omáčkou a cestoviny rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "modern_meatballs_tomato_pasta",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.tesco.com/recipes/en-GB/recipe/pasta-with-meatballs", "title": "Pasta with meatballs recipe | Tesco Recipes", "accessed_on": "2026-09-05"},
+      {"url": "https://www.bbcgoodfood.com/recipes/spaghetti-meatballs", "title": "Spaghetti & meatballs recipe | Good Food", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

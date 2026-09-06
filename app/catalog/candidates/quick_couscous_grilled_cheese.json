@@ -1,0 +1,44 @@
+{
+  "recipes": [
+    {
+      "id": "quick_couscous_grilled_cheese",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuskus s grilovaným syrom",
+      "family": "quick_couscous_grilled_cheese",
+      "method": "pan",
+      "minutes": 30,
+      "modes": ["standard", "high_protein", "vegetarian"],
+      "equipment": ["hrniec", "panvica", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "couscous", "role": "starch", "candidates": ["couscous"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "80"},
+        {"key": "cheese", "role": "protein", "candidates": ["grilling_cheese"], "amount_per_adult": "125", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": "na plátky"},
+        {"key": "zucchini", "role": "vegetable", "candidates": ["zucchini"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na polkolieska"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na menšie kúsky"},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na polovicu"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oregano", "role": "seasoning", "candidates": ["oregano"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {zucchini.amount} {zucchini.name} na polkolieska, {tomato.amount} {tomato.name} na menšie kúsky a {cheese.amount} {cheese.name} na plátky. Rozkroj {lemon.amount} {lemon.name} na polovicu.", "requires": ["zucchini:raw", "tomato:raw", "cheese:raw", "lemon:raw"], "produces": ["zucchini:cut", "tomato:cut", "cheese:cut", "lemon:cut"]},
+        {"text": "Priveď {couscous.water} vody v hrnci na silnom ohni za 3 minúty do varu, kým nebude výrazne bublať.", "requires": ["hrniec:free"], "produces": ["hrniec:water_boiling"]},
+        {"text": "Odstav hrniec z ohňa. Vsyp {couscous.amount} {couscous.name} do hrnca. Prikry ho a nechaj kuskus 5 minút stáť, kým vsiakne vodu a zmäkne.", "requires": ["couscous:raw", "hrniec:water_boiling"], "produces": ["couscous:cooked", "hrniec:occupied"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na stredne silnom ohni 2 minúty, kým sa začne lesknúť. Pridaj cuketu do panvice a opekaj ju 6 minút, kým zmäkne a na okrajoch zozlatne. Odober ju do misky.", "requires": ["oil:raw", "zucchini:cut", "panvica:free", "miska:free"], "produces": ["oil:used", "zucchini:cooked", "panvica:occupied", "miska:occupied"]},
+        {"text": "Opekaj syr na grilovanie v panvici na stredne silnom ohni 2 minúty z každej strany, kým bude zlatistý. Pri väčšej dávke priprav syr na grilovanie po častiach.", "requires": ["cheese:cut", "panvica:occupied"], "produces": ["cheese:cooked", "oil:cooked", "panvica:free"]},
+        {"text": "Premiešaj v miske kuskus s paradajkami, cuketou, {oregano.amount} {oregano.name} a šťavou z citróna. Dochuť ho soľou a čiernym korením.", "requires": ["couscous:cooked", "tomato:cut", "oregano:raw", "lemon:cut", "zucchini:cooked", "miska:occupied", "hrniec:occupied"], "produces": ["couscous:combined", "tomato:combined", "oregano:combined", "lemon:combined", "zucchini:combined", "hrniec:free"]},
+        {"text": "Podávaj kuskus s grilovaným syrom a rozdeľ ho na {portions} porcií.", "requires": ["couscous:combined", "tomato:combined", "oregano:combined", "lemon:combined", "zucchini:combined", "cheese:cooked", "oil:cooked", "miska:occupied", "panvica:free"], "produces": ["couscous:served", "tomato:served", "oregano:served", "lemon:served", "zucchini:served", "cheese:served", "oil:served", "miska:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Kuskusovú zmes a grilovaný syr odlož oddelene do uzatvárateľných nádob najneskôr do 2 hodín. V chladničke ich uchovaj najviac 3 dni; paradajky môžeš pridať čerstvé až pri podávaní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_couscous_grilled_cheese",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.tesco.com/recipes/en-GB/recipe/courgette-couscous-and-halloumi-salad", "title": "Courgette, couscous and halloumi salad | Tesco Recipes", "accessed_on": "2026-09-05"},
+      {"url": "https://www.bbcgoodfoodme.com/recipes/grilled-halloumi-with-spiced-couscous/", "title": "Grilled halloumi with spiced couscous | Good Food Middle East", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

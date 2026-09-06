@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "5af5ffdd68aced60e6c207bf7f05f4e1bc3b772e5412d7e8f21c177802005e3c",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "classic_cabbage_dumplings"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

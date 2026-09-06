@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "fc4577540a600fd483021df23f866edb2bd4ad6379227085fabb9ac1e7942567",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "protein_chicken_yogurt_potato"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

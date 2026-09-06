@@ -1,0 +1,54 @@
+{
+  "recipes": [
+    {
+      "id": "plant_lentil_loaf",
+      "version": 2,
+      "active": true,
+      "name_template": "Šošovicová sekaná s paradajkovou glazúrou",
+      "family": "plant_lentil_loaf",
+      "method": "oven",
+      "minutes": 75,
+      "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["rúra", "hrniec", "panvica", "zapekacia misa", "misa", "sitko", "nôž", "doska na krájanie", "vidlička", "varecha"],
+      "slots": [
+        {"key": "lentils", "role": "protein", "candidates": ["lentils"], "amount_per_adult": "90", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "270"},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "najemno rozdrobený"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "140", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kúsky"},
+        {"key": "mushrooms", "role": "vegetable", "candidates": ["mushrooms"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.35", "required": true, "use": "addition", "cut": null},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.35", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "7", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 180 °C.", "requires": ["rura:free"], "produces": ["rura:hot"]},
+        {"text": "Prepláchni {lentils.amount} {lentils.name} v sitku pod studenou vodou.", "requires": ["lentils:raw", "sitko:free"], "produces": ["lentils:rinsed", "sitko:free"]},
+        {"text": "Vsyp šošovicu do hrnca. Prilej {lentils.water} vody do hrnca.", "requires": ["lentils:rinsed", "hrniec:free"], "produces": ["lentils:in_pot", "hrniec:occupied"]},
+        {"text": "Priveď šošovicu v hrnci na silnom ohni do varu za 5 minút, kým voda začne rovnomerne bublať.", "requires": ["lentils:in_pot", "hrniec:occupied"], "produces": ["lentils:boiling"]},
+        {"text": "Var šošovicu v hrnci na miernom ohni 25 až 30 minút, kým zmäkne, ale nerozvarí sa. Dôkladne ju sceď a nechaj 5 minút odpariť.", "requires": ["lentils:boiling", "hrniec:occupied", "sitko:free"], "produces": ["lentils:cooked", "hrniec:free", "sitko:free"]},
+        {"text": "Nakrájaj {mushrooms.amount} {mushrooms.name}, {carrot.amount} {carrot.name} a {onion.amount} {onion.name} nadrobno, {garlic.amount} {garlic.name} najemno a {tomato.amount} {tomato.name} na malé kúsky. Rozdrob {bread.amount} {bread.name} na jemnú strúhanku.", "requires": ["mushrooms:raw", "carrot:raw", "onion:raw", "garlic:raw", "tomato:raw", "bread:raw"], "produces": ["mushrooms:cut", "carrot:cut", "onion:cut", "garlic:cut", "tomato:cut", "bread:crumbled"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici. Cibuľu, mrkvu a šampiňóny opekaj na strednom ohni 8 minút, kým zelenina zmäkne a voda zo šampiňónov sa odparí.", "requires": ["oil:raw", "onion:cut", "carrot:cut", "mushrooms:cut", "panvica:free"], "produces": ["oil:cooking", "onion:softened", "carrot:softened", "mushrooms:cooked", "panvica:occupied"]},
+        {"text": "Prisyp {paprika.amount} {paprika.name}, {marjoram.amount} {marjoram.name} a cesnak. Miešaj 30 sekúnd, kým cesnak zavonia.", "requires": ["paprika:raw", "marjoram:raw", "garlic:cut", "oil:cooking", "onion:softened", "carrot:softened", "mushrooms:cooked", "panvica:occupied"], "produces": ["paprika:cooked", "marjoram:cooked", "garlic:cooked"]},
+        {"text": "Priprav si misu a prelož do nej cibuľu, mrkvu, šampiňóny a cesnak z panvice. Nechaj ich 5 minút chladnúť.", "requires": ["onion:softened", "carrot:softened", "mushrooms:cooked", "garlic:cooked", "paprika:cooked", "marjoram:cooked", "oil:cooking", "panvica:occupied", "misa:free"], "produces": ["onion:in_bowl", "carrot:in_bowl", "mushrooms:in_bowl", "garlic:in_bowl", "paprika:in_bowl", "marjoram:in_bowl", "oil:in_bowl", "panvica:free", "misa:occupied"]},
+        {"text": "Vlož paradajky do panvice. Var paradajky v panvici na strednom ohni 8 až 10 minút, kým zmäknú, rozpadnú sa a omáčka zhustne. Dochuť ju soľou a čiernym korením.", "requires": ["tomato:cut", "panvica:free"], "produces": ["tomato:thickened", "panvica:occupied"]},
+        {"text": "Premiešaj šošovicu a chlieb s cibuľou, mrkvou, šampiňónmi a cesnakom v mise. Vidličkou zľahka roztlač približne tretinu šošovice a všetko dôkladne spoj. Zmes má byť vlhká, ale má držať pokope; ak je riedka, nechaj ju ešte 5 minút postáť.", "requires": ["lentils:cooked", "bread:crumbled", "onion:in_bowl", "carrot:in_bowl", "mushrooms:in_bowl", "garlic:in_bowl", "paprika:in_bowl", "marjoram:in_bowl", "oil:in_bowl", "misa:occupied"], "produces": ["lentils:mixed", "bread:mixed", "onion:mixed", "carrot:mixed", "mushrooms:mixed", "garlic:mixed", "paprika:mixed", "marjoram:mixed", "oil:mixed"]},
+        {"text": "Priprav sekanú: obsah misy pevne utlač do zapekacej misy a povrch uhlaď. Navrch rovnomerne rozotri paradajky z panvice.", "requires": ["lentils:mixed", "bread:mixed", "onion:mixed", "carrot:mixed", "mushrooms:mixed", "garlic:mixed", "paprika:mixed", "marjoram:mixed", "oil:mixed", "tomato:thickened", "misa:occupied", "panvica:occupied", "zapekacia_misa:free"], "produces": ["lentils:formed", "bread:formed", "onion:formed", "carrot:formed", "mushrooms:formed", "garlic:formed", "paprika:formed", "marjoram:formed", "oil:formed", "tomato:glazed", "misa:free", "panvica:free", "zapekacia_misa:occupied"]},
+        {"text": "Peč sekanú zo šošovice a chleba v rúre pri 180 °C 35 minút, kým bude na okrajoch zlatistá a paradajková vrstva stmavne.", "requires": ["lentils:formed", "bread:formed", "onion:formed", "carrot:formed", "mushrooms:formed", "garlic:formed", "paprika:formed", "marjoram:formed", "oil:formed", "tomato:glazed", "zapekacia_misa:occupied", "rura:hot"], "produces": ["lentils:baked", "bread:baked", "onion:baked", "carrot:baked", "mushrooms:baked", "garlic:baked", "paprika:baked", "marjoram:baked", "oil:baked", "tomato:baked"]},
+        {"text": "Nechaj sekanú 15 minút postáť, aby sa pri krájaní nerozpadla. Potom ju nakrájaj, rozdeľ na {portions} porcií a podávaj.", "requires": ["lentils:baked", "bread:baked", "onion:baked", "carrot:baked", "mushrooms:baked", "garlic:baked", "paprika:baked", "marjoram:baked", "oil:baked", "tomato:baked", "zapekacia_misa:occupied"], "produces": ["lentils:served", "bread:served", "onion:served", "carrot:served", "mushrooms:served", "garlic:served", "paprika:served", "marjoram:served", "oil:served", "tomato:served", "zapekacia_misa:free", "rura:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Sekanú nechaj vychladnúť, nakrájaj ju na porcie a najneskôr do 2 hodín odlož do uzatvárateľnej nádoby v chladničke. Zjedz ju do 3 dní alebo jednotlivé plátky zamraz."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "plant_lentil_loaf",
+    "editorial_lane": "plant_based",
+    "core": true,
+    "references": [
+      {"url": "https://www.alecooks.com/vegan-lentil-loaf/", "title": "Vegan Lentil Loaf with Tomato Glaze", "accessed_on": "2026-09-05"},
+      {"url": "https://www.noracooks.com/lentil-loaf/", "title": "Vegan Lentil Loaf", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

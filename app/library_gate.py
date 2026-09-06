@@ -25,8 +25,10 @@ from .recipe_catalog import (
     InstructionTemplate,
     RecipeCatalog,
     RecipeTemplate,
+    StorageRule,
     load_recipe_catalog,
 )
+from .recipe_workflow import workflow_errors
 from .recipe_matcher import RecipeCandidate, SlotSelection
 from .recipe_renderer import RenderedMeal, render_meal
 
@@ -64,6 +66,13 @@ _MODE_FLOORS = {
     "vegan": 12,
 }
 _MINIMUM_ACTIVE_RECIPES = 60
+_CURATED_MODE_FLOORS = {
+    "standard": 104,
+    "high_protein": 24,
+    "vegetarian": 24,
+    "vegan": 16,
+}
+_CURATED_MINIMUM_ACTIVE_RECIPES = 104
 _MINIMUM_MODE_FAMILIES = 3
 _MINIMUM_MODE_METHODS = 3
 
@@ -201,8 +210,21 @@ def _is_valid_recipe(ingredients: IngredientCatalog, value: object) -> bool:
                 _is_sequence(value.instructions),
                 len(value.instructions) >= 3,
                 all(
-                    isinstance(step, InstructionTemplate) and _is_text(step.text)
+                    isinstance(step, InstructionTemplate)
+                    and _is_text(step.text)
+                    and isinstance(step.requires, tuple)
+                    and all(_is_text(token) for token in step.requires)
+                    and isinstance(step.produces, tuple)
+                    and all(_is_text(token) for token in step.produces)
                     for step in value.instructions
+                ),
+                (
+                    value.storage is None
+                    if value.version == 1
+                    else isinstance(value.storage, StorageRule)
+                    and type(value.storage.refrigerated_days) is int
+                    and 1 <= value.storage.refrigerated_days <= 4
+                    and _is_text(value.storage.instruction)
                 ),
             )
         ):
@@ -578,6 +600,12 @@ def _audit_recipe(
     recipe: RecipeTemplate,
     errors: set[str],
 ) -> None:
+    if recipe.version >= 2:
+        try:
+            errors.update(workflow_errors(recipe))
+        except (AttributeError, TypeError, ValueError):
+            errors.add("invalid_recipe")
+            return
     if _bounded_variant_count(recipe) is None:
         errors.add("variant_limit_exceeded")
         return
@@ -614,10 +642,13 @@ def _audit_recipe(
 def _audit_content_floors(
     active: Sequence[RecipeTemplate],
     errors: set[str],
+    *,
+    mode_floors: dict[str, int] = _MODE_FLOORS,
+    minimum_active_recipes: int = _MINIMUM_ACTIVE_RECIPES,
 ) -> None:
-    if len(active) < _MINIMUM_ACTIVE_RECIPES:
-        errors.add(f"total_below_{_MINIMUM_ACTIVE_RECIPES}")
-    for mode, floor in _MODE_FLOORS.items():
+    if len(active) < minimum_active_recipes:
+        errors.add(f"total_below_{minimum_active_recipes}")
+    for mode, floor in mode_floors.items():
         eligible = tuple(recipe for recipe in active if mode in recipe.modes)
         if len(eligible) < floor:
             errors.add(f"mode_{mode}_below_{floor}")
@@ -636,7 +667,28 @@ def audit_library(
     valid = _collect_valid_recipes(ingredients, recipes, errors)
     active = tuple(recipe for recipe in valid if recipe.active)
 
-    _audit_content_floors(active, errors)
+    if (
+        isinstance(recipes, RecipeCatalog)
+        and recipes.curation_generation == 1
+        and any(recipe.version == 1 for recipe in active)
+    ):
+        errors.add("legacy_recipe_active")
+
+    curated_generation_one = (
+        isinstance(recipes, RecipeCatalog) and recipes.curation_generation == 1
+    )
+    _audit_content_floors(
+        active,
+        errors,
+        mode_floors=(
+            _CURATED_MODE_FLOORS if curated_generation_one else _MODE_FLOORS
+        ),
+        minimum_active_recipes=(
+            _CURATED_MINIMUM_ACTIVE_RECIPES
+            if curated_generation_one
+            else _MINIMUM_ACTIVE_RECIPES
+        ),
+    )
     _audit_duplicates(ingredients, active, errors)
     for recipe in active:
         _audit_recipe(ingredients, recipe, errors)

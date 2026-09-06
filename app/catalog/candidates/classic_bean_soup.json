@@ -1,0 +1,324 @@
+{
+  "recipes": [
+    {
+      "id": "classic_bean_soup",
+      "version": 2,
+      "active": true,
+      "name_template": "Fazuľová polievka",
+      "family": "slovak_bean_soup",
+      "method": "soup",
+      "minutes": 805,
+      "modes": [
+        "standard"
+      ],
+      "equipment": [
+        "veľký hrniec",
+        "miska",
+        "sitko",
+        "nôž",
+        "doska na krájanie",
+        "varecha"
+      ],
+      "slots": [
+        {
+          "key": "beans",
+          "role": "protein",
+          "candidates": [
+            "beans"
+          ],
+          "amount_per_adult": 75,
+          "unit": "g",
+          "child_factor": 0.6,
+          "required": true,
+          "use": "main",
+          "cut": null,
+          "water_ml_per_adult": "450"
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": 100,
+          "unit": "g",
+          "child_factor": 0.6,
+          "required": true,
+          "use": "addition",
+          "cut": "na 2 cm kocky"
+        },
+        {
+          "key": "carrot",
+          "role": "vegetable",
+          "candidates": [
+            "carrot"
+          ],
+          "amount_per_adult": 60,
+          "unit": "g",
+          "child_factor": 0.6,
+          "required": true,
+          "use": "addition",
+          "cut": "na kolieska"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": 40,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": 4,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": "rozdrvený"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": 10,
+          "unit": "ml",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": [
+            "paprika_powder"
+          ],
+          "amount_per_adult": 2,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "salt",
+          "role": "seasoning",
+          "candidates": [
+            "salt"
+          ],
+          "amount_per_adult": 2,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "pepper",
+          "role": "seasoning",
+          "candidates": [
+            "black_pepper"
+          ],
+          "amount_per_adult": 0.5,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water"
+      ],
+      "instructions": [
+        {
+          "text": "Prepláchni {beans.amount} {beans.name} v sitku pod studenou vodou. Potom sceď vodu.",
+          "requires": [
+            "beans:raw",
+            "sitko:free"
+          ],
+          "produces": [
+            "beans:rinsed",
+            "sitko:used"
+          ]
+        },
+        {
+          "text": "Namoč červenú fazuľu v miske do vody najmenej na 12 hodín, kým napučí.",
+          "requires": [
+            "beans:rinsed",
+            "miska:free"
+          ],
+          "produces": [
+            "beans:soaked",
+            "miska:used"
+          ]
+        },
+        {
+          "text": "Sceď červenú fazuľu v sitku a prepláchni ju čistou vodou.",
+          "requires": [
+            "beans:soaked",
+            "sitko:used"
+          ],
+          "produces": [
+            "beans:rinsed_after_soak"
+          ]
+        },
+        {
+          "text": "Nakrájaj {onion.amount} {onion.name} najemno, {carrot.amount} {carrot.name} na kolieska a {potato.amount} {potato.name} na 2 cm kocky. Rozdrv {garlic.amount} {garlic.name} plochou stranou noža.",
+          "requires": [
+            "onion:raw",
+            "carrot:raw",
+            "potato:raw",
+            "garlic:raw",
+            "noz:free",
+            "doska_na_krajanie:free"
+          ],
+          "produces": [
+            "onion:chopped",
+            "carrot:sliced",
+            "potato:cubed",
+            "garlic:crushed",
+            "noz:used",
+            "doska_na_krajanie:used"
+          ]
+        },
+        {
+          "text": "Nalej {oil.amount} {oil.name} do hrnca.",
+          "requires": [
+            "oil:raw",
+            "velky_hrniec:free"
+          ],
+          "produces": [
+            "oil:heated",
+            "velky_hrniec:used"
+          ]
+        },
+        {
+          "text": "Opekaj cibuľu a mrkvu vo veľkom hrnci na strednom ohni 5 minút, kým cibuľa zmäkne.",
+          "requires": [
+            "onion:chopped",
+            "carrot:sliced",
+            "oil:heated",
+            "velky_hrniec:used"
+          ],
+          "produces": [
+            "onion:softened",
+            "carrot:softened",
+            "oil:used"
+          ]
+        },
+        {
+          "text": "Odstav hrniec z ohňa. Prisyp {paprika.amount} {paprika.name} a premiešaj ju 30 sekúnd.",
+          "requires": [
+            "onion:softened",
+            "paprika:raw",
+            "velky_hrniec:used"
+          ],
+          "produces": [
+            "onion:seasoned",
+            "paprika:bloomed"
+          ]
+        },
+        {
+          "text": "Pridaj {beans.reference_name} a cesnak do hrnca. Nalej {beans.water} vody do hrnca. Na silnom ohni priveď obsah hrnca do prudkého varu a bez pokrievky var 30 minút. Potom stíš oheň a var fazuľu na miernom ohni ďalších 30 minút, kým fazuľa zmäkne; spolu ju var najmenej 60 minút. Ak ešte nie je mäkká, var ju ďalej a skontroluj ju každých 10 minút.",
+          "requires": [
+            "beans:rinsed_after_soak",
+            "garlic:crushed",
+            "onion:seasoned",
+            "carrot:softened",
+            "oil:used",
+            "paprika:bloomed",
+            "velky_hrniec:used"
+          ],
+          "produces": [
+            "beans:nearly_tender",
+            "garlic:cooked",
+            "onion:cooked",
+            "carrot:cooked",
+            "oil:cooked",
+            "paprika:cooked"
+          ]
+        },
+        {
+          "text": "Pridaj zemiaky do hrnca. Prisyp {salt.amount} {salt.name} a {pepper.amount} {pepper.name}. Var zemiaky s fazuľou vo veľkom hrnci na miernom ohni 15 minút, kým zmäknú.",
+          "requires": [
+            "beans:nearly_tender",
+            "potato:cubed",
+            "salt:raw",
+            "pepper:raw",
+            "velky_hrniec:used"
+          ],
+          "produces": [
+            "beans:cooked",
+            "potato:cooked",
+            "salt:dissolved",
+            "pepper:dissolved"
+          ]
+        },
+        {
+          "text": "Podávaj fazuľovú polievku horúcu, keď sú fazuľa aj zemiaky mäkké.",
+          "requires": [
+            "beans:cooked",
+            "potato:cooked",
+            "carrot:cooked",
+            "onion:cooked",
+            "garlic:cooked",
+            "oil:cooked",
+            "paprika:cooked",
+            "salt:dissolved",
+            "pepper:dissolved"
+          ],
+          "produces": [
+            "beans:served",
+            "potato:served",
+            "carrot:served",
+            "onion:served",
+            "garlic:served",
+            "oil:served",
+            "paprika:served",
+            "salt:served",
+            "pepper:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Fazuľovú polievku rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 3 dní a pred podávaním ju dôkladne prehrej."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_bean_soup",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://kuchynalidla.sk/recepty/fazulova-polievka",
+        "title": "Fazuľová polievka",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://nanicmama.sme.sk/recept/polievky/fazulovica",
+        "title": "Fazuľovica",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://www.fda.gov/food/chemical-contaminants-pesticides/natural-toxins-food",
+        "title": "Natural Toxins in Food",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "recipes": [
+    {
+      "id": "modern_white_fish_tomato_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Biela ryba s paradajkovou ryžou",
+      "family": "modern_white_fish_tomato_rice",
+      "method": "oven",
+      "minutes": 45,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["pekáč", "rúra", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "fish", "role": "protein", "candidates": ["white_fish"], "amount_per_adult": "190", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na porcie"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "130"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na menšie kúsky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oregano", "role": "seasoning", "candidates": ["oregano"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 200 °C. Prepláchni {rice.amount} {rice.name}. Nakrájaj {tomato.amount} {tomato.name} na menšie kúsky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno. Rozdeľ {fish.amount} {fish.name} na porcie.", "requires": ["rura:free", "rice:raw", "tomato:raw", "onion:raw", "garlic:raw", "fish:raw"], "produces": ["rura:hot", "rice:rinsed", "tomato:cut", "onion:cut", "garlic:cut", "fish:portioned"]},
+        {"text": "Premiešaj v pekáči ryžu s paradajkami, cibuľou, cesnakom, {oil.amount} {oil.name}, {oregano.amount} {oregano.name}, {rice.water} vody, soľou a čiernym korením. Rozlož ryžu rovnomerne po dne; pri väčšej dávke zmes rozdeľ do dvoch pekáčov.", "requires": ["oil:raw", "rice:rinsed", "tomato:cut", "onion:cut", "garlic:cut", "oregano:raw", "pekac:free"], "produces": ["oil:arranged", "rice:arranged", "tomato:arranged", "onion:arranged", "garlic:arranged", "oregano:arranged", "pekac:occupied"]},
+        {"text": "Peč ryžu v prikrytom pekáči pri 200 °C 25 minút, kým takmer vsiakne tekutinu a zrnká začnú mäknúť.", "requires": ["rice:arranged", "tomato:arranged", "onion:arranged", "garlic:arranged", "oregano:arranged", "oil:arranged", "pekac:occupied", "rura:hot"], "produces": ["rice:partly_cooked", "tomato:cooked", "onion:cooked", "garlic:cooked", "oregano:cooked", "oil:cooked"]},
+        {"text": "Vlož rybu do pekáča. Nechaj pekáč odkrytý. Peč rybu s ryžou v pekáči pri 200 °C ďalších 12 minút, kým sa ryba bude ľahko oddeľovať vidličkou a ryža bude mäkká.", "requires": ["fish:portioned", "rice:partly_cooked", "tomato:cooked", "onion:cooked", "garlic:cooked", "oregano:cooked", "oil:cooked", "pekac:occupied", "rura:hot"], "produces": ["fish:cooked", "rice:cooked"]},
+        {"text": "Nechaj jedlo v pekáči 5 minút odpočívať. Podávaj rybu s paradajkovou ryžou a rozdeľ ju na {portions} porcií.", "requires": ["fish:cooked", "rice:cooked", "tomato:cooked", "onion:cooked", "garlic:cooked", "oregano:cooked", "oil:cooked", "pekac:occupied"], "produces": ["fish:served", "rice:served", "tomato:served", "onion:served", "garlic:served", "oregano:served", "oil:served", "pekac:free", "rura:free"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Rybu s ryžou rozdeľ do plytkých nádob a do jednej hodiny ich schlaď. V chladničke ich zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým budú celé horúce."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "modern_white_fish_tomato_rice",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.ricardocuisine.com/en/recipes/5736-mexican-style-tomato-rice-with-fish", "title": "Mexican-Style Tomato Rice with Fish | RICARDO", "accessed_on": "2026-09-05"},
+      {"url": "https://www.jamieoliver.com/recipes/fish/one-pan-fabulous-fish/", "title": "One-pan fabulous fish | Jamie Oliver", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

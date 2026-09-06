@@ -1,0 +1,48 @@
+{
+  "recipes": [
+    {
+      "id": "modern_one_pot_chicken_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuracie mäso s ryžou z jedného hrnca",
+      "family": "modern_one_pot_chicken_rice",
+      "method": "pot",
+      "minutes": 45,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["široký hrniec s pokrievkou", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_thigh_meat"], "amount_per_adult": "190", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na väčšie kúsky"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "175"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "broccoli", "role": "vegetable", "candidates": ["broccoli"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé ružičky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "45", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "oregano", "role": "seasoning", "candidates": ["oregano"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} studenou vodou.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} na väčšie kúsky, {carrot.amount} {carrot.name} na malé kocky a {broccoli.amount} {broccoli.name} na malé ružičky. {onion.amount} {onion.name} a {garlic.amount} {garlic.name} nakrájaj nadrobno.", "requires": ["chicken:raw", "carrot:raw", "broccoli:raw", "onion:raw", "garlic:raw"], "produces": ["chicken:cut", "carrot:cut", "broccoli:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v širokom hrnci na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "siroky_hrniec_s_pokrievkou:free"], "produces": ["oil:heated", "siroky_hrniec_s_pokrievkou:occupied"]},
+        {"text": "Opekaj vykostené kuracie stehenné mäso v širokom hrnci na strednom ohni 6 minút, kým bude zlatisté. Pri väčšej dávke ho opekaj po častiach.", "requires": ["chicken:cut", "oil:heated", "siroky_hrniec_s_pokrievkou:occupied"], "produces": ["chicken:browned", "oil:used"]},
+        {"text": "Pridaj cibuľu, mrkvu a cesnak do širokého hrnca. Opekaj cibuľu s mrkvou, cesnakom a kuracím mäsom na strednom ohni 5 minút, kým cibuľa zmäkne a mrkva sa na okrajoch začne opekať.", "requires": ["onion:cut", "carrot:cut", "garlic:cut", "chicken:browned", "siroky_hrniec_s_pokrievkou:occupied"], "produces": ["onion:cooked", "carrot:softened", "garlic:cooked"]},
+        {"text": "Odstav hrniec z ohňa. Prisyp {paprika.amount} {paprika.name} a {oregano.amount} {oregano.name}. Hneď premiešaj.", "requires": ["paprika:raw", "oregano:raw", "onion:cooked", "carrot:softened", "garlic:cooked", "siroky_hrniec_s_pokrievkou:occupied"], "produces": ["paprika:combined", "oregano:combined"]},
+        {"text": "Vráť hrniec na sporák. Prisyp ryžu a nalej {rice.water} vody. Prikry ho a var jedlo v širokom hrnci na miernom ohni 18 minút, kým ryža takmer zmäkne a väčšinu vody vsiakne.", "requires": ["rice:rinsed", "chicken:browned", "paprika:combined", "oregano:combined", "siroky_hrniec_s_pokrievkou:occupied"], "produces": ["rice:nearly_cooked", "chicken:cooking", "paprika:cooked", "oregano:cooked"]},
+        {"text": "Pridaj brokolicu, hrniec znovu prikry a var jedlo v širokom hrnci na miernom ohni 6 minút, kým ryža aj brokolica zmäknú a mäso nebude v strede ružové.", "requires": ["broccoli:cut", "rice:nearly_cooked", "chicken:cooking", "siroky_hrniec_s_pokrievkou:occupied"], "produces": ["broccoli:cooked", "rice:cooked", "chicken:cooked", "carrot:cooked", "siroky_hrniec_s_pokrievkou:free"]},
+        {"text": "Dochuť jedlo soľou a čiernym korením. Rozdeľ ho na {portions} porcií a podávaj.", "requires": ["chicken:cooked", "rice:cooked", "carrot:cooked", "broccoli:cooked", "onion:cooked", "garlic:cooked", "paprika:cooked", "oregano:cooked", "oil:used"], "produces": ["chicken:served", "rice:served", "carrot:served", "broccoli:served", "onion:served", "garlic:served", "paprika:served", "oregano:served", "oil:served"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Jedlo rozdeľ do plytkých nádob a do jednej hodiny ho schlaď. V chladničke ho zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým bude celé horúce."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "modern_one_pot_chicken_rice",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/one-pot-chicken-rice", "title": "One-pot chicken & rice recipe | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://kuchynalidla.sk/recepty/rychly-obed-z-jedneho-hrnca", "title": "Rýchly obed z jedného hrnca | Kuchyňa Lidla", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

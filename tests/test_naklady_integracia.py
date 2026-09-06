@@ -1,8 +1,8 @@
 """Strop na míňanie musí platiť na KAŽDOM mieste, kde sa platí modelu.
 
 Modul app/naklady.py sám o sebe nič nechráni — chráni až vtedy, keď ním
-prechádzajú všetky tri platené cesty: zber letákov, landing bloček a osobný
-plán. Tieto testy strážia práve to napojenie, plus prehľad na /api/health.
+prechádza platené čítanie letákov. Recepty a osobné plány sú lokálne a
+deterministické. Testy strážia túto hranicu aj prehľad na /api/health.
 """
 import importlib
 import json
@@ -15,16 +15,14 @@ from pathlib import Path
 import pytest
 
 from app import naklady
-from app import plan_jobs, plan_worker
 from app.receipt_data import StructuralFailure
+from tests.test_deterministic_plan_api import _realistic_offer_rows
 
 from tests.test_server import (
     current_plan_rows,
-    fake_anthropic,
     grant_premium,
     insert_hashed_session,
     load_server,
-    model_plan,
 )
 
 
@@ -177,95 +175,37 @@ def refresh():
     return refresh_blocek
 
 
-def test_blocek_odmietne_volanie_ked_je_rozpocet_vycerpany(monkeypatch, tmp_path, refresh):
-    database = tmp_path / "uvarsi.db"
-    monkeypatch.setenv("UVARSI_DB", str(database))
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-    vycerpaj_denny_strop(database, ucel="blocek")
-    konstruktory = []
+def test_blocek_uz_nema_platenu_modelovu_cestu(refresh):
+    source = Path(refresh.__file__).read_text(encoding="utf-8")
 
-    class ZakazaneSpravy:
-        def create(self, **kw):
-            raise AssertionError("po vyčerpaní rozpočtu sa nesmie volať model")
-
-    class Anthropic:
-        def __init__(self, **kw):
-            konstruktory.append(kw)
-            self.messages = ZakazaneSpravy()
-
-    monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace(Anthropic=Anthropic))
-
-    with pytest.raises(naklady.RozpocetVycerpany):
-        refresh.compose_with_llm("prompt")
-
-
-def test_blocek_vycerpany_rozpocet_konci_kodom_ktory_zastavi_dozorcu(monkeypatch, refresh):
-    """Opakovať sa neoplatí: kód 3 = „neskúšaj ďalej“, plus ntfy majiteľovi."""
-    def odmietni(path, database, compose, today):
-        raise naklady.RozpocetVycerpany("Mesačný rozpočet na AI je vyčerpaný.",
-                                        kod=naklady.KOD_MESACNY)
-
-    monkeypatch.setattr(sys, "argv", ["refresh_blocek.py"])
-    monkeypatch.setattr(refresh, "refresh_from_db", odmietni)
-
-    with pytest.raises(SystemExit) as koniec:
-        refresh.main()
-
-    assert koniec.value.code == StructuralFailure.EXIT_CODE
-    assert koniec.value.code != refresh.EXIT_RETRY
-
-
-def test_blocek_pri_vycerpanom_rozpocte_neprepise_stary_json(monkeypatch, tmp_path, refresh, capsys):
-    """Nikdy si nevymyslieť dáta: starý bloček ostáva a mlčí sa o ňom nahlas."""
-    vystup = tmp_path / "landing_data.json"
-    vystup.write_text(json.dumps({"stary": True}), encoding="utf-8")
-
-    def odmietni(path, database, compose, today):
-        raise naklady.RozpocetVycerpany("Denný rozpočet na AI je vyčerpaný.",
-                                        kod=naklady.KOD_DENNY)
-
-    monkeypatch.setattr(sys, "argv", ["refresh_blocek.py"])
-    monkeypatch.setattr(refresh, "refresh_from_db", odmietni)
-
-    with pytest.raises(SystemExit):
-        refresh.main()
-
-    assert json.loads(vystup.read_text(encoding="utf-8")) == {"stary": True}
-    chyby = capsys.readouterr().err
-    assert "rozpo" in chyby.lower(), "dôvod musí byť v logu, nie skrytý"
+    assert "anthropic" not in source
+    assert "ANTHROPIC_API_KEY" not in source
+    assert "naklady" not in source
 
 
 # ------------------------------------------------------------------ recepty
-def test_recepty_idu_tiez_cez_strop(monkeypatch, tmp_path):
-    """Žiadne platené volanie nesmie ostať mimo evidencie — ani to lacné."""
+def test_recepty_uz_nemaju_platenu_modelovu_cestu():
+    """Platené API číta letáky; recepty sa skladajú z lokálneho katalógu."""
     from hetzner import recepty
 
-    database = tmp_path / "uvarsi.db"
-    monkeypatch.setenv("UVARSI_DB", str(database))
-    vycerpaj_denny_strop(database, ucel="recepty")
-
-    class ZakazaneSpravy:
-        def create(self, **kw):
-            raise AssertionError("po vyčerpaní rozpočtu sa nesmie volať model")
-
-    monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace(
-        Anthropic=lambda **kw: types.SimpleNamespace(messages=ZakazaneSpravy())))
-
-    with pytest.raises(naklady.RozpocetVycerpany):
-        recepty.gen_recipes([{"day": "PO", "name": "Guláš", "items": [{"name": "mäso"}]}], "kluc")
+    assert not hasattr(recepty, "gen_recipes")
+    assert "ANTHROPIC_API_KEY" not in Path(recepty.__file__).read_text(encoding="utf-8")
 
 
 # ------------------------------------------------------------------ osobný plán
-def test_plan_sa_neposklada_ked_je_rozpocet_vycerpany(monkeypatch, tmp_path):
-    server = load_server(monkeypatch, tmp_path, current_plan_rows())
+def test_lokalny_plan_funguje_aj_ked_je_ai_rozpocet_vycerpany(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, _realistic_offer_rows())
     vycerpaj_denny_strop(tmp_path / "uvarsi.db", ucel="plan")
     with server.db() as con:
         con.execute(
-            "INSERT INTO pouzivatelia (id,email,obchody) "
-            "VALUES (1,'a@b.sk','Lidl')"
+            """INSERT INTO pouzivatelia
+               (id,email,osoby,dospeli,deti,frekvencia,obchody)
+               VALUES (1,'a@b.sk',4,2,2,2,'Lidl,Kaufland,Tesco')"""
         )
         insert_hashed_session(server, con, "session-token", 1)
         con.commit()
+
+    grant_premium(server, 1)
 
     konstruktory = []
 
@@ -281,11 +221,9 @@ def test_plan_sa_neposklada_ked_je_rozpocet_vycerpany(monkeypatch, tmp_path):
     client.cookies.set(server.COOKIE, "session-token")
     odpoved = client.post("/api/plan/generuj?force=1")
 
-    assert odpoved.status_code == 503
-    assert konstruktory == [], "klient sa nesmie ani vyrobiť, nieto zavolať"
-    detail = odpoved.json()["detail"]
-    assert "rozpočet" in detail.lower()
-    assert "€" in detail, "majiteľ aj používateľ majú vidieť konkrétne číslo"
+    assert odpoved.status_code == 200, odpoved.text
+    assert odpoved.json()["meta"]["engine"] == "deterministic"
+    assert konstruktory == [], "lokálny plán nesmie ani vytvoriť modelového klienta"
 
 
 def test_odmietnuty_plan_nezobere_pouzivatelovi_denny_prepocet(monkeypatch, tmp_path):
@@ -310,56 +248,36 @@ def test_odmietnuty_plan_nezobere_pouzivatelovi_denny_prepocet(monkeypatch, tmp_
     assert pouzite == 0
 
 
-def test_uspesny_plan_zaeviduje_skutocnu_spotrebu(monkeypatch, tmp_path):
-    server = load_server(monkeypatch, tmp_path, current_plan_rows())
+def test_uspesny_lokalny_plan_nezaeviduje_ai_spotrebu(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, _realistic_offer_rows())
     with server.db() as con:
-        con.execute("INSERT INTO pouzivatelia (id,email,obchody) VALUES (1,'a@b.sk','Lidl')")
+        con.execute(
+            """INSERT INTO pouzivatelia
+               (id,email,osoby,dospeli,deti,frekvencia,obchody)
+               VALUES (1,'a@b.sk',4,2,2,2,'Lidl,Kaufland,Tesco')"""
+        )
         insert_hashed_session(server, con, "session-token", 1)
-        con.execute("INSERT INTO spajza (user_id, nazov) VALUES (1, 'soľ')")
         con.commit()
     grant_premium(server, 1)
 
-    usage = types.SimpleNamespace(
-        input_tokens=12_000, output_tokens=1_500,
-        cache_creation_input_tokens=0, cache_read_input_tokens=9_000,
-    )
+    class ZakazanyAnthropic:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("lokálny jedálniček nesmie volať AI")
+
     monkeypatch.setitem(sys.modules, "anthropic",
-                        fake_anthropic(model_plan(), [], usage=usage))
+                        types.SimpleNamespace(Anthropic=ZakazanyAnthropic))
     from fastapi.testclient import TestClient
 
     client = TestClient(server.app)
     client.cookies.set(server.COOKIE, "session-token")
     odpoved = client.post("/api/plan/generuj?force=1")
-    assert odpoved.status_code == 202
-    job_id = odpoved.json()["job_id"]
+    assert odpoved.status_code == 200
+    assert odpoved.json()["jedla"]
 
     with server.db() as con:
-        job = con.execute("SELECT * FROM plan_jobs WHERE id=?", (job_id,)).fetchone()
-        assert job["state"] == "queued"
-        assert job["reserved_eur"] == pytest.approx(0.12)
+        assert con.execute("SELECT COUNT(*) FROM plan_jobs").fetchone()[0] == 0
+        assert con.execute("SELECT COUNT(*) FROM naklady").fetchone()[0] == 0
         assert server.pouzite_prepocty(con, 1, server.dnesok()) == 1
-        assert plan_jobs.active_reservations_eur(con) == pytest.approx(0.12)
-
-    worker = plan_worker.process_one()
-    assert worker.status == "ready"
-
-    plan = client.get("/api/plan")
-    assert plan.status_code == 200
-    assert plan.json()["jedla"]
-
-    con = sqlite3.connect(tmp_path / "uvarsi.db")
-    con.row_factory = sqlite3.Row
-    riadok = con.execute("SELECT * FROM naklady ORDER BY id DESC").fetchone()
-    con.close()
-    assert riadok["ucel"] == "plan"
-    assert riadok["model"] == "claude-sonnet-5"
-    assert riadok["vstup"] == 12_000 and riadok["cache_read"] == 9_000
-    assert riadok["odhad"] == 0
-    assert riadok["eur"] == pytest.approx(
-        (12_000 * 2 + 1_500 * 10 + 9_000 * 0.20) / 1e6 * 0.92
-    )
-    with server.db() as con:
-        assert plan_jobs.active_reservations_eur(con) == pytest.approx(0.0)
 
 
 # ------------------------------------------------------------------ viditeľnosť

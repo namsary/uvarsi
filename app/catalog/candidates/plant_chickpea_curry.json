@@ -1,0 +1,34 @@
+{
+  "recipes": [
+    {
+      "id": "plant_chickpea_curry", "version": 2, "active": true,
+      "name_template": "Cícerové kari so špenátom", "family": "plant_chickpea_curry", "method": "pan", "minutes": 30,
+      "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["hlboká panvica s pokrievkou", "sitko", "nôž", "doska na krájanie", "varecha"],
+      "slots": [
+        {"key": "chickpeas", "role": "protein", "candidates": ["chickpeas_canned"], "amount_per_adult": "300", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "spinach", "role": "vegetable", "candidates": ["spinach"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "nahrubo"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "curry", "role": "seasoning", "candidates": ["curry_powder"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.35", "required": true, "use": "addition", "cut": null},
+        {"key": "coconut", "role": "dairy", "candidates": ["coconut_milk"], "amount_per_adult": "80", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "7", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Sceď a prepláchni {chickpeas.amount} {chickpeas.name}. Nakrájaj {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno.", "requires": ["chickpeas:raw", "onion:raw", "garlic:raw", "sitko:free"], "produces": ["chickpeas:drained", "onion:cut", "garlic:cut", "sitko:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v hlbokej panvici. Cibuľu opekaj na strednom ohni 4 minúty, kým zmäkne.", "requires": ["oil:raw", "onion:cut", "hlboka_panvica_s_pokrievkou:free"], "produces": ["oil:hot", "onion:softened", "hlboka_panvica_s_pokrievkou:occupied"]},
+        {"text": "Prisyp {curry.amount} {curry.name} do panvice. Pridaj cesnak do panvice. Miešaj približne 30 sekúnd, kým sa korenie rozvonia.", "requires": ["curry:raw", "garlic:cut", "oil:hot", "onion:softened", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["curry:toasted", "garlic:cooked"]},
+        {"text": "Vmiešaj {tomato.amount} {tomato.name}, cícer a {coconut.amount} {coconut.name}. Osoľ, prikry a var cícer s paradajkami v panvici na miernom ohni 10 minút, kým omáčka začne jemne bublať.", "requires": ["tomato:raw", "chickpeas:drained", "coconut:raw", "curry:toasted", "garlic:cooked", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["tomato:cooked", "chickpeas:cooked", "coconut:cooked", "onion:cooked", "garlic:finished", "curry:cooked", "oil:cooked"]},
+        {"text": "Pridaj {spinach.amount} {spinach.name} do panvice. Var špenát v panvici na miernom ohni bez pokrievky ešte 3 až 4 minúty, kým listy zmäknú. Dochuť soľou a čiernym korením.", "requires": ["spinach:raw", "tomato:cooked", "chickpeas:cooked", "coconut:cooked", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["spinach:cooked"]},
+        {"text": "Podávaj cícerové kari horúce a rozdeľ ho na {portions} porcií.", "requires": ["chickpeas:cooked", "spinach:cooked", "tomato:cooked", "onion:cooked", "garlic:finished", "curry:cooked", "coconut:cooked", "oil:cooked", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["chickpeas:served", "spinach:served", "tomato:served", "onion:served", "garlic:served", "curry:served", "coconut:served", "oil:served", "hlboka_panvica_s_pokrievkou:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Kari rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní a zohrej ho, kým bude celé horúce."}
+    }
+  ],
+  "source_record": {"recipe_id": "plant_chickpea_curry", "editorial_lane": "plant_based", "core": true, "references": [
+    {"url": "https://www.bbcgoodfood.com/recipes/kadala-curry", "title": "Chickpea curry", "accessed_on": "2026-09-05"},
+    {"url": "https://www.vegan.sk/spenatove-a-cicerove-kari/", "title": "Recept na špenátové a cícerové kari", "accessed_on": "2026-09-05"}
+  ]}
+}

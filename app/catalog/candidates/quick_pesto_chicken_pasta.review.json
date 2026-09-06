@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "fd65f8677c0cca199167d42693e362ee1fb4a17513e34711ce458092491d3ae7",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "quick_pesto_chicken_pasta"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

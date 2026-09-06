@@ -1,0 +1,257 @@
+{
+  "recipes": [
+    {
+      "id": "classic_potato_pancakes",
+      "version": 2,
+      "active": true,
+      "name_template": "Zemiakové placky",
+      "family": "slovak_potato_pancakes",
+      "method": "pan",
+      "minutes": 35,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "misa",
+        "jemné strúhadlo",
+        "lis na cesnak",
+        "panvica",
+        "obracačka",
+        "škrabka",
+        "varecha"
+      ],
+      "slots": [
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": 350,
+          "unit": "g",
+          "child_factor": 0.65,
+          "required": true,
+          "use": "main",
+          "cut": "najemno nastrúhané"
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": 45,
+          "unit": "g",
+          "child_factor": 0.55,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": 1,
+          "unit": "piece",
+          "child_factor": 0.75,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": 5,
+          "unit": "g",
+          "child_factor": 0.45,
+          "required": true,
+          "use": "addition",
+          "cut": "prelisovaný"
+        },
+        {
+          "key": "marjoram",
+          "role": "seasoning",
+          "candidates": [
+            "marjoram"
+          ],
+          "amount_per_adult": 2,
+          "unit": "g",
+          "child_factor": 0.45,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": 25,
+          "unit": "ml",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "salt",
+          "role": "seasoning",
+          "candidates": [
+            "salt"
+          ],
+          "amount_per_adult": 2,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "pepper",
+          "role": "seasoning",
+          "candidates": [
+            "black_pepper"
+          ],
+          "amount_per_adult": 1,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [],
+      "instructions": [
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a najemno ich nastrúhaj do misy.",
+          "requires": [
+            "potato:raw",
+            "misa:free",
+            "jemne_struhadlo:free",
+            "skrabka:free"
+          ],
+          "produces": [
+            "potato:grated",
+            "misa:used",
+            "jemne_struhadlo:used",
+            "skrabka:used"
+          ]
+        },
+        {
+          "text": "Rozdrv {garlic.amount} {garlic.name} lisom priamo k zemiakom. Pridaj {flour.amount} {flour.name}, {egg.amount} {egg.name}, {marjoram.amount} {marjoram.name}, {salt.amount} {salt.name} a {pepper.amount} {pepper.name}. Vymiešaj husté cesto.",
+          "requires": [
+            "potato:grated",
+            "garlic:raw",
+            "flour:raw",
+            "egg:raw",
+            "marjoram:raw",
+            "salt:raw",
+            "pepper:raw",
+            "misa:used",
+            "lis_na_cesnak:free",
+            "varecha:free"
+          ],
+          "produces": [
+            "potato:batter",
+            "garlic:batter",
+            "flour:batter",
+            "egg:batter",
+            "marjoram:batter",
+            "salt:batter",
+            "pepper:batter",
+            "lis_na_cesnak:used",
+            "varecha:used"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.",
+          "requires": [
+            "oil:raw",
+            "panvica:free"
+          ],
+          "produces": [
+            "oil:heated",
+            "panvica:used"
+          ]
+        },
+        {
+          "text": "Rozlož malé porcie cesta zo zemiakov lyžicou do panvice a roztlač ich na tenké placky. Opekaj placky zo zemiakov po dávkach na strednom ohni 3 minúty z každej strany dozlatista a dochrumkava.",
+          "requires": [
+            "potato:batter",
+            "garlic:batter",
+            "flour:batter",
+            "egg:batter",
+            "marjoram:batter",
+            "salt:batter",
+            "pepper:batter",
+            "oil:heated",
+            "panvica:used",
+            "obracacka:free"
+          ],
+          "produces": [
+            "potato:cooked",
+            "garlic:cooked",
+            "flour:cooked",
+            "egg:cooked",
+            "marjoram:cooked",
+            "salt:cooked",
+            "pepper:cooked",
+            "oil:used",
+            "obracacka:used"
+          ]
+        },
+        {
+          "text": "Nechaj hotové placky minútu odpočinúť a podávaj ich ešte chrumkavé.",
+          "requires": [
+            "potato:cooked",
+            "garlic:cooked",
+            "flour:cooked",
+            "egg:cooked",
+            "marjoram:cooked",
+            "salt:cooked",
+            "pepper:cooked",
+            "oil:used"
+          ],
+          "produces": [
+            "potato:served",
+            "garlic:served",
+            "flour:served",
+            "egg:served",
+            "marjoram:served",
+            "salt:served",
+            "pepper:served",
+            "oil:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Zemiakové placky rozlož do plytkých nádob a odlož do chladničky najneskôr do 2 hodín. Zjedz ich do 2 dní a zohrej nasucho na panvici alebo v rúre."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_potato_pancakes",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://kuchynalidla.sk/recepty/zemiakove-placky",
+        "title": "Zemiakové placky",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://nanicmama.sme.sk/recept/hlavne-jedla/zemiakove-placky",
+        "title": "Zemiakové placky",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

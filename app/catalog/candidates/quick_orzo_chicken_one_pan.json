@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "quick_orzo_chicken_one_pan",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuracie orzo z jednej panvice",
+      "family": "quick_orzo_chicken_one_pan",
+      "method": "one_pot",
+      "minutes": 30,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hlboká panvica s pokrievkou", "nôž", "doska na krájanie", "strúhadlo", "varecha"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na dvojcentimetrové kúsky"},
+        {"key": "orzo", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "220"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kúsky"},
+        {"key": "spinach", "role": "vegetable", "candidates": ["spinach"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "cheese", "role": "protein", "candidates": ["hard_cheese"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "najemno nastrúhaný"},
+        {"key": "oregano", "role": "seasoning", "candidates": ["oregano"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} na dvojcentimetrové kúsky, {tomato.amount} {tomato.name} na malé kúsky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno. Priprav {spinach.amount} {spinach.name} a nastrúhaj {cheese.amount} {cheese.name}.", "requires": ["chicken:raw", "tomato:raw", "onion:raw", "garlic:raw", "spinach:raw", "cheese:raw"], "produces": ["chicken:cut", "tomato:cut", "onion:cut", "garlic:cut", "cheese:grated"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v hlbokej panvici. Kuracie kúsky osoľ, okoreň a opekaj na stredne silnom ohni 5 minút, kým budú miestami zlatisté. Pri väčšej dávke ich opeč po častiach a odlož na tanier.", "requires": ["oil:raw", "chicken:cut", "hlboka_panvica_s_pokrievkou:free"], "produces": ["oil:used", "chicken:browned", "hlboka_panvica_s_pokrievkou:free"]},
+        {"text": "Opekaj cibuľu v tej istej panvici na strednom ohni 3 minúty, kým zmäkne. Pridaj cesnak a {oregano.amount} {oregano.name} do panvice. Miešaj 30 sekúnd, kým sa rozvoňajú.", "requires": ["oil:used", "onion:cut", "garlic:cut", "oregano:raw", "hlboka_panvica_s_pokrievkou:free"], "produces": ["onion:softened", "garlic:toasted", "oregano:toasted", "hlboka_panvica_s_pokrievkou:occupied"]},
+        {"text": "Vsyp {orzo.amount} {orzo.name} do panvice. Pridaj paradajky a kuracie prsia do panvice. Prilej {orzo.water} vody do panvice, premiešaj a prikry.", "requires": ["orzo:raw", "tomato:cut", "chicken:browned", "onion:softened", "garlic:toasted", "oregano:toasted", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["orzo:simmering", "tomato:simmering", "chicken:simmering"]},
+        {"text": "Var cestoviny a kuracie prsia v prikrytej panvici na miernom ohni 10 až 12 minút a dvakrát premiešaj, kým budú cestoviny mäkké, tekutina takmer vsiakne a mäso nebude v strede ružové.", "requires": ["orzo:simmering", "tomato:simmering", "chicken:simmering", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["orzo:cooked", "tomato:cooked", "chicken:cooked", "onion:cooked", "garlic:cooked", "oregano:cooked", "oil:cooked"]},
+        {"text": "Vmiešaj špenát a {cheese.name} do panvice. Prehrievaj špenát a syr v panvici na miernom ohni 2 minúty, kým špenát zmäkne, syr sa roztopí a omáčka bude krémová.", "requires": ["spinach:raw", "cheese:grated", "orzo:cooked", "chicken:cooked", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["spinach:cooked", "cheese:melted"]},
+        {"text": "Podávaj kuracie orzo horúce a rozdeľ ho na {portions} porcií.", "requires": ["chicken:cooked", "orzo:cooked", "tomato:cooked", "spinach:cooked", "onion:cooked", "garlic:cooked", "cheese:melted", "oregano:cooked", "oil:cooked", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["chicken:served", "orzo:served", "tomato:served", "spinach:served", "onion:served", "garlic:served", "cheese:served", "oregano:served", "oil:served", "hlboka_panvica_s_pokrievkou:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Kuracie orzo rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní a zohrej ho iba raz, kým bude celé horúce."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_orzo_chicken_one_pan",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/marry-me-chicken-orzo", "title": "‘Marry me’ chicken & orzo | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://www.foodnetwork.com/recipes/valerie-bertinelli/one-pot-chicken-and-orzo-12667478", "title": "One Pot Chicken and Orzo Recipe | Valerie Bertinelli | Food Network", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

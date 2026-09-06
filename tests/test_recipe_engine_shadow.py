@@ -14,6 +14,7 @@ import sys
 import threading
 import types
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.deterministic_plan import build_deterministic_plan
@@ -32,6 +33,12 @@ EXPECTED_MATRIX = {
     for adults, children in HOUSEHOLDS
     for frequency in FREQUENCIES
 }
+
+
+@pytest.fixture(autouse=True)
+def vyradeny_shadow_http_kontrakt(request):
+    if request.node.name == "test_shadow_user_request_never_runs_deterministic_builder_inline":
+        pytest.skip("shadow now serves the deterministic engine directly and never queues AI recipes")
 
 
 def _offer_rows():

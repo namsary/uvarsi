@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "classic_segedin_goulash",
+      "version": 2,
+      "active": true,
+      "name_template": "Segedínsky guláš",
+      "family": "classic_segedin_goulash",
+      "method": "pot",
+      "minutes": 80,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľký hrniec", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "pork", "role": "protein", "candidates": ["pork_shoulder"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na 3 cm kocky", "water_ml_per_adult": "75"},
+        {"key": "cabbage", "role": "vegetable", "candidates": ["sauerkraut"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na kratšie vlákna"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "40", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {pork.amount} {pork.name} {pork.cut}, {onion.amount} {onion.name} nadrobno a {cabbage.amount} {cabbage.name} na kratšie vlákna.", "requires": ["pork:raw", "onion:raw", "cabbage:raw"], "produces": ["pork:cut", "onion:cut", "cabbage:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "velky_hrniec:free"], "produces": ["oil:heated", "velky_hrniec:hot"]},
+        {"text": "Opekaj cibuľu vo veľkom hrnci na strednom ohni 6 minút, kým bude mäkká a zlatistá.", "requires": ["onion:cut", "oil:heated", "velky_hrniec:hot"], "produces": ["onion:cooked", "oil:used", "velky_hrniec:occupied"]},
+        {"text": "Pridaj bravčové pliecko do hrnca. Opekaj bravčové pliecko na strednom ohni 8 minút, kým bude na povrchu zlatisté a uvoľnená šťava sa odparí.", "requires": ["pork:cut", "onion:cooked", "oil:used", "velky_hrniec:occupied"], "produces": ["pork:browned"]},
+        {"text": "Odstav hrniec z ohňa. Prisyp {paprika.amount} {paprika.name} do hrnca a premiešaj.", "requires": ["paprika:raw", "pork:browned", "velky_hrniec:occupied"], "produces": ["paprika:combined"]},
+        {"text": "Pridaj kyslú kapustu do hrnca a prilej {pork.water} vody. Hrniec prikry a dus bravčové pliecko s kapustou na miernom ohni 45 minút, kým oboje zmäkne a šťava začne bublať.", "requires": ["pork:browned", "cabbage:cut", "onion:cooked", "paprika:combined", "oil:used", "velky_hrniec:occupied"], "produces": ["pork:tender", "cabbage:cooked", "paprika:cooked", "oil:cooked"]},
+        {"text": "Premiešaj {cream.amount} {cream.name} v miske s naberačkou horúcej šťavy.", "requires": ["cream:raw", "miska:free", "pork:tender", "cabbage:cooked"], "produces": ["cream:tempered", "miska:free"]},
+        {"text": "Vlej {cream.name} do hrnca. Zohrievaj {cream.name} s mäsom a kapustou vo veľkom hrnci na miernom ohni 3 minúty, kým omáčka zhustne a začne bublať.", "requires": ["cream:tempered", "pork:tender", "cabbage:cooked", "paprika:cooked", "velky_hrniec:occupied"], "produces": ["cream:cooked", "pork:cooked", "velky_hrniec:free"]},
+        {"text": "Dochuť segedínsky guláš soľou a čiernym korením.", "requires": ["pork:cooked", "cabbage:cooked", "onion:cooked", "paprika:cooked", "cream:cooked", "oil:cooked"], "produces": []},
+        {"text": "Podávaj segedínsky guláš a rozdeľ ho na {portions} porcií.", "requires": ["pork:cooked", "cabbage:cooked", "onion:cooked", "paprika:cooked", "cream:cooked", "oil:cooked"], "produces": ["pork:served", "cabbage:served", "onion:served", "paprika:served", "cream:served", "oil:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Segedínsky guláš rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_segedin_goulash",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://kuchynalidla.sk/recepty/segedinsky-gulas", "title": "Segedínsky guláš", "accessed_on": "2026-09-05"},
+      {"url": "https://varecha.pravda.sk/recepty/segedinsky-gulas/79697-recept.html", "title": "Segedínsky guláš", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

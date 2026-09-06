@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "dd735c82c42dac1f88fd9188544cf4def1b3dadfb64a4b5befbd1635ff71a643",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "classic_french_potatoes"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

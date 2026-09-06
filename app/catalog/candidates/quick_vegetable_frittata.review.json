@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "88badaf3ef2004bbe3eb96fc5c97361709e3eae8dff1f628edc89b224110233e",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "quick_vegetable_frittata"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

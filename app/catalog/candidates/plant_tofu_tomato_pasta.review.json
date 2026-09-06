@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "573bc8738b5afafe62798aba49db4d8587546c8335b38af4f5fc858d35624f53",
+  "promoted_to": "05-vegan.json",
+  "recipe_ids": [
+    "plant_tofu_tomato_pasta"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

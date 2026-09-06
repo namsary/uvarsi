@@ -14,8 +14,10 @@ from typing import Iterable, Literal, Mapping, Sequence
 
 if __package__:
     from .ingredient_catalog import ALLOWED_ROLES, DietTag, IngredientCatalog
+    from .recipe_workflow import _checked_token, _equipment_key
 else:
     from ingredient_catalog import ALLOWED_ROLES, DietTag, IngredientCatalog
+    from recipe_workflow import _checked_token, _equipment_key
 
 
 DEFAULT_RECIPE_ROOT = Path(__file__).with_name("catalog") / "recipes"
@@ -25,7 +27,9 @@ ALLOWED_MODES = frozenset(
 ALLOWED_METHODS = frozenset({"pan", "oven", "pot", "one_pot", "salad", "soup"})
 ALLOWED_UNITS = frozenset({"g", "ml", "piece"})
 ALLOWED_USES = frozenset({"main", "addition"})
-ALLOWED_PLACEHOLDER_ATTRIBUTES = frozenset({"name", "amount", "cut", "water"})
+ALLOWED_PLACEHOLDER_ATTRIBUTES = frozenset(
+    {"name", "reference_name", "amount", "cut", "water"}
+)
 SLOT_KEY_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 PANTRY_BASIC_NAMES: Mapping[str, str] = MappingProxyType({"water": "voda"})
 CATALOG_SNAPSHOT_RETRIES = 4
@@ -43,11 +47,20 @@ class IngredientSlot:
     required: bool
     use: Literal["main", "addition"]
     cut: str | None
+    water_ml_per_adult: Decimal | None = None
 
 
 @dataclass(frozen=True)
 class InstructionTemplate:
     text: str
+    requires: tuple[str, ...] = ()
+    produces: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class StorageRule:
+    refrigerated_days: int
+    instruction: str
 
 
 @dataclass(frozen=True)
@@ -64,15 +77,22 @@ class RecipeTemplate:
     slots: Sequence[IngredientSlot]
     pantry_basics: Sequence[str]
     instructions: Sequence[InstructionTemplate]
+    storage: StorageRule | None = None
 
 
 class RecipeCatalog:
-    def __init__(self, version: int, recipes: Iterable[RecipeTemplate]):
+    def __init__(
+        self,
+        version: int,
+        recipes: Iterable[RecipeTemplate],
+        curation_generation: int = 0,
+    ):
         values = tuple(recipes)
         ids = [recipe.id for recipe in values]
         if len(ids) != len(set(ids)):
             raise ValueError("duplicitné ID receptu")
         self.version = version
+        self.curation_generation = curation_generation
         self._values = values
 
     def all(self) -> tuple[RecipeTemplate, ...]:
@@ -156,19 +176,22 @@ def _ingredient(ingredient_catalog: IngredientCatalog, ingredient_id: str):
 
 def _slot_from_json(value, ingredient_catalog: IngredientCatalog) -> IngredientSlot:
     payload = _object(value, "pozície")
+    expected_keys = {
+        "key",
+        "role",
+        "candidates",
+        "amount_per_adult",
+        "unit",
+        "child_factor",
+        "required",
+        "use",
+        "cut",
+    }
+    if "water_ml_per_adult" in payload:
+        expected_keys.add("water_ml_per_adult")
     _exact_keys(
         payload,
-        {
-            "key",
-            "role",
-            "candidates",
-            "amount_per_adult",
-            "unit",
-            "child_factor",
-            "required",
-            "use",
-            "cut",
-        },
+        expected_keys,
         "pozície",
     )
     key = _text(payload["key"], "kľúč pozície")
@@ -225,6 +248,13 @@ def _slot_from_json(value, ingredient_catalog: IngredientCatalog) -> IngredientS
         required=required,
         use=use,
         cut=cut,
+        water_ml_per_adult=(
+            _positive_decimal(
+                payload["water_ml_per_adult"], "voda na dospelého"
+            )
+            if "water_ml_per_adult" in payload
+            else None
+        ),
     )
 
 
@@ -280,28 +310,52 @@ def _validate_diets(
             raise ValueError("vegetarian recept obsahuje: " + ", ".join(invalid))
 
 
+def _storage_from_json(value) -> StorageRule:
+    payload = _object(value, "storage")
+    _exact_keys(payload, {"refrigerated_days", "instruction"}, "storage")
+    refrigerated_days = _positive_int(
+        payload["refrigerated_days"], "storage refrigerated_days"
+    )
+    if refrigerated_days > 4:
+        raise ValueError("storage refrigerated_days musí byť od 1 do 4")
+    return StorageRule(
+        refrigerated_days=refrigerated_days,
+        instruction=_text(payload["instruction"], "storage instruction"),
+    )
+
+
+def _workflow_tokens(value, label: str, resources: frozenset[str]) -> tuple[str, ...]:
+    tokens = _texts(value, label)
+    for token in tokens:
+        _checked_token(token, resources)
+    return tokens
+
+
 def _recipe_from_json(value, ingredient_catalog: IngredientCatalog) -> RecipeTemplate:
     payload = _object(value, "receptu")
+    version = _positive_int(payload.get("version"), "verzia receptu")
+    expected_keys = {
+        "id",
+        "version",
+        "active",
+        "name_template",
+        "family",
+        "method",
+        "minutes",
+        "modes",
+        "equipment",
+        "slots",
+        "pantry_basics",
+        "instructions",
+    }
+    if version >= 2:
+        expected_keys.add("storage")
     _exact_keys(
         payload,
-        {
-            "id",
-            "version",
-            "active",
-            "name_template",
-            "family",
-            "method",
-            "minutes",
-            "modes",
-            "equipment",
-            "slots",
-            "pantry_basics",
-            "instructions",
-        },
+        expected_keys,
         "receptu",
     )
     recipe_id = _text(payload["id"], "ID receptu")
-    version = _positive_int(payload["version"], "verzia receptu")
     active = payload["active"]
     if type(active) is not bool:
         raise ValueError("active musí byť boolean")
@@ -326,6 +380,13 @@ def _recipe_from_json(value, ingredient_catalog: IngredientCatalog) -> RecipeTem
     if len(slot_keys) != len(set(slot_keys)):
         raise ValueError("duplicitná pozícia receptu")
 
+    if version >= 2:
+        equipment_keys = tuple(_equipment_key(item) for item in equipment)
+        workflow_resources = (*slot_keys, *equipment_keys)
+        if len(workflow_resources) != len(set(workflow_resources)):
+            raise ValueError("duplicitný workflow resource")
+        workflow_resource_set = frozenset(workflow_resources)
+
     pantry_basics = _texts(payload["pantry_basics"], "základné suroviny")
     if len(pantry_basics) != len(set(pantry_basics)):
         raise ValueError("duplicitná základná surovina")
@@ -339,9 +400,32 @@ def _recipe_from_json(value, ingredient_catalog: IngredientCatalog) -> RecipeTem
     instructions = []
     for value in instructions_value:
         instruction = _object(value, "kroku")
-        _exact_keys(instruction, {"text"}, "kroku")
-        instructions.append(InstructionTemplate(_text(instruction["text"], "krok")))
+        if version >= 2:
+            _exact_keys(
+                instruction,
+                {"text", "requires", "produces"},
+                "kroku",
+            )
+            instructions.append(
+                InstructionTemplate(
+                    _text(instruction["text"], "krok"),
+                    requires=_workflow_tokens(
+                        instruction["requires"],
+                        "workflow requires",
+                        workflow_resource_set,
+                    ),
+                    produces=_workflow_tokens(
+                        instruction["produces"],
+                        "workflow produces",
+                        workflow_resource_set,
+                    ),
+                )
+            )
+        else:
+            _exact_keys(instruction, {"text"}, "kroku")
+            instructions.append(InstructionTemplate(_text(instruction["text"], "krok")))
     instructions_tuple = tuple(instructions)
+    storage = _storage_from_json(payload["storage"]) if version >= 2 else None
 
     slot_key_set = frozenset(slot_keys)
     _validate_placeholders((name_template,), slot_key_set)
@@ -382,10 +466,11 @@ def _recipe_from_json(value, ingredient_catalog: IngredientCatalog) -> RecipeTem
         slots=slots,
         pantry_basics=pantry_basics,
         instructions=instructions_tuple,
+        storage=storage,
     )
 
 
-def _load_manifest(root: Path) -> tuple[int, int | None]:
+def _load_manifest(root: Path) -> tuple[int, int | None, int]:
     path = root / "manifest.json"
     try:
         payload = _object(_load_strict_json(path), "manifestu")
@@ -395,16 +480,24 @@ def _load_manifest(root: Path) -> tuple[int, int | None]:
     if keys not in (
         {"library_version"},
         {"library_version", "catalog_revision"},
+        {"library_version", "catalog_revision", "curation_generation"},
     ):
-        expected = {"library_version", "catalog_revision"}
+        expected = {
+            "library_version",
+            "catalog_revision",
+            "curation_generation",
+        }
         _exact_keys(payload, expected, "manifestu")
     version = _positive_int(payload["library_version"], "library_version")
-    if "catalog_revision" not in payload:
-        return version, None
-    revision = payload["catalog_revision"]
-    if type(revision) is not int or revision < 0:
+    revision = payload.get("catalog_revision")
+    if "catalog_revision" in payload and (
+        type(revision) is not int or revision < 0
+    ):
         raise ValueError("catalog_revision musí byť nezáporné celé číslo")
-    return version, revision
+    curation_generation = payload.get("curation_generation", 0)
+    if type(curation_generation) is not int or curation_generation < 0:
+        raise ValueError("curation_generation musí byť nezáporné celé číslo")
+    return version, revision, curation_generation
 
 
 def _load_recipe_values(
@@ -438,7 +531,7 @@ def load_recipe_catalog(
             continue
         try:
             recipes = _load_recipe_values(ingredient_catalog, source_root)
-            validated = RecipeCatalog(before[0], recipes)
+            validated = RecipeCatalog(before[0], recipes, before[2])
         except Exception:
             after_failure = _load_manifest(source_root)
             if (
@@ -457,6 +550,8 @@ def load_recipe_catalog(
         if include_inactive:
             return validated
         return RecipeCatalog(
-            before[0], (recipe for recipe in recipes if recipe.active)
+            before[0],
+            (recipe for recipe in recipes if recipe.active),
+            before[2],
         )
     raise ValueError("receptový katalóg nemá stabilný snapshot")

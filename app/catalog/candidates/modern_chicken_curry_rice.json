@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "modern_chicken_curry_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuracie kari s ryžou",
+      "family": "modern_chicken_curry_rice",
+      "method": "pan",
+      "minutes": 40,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["panvica", "hrniec", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na menšie kúsky"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "150"},
+        {"key": "zucchini", "role": "vegetable", "candidates": ["zucchini"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na menšie kúsky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "curry", "role": "seasoning", "candidates": ["curry_powder"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "coconut", "role": "dairy", "candidates": ["coconut_milk"], "amount_per_adult": "80", "unit": "ml", "child_factor": "0.55", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} studenou vodou.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nalej {rice.water} vody do hrnca, prikry ho a priveď na strednom ohni do varu. Potom stíš oheň a var ryžu prikrytú 15 minút, kým zmäkne a vsiakne vodu.", "requires": ["rice:rinsed", "hrniec:free"], "produces": ["rice:cooked", "hrniec:free"]},
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} a {zucchini.amount} {zucchini.name} na menšie kúsky. {onion.amount} {onion.name} nakrájaj nadrobno a {garlic.amount} {garlic.name} najemno.", "requires": ["chicken:raw", "zucchini:raw", "onion:raw", "garlic:raw"], "produces": ["chicken:cut", "zucchini:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj cibuľu 5 minút, kým zmäkne a zosklovatie.", "requires": ["oil:raw", "onion:cut", "panvica:free"], "produces": ["oil:used", "onion:cooked", "panvica:occupied"]},
+        {"text": "Opekaj kuracie prsia v panvici na strednom ohni 6 minút, kým budú miestami zlatisté. Pri väčšej dávke mäso priprav po častiach.", "requires": ["chicken:cut", "oil:used", "onion:cooked", "panvica:occupied"], "produces": ["chicken:browned"]},
+        {"text": "Stíš oheň. Prisyp {curry.amount} {curry.name} a cesnak do panvice. Miešaj ich na miernom ohni 1 minútu, kým sa rozvoňajú.", "requires": ["curry:raw", "garlic:cut", "chicken:browned", "panvica:occupied"], "produces": ["curry:toasted", "garlic:cooked"]},
+        {"text": "Pridaj cuketu a prilej {coconut.amount} {coconut.name}. Dus kari v panvici na miernom ohni 10 minút, kým omáčka jemne bublá, cuketa zmäkne a mäso nebude v strede ružové.", "requires": ["zucchini:cut", "coconut:raw", "curry:toasted", "garlic:cooked", "chicken:browned", "panvica:occupied"], "produces": ["zucchini:cooked", "coconut:cooked", "curry:cooked", "chicken:cooked", "panvica:free"]},
+        {"text": "Dochuť kari soľou a čiernym korením. Podávaj ho s ryžou a rozdeľ jedlo na {portions} porcií.", "requires": ["chicken:cooked", "rice:cooked", "zucchini:cooked", "onion:cooked", "garlic:cooked", "curry:cooked", "coconut:cooked", "oil:used"], "produces": ["chicken:served", "rice:served", "zucchini:served", "onion:served", "garlic:served", "curry:served", "coconut:served", "oil:served"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Kari a ryžu rozdeľ do plytkých nádob a do jednej hodiny ich schlaď. V chladničke ich zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým budú celé horúce."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "modern_chicken_curry_rice",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://kuchynelidlu.cz/recept/kureci-kari-s-ryzi-basmati", "title": "Kuřecí kari s rýží basmati | Kuchyně Lidlu", "accessed_on": "2026-09-05"},
+      {"url": "https://www.itesco.cz/hello/recepty/lehke-kureci-kari/575658", "title": "Lehké kuřecí kari | Hello Tesco", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

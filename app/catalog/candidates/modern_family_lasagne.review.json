@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "bcbc0e89761ac551f67fca9d38c67355777b47ae5c3c0f9cdda4f0bcee4eb20c",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "modern_family_lasagne"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

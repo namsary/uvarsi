@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "f719a91c2e294d2f1219a8ce707ddd4f719d1d77642955511053e7da371d0933",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "classic_meatloaf_potatoes"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

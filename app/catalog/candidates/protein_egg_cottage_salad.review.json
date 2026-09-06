@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "c5e4e22de7d7b9474e0d332976523df6f7e48be809588e39527f80775375fcf9",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "protein_egg_cottage_salad"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

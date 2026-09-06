@@ -445,7 +445,7 @@ def test_the_prefetched_plan_is_used_instead_of_a_second_round_trip():
 
 def test_every_plan_generation_path_uses_one_shared_in_flight_guard():
     html = read(APP)
-    assert "let PLAN_REQUEST_IN_FLIGHT = null" in html
+    assert "let PLAN_REQUEST_IN_FLIGHT = {}" in html
     assert "function onePlanRequest(request)" in html
     assert "function requestPlan(kind, url)" in html
 
@@ -472,7 +472,7 @@ def test_pending_acknowledgement_blocks_a_second_post_and_discards_stale_respons
     assert one and request
     script = tmp_path / "pending-plan-guard.js"
     script.write_text(
-        "var PLAN_REQUEST_IN_FLIGHT=null, PLAN_PREPARATION=null, PLAN_CONTEXT_VERSION=0;\n"
+        "var PLAN_REQUEST_IN_FLIGHT={}, PLAN_PREPARATION=null, PLAN_CONTEXT_VERSION=0;\n"
         "var calls=0, resolveApi;\n"
         "function api(url, options) { calls++; return new Promise(function(resolve){resolveApi=resolve;}); }\n"
         "function setPlanPreparation(response, kind, version) { PLAN_PREPARATION={response:response,jobId:response.job_id,kind:kind,version:version}; return true; }\n"
@@ -549,7 +549,7 @@ def test_plan_generation_requests_share_one_in_flight_promise(tmp_path):
 
     script = tmp_path / "one-plan-request.js"
     script.write_text(
-        "var PLAN_REQUEST_IN_FLIGHT = null;\n"
+        "var PLAN_REQUEST_IN_FLIGHT = {};\n"
         + guard.group(0)
         + """
 var calls = 0, finish;
@@ -571,6 +571,38 @@ function request() {
   process.exit(0);
 })().catch(function(error) { console.error(error); process.exit(99); });
 """,
+        encoding="utf-8",
+    )
+    result = subprocess.run([NODE, str(script)], capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
+def test_plan_guard_deduplicates_only_the_same_semantic_operation(tmp_path):
+    html = read(APP)
+    one = re.search(r"function onePlanRequest\(request\) \{.*?\n\}", html, re.S)
+    request = re.search(r"function requestPlan\(kind, url\) \{.*?\n\}", html, re.S)
+    assert one and request
+
+    script = tmp_path / "semantic-plan-guard.js"
+    script.write_text(
+        "var PLAN_REQUEST_IN_FLIGHT={}, PLAN_PREPARATION=null, PLAN_CONTEXT_VERSION=0;\n"
+        "var calls=[], resolvers={};\n"
+        "function api(url) { calls.push(url); return new Promise(function(resolve){resolvers[url]=resolve;}); }\n"
+        "function setPlanPreparation() {}\n"
+        + one.group(0) + "\n" + request.group(0) + "\n"
+        + "(async function(){\n"
+        + "  var regular=requestPlan('regular','/api/plan/generuj',{method:'POST'});\n"
+        + "  var duplicate=requestPlan('regular','/api/plan/generuj',{method:'POST'});\n"
+        + "  var pantry=requestPlan('pantry','/api/plan/zo-spajze',{method:'POST'});\n"
+        + "  if (regular !== duplicate || pantry === regular) process.exit(1);\n"
+        + "  if (calls.length !== 2 || calls[0] === calls[1]) process.exit(2);\n"
+        + "  resolvers['/api/plan/generuj']({jedla:[{nazov:'Bezny'}]});\n"
+        + "  resolvers['/api/plan/zo-spajze']({jedla:[{nazov:'Spajza'}]});\n"
+        + "  var values=await Promise.all([regular,duplicate,pantry]);\n"
+        + "  if (values[0] !== values[1] || values[0] === values[2]) process.exit(3);\n"
+        + "})().catch(function(error){console.error(error);process.exit(99);});\n",
         encoding="utf-8",
     )
     result = subprocess.run([NODE, str(script)], capture_output=True, text=True)
@@ -636,7 +668,8 @@ def test_retrying_after_an_outage_issues_brand_new_requests(tmp_path):
     """Zamietnutý sľub ostane zamietnutý — „Skúsiť znova" musí začať odznova."""
     html = read(APP)
     pieces = []
-    for signature in (r"function startupRequests\(request\) \{",
+    for signature in (r"async function fetchWithTimeout\(url, options\) \{",
+                      r"function startupRequests\(request\) \{",
                       r"function beginStartup\(\) \{"):
         match = re.search(signature + r".*?\n\}", html, re.S)
         assert match, "chýba " + signature
@@ -650,7 +683,7 @@ def test_retrying_after_an_outage_issues_brand_new_requests(tmp_path):
 
     script = tmp_path / "startup-retry.js"
     script.write_text(
-        "var STARTUP = null, PLAN_PREFETCH = null;\nvar attempts = 0;\n"
+        "var STARTUP = null, PLAN_PREFETCH = null, REQUEST_TIMEOUT_MS=12000;\nvar attempts = 0;\n"
         "function fetch(url) { attempts++; return Promise.reject(new Error('offline')); }\n"
         + "\n".join(pieces)
         + """
@@ -765,15 +798,24 @@ def test_app_render_critical_first_load_keeps_a_tight_gzip_budget():
         viacobchodový výber vrátane prístupných tlačidiel a obnovy po zmene nároku.
         Kontrolovaný shell má 31 532 B; strop 31 800 B ponecháva rezervu bez novej
         požiadavky alebo blokujúceho aktíva.
+
+        6. 9. 2026: deterministické recepty oddeľujú letákové suroviny od bežného
+        dokúpenia. Rozhranie preto pri neznámej cene nič nevymýšľa, vysvetľuje
+        rozsah súčtu aj vplyv špajze. Shell má 31 974 B pri gzip level 5. Strop
+        32 300 B zachováva približne 300 B rezervu a stále ostáva okolo 32 kB.
+
+        Následná release kontrola zapojila rovnaký 12-sekundový timeout aj do účtov
+        a oddelila súbežné bežné, nútené a špajzové požiadavky. Shell má 32 742 B;
+        pevný strop 33 000 B ponecháva 258 B rezervu a nemení počet požiadaviek.
     """
     assets = [("/app", APP), *local_render_blocking_stylesheets(APP)]
     measured = [
         (url, len(gzip.compress(path.read_bytes(), 5))) for url, path in assets
     ]
     compressed = sum(size for _url, size in measured)
-    assert compressed <= 31_800, (
+    assert compressed <= 33_000, (
         f"render-critical prvé načítanie má {compressed} B pri gzip level 5; "
-        f"požadovaný strop s rezervou je 31800 B; aktíva: {measured}"
+        f"požadovaný strop s rezervou je 33000 B; aktíva: {measured}"
     )
 
 

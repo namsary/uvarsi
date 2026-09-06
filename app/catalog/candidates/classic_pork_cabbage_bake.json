@@ -1,0 +1,47 @@
+{
+  "recipes": [
+    {
+      "id": "classic_pork_cabbage_bake",
+      "version": 2,
+      "active": true,
+      "name_template": "Koložvárska kapusta",
+      "family": "classic_pork_cabbage_bake",
+      "method": "oven",
+      "minutes": 100,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["nôž", "doska", "hrniec", "sitko", "panvica", "vareška", "pekáč", "rúra"],
+      "slots": [
+        {"key": "meat", "role": "protein", "candidates": ["pork_mince"], "amount_per_adult": "140", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "cabbage", "role": "vegetable", "candidates": ["sauerkraut"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na kratšie vlákna", "water_ml_per_adult": "40"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "30", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw", "sitko:free"], "produces": ["rice:rinsed", "sitko:free"]},
+        {"text": "Nalej {rice.water} vody do hrnca, pridaj ryžu a prikry ho. Var ryžu na miernom ohni 10 minút, potom ju odstav a nechaj prikrytú 5 minút, kým voda vsiakne a zrnká budú mäkké, no stále pevné.", "requires": ["rice:rinsed", "hrniec:free"], "produces": ["rice:cooked", "hrniec:free"]},
+        {"text": "Nakrájaj {cabbage.amount} {cabbage.name} {cabbage.cut} a {onion.amount} {onion.name} {onion.cut}.", "requires": ["cabbage:raw", "onion:raw"], "produces": ["cabbage:cut", "onion:cut"]},
+        {"text": "Nalej {oil.amount} {oil.name} do panvice. Opekaj cibuľu na strednom ohni 6 minút, kým bude dosklovita.", "requires": ["oil:raw", "onion:cut", "panvica:free"], "produces": ["oil:cooked", "onion:cooked", "panvica:occupied"]},
+        {"text": "Pridaj {meat.amount} {meat.name} do panvice. Opekaj {meat.name} na panvici na strednom ohni 10 minút a vareškou ho rozdeľuj na malé kúsky, kým sa rovnomerne prepečie a nikde nezostane ružové. Odstav panvicu a vmiešaj {paprika.amount} {paprika.name}. Dochuť čiernym korením.", "requires": ["meat:raw", "paprika:raw", "oil:cooked", "onion:cooked", "panvica:occupied"], "produces": ["meat:cooked", "paprika:cooked"]},
+        {"text": "Vlož kyslú kapustu do hrnca, prilej {cabbage.water} vody a prikry ho. Kapustu dus v hrnci na miernom ohni 10 minút, kým mierne zmäkne, ale stále zostane príjemne kyslá.", "requires": ["cabbage:cut", "hrniec:free"], "produces": ["cabbage:cooked", "hrniec:free"]},
+        {"text": "Predhrej rúru na 190 °C.", "requires": ["rura:free"], "produces": ["rura:hot"]},
+        {"text": "Rozlož do pekáča polovicu kyslej kapusty, ryžu, mleté bravčové mäso s cibuľou a zvyšnú kapustu. Pridaj {cream.amount} {cream.name}. Rovnomerne ňou polej celý povrch.", "requires": ["cabbage:cooked", "rice:cooked", "meat:cooked", "onion:cooked", "paprika:cooked", "oil:cooked", "cream:raw", "panvica:occupied", "pekac:free"], "produces": ["cabbage:arranged", "rice:arranged", "meat:arranged", "onion:arranged", "paprika:arranged", "oil:arranged", "cream:arranged", "panvica:free", "pekac:occupied"]},
+        {"text": "Peč kyslú kapustu s ryžou a mäsom v pekáči pri 190 °C 25 minút, kým smotana na okrajoch bublá a povrch zozlatne.", "requires": ["cabbage:arranged", "rice:arranged", "meat:arranged", "onion:arranged", "paprika:arranged", "oil:arranged", "cream:arranged", "pekac:occupied", "rura:hot"], "produces": ["cabbage:cooked", "rice:cooked", "meat:cooked", "onion:cooked", "paprika:cooked", "oil:cooked", "cream:cooked"]},
+        {"text": "Nechaj koložvársku kapustu 10 minút odpočívať, potom ju rozdeľ na {portions} porcií.", "requires": ["cabbage:cooked", "rice:cooked", "meat:cooked", "onion:cooked", "paprika:cooked", "oil:cooked", "cream:cooked", "pekac:occupied"], "produces": ["cabbage:served", "rice:served", "meat:served", "onion:served", "paprika:served", "oil:served", "cream:served", "pekac:free"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Koložvársku kapustu rozdeľ do plytkých nádob a do jednej hodiny ju schlaď. V chladničke ju zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým bude celá horúca."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_pork_cabbage_bake",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/kolozvarska-kapusta-/74787-recept.html", "title": "Koložvárska kapusta", "accessed_on": "2026-09-05"},
+      {"url": "https://nanicmama.sme.sk/recept/hlavne-jedla/kolozvarska-kapusta", "title": "Koložvárska kapusta", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

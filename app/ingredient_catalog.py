@@ -17,7 +17,16 @@ DEFAULT_CATALOG_PATH = Path(__file__).with_name("catalog") / "ingredients.json"
 SUPPORTED_CATALOG_VERSION = 1
 SUPPORTED_NUTRITION_BASIS = "per 100 g edible portion"
 ALLOWED_ROLES = frozenset(
-    {"protein", "starch", "vegetable", "aromatic", "fat", "seasoning", "dairy"}
+    {
+        "protein",
+        "starch",
+        "vegetable",
+        "fruit",
+        "aromatic",
+        "fat",
+        "seasoning",
+        "dairy",
+    }
 )
 CATALOG_KEYS = frozenset({"catalog_version", "nutrition_basis", "ingredients"})
 INGREDIENT_KEYS = frozenset(
@@ -42,6 +51,8 @@ PRODUCT_FAMILIES = (
     frozenset(("chickpeas", "chickpeas_canned")),
     frozenset(("beans", "beans_canned")),
     frozenset(("chicken_thigh", "chicken_thigh_meat")),
+    frozenset(("lentils", "red_lentils")),
+    frozenset(("sauerkraut", "white_cabbage")),
 )
 PRODUCT_FAMILY_SHARED_FORMS = MappingProxyType(
     {
@@ -58,12 +69,85 @@ PRODUCT_FAMILY_SHARED_FORMS = MappingProxyType(
         PRODUCT_FAMILIES[2]: frozenset(
             ("kuracie stehno", "kuracie stehná", "kuracích stehien")
         ),
+        PRODUCT_FAMILIES[3]: frozenset(
+            ("šošovica", "šošovice", "šošovicu", "šošovicou")
+        ),
+        PRODUCT_FAMILIES[4]: frozenset(("kapusta", "kapusty", "kapustu")),
     }
 )
 PRODUCT_FAMILY_AMBIGUOUS_OFFER_FORMS = MappingProxyType(
     {
         PRODUCT_FAMILIES[0]: PRODUCT_FAMILY_SHARED_FORMS[PRODUCT_FAMILIES[0]],
         PRODUCT_FAMILIES[1]: PRODUCT_FAMILY_SHARED_FORMS[PRODUCT_FAMILIES[1]],
+        PRODUCT_FAMILIES[3]: PRODUCT_FAMILY_SHARED_FORMS[PRODUCT_FAMILIES[3]],
+        PRODUCT_FAMILIES[4]: PRODUCT_FAMILY_SHARED_FORMS[PRODUCT_FAMILIES[4]],
+    }
+)
+INGREDIENT_AMBIGUOUS_OFFER_FORMS = MappingProxyType(
+    {
+        "apple_cider_vinegar": frozenset(("ocot",)),
+        "beef_chuck": frozenset(
+            ("hovädzie na guláš", "hovädzie mäso na guláš", "hovädzie kocky")
+        ),
+        "ham": frozenset(("šunka", "krájaná šunka")),
+        "pork_loin": frozenset(("bravčové karé",)),
+        "smoked_sausage": frozenset(("klobása",)),
+        "wheat_flour": frozenset(("pšeničná múka", "múka")),
+    }
+)
+INGREDIENT_FORBIDDEN_OFFER_QUALIFIERS = MappingProxyType(
+    {
+        "apple_cider_vinegar": frozenset(
+            (("vínny",), ("vinny",), ("liehový",), ("liehovy",))
+        ),
+        "cauliflower": frozenset((("ružičky",), ("ruzicky",))),
+        "ham": frozenset(
+            (
+                ("kuracia",),
+                ("kuracie",),
+                ("kurací",),
+                ("kuraci",),
+                ("morčacia",),
+                ("morčacie",),
+                ("morčací",),
+                ("morcacia",),
+                ("morcacie",),
+                ("morcaci",),
+            )
+        ),
+        "lentils": frozenset(
+            (("červená",), ("cervena",), ("ružová",), ("ruzova",))
+        ),
+        "pork_loin": frozenset((("s", "kosťou"), ("s", "kostou"))),
+        "pork_shoulder": frozenset((("s", "kosťou"), ("s", "kostou"))),
+        "smoked_sausage": frozenset(
+            (
+                ("s",),
+                ("so",),
+                ("chilli",),
+                ("čili",),
+                ("cili",),
+                ("syr",),
+                ("syrom",),
+                ("syrová",),
+                ("syrova",),
+                ("syrový",),
+                ("syrovy",),
+            )
+        ),
+        "wheat_flour": frozenset(
+            (("polohrubá",), ("polohruba",), ("hrubá",), ("hruba",))
+        ),
+        "white_cabbage": frozenset(
+            (
+                ("červená",),
+                ("cervena",),
+                ("kvasená",),
+                ("kvasena",),
+                ("kyslá",),
+                ("kysla",),
+            )
+        ),
     }
 )
 
@@ -122,6 +206,16 @@ def product_family_ambiguous_offer_forms(ingredient_id: str) -> frozenset[str]:
     if family is None:
         return frozenset()
     return PRODUCT_FAMILY_AMBIGUOUS_OFFER_FORMS.get(family, frozenset())
+
+
+def ingredient_ambiguous_offer_forms(ingredient_id: str) -> frozenset[str]:
+    return INGREDIENT_AMBIGUOUS_OFFER_FORMS.get(ingredient_id, frozenset())
+
+
+def ingredient_forbidden_offer_qualifiers(
+    ingredient_id: str,
+) -> frozenset[tuple[str, ...]]:
+    return INGREDIENT_FORBIDDEN_OFFER_QUALIFIERS.get(ingredient_id, frozenset())
 
 
 def build_alias_index(ingredients: Iterable[Ingredient]):

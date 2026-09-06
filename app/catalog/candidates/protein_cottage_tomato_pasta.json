@@ -1,0 +1,42 @@
+{
+  "recipes": [
+    {
+      "id": "protein_cottage_tomato_pasta",
+      "version": 2,
+      "active": true,
+      "name_template": "Paradajkové cestoviny s cottage syrom",
+      "family": "protein_cottage_tomato_pasta",
+      "method": "pan",
+      "minutes": 30,
+      "modes": ["standard", "high_protein", "vegetarian"],
+      "equipment": ["hrniec", "hlboká panvica", "sitko", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "cottage", "role": "protein", "candidates": ["cottage_cheese"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na menšie kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Uvar {pasta.amount} {pasta.name} v hrnci s osolenou vodou na strednom ohni približne 10 minút podľa času na obale, kým budú mäkké, ale nerozvarené. Pred scedením odlož trochu vody z cestovín.", "requires": ["pasta:raw", "hrniec:free", "sitko:free"], "produces": ["pasta:cooked", "hrniec:free", "sitko:free"]},
+        {"text": "Nakrájaj {tomato.amount} {tomato.name} na menšie kocky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno.", "requires": ["tomato:raw", "onion:raw", "garlic:raw"], "produces": ["tomato:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v hlbokej panvici na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj cibuľu 5 minút, kým zosklovatie.", "requires": ["oil:raw", "onion:cut", "hlboka_panvica:free"], "produces": ["oil:used", "onion:cooked", "hlboka_panvica:occupied"]},
+        {"text": "Pridaj paradajky a cesnak do panvice. Var paradajky s cesnakom na miernom ohni 8 minút, kým zmäknú a pustia šťavu.", "requires": ["tomato:cut", "garlic:cut", "onion:cooked", "hlboka_panvica:occupied"], "produces": ["tomato:cooked", "garlic:cooked"]},
+        {"text": "Odstav panvicu z ohňa a pridaj {cottage.amount} {cottage.name}. Omáčku premiešaj, kým bude krémová; podľa potreby ju zrieď odloženou vodou z cestovín.", "requires": ["cottage:raw", "tomato:cooked", "garlic:cooked", "onion:cooked", "hlboka_panvica:occupied"], "produces": ["cottage:mixed", "tomato:sauce", "garlic:mixed", "onion:mixed"]},
+        {"text": "Vmiešaj cestoviny do panvice. Dochuť ich soľou a čiernym korením, rozdeľ na {portions} porcií a podávaj hneď.", "requires": ["pasta:cooked", "cottage:mixed", "tomato:sauce", "garlic:mixed", "onion:mixed", "oil:used", "hlboka_panvica:occupied"], "produces": ["pasta:served", "cottage:served", "tomato:served", "garlic:served", "onion:served", "oil:served", "hlboka_panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Cestoviny rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a pri ohrievaní pridaj trochu vody, aby omáčka zostala krémová."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "protein_cottage_tomato_pasta",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://feelgoodfoodie.net/recipe/tomato-cottage-cheese-pasta/", "title": "Cottage Cheese Pasta Sauce | Feel Good Foodie", "accessed_on": "2026-09-05"},
+      {"url": "https://kaynutrition.com/tomato-cottage-cheese-pasta/", "title": "Tomato Cottage Cheese Pasta - Stephanie Kay Nutrition", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

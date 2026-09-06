@@ -1,0 +1,48 @@
+{
+  "recipes": [
+    {
+      "id": "protein_turkey_meatballs",
+      "version": 2,
+      "active": true,
+      "name_template": "Morčacie mäsové guľky v paradajkovej omáčke",
+      "family": "protein_turkey_meatballs",
+      "method": "pan",
+      "minutes": 45,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["panvica", "hrniec", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "turkey", "role": "protein", "candidates": ["turkey_mince"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": null},
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.7", "required": true, "use": "addition", "cut": "na menšie kúsky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.5", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {tomato.amount} {tomato.name} na menšie kúsky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno.", "requires": ["tomato:raw", "onion:raw", "garlic:raw"], "produces": ["tomato:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Premiešaj {turkey.amount} {turkey.name}, {egg.amount} {egg.name}, {flour.amount} {flour.name}, soľ a čierne korenie v miske.", "requires": ["turkey:raw", "egg:raw", "flour:raw", "miska:free"], "produces": ["turkey:mixed", "egg:mixed", "flour:mixed", "miska:occupied"]},
+        {"text": "Rozdeľ mäsovú zmes na guľky veľké približne ako vlašský orech.", "requires": ["turkey:mixed", "egg:mixed", "flour:mixed", "miska:occupied"], "produces": ["turkey:formed", "egg:formed", "flour:formed", "miska:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "panvica:free"], "produces": ["oil:hot", "panvica:occupied"]},
+        {"text": "Opekaj guľky z mletého morčacieho mäsa v panvici na strednom ohni 8 minút a priebežne ich obracaj, kým budú zo všetkých strán zlatisté.", "requires": ["turkey:formed", "egg:formed", "flour:formed", "oil:hot", "panvica:occupied"], "produces": ["turkey:browned", "egg:cooking", "flour:cooking"]},
+        {"text": "Opekaj cibuľu a cesnak v panvici na strednom ohni 3 minúty, kým cibuľa zmäkne.", "requires": ["onion:cut", "garlic:cut", "turkey:browned", "panvica:occupied"], "produces": ["onion:cooked", "garlic:cooked"]},
+        {"text": "Pridaj paradajky do panvice.", "requires": ["tomato:cut", "onion:cooked", "garlic:cooked", "panvica:occupied"], "produces": ["tomato:in_pan"]},
+        {"text": "Dus guľky z mletého morčacieho mäsa v paradajkovej omáčke v panvici na miernom ohni 15 minút, kým omáčka zhustne a guľky budú v strede prepečené.", "requires": ["tomato:in_pan", "turkey:browned", "egg:cooking", "flour:cooking", "panvica:occupied"], "produces": ["tomato:cooked", "turkey:cooked", "egg:cooked", "flour:cooked", "onion:finished", "garlic:finished", "oil:used"]},
+        {"text": "Uvar {pasta.amount} {pasta.name} v hrnci vo vriacej osolenej vode na strednom ohni 10 minút, kým budú mäkké na zahryznutie. Potom ich sceď.", "requires": ["pasta:raw", "hrniec:free"], "produces": ["pasta:cooked", "hrniec:free"]},
+        {"text": "Podávaj mäsové guľky s omáčkou a cestovinami. Jedlo rozdeľ na {portions} porcií.", "requires": ["turkey:cooked", "egg:cooked", "flour:cooked", "tomato:cooked", "onion:finished", "garlic:finished", "oil:used", "pasta:cooked", "panvica:occupied"], "produces": ["turkey:served", "egg:served", "flour:served", "tomato:served", "onion:served", "garlic:served", "oil:served", "pasta:served", "panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Guľky s omáčkou a cestoviny odlož do oddelených plytkých nádob najneskôr do 2 hodín. V chladničke ich uchovaj najviac 3 dni; omáčku s guľkami môžeš aj zamraziť."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "protein_turkey_meatballs",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfood.com/recipes/collection/turkey-meatball-recipes", "title": "Turkey meatball recipes | Good Food", "accessed_on": "2026-09-05"},
+      {"url": "https://health.clevelandclinic.org/recipe-sweet-sour-meatballs", "title": "Recipe: Sweet and Sour Turkey Meatballs | Cleveland Clinic", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

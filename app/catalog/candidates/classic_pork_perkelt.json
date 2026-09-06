@@ -1,0 +1,170 @@
+{
+  "recipes": [
+    {
+      "id": "classic_pork_perkelt",
+      "version": 2,
+      "active": true,
+      "name_template": "Bravčový perkelt s cestovinami",
+      "family": "classic_pork_perkelt",
+      "method": "pot",
+      "minutes": 75,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľký hrniec", "malý hrniec", "nôž", "doska na krájanie"],
+      "slots": [
+        {
+          "key": "pork",
+          "role": "protein",
+          "candidates": ["pork_shoulder"],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na menšie kocky",
+          "water_ml_per_adult": "75"
+        },
+        {
+          "key": "pasta",
+          "role": "starch",
+          "candidates": ["pasta"],
+          "amount_per_adult": "60",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": ["onion"],
+          "amount_per_adult": "60",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": ["paprika_powder"],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": ["garlic"],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "pepper",
+          "role": "vegetable",
+          "candidates": ["bell_pepper"],
+          "amount_per_adult": "60",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "addition",
+          "cut": "na pásiky"
+        },
+        {
+          "key": "tomato",
+          "role": "vegetable",
+          "candidates": ["tomato"],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "addition",
+          "cut": "na malé kúsky"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": ["oil"],
+          "amount_per_adult": "8",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {
+          "text": "Nakrájaj {pork.amount} {pork.name} na menšie kocky, {onion.amount} {onion.name} nadrobno, {pepper.amount} {pepper.name} na pásiky a {tomato.amount} {tomato.name} na malé kúsky.",
+          "requires": ["pork:raw", "onion:raw", "pepper:raw", "tomato:raw"],
+          "produces": ["pork:cut", "onion:cut", "pepper:cut", "tomato:cut"]
+        },
+        {
+          "text": "Rozohrej vo veľkom hrnci {oil.amount} {oil.name} na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj v ňom cibuľu s {garlic.amount} {garlic.name} 5 minút, kým cibuľa zozlatne.",
+          "requires": ["onion:cut", "garlic:raw", "oil:raw", "velky_hrniec:free"],
+          "produces": ["onion:cooked", "garlic:cooked", "oil:used", "velky_hrniec:occupied"]
+        },
+        {
+          "text": "Pridaj {pork.name} do hrnca. Opekaj bravčové pliecko vo veľkom hrnci na strednom ohni 8 minút, kým bude mäso na povrchu zlatisté.",
+          "requires": ["pork:cut", "onion:cooked", "oil:used", "velky_hrniec:occupied"],
+          "produces": ["pork:browned"]
+        },
+        {
+          "text": "Odstav hrniec z ohňa, prisyp {paprika.amount} {paprika.name} a premiešaj.",
+          "requires": ["paprika:raw", "pork:browned", "velky_hrniec:occupied"],
+          "produces": ["paprika:combined"]
+        },
+        {
+          "text": "Pridaj papriku a paradajky do hrnca a prilej {pork.water} vody. Hrniec prikry a dus bravčové pliecko so zeleninou na miernom ohni 50 minút, kým mäso zmäkne a šťava začne bublať.",
+          "requires": ["pork:browned", "paprika:combined", "pepper:cut", "tomato:cut", "velky_hrniec:occupied"],
+          "produces": ["pork:cooked", "pepper:cooked", "tomato:cooked", "oil:cooked", "velky_hrniec:free"]
+        },
+        {
+          "text": "Uvar {pasta.amount} {pasta.name} v malom hrnci v osolenej vode na miernom ohni 8 minút, kým cestoviny zmäknú, potom ich sceď.",
+          "requires": ["pasta:raw", "maly_hrniec:free"],
+          "produces": ["pasta:cooked", "maly_hrniec:free"]
+        },
+        {
+          "text": "Dochuť perkelt soľou a čiernym korením.",
+          "requires": ["pork:cooked", "pepper:cooked", "tomato:cooked", "oil:cooked"],
+          "produces": []
+        },
+        {
+          "text": "Podávaj bravčový perkelt s cestovinami a rozdeľ ho na {portions} porcií.",
+          "requires": ["pork:cooked", "pasta:cooked", "onion:cooked", "garlic:cooked", "paprika:combined", "pepper:cooked", "tomato:cooked", "oil:cooked"],
+          "produces": ["pork:served", "pasta:served", "onion:served", "garlic:served", "paprika:served", "pepper:served", "tomato:served", "oil:served"]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Zvyšný bravčový perkelt rozdeľ do plytkých nádob a odlož do chladničky najneskôr do 2 hodín. Zjedz ho do 2 dní."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_pork_perkelt",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://varecha.pravda.sk/recepty/bravcovy-perkelt/639-recept.html",
+        "title": "Bravčový perkelt",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://dobruchut.aktuality.sk/bravcovy-perkelt/",
+        "title": "Recepty na bravčový perkelt",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "166567409f4bd61c9868c5041d888725335f77c715358c67f42f8e0235d02065",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_tomato_meatballs"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

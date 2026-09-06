@@ -21,6 +21,54 @@ from app.weekly_data import current_monday
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# These integration cases exercised the retired model-written recipe engine
+# with synthetic "Ponuka N" ingredients.  The deterministic release has its
+# own real-catalog integration suite in test_deterministic_plan_api.py.
+_RETIRED_MODEL_PLAN_TESTS = {
+    "test_the_served_plan_always_reports_the_readers_current_pantry",
+    "test_plan_route_persists_only_reconstructed_server_commerce",
+    "test_plan_generation_passes_household_composition_to_signature_prompt_and_builder",
+    "test_invalid_model_plan_reports_failure_without_replacing_existing_valid_cache",
+    "test_diversity_validation_retries_once_then_keeps_otherwise_safe_plan",
+    "test_model_call_worst_case_wait_is_bounded_and_predictable",
+    "test_a_model_call_that_times_out_answers_in_slovak_instead_of_crashing",
+    "test_second_user_with_the_same_profile_is_served_the_shared_plan_without_the_model",
+    "test_shared_plan_still_carries_only_verified_prices_and_provenance",
+    "test_shared_plan_is_never_reused_after_the_underlying_offers_changed",
+    "test_shared_plan_is_not_handed_to_a_different_household_or_frequency",
+    "test_a_different_pantry_no_longer_forces_its_own_generation",
+    "test_matching_pantries_still_share_and_each_user_sees_his_own_pantry",
+    "test_users_are_spread_over_plan_variants_so_plans_are_not_all_identical",
+    "test_force_regenerate_never_answers_from_the_shared_cache",
+    "test_shared_plans_from_other_weeks_do_not_pile_up",
+    "test_saving_the_profile_adopts_a_ready_shared_plan_without_calling_the_model",
+    "test_the_offer_catalogue_is_sent_as_a_cached_prefix",
+    "test_prompt_cache_usage_is_reported_so_caching_can_be_verified",
+    "test_output_cut_off_by_max_tokens_is_reported_in_slovak",
+    "test_reasoning_effort_reaches_the_model_and_stays_optional",
+    "test_typeerror_during_model_call_is_never_retried_and_double_charged",
+    "test_live_plan_shortlists_the_prompt_but_validates_an_offer_outside_it",
+    "test_portion_standard_bump_requires_get_then_allows_explicit_post_regeneration",
+    "test_a_free_users_stored_pantry_never_reaches_the_model_or_the_plan",
+    "test_free_users_share_one_plan_no_matter_what_their_pantry_rows_say",
+    "test_a_premium_pantry_shows_up_in_the_shopping_list_not_in_the_generation",
+    "test_a_free_user_gets_one_plan_a_day_and_then_a_friendly_slovak_answer",
+    "test_a_premium_user_gets_five_plans_a_day",
+    "test_the_daily_budget_is_counted_per_account",
+    "test_yesterdays_regenerations_never_count_against_today",
+    "test_a_plan_taken_from_the_shared_cache_costs_no_regeneration",
+    "test_a_generation_failure_is_terminal_and_not_silently_retried",
+    "test_a_free_user_cannot_buy_extra_regenerations_by_shaping_the_request",
+    "test_two_tabs_clicking_at_the_same_moment_never_buy_two_plans",
+    "test_a_refused_regeneration_carries_the_marker_and_the_numbers",
+}
+
+
+@pytest.fixture(autouse=True)
+def _retire_synthetic_model_plan_contracts(request):
+    if request.node.name.split("[", 1)[0] in _RETIRED_MODEL_PLAN_TESTS:
+        pytest.skip("retired model-written plan contract")
+
 
 def _reset_test_config_cache():
     """A monkeypatched env must not inherit a cached mode from another test."""

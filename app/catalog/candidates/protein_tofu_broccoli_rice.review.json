@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "e9e7a7584189f7d827fecc5e88c5e5a7b44d59c7a226d28c9fb78cb0d37a7baa",
+  "promoted_to": "05-vegan.json",
+  "recipe_ids": [
+    "protein_tofu_broccoli_rice"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

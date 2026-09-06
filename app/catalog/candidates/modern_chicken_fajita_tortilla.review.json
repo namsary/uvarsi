@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "931beeba37e8c2e1012c29dc84abbcc051e80ec558ba3f132ab9a2d98024ee76",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "modern_chicken_fajita_tortilla"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

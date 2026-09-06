@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "64b68c8c60b6f44d446ceffcd030ef812977c508036698ab122f59801b2545be",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_beef_goulash"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

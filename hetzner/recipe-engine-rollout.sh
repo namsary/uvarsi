@@ -144,6 +144,14 @@ engine = payload.get("recipe_engine")
 if not isinstance(engine, dict): raise SystemExit(2)
 if engine.get("mode") != expected or engine.get("ready") is not True: raise SystemExit(2)
 if engine.get("blockers") != []: raise SystemExit(2)
+if engine.get("payments_enabled") is not False: raise SystemExit(2)
+release = engine.get("release_gate")
+if not isinstance(release, dict): raise SystemExit(2)
+if release.get("active_recipes") != 104: raise SystemExit(2)
+if release.get("curation_generation") != 1: raise SystemExit(2)
+if release.get("provenance_complete") is not True: raise SystemExit(2)
+if release.get("library_errors") != 0: raise SystemExit(2)
+if release.get("workflow_errors") != 0: raise SystemExit(2)
 if expected in ("shadow", "on"):
     shadow = engine.get("last_shadow")
     if not isinstance(shadow, dict): raise SystemExit(2)
@@ -203,8 +211,9 @@ rollback_off() {
   ROLLBACK_OK=1
   set_mode off || ROLLBACK_OK=0
   restart_uvarsi || ROLLBACK_OK=0
+  health_gate off || ROLLBACK_OK=0
   if [ "$ROLLBACK_OK" -eq 1 ]; then
-    log "rollback complete — flag je off a obe Uvar.si služby sú aktívne"
+    log "rollback complete — flag je off, služby sú aktívne a živý engine je zdravý"
     notify_failure complete "$ROLLOUT_GATE"
   else
     log "rollback incomplete — flag alebo služby vyžadujú zásah"
@@ -220,10 +229,14 @@ read_activation_target || rollback_off
 ROLLOUT_GATE=package
 [ -d "$DIR/app" ] && [ -s "$DIR/VERSION" ] || rollback_off
 for required in config.py server.py deterministic_plan.py ingredient_catalog.py \
-  library_gate.py quantity_math.py recipe_catalog.py recipe_matcher.py recipe_renderer.py; do
+  library_gate.py quantity_math.py recipe_catalog.py recipe_matcher.py \
+  regular_purchase.py recipe_renderer.py; do
   [ -s "$DIR/app/$required" ] || rollback_off
 done
+[ -s "$DIR/app/recipe_provenance.py" ] || rollback_off
+[ -s "$DIR/app/recipe_workflow.py" ] || rollback_off
 [ -s "$DIR/app/catalog/ingredients.json" ] || rollback_off
+[ -s "$DIR/app/catalog/recipe_sources.json" ] || rollback_off
 [ -s "$DIR/app/catalog/slovak_ingredient_forms.json" ] || rollback_off
 [ -s "$DIR/app/catalog/recipes/manifest.json" ] || rollback_off
 ROLLOUT_GATE=payments_off

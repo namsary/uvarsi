@@ -1,211 +1,4806 @@
 {
   "recipes": [
     {
-      "id":"oven_chicken_thigh_potato_carrot","version":1,"active":true,
-      "name_template":"Pečené kuracie stehná so zemiakmi a {vegetable.name}",
-      "family":"roast_chicken_thigh_tray","method":"oven","minutes":55,
-      "modes":["standard","high_protein"],"equipment":["rúra","pekáč"],
-      "slots":[
-        {"key":"protein","role":"protein","candidates":["chicken_thigh"],"amount_per_adult":"245","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":null},
-        {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"280","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na mesiačiky"},
-        {"key":"vegetable","role":"vegetable","candidates":["carrot","onion"],"amount_per_adult":"150","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na hrubšie kúsky"}
+      "id": "oven_chicken_thigh_potato_carrot",
+      "version": 1,
+      "active": false,
+      "name_template": "Pečené kuracie stehná so zemiakmi a {vegetable.name}",
+      "family": "roast_chicken_thigh_tray",
+      "method": "oven",
+      "minutes": 55,
+      "modes": [
+        "standard",
+        "high_protein"
       ],
-      "pantry_basics":["oil","salt","black_pepper","paprika_powder","garlic"],
-      "instructions":[
-        {"text":"Predhrej rúru na 200 °C."},
-        {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Rozlož {protein.amount} {protein.name}, {starch.name} a {vegetable.name} do pekáča."},
-        {"text":"Dochuť suroviny cesnakom, mletou paprikou, soľou a čiernym korením."},
-        {"text":"Peč {protein.name} so zemiakmi a zeleninou v rúre pri 200 °C 40 minút, kým bude mäso v strede prepečené a zemiaky zmäknú."},
-        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      "equipment": [
+        "rúra",
+        "pekáč"
+      ],
+      "slots": [
+        {
+          "key": "protein",
+          "role": "protein",
+          "candidates": [
+            "chicken_thigh"
+          ],
+          "amount_per_adult": "245",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "starch",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "280",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na mesiačiky"
+        },
+        {
+          "key": "vegetable",
+          "role": "vegetable",
+          "candidates": [
+            "carrot",
+            "onion"
+          ],
+          "amount_per_adult": "150",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na hrubšie kúsky"
+        }
+      ],
+      "pantry_basics": [
+        "oil",
+        "salt",
+        "black_pepper",
+        "paprika_powder",
+        "garlic"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C."
+        },
+        {
+          "text": "Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."
+        },
+        {
+          "text": "Rozlož {protein.amount} {protein.name}, {starch.name} a {vegetable.name} do pekáča."
+        },
+        {
+          "text": "Dochuť suroviny cesnakom, mletou paprikou, soľou a čiernym korením."
+        },
+        {
+          "text": "Peč {protein.name} so zemiakmi a zeleninou v rúre pri 200 °C 40 minút, kým bude mäso v strede prepečené a zemiaky zmäknú."
+        },
+        {
+          "text": "Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."
+        }
       ]
     },
     {
-      "id":"oven_chicken_breast_zucchini_rice","version":1,"active":true,
-      "name_template":"Kuracie prsia z rúry s ryžou a {vegetable.name}",
-      "family":"baked_chicken_rice_casserole","method":"oven","minutes":45,
-      "modes":["standard","high_protein"],"equipment":["rúra","pekáč"],
-      "slots":[
-        {"key":"protein","role":"protein","candidates":["chicken_breast","turkey_breast"],"amount_per_adult":"175","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na hrubšie pásiky"},
-        {"key":"starch","role":"starch","candidates":["rice"],"amount_per_adult":"70","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
-        {"key":"vegetable","role":"vegetable","candidates":["zucchini","bell_pepper"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kocky"}
+      "id": "oven_chicken_breast_zucchini_rice",
+      "version": 1,
+      "active": false,
+      "name_template": "Kuracie prsia z rúry s ryžou a {vegetable.name}",
+      "family": "baked_chicken_rice_casserole",
+      "method": "oven",
+      "minutes": 45,
+      "modes": [
+        "standard",
+        "high_protein"
       ],
-      "pantry_basics":["water","oil","salt","black_pepper","oregano"],
-      "instructions":[
-        {"text":"Predhrej rúru na 190 °C."},
-        {"text":"Prepláchni {starch.amount} {starch.name} a rozlož ju do pekáča."},
-        {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Rozlož {protein.name} a {vegetable.name} na ryžu a dochuť oreganom, soľou a čiernym korením."},
-        {"text":"Nalej {starch.water} vody do pekáča."},
-        {"text":"Peč {protein.name} s ryžou a zeleninou v rúre pri 190 °C 30 minút, kým bude mäso v strede prepečené a ryža zmäkne."},
-        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      "equipment": [
+        "rúra",
+        "pekáč"
+      ],
+      "slots": [
+        {
+          "key": "protein",
+          "role": "protein",
+          "candidates": [
+            "chicken_breast",
+            "turkey_breast"
+          ],
+          "amount_per_adult": "175",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na hrubšie pásiky"
+        },
+        {
+          "key": "starch",
+          "role": "starch",
+          "candidates": [
+            "rice"
+          ],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "vegetable",
+          "role": "vegetable",
+          "candidates": [
+            "zucchini",
+            "bell_pepper"
+          ],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na malé kocky"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "oil",
+        "salt",
+        "black_pepper",
+        "oregano"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 190 °C."
+        },
+        {
+          "text": "Prepláchni {starch.amount} {starch.name} a rozlož ju do pekáča."
+        },
+        {
+          "text": "Nakrájaj {protein.amount} {protein.name} {protein.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."
+        },
+        {
+          "text": "Rozlož {protein.name} a {vegetable.name} na ryžu a dochuť oreganom, soľou a čiernym korením."
+        },
+        {
+          "text": "Nalej {starch.water} vody do pekáča."
+        },
+        {
+          "text": "Peč {protein.name} s ryžou a zeleninou v rúre pri 190 °C 30 minút, kým bude mäso v strede prepečené a ryža zmäkne."
+        },
+        {
+          "text": "Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."
+        }
       ]
     },
     {
-      "id":"oven_pork_shoulder_root_vegetables","version":1,"active":true,
-      "name_template":"Pomaly pečené bravčové pliecko s {vegetable.name}",
-      "family":"slow_roast_pork_roots","method":"oven","minutes":100,
-      "modes":["standard","high_protein"],"equipment":["rúra","pekáč"],
-      "slots":[
-        {"key":"protein","role":"protein","candidates":["pork_shoulder"],"amount_per_adult":"200","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na väčšie kocky"},
-        {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"250","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na štvrtiny"},
-        {"key":"vegetable","role":"vegetable","candidates":["carrot","onion"],"amount_per_adult":"170","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na hrubé kúsky"}
+      "id": "oven_pork_shoulder_root_vegetables",
+      "version": 1,
+      "active": false,
+      "name_template": "Pomaly pečené bravčové pliecko s {vegetable.name}",
+      "family": "slow_roast_pork_roots",
+      "method": "oven",
+      "minutes": 100,
+      "modes": [
+        "standard",
+        "high_protein"
       ],
-      "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
-      "instructions":[
-        {"text":"Predhrej rúru na 175 °C."},
-        {"text":"Nakrájaj {protein.amount} {protein.name} {protein.cut}, {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Rozlož {protein.name}, {starch.name} a {vegetable.name} do pekáča."},
-        {"text":"Dochuť suroviny cesnakom, mletou paprikou, soľou a čiernym korením a podlej vodou."},
-        {"text":"Peč {protein.name} so zeleninou v rúre pri 175 °C 80 minút, kým mäso zmäkne a dá sa rozdeliť vidličkou."},
-        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      "equipment": [
+        "rúra",
+        "pekáč"
+      ],
+      "slots": [
+        {
+          "key": "protein",
+          "role": "protein",
+          "candidates": [
+            "pork_shoulder"
+          ],
+          "amount_per_adult": "200",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na väčšie kocky"
+        },
+        {
+          "key": "starch",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na štvrtiny"
+        },
+        {
+          "key": "vegetable",
+          "role": "vegetable",
+          "candidates": [
+            "carrot",
+            "onion"
+          ],
+          "amount_per_adult": "170",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na hrubé kúsky"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "oil",
+        "salt",
+        "black_pepper",
+        "paprika_powder",
+        "garlic"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 175 °C."
+        },
+        {
+          "text": "Nakrájaj {protein.amount} {protein.name} {protein.cut}, {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."
+        },
+        {
+          "text": "Rozlož {protein.name}, {starch.name} a {vegetable.name} do pekáča."
+        },
+        {
+          "text": "Dochuť suroviny cesnakom, mletou paprikou, soľou a čiernym korením a podlej vodou."
+        },
+        {
+          "text": "Peč {protein.name} so zeleninou v rúre pri 175 °C 80 minút, kým mäso zmäkne a dá sa rozdeliť vidličkou."
+        },
+        {
+          "text": "Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."
+        }
       ]
     },
     {
-      "id":"oven_meatballs_tomato_potato","version":1,"active":true,
-      "name_template":"Pečené hovädzie guľky s {vegetable.name} a zemiakmi",
-      "family":"tomato_meatball_bake","method":"oven","minutes":48,
-      "modes":["standard","high_protein"],"equipment":["rúra","pekáč","miska"],
-      "slots":[
-        {"key":"protein","role":"protein","candidates":["beef_mince"],"amount_per_adult":"180","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé guľky"},
-        {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"250","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé kocky"},
-        {"key":"vegetable","role":"vegetable","candidates":["tomato","bell_pepper"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"nahrubo"}
+      "id": "oven_meatballs_tomato_potato",
+      "version": 1,
+      "active": false,
+      "name_template": "Pečené hovädzie guľky s {vegetable.name} a zemiakmi",
+      "family": "tomato_meatball_bake",
+      "method": "oven",
+      "minutes": 48,
+      "modes": [
+        "standard",
+        "high_protein"
       ],
-      "pantry_basics":["oil","salt","black_pepper","oregano","garlic"],
-      "instructions":[
-        {"text":"Predhrej rúru na 200 °C."},
-        {"text":"Dochuť {protein.amount} {protein.name} cesnakom, soľou a čiernym korením a vytvaruj mäso {protein.cut}."},
-        {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Rozlož {protein.name}, {starch.name} a {vegetable.name} do pekáča a posyp oreganom."},
-        {"text":"Peč {protein.name} so zemiakmi a zeleninou v rúre pri 200 °C 32 minút, kým bude mäso v strede prepečené a zemiaky zmäknú."},
-        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      "equipment": [
+        "rúra",
+        "pekáč",
+        "miska"
+      ],
+      "slots": [
+        {
+          "key": "protein",
+          "role": "protein",
+          "candidates": [
+            "beef_mince"
+          ],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na malé guľky"
+        },
+        {
+          "key": "starch",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na malé kocky"
+        },
+        {
+          "key": "vegetable",
+          "role": "vegetable",
+          "candidates": [
+            "tomato",
+            "bell_pepper"
+          ],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "nahrubo"
+        }
+      ],
+      "pantry_basics": [
+        "oil",
+        "salt",
+        "black_pepper",
+        "oregano",
+        "garlic"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C."
+        },
+        {
+          "text": "Dochuť {protein.amount} {protein.name} cesnakom, soľou a čiernym korením a vytvaruj mäso {protein.cut}."
+        },
+        {
+          "text": "Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."
+        },
+        {
+          "text": "Rozlož {protein.name}, {starch.name} a {vegetable.name} do pekáča a posyp oreganom."
+        },
+        {
+          "text": "Peč {protein.name} so zemiakmi a zeleninou v rúre pri 200 °C 32 minút, kým bude mäso v strede prepečené a zemiaky zmäknú."
+        },
+        {
+          "text": "Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."
+        }
       ]
     },
     {
-      "id":"oven_salmon_potato_broccoli","version":1,"active":true,
-      "name_template":"Pečená ryba so zemiakmi a {vegetable.name}",
-      "family":"salmon_broccoli_tray","method":"oven","minutes":38,
-      "modes":["standard","high_protein"],"equipment":["rúra","plech"],
-      "slots":[
-        {"key":"protein","role":"protein","candidates":["salmon","white_fish"],"amount_per_adult":"180","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na porcie"},
-        {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"250","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na tenké mesiačiky"},
-        {"key":"vegetable","role":"vegetable","candidates":["broccoli","carrot"],"amount_per_adult":"170","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na menšie kúsky"}
+      "id": "oven_salmon_potato_broccoli",
+      "version": 1,
+      "active": false,
+      "name_template": "Pečená ryba so zemiakmi a {vegetable.name}",
+      "family": "salmon_broccoli_tray",
+      "method": "oven",
+      "minutes": 38,
+      "modes": [
+        "standard",
+        "high_protein"
       ],
-      "pantry_basics":["oil","salt","black_pepper","garlic"],
-      "instructions":[
-        {"text":"Predhrej rúru na 200 °C."},
-        {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Peč {starch.name} na plechu pri 200 °C 15 minút, kým zmäknú."},
-        {"text":"Osuš {protein.amount} {protein.name} a nakrájaj ich {protein.cut}."},
-        {"text":"Rozlož {protein.name} a {vegetable.name} na plech a dochuť suroviny cesnakom, soľou a čiernym korením."},
-        {"text":"Peč {protein.name} so zeleninou v rúre pri 200 °C 14 minút, kým ryba zmäkne a ľahko sa oddeľuje vidličkou."},
-        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      "equipment": [
+        "rúra",
+        "plech"
+      ],
+      "slots": [
+        {
+          "key": "protein",
+          "role": "protein",
+          "candidates": [
+            "salmon",
+            "white_fish"
+          ],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na porcie"
+        },
+        {
+          "key": "starch",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na tenké mesiačiky"
+        },
+        {
+          "key": "vegetable",
+          "role": "vegetable",
+          "candidates": [
+            "broccoli",
+            "carrot"
+          ],
+          "amount_per_adult": "170",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na menšie kúsky"
+        }
+      ],
+      "pantry_basics": [
+        "oil",
+        "salt",
+        "black_pepper",
+        "garlic"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C."
+        },
+        {
+          "text": "Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."
+        },
+        {
+          "text": "Peč {starch.name} na plechu pri 200 °C 15 minút, kým zmäknú."
+        },
+        {
+          "text": "Osuš {protein.amount} {protein.name} a nakrájaj ich {protein.cut}."
+        },
+        {
+          "text": "Rozlož {protein.name} a {vegetable.name} na plech a dochuť suroviny cesnakom, soľou a čiernym korením."
+        },
+        {
+          "text": "Peč {protein.name} so zeleninou v rúre pri 200 °C 14 minút, kým ryba zmäkne a ľahko sa oddeľuje vidličkou."
+        },
+        {
+          "text": "Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."
+        }
       ]
     },
     {
-      "id":"oven_white_fish_tomato_rice","version":1,"active":true,
-      "name_template":"Ryba pečená s {vegetable.name} a ryžou",
-      "family":"white_fish_tomato_bake","method":"oven","minutes":40,
-      "modes":["standard","high_protein"],"equipment":["rúra","pekáč"],
-      "slots":[
-        {"key":"protein","role":"protein","candidates":["white_fish","salmon"],"amount_per_adult":"185","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na porcie"},
-        {"key":"starch","role":"starch","candidates":["rice"],"amount_per_adult":"70","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
-        {"key":"vegetable","role":"vegetable","candidates":["tomato","zucchini"],"amount_per_adult":"200","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na tenké plátky"}
+      "id": "oven_white_fish_tomato_rice",
+      "version": 1,
+      "active": false,
+      "name_template": "Ryba pečená s {vegetable.name} a ryžou",
+      "family": "white_fish_tomato_bake",
+      "method": "oven",
+      "minutes": 40,
+      "modes": [
+        "standard",
+        "high_protein"
       ],
-      "pantry_basics":["water","oil","salt","black_pepper","oregano"],
-      "instructions":[
-        {"text":"Predhrej rúru na 190 °C."},
-        {"text":"Prepláchni {starch.amount} {starch.name} a rozlož ju do pekáča."},
-        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut} a rozlož ich na ryžu."},
-        {"text":"Osuš {protein.amount} {protein.name}, nakrájaj ich {protein.cut} a polož ich na zeleninu."},
-        {"text":"Dochuť suroviny oreganom, soľou a čiernym korením a nalej {starch.water} vody do pekáča."},
-        {"text":"Peč {protein.name} s ryžou a zeleninou v rúre pri 190 °C 25 minút, kým ryža zmäkne a ryba sa oddeľuje vidličkou."},
-        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      "equipment": [
+        "rúra",
+        "pekáč"
+      ],
+      "slots": [
+        {
+          "key": "protein",
+          "role": "protein",
+          "candidates": [
+            "white_fish",
+            "salmon"
+          ],
+          "amount_per_adult": "185",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na porcie"
+        },
+        {
+          "key": "starch",
+          "role": "starch",
+          "candidates": [
+            "rice"
+          ],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "vegetable",
+          "role": "vegetable",
+          "candidates": [
+            "tomato",
+            "zucchini"
+          ],
+          "amount_per_adult": "200",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na tenké plátky"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "oil",
+        "salt",
+        "black_pepper",
+        "oregano"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 190 °C."
+        },
+        {
+          "text": "Prepláchni {starch.amount} {starch.name} a rozlož ju do pekáča."
+        },
+        {
+          "text": "Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut} a rozlož ich na ryžu."
+        },
+        {
+          "text": "Osuš {protein.amount} {protein.name}, nakrájaj ich {protein.cut} a polož ich na zeleninu."
+        },
+        {
+          "text": "Dochuť suroviny oreganom, soľou a čiernym korením a nalej {starch.water} vody do pekáča."
+        },
+        {
+          "text": "Peč {protein.name} s ryžou a zeleninou v rúre pri 190 °C 25 minút, kým ryža zmäkne a ryba sa oddeľuje vidličkou."
+        },
+        {
+          "text": "Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."
+        }
       ]
     },
     {
-      "id":"oven_tofu_vegetables_potato","version":1,"active":true,
-      "name_template":"Chrumkavé tofu z rúry so zemiakmi a {vegetable.name}",
-      "family":"crispy_tofu_tray","method":"oven","minutes":43,
-      "modes":["standard","high_protein","vegetarian","vegan"],"equipment":["rúra","plech"],
-      "slots":[
-        {"key":"protein","role":"protein","candidates":["tofu"],"amount_per_adult":"210","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na dvojcentimetrové kocky"},
-        {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"240","unit":"g","child_factor":"0.6","required":true,"use":"main","cut":"na malé mesiačiky"},
-        {"key":"vegetable","role":"vegetable","candidates":["broccoli","bell_pepper","carrot"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na menšie kúsky"}
+      "id": "oven_tofu_vegetables_potato",
+      "version": 1,
+      "active": false,
+      "name_template": "Chrumkavé tofu z rúry so zemiakmi a {vegetable.name}",
+      "family": "crispy_tofu_tray",
+      "method": "oven",
+      "minutes": 43,
+      "modes": [
+        "standard",
+        "high_protein",
+        "vegetarian",
+        "vegan"
       ],
-      "pantry_basics":["oil","salt","black_pepper","paprika_powder","garlic"],
-      "instructions":[
-        {"text":"Predhrej rúru na 210 °C."},
-        {"text":"Osuš {protein.amount} {protein.name} a nakrájaj ho {protein.cut}."},
-        {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Rozlož {protein.name}, {starch.name} a {vegetable.name} na plech."},
-        {"text":"Dochuť suroviny cesnakom, mletou paprikou, soľou a čiernym korením."},
-        {"text":"Peč {protein.name} so zemiakmi a zeleninou v rúre pri 210 °C 30 minút, kým tofu bude chrumkavé a zemiaky zmäknú."},
-        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      "equipment": [
+        "rúra",
+        "plech"
+      ],
+      "slots": [
+        {
+          "key": "protein",
+          "role": "protein",
+          "candidates": [
+            "tofu"
+          ],
+          "amount_per_adult": "210",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na dvojcentimetrové kocky"
+        },
+        {
+          "key": "starch",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "240",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na malé mesiačiky"
+        },
+        {
+          "key": "vegetable",
+          "role": "vegetable",
+          "candidates": [
+            "broccoli",
+            "bell_pepper",
+            "carrot"
+          ],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na menšie kúsky"
+        }
+      ],
+      "pantry_basics": [
+        "oil",
+        "salt",
+        "black_pepper",
+        "paprika_powder",
+        "garlic"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 210 °C."
+        },
+        {
+          "text": "Osuš {protein.amount} {protein.name} a nakrájaj ho {protein.cut}."
+        },
+        {
+          "text": "Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."
+        },
+        {
+          "text": "Rozlož {protein.name}, {starch.name} a {vegetable.name} na plech."
+        },
+        {
+          "text": "Dochuť suroviny cesnakom, mletou paprikou, soľou a čiernym korením."
+        },
+        {
+          "text": "Peč {protein.name} so zemiakmi a zeleninou v rúre pri 210 °C 30 minút, kým tofu bude chrumkavé a zemiaky zmäknú."
+        },
+        {
+          "text": "Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."
+        }
       ]
     },
     {
-      "id":"oven_feta_tomato_pasta","version":1,"active":true,
-      "name_template":"Zapekané cestoviny so syrom a {vegetable.name}",
-      "family":"feta_tomato_pasta_bake","method":"oven","minutes":38,
-      "modes":["standard","high_protein","vegetarian"],"equipment":["rúra","pekáč","hrniec"],
-      "slots":[
-        {"key":"protein","role":"protein","candidates":["feta","cottage_cheese"],"amount_per_adult":"180","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
-        {"key":"starch","role":"starch","candidates":["pasta"],"amount_per_adult":"80","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
-        {"key":"vegetable","role":"vegetable","candidates":["tomato","zucchini"],"amount_per_adult":"220","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"}
+      "id": "oven_feta_tomato_pasta",
+      "version": 1,
+      "active": false,
+      "name_template": "Zapekané cestoviny so syrom a {vegetable.name}",
+      "family": "feta_tomato_pasta_bake",
+      "method": "oven",
+      "minutes": 38,
+      "modes": [
+        "standard",
+        "high_protein",
+        "vegetarian"
       ],
-      "pantry_basics":["oil","salt","black_pepper","oregano","garlic"],
-      "instructions":[
-        {"text":"Predhrej rúru na 200 °C."},
-        {"text":"Uvar {starch.amount} {starch.name} v hrnci na strednom ohni 7 minút, kým mierne zmäknú."},
-        {"text":"Priprav {protein.amount} {protein.name} a nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Rozlož {starch.name}, {protein.name} a {vegetable.name} do pekáča."},
-        {"text":"Dochuť suroviny cesnakom, oreganom, soľou a čiernym korením."},
-        {"text":"Peč {protein.name} s cestovinami a zeleninou v rúre pri 200 °C 18 minút, kým povrch bude zlatistý."},
-        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      "equipment": [
+        "rúra",
+        "pekáč",
+        "hrniec"
+      ],
+      "slots": [
+        {
+          "key": "protein",
+          "role": "protein",
+          "candidates": [
+            "feta",
+            "cottage_cheese"
+          ],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "starch",
+          "role": "starch",
+          "candidates": [
+            "pasta"
+          ],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "vegetable",
+          "role": "vegetable",
+          "candidates": [
+            "tomato",
+            "zucchini"
+          ],
+          "amount_per_adult": "220",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na malé kúsky"
+        }
+      ],
+      "pantry_basics": [
+        "oil",
+        "salt",
+        "black_pepper",
+        "oregano",
+        "garlic"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C."
+        },
+        {
+          "text": "Uvar {starch.amount} {starch.name} v hrnci na strednom ohni 7 minút, kým mierne zmäknú."
+        },
+        {
+          "text": "Priprav {protein.amount} {protein.name} a nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."
+        },
+        {
+          "text": "Rozlož {starch.name}, {protein.name} a {vegetable.name} do pekáča."
+        },
+        {
+          "text": "Dochuť suroviny cesnakom, oreganom, soľou a čiernym korením."
+        },
+        {
+          "text": "Peč {protein.name} s cestovinami a zeleninou v rúre pri 200 °C 18 minút, kým povrch bude zlatistý."
+        },
+        {
+          "text": "Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."
+        }
       ]
     },
     {
-      "id":"oven_egg_vegetable_frittata","version":1,"active":true,
-      "name_template":"Pečená omeleta s {vegetable.name}",
-      "family":"vegetable_frittata","method":"oven","minutes":35,
-      "modes":["standard","high_protein","vegetarian"],"equipment":["rúra","pekáč","miska","panvica"],
-      "slots":[
-        {"key":"protein","role":"protein","candidates":["egg"],"amount_per_adult":"4","unit":"piece","child_factor":"0.5","required":true,"use":"main","cut":null},
-        {"key":"vegetable","role":"vegetable","candidates":["spinach","broccoli","zucchini"],"amount_per_adult":"180","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"na malé kúsky"},
-        {"key":"dairy","role":"dairy","candidates":["hard_cheese","cottage_cheese"],"amount_per_adult":"60","unit":"g","child_factor":"0.5","required":true,"use":"addition","cut":null}
+      "id": "oven_egg_vegetable_frittata",
+      "version": 1,
+      "active": false,
+      "name_template": "Pečená omeleta s {vegetable.name}",
+      "family": "vegetable_frittata",
+      "method": "oven",
+      "minutes": 35,
+      "modes": [
+        "standard",
+        "high_protein",
+        "vegetarian"
       ],
-      "pantry_basics":["oil","salt","black_pepper","oregano"],
-      "instructions":[
-        {"text":"Predhrej rúru na 185 °C."},
-        {"text":"Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Opekaj {vegetable.name} v panvici na strednom ohni 6 minút, kým zelenina zmäkne."},
-        {"text":"Rozšľahaj {protein.amount} {protein.name} so soľou, čiernym korením a oreganom a vmiešaj {dairy.amount} {dairy.name}."},
-        {"text":"Vlož {vegetable.name}, {protein.name} a {dairy.name} do pekáča."},
-        {"text":"Peč {protein.name} so zeleninou v rúre pri 185 °C 20 minút, kým vajcia stuhnú."},
-        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      "equipment": [
+        "rúra",
+        "pekáč",
+        "miska",
+        "panvica"
+      ],
+      "slots": [
+        {
+          "key": "protein",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": "4",
+          "unit": "piece",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "vegetable",
+          "role": "vegetable",
+          "candidates": [
+            "spinach",
+            "broccoli",
+            "zucchini"
+          ],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na malé kúsky"
+        },
+        {
+          "key": "dairy",
+          "role": "dairy",
+          "candidates": [
+            "hard_cheese",
+            "cottage_cheese"
+          ],
+          "amount_per_adult": "60",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "oil",
+        "salt",
+        "black_pepper",
+        "oregano"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 185 °C."
+        },
+        {
+          "text": "Nakrájaj {vegetable.amount} {vegetable.name} {vegetable.cut}."
+        },
+        {
+          "text": "Opekaj {vegetable.name} v panvici na strednom ohni 6 minút, kým zelenina zmäkne."
+        },
+        {
+          "text": "Rozšľahaj {protein.amount} {protein.name} so soľou, čiernym korením a oreganom a vmiešaj {dairy.amount} {dairy.name}."
+        },
+        {
+          "text": "Vlož {vegetable.name}, {protein.name} a {dairy.name} do pekáča."
+        },
+        {
+          "text": "Peč {protein.name} so zeleninou v rúre pri 185 °C 20 minút, kým vajcia stuhnú."
+        },
+        {
+          "text": "Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."
+        }
       ]
     },
     {
-      "id":"oven_lentil_vegetable_loaf","version":1,"active":true,
-      "name_template":"Šošovicová sekaná s {vegetable.name}",
-      "family":"lentil_vegetable_loaf","method":"oven","minutes":62,
-      "modes":["standard","high_protein","vegetarian"],"equipment":["rúra","hrniec","forma na pečenie"],
-      "slots":[
-        {"key":"protein","role":"protein","candidates":["red_lentils"],"amount_per_adult":"140","unit":"g","child_factor":"0.55","required":true,"use":"main","cut":null},
-        {"key":"starch","role":"starch","candidates":["potato"],"amount_per_adult":"120","unit":"g","child_factor":"0.6","required":true,"use":"addition","cut":"najemno"},
-        {"key":"vegetable","role":"vegetable","candidates":["carrot","zucchini"],"amount_per_adult":"140","unit":"g","child_factor":"0.65","required":true,"use":"main","cut":"najemno"}
+      "id": "oven_lentil_vegetable_loaf",
+      "version": 1,
+      "active": false,
+      "name_template": "Šošovicová sekaná s {vegetable.name}",
+      "family": "lentil_vegetable_loaf",
+      "method": "oven",
+      "minutes": 62,
+      "modes": [
+        "standard",
+        "high_protein",
+        "vegetarian"
       ],
-      "pantry_basics":["water","oil","salt","black_pepper","paprika_powder","garlic"],
-      "instructions":[
-        {"text":"Predhrej rúru na 190 °C."},
-        {"text":"Uvar {protein.amount} {protein.name} v hrnci na miernom ohni 18 minút, kým strukovina zmäkne."},
-        {"text":"Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."},
-        {"text":"Rozmixuj {protein.name}, pridaj {starch.name} a {vegetable.name} a premiešaj zmes."},
-        {"text":"Dochuť zmes cesnakom, mletou paprikou, soľou a čiernym korením a priprav ju vo forme na pečenie."},
-        {"text":"Peč {protein.name} so zeleninou v rúre pri 190 °C 30 minút, kým povrch zozlatne a stred stuhne."},
-        {"text":"Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."}
+      "equipment": [
+        "rúra",
+        "hrniec",
+        "forma na pečenie"
+      ],
+      "slots": [
+        {
+          "key": "protein",
+          "role": "protein",
+          "candidates": [
+            "red_lentils"
+          ],
+          "amount_per_adult": "140",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "starch",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "120",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "vegetable",
+          "role": "vegetable",
+          "candidates": [
+            "carrot",
+            "zucchini"
+          ],
+          "amount_per_adult": "140",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "najemno"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "oil",
+        "salt",
+        "black_pepper",
+        "paprika_powder",
+        "garlic"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 190 °C."
+        },
+        {
+          "text": "Uvar {protein.amount} {protein.name} v hrnci na miernom ohni 18 minút, kým strukovina zmäkne."
+        },
+        {
+          "text": "Nakrájaj {starch.amount} {starch.name} {starch.cut} a {vegetable.amount} {vegetable.name} {vegetable.cut}."
+        },
+        {
+          "text": "Rozmixuj {protein.name}, pridaj {starch.name} a {vegetable.name} a premiešaj zmes."
+        },
+        {
+          "text": "Dochuť zmes cesnakom, mletou paprikou, soľou a čiernym korením a priprav ju vo forme na pečenie."
+        },
+        {
+          "text": "Peč {protein.name} so zeleninou v rúre pri 190 °C 30 minút, kým povrch zozlatne a stred stuhne."
+        },
+        {
+          "text": "Rozdeľ upečené jedlo na {portions} porcií a podávaj ho teplé."
+        }
       ]
+    },
+    {
+      "id": "classic_baked_pasta_ham",
+      "version": 2,
+      "active": true,
+      "name_template": "Zapekané cestoviny so šunkou",
+      "family": "classic_baked_pasta_ham",
+      "method": "oven",
+      "minutes": 50,
+      "modes": [
+        "standard"
+      ],
+      "equipment": [
+        "hrniec",
+        "sitko",
+        "misa",
+        "pekáč",
+        "rúra",
+        "nôž",
+        "doska na krájanie",
+        "strúhadlo",
+        "metlička"
+      ],
+      "slots": [
+        {
+          "key": "pasta",
+          "role": "starch",
+          "candidates": [
+            "pasta"
+          ],
+          "amount_per_adult": "85",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "ham",
+          "role": "protein",
+          "candidates": [
+            "ham"
+          ],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na malé kúsky"
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": "1",
+          "unit": "piece",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cream",
+          "role": "dairy",
+          "candidates": [
+            "cream"
+          ],
+          "amount_per_adult": "50",
+          "unit": "ml",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cheese",
+          "role": "dairy",
+          "candidates": [
+            "hard_cheese"
+          ],
+          "amount_per_adult": "20",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "5",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 190 °C.",
+          "requires": [
+            "rura:free"
+          ],
+          "produces": [
+            "rura:hot"
+          ]
+        },
+        {
+          "text": "Uvar {pasta.amount} {pasta.name} v hrnci vo vriacej osolenej vode na strednom ohni 8 minút, kým mierne zmäknú, ale zostanú pevné na zahryznutie.",
+          "requires": [
+            "pasta:raw",
+            "hrniec:free"
+          ],
+          "produces": [
+            "pasta:cooked",
+            "hrniec:occupied"
+          ]
+        },
+        {
+          "text": "Sceď cestoviny cez sitko a nechaj ich odkvapkať.",
+          "requires": [
+            "pasta:cooked",
+            "hrniec:occupied",
+            "sitko:free"
+          ],
+          "produces": [
+            "pasta:drained",
+            "hrniec:free",
+            "sitko:free"
+          ]
+        },
+        {
+          "text": "Nakrájaj {ham.amount} {ham.name} {ham.cut} a nastrúhaj {cheese.amount} {cheese.name}.",
+          "requires": [
+            "ham:raw",
+            "cheese:raw"
+          ],
+          "produces": [
+            "ham:cut",
+            "cheese:grated"
+          ]
+        },
+        {
+          "text": "Rozšľahaj {egg.amount} {egg.name} v mise. Prilej {cream.amount} {cream.name}, pridaj soľ a čierne korenie a zmes premiešaj.",
+          "requires": [
+            "egg:raw",
+            "cream:raw",
+            "misa:free"
+          ],
+          "produces": [
+            "egg:mixed",
+            "cream:mixed",
+            "misa:occupied"
+          ]
+        },
+        {
+          "text": "Nalej {oil.amount} {oil.name} do pekáča. Rozlož doň cestoviny so šunkou. Pri väčšej dávke rozdeľ všetko rovnomerne do dvoch pekáčov, aby vrstva nebola vyššia než 5 cm.",
+          "requires": [
+            "pasta:drained",
+            "ham:cut",
+            "oil:raw",
+            "pekac:free"
+          ],
+          "produces": [
+            "pasta:arranged",
+            "ham:arranged",
+            "oil:arranged",
+            "pekac:occupied"
+          ]
+        },
+        {
+          "text": "Premiešaj cestoviny v pekáči s vaječnou zmesou. Rozlož {cheese.name} po povrchu.",
+          "requires": [
+            "pasta:arranged",
+            "ham:arranged",
+            "egg:mixed",
+            "cream:mixed",
+            "cheese:grated",
+            "misa:occupied",
+            "pekac:occupied"
+          ],
+          "produces": [
+            "egg:arranged",
+            "cream:arranged",
+            "cheese:arranged",
+            "misa:free"
+          ]
+        },
+        {
+          "text": "Peč cestoviny v pekáči pri 190 °C 25 minút, kým náplň stuhne a syr bude zlatistý.",
+          "requires": [
+            "pasta:arranged",
+            "ham:arranged",
+            "oil:arranged",
+            "egg:arranged",
+            "cream:arranged",
+            "cheese:arranged",
+            "pekac:occupied",
+            "rura:hot"
+          ],
+          "produces": [
+            "pasta:cooked",
+            "ham:cooked",
+            "oil:cooked",
+            "egg:cooked",
+            "cream:cooked",
+            "cheese:cooked"
+          ]
+        },
+        {
+          "text": "Nechaj zapekané cestoviny 5 minút odpočívať a rozdeľ ich na {portions} porcií.",
+          "requires": [
+            "pasta:cooked",
+            "ham:cooked",
+            "oil:cooked",
+            "egg:cooked",
+            "cream:cooked",
+            "cheese:cooked",
+            "pekac:occupied"
+          ],
+          "produces": [
+            "pasta:served",
+            "ham:served",
+            "oil:served",
+            "egg:served",
+            "cream:served",
+            "cheese:served",
+            "pekac:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Zapekané cestoviny rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní."
+      }
+    },
+    {
+      "id": "classic_french_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Francúzske zemiaky",
+      "family": "classic_french_potatoes",
+      "method": "oven",
+      "minutes": 75,
+      "modes": [
+        "standard"
+      ],
+      "equipment": [
+        "rúra",
+        "veľký hrniec",
+        "malý hrniec",
+        "pekáč",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "300",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na 5 mm plátky"
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": "1",
+          "unit": "piece",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na plátky"
+        },
+        {
+          "key": "smoked_meat",
+          "role": "protein",
+          "candidates": [
+            "smoked_sausage",
+            "ham"
+          ],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na tenké kúsky"
+        },
+        {
+          "key": "cream",
+          "role": "dairy",
+          "candidates": [
+            "cream"
+          ],
+          "amount_per_adult": "60",
+          "unit": "ml",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "5",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 190 °C.",
+          "requires": [
+            "rura:free"
+          ],
+          "produces": [
+            "rura:heated"
+          ]
+        },
+        {
+          "text": "Uvar {potato.amount} {potato.name} v šupke vo veľkom hrnci vo vode na strednom ohni 20 minút, kým zemiaky mierne zmäknú, ale zostanú pevné. Sceď zemiaky a nechaj ich vychladnúť.",
+          "requires": [
+            "potato:raw",
+            "velky_hrniec:free"
+          ],
+          "produces": [
+            "potato:partly_cooked",
+            "velky_hrniec:free"
+          ]
+        },
+        {
+          "text": "Uvar {egg.amount} {egg.name} v malom hrnci vo vode na strednom ohni 10 minút, kým bielok aj žĺtok stuhnú. Potom vodu zlej, {egg.reference_name} schlaď v studenej vode a ošúp.",
+          "requires": [
+            "egg:raw",
+            "maly_hrniec:free"
+          ],
+          "produces": [
+            "egg:cooked",
+            "maly_hrniec:free"
+          ]
+        },
+        {
+          "text": "Ošúp zemiaky. Nakrájaj zemiaky aj {egg.reference_name} na plátky a {smoked_meat.amount} {smoked_meat.name} {smoked_meat.cut}.",
+          "requires": [
+            "potato:partly_cooked",
+            "egg:cooked",
+            "smoked_meat:raw"
+          ],
+          "produces": [
+            "potato:sliced",
+            "egg:sliced",
+            "smoked_meat:cut"
+          ]
+        },
+        {
+          "text": "Nalej {oil.amount} {oil.name} do pekáča.",
+          "requires": [
+            "oil:raw",
+            "pekac:free"
+          ],
+          "produces": [
+            "oil:used",
+            "pekac:greased"
+          ]
+        },
+        {
+          "text": "Rozlož do pekáča polovicu zemiakov, {egg.reference_name}, {smoked_meat.name} a zvyšné zemiaky. Každú vrstvu dochuť soľou a čiernym korením. Pri väčšej dávke rozdeľ vrstvy rovnomerne do dvoch pekáčov, aby sa jedlo prepieklo aj v strede.",
+          "requires": [
+            "potato:sliced",
+            "egg:sliced",
+            "smoked_meat:cut",
+            "oil:used",
+            "pekac:greased"
+          ],
+          "produces": [
+            "potato:layered",
+            "egg:layered",
+            "smoked_meat:layered",
+            "oil:layered",
+            "pekac:occupied"
+          ]
+        },
+        {
+          "text": "Prilej {cream.amount} {cream.name} do pekáča.",
+          "requires": [
+            "cream:raw",
+            "potato:layered",
+            "egg:layered",
+            "smoked_meat:layered",
+            "pekac:occupied"
+          ],
+          "produces": [
+            "cream:added"
+          ]
+        },
+        {
+          "text": "Peč francúzske zemiaky v pekáči pri 190 °C 30 minút, kým povrch zozlatne a smotana začne bublať.",
+          "requires": [
+            "potato:layered",
+            "egg:layered",
+            "smoked_meat:layered",
+            "oil:layered",
+            "cream:added",
+            "pekac:occupied",
+            "rura:heated"
+          ],
+          "produces": [
+            "potato:cooked",
+            "egg:baked",
+            "smoked_meat:cooked",
+            "oil:cooked",
+            "cream:cooked",
+            "rura:free"
+          ]
+        },
+        {
+          "text": "Nechaj francúzske zemiaky v pekáči 10 minút odpočívať.",
+          "requires": [
+            "potato:cooked",
+            "egg:baked",
+            "smoked_meat:cooked",
+            "oil:cooked",
+            "cream:cooked",
+            "pekac:occupied"
+          ],
+          "produces": [
+            "potato:rested",
+            "egg:rested",
+            "smoked_meat:rested",
+            "oil:rested",
+            "cream:rested",
+            "pekac:free"
+          ]
+        },
+        {
+          "text": "Podávaj francúzske zemiaky a rozdeľ ich na {portions} porcií.",
+          "requires": [
+            "potato:rested",
+            "egg:rested",
+            "smoked_meat:rested",
+            "oil:rested",
+            "cream:rested"
+          ],
+          "produces": [
+            "potato:served",
+            "egg:served",
+            "smoked_meat:served",
+            "oil:served",
+            "cream:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Francúzske zemiaky rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní."
+      }
+    },
+    {
+      "id": "classic_meatloaf_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Sekaná so zemiakmi",
+      "family": "classic_meatloaf_potatoes",
+      "method": "oven",
+      "minutes": 65,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "misa",
+        "pekáč",
+        "rúra",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "meat",
+          "role": "protein",
+          "candidates": [
+            "beef_mince"
+          ],
+          "amount_per_adult": "190",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na rovnako veľké kúsky"
+        },
+        {
+          "key": "bread",
+          "role": "starch",
+          "candidates": [
+            "bread"
+          ],
+          "amount_per_adult": "35",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": null,
+          "water_ml_per_adult": "40"
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": "0.5",
+          "unit": "piece",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": [
+            "paprika_powder"
+          ],
+          "amount_per_adult": "2",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "10",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 190 °C.",
+          "requires": [
+            "rura:free"
+          ],
+          "produces": [
+            "rura:hot"
+          ]
+        },
+        {
+          "text": "Namoč {bread.amount} {bread.name} do {bread.water} vody na 5 minút, kým zmäkne.",
+          "requires": [
+            "bread:raw"
+          ],
+          "produces": [
+            "bread:soaked"
+          ]
+        },
+        {
+          "text": "Nakrájaj {onion.amount} {onion.name} {onion.cut} a {potato.amount} {potato.name} {potato.cut}.",
+          "requires": [
+            "onion:raw",
+            "potato:raw"
+          ],
+          "produces": [
+            "onion:cut",
+            "potato:cut"
+          ]
+        },
+        {
+          "text": "Premiešaj v mise {meat.amount} {meat.name}, vytlačený chlieb, {egg.amount} {egg.name}, cibuľu, {garlic.amount} {garlic.name}, {paprika.amount} {paprika.name}, soľ a čierne korenie. Zmes mies rukami 2 minúty, kým bude držať pokope.",
+          "requires": [
+            "meat:raw",
+            "bread:soaked",
+            "egg:raw",
+            "onion:cut",
+            "garlic:raw",
+            "paprika:raw",
+            "misa:free"
+          ],
+          "produces": [
+            "meat:mixed",
+            "bread:mixed",
+            "egg:mixed",
+            "onion:mixed",
+            "garlic:mixed",
+            "paprika:mixed",
+            "misa:occupied"
+          ]
+        },
+        {
+          "text": "Nalej {oil.amount} {oil.name} do pekáča. Pri dávke nad 8 porcií rozdeľ zmes na dva rovnaké bochníky, zemiaky rozdeľ medzi ne a použi dva pekáče. Pri menšej dávke vytvaruj zmes do jedného pevného bochníka a zemiaky rozlož okolo neho do jedného pekáča. Olej rovnomerne rozotri po dne použitého pekáča alebo oboch pekáčov.",
+          "requires": [
+            "meat:mixed",
+            "bread:mixed",
+            "egg:mixed",
+            "onion:mixed",
+            "garlic:mixed",
+            "paprika:mixed",
+            "potato:cut",
+            "oil:raw",
+            "misa:occupied",
+            "pekac:free"
+          ],
+          "produces": [
+            "meat:formed",
+            "bread:formed",
+            "egg:formed",
+            "onion:formed",
+            "garlic:formed",
+            "paprika:formed",
+            "potato:arranged",
+            "oil:used",
+            "misa:free",
+            "pekac:occupied"
+          ]
+        },
+        {
+          "text": "Peč sekanú z mletého hovädzieho mäsa so zemiakmi v pripravenom pekáči alebo pekáčoch pri 190 °C 45 minút, kým bude povrch zlatistý, stred každého bochníka bez ružovej farby a zemiaky mäkké.",
+          "requires": [
+            "meat:formed",
+            "bread:formed",
+            "egg:formed",
+            "onion:formed",
+            "garlic:formed",
+            "paprika:formed",
+            "potato:arranged",
+            "oil:used",
+            "pekac:occupied",
+            "rura:hot"
+          ],
+          "produces": [
+            "meat:cooked",
+            "bread:cooked",
+            "egg:cooked",
+            "onion:cooked",
+            "garlic:cooked",
+            "paprika:cooked",
+            "potato:cooked",
+            "oil:cooked",
+            "pekac:free"
+          ]
+        },
+        {
+          "text": "Nechaj sekanú 8 minút odpočívať, potom ju nakrájaj a rozdeľ so zemiakmi na {portions} porcií.",
+          "requires": [
+            "meat:cooked",
+            "bread:cooked",
+            "egg:cooked",
+            "onion:cooked",
+            "garlic:cooked",
+            "paprika:cooked",
+            "potato:cooked",
+            "oil:cooked"
+          ],
+          "produces": [
+            "meat:served",
+            "bread:served",
+            "egg:served",
+            "onion:served",
+            "garlic:served",
+            "paprika:served",
+            "potato:served",
+            "oil:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Sekanú a zemiaky rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní."
+      }
+    },
+    {
+      "id": "classic_pork_cabbage_bake",
+      "version": 2,
+      "active": true,
+      "name_template": "Koložvárska kapusta",
+      "family": "classic_pork_cabbage_bake",
+      "method": "oven",
+      "minutes": 100,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "nôž",
+        "doska",
+        "hrniec",
+        "sitko",
+        "panvica",
+        "vareška",
+        "pekáč",
+        "rúra"
+      ],
+      "slots": [
+        {
+          "key": "meat",
+          "role": "protein",
+          "candidates": [
+            "pork_mince"
+          ],
+          "amount_per_adult": "140",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "cabbage",
+          "role": "vegetable",
+          "candidates": [
+            "sauerkraut"
+          ],
+          "amount_per_adult": "200",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na kratšie vlákna",
+          "water_ml_per_adult": "40"
+        },
+        {
+          "key": "rice",
+          "role": "starch",
+          "candidates": [
+            "rice"
+          ],
+          "amount_per_adult": "40",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cream",
+          "role": "dairy",
+          "candidates": [
+            "cream"
+          ],
+          "amount_per_adult": "30",
+          "unit": "ml",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "40",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": [
+            "paprika_powder"
+          ],
+          "amount_per_adult": "2",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "8",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.",
+          "requires": [
+            "rice:raw",
+            "sitko:free"
+          ],
+          "produces": [
+            "rice:rinsed",
+            "sitko:free"
+          ]
+        },
+        {
+          "text": "Nalej {rice.water} vody do hrnca, pridaj ryžu a prikry ho. Var ryžu na miernom ohni 10 minút, potom ju odstav a nechaj prikrytú 5 minút, kým voda vsiakne a zrnká budú mäkké, no stále pevné.",
+          "requires": [
+            "rice:rinsed",
+            "hrniec:free"
+          ],
+          "produces": [
+            "rice:cooked",
+            "hrniec:free"
+          ]
+        },
+        {
+          "text": "Nakrájaj {cabbage.amount} {cabbage.name} {cabbage.cut} a {onion.amount} {onion.name} {onion.cut}.",
+          "requires": [
+            "cabbage:raw",
+            "onion:raw"
+          ],
+          "produces": [
+            "cabbage:cut",
+            "onion:cut"
+          ]
+        },
+        {
+          "text": "Nalej {oil.amount} {oil.name} do panvice. Opekaj cibuľu na strednom ohni 6 minút, kým bude dosklovita.",
+          "requires": [
+            "oil:raw",
+            "onion:cut",
+            "panvica:free"
+          ],
+          "produces": [
+            "oil:cooked",
+            "onion:cooked",
+            "panvica:occupied"
+          ]
+        },
+        {
+          "text": "Pridaj {meat.amount} {meat.name} do panvice. Opekaj {meat.name} na panvici na strednom ohni 10 minút a vareškou ho rozdeľuj na malé kúsky, kým sa rovnomerne prepečie a nikde nezostane ružové. Odstav panvicu a vmiešaj {paprika.amount} {paprika.name}. Dochuť čiernym korením.",
+          "requires": [
+            "meat:raw",
+            "paprika:raw",
+            "oil:cooked",
+            "onion:cooked",
+            "panvica:occupied"
+          ],
+          "produces": [
+            "meat:cooked",
+            "paprika:cooked"
+          ]
+        },
+        {
+          "text": "Vlož kyslú kapustu do hrnca, prilej {cabbage.water} vody a prikry ho. Kapustu dus v hrnci na miernom ohni 10 minút, kým mierne zmäkne, ale stále zostane príjemne kyslá.",
+          "requires": [
+            "cabbage:cut",
+            "hrniec:free"
+          ],
+          "produces": [
+            "cabbage:cooked",
+            "hrniec:free"
+          ]
+        },
+        {
+          "text": "Predhrej rúru na 190 °C.",
+          "requires": [
+            "rura:free"
+          ],
+          "produces": [
+            "rura:hot"
+          ]
+        },
+        {
+          "text": "Rozlož do pekáča polovicu kyslej kapusty, ryžu, mleté bravčové mäso s cibuľou a zvyšnú kapustu. Pridaj {cream.amount} {cream.name}. Rovnomerne ňou polej celý povrch.",
+          "requires": [
+            "cabbage:cooked",
+            "rice:cooked",
+            "meat:cooked",
+            "onion:cooked",
+            "paprika:cooked",
+            "oil:cooked",
+            "cream:raw",
+            "panvica:occupied",
+            "pekac:free"
+          ],
+          "produces": [
+            "cabbage:arranged",
+            "rice:arranged",
+            "meat:arranged",
+            "onion:arranged",
+            "paprika:arranged",
+            "oil:arranged",
+            "cream:arranged",
+            "panvica:free",
+            "pekac:occupied"
+          ]
+        },
+        {
+          "text": "Peč kyslú kapustu s ryžou a mäsom v pekáči pri 190 °C 25 minút, kým smotana na okrajoch bublá a povrch zozlatne.",
+          "requires": [
+            "cabbage:arranged",
+            "rice:arranged",
+            "meat:arranged",
+            "onion:arranged",
+            "paprika:arranged",
+            "oil:arranged",
+            "cream:arranged",
+            "pekac:occupied",
+            "rura:hot"
+          ],
+          "produces": [
+            "cabbage:cooked",
+            "rice:cooked",
+            "meat:cooked",
+            "onion:cooked",
+            "paprika:cooked",
+            "oil:cooked",
+            "cream:cooked"
+          ]
+        },
+        {
+          "text": "Nechaj koložvársku kapustu 10 minút odpočívať, potom ju rozdeľ na {portions} porcií.",
+          "requires": [
+            "cabbage:cooked",
+            "rice:cooked",
+            "meat:cooked",
+            "onion:cooked",
+            "paprika:cooked",
+            "oil:cooked",
+            "cream:cooked",
+            "pekac:occupied"
+          ],
+          "produces": [
+            "cabbage:served",
+            "rice:served",
+            "meat:served",
+            "onion:served",
+            "paprika:served",
+            "oil:served",
+            "cream:served",
+            "pekac:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 1,
+        "instruction": "Koložvársku kapustu rozdeľ do plytkých nádob a do jednej hodiny ju schlaď. V chladničke ju zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým bude celá horúca."
+      }
+    },
+    {
+      "id": "classic_roast_chicken_thighs_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené kuracie stehná so zemiakmi",
+      "family": "classic_roast_chicken_thighs_potatoes",
+      "method": "oven",
+      "minutes": 65,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "rúra",
+        "pekáč",
+        "miska",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "chicken",
+          "role": "protein",
+          "candidates": [
+            "chicken_thigh"
+          ],
+          "amount_per_adult": "245",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na mesiačiky"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": "na hrubšie mesiačiky"
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": [
+            "paprika_powder"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "15",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C.",
+          "requires": [
+            "rura:free"
+          ],
+          "produces": [
+            "rura:heated"
+          ]
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj zemiaky na mesiačiky.",
+          "requires": [
+            "potato:raw"
+          ],
+          "produces": [
+            "potato:cut"
+          ]
+        },
+        {
+          "text": "Nakrájaj {onion.amount} {onion.name} na hrubšie mesiačiky.",
+          "requires": [
+            "onion:raw"
+          ],
+          "produces": [
+            "onion:cut"
+          ]
+        },
+        {
+          "text": "Osuš {chicken.amount} {chicken.name} a nechaj ich celé.",
+          "requires": [
+            "chicken:raw"
+          ],
+          "produces": [
+            "chicken:prepared"
+          ]
+        },
+        {
+          "text": "Premiešaj v miske {oil.amount} {oil.name}, {paprika.amount} {paprika.name}, {garlic.amount} {garlic.name}, soľ a čierne korenie.",
+          "requires": [
+            "oil:raw",
+            "paprika:raw",
+            "garlic:raw",
+            "miska:free"
+          ],
+          "produces": [
+            "oil:seasoned",
+            "paprika:paste",
+            "garlic:paste",
+            "miska:free"
+          ]
+        },
+        {
+          "text": "Priprav kuracie stehná s paprikovou zmesou tak, aby bola koža rovnomerne pokrytá. Rozlož kuracie stehná do pekáča.",
+          "requires": [
+            "chicken:prepared",
+            "oil:seasoned",
+            "paprika:paste",
+            "garlic:paste",
+            "pekac:free"
+          ],
+          "produces": [
+            "chicken:seasoned",
+            "oil:combined",
+            "paprika:combined",
+            "garlic:combined",
+            "pekac:occupied"
+          ]
+        },
+        {
+          "text": "Pridaj zemiaky a cibuľu do pekáča. Peč kuracie stehná so zemiakmi a cibuľou pri 200 °C približne 50 minút, kým koža zozlatne, zemiaky zmäknú a po narezaní pri kosti mäso nie je ružové a vyteká z neho číra šťava.",
+          "requires": [
+            "chicken:seasoned",
+            "potato:cut",
+            "onion:cut",
+            "oil:combined",
+            "paprika:combined",
+            "garlic:combined",
+            "pekac:occupied",
+            "rura:heated"
+          ],
+          "produces": [
+            "chicken:cooked",
+            "potato:cooked",
+            "onion:cooked",
+            "oil:cooked",
+            "paprika:cooked",
+            "garlic:cooked",
+            "pekac:free",
+            "rura:free"
+          ]
+        },
+        {
+          "text": "Podávaj celé kuracie stehná so zemiakmi a rozdeľ jedlo na {portions} porcií.",
+          "requires": [
+            "chicken:cooked",
+            "potato:cooked",
+            "onion:cooked",
+            "oil:cooked",
+            "paprika:cooked",
+            "garlic:cooked"
+          ],
+          "produces": [
+            "chicken:served",
+            "potato:served",
+            "onion:served",
+            "oil:served",
+            "paprika:served",
+            "garlic:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Zvyšné pečené stehná a zemiaky rozdeľ do plytkých nádob a odlož do chladničky najneskôr do 2 hodín. Zjedz ich do 2 dní."
+      }
+    },
+    {
+      "id": "classic_roast_pork_root_veg",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené bravčové s koreňovou zeleninou",
+      "family": "classic_roast_pork_root_veg",
+      "method": "oven",
+      "minutes": 120,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "pekáč",
+        "rúra",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "meat",
+          "role": "protein",
+          "candidates": [
+            "pork_shoulder"
+          ],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na 5 cm kúsky",
+          "water_ml_per_adult": "75"
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "200",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na väčšie kúsky"
+        },
+        {
+          "key": "carrot",
+          "role": "vegetable",
+          "candidates": [
+            "carrot"
+          ],
+          "amount_per_adult": "120",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na hrubšie kolieska"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na mesiačiky"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "8",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 170 °C.",
+          "requires": [
+            "rura:free"
+          ],
+          "produces": [
+            "rura:hot"
+          ]
+        },
+        {
+          "text": "Nakrájaj {meat.amount} {meat.name} {meat.cut}, {potato.amount} {potato.name} {potato.cut}, {carrot.amount} {carrot.name} {carrot.cut} a {onion.amount} {onion.name} {onion.cut}.",
+          "requires": [
+            "meat:raw",
+            "potato:raw",
+            "carrot:raw",
+            "onion:raw"
+          ],
+          "produces": [
+            "meat:cut",
+            "potato:cut",
+            "carrot:cut",
+            "onion:cut"
+          ]
+        },
+        {
+          "text": "Premiešaj {oil.amount} {oil.name}, {garlic.amount} {garlic.name}, soľ a čierne korenie. Kúsky mäsa obaľ v ochutenom oleji zo všetkých strán.",
+          "requires": [
+            "meat:cut",
+            "garlic:raw",
+            "oil:raw"
+          ],
+          "produces": [
+            "meat:seasoned",
+            "garlic:seasoned",
+            "oil:seasoned"
+          ]
+        },
+        {
+          "text": "Vlož bravčové pliecko a cibuľu do pekáča. Prilej {meat.water} vody do pekáča. Prikry pekáč.",
+          "requires": [
+            "meat:seasoned",
+            "garlic:seasoned",
+            "oil:seasoned",
+            "onion:cut",
+            "pekac:free"
+          ],
+          "produces": [
+            "meat:arranged",
+            "garlic:arranged",
+            "oil:arranged",
+            "onion:arranged",
+            "pekac:covered"
+          ]
+        },
+        {
+          "text": "Peč bravčové pliecko prikryté v pekáči pri 170 °C 55 minút, kým kúsky mäsa čiastočne zmäknú.",
+          "requires": [
+            "meat:arranged",
+            "garlic:arranged",
+            "oil:arranged",
+            "onion:arranged",
+            "pekac:covered",
+            "rura:hot"
+          ],
+          "produces": [
+            "meat:partly_cooked",
+            "garlic:cooked",
+            "oil:cooked",
+            "onion:cooked"
+          ]
+        },
+        {
+          "text": "Pridaj zemiaky a mrkvu do pekáča, znovu ho prikry a peč pri 170 °C 35 minút, kým zelenina zmäkne.",
+          "requires": [
+            "meat:partly_cooked",
+            "onion:cooked",
+            "potato:cut",
+            "carrot:cut",
+            "pekac:covered"
+          ],
+          "produces": [
+            "potato:cooked",
+            "carrot:cooked",
+            "meat:tender"
+          ]
+        },
+        {
+          "text": "Odokry pekáč a peč mäso so zeleninou pri 190 °C 15 minút, kým bude mäso zlatisté a mäkké pod vidličkou.",
+          "requires": [
+            "meat:tender",
+            "potato:cooked",
+            "carrot:cooked",
+            "onion:cooked",
+            "pekac:covered"
+          ],
+          "produces": [
+            "meat:cooked",
+            "potato:browned",
+            "carrot:browned",
+            "onion:browned",
+            "pekac:free"
+          ]
+        },
+        {
+          "text": "Nechaj mäso 5 minút odpočívať a potom ho rozdeľ so zeleninou na {portions} porcií.",
+          "requires": [
+            "meat:cooked",
+            "garlic:cooked",
+            "potato:browned",
+            "carrot:browned",
+            "onion:browned",
+            "oil:cooked"
+          ],
+          "produces": [
+            "meat:served",
+            "garlic:served",
+            "potato:served",
+            "carrot:served",
+            "onion:served",
+            "oil:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Mäso so zeleninou rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní."
+      }
+    },
+    {
+      "id": "modern_baked_chicken_zucchini",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené kura s cuketou a zemiakmi",
+      "family": "modern_baked_chicken_zucchini",
+      "method": "oven",
+      "minutes": 55,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "plech",
+        "miska",
+        "rúra",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "chicken",
+          "role": "protein",
+          "candidates": [
+            "chicken_breast"
+          ],
+          "amount_per_adult": "190",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "pozdĺžne na tenšie plátky"
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "200",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na menšie kocky"
+        },
+        {
+          "key": "zucchini",
+          "role": "vegetable",
+          "candidates": [
+            "zucchini"
+          ],
+          "amount_per_adult": "150",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na hrubšie polkolieska"
+        },
+        {
+          "key": "tomato",
+          "role": "vegetable",
+          "candidates": [
+            "tomato"
+          ],
+          "amount_per_adult": "120",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "addition",
+          "cut": "na mesiačiky"
+        },
+        {
+          "key": "pepper",
+          "role": "vegetable",
+          "candidates": [
+            "bell_pepper"
+          ],
+          "amount_per_adult": "100",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "addition",
+          "cut": "na väčšie kúsky"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": "na mesiačiky"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "pesto",
+          "role": "seasoning",
+          "candidates": [
+            "basil_pesto"
+          ],
+          "amount_per_adult": "15",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oregano",
+          "role": "seasoning",
+          "candidates": [
+            "oregano"
+          ],
+          "amount_per_adult": "1",
+          "unit": "g",
+          "child_factor": "0.4",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "10",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C.",
+          "requires": [
+            "rura:free"
+          ],
+          "produces": [
+            "rura:hot"
+          ]
+        },
+        {
+          "text": "Nakrájaj {chicken.amount} {chicken.name} pozdĺžne na tenšie plátky, {potato.amount} {potato.name} na menšie kocky, {zucchini.amount} {zucchini.name} na hrubšie polkolieska, {tomato.amount} {tomato.name} na mesiačiky a {pepper.amount} {pepper.name} na väčšie kúsky. {onion.amount} {onion.name} nakrájaj na mesiačiky a {garlic.amount} {garlic.name} najemno.",
+          "requires": [
+            "chicken:raw",
+            "potato:raw",
+            "zucchini:raw",
+            "tomato:raw",
+            "pepper:raw",
+            "onion:raw",
+            "garlic:raw"
+          ],
+          "produces": [
+            "chicken:cut",
+            "potato:cut",
+            "zucchini:cut",
+            "tomato:cut",
+            "pepper:cut",
+            "onion:cut",
+            "garlic:cut"
+          ]
+        },
+        {
+          "text": "Premiešaj v miske {pesto.amount} {pesto.name}, {oregano.amount} {oregano.name}, cesnak, {oil.amount} {oil.name}, soľ a čierne korenie. Kuracie prsia v zmesi dôkladne obaľ.",
+          "requires": [
+            "pesto:raw",
+            "oregano:raw",
+            "garlic:cut",
+            "oil:raw",
+            "chicken:cut",
+            "miska:free"
+          ],
+          "produces": [
+            "pesto:seasoned",
+            "oregano:seasoned",
+            "garlic:seasoned",
+            "oil:seasoned",
+            "chicken:seasoned",
+            "miska:occupied"
+          ]
+        },
+        {
+          "text": "Rozlož zemiaky, cuketu, paradajky, papriku a cibuľu na plech. Pri väčšej dávke rozdeľ zeleninu do dvoch plechov, aby neležala v hrubej vrstve.",
+          "requires": [
+            "potato:cut",
+            "zucchini:cut",
+            "tomato:cut",
+            "pepper:cut",
+            "onion:cut",
+            "plech:free"
+          ],
+          "produces": [
+            "potato:arranged",
+            "zucchini:arranged",
+            "tomato:arranged",
+            "pepper:arranged",
+            "onion:arranged",
+            "plech:occupied"
+          ]
+        },
+        {
+          "text": "Peč zemiaky s cuketou na plechu pri 200 °C 15 minút, kým zemiaky začnú mäknúť a okraje zeleniny budú miestami zlatisté.",
+          "requires": [
+            "potato:arranged",
+            "zucchini:arranged",
+            "tomato:arranged",
+            "pepper:arranged",
+            "onion:arranged",
+            "plech:occupied",
+            "rura:hot"
+          ],
+          "produces": [
+            "potato:part_cooked",
+            "zucchini:part_cooked",
+            "tomato:part_cooked",
+            "pepper:part_cooked",
+            "onion:part_cooked"
+          ]
+        },
+        {
+          "text": "Rozlož kuracie prsia medzi zeleninu. Zvyšok zmesi z misky rozotri po mäse.",
+          "requires": [
+            "chicken:seasoned",
+            "pesto:seasoned",
+            "oregano:seasoned",
+            "garlic:seasoned",
+            "oil:seasoned",
+            "miska:occupied",
+            "plech:occupied"
+          ],
+          "produces": [
+            "chicken:arranged",
+            "pesto:arranged",
+            "oregano:arranged",
+            "garlic:arranged",
+            "oil:arranged",
+            "miska:free"
+          ]
+        },
+        {
+          "text": "Peč kuracie prsia so zeleninou na plechu pri 200 °C 25 minút, kým budú zemiaky mäkké, mäso zlatisté a po narezaní v strede už nebude ružové.",
+          "requires": [
+            "chicken:arranged",
+            "potato:part_cooked",
+            "zucchini:part_cooked",
+            "tomato:part_cooked",
+            "pepper:part_cooked",
+            "onion:part_cooked",
+            "pesto:arranged",
+            "oregano:arranged",
+            "garlic:arranged",
+            "oil:arranged",
+            "plech:occupied",
+            "rura:hot"
+          ],
+          "produces": [
+            "chicken:cooked",
+            "potato:cooked",
+            "zucchini:cooked",
+            "tomato:cooked",
+            "pepper:cooked",
+            "onion:cooked",
+            "pesto:cooked",
+            "oregano:cooked",
+            "garlic:cooked",
+            "oil:cooked"
+          ]
+        },
+        {
+          "text": "Nechaj jedlo 5 minút odpočívať a rozdeľ ho na {portions} porcií.",
+          "requires": [
+            "chicken:cooked",
+            "potato:cooked",
+            "zucchini:cooked",
+            "tomato:cooked",
+            "pepper:cooked",
+            "onion:cooked",
+            "pesto:cooked",
+            "oregano:cooked",
+            "garlic:cooked",
+            "oil:cooked",
+            "plech:occupied"
+          ],
+          "produces": [
+            "chicken:served",
+            "potato:served",
+            "zucchini:served",
+            "tomato:served",
+            "pepper:served",
+            "onion:served",
+            "pesto:served",
+            "oregano:served",
+            "garlic:served",
+            "oil:served",
+            "plech:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Jedlo rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní."
+      }
+    },
+    {
+      "id": "modern_cottage_shepherd_pie",
+      "version": 2,
+      "active": true,
+      "name_template": "Pastiersky nákyp s mletým mäsom",
+      "family": "modern_cottage_shepherd_pie",
+      "method": "oven",
+      "minutes": 65,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "hrniec",
+        "panvica",
+        "pekáč",
+        "rúra",
+        "pučidlo na zemiaky",
+        "nôž",
+        "doska na krájanie",
+        "strúhadlo"
+      ],
+      "slots": [
+        {
+          "key": "beef",
+          "role": "protein",
+          "candidates": [
+            "beef_mince"
+          ],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na rovnaké kúsky"
+        },
+        {
+          "key": "carrot",
+          "role": "vegetable",
+          "candidates": [
+            "carrot"
+          ],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na malé kocky"
+        },
+        {
+          "key": "peas",
+          "role": "vegetable",
+          "candidates": [
+            "peas"
+          ],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "10",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null,
+          "water_ml_per_adult": "50"
+        },
+        {
+          "key": "milk",
+          "role": "dairy",
+          "candidates": [
+            "milk"
+          ],
+          "amount_per_adult": "50",
+          "unit": "ml",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": "10",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cheese",
+          "role": "dairy",
+          "candidates": [
+            "hard_cheese"
+          ],
+          "amount_per_adult": "15",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno nastrúhaný"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "10",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C.",
+          "requires": [
+            "rura:free"
+          ],
+          "produces": [
+            "rura:hot"
+          ]
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na rovnaké kúsky. {carrot.amount} {carrot.name} nakrájaj na malé kocky, {onion.amount} {onion.name} a {garlic.amount} {garlic.name} nadrobno a {cheese.amount} {cheese.name} nastrúhaj.",
+          "requires": [
+            "potato:raw",
+            "carrot:raw",
+            "onion:raw",
+            "garlic:raw",
+            "cheese:raw"
+          ],
+          "produces": [
+            "potato:cut",
+            "carrot:cut",
+            "onion:cut",
+            "garlic:cut",
+            "cheese:grated"
+          ]
+        },
+        {
+          "text": "Vlož zemiaky do hrnca. Dolej studenú vodu tak, aby boli ponorené. Var zemiaky v hrnci na miernom ohni 18 minút, kým zmäknú, potom ich sceď.",
+          "requires": [
+            "potato:cut",
+            "hrniec:free"
+          ],
+          "produces": [
+            "potato:cooked",
+            "hrniec:occupied"
+          ]
+        },
+        {
+          "text": "Vlož {butter.amount} {butter.name} a {milk.amount} {milk.name} do hrnca. Zemiaky roztlač pučidlom na hladkú kašu a dochuť soľou.",
+          "requires": [
+            "potato:cooked",
+            "butter:raw",
+            "milk:raw",
+            "hrniec:occupied"
+          ],
+          "produces": [
+            "potato:mashed",
+            "butter:combined",
+            "milk:combined",
+            "hrniec:free"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.",
+          "requires": [
+            "oil:raw",
+            "panvica:free"
+          ],
+          "produces": [
+            "oil:heated",
+            "panvica:hot"
+          ]
+        },
+        {
+          "text": "Opekaj {beef.amount} {beef.name} v panvici na strednom ohni 8 minút, kým sa rozdelí na drobné kúsky a bude zlatisté. Pri väčšej dávke mäso opekaj po častiach.",
+          "requires": [
+            "beef:raw",
+            "oil:heated",
+            "panvica:hot"
+          ],
+          "produces": [
+            "beef:browned",
+            "oil:used"
+          ]
+        },
+        {
+          "text": "Pridaj cibuľu, mrkvu a cesnak do panvice. Opekaj cibuľu s mrkvou, cesnakom a mäsom v panvici na strednom ohni 6 minút, kým cibuľa zmäkne.",
+          "requires": [
+            "onion:cut",
+            "carrot:cut",
+            "garlic:cut",
+            "beef:browned",
+            "panvica:hot"
+          ],
+          "produces": [
+            "onion:cooked",
+            "carrot:cooked",
+            "garlic:cooked"
+          ]
+        },
+        {
+          "text": "Prisyp {flour.amount} {flour.name}. Opekaj hladkú pšeničnú múku s mletým hovädzím mäsom v panvici na strednom ohni 1 minútu, kým bude zmes jemne zlatistá.",
+          "requires": [
+            "flour:raw",
+            "beef:browned",
+            "onion:cooked",
+            "carrot:cooked",
+            "garlic:cooked",
+            "panvica:hot"
+          ],
+          "produces": [
+            "flour:cooked"
+          ]
+        },
+        {
+          "text": "Pridaj {peas.amount} {peas.name} a prilej {flour.water} vody. Všetko var v panvici na miernom ohni 12 minút, kým omáčka jemne bublá, zhustne a mrkva zmäkne.",
+          "requires": [
+            "peas:raw",
+            "flour:cooked",
+            "beef:browned",
+            "onion:cooked",
+            "carrot:cooked",
+            "garlic:cooked",
+            "panvica:hot"
+          ],
+          "produces": [
+            "peas:cooked",
+            "beef:cooked",
+            "onion:finished",
+            "carrot:finished",
+            "garlic:finished",
+            "panvica:free"
+          ]
+        },
+        {
+          "text": "Rozlož mleté hovädzie mäso so zeleninou do pekáča. Prikry ho zemiakovou kašou a rozlož tvrdý syr po povrchu. Pri väčšej dávke rozdeľ jedlo do dvoch pekáčov, aby sa prepieklo rovnomerne.",
+          "requires": [
+            "beef:cooked",
+            "onion:finished",
+            "carrot:finished",
+            "garlic:finished",
+            "peas:cooked",
+            "flour:cooked",
+            "potato:mashed",
+            "butter:combined",
+            "milk:combined",
+            "cheese:grated",
+            "pekac:free"
+          ],
+          "produces": [
+            "beef:arranged",
+            "onion:arranged",
+            "carrot:arranged",
+            "garlic:arranged",
+            "peas:arranged",
+            "flour:arranged",
+            "potato:arranged",
+            "butter:arranged",
+            "milk:arranged",
+            "cheese:arranged",
+            "pekac:occupied"
+          ]
+        },
+        {
+          "text": "Peč mleté hovädzie mäso so zemiakovou kašou v pekáči pri 200 °C 25 minút, kým bude omáčka na okrajoch bublať a povrch bude zlatistý.",
+          "requires": [
+            "beef:arranged",
+            "onion:arranged",
+            "carrot:arranged",
+            "garlic:arranged",
+            "peas:arranged",
+            "flour:arranged",
+            "potato:arranged",
+            "butter:arranged",
+            "milk:arranged",
+            "cheese:arranged",
+            "pekac:occupied",
+            "rura:hot"
+          ],
+          "produces": [
+            "beef:cooked_final",
+            "onion:cooked_final",
+            "carrot:cooked_final",
+            "garlic:cooked_final",
+            "peas:cooked_final",
+            "flour:cooked_final",
+            "potato:cooked_final",
+            "butter:cooked_final",
+            "milk:cooked_final",
+            "cheese:cooked"
+          ]
+        },
+        {
+          "text": "Nechaj nákyp 10 minút odpočívať a rozdeľ ho na {portions} porcií.",
+          "requires": [
+            "beef:cooked_final",
+            "onion:cooked_final",
+            "carrot:cooked_final",
+            "garlic:cooked_final",
+            "peas:cooked_final",
+            "flour:cooked_final",
+            "potato:cooked_final",
+            "butter:cooked_final",
+            "milk:cooked_final",
+            "cheese:cooked",
+            "oil:used",
+            "pekac:occupied"
+          ],
+          "produces": [
+            "beef:served",
+            "onion:served",
+            "carrot:served",
+            "garlic:served",
+            "peas:served",
+            "flour:served",
+            "potato:served",
+            "butter:served",
+            "milk:served",
+            "cheese:served",
+            "oil:served",
+            "pekac:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Nákyp rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní."
+      }
+    },
+    {
+      "id": "modern_family_lasagne",
+      "version": 2,
+      "active": true,
+      "name_template": "Rodinné lasagne",
+      "family": "modern_family_lasagne",
+      "method": "oven",
+      "minutes": 75,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "veľký hrniec",
+        "pekáč",
+        "miska",
+        "rúra",
+        "nôž",
+        "doska na krájanie",
+        "strúhadlo"
+      ],
+      "slots": [
+        {
+          "key": "beef",
+          "role": "protein",
+          "candidates": [
+            "beef_mince"
+          ],
+          "amount_per_adult": "120",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "pasta",
+          "role": "starch",
+          "candidates": [
+            "pasta"
+          ],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null,
+          "water_ml_per_adult": "25"
+        },
+        {
+          "key": "tomato",
+          "role": "vegetable",
+          "candidates": [
+            "tomato"
+          ],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "nahrubo"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "35",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "carrot",
+          "role": "vegetable",
+          "candidates": [
+            "carrot"
+          ],
+          "amount_per_adult": "40",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "cream",
+          "role": "dairy",
+          "candidates": [
+            "cream"
+          ],
+          "amount_per_adult": "40",
+          "unit": "ml",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "mozzarella",
+          "role": "dairy",
+          "candidates": [
+            "mozzarella"
+          ],
+          "amount_per_adult": "35",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": "nahrubo nastrúhaná"
+        },
+        {
+          "key": "cheese",
+          "role": "dairy",
+          "candidates": [
+            "hard_cheese"
+          ],
+          "amount_per_adult": "10",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno nastrúhaný"
+        },
+        {
+          "key": "oregano",
+          "role": "seasoning",
+          "candidates": [
+            "oregano"
+          ],
+          "amount_per_adult": "1",
+          "unit": "g",
+          "child_factor": "0.4",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "10",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 190 °C.",
+          "requires": [
+            "rura:free"
+          ],
+          "produces": [
+            "rura:hot"
+          ]
+        },
+        {
+          "text": "Nakrájaj {onion.amount} {onion.name} a {garlic.amount} {garlic.name} nadrobno, {carrot.amount} {carrot.name} najemno a nastrúhaj {mozzarella.amount} {mozzarella.name} aj {cheese.amount} {cheese.name}.",
+          "requires": [
+            "onion:raw",
+            "garlic:raw",
+            "carrot:raw",
+            "mozzarella:raw",
+            "cheese:raw"
+          ],
+          "produces": [
+            "onion:cut",
+            "garlic:cut",
+            "carrot:cut",
+            "mozzarella:grated",
+            "cheese:grated"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 2 minúty, kým sa začne lesknúť.",
+          "requires": [
+            "oil:raw",
+            "velky_hrniec:free"
+          ],
+          "produces": [
+            "oil:heated",
+            "velky_hrniec:hot"
+          ]
+        },
+        {
+          "text": "Opekaj {beef.amount} {beef.name} vo veľkom hrnci na strednom ohni 8 minút, kým sa rozdelí na drobné kúsky a bude zlatisté. Pri väčšej dávke mäso opekaj po častiach.",
+          "requires": [
+            "beef:raw",
+            "oil:heated",
+            "velky_hrniec:hot"
+          ],
+          "produces": [
+            "beef:browned",
+            "oil:used"
+          ]
+        },
+        {
+          "text": "Pridaj cibuľu, mrkvu a cesnak do veľkého hrnca. Opekaj cibuľu s mrkvou, cesnakom a mäsom vo veľkom hrnci na strednom ohni 6 minút, kým cibuľa zmäkne.",
+          "requires": [
+            "onion:cut",
+            "carrot:cut",
+            "garlic:cut",
+            "beef:browned",
+            "velky_hrniec:hot"
+          ],
+          "produces": [
+            "onion:cooked",
+            "carrot:cooked",
+            "garlic:cooked"
+          ]
+        },
+        {
+          "text": "Pridaj {tomato.amount} {tomato.name} a {oregano.amount} {oregano.name} do hrnca. Var paradajky s mletým hovädzím mäsom vo veľkom hrnci bez pokrievky na miernom ohni 25 minút, kým omáčka jemne bublá a zhustne.",
+          "requires": [
+            "tomato:raw",
+            "oregano:raw",
+            "beef:browned",
+            "onion:cooked",
+            "carrot:cooked",
+            "garlic:cooked",
+            "velky_hrniec:hot"
+          ],
+          "produces": [
+            "tomato:sauce",
+            "oregano:sauce",
+            "beef:sauce",
+            "onion:sauce",
+            "carrot:sauce",
+            "garlic:sauce",
+            "velky_hrniec:free"
+          ]
+        },
+        {
+          "text": "Premiešaj v miske {cream.amount} {cream.name} s {pasta.water} vody, štipkou soli a čierneho korenia.",
+          "requires": [
+            "cream:raw",
+            "miska:free"
+          ],
+          "produces": [
+            "cream:mixed",
+            "miska:occupied"
+          ]
+        },
+        {
+          "text": "Rozlož tretinu mletého hovädzieho mäsa s paradajkami do pekáča. Prikry ho časťou {pasta.amount} {pasta.name} a polej smotanovou zmesou. Vrstvy zopakuj, kým spotrebuješ omáčku aj cestoviny. Pri väčšej dávke rozdeľ všetko do dvoch pekáčov, aby lasagne neboli príliš vysoké.",
+          "requires": [
+            "beef:sauce",
+            "tomato:sauce",
+            "onion:sauce",
+            "carrot:sauce",
+            "garlic:sauce",
+            "oregano:sauce",
+            "pasta:raw",
+            "cream:mixed",
+            "miska:occupied",
+            "pekac:free"
+          ],
+          "produces": [
+            "beef:arranged",
+            "tomato:arranged",
+            "onion:arranged",
+            "carrot:arranged",
+            "garlic:arranged",
+            "oregano:arranged",
+            "pasta:arranged",
+            "cream:arranged",
+            "miska:free",
+            "pekac:occupied"
+          ]
+        },
+        {
+          "text": "Rozlož mozzarellu a tvrdý syr po povrchu lasagní.",
+          "requires": [
+            "mozzarella:grated",
+            "cheese:grated",
+            "pekac:occupied"
+          ],
+          "produces": [
+            "mozzarella:arranged",
+            "cheese:arranged"
+          ]
+        },
+        {
+          "text": "Peč cestoviny s mletým hovädzím mäsom v pekáči pri 190 °C 35 minút, kým bude omáčka na okrajoch bublať, cestoviny zmäknú a syr bude zlatistý.",
+          "requires": [
+            "beef:arranged",
+            "tomato:arranged",
+            "onion:arranged",
+            "carrot:arranged",
+            "garlic:arranged",
+            "oregano:arranged",
+            "pasta:arranged",
+            "cream:arranged",
+            "mozzarella:arranged",
+            "cheese:arranged",
+            "pekac:occupied",
+            "rura:hot"
+          ],
+          "produces": [
+            "beef:cooked",
+            "tomato:cooked",
+            "onion:cooked_final",
+            "carrot:cooked_final",
+            "garlic:cooked_final",
+            "oregano:cooked",
+            "pasta:cooked",
+            "cream:cooked",
+            "mozzarella:cooked",
+            "cheese:cooked"
+          ]
+        },
+        {
+          "text": "Nechaj lasagne 10 minút odpočívať a rozdeľ ich na {portions} porcií.",
+          "requires": [
+            "beef:cooked",
+            "tomato:cooked",
+            "onion:cooked_final",
+            "carrot:cooked_final",
+            "garlic:cooked_final",
+            "oregano:cooked",
+            "pasta:cooked",
+            "cream:cooked",
+            "mozzarella:cooked",
+            "cheese:cooked",
+            "oil:used",
+            "pekac:occupied"
+          ],
+          "produces": [
+            "beef:served",
+            "tomato:served",
+            "onion:served",
+            "carrot:served",
+            "garlic:served",
+            "oregano:served",
+            "pasta:served",
+            "cream:served",
+            "mozzarella:served",
+            "cheese:served",
+            "oil:served",
+            "pekac:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Lasagne rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní."
+      }
+    },
+    {
+      "id": "modern_salmon_potato_broccoli",
+      "version": 2,
+      "active": true,
+      "name_template": "Losos so zemiakmi a brokolicou",
+      "family": "modern_salmon_potato_broccoli",
+      "method": "oven",
+      "minutes": 45,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "plech",
+        "rúra",
+        "miska",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "salmon",
+          "role": "protein",
+          "candidates": [
+            "salmon"
+          ],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na porcie"
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "230",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na menšie mesiačiky"
+        },
+        {
+          "key": "broccoli",
+          "role": "vegetable",
+          "candidates": [
+            "broccoli"
+          ],
+          "amount_per_adult": "160",
+          "unit": "g",
+          "child_factor": "0.7",
+          "required": true,
+          "use": "addition",
+          "cut": "na ružičky"
+        },
+        {
+          "key": "yogurt",
+          "role": "dairy",
+          "candidates": [
+            "plain_yogurt"
+          ],
+          "amount_per_adult": "60",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "10",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 210 °C. Nakrájaj {potato.amount} {potato.name} na menšie mesiačiky, rozdeľ {broccoli.amount} {broccoli.name} na ružičky a {garlic.amount} {garlic.name} nasekaj najemno. Rozdeľ {salmon.amount} {salmon.name} na porcie.",
+          "requires": [
+            "rura:free",
+            "potato:raw",
+            "broccoli:raw",
+            "garlic:raw",
+            "salmon:raw"
+          ],
+          "produces": [
+            "rura:hot",
+            "potato:cut",
+            "broccoli:cut",
+            "garlic:cut",
+            "salmon:portioned"
+          ]
+        },
+        {
+          "text": "Premiešaj zemiaky v miske s {oil.amount} {oil.name}, soľou a čiernym korením. Rozlož zemiaky na plech v jednej vrstve; pri väčšej dávke použi dva plechy.",
+          "requires": [
+            "potato:cut",
+            "oil:raw",
+            "miska:free",
+            "plech:free"
+          ],
+          "produces": [
+            "potato:arranged",
+            "oil:used",
+            "miska:free",
+            "plech:occupied"
+          ]
+        },
+        {
+          "text": "Peč zemiaky na plechu pri 210 °C 20 minút, kým budú na okrajoch zlatisté.",
+          "requires": [
+            "potato:arranged",
+            "oil:used",
+            "plech:occupied",
+            "rura:hot"
+          ],
+          "produces": [
+            "potato:partly_cooked",
+            "oil:cooked"
+          ]
+        },
+        {
+          "text": "Rozlož brokolicu k zemiakom a porcie lososa medzi zeleninu na plechu.",
+          "requires": [
+            "broccoli:cut",
+            "salmon:portioned",
+            "potato:partly_cooked",
+            "oil:cooked",
+            "plech:occupied"
+          ],
+          "produces": [
+            "broccoli:arranged",
+            "salmon:arranged"
+          ]
+        },
+        {
+          "text": "Peč lososa so zeleninou na plechu pri 210 °C ďalších 15 minút, kým sa ryba bude ľahko oddeľovať vidličkou, brokolica zmäkne a zemiaky budú zlatisté.",
+          "requires": [
+            "broccoli:arranged",
+            "salmon:arranged",
+            "potato:partly_cooked",
+            "oil:cooked",
+            "plech:occupied",
+            "rura:hot"
+          ],
+          "produces": [
+            "broccoli:cooked",
+            "salmon:cooked",
+            "potato:cooked"
+          ]
+        },
+        {
+          "text": "Premiešaj {yogurt.amount} {yogurt.name} s cesnakom, štipkou soli a čiernym korením v miske.",
+          "requires": [
+            "yogurt:raw",
+            "garlic:cut",
+            "miska:free"
+          ],
+          "produces": [
+            "yogurt:mixed",
+            "garlic:mixed",
+            "miska:occupied"
+          ]
+        },
+        {
+          "text": "Podávaj lososa so zemiakmi, brokolicou a jogurtovou omáčkou. Jedlo rozdeľ na {portions} porcií.",
+          "requires": [
+            "salmon:cooked",
+            "potato:cooked",
+            "broccoli:cooked",
+            "oil:cooked",
+            "yogurt:mixed",
+            "garlic:mixed",
+            "plech:occupied",
+            "miska:occupied"
+          ],
+          "produces": [
+            "salmon:served",
+            "potato:served",
+            "broccoli:served",
+            "oil:served",
+            "yogurt:served",
+            "garlic:served",
+            "plech:free",
+            "miska:free",
+            "rura:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Jedlo rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní; jogurtovú omáčku skladuj oddelene a rybu ohrievaj len raz."
+      }
+    },
+    {
+      "id": "modern_white_fish_tomato_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Biela ryba s paradajkovou ryžou",
+      "family": "modern_white_fish_tomato_rice",
+      "method": "oven",
+      "minutes": 45,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "pekáč",
+        "rúra",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "fish",
+          "role": "protein",
+          "candidates": [
+            "white_fish"
+          ],
+          "amount_per_adult": "190",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na porcie"
+        },
+        {
+          "key": "rice",
+          "role": "starch",
+          "candidates": [
+            "rice"
+          ],
+          "amount_per_adult": "75",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null,
+          "water_ml_per_adult": "130"
+        },
+        {
+          "key": "tomato",
+          "role": "vegetable",
+          "candidates": [
+            "tomato"
+          ],
+          "amount_per_adult": "220",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na menšie kúsky"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "8",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oregano",
+          "role": "seasoning",
+          "candidates": [
+            "oregano"
+          ],
+          "amount_per_adult": "1",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C. Prepláchni {rice.amount} {rice.name}. Nakrájaj {tomato.amount} {tomato.name} na menšie kúsky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno. Rozdeľ {fish.amount} {fish.name} na porcie.",
+          "requires": [
+            "rura:free",
+            "rice:raw",
+            "tomato:raw",
+            "onion:raw",
+            "garlic:raw",
+            "fish:raw"
+          ],
+          "produces": [
+            "rura:hot",
+            "rice:rinsed",
+            "tomato:cut",
+            "onion:cut",
+            "garlic:cut",
+            "fish:portioned"
+          ]
+        },
+        {
+          "text": "Premiešaj v pekáči ryžu s paradajkami, cibuľou, cesnakom, {oil.amount} {oil.name}, {oregano.amount} {oregano.name}, {rice.water} vody, soľou a čiernym korením. Rozlož ryžu rovnomerne po dne; pri väčšej dávke zmes rozdeľ do dvoch pekáčov.",
+          "requires": [
+            "oil:raw",
+            "rice:rinsed",
+            "tomato:cut",
+            "onion:cut",
+            "garlic:cut",
+            "oregano:raw",
+            "pekac:free"
+          ],
+          "produces": [
+            "oil:arranged",
+            "rice:arranged",
+            "tomato:arranged",
+            "onion:arranged",
+            "garlic:arranged",
+            "oregano:arranged",
+            "pekac:occupied"
+          ]
+        },
+        {
+          "text": "Peč ryžu v prikrytom pekáči pri 200 °C 25 minút, kým takmer vsiakne tekutinu a zrnká začnú mäknúť.",
+          "requires": [
+            "rice:arranged",
+            "tomato:arranged",
+            "onion:arranged",
+            "garlic:arranged",
+            "oregano:arranged",
+            "oil:arranged",
+            "pekac:occupied",
+            "rura:hot"
+          ],
+          "produces": [
+            "rice:partly_cooked",
+            "tomato:cooked",
+            "onion:cooked",
+            "garlic:cooked",
+            "oregano:cooked",
+            "oil:cooked"
+          ]
+        },
+        {
+          "text": "Vlož rybu do pekáča. Nechaj pekáč odkrytý. Peč rybu s ryžou v pekáči pri 200 °C ďalších 12 minút, kým sa ryba bude ľahko oddeľovať vidličkou a ryža bude mäkká.",
+          "requires": [
+            "fish:portioned",
+            "rice:partly_cooked",
+            "tomato:cooked",
+            "onion:cooked",
+            "garlic:cooked",
+            "oregano:cooked",
+            "oil:cooked",
+            "pekac:occupied",
+            "rura:hot"
+          ],
+          "produces": [
+            "fish:cooked",
+            "rice:cooked"
+          ]
+        },
+        {
+          "text": "Nechaj jedlo v pekáči 5 minút odpočívať. Podávaj rybu s paradajkovou ryžou a rozdeľ ju na {portions} porcií.",
+          "requires": [
+            "fish:cooked",
+            "rice:cooked",
+            "tomato:cooked",
+            "onion:cooked",
+            "garlic:cooked",
+            "oregano:cooked",
+            "oil:cooked",
+            "pekac:occupied"
+          ],
+          "produces": [
+            "fish:served",
+            "rice:served",
+            "tomato:served",
+            "onion:served",
+            "garlic:served",
+            "oregano:served",
+            "oil:served",
+            "pekac:free",
+            "rura:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 1,
+        "instruction": "Rybu s ryžou rozdeľ do plytkých nádob a do jednej hodiny ich schlaď. V chladničke ich zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým budú celé horúce."
+      }
+    },
+    {
+      "id": "protein_beef_bean_chili",
+      "version": 2,
+      "active": true,
+      "name_template": "Batat plnený hovädzím chilli",
+      "family": "protein_beef_bean_chili",
+      "method": "oven",
+      "minutes": 65,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "plech",
+        "panvica",
+        "rúra",
+        "sitko",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "sweet_potato",
+          "role": "starch",
+          "candidates": [
+            "sweet_potato"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "beef",
+          "role": "protein",
+          "candidates": [
+            "beef_mince"
+          ],
+          "amount_per_adult": "150",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "beans",
+          "role": "protein",
+          "candidates": [
+            "beans_canned"
+          ],
+          "amount_per_adult": "150",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "tomato",
+          "role": "vegetable",
+          "candidates": [
+            "tomato"
+          ],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.7",
+          "required": true,
+          "use": "addition",
+          "cut": "na menšie kúsky"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "cumin",
+          "role": "seasoning",
+          "candidates": [
+            "cumin"
+          ],
+          "amount_per_adult": "2",
+          "unit": "g",
+          "child_factor": "0.4",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "chili",
+          "role": "seasoning",
+          "candidates": [
+            "chili_powder"
+          ],
+          "amount_per_adult": "1",
+          "unit": "g",
+          "child_factor": "0.25",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cheese",
+          "role": "dairy",
+          "candidates": [
+            "hard_cheese"
+          ],
+          "amount_per_adult": "20",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nahrubo nastrúhaný"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "7",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C.",
+          "requires": [
+            "rura:free"
+          ],
+          "produces": [
+            "rura:hot"
+          ]
+        },
+        {
+          "text": "Opláchni {sweet_potato.amount} {sweet_potato.name}, osuš ich a na niekoľkých miestach popichaj vidličkou.",
+          "requires": [
+            "sweet_potato:raw"
+          ],
+          "produces": [
+            "sweet_potato:pierced"
+          ]
+        },
+        {
+          "text": "Peč bataty na plechu pri 200 °C 45 minút, kým zmäknú a pôjde do nich ľahko zapichnúť vidlička.",
+          "requires": [
+            "sweet_potato:pierced",
+            "plech:free",
+            "rura:hot"
+          ],
+          "produces": [
+            "sweet_potato:cooked",
+            "plech:occupied"
+          ]
+        },
+        {
+          "text": "Sceď {beans.amount} {beans.name} v sitku a prepláchni ich studenou vodou.",
+          "requires": [
+            "beans:raw",
+            "sitko:free"
+          ],
+          "produces": [
+            "beans:drained",
+            "sitko:free"
+          ]
+        },
+        {
+          "text": "Nakrájaj {tomato.amount} {tomato.name} na menšie kúsky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno.",
+          "requires": [
+            "tomato:raw",
+            "onion:raw",
+            "garlic:raw"
+          ],
+          "produces": [
+            "tomato:cut",
+            "onion:cut",
+            "garlic:cut"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.",
+          "requires": [
+            "oil:raw",
+            "panvica:free"
+          ],
+          "produces": [
+            "oil:hot",
+            "panvica:occupied"
+          ]
+        },
+        {
+          "text": "Pridaj {beef.amount} {beef.name} do panvice a opekaj ho na strednom ohni 7 minút, kým bude miestami zlatisté a rozpadne sa na malé kúsky.",
+          "requires": [
+            "beef:raw",
+            "oil:hot",
+            "panvica:occupied"
+          ],
+          "produces": [
+            "beef:browned"
+          ]
+        },
+        {
+          "text": "Pridaj paradajky, cibuľu, cesnak, {cumin.amount} {cumin.name} a {chili.amount} {chili.name} do panvice.",
+          "requires": [
+            "tomato:cut",
+            "onion:cut",
+            "garlic:cut",
+            "cumin:raw",
+            "chili:raw",
+            "beef:browned",
+            "panvica:occupied"
+          ],
+          "produces": [
+            "tomato:in_pan",
+            "onion:in_pan",
+            "garlic:in_pan",
+            "cumin:in_pan",
+            "chili:in_pan"
+          ]
+        },
+        {
+          "text": "Premiešaj fazuľu s obsahom panvice.",
+          "requires": [
+            "beans:drained",
+            "tomato:in_pan",
+            "onion:in_pan",
+            "garlic:in_pan",
+            "cumin:in_pan",
+            "chili:in_pan",
+            "panvica:occupied"
+          ],
+          "produces": [
+            "beans:in_pan"
+          ]
+        },
+        {
+          "text": "Dus mleté hovädzie mäso s fazuľou v panvici na miernom ohni 12 minút, kým omáčka zhustne, cibuľa zmäkne a mäso nebude ružové.",
+          "requires": [
+            "beans:in_pan",
+            "beef:browned",
+            "tomato:in_pan",
+            "onion:in_pan",
+            "garlic:in_pan",
+            "cumin:in_pan",
+            "chili:in_pan",
+            "panvica:occupied"
+          ],
+          "produces": [
+            "beans:cooked",
+            "beef:cooked",
+            "tomato:cooked",
+            "onion:cooked",
+            "garlic:cooked",
+            "cumin:cooked",
+            "chili:cooked",
+            "oil:used"
+          ]
+        },
+        {
+          "text": "Rozdeľ upečené bataty pozdĺžne na polovice a vnútro zľahka roztlač vidličkou. Naplň ich hovädzím chilli.",
+          "requires": [
+            "sweet_potato:cooked",
+            "beans:cooked",
+            "beef:cooked",
+            "tomato:cooked",
+            "onion:cooked",
+            "garlic:cooked",
+            "cumin:cooked",
+            "chili:cooked",
+            "oil:used"
+          ],
+          "produces": [
+            "sweet_potato:filled",
+            "beans:filled",
+            "beef:filled",
+            "tomato:filled",
+            "onion:filled",
+            "garlic:filled",
+            "cumin:filled",
+            "chili:filled",
+            "oil:filled"
+          ]
+        },
+        {
+          "text": "Rozlož {cheese.amount} {cheese.name} na naplnené bataty a rozdeľ ich na {portions} porcií.",
+          "requires": [
+            "sweet_potato:filled",
+            "beans:filled",
+            "beef:filled",
+            "tomato:filled",
+            "onion:filled",
+            "garlic:filled",
+            "cumin:filled",
+            "chili:filled",
+            "oil:filled",
+            "cheese:raw"
+          ],
+          "produces": [
+            "sweet_potato:served",
+            "beans:served",
+            "beef:served",
+            "tomato:served",
+            "onion:served",
+            "garlic:served",
+            "cumin:served",
+            "chili:served",
+            "oil:served",
+            "cheese:served",
+            "plech:free",
+            "panvica:free",
+            "rura:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Upečené bataty a chilli odlož do oddelených uzatvárateľných nádob najneskôr do 2 hodín. V chladničke ich uchovaj najviac 3 dni a syr pridaj až po ohriatí."
+      }
+    },
+    {
+      "id": "protein_chicken_yogurt_potato",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuracie prsia so zemiakmi a jogurtovým dipom",
+      "family": "protein_chicken_yogurt_potato",
+      "method": "oven",
+      "minutes": 45,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "rúra",
+        "plech",
+        "panvica",
+        "misa",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "chicken",
+          "role": "protein",
+          "candidates": [
+            "chicken_breast"
+          ],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na hrubšie plátky"
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "280",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na menšie mesiačiky"
+        },
+        {
+          "key": "skyr",
+          "role": "dairy",
+          "candidates": [
+            "skyr"
+          ],
+          "amount_per_adult": "120",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cucumber",
+          "role": "vegetable",
+          "candidates": [
+            "cucumber"
+          ],
+          "amount_per_adult": "100",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "addition",
+          "cut": "nahrubo nastrúhaná"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.4",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "10",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 210 °C.",
+          "requires": [
+            "rura:free"
+          ],
+          "produces": [
+            "rura:hot"
+          ]
+        },
+        {
+          "text": "Nakrájaj {potato.amount} {potato.name} na menšie mesiačiky a rozlož ich na plech. Priprav si {oil.amount} {oil.name}; polovicu premiešaj so zemiakmi, soľou a čiernym korením.",
+          "requires": [
+            "rura:hot",
+            "potato:raw",
+            "oil:raw",
+            "plech:free"
+          ],
+          "produces": [
+            "potato:prepared",
+            "oil:divided",
+            "plech:occupied"
+          ]
+        },
+        {
+          "text": "Peč zemiaky na plechu pri 210 °C 30 minút, v polovici ich obráť a dopeč ich dozlatista, kým budú vnútri mäkké.",
+          "requires": [
+            "potato:prepared",
+            "oil:divided",
+            "plech:occupied",
+            "rura:hot"
+          ],
+          "produces": [
+            "potato:baked"
+          ]
+        },
+        {
+          "text": "Nakrájaj {chicken.amount} {chicken.name} na hrubšie plátky a z oboch strán ich osoľ a okoreň.",
+          "requires": [
+            "chicken:raw"
+          ],
+          "produces": [
+            "chicken:cut"
+          ]
+        },
+        {
+          "text": "Rozohrej zvyšný olej v panvici na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj kuracie prsia 5 až 6 minút z každej strany, kým budú zlatisté a v strede už nebudú ružové. Pri väčšej dávke ich priprav po častiach.",
+          "requires": [
+            "chicken:cut",
+            "oil:divided",
+            "panvica:free"
+          ],
+          "produces": [
+            "chicken:cooked",
+            "oil:cooked",
+            "panvica:free"
+          ]
+        },
+        {
+          "text": "Nakrájaj {cucumber.amount} {cucumber.name} na drobné kocky a {garlic.amount} {garlic.name} najemno. Premiešaj {skyr.amount} {skyr.name}, šalátovú uhorku a cesnak v mise so štipkou soli a čiernym korením.",
+          "requires": [
+            "cucumber:raw",
+            "garlic:raw",
+            "skyr:raw",
+            "misa:free"
+          ],
+          "produces": [
+            "cucumber:mixed",
+            "garlic:mixed",
+            "skyr:mixed",
+            "misa:occupied"
+          ]
+        },
+        {
+          "text": "Podávaj kuracie prsia s pečenými zemiakmi a studeným dipom. Jedlo rozdeľ na {portions} porcií.",
+          "requires": [
+            "chicken:cooked",
+            "potato:baked",
+            "cucumber:mixed",
+            "garlic:mixed",
+            "skyr:mixed",
+            "oil:cooked",
+            "misa:occupied",
+            "plech:occupied"
+          ],
+          "produces": [
+            "chicken:served",
+            "potato:served",
+            "cucumber:served",
+            "garlic:served",
+            "skyr:served",
+            "oil:served",
+            "misa:free",
+            "plech:free",
+            "rura:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Kuracie mäso, zemiaky a dip odlož do samostatných uzatvárateľných nádob najneskôr do 2 hodín. V chladničke ich uchovaj najviac 3 dni; mäso so zemiakmi zohrej a dip pridaj až pri podávaní."
+      }
+    },
+    {
+      "id": "protein_chicken_yogurt_traybake",
+      "version": 2,
+      "active": true,
+      "name_template": "Jogurtové kurča so zeleninou z jedného plechu",
+      "family": "protein_chicken_yogurt_traybake",
+      "method": "oven",
+      "minutes": 50,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "plech",
+        "miska",
+        "rúra",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "chicken",
+          "role": "protein",
+          "candidates": [
+            "chicken_breast"
+          ],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": "na väčšie kúsky"
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "200",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na malé mesiačiky"
+        },
+        {
+          "key": "yogurt",
+          "role": "dairy",
+          "candidates": [
+            "plain_yogurt"
+          ],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "zucchini",
+          "role": "vegetable",
+          "candidates": [
+            "zucchini"
+          ],
+          "amount_per_adult": "120",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "addition",
+          "cut": "na hrubšie polkolieska"
+        },
+        {
+          "key": "pepper",
+          "role": "vegetable",
+          "candidates": [
+            "bell_pepper"
+          ],
+          "amount_per_adult": "100",
+          "unit": "g",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "addition",
+          "cut": "na väčšie kúsky"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "addition",
+          "cut": "na mesiačiky"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "curry",
+          "role": "seasoning",
+          "candidates": [
+            "curry_powder"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.4",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "8",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 210 °C.",
+          "requires": [
+            "rura:free"
+          ],
+          "produces": [
+            "rura:hot"
+          ]
+        },
+        {
+          "text": "Nakrájaj {chicken.amount} {chicken.name} na väčšie kúsky a {potato.amount} {potato.name} na malé mesiačiky. {zucchini.amount} {zucchini.name} nakrájaj na hrubšie polkolieska, {pepper.amount} {pepper.name} na väčšie kúsky a {onion.amount} {onion.name} na mesiačiky. {garlic.amount} {garlic.name} nasekaj najemno.",
+          "requires": [
+            "chicken:raw",
+            "potato:raw",
+            "zucchini:raw",
+            "pepper:raw",
+            "onion:raw",
+            "garlic:raw"
+          ],
+          "produces": [
+            "chicken:cut",
+            "potato:cut",
+            "zucchini:cut",
+            "pepper:cut",
+            "onion:cut",
+            "garlic:cut"
+          ]
+        },
+        {
+          "text": "Premiešaj {yogurt.amount} {yogurt.name}, cesnak, {curry.amount} {curry.name}, {oil.amount} {oil.name}, soľ a čierne korenie v miske.",
+          "requires": [
+            "yogurt:raw",
+            "garlic:cut",
+            "curry:raw",
+            "oil:raw",
+            "miska:free"
+          ],
+          "produces": [
+            "yogurt:mixed",
+            "garlic:mixed",
+            "curry:mixed",
+            "oil:mixed",
+            "miska:occupied"
+          ]
+        },
+        {
+          "text": "Premiešaj kuracie prsia s jogurtovou marinádou v miske.",
+          "requires": [
+            "chicken:cut",
+            "yogurt:mixed",
+            "garlic:mixed",
+            "curry:mixed",
+            "oil:mixed",
+            "miska:occupied"
+          ],
+          "produces": [
+            "chicken:marinated",
+            "yogurt:coating",
+            "garlic:coating",
+            "curry:coating",
+            "oil:coating"
+          ]
+        },
+        {
+          "text": "Rozlož zemiaky a cibuľu na plech v jednej vrstve.",
+          "requires": [
+            "potato:cut",
+            "onion:cut",
+            "plech:free"
+          ],
+          "produces": [
+            "potato:arranged",
+            "onion:arranged",
+            "plech:occupied"
+          ]
+        },
+        {
+          "text": "Peč zemiaky s cibuľou na plechu pri 210 °C 15 minút, kým sa okraje zemiakov začnú sfarbovať dozlatista.",
+          "requires": [
+            "potato:arranged",
+            "onion:arranged",
+            "plech:occupied",
+            "rura:hot"
+          ],
+          "produces": [
+            "potato:partly_cooked",
+            "onion:partly_cooked"
+          ]
+        },
+        {
+          "text": "Rozlož marinované kuracie prsia, cuketu a papriku na plech.",
+          "requires": [
+            "chicken:marinated",
+            "yogurt:coating",
+            "garlic:coating",
+            "curry:coating",
+            "oil:coating",
+            "zucchini:cut",
+            "pepper:cut",
+            "potato:partly_cooked",
+            "onion:partly_cooked",
+            "plech:occupied"
+          ],
+          "produces": [
+            "chicken:arranged",
+            "yogurt:arranged",
+            "garlic:arranged",
+            "curry:arranged",
+            "oil:arranged",
+            "zucchini:arranged",
+            "pepper:arranged",
+            "miska:free"
+          ]
+        },
+        {
+          "text": "Peč kuracie prsia so zeleninou na plechu pri 210 °C 25 minút, kým budú zemiaky mäkké, zelenina na okrajoch opečená a mäso v strede bez ružových miest.",
+          "requires": [
+            "chicken:arranged",
+            "yogurt:arranged",
+            "garlic:arranged",
+            "curry:arranged",
+            "oil:arranged",
+            "zucchini:arranged",
+            "pepper:arranged",
+            "potato:partly_cooked",
+            "onion:partly_cooked",
+            "plech:occupied",
+            "rura:hot"
+          ],
+          "produces": [
+            "chicken:cooked",
+            "yogurt:cooked",
+            "garlic:cooked",
+            "curry:cooked",
+            "oil:cooked",
+            "zucchini:cooked",
+            "pepper:cooked",
+            "potato:cooked",
+            "onion:cooked"
+          ]
+        },
+        {
+          "text": "Podávaj kurča so zemiakmi a zeleninou. Jedlo rozdeľ na {portions} porcií.",
+          "requires": [
+            "chicken:cooked",
+            "yogurt:cooked",
+            "garlic:cooked",
+            "curry:cooked",
+            "oil:cooked",
+            "zucchini:cooked",
+            "pepper:cooked",
+            "potato:cooked",
+            "onion:cooked",
+            "plech:occupied"
+          ],
+          "produces": [
+            "chicken:served",
+            "yogurt:served",
+            "garlic:served",
+            "curry:served",
+            "oil:served",
+            "zucchini:served",
+            "pepper:served",
+            "potato:served",
+            "onion:served",
+            "plech:free",
+            "rura:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Jedlo rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní a pri ohrievaní ho dôkladne prehrej."
+      }
     }
   ]
 }

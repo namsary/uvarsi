@@ -24,11 +24,13 @@ from .plan_data import validate_recipe_language
 from .quantity_math import PackageSize, PantryEntry, Quantity, purchase_requirement
 from .recipe_catalog import IngredientSlot, PANTRY_BASIC_NAMES
 from .recipe_matcher import RecipeCandidate, SlotSelection
+from .regular_purchase import regular_purchase_rule
 
 
 _ONE = Decimal("1")
 _THOUSAND = Decimal("1000")
 _PAN_BATCH_LIMIT_GRAMS = Decimal("800")
+_LARGE_VESSEL_BATCH_LIMIT = Decimal("5000")
 _SLOVAK_FORMS_PATH = (
     Path(__file__).with_name("catalog") / "slovak_ingredient_forms.json"
 )
@@ -73,6 +75,7 @@ class RenderedMeal:
     pantry_basics: Sequence[str]
     instructions: Sequence[str]
     nutrition: NutritionEstimate
+    storage: str | None = None
 
 
 @dataclass(frozen=True)
@@ -99,7 +102,9 @@ _QUANTITY_NAMES: Mapping[str, str] = {
     "chicken_breast": "kuracích pŕs",
     "chicken_thigh": "kuracích stehien",
     "chicken_thigh_meat": "vykosteného kuracieho stehenného mäsa",
-    "pork_shoulder": "bravčového pliecka",
+    "cinnamon": "mletej škorice",
+    "pork_shoulder": "bravčového pliecka bez kosti",
+    "pork_mince": "mletého bravčového mäsa",
     "beef_mince": "mletého hovädzieho mäsa",
     "salmon": "lososa",
     "tofu": "tofu",
@@ -119,7 +124,7 @@ _QUANTITY_NAMES: Mapping[str, str] = {
     "carrot": "mrkvy",
     "broccoli": "brokolice",
     "milk": "plnotučného mlieka",
-    "cream": "smotany na šľahanie",
+    "cream": "smotany na varenie",
     "hard_cheese": "tvrdého syra",
     "oil": "oleja",
     "salt": "soli",
@@ -142,6 +147,39 @@ _QUANTITY_NAMES: Mapping[str, str] = {
     "mushrooms": "bielych šampiňónov",
     "plain_yogurt": "bieleho plnotučného jogurtu",
     "tuna": "tuniaka vo vlastnej šťave",
+    "apple": "jabĺk",
+    "apple_cider_vinegar": "jablčného octu",
+    "beef_chuck": "hovädzieho predného bez kosti",
+    "bryndza": "bryndze",
+    "butter": "masla",
+    "cauliflower": "karfiolu",
+    "dill": "kôpru",
+    "dry_peas": "suchého poleného hrachu",
+    "ham": "varenej šunky",
+    "lentils": "šošovice",
+    "marjoram": "majoránu",
+    "pork_loin": "bravčového karé bez kosti",
+    "pumpkin": "tekvice",
+    "sauerkraut": "kyslej kapusty",
+    "smoked_sausage": "údenej klobásy",
+    "sugar": "kryštálového cukru",
+    "wheat_flour": "hladkej pšeničnej múky",
+    "white_cabbage": "bielej hlávkovej kapusty",
+    "tortilla": "pšeničnej tortilly",
+    "soy_sauce": "sójovej omáčky",
+    "lettuce": "rímskeho šalátu",
+    "lemon": "citróna",
+    "basil_pesto": "bazalkového pesta",
+    "gnocchi": "zemiakových gnocchi",
+    "mozzarella": "mozzarelly",
+    "grilling_cheese": "syra na grilovanie",
+    "cumin": "mletej rímskej rasce",
+    "chili_powder": "mletého čili",
+    "bulgur": "bulguru",
+    "skyr": "bieleho skyru",
+    "sweet_potato": "batatu",
+    "turkey_mince": "mletého morčacieho mäsa",
+    "cucumber": "šalátovej uhorky",
 }
 
 # Natural direct-object forms used after the ingredient was measured once.
@@ -150,7 +188,9 @@ _REFERENCE_NAMES: Mapping[str, str] = {
     "chicken_breast": "kuracie prsia",
     "chicken_thigh": "kuracie stehná",
     "chicken_thigh_meat": "vykostené kuracie stehenné mäso",
-    "pork_shoulder": "bravčové pliecko",
+    "cinnamon": "mletá škorica",
+    "pork_shoulder": "bravčové pliecko bez kosti",
+    "pork_mince": "mleté bravčové mäso",
     "beef_mince": "mleté hovädzie mäso",
     "salmon": "lososa",
     "tofu": "tofu",
@@ -170,7 +210,7 @@ _REFERENCE_NAMES: Mapping[str, str] = {
     "carrot": "mrkvu",
     "broccoli": "brokolicu",
     "milk": "plnotučné mlieko",
-    "cream": "smotanu na šľahanie",
+    "cream": "smotanu na varenie",
     "hard_cheese": "tvrdý syr",
     "oil": "olej",
     "salt": "soľ",
@@ -193,6 +233,39 @@ _REFERENCE_NAMES: Mapping[str, str] = {
     "mushrooms": "biele šampiňóny",
     "plain_yogurt": "biely plnotučný jogurt",
     "tuna": "tuniaka vo vlastnej šťave",
+    "apple": "jablká",
+    "apple_cider_vinegar": "jablčný ocot",
+    "beef_chuck": "hovädzie predné bez kosti",
+    "bryndza": "bryndzu",
+    "butter": "maslo",
+    "cauliflower": "karfiol",
+    "dill": "kôpor",
+    "dry_peas": "suchý polený hrach",
+    "ham": "varenú šunku",
+    "lentils": "šošovicu",
+    "marjoram": "majorán",
+    "pork_loin": "bravčové karé bez kosti",
+    "pumpkin": "tekvicu",
+    "sauerkraut": "kyslú kapustu",
+    "smoked_sausage": "údenú klobásu",
+    "sugar": "kryštálový cukor",
+    "wheat_flour": "hladkú pšeničnú múku",
+    "white_cabbage": "bielu hlávkovú kapustu",
+    "tortilla": "pšeničnú tortillu",
+    "soy_sauce": "sójovú omáčku",
+    "lettuce": "rímsky šalát",
+    "lemon": "citrón",
+    "basil_pesto": "bazalkové pesto",
+    "gnocchi": "zemiakové gnocchi",
+    "mozzarella": "mozzarellu",
+    "grilling_cheese": "syr na grilovanie",
+    "cumin": "mletú rímsku rascu",
+    "chili_powder": "mleté čili",
+    "bulgur": "bulgur",
+    "skyr": "biely skyr",
+    "sweet_potato": "batat",
+    "turkey_mince": "mleté morčacie mäso",
+    "cucumber": "šalátovú uhorku",
 }
 
 # Absorption/one-pot ratios in millilitres of water per gram of dry starch.
@@ -204,6 +277,7 @@ _WATER_ML_PER_GRAM: Mapping[str, Decimal] = {
     "red_lentils": Decimal("1.92"),
     "barley": Decimal("3"),
     "couscous": Decimal("1"),
+    "bulgur": Decimal("2"),
 }
 
 _EXTRA_INGREDIENT_FORMS: Mapping[str, tuple[str, ...]] = {
@@ -297,14 +371,14 @@ _COOKING_ACTION = re.compile(
     r"tepelne\s+uprav|upec|uvar|var|zohrej|zohrievaj)\b"
 )
 _VESSEL = re.compile(
-    r"\b(?:hrnc\w*|panvic\w*|pekac\w*|plech\w*|rur\w*|wok\w*|rajnic\w*|misk\w*)\b"
+    r"\b(?:(?:velk\w*|mal\w*)\s+)?(?:hrnc\w*|panvic\w*|pekac\w*|plech\w*|rur\w*|wok\w*|rajnic\w*|misk\w*)\b"
 )
 _HEAT = re.compile(
     r"(?:\b(?:miernom|strednom|silnom|nizkom|vysokom)\s+ohni\b|"
     r"\d+\s*°\s*c\b)"
 )
 _TIME = re.compile(
-    r"\b\d+(?:[,.]\d+)?\s*(?:sekund|sekundy|minut|minuty|hodin|hodiny)\b"
+    r"\b\d+(?:[,.]\d+)?\s*(?:sekund(?:u|y)?|minut(?:u|y)?|hodin(?:u|y)?)\b"
 )
 _DISPLAYED_HEAT = re.compile(
     r"\b(?:na\s+(?:miernom|strednom|silnom|nízkom|vysokom)\s+ohni|"
@@ -466,6 +540,8 @@ def _display_amount(quantity: Quantity) -> str:
     else:
         step = Decimal("100")
     rounded = _round_to_step(amount, step)
+    if amount > 0 and rounded == 0:
+        rounded = Decimal("1")
 
     if rounded >= _THOUSAND:
         larger = _shift_exponent(rounded, -3)
@@ -475,6 +551,11 @@ def _display_amount(quantity: Quantity) -> str:
 
 
 def _water_amount(rendered: RenderedIngredient) -> str | None:
+    per_adult = rendered.slot.water_ml_per_adult
+    if per_adult is not None:
+        adult_equivalents = rendered.quantity.amount / rendered.slot.amount_per_adult
+        millilitres = _multiply_exact(adult_equivalents, per_adult)
+        return _display_amount(Quantity(millilitres, "ml"))
     ratio = _WATER_ML_PER_GRAM.get(rendered.ingredient.id)
     if ratio is None:
         return None
@@ -484,6 +565,7 @@ def _water_amount(rendered: RenderedIngredient) -> str | None:
     return _display_amount(Quantity(millilitres, "ml"))
 
 
+@lru_cache(maxsize=8192)
 def _fold(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value.casefold())
     return "".join(
@@ -497,6 +579,7 @@ _FOLDED_IMPERATIVES = frozenset(_fold(word) for word in _ALLOWED_IMPERATIVES)
 _FOLDED_GENERIC_STEPS = frozenset(_fold(value) for value in _GENERIC_STEPS)
 
 
+@lru_cache(maxsize=4096)
 def _phrase_pattern(value: str) -> re.Pattern[str]:
     words = re.findall(r"\w+", _fold(value), re.UNICODE)
     return re.compile(r"(?<!\w)" + r"\s+".join(map(re.escape, words)) + r"(?!\w)")
@@ -569,6 +652,16 @@ def _quantity_name(rendered: RenderedIngredient) -> str:
     return _QUANTITY_NAMES.get(rendered.ingredient.id, rendered.ingredient.name)
 
 
+def _reference_name(rendered: RenderedIngredient) -> str:
+    if (
+        rendered.ingredient.id == "egg"
+        and rendered.quantity.unit == "piece"
+        and rendered.quantity.amount <= _ONE
+    ):
+        return "vajce"
+    return _REFERENCE_NAMES[rendered.ingredient.id]
+
+
 def _normalize_rendered_text(value: str) -> str:
     value = re.sub(r"\s+", " ", value).strip()
     return re.sub(r"\s+([,.;:])", r"\1", value)
@@ -607,7 +700,13 @@ def _render_template(
                 chunks.append(str(portions))
                 continue
             parts = field.split(".")
-            if len(parts) != 2 or parts[1] not in {"name", "amount", "cut", "water"}:
+            if len(parts) != 2 or parts[1] not in {
+                "name",
+                "reference_name",
+                "amount",
+                "cut",
+                "water",
+            }:
                 raise ValueError(f"nepovolený placeholder: {field}")
             wording = slots.get(parts[0])
             if wording is None:
@@ -705,6 +804,8 @@ def _render_ingredient(
     adult_equivalents = _add_exact(Decimal(adults), child_equivalents)
     batch_equivalents = _multiply_exact(adult_equivalents, Decimal(covered_days))
     amount = _multiply_exact(selection.slot.amount_per_adult, batch_equivalents)
+    if selection.slot.unit == "piece":
+        amount = amount.to_integral_value(rounding=ROUND_CEILING)
     quantity = Quantity(amount, selection.slot.unit)
     display_amount = _display_amount(quantity)
     return RenderedIngredient(
@@ -795,6 +896,47 @@ def _large_pan_batch_step(
         f"{doneness_text}."
     )
     return f"{guidance} {per_batch}"
+
+
+def _large_vessel_batch_steps(
+    instructions: tuple[str, ...],
+    rendered: Sequence[RenderedIngredient],
+) -> tuple[str, ...]:
+    """Add practical capacity guidance for every vessel used by a large batch."""
+    total = sum((_edible_grams(item) for item in rendered), Decimal("0"))
+    for item in rendered:
+        if item.slot.water_ml_per_adult is None:
+            continue
+        adult_equivalents = item.quantity.amount / item.slot.amount_per_adult
+        total += _multiply_exact(adult_equivalents, item.slot.water_ml_per_adult)
+    if total <= _LARGE_VESSEL_BATCH_LIMIT:
+        return instructions
+
+    result = list(instructions)
+    vessels = (
+        ("pekac", "dva pekáče", "dva pekace"),
+        ("plech", "dva plechy", "dva plechy"),
+        ("hrnc", "dva alebo viac veľkých hrncov", "viac velkych hrncov"),
+    )
+    for vessel_root, vessel_text, existing_marker in vessels:
+        folded = tuple(_fold(step) for step in result)
+        if any(existing_marker in step for step in folded):
+            continue
+        target = next(
+            (
+                index
+                for index, step in enumerate(folded)
+                if vessel_root in step and _COOKING_ACTION.search(step) is not None
+            ),
+            None,
+        )
+        if target is None:
+            continue
+        result[target] = (
+            f"Rozdeľ túto veľkú dávku medzi {vessel_text} a v každom zachovaj "
+            f"rovnaký pomer surovín. {result[target]}"
+        )
+    return tuple(result)
 
 
 def _pantry_names(candidate: RecipeCandidate) -> tuple[str, ...]:
@@ -1170,6 +1312,13 @@ def render_meal(
     if not isinstance(candidate, RecipeCandidate):
         raise TypeError("candidate must be a RecipeCandidate")
     _validate_inputs(adults, children, covered_days)
+    storage_rule = candidate.template.storage
+    if (
+        candidate.template.version >= 2
+        and storage_rule is not None
+        and covered_days > storage_rule.refrigerated_days
+    ):
+        raise ValueError("Plán presahuje bezpečnú dobu uchovania v chladničke.")
     selections = _validated_selections(candidate)
     rendered = tuple(
         _render_ingredient(
@@ -1201,7 +1350,7 @@ def render_meal(
         item.slot.key: _SlotWording(
             ingredient_id=item.ingredient.id,
             name=_quantity_name(item),
-            reference_name=_REFERENCE_NAMES[item.ingredient.id],
+            reference_name=_reference_name(item),
             amount=item.display_amount,
             cut=item.slot.cut or "",
             water=_water_amount(item),
@@ -1230,6 +1379,7 @@ def render_meal(
         )
         for instruction in candidate.template.instructions
     )
+    instructions = _large_vessel_batch_steps(instructions, rendered)
     pantry_ids = tuple(candidate.template.pantry_basics)
     try:
         _validate_rendered_language_cached(name, instructions, rendered, pantry_ids)
@@ -1247,6 +1397,13 @@ def render_meal(
         pantry_basics=_pantry_names(candidate),
         instructions=instructions,
         nutrition=nutrition,
+        storage=(
+            storage_rule.instruction
+            if candidate.template.version >= 2
+            and storage_rule is not None
+            and covered_days > 1
+            else None
+        ),
     )
 
 
@@ -1267,13 +1424,13 @@ def build_shopping_list(
         entry.ingredient_id for entry in pantry if entry.quantity is None
     }
     purchases: dict[tuple[object, ...], tuple[RenderedIngredient, Quantity]] = {}
+    regular_purchases: dict[str, tuple[RenderedIngredient, Quantity]] = {}
+    pantry_requirements: dict[str, Decimal] = {}
     purchase_keys_by_store: dict[str, list[tuple[object, ...]]] = {}
     ingredients: dict[str, Ingredient] = {}
     for meal in rendered_meals:
         for rendered in meal.ingredients:
             offer = rendered.offer
-            if offer is None:
-                continue
             ingredients[rendered.ingredient.id] = rendered.ingredient
             required_grams = _quantity_in_unit(
                 rendered.quantity, "g", rendered.ingredient
@@ -1282,6 +1439,30 @@ def build_shopping_list(
                 raise ValueError(
                     "Receptová dávka nemá jednotku kompatibilnú so surovinou."
                 )
+            if rendered.selection.source == "pantry":
+                pantry_requirements[rendered.ingredient.id] = _add_exact(
+                    pantry_requirements.get(
+                        rendered.ingredient.id, Decimal("0")
+                    ),
+                    required_grams.amount,
+                )
+                continue
+            if offer is None:
+                current = regular_purchases.get(rendered.ingredient.id)
+                if current is None:
+                    regular_purchases[rendered.ingredient.id] = (
+                        rendered,
+                        required_grams,
+                    )
+                else:
+                    regular_purchases[rendered.ingredient.id] = (
+                        current[0],
+                        Quantity(
+                            _add_exact(current[1].amount, required_grams.amount),
+                            "g",
+                        ),
+                    )
+                continue
             key = (
                 offer.offer_key,
                 offer.package,
@@ -1312,6 +1493,14 @@ def build_shopping_list(
         pantry_balances[entry.ingredient_id] = _add_exact(
             pantry_balances.get(entry.ingredient_id, Decimal("0")),
             converted.amount,
+        )
+    for ingredient_id, required_amount in pantry_requirements.items():
+        pantry_balances[ingredient_id] = max(
+            Decimal("0"),
+            _add_exact(
+                pantry_balances.get(ingredient_id, Decimal("0")),
+                -required_amount,
+            ),
         )
 
     groups: dict[str, list[dict]] = {}
@@ -1422,6 +1611,91 @@ def build_shopping_list(
                     "kupit": _decimal_text(display_to_buy.amount),
                 })
             groups.setdefault(offer.store, []).append(row)
+    regular_rows = []
+    for ingredient_id in sorted(regular_purchases):
+        rendered, required_grams = regular_purchases[ingredient_id]
+        ingredient = rendered.ingredient
+        available_grams = Quantity(
+            pantry_balances.get(ingredient_id, Decimal("0")), "g"
+        )
+        used_amount = min(required_grams.amount, available_grams.amount)
+        missing_amount = max(
+            Decimal("0"), _add_exact(required_grams.amount, -used_amount)
+        )
+        pantry_balances[ingredient_id] = _add_exact(
+            pantry_balances.get(ingredient_id, Decimal("0")), -used_amount
+        )
+        rule = regular_purchase_rule(ingredient, rendered.quantity.unit)
+        package_grams = _quantity_in_unit(rule.package, "g", ingredient)
+        if package_grams is None or package_grams.amount <= 0:
+            raise ValueError(
+                "Bežné balenie nemá jednotku kompatibilnú s receptovou dávkou."
+            )
+        if rule.pricing_basis == "weight":
+            bought_amount = missing_amount
+            packages = 0 if bought_amount == 0 else 1
+            leftover_grams = Quantity(Decimal("0"), "g")
+        else:
+            requirement = purchase_requirement(
+                Quantity(missing_amount, "g"),
+                Quantity(Decimal("0"), "g"),
+                PackageSize(package_grams),
+            )
+            bought_amount = requirement.to_buy.amount
+            packages = requirement.packages
+            leftover_grams = requirement.leftover
+        display_required = _quantity_in_unit(
+            required_grams, rendered.quantity.unit, ingredient
+        )
+        display_leftover = _quantity_in_unit(
+            leftover_grams, rendered.quantity.unit, ingredient
+        )
+        display_to_buy = _quantity_in_unit(
+            Quantity(bought_amount, "g"), rendered.quantity.unit, ingredient
+        )
+        if (
+            display_required is None
+            or display_leftover is None
+            or display_to_buy is None
+        ):
+            raise ValueError(
+                "Bežný nákup nemá jednotku kompatibilnú s receptovou dávkou."
+            )
+        row = {
+            "offer_key": f"regular:{ingredient_id}",
+            "ingredient_id": ingredient_id,
+            "nazov": ingredient.name,
+            "obchod": "Dokúpiť bežne",
+            "jednotka": _display_amount(rule.package),
+            "mnozstvo": packages,
+            "cena": None,
+            "povodna": None,
+            "potrebne": _decimal_text(display_required.amount),
+            "potrebna_jednotka": (
+                "ks" if display_required.unit == "piece" else display_required.unit
+            ),
+            "cena_za_balenie": None,
+            "povodna_za_balenie": None,
+            "zostava": _quantity_text(display_leftover),
+            "source_url": None,
+            "bez_akcie": True,
+            "cena_neznama": True,
+            **(
+                {"mnozstvo_nezname": True}
+                if ingredient_id in unknown_pantry
+                else {}
+            ),
+        }
+        if rule.pricing_basis == "weight":
+            row.update(
+                {
+                    "predaj_na_vahu": True,
+                    "kupit": _decimal_text(display_to_buy.amount),
+                }
+            )
+        regular_rows.append(row)
+    if regular_rows:
+        groups["Dokúpiť bežne"] = regular_rows
     return [
         {"obchod": store, "polozky": items}
         for store, items in groups.items()

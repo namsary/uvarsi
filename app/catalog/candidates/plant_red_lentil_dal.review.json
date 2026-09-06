@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "a5a432e64ad613b10e092d16bb5d3cfc00ed8d31a9afc7c334b34db624555c64",
+  "promoted_to": "05-vegan.json",
+  "recipe_ids": [
+    "plant_red_lentil_dal"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

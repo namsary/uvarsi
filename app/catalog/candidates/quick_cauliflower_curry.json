@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "quick_cauliflower_curry",
+      "version": 2,
+      "active": true,
+      "name_template": "Karfiolové kari",
+      "family": "quick_cauliflower_curry",
+      "method": "pan",
+      "minutes": 30,
+      "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["hlboká panvica s pokrievkou", "nôž", "doska na krájanie", "varecha"],
+      "slots": [
+        {"key": "cauliflower", "role": "vegetable", "candidates": ["cauliflower"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na malé ružičky"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na dvojcentimetrové kocky", "water_ml_per_adult": "60"},
+        {"key": "peas", "role": "vegetable", "candidates": ["peas"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "nasekaná"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "curry", "role": "seasoning", "candidates": ["curry_powder"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "cumin", "role": "seasoning", "candidates": ["cumin"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "coconut", "role": "dairy", "candidates": ["coconut_milk"], "amount_per_adult": "100", "unit": "ml", "child_factor": "0.55", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Priprav {cauliflower.amount} {cauliflower.name}: rozober ho na malé ružičky. Nakrájaj {potato.amount} {potato.name} na dvojcentimetrové kocky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno. Priprav {tomato.amount} {tomato.name}.", "requires": ["cauliflower:raw", "potato:raw", "onion:raw", "garlic:raw", "tomato:raw"], "produces": ["cauliflower:cut", "potato:cut", "onion:cut", "garlic:cut", "tomato:prepared"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v hlbokej panvici. Cibuľu opekaj na strednom ohni 4 minúty, kým zmäkne.", "requires": ["oil:raw", "onion:cut", "hlboka_panvica_s_pokrievkou:free"], "produces": ["oil:hot", "onion:softened", "hlboka_panvica_s_pokrievkou:occupied"]},
+        {"text": "Prisyp {curry.amount} {curry.name} a {cumin.amount} {cumin.name} do panvice, potom vmiešaj cesnak. Miešaj 30 sekúnd, kým sa korenie rozvonia.", "requires": ["curry:raw", "cumin:raw", "garlic:cut", "oil:hot", "onion:softened", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["curry:toasted", "cumin:toasted", "garlic:cooked"]},
+        {"text": "Pridaj paradajky, karfiol a zemiaky do panvice. Prilej {potato.water} vody do panvice, osoľ a prikry. Var zemiaky a karfiol v panvici na miernom ohni 15 minút, kým zemiaky takmer zmäknú.", "requires": ["tomato:prepared", "cauliflower:cut", "potato:cut", "curry:toasted", "cumin:toasted", "garlic:cooked", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["tomato:cooked", "cauliflower:partly_cooked", "potato:partly_cooked", "onion:cooked", "curry:cooked", "cumin:cooked", "oil:cooked"]},
+        {"text": "Vmiešaj {peas.amount} {peas.name} a {coconut.amount} {coconut.name} do panvice. Var hrášok, karfiol a zemiaky v panvici na miernom ohni bez pokrievky ďalších 5 minút, kým zelenina zmäkne a omáčka začne jemne bublať. Dochuť čiernym korením.", "requires": ["peas:raw", "coconut:raw", "tomato:cooked", "cauliflower:partly_cooked", "potato:partly_cooked", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["peas:cooked", "coconut:cooked", "cauliflower:cooked", "potato:cooked"]},
+        {"text": "Podávaj karfiolové kari horúce a rozdeľ ho na {portions} porcií.", "requires": ["cauliflower:cooked", "potato:cooked", "peas:cooked", "tomato:cooked", "onion:cooked", "garlic:cooked", "curry:cooked", "cumin:cooked", "coconut:cooked", "oil:cooked", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["cauliflower:served", "potato:served", "peas:served", "tomato:served", "onion:served", "garlic:served", "curry:served", "cumin:served", "coconut:served", "oil:served", "hlboka_panvica_s_pokrievkou:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Kari rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní a zohrej ho, kým bude v celom objeme horúce a omáčka začne bublať."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_cauliflower_curry",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://www.tesco.com/recipes/en-GB/recipe/cauliflower-and-pea-curry", "title": "Cauliflower and pea curry | Tesco Recipes", "accessed_on": "2026-09-05"},
+      {"url": "https://www.bbcgoodfood.com/recipes/cauliflower-potato-curry", "title": "Cauliflower & potato curry recipe | Good Food", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

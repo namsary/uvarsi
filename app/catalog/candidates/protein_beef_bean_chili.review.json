@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "f92cac1b30d6ac895a1ad56f2dea267947f3a00ee78960f29271888564476175",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "protein_beef_bean_chili"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

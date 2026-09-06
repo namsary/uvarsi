@@ -1,0 +1,43 @@
+{
+  "recipes": [
+    {
+      "id": "protein_beef_rice_bowl",
+      "version": 2,
+      "active": true,
+      "name_template": "Hovädzia ryžová miska so zeleninou",
+      "family": "protein_beef_rice_bowl",
+      "method": "pan",
+      "minutes": 35,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["panvica", "hrniec", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "beef", "role": "protein", "candidates": ["beef_mince"], "amount_per_adult": "170", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "140"},
+        {"key": "broccoli", "role": "vegetable", "candidates": ["broccoli"], "amount_per_adult": "140", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé ružičky"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na tenké pásiky"},
+        {"key": "soy", "role": "seasoning", "candidates": ["soy_sauce"], "amount_per_adult": "20", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} studenou vodou. Nalej {rice.water} vody do hrnca, prikry ho a var ryžu na miernom ohni 15 minút, kým zmäkne a vsiakne vodu.", "requires": ["rice:raw", "hrniec:free"], "produces": ["rice:cooked", "hrniec:occupied"]},
+        {"text": "Nakrájaj {broccoli.amount} {broccoli.name} na malé ružičky a {carrot.amount} {carrot.name} na tenké pásiky. Priprav si {beef.amount} {beef.name}.", "requires": ["broccoli:raw", "carrot:raw", "beef:raw"], "produces": ["broccoli:cut", "carrot:cut", "beef:ready"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "panvica:free"], "produces": ["oil:hot", "panvica:occupied"]},
+        {"text": "Pridaj mleté hovädzie mäso do panvice a opekaj ho na strednom ohni 7 minút, kým bude mäso prepečené, zhnedne a nezostanú v ňom ružové miesta. Pri väčšej dávke mäso opeč po častiach.", "requires": ["oil:hot", "beef:ready", "panvica:occupied"], "produces": ["oil:used", "beef:cooked"]},
+        {"text": "Pridaj brokolicu a mrkvu do panvice. Opekaj brokolicu s mrkvou a hovädzím mäsom na strednom ohni 6 minút, kým brokolica zmäkne, ale zostane pevná na zahryznutie.", "requires": ["broccoli:cut", "carrot:cut", "beef:cooked", "panvica:occupied"], "produces": ["broccoli:cooked", "carrot:cooked"]},
+        {"text": "Prilej {soy.amount} {soy.name} do panvice. Prehrievaj mleté hovädzie mäso s brokolicou a mrkvou na miernom ohni 2 minúty, kým omáčka začne jemne bublať a všetko rovnomerne obalí. Podľa potreby pridaj čierne korenie.", "requires": ["soy:raw", "beef:cooked", "broccoli:cooked", "carrot:cooked", "panvica:occupied"], "produces": ["soy:cooked", "beef:seasoned", "broccoli:seasoned", "carrot:seasoned"]},
+        {"text": "Rozdeľ jedlo na {portions} porcií: na ryžu daj hovädzie mäso so zeleninou a podávaj teplé.", "requires": ["rice:cooked", "beef:seasoned", "broccoli:seasoned", "carrot:seasoned", "soy:cooked", "oil:used", "panvica:occupied", "hrniec:occupied"], "produces": ["rice:served", "beef:served", "broccoli:served", "carrot:served", "soy:served", "oil:served", "panvica:free", "hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Ryžu a hovädziu zmes rozdeľ do plytkých nádob a do jednej hodiny ich schlaď. V chladničke ich zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým budú celé horúce."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "protein_beef_rice_bowl",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://www.healthyfood.com/healthy-recipes/teriyaki-beef-rice-bowl/", "title": "Teriyaki beef rice bowl - Healthy Food Guide", "accessed_on": "2026-09-05"},
+      {"url": "https://www.foodnetwork.com/recipes/food-network-kitchen/grilled-steak-and-rice-bowl-3364198", "title": "Grilled Steak and Rice Bowl Recipe | Food Network", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

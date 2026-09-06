@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "e510e311d170a88f3d979a8bc7b1e58a0d1bbcd0a2e0ccfbad240b2183d80ddd",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "classic_chicken_sote_rice"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

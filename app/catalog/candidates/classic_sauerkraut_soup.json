@@ -1,0 +1,288 @@
+{
+  "recipes": [
+    {
+      "id": "classic_sauerkraut_soup",
+      "version": 2,
+      "active": true,
+      "name_template": "Kapustnica",
+      "family": "slovak_sauerkraut_soup",
+      "method": "soup",
+      "minutes": 55,
+      "modes": [
+        "standard"
+      ],
+      "equipment": [
+        "veľký hrniec",
+        "nôž",
+        "doska na krájanie",
+        "varecha"
+      ],
+      "slots": [
+        {
+          "key": "sauerkraut",
+          "role": "vegetable",
+          "candidates": [
+            "sauerkraut"
+          ],
+          "amount_per_adult": 150,
+          "unit": "g",
+          "child_factor": 0.65,
+          "required": true,
+          "use": "main",
+          "cut": "nahrubo",
+          "water_ml_per_adult": "300"
+        },
+        {
+          "key": "sausage",
+          "role": "protein",
+          "candidates": [
+            "smoked_sausage"
+          ],
+          "amount_per_adult": 70,
+          "unit": "g",
+          "child_factor": 0.55,
+          "required": true,
+          "use": "main",
+          "cut": "na kolieska"
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": 100,
+          "unit": "g",
+          "child_factor": 0.65,
+          "required": true,
+          "use": "main",
+          "cut": "na 2 cm kocky"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": 35,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": 3,
+          "unit": "g",
+          "child_factor": 0.45,
+          "required": true,
+          "use": "addition",
+          "cut": "rozdrvený"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": 8,
+          "unit": "ml",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": [
+            "paprika_powder"
+          ],
+          "amount_per_adult": 2,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "salt",
+          "role": "seasoning",
+          "candidates": [
+            "salt"
+          ],
+          "amount_per_adult": 1,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "pepper",
+          "role": "seasoning",
+          "candidates": [
+            "black_pepper"
+          ],
+          "amount_per_adult": 1,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water"
+      ],
+      "instructions": [
+        {
+          "text": "Nakrájaj {sausage.amount} {sausage.name} na kolieska. Ošúp {potato.amount} {potato.name} a nakrájaj ich na 2 cm kocky. Nakrájaj {onion.amount} {onion.name} najemno a rozdrv {garlic.amount} {garlic.name}.",
+          "requires": [
+            "sausage:raw",
+            "potato:raw",
+            "onion:raw",
+            "garlic:raw",
+            "noz:free",
+            "doska_na_krajanie:free"
+          ],
+          "produces": [
+            "sausage:sliced",
+            "potato:cubed",
+            "onion:chopped",
+            "garlic:crushed",
+            "noz:used",
+            "doska_na_krajanie:used"
+          ]
+        },
+        {
+          "text": "Nakrájaj {sauerkraut.amount} {sauerkraut.name} nahrubo a šťavu zachovaj.",
+          "requires": [
+            "sauerkraut:raw",
+            "noz:used",
+            "doska_na_krajanie:used"
+          ],
+          "produces": [
+            "sauerkraut:chopped"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci a opekaj klobásu na strednom ohni 4 minúty dozlatista.",
+          "requires": [
+            "oil:raw",
+            "sausage:sliced",
+            "velky_hrniec:free"
+          ],
+          "produces": [
+            "oil:used",
+            "sausage:browned",
+            "velky_hrniec:used"
+          ]
+        },
+        {
+          "text": "Opekaj cibuľu spolu s klobásou vo veľkom hrnci na strednom ohni 5 minút, kým cibuľa zmäkne. Odstav hrniec z ohňa, prisyp {paprika.amount} {paprika.name} a premiešaj.",
+          "requires": [
+            "onion:chopped",
+            "sausage:browned",
+            "oil:used",
+            "paprika:raw",
+            "velky_hrniec:used"
+          ],
+          "produces": [
+            "onion:seasoned",
+            "sausage:seasoned",
+            "oil:seasoned",
+            "paprika:bloomed"
+          ]
+        },
+        {
+          "text": "Vlož kyslú kapustu, zemiaky a cesnak do hrnca. Nalej {sauerkraut.water} vody do hrnca. Var kyslú kapustu so zemiakmi vo veľkom hrnci na miernom ohni 30 minút, kým zemiaky zmäknú a kapusta bude jemná.",
+          "requires": [
+            "sauerkraut:chopped",
+            "potato:cubed",
+            "garlic:crushed",
+            "onion:seasoned",
+            "sausage:seasoned",
+            "oil:seasoned",
+            "paprika:bloomed",
+            "velky_hrniec:used"
+          ],
+          "produces": [
+            "sauerkraut:cooked",
+            "potato:cooked",
+            "garlic:cooked",
+            "onion:cooked",
+            "sausage:cooked",
+            "oil:cooked",
+            "paprika:cooked"
+          ]
+        },
+        {
+          "text": "Prisyp {salt.amount} {salt.name} a {pepper.amount} {pepper.name}. Povar kapustnicu vo veľkom hrnci na miernom ohni ešte 3 minúty, kým začne jemne bublať.",
+          "requires": [
+            "sauerkraut:cooked",
+            "salt:raw",
+            "pepper:raw",
+            "velky_hrniec:used"
+          ],
+          "produces": [
+            "sauerkraut:finished",
+            "salt:dissolved",
+            "pepper:dissolved"
+          ]
+        },
+        {
+          "text": "Odstav kapustnicu, nechaj ju 5 minút postáť a podávaj horúcu.",
+          "requires": [
+            "sauerkraut:finished",
+            "potato:cooked",
+            "garlic:cooked",
+            "onion:cooked",
+            "sausage:cooked",
+            "oil:cooked",
+            "paprika:cooked",
+            "salt:dissolved",
+            "pepper:dissolved"
+          ],
+          "produces": [
+            "sauerkraut:served",
+            "potato:served",
+            "garlic:served",
+            "onion:served",
+            "sausage:served",
+            "oil:served",
+            "paprika:served",
+            "salt:served",
+            "pepper:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Kapustnicu rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 3 dní a pred podávaním ju priveď k miernemu varu."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_sauerkraut_soup",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://varecha.pravda.sk/recepty/slovenska-kapustnica/72574-recept.html",
+        "title": "Slovenská kapustnica",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://nanicmama.sme.sk/varime-pecieme-zavarame/kapustnica-kapustova-polievka-polievka-z-kyslej-kapusty",
+        "title": "Kapustnica a polievky z kyslej kapusty",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

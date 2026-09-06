@@ -1,0 +1,333 @@
+{
+  "recipes": [
+    {
+      "id": "classic_sour_lentil_soup",
+      "version": 2,
+      "active": true,
+      "name_template": "Kyslá šošovicová polievka",
+      "family": "slovak_sour_lentil_soup",
+      "method": "soup",
+      "minutes": 50,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "veľký hrniec",
+        "sitko",
+        "nôž",
+        "doska na krájanie",
+        "misa",
+        "metlička",
+        "varecha"
+      ],
+      "slots": [
+        {
+          "key": "lentils",
+          "role": "protein",
+          "candidates": [
+            "lentils"
+          ],
+          "amount_per_adult": 60,
+          "unit": "g",
+          "child_factor": 0.55,
+          "required": true,
+          "use": "main",
+          "cut": null,
+          "water_ml_per_adult": "300"
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": 100,
+          "unit": "g",
+          "child_factor": 0.65,
+          "required": true,
+          "use": "main",
+          "cut": "na 2 cm kocky"
+        },
+        {
+          "key": "carrot",
+          "role": "vegetable",
+          "candidates": [
+            "carrot"
+          ],
+          "amount_per_adult": 60,
+          "unit": "g",
+          "child_factor": 0.6,
+          "required": true,
+          "use": "addition",
+          "cut": "na tenké kolieska"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": 40,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "cream",
+          "role": "dairy",
+          "candidates": [
+            "cream"
+          ],
+          "amount_per_adult": 40,
+          "unit": "ml",
+          "child_factor": 0.6,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": 8,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "vinegar",
+          "role": "seasoning",
+          "candidates": [
+            "apple_cider_vinegar"
+          ],
+          "amount_per_adult": 8,
+          "unit": "ml",
+          "child_factor": 0.45,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": 10,
+          "unit": "ml",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "salt",
+          "role": "seasoning",
+          "candidates": [
+            "salt"
+          ],
+          "amount_per_adult": 2,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "pepper",
+          "role": "seasoning",
+          "candidates": [
+            "black_pepper"
+          ],
+          "amount_per_adult": 1,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water"
+      ],
+      "instructions": [
+        {
+          "text": "Prepláchni {lentils.amount} {lentils.name} v sitku pod studenou vodou a nechaj ju odkvapkať.",
+          "requires": [
+            "lentils:raw",
+            "sitko:free"
+          ],
+          "produces": [
+            "lentils:rinsed",
+            "sitko:used"
+          ]
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na 2 cm kocky. Nakrájaj {carrot.amount} {carrot.name} na tenké kolieska a {onion.amount} {onion.name} najemno.",
+          "requires": [
+            "potato:raw",
+            "carrot:raw",
+            "onion:raw",
+            "noz:free",
+            "doska_na_krajanie:free"
+          ],
+          "produces": [
+            "potato:cubed",
+            "carrot:sliced",
+            "onion:chopped",
+            "noz:used",
+            "doska_na_krajanie:used"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci a opekaj cibuľu na strednom ohni 5 minút, kým zmäkne.",
+          "requires": [
+            "oil:raw",
+            "onion:chopped",
+            "velky_hrniec:free"
+          ],
+          "produces": [
+            "oil:used",
+            "onion:softened",
+            "velky_hrniec:used"
+          ]
+        },
+        {
+          "text": "Vlož šošovicu do hrnca, prilej {lentils.water} vody a var ju na miernom ohni 20 minút, kým čiastočne zmäkne.",
+          "requires": [
+            "lentils:rinsed",
+            "onion:softened",
+            "oil:used",
+            "velky_hrniec:used"
+          ],
+          "produces": [
+            "lentils:partly_cooked",
+            "onion:cooked",
+            "oil:cooked"
+          ]
+        },
+        {
+          "text": "Pridaj zemiaky a mrkvu. Podľa potreby dolej vodu a var ich vo veľkom hrnci na miernom ohni ďalších 15 minút, kým šošovica aj zemiaky zmäknú.",
+          "requires": [
+            "lentils:partly_cooked",
+            "potato:cubed",
+            "carrot:sliced",
+            "velky_hrniec:used"
+          ],
+          "produces": [
+            "lentils:cooked",
+            "potato:cooked",
+            "carrot:cooked"
+          ]
+        },
+        {
+          "text": "Premiešaj v mise metličkou {cream.amount} {cream.name} a {flour.amount} {flour.name}. Primiešaj naberačku horúcej polievky, aby sa zátrepka postupne zohriala.",
+          "requires": [
+            "cream:raw",
+            "flour:raw",
+            "misa:free",
+            "metlicka:free"
+          ],
+          "produces": [
+            "cream:tempered",
+            "flour:slurry",
+            "misa:used",
+            "metlicka:used"
+          ]
+        },
+        {
+          "text": "Premiešaj polievku s pripravenou smotanovou zátrepkou a var ju vo veľkom hrnci na miernom ohni 5 minút, kým začne jemne bublať a mierne zhustne.",
+          "requires": [
+            "lentils:cooked",
+            "potato:cooked",
+            "carrot:cooked",
+            "cream:tempered",
+            "flour:slurry",
+            "velky_hrniec:used",
+            "varecha:free"
+          ],
+          "produces": [
+            "lentils:thickened",
+            "potato:finished",
+            "carrot:finished",
+            "cream:cooked",
+            "flour:cooked",
+            "varecha:used"
+          ]
+        },
+        {
+          "text": "Odstav hrniec z ohňa. Vmiešaj {vinegar.amount} {vinegar.name}, {salt.amount} {salt.name} a {pepper.amount} {pepper.name}.",
+          "requires": [
+            "lentils:thickened",
+            "vinegar:raw",
+            "salt:raw",
+            "pepper:raw",
+            "velky_hrniec:used",
+            "varecha:used"
+          ],
+          "produces": [
+            "lentils:finished",
+            "vinegar:mixed",
+            "salt:dissolved",
+            "pepper:mixed"
+          ]
+        },
+        {
+          "text": "Podávaj kyslú šošovicovú polievku horúcu, keď je šošovica mäkká a polievka krémová.",
+          "requires": [
+            "lentils:finished",
+            "potato:finished",
+            "carrot:finished",
+            "onion:cooked",
+            "cream:cooked",
+            "flour:cooked",
+            "vinegar:mixed",
+            "oil:cooked",
+            "salt:dissolved",
+            "pepper:mixed"
+          ],
+          "produces": [
+            "lentils:served",
+            "potato:served",
+            "carrot:served",
+            "onion:served",
+            "cream:served",
+            "flour:served",
+            "vinegar:served",
+            "oil:served",
+            "salt:served",
+            "pepper:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Šošovicovú polievku rozdeľ do plytkých nádob a odlož do chladničky najneskôr do 2 hodín. Zjedz ju do 2 dní a zohrievaj iba raz."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_sour_lentil_soup",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://varecha.pravda.sk/recepty/kysla-sosovicova-polievka/90590-recept.html",
+        "title": "Kyslá šošovicová polievka",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://dobruchut.aktuality.sk/recept/76122/kysla-sosovicova-polievka-od-mamy/",
+        "title": "Kyslá šošovicová polievka od mamy",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

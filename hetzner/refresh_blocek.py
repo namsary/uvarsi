@@ -1,36 +1,35 @@
 #!/usr/bin/env python3
-"""Build the public landing receipt exclusively from verified SQLite offers."""
-import json
+"""Build the public landing receipt from verified offers and curated recipes."""
+import hashlib
 import os
 import sqlite3
 import sys
-from contextlib import closing
 from datetime import date
 from pathlib import Path
 
-from app import naklady
+from app.deterministic_plan import NoCompatiblePlan, build_deterministic_plan
+from app.ingredient_catalog import load_ingredient_catalog
 from app.landing_data import validate_landing_data, write_landing_data_atomic
 from app.offer_data import ALLOWED_STORES
+from app.recipe_catalog import load_recipe_catalog
 from app.receipt_data import (
     MIN_COMPOSABLE_OFFERS,
     TOO_FEW_OFFERS,
     StructuralFailure,
     build_public_receipt,
-    composition_prompt,
     priceable_offers,
 )
-from app.weekly_data import current_verified_offers
+from app.weekly_data import current_monday, current_verified_offers
 
 
 LANDING_DATA_PATH = Path("/var/lib/uvarsi/landing_data.json")
 DATABASE_PATH = "/opt/uvarsi/uvarsi.db"
-ENV_FILE = "/opt/uvarsi/uvarsi.env"
 # Dohoda s dozorcom: 1 = skús o hodinu znova, 3 = opakovanie nemá zmysel.
 EXIT_RETRY = 1
-# Strojovo čitateľná značka v stderr. Dozorca podľa nej pozná, že pád nebol
-# o dátach, ale o účte — a že si o tom nemá pýtať ďalšie pokusy ani posielať
-# vlastnú notifikáciu (upozornenie posiela naklady.py, práve raz za deň).
-MARKER_KREDIT = "KREDIT_VYCERPANY"
+LANDING_ADULTS = 2
+LANDING_CHILDREN = 2
+LANDING_FREQUENCY = 3
+LANDING_PLAN_VARIANTS = 12
 
 
 def landing_data_output_path(arguments):
@@ -41,128 +40,103 @@ def landing_data_output_path(arguments):
     raise SystemExit("Použitie: refresh_blocek.py /var/lib/uvarsi/landing_data.json")
 
 
-def refresh_from_db(path, database, compose, today=None):
-    """Compose content after the DB gate, then atomically publish derived data."""
+def _landing_seed(today):
+    week = current_monday(today)
+    digest = hashlib.sha256(f"uvarsi-landing-v1:{week}".encode("utf-8")).hexdigest()
+    return f"landing:{week}:{digest[:12]}"
+
+
+def _receipt_selection(plan, offered_keys):
+    meals = []
+    seen = set()
+    for meal in plan.get("jedla", ()):
+        items = []
+        for ingredient in meal.get("suroviny", ()):
+            offer_key = ingredient.get("offer_key")
+            if offer_key not in offered_keys or offer_key in seen:
+                continue
+            quantity = ingredient.get("mnozstvo")
+            if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0:
+                raise ValueError("Plán obsahuje neplatný počet balení pre bloček.")
+            seen.add(offer_key)
+            items.append({"offer_key": offer_key, "quantity": quantity})
+        if not items:
+            continue
+        recipe = meal.get("recept") or {}
+        instructions = recipe.get("kroky") or []
+        if not instructions:
+            raise ValueError("Kurátorovaný recept nemá postup.")
+        meals.append({
+            "day": meal.get("den"),
+            "name": meal.get("nazov"),
+            "instructions": list(instructions),
+            "items": items,
+        })
+    if not meals:
+        raise ValueError("Kurátorovaný plán neobsahuje ponuky použiteľné na bloček.")
+    return {"meals": meals}
+
+
+def compose_curated_receipt(offers, today):
+    """Choose one stable weekly showcase plan without network or model calls."""
+    ingredients = load_ingredient_catalog()
+    recipes = load_recipe_catalog(ingredients)
+    stores = tuple(
+        store for store in ALLOWED_STORES
+        if any(row["obchod"] == store for row in offers)
+    )
+    base_seed = _landing_seed(today)
+    offered_keys = {row["offer_key"] for row in offers}
+    for variant in range(LANDING_PLAN_VARIANTS):
+        seed = base_seed if variant == 0 else f"{base_seed}:variant-{variant}"
+        try:
+            plan = build_deterministic_plan(
+                week=current_monday(today),
+                rows=offers,
+                stores=stores,
+                adults=LANDING_ADULTS,
+                children=LANDING_CHILDREN,
+                frequency=LANDING_FREQUENCY,
+                pantry=(),
+                pantry_driven=False,
+                mode="standard",
+                seed=seed,
+                ingredient_catalog=ingredients,
+                recipe_catalog=recipes,
+            )
+        except NoCompatiblePlan:
+            continue
+        selection = _receipt_selection(plan, offered_keys)
+        if len(selection["meals"]) == LANDING_FREQUENCY:
+            return selection
+    raise ValueError("Z aktuálnych akcií sa nepodarilo zostaviť tri odlišné jedlá.")
+
+
+def refresh_from_db(path, database, compose=None, today=None):
+    """Build after the DB gate, then atomically publish derived data."""
     today = today or date.today()
     with sqlite3.connect(database) as con:
         con.row_factory = sqlite3.Row
         offers = priceable_offers(current_verified_offers(con, ALLOWED_STORES, today))
         if len(offers) < MIN_COMPOSABLE_OFFERS:
             raise StructuralFailure(TOO_FEW_OFFERS)
-        model_output = compose(composition_prompt(offers))
-        payload = build_public_receipt(con, model_output, today=today)
+        selection = (compose or compose_curated_receipt)(offers, today)
+        payload = build_public_receipt(con, selection, today=today)
     validate_landing_data(payload, today)
     write_landing_data_atomic(path, payload)
     return payload
 
 
-def load_api_key():
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if key:
-        return key
-    try:
-        with open(ENV_FILE, encoding="utf-8") as env_file:
-            for line in env_file:
-                name, separator, value = line.partition("=")
-                if separator and name.strip() == "ANTHROPIC_API_KEY":
-                    key = value.strip().strip('"').strip("'")
-                    if key:
-                        return key
-    except FileNotFoundError:
-        pass
-    raise StructuralFailure("Chýba ANTHROPIC_API_KEY — nechávam starý bloček.")
-
-
-MODEL_BLOCEK = "claude-sonnet-5"
-RECEIPT_OUTPUT_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "meals": {
-            "type": "array",
-            "minItems": 1,
-            "items": {
-                "type": "object",
-                "properties": {
-                    "day": {"type": "string", "minLength": 1},
-                    "name": {"type": "string", "minLength": 1},
-                    "instructions": {
-                        "type": "array", "minItems": 1,
-                        "items": {"type": "string", "minLength": 1},
-                    },
-                    "items": {
-                        "type": "array", "minItems": 1,
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "offer_key": {"type": "string", "minLength": 1},
-                                "quantity": {"type": "integer"},
-                            },
-                            "required": ["offer_key", "quantity"],
-                            "additionalProperties": False,
-                        },
-                    },
-                },
-                "required": ["day", "name", "instructions", "items"],
-                "additionalProperties": False,
-            },
-        }
-    },
-    "required": ["meals"],
-    "additionalProperties": False,
-}
-
-
-def compose_with_llm(prompt):
-    """The model may choose stable keys and write meal content; it never supplies prices."""
-    api_key = load_api_key()
-    import anthropic
-
-    # Strop sa overuje TU, tesne pri platenom volaní — nie o poschodie vyššie,
-    # kde by sa na neho dalo zabudnúť. Keď rozpočet nestačí, volanie sa vôbec
-    # neuskutoční a starý bloček ostáva nedotknutý.
-    with closing(naklady.pripoj(os.environ.get("UVARSI_DB", DATABASE_PATH))) as ucty:
-        client = naklady.strazeny_klient(
-            ucty,
-            anthropic.Anthropic(api_key=api_key, timeout=120.0, max_retries=1),
-            "blocek",
-        )
-        message = client.messages.create(
-            model=MODEL_BLOCEK, max_tokens=4000,
-            messages=[{"role": "user", "content": prompt}],
-            output_config={
-                "format": {"type": "json_schema", "schema": RECEIPT_OUTPUT_SCHEMA}
-            },
-        )
-    text = "".join(block.text for block in message.content if getattr(block, "type", None) == "text").strip()
-    try:
-        return json.loads(text.removeprefix("```json").removesuffix("```").strip())
-    except json.JSONDecodeError as error:
-        raise ValueError("Model nevrátil platný JSON.") from error
-
-
 def main():
-    """Odlíš štrukturálny pád od dočasného, nech dozorca nepáli kredit nadarmo."""
+    """Odlíš štrukturálny pád od dočasného a zachovaj posledný dobrý bloček."""
     path = landing_data_output_path(sys.argv[1:])
     database = os.environ.get("UVARSI_DB", DATABASE_PATH)
     try:
-        refresh_from_db(path, database, compose_with_llm, today=date.today())
-    except naklady.KreditVycerpany as odmietnutie:
-        # Nulový kredit NIE JE dočasná chyba: o hodinu bude presne taký istý,
-        # kým človek nezasiahne. Preto štrukturálny kód (dozorca prestane
-        # skúšať) a značka, podľa ktorej vie, že ide o účet, nie o dáta.
-        # Starý JSON ostáva na disku — radšej priznane starý bloček než vymyslený.
-        print(f"{MARKER_KREDIT}: {odmietnutie}", file=sys.stderr)
-        raise SystemExit(StructuralFailure.EXIT_CODE) from None
-    except naklady.RozpocetVycerpany as odmietnutie:
-        # Opakovanie by nič nezmenilo a majiteľ musí vedieť, že sa minul rozpočet,
-        # nie len že „bloček je starý“. Starý JSON ostáva na disku nedotknutý —
-        # nič sa nevymýšľa a landing radšej prizná, že dáta nie sú aktuálne.
-        print(f"ROZPOČET VYČERPANÝ: {odmietnutie}", file=sys.stderr)
-        raise SystemExit(StructuralFailure.EXIT_CODE) from None
+        refresh_from_db(path, database, today=date.today())
     except StructuralFailure as failure:
         print(f"ŠTRUKTURÁLNA CHYBA: {failure}", file=sys.stderr)
         raise SystemExit(StructuralFailure.EXIT_CODE) from None
-    except Exception as error:  # sieť, model, zamknutá DB — o hodinu to môže vyjsť
+    except Exception as error:  # zamknutá DB alebo meniaci sa katalóg — o hodinu to môže vyjsť
         print(f"DOČASNÁ CHYBA: {type(error).__name__}: {error}", file=sys.stderr)
         raise SystemExit(EXIT_RETRY) from None
 

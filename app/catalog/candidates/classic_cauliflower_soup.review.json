@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "4ac208e418cdde2e175c4240b5565304bba167ad57a581d57bb27af77625e8da",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "classic_cauliflower_soup"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

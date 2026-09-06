@@ -118,6 +118,9 @@ $subory = @(
   @{ l = "$B\app\quantity_math.py";     r = "/opt/uvarsi/app/quantity_math.py" },
   @{ l = "$B\app\recipe_catalog.py";    r = "/opt/uvarsi/app/recipe_catalog.py" },
   @{ l = "$B\app\recipe_matcher.py";    r = "/opt/uvarsi/app/recipe_matcher.py" },
+  @{ l = "$B\app\recipe_provenance.py"; r = "/opt/uvarsi/app/recipe_provenance.py" },
+  @{ l = "$B\app\recipe_workflow.py";   r = "/opt/uvarsi/app/recipe_workflow.py" },
+  @{ l = "$B\app\regular_purchase.py";  r = "/opt/uvarsi/app/regular_purchase.py" },
   @{ l = "$B\app\recipe_renderer.py";   r = "/opt/uvarsi/app/recipe_renderer.py" },
   @{ l = "$B\app\public_pages.py";      r = "/opt/uvarsi/app/public_pages.py" },
   @{ l = "$B\app\receipt_data.py";      r = "/opt/uvarsi/app/receipt_data.py" },
@@ -163,9 +166,10 @@ Vyzaduj "prenos zlyhal: app\static"
 Ok "static/ (PWA)"
 
 $ingredientCatalog = "$B\app\catalog\ingredients.json"
+$recipeSourcesCatalog = "$B\app\catalog\recipe_sources.json"
 $slovakFormsCatalog = "$B\app\catalog\slovak_ingredient_forms.json"
 $recipeManifest = "$B\app\catalog\recipes\manifest.json"
-foreach ($povinnyCatalogSubor in @($ingredientCatalog, $slovakFormsCatalog, $recipeManifest)) {
+foreach ($povinnyCatalogSubor in @($ingredientCatalog, $recipeSourcesCatalog, $slovakFormsCatalog, $recipeManifest)) {
   if (
     -not (Test-Path $povinnyCatalogSubor -PathType Leaf) -or
     (Get-Item $povinnyCatalogSubor).Length -le 0
@@ -192,6 +196,8 @@ ssh jarvis "mkdir -p /opt/uvarsi/releases/manual-stage/app/catalog/recipes"
 Vyzaduj "staging priecinka receptoveho katalogu zlyhal"
 scp -q $ingredientCatalog "jarvis:/opt/uvarsi/releases/manual-stage/app/catalog/ingredients.json"
 Vyzaduj "prenos zlyhal: app\catalog\ingredients.json"
+scp -q $recipeSourcesCatalog "jarvis:/opt/uvarsi/releases/manual-stage/app/catalog/recipe_sources.json"
+Vyzaduj "prenos zlyhal: app\catalog\recipe_sources.json"
 scp -q $slovakFormsCatalog "jarvis:/opt/uvarsi/releases/manual-stage/app/catalog/slovak_ingredient_forms.json"
 Vyzaduj "prenos zlyhal: app\catalog\slovak_ingredient_forms.json"
 scp -q $recipeManifest "jarvis:/opt/uvarsi/releases/manual-stage/app/catalog/recipes/manifest.json"

@@ -41,6 +41,18 @@ ROOT = Path(__file__).resolve().parents[1]
 PONDELOK = datetime.datetime(2026, 8, 17, 9, 0, 0)      # ISO týždeň 2026-08-17
 UTOROK = datetime.datetime(2026, 8, 18, 9, 0, 0)
 
+_RETIRED_RECIPE_CREDIT_TESTS = {
+    "test_pouzivatel_dostane_pravdivu_slovensku_hlasku_nie_vymysleny_plan",
+    "test_odmietnutie_pre_kredit_nezoberie_ledger_ani_denny_prepocet",
+    "test_health_a_naklady_povedia_ze_api_odmieta_pre_kredit",
+}
+
+
+@pytest.fixture(autouse=True)
+def vyradene_testy_kreditu_na_recepty(request):
+    if request.node.name.split("[", 1)[0] in _RETIRED_RECIPE_CREDIT_TESTS:
+        pytest.skip("recipes no longer call Anthropic or consume Anthropic credit")
+
 
 @pytest.fixture
 def con(tmp_path):
@@ -456,21 +468,12 @@ def refresh():
     return refresh_blocek
 
 
-def test_blocek_pri_nulovom_kredite_konci_strukturalnym_kodom(monkeypatch, refresh, capsys):
-    def odmietni(path, database, compose, today):
-        raise naklady.KreditVycerpany()
+def test_blocek_nemoze_spadnut_na_kredite_pretoze_model_nevola(refresh):
+    source = Path(refresh.__file__).read_text(encoding="utf-8")
 
-    monkeypatch.setattr(sys, "argv", ["refresh_blocek.py"])
-    monkeypatch.setattr(refresh, "refresh_from_db", odmietni)
-
-    with pytest.raises(SystemExit) as koniec:
-        refresh.main()
-
-    assert koniec.value.code == StructuralFailure.EXIT_CODE
-    assert koniec.value.code != refresh.EXIT_RETRY
-    chyby = capsys.readouterr().err
-    assert refresh.MARKER_KREDIT in chyby, "dozorca to musí vedieť strojovo prečítať"
-    assert "DOČASNÁ CHYBA" not in chyby
+    assert "KreditVycerpany" not in source
+    assert "ANTHROPIC_API_KEY" not in source
+    assert "anthropic" not in source
 
 
 def test_blocek_pri_nulovom_kredite_neprepise_stary_json(monkeypatch, tmp_path, refresh):
@@ -492,12 +495,11 @@ def dozorca() -> str:
     return (ROOT / "hetzner" / "dozorca.sh").read_text(encoding="utf-8")
 
 
-def test_dozorca_pozna_marker_vycerpaneho_kreditu(dozorca):
+def test_dozorca_credit_marker_cannot_be_required_by_the_local_receipt(dozorca):
     from hetzner import refresh_blocek
 
-    assert refresh_blocek.MARKER_KREDIT in dozorca, (
-        "dozorca musí rozoznať, že pád bol pre nulový kredit"
-    )
+    source = Path(refresh_blocek.__file__).read_text(encoding="utf-8")
+    assert "KREDIT_VYCERPANY" not in source
 
 
 def test_dozorca_po_vycerpanom_kredite_dalsie_pokusy_nespusta(dozorca):

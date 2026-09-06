@@ -1,0 +1,52 @@
+{
+  "recipes": [
+    {
+      "id": "protein_beef_bean_chili",
+      "version": 2,
+      "active": true,
+      "name_template": "Batat plnený hovädzím chilli",
+      "family": "protein_beef_bean_chili",
+      "method": "oven",
+      "minutes": 65,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["plech", "panvica", "rúra", "sitko", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "sweet_potato", "role": "starch", "candidates": ["sweet_potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": null},
+        {"key": "beef", "role": "protein", "candidates": ["beef_mince"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": null},
+        {"key": "beans", "role": "protein", "candidates": ["beans_canned"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.7", "required": true, "use": "addition", "cut": "na menšie kúsky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "cumin", "role": "seasoning", "candidates": ["cumin"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "chili", "role": "seasoning", "candidates": ["chili_powder"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.25", "required": true, "use": "addition", "cut": null},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nahrubo nastrúhaný"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "7", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 200 °C.", "requires": ["rura:free"], "produces": ["rura:hot"]},
+        {"text": "Opláchni {sweet_potato.amount} {sweet_potato.name}, osuš ich a na niekoľkých miestach popichaj vidličkou.", "requires": ["sweet_potato:raw"], "produces": ["sweet_potato:pierced"]},
+        {"text": "Peč bataty na plechu pri 200 °C 45 minút, kým zmäknú a pôjde do nich ľahko zapichnúť vidlička.", "requires": ["sweet_potato:pierced", "plech:free", "rura:hot"], "produces": ["sweet_potato:cooked", "plech:occupied"]},
+        {"text": "Sceď {beans.amount} {beans.name} v sitku a prepláchni ich studenou vodou.", "requires": ["beans:raw", "sitko:free"], "produces": ["beans:drained", "sitko:free"]},
+        {"text": "Nakrájaj {tomato.amount} {tomato.name} na menšie kúsky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno.", "requires": ["tomato:raw", "onion:raw", "garlic:raw"], "produces": ["tomato:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "panvica:free"], "produces": ["oil:hot", "panvica:occupied"]},
+        {"text": "Pridaj {beef.amount} {beef.name} do panvice a opekaj ho na strednom ohni 7 minút, kým bude miestami zlatisté a rozpadne sa na malé kúsky.", "requires": ["beef:raw", "oil:hot", "panvica:occupied"], "produces": ["beef:browned"]},
+        {"text": "Pridaj paradajky, cibuľu, cesnak, {cumin.amount} {cumin.name} a {chili.amount} {chili.name} do panvice.", "requires": ["tomato:cut", "onion:cut", "garlic:cut", "cumin:raw", "chili:raw", "beef:browned", "panvica:occupied"], "produces": ["tomato:in_pan", "onion:in_pan", "garlic:in_pan", "cumin:in_pan", "chili:in_pan"]},
+        {"text": "Premiešaj fazuľu s obsahom panvice.", "requires": ["beans:drained", "tomato:in_pan", "onion:in_pan", "garlic:in_pan", "cumin:in_pan", "chili:in_pan", "panvica:occupied"], "produces": ["beans:in_pan"]},
+        {"text": "Dus mleté hovädzie mäso s fazuľou v panvici na miernom ohni 12 minút, kým omáčka zhustne, cibuľa zmäkne a mäso nebude ružové.", "requires": ["beans:in_pan", "beef:browned", "tomato:in_pan", "onion:in_pan", "garlic:in_pan", "cumin:in_pan", "chili:in_pan", "panvica:occupied"], "produces": ["beans:cooked", "beef:cooked", "tomato:cooked", "onion:cooked", "garlic:cooked", "cumin:cooked", "chili:cooked", "oil:used"]},
+        {"text": "Rozdeľ upečené bataty pozdĺžne na polovice a vnútro zľahka roztlač vidličkou. Naplň ich hovädzím chilli.", "requires": ["sweet_potato:cooked", "beans:cooked", "beef:cooked", "tomato:cooked", "onion:cooked", "garlic:cooked", "cumin:cooked", "chili:cooked", "oil:used"], "produces": ["sweet_potato:filled", "beans:filled", "beef:filled", "tomato:filled", "onion:filled", "garlic:filled", "cumin:filled", "chili:filled", "oil:filled"]},
+        {"text": "Rozlož {cheese.amount} {cheese.name} na naplnené bataty a rozdeľ ich na {portions} porcií.", "requires": ["sweet_potato:filled", "beans:filled", "beef:filled", "tomato:filled", "onion:filled", "garlic:filled", "cumin:filled", "chili:filled", "oil:filled", "cheese:raw"], "produces": ["sweet_potato:served", "beans:served", "beef:served", "tomato:served", "onion:served", "garlic:served", "cumin:served", "chili:served", "oil:served", "cheese:served", "plech:free", "panvica:free", "rura:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Upečené bataty a chilli odlož do oddelených uzatvárateľných nádob najneskôr do 2 hodín. V chladničke ich uchovaj najviac 3 dni a syr pridaj až po ohriatí."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "protein_beef_bean_chili",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://terianncarty.com/high-protein-stuffed-sweet-potatoes/", "title": "High Protein Stuffed Sweet Potatoes | Teri-Ann Carty Recipes", "accessed_on": "2026-09-05"},
+      {"url": "https://www.hellofresh.co.uk/recipes/easy-cheesy-beef-chilli-loaded-sweet-potato-67bdff0a8e41cf2506379267", "title": "Easy Cheesy Beef Chilli Loaded Sweet Potato Recipe | HelloFresh", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

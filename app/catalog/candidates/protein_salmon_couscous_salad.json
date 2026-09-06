@@ -1,0 +1,44 @@
+{
+  "recipes": [
+    {
+      "id": "protein_salmon_couscous_salad",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuskusový šalát s lososom",
+      "family": "protein_salmon_couscous_salad",
+      "method": "salad",
+      "minutes": 30,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["panvica", "hrniec", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "salmon", "role": "protein", "candidates": ["salmon"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na porcie"},
+        {"key": "couscous", "role": "starch", "candidates": ["couscous"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "85"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.7", "required": true, "use": "addition", "cut": "na menšie kúsky"},
+        {"key": "cucumber", "role": "vegetable", "candidates": ["cucumber"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.7", "required": true, "use": "addition", "cut": "na menšie kúsky"},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Vsyp {couscous.amount} {couscous.name} do hrnca.", "requires": ["couscous:raw", "hrniec:free"], "produces": ["couscous:in_pot", "hrniec:occupied"]},
+        {"text": "Nalej {couscous.water} vody do hrnca; použi čerstvo zovretú vodu.", "requires": ["couscous:in_pot", "hrniec:occupied"], "produces": ["couscous:soaking"]},
+        {"text": "Prikry hrniec a nechaj kuskus 8 minút postáť, kým zmäkne a vsiakne vodu. Potom ho prekypri vidličkou.", "requires": ["couscous:soaking", "hrniec:occupied"], "produces": ["couscous:cooked", "hrniec:free"]},
+        {"text": "Nakrájaj {tomato.amount} {tomato.name} a {cucumber.amount} {cucumber.name} na menšie kúsky. Priprav {lemon.amount} {lemon.name} na dochutenie a vytlač z neho šťavu. Rozdeľ {salmon.amount} {salmon.name} na porcie.", "requires": ["tomato:raw", "cucumber:raw", "lemon:raw", "salmon:raw"], "produces": ["tomato:cut", "cucumber:cut", "lemon:juiced", "salmon:portioned"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "panvica:free"], "produces": ["oil:hot", "panvica:occupied"]},
+        {"text": "Opekaj lososa v panvici na strednom ohni 4 minúty z každej strany, kým bude povrch zlatistý a mäso sa bude ľahko oddeľovať vidličkou.", "requires": ["salmon:portioned", "oil:hot", "panvica:occupied"], "produces": ["salmon:cooked", "oil:used", "panvica:free"]},
+        {"text": "Premiešaj kuskus s paradajkami, uhorkou a citrónovou šťavou v miske. Dochuť šalát soľou a čiernym korením.", "requires": ["couscous:cooked", "tomato:cut", "cucumber:cut", "lemon:juiced", "miska:free"], "produces": ["couscous:mixed", "tomato:mixed", "cucumber:mixed", "lemon:mixed", "miska:occupied"]},
+        {"text": "Podávaj šalát s lososom a rozdeľ jedlo na {portions} porcií.", "requires": ["couscous:mixed", "tomato:mixed", "cucumber:mixed", "lemon:mixed", "salmon:cooked", "oil:used", "miska:occupied"], "produces": ["couscous:served", "tomato:served", "cucumber:served", "lemon:served", "salmon:served", "oil:served", "miska:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Šalát a lososa odlož do oddelených uzatvárateľných nádob najneskôr do 2 hodín. V chladničke ich uchovaj najviac 2 dni a spoj ich až pred jedlom."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "protein_salmon_couscous_salad",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://www.bbcgoodfoodme.com/recipes/superhealthy-salmon-salad/", "title": "Superhealthy salmon salad - Good Food Middle East", "accessed_on": "2026-09-05"},
+      {"url": "https://foodnetwork.co.uk/recipes/wild-alaska-salmon-and-couscous-salad-with-pomegranate-and-mint", "title": "Wild Alaska salmon and couscous salad with pomegranate and mint | Food Network UK", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

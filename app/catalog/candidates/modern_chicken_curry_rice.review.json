@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "5e63aab4bf1656eb9d66d264cd4a47b9f4891411f4548a10a957a50344b03eb4",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "modern_chicken_curry_rice"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

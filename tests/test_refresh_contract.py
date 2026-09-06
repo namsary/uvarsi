@@ -1,16 +1,18 @@
 import json
 import sqlite3
 import sys
-import types
 from datetime import date
 from pathlib import Path
 
 import pytest
 
 from hetzner import refresh_blocek
-from hetzner.refresh_blocek import compose_with_llm, landing_data_output_path, refresh_from_db
+from hetzner.refresh_blocek import landing_data_output_path, refresh_from_db
+from app.deterministic_plan import NoCompatiblePlan
 from app.offer_data import migrate_akcie_schema, offer_key_for
 from app.receipt_data import StructuralFailure
+from app.ingredient_catalog import load_ingredient_catalog
+from tests.test_recipe_mode_matrix import MATCHABLE_PRODUCT_NAMES, VERIFIED_WEEKLY_OFFERS
 
 
 TODAY = date(2026, 8, 18)
@@ -77,6 +79,293 @@ def refresh_key(offer_id):
     return offer_key_for(rows[offer_id - 1]["tyzden"], rows[offer_id - 1])
 
 
+def test_public_receipt_refresh_contains_no_recipe_model_or_api_key_path():
+    source = Path(refresh_blocek.__file__).read_text(encoding="utf-8")
+
+    for forbidden in (
+        "anthropic",
+        "ANTHROPIC_API_KEY",
+        "compose_with_llm",
+        "MODEL_BLOCEK",
+        "strazeny_klient",
+    ):
+        assert forbidden not in source
+
+
+def test_curated_receipt_composer_uses_stable_week_seed_and_real_plan_meals(
+    monkeypatch,
+):
+    offers = [
+        {"offer_key": "offer-chicken", "obchod": "Lidl"},
+        {"offer_key": "offer-rice", "obchod": "Tesco"},
+        {"offer_key": "offer-tomato", "obchod": "Kaufland"},
+        {"offer_key": "offer-salad", "obchod": "Lidl"},
+    ]
+    calls = []
+
+    def fake_builder(**kwargs):
+        calls.append(kwargs)
+        return {
+            "jedla": [
+                {
+                    "den": "PO",
+                    "nazov": "Kuracie soté s ryžou",
+                    "recept": {"kroky": ["Opeč mäso.", "Uvar ryžu.", "Podávaj."]},
+                    "suroviny": [
+                        {"offer_key": "offer-chicken", "mnozstvo": 2},
+                        {"offer_key": "offer-rice", "mnozstvo": 1},
+                        {"nazov": "soľ", "bez_akcie": True},
+                    ],
+                },
+                {
+                    "den": "ŠT",
+                    "nazov": "Paradajkové cestoviny",
+                    "recept": {"kroky": ["Uvar cestoviny.", "Pridaj paradajky.", "Premiešaj."]},
+                    "suroviny": [
+                        {"offer_key": "offer-tomato", "mnozstvo": 1},
+                    ],
+                },
+                {
+                    "den": "NE",
+                    "nazov": "Chrumkavý šalát",
+                    "recept": {"kroky": ["Umy šalát.", "Nakráj ho.", "Podávaj."]},
+                    "suroviny": [
+                        {"offer_key": "offer-salad", "mnozstvo": 1},
+                    ],
+                },
+            ]
+        }
+
+    monkeypatch.setattr(refresh_blocek, "build_deterministic_plan", fake_builder)
+    monkeypatch.setattr(refresh_blocek, "load_ingredient_catalog", lambda: "ingredients")
+    monkeypatch.setattr(
+        refresh_blocek,
+        "load_recipe_catalog",
+        lambda ingredients: ("recipes", ingredients),
+    )
+
+    first = refresh_blocek.compose_curated_receipt(offers, TODAY)
+    second = refresh_blocek.compose_curated_receipt(offers, TODAY)
+
+    assert first == second == {
+        "meals": [
+            {
+                "day": "PO",
+                "name": "Kuracie soté s ryžou",
+                "instructions": ["Opeč mäso.", "Uvar ryžu.", "Podávaj."],
+                "items": [
+                    {"offer_key": "offer-chicken", "quantity": 2},
+                    {"offer_key": "offer-rice", "quantity": 1},
+                ],
+            },
+            {
+                "day": "ŠT",
+                "name": "Paradajkové cestoviny",
+                "instructions": ["Uvar cestoviny.", "Pridaj paradajky.", "Premiešaj."],
+                "items": [{"offer_key": "offer-tomato", "quantity": 1}],
+            },
+            {
+                "day": "NE",
+                "name": "Chrumkavý šalát",
+                "instructions": ["Umy šalát.", "Nakráj ho.", "Podávaj."],
+                "items": [{"offer_key": "offer-salad", "quantity": 1}],
+            },
+        ]
+    }
+    assert len(calls) == 2
+    assert calls[0]["seed"] == calls[1]["seed"]
+    assert calls[0]["frequency"] == 3
+    assert calls[0]["adults"] == 2 and calls[0]["children"] == 2
+    assert calls[0]["pantry_driven"] is False
+    assert calls[0]["ingredient_catalog"] == "ingredients"
+    assert calls[0]["recipe_catalog"] == ("recipes", "ingredients")
+
+
+def test_curated_receipt_composer_builds_three_practical_meals_from_real_catalog():
+    ingredients = load_ingredient_catalog()
+    offers = []
+    for page, (ingredient_id, store, package, sale, ordinary) in enumerate(
+        VERIFIED_WEEKLY_OFFERS, start=1
+    ):
+        ingredient = ingredients.by_id(ingredient_id)
+        offers.append({
+            "offer_key": f"landing-{ingredient_id}",
+            "obchod": store,
+            "nazov": MATCHABLE_PRODUCT_NAMES.get(ingredient_id, ingredient.name),
+            "jednotka": package,
+            "cena": sale,
+            "povodna": ordinary,
+            "zlava": "-25 %",
+            "valid_from": "2026-08-17",
+            "valid_to": "2026-08-23",
+            "source_url": f"https://fixtures.uvar.si/{store.casefold()}",
+            "source_page": page,
+        })
+
+    selection = refresh_blocek.compose_curated_receipt(offers, TODAY)
+
+    assert len(selection["meals"]) == 3
+    assert len({meal["name"] for meal in selection["meals"]}) == 3
+    assert all(len(meal["instructions"]) >= 3 for meal in selection["meals"])
+    selected_keys = [
+        item["offer_key"]
+        for meal in selection["meals"]
+        for item in meal["items"]
+    ]
+    assert selected_keys
+    assert len(selected_keys) == len(set(selected_keys))
+    assert set(selected_keys) <= {offer["offer_key"] for offer in offers}
+
+
+def test_curated_receipt_composer_tries_stable_variants_until_three_meals(
+    monkeypatch,
+):
+    offers = [
+        {"offer_key": "offer-a", "obchod": "Lidl"},
+        {"offer_key": "offer-b", "obchod": "Tesco"},
+        {"offer_key": "offer-c", "obchod": "Kaufland"},
+    ]
+    calls = []
+
+    def meal(day, name, offer_key):
+        return {
+            "den": day,
+            "nazov": name,
+            "recept": {"kroky": ["Priprav suroviny.", "Uvar jedlo.", "Podávaj."]},
+            "suroviny": [{"offer_key": offer_key, "mnozstvo": 1}],
+        }
+
+    def fake_builder(**kwargs):
+        calls.append(kwargs["seed"])
+        if len(calls) == 1:
+            return {
+                "jedla": [
+                    meal("PO", "Prvé jedlo", "offer-a"),
+                    meal("ŠT", "Druhé jedlo", "offer-a"),
+                    meal("NE", "Tretie jedlo", "offer-a"),
+                ]
+            }
+        return {
+            "jedla": [
+                meal("PO", "Prvé jedlo", "offer-a"),
+                meal("ŠT", "Druhé jedlo", "offer-b"),
+                meal("NE", "Tretie jedlo", "offer-c"),
+            ]
+        }
+
+    monkeypatch.setattr(refresh_blocek, "build_deterministic_plan", fake_builder)
+    monkeypatch.setattr(refresh_blocek, "load_ingredient_catalog", lambda: "ingredients")
+    monkeypatch.setattr(refresh_blocek, "load_recipe_catalog", lambda ingredients: "recipes")
+
+    selection = refresh_blocek.compose_curated_receipt(offers, TODAY)
+
+    assert [meal["name"] for meal in selection["meals"]] == [
+        "Prvé jedlo",
+        "Druhé jedlo",
+        "Tretie jedlo",
+    ]
+    assert len(calls) == 2
+    assert calls[0] != calls[1]
+
+
+def test_curated_receipt_composer_skips_an_incompatible_seed_variant(monkeypatch):
+    offers = [
+        {"offer_key": "offer-a", "obchod": "Lidl"},
+        {"offer_key": "offer-b", "obchod": "Tesco"},
+        {"offer_key": "offer-c", "obchod": "Kaufland"},
+    ]
+    calls = []
+
+    def meal(day, name, offer_key):
+        return {
+            "den": day,
+            "nazov": name,
+            "recept": {"kroky": ["Priprav suroviny.", "Uvar jedlo.", "Podávaj."]},
+            "suroviny": [{"offer_key": offer_key, "mnozstvo": 1}],
+        }
+
+    def fake_builder(**kwargs):
+        calls.append(kwargs["seed"])
+        if len(calls) == 1:
+            raise NoCompatiblePlan("diet_too_strict", ("use_standard_mode",))
+        return {
+            "jedla": [
+                meal("PO", "Prvé jedlo", "offer-a"),
+                meal("ŠT", "Druhé jedlo", "offer-b"),
+                meal("NE", "Tretie jedlo", "offer-c"),
+            ]
+        }
+
+    monkeypatch.setattr(refresh_blocek, "build_deterministic_plan", fake_builder)
+    monkeypatch.setattr(refresh_blocek, "load_ingredient_catalog", lambda: "ingredients")
+    monkeypatch.setattr(refresh_blocek, "load_recipe_catalog", lambda ingredients: "recipes")
+
+    selection = refresh_blocek.compose_curated_receipt(offers, TODAY)
+
+    assert [meal["name"] for meal in selection["meals"]] == [
+        "Prvé jedlo",
+        "Druhé jedlo",
+        "Tretie jedlo",
+    ]
+    assert len(calls) == 2
+
+
+def test_refresh_publishes_a_complete_curated_receipt_without_a_composer(tmp_path):
+    database = tmp_path / "uvarsi.db"
+    output = tmp_path / "landing_data.json"
+    ingredients = load_ingredient_catalog()
+    con = sqlite3.connect(database)
+    con.execute(
+        """CREATE TABLE akcie (
+            id INTEGER PRIMARY KEY, tyzden TEXT, obchod TEXT, nazov TEXT,
+            kategoria TEXT, cena REAL, povodna REAL, zlava TEXT, jednotka TEXT,
+            source_url TEXT, source_page INTEGER, valid_from TEXT, valid_to TEXT
+        )"""
+    )
+    rows = []
+    for page, (ingredient_id, store, package, sale, ordinary) in enumerate(
+        VERIFIED_WEEKLY_OFFERS, start=1
+    ):
+        ingredient = ingredients.by_id(ingredient_id)
+        rows.append((
+            page,
+            "2026-08-17",
+            store,
+            MATCHABLE_PRODUCT_NAMES.get(ingredient_id, ingredient.name),
+            ingredient.category,
+            float(sale),
+            float(ordinary),
+            "-25 %",
+            package,
+            f"https://fixtures.uvar.si/{store.casefold()}",
+            page,
+            "2026-08-17",
+            "2026-08-23",
+        ))
+    con.executemany(
+        "INSERT INTO akcie VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        rows,
+    )
+    migrate_akcie_schema(con)
+    con.row_factory = sqlite3.Row
+    for row in con.execute("SELECT rowid, * FROM akcie").fetchall():
+        offer = dict(row)
+        con.execute(
+            "UPDATE akcie SET offer_key=? WHERE rowid=?",
+            (offer_key_for(offer["tyzden"], offer), row[0]),
+        )
+    con.commit()
+    con.close()
+
+    payload = refresh_from_db(output, database, today=TODAY)
+
+    assert output.exists()
+    assert payload["week"] == "2026-08-17"
+    assert len(payload["receipt"]["meals"]) == 3
+    assert payload["receipt"]["polozky"] >= 3
+    assert payload["receipt"]["nakup_spolu"] != "0,00"
+
+
 def test_refresh_publishes_from_verified_db_without_http(monkeypatch, tmp_path):
     database = tmp_path / "uvarsi.db"
     output = tmp_path / "landing_data.json"
@@ -93,7 +382,7 @@ def test_refresh_publishes_from_verified_db_without_http(monkeypatch, tmp_path):
         monkeypatch.setattr(requests, "get", forbidden_http)
         monkeypatch.setattr(requests, "post", forbidden_http)
 
-    refresh_from_db(output, database, lambda prompt: model_selection(), today=TODAY)
+    refresh_from_db(output, database, lambda offers, today: model_selection(), today=TODAY)
 
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["receipt"]["nakup_spolu"] == "4,20"
@@ -114,96 +403,12 @@ def test_malformed_non_null_offer_blocks_publication_before_compose(tmp_path):
         refresh_from_db(
             output,
             database,
-            lambda prompt: compose_calls.append(prompt),
+            lambda offers, today: compose_calls.append((offers, today)),
             today=TODAY,
         )
 
     assert compose_calls == []
     assert not output.exists()
-
-
-def fake_anthropic(constructors):
-    class Messages:
-        def create(self, **kwargs):
-            return types.SimpleNamespace(
-                content=[types.SimpleNamespace(type="text", text='{"meals": []}')]
-            )
-
-    class Anthropic:
-        def __init__(self, **kwargs):
-            constructors.append(kwargs)
-            self.messages = Messages()
-
-    return types.SimpleNamespace(Anthropic=Anthropic)
-
-
-def test_model_adapter_uses_api_key_from_environment(monkeypatch, tmp_path):
-    constructors = []
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "environment-test-key")
-    # Volanie prechádza cez evidenciu nákladov (app/naklady.py); v teste musí
-    # ísť do tmp_path, nie do produkčnej /opt/uvarsi/uvarsi.db.
-    monkeypatch.setenv("UVARSI_DB", str(tmp_path / "uvarsi.db"))
-    monkeypatch.setattr(refresh_blocek, "ENV_FILE", str(tmp_path / "missing.env"), raising=False)
-    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(constructors))
-
-    compose_with_llm("prompt")
-
-    assert constructors == [{"api_key": "environment-test-key", "timeout": 120.0, "max_retries": 1}]
-
-
-def test_model_adapter_forces_positive_integer_package_quantities(monkeypatch, tmp_path):
-    calls = []
-
-    class Messages:
-        def create(self, **kwargs):
-            calls.append(kwargs)
-            return types.SimpleNamespace(
-                content=[types.SimpleNamespace(type="text", text='{"meals": []}')]
-            )
-
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "environment-test-key")
-    monkeypatch.setenv("UVARSI_DB", str(tmp_path / "uvarsi.db"))
-    monkeypatch.setitem(
-        sys.modules,
-        "anthropic",
-        types.SimpleNamespace(
-            Anthropic=lambda **kwargs: types.SimpleNamespace(messages=Messages())
-        ),
-    )
-
-    compose_with_llm("prompt")
-
-    schema = calls[0]["output_config"]["format"]["schema"]
-    item = schema["properties"]["meals"]["items"]["properties"]["items"]["items"]
-    assert calls[0]["output_config"]["format"]["type"] == "json_schema"
-    assert item["properties"]["quantity"] == {"type": "integer"}
-    assert item["additionalProperties"] is False
-
-
-def test_model_adapter_uses_api_key_from_env_file(monkeypatch, tmp_path):
-    constructors = []
-    env_file = tmp_path / "uvarsi.env"
-    env_file.write_text("IGNORED=x\nANTHROPIC_API_KEY=file-test-key\n", encoding="utf-8")
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.setenv("UVARSI_DB", str(tmp_path / "uvarsi.db"))
-    monkeypatch.setattr(refresh_blocek, "ENV_FILE", str(env_file), raising=False)
-    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(constructors))
-
-    compose_with_llm("prompt")
-
-    assert constructors == [{"api_key": "file-test-key", "timeout": 120.0, "max_retries": 1}]
-
-
-def test_missing_api_key_fails_before_anthropic_client(monkeypatch, tmp_path):
-    constructors = []
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.setattr(refresh_blocek, "ENV_FILE", str(tmp_path / "missing.env"), raising=False)
-    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic(constructors))
-
-    with pytest.raises(SystemExit, match="ANTHROPIC_API_KEY"):
-        compose_with_llm("prompt")
-
-    assert constructors == []
 
 
 @pytest.mark.parametrize(
@@ -220,7 +425,7 @@ def test_main_uses_default_or_explicit_database_path(monkeypatch, configured, ex
     monkeypatch.setattr(
         refresh_blocek,
         "refresh_from_db",
-        lambda path, database, compose, today: calls.append((path, database, compose, today)),
+        lambda path, database, today: calls.append((path, database, today)),
     )
 
     refresh_blocek.main()
@@ -230,7 +435,7 @@ def test_main_uses_default_or_explicit_database_path(monkeypatch, configured, ex
 
 
 def failing_main(monkeypatch, error):
-    def explode(path, database, compose, today):
+    def explode(path, database, today):
         raise error
 
     monkeypatch.setattr(sys, "argv", ["refresh_blocek.py"])

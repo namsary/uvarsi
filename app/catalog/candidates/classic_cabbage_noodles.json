@@ -1,0 +1,249 @@
+{
+  "recipes": [
+    {
+      "id": "classic_cabbage_noodles",
+      "version": 2,
+      "active": true,
+      "name_template": "Kapustové fliačky",
+      "family": "slovak_cabbage_noodles",
+      "method": "pan",
+      "minutes": 40,
+      "modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "equipment": [
+        "veľký hrniec",
+        "panvica",
+        "cedidlo",
+        "nôž",
+        "doska na krájanie",
+        "varecha"
+      ],
+      "slots": [
+        {
+          "key": "cabbage",
+          "role": "vegetable",
+          "candidates": [
+            "white_cabbage"
+          ],
+          "amount_per_adult": 250,
+          "unit": "g",
+          "child_factor": 0.65,
+          "required": true,
+          "use": "main",
+          "cut": "na tenké rezance"
+        },
+        {
+          "key": "pasta",
+          "role": "starch",
+          "candidates": [
+            "pasta"
+          ],
+          "amount_per_adult": 90,
+          "unit": "g",
+          "child_factor": 0.65,
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": 40,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": 15,
+          "unit": "ml",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "sugar",
+          "role": "seasoning",
+          "candidates": [
+            "sugar"
+          ],
+          "amount_per_adult": 5,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "salt",
+          "role": "seasoning",
+          "candidates": [
+            "salt"
+          ],
+          "amount_per_adult": 2,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "pepper",
+          "role": "seasoning",
+          "candidates": [
+            "black_pepper"
+          ],
+          "amount_per_adult": 1,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water"
+      ],
+      "instructions": [
+        {
+          "text": "Nakrájaj {cabbage.amount} {cabbage.name} na tenké rezance a {onion.amount} {onion.name} najemno.",
+          "requires": [
+            "cabbage:raw",
+            "onion:raw",
+            "noz:free",
+            "doska_na_krajanie:free"
+          ],
+          "produces": [
+            "cabbage:shredded",
+            "onion:chopped",
+            "noz:used",
+            "doska_na_krajanie:used"
+          ]
+        },
+        {
+          "text": "Nalej {oil.amount} {oil.name} do panvice.",
+          "requires": [
+            "oil:raw",
+            "panvica:free"
+          ],
+          "produces": [
+            "oil:heated",
+            "panvica:used"
+          ]
+        },
+        {
+          "text": "Opekaj cibuľu v panvici na strednom ohni 4 minúty, kým zmäkne.",
+          "requires": [
+            "onion:chopped",
+            "oil:heated",
+            "panvica:used"
+          ],
+          "produces": [
+            "onion:softened",
+            "oil:used"
+          ]
+        },
+        {
+          "text": "Pridaj bielu hlávkovú kapustu, {sugar.amount} {sugar.name}, {salt.amount} {salt.name} a {pepper.amount} {pepper.name}. Pri väčšej dávke opekaj kapustu po častiach, aby sa zmestila do panvice a mohla zozlatnúť. Každú časť opekaj na strednom ohni asi 18 minút a pravidelne miešaj, kým kapusta zmäkne a miestami zozlatne.",
+          "requires": [
+            "cabbage:shredded",
+            "onion:softened",
+            "oil:used",
+            "sugar:raw",
+            "salt:raw",
+            "pepper:raw",
+            "panvica:used"
+          ],
+          "produces": [
+            "cabbage:cooked",
+            "onion:cooked",
+            "oil:cooked",
+            "sugar:caramelized",
+            "salt:dissolved",
+            "pepper:mixed"
+          ]
+        },
+        {
+          "text": "Uvar {pasta.amount} {pasta.name}; na tento recept zvoľ fliačky a vo veľkom hrnci ich var vo vriacej vode na strednom ohni 8 minút, kým budú mäkké, ale stále pevné.",
+          "requires": [
+            "pasta:raw",
+            "velky_hrniec:free"
+          ],
+          "produces": [
+            "pasta:cooked",
+            "velky_hrniec:used"
+          ]
+        },
+        {
+          "text": "Sceď cestoviny a nechaj ich krátko odkvapkať.",
+          "requires": [
+            "pasta:cooked",
+            "velky_hrniec:used",
+            "cedidlo:free"
+          ],
+          "produces": [
+            "pasta:drained",
+            "velky_hrniec:free",
+            "cedidlo:used"
+          ]
+        },
+        {
+          "text": "Prehrievaj cestoviny s kapustou v panvici na strednom ohni 2 minúty, kým sa z nich začne pariť. Kapustové fliačky podávaj horúce.",
+          "requires": [
+            "pasta:drained",
+            "cabbage:cooked",
+            "onion:cooked",
+            "oil:cooked",
+            "sugar:caramelized",
+            "salt:dissolved",
+            "pepper:mixed",
+            "panvica:used"
+          ],
+          "produces": [
+            "pasta:served",
+            "cabbage:served",
+            "onion:served",
+            "oil:served",
+            "sugar:served",
+            "salt:served",
+            "pepper:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Kapustové fliačky rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a ohrievaj iba porciu, ktorú hneď zješ."
+      }
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_cabbage_noodles",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {
+        "url": "https://varecha.pravda.sk/recepty/kapustove-fliacky/93517-recept.html",
+        "title": "Kapustové fliačky",
+        "accessed_on": "2026-09-05"
+      },
+      {
+        "url": "https://nanicmama.sme.sk/recept/hlavne-jedla/domace-kapustove-fliacky",
+        "title": "Domáce kapustové fliačky",
+        "accessed_on": "2026-09-05"
+      }
+    ]
+  }
+}

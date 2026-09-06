@@ -1,0 +1,47 @@
+{
+  "recipes": [
+    {
+      "id": "protein_skyr_chicken_wrap",
+      "version": 2,
+      "active": true,
+      "name_template": "Kurací wrap so skyrom",
+      "family": "protein_skyr_chicken_wrap",
+      "method": "pan",
+      "minutes": 25,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["panvica", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na tenké prúžky"},
+        {"key": "skyr", "role": "protein", "candidates": ["skyr"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "tortilla", "role": "starch", "candidates": ["tortilla"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.75", "required": true, "use": "main", "cut": null},
+        {"key": "cucumber", "role": "vegetable", "candidates": ["cucumber"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.7", "required": true, "use": "addition", "cut": "na tenké prúžky"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.7", "required": true, "use": "addition", "cut": "na malé kúsky"},
+        {"key": "lettuce", "role": "vegetable", "candidates": ["lettuce"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.7", "required": true, "use": "addition", "cut": "na tenké pásiky"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "6", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} a {cucumber.amount} {cucumber.name} na tenké prúžky. {tomato.amount} {tomato.name} nakrájaj na malé kúsky, {lettuce.amount} {lettuce.name} na tenké pásiky a {garlic.amount} {garlic.name} najemno. Priprav {lemon.amount} {lemon.name} na dochutenie a vytlač z neho šťavu.", "requires": ["chicken:raw", "cucumber:raw", "tomato:raw", "lettuce:raw", "garlic:raw", "lemon:raw"], "produces": ["chicken:cut", "cucumber:cut", "tomato:cut", "lettuce:cut", "garlic:cut", "lemon:juiced"]},
+        {"text": "Premiešaj {skyr.amount} {skyr.name} s cesnakom, citrónovou šťavou, soľou a čiernym korením v miske.", "requires": ["skyr:raw", "garlic:cut", "lemon:juiced", "miska:free"], "produces": ["skyr:mixed", "garlic:mixed", "lemon:mixed", "miska:occupied"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "panvica:free"], "produces": ["oil:hot", "panvica:occupied"]},
+        {"text": "Opekaj kuracie prsia v panvici na strednom ohni 8 minút a priebežne ich obracaj, kým budú zlatisté a v strede bez ružových miest.", "requires": ["chicken:cut", "oil:hot", "panvica:occupied"], "produces": ["chicken:cooked", "oil:used"]},
+        {"text": "Vyber kuracie mäso z panvice a odlož ho na chvíľu bokom.", "requires": ["chicken:cooked", "oil:used", "panvica:occupied"], "produces": ["chicken:resting", "panvica:free"]},
+        {"text": "Zohrej {tortilla.amount} {tortilla.name} v suchej panvici na strednom ohni 1 minútu z každej strany, kým zmäknú a budú sa dať ľahko zvinúť.", "requires": ["tortilla:raw", "panvica:free"], "produces": ["tortilla:warmed", "panvica:free"]},
+        {"text": "Rozlož omáčku z bieleho skyru, kuracie mäso, uhorku, paradajky a šalát na tortilly. Pevne ich zaviň.", "requires": ["tortilla:warmed", "skyr:mixed", "garlic:mixed", "lemon:mixed", "chicken:resting", "cucumber:cut", "tomato:cut", "lettuce:cut", "miska:occupied"], "produces": ["tortilla:filled", "skyr:filled", "garlic:filled", "lemon:filled", "chicken:filled", "cucumber:filled", "tomato:filled", "lettuce:filled", "oil:filled", "miska:free"]},
+        {"text": "Podávaj wrapy hneď alebo ich zabaľ na neskôr. Pripravené jedlo rozdeľ na {portions} porcií.", "requires": ["tortilla:filled", "skyr:filled", "garlic:filled", "lemon:filled", "chicken:filled", "cucumber:filled", "tomato:filled", "lettuce:filled", "oil:filled"], "produces": ["tortilla:served", "skyr:served", "garlic:served", "lemon:served", "chicken:served", "cucumber:served", "tomato:served", "lettuce:served", "oil:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Kuracie mäso, zeleninu a skyrovú omáčku uchovaj v oddelených uzatvárateľných nádobách najviac 3 dni. Wrap zlož až pred jedlom, aby tortilla nezvlhla."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "protein_skyr_chicken_wrap",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://elodieboredieteticienne.fr/2025/05/25/wrap-au-poulet-et-concombre-facon-tzatziki/", "title": "Wrap au poulet et concombre façon tzatziki | Élodie Boré", "accessed_on": "2026-09-05"},
+      {"url": "https://www.puregym.com/blog/tandoori-chicken-wraps-recipe/", "title": "Tandoori Chicken Wraps Recipe | PureGym", "accessed_on": "2026-09-05"}
+    ]
+  }
+}

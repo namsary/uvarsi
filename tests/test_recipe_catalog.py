@@ -2,6 +2,7 @@ import json
 from dataclasses import FrozenInstanceError, replace
 from decimal import Decimal
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -58,6 +59,37 @@ def _recipe(**overrides):
             {"text": "Rozdeľ jedlo na {portions} porcií."},
         ],
     }
+    value.update(overrides)
+    return value
+
+
+def _v2_recipe_payload(**overrides):
+    value = _recipe(
+        version=2,
+        instructions=[
+            {
+                "text": "Nakrájaj {protein.amount} {protein.name} {protein.cut}.",
+                "requires": ["protein:raw"],
+                "produces": ["protein:prepared"],
+            },
+            {
+                "text": "Opekaj mäso v panvici 8 minút.",
+                "requires": ["protein:prepared", "panvica:free"],
+                "produces": ["protein:cooked", "panvica:occupied"],
+            },
+            {
+                "text": "Rozdeľ jedlo na {portions} porcií.",
+                "requires": ["protein:cooked"],
+                "produces": ["protein:served", "panvica:free"],
+            },
+        ],
+        storage={
+            "refrigerated_days": 2,
+            "instruction": (
+                "Po vychladnutí odlož do chladničky a zjedz do 2 dní."
+            ),
+        },
+    )
     value.update(overrides)
     return value
 
@@ -126,8 +158,14 @@ def test_loads_only_active_templates_by_default(ingredients, tmp_path):
     ] == ["chicken_rice_pan", "inactive_recipe"]
 
 
-def test_default_smoke_templates_stay_inactive_beside_active_library(ingredients):
-    active = load_recipe_catalog(ingredients, DEFAULT_RECIPE_ROOT).all()
+def test_generation_one_activates_curated_v2_library_and_retires_legacy(
+    ingredients,
+):
+    catalog = load_recipe_catalog(ingredients, DEFAULT_RECIPE_ROOT)
+    active = catalog.all()
+    all_recipes = load_recipe_catalog(
+        ingredients, DEFAULT_RECIPE_ROOT, include_inactive=True
+    ).all()
     launch_groups = {
         "pan": ("pan_",),
         "oven": ("oven_",),
@@ -136,22 +174,37 @@ def test_default_smoke_templates_stay_inactive_beside_active_library(ingredients
         "vegan": ("vegan_",),
         "soup_salad": ("soup_", "salad_"),
     }
+    legacy = tuple(
+        recipe
+        for recipe in all_recipes
+        if any(
+            recipe.id.startswith(prefixes)
+            for prefixes in launch_groups.values()
+        )
+    )
 
-    assert len(active) == 60
+    assert catalog.curation_generation == 1
+    assert len(active) == 104
+    assert all(recipe.active and recipe.version == 2 for recipe in active)
+    assert len(legacy) == 60
     assert {
-        group: sum(recipe.id.startswith(prefixes) for recipe in active)
+        group: sum(recipe.id.startswith(prefixes) for recipe in legacy)
         for group, prefixes in launch_groups.items()
     } == {group: 10 for group in launch_groups}
     assert all(
         sum(recipe.id.startswith(prefixes) for prefixes in launch_groups.values()) == 1
-        for recipe in active
+        for recipe in legacy
     )
+    assert all(not recipe.active and recipe.version == 1 for recipe in legacy)
     assert [
         recipe.id
-        for recipe in load_recipe_catalog(
-            ingredients, DEFAULT_RECIPE_ROOT, include_inactive=True
-        ).all()
+        for recipe in all_recipes
         if not recipe.active
+        and recipe.id in {
+            "chicken_rice_pan",
+            "tofu_vegetable_pan",
+            "lentil_tomato_pot",
+        }
     ] == ["chicken_rice_pan", "tofu_vegetable_pan", "lentil_tomato_pot"]
 
 
@@ -183,8 +236,127 @@ def test_loaded_template_values_are_deeply_immutable(ingredients, tmp_path):
     assert recipe.slots[0].candidates == ("chicken_breast",)
     assert recipe.slots[0].amount_per_adult == Decimal("150")
     assert recipe.instructions[0].text.startswith("Nakrájaj")
+    assert recipe.instructions[0].requires == ()
+    assert recipe.instructions[0].produces == ()
+    assert recipe.storage is None
     with pytest.raises(FrozenInstanceError):
         recipe.active = False
+
+
+def test_v1_recipe_preserves_legacy_equipment_text_and_workflow_defaults(
+    ingredients, tmp_path
+):
+    root = _write_library(
+        tmp_path,
+        [_recipe(equipment=["2 l hrniec"])],
+    )
+
+    recipe = load_recipe_catalog(ingredients, root).all()[0]
+
+    assert recipe.equipment == ("2 l hrniec",)
+    assert all(step.requires == () for step in recipe.instructions)
+    assert all(step.produces == () for step in recipe.instructions)
+    assert recipe.storage is None
+
+
+def test_loads_version_2_workflow_and_recipe_specific_storage(ingredients, tmp_path):
+    root = _write_library(tmp_path, [_v2_recipe_payload()])
+
+    recipe = load_recipe_catalog(ingredients, root).all()[0]
+
+    assert recipe.instructions[0].requires == ("protein:raw",)
+    assert recipe.instructions[0].produces == ("protein:prepared",)
+    assert recipe.storage.refrigerated_days == 2
+    assert recipe.storage.instruction.endswith("do 2 dní.")
+
+
+def test_slot_can_declare_scaled_recipe_specific_water(ingredients, tmp_path):
+    payload = _v2_recipe_payload(
+        slots=[_slot(water_ml_per_adult="250")],
+    )
+    root = _write_library(tmp_path, [payload])
+
+    recipe = load_recipe_catalog(ingredients, root).all()[0]
+
+    assert recipe.slots[0].water_ml_per_adult == Decimal("250")
+
+
+def test_v2_recipe_requires_recipe_specific_storage_rule(ingredients, tmp_path):
+    payload = _v2_recipe_payload()
+    payload.pop("storage")
+    root = _write_library(tmp_path, [payload])
+
+    with pytest.raises(ValueError, match="storage"):
+        load_recipe_catalog(ingredients, root)
+
+
+@pytest.mark.parametrize(
+    "storage",
+    [
+        {"refrigerated_days": 0, "instruction": "Platný text."},
+        {"refrigerated_days": 5, "instruction": "Platný text."},
+        {"refrigerated_days": 2, "instruction": ""},
+        {"refrigerated_days": 2, "instruction": "Platný text.", "extra": True},
+    ],
+)
+def test_v2_recipe_rejects_invalid_storage_rule(ingredients, tmp_path, storage):
+    root = _write_library(tmp_path, [_v2_recipe_payload(storage=storage)])
+
+    with pytest.raises(ValueError, match="storage|chladničke"):
+        load_recipe_catalog(ingredients, root)
+
+
+@pytest.mark.parametrize(
+    "instructions",
+    [
+        [
+            {"text": step["text"], "produces": step["produces"]}
+            for step in _v2_recipe_payload()["instructions"]
+        ],
+        [
+            {**step, "extra": []}
+            for step in _v2_recipe_payload()["instructions"]
+        ],
+    ],
+)
+def test_v2_recipe_requires_exact_instruction_workflow_keys(
+    ingredients, tmp_path, instructions
+):
+    root = _write_library(
+        tmp_path,
+        [_v2_recipe_payload(instructions=instructions)],
+    )
+
+    with pytest.raises(ValueError, match="schéma.*kroku"):
+        load_recipe_catalog(ingredients, root)
+
+
+@pytest.mark.parametrize("token", ["protein", "mystery:raw"])
+def test_v2_recipe_rejects_malformed_or_unknown_workflow_tokens(
+    ingredients, tmp_path, token
+):
+    payload = _v2_recipe_payload()
+    payload["instructions"][0]["requires"] = [token]
+    root = _write_library(tmp_path, [payload])
+
+    with pytest.raises(ValueError, match="token|mystery"):
+        load_recipe_catalog(ingredients, root)
+
+
+def test_manifest_exposes_dormant_curated_generation(ingredients, tmp_path):
+    root = _write_library(
+        tmp_path,
+        [_recipe()],
+        manifest={
+            "library_version": 7,
+            "catalog_revision": 2,
+            "curation_generation": 1,
+        },
+    )
+
+    catalog = load_recipe_catalog(ingredients, root)
+
+    assert catalog.curation_generation == 1
 
 
 @pytest.mark.parametrize(
@@ -297,7 +469,8 @@ def test_active_catalog_measures_every_slot_exactly_once(ingredients):
         recipe for recipe in load_recipe_catalog(ingredients).all() if recipe.active
     )
 
-    assert len(recipes) == 60
+    assert len(recipes) == 104
+    assert all(recipe.version == 2 for recipe in recipes)
     for recipe in recipes:
         for slot in recipe.slots:
             amount_placeholder = f"{{{slot.key}.amount}}"
@@ -321,11 +494,13 @@ def test_unmeasured_instruction_names_do_not_follow_case_changing_prepositions(
         for instruction in recipe.instructions:
             for slot in recipe.slots:
                 for preposition in ("s", "so", "k", "ku", "z", "zo"):
-                    unsafe = f"{preposition} {{{slot.key}.name}}"
-                    assert unsafe not in instruction.text, (
+                    unsafe = re.compile(
+                        rf"(?<!\w){preposition} \{{{slot.key}\.name\}}"
+                    )
+                    assert unsafe.search(instruction.text) is None, (
                         recipe.id,
                         instruction.text,
-                        unsafe,
+                        unsafe.pattern,
                     )
 
 
@@ -409,6 +584,7 @@ def test_rejects_fewer_than_three_instructions(ingredients, tmp_path):
         ("amount_per_adult", "0"),
         ("amount_per_adult", "NaN"),
         ("child_factor", "0"),
+        ("water_ml_per_adult", "0"),
     ],
 )
 def test_rejects_nonpositive_slot_quantities(
@@ -508,6 +684,7 @@ def test_rejects_invalid_recipe_enums_and_positive_integers(
         ({"library_version": 1, "extra": 2}, "manifest"),
         ({"library_version": 1, "catalog_revision": "2"}, "catalog_revision"),
         ({"library_version": 1, "catalog_revision": True}, "catalog_revision"),
+        ({"library_version": 1, "catalog_revision": None}, "catalog_revision"),
         ({"library_version": 1, "catalog_revision": -1}, "catalog_revision"),
     ],
 )

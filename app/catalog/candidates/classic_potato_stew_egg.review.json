@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "35edf2a06ed2c9bc25d7a6f109cc07f22c955950dc00e8fdfcb77bdc56950f06",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "classic_potato_stew_egg"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}
