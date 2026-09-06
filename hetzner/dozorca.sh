@@ -193,9 +193,36 @@ skontroluj_recipe_engine() {
   BLOCKERS=${REST#*|}
 
   if [ "$MODE" != "on" ]; then
-    if [ "$MODE" = "shadow" ] && [ "$READY" != "1" ]; then
-      log "shadow ešte nie je pripravený na aktiváciu — $BLOCKERS"
+    if [ ! -x "$DIR/recipe-engine-rollout.sh" ]; then
+      if [ "$MODE" = "shadow" ] && [ "$READY" != "1" ]; then
+        log "shadow ešte nie je pripravený na aktiváciu — $BLOCKERS"
+      fi
+      return 0
     fi
+
+    log "aktuálne dáta sú pripravené — aktivujem receptový engine"
+    if ! UVARSI_NOTIFY_URL="https://ntfy.sh/${NTFY_TOPIC}" \
+      "$DIR/recipe-engine-rollout.sh"; then
+      recipe_engine_alert "automatická aktivácia po obnove dát zlyhala"
+      return 1
+    fi
+
+    HEALTH=$("$CURL" -fsS --max-time 1 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true)
+    STAV_ENGINE=$(recipe_engine_health_state) || {
+      recipe_engine_alert "health po automatickej aktivácii sa nedá overiť"
+      return 1
+    }
+    MODE=${STAV_ENGINE%%|*}
+    REST=${STAV_ENGINE#*|}
+    READY=${REST%%|*}
+    BLOCKERS=${REST#*|}
+    if [ "$MODE" != "on" ] || [ "$READY" != "1" ]; then
+      recipe_engine_alert "automatická aktivácia neskončila pripraveným režimom on: ${BLOCKERS:-unknown}"
+      return 1
+    fi
+
+    rm -f "$RECIPE_ENGINE_ALERT_STATE"
+    log "receptový engine je znova aktívny"
     return 0
   fi
   if [ "$READY" = "1" ]; then

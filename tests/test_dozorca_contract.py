@@ -347,6 +347,62 @@ def test_dozorca_keeps_warming_plans_even_when_weekly_data_is_already_current(tm
     )
 
 
+def test_dozorca_reactivates_recipe_engine_after_current_data(
+    monkeypatch, tmp_path
+):
+    landing_data = tmp_path / "landing_data.json"
+    write_landing_data_atomic(landing_data, payload("2026-08-17"))
+    marker = tmp_path / "recipe-rollout-ran"
+
+    fake_python = tmp_path / "python"
+    fake_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8", newline="\n")
+    fake_python.chmod(0o755)
+
+    fake_sqlite = tmp_path / "sqlite3"
+    fake_sqlite.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        "  *MAX*) echo 123 ;;\n"
+        "  *zber_stav*) echo 0 ;;\n"
+        "  *) echo 60 ;;\n"
+        "esac\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_sqlite.chmod(0o755)
+
+    rollout = tmp_path / "recipe-engine-rollout.sh"
+    rollout.write_text(
+        f"#!/bin/sh\nprintf activated > '{bash_path(marker)}'\nexit 0\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    rollout.chmod(0o755)
+
+    health_on = json.loads(health_json())
+    health_on["recipe_engine"].update(mode="on", ready=True, blockers=[])
+    fake_curl = tmp_path / "curl"
+    fake_curl.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        "  *api/health*)\n"
+        f"    if [ -f '{bash_path(marker)}' ]; then printf '%s\\n' '{json.dumps(health_on, separators=(',', ':'))}'; "
+        f"else printf '%s\\n' '{health_json()}'; fi ;;\n"
+        "esac\n"
+        "exit 0\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_curl.chmod(0o755)
+    monkeypatch.setenv("UVARSI_CURL", bash_path(fake_curl))
+
+    result = run_dozorca(tmp_path, landing_data)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert marker.read_text(encoding="utf-8") == "activated"
+    assert "receptový engine je znova aktívny" in result.stdout
+
+
 def test_dozorca_queue_handoff_failure_does_not_break_hourly_recovery(tmp_path):
     (tmp_path / "app").mkdir()
     landing_data = tmp_path / "landing_data.json"
