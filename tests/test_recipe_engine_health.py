@@ -666,6 +666,28 @@ def test_release_preflight_cli_explicitly_enables_legacy_schema_snapshot(
     assert '"ok":true' in capsys.readouterr().out
 
 
+def test_installed_legacy_samopull_filename_enables_snapshot_without_new_flag(
+    monkeypatch, tmp_path, capsys
+):
+    server, _state = _load(monkeypatch, tmp_path)
+    target = tmp_path / "recipe-engine-preflight-smoke.json"
+    calls = []
+
+    def capture(*, state_path, allow_legacy_offer_schema=False):
+        calls.append((state_path, allow_legacy_offer_schema))
+        return {"ok": True, "http_status": 200, "blockers": []}
+
+    monkeypatch.setattr(server, "run_recipe_engine_synthetic_smoke", capture)
+
+    code = server.main([
+        "--recipe-engine-smoke", "--state", str(target)
+    ])
+
+    assert code == 0
+    assert calls == [(str(target), True)]
+    assert '"ok":true' in capsys.readouterr().out
+
+
 def test_failed_preflight_cli_sends_only_aggregate_diagnostics(
     monkeypatch, tmp_path, capsys
 ):
@@ -675,7 +697,7 @@ def test_failed_preflight_cli_sends_only_aggregate_diagnostics(
     monkeypatch.setattr(
         server,
         "run_recipe_engine_synthetic_smoke",
-        lambda *, state_path: {
+        lambda *, state_path, allow_legacy_offer_schema=False: {
             "ok": False,
             "blockers": ["too_slow"],
             "latency_ms": 6_250.0,

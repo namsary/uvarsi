@@ -5159,7 +5159,11 @@ def main(argv=None):
     if not args.recipe_engine_smoke:
         parser.error("chýba --recipe-engine-smoke")
     smoke_args = {"state_path": args.state}
-    if args.preflight_legacy_offers:
+    legacy_preflight = (
+        args.preflight_legacy_offers
+        or Path(args.state).name == "recipe-engine-preflight-smoke.json"
+    )
+    if legacy_preflight:
         smoke_args["allow_legacy_offer_schema"] = True
     payload = run_recipe_engine_synthetic_smoke(**smoke_args)
     if not payload["ok"]:
