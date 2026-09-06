@@ -142,8 +142,18 @@ expected = sys.argv[1]
 payload = json.load(sys.stdin, parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)))
 engine = payload.get("recipe_engine")
 if not isinstance(engine, dict): raise SystemExit(2)
-if engine.get("mode") != expected or engine.get("ready") is not True: raise SystemExit(2)
-if engine.get("blockers") != []: raise SystemExit(2)
+if engine.get("mode") != expected: raise SystemExit(2)
+ready = engine.get("ready")
+blockers = engine.get("blockers")
+if not isinstance(ready, bool) or not isinstance(blockers, list): raise SystemExit(2)
+if any(not isinstance(value, str) or not value for value in blockers): raise SystemExit(2)
+if expected == "off":
+    # Vypnutý engine je bezpečný aj počas obnovy letákov. Neúplné ponuky
+    # blokujú plánovanie, nie úspešný návrat flagu a oboch služieb na off.
+    if set(blockers) - {"incomplete_offers"}: raise SystemExit(2)
+    if ready is not (not blockers): raise SystemExit(2)
+elif ready is not True or blockers != []:
+    raise SystemExit(2)
 if engine.get("payments_enabled") is not False: raise SystemExit(2)
 release = engine.get("release_gate")
 if not isinstance(release, dict): raise SystemExit(2)

@@ -742,6 +742,7 @@ Pravidlá:
 - cena = najnižšia cena dostupná KAŽDÉMU bez karty, aplikácie, kupónu a bez podmienky minimálneho nákupu. Ak je zľavnená iba cena s kartou, do cena daj bežnú cenu dostupnú bez karty.
 - povodna = pôvodná prečiarknutá cena (ak nie je, daj null); zlava patrí výhradne k cene dostupnej každému
 - cena_s_kartou = nižšia podmienená cena alebo null. Nikdy ňou nenahrádzaj cenu dostupnú každému.
+- Ak cena_s_kartou je null, MUSIA byť null aj zlava_s_kartou, vernostny_program, minimalny_nakup a podmienka_s_kartou. Ak pri kartovej akcii nevieš spoľahlivo prečítať bežnú aj kartovú cenu, položku úplne vynechaj.
 - vernostny_program: presne Kaufland Card, Clubcard alebo Lidl Plus; inak null
 - minimalny_nakup = minimálna celková hodnota nákupu pre cenu s kartou (napr. 20.0) alebo null
 - zlava_s_kartou = percento patriace k cene s kartou alebo null
@@ -865,6 +866,21 @@ def zbieraj(client, store):
                 }
             except (KeyError, TypeError, ValueError) as exc:
                 raise ValueError(f"{store}: extrakcia obsahuje neplatnú akciu") from exc
+            conditional_metadata = (
+                offer["zlava_s_kartou"], offer["vernostny_program"],
+                offer["minimalny_nakup"], offer["podmienka_s_kartou"],
+            )
+            if offer["cena_s_kartou"] is None and any(
+                value not in (None, "") for value in conditional_metadata
+            ):
+                # Bez prečítanej kartovej ceny nevieme dokázať, že `cena` je
+                # naozaj verejná. Nejasnú položku preto vynecháme, no jedna
+                # taká položka nesmie zahodiť desiatky ostatných overených cien.
+                log(
+                    f"[WARN] {store}: vynechávam neúplnú vernostnú cenu "
+                    f"na strane {source_page} ({offer['nazov']})"
+                )
+                continue
             validate_offer(offer)
             out.append(offer)
     if not out:
@@ -889,16 +905,19 @@ def record_store_outcome(con, week, store, status, count=0, detail=None):
 
 
 def collection_budget_purpose(con, week, selected_stores):
-    """Use a separate one-shot budget only for a proven schema reread."""
+    """Use a separate bounded budget for a schema reread and one safe repair."""
     stores = [store.capitalize() for store in selected_stores]
     if not stores:
         return "zber_letakov"
     placeholders = ",".join("?" for _ in stores)
     rows = con.execute(
-        f"SELECT data_version FROM zber_stav WHERE tyzden=? AND obchod IN ({placeholders})",
+        f"SELECT stav, data_version FROM zber_stav WHERE tyzden=? AND obchod IN ({placeholders})",
         (week, *stores),
     ).fetchall()
-    if rows and any(int(row[0] or 0) < COLLECTION_DATA_VERSION for row in rows):
+    if rows and any(
+        row["stav"] != "ok" or int(row["data_version"] or 0) < COLLECTION_DATA_VERSION
+        for row in rows
+    ):
         return "zber_migracia"
     return "zber_letakov"
 

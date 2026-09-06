@@ -76,7 +76,7 @@ UCELY = ("zber_letakov", "zber_migracia", "blocek", "plan", "recepty", "predpoce
 # Nadhodnotiť sa neoplatí: príliš vysoký odhad by zastavil aj poctivý beh.
 ODHAD_EUR = {
     "zber_letakov": 0.10,     # jedna vision dávka (~4 strany letáku Opusom)
-    "zber_migracia": 0.10,    # jednorazové prečítanie po zmene dátovej schémy
+    "zber_migracia": 0.10,    # prečítanie po zmene schémy + jeden opravný pokus
     "blocek": 0.02,
     # 10k výstupných tokenov Sonnet 5 = najviac ~0,092 € plus vstup/cache.
     # 0,12 € je fail-closed odhad pre timeout bez usage; úspech sa účtuje reálne.
@@ -122,9 +122,9 @@ VYCHODZI_TYZDENNY_STROP_MIGRACIA_EUR = 3.00
 # Zaokrúhlených 0,80 € necháva malú rezervu, no drží predpočet pod ~3,20 €/mesiac.
 VYCHODZI_TYZDENNY_STROP_PREDPOCET_EUR = 0.80
 # Zber má jeden tretí pokus na zotavenie po dvoch zlyhaniach (napríklad po
-# dobití kreditu). Predpočet môže skúsiť až šesťkrát. Cenu oboch operácií stále
-# tvrdo strážia samostatné týždenné eurové stropy.
-VYCHODZI_LIMIT_BEHOV = {"zber_letakov": 3, "zber_migracia": 1, "predpocet": 6}
+# dobití kreditu). Migrácia má prvý beh a jeden opravný. Predpočet môže skúsiť
+# až šesťkrát. Cenu všetkých operácií stále strážia samostatné eurové stropy.
+VYCHODZI_LIMIT_BEHOV = {"zber_letakov": 3, "zber_migracia": 2, "predpocet": 6}
 
 # Ktorý účel si strop počtu behov berie z ktorej premennej prostredia.
 PREMENNA_BEHOV = {

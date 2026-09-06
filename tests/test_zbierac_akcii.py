@@ -383,6 +383,41 @@ def test_collection_rejects_instead_of_silently_truncating_a_loyalty_condition(m
         collector.zbieraj(object(), "kaufland")
 
 
+def test_collection_skips_ambiguous_loyalty_item_without_losing_verified_prices(
+    monkeypatch, capsys
+):
+    pages, manifest = flyer_fixture(1)
+    monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))
+    monkeypatch.setattr(collector, "get_b64", lambda url, max_px: url)
+
+    def fake_claude_json(client, model, content, max_tokens, effort=None):
+        if model == collector.MODEL_SCAN:
+            return [1]
+        return [
+            {
+                "source_page": 1, "nazov": "Neúplná Clubcard cena",
+                "kategoria": "trvanlive", "cena": 1.29, "povodna": 1.99,
+                "zlava": "-35 %", "jednotka": "ks", "cena_s_kartou": None,
+                "zlava_s_kartou": "-35 %", "vernostny_program": "Clubcard",
+                "minimalny_nakup": None, "podmienka_s_kartou": None,
+            },
+            {
+                "source_page": 1, "nazov": "Ryža", "kategoria": "trvanlive",
+                "cena": 1.49, "povodna": 1.99, "zlava": "-25 %",
+                "jednotka": "kg", "cena_s_kartou": None,
+                "zlava_s_kartou": None, "vernostny_program": None,
+                "minimalny_nakup": None, "podmienka_s_kartou": None,
+            },
+        ]
+
+    monkeypatch.setattr(collector, "claude_json", fake_claude_json)
+
+    offers = collector.zbieraj(object(), "tesco")
+
+    assert [offer["nazov"] for offer in offers] == ["Ryža"]
+    assert "Neúplná Clubcard cena" in capsys.readouterr().out
+
+
 def test_collection_budget_purpose_is_migration_until_every_selected_store_is_current():
     con = sqlite3.connect(":memory:")
     con.row_factory = sqlite3.Row
@@ -407,6 +442,21 @@ def test_collection_budget_purpose_is_migration_until_every_selected_store_is_cu
     assert collector.collection_budget_purpose(
         con, week, ["kaufland", "tesco"]
     ) == "zber_letakov"
+
+
+def test_failed_current_schema_collection_stays_in_bounded_migration_recovery_budget():
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(collector.SCHEMA)
+    week = "2026-08-31"
+    con.execute(
+        "INSERT INTO zber_stav (tyzden, obchod, stav, pocet, data_version) VALUES (?,?,?,?,?)",
+        (week, "Lidl", "fail", 0, collector.COLLECTION_DATA_VERSION),
+    )
+
+    assert collector.collection_budget_purpose(
+        con, week, ["lidl"]
+    ) == "zber_migracia"
 
 
 def test_claude_json_recovers_a_valid_array_from_legacy_markdown_wrapper():

@@ -146,6 +146,10 @@ def rollout(tmp_path):
         "  printf '{\"recipe_engine\":{\"mode\":\"off\",\"ready\":false,\"blockers\":[\"catalog_load_failed\"],\"payments_enabled\":false,\"release_gate\":{\"active_recipes\":0,\"curation_generation\":null,\"provenance_complete\":false,\"library_errors\":0,\"workflow_errors\":0}}}'\n"
         "  exit 0\n"
         "fi\n"
+        "if [ \"$mode\" = off ] && [ -f \"$UVARSI_TEST_STATE/incomplete-offers\" ]; then\n"
+        "  printf '{\"recipe_engine\":{\"mode\":\"off\",\"ready\":false,\"blockers\":[\"incomplete_offers\"],\"payments_enabled\":false,\"release_gate\":{\"active_recipes\":104,\"curation_generation\":1,\"provenance_complete\":true,\"library_errors\":0,\"workflow_errors\":0}}}'\n"
+        "  exit 0\n"
+        "fi\n"
         "[ ! -f \"$UVARSI_TEST_STATE/health.json\" ] || { cat \"$UVARSI_TEST_STATE/health.json\"; exit 0; }\n"
         "[ ! -f \"$UVARSI_TEST_STATE/malformed-health\" ] || { printf '{'; exit 0; }\n"
         "printf '{\"recipe_engine\":{\"mode\":\"%s\",\"ready\":true,\"blockers\":[],\"payments_enabled\":false,\"release_gate\":{\"active_recipes\":104,\"curation_generation\":1,\"provenance_complete\":true,\"library_errors\":0,\"workflow_errors\":0},\"last_shadow\":{\"complete\":true,\"eligible\":true,\"success_rate\":0.75,\"valid_outcome_rate\":1.0,\"p95_ms\":120,\"dietary_violations\":0,\"negative_quantities\":0,\"invalid_package_counts\":0}}}' \"$mode\"\n",
@@ -647,6 +651,20 @@ def test_rollback_is_incomplete_when_off_health_is_not_actually_ready(rollout):
     assert len(alerts) == 1
     assert "rollback incomplete" in alerts[0].casefold()
     assert "catalog_load_failed" not in alerts[0]
+
+
+def test_rollback_is_complete_when_only_current_flyer_data_is_missing(rollout):
+    rollout["state"].joinpath("fail-shadow").write_text("1", encoding="ascii")
+    rollout["state"].joinpath("incomplete-offers").write_text("1", encoding="ascii")
+
+    result = run_controller(rollout)
+
+    assert result.returncode != 0
+    assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=off\n"
+    alerts = rollout["alerts"].read_text(encoding="utf-8").splitlines()
+    assert len(alerts) == 1
+    assert "rollback complete" in alerts[0].casefold()
+    assert "gate=shadow_matrix" in alerts[0]
 
 
 @pytest.mark.parametrize("failure", ["restart-uvarsi", "is-active-uvarsi"])
