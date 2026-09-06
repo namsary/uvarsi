@@ -540,6 +540,20 @@ def test_release_preflight_migrates_only_a_snapshot_of_legacy_offer_schema(
         "podmienka_s_kartou",
     )
     with closing(sqlite3.connect(production_db)) as con:
+        columns = [
+            (row[1], row[2] or "TEXT")
+            for row in con.execute("PRAGMA table_info(akcie)")
+        ]
+        definitions = ",".join(
+            f'"{name}" {column_type}' for name, column_type in columns
+        )
+        names = ",".join(f'"{name}"' for name, _type in columns)
+        con.execute(
+            f"CREATE TABLE akcie_s_id (id INTEGER PRIMARY KEY AUTOINCREMENT,{definitions})"
+        )
+        con.execute(f"INSERT INTO akcie_s_id ({names}) SELECT {names} FROM akcie")
+        con.execute("DROP TABLE akcie")
+        con.execute("ALTER TABLE akcie_s_id RENAME TO akcie")
         for column in legacy_columns:
             con.execute(f"ALTER TABLE akcie DROP COLUMN {column}")
         con.commit()

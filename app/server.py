@@ -4499,7 +4499,9 @@ def _legacy_offer_schema_snapshot():
         with closing(_readonly_database()) as production:
             production.backup(snapshot)
         migrate_akcie_schema(snapshot)
-        rows = snapshot.execute("SELECT rowid, * FROM akcie").fetchall()
+        rows = snapshot.execute(
+            "SELECT rowid AS _snapshot_rowid, * FROM akcie"
+        ).fetchall()
         for row in rows:
             offer = dict(row)
             try:
@@ -4507,7 +4509,8 @@ def _legacy_offer_schema_snapshot():
             except (KeyError, TypeError, ValueError):
                 continue
             snapshot.execute(
-                "UPDATE akcie SET offer_key=? WHERE rowid=?", (key, row["rowid"])
+                "UPDATE akcie SET offer_key=? WHERE rowid=?",
+                (key, row["_snapshot_rowid"]),
             )
         snapshot.commit()
         return snapshot
