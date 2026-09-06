@@ -185,6 +185,57 @@ def test_dozorca_stops_retrying_a_structural_failure_until_the_data_changes(tmp_
     ]
 
 
+def test_structural_block_reports_stored_collection_failure_detail_once(
+    monkeypatch, tmp_path
+):
+    landing_data = tmp_path / "landing_data.json"
+    write_landing_data_atomic(landing_data, payload("2026-08-10"))
+    notifications = tmp_path / "notifications.txt"
+
+    fake_python = tmp_path / "python"
+    fake_python.write_text(
+        "#!/bin/sh\nif [ \"$1\" = \"-c\" ]; then exit 1; fi\nexit 3\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_python.chmod(0o755)
+
+    fake_sqlite = tmp_path / "sqlite3"
+    fake_sqlite.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        "  *group_concat*) echo 'Kaufland: cena_s_kartou must be lower than cena' ;;\n"
+        "  *MAX*) echo 123 ;;\n"
+        "  *\"SELECT COUNT(*) FROM (\"*) echo 3 ;;\n"
+        "  *) echo 881 ;;\n"
+        "esac\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_sqlite.chmod(0o755)
+
+    fake_curl = tmp_path / "curl"
+    fake_curl.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        "  *api/health*) printf '%s\\n' \"$UVARSI_TEST_HEALTH\" ;;\n"
+        f"  *ntfy.sh/*) printf '%s\\n' \"$*\" >> '{bash_path(notifications)}' ;;\n"
+        "esac\n"
+        "exit 0\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_curl.chmod(0o755)
+    monkeypatch.setenv("UVARSI_CURL", bash_path(fake_curl))
+
+    first = run_dozorca(tmp_path, landing_data)
+    second = run_dozorca(tmp_path, landing_data)
+
+    assert (first.returncode, second.returncode) == (3, 3)
+    sent = notifications.read_text(encoding="utf-8")
+    assert sent.count("cena_s_kartou must be lower than cena") == 1
+
+
 def test_dozorca_keeps_retrying_a_transient_failure(tmp_path):
     landing_data = tmp_path / "landing_data.json"
     write_landing_data_atomic(landing_data, payload("2026-08-10"))

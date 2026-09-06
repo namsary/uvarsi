@@ -37,6 +37,7 @@ STATE="$DIR/.dozorca_state"          # formát: "RRRR-MM-DD pocet_neuspechov blo
 PLAN_QUEUE_ALERT_STATE="$DIR/.plan_queue_alert_state"
 RECIPE_ENGINE_ALERT_STATE="$DIR/.recipe_engine_alert_state"
 RECIPE_SMOKE_ATTEMPT_STATE="$DIR/.recipe_engine_smoke_attempt"
+COLLECTION_DIAGNOSTIC_STATE="$DIR/.collection_diagnostic_state"
 RECIPE_SMOKE_STATE="${UVARSI_RECIPE_SMOKE_STATE:-/var/lib/uvarsi/recipe_engine_smoke.json}"
 PLAN_QUEUE_HEALTH_URL="${UVARSI_PLAN_QUEUE_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
 RECIPE_SMOKE_MIN_INTERVAL_SECONDS="${UVARSI_RECIPE_SMOKE_MIN_INTERVAL_SECONDS:-900}"
@@ -48,6 +49,28 @@ NTFY_TOPIC="uvarsi-jarvis-8f3a2c"    # notifikácie: ntfy.sh/<topic>
 
 log(){ echo "[$(date '+%F %T')] DOZORCA: $*"; }
 notify(){ "$CURL" -fsS --max-time 15 -H "Title: $1" -d "$2" "https://ntfy.sh/${NTFY_TOPIC}" >/dev/null 2>&1; }
+
+upozorni_detail_zberu() {
+  DATA_KEY="$1"
+  WEEK="$2"
+  LAST_KEY=""
+  if [ -f "$COLLECTION_DIAGNOSTIC_STATE" ]; then
+    read -r LAST_KEY < "$COLLECTION_DIAGNOSTIC_STATE" || LAST_KEY=""
+  fi
+  [ "$LAST_KEY" != "$DATA_KEY" ] || return 0
+
+  DETAIL=$(sqlite3 "$DIR/uvarsi.db" \
+    "SELECT group_concat(obchod || ': ' || COALESCE(NULLIF(detail, ''), stav), ' | ')
+       FROM zber_stav
+      WHERE tyzden='$WEEK' AND stav!='ok'" 2>/dev/null || true)
+  DETAIL=$(printf '%s' "$DETAIL" | tr '\r\n' '  ' | head -c 900)
+  [ -n "$DETAIL" ] || DETAIL="V databáze nie je uložený detail zlyhania zberu."
+  if notify "Uvar.si: detail zlyhania zberu" "$DETAIL"; then
+    printf '%s\n' "$DATA_KEY" > "$COLLECTION_DIAGNOSTIC_STATE"
+  else
+    log "diagnostiku zberu sa nepodarilo odoslať — ďalší beh to skúsi znova"
+  fi
+}
 
 # Predpočet môže trvať dlhšie než hodinu. Druhý cron sa vtedy musí slušne
 # skončiť, nie zaplatiť rovnaké modelové volania druhýkrát. FD 9 zostáva
@@ -419,6 +442,7 @@ fi
 # --- 2. Uplatni dnešný štrukturálny blok ---
 # Štrukturálny pád sa opakuje len vtedy, keď sa vstupné dáta odvtedy zmenili.
 if [ "$BLOKNUTE_NA" != "-" ] && [ "$BLOKNUTE_NA" = "$DATOVY_STAV" ]; then
+  upozorni_detail_zberu "$DATOVY_STAV" "$MON_ISO"
   log "ŠTRUKTURÁLNA chyba a stav zberu $DATOVY_STAV sa odvtedy nezmenil — nespúšťam ďalší pokus (šetrím kredit)."
   exit "$EXIT_STRUCTURAL"
 fi
@@ -469,6 +493,7 @@ if [ "$RC" -eq "$EXIT_STRUCTURAL" ]; then
   TAIL=$(tail -12 /var/log/uvarsi.log 2>/dev/null | tr '\n' ' ' | tail -c 400)
   notify "Uvar.si: bloček sa nedá zostaviť" \
     "Týždeň $MON_ISO — refresh_blocek skončil štrukturálnou chybou pri ${POCET:-0} ponukách v DB. Opakovanie nepomôže, treba zásah. Log: $TAIL"
+  upozorni_detail_zberu "$DATOVY_STAV" "$MON_ISO"
   exit "$EXIT_STRUCTURAL"
 fi
 
