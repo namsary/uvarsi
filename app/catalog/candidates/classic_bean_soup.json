@@ -7,7 +7,7 @@
       "name_template": "Fazuľová polievka",
       "family": "slovak_bean_soup",
       "method": "soup",
-      "minutes": 590,
+      "minutes": 805,
       "modes": [
         "standard"
       ],
@@ -144,7 +144,7 @@
       ],
       "instructions": [
         {
-          "text": "Prepláchni {beans.amount} {beans.name} v sitku pod studenou vodou.",
+          "text": "Prepláchni {beans.amount} {beans.name} v sitku pod studenou vodou. Potom sceď vodu.",
           "requires": [
             "beans:raw",
             "sitko:free"
@@ -155,7 +155,7 @@
           ]
         },
         {
-          "text": "Namoč červenú fazuľu v miske do vody na 8 hodín, kým napučí.",
+          "text": "Namoč červenú fazuľu v miske do vody najmenej na 12 hodín, kým napučí.",
           "requires": [
             "beans:rinsed",
             "miska:free"
@@ -232,7 +232,7 @@
           ]
         },
         {
-          "text": "Pridaj {beans.name} a cesnak do hrnca. Nalej {beans.water} vody do hrnca. Na silnom ohni priveď obsah hrnca do prudkého varu a bez pokrievky var 30 minút. Potom stíš oheň a var fazuľu na miernom ohni ešte asi 45 minút, kým bude mäkká.",
+          "text": "Pridaj {beans.reference_name} a cesnak do hrnca. Nalej {beans.water} vody do hrnca. Na silnom ohni priveď obsah hrnca do prudkého varu a bez pokrievky var 30 minút. Potom stíš oheň a var fazuľu na miernom ohni ďalších 30 minút, kým fazuľa zmäkne; spolu ju var najmenej 60 minút. Ak ešte nie je mäkká, var ju ďalej a skontroluj ju každých 10 minút.",
           "requires": [
             "beans:rinsed_after_soak",
             "garlic:crushed",

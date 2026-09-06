@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "f35027c7ce0d716144a941928a1c2d11acf9a39f1ad5943cd2e162ef297e48d6",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_bryndza_dumplings"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

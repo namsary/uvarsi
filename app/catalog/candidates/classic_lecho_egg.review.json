@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "2b0f37ba31e913e91bc2d42a5a3a467aecb8103aa1c63f2e9a8caee9cd1f61b2",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "classic_lecho_egg"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

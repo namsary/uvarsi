@@ -104,6 +104,74 @@ def test_required_slot_needs_an_offer_or_quantified_pantry(ingredients):
     )
 
 
+def test_curated_recipe_allows_ordinary_required_ingredient_beside_deal_anchor(
+    ingredients,
+):
+    rice = ingredients.by_id("rice")
+    oil = ingredients.by_id("oil")
+    recipe = template(
+        "curated-rice-bowl",
+        [
+            slot([rice.id], key="main", role="starch", use="main"),
+            slot(
+                [oil.id],
+                key="fat",
+                role="fat",
+                amount_per_adult=Decimal("10"),
+                unit="ml",
+                use="addition",
+            ),
+        ],
+        version=2,
+    )
+
+    candidate = rank_candidates(
+        [recipe],
+        [offer(rice)],
+        (),
+        "standard",
+        "week-1",
+        ingredient_catalog=ingredients,
+    )[0]
+
+    selections = {item.slot.key: item for item in candidate.selections}
+    assert selections["main"].source == "offer"
+    assert selections["fat"].source == "regular"
+    assert selections["fat"].pantry is None
+
+
+def test_curated_recipe_without_a_main_deal_or_pantry_anchor_is_rejected(ingredients):
+    rice = ingredients.by_id("rice")
+    oil = ingredients.by_id("oil")
+    recipe = template(
+        "curated-rice-bowl",
+        [
+            slot([rice.id], key="main", role="starch", use="main"),
+            slot(
+                [oil.id],
+                key="fat",
+                role="fat",
+                amount_per_adult=Decimal("10"),
+                unit="ml",
+                use="addition",
+            ),
+        ],
+        version=2,
+    )
+
+    assert (
+        rank_candidates(
+            [recipe],
+            [offer(oil)],
+            (),
+            "standard",
+            "week-1",
+            ingredient_catalog=ingredients,
+        )
+        == ()
+    )
+
+
 def test_partial_pantry_without_offer_cannot_satisfy_required_slot(ingredients):
     rice = ingredients.by_id("rice")
     recipe = template(

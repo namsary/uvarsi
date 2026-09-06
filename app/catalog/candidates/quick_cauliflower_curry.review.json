@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "6421e3dfc04808dca4449bd9daa320d608c5c9863457f778b26eb13cfd4b1a8a",
+  "promoted_to": "05-vegan.json",
+  "recipe_ids": [
+    "quick_cauliflower_curry"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

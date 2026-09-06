@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "65e73d928dd8bd58247a5d372245324792ed7edebf421d4c79de515fc9c147ee",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "classic_pea_stew_egg"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

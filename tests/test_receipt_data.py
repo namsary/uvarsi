@@ -207,7 +207,10 @@ def test_expired_or_legacy_only_data_does_not_construct_with_ai(tmp_path, kind):
     called = []
 
     with pytest.raises(SystemExit, match="overených"):
-        refresh_from_db(tmp_path / "landing_data.json", database, lambda prompt: called.append(prompt), today=TODAY)
+        refresh_from_db(
+            tmp_path / "landing_data.json", database,
+            lambda offers, today: called.append((offers, today)), today=TODAY,
+        )
 
     assert called == []
 
@@ -228,7 +231,10 @@ def test_insufficient_valid_regular_prices_does_not_construct_with_ai(tmp_path):
     called = []
 
     with pytest.raises(SystemExit, match="overených"):
-        refresh_from_db(tmp_path / "landing_data.json", database, lambda prompt: called.append(prompt), today=TODAY)
+        refresh_from_db(
+            tmp_path / "landing_data.json", database,
+            lambda offers, today: called.append((offers, today)), today=TODAY,
+        )
 
     assert called == []
 
@@ -252,7 +258,11 @@ def test_malformed_model_output_preserves_existing_landing_json(tmp_path):
     disk.close()
 
     with pytest.raises(ValueError, match="neznáme"):
-        refresh_from_db(path, database, lambda prompt: selection([{"offer_key": "offer_unknown", "quantity": 1}]), today=TODAY)
+        refresh_from_db(
+            path, database,
+            lambda offers, today: selection([{"offer_key": "offer_unknown", "quantity": 1}]),
+            today=TODAY,
+        )
 
     assert path.read_text(encoding="utf-8") == old
 
@@ -336,7 +346,7 @@ def test_refresh_publishes_when_leaflets_carry_no_crossed_out_prices(tmp_path):
 
     refresh_from_db(
         output, database,
-        lambda prompt: selection([{"offer_key": key, "quantity": 1} for key in keys]),
+        lambda offers, today: selection([{"offer_key": key, "quantity": 1} for key in keys]),
         today=TODAY,
     )
 
@@ -349,8 +359,10 @@ def test_too_few_verified_offers_is_structural_and_must_not_be_retried(tmp_path)
     called = []
 
     with pytest.raises(StructuralFailure, match="overených"):
-        refresh_from_db(tmp_path / "landing_data.json", database,
-                        lambda prompt: called.append(prompt), today=TODAY)
+        refresh_from_db(
+            tmp_path / "landing_data.json", database,
+            lambda offers, today: called.append((offers, today)), today=TODAY,
+        )
 
     assert called == []
     assert StructuralFailure.EXIT_CODE == 3

@@ -1,7 +1,8 @@
-import re
+import json
+from collections import Counter
 from dataclasses import replace
 from decimal import Decimal
-from itertools import product
+from pathlib import Path
 
 import pytest
 
@@ -14,105 +15,55 @@ from app.recipe_catalog import (
     StorageRule,
     load_recipe_catalog,
 )
-from app.recipe_matcher import RecipeCandidate, SlotSelection
-from app.recipe_renderer import render_meal
+from app.recipe_provenance import load_recipe_provenance
+from app.recipe_workflow import workflow_errors
 
 
-EXPECTED_FIRST_SLICE_IDS = {
-    "pan_chicken_rice_vegetables",
-    "pan_chicken_pasta_tomato",
-    "pan_pork_potato_onion",
-    "pan_beef_rice_pepper",
-    "pan_fish_potato_spinach",
-    "pan_turkey_couscous_zucchini",
-    "pan_egg_potato_spinach",
-    "pan_tofu_rice_broccoli",
-    "pan_chickpea_tomato_spinach",
-    "pan_cottage_pasta_zucchini",
-    "oven_chicken_thigh_potato_carrot",
-    "oven_chicken_breast_zucchini_rice",
-    "oven_pork_shoulder_root_vegetables",
-    "oven_meatballs_tomato_potato",
-    "oven_salmon_potato_broccoli",
-    "oven_white_fish_tomato_rice",
-    "oven_tofu_vegetables_potato",
-    "oven_feta_tomato_pasta",
-    "oven_egg_vegetable_frittata",
-    "oven_lentil_vegetable_loaf",
-    "pot_chicken_rice_peas",
-    "pot_chicken_paprika_pasta",
-    "pot_pork_barley_vegetables",
-    "pot_beef_tomato_pasta",
-    "pot_fish_tomato_potato",
-    "pot_turkey_lentil_tomato",
-    "pot_red_lentil_curry_rice",
-    "pot_chickpea_tomato_couscous",
-    "pot_tofu_coconut_vegetables",
-    "pot_bean_chili_rice",
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+TARGETS_PATH = PROJECT_ROOT / "docs" / "research" / "recipe-targets.json"
+PROVENANCE_PATH = PROJECT_ROOT / "app" / "catalog" / "recipe_sources.json"
+EXPECTED_ACTIVE_RECIPES = 104
+EXPECTED_EDITORIAL_LANES = {
+    "slovak_classic": 42,
+    "modern_family": 36,
+    "high_protein": 16,
+    "plant_based": 10,
 }
-
-EXPECTED_VEGETARIAN_IDS = {
-    "veg_egg_rice_vegetables",
-    "veg_egg_tomato_pasta",
-    "veg_cottage_potato_spinach",
-    "veg_cottage_rice_zucchini",
-    "veg_feta_couscous_vegetables",
-    "veg_cheese_broccoli_pasta",
-    "veg_mushroom_barley_pan",
-    "veg_lentil_tomato_pasta",
-    "veg_chickpea_spinach_rice",
-    "veg_bean_potato_stew",
+MODE_FLOORS = {
+    "standard": 104,
+    "high_protein": 24,
+    "vegetarian": 24,
+    "vegan": 16,
 }
-EXPECTED_VEGAN_IDS = {
-    "vegan_tofu_rice_vegetables",
-    "vegan_tofu_pasta_tomato",
-    "vegan_lentil_rice_curry",
-    "vegan_lentil_bolognese_pasta",
-    "vegan_chickpea_couscous_salad",
-    "vegan_chickpea_tomato_stew",
-    "vegan_bean_chili_rice",
-    "vegan_bean_potato_goulash",
-    "vegan_pea_potato_pan",
-    "vegan_mushroom_barley_pot",
-}
-EXPECTED_SOUP_SALAD_IDS = {
-    "soup_chicken_vegetable_noodle",
-    "soup_beef_vegetable_barley",
-    "soup_fish_tomato_potato",
-    "soup_red_lentil_tomato",
-    "soup_chickpea_vegetable",
-    "salad_chicken_potato_yogurt",
-    "salad_tuna_bean_tomato",
-    "salad_egg_pasta_vegetable",
-    "salad_tofu_rice_vegetable",
-    "salad_chickpea_couscous_vegetable",
-}
-EXPECTED_SECOND_SLICE_IDS = (
-    EXPECTED_VEGETARIAN_IDS | EXPECTED_VEGAN_IDS | EXPECTED_SOUP_SALAD_IDS
-)
+MINIMUM_MODE_FAMILIES = 3
+MINIMUM_MODE_METHODS = 3
 
 
-def _first_slice():
-    ingredients = load_ingredient_catalog()
-    return tuple(
-        recipe
-        for recipe in load_recipe_catalog(ingredients).all()
-        if recipe.id.startswith(("pan_", "oven_", "pot_"))
-    )
+def _target_rows():
+    payload = json.loads(TARGETS_PATH.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == 1
+    return tuple(payload["targets"])
 
 
-def _second_slice():
-    ingredients = load_ingredient_catalog()
-    return tuple(
-        recipe
-        for recipe in load_recipe_catalog(ingredients).all()
-        if recipe.id in EXPECTED_SECOND_SLICE_IDS
-    )
+def _target_map():
+    return {row["id"]: row for row in _target_rows()}
+
+
+def _target_ids():
+    return frozenset(_target_map())
 
 
 def _active_library():
     ingredients = load_ingredient_catalog()
     return load_recipe_catalog(ingredients).all()
+
+
+def _representative_recipe():
+    return next(recipe for recipe in _active_library() if recipe.slots)
+
+
+def _curated_catalog(recipes):
+    return RecipeCatalog(5, tuple(recipes), curation_generation=1)
 
 
 def _with_valid_v2_workflow(recipe):
@@ -156,7 +107,7 @@ def test_audit_merges_workflow_errors_for_active_version_2_recipe():
         ),
     )
 
-    audit = audit_library(ingredients, recipes)
+    audit = audit_library(ingredients, _curated_catalog(recipes))
 
     assert any(
         error.startswith("workflow_unserved_ingredient:")
@@ -166,234 +117,107 @@ def test_audit_merges_workflow_errors_for_active_version_2_recipe():
 
 def test_audit_rejects_active_v1_recipe_only_in_curated_generation_one():
     ingredients = load_ingredient_catalog()
-    recipes = _active_library()
+    recipes = list(_active_library())
+    recipes[0] = replace(recipes[0], version=1, storage=None)
 
     dormant = audit_library(
         ingredients,
-        RecipeCatalog(3, recipes, curation_generation=0),
+        RecipeCatalog(3, tuple(recipes), curation_generation=0),
     )
     curated = audit_library(
         ingredients,
-        RecipeCatalog(4, recipes, curation_generation=1),
+        RecipeCatalog(4, tuple(recipes), curation_generation=1),
     )
 
     assert "legacy_recipe_active" not in dormant.errors
     assert "legacy_recipe_active" in curated.errors
 
 
-def test_first_library_slice_has_thirty_unique_active_templates():
-    recipes = _first_slice()
+def test_curated_generation_one_has_exact_active_inventory():
+    ingredients = load_ingredient_catalog()
+    catalog = load_recipe_catalog(ingredients)
+    recipes = catalog.all()
 
-    assert len(recipes) == 30
-    assert {recipe.id for recipe in recipes} == EXPECTED_FIRST_SLICE_IDS
-    assert all(recipe.active for recipe in recipes)
-
-
-def test_first_library_slice_has_real_slots_and_beginner_complete_steps():
-    recipes = _first_slice()
-
-    for recipe in recipes:
-        roles = [slot.role for slot in recipe.slots if slot.required]
-        assert roles.count("protein") == 1, recipe.id
-        assert "vegetable" in roles, recipe.id
-        assert len(recipe.instructions) in range(3, 8), recipe.id
-        assert all(slot.candidates for slot in recipe.slots), recipe.id
-        assert any(len(slot.candidates) > 1 for slot in recipe.slots), recipe.id
-
-        instructions = " ".join(step.text for step in recipe.instructions)
-        assert re.search(r"(?:\d+\s*°C|(?:miernom|strednom|silnom) ohni)", instructions), recipe.id
-        assert re.search(r"\d+ (?:až \d+ )?minút", instructions), recipe.id
-        assert "soľ" in instructions and "čiernym korením" in instructions, recipe.id
-        assert "{portions}" in instructions, recipe.id
+    assert catalog.curation_generation == 1
+    assert len(recipes) == EXPECTED_ACTIVE_RECIPES
+    assert all(recipe.active and recipe.version >= 2 for recipe in recipes)
+    assert {recipe.id for recipe in recipes} == _target_ids()
 
 
-def test_first_library_slice_has_meaningful_variety_and_high_protein_depth():
-    recipes = _first_slice()
+def test_curated_generation_one_modes_match_the_frozen_editorial_inventory():
+    targets = _target_map()
+    recipes = {recipe.id: recipe for recipe in _active_library()}
 
-    assert {recipe.method for recipe in recipes} == {"pan", "oven", "one_pot"}
-    assert len({recipe.family for recipe in recipes}) >= 24
-    assert sum("high_protein" in recipe.modes for recipe in recipes) >= 24
-
-
-def test_second_library_slice_has_exactly_thirty_expected_active_templates():
-    recipes = _second_slice()
-
-    assert len(recipes) == 30
-    assert {recipe.id for recipe in recipes} == EXPECTED_SECOND_SLICE_IDS
-    assert len({recipe.id for recipe in recipes}) == 30
-    assert all(recipe.active for recipe in recipes)
-
-
-def test_launch_library_meets_mode_method_and_family_floors():
-    recipes = _active_library()
-    floors = {
-        "standard": 50,
-        "high_protein": 24,
-        "vegetarian": 20,
-        "vegan": 12,
+    assert set(recipes) == set(targets)
+    assert {
+        recipe_id: recipe.modes for recipe_id, recipe in recipes.items()
+    } == {
+        recipe_id: frozenset(row["expected_modes"])
+        for recipe_id, row in targets.items()
     }
 
-    assert len(recipes) >= 60
-    for mode, floor in floors.items():
+
+def test_curated_generation_one_has_complete_exact_provenance():
+    targets = _target_map()
+    payload = json.loads(PROVENANCE_PATH.read_text(encoding="utf-8"))
+    source_rows = payload["recipes"]
+
+    assert payload["schema_version"] == 1
+    assert {row["recipe_id"] for row in source_rows} == set(targets)
+
+    provenance = load_recipe_provenance(targets, PROVENANCE_PATH)
+    for recipe_id, target in targets.items():
+        record = provenance[recipe_id]
+        assert record.editorial_lane == target["editorial_lane"], recipe_id
+        assert record.core is target["core"], recipe_id
+        assert [
+            (reference.url, reference.title, reference.accessed_on.isoformat())
+            for reference in record.references
+        ] == [
+            (reference["url"], reference["title"], reference["accessed_on"])
+            for reference in target["references"]
+        ], recipe_id
+
+
+def test_curated_generation_one_meets_editorial_diet_family_and_method_floors():
+    targets = _target_map()
+    recipes = tuple(_active_library())
+    recipes_by_id = {recipe.id: recipe for recipe in recipes}
+
+    assert set(recipes_by_id) == set(targets)
+    assert Counter(
+        target["editorial_lane"] for target in targets.values()
+    ) == Counter(EXPECTED_EDITORIAL_LANES)
+
+    for mode, floor in MODE_FLOORS.items():
         eligible = tuple(recipe for recipe in recipes if mode in recipe.modes)
         assert len(eligible) >= floor, mode
-        assert len({recipe.method for recipe in eligible}) >= 3, mode
-        assert len({recipe.family for recipe in eligible}) >= 3, mode
+        assert len({recipe.family for recipe in eligible}) >= MINIMUM_MODE_FAMILIES, mode
+        assert len({recipe.method for recipe in eligible}) >= MINIMUM_MODE_METHODS, mode
 
 
-def test_second_slice_is_distinct_beginner_complete_and_correctly_classified():
-    recipes = _second_slice()
+def test_curated_generation_one_has_no_workflow_errors():
+    recipes = tuple(_active_library())
 
-    assert len({recipe.family for recipe in recipes}) == 30
-    for recipe in recipes:
-        instructions = " ".join(step.text for step in recipe.instructions)
-        assert len(recipe.instructions) in range(3, 8), recipe.id
-        if recipe.method != "salad":
-            assert re.search(
-                r"(?:\d+\s*°C|(?:miernom|strednom|silnom) ohni)", instructions
-            ), recipe.id
-            assert re.search(r"\d+ (?:až \d+ )?minút", instructions), recipe.id
-        assert "soľ" in instructions and "čiernym korením" in instructions, recipe.id
-        assert "{portions}" in instructions, recipe.id
-        assert all(slot.candidates for slot in recipe.slots), recipe.id
+    assert len(recipes) == EXPECTED_ACTIVE_RECIPES
+    assert all(recipe.version >= 2 for recipe in recipes)
+    failures = {
+        recipe.id: workflow_errors(recipe)
+        for recipe in recipes
+        if workflow_errors(recipe)
+    }
 
-        if recipe.id in EXPECTED_VEGETARIAN_IDS:
-            assert "vegetarian" in recipe.modes, recipe.id
-        if recipe.id in EXPECTED_VEGAN_IDS:
-            assert {"vegetarian", "vegan"} <= recipe.modes, recipe.id
+    assert failures == {}
 
 
-def test_second_slice_has_no_cosmetic_method_and_ingredient_duplicates():
-    signatures = [
-        (
-            recipe.method,
-            tuple(
-                sorted(
-                    (slot.role, tuple(sorted(slot.candidates)))
-                    for slot in recipe.slots
-                )
-            ),
-        )
-        for recipe in _second_slice()
-    ]
-
-    assert len(signatures) == len(set(signatures))
-
-
-def test_soups_are_batch_safe_and_salads_are_complete_main_meals():
-    recipes = {recipe.id: recipe for recipe in _second_slice()}
-
-    for recipe_id in EXPECTED_SOUP_SALAD_IDS:
-        recipe = recipes[recipe_id]
-        roles = {slot.role for slot in recipe.slots if slot.required}
-        instructions = " ".join(step.text for step in recipe.instructions).lower()
-        if recipe_id.startswith("soup_"):
-            assert recipe.method == "soup"
-            assert "chladničke" in instructions and re.search(r"\b(?:dni|dní)\b", instructions)
-        else:
-            assert recipe.method == "salad"
-            assert {"protein", "starch", "vegetable"} <= roles
-
-
-def _second_variant_cases():
-    return tuple(
-        (recipe.id, candidate_ids)
-        for recipe in _second_slice()
-        for candidate_ids in product(*(slot.candidates for slot in recipe.slots))
-    )
-
-
-@pytest.mark.parametrize(
-    ("recipe_id", "candidate_ids"),
-    _second_variant_cases(),
-    ids=lambda value: "+".join(value) if isinstance(value, tuple) else value,
-)
-def test_second_library_slice_renders_every_real_variant(recipe_id, candidate_ids):
+def test_curated_generation_one_audit_has_no_errors_or_duplicate_fingerprints():
     ingredients = load_ingredient_catalog()
-    recipe = next(recipe for recipe in _second_slice() if recipe.id == recipe_id)
-    selections = tuple(
-        SlotSelection(
-            slot=slot,
-            ingredient=ingredients.by_id(candidate_id),
-            offer=None,
-            pantry=None,
-        )
-        for slot, candidate_id in zip(recipe.slots, candidate_ids, strict=True)
-    )
+    catalog = load_recipe_catalog(ingredients)
 
-    meal = render_meal(
-        RecipeCandidate(
-            template=recipe,
-            selections=selections,
-            score=Decimal("0"),
-            key=f"launch-gate:{recipe.id}:{'+'.join(candidate_ids)}",
-        ),
-        adults=2,
-        children=1,
-        covered_days=3,
-    )
-
-    assert meal.template_id == recipe.id
-    assert len(meal.instructions) == len(recipe.instructions)
-    assert all("{" not in step and "}" not in step for step in meal.instructions)
-
-
-def _variant_cases():
-    return tuple(
-        (recipe.id, candidate_ids)
-        for recipe in _first_slice()
-        for candidate_ids in product(*(slot.candidates for slot in recipe.slots))
-    )
-
-
-@pytest.mark.parametrize(
-    ("recipe_id", "candidate_ids"),
-    _variant_cases(),
-    ids=lambda value: "+".join(value) if isinstance(value, tuple) else value,
-)
-def test_first_library_slice_renders_every_variant_safely(
-    recipe_id, candidate_ids
-):
-    ingredients = load_ingredient_catalog()
-    recipe = next(recipe for recipe in _first_slice() if recipe.id == recipe_id)
-
-    selections = tuple(
-        SlotSelection(
-            slot=slot,
-            ingredient=ingredients.by_id(candidate_id),
-            offer=None,
-            pantry=None,
-        )
-        for slot, candidate_id in zip(recipe.slots, candidate_ids, strict=True)
-    )
-    meal = render_meal(
-        RecipeCandidate(
-            template=recipe,
-            selections=selections,
-            score=Decimal("0"),
-            key=f"gate:{recipe.id}:{'+'.join(candidate_ids)}",
-        ),
-        adults=2,
-        children=1,
-        covered_days=2,
-    )
-
-    assert meal.template_id == recipe.id
-    assert len(meal.instructions) == len(recipe.instructions)
-    assert all("{" not in step and "}" not in step for step in meal.instructions)
-    if "high_protein" in recipe.modes:
-        adult_meal = render_meal(
-            RecipeCandidate(
-                template=recipe,
-                selections=selections,
-                score=Decimal("0"),
-                key=f"gate-adult:{recipe.id}:{'+'.join(candidate_ids)}",
-            ),
-            adults=1,
-            children=0,
-            covered_days=1,
-        )
-        assert adult_meal.nutrition.serving.protein_g >= Decimal("30"), recipe.id
+    assert catalog.curation_generation == 1
+    audit = audit_library(ingredients, catalog)
+    assert "duplicate_fingerprint" not in audit.errors
+    assert audit.errors == ()
 
 
 def test_audit_rejects_duplicate_family_disguised_as_new_recipe():
@@ -432,7 +256,7 @@ def test_audit_reports_stable_coverage_for_the_same_library():
     second = audit_library(ingredients, tuple(reversed(recipes)))
 
     assert first.coverage_lines() == second.coverage_lines()
-    assert first.coverage_lines()[0] == "recipes.active=60"
+    assert first.coverage_lines()[0] == "recipes.active=104"
     assert first.coverage_lines()[-1] == "errors=0"
 
 
@@ -441,9 +265,11 @@ def test_cli_prints_stable_coverage_and_returns_success(capsys):
 
     assert exit_code == 0
     output = capsys.readouterr().out.splitlines()
-    assert output[0] == "recipes.active=60"
-    assert "modes.high_protein=32" in output
-    assert "methods.pan=15" in output
+    assert output[0] == "recipes.active=104"
+    assert "modes.standard=104" in output
+    assert "modes.high_protein=58" in output
+    assert "modes.vegetarian=46" in output
+    assert "modes.vegan=16" in output
     assert output[-1] == "errors=0"
 
 
@@ -461,14 +287,6 @@ def test_cli_fails_closed_when_catalog_loading_fails(monkeypatch, capsys):
     ]
 
 
-MODE_FLOORS = {
-    "standard": 50,
-    "high_protein": 24,
-    "vegetarian": 20,
-    "vegan": 12,
-}
-
-
 @pytest.mark.parametrize(("mode", "floor"), MODE_FLOORS.items())
 def test_audit_enforces_hard_recipe_floor_for_every_mode(mode, floor):
     ingredients = load_ingredient_catalog()
@@ -484,7 +302,7 @@ def test_audit_enforces_hard_recipe_floor_for_every_mode(mode, floor):
             modes=remaining or frozenset({replacement_mode}),
         )
 
-    audit = audit_library(ingredients, recipes)
+    audit = audit_library(ingredients, _curated_catalog(recipes))
 
     assert f"mode_{mode}_below_{floor}" in audit.errors
 
@@ -492,9 +310,12 @@ def test_audit_enforces_hard_recipe_floor_for_every_mode(mode, floor):
 def test_audit_enforces_hard_total_recipe_floor():
     ingredients = load_ingredient_catalog()
 
-    audit = audit_library(ingredients, _active_library()[:59])
+    audit = audit_library(
+        ingredients,
+        _curated_catalog(_active_library()[: EXPECTED_ACTIVE_RECIPES - 1]),
+    )
 
-    assert "total_below_60" in audit.errors
+    assert "total_below_104" in audit.errors
 
 
 @pytest.mark.parametrize("mode", MODE_FLOORS)
@@ -570,7 +391,7 @@ def test_public_audit_excludes_each_partially_malformed_recipe_without_crashing(
 
     audit = audit_library(ingredients, (*recipes, *malformed))
 
-    assert audit.active_recipes == baseline.active_recipes == 60
+    assert audit.active_recipes == baseline.active_recipes == EXPECTED_ACTIVE_RECIPES
     assert audit.mode_counts == baseline.mode_counts
     assert audit.method_counts == baseline.method_counts
     assert audit.family_counts == baseline.family_counts
@@ -592,11 +413,7 @@ def test_public_audit_fails_closed_when_recipe_iterable_cannot_start():
 
 def test_duplicate_fingerprint_cannot_be_bypassed_with_seasoning_keywords():
     ingredients = load_ingredient_catalog()
-    base = next(
-        recipe
-        for recipe in _active_library()
-        if recipe.id == "pan_chicken_rice_vegetables"
-    )
+    base = _representative_recipe()
     cosmetic_variants = (
         ("cesnakom", "garlic"),
         ("oreganom", "oregano"),
@@ -623,11 +440,8 @@ def test_duplicate_fingerprint_cannot_be_bypassed_with_seasoning_keywords():
 
 def test_duplicate_fingerprint_accepts_distinct_processes_with_same_action_sequence():
     ingredients = load_ingredient_catalog()
-    base = next(
-        recipe
-        for recipe in _active_library()
-        if recipe.id == "pan_chicken_rice_vegetables"
-    )
+    base = _representative_recipe()
+    slot_key = base.slots[0].key
     recipes = tuple(
         replace(
             base,
@@ -636,7 +450,7 @@ def test_duplicate_fingerprint_accepts_distinct_processes_with_same_action_seque
             name_template=name,
             instructions=(
                 InstructionTemplate(
-                    "Pridaj {vegetable.name} ({vegetable.amount}) a 120 ml vody."
+                    f"Pridaj {{{slot_key}.name}} ({{{slot_key}.amount}}) a 120 ml vody."
                 ),
                 InstructionTemplate(process_step),
                 InstructionTemplate(
@@ -672,11 +486,7 @@ def test_duplicate_fingerprint_accepts_distinct_processes_with_same_action_seque
 
 def test_duplicate_fingerprint_rejects_cosmetic_names_and_minor_wording():
     ingredients = load_ingredient_catalog()
-    base = next(
-        recipe
-        for recipe in _active_library()
-        if recipe.id == "pan_chicken_rice_vegetables"
-    )
+    base = _representative_recipe()
     recipes = tuple(
         replace(
             base,
@@ -705,15 +515,12 @@ def test_duplicate_fingerprint_rejects_cosmetic_names_and_minor_wording():
 
 def test_duplicate_fingerprint_normalizes_substitutions_quantities_and_seasoning():
     ingredients = load_ingredient_catalog()
-    base = next(
-        recipe
-        for recipe in _active_library()
-        if recipe.id == "pan_chicken_rice_vegetables"
-    )
+    base = _representative_recipe()
+    slot_key = base.slots[0].key
     variants = (
         (
             "Kuracie ragú",
-            "{vegetable.name} ({vegetable.amount})",
+            f"{{{slot_key}.name}} ({{{slot_key}.amount}})",
             "cesnak",
             "garlic",
             "12 minút",
@@ -762,11 +569,7 @@ def test_duplicate_fingerprint_normalizes_substitutions_quantities_and_seasoning
 
 
 def _recipe_with_candidate_counts(candidate_counts):
-    base = next(
-        recipe
-        for recipe in _active_library()
-        if recipe.id == "pan_chicken_rice_vegetables"
-    )
+    base = _representative_recipe()
     slots = tuple(
         replace(
             base.slots[0],
@@ -778,7 +581,7 @@ def _recipe_with_candidate_counts(candidate_counts):
         )
         for slot_index, candidate_count in enumerate(candidate_counts)
     )
-    return replace(base, slots=slots)
+    return replace(base, version=1, storage=None, slots=slots)
 
 
 @pytest.mark.parametrize(

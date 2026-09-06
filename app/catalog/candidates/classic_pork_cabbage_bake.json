@@ -32,7 +32,7 @@
         {"text": "Peč kyslú kapustu s ryžou a mäsom v pekáči pri 190 °C 25 minút, kým smotana na okrajoch bublá a povrch zozlatne.", "requires": ["cabbage:arranged", "rice:arranged", "meat:arranged", "onion:arranged", "paprika:arranged", "oil:arranged", "cream:arranged", "pekac:occupied", "rura:hot"], "produces": ["cabbage:cooked", "rice:cooked", "meat:cooked", "onion:cooked", "paprika:cooked", "oil:cooked", "cream:cooked"]},
         {"text": "Nechaj koložvársku kapustu 10 minút odpočívať, potom ju rozdeľ na {portions} porcií.", "requires": ["cabbage:cooked", "rice:cooked", "meat:cooked", "onion:cooked", "paprika:cooked", "oil:cooked", "cream:cooked", "pekac:occupied"], "produces": ["cabbage:served", "rice:served", "meat:served", "onion:served", "paprika:served", "oil:served", "cream:served", "pekac:free"]}
       ],
-      "storage": {"refrigerated_days": 1, "instruction": "Koložvársku kapustu rozlož do plytkých nádob a rýchlo schlaď. Do chladničky ju odlož do jednej hodiny a spotrebuj do 24 hodín."}
+      "storage": {"refrigerated_days": 1, "instruction": "Koložvársku kapustu rozdeľ do plytkých nádob a do jednej hodiny ju schlaď. V chladničke ju zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým bude celá horúca."}
     }
   ],
   "source_record": {

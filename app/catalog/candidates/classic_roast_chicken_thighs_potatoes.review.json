@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "24ee8542031540442dfb6c7dbdbf70bfbbd890747d804fc465182285fa99f82e",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "classic_roast_chicken_thighs_potatoes"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

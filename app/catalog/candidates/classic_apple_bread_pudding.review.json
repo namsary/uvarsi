@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "a7a7ed0360e85d811b96cb8245cf615cf2efe9e28ab3cff5fe6bb5e5b90bb788",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "classic_apple_bread_pudding"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

@@ -90,6 +90,14 @@ def _ingredient(**overrides):
     return value
 
 
+def test_savoury_cream_has_a_cooking_name_and_matching_energy():
+    cream = load_ingredient_catalog().by_id("cream")
+
+    assert cream.name == "smotana na varenie"
+    assert "šľaha" not in " ".join((cream.name, *cream.synonyms)).casefold()
+    assert cream.nutrition.kcal < Decimal("250")
+
+
 def _write_catalog(tmp_path, ingredients):
     path = tmp_path / "ingredients.json"
     path.write_text(

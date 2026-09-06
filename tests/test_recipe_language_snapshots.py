@@ -18,7 +18,7 @@ def _base_recipe():
     recipe = next(
         recipe
         for recipe in load_recipe_catalog(ingredients).all()
-        if recipe.id == "pan_chicken_rice_vegetables"
+        if recipe.id == "quick_pesto_chicken_pasta"
     )
     return ingredients, recipe
 
@@ -106,12 +106,7 @@ def test_language_snapshot_rejects_decimal_grams(amount):
 
 def test_language_snapshot_requires_an_explicit_serving_action():
     ingredients, recipe = _base_recipe()
-    instructions = tuple(
-        InstructionTemplate(
-            step.text.replace("a rozdeľ na {portions} porcií", "")
-        )
-        for step in recipe.instructions
-    )
+    instructions = recipe.instructions[:-1]
 
     assert "missing_serving_action" in audit_library(
         ingredients,
@@ -147,7 +142,7 @@ def test_language_snapshot_rejects_undeclared_seasoning():
 
 def test_current_library_language_snapshots_are_release_safe():
     ingredients = load_ingredient_catalog()
-    recipes = load_recipe_catalog(ingredients, include_inactive=True).all()
+    recipes = load_recipe_catalog(ingredients).all()
 
     audit = audit_library(ingredients, recipes)
 
@@ -156,7 +151,7 @@ def test_current_library_language_snapshots_are_release_safe():
 
 def _all_recipes():
     ingredients = load_ingredient_catalog()
-    return load_recipe_catalog(ingredients, include_inactive=True).all()
+    return load_recipe_catalog(ingredients).all()
 
 
 def _instruction_text(recipe):
@@ -175,49 +170,79 @@ def _recipes_using(ingredient_id):
 
 
 @pytest.mark.parametrize(
-    ("ingredient_id", "required_phrases"),
+    ("ingredient_id", "required_patterns"),
     (
-        ("chickpeas", ("12 hodín", "60 minút", "kým cícer zmäkne")),
+        ("chickpeas", (r"12 hodín", r"60 minút", r"kým cícer zmäkne")),
         (
             "beans",
             (
-                "12 hodín",
-                "silnom ohni 10 minút",
-                "kým fazuľa zmäkne",
+                r"12 hodín",
+                r"kým (?:fazuľa |celkom )?(?:zmäkne|bude mäkká)",
             ),
         ),
     ),
 )
-def test_dry_legumes_have_truthful_preparation(ingredient_id, required_phrases):
+def test_dry_legumes_have_truthful_preparation(ingredient_id, required_patterns):
     recipes = _recipes_using(ingredient_id)
+    failures = []
 
-    assert recipes, ingredient_id
     for recipe in recipes:
         text = _instruction_text(recipe)
-        for phrase in required_phrases:
-            assert phrase in text, f"{recipe.id}: chýba {phrase!r}"
+        for pattern in required_patterns:
+            if not re.search(pattern, text):
+                failures.append(f"{recipe.id}: chýba vzor {pattern!r}")
+        if ingredient_id == "beans":
+            high_boil = re.search(r"silnom ohni[^.]*?(\d+) minút", text)
+            if high_boil is None or int(high_boil.group(1)) < 10:
+                failures.append(
+                    f"{recipe.id}: chýba aspoň 10 minút varu na silnom ohni"
+                )
+
+    assert not failures, "\n".join(failures)
 
 
 def test_couscous_is_steeped_in_boiling_water_instead_of_boiled():
     recipes = _recipes_using("couscous")
+    missing_boiling_water = []
 
     assert recipes
     for recipe in recipes:
         text = _instruction_text(recipe)
-        assert any(
-            phrase in text
-            for phrase in (
-                "vlož {starch.amount} {starch.name}",
-                "priprav {starch.amount} {starch.name}",
-            )
-        ), recipe.id
-        assert "{starch.water}" in text, recipe.id
+        couscous_slot = next(
+            slot for slot in recipe.slots if "couscous" in slot.candidates
+        )
+        amount_and_name = (
+            f"{{{couscous_slot.key}.amount}} {{{couscous_slot.key}.name}}"
+        )
+        water = f"{{{couscous_slot.key}.water}}"
+        water_step = next(
+            index
+            for index, step in enumerate(recipe.instructions)
+            if water in step.text.lower()
+        )
+        boiling_water_context = " ".join(
+            step.text
+            for step in recipe.instructions[max(0, water_step - 1) : water_step + 1]
+        ).lower()
+
+        assert amount_and_name in text, recipe.id
+        if not any(
+            phrase in boiling_water_context
+            for phrase in ("do varu", "zovretú vodu", "zovretej vody", "bublať")
+        ):
+            missing_boiling_water.append(recipe.id)
         assert "prikry" in text, recipe.id
-        assert "uvar {starch" not in text, recipe.id
+        assert "nechaj" in text, recipe.id
+        assert re.search(
+            rf"\b(?:uvar|var)\s+\{{{couscous_slot.key}\.",
+            text,
+        ) is None, recipe.id
+
+    assert missing_boiling_water == []
 
 
 def test_every_soup_explicitly_adds_water():
-    soups = tuple(recipe for recipe in _all_recipes() if recipe.id.startswith("soup_"))
+    soups = tuple(recipe for recipe in _all_recipes() if recipe.method == "soup")
 
     assert soups
     for recipe in soups:

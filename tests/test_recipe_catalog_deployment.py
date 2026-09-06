@@ -71,6 +71,7 @@ def _prepare_manual_source(tmp_path: Path) -> Path:
     recipes = catalog / "recipes"
     recipes.mkdir(parents=True)
     (catalog / "ingredients.json").write_text("{}\n", encoding="utf-8")
+    (catalog / "recipe_sources.json").write_text("{}\n", encoding="utf-8")
     (catalog / "slovak_ingredient_forms.json").write_text(
         "{}\n", encoding="utf-8"
     )
@@ -190,6 +191,20 @@ def test_manual_release_preflight_uses_private_remote_script(tmp_path):
     assert "mktemp /tmp/uvarsi-release-preflight.XXXXXX" in raw_calls
     assert "uvarsi_release_preflight.sh" not in raw_calls
     assert 'trap \'rm -f "$SCRIPT"\'' in raw_calls
+
+
+def test_manual_deploy_stages_every_curated_runtime_dependency(tmp_path):
+    result, raw_calls = _run_manual_deploy_offline(tmp_path)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    calls = raw_calls.replace("\\", "/")
+    for relative in (
+        "app/recipe_provenance.py",
+        "app/recipe_workflow.py",
+        "app/regular_purchase.py",
+        "app/catalog/recipe_sources.json",
+    ):
+        assert f"jarvis:/opt/uvarsi/releases/manual-stage/{relative}" in calls
 
 
 @pytest.mark.parametrize("asset", ["ingredients", "slovak_forms", "manifest", "recipe"])
@@ -322,6 +337,17 @@ def test_samopull_catalog_gate_accepts_one_top_level_recipe_json(
     assert mutation_marker.exists()
 
 
+def test_samopull_requires_every_curated_runtime_dependency():
+    required = set(_required_release_files(_samopull_catalog_gate()))
+
+    assert {
+        "app/recipe_provenance.py",
+        "app/recipe_workflow.py",
+        "app/regular_purchase.py",
+        "app/catalog/recipe_sources.json",
+    }.issubset(required)
+
+
 def test_samopull_runs_library_and_isolated_deterministic_smoke_before_switch(
         tmp_path, bash_executable):
     result, mutation_marker = _run_samopull_catalog_gate(tmp_path, bash_executable)
@@ -397,6 +423,7 @@ def _run_samopull_staging(
     (catalog / "slovak_ingredient_forms.json").write_text(
         "{}\n", encoding="utf-8"
     )
+    (catalog / "recipe_sources.json").write_text("{}\n", encoding="utf-8")
     recipes = catalog / "recipes"
     recipes.mkdir()
     (recipes / "manifest.json").write_text("{}\n", encoding="utf-8")
@@ -452,6 +479,7 @@ def test_samopull_staging_allowlists_only_runtime_catalog_assets(
     )
     assert staged_files == [
         "ingredients.json",
+        "recipe_sources.json",
         "recipes/manifest.json",
         "recipes/smoke.json",
         "slovak_ingredient_forms.json",

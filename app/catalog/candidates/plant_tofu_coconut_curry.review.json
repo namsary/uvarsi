@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "b4451703b541a0005a658bab28e5a8e35164f90a7963dd03831000773589430f",
+  "promoted_to": "05-vegan.json",
+  "recipe_ids": [
+    "plant_tofu_coconut_curry"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

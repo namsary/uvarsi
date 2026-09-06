@@ -31,7 +31,7 @@
         {"text": "Prilej sójovú omáčku do panvice. Var vykostené kuracie stehenné mäso s brokolicou v panvici bez pokrievky na strednom ohni 4 minúty, kým omáčka začne jemne bublať, obalí mäso a kuracie kúsky nebudú v strede ružové.", "requires": ["soy:sauce", "sugar:sauce", "vinegar:sauce", "garlic:sauce", "broccoli:cooked", "chicken:cooking", "miska:occupied", "panvica:occupied"], "produces": ["soy:cooked", "sugar:cooked", "vinegar:cooked", "garlic:cooked", "broccoli:glazed", "chicken:cooked", "miska:free", "panvica:free"]},
         {"text": "Podávaj teriyaki s ryžou a rozdeľ jedlo na {portions} porcií.", "requires": ["chicken:cooked", "rice:cooked", "broccoli:glazed", "soy:cooked", "sugar:cooked", "vinegar:cooked", "garlic:cooked", "oil:used"], "produces": ["chicken:served", "rice:served", "broccoli:served", "soy:served", "sugar:served", "vinegar:served", "garlic:served", "oil:served"]}
       ],
-      "storage": {"refrigerated_days": 3, "instruction": "Teriyaki a ryžu rozdeľ do oddelených plytkých nádob, rýchlo schlaď a najneskôr do 1 hodiny ich odlož do chladničky. Zjedz ich do 3 dní."}
+      "storage": {"refrigerated_days": 1, "instruction": "Teriyaki a ryžu rozdeľ do plytkých nádob a do jednej hodiny ich schlaď. V chladničke ich zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým budú celé horúce."}
     }
   ],
   "source_record": {

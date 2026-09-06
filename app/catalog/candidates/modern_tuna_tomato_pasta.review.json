@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "79b00024f6b9d1f5b1fd5498498e179252cc04845772a8a0d7deda6be6fa963c",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "modern_tuna_tomato_pasta"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "6a78561ab16b02f8c9d2c3af22ff05796d00fbb6676142d1f4334079b9c0568a",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_pork_shoulder_onion"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

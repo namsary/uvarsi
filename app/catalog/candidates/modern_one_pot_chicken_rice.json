@@ -33,7 +33,7 @@
         {"text": "Pridaj brokolicu, hrniec znovu prikry a var jedlo v širokom hrnci na miernom ohni 6 minút, kým ryža aj brokolica zmäknú a mäso nebude v strede ružové.", "requires": ["broccoli:cut", "rice:nearly_cooked", "chicken:cooking", "siroky_hrniec_s_pokrievkou:occupied"], "produces": ["broccoli:cooked", "rice:cooked", "chicken:cooked", "carrot:cooked", "siroky_hrniec_s_pokrievkou:free"]},
         {"text": "Dochuť jedlo soľou a čiernym korením. Rozdeľ ho na {portions} porcií a podávaj.", "requires": ["chicken:cooked", "rice:cooked", "carrot:cooked", "broccoli:cooked", "onion:cooked", "garlic:cooked", "paprika:cooked", "oregano:cooked", "oil:used"], "produces": ["chicken:served", "rice:served", "carrot:served", "broccoli:served", "onion:served", "garlic:served", "paprika:served", "oregano:served", "oil:served"]}
       ],
-      "storage": {"refrigerated_days": 3, "instruction": "Jedlo rozdeľ do plytkých nádob, rýchlo schlaď a najneskôr do 1 hodiny ho odlož do chladničky. Zjedz ho do 3 dní."}
+      "storage": {"refrigerated_days": 1, "instruction": "Jedlo rozdeľ do plytkých nádob a do jednej hodiny ho schlaď. V chladničke ho zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým bude celé horúce."}
     }
   ],
   "source_record": {

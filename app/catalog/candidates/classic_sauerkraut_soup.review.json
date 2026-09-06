@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "470d7e166f15f369c745c3e397b67a217189a791a53fe276d69540d625260116",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "classic_sauerkraut_soup"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

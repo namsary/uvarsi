@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "48cea3cc27a27640deb0a7d9af5f33d22d3576d32c7c9ed6dcfa474c83cf5321",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "classic_garlic_soup"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

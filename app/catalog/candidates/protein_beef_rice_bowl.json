@@ -28,7 +28,7 @@
         {"text": "Prilej {soy.amount} {soy.name} do panvice. Prehrievaj mleté hovädzie mäso s brokolicou a mrkvou na miernom ohni 2 minúty, kým omáčka začne jemne bublať a všetko rovnomerne obalí. Podľa potreby pridaj čierne korenie.", "requires": ["soy:raw", "beef:cooked", "broccoli:cooked", "carrot:cooked", "panvica:occupied"], "produces": ["soy:cooked", "beef:seasoned", "broccoli:seasoned", "carrot:seasoned"]},
         {"text": "Rozdeľ jedlo na {portions} porcií: na ryžu daj hovädzie mäso so zeleninou a podávaj teplé.", "requires": ["rice:cooked", "beef:seasoned", "broccoli:seasoned", "carrot:seasoned", "soy:cooked", "oil:used", "panvica:occupied", "hrniec:occupied"], "produces": ["rice:served", "beef:served", "broccoli:served", "carrot:served", "soy:served", "oil:served", "panvica:free", "hrniec:free"]}
       ],
-      "storage": {"refrigerated_days": 3, "instruction": "Ryžu a hovädziu zmes rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a pred podávaním celé jedlo dôkladne zohrej."}
+      "storage": {"refrigerated_days": 1, "instruction": "Ryžu a hovädziu zmes rozdeľ do plytkých nádob a do jednej hodiny ich schlaď. V chladničke ich zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým budú celé horúce."}
     }
   ],
   "source_record": {

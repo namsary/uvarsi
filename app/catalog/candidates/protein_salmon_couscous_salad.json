@@ -21,7 +21,7 @@
       "pantry_basics": ["water", "salt", "black_pepper"],
       "instructions": [
         {"text": "Vsyp {couscous.amount} {couscous.name} do hrnca.", "requires": ["couscous:raw", "hrniec:free"], "produces": ["couscous:in_pot", "hrniec:occupied"]},
-        {"text": "Zalej {couscous.water} vody do hrnca.", "requires": ["couscous:in_pot", "hrniec:occupied"], "produces": ["couscous:soaking"]},
+        {"text": "Nalej {couscous.water} vody do hrnca; použi čerstvo zovretú vodu.", "requires": ["couscous:in_pot", "hrniec:occupied"], "produces": ["couscous:soaking"]},
         {"text": "Prikry hrniec a nechaj kuskus 8 minút postáť, kým zmäkne a vsiakne vodu. Potom ho prekypri vidličkou.", "requires": ["couscous:soaking", "hrniec:occupied"], "produces": ["couscous:cooked", "hrniec:free"]},
         {"text": "Nakrájaj {tomato.amount} {tomato.name} a {cucumber.amount} {cucumber.name} na menšie kúsky. Priprav {lemon.amount} {lemon.name} na dochutenie a vytlač z neho šťavu. Rozdeľ {salmon.amount} {salmon.name} na porcie.", "requires": ["tomato:raw", "cucumber:raw", "lemon:raw", "salmon:raw"], "produces": ["tomato:cut", "cucumber:cut", "lemon:juiced", "salmon:portioned"]},
         {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "panvica:free"], "produces": ["oil:hot", "panvica:occupied"]},

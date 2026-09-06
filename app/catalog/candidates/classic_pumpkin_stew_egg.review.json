@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "40d66b80b816a7df3b364cbbb6b3295c7de1e9fbfe31b4f2780bea8d4360589a",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "classic_pumpkin_stew_egg"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

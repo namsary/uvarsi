@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "65eb99951aa2d8b6ef2ca9d2d77d95ba686fb256029111c1b0ad7a43a0fec131",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "classic_baked_pasta_ham"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

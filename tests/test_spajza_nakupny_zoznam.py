@@ -190,6 +190,37 @@ def test_enough_quantified_pantry_stock_removes_the_purchase_completely():
     assert ryza["cena_po_spajzi"] == "0,00"
 
 
+def test_regular_purchase_keeps_unknown_price_after_pantry_subtraction():
+    zasoba = plan()
+    regular = zasoba["nakupny_zoznam"][0]["polozky"][0]
+    regular.update(
+        {
+            "offer_key": "regular:rice",
+            "nazov": "ryža",
+            "potrebne": "1200",
+            "potrebna_jednotka": "g",
+            "jednotka": "1 kg",
+            "mnozstvo": 2,
+            "cena": None,
+            "povodna": None,
+            "cena_za_balenie": None,
+            "bez_akcie": True,
+            "cena_neznama": True,
+        }
+    )
+
+    upraveny = apply_pantry_to_shopping_list(
+        zasoba,
+        [{"nazov": "ryža", "mnozstvo": 500, "jednotka": "g"}],
+    )
+
+    ryza = upraveny["nakupny_zoznam"][0]["polozky"][0]
+    assert ryza["ciastocne_doma"] is True
+    assert ryza["mnozstvo_po_spajzi"] == 1
+    assert ryza["cena_po_spajzi"] is None
+    assert ryza["cena_neznama"] is True
+
+
 def test_the_plan_itself_is_never_rewritten_by_the_pantry():
     """Špajza sa smie dotknúť len nákupného zoznamu — jedlá ostávajú, aké boli."""
     povodny = plan()

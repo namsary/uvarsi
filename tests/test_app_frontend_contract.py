@@ -917,7 +917,12 @@ def test_account_requests_keep_credentials_in_post_body_and_never_in_urls_or_sto
 @needs_node
 def test_wrong_password_stays_on_account_form_with_a_slovak_error(tmp_path):
     html = app_html()
-    source = function_source(html, "accountApi")
+    source = (
+        "const REQUEST_TIMEOUT_MS=12000;\n"
+        + function_source(html, "fetchWithTimeout")
+        + "\n"
+        + function_source(html, "accountApi")
+    )
     view_source = function_source(html, "viewAccountAuth")
     result = run_node(
         tmp_path,
@@ -941,6 +946,74 @@ global.fetch=async()=>{calls+=1;return {
         "message": "E-mail alebo heslo nesedia.",
     }
     assert "accountApi" in view_source
+
+
+@needs_node
+def test_account_requests_use_the_shared_timeout_without_relabeling_it(tmp_path):
+    source = function_source(app_html(), "accountApi")
+    result = run_node(
+        tmp_path,
+        "account-api-timeout.js",
+        r"""
+let directFetchCalls=0, timeoutCalls=0;
+async function fetch(){directFetchCalls+=1;return {ok:true,status:200,json:async()=>({ok:true})};}
+async function fetchWithTimeout(){
+  timeoutCalls+=1;
+  const error=new Error('Server neodpovedal včas. Skús to znova.');
+  error.timeout=true;
+  throw error;
+}
+"""
+        + source
+        + r"""
+(async()=>{
+  try{await accountApi({url:'/api/auth/login',options:{method:'POST'}});process.exit(2)}
+  catch(error){process.stdout.write(JSON.stringify({
+    directFetchCalls,timeoutCalls,message:error.message,timeout:error.timeout===true
+  }))}
+})().catch(error=>{console.error(error);process.exit(1)});
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout) == {
+        "directFetchCalls": 0,
+        "timeoutCalls": 1,
+        "message": "Server neodpovedal včas. Skús to znova.",
+        "timeout": True,
+    }
+
+
+@needs_node
+def test_expired_account_session_returns_to_login_instead_of_blaming_the_form(tmp_path):
+    html = app_html()
+    source = (
+        "const REQUEST_TIMEOUT_MS=12000;\n"
+        + function_source(html, "fetchWithTimeout")
+        + "\n"
+        + function_source(html, "accountApi")
+    )
+    result = run_node(
+        tmp_path,
+        "account-api-expired-session.js",
+        "let cleared=0,login=0;"
+        "function clearAuthenticatedState(){cleared+=1;}"
+        "function viewLogin(){login+=1;}"
+        + source
+        + r"""
+global.fetch=async()=>({ok:false,status:401,json:async()=>({detail:'Neprihlásený'})});
+(async()=>{
+  try{await accountApi({url:'/api/auth/password/change',options:{method:'POST'}});process.exit(2)}
+  catch(error){
+    if(!error.authRequired||cleared!==1||login!==1)process.exit(3);
+    process.stdout.write(error.message);
+  }
+})().catch(error=>{console.error(error);process.exit(1)});
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout == "Prihlásenie vypršalo. Prihlás sa znova."
 
 
 @needs_node

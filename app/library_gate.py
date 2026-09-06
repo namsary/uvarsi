@@ -66,6 +66,13 @@ _MODE_FLOORS = {
     "vegan": 12,
 }
 _MINIMUM_ACTIVE_RECIPES = 60
+_CURATED_MODE_FLOORS = {
+    "standard": 104,
+    "high_protein": 24,
+    "vegetarian": 24,
+    "vegan": 16,
+}
+_CURATED_MINIMUM_ACTIVE_RECIPES = 104
 _MINIMUM_MODE_FAMILIES = 3
 _MINIMUM_MODE_METHODS = 3
 
@@ -635,10 +642,13 @@ def _audit_recipe(
 def _audit_content_floors(
     active: Sequence[RecipeTemplate],
     errors: set[str],
+    *,
+    mode_floors: dict[str, int] = _MODE_FLOORS,
+    minimum_active_recipes: int = _MINIMUM_ACTIVE_RECIPES,
 ) -> None:
-    if len(active) < _MINIMUM_ACTIVE_RECIPES:
-        errors.add(f"total_below_{_MINIMUM_ACTIVE_RECIPES}")
-    for mode, floor in _MODE_FLOORS.items():
+    if len(active) < minimum_active_recipes:
+        errors.add(f"total_below_{minimum_active_recipes}")
+    for mode, floor in mode_floors.items():
         eligible = tuple(recipe for recipe in active if mode in recipe.modes)
         if len(eligible) < floor:
             errors.add(f"mode_{mode}_below_{floor}")
@@ -664,7 +674,21 @@ def audit_library(
     ):
         errors.add("legacy_recipe_active")
 
-    _audit_content_floors(active, errors)
+    curated_generation_one = (
+        isinstance(recipes, RecipeCatalog) and recipes.curation_generation == 1
+    )
+    _audit_content_floors(
+        active,
+        errors,
+        mode_floors=(
+            _CURATED_MODE_FLOORS if curated_generation_one else _MODE_FLOORS
+        ),
+        minimum_active_recipes=(
+            _CURATED_MINIMUM_ACTIVE_RECIPES
+            if curated_generation_one
+            else _MINIMUM_ACTIVE_RECIPES
+        ),
+    )
     _audit_duplicates(ingredients, active, errors)
     for recipe in active:
         _audit_recipe(ingredients, recipe, errors)

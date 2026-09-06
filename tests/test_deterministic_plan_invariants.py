@@ -42,6 +42,7 @@ OPTIONAL_CANDIDATES = ("zucchini", "broccoli")
 MATCHABLE_PRODUCT_NAMES = {
     "beans_canned": "červená fazuľa v konzerve",
     "chickpeas_canned": "cícer v konzerve",
+    "lentils": "hnedá šošovica",
 }
 MODE_AMOUNT = {
     "standard": Decimal("75"),

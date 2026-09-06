@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "78ec256aec9f8818e0f97b9039c9f42938ca70a1613eb0ed191d20f1ce04f2ac",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "modern_teriyaki_chicken_broccoli"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

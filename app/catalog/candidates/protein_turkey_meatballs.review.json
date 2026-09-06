@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "973ce1d5ed9fcdad449a22da87c92ad285f8a9f94a748eaf2da1848044cf871d",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "protein_turkey_meatballs"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

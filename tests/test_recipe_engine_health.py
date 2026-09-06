@@ -12,6 +12,7 @@ import sqlite3
 import sys
 import types
 
+import pytest
 from fastapi.testclient import TestClient
 
 from tests.test_recipe_engine_shadow import _offer_rows
@@ -91,6 +92,68 @@ def _all_table_counts(server):
         }
 
 
+def _install_curated_release_evidence(
+    monkeypatch,
+    server,
+    *,
+    active_recipes=104,
+    curation_generation=1,
+    provenance_complete=True,
+    audit_errors=(),
+    p95_ms=120.0,
+    payments_enabled=False,
+):
+    recipes = tuple(
+        types.SimpleNamespace(id=f"curated-{index:03d}", active=True)
+        for index in range(active_recipes)
+    )
+    catalog = types.SimpleNamespace(
+        version=8,
+        curation_generation=curation_generation,
+        all=lambda: recipes,
+    )
+    audit = types.SimpleNamespace(
+        active_recipes=active_recipes,
+        mode_counts=(
+            ("standard", active_recipes),
+            ("high_protein", 58),
+            ("vegetarian", 46),
+            ("vegan", 16),
+        ),
+        errors=tuple(audit_errors),
+    )
+    provenance_calls = []
+
+    def load_provenance(active_ids):
+        active_ids = frozenset(active_ids)
+        provenance_calls.append(active_ids)
+        if not provenance_complete:
+            raise ValueError("missing provenance: curated-103")
+        return {recipe_id: object() for recipe_id in active_ids}
+
+    monkeypatch.setattr(server, "load_recipe_catalog", lambda *_args, **_kwargs: catalog)
+    monkeypatch.setattr(server, "audit_library", lambda *_args, **_kwargs: audit)
+    monkeypatch.setattr(server, "load_recipe_provenance", load_provenance, raising=False)
+    monkeypatch.setattr(server, "platby_su_zapnute", lambda: payments_enabled)
+    monkeypatch.setattr(
+        server,
+        "recipe_engine_shadow_status",
+        lambda _con, today=None: {
+            "complete": True,
+            "eligible": True,
+            "week": server.monday(today),
+            "success_rate": 0.75,
+            "valid_outcome_rate": 1.0,
+            "p95_ms": p95_ms,
+            "dietary_violations": 0,
+            "negative_quantities": 0,
+            "invalid_package_counts": 0,
+            "available_modes": list(MODES),
+        },
+    )
+    return provenance_calls
+
+
 def test_on_health_exposes_typed_recipe_engine_readiness(monkeypatch, tmp_path):
     server, state = _load(monkeypatch, tmp_path)
     _write(state, _passing_smoke(server))
@@ -108,6 +171,55 @@ def test_on_health_exposes_typed_recipe_engine_readiness(monkeypatch, tmp_path):
     assert payload["available_modes"] == list(MODES)
     assert payload["ready"] is True
     assert payload["blockers"] == []
+
+
+def test_on_health_exposes_complete_generation_one_release_evidence(
+    monkeypatch, tmp_path
+):
+    server, state = _load(monkeypatch, tmp_path)
+    _write(state, _passing_smoke(server))
+    provenance_calls = _install_curated_release_evidence(monkeypatch, server)
+
+    client = TestClient(server.app)
+    engine = client.get("/api/health").json()["recipe_engine"]
+    repeated = client.get("/api/health").json()["recipe_engine"]
+
+    assert engine["ready"] is True
+    assert engine["release_gate"] == {
+        "active_recipes": 104,
+        "curation_generation": 1,
+        "provenance_complete": True,
+        "library_errors": 0,
+        "workflow_errors": 0,
+    }
+    assert engine["payments_enabled"] is False
+    assert repeated["release_gate"] == engine["release_gate"]
+    assert len(provenance_calls) == 1
+    assert len(provenance_calls[0]) == 104
+
+
+@pytest.mark.parametrize(
+    ("changes", "blocker"),
+    [
+        ({"active_recipes": 103}, "active_recipe_count_mismatch"),
+        ({"provenance_complete": False}, "provenance_incomplete"),
+        ({"curation_generation": 0}, "curation_generation_mismatch"),
+        ({"audit_errors": ("workflow_invalid",)}, "library_gate_failed"),
+        ({"p95_ms": 500.0}, "p95_too_slow"),
+        ({"payments_enabled": True}, "payments_enabled"),
+    ],
+)
+def test_on_health_fails_closed_for_invalid_curated_release_evidence(
+    monkeypatch, tmp_path, changes, blocker
+):
+    server, state = _load(monkeypatch, tmp_path)
+    _write(state, _passing_smoke(server))
+    _install_curated_release_evidence(monkeypatch, server, **changes)
+
+    engine = TestClient(server.app).get("/api/health").json()["recipe_engine"]
+
+    assert engine["ready"] is False
+    assert blocker in engine["blockers"]
 
 
 def test_on_health_fails_closed_without_a_current_passing_smoke(monkeypatch, tmp_path):
@@ -269,6 +381,27 @@ def test_off_health_does_not_require_shadow_or_synthetic_smoke(monkeypatch, tmp_
 
     assert engine["ready"] is True
     assert engine["blockers"] == []
+
+
+def test_off_health_still_fails_closed_when_the_live_catalog_cannot_load(
+    monkeypatch, tmp_path
+):
+    server, _state = _load(monkeypatch, tmp_path, mode="off")
+    monkeypatch.setattr(
+        server,
+        "load_recipe_catalog",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("broken catalog")),
+    )
+
+    response = TestClient(server.app).get("/api/health")
+    engine = response.json()["recipe_engine"]
+
+    assert response.status_code == 200
+    assert engine["ready"] is False
+    assert engine["blockers"] == ["catalog_load_failed"]
+    assert engine["release_gate"]["active_recipes"] == 0
+    assert engine["payments_enabled"] is False
+    assert "broken catalog" not in response.text
 
 
 def test_on_health_ignores_idle_legacy_worker_when_engine_guarantees_pass(

@@ -78,19 +78,21 @@ def _seed_cost_history(server):
         con.commit()
 
 
-def test_on_mode_regular_pantry_and_force_do_not_touch_ai_or_cost_state(
-    monkeypatch, tmp_path
+@pytest.mark.parametrize("engine_mode", ("off", "shadow", "on"))
+def test_every_mode_regular_pantry_and_force_do_not_touch_ai_or_cost_state(
+    monkeypatch, tmp_path, engine_mode
 ):
-    """A future queue/model fallback must make this release gate fail loudly."""
+    """Rollback and shadow modes must never revive model-written recipes."""
     server = _server(
         monkeypatch,
         tmp_path,
         pantry=(("ryža", 1000, "g"), ("tofu", 400, "g"), ("cícer", 500, "g")),
     )
+    monkeypatch.setattr(server, "recipe_engine_mode", lambda: engine_mode)
     _seed_cost_history(server)
 
     def forbidden(*_args, **_kwargs):
-        raise AssertionError("on-mode user plan entered a model or cost-reservation path")
+        raise AssertionError("user plan entered a model or cost-reservation path")
 
     monkeypatch.setattr(server, "_new_plan_model_client", forbidden)
     monkeypatch.setattr(server.naklady, "skontroluj", forbidden)
@@ -108,3 +110,31 @@ def test_on_mode_regular_pantry_and_force_do_not_touch_ai_or_cost_state(
     assert [response.status_code for response in responses] == [200, 200, 200]
     assert all(response.json()["meta"]["engine"] == "deterministic" for response in responses)
     assert _cost_snapshot(server) == before
+
+
+@pytest.mark.parametrize("engine_mode", ("off", "shadow", "on"))
+def test_worker_refuses_legacy_recipe_ai_in_every_mode(engine_mode):
+    """Old queued jobs are cancelled after the deterministic cutover."""
+    from app import plan_worker
+
+    class Server:
+        @staticmethod
+        def recipe_engine_mode():
+            return engine_mode
+
+    with pytest.raises(plan_worker.EngineReplaced):
+        plan_worker._require_legacy_recipe_engine(Server)
+
+
+def test_all_direct_legacy_recipe_entrypoints_are_hard_disabled(monkeypatch, tmp_path):
+    server = _server(monkeypatch, tmp_path)
+    from app import predpocet
+
+    with pytest.raises(server.RecipePlanEngineRetired):
+        server._new_plan_model_client()
+    with pytest.raises(server.RecipePlanEngineRetired):
+        server.build_and_store_job(object())
+    with pytest.raises(server.RecipePlanEngineRetired):
+        server.poskladaj_novy_plan(None, None, None, None, None, None, None)
+    with pytest.raises(RuntimeError, match="paid recipe precompute is retired"):
+        predpocet._poskladaj(None, server, (), object())

@@ -776,8 +776,16 @@ def _macro_payload(value: MacroValues) -> dict[str, str]:
 def _ingredient_payload(
     item, offer_rows: Mapping[str, Mapping[str, object]]
 ) -> dict:
-    if item.offer is None:
+    if item.selection.source == "pantry":
         return {"spajza": item.ingredient.name}
+    if item.offer is None:
+        return {
+            "ingredient_id": item.ingredient.id,
+            "nazov": item.ingredient.name,
+            "davka": item.display_amount,
+            "bez_akcie": True,
+            "cena_neznama": True,
+        }
 
     try:
         source = offer_rows[item.offer.offer_key]
@@ -874,7 +882,11 @@ def _meal_payload(
         (
             f"{value.offer.product_name} – {value.display_amount}"
             if value.offer is not None
-            else f"{value.ingredient.name} – {value.display_amount} zo špajze"
+            else (
+                f"{value.ingredient.name} – {value.display_amount} zo špajze"
+                if value.selection.source == "pantry"
+                else f"{value.ingredient.name} – {value.display_amount} · dokúpiť bežne"
+            )
         )
         for value in rendered.ingredients
     ]
@@ -937,6 +949,8 @@ def _shopping_totals(shopping: Sequence[Mapping[str, object]]):
     regular_total = Decimal("0")
     for group in shopping:
         for row in group["polozky"]:
+            if row.get("cena") is None:
+                continue
             sale = Decimal(row["cena"].replace(",", "."))
             original = row["povodna"]
             sale_total += sale
@@ -1031,6 +1045,12 @@ def build_deterministic_plan(
             _ERROR_SUGGESTIONS["unmeasurable_packages"],
         ) from exc
     sale_total, regular_total = _shopping_totals(shopping)
+    unpriced_items = sum(
+        1
+        for group in shopping
+        for row in group["polozky"]
+        if row.get("cena_neznama") is True and int(row.get("mnozstvo") or 0) > 0
+    )
     return {
         "tyzden": week,
         "jedla": [
@@ -1047,6 +1067,8 @@ def build_deterministic_plan(
         "nakup_spolu": _money(sale_total),
         "bezna_cena": _money(regular_total),
         "usetrene": _money(max(Decimal("0"), regular_total - sale_total)),
+        "nezapocitane_polozky": unpriced_items,
+        "ceny_neuplne": unpriced_items > 0,
         "meta": {
             "engine": "deterministic",
             "library_version": recipes.version,

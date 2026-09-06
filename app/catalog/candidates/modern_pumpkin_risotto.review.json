@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "48893fcf02c2eb8aec5e55ad218d237810ba5aba7a15c6a18dc9f28dbc26cc78",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "modern_pumpkin_risotto"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

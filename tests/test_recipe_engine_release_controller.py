@@ -40,10 +40,14 @@ def rollout(tmp_path):
         "quantity_math.py",
         "recipe_catalog.py",
         "recipe_matcher.py",
+        "recipe_provenance.py",
+        "regular_purchase.py",
         "recipe_renderer.py",
+        "recipe_workflow.py",
     ):
         (app / name).write_text("# present\n", encoding="utf-8")
     (app / "catalog" / "ingredients.json").write_text("{}\n", encoding="utf-8")
+    (app / "catalog" / "recipe_sources.json").write_text("{}\n", encoding="utf-8")
     (app / "catalog" / "slovak_ingredient_forms.json").write_text(
         "{}\n", encoding="utf-8"
     )
@@ -124,12 +128,12 @@ def rollout(tmp_path):
         "mode=${mode#UVARSI_RECIPE_ENGINE=}\n"
         "if [ \"$mode\" = on ] && [ -f \"$UVARSI_TEST_STATE/stale-on-health\" ] && "
         "! /usr/bin/grep -q run_recipe_engine_shadow \"$UVARSI_TEST_CALLS\" 2>/dev/null; then\n"
-        "  printf '{\"recipe_engine\":{\"mode\":\"on\",\"ready\":false,\"blockers\":[\"smoke_stale\"]}}'\n"
+        "  printf '{\"recipe_engine\":{\"mode\":\"on\",\"ready\":false,\"blockers\":[\"smoke_stale\"],\"payments_enabled\":false,\"release_gate\":{\"active_recipes\":104,\"curation_generation\":1,\"provenance_complete\":true,\"library_errors\":0,\"workflow_errors\":0}}}'\n"
         "  exit 0\n"
         "fi\n"
         "if [ \"$mode\" = on ] && [ -f \"$UVARSI_TEST_STATE/stale-on-shadow\" ] && "
         "! /usr/bin/grep -q run_recipe_engine_shadow \"$UVARSI_TEST_CALLS\" 2>/dev/null; then\n"
-        "  printf '{\"recipe_engine\":{\"mode\":\"on\",\"ready\":true,\"blockers\":[],\"last_shadow\":{\"complete\":true,\"eligible\":false,\"success_rate\":0.75,\"valid_outcome_rate\":1.0,\"p95_ms\":120,\"dietary_violations\":0,\"negative_quantities\":0,\"invalid_package_counts\":0}}}'\n"
+        "  printf '{\"recipe_engine\":{\"mode\":\"on\",\"ready\":true,\"blockers\":[],\"payments_enabled\":false,\"release_gate\":{\"active_recipes\":104,\"curation_generation\":1,\"provenance_complete\":true,\"library_errors\":0,\"workflow_errors\":0},\"last_shadow\":{\"complete\":true,\"eligible\":false,\"success_rate\":0.75,\"valid_outcome_rate\":1.0,\"p95_ms\":120,\"dietary_violations\":0,\"negative_quantities\":0,\"invalid_package_counts\":0}}}'\n"
         "  exit 0\n"
         "fi\n"
         "if [ \"$mode\" = on ] && [ -f \"$UVARSI_TEST_STATE/transient-health\" ]; then\n"
@@ -138,9 +142,13 @@ def rollout(tmp_path):
         "  attempts=$((attempts + 1)); printf '%s\\n' \"$attempts\" > \"$attempts_file\"\n"
         "  [ \"$attempts\" -gt 1 ] || exit 7\n"
         "fi\n"
+        "if [ \"$mode\" = off ] && [ -f \"$UVARSI_TEST_STATE/fail-off-health\" ]; then\n"
+        "  printf '{\"recipe_engine\":{\"mode\":\"off\",\"ready\":false,\"blockers\":[\"catalog_load_failed\"],\"payments_enabled\":false,\"release_gate\":{\"active_recipes\":0,\"curation_generation\":null,\"provenance_complete\":false,\"library_errors\":0,\"workflow_errors\":0}}}'\n"
+        "  exit 0\n"
+        "fi\n"
         "[ ! -f \"$UVARSI_TEST_STATE/health.json\" ] || { cat \"$UVARSI_TEST_STATE/health.json\"; exit 0; }\n"
         "[ ! -f \"$UVARSI_TEST_STATE/malformed-health\" ] || { printf '{'; exit 0; }\n"
-        "printf '{\"recipe_engine\":{\"mode\":\"%s\",\"ready\":true,\"blockers\":[],\"last_shadow\":{\"complete\":true,\"eligible\":true,\"success_rate\":0.75,\"valid_outcome_rate\":1.0,\"p95_ms\":120,\"dietary_violations\":0,\"negative_quantities\":0,\"invalid_package_counts\":0}}}' \"$mode\"\n",
+        "printf '{\"recipe_engine\":{\"mode\":\"%s\",\"ready\":true,\"blockers\":[],\"payments_enabled\":false,\"release_gate\":{\"active_recipes\":104,\"curation_generation\":1,\"provenance_complete\":true,\"library_errors\":0,\"workflow_errors\":0},\"last_shadow\":{\"complete\":true,\"eligible\":true,\"success_rate\":0.75,\"valid_outcome_rate\":1.0,\"p95_ms\":120,\"dietary_violations\":0,\"negative_quantities\":0,\"invalid_package_counts\":0}}}' \"$mode\"\n",
     )
     fake_sleep = tmp_path / "sleep"
     executable(
@@ -190,6 +198,37 @@ def run_controller(rollout):
         capture_output=True,
         check=False,
     )
+
+
+def curated_shadow_health(**release_changes):
+    """Hand-checked release evidence for the generation-one activation gate."""
+    release_gate = {
+        "active_recipes": 104,
+        "curation_generation": 1,
+        "provenance_complete": True,
+        "library_errors": 0,
+        "workflow_errors": 0,
+    }
+    release_gate.update(release_changes)
+    return {
+        "recipe_engine": {
+            "mode": "shadow",
+            "ready": True,
+            "blockers": [],
+            "payments_enabled": False,
+            "release_gate": release_gate,
+            "last_shadow": {
+                "complete": True,
+                "eligible": True,
+                "success_rate": 0.75,
+                "valid_outcome_rate": 1.0,
+                "p95_ms": 120,
+                "dietary_violations": 0,
+                "negative_quantities": 0,
+                "invalid_package_counts": 0,
+            },
+        }
+    }
 
 
 def test_controller_source_does_not_publish_an_operational_notification_topic():
@@ -249,16 +288,16 @@ def test_existing_export_syntax_is_accepted_and_canonicalized(rollout):
 
 
 @pytest.mark.parametrize(
-    ("failure", "gate"),
+    ("failure", "gate", "rollback_state"),
     [
-        ("fail-shadow", "shadow_matrix"),
-        ("fail-smoke", "on_smoke"),
-        ("malformed-health", "shadow_health"),
-        ("payments-on", "payments_off"),
+        ("fail-shadow", "shadow_matrix", "complete"),
+        ("fail-smoke", "on_smoke", "complete"),
+        ("malformed-health", "shadow_health", "incomplete"),
+        ("payments-on", "payments_off", "complete"),
     ],
 )
 def test_any_gate_failure_rolls_back_to_off_and_emits_exactly_one_alert(
-    rollout, failure, gate
+    rollout, failure, gate, rollback_state
 ):
     rollout["state"].joinpath(failure).write_text("1", encoding="ascii")
 
@@ -268,7 +307,7 @@ def test_any_gate_failure_rolls_back_to_off_and_emits_exactly_one_alert(
     assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=off\n"
     alerts = rollout["alerts"].read_text(encoding="utf-8").splitlines()
     assert len(alerts) == 1
-    assert "rollback complete" in alerts[0].casefold()
+    assert f"rollback {rollback_state}" in alerts[0].casefold()
     assert f"gate={gate}" in alerts[0]
     assert f"gate={gate}" in result.stdout
 
@@ -318,7 +357,12 @@ def test_on_smoke_failure_appends_only_safe_aggregate_diagnostics(rollout):
 
 @pytest.mark.parametrize(
     "missing",
-    ["server.py", "catalog/ingredients.json", "catalog/recipes/manifest.json"],
+    [
+        "server.py",
+        "regular_purchase.py",
+        "catalog/ingredients.json",
+        "catalog/recipes/manifest.json",
+    ],
 )
 def test_incomplete_package_fails_closed_before_shadow(rollout, missing):
     rollout["app"].joinpath(missing).unlink()
@@ -339,6 +383,69 @@ def test_library_gate_failure_never_reaches_shadow(rollout):
     calls = rollout["calls"].read_text(encoding="utf-8")
     assert "app.library_gate" in calls
     assert "run_recipe_engine_shadow" not in calls
+
+
+@pytest.mark.parametrize(
+    ("release_change", "invalid_value"),
+    [
+        ("active_recipes", 103),
+        ("provenance_complete", False),
+        ("curation_generation", 0),
+        ("library_errors", 1),
+        ("workflow_errors", 1),
+    ],
+)
+def test_curated_release_evidence_failure_stops_before_on_activation(
+    rollout, release_change, invalid_value
+):
+    payload = curated_shadow_health(**{release_change: invalid_value})
+    rollout["state"].joinpath("health.json").write_text(
+        json.dumps(payload, separators=(",", ":")), encoding="utf-8"
+    )
+
+    result = run_controller(rollout)
+
+    assert result.returncode != 0
+    calls = rollout["calls"].read_text(encoding="utf-8")
+    assert "--recipe-engine-smoke" not in calls
+    assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=off\n"
+    assert "gate=shadow_health" in result.stdout
+    assert "taktik" not in calls and "caddy" not in calls and "cron" not in calls
+    alerts = rollout["alerts"].read_text(encoding="utf-8").splitlines()
+    assert len(alerts) == 1
+    assert "gate=shadow_health" in alerts[0]
+
+
+def test_p95_at_500_ms_stops_before_on_activation(rollout):
+    payload = curated_shadow_health()
+    payload["recipe_engine"]["last_shadow"]["p95_ms"] = 500
+    rollout["state"].joinpath("health.json").write_text(
+        json.dumps(payload, separators=(",", ":")), encoding="utf-8"
+    )
+
+    result = run_controller(rollout)
+
+    assert result.returncode != 0
+    calls = rollout["calls"].read_text(encoding="utf-8")
+    assert "--recipe-engine-smoke" not in calls
+    assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=off\n"
+    assert "gate=shadow_health" in result.stdout
+
+
+def test_health_reported_payments_stop_before_on_activation(rollout):
+    payload = curated_shadow_health()
+    payload["recipe_engine"]["payments_enabled"] = True
+    rollout["state"].joinpath("health.json").write_text(
+        json.dumps(payload, separators=(",", ":")), encoding="utf-8"
+    )
+
+    result = run_controller(rollout)
+
+    assert result.returncode != 0
+    calls = rollout["calls"].read_text(encoding="utf-8")
+    assert "--recipe-engine-smoke" not in calls
+    assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=off\n"
+    assert "gate=shadow_health" in result.stdout
 
 
 def test_invalid_target_is_data_not_shell_and_cannot_execute_commands(rollout):
@@ -511,6 +618,20 @@ def test_failed_rollback_flag_write_is_not_suppressed_and_alert_is_truthful(roll
     alerts = rollout["alerts"].read_text(encoding="utf-8").splitlines()
     assert len(alerts) == 1
     assert "rollback incomplete" in alerts[0].casefold()
+
+
+def test_rollback_is_incomplete_when_off_health_is_not_actually_ready(rollout):
+    rollout["state"].joinpath("fail-shadow").write_text("1", encoding="ascii")
+    rollout["state"].joinpath("fail-off-health").write_text("1", encoding="ascii")
+
+    result = run_controller(rollout)
+
+    assert result.returncode != 0
+    assert rollout["flag"].read_text(encoding="utf-8") == "UVARSI_RECIPE_ENGINE=off\n"
+    alerts = rollout["alerts"].read_text(encoding="utf-8").splitlines()
+    assert len(alerts) == 1
+    assert "rollback incomplete" in alerts[0].casefold()
+    assert "catalog_load_failed" not in alerts[0]
 
 
 @pytest.mark.parametrize("failure", ["restart-uvarsi", "is-active-uvarsi"])

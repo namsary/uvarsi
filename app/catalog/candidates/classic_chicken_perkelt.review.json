@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "3049e6b37a8aaae8c429a6d4274deab08259e07e7396351c73ab8de0504d90ef",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_chicken_perkelt"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

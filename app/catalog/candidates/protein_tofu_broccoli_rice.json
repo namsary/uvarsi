@@ -35,7 +35,7 @@
         {"text": "Vlej sójovú omáčku do panvice. Prehrievaj tofu a zeleninu v panvici na miernom ohni 2 minúty, kým zelenina zmäkne a omáčka ju obalí.", "requires": ["soy:mixed", "garlic:mixed", "tofu:in_pan", "broccoli:cooked", "carrot:cooked", "miska:occupied", "panvica:occupied"], "produces": ["soy:cooked", "garlic:cooked", "tofu:cooked", "broccoli:finished", "carrot:finished", "miska:free"]},
         {"text": "Podávaj tofu so zeleninou a ryžou. Jedlo rozdeľ na {portions} porcií.", "requires": ["tofu:cooked", "broccoli:finished", "carrot:finished", "soy:cooked", "garlic:cooked", "oil:used", "rice:cooked", "panvica:occupied"], "produces": ["tofu:served", "broccoli:served", "carrot:served", "soy:served", "garlic:served", "oil:served", "rice:served", "panvica:free"]}
       ],
-      "storage": {"refrigerated_days": 3, "instruction": "Jedlo rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní a pri ohrievaní ho dôkladne prehrej."}
+      "storage": {"refrigerated_days": 1, "instruction": "Tofu s ryžou rozdeľ do plytkých nádob a do jednej hodiny ho schlaď. V chladničke ho zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým bude celé horúce."}
     }
   ],
   "source_record": {

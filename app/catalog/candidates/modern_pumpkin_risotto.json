@@ -28,7 +28,7 @@
         {"text": "Odstav hrniec z ohňa. Prisyp tvrdý syr do hrnca a premiešaj, kým sa rozpustí. Dochuť soľou a čiernym korením.", "requires": ["rice:cooked", "pumpkin:cooked", "cheese:grated", "hrniec:occupied"], "produces": ["cheese:melted", "butter:cooked"]},
         {"text": "Podávaj rizoto hneď a rozdeľ ho na {portions} porcií.", "requires": ["rice:cooked", "pumpkin:cooked", "onion:cooked", "garlic:cooked", "butter:cooked", "cheese:melted", "hrniec:occupied"], "produces": ["rice:served", "pumpkin:served", "onion:served", "garlic:served", "butter:served", "cheese:served", "hrniec:free"]}
       ],
-      "storage": {"refrigerated_days": 3, "instruction": "Rizoto rozprestri do plytkých nádob, do jednej hodiny ho schlaď a odlož do chladničky. Zjedz ho do 3 dní a ohrievaj iba porciu, ktorú práve podávaš."}
+      "storage": {"refrigerated_days": 1, "instruction": "Rizoto rozdeľ do plytkých nádob a do jednej hodiny ho schlaď. V chladničke ho zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým bude celé horúce."}
     }
   ],
   "source_record": {

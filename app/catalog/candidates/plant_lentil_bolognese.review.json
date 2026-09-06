@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "eda6873e470bcaeaee6284a8f3b0b0ac123fd8b449ebe18dbd75acd625340588",
+  "promoted_to": "05-vegan.json",
+  "recipe_ids": [
+    "plant_lentil_bolognese"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

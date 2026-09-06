@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "66a596dab631802fc696edfb53589d387efa6e45678ac6b3246efff446be90ce",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_slovak_chicken_risotto"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

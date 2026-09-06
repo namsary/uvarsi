@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "5f0ebe601b6c433aa82e801ba1fdecf32fcfd0c8e0e0bac205bacd19af42af28",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "quick_orzo_chicken_one_pan"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

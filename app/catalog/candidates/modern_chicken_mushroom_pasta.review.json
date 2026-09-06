@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "5da331f044fe6859c0a031edad2f2179f28d65c260925ab4039f16662b09b5e3",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "modern_chicken_mushroom_pasta"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

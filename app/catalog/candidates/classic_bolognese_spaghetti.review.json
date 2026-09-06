@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "5f0fbb0f22aff1e0f00669b142781cd74d7f71faf3ed5950f1e398c5a94bd448",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_bolognese_spaghetti"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

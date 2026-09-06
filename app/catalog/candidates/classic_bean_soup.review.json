@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "997728576f5f2269763fb3581e1da2383956fa02399613c727609ac38797b479",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "classic_bean_soup"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

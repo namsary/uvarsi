@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "0cc8bd9fc34ea3ef2243be88d0ca0fda5ca94c78b9250278220c692384bb5c44",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "quick_gnocchi_spinach"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

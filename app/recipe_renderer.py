@@ -24,6 +24,7 @@ from .plan_data import validate_recipe_language
 from .quantity_math import PackageSize, PantryEntry, Quantity, purchase_requirement
 from .recipe_catalog import IngredientSlot, PANTRY_BASIC_NAMES
 from .recipe_matcher import RecipeCandidate, SlotSelection
+from .regular_purchase import regular_purchase_rule
 
 
 _ONE = Decimal("1")
@@ -123,7 +124,7 @@ _QUANTITY_NAMES: Mapping[str, str] = {
     "carrot": "mrkvy",
     "broccoli": "brokolice",
     "milk": "plnotučného mlieka",
-    "cream": "smotany na šľahanie",
+    "cream": "smotany na varenie",
     "hard_cheese": "tvrdého syra",
     "oil": "oleja",
     "salt": "soli",
@@ -209,7 +210,7 @@ _REFERENCE_NAMES: Mapping[str, str] = {
     "carrot": "mrkvu",
     "broccoli": "brokolicu",
     "milk": "plnotučné mlieko",
-    "cream": "smotanu na šľahanie",
+    "cream": "smotanu na varenie",
     "hard_cheese": "tvrdý syr",
     "oil": "olej",
     "salt": "soľ",
@@ -564,6 +565,7 @@ def _water_amount(rendered: RenderedIngredient) -> str | None:
     return _display_amount(Quantity(millilitres, "ml"))
 
 
+@lru_cache(maxsize=8192)
 def _fold(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value.casefold())
     return "".join(
@@ -577,6 +579,7 @@ _FOLDED_IMPERATIVES = frozenset(_fold(word) for word in _ALLOWED_IMPERATIVES)
 _FOLDED_GENERIC_STEPS = frozenset(_fold(value) for value in _GENERIC_STEPS)
 
 
+@lru_cache(maxsize=4096)
 def _phrase_pattern(value: str) -> re.Pattern[str]:
     words = re.findall(r"\w+", _fold(value), re.UNICODE)
     return re.compile(r"(?<!\w)" + r"\s+".join(map(re.escape, words)) + r"(?!\w)")
@@ -1421,13 +1424,13 @@ def build_shopping_list(
         entry.ingredient_id for entry in pantry if entry.quantity is None
     }
     purchases: dict[tuple[object, ...], tuple[RenderedIngredient, Quantity]] = {}
+    regular_purchases: dict[str, tuple[RenderedIngredient, Quantity]] = {}
+    pantry_requirements: dict[str, Decimal] = {}
     purchase_keys_by_store: dict[str, list[tuple[object, ...]]] = {}
     ingredients: dict[str, Ingredient] = {}
     for meal in rendered_meals:
         for rendered in meal.ingredients:
             offer = rendered.offer
-            if offer is None:
-                continue
             ingredients[rendered.ingredient.id] = rendered.ingredient
             required_grams = _quantity_in_unit(
                 rendered.quantity, "g", rendered.ingredient
@@ -1436,6 +1439,30 @@ def build_shopping_list(
                 raise ValueError(
                     "Receptová dávka nemá jednotku kompatibilnú so surovinou."
                 )
+            if rendered.selection.source == "pantry":
+                pantry_requirements[rendered.ingredient.id] = _add_exact(
+                    pantry_requirements.get(
+                        rendered.ingredient.id, Decimal("0")
+                    ),
+                    required_grams.amount,
+                )
+                continue
+            if offer is None:
+                current = regular_purchases.get(rendered.ingredient.id)
+                if current is None:
+                    regular_purchases[rendered.ingredient.id] = (
+                        rendered,
+                        required_grams,
+                    )
+                else:
+                    regular_purchases[rendered.ingredient.id] = (
+                        current[0],
+                        Quantity(
+                            _add_exact(current[1].amount, required_grams.amount),
+                            "g",
+                        ),
+                    )
+                continue
             key = (
                 offer.offer_key,
                 offer.package,
@@ -1466,6 +1493,14 @@ def build_shopping_list(
         pantry_balances[entry.ingredient_id] = _add_exact(
             pantry_balances.get(entry.ingredient_id, Decimal("0")),
             converted.amount,
+        )
+    for ingredient_id, required_amount in pantry_requirements.items():
+        pantry_balances[ingredient_id] = max(
+            Decimal("0"),
+            _add_exact(
+                pantry_balances.get(ingredient_id, Decimal("0")),
+                -required_amount,
+            ),
         )
 
     groups: dict[str, list[dict]] = {}
@@ -1576,6 +1611,91 @@ def build_shopping_list(
                     "kupit": _decimal_text(display_to_buy.amount),
                 })
             groups.setdefault(offer.store, []).append(row)
+    regular_rows = []
+    for ingredient_id in sorted(regular_purchases):
+        rendered, required_grams = regular_purchases[ingredient_id]
+        ingredient = rendered.ingredient
+        available_grams = Quantity(
+            pantry_balances.get(ingredient_id, Decimal("0")), "g"
+        )
+        used_amount = min(required_grams.amount, available_grams.amount)
+        missing_amount = max(
+            Decimal("0"), _add_exact(required_grams.amount, -used_amount)
+        )
+        pantry_balances[ingredient_id] = _add_exact(
+            pantry_balances.get(ingredient_id, Decimal("0")), -used_amount
+        )
+        rule = regular_purchase_rule(ingredient, rendered.quantity.unit)
+        package_grams = _quantity_in_unit(rule.package, "g", ingredient)
+        if package_grams is None or package_grams.amount <= 0:
+            raise ValueError(
+                "Bežné balenie nemá jednotku kompatibilnú s receptovou dávkou."
+            )
+        if rule.pricing_basis == "weight":
+            bought_amount = missing_amount
+            packages = 0 if bought_amount == 0 else 1
+            leftover_grams = Quantity(Decimal("0"), "g")
+        else:
+            requirement = purchase_requirement(
+                Quantity(missing_amount, "g"),
+                Quantity(Decimal("0"), "g"),
+                PackageSize(package_grams),
+            )
+            bought_amount = requirement.to_buy.amount
+            packages = requirement.packages
+            leftover_grams = requirement.leftover
+        display_required = _quantity_in_unit(
+            required_grams, rendered.quantity.unit, ingredient
+        )
+        display_leftover = _quantity_in_unit(
+            leftover_grams, rendered.quantity.unit, ingredient
+        )
+        display_to_buy = _quantity_in_unit(
+            Quantity(bought_amount, "g"), rendered.quantity.unit, ingredient
+        )
+        if (
+            display_required is None
+            or display_leftover is None
+            or display_to_buy is None
+        ):
+            raise ValueError(
+                "Bežný nákup nemá jednotku kompatibilnú s receptovou dávkou."
+            )
+        row = {
+            "offer_key": f"regular:{ingredient_id}",
+            "ingredient_id": ingredient_id,
+            "nazov": ingredient.name,
+            "obchod": "Dokúpiť bežne",
+            "jednotka": _display_amount(rule.package),
+            "mnozstvo": packages,
+            "cena": None,
+            "povodna": None,
+            "potrebne": _decimal_text(display_required.amount),
+            "potrebna_jednotka": (
+                "ks" if display_required.unit == "piece" else display_required.unit
+            ),
+            "cena_za_balenie": None,
+            "povodna_za_balenie": None,
+            "zostava": _quantity_text(display_leftover),
+            "source_url": None,
+            "bez_akcie": True,
+            "cena_neznama": True,
+            **(
+                {"mnozstvo_nezname": True}
+                if ingredient_id in unknown_pantry
+                else {}
+            ),
+        }
+        if rule.pricing_basis == "weight":
+            row.update(
+                {
+                    "predaj_na_vahu": True,
+                    "kupit": _decimal_text(display_to_buy.amount),
+                }
+            )
+        regular_rows.append(row)
+    if regular_rows:
+        groups["Dokúpiť bežne"] = regular_rows
     return [
         {"obchod": store, "polozky": items}
         for store, items in groups.items()

@@ -15,7 +15,7 @@
           "key": "chicken",
           "role": "protein",
           "candidates": ["chicken_thigh"],
-          "amount_per_adult": "220",
+          "amount_per_adult": "245",
           "unit": "g",
           "child_factor": "0.6",
           "required": true,

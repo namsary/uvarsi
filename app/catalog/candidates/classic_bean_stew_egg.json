@@ -7,7 +7,7 @@
       "name_template": "Fazuľový prívarok s vajcom",
       "family": "classic_bean_stew_egg",
       "method": "pot",
-      "minutes": 600,
+      "minutes": 790,
       "modes": ["standard", "vegetarian"],
       "equipment": ["nôž", "doska", "hrniec", "malý hrniec", "sitko", "vareška"],
       "slots": [
@@ -22,11 +22,11 @@
       ],
       "pantry_basics": ["water", "salt", "black_pepper"],
       "instructions": [
-        {"text": "Namoč {beans.amount} {beans.name} v hrnci v studenej vode a nechaj 8 hodín napučať. Voda má siahať aspoň 5 cm nad fazuľu.", "requires": ["beans:raw", "hrniec:free"], "produces": ["beans:soaked", "hrniec:occupied"]},
-        {"text": "Sceď {beans.name} cez sitko, vodu vylej a fazuľu opláchni čistou vodou.", "requires": ["beans:soaked", "hrniec:occupied", "sitko:free"], "produces": ["beans:drained", "hrniec:free", "sitko:free"]},
+        {"text": "Namoč {beans.amount} {beans.name} v hrnci v studenej vode a nechaj najmenej 12 hodín napučať. Voda má siahať aspoň 5 cm nad fazuľu.", "requires": ["beans:raw", "hrniec:free"], "produces": ["beans:soaked", "hrniec:occupied"]},
+        {"text": "Sceď {beans.name} cez sitko a vodu vylej. Fazuľu prepláchni čistou vodou a znova sceď fazuľu cez sitko.", "requires": ["beans:soaked", "hrniec:occupied", "sitko:free"], "produces": ["beans:drained", "hrniec:free", "sitko:free"]},
         {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} {garlic.cut}.", "requires": ["onion:raw", "garlic:raw"], "produces": ["onion:cut", "garlic:cut"]},
         {"text": "Nalej {oil.amount} {oil.name} do hrnca. Opekaj cibuľu na strednom ohni 5 minút, kým bude dosklovita. Pridaj cesnak. Opekaj cesnak v hrnci na strednom ohni ešte 30 sekúnd, kým zavonia.", "requires": ["oil:raw", "onion:cut", "garlic:cut", "hrniec:free"], "produces": ["oil:cooked", "onion:cooked", "garlic:cooked", "hrniec:occupied"]},
-        {"text": "Odstav hrniec, prisyp {paprika.amount} {paprika.name} a premiešaj. Pridaj {beans.name} do hrnca. Nalej {beans.water} vody do hrnca; použi čerstvú vodu, nie vodu z namáčania. Priveď vodu na silnom ohni do prudkého varu a bez pokrievky var 30 minút. Potom stíš plameň, prikry a var {beans.name} v hrnci na miernom ohni ešte 40 minút, kým celkom zmäkne a dá sa ľahko roztlačiť lyžicou.", "requires": ["paprika:raw", "beans:drained", "onion:cooked", "garlic:cooked", "oil:cooked", "hrniec:occupied"], "produces": ["paprika:cooked", "beans:cooked"]},
+        {"text": "Odstav hrniec, prisyp {paprika.amount} {paprika.name} a premiešaj. Pridaj {beans.reference_name} do hrnca. Nalej {beans.water} vody do hrnca; použi čerstvú vodu, nie vodu z namáčania. Na silnom ohni priveď vodu do prudkého varu a bez pokrievky var fazuľu 30 minút. Potom stíš plameň, prikry a var fazuľu na miernom ohni ešte najmenej 30 minút, kým fazuľa zmäkne a dá sa ľahko roztlačiť lyžicou; spolu ju var aspoň 60 minút a podľa potreby aj dlhšie. Ak po uvarení ostalo v hrnci priveľa vody, časť vody odlej.", "requires": ["paprika:raw", "beans:drained", "onion:cooked", "garlic:cooked", "oil:cooked", "hrniec:occupied"], "produces": ["paprika:cooked", "beans:cooked"]},
         {"text": "Rozdrv časť fazule v hrnci, aby prívarok zhustol.", "requires": ["beans:cooked", "onion:cooked", "hrniec:occupied"], "produces": ["beans:thickened"]},
         {"text": "Prilej {cream.amount} {cream.name}. Var {beans.name} so smotanou v hrnci na miernom ohni 4 minúty, kým zhustne a začne jemne bublať.", "requires": ["cream:raw", "beans:thickened", "paprika:cooked", "onion:cooked", "garlic:cooked", "oil:cooked", "hrniec:occupied"], "produces": ["cream:cooked", "beans:finished", "paprika:finished", "onion:finished", "garlic:finished", "oil:finished"]},
         {"text": "Odstav hrniec a vmiešaj {vinegar.amount} {vinegar.name}. Fazuľový prívarok dochuť soľou a čiernym korením.", "requires": ["vinegar:raw", "beans:finished", "cream:cooked", "paprika:finished", "onion:finished", "garlic:finished", "oil:finished", "hrniec:occupied"], "produces": ["vinegar:combined"]},

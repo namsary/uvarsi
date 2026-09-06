@@ -27,7 +27,7 @@
         {"text": "Predhrej rúru na 200 °C.", "requires": ["rura:free"], "produces": ["rura:hot"]},
         {"text": "Opláchni {sweet_potato.amount} {sweet_potato.name}, osuš ich a na niekoľkých miestach popichaj vidličkou.", "requires": ["sweet_potato:raw"], "produces": ["sweet_potato:pierced"]},
         {"text": "Peč bataty na plechu pri 200 °C 45 minút, kým zmäknú a pôjde do nich ľahko zapichnúť vidlička.", "requires": ["sweet_potato:pierced", "plech:free", "rura:hot"], "produces": ["sweet_potato:cooked", "plech:occupied"]},
-        {"text": "Sceď {beans.amount} {beans.name} v sitku a opláchni ich studenou vodou.", "requires": ["beans:raw", "sitko:free"], "produces": ["beans:drained", "sitko:free"]},
+        {"text": "Sceď {beans.amount} {beans.name} v sitku a prepláchni ich studenou vodou.", "requires": ["beans:raw", "sitko:free"], "produces": ["beans:drained", "sitko:free"]},
         {"text": "Nakrájaj {tomato.amount} {tomato.name} na menšie kúsky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno.", "requires": ["tomato:raw", "onion:raw", "garlic:raw"], "produces": ["tomato:cut", "onion:cut", "garlic:cut"]},
         {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "panvica:free"], "produces": ["oil:hot", "panvica:occupied"]},
         {"text": "Pridaj {beef.amount} {beef.name} do panvice a opekaj ho na strednom ohni 7 minút, kým bude miestami zlatisté a rozpadne sa na malé kúsky.", "requires": ["beef:raw", "oil:hot", "panvica:occupied"], "produces": ["beef:browned"]},

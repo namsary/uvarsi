@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "909a9527043066d5643025ce0e310d39cc82dc233833bbb11ef3879ad7cee0bb",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_segedin_goulash"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

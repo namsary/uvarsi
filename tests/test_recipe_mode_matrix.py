@@ -141,12 +141,14 @@ def verified_offer_rows(production_catalogs):
 
 
 def _selected_ingredient_ids(plan):
-    return {
-        row["offer_key"].removeprefix("verified-")
-        for meal in plan["jedla"]
-        for row in meal["suroviny"]
-        if "offer_key" in row
-    }
+    result = set()
+    for meal in plan["jedla"]:
+        for row in meal["suroviny"]:
+            if row.get("ingredient_id"):
+                result.add(row["ingredient_id"])
+            elif str(row.get("offer_key") or "").startswith("verified-"):
+                result.add(row["offer_key"].removeprefix("verified-"))
+    return result
 
 
 def _nutrition_estimate(recipe):
@@ -184,11 +186,19 @@ def _assert_valid_packages_and_amounts(plan):
     for group in plan["nakupny_zoznam"]:
         for row in group["polozky"]:
             assert type(row["mnozstvo"]) is int and row["mnozstvo"] > 0
-            assert re.fullmatch(r"[1-9]\d*(?:[,.]\d+)? (?:g|kg|ml|ks)", row["jednotka"])
-            assert Decimal(row["cena"].replace(",", ".")) > 0
-            assert Decimal(row["povodna"].replace(",", ".")) >= Decimal(
-                row["cena"].replace(",", ".")
+            assert re.fullmatch(
+                r"[1-9]\d*(?:[,.]\d+)? (?:g|kg|ml|l|ks)", row["jednotka"]
             )
+            if row.get("bez_akcie"):
+                assert row["cena_neznama"] is True
+                assert row["cena"] is None
+                assert row["povodna"] is None
+                assert row["source_url"] is None
+            else:
+                assert Decimal(row["cena"].replace(",", ".")) > 0
+                assert Decimal(row["povodna"].replace(",", ".")) >= Decimal(
+                    row["cena"].replace(",", ".")
+                )
             required = _display_quantity(
                 row["potrebne"], row["potrebna_jednotka"]
             )
@@ -198,6 +208,10 @@ def _assert_valid_packages_and_amounts(plan):
 
     for meal in plan["jedla"]:
         for row in meal["suroviny"]:
+            if row.get("bez_akcie"):
+                assert row["cena_neznama"] is True
+                assert row["ingredient_id"]
+                continue
             if "offer_key" not in row:
                 continue
             assert row["valid_from"] == WEEK
@@ -290,17 +304,24 @@ def test_recipe_mode_matrix_has_exactly_the_required_36_combinations():
     assert {frequency for _, _, frequency in MATRIX} == set(FREQUENCIES)
 
 
-def test_verified_offer_fixture_covers_every_production_recipe_candidate(
+def test_verified_offer_fixture_provides_many_main_anchors_for_every_mode(
     production_catalogs,
 ):
     _, recipes = production_catalogs
     fixture_ids = [ingredient_id for ingredient_id, *_ in VERIFIED_WEEKLY_OFFERS]
-    recipe_ids = {
-        ingredient_id
-        for recipe in recipes.all()
-        for slot in recipe.slots
-        for ingredient_id in slot.candidates
-    }
+    fixture_set = set(fixture_ids)
 
     assert len(fixture_ids) == len(set(fixture_ids))
-    assert set(fixture_ids) == recipe_ids
+    for mode in MODES:
+        anchored = {
+            recipe.id
+            for recipe in recipes.all()
+            if mode in recipe.modes
+            and any(
+                slot.required
+                and slot.use == "main"
+                and fixture_set.intersection(slot.candidates)
+                for slot in recipe.slots
+            )
+        }
+        assert len(anchored) >= 10

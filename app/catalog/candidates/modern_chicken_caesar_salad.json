@@ -4,7 +4,7 @@
       "id": "modern_chicken_caesar_salad",
       "version": 2,
       "active": true,
-      "name_template": "Kurací Caesar šalát",
+      "name_template": "Kurací šalát s jogurtovým dresingom",
       "family": "modern_chicken_caesar_salad",
       "method": "salad",
       "minutes": 35,
@@ -28,7 +28,7 @@
         {"text": "Opekaj kuracie prsia v panvici na strednom ohni 4 až 5 minút z každej strany, kým budú zlatisté a po narezaní v najhrubšej časti už nebudú ružové. Pri väčšej dávke ich opekaj po častiach a hotové mäso nechaj 5 minút odpočívať.", "requires": ["chicken:seasoned", "panvica:hot"], "produces": ["chicken:cooked", "panvica:free"]},
         {"text": "Premiešaj v miske {yogurt.amount} {yogurt.name}, tvrdý syr, cesnak, citrónovú šťavu, soľ a čierne korenie.", "requires": ["yogurt:raw", "cheese:grated", "garlic:cut", "lemon:juice", "miska:free"], "produces": ["yogurt:dressing", "cheese:dressing", "garlic:dressing", "lemon:dressing", "miska:occupied"]},
         {"text": "Nakrájaj upečené kuracie prsia na plátky. Pri každom podávaní premiešaj iba potrebnú časť rímskeho šalátu s dressingom a krutóny nechaj navrchu, aby zostali chrumkavé.", "requires": ["chicken:cooked", "lettuce:cut", "yogurt:dressing", "cheese:dressing", "garlic:dressing", "lemon:dressing", "bread:toasted"], "produces": ["chicken:sliced"]},
-        {"text": "Podávaj Caesar šalát s plátkami kuracích pŕs a rozdeľ ho na {portions} porcií.", "requires": ["chicken:sliced", "lettuce:cut", "bread:toasted", "yogurt:dressing", "cheese:dressing", "garlic:dressing", "lemon:dressing", "oil:used"], "produces": ["chicken:served", "lettuce:served", "bread:served", "yogurt:served", "cheese:served", "garlic:served", "lemon:served", "oil:served", "miska:free"]}
+        {"text": "Rozdeľ šalát na {portions} porcií spolu s plátkami kuracích pŕs.", "requires": ["chicken:sliced", "lettuce:cut", "bread:toasted", "yogurt:dressing", "cheese:dressing", "garlic:dressing", "lemon:dressing", "oil:used"], "produces": ["chicken:served", "lettuce:served", "bread:served", "yogurt:served", "cheese:served", "garlic:served", "lemon:served", "oil:served", "miska:free"]}
       ],
       "storage": {"refrigerated_days": 3, "instruction": "Mäso a dressing odlož do samostatných plytkých nádob najneskôr do 2 hodín. Šalát a krutóny uschovaj oddelene, všetko chladené zjedz do 3 dní a spájaj až pred podávaním."}
     }

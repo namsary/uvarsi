@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "a37e6a8a0e5fcd8dc2ece409821c121e7fa4b7f2cc53f066cf0d37493a857ba0",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "classic_rice_pudding"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

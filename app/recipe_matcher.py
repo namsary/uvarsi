@@ -8,7 +8,7 @@ from decimal import Context, Decimal, ROUND_HALF_EVEN
 from fractions import Fraction
 from functools import lru_cache
 from hashlib import sha256
-from typing import Iterable, Mapping, Sequence
+from typing import Iterable, Literal, Mapping, Sequence
 
 from .ingredient_catalog import DietTag, Ingredient, IngredientCatalog
 from .nutrition import estimate_recipe_nutrition
@@ -36,6 +36,14 @@ class SlotSelection:
     ingredient: Ingredient
     offer: MatchedOffer | None
     pantry: Quantity | None
+
+    @property
+    def source(self) -> Literal["offer", "pantry", "regular"]:
+        if self.offer is not None:
+            return "offer"
+        if self.pantry is not None and self.pantry.amount >= self.slot.amount_per_adult:
+            return "pantry"
+        return "regular"
 
 
 @dataclass(frozen=True)
@@ -318,6 +326,8 @@ def _slot_options(
     pantry_balances: dict[str, Decimal],
     ingredients: dict[str, Ingredient],
     mode: str,
+    *,
+    allow_regular: bool = False,
 ) -> tuple[SlotSelection, ...]:
     options = []
     for ingredient_id in sorted(slot.candidates):
@@ -337,7 +347,7 @@ def _slot_options(
         pantry_covers_slot = (
             pantry is not None and pantry.amount >= slot.amount_per_adult
         )
-        if not pantry_covers_slot and selected_offer is None:
+        if not pantry_covers_slot and selected_offer is None and not allow_regular:
             continue
         options.append(
             SlotSelection(
@@ -367,18 +377,30 @@ def _allocate_required_slots(
     pantry_balances: dict[str, Decimal],
     ingredients: dict[str, Ingredient],
     mode: str,
+    *,
+    allow_regular: bool = False,
 ) -> tuple[dict[int, SlotSelection], dict[str, Decimal]] | None:
     if not slots:
         return {}, pantry_balances
 
     slot_index, slot = slots[0]
     for selection in _slot_options(
-        slot, offers_by_ingredient, pantry_balances, ingredients, mode
+        slot,
+        offers_by_ingredient,
+        pantry_balances,
+        ingredients,
+        mode,
+        allow_regular=allow_regular,
     ):
         remaining = dict(pantry_balances)
         _consume_pantry(remaining, selection)
         allocated = _allocate_required_slots(
-            slots[1:], offers_by_ingredient, remaining, ingredients, mode
+            slots[1:],
+            offers_by_ingredient,
+            remaining,
+            ingredients,
+            mode,
+            allow_regular=allow_regular,
         )
         if allocated is None:
             continue
@@ -526,6 +548,7 @@ def rank_candidates(
             pantry_balances,
             ingredients,
             mode,
+            allow_regular=recipe.version >= 2,
         )
         if allocated is None:
             continue
@@ -551,6 +574,13 @@ def rank_candidates(
             selections_by_index[index]
             for index in sorted(selections_by_index)
         )
+        if recipe.version >= 2 and not any(
+            selection.slot.required
+            and selection.slot.use == "main"
+            and selection.source in {"offer", "pantry"}
+            for selection in selection_rows
+        ):
+            continue
         if mode == "high_protein":
             protein_g = _protein_per_adult(selection_rows)
             if protein_g is None or protein_g < _MINIMUM_HIGH_PROTEIN_G:

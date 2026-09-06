@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "5829a25e59690541c50b2fb2c71bf780dff3983a4b8ce0fce60b576aacf2245c",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "quick_couscous_grilled_cheese"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

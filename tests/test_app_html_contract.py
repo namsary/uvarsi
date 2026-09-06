@@ -71,6 +71,20 @@ def test_plan_view_uses_one_normalized_totals_contract():
     assert "PLAN.bezne" not in plan_view
 
 
+def test_regular_purchases_are_never_presented_as_flyer_deals_or_full_basket_total():
+    html = app_html()
+    plan_view = declaration(html, "function vPlan() ")
+    ingredient_row = declaration(html, "function ingredientRow(item, today) ")
+    shopping_view = declaration(html, "function vZoznam() ")
+
+    assert "item.bez_akcie" in ingredient_row
+    assert "dokúpiť bežne" in ingredient_row
+    assert "Suroviny a ceny" in plan_view
+    assert "PLAN.nezapocitane_polozky" in plan_view
+    assert "Akciové položky" in plan_view
+    assert "cena podľa obchodu" in shopping_view
+
+
 @needs_node
 def test_loading_skeleton_announces_status(tmp_path):
     html = app_html()
@@ -222,6 +236,33 @@ def test_cached_shell_navigation_stays_locked_until_authoritative_profile_arrive
     authoritative = start.index("ME = await readStartupResponse(STARTUP.me)")
     unlock = start.index("setNavigationReady(true)")
     assert unlock > authoritative, "menu sa smie odomknúť až po odpovedi /api/me"
+
+
+def test_startup_timeout_and_server_failure_never_masquerade_as_logout():
+    html = app_html()
+    request = declaration(html, "async function fetchWithTimeout(url, options) ")
+    startup = declaration(html, "async function start() ")
+    service = declaration(html, "function viewServiceProblem(message) ")
+
+    assert "REQUEST_TIMEOUT_MS" in request
+    assert "controller.abort()" in request
+    assert "timeout.timeout = true" in request
+    assert "e && e.authRequired" in startup
+    assert "viewServiceProblem" in startup
+    catch_block = startup.split("catch(e)", 1)[1].split("AUTH_V3_ENABLED", 1)[0]
+    assert "viewLogin()" not in catch_block
+    assert "if (!ME.prihlaseny) return viewLogin()" in startup
+    assert "Skúsiť znova" in service and "beginStartup()" in service
+
+
+def test_profile_save_distinguishes_saved_data_from_a_failed_screen_refresh():
+    onboarding = declaration(app_html(), "function viewOnboarding() ")
+
+    save = onboarding.index("await api('/api/profil'")
+    refresh = onboarding.index("ME = await api('/api/me')", save)
+    assert refresh > save
+    assert "Nastavenia sú uložené" in onboarding
+    assert "zmeny neposielaj znova" in onboarding
 
 
 def test_checked_shopping_state_is_namespaced_by_authenticated_user_and_plan_week(tmp_path):
@@ -772,6 +813,13 @@ if (pantryDiffers(['ryža', 'vajcia'], ['ryža']) !== true) process.exit(5);
 if (pantryDiffers([], ['vajcia']) !== true) process.exit(6);
 if (pantryDiffers(undefined, ['vajcia']) !== false) process.exit(7);
 if (pantryDiffers(null, []) !== false) process.exit(8);
+if (pantryDiffers([{nazov:'ryža',mnozstvo:500,jednotka:'g'}],
+                  [{nazov:'ryža',mnozstvo:250,jednotka:'g'}]) !== true) process.exit(9);
+if (pantryDiffers([{nazov:'ryža',mnozstvo:0.5,jednotka:'kg'}],
+                  [{nazov:'ryža',mnozstvo:500,jednotka:'g'}]) !== true) process.exit(10);
+if (pantryDiffers([{nazov:' Ryža ',mnozstvo:'500',jednotka:' G '}],
+                  [{nazov:'ryža',mnozstvo:500,jednotka:'g'}]) !== false) process.exit(11);
+if (pantryDiffers([{nazov:'ryža',mnozstvo:null,jednotka:null}], ['ryža']) !== false) process.exit(12);
 process.exit(0);
 """,
     )
@@ -920,7 +968,7 @@ def test_immediate_plan_response_renders_without_preparing_or_polling(tmp_path):
         "immediate-plan-contract.js",
         """
 var immediate={jedla:[{den:'Po',nazov:'Polievka'}],tyzden:'2026-08-31'};
-var PLAN_REQUEST_IN_FLIGHT=null, PLAN_PREPARATION=null, PLAN_FAILURE=null;
+var PLAN_REQUEST_IN_FLIGHT={}, PLAN_PREPARATION=null, PLAN_FAILURE=null;
 var PLAN_CONTEXT_VERSION=0, PLAN=null, M={innerHTML:''};
 var calls=[], preparationCalls=0, renderCalls=0;
 function api(url, options) { calls.push({url:url,options:options}); return Promise.resolve(immediate); }
@@ -1019,7 +1067,7 @@ def test_legacy_preparing_response_starts_get_polling(tmp_path):
         """
 var ack={status:'preparing',job_id:'legacy-7'};
 var document={visibilityState:'visible'}, timers=[], calls=[];
-var PLAN_REQUEST_IN_FLIGHT=null, PLAN_PREPARATION=null, PLAN_FAILURE=null;
+var PLAN_REQUEST_IN_FLIGHT={}, PLAN_PREPARATION=null, PLAN_FAILURE=null;
 var PLAN_POLL_TIMER=null, PLAN_CONTEXT_VERSION=0, PLAN_NOTE='', PLAN=null;
 var M={innerHTML:''};
 function setTimeout(fn, milliseconds) { timers.push({fn:fn,milliseconds:milliseconds}); return timers.length; }
@@ -1073,7 +1121,7 @@ var payload={detail:'Pre zvolený spôsob stravovania nemáme v aktuálnych akci
     {kod:'add_store',text:'Pridaj ďalší obchod.'},
     {kod:'use_standard_mode',text:'Skús štandardný režim stravovania.'}]};
 var response={ok:false,status:422,json:function(){return Promise.resolve(payload);}};
-var PLAN_REQUEST_IN_FLIGHT=null, PLAN_PREPARATION=null, PLAN_FAILURE=null;
+var PLAN_REQUEST_IN_FLIGHT={}, PLAN_PREPARATION=null, PLAN_FAILURE=null;
 var PLAN_POLL_TIMER=null, PLAN_CONTEXT_VERSION=0, PLAN_NOTE='', PLAN=null;
 var M={innerHTML:''}, renderCalls=0;
 function handleApiUnauthorized() { return false; }

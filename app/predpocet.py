@@ -582,6 +582,10 @@ def _poskladaj(con, server, rows, profil, klient=None):
     sa do toho netrafil. Špajza sa sem nedostane nikdy — zdieľaný plán je z
     definície bez nej.
     """
+    raise RuntimeError(
+        "paid recipe precompute is retired; plans are built from the local catalog"
+    )
+
     import anthropic
 
     strazeny = naklady.strazeny_klient(
@@ -1242,13 +1246,11 @@ def enqueue_popular_profiles(*, count=None, now=None) -> dict:
 
     tyzden = server.monday(now.date())
     vysledok["tyzden"] = tyzden
-    if server.recipe_engine_mode() == "on":
-        # Lokálny deterministický engine nevolá model a odpovie pod sekundu.
-        # Zaraďovať pri ňom staré Sonnet úlohy by iba míňalo kredit na cache,
-        # ktorú živá používateľská cesta vôbec nepotrebuje.
-        vysledok["dovod"] = DOVOD_DETERMINISTICKY
-        vysledok["profilov"] = 0
-        return vysledok
+    # Recepty sú po kurátorskom cutovere deterministické vo všetkých
+    # rollout režimoch. Staré Sonnet predpočty sa preto už nikdy nezaraďujú.
+    vysledok["dovod"] = DOVOD_DETERMINISTICKY
+    vysledok["profilov"] = 0
+    return vysledok
     con = None
     beh_zarezany = False
     try:

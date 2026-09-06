@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "13b4d445e08ede66c3e0781910fe59365b2db4771dc53f9f3d4228efa73bf0f4",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "modern_meatballs_tomato_pasta"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

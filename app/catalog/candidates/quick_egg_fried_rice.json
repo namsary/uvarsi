@@ -30,7 +30,7 @@
         {"text": "Pridaj vajcia a sójovú omáčku do panvice. Miešaj ich s ryžou 2 minúty, kým sa vajcia úplne zrazia a obalia zrnká ryže.", "requires": ["egg:beaten", "soy:mixed", "peas:cooked", "garlic:cooked", "rice:fried", "panvica:occupied", "misa:occupied"], "produces": ["egg:cooked", "soy:cooked", "oil:cooked", "misa:free"]},
         {"text": "Podávaj opekanú ryžu hneď a rozdeľ ju na {portions} porcií.", "requires": ["rice:fried", "egg:cooked", "peas:cooked", "carrot:cooked", "onion:cooked", "garlic:cooked", "soy:cooked", "oil:cooked", "panvica:occupied"], "produces": ["rice:served", "egg:served", "peas:served", "carrot:served", "onion:served", "garlic:served", "soy:served", "oil:served", "panvica:free"]}
       ],
-      "storage": {"refrigerated_days": 1, "instruction": "Zvyšnú ryžu rozprestri do plytkej nádoby, do jednej hodiny ju schlaď a odlož do chladničky. Zjedz ju do 24 hodín a zohrej ju iba raz, kým bude celá horúca."}
+      "storage": {"refrigerated_days": 1, "instruction": "Opekanú ryžu rozdeľ do plytkých nádob a do jednej hodiny ju schlaď. V chladničke ju zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým bude celá horúca."}
     }
   ],
   "source_record": {

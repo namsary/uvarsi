@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "36e8a088114615c31c9c080c28f23c03ed3e496f28f2200efe52b8e214d9e9be",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "modern_baked_chicken_zucchini"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "eef161d48d6c560482103e0826cf98a95576206bd14860e98d78a3f4aa669d2b",
+  "promoted_to": "05-vegan.json",
+  "recipe_ids": [
+    "plant_chickpea_curry"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

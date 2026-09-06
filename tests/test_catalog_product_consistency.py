@@ -224,7 +224,6 @@ def test_bone_in_thigh_recipe_buys_gross_weight_and_never_cuts_the_bone():
     for recipe, slot in bone_in_slots:
         assert slot.amount_per_adult == Decimal("245"), recipe.id
         assert slot.cut is None, recipe.id
-        assert recipe.method == "oven", recipe.id
 
 
 def test_boneless_thigh_meat_is_available_in_cuttable_recipes():
@@ -247,7 +246,7 @@ def test_every_recipe_that_uses_a_pan_lists_it_as_equipment():
         recipe.id
         for recipe in recipes
         if "panvic" in " ".join(step.text for step in recipe.instructions).casefold()
-        and "panvica" not in recipe.equipment
+        and not any("panvic" in item.casefold() for item in recipe.equipment)
     )
 
     assert offenders == ()

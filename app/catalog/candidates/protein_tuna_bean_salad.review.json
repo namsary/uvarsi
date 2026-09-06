@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "45d5365aa9648c9452865a97accd8265a9dc2108267e621b8ef1f89d0e81ebae",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "protein_tuna_bean_salad"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

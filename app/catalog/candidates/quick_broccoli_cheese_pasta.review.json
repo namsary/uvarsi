@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "a032defc392cd61ff35c38808189f6d6185b88fee4270ce57b68d505134070f4",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "quick_broccoli_cheese_pasta"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

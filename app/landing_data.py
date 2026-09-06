@@ -55,8 +55,8 @@ def _validate_item_saving(item: dict) -> bool:
 def _validate_recipe(meal: dict) -> None:
     """Recept je nepovinný — keď tam je, musí sa dať zobraziť bez dopočítavania.
 
-    Kroky píše model (recepty.py). Komerčné údaje sa doňho nikdy nedostanú:
-    ceny, obchody aj úspora žijú v položkách a pochádzajú výhradne z DB.
+    Kroky pochádzajú z overeného letákového výstupu alebo z kurátorovaného
+    katalógu. Ceny, obchody aj úspora žijú v položkách a pochádzajú z DB.
     """
     recipe = meal.get("recipe")
     if recipe is None:

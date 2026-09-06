@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "b8fe270f8cbce85189f654a058900004a51c8ba55c665db406248b141122c48b",
+  "promoted_to": "05-vegan.json",
+  "recipe_ids": [
+    "classic_cabbage_noodles"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

@@ -31,7 +31,7 @@
         {"text": "Pridaj cuketu a prilej {coconut.amount} {coconut.name}. Dus kari v panvici na miernom ohni 10 minút, kým omáčka jemne bublá, cuketa zmäkne a mäso nebude v strede ružové.", "requires": ["zucchini:cut", "coconut:raw", "curry:toasted", "garlic:cooked", "chicken:browned", "panvica:occupied"], "produces": ["zucchini:cooked", "coconut:cooked", "curry:cooked", "chicken:cooked", "panvica:free"]},
         {"text": "Dochuť kari soľou a čiernym korením. Podávaj ho s ryžou a rozdeľ jedlo na {portions} porcií.", "requires": ["chicken:cooked", "rice:cooked", "zucchini:cooked", "onion:cooked", "garlic:cooked", "curry:cooked", "coconut:cooked", "oil:used"], "produces": ["chicken:served", "rice:served", "zucchini:served", "onion:served", "garlic:served", "curry:served", "coconut:served", "oil:served"]}
       ],
-      "storage": {"refrigerated_days": 3, "instruction": "Kari a ryžu rozdeľ do oddelených plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní."}
+      "storage": {"refrigerated_days": 1, "instruction": "Kari a ryžu rozdeľ do plytkých nádob a do jednej hodiny ich schlaď. V chladničke ich zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým budú celé horúce."}
     }
   ],
   "source_record": {

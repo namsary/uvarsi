@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "6be5a314d15acd4b3d6ad859786ab3480091d5fd9c8fe1439d8321465bac085d",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "classic_tomato_soup"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

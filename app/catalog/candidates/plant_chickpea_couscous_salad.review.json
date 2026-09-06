@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "dc700659d0b8a14f229a9eb9711e2f7dd3fde2bb9c145cdb88b6b96d0e8ef057",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "plant_chickpea_couscous_salad"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

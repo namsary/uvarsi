@@ -2,6 +2,7 @@ import json
 from dataclasses import FrozenInstanceError, replace
 from decimal import Decimal
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -157,8 +158,14 @@ def test_loads_only_active_templates_by_default(ingredients, tmp_path):
     ] == ["chicken_rice_pan", "inactive_recipe"]
 
 
-def test_default_smoke_templates_stay_inactive_beside_active_library(ingredients):
-    active = load_recipe_catalog(ingredients, DEFAULT_RECIPE_ROOT).all()
+def test_generation_one_activates_curated_v2_library_and_retires_legacy(
+    ingredients,
+):
+    catalog = load_recipe_catalog(ingredients, DEFAULT_RECIPE_ROOT)
+    active = catalog.all()
+    all_recipes = load_recipe_catalog(
+        ingredients, DEFAULT_RECIPE_ROOT, include_inactive=True
+    ).all()
     launch_groups = {
         "pan": ("pan_",),
         "oven": ("oven_",),
@@ -167,22 +174,37 @@ def test_default_smoke_templates_stay_inactive_beside_active_library(ingredients
         "vegan": ("vegan_",),
         "soup_salad": ("soup_", "salad_"),
     }
+    legacy = tuple(
+        recipe
+        for recipe in all_recipes
+        if any(
+            recipe.id.startswith(prefixes)
+            for prefixes in launch_groups.values()
+        )
+    )
 
-    assert len(active) == 60
+    assert catalog.curation_generation == 1
+    assert len(active) == 104
+    assert all(recipe.active and recipe.version == 2 for recipe in active)
+    assert len(legacy) == 60
     assert {
-        group: sum(recipe.id.startswith(prefixes) for recipe in active)
+        group: sum(recipe.id.startswith(prefixes) for recipe in legacy)
         for group, prefixes in launch_groups.items()
     } == {group: 10 for group in launch_groups}
     assert all(
         sum(recipe.id.startswith(prefixes) for prefixes in launch_groups.values()) == 1
-        for recipe in active
+        for recipe in legacy
     )
+    assert all(not recipe.active and recipe.version == 1 for recipe in legacy)
     assert [
         recipe.id
-        for recipe in load_recipe_catalog(
-            ingredients, DEFAULT_RECIPE_ROOT, include_inactive=True
-        ).all()
+        for recipe in all_recipes
         if not recipe.active
+        and recipe.id in {
+            "chicken_rice_pan",
+            "tofu_vegetable_pan",
+            "lentil_tomato_pot",
+        }
     ] == ["chicken_rice_pan", "tofu_vegetable_pan", "lentil_tomato_pot"]
 
 
@@ -447,7 +469,8 @@ def test_active_catalog_measures_every_slot_exactly_once(ingredients):
         recipe for recipe in load_recipe_catalog(ingredients).all() if recipe.active
     )
 
-    assert len(recipes) == 60
+    assert len(recipes) == 104
+    assert all(recipe.version == 2 for recipe in recipes)
     for recipe in recipes:
         for slot in recipe.slots:
             amount_placeholder = f"{{{slot.key}.amount}}"
@@ -471,11 +494,13 @@ def test_unmeasured_instruction_names_do_not_follow_case_changing_prepositions(
         for instruction in recipe.instructions:
             for slot in recipe.slots:
                 for preposition in ("s", "so", "k", "ku", "z", "zo"):
-                    unsafe = f"{preposition} {{{slot.key}.name}}"
-                    assert unsafe not in instruction.text, (
+                    unsafe = re.compile(
+                        rf"(?<!\w){preposition} \{{{slot.key}\.name\}}"
+                    )
+                    assert unsafe.search(instruction.text) is None, (
                         recipe.id,
                         instruction.text,
-                        unsafe,
+                        unsafe.pattern,
                     )
 
 

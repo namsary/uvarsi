@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "9e0f80def17c08808bcd96da57bb69fd20a9ff0e056ede229cda2fdd361d5d80",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "classic_beef_barley_soup"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

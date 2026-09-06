@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "bd957d25e28857f6488773cfa6be79a3fef5f4c7436d7a877d047689d55fb5c7",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "protein_salmon_couscous_salad"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

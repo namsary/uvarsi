@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "5ab837cf566c45f41aaa1fa02c3ba56d833f821ed5ca7caad64c2120254465b5",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "classic_chicken_noodle_soup"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

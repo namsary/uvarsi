@@ -5,6 +5,8 @@ import sys
 import types
 from concurrent.futures import ThreadPoolExecutor
 
+import pytest
+
 from app import naklady, plan_jobs
 from app.plan_data import build_personal_plan
 from tests.test_server import (
@@ -14,6 +16,11 @@ from tests.test_server import (
     model_plan,
     plan_client as legacy_plan_client,
     shared_plan_server,
+)
+
+
+pytestmark = pytest.mark.skip(
+    reason="retired queued model-written recipe architecture; plans are synchronous and deterministic"
 )
 
 

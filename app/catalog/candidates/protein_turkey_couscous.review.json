@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "0b9f99e75a5d3853e2ad151d8f60f31df2c5a7c42777d0e3a58c6abe45a6f1c1",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "protein_turkey_couscous"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

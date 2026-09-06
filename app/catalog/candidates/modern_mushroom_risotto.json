@@ -28,7 +28,7 @@
         {"text": "Vráť šampiňóny z taniera do hrnca. Odstav hrniec z ohňa, prisyp tvrdý syr a premiešaj, kým sa syr rozpustí. Dochuť soľou a čiernym korením.", "requires": ["mushrooms:browned", "rice:cooked", "cheese:grated", "tanier:occupied", "hrniec:occupied"], "produces": ["mushrooms:combined", "cheese:melted", "butter:cooked", "tanier:free"]},
         {"text": "Podávaj rizoto hneď a rozdeľ ho na {portions} porcií.", "requires": ["rice:cooked", "mushrooms:combined", "onion:cooked", "garlic:cooked", "butter:cooked", "cheese:melted", "hrniec:occupied"], "produces": ["rice:served", "mushrooms:served", "onion:served", "garlic:served", "butter:served", "cheese:served", "hrniec:free"]}
       ],
-      "storage": {"refrigerated_days": 3, "instruction": "Rizoto rozprestri do plytkých nádob, do jednej hodiny ho schlaď a odlož do chladničky. Zjedz ho do 3 dní a ohrievaj iba porciu, ktorú práve podávaš."}
+      "storage": {"refrigerated_days": 1, "instruction": "Rizoto rozdeľ do plytkých nádob a do jednej hodiny ho schlaď. V chladničke ho zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým bude celé horúce."}
     }
   ],
   "source_record": {

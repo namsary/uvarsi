@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "34781b34249afaf2d136fbadc1a96712d22c9396ff796e46ad2a15de132f7cd9",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "classic_pork_natural_rice"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

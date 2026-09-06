@@ -158,6 +158,8 @@ PLANT_IDS = (
     "plant_lentil_loaf",
 )
 
+ALL_CURATED_IDS = CLASSIC_IDS + MODERN_IDS + HIGH_PROTEIN_IDS + PLANT_IDS
+
 PLANT_CHARACTERISTIC_INGREDIENTS = {
     "plant_red_lentil_dal": ({"red_lentils"}, {"curry_powder"}),
     "plant_chickpea_curry": ({"chickpeas_canned"}, {"spinach"}, {"coconut_milk"}),
@@ -547,6 +549,16 @@ def _candidate_path(recipe_id: str) -> Path:
     return CANDIDATE_ROOT / f"{recipe_id}.json"
 
 
+def _assert_released_candidate_validation(path, recipe_id, ingredients) -> None:
+    report = validate_candidate(path, ingredients)
+
+    assert report.recipe_ids == (recipe_id,)
+    assert report.errors == (f"duplicate_id:{recipe_id}",), (
+        f"{recipe_id}: {report.errors}"
+    )
+    assert report.passed is False
+
+
 def _declared_ids(recipe) -> frozenset[str]:
     return frozenset(
         (*recipe.pantry_basics, *(item for slot in recipe.slots for item in slot.candidates))
@@ -675,9 +687,7 @@ def test_curated_slovak_classic_candidate_snapshot(
     assert tuple(row["id"] for row in target_rows) == CLASSIC_IDS
     target = next(row for row in target_rows if row["id"] == recipe_id)
 
-    report = validate_candidate(path, ingredient_catalog)
-    assert report.errors == (), f"{recipe_id}: {report.errors}"
-    assert report.recipe_ids == (recipe_id,)
+    _assert_released_candidate_validation(path, recipe_id, ingredient_catalog)
 
     payload = json.loads(path.read_text(encoding="utf-8"))
     expected_source = {
@@ -800,9 +810,7 @@ def test_curated_modern_family_candidate_snapshot(
     assert tuple(row["id"] for row in modern_target_rows) == MODERN_IDS
     target = next(row for row in modern_target_rows if row["id"] == recipe_id)
 
-    report = validate_candidate(path, ingredient_catalog)
-    assert report.errors == (), f"{recipe_id}: {report.errors}"
-    assert report.recipe_ids == (recipe_id,)
+    _assert_released_candidate_validation(path, recipe_id, ingredient_catalog)
 
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["source_record"] == {
@@ -893,8 +901,7 @@ def test_curated_high_protein_candidate_snapshot(
     assert tuple(row["id"] for row in high_protein_target_rows) == HIGH_PROTEIN_IDS
     target = next(row for row in high_protein_target_rows if row["id"] == recipe_id)
 
-    report = validate_candidate(path, ingredient_catalog)
-    assert report.errors == (), f"{recipe_id}: {report.errors}"
+    _assert_released_candidate_validation(path, recipe_id, ingredient_catalog)
 
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["source_record"] == {
@@ -945,8 +952,7 @@ def test_curated_plant_candidate_snapshot(
     assert len(PLANT_IDS) == 10
     assert tuple(row["id"] for row in plant_target_rows) == PLANT_IDS
     target = next(row for row in plant_target_rows if row["id"] == recipe_id)
-    report = validate_candidate(path, ingredient_catalog)
-    assert report.errors == (), f"{recipe_id}: {report.errors}"
+    _assert_released_candidate_validation(path, recipe_id, ingredient_catalog)
 
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["source_record"] == {
@@ -991,7 +997,12 @@ def test_curated_plant_candidate_snapshot(
 
 def test_curated_candidates_meet_diet_floors(ingredient_catalog, tmp_path):
     recipes = []
-    for index, path in enumerate(sorted(CANDIDATE_ROOT.glob("*.json"))):
+    candidate_paths = sorted(
+        path
+        for path in CANDIDATE_ROOT.glob("*.json")
+        if not path.name.endswith(".review.json")
+    )
+    for index, path in enumerate(candidate_paths):
         payload = json.loads(path.read_text(encoding="utf-8"))
         recipes.append(
             _load_recipe_with_public_catalog(
@@ -1385,6 +1396,20 @@ def test_dry_red_bean_stew_starts_with_a_safe_brisk_boil(
 
 
 @pytest.mark.parametrize(
+    "recipe_id", ("classic_bean_stew_egg", "classic_bean_soup")
+)
+def test_dry_bean_duration_includes_soaking_and_cooking(
+    recipe_id, ingredient_catalog, tmp_path
+):
+    recipe = _load_candidate_recipe(recipe_id, ingredient_catalog, tmp_path)
+
+    assert recipe.minutes >= 780, (
+        f"{recipe_id}: 12 h namáčania a aspoň 60 min varenia sa nemôže "
+        f"tváriť ako {recipe.minutes} minút"
+    )
+
+
+@pytest.mark.parametrize(
     ("recipe_id", "dairy_key"),
     (
         ("classic_potato_stew_egg", "cream"),
@@ -1527,6 +1552,58 @@ def test_classic_rice_has_scaled_water_cover_cue_and_safe_storage(
     assert "plytk" in storage
     assert "jednej hodiny" in storage or "1 hodiny" in storage
     assert "24 hodin" in storage
+
+
+@pytest.mark.parametrize("recipe_id", ALL_CURATED_IDS, ids=ALL_CURATED_IDS)
+def test_every_curated_rice_recipe_has_safe_storage_for_multi_day_plans(
+    recipe_id, ingredient_catalog, tmp_path
+):
+    recipe = _load_candidate_recipe(recipe_id, ingredient_catalog, tmp_path)
+    if "rice" not in _declared_ids(recipe):
+        pytest.skip("recipe has no cooked rice")
+
+    storage = _fold(recipe.storage.instruction)
+    assert recipe.storage.refrigerated_days == 1
+    assert "jednej hodiny" in storage or "1 hodiny" in storage
+    assert "24 hodin" in storage
+    assert "iba raz" in storage
+    assert "zamraz" in storage, "porcie na neskoršie dni musia ísť do mrazničky"
+
+
+def test_yogurt_chicken_salad_is_not_mislabelled_as_caesar(
+    ingredient_catalog, tmp_path
+):
+    recipe = _load_candidate_recipe(
+        "modern_chicken_caesar_salad", ingredient_catalog, tmp_path
+    )
+    rendered = render_meal(
+        _render_candidate(recipe, ingredient_catalog),
+        adults=1,
+        children=0,
+        covered_days=1,
+    )
+
+    assert "caesar" not in _fold(recipe.name_template)
+    assert "caesar" not in _fold(" ".join(rendered.instructions))
+
+
+def test_family_lasagne_is_a_realistic_adult_portion(
+    ingredient_catalog, tmp_path
+):
+    recipe = _load_candidate_recipe(
+        "modern_family_lasagne", ingredient_catalog, tmp_path
+    )
+    meal = render_meal(
+        _render_candidate(recipe, ingredient_catalog),
+        adults=1,
+        children=0,
+        covered_days=1,
+    )
+    edible_grams = sum(_rendered_edible_grams(item) for item in meal.ingredients)
+
+    assert edible_grams <= Decimal("650")
+    assert meal.nutrition.serving.kcal <= Decimal("900")
+    assert meal.nutrition.serving.protein_g >= Decimal("30")
 
 
 @pytest.mark.parametrize("recipe_id", EXPLICIT_WATER_IDS, ids=EXPLICIT_WATER_IDS)
@@ -1672,7 +1749,7 @@ def test_baked_pasta_uses_natural_egg_and_cream_grammar(
     instructions = _fold(" ".join(meal.instructions))
 
     assert "rozslahaj vajce v mise" in instructions
-    assert "prilej smotanu na slahanie" in instructions
+    assert "prilej smotanu na varenie" in instructions
     assert "vajce s smotanu" not in instructions
 
 

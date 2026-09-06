@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "b4f522ffad58862c87ebe596cd84f67cb719f181eb8f92ead629371759691fc5",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "quick_egg_potato_spinach_pan"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

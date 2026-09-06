@@ -718,8 +718,8 @@
     },
     {
       "id": "cream",
-      "name": "smotana na šľahanie",
-      "synonyms": ["šľahačková smotana"],
+      "name": "smotana na varenie",
+      "synonyms": ["sladká smotana", "smotana 10 %", "smotana 12 %"],
       "category": "mliečne výrobky",
       "roles": ["dairy", "fat"],
       "diet_tags": ["vegetarian"],
@@ -728,8 +728,8 @@
       "grams_per_piece": null,
       "density_g_per_ml": "1",
       "nutrition": {
-        "kcal": "340", "protein_g": "2.84", "fat_g": "36.08", "carbs_g": "2.84",
-        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170859, Cream, fluid, heavy whipping; https://fdc.nal.usda.gov/fdc-app.html#/food-details/170859/nutrients",
+        "kcal": "195", "protein_g": "2.96", "fat_g": "19.31", "carbs_g": "3.66",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170857, Cream, fluid, light; https://fdc.nal.usda.gov/fdc-app.html#/food-details/170857/nutrients",
         "verified_on": "2026-08-30"
       }
     },

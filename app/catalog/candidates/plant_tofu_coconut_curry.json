@@ -32,7 +32,7 @@
         {"text": "Vráť tofu do panvice. Prilej {coconut.amount} {coconut.name} do panvice. Prikry ju a var kari na miernom ohni 6 minút, kým brokolica zmäkne, ale zostane pevná, a omáčka začne jemne bublať.", "requires": ["tofu:resting", "coconut:raw", "curry:toasted", "garlic:cooked", "onion:softened", "carrot:softened", "broccoli:softened", "hlboka_panvica_s_pokrievkou:occupied", "tanier:occupied"], "produces": ["tofu:cooked", "coconut:cooked", "curry:cooked", "garlic:finished", "onion:cooked", "carrot:cooked", "broccoli:cooked", "oil:cooked", "tanier:free"]},
         {"text": "Dochuť kari soľou a čiernym korením. Podávaj ho s ryžou a jedlo rozdeľ na {portions} porcií.", "requires": ["tofu:cooked", "coconut:cooked", "curry:cooked", "garlic:finished", "onion:cooked", "carrot:cooked", "broccoli:cooked", "oil:cooked", "rice:cooked", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["tofu:served", "coconut:served", "curry:served", "garlic:served", "onion:served", "carrot:served", "broccoli:served", "oil:served", "rice:served", "hlboka_panvica_s_pokrievkou:free"]}
       ],
-      "storage": {"refrigerated_days": 3, "instruction": "Kari a ryžu rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a pri ohrievaní ich dôkladne prehrej."}
+      "storage": {"refrigerated_days": 1, "instruction": "Kari a ryžu rozdeľ do plytkých nádob a do jednej hodiny ich schlaď. V chladničke ich zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým budú celé horúce."}
     }
   ],
   "source_record": {

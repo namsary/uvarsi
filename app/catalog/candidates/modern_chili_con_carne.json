@@ -38,7 +38,7 @@
         {"text": "Pridaj červenú fazuľu do hrnca. Var červenú fazuľu s paradajkami vo veľkom hrnci na miernom ohni 8 minút, kým bude horúca a omáčka začne znovu jemne bublať.", "requires": ["beans:rinsed", "tomato:cooked", "beef:cooked", "velky_hrniec:hot"], "produces": ["beans:cooked", "pepper:finished", "onion:finished", "garlic:finished", "velky_hrniec:free"]},
         {"text": "Dochuť chilli soľou a čiernym korením. Podávaj ho s ryžou a rozdeľ jedlo na {portions} porcií.", "requires": ["beef:cooked", "rice:cooked", "beans:cooked", "tomato:cooked", "pepper:finished", "onion:finished", "garlic:finished", "paprika:cooked", "cumin:cooked", "chili:cooked", "marjoram:cooked", "sugar:cooked", "oil:used"], "produces": ["beef:served", "rice:served", "beans:served", "tomato:served", "pepper:served", "onion:served", "garlic:served", "paprika:served", "cumin:served", "chili:served", "marjoram:served", "sugar:served", "oil:served"]}
       ],
-      "storage": {"refrigerated_days": 3, "instruction": "Chilli a ryžu rozdeľ do oddelených plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní."}
+      "storage": {"refrigerated_days": 1, "instruction": "Chilli a ryžu rozdeľ do plytkých nádob a do jednej hodiny ich schlaď. V chladničke ich zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým budú celé horúce."}
     }
   ],
   "source_record": {

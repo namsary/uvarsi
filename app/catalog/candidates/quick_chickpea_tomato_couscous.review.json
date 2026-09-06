@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "722c51e8a07c80c18fbc8d3083ce705d7a900ae6bf649fcdfab2e44240050304",
+  "promoted_to": "05-vegan.json",
+  "recipe_ids": [
+    "quick_chickpea_tomato_couscous"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

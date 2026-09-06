@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "3910fca0b8ea79a898fe028949a346c8d912e51e62688f38cc0d5e3b6f7289ed",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "protein_skyr_chicken_wrap"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

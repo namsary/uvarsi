@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "3777d99aeb7f4c36bab93d6f55bdb76d4ce77abf4628cf9001c0c58342f4d2cd",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "modern_tuna_pasta_salad"
+  ],
+  "reviewed_by": "Martin + Uvar.si QA",
+  "reviewed_on": "2026-09-06"
+}

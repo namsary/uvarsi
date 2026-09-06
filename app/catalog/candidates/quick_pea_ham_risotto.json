@@ -29,7 +29,7 @@
         {"text": "Odstav hrniec z ohňa, vmiešaj {cheese.name} a čierne korenie. Nechaj rizoto 2 minúty prikryté, kým sa syr roztopí a rizoto bude krémové.", "requires": ["cheese:grated", "rice:cooked", "peas:cooked", "ham:cooked", "siroky_hrniec_s_pokrievkou:occupied"], "produces": ["cheese:melted"]},
         {"text": "Podávaj hráškové rizoto so šunkou horúce a rozdeľ ho na {portions} porcií.", "requires": ["rice:cooked", "ham:cooked", "peas:cooked", "cheese:melted", "onion:cooked", "garlic:cooked", "oil:cooked", "siroky_hrniec_s_pokrievkou:occupied"], "produces": ["rice:served", "ham:served", "peas:served", "cheese:served", "onion:served", "garlic:served", "oil:served", "siroky_hrniec_s_pokrievkou:free"]}
       ],
-      "storage": {"refrigerated_days": 1, "instruction": "Rizoto rozprestri do plytkej nádoby, do jednej hodiny ho schlaď a odlož do chladničky. Zjedz ho do 24 hodín a zohrej ho iba raz, kým bude celé horúce."}
+      "storage": {"refrigerated_days": 1, "instruction": "Rizoto rozdeľ do plytkých nádob a do jednej hodiny ho schlaď. V chladničke ho zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým bude celé horúce."}
     }
   ],
   "source_record": {

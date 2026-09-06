@@ -27,7 +27,7 @@
         {"text": "Vlož rybu do pekáča. Nechaj pekáč odkrytý. Peč rybu s ryžou v pekáči pri 200 °C ďalších 12 minút, kým sa ryba bude ľahko oddeľovať vidličkou a ryža bude mäkká.", "requires": ["fish:portioned", "rice:partly_cooked", "tomato:cooked", "onion:cooked", "garlic:cooked", "oregano:cooked", "oil:cooked", "pekac:occupied", "rura:hot"], "produces": ["fish:cooked", "rice:cooked"]},
         {"text": "Nechaj jedlo v pekáči 5 minút odpočívať. Podávaj rybu s paradajkovou ryžou a rozdeľ ju na {portions} porcií.", "requires": ["fish:cooked", "rice:cooked", "tomato:cooked", "onion:cooked", "garlic:cooked", "oregano:cooked", "oil:cooked", "pekac:occupied"], "produces": ["fish:served", "rice:served", "tomato:served", "onion:served", "garlic:served", "oregano:served", "oil:served", "pekac:free", "rura:free"]}
       ],
-      "storage": {"refrigerated_days": 3, "instruction": "Jedlo rozdeľ do plytkých nádob, do jednej hodiny ho schlaď a odlož do chladničky. Zjedz ho do 3 dní a ryžu aj rybu ohrievaj iba raz, kým budú horúce."}
+      "storage": {"refrigerated_days": 1, "instruction": "Rybu s ryžou rozdeľ do plytkých nádob a do jednej hodiny ich schlaď. V chladničke ich zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým budú celé horúce."}
     }
   ],
   "source_record": {

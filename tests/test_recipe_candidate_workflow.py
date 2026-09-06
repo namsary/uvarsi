@@ -100,7 +100,7 @@ def _source_record(recipe_id, **overrides):
 
 def _write_candidate(path: Path, recipe=None, source_record=None) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    recipe = recipe or _candidate_recipe()
+    recipe = recipe or _v2_candidate_recipe()
     source_record = source_record or _source_record(recipe["id"])
     path.write_text(
         json.dumps(
@@ -195,7 +195,11 @@ def _v2_candidate_recipe(**overrides):
 
 def _candidate_from_active_file(filename: str):
     payload = json.loads((ACTIVE_RECIPES / filename).read_text(encoding="utf-8"))
-    recipe = payload["recipes"][0]
+    recipe = next(
+        item.copy()
+        for item in payload["recipes"]
+        if item["active"] is True and item["version"] == 2
+    )
     recipe["id"] = f"candidate_{filename.removesuffix('.json').replace('-', '_')}"
     recipe["family"] = f"candidate_family_{filename.removesuffix('.json')}"
     return recipe
@@ -536,14 +540,14 @@ def test_batch_promotion_validates_all_candidates_before_writing(
     candidates, recipes = quarantined_catalog
     first = _write_candidate(
         candidates / "preflight-first.json",
-        _candidate_recipe(
+        _v2_candidate_recipe(
             id="candidate_preflight_first",
             family="candidate_preflight_first_family",
         ),
     )
     second = _write_candidate(
         candidates / "preflight-invalid.json",
-        _candidate_recipe(
+        _v2_candidate_recipe(
             id="pan_chicken_rice_vegetables",
             family="candidate_preflight_invalid_family",
         ),
@@ -566,14 +570,14 @@ def test_batch_promotion_rejects_duplicate_ids_before_writing(
     candidates, recipes = quarantined_catalog
     first = _write_candidate(
         candidates / "duplicate-first.json",
-        _candidate_recipe(
+        _v2_candidate_recipe(
             id="candidate_batch_duplicate",
             family="candidate_batch_duplicate_first",
         ),
     )
     second = _write_candidate(
         candidates / "duplicate-second.json",
-        _candidate_recipe(
+        _v2_candidate_recipe(
             id="candidate_batch_duplicate",
             family="candidate_batch_duplicate_second",
         ),
@@ -607,7 +611,7 @@ def test_batch_promotion_rejects_source_records_without_active_recipes(
     )
     candidate = _write_candidate(
         candidates / "active-source-only.json",
-        _candidate_recipe(
+        _v2_candidate_recipe(
             id="candidate_active_source_only",
             family="candidate_active_source_only_family",
         ),
@@ -724,7 +728,7 @@ def test_promotion_rejects_failing_candidate_without_changing_catalog(
     candidates, recipes = quarantined_catalog
     path = _write_candidate(
         candidates / "duplicate.json",
-        _candidate_recipe(id="pan_chicken_rice_vegetables"),
+        _v2_candidate_recipe(id="pan_chicken_rice_vegetables"),
     )
     before = _catalog_snapshot(recipes)
 
@@ -943,11 +947,15 @@ def test_concurrent_promotions_preserve_both_recipes_and_both_version_steps(
     second_id = "candidate_concurrent_second"
     first = _write_candidate(
         candidates / "first.json",
-        _candidate_recipe(id=first_id, family="candidate_concurrent_family_first"),
+        _v2_candidate_recipe(
+            id=first_id, family="candidate_concurrent_family_first"
+        ),
     )
     second = _write_candidate(
         candidates / "second.json",
-        _candidate_recipe(id=second_id, family="candidate_concurrent_family_second"),
+        _v2_candidate_recipe(
+            id=second_id, family="candidate_concurrent_family_second"
+        ),
     )
     manifest_before = json.loads(
         (recipes / "manifest.json").read_text(encoding="utf-8")
@@ -1023,11 +1031,15 @@ def test_failing_concurrent_promotion_rollback_cannot_clobber_success(
     success_id = "candidate_concurrent_success"
     failed = _write_candidate(
         candidates / "failed.json",
-        _candidate_recipe(id=failed_id, family="candidate_concurrent_failure_family"),
+        _v2_candidate_recipe(
+            id=failed_id, family="candidate_concurrent_failure_family"
+        ),
     )
     success = _write_candidate(
         candidates / "success.json",
-        _candidate_recipe(id=success_id, family="candidate_concurrent_success_family"),
+        _v2_candidate_recipe(
+            id=success_id, family="candidate_concurrent_success_family"
+        ),
     )
     manifest_before = json.loads(
         (recipes / "manifest.json").read_text(encoding="utf-8")
