@@ -33,6 +33,7 @@ LANDING_DATA="${UVARSI_LANDING_DATA:-/var/lib/uvarsi/landing_data.json}"
 PY="${UVARSI_PY:-$DIR/venv/bin/python}"
 HEALTH_PY="${UVARSI_HEALTH_PY:-$PY}"
 CURL="${UVARSI_CURL:-curl}"
+DATE="${UVARSI_DATE:-date}"
 STATE="$DIR/.dozorca_state"          # formát: "RRRR-MM-DD pocet_neuspechov blok"
 PLAN_QUEUE_ALERT_STATE="$DIR/.plan_queue_alert_state"
 RECIPE_ENGINE_ALERT_STATE="$DIR/.recipe_engine_alert_state"
@@ -47,7 +48,7 @@ EXIT_STRUCTURAL=3                    # kód, ktorým refresh_blocek hlási "neop
 MIN_OFFERS_PER_STORE=20              # malá vložka sa nesmie tváriť ako celý leták
 NTFY_TOPIC="uvarsi-jarvis-8f3a2c"    # notifikácie: ntfy.sh/<topic>
 
-log(){ echo "[$(date '+%F %T')] DOZORCA: $*"; }
+log(){ echo "[$(TZ=Europe/Bratislava "$DATE" '+%F %T')] DOZORCA: $*"; }
 notify(){ "$CURL" -fsS --max-time 15 -H "Title: $1" -d "$2" "https://ntfy.sh/${NTFY_TOPIC}" >/dev/null 2>&1; }
 
 upozorni_detail_zberu() {
@@ -91,7 +92,7 @@ if [ "${UVARSI_DOZORCA_LOCKED:-0}" != "1" ]; then
   fi
 fi
 
-TODAY="${UVARSI_TODAY:-$(date +%F)}"
+TODAY="${UVARSI_TODAY:-$(TZ=Europe/Bratislava "$DATE" +%F)}"
 
 skontroluj_frontu_planov() {
   # Health odpoveď je jediný zdroj pravdy: dozorca nesmie z počtu procesov

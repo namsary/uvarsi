@@ -156,6 +156,75 @@ def run_dozorca(tmp_path, landing_data):
     )
 
 
+def test_dozorca_uses_bratislava_day_after_local_midnight_on_utc_server(tmp_path):
+    (tmp_path / "app").mkdir()
+    landing_data = tmp_path / "landing_data.json"
+    write_landing_data_atomic(landing_data, payload("2026-08-31"))
+    calls = tmp_path / "calls.txt"
+
+    fake_date = tmp_path / "date"
+    fake_date.write_text(
+        "#!/bin/sh\n"
+        "case \"$1\" in\n"
+        "  +%F) [ \"$TZ\" = \"Europe/Bratislava\" ] && echo 2026-09-07 || echo 2026-09-06 ;;\n"
+        "  *) echo '2026-09-07 00:30:00' ;;\n"
+        "esac\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_date.chmod(0o755)
+
+    fake_python = tmp_path / "python"
+    fake_python.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"-c\" ]; then\n"
+        "  case \"$2\" in *'from datetime import date'*) echo 2026-09-07; exit 0 ;; esac\n"
+        "  exit 1\n"
+        "fi\n"
+        f"printf '%s\\n' \"$*\" >> '{bash_path(calls)}'\n"
+        "exit 1\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_python.chmod(0o755)
+
+    fake_sqlite = tmp_path / "sqlite3"
+    fake_sqlite.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        "  *'SELECT lower(v.o)'*2026-09-07*) echo lidl ;;\n"
+        "  *'SELECT COUNT(*) FROM ('*2026-09-07*) echo 1 ;;\n"
+        "  *'SELECT COUNT(*) FROM ('*) echo 0 ;;\n"
+        "  *MAX*) echo 0 ;;\n"
+        "  *) echo 466 ;;\n"
+        "esac\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_sqlite.chmod(0o755)
+
+    result = subprocess.run(
+        [str(BASH), bash_path(ROOT / "hetzner" / "dozorca.sh")],
+        cwd=str(ROOT),
+        env=os.environ | {
+            "UVARSI_DIR": bash_path(tmp_path),
+            "UVARSI_LANDING_DATA": bash_path(landing_data),
+            "UVARSI_PY": bash_path(fake_python),
+            "UVARSI_DATE": bash_path(fake_date),
+            "UVARSI_DOZORCA_LOCKED": "1",
+            "TZ": "UTC",
+            "PATH": f"{bash_path(tmp_path)}:/usr/bin",
+        },
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+
+    assert "zbierac_akcii.py --store lidl" in calls.read_text(encoding="utf-8")
+
+
 def test_dozorca_stops_retrying_a_structural_failure_until_the_data_changes(tmp_path):
     landing_data = tmp_path / "landing_data.json"
     write_landing_data_atomic(landing_data, payload("2026-08-10"))
