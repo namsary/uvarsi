@@ -526,6 +526,32 @@ def test_local_synthetic_smoke_is_non_public_read_only_and_model_free(
     assert "jedla" not in durable
 
 
+def test_isolated_smoke_keeps_valid_previous_week_flyer_status_on_monday(
+    monkeypatch, tmp_path
+):
+    rows = []
+    for source in _offer_rows():
+        row = list(source)
+        row[0] = "2026-08-31"
+        row[10] = "2026-09-05"
+        row[11] = "2026-09-13"
+        rows.append(tuple(row))
+    server, _state = _load(monkeypatch, tmp_path, rows=rows)
+    business_day = date(2026, 9, 7)
+    with closing(server._readonly_database()) as con:
+        offers, complete = server._complete_recipe_offers(con, business_day)
+
+    assert complete is True
+
+    result = server._authenticated_isolated_recipe_smoke(
+        offers,
+        now=datetime(2026, 9, 7, 10, 0, tzinfo=timezone.utc),
+    )
+
+    assert result["valid"] is True, json.dumps(result, sort_keys=True)
+    assert result["response_statuses"] == [200, 200]
+
+
 def test_release_preflight_migrates_only_a_snapshot_of_legacy_offer_schema(
     monkeypatch, tmp_path
 ):

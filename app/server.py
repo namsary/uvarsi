@@ -4585,7 +4585,9 @@ def _authenticated_isolated_recipe_smoke(rows, *, now):
         priprav_databazu(DB)
         offers = [dict(row) for row in rows]
         smoke_stores = sorted({offer["obchod"] for offer in offers})
-        smoke_week = monday(bratislava_day(now))
+        smoke_buckets = sorted(
+            {(offer["tyzden"], offer["obchod"]) for offer in offers}
+        )
         with closing(db()) as con:
             columns = [
                 row[1] for row in con.execute("PRAGMA table_info(akcie)")
@@ -4621,12 +4623,15 @@ def _authenticated_isolated_recipe_smoke(rows, *, now):
                    VALUES (?,?,'ok',?,NULL,?,CURRENT_TIMESTAMP)""",
                 [
                     (
-                        smoke_week,
+                        week,
                         store,
-                        sum(offer["obchod"] == store for offer in offers),
+                        sum(
+                            offer["tyzden"] == week and offer["obchod"] == store
+                            for offer in offers
+                        ),
                         CURRENT_COLLECTION_DATA_VERSION,
                     )
-                    for store in smoke_stores
+                    for week, store in smoke_buckets
                 ],
             )
             user_id = con.execute(
