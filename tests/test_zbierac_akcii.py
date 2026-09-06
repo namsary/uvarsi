@@ -3,7 +3,7 @@ import re
 import sqlite3
 import sys
 import types
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 import pytest
 
@@ -15,6 +15,12 @@ from app.plan_jobs import JobRequest
 
 TODAY = date(2026, 8, 20)
 NOW = datetime(2026, 8, 20, 9, 0, 0)
+
+
+def test_collection_week_uses_bratislava_monday_during_utc_sunday_rollover():
+    instant = datetime(2026, 9, 6, 22, 30, tzinfo=timezone.utc)
+
+    assert collector.monday(instant) == "2026-09-07"
 
 
 def test_store_with_fourteen_offers_is_never_considered_complete():

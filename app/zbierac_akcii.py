@@ -45,6 +45,11 @@ try:
 except ImportError:
     from app import plan_jobs
 
+try:
+    from plan_calendar import bratislava_day, bratislava_monday
+except ImportError:
+    from app.plan_calendar import bratislava_day, bratislava_monday
+
 DB = os.environ.get("UVARSI_DB", "/opt/uvarsi/uvarsi.db")
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 
@@ -151,9 +156,13 @@ def db():
     return con
 
 
-def monday():
-    t = datetime.date.today()
-    return (t - datetime.timedelta(days=t.weekday())).isoformat()
+def business_day(now=None):
+    """Dátum zberu je vždy slovenský, nezávisle od časovej zóny servera."""
+    return bratislava_day(now)
+
+
+def monday(now=None):
+    return bratislava_monday(now)
 
 
 # ---------------------------------------------------------------- zdroje strán
@@ -264,7 +273,7 @@ def official_lidl_pages(today=None):
     supplies a finite offer window and a complete, explicitly numbered page
     manifest.  We never guess hashes or stop after the first missing image.
     """
-    today = today or datetime.date.today()
+    today = today or business_day()
     overview = requests.get(LIDL_OVERVIEW_URL, headers=H, timeout=30).text
     slugs = re.findall(
         r'href=["\'](?:https://www\.lidl\.sk)?/l/sk/letak/'
@@ -376,7 +385,7 @@ def _mletaky_declared_page_counts(page_html, store):
 
 
 def mletaky_candidates(store, today=None):
-    today = today or datetime.date.today()
+    today = today or business_day()
     html_ = requests.get(f"https://mletaky.sk/obchody/{store}", headers=H, timeout=20).text
     cands = set(re.findall(r'https?://app\.mletaky\.sk/(\d{6})_(\d{6})_'
                            + store + r'_([a-z0-9]+)', html_))
@@ -508,7 +517,7 @@ def discover_pages(store, page_urls, start):
 
 def store_pages(store, today=None):
     """Return all sequential pages plus their exact finite-validity manifest."""
-    today = today or datetime.date.today()
+    today = today or business_day()
     if store == "lidl":
         try:
             pages, manifest = official_lidl_pages(today=today)
