@@ -208,20 +208,63 @@ def test_odmietnute_volania_poslu_prave_jedno_upozornenie(con):
     assert "dobi" in text.lower(), "majiteľ musí vedieť, čo má urobiť"
 
 
-def test_explicitne_odobranie_priznaku_umozni_po_dobiti_kreditu_uspesne_volanie(con):
+def test_cerstvy_priznak_kreditu_nepusti_dalsie_api_volanie(con):
+    volania = []
     with pytest.raises(naklady.KreditVycerpany):
         naklady.s_rozpoctom(con, "plan", "claude-sonnet-5",
                             lambda: (_ for _ in ()).throw(bad_request_kredit()),
                             teraz=PONDELOK, notifikuj=lambda s: None)
-    assert naklady.stav(con, teraz=PONDELOK)["kredit"]["vycerpany"] is True
 
-    # Príznak je fail-closed, kým majiteľ po dobití kreditu výslovne nepotvrdí
-    # zotavenie. Úspešné volanie ho nemôže vymazať samo, keď sa k nemu nesmie dostať.
-    naklady.zabudni_kredit(con)
-    naklady.s_rozpoctom(con, "plan", "claude-sonnet-5",
-                        lambda: types.SimpleNamespace(usage=usage(vstup=1_000)),
-                        teraz=PONDELOK, notifikuj=lambda s: None)
+    with pytest.raises(naklady.KreditVycerpany):
+        naklady.s_rozpoctom(
+            con, "plan", "claude-sonnet-5",
+            lambda: volania.append("API") or types.SimpleNamespace(usage=usage(vstup=1_000)),
+            teraz=PONDELOK + datetime.timedelta(minutes=59),
+            notifikuj=lambda s: None,
+        )
+
+    assert volania == [], "počas hodinovej prestávky sa provider nesmie zavolať"
+
+
+def test_po_hodine_sa_kredit_overi_a_uspesny_pokus_priznak_sam_zmaze(con):
+    with pytest.raises(naklady.KreditVycerpany):
+        naklady.s_rozpoctom(con, "plan", "claude-sonnet-5",
+                            lambda: (_ for _ in ()).throw(bad_request_kredit()),
+                            teraz=PONDELOK, notifikuj=lambda s: None)
+
+    odpoved = naklady.s_rozpoctom(
+        con, "plan", "claude-sonnet-5",
+        lambda: types.SimpleNamespace(usage=usage(vstup=1_000)),
+        teraz=PONDELOK + datetime.timedelta(seconds=naklady.CREDIT_RETRY_SECONDS),
+        notifikuj=lambda s: None,
+    )
+
+    assert odpoved.usage.input_tokens == 1_000
     assert naklady.stav(con, teraz=PONDELOK)["kredit"]["vycerpany"] is False
+
+
+def test_neuspesna_hodinova_skuska_posunie_prestavku_bez_druhej_notifikacie(con):
+    poslane = []
+    with pytest.raises(naklady.KreditVycerpany):
+        naklady.s_rozpoctom(
+            con, "plan", "claude-sonnet-5",
+            lambda: (_ for _ in ()).throw(bad_request_kredit()),
+            teraz=PONDELOK, notifikuj=poslane.append,
+        )
+
+    dalsi_pokus = PONDELOK + datetime.timedelta(seconds=naklady.CREDIT_RETRY_SECONDS)
+    with pytest.raises(naklady.KreditVycerpany):
+        naklady.s_rozpoctom(
+            con, "plan", "claude-sonnet-5",
+            lambda: (_ for _ in ()).throw(bad_request_kredit()),
+            teraz=dalsi_pokus, notifikuj=poslane.append,
+        )
+
+    zistene = con.execute(
+        "SELECT zistene FROM naklady_kredit WHERE den=?", (PONDELOK.date().isoformat(),)
+    ).fetchone()[0]
+    assert zistene == dalsi_pokus.isoformat(timespec="seconds")
+    assert len(poslane) == 1
 
 
 # ------------------------------------------------------------------ INCIDENT

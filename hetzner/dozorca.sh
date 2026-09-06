@@ -20,7 +20,8 @@
 # volanie, kým majiteľ nedobije účet. Dáta s tým nemajú nič spoločné, takže
 # blok viazaný na počet ponúk by sa uvoľnil pri prvej zmene v DB a pokusy by
 # bežali ďalej. refresh_blocek to preto hlási značkou KREDIT_VYCERPANY a
-# dozorca zapíše blok "KREDIT" — dnes už nespustí nič, zajtra to skúsi znova.
+# dozorca zapíše blok "KREDIT" a dovolí jeden overovací pokus za hodinu. Po
+# dobití sa tak obnoví sám bez ručného resetu; bez kreditu probe nič neminie.
 # Upozornenie na ntfy posiela naklady.py (práve raz za deň), dozorca ho
 # zámerne NEZDVOJUJE.
 #
@@ -34,7 +35,7 @@ PY="${UVARSI_PY:-$DIR/venv/bin/python}"
 HEALTH_PY="${UVARSI_HEALTH_PY:-$PY}"
 CURL="${UVARSI_CURL:-curl}"
 DATE="${UVARSI_DATE:-date}"
-STATE="$DIR/.dozorca_state"          # formát: "RRRR-MM-DD pocet_neuspechov blok"
+STATE="$DIR/.dozorca_state"          # "RRRR-MM-DD neúspechy blok [posledný_probe_epoch]"
 PLAN_QUEUE_ALERT_STATE="$DIR/.plan_queue_alert_state"
 RECIPE_ENGINE_ALERT_STATE="$DIR/.recipe_engine_alert_state"
 RECIPE_SMOKE_ATTEMPT_STATE="$DIR/.recipe_engine_smoke_attempt"
@@ -42,6 +43,7 @@ COLLECTION_DIAGNOSTIC_STATE="$DIR/.collection_diagnostic_state"
 RECIPE_SMOKE_STATE="${UVARSI_RECIPE_SMOKE_STATE:-/var/lib/uvarsi/recipe_engine_smoke.json}"
 PLAN_QUEUE_HEALTH_URL="${UVARSI_PLAN_QUEUE_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
 RECIPE_SMOKE_MIN_INTERVAL_SECONDS="${UVARSI_RECIPE_SMOKE_MIN_INTERVAL_SECONDS:-900}"
+CREDIT_RETRY_SECONDS="${UVARSI_CREDIT_RETRY_SECONDS:-3600}"
 MAX_TRIES=6                          # max pokusov za jeden deň
 NOTIFY_AT=2                          # po koľkých neúspechoch upozorniť
 EXIT_STRUCTURAL=3                    # kód, ktorým refresh_blocek hlási "neopakuj"
@@ -99,6 +101,9 @@ if [ "${UVARSI_DOZORCA_LOCKED:-0}" != "1" ]; then
 fi
 
 TODAY="${UVARSI_TODAY:-$(TZ=Europe/Bratislava "$DATE" +%F)}"
+NOW_EPOCH="${UVARSI_NOW_EPOCH:-$(date +%s)}"
+case "$NOW_EPOCH" in ''|*[!0-9]*) log "CHYBA — aktuálny epoch má neplatný formát"; exit 1 ;; esac
+case "$CREDIT_RETRY_SECONDS" in ''|*[!0-9]*|0) log "CHYBA — interval kontroly kreditu má neplatný formát"; exit 1 ;; esac
 
 skontroluj_frontu_planov() {
   # Health odpoveď je jediný zdroj pravdy: dozorca nesmie z počtu procesov
@@ -265,10 +270,6 @@ skontroluj_recipe_engine() {
     *) recipe_engine_alert "readiness blokuje: ${BLOCKERS:-unknown}"; return 1 ;;
   esac
 
-  NOW_EPOCH="${UVARSI_NOW_EPOCH:-$(date +%s)}"
-  case "$NOW_EPOCH" in
-    ''|*[!0-9]*) recipe_engine_alert "čas smoke kontroly má neplatný formát"; return 1 ;;
-  esac
   case "$RECIPE_SMOKE_MIN_INTERVAL_SECONDS" in
     ''|*[!0-9]*|0) recipe_engine_alert "interval smoke kontroly má neplatný formát"; return 1 ;;
   esac
@@ -321,20 +322,29 @@ MON_ISO=$("$PY" -c 'from datetime import date, timedelta; import sys; d=date.fro
 FAILS=0
 BLOKNUTE_NA="-"                      # "-" = žiadny blok; "KREDIT" = došiel kredit;
                                      # inak počet ponúk pri štrukturálnom páde
+LAST_CREDIT_PROBE=0
 if [ -f "$STATE" ]; then
-  read -r SDATE SFAILS SBLOK < "$STATE" || true
+  read -r SDATE SFAILS SBLOK SPROBE < "$STATE" || true
   if [ "${SDATE:-}" = "$TODAY" ]; then
     FAILS=${SFAILS:-0}
     BLOKNUTE_NA=${SBLOK:--}
+    LAST_CREDIT_PROBE=${SPROBE:-0}
   fi
 fi
 
-# Nulový kredit sa dnes už zistil. Opakovať sa nedá „kým sa dáta nezmenia" —
-# tu sa musí zmeniť účet. Upozornenie už odišlo z naklady.py (práve raz),
-# dozorca teda mlčí a len nespúšťa ďalšie pokusy. Zajtra sa skúsi znova.
+# Nulový kredit sa nedá opraviť opakovaním, ale dobitie účtu nevidíme. Preto
+# pustíme najviac jeden overovací pokus za hodinu. Starý trojpoľový stav nemá
+# epoch a po nasadení dostane jeden okamžitý probe — bezpečný, odmietnutie stojí 0 €.
 if [ "$BLOKNUTE_NA" = "KREDIT" ]; then
-  log "KREDIT VYČERPANÝ — dnes už nič nespúšťam. Treba dobiť kredit na Anthropic API."
-  exit "$EXIT_STRUCTURAL"
+  case "$LAST_CREDIT_PROBE" in *[!0-9]*|'') LAST_CREDIT_PROBE=0 ;; esac
+  if [ "$LAST_CREDIT_PROBE" -gt 0 ] && \
+     { [ "$NOW_EPOCH" -lt "$LAST_CREDIT_PROBE" ] || \
+       [ $((NOW_EPOCH - LAST_CREDIT_PROBE)) -lt "$CREDIT_RETRY_SECONDS" ]; }; then
+    log "KREDIT VYČERPANÝ — ďalší automatický probe bude najskôr po hodinovej prestávke."
+    exit "$EXIT_STRUCTURAL"
+  fi
+  log "overujem, či bol Anthropic kredit doplnený…"
+  BLOKNUTE_NA="-"
 fi
 
 landing_data_is_current() {
@@ -412,7 +422,17 @@ if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
   if [ "${#ZBER_ARGS[@]}" -eq 0 ]; then
     ZBER_ARGS=(--store kaufland --store tesco --store lidl)
   fi
-  if cd "$DIR/app" && "$PY" -u zbierac_akcii.py "${ZBER_ARGS[@]}"; then
+  ZBER_VYSTUP=$(cd "$DIR/app" && "$PY" -u zbierac_akcii.py "${ZBER_ARGS[@]}" 2>&1)
+  ZBER_RC=$?
+  [ -n "$ZBER_VYSTUP" ] && printf '%s\n' "$ZBER_VYSTUP"
+  case "$ZBER_VYSTUP" in
+    *KREDIT_VYCERPANY*)
+      echo "$TODAY $FAILS KREDIT $NOW_EPOCH" > "$STATE"
+      log "KREDIT VYČERPANÝ — zberač bol odmietnutý ešte pred čítaním; o hodinu automaticky overím dobitie."
+      exit "$EXIT_STRUCTURAL"
+      ;;
+  esac
+  if [ "$ZBER_RC" -eq 0 ]; then
     log "zbierač OK"
   else
     log "zbierač zlyhal — appka zatiaľ nemá aktuálne dáta"
@@ -487,8 +507,8 @@ RC=$?
 # (notify_kredit_preskoc), inak by majiteľ dostal to isté dvakrát za hodinu.
 case "$VYSTUP" in
   *KREDIT_VYCERPANY*)
-    echo "$TODAY $FAILS KREDIT" > "$STATE"
-    log "KREDIT VYČERPANÝ — refresh_blocek hlási, že Anthropic API odmieta volania pre nulový kredit. Ďalšie pokusy dnes nespúšťam, treba dobiť kredit."
+    echo "$TODAY $FAILS KREDIT $NOW_EPOCH" > "$STATE"
+    log "KREDIT VYČERPANÝ — bloček bol odmietnutý; o hodinu automaticky overím dobitie."
     exit "$EXIT_STRUCTURAL"
     ;;
 esac

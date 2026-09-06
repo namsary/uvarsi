@@ -88,6 +88,10 @@ ODHAD_EUR = {
 # Ten istý kanál, ktorý už sleduje dozorca (hetzner/dozorca.sh).
 NTFY_TOPIC = "uvarsi-jarvis-8f3a2c"
 PRAHY_UPOZORNENIA = (50, 80)
+# Po odmietnutí pre nulový kredit dovolíme najviac jeden lacný overovací pokus
+# za hodinu. Keď majiteľ dobije účet, systém sa tak rozbehne sám; dovtedy sa
+# paralelné požiadavky nedostanú k providerovi a nezaplnia log.
+CREDIT_RETRY_SECONDS = 60 * 60
 
 # ---------------------------------------------------------------- východzie stropy
 # PREKALIBROVANÉ 24. 8. 2026. Predošlé čísla (denný 1,50 €, mesačný 8,00 €,
@@ -477,6 +481,59 @@ def _obdobie_behu(ucel, teraz):
     return (den - datetime.timedelta(days=den.weekday())).isoformat()
 
 
+def _over_kreditovy_cooldown(con, *, ucel, teraz) -> None:
+    """Pusť jeden atómovo rezervovaný API probe po hodinovej prestávke.
+
+    Príznak sa nemaže pred volaním: health naďalej hovorí pravdu, kým úspešná
+    odpoveď v :func:`zapis` nepreukáže, že kredit už je. UPDATE s pôvodnou
+    hodnotou je malý compare-and-swap — pri súbehu vyhrá iba jeden proces.
+    """
+    try:
+        riadok = con.execute(
+            "SELECT den, zistene FROM naklady_kredit ORDER BY den DESC LIMIT 1"
+        ).fetchone()
+    except (sqlite3.Error, OSError) as chyba:
+        raise RozpocetVycerpany(
+            SPRAVA_NECITATELNY, kod=KOD_NECITATELNY, ucel=ucel,
+        ) from chyba
+    if riadok is None:
+        return
+
+    povodne = riadok["zistene"]
+    try:
+        zistene = datetime.datetime.fromisoformat(povodne or riadok["den"])
+        # Staršie záznamy sú lokálny čas bez offsetu. Pri zmiešaní s explicitne
+        # časovo-zónovým testom/volaním zachováme rovnaký lokálny nástenný čas.
+        if teraz.tzinfo is None and zistene.tzinfo is not None:
+            zistene = zistene.replace(tzinfo=None)
+        elif teraz.tzinfo is not None and zistene.tzinfo is None:
+            zistene = zistene.replace(tzinfo=teraz.tzinfo)
+        vek = (teraz - zistene).total_seconds()
+    except (TypeError, ValueError, OverflowError) as chyba:
+        raise RozpocetVycerpany(
+            SPRAVA_NECITATELNY, kod=KOD_NECITATELNY, ucel=ucel,
+        ) from chyba
+
+    if vek < CREDIT_RETRY_SECONDS:
+        raise KreditVycerpany(ucel=ucel)
+
+    novy_cas = teraz.isoformat(timespec="seconds")
+    try:
+        with con:
+            kurzor = con.execute(
+                "UPDATE naklady_kredit SET zistene=?, ucel=? "
+                "WHERE den=? AND zistene IS ?",
+                (novy_cas, str(ucel), riadok["den"], povodne),
+            )
+    except (sqlite3.Error, OSError) as chyba:
+        raise RozpocetVycerpany(
+            SPRAVA_NECITATELNY, kod=KOD_NECITATELNY, ucel=ucel,
+        ) from chyba
+    if kurzor.rowcount != 1:
+        # Iný proces si hodinový probe rezervoval tesne pred nami.
+        raise KreditVycerpany(ucel=ucel)
+
+
 def _suma(con, kde, parametre) -> float:
     riadok = con.execute(
         f"SELECT COALESCE(SUM(eur), 0) FROM naklady WHERE {kde}", parametre
@@ -542,16 +599,6 @@ def skontroluj(con, ucel, odhad_eur=None, teraz=None, rezervovane_eur=0.0):
         raise RozpocetVycerpany(
             f"Neznámy účel platby „{ucel}“ — volanie nespúšťam.", kod=KOD_NECITATELNY
         )
-    try:
-        kredit_vycerpany = con.execute(
-            "SELECT 1 FROM naklady_kredit LIMIT 1"
-        ).fetchone() is not None
-    except (sqlite3.Error, OSError) as chyba:
-        raise RozpocetVycerpany(
-            SPRAVA_NECITATELNY, kod=KOD_NECITATELNY, ucel=ucel,
-        ) from chyba
-    if kredit_vycerpany:
-        raise KreditVycerpany(ucel=ucel)
     teraz = _teraz(teraz)
     den, mesiac, tyzden = _obdobia(teraz)
     limity = stropy()                       # pokazené prostredie → RozpocetVycerpany
@@ -598,6 +645,7 @@ def skontroluj(con, ucel, odhad_eur=None, teraz=None, rezervovane_eur=0.0):
             f"({ucel_eur:.2f} € z {strop_ucelu:.2f} €).",
             kod=KOD_UCEL, ucel=ucel, minute_eur=ucel_eur, strop_eur=strop_ucelu,
         )
+    _over_kreditovy_cooldown(con, ucel=ucel, teraz=teraz)
     return {
         "dnes_eur": dnes_eur,
         "mesiac_eur": mesiac_eur,
@@ -682,12 +730,22 @@ def zapamataj_kredit(con, *, ucel=None, teraz=None) -> bool:
     """
     teraz = _teraz(teraz)
     den, _, _ = _obdobia(teraz)
+    hodnoty = (den, teraz.isoformat(timespec="seconds"),
+               None if ucel is None else str(ucel))
     kurzor = con.execute(
         "INSERT OR IGNORE INTO naklady_kredit (den, zistene, ucel) VALUES (?, ?, ?)",
-        (den, teraz.isoformat(timespec="seconds"), None if ucel is None else str(ucel)),
+        hodnoty,
     )
+    nove = kurzor.rowcount == 1
+    if not nove:
+        # Opakovaný hodinový probe obnoví cooldown, ale upozornenie sa vďaka
+        # pôvodnému INSERT OR IGNORE neposiela druhý raz v ten istý deň.
+        con.execute(
+            "UPDATE naklady_kredit SET zistene=?, ucel=? WHERE den=?",
+            (hodnoty[1], hodnoty[2], den),
+        )
     con.commit()
-    return kurzor.rowcount == 1
+    return nove
 
 
 def zabudni_kredit(con) -> None:
