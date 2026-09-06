@@ -50,6 +50,10 @@ def test_tyzdenny_strop_zberu_pokryje_beh_aj_opravny_pokus():
     )
 
 
+def test_migracny_strop_pokryje_cely_beh_a_cielenu_obnovu():
+    assert naklady.VYCHODZI_TYZDENNY_STROP_MIGRACIA_EUR >= 2 * CENA_POCTIVEHO_ZBERU_EUR
+
+
 def test_mesacny_strop_pokryje_stiri_tyzdenne_zbery():
     """Mesiac má 4–5 týždňov; posledný zber nesmie naraziť na mesačný strop."""
     potreba = 4 * CENA_POCTIVEHO_ZBERU_EUR

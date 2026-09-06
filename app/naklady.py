@@ -117,14 +117,15 @@ PRAHY_UPOZORNENIA = (50, 80)
 VYCHODZI_DENNY_STROP_EUR = 4.00
 VYCHODZI_MESACNY_STROP_EUR = 25.00
 VYCHODZI_TYZDENNY_STROP_ZBER_EUR = 4.00
-VYCHODZI_TYZDENNY_STROP_MIGRACIA_EUR = 3.00
+VYCHODZI_TYZDENNY_STROP_MIGRACIA_EUR = 7.00
 # Tri varianty najžiadanejšieho profilu × najviac dva pokusy × 0,12 €.
 # Zaokrúhlených 0,80 € necháva malú rezervu, no drží predpočet pod ~3,20 €/mesiac.
 VYCHODZI_TYZDENNY_STROP_PREDPOCET_EUR = 0.80
 # Zber má jeden tretí pokus na zotavenie po dvoch zlyhaniach (napríklad po
-# dobití kreditu). Migrácia má prvý beh a jeden opravný. Predpočet môže skúsiť
-# až šesťkrát. Cenu všetkých operácií stále strážia samostatné eurové stropy.
-VYCHODZI_LIMIT_BEHOV = {"zber_letakov": 3, "zber_migracia": 2, "predpocet": 6}
+# dobití kreditu). Migrácia potrebuje rovnakú poslednú poistku: prvý prechod,
+# opravu schémy a jeden cielený dobeh chýbajúcich obchodov. Predpočet môže
+# skúsiť až šesťkrát. Cenu všetkých operácií stále strážia eurové stropy.
+VYCHODZI_LIMIT_BEHOV = {"zber_letakov": 3, "zber_migracia": 3, "predpocet": 6}
 
 # Ktorý účel si strop počtu behov berie z ktorej premennej prostredia.
 PREMENNA_BEHOV = {

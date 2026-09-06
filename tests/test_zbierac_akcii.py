@@ -1055,6 +1055,48 @@ def test_targeted_recovery_collects_only_the_requested_store(monkeypatch, tmp_pa
     assert rows == [("Lidl", "ok", 20)]
 
 
+def test_recovery_waits_for_fresh_daily_budget_without_consuming_run(monkeypatch, tmp_path):
+    """Drahý opravný beh sa nesmie rozbehnúť, keď sa dnes už nemôže dokončiť."""
+    database = run_main_over_stores(
+        monkeypatch, tmp_path, {"tesco": True, "lidl": True}
+    )
+    monkeypatch.setattr(
+        collector, "collection_budget_purpose", lambda con, week, stores: "zber_migracia"
+    )
+    called = []
+    monkeypatch.setattr(collector, "zbieraj", lambda client, store: called.append(store))
+
+    con = collector.naklady.pripoj(database)
+    try:
+        collector.naklady.zapis(
+            con,
+            "plan",
+            "claude-opus-5",
+            types.SimpleNamespace(
+                input_tokens=0,
+                output_tokens=120_000,
+                cache_creation_input_tokens=0,
+                cache_read_input_tokens=0,
+            ),
+            notifikuj=lambda _sprava: None,
+        )
+    finally:
+        con.close()
+
+    with pytest.raises(SystemExit, match="odkladám"):
+        collector.main(["tesco", "lidl"])
+
+    assert called == []
+    con = sqlite3.connect(database)
+    try:
+        runs = con.execute(
+            "SELECT COUNT(*) FROM naklady_behy WHERE ucel='zber_migracia'"
+        ).fetchone()[0]
+    finally:
+        con.close()
+    assert runs == 0
+
+
 def test_cli_passes_repeated_store_arguments_to_targeted_collection(monkeypatch):
     selected = []
     monkeypatch.setattr(collector, "main", lambda stores=None: selected.extend(stores or []))

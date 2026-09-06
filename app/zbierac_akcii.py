@@ -55,6 +55,12 @@ MODEL_SCAN = "claude-haiku-4-5-20251001"     # lacné triedenie strán
 
 STORES = ["kaufland", "tesco", "lidl"]
 MIN_VERIFIED_OFFERS_PER_STORE = 20
+# Opravný zber nesmie minúť posledný povolený beh v deň, keď už zostávajúci
+# denný rozpočet zjavne nestačí ani na jeden celý obchod. Je to spodná, nie
+# cenová, rezervácia: presnú cenu určí až počet potravinových strán. Každé
+# jednotlivé API volanie naďalej kontroluje tvrdý denný, týždenný aj mesačný
+# strop v naklady.py.
+MIN_START_BUDGET_PER_STORE_EUR = 1.00
 SCAN_BATCH_SIZE = 12
 READ_BATCH_SIZE = 4
 READ_PX = 1500
@@ -931,6 +937,23 @@ def main(stores=None):
     tyz = monday()
     con = db()
     budget_purpose = collection_budget_purpose(con, tyz, selected_stores)
+    # Najprv over dostatočnú štartovaciu rezervu, až potom zaber jeden z mála
+    # týždenných pokusov. Tak sa cielená obnova Tesca a Lidla môže po polnoci
+    # sama rozbehnúť s čerstvým denným rozpočtom namiesto zlyhania tesne pred
+    # cieľom a spálenia posledného povoleného behu.
+    try:
+        naklady.skontroluj(
+            con,
+            budget_purpose,
+            odhad_eur=0.0,
+            rezervovane_eur=MIN_START_BUDGET_PER_STORE_EUR * len(selected_stores),
+        )
+    except naklady.KreditVycerpany as odmietnutie:
+        con.close()
+        raise SystemExit(f"Zber zastavený — KREDIT_VYCERPANY: {odmietnutie}") from None
+    except naklady.RozpocetVycerpany as odmietnutie:
+        con.close()
+        raise SystemExit(f"Zber odkladám — {odmietnutie}") from None
     # Vision beh je najdrahšia operácia v celej appke (~0,37 € za obchod). Miesto
     # v týždennom počte behov sa berie EŠTE PRED prvým volaním — vďaka tomu je
     # rozbehnutá slučka štrukturálne nemožná, nie iba nepravdepodobná. Presne
