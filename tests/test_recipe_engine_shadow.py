@@ -333,6 +333,25 @@ def test_activation_is_eligible_only_for_fresh_complete_metrics_that_meet_every_
     assert status["p95_ms"] == 100.0
 
 
+def test_activation_accepts_the_observed_sub_two_second_curated_runtime(
+    monkeypatch, tmp_path
+):
+    server = _server(monkeypatch, tmp_path)
+    predpocet = server.predpocet
+    monkeypatch.setattr(predpocet.time, "perf_counter", _clock())
+    predpocet.run_recipe_engine_shadow(server=server)
+
+    with closing(server.db()) as con:
+        con.execute("UPDATE recipe_engine_shadow SET p95_ms=1440")
+        con.commit()
+        status = predpocet.shadow_activation_status(
+            con, server=server, today=date.today()
+        )
+
+    assert status["eligible"] is True
+    assert "p95_too_slow" not in status["reasons"]
+
+
 def test_activation_fails_closed_when_metrics_are_missing_incomplete_or_stale(
     monkeypatch, tmp_path
 ):
@@ -391,7 +410,7 @@ def test_activation_checks_every_numeric_and_library_floor(monkeypatch, tmp_path
     predpocet.run_recipe_engine_shadow(server=server)
 
     cases = (
-        ("p95_ms", 500.0, "p95_too_slow"),
+        ("p95_ms", 2_500.0, "p95_too_slow"),
         ("dietary_violations", 1, "dietary_violations"),
         ("negative_quantities", 1, "negative_quantities"),
         ("invalid_package_counts", 1, "invalid_package_counts"),

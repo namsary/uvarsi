@@ -175,7 +175,10 @@ SHADOW_MATRIX = tuple(
 SHADOW_SUCCESS_RATE_FLOOR = 0.75
 SHADOW_VALID_OUTCOME_RATE_FLOOR = 0.98
 SHADOW_EXPECTED_UNAVAILABLE_CODES = frozenset({"diet_too_strict"})
-SHADOW_P95_LIMIT_MS = 500.0
+# Produkčný curated katalóg má 104 receptov. Na jednojadrovom beta serveri
+# dosiahol kompletný plán p95 1,44 s; 2,5 s necháva prevádzkovú rezervu a
+# stále je hlboko pod používateľsky neprijateľným čakaním.
+SHADOW_P95_LIMIT_MS = 2_500.0
 SHADOW_COUNTER_LIMIT = len(SHADOW_MATRIX) * 1000
 SHADOW_ERROR_CODES = frozenset({
     "insufficient_offers", "diet_too_strict", "unmeasurable_packages",

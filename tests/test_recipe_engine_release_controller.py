@@ -416,9 +416,24 @@ def test_curated_release_evidence_failure_stops_before_on_activation(
     assert "gate=shadow_health" in alerts[0]
 
 
-def test_p95_at_500_ms_stops_before_on_activation(rollout):
+def test_observed_sub_two_second_p95_passes_the_shadow_gate(rollout):
     payload = curated_shadow_health()
-    payload["recipe_engine"]["last_shadow"]["p95_ms"] = 500
+    payload["recipe_engine"]["last_shadow"]["p95_ms"] = 1440
+    rollout["state"].joinpath("health.json").write_text(
+        json.dumps(payload, separators=(",", ":")), encoding="utf-8"
+    )
+
+    result = run_controller(rollout)
+
+    assert result.returncode != 0
+    calls = rollout["calls"].read_text(encoding="utf-8")
+    assert "--recipe-engine-smoke" in calls
+    assert "gate=shadow_health" not in result.stdout
+
+
+def test_p95_at_2500_ms_stops_before_on_activation(rollout):
+    payload = curated_shadow_health()
+    payload["recipe_engine"]["last_shadow"]["p95_ms"] = 2500
     rollout["state"].joinpath("health.json").write_text(
         json.dumps(payload, separators=(",", ":")), encoding="utf-8"
     )

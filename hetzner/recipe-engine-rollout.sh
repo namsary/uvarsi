@@ -163,7 +163,7 @@ if expected in ("shadow", "on"):
     p95_ms = shadow.get("p95_ms")
     if not finite_number(success_rate) or not (0.75 <= success_rate <= 1.0): raise SystemExit(2)
     if not finite_number(valid_outcome_rate) or not (0.98 <= valid_outcome_rate <= 1.0): raise SystemExit(2)
-    if not finite_number(p95_ms) or not (0.0 <= p95_ms < 500): raise SystemExit(2)
+    if not finite_number(p95_ms) or not (0.0 <= p95_ms < 2500): raise SystemExit(2)
     for key in ("dietary_violations","negative_quantities","invalid_package_counts"):
         value = shadow.get(key)
         if not finite_number(value) or value != 0: raise SystemExit(2)

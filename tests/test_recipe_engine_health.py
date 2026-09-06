@@ -198,6 +198,19 @@ def test_on_health_exposes_complete_generation_one_release_evidence(
     assert len(provenance_calls[0]) == 104
 
 
+def test_on_health_accepts_the_observed_sub_two_second_curated_runtime(
+    monkeypatch, tmp_path
+):
+    server, state = _load(monkeypatch, tmp_path)
+    _write(state, _passing_smoke(server))
+    _install_curated_release_evidence(monkeypatch, server, p95_ms=1_440.0)
+
+    engine = TestClient(server.app).get("/api/health").json()["recipe_engine"]
+
+    assert engine["ready"] is True
+    assert "p95_too_slow" not in engine["blockers"]
+
+
 @pytest.mark.parametrize(
     ("changes", "blocker"),
     [
@@ -205,7 +218,7 @@ def test_on_health_exposes_complete_generation_one_release_evidence(
         ({"provenance_complete": False}, "provenance_incomplete"),
         ({"curation_generation": 0}, "curation_generation_mismatch"),
         ({"audit_errors": ("workflow_invalid",)}, "library_gate_failed"),
-        ({"p95_ms": 500.0}, "p95_too_slow"),
+        ({"p95_ms": 2_500.0}, "p95_too_slow"),
         ({"payments_enabled": True}, "payments_enabled"),
     ],
 )

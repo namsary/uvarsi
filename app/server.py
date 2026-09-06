@@ -210,11 +210,11 @@ RECIPE_SMOKE_ALERT_URL = os.environ.get(
 )
 RECIPE_SMOKE_MAX_AGE_SECONDS = 2 * 60 * 60
 # Syntetický smoke zahŕňa prípravu izolovanej DB, autentizáciu a dva celé
-# requesty. Rýchlosť jedného plánu samostatne stráži shadow p95 pod 500 ms.
+# requesty. Rýchlosť jedného plánu samostatne stráži shadow p95 pod 2,5 s.
 RECIPE_SMOKE_MAX_LATENCY_MS = 5_000.0
 RECIPE_ENGINE_STORES = ("Kaufland", "Tesco", "Lidl")
 CURATED_RECIPE_COUNT = 104
-RECIPE_PLAN_P95_LIMIT_MS = 500.0
+RECIPE_PLAN_P95_LIMIT_MS = predpocet.SHADOW_P95_LIMIT_MS
 COOKIE = "uvarsi_session"
 SETUP_COOKIE = "uvarsi_setup"
 SESSION_MAX_AGE = SESSION_TTL_SECONDS
