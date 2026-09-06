@@ -576,6 +576,19 @@ function sourceHref(url) {
   return /^https?:\/\//i.test(text) ? text : '';
 }
 
+function publicLeafletHref(item) {
+  var href = sourceHref(item && item.source_url);
+  if (!href) return '';
+  var hostname = '';
+  try { hostname = new URL(href).hostname.toLowerCase(); } catch (_) { return ''; }
+  if (hostname !== 'app.mletaky.sk') return href;
+  var store = String((item && item.obchod) || '').trim().toLowerCase();
+  if (store === 'kaufland') return 'https://predajne.kaufland.sk/aktualna-ponuka/letak.html';
+  if (store === 'tesco') return 'https://www.kupino.sk/letaky/tesco';
+  if (store === 'lidl') return 'https://www.lidl.sk/c/online-letak/';
+  return '';
+}
+
 function todayIso() {
   var now = new Date();
   var pad = n => (n < 10 ? '0' : '') + n;
@@ -585,7 +598,7 @@ function todayIso() {
 function ingredientProvenance(item, today) {
   if (!item || item.spajza || !item.offer_key) return '';
   var validity = offerValidity(item.valid_to, today);
-  var href = sourceHref(item.source_url);
+  var href = publicLeafletHref(item);
   var page = Number(item.source_page);
   var hasPage = isFinite(page) && page > 0;
   if (!validity.text && !href && !hasPage) return '';

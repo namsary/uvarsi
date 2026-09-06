@@ -608,9 +608,37 @@ def provenance_helpers(html):
         declaration(html, "function offerValidity(validTo, today) "),
         declaration(html, "function leafletLabel(item) "),
         declaration(html, "function sourceHref(url) "),
+        declaration(html, "function publicLeafletHref(item) "),
         declaration(html, "function ingredientProvenance(item, today) "),
         declaration(html, "function ingredientRow(item, today) "),
     ])
+
+
+@needs_node
+def test_supported_stores_never_send_people_to_blocked_collector_urls(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "public-leaflet-links.js",
+        provenance_helpers(html)
+        + """
+var blocked = 'https://app.mletaky.sk/260909_260903_kaufland_aqtzh';
+if (publicLeafletHref({obchod: 'Kaufland', source_url: blocked}) !==
+    'https://predajne.kaufland.sk/aktualna-ponuka/letak.html') process.exit(1);
+if (publicLeafletHref({obchod: 'Tesco', source_url: blocked}) !==
+    'https://www.kupino.sk/letaky/tesco') process.exit(2);
+if (publicLeafletHref({obchod: 'Lidl', source_url: blocked}) !==
+    'https://www.lidl.sk/c/online-letak/') process.exit(3);
+
+var row = ingredientRow({offer_key: 'o', nazov: 'Ryža', obchod: 'Kaufland', cena: '1,20',
+  source_url: blocked, source_page: 8, valid_to: '2026-09-09'}, '2026-09-06');
+if (row.indexOf('app.mletaky.sk') !== -1) process.exit(4);
+if (row.indexOf('https://predajne.kaufland.sk/aktualna-ponuka/letak.html') === -1) process.exit(5);
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @needs_node
