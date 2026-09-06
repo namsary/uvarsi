@@ -565,9 +565,10 @@ function offerValidity(validTo, today) {
 function leafletLabel(item) {
   var store = String((item && item.obchod) || '').trim();
   var page = Number(item && item.source_page);
+  var sameViewer = sourceHref(item && item.source_url) === publicLeafletHref(item);
   var parts = [];
   if (store) parts.push('Leták ' + store);
-  if (isFinite(page) && page > 0) parts.push('strana ' + page);
+  if (sameViewer && isFinite(page) && page > 0) parts.push('strana ' + page);
   return parts.join(' · ');
 }
 
@@ -619,7 +620,9 @@ function ingredientRow(item, today) {
     return `<div class="ing-b"><div class="ing"><span>${esc(item.nazov)} · dokúpiť bežne</span><span class="r">cena podľa obchodu</span></div></div>`;
   }
   var stav = offerValidity(item.valid_to, today).stav;
-  return `<div class="ing-b${stav === 'neplatna' ? ' ing--neplatna' : ''}"><div class="ing"><span>${esc(item.nazov)}${item.obchod ? ' · ' + esc(item.obchod) : ''}</span><span class="r">${item.cena ? esc(item.cena) + ' €' : ''}${item.zlava ? `<span class="off">${esc(item.zlava)}</span>` : ''}</span></div> ${ingredientProvenance(item, today)}</div>`;
+  var flyerPrice = String(item.cena_za_balenie ?? '').trim();
+  var priceHtml = flyerPrice ? esc(flyerPrice) + ' €' + (item.jednotka ? ' / ' + esc(String(item.jednotka).trim()) : '') : '';
+  return `<div class="ing-b${stav === 'neplatna' ? ' ing--neplatna' : ''}"><div class="ing"><span>${esc(item.nazov)}${item.obchod ? ' · ' + esc(item.obchod) : ''}</span><span class="r">${priceHtml}${item.zlava ? `<span class="off">${esc(item.zlava)}</span>` : ''}</span></div> ${ingredientProvenance(item, today)}</div>`;
 }
 
 function armAuthResend(button, schedule) {

@@ -234,6 +234,28 @@ def test_bare_kilogram_is_weight_pricing_not_a_fixed_package(catalog):
     assert matched[0].pricing_basis == "weight"
 
 
+def test_bare_litre_cooking_oil_is_a_one_litre_bottle_not_fractional_volume(catalog):
+    """Regresia: olej z letáka za 1,55 € sa v pláne ukázal ako 0,07 €."""
+    matched = match_offers(
+        [
+            offer(
+                obchod="Kaufland",
+                nazov="Repkový olej Raciol",
+                jednotka="l",
+                cena=1.55,
+                povodna=2.99,
+            )
+        ],
+        catalog,
+    )
+
+    assert len(matched) == 1
+    assert matched[0].ingredient.id == "oil"
+    assert matched[0].package == PackageSize(Quantity(Decimal("1000"), "ml"))
+    assert matched[0].sale_price == Decimal("1.55")
+    assert matched[0].pricing_basis == "package"
+
+
 @pytest.mark.parametrize("unit", ["ks", "1 ks", "1 piece"])
 def test_single_piece_without_verified_pack_count_still_fails_closed(catalog, unit):
     assert match_offers([offer(nazov="Vajcia M", jednotka=unit)], catalog) == ()

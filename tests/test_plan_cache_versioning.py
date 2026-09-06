@@ -29,8 +29,8 @@ ZAKLAD = dict(
 def test_algo_version_is_a_positive_integer():
     assert isinstance(plan_data.PLAN_ALGO_VERSION, int)
     assert not isinstance(plan_data.PLAN_ALGO_VERSION, bool)
-    assert plan_data.PLAN_ALGO_VERSION == 23, (
-        "kroky bez opakovaných hmotností musia zneplatniť staršie plány"
+    assert plan_data.PLAN_ALGO_VERSION == 24, (
+        "cena balenia z letáka musí zneplatniť plány s prepočítanou cenou dávky"
     )
 
 
@@ -107,10 +107,10 @@ def test_version_is_documented_next_to_its_constant():
     zdroj = (Path(__file__).resolve().parent.parent / "app" / "plan_data.py").read_text(
         encoding="utf-8")
     i = zdroj.index("PLAN_ALGO_VERSION =")
-    kontext = zdroj[max(0, i - 400):i]
+    kontext = zdroj[max(0, i - 500):i]
     assert "Zvýš" in kontext or "zvýš" in kontext, (
         "pri konštante musí byť pokyn, že sa zvyšuje pri zmene podoby plánu"
     )
-    assert "množstvo vody" in kontext and "škáluje" in kontext, (
-        "komentár musí pomenovať škálovanie vody, kvôli ktorému cache neplatí"
+    assert "cenu balenia" in kontext and "pomerný náklad" in kontext, (
+        "komentár musí pomenovať oddelenie ceny balenia od nákladu dávky"
     )

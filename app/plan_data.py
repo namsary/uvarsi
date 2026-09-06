@@ -1186,8 +1186,10 @@ PLAN_VARIANT_HINTS = (
 #      veľká domácnosť už nedostane rovnakých 500 ml ako jedna porcia.
 # 23 = hmotnosti zostávajú v zozname surovín a v kuchárskych krokoch sa už
 #      neopakujú; zároveň sa správne skloňuje počet porcií.
+# 24 = riadok suroviny nesie osobitne cenu balenia z letáka; pomerný náklad
+#      receptovej dávky sa už nemôže tváriť ako cena nákupu.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 23
+PLAN_ALGO_VERSION = 24
 
 
 def plan_variant_for(user_id, variants):

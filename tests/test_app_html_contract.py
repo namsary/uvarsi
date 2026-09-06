@@ -631,9 +631,41 @@ if (publicLeafletHref({obchod: 'Lidl', source_url: blocked}) !==
     'https://www.lidl.sk/c/online-letak/') process.exit(3);
 
 var row = ingredientRow({offer_key: 'o', nazov: 'Ryža', obchod: 'Kaufland', cena: '1,20',
-  source_url: blocked, source_page: 8, valid_to: '2026-09-09'}, '2026-09-06');
+  cena_za_balenie: '1,20', jednotka: '1 kg', source_url: blocked, source_page: 8,
+  valid_to: '2026-09-09'}, '2026-09-06');
 if (row.indexOf('app.mletaky.sk') !== -1) process.exit(4);
 if (row.indexOf('https://predajne.kaufland.sk/aktualna-ponuka/letak.html') === -1) process.exit(5);
+if (row.indexOf('strana 8') !== -1) process.exit(6);
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
+def test_meal_row_shows_the_flyer_package_price_not_prorated_recipe_cost(tmp_path):
+    """Regresia: 1 l oleja za 1,55 € sa pri 45 ml dávke zobrazil ako 0,07 €."""
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "flyer-package-price.js",
+        provenance_helpers(html)
+        + """
+var item = {offer_key: 'oil', nazov: 'Repkový olej Raciol', obchod: 'Kaufland',
+  jednotka: '1 l', mnozstvo: 1, cena: '0,07', povodna: '0,13',
+  cena_za_balenie: '1,55', povodna_za_balenie: '2,99', predaj_na_vahu: true,
+  zlava: '-48 %', source_url: 'https://letak.test/kaufland', source_page: 80,
+  valid_to: '2026-09-09'};
+var row = ingredientRow(item, '2026-09-06');
+if (row.indexOf('1,55 €') === -1) process.exit(1);
+if (row.indexOf('1 l') === -1) process.exit(2);
+if (row.indexOf('0,07 €') !== -1) process.exit(3);
+if (row.indexOf('-48 %') === -1) process.exit(4);
+
+var legacyWeighted = ingredientRow({offer_key: 'old', nazov: 'Olej', obchod: 'Kaufland',
+  cena: '0,07', predaj_na_vahu: true, valid_to: '2026-09-09'}, '2026-09-06');
+if (legacyWeighted.indexOf('0,07 €') !== -1) process.exit(5);
 process.exit(0);
 """,
     )
@@ -651,7 +683,8 @@ def test_every_meal_price_states_its_leaflet_page_validity_and_linkable_source(t
         + """
 var TODAY = '2026-08-18';
 var item = {offer_key: 'offer_a', nazov: 'Mlieko', obchod: 'Lidl', jednotka: '1 l', mnozstvo: 2,
-  cena: '2,20', povodna: '3,00', zlava: '-27 %', source_url: 'https://letak.test/lidl/32',
+  cena: '2,20', povodna: '3,00', cena_za_balenie: '1,10', povodna_za_balenie: '1,50',
+  zlava: '-27 %', source_url: 'https://letak.test/lidl/32',
   source_page: 3, valid_from: '2026-08-17', valid_to: '2026-08-23'};
 var row = ingredientRow(item, TODAY);
 if (row.indexOf('Mlieko') === -1) process.exit(1);
@@ -661,8 +694,9 @@ if (row.indexOf('Platí do 23. 8.') === -1) process.exit(4);
 if (row.indexOf('href="https://letak.test/lidl/32"') === -1) process.exit(5);
 if (row.indexOf('rel="noopener noreferrer nofollow"') === -1) process.exit(6);
 if (row.indexOf('target="_blank"') === -1) process.exit(7);
-if (row.indexOf('2,20 €') === -1) process.exit(8);
-if (row.indexOf('undefined') !== -1) process.exit(9);
+if (row.indexOf('1,10 € / 1 l') === -1) process.exit(8);
+if (row.indexOf('2,20 €') !== -1) process.exit(9);
+if (row.indexOf('undefined') !== -1) process.exit(10);
 process.exit(0);
 """,
     )

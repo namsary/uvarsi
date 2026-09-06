@@ -124,12 +124,22 @@ def _recovered_package(recovered) -> PackageSize | None:
         return None
 
 
-def _offer_package(unit, product_name) -> tuple[PackageSize, str] | None:
+def _offer_package(
+    unit, product_name, ingredient: Ingredient
+) -> tuple[PackageSize, str] | None:
     """Recover only quantities explicitly present in the flyer row or name."""
     bare = unit.strip().casefold() if isinstance(unit, str) else ""
     if bare in ("kg", "l"):
         package = _recovered_package(_package_amount(unit, product_name))
-        return (package, "weight") if package is not None else None
+        if package is None:
+            return None
+        # Olej sa nekupuje po mililitroch. Zberač pri letákoch historicky
+        # ukladal údaj „1 l fľaša" iba ako holé `l`; keby sme ho považovali
+        # za predaj podľa objemu, 45 ml do receptu by sa tvárilo ako nákup za
+        # pár centov. Pri kuchynskom oleji preto holé `l` znamená jednu
+        # overenú litrovú fľašu. Holé `kg` pri mäse a zelenine ostáva váha.
+        basis = "package" if bare == "l" and ingredient.id == "oil" else "weight"
+        return package, basis
     try:
         parsed = PackageSize(parse_quantity(unit))
         if parsed.content.unit == "piece" and parsed.content.amount == 1:
@@ -158,7 +168,7 @@ def _matched_offer_from_values(
     valid_to,
     source_url,
 ) -> MatchedOffer | None:
-    package_result = _offer_package(unit, product_name)
+    package_result = _offer_package(unit, product_name, ingredient)
     if package_result is None:
         return None
     package, pricing_basis = package_result

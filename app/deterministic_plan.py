@@ -822,6 +822,13 @@ def _ingredient_payload(
         "povodna": (
             None if original is None else _money(original * price_multiplier)
         ),
+        # `cena` je interný náklad množstva použitého v tomto jedle. Vo
+        # verejnom riadku pri letáku musí byť vždy explicitná cena za jednu
+        # overenú nákupnú jednotku, nikdy pomerná cena receptovej dávky.
+        "cena_za_balenie": _money(item.offer.sale_price),
+        "povodna_za_balenie": (
+            None if original is None else _money(original)
+        ),
         "zlava": source.get("zlava") or "",
         "source_url": item.offer.source_url,
         "source_page": source.get("source_page"),
