@@ -14,6 +14,11 @@ from urllib.parse import urlsplit
 DEFAULT_RECIPE_PROVENANCE_PATH = (
     Path(__file__).with_name("catalog") / "recipe_sources.json"
 )
+# One-release bootstrap bridge: the samopull version deployed before source
+# provenance existed excludes app/catalog and therefore cannot stage the new
+# canonical file.  This copy lives outside that exclusion and lets the old
+# packager install the release that upgrades samopull itself.
+BOOTSTRAP_RECIPE_PROVENANCE_PATH = Path(__file__).with_name("recipe_sources.json")
 ALLOWED_EDITORIAL_LANES = frozenset(
     {"slovak_classic", "modern_family", "high_protein", "plant_based"}
 )
@@ -137,9 +142,15 @@ def load_recipe_provenance(
     path=None,
 ) -> Mapping[str, RecipeProvenance]:
     """Load exact JSON and reject missing/extra IDs and weak sourcing."""
-    source_path = (
-        DEFAULT_RECIPE_PROVENANCE_PATH if path is None else Path(path)
-    )
+    if path is None:
+        source_path = DEFAULT_RECIPE_PROVENANCE_PATH
+        if (
+            not source_path.is_file()
+            and BOOTSTRAP_RECIPE_PROVENANCE_PATH.is_file()
+        ):
+            source_path = BOOTSTRAP_RECIPE_PROVENANCE_PATH
+    else:
+        source_path = Path(path)
     with source_path.open(encoding="utf-8") as stream:
         payload = json.load(
             stream,

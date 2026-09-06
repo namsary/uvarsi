@@ -1,9 +1,11 @@
 import json
 from dataclasses import FrozenInstanceError
 from datetime import date
+from pathlib import Path
 
 import pytest
 
+import app.recipe_provenance as recipe_provenance
 from app.recipe_provenance import (
     RecipeProvenance,
     SourceReference,
@@ -42,6 +44,37 @@ def write_sources(tmp_path, records):
         encoding="utf-8",
     )
     return path
+
+
+def test_default_provenance_uses_bootstrap_copy_when_legacy_packager_omits_catalog_file(
+    monkeypatch, tmp_path
+):
+    """A server still running the pre-provenance packager can ship one upgrade."""
+    missing_canonical = tmp_path / "catalog" / "recipe_sources.json"
+    bootstrap = write_sources(tmp_path, [source("one")])
+    monkeypatch.setattr(
+        recipe_provenance,
+        "DEFAULT_RECIPE_PROVENANCE_PATH",
+        missing_canonical,
+    )
+    monkeypatch.setattr(
+        recipe_provenance,
+        "BOOTSTRAP_RECIPE_PROVENANCE_PATH",
+        bootstrap,
+        raising=False,
+    )
+
+    loaded = load_recipe_provenance({"one"})
+
+    assert set(loaded) == {"one"}
+
+
+def test_bootstrap_provenance_copy_matches_the_canonical_runtime_asset():
+    root = Path(__file__).resolve().parents[1]
+
+    assert (root / "app/recipe_sources.json").read_bytes() == (
+        root / "app/catalog/recipe_sources.json"
+    ).read_bytes()
 
 
 def test_provenance_requires_every_active_recipe(tmp_path):
