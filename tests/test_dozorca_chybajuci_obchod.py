@@ -44,14 +44,14 @@ def test_old_collection_data_version_forces_one_safe_recollection(tmp_path, skri
     con.execute(
         "CREATE TABLE zber_stav (tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER, data_version INTEGER)"
     )
-    con.execute("CREATE TABLE akcie (obchod TEXT, valid_from TEXT, valid_to TEXT)")
+    con.execute("CREATE TABLE akcie (tyzden TEXT, obchod TEXT, valid_from TEXT, valid_to TEXT)")
     con.executemany(
         "INSERT INTO zber_stav VALUES (?,?,?,?,?)",
         [("2026-08-31", store, "ok", 40, 1) for store in OBCHODY],
     )
     con.executemany(
-        "INSERT INTO akcie VALUES (?,?,?)",
-        [(store, "2026-09-03", "2026-09-09") for store in OBCHODY for _ in range(10)],
+        "INSERT INTO akcie VALUES (?,?,?,?)",
+        [("2026-08-31", store, "2026-09-03", "2026-09-09") for store in OBCHODY for _ in range(10)],
     )
     con.commit()
 
@@ -89,15 +89,15 @@ def test_query_finds_failed_store_even_when_each_store_has_some_rows(tmp_path, s
     db = tmp_path / "t.db"
     con = sqlite3.connect(db)
     con.execute("CREATE TABLE zber_stav (tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER, data_version INTEGER)")
-    con.execute("CREATE TABLE akcie (obchod TEXT, valid_from TEXT, valid_to TEXT)")
+    con.execute("CREATE TABLE akcie (tyzden TEXT, obchod TEXT, valid_from TEXT, valid_to TEXT)")
     con.executemany("INSERT INTO zber_stav VALUES (?,?,?,?,?)", [
         ("2026-08-17", "Kaufland", "ok", 28, 2),
         ("2026-08-17", "Tesco", "ok", 1, 2),
         ("2026-08-17", "Lidl", "fail", 1, 2),
     ])
     con.executemany(
-        "INSERT INTO akcie VALUES (?,?,?)",
-        [(store, "2026-08-17", "2026-08-23") for store in OBCHODY for _ in range(10)],
+        "INSERT INTO akcie VALUES (?,?,?,?)",
+        [("2026-08-17", store, "2026-08-17", "2026-08-23") for store in OBCHODY for _ in range(10)],
     )
     con.commit()
 
@@ -118,15 +118,15 @@ def test_previous_week_data_does_not_hide_a_missing_store(tmp_path, skript):
     db = tmp_path / "t.db"
     con = sqlite3.connect(db)
     con.execute("CREATE TABLE zber_stav (tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER, data_version INTEGER)")
-    con.execute("CREATE TABLE akcie (obchod TEXT, valid_from TEXT, valid_to TEXT)")
+    con.execute("CREATE TABLE akcie (tyzden TEXT, obchod TEXT, valid_from TEXT, valid_to TEXT)")
     con.executemany("INSERT INTO zber_stav VALUES (?,?,?,?,?)", [
         ("2026-08-17", "Kaufland", "ok", 100, 2),
         ("2026-08-17", "Tesco", "ok", 100, 2),
         ("2026-08-10", "Lidl", "ok", 100, 2),
     ])
     con.executemany(
-        "INSERT INTO akcie VALUES (?,?,?)",
-        [(store, "2026-08-17", "2026-08-23") for store in OBCHODY for _ in range(10)],
+        "INSERT INTO akcie VALUES (?,?,?,?)",
+        [("2026-08-17", store, "2026-08-17", "2026-08-23") for store in OBCHODY for _ in range(10)],
     )
     con.commit()
     dotaz = _dotaz_na_neuplny_zber(skript).replace("$MON_ISO", "2026-08-17")
@@ -152,15 +152,15 @@ def test_expired_offers_trigger_new_collection_inside_same_monday_week(tmp_path,
     db = tmp_path / "t.db"
     con = sqlite3.connect(db)
     con.execute("CREATE TABLE zber_stav (tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER, data_version INTEGER)")
-    con.execute("CREATE TABLE akcie (obchod TEXT, valid_from TEXT, valid_to TEXT)")
+    con.execute("CREATE TABLE akcie (tyzden TEXT, obchod TEXT, valid_from TEXT, valid_to TEXT)")
     con.executemany(
         "INSERT INTO zber_stav VALUES (?,?,?,?,?)",
         [("2026-08-31", store, "ok", 40, 2) for store in OBCHODY],
     )
     con.executemany(
-        "INSERT INTO akcie VALUES (?,?,?)",
+        "INSERT INTO akcie VALUES (?,?,?,?)",
         [
-            (store, "2026-08-27", "2026-09-02")
+            ("2026-08-31", store, "2026-08-27", "2026-09-02")
             for store in OBCHODY
             for _ in range(12)
         ],
@@ -173,13 +173,41 @@ def test_expired_offers_trigger_new_collection_inside_same_monday_week(tmp_path,
     assert con.execute(dotaz).fetchone()[0] == 3
 
     con.executemany(
-        "INSERT INTO akcie VALUES (?,?,?)",
+        "INSERT INTO akcie VALUES (?,?,?,?)",
         [
-            (store, "2026-09-03", "2026-09-09")
+            ("2026-08-31", store, "2026-09-03", "2026-09-09")
             for store in OBCHODY
             for _ in range(10)
         ],
     )
     con.commit()
     assert con.execute(dotaz).fetchone()[0] == 0
+    con.close()
+
+
+def test_monday_flip_reuses_only_still_valid_verified_flyers(tmp_path, skript):
+    """V pondelok ostanú staršie platné letáky; skončený Lidl sa musí dozbierať."""
+    db = tmp_path / "t.db"
+    con = sqlite3.connect(db)
+    con.execute("CREATE TABLE zber_stav (tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER, data_version INTEGER)")
+    con.execute("CREATE TABLE akcie (tyzden TEXT, obchod TEXT, valid_from TEXT, valid_to TEXT)")
+    con.executemany("INSERT INTO zber_stav VALUES (?,?,?,?,?)", [
+        ("2026-08-31", "Kaufland", "ok", 40, 2),
+        ("2026-08-31", "Tesco", "ok", 40, 2),
+        ("2026-08-31", "Lidl", "ok", 40, 2),
+    ])
+    con.executemany("INSERT INTO akcie VALUES (?,?,?,?)", [
+        ("2026-08-31", store, "2026-09-03", "2026-09-09")
+        for store in ("Kaufland", "Tesco") for _ in range(10)
+    ])
+    con.executemany("INSERT INTO akcie VALUES (?,?,?,?)", [
+        ("2026-08-31", "Lidl", "2026-08-31", "2026-09-06")
+        for _ in range(10)
+    ])
+    con.commit()
+
+    dotaz = _dotaz_na_neuplny_zber(skript, "2026-09-07").replace(
+        "$MON_ISO", "2026-09-07"
+    )
+    assert con.execute(dotaz).fetchone()[0] == 1
     con.close()

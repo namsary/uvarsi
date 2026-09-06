@@ -240,19 +240,21 @@ def test_tyzdenny_strop_behov_sa_v_novom_tyzdni_uvolni(con):
     naklady.rezervuj_beh(con, "zber_letakov", teraz=BUDUCI_TYZDEN)
 
 
-def test_limit_zberu_sa_obnovi_pri_stvrtkovom_zaciatku_noveho_letaku(con):
-    """Tri pokusy zo starého letáka nesmú zablokovať nový štvrtkový leták."""
+def test_limit_zberu_sa_neobnovi_uprostred_planovacieho_tyzdna(con):
+    """Tri reťazce sa obnovujú v rôzne dni, preto majú jeden po–ne cyklus."""
     streda = PONDELOK + datetime.timedelta(days=2, hours=12)
     stvrtok = PONDELOK + datetime.timedelta(days=3, hours=5)
 
     for _ in range(naklady.limit_behov("zber_letakov")):
         naklady.rezervuj_beh(con, "zber_letakov", teraz=streda)
 
-    assert naklady.rezervuj_beh(con, "zber_letakov", teraz=stvrtok) == 1
+    with pytest.raises(naklady.RozpocetVycerpany) as chyba:
+        naklady.rezervuj_beh(con, "zber_letakov", teraz=stvrtok)
+    assert chyba.value.kod == naklady.KOD_BEHY
+    assert naklady.rezervuj_beh(con, "zber_letakov", teraz=BUDUCI_TYZDEN) == 1
 
 
-def test_eurovy_strop_zberu_sa_obnovi_so_stvrtkovym_letakom(con, monkeypatch):
-    """Cena starého letáka nesmie zablokovať nový leták v tom istom ISO týždni."""
+def test_eurovy_strop_zberu_sa_obnovi_az_v_novom_planovacom_tyzdni(con, monkeypatch):
     streda = PONDELOK + datetime.timedelta(days=2, hours=12)
     stvrtok = PONDELOK + datetime.timedelta(days=3, hours=5)
     monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "100")
@@ -263,10 +265,15 @@ def test_eurovy_strop_zberu_sa_obnovi_so_stvrtkovym_letakom(con, monkeypatch):
         teraz=streda, odhad_eur=0.15,
     )
 
-    stav = naklady.skontroluj(
-        con, "zber_letakov", odhad_eur=0.10, teraz=stvrtok,
-    )
+    with pytest.raises(naklady.RozpocetVycerpany) as chyba:
+        naklady.skontroluj(
+            con, "zber_letakov", odhad_eur=0.10, teraz=stvrtok,
+        )
+    assert chyba.value.kod == naklady.KOD_UCEL
 
+    stav = naklady.skontroluj(
+        con, "zber_letakov", odhad_eur=0.10, teraz=BUDUCI_TYZDEN,
+    )
     assert stav["ucel_eur"] == 0.0
 
 
@@ -392,11 +399,14 @@ def test_only_last_migration_recovery_can_use_bounded_daily_burst(con, monkeypat
     assert bezna_prevadzka.value.kod == naklady.KOD_DENNY
 
 
-def test_schema_migration_collection_budget_resets_with_thursday_cycle(con):
+def test_schema_migration_collection_budget_resets_with_monday_cycle(con):
     streda = PONDELOK + datetime.timedelta(days=2, hours=12)
     stvrtok = PONDELOK + datetime.timedelta(days=3, hours=5)
-    naklady.rezervuj_beh(con, "zber_migracia", teraz=streda)
-    assert naklady.rezervuj_beh(con, "zber_migracia", teraz=stvrtok) == 1
+    for _ in range(naklady.limit_behov("zber_migracia")):
+        naklady.rezervuj_beh(con, "zber_migracia", teraz=streda)
+    with pytest.raises(naklady.RozpocetVycerpany):
+        naklady.rezervuj_beh(con, "zber_migracia", teraz=stvrtok)
+    assert naklady.rezervuj_beh(con, "zber_migracia", teraz=BUDUCI_TYZDEN) == 1
 
 
 # ------------------------------------------------------------------ s_rozpoctom

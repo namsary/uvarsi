@@ -467,14 +467,13 @@ def _obdobia(teraz):
 def _obdobie_behu(ucel, teraz):
     """Počítadlo behov zarovnaj s cyklom práce, ktorú chráni.
 
-    Nákladové súčty ostávajú kalendárne pondelok–nedeľa. Zber letákov však
-    pracuje s novou sadou od štvrtka, preto jeho bezpečnostný limit musí dostať
-    nový kľúč vo štvrtok, nie až nasledujúci pondelok.
+    Lidl, Tesco a Kaufland nezačínajú nové letáky v rovnaký deň. Jeden spoločný
+    štvrtkový reset preto minul pondelkový Lidl a zároveň dovolil zbytočný
+    štvrtý beh v tom istom plánovacom týždni. Všetky účely majú jeden
+    predvídateľný cyklus pondelok–nedeľa; tri povolené zbery pokryjú tri
+    reťazce podľa ich skutočného dňa výmeny letáka.
     """
     den = teraz.date()
-    if ucel in {"zber_letakov", "zber_migracia"}:
-        posledny_stvrtok = den - datetime.timedelta(days=(den.weekday() - 3) % 7)
-        return posledny_stvrtok.isoformat()
     return (den - datetime.timedelta(days=den.weekday())).isoformat()
 
 

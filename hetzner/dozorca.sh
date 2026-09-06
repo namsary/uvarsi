@@ -362,8 +362,11 @@ POCET=$(sqlite3 "$DIR/uvarsi.db" \
 CHYBA_ZBER=$(sqlite3 "$DIR/uvarsi.db" \
   "SELECT COUNT(*) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
    WHERE NOT EXISTS (SELECT 1 FROM zber_stav s
-                     WHERE s.tyzden='$MON_ISO' AND s.obchod=v.o AND s.stav='ok'
-                       AND COALESCE(s.data_version, 0) >= 2)
+                     JOIN akcie z ON z.obchod=s.obchod AND z.tyzden=s.tyzden
+                     WHERE s.obchod=v.o AND s.stav='ok'
+                       AND COALESCE(s.data_version, 0) >= 2
+                       AND z.valid_from IS NOT NULL AND z.valid_to IS NOT NULL
+                       AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to)
       OR (SELECT COUNT(*) FROM akcie a
           WHERE a.obchod=v.o
             AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
@@ -383,8 +386,11 @@ if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
   NEUPLNE_OBCHODY=$(sqlite3 "$DIR/uvarsi.db" \
     "SELECT lower(v.o) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
      WHERE NOT EXISTS (SELECT 1 FROM zber_stav s
-                       WHERE s.tyzden='$MON_ISO' AND s.obchod=v.o AND s.stav='ok'
-                         AND COALESCE(s.data_version, 0) >= 2)
+                       JOIN akcie z ON z.obchod=s.obchod AND z.tyzden=s.tyzden
+                       WHERE s.obchod=v.o AND s.stav='ok'
+                         AND COALESCE(s.data_version, 0) >= 2
+                         AND z.valid_from IS NOT NULL AND z.valid_to IS NOT NULL
+                         AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to)
         OR (SELECT COUNT(*) FROM akcie a
             WHERE a.obchod=v.o
               AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
@@ -417,8 +423,11 @@ POCET=$(sqlite3 "$DIR/uvarsi.db" \
 CHYBA_ZBER=$(sqlite3 "$DIR/uvarsi.db" \
   "SELECT COUNT(*) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
    WHERE NOT EXISTS (SELECT 1 FROM zber_stav s
-                     WHERE s.tyzden='$MON_ISO' AND s.obchod=v.o AND s.stav='ok'
-                       AND COALESCE(s.data_version, 0) >= 2)
+                     JOIN akcie z ON z.obchod=s.obchod AND z.tyzden=s.tyzden
+                     WHERE s.obchod=v.o AND s.stav='ok'
+                       AND COALESCE(s.data_version, 0) >= 2
+                       AND z.valid_from IS NOT NULL AND z.valid_to IS NOT NULL
+                       AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to)
       OR (SELECT COUNT(*) FROM akcie a
           WHERE a.obchod=v.o
             AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
@@ -426,7 +435,11 @@ CHYBA_ZBER=$(sqlite3 "$DIR/uvarsi.db" \
   2>/dev/null || echo 3)
 ZBER_REV=$(sqlite3 "$DIR/uvarsi.db" \
   "SELECT COALESCE(MAX(strftime('%s', updated)), '0')
-   FROM zber_stav WHERE tyzden='$MON_ISO'" \
+   FROM zber_stav s
+   WHERE EXISTS (SELECT 1 FROM akcie a
+                 WHERE a.obchod=s.obchod AND a.tyzden=s.tyzden
+                   AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
+                   AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to)" \
   2>/dev/null || echo 0)
 DATOVY_STAV="${POCET:-0}:${CHYBA_ZBER:-3}:${ZBER_REV:-0}"
 # --- 1. Už je aktuálny landing JSON pripravený? ---

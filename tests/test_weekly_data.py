@@ -132,6 +132,42 @@ def test_thursday_flyer_stays_readable_after_the_monday_week_flip():
     assert [row["nazov"] for row in rows] == ["Štvrtkový leták"]
 
 
+def test_valid_flyer_keeps_its_healthy_collection_status_after_monday_flip():
+    con = full_connection([
+        offer(1, "Štvrtkový leták", tyzden="2026-08-17",
+              valid_from="2026-08-20", valid_to="2026-08-26"),
+    ])
+    con.execute(
+        """CREATE TABLE zber_stav (
+            tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER,
+            detail TEXT, data_version INTEGER, updated TEXT)"""
+    )
+    con.execute(
+        "INSERT INTO zber_stav VALUES (?,?,?,?,?,?,?)",
+        ("2026-08-17", "Lidl", "ok", 40, None, 2, "2026-08-20T06:00:00"),
+    )
+
+    assert stores_missing_this_week(con, ["Lidl"], date(2026, 8, 24)) == []
+
+
+def test_expired_flyer_status_does_not_hide_missing_monday_replacement():
+    con = full_connection([
+        offer(1, "Nedeľou skončený leták", tyzden="2026-08-17",
+              valid_from="2026-08-17", valid_to="2026-08-23"),
+    ])
+    con.execute(
+        """CREATE TABLE zber_stav (
+            tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER,
+            detail TEXT, data_version INTEGER, updated TEXT)"""
+    )
+    con.execute(
+        "INSERT INTO zber_stav VALUES (?,?,?,?,?,?,?)",
+        ("2026-08-17", "Lidl", "ok", 40, None, 2, "2026-08-17T06:00:00"),
+    )
+
+    assert stores_missing_this_week(con, ["Lidl"], date(2026, 8, 24)) == ["Lidl"]
+
+
 def test_offer_whose_validity_ended_is_dropped_even_inside_its_own_week():
     con = full_connection([
         offer(1, "Skončená", tyzden="2026-08-24",
@@ -173,6 +209,10 @@ def test_collection_outcomes_expose_a_partial_run():
         "INSERT INTO zber_stav (tyzden, obchod, stav, pocet, data_version) VALUES (?, ?, ?, ?, ?)",
         [("2026-08-17", "Lidl", "ok", 40, 2), ("2026-08-17", "Tesco", "fail", 0, 2)],
     )
+    con.execute(
+        "INSERT INTO akcie VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        offer(1, "Mlieko"),
+    )
 
     outcomes = collection_outcomes(con, date(2026, 8, 18))
 
@@ -206,6 +246,14 @@ def test_old_collection_data_version_is_incomplete_until_every_store_is_recollec
             ("2026-08-17", "Kaufland", "ok", 40, 2),
             ("2026-08-17", "Tesco", "ok", 40, 1),
             ("2026-08-17", "Lidl", "ok", 40, 1),
+        ],
+    )
+    con.executemany(
+        "INSERT INTO akcie VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            offer(1, "Mlieko", store="Kaufland"),
+            offer(2, "Chlieb", store="Tesco"),
+            offer(3, "Maslo", store="Lidl"),
         ],
     )
 

@@ -129,18 +129,41 @@ def collection_outcomes(con, today: date | None = None, week: str | None = None)
 
 
 def stores_missing_this_week(con, stores, today: date | None = None) -> list[str]:
-    """Obchody, ktoré tento týždeň NEBOLI úspešne pozbierané.
+    """Obchody bez úspešne pozbieraného letáka, ktorý platí práve dnes.
 
-    Neprázdny výsledok znamená čiastočný beh: zdravé obchody prevýšia
-    akýkoľvek prah počtu riadkov, takže bez tohto sa chýbajúci obchod
-    nedá odhaliť a používateľ sa nikdy nedozvie, že mu obchod chýba.
+    Stav zberu patrí priehradke, do ktorej sa leták zapísal. Leták zo štvrtka
+    môže byť stále platný po pondelkovom preklopení kalendárneho týždňa, preto
+    sa stav musí párovať s ``akcie.tyzden`` platnej ponuky, nie nasilu s
+    dnešným pondelkom. Samotný starý stav bez dnes platnej ponuky nestačí.
     """
-    outcomes = collection_outcomes(con, today)
+    stores = [store for store in stores if store in ALLOWED_STORES]
+    if not stores or not _has_status_table(con):
+        return sorted(stores)
+    status_columns = {
+        row[1] for row in con.execute(f"PRAGMA table_info({STATUS_TABLE})")
+    }
+    if "data_version" not in status_columns:
+        return sorted(stores)
+
+    valid_buckets = {
+        (row["obchod"], row["tyzden"])
+        for row in current_verified_offers(con, stores, today)
+    }
+    marks = ",".join("?" for _ in stores)
+    healthy_buckets = {
+        (row[0], row[1])
+        for row in con.execute(
+            f"""SELECT obchod, tyzden FROM {STATUS_TABLE}
+                WHERE obchod IN ({marks}) AND stav='ok'
+                  AND COALESCE(data_version, 0) >= ?""",
+            (*stores, CURRENT_COLLECTION_DATA_VERSION),
+        )
+    }
     return sorted(
         store for store in stores
-        if store in ALLOWED_STORES and (
-            outcomes.get(store, {}).get("stav") != "ok"
-            or int(outcomes.get(store, {}).get("data_version") or 0)
-            < CURRENT_COLLECTION_DATA_VERSION
+        if not any(
+            candidate in healthy_buckets
+            for candidate in valid_buckets
+            if candidate[0] == store
         )
     )
