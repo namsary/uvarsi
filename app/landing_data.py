@@ -52,6 +52,32 @@ def _validate_item_saving(item: dict) -> bool:
     return True
 
 
+def _validate_item_loyalty_price(item: dict) -> None:
+    loyalty_price = _optional_amount(item.get("loyalty_price"))
+    metadata = (
+        item.get("loyalty_discount"), item.get("loyalty_program"),
+        item.get("loyalty_minimum_basket"), item.get("loyalty_condition"),
+    )
+    if loyalty_price is None:
+        if any(value not in (None, "") for value in metadata):
+            raise ValueError("Vernostné podmienky nemajú vernostnú cenu.")
+        return
+    if loyalty_price <= 0 or "price" not in item or loyalty_price >= _amount(item["price"]):
+        raise ValueError("Vernostná cena musí byť kladná a nižšia než verejná cena.")
+    _required_text(item.get("loyalty_program"), "vernostný program")
+    discount = item.get("loyalty_discount")
+    if discount is not None:
+        _required_text(discount, "vernostná zľava")
+    minimum = item.get("loyalty_minimum_basket")
+    if minimum is not None and _amount(minimum) <= 0:
+        raise ValueError("Vernostný minimálny nákup musí byť kladný.")
+    condition = item.get("loyalty_condition")
+    if condition is not None:
+        text = _required_text(condition, "vernostná podmienka").strip()
+        if len(text) > 160:
+            raise ValueError("Vernostná podmienka je príliš dlhá.")
+
+
 def _validate_recipe(meal: dict) -> None:
     """Recept je nepovinný — keď tam je, musí sa dať zobraziť bez dopočítavania.
 
@@ -98,12 +124,21 @@ def _validate_current_sources(sources: object, today: date) -> None:
             raise ValueError("Zdroj bločku je po platnosti.")
 
 
-def validate_landing_data(payload: dict, today: date | None = None) -> dict:
+def validate_landing_data(
+    payload: dict,
+    today: date | None = None,
+    required_offer_data_version: int | None = None,
+) -> dict:
     today = today or date.today()
     if not isinstance(payload, dict):
         raise ValueError("Letákové dáta musia byť objekt.")
     if payload.get("schema_version") != 1:
         raise ValueError("Nepodporovaná verzia letákových dát.")
+    if (
+        required_offer_data_version is not None
+        and payload.get("offer_data_version") != required_offer_data_version
+    ):
+        raise ValueError("Bloček nemá aktuálnu verziu cien.")
     if payload.get("week") != current_monday(today):
         raise ValueError("Letákové dáta nie sú pre aktuálny týždeň.")
     if not isinstance(payload.get("generated_at"), str):
@@ -138,6 +173,7 @@ def validate_landing_data(payload: dict, today: date | None = None) -> dict:
             _required_text(item.get("store"), "store")
             if "price" in item:
                 _amount(item["price"])
+            _validate_item_loyalty_price(item)
             items_seen += 1
             items_with_regular_price += _validate_item_saving(item)
 
@@ -204,9 +240,15 @@ def load_landing_data(path: str | Path) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def landing_data_is_current(path: str | Path, today: date | None = None) -> bool:
+def landing_data_is_current(
+    path: str | Path,
+    today: date | None = None,
+    required_offer_data_version: int | None = None,
+) -> bool:
     try:
-        validate_landing_data(load_landing_data(path), today)
+        validate_landing_data(
+            load_landing_data(path), today, required_offer_data_version
+        )
         return True
     except (FileNotFoundError, json.JSONDecodeError, OSError, ValueError):
         return False

@@ -343,6 +343,32 @@ def test_zber_ma_jeden_bezpecny_pokus_na_obnovu_po_dvoch_zlyhaniach(monkeypatch)
     assert naklady.limit_behov("zber_letakov") == 3
 
 
+def test_schema_migration_has_one_separate_bounded_collection_run(con, monkeypatch):
+    monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "100")
+    monkeypatch.setenv("UVARSI_MESACNY_STROP_EUR", "100")
+    monkeypatch.setenv("UVARSI_TYZDENNY_STROP_MIGRACIA_EUR", "3")
+
+    for _ in range(naklady.limit_behov("zber_letakov")):
+        naklady.rezervuj_beh(con, "zber_letakov", teraz=PONDELOK)
+
+    assert naklady.rezervuj_beh(con, "zber_migracia", teraz=PONDELOK) == 1
+    with pytest.raises(naklady.RozpocetVycerpany) as chyba:
+        naklady.rezervuj_beh(con, "zber_migracia", teraz=PONDELOK)
+    assert chyba.value.kod == naklady.KOD_BEHY
+
+    stav = naklady.skontroluj(
+        con, "zber_migracia", odhad_eur=0.10, teraz=PONDELOK
+    )
+    assert stav["ucel_eur"] == 0.0
+
+
+def test_schema_migration_collection_budget_resets_with_thursday_cycle(con):
+    streda = PONDELOK + datetime.timedelta(days=2, hours=12)
+    stvrtok = PONDELOK + datetime.timedelta(days=3, hours=5)
+    naklady.rezervuj_beh(con, "zber_migracia", teraz=streda)
+    assert naklady.rezervuj_beh(con, "zber_migracia", teraz=stvrtok) == 1
+
+
 # ------------------------------------------------------------------ s_rozpoctom
 def test_s_rozpoctom_nevola_ked_je_strop_vycerpany(con, monkeypatch):
     monkeypatch.setenv("UVARSI_DENNY_STROP_EUR", "0.01")

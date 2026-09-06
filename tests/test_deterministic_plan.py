@@ -52,8 +52,9 @@ def _offer(
     sale="1.79",
     original="2.49",
     store="Lidl",
+    **extra,
 ):
-    return {
+    offer = {
         "offer_key": offer_key,
         "obchod": store,
         "nazov": ingredient_name,
@@ -66,6 +67,8 @@ def _offer(
         "source_url": f"https://example.test/{offer_key}",
         "source_page": 4,
     }
+    offer.update(extra)
+    return offer
 
 
 def _template(
@@ -776,6 +779,37 @@ def test_meal_ingredients_preserve_established_offer_and_pantry_shapes():
     assert pantry_meal["recept"]["davky"][0].startswith("ryža – ")
     assert pantry_meal["recept"]["davky"][0].endswith(" zo špajze")
     assert pantry_meal["recept"]["skontroluj_doma"] == ["voda", "soľ"]
+
+
+def test_plan_totals_use_unconditional_price_and_only_explain_the_card_price():
+    plan = _build(
+        rows=(
+            _offer(
+                sale="1.69",
+                original="2.99",
+                store="Kaufland",
+                cena_s_kartou=1.55,
+                zlava_s_kartou="-48 %",
+                vernostny_program="Kaufland Card",
+                minimalny_nakup=20.0,
+                podmienka_s_kartou="aktivuj kupón v aplikácii",
+            ),
+        ),
+        stores=("Kaufland",),
+    )
+
+    ingredient = plan["jedla"][0]["suroviny"][0]
+    shopping = plan["nakupny_zoznam"][0]["polozky"][0]
+    assert plan["nakup_spolu"] == "3,38"
+    assert ingredient["cena_za_balenie"] == "1,69"
+    assert ingredient["cena_s_kartou_za_balenie"] == "1,55"
+    assert ingredient["vernostny_program"] == "Kaufland Card"
+    assert ingredient["minimalny_nakup"] == "20"
+    assert shopping["cena"] == "3,38"
+    assert ingredient["podmienka_s_kartou"] == "aktivuj kupón v aplikácii"
+    assert shopping["cena_s_kartou"] == "3,10"
+    assert shopping["cena_s_kartou_za_balenie"] == "1,55"
+    assert shopping["podmienka_s_kartou"] == "aktivuj kupón v aplikácii"
 
 
 def test_meal_serialization_preserves_complete_established_recipe_contract():

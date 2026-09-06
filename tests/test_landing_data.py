@@ -74,6 +74,24 @@ def test_rejects_wrong_savings_math():
 
 
 @pytest.mark.parametrize(
+    "bad",
+    [
+        {"loyalty_price": "1,10"},
+        {"loyalty_price": "0,90", "loyalty_program": ""},
+        {"loyalty_price": "0,90", "loyalty_program": "Lidl Plus", "loyalty_minimum_basket": "0"},
+        {"loyalty_price": "0,90", "loyalty_program": "Lidl Plus", "loyalty_condition": "x" * 161},
+    ],
+)
+def test_rejects_incomplete_or_impossible_loyalty_price_metadata(bad):
+    data = receipt_with(
+        [item(**bad)], nakup_spolu="1,00", bezne="1,50", usetris="0,50"
+    )
+
+    with pytest.raises(ValueError, match="[Vv]ernost"):
+        validate_landing_data(data, date(2026, 8, 18))
+
+
+@pytest.mark.parametrize(
     "mutate",
     [
         lambda data: data["receipt"].update(meals="not-a-list"),
@@ -109,6 +127,32 @@ def test_atomic_write_round_trips_current_payload(tmp_path):
     assert load_landing_data(path) == data
     assert landing_data_is_current(path, date(2026, 8, 18)) is True
     assert not path.with_suffix(".tmp").exists()
+
+
+def test_strict_collection_version_rejects_date_current_legacy_receipt(tmp_path):
+    path = tmp_path / "landing_data.json"
+    data = payload()
+    write_landing_data_atomic(path, data)
+
+    assert landing_data_is_current(path, date(2026, 8, 18)) is True
+    assert landing_data_is_current(
+        path, date(2026, 8, 18), required_offer_data_version=2
+    ) is False
+
+    data["offer_data_version"] = 2
+    write_landing_data_atomic(path, data)
+    assert landing_data_is_current(
+        path, date(2026, 8, 18), required_offer_data_version=2
+    ) is True
+
+
+def test_strict_validator_rejects_wrong_collection_version():
+    data = payload()
+    data["offer_data_version"] = 1
+    with pytest.raises(ValueError, match="verziu cien"):
+        validate_landing_data(
+            data, date(2026, 8, 18), required_offer_data_version=2
+        )
 
 
 def test_accepts_items_without_a_verified_regular_price():

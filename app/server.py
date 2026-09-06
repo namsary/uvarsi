@@ -52,7 +52,11 @@ from config import public_base_url, admin_emails, recipe_engine_mode, release_id
 from landing_data import load_landing_data, validate_landing_data
 from public_pages import ROBOTS_TXT, render_evergreen_page, render_sitemap, render_weekly_page
 from weekly_data import offers_for_current_week, stores_missing_this_week
-from offer_data import OfferKeyCollision, migrate_akcie_schema
+from offer_data import (
+    CURRENT_COLLECTION_DATA_VERSION,
+    OfferKeyCollision,
+    migrate_akcie_schema,
+)
 from plan_shortlist import select_offers
 from plan_jobs import JobRequest
 from plan_calendar import bratislava_day
@@ -2723,6 +2727,8 @@ def akcie_pre(obchody):
 
     today = bratislava_day()
     with closing(db()) as con:
+        if stores_missing_this_week(con, obchody, today):
+            return []
         rows = measurable_offers(offers_for_current_week(con, obchody, today))
 
     return rows
@@ -3912,6 +3918,8 @@ def daj_plan(req: Request):
     with closing(db()) as con:
         premium = je_premium(con, u["id"])
         obchody = efektivne_obchody(u, premium)
+        if stores_missing_this_week(con, obchody, bratislava_day()):
+            raise HTTPException(503, sprava_o_chybajucich_akciach())
         r = con.execute("SELECT json, vytvoreny FROM plany WHERE user_id=? AND tyzden=?",
                         (u["id"], tyz)).fetchone()
         cached = None
@@ -4834,7 +4842,9 @@ def public_community(con) -> dict:
 def public_landing():
     try:
         payload = validate_landing_data(
-            load_landing_data(LANDING_DATA), bratislava_day()
+            load_landing_data(LANDING_DATA),
+            bratislava_day(),
+            required_offer_data_version=CURRENT_COLLECTION_DATA_VERSION,
         )
     except (FileNotFoundError, ValueError):
         raise HTTPException(503, "Aktuálne letákové dáta sa obnovujú.")

@@ -281,7 +281,7 @@ if [ "$BLOKNUTE_NA" = "KREDIT" ]; then
 fi
 
 landing_data_is_current() {
-  (cd "$DIR" && "$PY" -c 'from app.landing_data import landing_data_is_current; from datetime import date; import sys; raise SystemExit(0 if landing_data_is_current(sys.argv[1], date.fromisoformat(sys.argv[2])) else 1)' "$LANDING_DATA" "$TODAY")
+  (cd "$DIR" && "$PY" -c 'from app.landing_data import landing_data_is_current; from datetime import date; import sys; raise SystemExit(0 if landing_data_is_current(sys.argv[1], date.fromisoformat(sys.argv[2]), required_offer_data_version=2) else 1)' "$LANDING_DATA" "$TODAY")
 }
 
 zahrej_plany() {
@@ -312,7 +312,8 @@ POCET=$(sqlite3 "$DIR/uvarsi.db" \
 CHYBA_ZBER=$(sqlite3 "$DIR/uvarsi.db" \
   "SELECT COUNT(*) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
    WHERE NOT EXISTS (SELECT 1 FROM zber_stav s
-                     WHERE s.tyzden='$MON_ISO' AND s.obchod=v.o AND s.stav='ok')
+                     WHERE s.tyzden='$MON_ISO' AND s.obchod=v.o AND s.stav='ok'
+                       AND COALESCE(s.data_version, 0) >= 2)
       OR (SELECT COUNT(*) FROM akcie a
           WHERE a.obchod=v.o
             AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
@@ -332,7 +333,8 @@ if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
   NEUPLNE_OBCHODY=$(sqlite3 "$DIR/uvarsi.db" \
     "SELECT lower(v.o) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
      WHERE NOT EXISTS (SELECT 1 FROM zber_stav s
-                       WHERE s.tyzden='$MON_ISO' AND s.obchod=v.o AND s.stav='ok')
+                       WHERE s.tyzden='$MON_ISO' AND s.obchod=v.o AND s.stav='ok'
+                         AND COALESCE(s.data_version, 0) >= 2)
         OR (SELECT COUNT(*) FROM akcie a
             WHERE a.obchod=v.o
               AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
@@ -365,12 +367,18 @@ POCET=$(sqlite3 "$DIR/uvarsi.db" \
 CHYBA_ZBER=$(sqlite3 "$DIR/uvarsi.db" \
   "SELECT COUNT(*) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
    WHERE NOT EXISTS (SELECT 1 FROM zber_stav s
-                     WHERE s.tyzden='$MON_ISO' AND s.obchod=v.o AND s.stav='ok')
+                     WHERE s.tyzden='$MON_ISO' AND s.obchod=v.o AND s.stav='ok'
+                       AND COALESCE(s.data_version, 0) >= 2)
       OR (SELECT COUNT(*) FROM akcie a
           WHERE a.obchod=v.o
             AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
             AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
   2>/dev/null || echo 3)
+ZBER_REV=$(sqlite3 "$DIR/uvarsi.db" \
+  "SELECT COALESCE(MAX(strftime('%s', updated)), '0')
+   FROM zber_stav WHERE tyzden='$MON_ISO'" \
+  2>/dev/null || echo 0)
+DATOVY_STAV="${POCET:-0}:${CHYBA_ZBER:-3}:${ZBER_REV:-0}"
 # --- 1. Už je aktuálny landing JSON pripravený? ---
 if landing_data_is_current; then
   if [ "${POCET:-0}" -ge 30 ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]; then
@@ -383,8 +391,8 @@ fi
 
 # --- 2. Uplatni dnešný štrukturálny blok ---
 # Štrukturálny pád sa opakuje len vtedy, keď sa vstupné dáta odvtedy zmenili.
-if [ "$BLOKNUTE_NA" != "-" ] && [ "$BLOKNUTE_NA" = "${POCET:-0}" ]; then
-  log "ŠTRUKTURÁLNA chyba pri ${POCET:-0} ponukách a dáta sa odvtedy nezmenili — nespúšťam ďalší pokus (šetrím kredit)."
+if [ "$BLOKNUTE_NA" != "-" ] && [ "$BLOKNUTE_NA" = "$DATOVY_STAV" ]; then
+  log "ŠTRUKTURÁLNA chyba a stav zberu $DATOVY_STAV sa odvtedy nezmenil — nespúšťam ďalší pokus (šetrím kredit)."
   exit "$EXIT_STRUCTURAL"
 fi
 
@@ -429,8 +437,8 @@ fi
 
 # --- 4a. Štrukturálny pád: opakovanie nepomôže, kým sa dáta nezmenia ---
 if [ "$RC" -eq "$EXIT_STRUCTURAL" ]; then
-  echo "$TODAY $FAILS ${POCET:-0}" > "$STATE"
-  log "ŠTRUKTURÁLNA chyba (kód $RC) pri ${POCET:-0} ponukách — ďalšie pokusy nespúšťam, kým sa dáta nezmenia."
+  echo "$TODAY $FAILS $DATOVY_STAV" > "$STATE"
+  log "ŠTRUKTURÁLNA chyba (kód $RC) pri stave zberu $DATOVY_STAV — ďalšie pokusy nespúšťam, kým sa dáta nezmenia."
   TAIL=$(tail -12 /var/log/uvarsi.log 2>/dev/null | tr '\n' ' ' | tail -c 400)
   notify "Uvar.si: bloček sa nedá zostaviť" \
     "Týždeň $MON_ISO — refresh_blocek skončil štrukturálnou chybou pri ${POCET:-0} ponukách v DB. Opakovanie nepomôže, treba zásah. Log: $TAIL"

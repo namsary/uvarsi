@@ -180,7 +180,9 @@ def test_dozorca_stops_retrying_a_structural_failure_until_the_data_changes(tmp_
     assert second.returncode == 3
     assert "ŠTRUKTURÁLNA" in first.stdout
     assert calls.read_text(encoding="utf-8").count("refresh_blocek.py") == 1
-    assert (tmp_path / ".dozorca_state").read_text(encoding="utf-8").split() == ["2026-08-18", "0", "431"]
+    assert (tmp_path / ".dozorca_state").read_text(encoding="utf-8").split() == [
+        "2026-08-18", "0", "431:431:431",
+    ]
 
 
 def test_dozorca_keeps_retrying_a_transient_failure(tmp_path):

@@ -297,6 +297,118 @@ def test_claude_json_uses_structured_array_output_for_flyer_scan():
     }
 
 
+def test_flyer_extraction_contract_keeps_public_and_loyalty_prices_separate():
+    item = collector.EXTRACT_OUTPUT_SCHEMA["items"]
+    assert item["required"] == list(item["properties"])
+    assert {
+        "cena_s_kartou",
+        "zlava_s_kartou",
+        "vernostny_program",
+        "minimalny_nakup",
+        "podmienka_s_kartou",
+    } <= set(item["properties"])
+    condition_schema = item["properties"]["podmienka_s_kartou"]["anyOf"][0]
+    assert "maxLength" not in condition_schema, (
+        "raw Anthropic structured-output schemas reject maxLength with HTTP 400"
+    )
+    assert "160" in condition_schema["description"]
+
+
+def test_collection_keeps_unconditional_price_primary_and_card_price_conditional(monkeypatch):
+    pages, manifest = flyer_fixture(1)
+    monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))
+    monkeypatch.setattr(collector, "get_b64", lambda url, max_px: url)
+
+    def fake_claude_json(client, model, content, max_tokens, effort=None):
+        if model == collector.MODEL_SCAN:
+            return [1]
+        return [{
+            "source_page": 1,
+            "nazov": "Repkový olej Raciol",
+            "kategoria": "trvanlive",
+            "cena": 1.69,
+            "povodna": 2.99,
+            "zlava": "-43 %",
+            "jednotka": "l",
+            "cena_s_kartou": 1.55,
+            "zlava_s_kartou": "-48 %",
+            "vernostny_program": "Kaufland Card",
+            "minimalny_nakup": 20.0,
+            "podmienka_s_kartou": "aktivuj kupón v aplikácii",
+        }]
+
+    monkeypatch.setattr(collector, "claude_json", fake_claude_json)
+
+    offers = collector.zbieraj(object(), "kaufland")
+
+    assert offers == [{
+        "obchod": "Kaufland",
+        "nazov": "Repkový olej Raciol",
+        "kategoria": "trvanlive",
+        "cena": 1.69,
+        "povodna": 2.99,
+        "zlava": "-43 %",
+        "jednotka": "l",
+        "cena_s_kartou": 1.55,
+        "zlava_s_kartou": "-48 %",
+        "vernostny_program": "Kaufland Card",
+        "minimalny_nakup": 20.0,
+        "podmienka_s_kartou": "aktivuj kupón v aplikácii",
+        "source_url": manifest["source_url"],
+        "source_page": 1,
+        "valid_from": manifest["valid_from"],
+        "valid_to": manifest["valid_to"],
+    }]
+
+
+def test_collection_rejects_instead_of_silently_truncating_a_loyalty_condition(monkeypatch):
+    pages, manifest = flyer_fixture(1)
+    monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))
+    monkeypatch.setattr(collector, "get_b64", lambda url, max_px: url)
+
+    def fake_claude_json(client, model, content, max_tokens, effort=None):
+        if model == collector.MODEL_SCAN:
+            return [1]
+        return [{
+            "source_page": 1, "nazov": "Repkový olej", "kategoria": "trvanlive",
+            "cena": 1.69, "povodna": 2.99, "zlava": "-43 %", "jednotka": "l",
+            "cena_s_kartou": 1.55, "zlava_s_kartou": "-48 %",
+            "vernostny_program": "Kaufland Card", "minimalny_nakup": 20.0,
+            "podmienka_s_kartou": "x" * 161,
+        }]
+
+    monkeypatch.setattr(collector, "claude_json", fake_claude_json)
+
+    with pytest.raises(ValueError, match="bounded"):
+        collector.zbieraj(object(), "kaufland")
+
+
+def test_collection_budget_purpose_is_migration_until_every_selected_store_is_current():
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(collector.SCHEMA)
+    week = "2026-08-31"
+    con.executemany(
+        "INSERT INTO zber_stav (tyzden, obchod, stav, pocet, data_version) VALUES (?,?,?,?,?)",
+        [
+            (week, "Kaufland", "ok", 40, collector.COLLECTION_DATA_VERSION),
+            (week, "Tesco", "ok", 40, collector.COLLECTION_DATA_VERSION - 1),
+        ],
+    )
+
+    assert collector.collection_budget_purpose(
+        con, week, ["kaufland", "tesco"]
+    ) == "zber_migracia"
+
+    con.execute(
+        "UPDATE zber_stav SET data_version=? WHERE obchod='Tesco'",
+        (collector.COLLECTION_DATA_VERSION,),
+    )
+    assert collector.collection_budget_purpose(
+        con, week, ["kaufland", "tesco"]
+    ) == "zber_letakov"
+
+
 def test_claude_json_recovers_a_valid_array_from_legacy_markdown_wrapper():
     class Messages:
         def create(self, **_kwargs):

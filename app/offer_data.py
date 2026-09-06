@@ -7,6 +7,12 @@ from urllib.parse import urlparse
 
 
 ALLOWED_STORES = frozenset({"Lidl", "Kaufland", "Tesco"})
+CURRENT_COLLECTION_DATA_VERSION = 2
+LOYALTY_PROGRAM_BY_STORE = {
+    "Kaufland": "Kaufland Card",
+    "Tesco": "Clubcard",
+    "Lidl": "Lidl Plus",
+}
 
 _MIGRATION_COLUMNS = {
     "source_url": "TEXT",
@@ -14,6 +20,11 @@ _MIGRATION_COLUMNS = {
     "valid_from": "TEXT",
     "valid_to": "TEXT",
     "offer_key": "TEXT",
+    "cena_s_kartou": "REAL",
+    "zlava_s_kartou": "TEXT",
+    "vernostny_program": "TEXT",
+    "minimalny_nakup": "REAL",
+    "podmienka_s_kartou": "TEXT",
 }
 
 _INSERT_COLUMNS = (
@@ -30,6 +41,11 @@ _INSERT_COLUMNS = (
     "valid_from",
     "valid_to",
     "offer_key",
+    "cena_s_kartou",
+    "zlava_s_kartou",
+    "vernostny_program",
+    "minimalny_nakup",
+    "podmienka_s_kartou",
 )
 
 _OFFER_KEY_FIELDS = (
@@ -45,6 +61,11 @@ _OFFER_KEY_FIELDS = (
     "povodna",
     "kategoria",
     "zlava",
+    "cena_s_kartou",
+    "zlava_s_kartou",
+    "vernostny_program",
+    "minimalny_nakup",
+    "podmienka_s_kartou",
 )
 
 
@@ -107,6 +128,39 @@ def validate_offer(offer):
         if original_price < offer["cena"]:
             raise ValueError("povodna must be at least cena")
 
+    card_price = offer.get("cena_s_kartou")
+    card_discount = offer.get("zlava_s_kartou")
+    loyalty_program = offer.get("vernostny_program")
+    minimum_basket = offer.get("minimalny_nakup")
+    loyalty_condition = offer.get("podmienka_s_kartou")
+    conditional_metadata = (
+        card_discount, loyalty_program, minimum_basket, loyalty_condition
+    )
+    if card_price is None:
+        if any(value not in (None, "") for value in conditional_metadata):
+            raise ValueError("loyalty metadata requires cena_s_kartou")
+    else:
+        _positive_finite_number(card_price, "cena_s_kartou")
+        if card_price >= offer["cena"]:
+            raise ValueError("cena_s_kartou must be lower than cena")
+        expected_program = LOYALTY_PROGRAM_BY_STORE[offer["obchod"]]
+        if loyalty_program != expected_program:
+            raise ValueError("vernostny_program does not match obchod")
+        if card_discount is not None and (
+            not isinstance(card_discount, str) or not card_discount.strip()
+        ):
+            raise ValueError("zlava_s_kartou must be non-empty or null")
+        if minimum_basket is not None:
+            _positive_finite_number(minimum_basket, "minimalny_nakup")
+        if loyalty_condition is not None and (
+            not isinstance(loyalty_condition, str)
+            or not loyalty_condition.strip()
+            or len(loyalty_condition.strip()) > 160
+        ):
+            raise ValueError("podmienka_s_kartou must be non-empty, bounded, or null")
+        if original_price is not None and original_price < card_price:
+            raise ValueError("povodna must be at least cena_s_kartou")
+
 
 OFFER_KEY_PREFIX = "offer_"
 
@@ -134,7 +188,7 @@ def _offer_facts(week, offer):
     _validated_iso_date(week, "tyzden")
     validate_offer(offer)
     facts = {field: (week if field == "tyzden" else offer.get(field)) for field in _OFFER_KEY_FIELDS}
-    for field in ("cena", "povodna"):
+    for field in ("cena", "povodna", "cena_s_kartou", "minimalny_nakup"):
         if facts[field] is not None:
             facts[field] = format(Decimal(str(facts[field])).normalize(), "f")
     return json.dumps(facts, ensure_ascii=False, sort_keys=True, separators=(",", ":"))

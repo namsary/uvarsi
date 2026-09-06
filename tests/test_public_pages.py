@@ -12,6 +12,7 @@ from app.public_pages import ROBOTS_TXT, render_evergreen_page, render_sitemap, 
 def payload():
     return {
         "schema_version": 1,
+        "offer_data_version": 2,
         "generated_at": "2026-08-18T05:02:20+02:00",
         "week": "2026-08-17",
         "week_label": "17.–23. 8. 2026",
@@ -48,6 +49,11 @@ def payload():
                             "original_price": "2,19",
                             "savings": "0,70",
                             "off": "-31 %",
+                            "loyalty_price": "1,29",
+                            "loyalty_discount": "-41 %",
+                            "loyalty_program": "Lidl Plus",
+                            "loyalty_minimum_basket": "20,00",
+                            "loyalty_condition": "aktivuj kupón v aplikácii",
                         },
                         {
                             "offer_key": "offer_b",
@@ -79,6 +85,11 @@ def sparse_payload():
     first_item = data["receipt"]["meals"][0]["items"][0]
     first_item.pop("unit")
     first_item.pop("price")
+    for key in (
+        "loyalty_price", "loyalty_discount", "loyalty_program",
+        "loyalty_minimum_basket", "loyalty_condition",
+    ):
+        first_item.pop(key, None)
     first_item["original_price"] = None
     first_item["savings"] = None
     data["receipt"].update(nakup_spolu="0,89", bezne="0,89", usetris="0,00", polozky_s_beznou_cenou=0)
@@ -141,6 +152,8 @@ def test_weekly_page_renders_validated_current_data_with_metadata_and_structured
     assert "1,49 €" in page.html
     assert "2,19 €" in page.html
     assert "0,89 €" in page.html
+    assert "S Lidl Plus pri nákupe od 20 €: 1,29 €" in page.html
+    assert "aktivuj kupón v aplikácii" in page.html
     assert "strana 2" in page.html
     assert "Aktualizované: 18. 8. 2026 05:02" in page.html
     assert "Ako pracujeme s AI a dátami" in page.html

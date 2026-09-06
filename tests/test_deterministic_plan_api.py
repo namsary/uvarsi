@@ -90,12 +90,13 @@ def _server(
         offer_rows = offer_rows[:offer_count]
     server = load_server(monkeypatch, tmp_path, offer_rows)
     server.recipe_engine_mode.cache_clear()
+    represented_stores = ",".join(sorted({row[2] for row in offer_rows}))
     with server.db() as con:
         con.execute(
             """INSERT INTO pouzivatelia
                (id,email,osoby,dospeli,deti,frekvencia,obchody,stravovanie)
-               VALUES (1,'plan@uvar.si',4,2,2,2,'Lidl,Kaufland,Tesco',?)""",
-            (diet,),
+               VALUES (1,'plan@uvar.si',4,2,2,2,?,?)""",
+            (represented_stores, diet),
         )
         insert_hashed_session(server, con, "session-1", 1)
         for name, amount, unit in pantry:

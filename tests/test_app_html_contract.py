@@ -609,6 +609,7 @@ def provenance_helpers(html):
         declaration(html, "function leafletLabel(item) "),
         declaration(html, "function sourceHref(url) "),
         declaration(html, "function publicLeafletHref(item) "),
+        declaration(html, "function loyaltyPriceHtml(i, packagePrice) "),
         declaration(html, "function ingredientProvenance(item, today) "),
         declaration(html, "function ingredientRow(item, today) "),
     ])
@@ -671,6 +672,45 @@ process.exit(0);
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
+def test_card_price_is_explained_but_never_presented_as_the_price_for_everyone(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "conditional-card-price.js",
+        provenance_helpers(html)
+        + """
+var item = {offer_key: 'oil', nazov: 'Repkový olej Raciol', obchod: 'Kaufland',
+  jednotka: '1 l', cena_za_balenie: '1,69', zlava: '-43 %',
+  cena_s_kartou_za_balenie: '1,55', zlava_s_kartou: '-48 %',
+  vernostny_program: 'Kaufland Card', minimalny_nakup: '20',
+  podmienka_s_kartou: 'aktivuj kupón v aplikácii',
+  source_url: 'https://letak.test/kaufland', source_page: 80,
+  valid_to: '2026-09-09'};
+var row = ingredientRow(item, '2026-09-06');
+var text = row.replace(/<[^>]+>/g, '');
+if (row.indexOf('1,69 € / 1 l') === -1) process.exit(1);
+if (text.indexOf('S Kaufland Card pri nákupe od 20 €: 1,55 €') === -1) process.exit(2);
+if (row.indexOf('-43 %') === -1) process.exit(3);
+if (row.indexOf('-48 %') === -1) process.exit(4);
+if (row.indexOf('1,55 € / 1 l') !== -1) process.exit(5);
+if (text.indexOf('aktivuj kupón v aplikácii') === -1) process.exit(6);
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_shopping_list_explains_conditional_total_without_using_it_as_default():
+    html = app_html()
+    shopping_view = declaration(html, "function vZoznam() ")
+    assert "loyaltyPriceHtml(p, false)" in shopping_view
+    assert "loyaltyPriceHtml(p, false, true)" in shopping_view
+    assert "p.cena_s_kartou" not in shopping_view.replace("loyaltyPriceHtml(p, false)", "")
+    assert ".item .pr>span" in html and "overflow-wrap:anywhere" in html
 
 
 @needs_node

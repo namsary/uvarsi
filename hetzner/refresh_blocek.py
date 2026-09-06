@@ -10,7 +10,7 @@ from pathlib import Path
 from app.deterministic_plan import NoCompatiblePlan, build_deterministic_plan
 from app.ingredient_catalog import load_ingredient_catalog
 from app.landing_data import validate_landing_data, write_landing_data_atomic
-from app.offer_data import ALLOWED_STORES
+from app.offer_data import ALLOWED_STORES, CURRENT_COLLECTION_DATA_VERSION
 from app.recipe_catalog import load_recipe_catalog
 from app.receipt_data import (
     MIN_COMPOSABLE_OFFERS,
@@ -19,7 +19,11 @@ from app.receipt_data import (
     build_public_receipt,
     priceable_offers,
 )
-from app.weekly_data import current_monday, current_verified_offers
+from app.weekly_data import (
+    current_monday,
+    current_verified_offers,
+    stores_missing_this_week,
+)
 
 
 LANDING_DATA_PATH = Path("/var/lib/uvarsi/landing_data.json")
@@ -117,12 +121,24 @@ def refresh_from_db(path, database, compose=None, today=None):
     today = today or date.today()
     with sqlite3.connect(database) as con:
         con.row_factory = sqlite3.Row
+        has_status = con.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='zber_stav'"
+        ).fetchone()
+        if has_status:
+            missing = stores_missing_this_week(con, ALLOWED_STORES, today)
+            if missing:
+                raise StructuralFailure(
+                    "Bloček nevytváram z neúplného zberu: " + ", ".join(missing)
+                )
         offers = priceable_offers(current_verified_offers(con, ALLOWED_STORES, today))
         if len(offers) < MIN_COMPOSABLE_OFFERS:
             raise StructuralFailure(TOO_FEW_OFFERS)
         selection = (compose or compose_curated_receipt)(offers, today)
         payload = build_public_receipt(con, selection, today=today)
-    validate_landing_data(payload, today)
+    payload["offer_data_version"] = CURRENT_COLLECTION_DATA_VERSION
+    validate_landing_data(
+        payload, today, required_offer_data_version=CURRENT_COLLECTION_DATA_VERSION
+    )
     write_landing_data_atomic(path, payload)
     return payload
 

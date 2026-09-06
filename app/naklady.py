@@ -68,7 +68,7 @@ NAJDRAHSIA_TARIFA = CENNIK_USD["claude-opus-5"]
 # nečaká — v noci sa dopredu poskladajú najžiadanejšie zdieľané jedálničky.
 # Vlastný účel má preto, aby bolo v /api/naklady vidieť zvlášť, koľko stálo
 # zahrievanie a koľko plány, ktoré si vypýtali ľudia.
-UCELY = ("zber_letakov", "blocek", "plan", "recepty", "predpocet")
+UCELY = ("zber_letakov", "zber_migracia", "blocek", "plan", "recepty", "predpocet")
 
 # Koľko typicky stojí JEDNO volanie (nie celý beh). Používa sa na dve veci: ako
 # odhad PRED volaním, aby sa strop nedal prekročiť ani o jedno volanie, a ako
@@ -76,6 +76,7 @@ UCELY = ("zber_letakov", "blocek", "plan", "recepty", "predpocet")
 # Nadhodnotiť sa neoplatí: príliš vysoký odhad by zastavil aj poctivý beh.
 ODHAD_EUR = {
     "zber_letakov": 0.10,     # jedna vision dávka (~4 strany letáku Opusom)
+    "zber_migracia": 0.10,    # jednorazové prečítanie po zmene dátovej schémy
     "blocek": 0.02,
     # 10k výstupných tokenov Sonnet 5 = najviac ~0,092 € plus vstup/cache.
     # 0,12 € je fail-closed odhad pre timeout bez usage; úspech sa účtuje reálne.
@@ -116,17 +117,19 @@ PRAHY_UPOZORNENIA = (50, 80)
 VYCHODZI_DENNY_STROP_EUR = 4.00
 VYCHODZI_MESACNY_STROP_EUR = 25.00
 VYCHODZI_TYZDENNY_STROP_ZBER_EUR = 4.00
+VYCHODZI_TYZDENNY_STROP_MIGRACIA_EUR = 3.00
 # Tri varianty najžiadanejšieho profilu × najviac dva pokusy × 0,12 €.
 # Zaokrúhlených 0,80 € necháva malú rezervu, no drží predpočet pod ~3,20 €/mesiac.
 VYCHODZI_TYZDENNY_STROP_PREDPOCET_EUR = 0.80
 # Zber má jeden tretí pokus na zotavenie po dvoch zlyhaniach (napríklad po
 # dobití kreditu). Predpočet môže skúsiť až šesťkrát. Cenu oboch operácií stále
 # tvrdo strážia samostatné týždenné eurové stropy.
-VYCHODZI_LIMIT_BEHOV = {"zber_letakov": 3, "predpocet": 6}
+VYCHODZI_LIMIT_BEHOV = {"zber_letakov": 3, "zber_migracia": 1, "predpocet": 6}
 
 # Ktorý účel si strop počtu behov berie z ktorej premennej prostredia.
 PREMENNA_BEHOV = {
     "zber_letakov": "UVARSI_TYZDENNE_BEHY_ZBER",
+    "zber_migracia": "UVARSI_TYZDENNE_BEHY_MIGRACIA",
     "predpocet": "UVARSI_TYZDENNE_BEHY_PREDPOCET",
 }
 
@@ -135,6 +138,8 @@ PREMENNE_PROSTREDIA = (
     "UVARSI_MESACNY_STROP_EUR",
     "UVARSI_TYZDENNY_STROP_ZBER_EUR",
     "UVARSI_TYZDENNE_BEHY_ZBER",
+    "UVARSI_TYZDENNY_STROP_MIGRACIA_EUR",
+    "UVARSI_TYZDENNE_BEHY_MIGRACIA",
     "UVARSI_TYZDENNY_STROP_PREDPOCET_EUR",
     "UVARSI_TYZDENNE_BEHY_PREDPOCET",
 )
@@ -349,6 +354,10 @@ def stropy() -> Stropy:
             "zber_letakov": _euro_z_prostredia(
                 "UVARSI_TYZDENNY_STROP_ZBER_EUR", VYCHODZI_TYZDENNY_STROP_ZBER_EUR
             ),
+            "zber_migracia": _euro_z_prostredia(
+                "UVARSI_TYZDENNY_STROP_MIGRACIA_EUR",
+                VYCHODZI_TYZDENNY_STROP_MIGRACIA_EUR,
+            ),
             "predpocet": _euro_z_prostredia(
                 "UVARSI_TYZDENNY_STROP_PREDPOCET_EUR", VYCHODZI_TYZDENNY_STROP_PREDPOCET_EUR
             ),
@@ -457,7 +466,7 @@ def _obdobie_behu(ucel, teraz):
     nový kľúč vo štvrtok, nie až nasledujúci pondelok.
     """
     den = teraz.date()
-    if ucel == "zber_letakov":
+    if ucel in {"zber_letakov", "zber_migracia"}:
         posledny_stvrtok = den - datetime.timedelta(days=(den.weekday() - 3) % 7)
         return posledny_stvrtok.isoformat()
     return (den - datetime.timedelta(days=den.weekday())).isoformat()
@@ -484,7 +493,7 @@ def spolu_za_ucel_tyzden(con, ucel, tyzden) -> float:
 
 def spolu_za_ucel_obdobie(con, ucel, teraz) -> float:
     """Súčet pre bezpečnostný strop v prirodzenom cykle danej operácie."""
-    if ucel == "zber_letakov":
+    if ucel in {"zber_letakov", "zber_migracia"}:
         zaciatok = _obdobie_behu(ucel, teraz)
         koniec = teraz.date().isoformat()
         return _suma(

@@ -8,8 +8,10 @@ from urllib.parse import urlsplit
 
 try:
     from .landing_data import validate_landing_data
+    from .offer_data import CURRENT_COLLECTION_DATA_VERSION
 except ImportError:
     from landing_data import validate_landing_data
+    from offer_data import CURRENT_COLLECTION_DATA_VERSION
 
 
 BASE_URL = "https://uvar.si"
@@ -276,12 +278,32 @@ def _weekly_body(payload: dict) -> str:
                 original = (
                     f'<p class="meta">Pôvodná cena: {_safe_text(item["original_price"])} €</p>'
                 )
+            loyalty = ""
+            if item.get("loyalty_price"):
+                minimum = (
+                    f' pri nákupe od {_safe_text(str(item["loyalty_minimum_basket"]).replace(",00", ""))} €'
+                    if item.get("loyalty_minimum_basket") else ""
+                )
+                discount = (
+                    f' · {_safe_text(item["loyalty_discount"])}'
+                    if item.get("loyalty_discount") else ""
+                )
+                condition = (
+                    f' · {_safe_text(item["loyalty_condition"])}'
+                    if item.get("loyalty_condition") else ""
+                )
+                loyalty = (
+                    '<p class="meta">S '
+                    f'{_safe_text(item["loyalty_program"])}{minimum}: '
+                    f'{_safe_text(item["loyalty_price"])} €{discount}{condition}</p>'
+                )
             items_markup.append(
                 "<li>"
                 f"<strong>{_safe_text(item['name'])}</strong> "
                 f"({_safe_text(item['store'])}, {_safe_text(unit)}) "
                 f'<span class="price">{_safe_text(item["price"])} €</span>'
                 f"{original}"
+                f"{loyalty}"
                 "</li>"
             )
         meals_markup.append(
@@ -347,7 +369,11 @@ def render_weekly_page(payload: dict | None, today: date | None = None) -> Rende
     if not isinstance(payload, dict):
         return _weekly_recovery(today)
     try:
-        validated = validate_landing_data(payload, today)
+        validated = validate_landing_data(
+            payload,
+            today,
+            required_offer_data_version=CURRENT_COLLECTION_DATA_VERSION,
+        )
         _validate_publishable_data(validated, today)
     except ValueError:
         return _weekly_recovery(today)

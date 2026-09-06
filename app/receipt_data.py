@@ -182,7 +182,7 @@ def build_public_receipt(con, model_output, today=None, generated_at=None):
             regular += original if original is not None else price
             counted += 1
             substantiated += original is not None
-            items.append({
+            item = {
                 "offer_key": offer_key,
                 "name": row["nazov"],
                 "store": row["obchod"],
@@ -192,7 +192,22 @@ def build_public_receipt(con, model_output, today=None, generated_at=None):
                 "original_price": _format(original) if original is not None else None,
                 "savings": _format(original - price) if original is not None else None,
                 "off": row["zlava"] or "",
-            })
+            }
+            if row["cena_s_kartou"] is not None:
+                loyalty_price = _cents(
+                    row["cena_s_kartou"], "vernostná cena"
+                ) * quantity
+                item.update({
+                    "loyalty_price": _format(loyalty_price),
+                    "loyalty_discount": row["zlava_s_kartou"] or None,
+                    "loyalty_program": row["vernostny_program"],
+                    "loyalty_minimum_basket": (
+                        _format(_cents(row["minimalny_nakup"], "minimálny nákup"))
+                        if row["minimalny_nakup"] is not None else None
+                    ),
+                    "loyalty_condition": row["podmienka_s_kartou"],
+                })
+            items.append(item)
             source = {
                 "store": row["obchod"],
                 "url": row["source_url"],

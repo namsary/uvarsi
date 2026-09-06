@@ -2,13 +2,15 @@ from datetime import date, timedelta
 
 try:
     from .offer_data import (
-        ALLOWED_STORES, canonical_offer_key, detect_offer_key_collision, migrate_akcie_schema,
+        ALLOWED_STORES, CURRENT_COLLECTION_DATA_VERSION, canonical_offer_key,
+        detect_offer_key_collision, migrate_akcie_schema,
         offer_key_matches, validate_offer,
     )
     from .offer_data import _offer_facts as _offer_facts
 except ImportError:
     from offer_data import (
-        ALLOWED_STORES, canonical_offer_key, detect_offer_key_collision, migrate_akcie_schema,
+        ALLOWED_STORES, CURRENT_COLLECTION_DATA_VERSION, canonical_offer_key,
+        detect_offer_key_collision, migrate_akcie_schema,
         offer_key_matches, validate_offer,
     )
     from offer_data import _offer_facts as _offer_facts
@@ -21,6 +23,8 @@ STATUS_TABLE = "zber_stav"
 _DEDUP_FIELDS = (
     "obchod", "source_url", "source_page", "nazov", "jednotka",
     "cena", "povodna", "kategoria", "zlava", "valid_from", "valid_to",
+    "cena_s_kartou", "zlava_s_kartou", "vernostny_program", "minimalny_nakup",
+    "podmienka_s_kartou",
 )
 
 
@@ -106,9 +110,14 @@ def collection_outcomes(con, today: date | None = None, week: str | None = None)
     """Výsledok zberu pre každý obchod zvlášť; {} keď to DB nevie povedať."""
     if not _has_status_table(con):
         return {}
+    status_columns = {
+        row[1] for row in con.execute(f"PRAGMA table_info({STATUS_TABLE})")
+    }
+    if "data_version" not in status_columns:
+        return {}
     week = week or current_monday(today)
     cursor = con.execute(
-        f"SELECT obchod, stav, pocet, detail, updated FROM {STATUS_TABLE} WHERE tyzden=?",
+        f"SELECT obchod, stav, pocet, detail, data_version, updated FROM {STATUS_TABLE} WHERE tyzden=?",
         (week,),
     )
     columns = [column[0] for column in cursor.description]
@@ -129,5 +138,9 @@ def stores_missing_this_week(con, stores, today: date | None = None) -> list[str
     outcomes = collection_outcomes(con, today)
     return sorted(
         store for store in stores
-        if store in ALLOWED_STORES and outcomes.get(store, {}).get("stav") != "ok"
+        if store in ALLOWED_STORES and (
+            outcomes.get(store, {}).get("stav") != "ok"
+            or int(outcomes.get(store, {}).get("data_version") or 0)
+            < CURRENT_COLLECTION_DATA_VERSION
+        )
     )

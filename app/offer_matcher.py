@@ -35,6 +35,11 @@ class MatchedOffer:
     valid_to: date
     source_url: str
     pricing_basis: Literal["package", "weight"] = "package"
+    loyalty_price: Decimal | None = None
+    loyalty_discount: str | None = None
+    loyalty_program: str | None = None
+    loyalty_minimum_basket: Decimal | None = None
+    loyalty_condition: str | None = None
 
 
 @lru_cache(maxsize=8)
@@ -167,6 +172,11 @@ def _matched_offer_from_values(
     valid_from,
     valid_to,
     source_url,
+    loyalty_price,
+    loyalty_discount,
+    loyalty_program,
+    loyalty_minimum_basket,
+    loyalty_condition,
 ) -> MatchedOffer | None:
     package_result = _offer_package(unit, product_name, ingredient)
     if package_result is None:
@@ -188,6 +198,17 @@ def _matched_offer_from_values(
         valid_to=date.fromisoformat(valid_to),
         source_url=source_url,
         pricing_basis=pricing_basis,
+        loyalty_price=(
+            None if loyalty_price is None else Decimal(str(loyalty_price))
+        ),
+        loyalty_discount=loyalty_discount,
+        loyalty_program=loyalty_program,
+        loyalty_minimum_basket=(
+            None
+            if loyalty_minimum_basket is None
+            else Decimal(str(loyalty_minimum_basket))
+        ),
+        loyalty_condition=loyalty_condition,
     )
 
 
@@ -220,6 +241,11 @@ def match_offers(
                 row["valid_from"],
                 row["valid_to"],
                 row["source_url"],
+                row.get("cena_s_kartou"),
+                row.get("zlava_s_kartou"),
+                row.get("vernostny_program"),
+                row.get("minimalny_nakup"),
+                row.get("podmienka_s_kartou"),
             )
         except KeyError:
             continue

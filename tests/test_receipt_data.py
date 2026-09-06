@@ -140,6 +140,32 @@ def test_reconstructs_every_item_total_and_exact_deduped_sources_from_db():
     ]
 
 
+def test_receipt_keeps_card_price_as_an_uncounted_conditional_alternative():
+    con = connection(verified_rows())
+    con.execute(
+        """UPDATE akcie SET cena_s_kartou=?, zlava_s_kartou=?,
+           vernostny_program=?, minimalny_nakup=?, podmienka_s_kartou=?
+           WHERE id=1""",
+        (0.85, "-43 %", "Lidl Plus", 20.0, "aktivuj kupón v aplikácii"),
+    )
+    add_verified_keys(con)
+    keys = [row[0] for row in con.execute("SELECT offer_key FROM akcie ORDER BY id")]
+    selected = selection([
+        {"offer_key": keys[0], "quantity": 2},
+        {"offer_key": keys[1], "quantity": 1},
+        {"offer_key": keys[2], "quantity": 1},
+    ])
+    payload = build_public_receipt(con, selected, today=TODAY)
+
+    item = payload["receipt"]["meals"][0]["items"][0]
+    assert item["price"] == "2,00"
+    assert item["loyalty_price"] == "1,70"
+    assert item["loyalty_program"] == "Lidl Plus"
+    assert item["loyalty_minimum_basket"] == "20,00"
+    assert item["loyalty_condition"] == "aktivuj kupón v aplikácii"
+    assert payload["receipt"]["nakup_spolu"] == "5,20"
+
+
 def test_model_prompt_exposes_only_food_content_and_offer_references():
     rows = connection(verified_rows()).execute("SELECT * FROM akcie ORDER BY id").fetchall()
 

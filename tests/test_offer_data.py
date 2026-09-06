@@ -73,6 +73,56 @@ def test_migration_adds_nullable_offer_key_without_backfilling_a_legacy_guess():
     assert con.execute("SELECT offer_key FROM akcie").fetchone() == (None,)
 
 
+def test_migration_and_atomic_writer_preserve_conditional_loyalty_price_separately():
+    """Karta nesmie prepísať cenu, ktorú zaplatí zákazník bez vernostného programu."""
+    con = legacy_connection()
+    offer = valid_offer(
+        obchod="Kaufland",
+        nazov="Repkový olej Raciol",
+        cena=1.69,
+        povodna=2.99,
+        zlava="-43 %",
+        cena_s_kartou=1.55,
+        zlava_s_kartou="-48 %",
+        vernostny_program="Kaufland Card",
+        minimalny_nakup=20.0,
+        podmienka_s_kartou="aktivuj kupón v aplikácii",
+    )
+
+    replace_store_week(con, "2026-08-31", "Kaufland", [offer])
+
+    con.row_factory = sqlite3.Row
+    row = dict(con.execute("SELECT * FROM akcie").fetchone())
+    assert row["cena"] == 1.69
+    assert row["cena_s_kartou"] == 1.55
+    assert row["zlava"] == "-43 %"
+    assert row["zlava_s_kartou"] == "-48 %"
+    assert row["vernostny_program"] == "Kaufland Card"
+    assert row["minimalny_nakup"] == 20.0
+    assert row["podmienka_s_kartou"] == "aktivuj kupón v aplikácii"
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"cena_s_kartou": 1.55},
+        {"cena_s_kartou": 1.69, "vernostny_program": "Kaufland Card"},
+        {"cena_s_kartou": 1.75, "vernostny_program": "Kaufland Card"},
+        {"vernostny_program": "Kaufland Card"},
+        {"minimalny_nakup": 20.0},
+        {"podmienka_s_kartou": "aktivuj kupón"},
+        {
+            "obchod": "Tesco",
+            "cena_s_kartou": 1.55,
+            "vernostny_program": "Kaufland Card",
+        },
+    ],
+)
+def test_validator_rejects_ambiguous_or_mismatched_loyalty_prices(overrides):
+    with pytest.raises(ValueError):
+        validate_offer(valid_offer(**overrides))
+
+
 def stored_offer_key(week="2026-08-17", **overrides):
     con = legacy_connection()
     replace_store_week(con, week, overrides.get("obchod", "Lidl"), [valid_offer(**overrides)])

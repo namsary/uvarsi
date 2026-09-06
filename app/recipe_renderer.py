@@ -1610,6 +1610,20 @@ def build_shopping_list(
                     "predaj_na_vahu": True,
                     "kupit": _decimal_text(display_to_buy.amount),
                 })
+            if offer.loyalty_price is not None:
+                loyalty_total = _multiply_exact(offer.loyalty_price, price_multiplier)
+                row.update({
+                    "cena_s_kartou": _money_text(loyalty_total),
+                    "cena_s_kartou_za_balenie": _money_text(offer.loyalty_price),
+                    "zlava_s_kartou": offer.loyalty_discount or "",
+                    "vernostny_program": offer.loyalty_program,
+                    "minimalny_nakup": (
+                        None
+                        if offer.loyalty_minimum_basket is None
+                        else _decimal_text(offer.loyalty_minimum_basket).replace(".", ",")
+                    ),
+                    "podmienka_s_kartou": offer.loyalty_condition,
+                })
             groups.setdefault(offer.store, []).append(row)
     regular_rows = []
     for ingredient_id in sorted(regular_purchases):

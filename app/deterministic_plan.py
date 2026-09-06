@@ -837,6 +837,18 @@ def _ingredient_payload(
     }
     if weighted:
         result["predaj_na_vahu"] = True
+    if item.offer.loyalty_price is not None:
+        result.update({
+            "cena_s_kartou_za_balenie": _money(item.offer.loyalty_price),
+            "zlava_s_kartou": item.offer.loyalty_discount or "",
+            "vernostny_program": item.offer.loyalty_program,
+            "minimalny_nakup": (
+                None
+                if item.offer.loyalty_minimum_basket is None
+                else _decimal_text(item.offer.loyalty_minimum_basket).replace(".", ",")
+            ),
+            "podmienka_s_kartou": item.offer.loyalty_condition,
+        })
     return result
 
 

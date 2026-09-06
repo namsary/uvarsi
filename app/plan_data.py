@@ -1188,8 +1188,10 @@ PLAN_VARIANT_HINTS = (
 #      neopakujú; zároveň sa správne skloňuje počet porcií.
 # 24 = riadok suroviny nesie osobitne cenu balenia z letáka; pomerný náklad
 #      receptovej dávky sa už nemôže tváriť ako cena nákupu.
+# 25 = vernostná cena je iba vysvetlená alternatíva; hlavné súčty ostávajú
+#      dostupné každému a staré plány bez podmienok kariet sa zneplatnia.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 24
+PLAN_ALGO_VERSION = 25
 
 
 def plan_variant_for(user_id, variants):
@@ -1645,7 +1647,7 @@ def _aggregate_purchases(purchases):
         )
         total += price
         regular += original if original is not None else price
-        items.append({
+        item = {
             "offer_key": row["offer_key"], "nazov": row["nazov"],
             "obchod": row["obchod"], "jednotka": row["jednotka"],
             "mnozstvo": quantity, "cena": _format(price),
@@ -1661,7 +1663,21 @@ def _aggregate_purchases(purchases):
             "zlava": row.get("zlava") or "", "source_url": row.get("source_url"),
             "source_page": row.get("source_page"), "valid_from": row.get("valid_from"),
             "valid_to": row.get("valid_to"),
-        })
+        }
+        if row.get("cena_s_kartou") is not None:
+            loyalty_package = _price(row["cena_s_kartou"], "cena s kartou")
+            item.update({
+                "cena_s_kartou": _format(loyalty_package * quantity),
+                "cena_s_kartou_za_balenie": _format(loyalty_package),
+                "zlava_s_kartou": row.get("zlava_s_kartou") or "",
+                "vernostny_program": row.get("vernostny_program"),
+                "minimalny_nakup": (
+                    _decimal_text(Decimal(str(row["minimalny_nakup"]))).replace(".", ",")
+                    if row.get("minimalny_nakup") is not None else None
+                ),
+                "podmienka_s_kartou": row.get("podmienka_s_kartou"),
+            })
+        items.append(item)
     return items, total, regular
 
 
@@ -1703,6 +1719,19 @@ def build_personal_plan(con, model_output, stores, frequency, household_size=Non
                 "source_url": row["source_url"], "source_page": row["source_page"],
                 "valid_from": row["valid_from"], "valid_to": row["valid_to"],
             }
+            if row.get("cena_s_kartou") is not None:
+                ingredient.update({
+                    "cena_s_kartou_za_balenie": _format(
+                        _price(row["cena_s_kartou"], "cena s kartou")
+                    ),
+                    "zlava_s_kartou": row.get("zlava_s_kartou") or "",
+                    "vernostny_program": row.get("vernostny_program"),
+                    "minimalny_nakup": (
+                        _decimal_text(Decimal(str(row["minimalny_nakup"]))).replace(".", ",")
+                        if row.get("minimalny_nakup") is not None else None
+                    ),
+                    "podmienka_s_kartou": row.get("podmienka_s_kartou"),
+                })
             ingredients.append(ingredient)
             purchases.append((row, base, dose_total))
             doses.append(f"{row['nazov']} – {davka}")
@@ -1734,7 +1763,9 @@ def build_personal_plan(con, model_output, stores, frequency, household_size=Non
                 "potrebne", "potrebna_jednotka", "cena_za_balenie", "povodna_za_balenie",
                 "pouzije", "zostane",
                 "source_url", "source_page", "valid_from", "valid_to",
-            )
+                "cena_s_kartou", "cena_s_kartou_za_balenie", "zlava_s_kartou",
+                "vernostny_program", "minimalny_nakup", "podmienka_s_kartou",
+            ) if key in item
         })
     shopping = [
         {"obchod": store, "polozky": sorted(items, key=lambda item: (item["nazov"].casefold(), item["offer_key"]))}
@@ -2007,6 +2038,27 @@ def apply_pantry_to_shopping_list(plan, pantry):
                 price_after = unit_price * remaining / package[1]
             else:
                 price_after = total_price
+            loyalty_after = None
+            if item.get("cena_s_kartou") is not None:
+                try:
+                    loyalty_total = _price(item["cena_s_kartou"], "vernostná cena")
+                    loyalty_unit = _price(
+                        item.get("cena_s_kartou_za_balenie")
+                        or loyalty_total / max(1, original_quantity),
+                        "vernostná cena balenia",
+                    )
+                    if not weighted:
+                        loyalty_after = loyalty_unit * buy_quantity
+                    elif owner is None:
+                        loyalty_after = loyalty_total
+                    elif full:
+                        loyalty_after = Decimal("0")
+                    elif partial and package and package[0] == base:
+                        loyalty_after = loyalty_unit * remaining / package[1]
+                    else:
+                        loyalty_after = loyalty_total
+                except (InvalidOperation, ValueError, ZeroDivisionError):
+                    loyalty_after = None
             weighted_to_buy = None
             if weighted:
                 if full:
@@ -2026,6 +2078,8 @@ def apply_pantry_to_shopping_list(plan, pantry):
             )
             if weighted_to_buy is not None:
                 oznaceny["kupit_po_spajzi"] = weighted_to_buy
+            if loyalty_after is not None:
+                oznaceny["cena_s_kartou_po_spajzi"] = _format(loyalty_after)
             polozky.append(oznaceny)
             if owner is None:
                 continue
@@ -2064,7 +2118,7 @@ PANTRY_PLAN_KEYS = ("spajza", "spajza_pokryte", "spajza_usetri", "nakup_bez_spaj
 PANTRY_ITEM_KEYS = (
     "spajza", "mas_doma", "ciastocne_doma", "zo_spajze", "zostava",
     "zostane_po_spajzi", "mnozstvo_po_spajzi", "cena_po_spajzi",
-    "kupit_po_spajzi",
+    "cena_s_kartou_po_spajzi", "kupit_po_spajzi",
 )
 PANTRY_DOSE_SUFFIX = "zo špajze"
 

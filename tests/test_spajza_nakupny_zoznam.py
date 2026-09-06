@@ -138,6 +138,27 @@ def test_pantry_grams_reduce_the_required_dose_before_whole_packages_are_bought(
     assert upraveny["nakup_bez_spajze"] == "6,49"
 
 
+def test_partial_pantry_recomputes_the_conditional_card_total_too():
+    zasoba = plan()
+    ryza = zasoba["nakupny_zoznam"][0]["polozky"][0]
+    ryza.update({
+        "potrebne": "1200", "potrebna_jednotka": "g", "jednotka": "1 kg",
+        "mnozstvo": 2, "cena": "2,98", "cena_za_balenie": "1,49",
+        "cena_s_kartou": "2,58", "cena_s_kartou_za_balenie": "1,29",
+        "vernostny_program": "Lidl Plus",
+    })
+    zasoba["nakup_spolu"] = "7,98"
+
+    upraveny = apply_pantry_to_shopping_list(zasoba, ["ryža 500 g"])
+
+    ryza = upraveny["nakupny_zoznam"][0]["polozky"][0]
+    assert ryza["mnozstvo_po_spajzi"] == 1
+    assert ryza["cena_s_kartou_po_spajzi"] == "1,29"
+    assert "cena_s_kartou_po_spajzi" not in (
+        plan_without_pantry(upraveny)["nakupny_zoznam"][0]["polozky"][0]
+    )
+
+
 def test_pantry_reduces_weight_priced_food_and_keeps_proportional_price():
     zasoba = plan()
     kuracie = zasoba["nakupny_zoznam"][0]["polozky"][1]

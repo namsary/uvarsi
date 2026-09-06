@@ -16,9 +16,19 @@ from io import BytesIO
 from urllib.parse import quote, urlparse
 
 try:
-    from offer_data import migrate_akcie_schema, replace_store_week, validate_offer
+    from offer_data import (
+        CURRENT_COLLECTION_DATA_VERSION,
+        migrate_akcie_schema,
+        replace_store_week,
+        validate_offer,
+    )
 except ImportError:
-    from app.offer_data import migrate_akcie_schema, replace_store_week, validate_offer
+    from app.offer_data import (
+        CURRENT_COLLECTION_DATA_VERSION,
+        migrate_akcie_schema,
+        replace_store_week,
+        validate_offer,
+    )
 
 try:
     import db_rezim
@@ -59,6 +69,7 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 H = {"User-Agent": UA}
 LIDL_OVERVIEW_URL = "https://www.lidl.sk/c/online-letak/"
 LIDL_API_URL = "https://endpoints.leaflets.schwarz/v4/flyer"
+COLLECTION_DATA_VERSION = CURRENT_COLLECTION_DATA_VERSION
 
 
 def log(*a):
@@ -91,6 +102,11 @@ CREATE TABLE IF NOT EXISTS akcie (
   valid_from TEXT,
   valid_to TEXT,
   offer_key TEXT,
+  cena_s_kartou REAL,              -- nižšia cena iba s kartou/aplikáciou
+  zlava_s_kartou TEXT,
+  vernostny_program TEXT,
+  minimalny_nakup REAL,
+  podmienka_s_kartou TEXT,
   created    TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_akcie_tyzden ON akcie(tyzden);
@@ -105,6 +121,7 @@ CREATE TABLE IF NOT EXISTS zber_stav (
   stav    TEXT NOT NULL,           -- 'ok' | 'fail'
   pocet   INTEGER NOT NULL DEFAULT 0,
   detail  TEXT,
+  data_version INTEGER NOT NULL DEFAULT 1,
   updated TEXT DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (tyzden, obchod)
 );
@@ -118,6 +135,11 @@ def db():
     con = db_rezim.otvor(DB)
     con.executescript(SCHEMA)
     migrate_akcie_schema(con)
+    columns = {row[1] for row in con.execute("PRAGMA table_info(zber_stav)")}
+    if "data_version" not in columns:
+        con.execute(
+            "ALTER TABLE zber_stav ADD COLUMN data_version INTEGER NOT NULL DEFAULT 1"
+        )
     naklady.migrate_naklady_schema(con)
     plan_jobs.migrate_plan_jobs_schema(con)
     return con
@@ -611,10 +633,27 @@ EXTRACT_OUTPUT_SCHEMA = {
                 "type": "string",
                 "enum": ["kg", "ks", "l", "balenie"],
             },
+            "cena_s_kartou": {"anyOf": [{"type": "number"}, {"type": "null"}]},
+            "zlava_s_kartou": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+            "vernostny_program": {
+                "anyOf": [
+                    {"type": "string", "enum": ["Kaufland Card", "Clubcard", "Lidl Plus"]},
+                    {"type": "null"},
+                ]
+            },
+            "minimalny_nakup": {"anyOf": [{"type": "number"}, {"type": "null"}]},
+            "podmienka_s_kartou": {
+                "anyOf": [
+                    {"type": "string", "description": "Najviac 160 znakov."},
+                    {"type": "null"},
+                ]
+            },
         },
         "required": [
             "source_page", "nazov", "kategoria", "cena",
             "povodna", "zlava", "jednotka",
+            "cena_s_kartou", "zlava_s_kartou", "vernostny_program", "minimalny_nakup",
+            "podmienka_s_kartou",
         ],
         "additionalProperties": False,
     },
@@ -675,12 +714,12 @@ def claude_json(client, model, content, max_tokens, effort=None):
     return _parse_json_response(txt)
 
 
-def guarded_client(con, client):
+def guarded_client(con, client, purpose="zber_letakov"):
     """Guard collector calls without consuming capacity reserved by queued plans."""
     return naklady.strazeny_klient(
         con,
         client,
-        "zber_letakov",
+        purpose,
         rezervovane_eur=lambda: plan_jobs.active_reservations_eur(con),
     )
 
@@ -696,12 +735,17 @@ Formát: [1,2,5,6]"""
 
 EXTRACT_PROMPT = """Toto sú potravinové strany letáku obchodu {store}. Vypíš VŠETKY \
 potraviny s uvedenou cenou, ktoré na stranách vidíš. Vráť IBA čistý JSON pole:
-[{{"source_page":12,"nazov":"Bravčové plecko","kategoria":"maso","cena":2.15,"povodna":4.49,"zlava":"−52 %","jednotka":"kg"}}]
+[{{"source_page":12,"nazov":"Bravčové plecko","kategoria":"maso","cena":2.15,"povodna":4.49,"zlava":"−52 %","jednotka":"kg","cena_s_kartou":null,"zlava_s_kartou":null,"vernostny_program":null,"minimalny_nakup":null,"podmienka_s_kartou":null}}]
 Pravidlá:
 - source_page = presné číslo označené pri obrázku; každá položka ho MUSÍ zopakovať
 - kategoria: jedno z maso|zelenina|ovocie|mliecne|trvanlive|pecivo|ine
-- cena = cena na cenovke ako číslo s bodkou; povodna = pôvodná cena (ak nie je, daj null)
-- zlava: "−52 %" alebo "1+1" alebo null (ak zľava nie je uvedená)
+- cena = najnižšia cena dostupná KAŽDÉMU bez karty, aplikácie, kupónu a bez podmienky minimálneho nákupu. Ak je zľavnená iba cena s kartou, do cena daj bežnú cenu dostupnú bez karty.
+- povodna = pôvodná prečiarknutá cena (ak nie je, daj null); zlava patrí výhradne k cene dostupnej každému
+- cena_s_kartou = nižšia podmienená cena alebo null. Nikdy ňou nenahrádzaj cenu dostupnú každému.
+- vernostny_program: presne Kaufland Card, Clubcard alebo Lidl Plus; inak null
+- minimalny_nakup = minimálna celková hodnota nákupu pre cenu s kartou (napr. 20.0) alebo null
+- zlava_s_kartou = percento patriace k cene s kartou alebo null
+- podmienka_s_kartou = iba ďalšia podmienka, ktorú ostatné polia nevystihujú, napr. "aktivuj kupón v aplikácii" alebo "kúp aspoň 2 kusy"; inak null
 - jednotka: kg|ks|l|balenie
 - nazov krátky (max 30 znakov), slovenčina s diakritikou
 
@@ -800,6 +844,20 @@ def zbieraj(client, store):
                     "povodna": float(item["povodna"]) if item.get("povodna") is not None else None,
                     "zlava": item.get("zlava"),
                     "jednotka": (item.get("jednotka") or "")[:12],
+                    "cena_s_kartou": (
+                        float(item["cena_s_kartou"])
+                        if item.get("cena_s_kartou") is not None else None
+                    ),
+                    "zlava_s_kartou": item.get("zlava_s_kartou"),
+                    "vernostny_program": item.get("vernostny_program"),
+                    "minimalny_nakup": (
+                        float(item["minimalny_nakup"])
+                        if item.get("minimalny_nakup") is not None else None
+                    ),
+                    "podmienka_s_kartou": (
+                        str(item["podmienka_s_kartou"]).strip()
+                        if item.get("podmienka_s_kartou") is not None else None
+                    ),
                     "source_url": manifest["source_url"],
                     "source_page": source_page,
                     "valid_from": manifest["valid_from"],
@@ -818,14 +876,31 @@ def zbieraj(client, store):
 def record_store_outcome(con, week, store, status, count=0, detail=None):
     """Zapíš výsledok zberu jedného obchodu, aby bol čiastočný beh viditeľný."""
     con.execute(
-        """INSERT INTO zber_stav (tyzden, obchod, stav, pocet, detail, updated)
-           VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """INSERT INTO zber_stav
+           (tyzden, obchod, stav, pocet, detail, data_version, updated)
+           VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
            ON CONFLICT(tyzden, obchod) DO UPDATE SET
              stav=excluded.stav, pocet=excluded.pocet,
-             detail=excluded.detail, updated=excluded.updated""",
-        (week, store, status, count, detail),
+             detail=excluded.detail, data_version=excluded.data_version,
+             updated=excluded.updated""",
+        (week, store, status, count, detail, COLLECTION_DATA_VERSION),
     )
     con.commit()
+
+
+def collection_budget_purpose(con, week, selected_stores):
+    """Use a separate one-shot budget only for a proven schema reread."""
+    stores = [store.capitalize() for store in selected_stores]
+    if not stores:
+        return "zber_letakov"
+    placeholders = ",".join("?" for _ in stores)
+    rows = con.execute(
+        f"SELECT data_version FROM zber_stav WHERE tyzden=? AND obchod IN ({placeholders})",
+        (week, *stores),
+    ).fetchall()
+    if rows and any(int(row[0] or 0) < COLLECTION_DATA_VERSION for row in rows):
+        return "zber_migracia"
+    return "zber_letakov"
 
 
 def main(stores=None):
@@ -836,19 +911,28 @@ def main(stores=None):
         raise ValueError(f"Neznámy obchod: {', '.join(unknown)}")
     tyz = monday()
     con = db()
+    budget_purpose = collection_budget_purpose(con, tyz, selected_stores)
     # Vision beh je najdrahšia operácia v celej appke (~0,37 € za obchod). Miesto
     # v týždennom počte behov sa berie EŠTE PRED prvým volaním — vďaka tomu je
     # rozbehnutá slučka štrukturálne nemožná, nie iba nepravdepodobná. Presne
     # toto chýbalo, keď dozorca 12× po sebe zaplatil za ten istý márny beh.
     try:
-        naklady.rezervuj_beh(con, "zber_letakov")
+        raw_client = anthropic.Anthropic(
+            api_key=load_key(), timeout=180.0, max_retries=1
+        )
+    except BaseException:
+        con.close()
+        raise
+    try:
+        naklady.rezervuj_beh(con, budget_purpose)
     except naklady.RozpocetVycerpany as odmietnutie:
         con.close()
         raise SystemExit(f"Zber nespúšťam — {odmietnutie}")
     # Cez strážený klient sa nedá zavolať model bez zaúčtovania a bez stropu.
     client = guarded_client(
         con,
-        anthropic.Anthropic(api_key=load_key(), timeout=180.0, max_retries=1),
+        raw_client,
+        budget_purpose,
     )
     total, failures, collected = 0, [], []
     try:
@@ -866,7 +950,7 @@ def main(stores=None):
                 # token, takže zabraté miesto v týždennom počte behov patrí
                 # späť. Inak by zbierač po dobití kreditu ostal zablokovaný do
                 # konca týždňa za behy, ktoré nikdy nebežali (incident 24. 8.).
-                naklady.uvolni_beh(con, "zber_letakov")
+                naklady.uvolni_beh(con, budget_purpose)
                 log(f"[ERROR] {store}: {odmietnutie}")
                 raise SystemExit(f"Zber zastavený — {odmietnutie}") from None
             except Exception as exc:

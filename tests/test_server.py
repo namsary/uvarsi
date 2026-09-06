@@ -118,7 +118,8 @@ def load_server(monkeypatch, tmp_path, rows, landing_data=None):
     con.execute(
         """CREATE TABLE zber_stav (
             tyzden TEXT NOT NULL, obchod TEXT NOT NULL, stav TEXT NOT NULL,
-            pocet INTEGER NOT NULL DEFAULT 0, detail TEXT, updated TEXT,
+            pocet INTEGER NOT NULL DEFAULT 0, detail TEXT,
+            data_version INTEGER NOT NULL DEFAULT 2, updated TEXT,
             PRIMARY KEY (tyzden, obchod)
         )"""
     )
@@ -174,7 +175,8 @@ def load_server_with_landing_path(monkeypatch, tmp_path, rows, landing_path):
     con.execute(
         """CREATE TABLE zber_stav (
             tyzden TEXT NOT NULL, obchod TEXT NOT NULL, stav TEXT NOT NULL,
-            pocet INTEGER NOT NULL DEFAULT 0, detail TEXT, updated TEXT,
+            pocet INTEGER NOT NULL DEFAULT 0, detail TEXT,
+            data_version INTEGER NOT NULL DEFAULT 2, updated TEXT,
             PRIMARY KEY (tyzden, obchod)
         )"""
     )
@@ -285,6 +287,7 @@ def landing_payload(week=None):
     today = date.today()
     return {
         "schema_version": 1,
+        "offer_data_version": 2,
         "generated_at": "2026-08-18T05:02:20+02:00",
         "week": week or current_monday(),
         "week_label": "17.–23. 8. 2026",
@@ -469,6 +472,7 @@ def test_akcie_pre_delegates_selection_to_current_week_helper(monkeypatch, tmp_p
         return []
 
     monkeypatch.setattr(server, "offers_for_current_week", current_week_only, raising=False)
+    monkeypatch.setattr(server, "stores_missing_this_week", lambda *args: [], raising=False)
     server.akcie_pre(["Lidl"])
 
     assert calls[0][1] == ["Lidl"]
@@ -1879,6 +1883,39 @@ def test_cached_plan_is_503_when_one_selected_offer_is_no_longer_current(monkeyp
 
     assert response.status_code == 503
     assert constructors == []
+
+
+def test_plan_reads_and_generation_fail_closed_during_offer_schema_recollection(
+        monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, current_plan_rows())
+    with server.db() as con:
+        con.execute(
+            "INSERT INTO pouzivatelia (id, email, obchody) "
+            "VALUES (1, 'migration@uvar.si', 'Lidl')"
+        )
+        insert_hashed_session(server, con, "migration-session", 1)
+        cached = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4)
+        cached = server.osobny_plan_na_ulozenie(
+            cached, podpis=current_personal_signature(server),
+        )
+        con.execute(
+            "INSERT INTO plany (user_id, tyzden, json) VALUES (1, ?, ?)",
+            (current_monday(), json.dumps(cached)),
+        )
+        con.commit()
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "migration-session")
+
+    with server.db() as con:
+        con.execute("UPDATE zber_stav SET data_version=1 WHERE obchod='Lidl'")
+        con.commit()
+
+    read = client.get("/api/plan")
+    regenerate = client.post("/api/plan/generuj?force=1")
+
+    assert read.status_code == 503
+    assert regenerate.status_code == 503
+    assert "obnovuj" in read.json()["detail"].casefold()
 
 
 def test_get_invalidates_legacy_personal_plan_without_portion_version_for_free(

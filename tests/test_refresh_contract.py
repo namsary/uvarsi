@@ -360,6 +360,7 @@ def test_refresh_publishes_a_complete_curated_receipt_without_a_composer(tmp_pat
     payload = refresh_from_db(output, database, today=TODAY)
 
     assert output.exists()
+    assert payload["offer_data_version"] == 2
     assert payload["week"] == "2026-08-17"
     assert len(payload["receipt"]["meals"]) == 3
     assert payload["receipt"]["polozky"] >= 3
@@ -388,6 +389,37 @@ def test_refresh_publishes_from_verified_db_without_http(monkeypatch, tmp_path):
     assert payload["receipt"]["nakup_spolu"] == "4,20"
     assert payload["receipt"]["bezne"] == "5,80"
     assert payload["sources"][0]["url"] == "https://source.test/lidl"
+    assert payload["offer_data_version"] == 2
+
+
+def test_refresh_refuses_to_publish_from_a_partial_versioned_collection(tmp_path):
+    database = tmp_path / "uvarsi.db"
+    output = tmp_path / "landing_data.json"
+    verified_database(database)
+    with sqlite3.connect(database) as con:
+        con.execute(
+            """CREATE TABLE zber_stav (
+                tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER,
+                detail TEXT, data_version INTEGER, updated TEXT)"""
+        )
+        con.executemany(
+            "INSERT INTO zber_stav (tyzden, obchod, stav, pocet, data_version) VALUES (?,?,?,?,?)",
+            [
+                ("2026-08-17", "Lidl", "ok", 40, 2),
+                ("2026-08-17", "Tesco", "ok", 40, 2),
+                ("2026-08-17", "Kaufland", "ok", 40, 1),
+            ],
+        )
+        con.commit()
+
+    with pytest.raises(StructuralFailure, match="Kaufland"):
+        refresh_from_db(
+            output,
+            database,
+            lambda offers, today: model_selection(),
+            today=TODAY,
+        )
+    assert not output.exists()
 
 
 def test_malformed_non_null_offer_blocks_publication_before_compose(tmp_path):

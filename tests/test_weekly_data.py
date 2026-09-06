@@ -165,12 +165,13 @@ def test_collection_outcomes_expose_a_partial_run():
     con.execute(
         """CREATE TABLE zber_stav (
             tyzden TEXT NOT NULL, obchod TEXT NOT NULL, stav TEXT NOT NULL,
-            pocet INTEGER NOT NULL DEFAULT 0, detail TEXT, updated TEXT,
+            pocet INTEGER NOT NULL DEFAULT 0, detail TEXT, data_version INTEGER,
+            updated TEXT,
             PRIMARY KEY (tyzden, obchod))"""
     )
     con.executemany(
-        "INSERT INTO zber_stav (tyzden, obchod, stav, pocet) VALUES (?, ?, ?, ?)",
-        [("2026-08-17", "Lidl", "ok", 40), ("2026-08-17", "Tesco", "fail", 0)],
+        "INSERT INTO zber_stav (tyzden, obchod, stav, pocet, data_version) VALUES (?, ?, ?, ?, ?)",
+        [("2026-08-17", "Lidl", "ok", 40, 2), ("2026-08-17", "Tesco", "fail", 0, 2)],
     )
 
     outcomes = collection_outcomes(con, date(2026, 8, 18))
@@ -185,6 +186,47 @@ def test_collection_outcomes_expose_a_partial_run():
 
 def test_collection_outcomes_tolerate_a_database_without_the_status_table():
     con = full_connection([offer(1, "Overená")])
+
+    assert collection_outcomes(con, date(2026, 8, 18)) == {}
+    assert stores_missing_this_week(con, ["Lidl"], date(2026, 8, 18)) == ["Lidl"]
+
+
+def test_old_collection_data_version_is_incomplete_until_every_store_is_recollected():
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.execute(FULL_SCHEMA)
+    con.execute(
+        """CREATE TABLE zber_stav (
+            tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER,
+            detail TEXT, data_version INTEGER, updated TEXT)"""
+    )
+    con.executemany(
+        "INSERT INTO zber_stav (tyzden, obchod, stav, pocet, data_version) VALUES (?, ?, ?, ?, ?)",
+        [
+            ("2026-08-17", "Kaufland", "ok", 40, 2),
+            ("2026-08-17", "Tesco", "ok", 40, 1),
+            ("2026-08-17", "Lidl", "ok", 40, 1),
+        ],
+    )
+
+    assert stores_missing_this_week(
+        con, ["Kaufland", "Tesco", "Lidl"], date(2026, 8, 18)
+    ) == ["Lidl", "Tesco"]
+
+
+def test_legacy_status_table_without_data_version_fails_closed():
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.execute(FULL_SCHEMA)
+    con.execute(
+        """CREATE TABLE zber_stav (
+            tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER,
+            detail TEXT, updated TEXT)"""
+    )
+    con.execute(
+        "INSERT INTO zber_stav VALUES (?,?,?,?,?,?)",
+        ("2026-08-17", "Lidl", "ok", 40, None, "2026-08-18T06:00:00"),
+    )
 
     assert collection_outcomes(con, date(2026, 8, 18)) == {}
     assert stores_missing_this_week(con, ["Lidl"], date(2026, 8, 18)) == ["Lidl"]
