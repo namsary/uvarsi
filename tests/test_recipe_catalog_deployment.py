@@ -356,6 +356,7 @@ def test_samopull_runs_library_and_isolated_deterministic_smoke_before_switch(
     calls = (tmp_path / "python-calls").read_text(encoding="utf-8")
     assert "-m app.library_gate" in calls
     assert "-m server --recipe-engine-smoke" in calls
+    assert "--preflight-legacy-offers" in calls
     assert mutation_marker.exists()
 
 

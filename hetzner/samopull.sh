@@ -140,7 +140,8 @@ if ! (cd "$CIEL/app" && \
       UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$CIEL/VERSION" \
       UVARSI_RECIPE_ENGINE=on PLATBY_ZAPNUTE=0 UVARSI_PAYMENTS_ENABLED=0 \
       UVARSI_RECIPE_SMOKE_STATE="$PREFLIGHT_SMOKE" \
-      "$PY" -m server --recipe-engine-smoke --state "$PREFLIGHT_SMOKE" \
+      "$PY" -m server --recipe-engine-smoke --preflight-legacy-offers \
+      --state "$PREFLIGHT_SMOKE" \
       >/dev/null 2>"$TMP/recipe-smoke.err"); then
   log "izolovaný deterministický smoke zlyhal — NEPREPÍNAM"
   notify "Uvar.si: vydanie odmietnuté" "Deterministický plán neprešiel izolovaným smoke testom."

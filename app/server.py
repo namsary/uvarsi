@@ -56,6 +56,7 @@ from offer_data import (
     CURRENT_COLLECTION_DATA_VERSION,
     OfferKeyCollision,
     migrate_akcie_schema,
+    offer_key_for,
 )
 from plan_shortlist import select_offers
 from plan_jobs import JobRequest
@@ -4490,6 +4491,31 @@ def _readonly_database(path=None):
     return con
 
 
+def _legacy_offer_schema_snapshot():
+    """Migrate and re-key a private snapshot without touching the live DB."""
+    snapshot = sqlite3.connect(":memory:")
+    snapshot.row_factory = sqlite3.Row
+    try:
+        with closing(_readonly_database()) as production:
+            production.backup(snapshot)
+        migrate_akcie_schema(snapshot)
+        rows = snapshot.execute("SELECT rowid, * FROM akcie").fetchall()
+        for row in rows:
+            offer = dict(row)
+            try:
+                key = offer_key_for(offer["tyzden"], offer)
+            except (KeyError, TypeError, ValueError):
+                continue
+            snapshot.execute(
+                "UPDATE akcie SET offer_key=? WHERE rowid=?", (key, row["rowid"])
+            )
+        snapshot.commit()
+        return snapshot
+    except BaseException:
+        snapshot.close()
+        raise
+
+
 def _write_smoke_state(path, payload):
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -4555,6 +4581,8 @@ def _authenticated_isolated_recipe_smoke(rows, *, now):
         _SCHEMA_HOTOVA.discard(DB)
         priprav_databazu(DB)
         offers = [dict(row) for row in rows]
+        smoke_stores = sorted({offer["obchod"] for offer in offers})
+        smoke_week = monday(bratislava_day(now))
         with closing(db()) as con:
             columns = [
                 row[1] for row in con.execute("PRAGMA table_info(akcie)")
@@ -4572,6 +4600,32 @@ def _authenticated_isolated_recipe_smoke(rows, *, now):
                 f"INSERT INTO akcie ({names}) VALUES ({marks})",
                 [tuple(offer[column] for column in copied_columns) for offer in offers],
             )
+            con.execute(
+                """CREATE TABLE zber_stav (
+                       tyzden TEXT NOT NULL,
+                       obchod TEXT NOT NULL,
+                       stav TEXT NOT NULL,
+                       pocet INTEGER NOT NULL DEFAULT 0,
+                       detail TEXT,
+                       data_version INTEGER NOT NULL,
+                       updated TEXT,
+                       PRIMARY KEY (tyzden, obchod)
+                   )"""
+            )
+            con.executemany(
+                """INSERT INTO zber_stav
+                   (tyzden,obchod,stav,pocet,detail,data_version,updated)
+                   VALUES (?,?,'ok',?,NULL,?,CURRENT_TIMESTAMP)""",
+                [
+                    (
+                        smoke_week,
+                        store,
+                        sum(offer["obchod"] == store for offer in offers),
+                        CURRENT_COLLECTION_DATA_VERSION,
+                    )
+                    for store in smoke_stores
+                ],
+            )
             user_id = con.execute(
                 """INSERT INTO pouzivatelia
                    (email,platiaci,osoby,dospeli,deti,frekvencia,obchody,
@@ -4579,7 +4633,7 @@ def _authenticated_isolated_recipe_smoke(rows, *, now):
                    VALUES (?,?,?,?,?,?,?,?,?)""",
                 (
                     "recipe-smoke@local.invalid", 0, 4, 2, 2, 2,
-                    ",".join(RECIPE_ENGINE_STORES), "standard", 1,
+                    ",".join(smoke_stores), "standard", 1,
                 ),
             ).lastrowid
             con.execute(
@@ -4679,7 +4733,9 @@ def _authenticated_isolated_recipe_smoke(rows, *, now):
             raise cleanup_error
 
 
-def run_recipe_engine_synthetic_smoke(*, state_path=None, now=None):
+def run_recipe_engine_synthetic_smoke(
+    *, state_path=None, now=None, allow_legacy_offer_schema=False
+):
     """Trusted local smoke through auth + API, isolated from production data."""
     now = now or datetime.datetime.now(datetime.timezone.utc)
     if now.tzinfo is None:
@@ -4696,7 +4752,11 @@ def run_recipe_engine_synthetic_smoke(*, state_path=None, now=None):
     route_latency_ms = None
     payments_enabled = platby_su_zapnute()
     try:
-        with closing(_readonly_database()) as con:
+        offer_database = (
+            _legacy_offer_schema_snapshot()
+            if allow_legacy_offer_schema else _readonly_database()
+        )
+        with closing(offer_database) as con:
             production_before = _smoke_counts(con)
             rows, complete = _complete_recipe_offers(con, business_day)
         if payments_enabled:
@@ -5093,11 +5153,15 @@ def main(argv=None):
 
     parser = argparse.ArgumentParser(prog="server.py")
     parser.add_argument("--recipe-engine-smoke", action="store_true")
+    parser.add_argument("--preflight-legacy-offers", action="store_true")
     parser.add_argument("--state", default=RECIPE_SMOKE_STATE)
     args = parser.parse_args(argv)
     if not args.recipe_engine_smoke:
         parser.error("chýba --recipe-engine-smoke")
-    payload = run_recipe_engine_synthetic_smoke(state_path=args.state)
+    smoke_args = {"state_path": args.state}
+    if args.preflight_legacy_offers:
+        smoke_args["allow_legacy_offer_schema"] = True
+    payload = run_recipe_engine_synthetic_smoke(**smoke_args)
     if not payload["ok"]:
         _notify_preflight_smoke_failure(args.state, payload)
     print(json.dumps(payload, ensure_ascii=True, separators=(",", ":")))

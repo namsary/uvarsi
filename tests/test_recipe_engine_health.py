@@ -526,6 +526,50 @@ def test_local_synthetic_smoke_is_non_public_read_only_and_model_free(
     assert "jedla" not in durable
 
 
+def test_release_preflight_migrates_only_a_snapshot_of_legacy_offer_schema(
+    monkeypatch, tmp_path
+):
+    """A schema-upgrade release must deploy without mutating the live DB first."""
+    server, state = _load(monkeypatch, tmp_path)
+    production_db = Path(server.DB)
+    legacy_columns = (
+        "cena_s_kartou",
+        "zlava_s_kartou",
+        "vernostny_program",
+        "minimalny_nakup",
+        "podmienka_s_kartou",
+    )
+    with closing(sqlite3.connect(production_db)) as con:
+        for column in legacy_columns:
+            con.execute(f"ALTER TABLE akcie DROP COLUMN {column}")
+        con.commit()
+    before_digest = hashlib.sha256(production_db.read_bytes()).hexdigest()
+
+    with closing(server._legacy_offer_schema_snapshot()) as snapshot:
+        rows, complete = server._complete_recipe_offers(
+            snapshot, server.bratislava_day()
+        )
+    assert complete is True
+    isolated = server._authenticated_isolated_recipe_smoke(
+        rows, now=datetime.now(timezone.utc)
+    )
+    assert isolated["valid"] is True, json.dumps(isolated, sort_keys=True)
+
+    result = server.run_recipe_engine_synthetic_smoke(
+        state_path=state, allow_legacy_offer_schema=True
+    )
+
+    assert result["ok"] is True, json.dumps(result, sort_keys=True)
+    assert result["plan_engine"] == "deterministic"
+    assert result["blockers"] == []
+    assert hashlib.sha256(production_db.read_bytes()).hexdigest() == before_digest
+    with closing(sqlite3.connect(production_db)) as con:
+        live_columns = {
+            row[1] for row in con.execute("PRAGMA table_info(akcie)")
+        }
+    assert live_columns.isdisjoint(legacy_columns)
+
+
 def test_synthetic_smoke_fails_when_temporary_database_cannot_be_deleted(
     monkeypatch, tmp_path
 ):
@@ -595,6 +639,31 @@ def test_server_cli_runs_only_the_local_smoke_contract(monkeypatch, tmp_path, ca
     output = capsys.readouterr().out
     assert '"ok":true' in output
     assert "@" not in output and "token" not in output.casefold()
+
+
+def test_release_preflight_cli_explicitly_enables_legacy_schema_snapshot(
+    monkeypatch, tmp_path, capsys
+):
+    server, _state = _load(monkeypatch, tmp_path)
+    target = tmp_path / "recipe-engine-preflight-smoke.json"
+    calls = []
+
+    def capture(*, state_path, allow_legacy_offer_schema=False):
+        calls.append((state_path, allow_legacy_offer_schema))
+        return {"ok": True, "http_status": 200, "blockers": []}
+
+    monkeypatch.setattr(server, "run_recipe_engine_synthetic_smoke", capture)
+
+    code = server.main([
+        "--recipe-engine-smoke",
+        "--preflight-legacy-offers",
+        "--state",
+        str(target),
+    ])
+
+    assert code == 0
+    assert calls == [(str(target), True)]
+    assert '"ok":true' in capsys.readouterr().out
 
 
 def test_failed_preflight_cli_sends_only_aggregate_diagnostics(
