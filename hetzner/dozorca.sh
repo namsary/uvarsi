@@ -48,6 +48,12 @@ EXIT_STRUCTURAL=3                    # kód, ktorým refresh_blocek hlási "neop
 MIN_OFFERS_PER_STORE=20              # malá vložka sa nesmie tváriť ako celý leták
 NTFY_TOPIC="uvarsi-jarvis-8f3a2c"    # notifikácie: ntfy.sh/<topic>
 
+# Cron aj ručne spustený samopull môžu dediť UTC z hostiteľa. Všetky Python
+# procesy, ktoré dozorca spúšťa (zberač, rozpočtová poistka, bloček), však
+# pracujú so slovenským obchodným dňom. Export drží ich kalendár zhodný s
+# dátumom, podľa ktorého dozorca vybral aktuálne letáky.
+export TZ=Europe/Bratislava
+
 log(){ echo "[$(TZ=Europe/Bratislava "$DATE" '+%F %T')] DOZORCA: $*"; }
 notify(){ "$CURL" -fsS --max-time 15 -H "Title: $1" -d "$2" "https://ntfy.sh/${NTFY_TOPIC}" >/dev/null 2>&1; }
 

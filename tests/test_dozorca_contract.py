@@ -161,6 +161,7 @@ def test_dozorca_uses_bratislava_day_after_local_midnight_on_utc_server(tmp_path
     landing_data = tmp_path / "landing_data.json"
     write_landing_data_atomic(landing_data, payload("2026-08-31"))
     calls = tmp_path / "calls.txt"
+    child_timezone = tmp_path / "child-timezone.txt"
 
     fake_date = tmp_path / "date"
     fake_date.write_text(
@@ -181,6 +182,7 @@ def test_dozorca_uses_bratislava_day_after_local_midnight_on_utc_server(tmp_path
         "  case \"$2\" in *'from datetime import date'*) echo 2026-09-07; exit 0 ;; esac\n"
         "  exit 1\n"
         "fi\n"
+        f"printf '%s\\n' \"$TZ\" > '{bash_path(child_timezone)}'\n"
         f"printf '%s\\n' \"$*\" >> '{bash_path(calls)}'\n"
         "exit 1\n",
         encoding="utf-8",
@@ -223,6 +225,7 @@ def test_dozorca_uses_bratislava_day_after_local_midnight_on_utc_server(tmp_path
     )
 
     assert "zbierac_akcii.py --store lidl" in calls.read_text(encoding="utf-8")
+    assert child_timezone.read_text(encoding="utf-8").strip() == "Europe/Bratislava"
 
 
 def test_dozorca_stops_retrying_a_structural_failure_until_the_data_changes(tmp_path):
