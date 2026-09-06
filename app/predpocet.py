@@ -983,13 +983,13 @@ def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
         import server as server_module
 
         server = server_module
-    now = now or datetime.datetime.now()
+    now = now or datetime.datetime.now(datetime.timezone.utc)
     if isinstance(now, datetime.date) and not isinstance(now, datetime.datetime):
         now = datetime.datetime.combine(now, datetime.time())
     if server.recipe_engine_mode() != "shadow":
         return {"complete": False, "reason": "mode_not_shadow"}
 
-    today = now.date()
+    today = server.bratislava_day(now)
     week = server.monday(today)
     started = now.isoformat(timespec="seconds")
     run_token = secrets.token_hex(16)

@@ -7,7 +7,7 @@ but its durable output is deliberately anonymous and aggregate-only.
 from __future__ import annotations
 
 from contextlib import closing
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 import json
 import sys
@@ -189,6 +189,22 @@ def test_scheduled_shadow_builds_the_fixed_anonymous_matrix_and_only_persists_ag
     assert "shadow-session" not in durable
     assert "jedla" not in durable
     assert "shadow-person@example.test" not in caplog.text
+
+
+def test_shadow_uses_bratislava_monday_during_utc_sunday_rollover(
+    monkeypatch, tmp_path
+):
+    server = _server(monkeypatch, tmp_path)
+    predpocet = server.predpocet
+    monkeypatch.setattr(predpocet.time, "perf_counter", _clock())
+
+    result = predpocet.run_recipe_engine_shadow(
+        server=server,
+        now=datetime(2026, 9, 6, 22, 30, tzinfo=timezone.utc),
+    )
+
+    assert result["complete"] is True, result
+    assert result["week"] == "2026-09-07"
 
 
 def test_shadow_records_only_error_codes_and_never_exception_text(monkeypatch, tmp_path):
