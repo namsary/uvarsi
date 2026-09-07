@@ -78,6 +78,7 @@ def kupino_flyer(slug="/letak/lidl-letak-2026-08-17-2026-08-23", flyer_id="42", 
         "flyer_id": flyer_id,
         "image_name": image_name,
         "source_url": f"https://www.kupino.sk{slug}",
+        "collector_kind": "kupino-aggregator",
         "valid_from": "2026-08-17",
         "valid_to": "2026-08-23",
     }
@@ -208,7 +209,8 @@ def flyer_fixture(page_count):
         for page in range(1, page_count + 1)
     ]
     manifest = {
-        "source_url": "https://flyers.example/lidl-current",
+        "source_url": "https://www.kupino.sk/letak/lidl-test-current",
+        "collector_kind": "kupino-aggregator",
         "valid_from": "2026-08-17",
         "valid_to": "2026-08-23",
         "pages": [
@@ -221,6 +223,20 @@ def flyer_fixture(page_count):
         ],
     }
     return pages, manifest
+
+
+def test_manifest_rejects_a_collector_registered_only_for_another_store():
+    pages, manifest = flyer_fixture(1)
+    manifest.update(
+        source_url=(
+            "https://www.lidl.sk/l/sk/letak/"
+            "online-letak-platny-od-17-08-2026/view/flyer/page/1"
+        ),
+        collector_kind="official-lidl-viewer",
+    )
+
+    with pytest.raises(ValueError, match="dôveryhodný typ zdroja"):
+        collector.validate_flyer_manifest(pages, manifest, store="kaufland")
 
 
 def install_pipeline_fakes(monkeypatch, page_count, food_pages, extracted_pages=None):
@@ -653,6 +669,7 @@ def test_mletaky_selects_latest_finite_validity_source(monkeypatch):
 
     assert manifest == {
         "source_url": "https://app.mletaky.sk/260817_260811_lidl_latest",
+        "collector_kind": "mletaky-aggregator",
         "valid_from": "2026-08-11",
         "valid_to": "2026-08-17",
     }
@@ -676,6 +693,7 @@ def test_mletaky_prefers_main_weekly_flyer_over_newer_weekend_flyer(monkeypatch)
 
     assert manifest == {
         "source_url": "https://app.mletaky.sk/260830_260824_lidl_mainweekly",
+        "collector_kind": "mletaky-aggregator",
         "valid_from": "2026-08-24",
         "valid_to": "2026-08-30",
     }
@@ -718,6 +736,7 @@ def test_mletaky_prefers_largest_same_week_flyer_and_keeps_declared_page_count(m
 
     assert manifest == {
         "source_url": "https://app.mletaky.sk/260830_260824_lidl_main",
+        "collector_kind": "mletaky-aggregator",
         "valid_from": "2026-08-24",
         "valid_to": "2026-08-30",
         "declared_pages": 99,
@@ -862,7 +881,7 @@ def test_mocked_collection_output_is_persistable_through_atomic_replacement(monk
     assert tuple(row) == (
         "Lidl",
         "Potravina 1",
-        "https://flyers.example/lidl-current",
+        "https://www.kupino.sk/letak/lidl-test-current",
         1,
         "2026-08-17",
         "2026-08-23",
@@ -1019,6 +1038,7 @@ def test_mletaky_never_selects_a_flyer_that_has_already_ended(monkeypatch):
 
     assert manifest == {
         "source_url": "https://app.mletaky.sk/260826_260812_lidl_running",
+        "collector_kind": "mletaky-aggregator",
         "valid_from": "2026-08-12",
         "valid_to": "2026-08-26",
     }
@@ -1080,7 +1100,7 @@ def valid_offer(store, index):
         "povodna": 2.0,
         "zlava": "-50 %",
         "jednotka": "ks",
-        "source_url": f"https://flyers.example/{store}",
+        "source_url": f"https://www.kupino.sk/letak/{store}-test-current",
         "source_page": index,
         "valid_from": "2026-08-17",
         "valid_to": "2026-08-23",

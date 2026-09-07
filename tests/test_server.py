@@ -1584,6 +1584,37 @@ def test_shared_plan_still_carries_only_verified_prices_and_provenance(monkeypat
     assert (bought["valid_from"], bought["valid_to"]) == (offer["valid_from"], offer["valid_to"])
 
 
+def test_customer_plan_hides_internal_flyer_location_without_mutating_private_plan(
+    monkeypatch, tmp_path
+):
+    server = load_server(monkeypatch, tmp_path, [])
+    private = {
+        "_uvarsi_meta": {"pantry_driven": True, "pantry_snapshot": []},
+        "meta": {"engine": "deterministic"},
+        "jedla": [{
+            "nazov": "Rizoto",
+            "suroviny": [{
+                "nazov": "Ryža",
+                "cena": "1,39",
+                "valid_to": "2026-09-13",
+                "source_url": "https://internal.example/flyer",
+                "source_page": 12,
+                "thumbnail_url": "https://internal.example/thumb.jpg",
+            }],
+        }],
+    }
+
+    public = server.so_spajzou(private, [])
+    encoded = json.dumps(public)
+
+    assert public["jedla"][0]["suroviny"][0]["cena"] == "1,39"
+    assert public["jedla"][0]["suroviny"][0]["valid_to"] == "2026-09-13"
+    assert "source_url" not in encoded
+    assert "source_page" not in encoded
+    assert "thumbnail_url" not in encoded
+    assert private["jedla"][0]["suroviny"][0]["source_page"] == 12
+
+
 def test_shared_plan_is_never_reused_after_the_underlying_offers_changed(monkeypatch, tmp_path):
     """Žiadne staré dáta: iná ponuková sada = iný podpis = nový plán."""
     server = shared_plan_server(monkeypatch, tmp_path)

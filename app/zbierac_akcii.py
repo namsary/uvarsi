@@ -46,6 +46,11 @@ except ImportError:
     from app import plan_jobs
 
 try:
+    import source_policy
+except ImportError:
+    from app import source_policy
+
+try:
     from plan_calendar import bratislava_day, bratislava_monday
 except ImportError:
     from app.plan_calendar import bratislava_day, bratislava_monday
@@ -135,6 +140,10 @@ CREATE TABLE IF NOT EXISTS zber_stav (
   pocet   INTEGER NOT NULL DEFAULT 0,
   detail  TEXT,
   data_version INTEGER NOT NULL DEFAULT 1,
+  collector_kind TEXT,
+  source_fingerprint TEXT,
+  valid_from TEXT,
+  valid_to TEXT,
   updated TEXT DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (tyzden, obchod)
 );
@@ -153,6 +162,9 @@ def db():
         con.execute(
             "ALTER TABLE zber_stav ADD COLUMN data_version INTEGER NOT NULL DEFAULT 1"
         )
+    for name in ("collector_kind", "source_fingerprint", "valid_from", "valid_to"):
+        if name not in columns:
+            con.execute(f"ALTER TABLE zber_stav ADD COLUMN {name} TEXT")
     naklady.migrate_naklady_schema(con)
     plan_jobs.migrate_plan_jobs_schema(con)
     return con
@@ -246,6 +258,7 @@ def kupino_meta(store):
         "flyer_id": om.group(1),
         "image_name": om.group(2),
         "source_url": f"{base}{slug}",
+        "collector_kind": "kupino-aggregator",
         "valid_from": valid_from,
         "valid_to": valid_to,
     }
@@ -336,6 +349,7 @@ def official_lidl_pages(today=None):
     pages = [(thumbnail, image) for _, thumbnail, image in normalized]
     manifest = {
         "source_url": source_url,
+        "collector_kind": "official-lidl-viewer",
         "valid_from": valid_from,
         "valid_to": valid_to,
         "declared_pages": len(normalized),
@@ -408,6 +422,7 @@ def mletaky_candidates(store, today=None):
         source_url = f"https://app.mletaky.sk/{vto}_{vfrom}_{store}_{h}"
         candidate = {
             "source_url": source_url,
+            "collector_kind": "mletaky-aggregator",
             "valid_from": d_from.isoformat(),
             "valid_to": d_to.isoformat(),
             "_duration": (d_to - d_from).days + 1,
@@ -455,8 +470,12 @@ def _page_marker(marker, url):
 
 
 def _manifest(source, page_rows):
+    collector_kind = source.get("collector_kind")
+    if collector_kind is None:
+        collector_kind = source_policy.collector_kind_for_url(source.get("source_url"))
     manifest = {
         "source_url": source["source_url"],
+        "collector_kind": collector_kind,
         "valid_from": source["valid_from"],
         "valid_to": source["valid_to"],
         "pages": page_rows,
@@ -586,7 +605,7 @@ def img_block(b):
         "type": "base64", "media_type": "image/jpeg", "data": b}}
 
 
-def validate_flyer_manifest(pages, manifest):
+def validate_flyer_manifest(pages, manifest, *, store):
     if not pages or not isinstance(manifest, dict):
         raise ValueError("leták nemá úplný manifest")
     source_url = manifest.get("source_url")
@@ -595,6 +614,14 @@ def validate_flyer_manifest(pages, manifest):
     parsed_url = urlparse(source_url)
     if parsed_url.scheme not in ("http", "https") or not parsed_url.netloc:
         raise ValueError("manifest nemá presnú URL zdroja")
+    collector_kind = manifest.get("collector_kind")
+    derived_kind = source_policy.collector_kind_for_url(source_url)
+    if (
+        not isinstance(collector_kind, str)
+        or collector_kind != derived_kind
+        or not source_policy.known_source(store, collector_kind)
+    ):
+        raise ValueError("manifest nemá dôveryhodný typ zdroja")
 
     valid_from = manifest.get("valid_from")
     valid_to = manifest.get("valid_to")
@@ -918,7 +945,7 @@ def zbieraj(client, store):
     pages, manifest = store_pages(store)
     if not pages:
         raise ValueError(f"{store}: leták s konečnou platnosťou nebol nájdený")
-    page_manifest = validate_flyer_manifest(pages, manifest)
+    page_manifest = validate_flyer_manifest(pages, manifest, store=store)
 
     # 1) lacný sken náhľadov → ktoré strany sú potravinové
     thumbs = []
@@ -990,17 +1017,42 @@ def zbieraj(client, store):
     return out
 
 
-def record_store_outcome(con, week, store, status, count=0, detail=None):
+def _collection_provenance(offers):
+    if not offers:
+        return (None, None, None, None)
+    urls = {item.get("source_url") for item in offers if isinstance(item, dict)}
+    starts = {item.get("valid_from") for item in offers if isinstance(item, dict)}
+    ends = {item.get("valid_to") for item in offers if isinstance(item, dict)}
+    if len(urls) != 1 or len(starts) != 1 or len(ends) != 1:
+        raise ValueError("zber nemá jednotnú internú provenienciu")
+    source_url = urls.pop()
+    collector_kind = source_policy.collector_kind_for_url(source_url)
+    if collector_kind is None:
+        raise ValueError("zber používa neznámy zdroj")
+    return (
+        collector_kind,
+        source_policy.source_fingerprint(source_url),
+        starts.pop(),
+        ends.pop(),
+    )
+
+
+def record_store_outcome(con, week, store, status, count=0, detail=None, offers=None):
     """Zapíš výsledok zberu jedného obchodu, aby bol čiastočný beh viditeľný."""
+    provenance = _collection_provenance(offers) if status == "ok" else (None,) * 4
     con.execute(
         """INSERT INTO zber_stav
-           (tyzden, obchod, stav, pocet, detail, data_version, updated)
-           VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+           (tyzden, obchod, stav, pocet, detail, data_version,
+            collector_kind,source_fingerprint,valid_from,valid_to,updated)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
            ON CONFLICT(tyzden, obchod) DO UPDATE SET
              stav=excluded.stav, pocet=excluded.pocet,
              detail=excluded.detail, data_version=excluded.data_version,
+             collector_kind=excluded.collector_kind,
+             source_fingerprint=excluded.source_fingerprint,
+             valid_from=excluded.valid_from,valid_to=excluded.valid_to,
              updated=excluded.updated""",
-        (week, store, status, count, detail, COLLECTION_DATA_VERSION),
+        (week, store, status, count, detail, COLLECTION_DATA_VERSION, *provenance),
     )
     con.commit()
 
@@ -1099,7 +1151,9 @@ def main(stores=None):
                 continue
             total += len(akcie)
             collected.append(store)
-            record_store_outcome(con, tyz, store.capitalize(), "ok", len(akcie))
+            record_store_outcome(
+                con, tyz, store.capitalize(), "ok", len(akcie), offers=akcie
+            )
         n = con.execute("SELECT COUNT(*) c FROM akcie WHERE tyzden=?", (tyz,)).fetchone()["c"]
     finally:
         con.close()

@@ -363,6 +363,38 @@ def test_health_a_prihlaseny_profil_zverejnia_len_bezpecny_stav_pripravenosti(
     assert TAJOMSTVO not in forbidden
 
 
+def test_runtime_price_source_gate_reads_only_complete_reviewed_server_rows(
+    monkeypatch, tmp_path
+):
+    server = load_server(monkeypatch, tmp_path)
+    today = server.datetime.date(2026, 9, 9)
+    with closing(server.db()) as con:
+        assert server._approved_price_sources_ready(con, today=today) is False
+        con.execute(
+            """CREATE TABLE zber_stav (
+              tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER,
+              collector_kind TEXT, source_fingerprint TEXT,
+              valid_from TEXT, valid_to TEXT,
+              PRIMARY KEY (tyzden, obchod)
+            )"""
+        )
+        con.executemany(
+            """INSERT INTO zber_stav
+               (tyzden,obchod,stav,pocet,collector_kind,source_fingerprint,
+                valid_from,valid_to)
+               VALUES ('2026-09-07',?,'ok',30,'manual-reviewed-facts',?,
+                       '2026-09-07','2026-09-13')""",
+            [(store, "a" * 64) for store in server.source_policy.REQUIRED_STORES],
+        )
+
+        assert server._approved_price_sources_ready(con, today=today) is True
+
+        con.execute(
+            "UPDATE zber_stav SET collector_kind='kupino-aggregator' WHERE obchod='Tesco'"
+        )
+        assert server._approved_price_sources_ready(con, today=today) is False
+
+
 @pytest.mark.parametrize("adresa", ["http://uvarsi.lemonsqueezy.com/buy/x", "javascript:alert(1)", "", "   "])
 def test_checkout_url_odmietne_nedoveryhodnu_adresu(monkeypatch, tmp_path, adresa):
     server = load_server(monkeypatch, tmp_path)

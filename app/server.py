@@ -51,6 +51,7 @@ import customer_requests
 import naklady
 import plan_jobs
 import predpocet
+import source_policy
 from config import (
     public_base_url,
     admin_emails,
@@ -3027,7 +3028,7 @@ def so_spajzou(plan, spajza):
     upraveny["spajza"] = copy.deepcopy(
         snapshot if isinstance(snapshot, list) else list(spajza)
     )
-    return upraveny
+    return source_policy.public_plan_payload(upraveny)
 
 
 PLAN_META_KEY = "_uvarsi_meta"
@@ -4700,9 +4701,12 @@ def recipe_engine_health(con, *, today=None):
     }
 
 
-def _approved_price_sources_ready() -> bool:
-    """Closed until the reviewed source registry is implemented and approved."""
-    return False
+def _approved_price_sources_ready(con, *, today=None) -> bool:
+    """Require current reviewed provenance stored by the server-side collector."""
+    today = today or bratislava_day()
+    return source_policy.collection_is_approved(
+        con, week=monday(today), today=today
+    )
 
 
 def _private_payment_alerts_ready() -> bool:
@@ -4745,7 +4749,7 @@ def _runtime_payment_readiness(
         store_id=store_id,
         variant_id=variant_id,
         api_key=env("LEMON_API_KEY", "") or "",
-        source_approved=_approved_price_sources_ready(),
+        source_approved=_approved_price_sources_ready(con, today=today),
         private_alerts=_private_payment_alerts_ready(),
         consumer_workflows=customer_requests.workflow_ready(con),
         smoke_verified=_payment_smoke_verified(
