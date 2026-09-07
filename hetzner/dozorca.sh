@@ -102,7 +102,13 @@ fi
 
 TODAY="${UVARSI_TODAY:-$(TZ=Europe/Bratislava "$DATE" +%F)}"
 NOW_EPOCH="${UVARSI_NOW_EPOCH:-$(date +%s)}"
-case "$NOW_EPOCH" in ''|*[!0-9]*) log "CHYBA — aktuálny epoch má neplatný formát"; exit 1 ;; esac
+case "$NOW_EPOCH" in
+  ''|*[!0-9]*|0*)
+    log "CHYBA — aktuálny epoch má neplatný formát"
+    notify "Uvar.si: receptový engine" "Dozorca odmietol neplatnú časovú konfiguráciu."
+    exit 1
+    ;;
+esac
 case "$CREDIT_RETRY_SECONDS" in ''|*[!0-9]*|0) log "CHYBA — interval kontroly kreditu má neplatný formát"; exit 1 ;; esac
 
 skontroluj_frontu_planov() {
@@ -355,7 +361,11 @@ MON_ISO=$("$PY" -c 'from datetime import date, timedelta; import sys; d=date.fro
 # Recepty sú lokálne a deterministické: ich release smoke nesmie čakať na
 # externý Anthropic kredit potrebný iba na čítanie letákov. Po každom vydaní
 # ich preto overíme ešte pred možným kreditovým skratom zberača.
-skontroluj_recipe_engine || log "receptový smoke sa teraz nepodaril — pri dokončení zdravého behu ho overím znova"
+RECIPE_ENGINE_PRECHECK_OK=1
+if ! skontroluj_recipe_engine; then
+  RECIPE_ENGINE_PRECHECK_OK=0
+  log "receptový smoke sa teraz nepodaril — pri dokončení zdravého behu ho overím znova"
+fi
 
 # --- Stav z predošlých dnešných pokusov (formát: "deň neúspechy blok") ---
 # Číta sa hneď na začiatku, aby sa kreditový blok stihol uplatniť EŠTE PRED
@@ -541,6 +551,7 @@ if landing_data_is_current; then
   if [ "${POCET:-0}" -ge 30 ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]; then
     zahrej_plany
   fi
+  [ "$RECIPE_ENGINE_PRECHECK_OK" -eq 1 ] || exit 1
   skontroluj_recipe_engine || exit 1
   rm -f "$STATE"
   exit 0
@@ -588,6 +599,7 @@ if [ "$RC" -eq 0 ] && landing_data_is_current; then
   if [ "${POCET:-0}" -ge 30 ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]; then
     zahrej_plany
   fi
+  HEALTH=$("$CURL" -fsS --max-time 1 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true)
   skontroluj_recipe_engine || exit 1
   rm -f "$STATE"
   exit 0

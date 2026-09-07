@@ -302,6 +302,7 @@ def test_non_finite_recipe_engine_health_fails_closed(tmp_path, field, invalid):
 def test_epoch_and_interval_payloads_are_rejected_without_evaluation(tmp_path):
     cases = (
         ("UVARSI_NOW_EPOCH", "1+$(printf pwned > marker-now)"),
+        ("UVARSI_NOW_EPOCH", "09"),
         ("UVARSI_RECIPE_SMOKE_MIN_INTERVAL_SECONDS", "1+$(printf pwned > marker-rate)"),
         ("UVARSI_RECIPE_SMOKE_MIN_INTERVAL_SECONDS", "0"),
     )
@@ -323,3 +324,17 @@ def test_epoch_and_interval_payloads_are_rejected_without_evaluation(tmp_path):
         assert notifications.read_text(encoding="utf-8").count(
             "Uvar.si: receptový engine"
         ) == 1
+
+
+def test_zero_prefixed_epoch_is_rejected_before_bash_arithmetic(tmp_path):
+    result, calls, notifications = _run(
+        tmp_path,
+        [_health("on", ready=False, blockers=("smoke_missing",), worker_alive=False)],
+        env_overrides={"UVARSI_NOW_EPOCH": "09"},
+    )
+
+    assert result.returncode != 0
+    assert "aktuálny epoch má neplatný formát" in result.stdout
+    recorded = calls.read_text(encoding="utf-8") if calls.exists() else ""
+    assert "--recipe-engine-smoke" not in recorded
+    assert notifications.exists()

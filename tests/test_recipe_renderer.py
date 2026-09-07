@@ -219,6 +219,31 @@ def test_large_multi_day_pan_batch_uses_capacity_safe_deterministic_guidance(
     assert "8 minút" not in cooking_step
 
 
+def test_large_multi_day_pot_batch_stays_in_one_pot(ingredients):
+    """A family batch must not become parallel copies of one recipe."""
+    candidate = _candidate(
+        ingredients.by_id("tomato"),
+        amount="500",
+        name_template="Paradajkové jedlo",
+        method="pot",
+        equipment=("veľký hrniec",),
+        pantry_basics=("salt",),
+        instructions=(
+            "Opláchni paradajky a odstráň tvrdé stopky.",
+            "Vlož {main.amount} {main.name} do veľkého hrnca a var ich "
+            "na miernom ohni 20 minút, kým zmäknú.",
+            "Rozdeľ jedlo na {portions} porcií a podávaj ho teplé.",
+        ),
+    )
+
+    meal = render_meal(candidate, adults=4, children=0, covered_days=3)
+    instructions = " ".join(meal.instructions)
+
+    assert "dva alebo viac veľkých hrncov" not in instructions
+    assert "Rozdeľ túto veľkú dávku" not in instructions
+    assert meal.instructions[1].startswith("Vlož")
+
+
 def test_large_tomato_pan_step_does_not_depend_on_opekaj_keyword(ingredients):
     candidate = _catalog_candidate(
         ingredients,

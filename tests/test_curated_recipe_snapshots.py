@@ -1274,14 +1274,16 @@ def test_ground_paprika_is_added_only_after_the_hot_vessel_is_removed(
 
 
 @pytest.mark.parametrize(
-    ("recipe_id", "expected_guidance"),
+    "recipe_id",
     (
-        ("classic_tomato_meatballs", "dva alebo viac velkych hrncov"),
-        ("classic_beef_goulash", "dva alebo viac velkych hrncov"),
+        "classic_tomato_meatballs",
+        "classic_beef_goulash",
+        "classic_segedin_goulash",
+        "classic_bean_stew_egg",
     ),
 )
-def test_large_family_batches_warn_for_every_capacity_limited_pot_phase(
-    recipe_id, expected_guidance, ingredient_catalog, tmp_path
+def test_large_family_pot_recipes_do_not_split_one_meal_between_multiple_pots(
+    recipe_id, ingredient_catalog, tmp_path
 ):
     recipe = _load_candidate_recipe(recipe_id, ingredient_catalog, tmp_path)
     meal = render_meal(
@@ -1291,7 +1293,9 @@ def test_large_family_batches_warn_for_every_capacity_limited_pot_phase(
         covered_days=3,
     )
 
-    assert expected_guidance in _fold(" ".join(meal.instructions))
+    instructions = _fold(" ".join(meal.instructions))
+
+    assert "dva alebo viac velkych hrncov" not in instructions
 
 
 def test_large_french_potatoes_batch_has_one_baking_dish_warning(
@@ -1670,8 +1674,6 @@ def test_large_pan_and_browning_recipes_tell_the_cook_to_work_in_batches(
         ("classic_meatloaf_potatoes", "pekac", "dva rovnake bochniky"),
         ("classic_roast_pork_root_veg", "pekac", "rozdel tuto velku davku"),
         ("classic_tomato_meatballs", "plech", "rozdel tuto velku davku"),
-        ("classic_segedin_goulash", "hrnc", "rozdel tuto velku davku"),
-        ("classic_bean_stew_egg", "hrnc", "rozdel tuto velku davku"),
     ),
 )
 def test_large_family_batch_is_split_between_realistic_vessels(

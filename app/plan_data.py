@@ -1190,8 +1190,10 @@ PLAN_VARIANT_HINTS = (
 #      receptovej dávky sa už nemôže tváriť ako cena nákupu.
 # 25 = vernostná cena je iba vysvetlená alternatíva; hlavné súčty ostávajú
 #      dostupné každému a staré plány bez podmienok kariet sa zneplatnia.
+# 26 = veľká dávka jedného vareného jedla zostáva v jednom hrnci; renderer ju
+#      už automaticky nerozdeľuje medzi viac hrncov.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 25
+PLAN_ALGO_VERSION = 26
 
 
 def plan_variant_for(user_id, variants):

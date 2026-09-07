@@ -902,7 +902,7 @@ def _large_vessel_batch_steps(
     instructions: tuple[str, ...],
     rendered: Sequence[RenderedIngredient],
 ) -> tuple[str, ...]:
-    """Add practical capacity guidance for every vessel used by a large batch."""
+    """Split only oven batches that genuinely need more baking surface."""
     total = sum((_edible_grams(item) for item in rendered), Decimal("0"))
     for item in rendered:
         if item.slot.water_ml_per_adult is None:
@@ -916,7 +916,6 @@ def _large_vessel_batch_steps(
     vessels = (
         ("pekac", "dva pekáče", "dva pekace"),
         ("plech", "dva plechy", "dva plechy"),
-        ("hrnc", "dva alebo viac veľkých hrncov", "viac velkych hrncov"),
     )
     for vessel_root, vessel_text, existing_marker in vessels:
         folded = tuple(_fold(step) for step in result)
