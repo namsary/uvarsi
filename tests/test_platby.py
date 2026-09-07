@@ -22,7 +22,14 @@ ROOT = Path(__file__).resolve().parents[1]
 TAJOMSTVO = "tajny-webhook-podpisovy-kluc"
 CHECKOUT = "https://uvarsi.lemonsqueezy.com/buy/11111111-2222-3333-4444-555555555555"
 
-PLATBY_ENV = ("PLATBY_ZAPNUTE", "LEMON_WEBHOOK_SECRET", "LEMON_CHECKOUT_URL", "LEMON_VARIANT_ID")
+PLATBY_ENV = (
+    "PLATBY_ZAPNUTE",
+    "LEMON_WEBHOOK_SECRET",
+    "LEMON_CHECKOUT_URL",
+    "LEMON_STORE_ID",
+    "LEMON_VARIANT_ID",
+    "LEMON_API_KEY",
+)
 
 
 def load_server(monkeypatch, tmp_path, **prostredie):
@@ -49,7 +56,17 @@ def zapnute_platby(monkeypatch, tmp_path, **prostredie):
     prostredie.setdefault("PLATBY_ZAPNUTE", "1")
     prostredie.setdefault("LEMON_WEBHOOK_SECRET", TAJOMSTVO)
     prostredie.setdefault("LEMON_CHECKOUT_URL", CHECKOUT)
-    return load_server(monkeypatch, tmp_path, **prostredie)
+    server = load_server(monkeypatch, tmp_path, **prostredie)
+    ready = server.PaymentReadiness(
+        ready=True,
+        blockers=(),
+        legal_version=server.LEGAL_VERSION,
+        release=server.release_id(),
+    )
+    monkeypatch.setattr(
+        server, "_runtime_payment_readiness", lambda con, **kwargs: ready
+    )
+    return server
 
 
 def vytvor_pouzivatela(server, user_id=1, email="test@uvar.si", session="session-token"):
@@ -238,6 +255,71 @@ def test_start_je_503_ked_chyba_adresa_pokladne(monkeypatch, tmp_path):
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Platobná brána zatiaľ nie je nastavená."
+
+
+def test_zapnuty_checkout_s_neuplnou_pripravenostou_zlyha_bezpecne_a_upozorni_raz(
+    monkeypatch, tmp_path
+):
+    server = zapnute_platby(monkeypatch, tmp_path)
+    vytvor_pouzivatela(server)
+    unready = server.PaymentReadiness(
+        ready=False,
+        blockers=("payment_smoke_missing", "alerts_not_private"),
+        legal_version=server.LEGAL_VERSION,
+        release=server.release_id(),
+    )
+    monkeypatch.setattr(
+        server, "_runtime_payment_readiness", lambda con, **kwargs: unready
+    )
+    alerts = []
+    monkeypatch.setattr(server, "posli_upozornenie_majitelovi", alerts.append)
+    client = prihlaseny(server)
+
+    first = client.post("/api/platba/start")
+    second = client.post("/api/platba/start")
+
+    assert first.status_code == second.status_code == 503
+    assert first.json()["detail"] == "Platby ešte neprešli bezpečnostnou kontrolou."
+    assert len(alerts) == 1
+    assert "payment_smoke_missing" not in json.dumps(alerts)
+    assert "LEMON" not in json.dumps(alerts)
+    assert naroky(server) == []
+
+
+def test_health_a_prihlaseny_profil_zverejnia_len_bezpecny_stav_pripravenosti(
+    monkeypatch, tmp_path
+):
+    server = zapnute_platby(monkeypatch, tmp_path)
+    vytvor_pouzivatela(server)
+    expected = server.PaymentReadiness(
+        ready=False,
+        blockers=("price_source_not_approved",),
+        legal_version=server.LEGAL_VERSION,
+        release=server.release_id(),
+    )
+    monkeypatch.setattr(
+        server, "_runtime_payment_readiness", lambda con, **kwargs: expected
+    )
+    client = prihlaseny(server)
+
+    health = client.get("/api/health").json()["payment_readiness"]
+    me = client.get("/api/me").json()
+
+    assert health == {
+        "ready": False,
+        "blockers": ["price_source_not_approved"],
+        "legal_version": server.LEGAL_VERSION,
+        "release": server.release_id(),
+    }
+    assert me["platby_zapnute"] is True
+    assert me["platby_pripravene"] is False
+    assert me["pravna_verzia"] == server.LEGAL_VERSION
+    assert me["zakladajuci_cena_centy"] == 3900
+    assert me["zakladajuci_mena"] == "EUR"
+    assert me["zakladajuci_volne_miesta"] == 50
+    forbidden = json.dumps({"health": health, "me": me})
+    assert "LEMON_" not in forbidden
+    assert TAJOMSTVO not in forbidden
 
 
 @pytest.mark.parametrize("adresa", ["http://uvarsi.lemonsqueezy.com/buy/x", "javascript:alert(1)", "", "   "])

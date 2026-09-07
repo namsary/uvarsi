@@ -48,9 +48,24 @@ import db_rezim
 import naklady
 import plan_jobs
 import predpocet
-from config import public_base_url, admin_emails, recipe_engine_mode, release_id
+from config import (
+    public_base_url,
+    admin_emails,
+    legal_version,
+    recipe_engine_mode,
+    release_id,
+)
 from landing_data import load_landing_data, validate_landing_data
 from legal_pages import LEGAL_SLUGS, legal_text, render_legal_page
+from operator_profile import LEGAL_VERSION, OPERATOR, validate_operator_profile
+from payment_readiness import (
+    PaymentReadiness,
+    PaymentReadinessBlocked,
+    PaymentReadinessInput,
+    assess_payment_readiness,
+    public_readiness,
+    require_checkout_ready,
+)
 from public_pages import ROBOTS_TXT, render_evergreen_page, render_sitemap, render_weekly_page
 from weekly_data import offers_for_current_week, stores_missing_this_week
 from offer_data import (
@@ -208,6 +223,8 @@ NOINDEX_HEADER = "noindex, nofollow, noarchive"
 RETRY_AFTER_PUBLIC_DATA = "900"
 COMMUNITY_GOAL = KAPACITA_ZAKLADAJUCICH
 COMMUNITY_VISIBILITY_THRESHOLD = 1
+FOUNDER_PRICE_CENTS = 3900
+FOUNDER_CURRENCY = "EUR"
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 RECIPE_SMOKE_STATE = os.environ.get(
     "UVARSI_RECIPE_SMOKE_STATE", "/var/lib/uvarsi/recipe_engine_smoke.json"
@@ -2555,6 +2572,8 @@ def me(req: Request):
         ulozenych = pocet_ulozenej_spajze(con, u["id"])
         limit = limit_prepoctov(premium)
         zostava = max(0, limit - pouzite_prepocty(con, u["id"], den))
+        payment_status = _runtime_payment_readiness(con)
+        founder_places = volne_miesta(con)
     # Špajza uspatá koncom Premium sa nezamlčí: appka vie, koľko riadkov leží
     # a prečo do plánu nevstupujú. Ich názvy sem nepatria — obrazovka o platbe
     # nemá zobrazovať údaje, ktoré práve nič neovplyvňujú.
@@ -2568,6 +2587,11 @@ def me(req: Request):
               # `platiaci` je len stĺpec; pravdu o platbe drží tabuľka nárokov.
               "platiaci": premium, "premium": premium,
               "platby_zapnute": platby_su_zapnute(),
+              "platby_pripravene": payment_status.ready,
+              "pravna_verzia": payment_status.legal_version,
+              "zakladajuci_cena_centy": FOUNDER_PRICE_CENTS,
+              "zakladajuci_mena": FOUNDER_CURRENCY,
+              "zakladajuci_volne_miesta": founder_places,
               "stravovanie": effective_diet,
               "stravovanie_ulozene": stored_diet,
               "stravovanie_moznosti": list(ALLOWED_DIET_MODES),
@@ -4479,6 +4503,62 @@ def recipe_engine_health(con, *, today=None):
     }
 
 
+def _approved_price_sources_ready() -> bool:
+    """Closed until the reviewed source registry is implemented and approved."""
+    return False
+
+
+def _private_payment_alerts_ready() -> bool:
+    """Closed until every payment alert is aggregate-only or truly private."""
+    return False
+
+
+def _payment_smoke_verified(*, release: str, store_id: str, variant_id: str) -> bool:
+    """Closed until a release-bound test purchase and refund marker exists."""
+    return False
+
+
+def _recipe_gate_ready(status: dict) -> bool:
+    """The payment switch itself is not a recipe defect."""
+    blockers = {
+        str(code) for code in status.get("blockers", ())
+        if code != "payments_enabled"
+    }
+    return not blockers
+
+
+def _runtime_payment_readiness(
+    con, *, queue_status: dict | None = None, recipe_status: dict | None = None
+) -> PaymentReadiness:
+    """Collect server-side launch facts without exposing their secret values."""
+    today = bratislava_day()
+    queue_status = queue_status or plan_jobs.health(
+        con, now=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    )
+    recipe_status = recipe_status or recipe_engine_health(con, today=today)
+    current_release = release_id()
+    store_id = env("LEMON_STORE_ID", "") or ""
+    variant_id = env("LEMON_VARIANT_ID", "") or ""
+    facts = PaymentReadinessInput(
+        operator_errors=validate_operator_profile(OPERATOR),
+        legal_version=legal_version(),
+        release=current_release,
+        checkout_url=env("LEMON_CHECKOUT_URL", "") or "",
+        webhook_secret=env("LEMON_WEBHOOK_SECRET", "") or "",
+        store_id=store_id,
+        variant_id=variant_id,
+        api_key=env("LEMON_API_KEY", "") or "",
+        source_approved=_approved_price_sources_ready(),
+        private_alerts=_private_payment_alerts_ready(),
+        smoke_verified=_payment_smoke_verified(
+            release=current_release, store_id=store_id, variant_id=variant_id
+        ),
+        worker_alive=queue_status.get("worker_alive") is True,
+        recipe_ready=_recipe_gate_ready(recipe_status),
+    )
+    return assess_payment_readiness(facts)
+
+
 def _smoke_counts(con):
     return {
         "jobs": int(con.execute("SELECT COUNT(*) FROM plan_jobs").fetchone()[0]),
@@ -4881,9 +4961,13 @@ def health():
             con, now=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         )
         recipe_status = recipe_engine_health(con, today=today)
+        payment_status = _runtime_payment_readiness(
+            con, queue_status=fronta_planov, recipe_status=recipe_status
+        )
     return {"vydanie": release_id(), "tyzden": monday(today), "pocet": len(rows),
             "naklady": utrata, "predpocet": zahrievanie, "platby": platby_stav,
-            "plan_queue": fronta_planov, "recipe_engine": recipe_status}
+            "plan_queue": fronta_planov, "recipe_engine": recipe_status,
+            "payment_readiness": public_readiness(payment_status)}
 
 
 @app.get("/api/naklady")
@@ -5050,6 +5134,14 @@ def platba_start(req: Request):
     u = require_user(req)
     vyzaduj_zapnute_platby()
     with closing(db()) as con:
+        readiness = _runtime_payment_readiness(con)
+        try:
+            require_checkout_ready(readiness)
+        except PaymentReadinessBlocked:
+            _ohlas_nepripravene_platby(con)
+            raise HTTPException(
+                503, "Platby ešte neprešli bezpečnostnou kontrolou."
+            )
         if ma_narok(con, u["id"]):
             raise HTTPException(409, SPRAVA_UZ_MAS)
         volne = volne_miesta(con)
@@ -5060,6 +5152,27 @@ def platba_start(req: Request):
     except (PlatbyNenastavene, ValueError):
         raise HTTPException(503, SPRAVA_NENASTAVENE)
     return {"ok": True, "url": url, "volne_miesta": volne}
+
+
+def _ohlas_nepripravene_platby(con) -> None:
+    """Send one generic alert per release; never include a blocker or identity."""
+    try:
+        key = f"checkout_not_ready:{release_id()}"
+        cursor = con.execute(
+            "INSERT OR IGNORE INTO platobne_upozornenia (kluc, poslane_o) VALUES (?, ?)",
+            (key, datetime.datetime.now(datetime.timezone.utc).isoformat()),
+        )
+        con.commit()
+    except (sqlite3.Error, OSError, ValueError):
+        return
+    if cursor.rowcount == 1:
+        posli_upozornenie_majitelovi({
+            "titul": "Uvar.si: checkout je bezpečne zablokovaný",
+            "sprava": (
+                "Zapnutý checkout neprešiel internou kontrolou pripravenosti. "
+                "Podrobnosti otvor v chránenej prevádzkovej diagnostike."
+            ),
+        })
 
 
 # Upozornenia majiteľovi idú tým istým ntfy kanálom, ktorý už sleduje (naklady.py
