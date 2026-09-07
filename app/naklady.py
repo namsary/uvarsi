@@ -173,22 +173,24 @@ SPRAVA_NECITATELNY = (
 
 # Text pre používateľa. Žiadne euro číslo — nič sa neminulo a číslo by klamalo.
 SPRAVA_KREDIT = (
-    "Nový jedálniček sa teraz nedá poskladať: prístup k AI je pozastavený, "
-    "lebo na účte došiel kredit. Kým ho majiteľ nedobije, appka radšej nič "
-    "nevygeneruje, než by si vymýšľala jedlá alebo ukazovala staré ceny."
+    "Aktuálne akcie z letákov sa nepodarilo obnoviť, preto sa nový jedálniček "
+    "nedá bezpečne poskladať. Služba na čítanie nových letákov hlási "
+    "nedostatok kreditu. Staré ceny ti radšej neukazujeme ako dnešné."
 )
 # Prečo v appke nie sú akcie na tento týždeň. Sľub „skús to o chvíľu" platí len
 # vtedy, keď sa zber naozaj obnovuje — pri nulovom kredite nemá ako dobehnúť.
 SPRAVA_KREDIT_AKCIE = (
-    "Akcie z letákov sa tento týždeň nenačítali: prístup k AI je pozastavený, "
-    "lebo na účte došiel kredit. Staré ceny ti radšej neukazujeme ako dnešné. "
+    "Akcie z letákov sa tento týždeň nenačítali: služba na čítanie nových "
+    "letákov hlási nedostatok kreditu. Staré ceny ti radšej neukazujeme ako dnešné. "
     "Ozveme sa, len čo bude appka opäť plne funkčná."
 )
 # Text pre majiteľa na ntfy — musí povedať, čo má urobiť.
 TITUL_KREDIT = "Uvar.si: došiel kredit na Anthropic API"
 SPRAVA_KREDIT_NTFY = (
-    "API odmieta všetky volania — na účte je nulový kredit. Appka nevie "
-    "generovať jedálničky ani landing bloček, kým kredit nedobiješ. "
+    "API odmietlo čítanie nových letákov — hlási nulový kredit. Lokálny "
+    "receptový engine funguje, ale bez overených akcií nemožno aktualizovať "
+    "ceny ani landing bloček. Dobi kredit v organizácii, ku ktorej patrí "
+    "serverový API kľúč. "
     "Nič sa neúčtovalo (odmietnuté volania nespotrebovali ani token) a "
     "opakované pokusy sú zastavené, aby log nezaplavili."
 )

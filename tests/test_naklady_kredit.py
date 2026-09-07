@@ -141,6 +141,19 @@ def test_sprava_o_kredite_je_po_slovensky_a_hovori_co_treba_urobit():
     assert "€" not in text, "nič sa neminulo — číslo v eurách by klamalo"
 
 
+def test_kreditova_hlaska_nevravi_ze_lokalny_receptovy_engine_nefunguje():
+    """Anthropic kredit blokuje zber letákov, nie lokálne skladanie receptov."""
+    texty = (
+        naklady.SPRAVA_KREDIT,
+        naklady.SPRAVA_KREDIT_AKCIE,
+        naklady.SPRAVA_KREDIT_NTFY,
+    )
+    for text in texty:
+        assert "nevie generovať jedálničky" not in text.lower()
+        assert "prístup k ai" not in text.lower()
+    assert "čítanie nových letákov" in naklady.SPRAVA_KREDIT_NTFY.lower()
+
+
 # ------------------------------------------------------------------ neúčtuje sa
 def test_odmietnute_volanie_sa_vobec_nezauctuje(con):
     """Jadro opravy: za prácu, ktorá sa nevykonala, sa neplatí ani odhadom."""
