@@ -1089,7 +1089,9 @@ def main(stores=None):
                 # konca týždňa za behy, ktoré nikdy nebežali (incident 24. 8.).
                 naklady.uvolni_beh(con, budget_purpose)
                 log(f"[ERROR] {store}: {odmietnutie}")
-                raise SystemExit(f"Zber zastavený — {odmietnutie}") from None
+                raise SystemExit(
+                    f"Zber zastavený — KREDIT_VYCERPANY: {odmietnutie}"
+                ) from None
             except Exception as exc:
                 failures.append(store)
                 record_store_outcome(con, tyz, store.capitalize(), "fail", 0, str(exc)[:300])

@@ -475,6 +475,37 @@ def test_zbierac_pri_nulovom_kredite_nespotrebuje_tyzdenny_beh(monkeypatch, tmp_
     assert len(volania) == 1, "známy nulový kredit už neodosiela ďalšie requesty"
 
 
+def test_zbierac_oznaci_kredit_aj_ked_dojde_pocas_citania_strany(
+    monkeypatch, tmp_path, collector
+):
+    """Dozorca rozlišuje kredit od chyby dát iba podľa stabilnej značky.
+
+    Predbežná kontrola môže prejsť a provider odmietne až prvú Vision dávku.
+    Aj táto vetva musí dostať KREDIT_VYCERPANY, inak dozorca prepíše kreditový
+    stav štrukturálnym blokom a už nikdy neskúsi, či bol účet dobitý.
+    """
+    database = priprav_zbierac(
+        monkeypatch,
+        tmp_path,
+        collector,
+        lambda **kw: types.SimpleNamespace(),
+    )
+    monkeypatch.setattr(
+        collector,
+        "zbieraj",
+        lambda client, store: (_ for _ in ()).throw(
+            collector.naklady.KreditVycerpany()
+        ),
+    )
+
+    with pytest.raises(SystemExit) as koniec:
+        collector.main(["lidl"])
+
+    assert "KREDIT_VYCERPANY" in str(koniec.value)
+    with collector.naklady.pripoj(database) as con:
+        assert collector.naklady.stav(con)["behy"]["zber_letakov"]["pocet"] == 0
+
+
 def test_zbieraj_neschova_odmietnutie_za_zlyhanie_jedneho_obchodu(con, collector, monkeypatch):
     """Zbierač inak každú chybu zabalí na „obchod zlyhal" a pokračuje ďalším.
 
