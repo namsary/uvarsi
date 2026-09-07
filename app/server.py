@@ -140,12 +140,16 @@ from platby import (
     STAV_DUPLICITNY,
     UdalostNepouzitelna,
     checkout_url,
+    count_open_payment_cases,
+    create_payment_case,
     create_checkout_attempt,
+    custom_user_id,
     email_uctu,
     hodnoverny_podpis,
     ma_narok,
     migrate_platby_schema,
     odloz_webhook,
+    objednavka_ref,
     overit_podpis,
     platby_zapnute,
     pocet_zaplatenych_zakladajucich,
@@ -4512,8 +4516,8 @@ def _approved_price_sources_ready() -> bool:
 
 
 def _private_payment_alerts_ready() -> bool:
-    """Closed until every payment alert is aggregate-only or truly private."""
-    return False
+    """Public ntfy is aggregate-only; actionable IDs stay in protected SQLite."""
+    return True
 
 
 def _payment_smoke_verified(*, release: str, store_id: str, variant_id: str) -> bool:
@@ -5223,6 +5227,24 @@ def _ohlas_majitelovi(con, druh, *, now, **kw) -> None:
         posli_upozornenie_majitelovi(sprava)
 
 
+def _zaznamenaj_platobny_pripad(
+    con, druh, *, objednavka=None, user_id=None, now
+) -> int:
+    """Persist the actionable reference privately and return an aggregate count."""
+    try:
+        if objednavka is not None:
+            create_payment_case(
+                con,
+                case_type=druh,
+                provider_order_id=objednavka,
+                user_id=user_id,
+                now=now,
+            )
+        return count_open_payment_cases(con, druh)
+    except (sqlite3.Error, OSError, TypeError, ValueError):
+        return 0
+
+
 def _napis_zakaznikovi(con, user_id, predmet: str, text: str) -> None:
     """Zákazník, ktorý zaplatil a nič nedostal, sa to musí dozvedieť od nás.
 
@@ -5259,18 +5281,32 @@ def _doriesit_udalost(con, vysledok: dict, now: float) -> None:
     akcia = vysledok.get("akcia")
     objednavka = vysledok.get("objednavka")
     if akcia == AKCIA_NAD_KAPACITU:
-        _ohlas_majitelovi(con, DRUH_NAD_KAPACITU, now=now, objednavka=objednavka)
+        pocet = _zaznamenaj_platobny_pripad(
+            con, DRUH_NAD_KAPACITU, objednavka=objednavka,
+            user_id=vysledok.get("user_id"), now=now,
+        )
+        _ohlas_majitelovi(con, DRUH_NAD_KAPACITU, now=now, pocet=pocet)
         _napis_zakaznikovi(con, vysledok.get("user_id"), MAIL_PREDMET_NAD_KAPACITU,
                            SPRAVA_NAD_KAPACITU_ZAKAZNIK)
     elif vysledok.get("stav") == STAV_DUPLICITNY:
-        _ohlas_majitelovi(con, DRUH_DUPLICITA, now=now, objednavka=objednavka)
+        pocet = _zaznamenaj_platobny_pripad(
+            con, DRUH_DUPLICITA, objednavka=objednavka,
+            user_id=vysledok.get("user_id"), now=now,
+        )
+        _ohlas_majitelovi(con, DRUH_DUPLICITA, now=now, pocet=pocet)
         _napis_zakaznikovi(con, vysledok.get("user_id"), MAIL_PREDMET_DUPLICITA,
                            SPRAVA_DUPLICITA_ZAKAZNIK)
     elif akcia == AKCIA_IGNOROVANE:
         # Podpis sedel, ale appka s udalosťou nič neurobila. Buď je to cudzí
         # produkt v tom istom obchode, alebo nesedí LEMON_VARIANT_ID — a to
         # druhé znamená, že sa práve zahadzujú skutočné objednávky.
-        _ohlas_majitelovi(con, DRUH_IGNOROVANE, now=now, typ=vysledok.get("typ"))
+        pocet = _zaznamenaj_platobny_pripad(
+            con, DRUH_IGNOROVANE, objednavka=objednavka,
+            user_id=vysledok.get("user_id"), now=now,
+        )
+        _ohlas_majitelovi(
+            con, DRUH_IGNOROVANE, now=now, typ=vysledok.get("typ"), pocet=pocet
+        )
 
 
 @app.post("/api/platba/webhook")
@@ -5317,7 +5353,16 @@ async def platba_webhook(req: Request):
                 # sa to musí dozvedieť; inak tá platba mlčky zmizne.
                 odloz_webhook(con, telo=bytes(telo), podpis=podpis, now=now,
                               dovod="nepouzitelna")
-                _ohlas_majitelovi(con, DRUH_NEPOUZITELNA, now=now)
+                pocet = _zaznamenaj_platobny_pripad(
+                    con,
+                    DRUH_NEPOUZITELNA,
+                    objednavka=objednavka_ref(payload),
+                    user_id=custom_user_id(payload),
+                    now=now,
+                )
+                _ohlas_majitelovi(
+                    con, DRUH_NEPOUZITELNA, now=now, pocet=pocet
+                )
                 raise
             _doriesit_udalost(con, vysledok, now)
             return {"ok": True, "akcia": vysledok["akcia"]}

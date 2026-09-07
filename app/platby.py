@@ -198,6 +198,20 @@ CREATE INDEX IF NOT EXISTS checkout_attempts_user_idx
   ON checkout_attempts(user_id, accepted_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS checkout_attempts_provider_order_idx
   ON checkout_attempts(provider_order_id) WHERE provider_order_id IS NOT NULL;
+-- Citlivý pracovný zoznam pre majiteľa. Verejné upozornenie odkazuje iba na
+-- počet otvorených prípadov; konkrétne ID objednávky zostáva iba tu.
+CREATE TABLE IF NOT EXISTS payment_cases (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  case_type TEXT NOT NULL,
+  provider_order_id TEXT,
+  user_id INTEGER,
+  status TEXT NOT NULL,
+  created_at REAL NOT NULL,
+  updated_at REAL NOT NULL,
+  UNIQUE(case_type, provider_order_id)
+);
+CREATE INDEX IF NOT EXISTS payment_cases_open_idx
+  ON payment_cases(status, case_type, created_at);
 """
 
 
@@ -363,6 +377,50 @@ def mark_checkout_paid(con, *, public_id, user_id, provider_order_id, now) -> di
     if cursor.rowcount != 1:
         raise UdalostNepouzitelna("pokus objednávky už bol použitý")
     return {**attempt, "status": "paid", "provider_order_id": order_id}
+
+
+def create_payment_case(
+    con, *, case_type, provider_order_id=None, user_id=None, now
+) -> int:
+    """Keep actionable identifiers in protected SQLite, never in public alerts."""
+    if case_type not in DRUHY_UPOZORNENI:
+        raise ValueError("neplatný typ platobného prípadu")
+    order_id = _bezpecne_id(provider_order_id)
+    if provider_order_id is not None and order_id is None:
+        raise ValueError("neplatné id objednávky")
+    if user_id is not None:
+        _over_id_pouzivatela(user_id)
+    timestamp = _cas(now)
+    con.execute(
+        """INSERT OR IGNORE INTO payment_cases
+           (case_type, provider_order_id, user_id, status, created_at, updated_at)
+           VALUES (?, ?, ?, 'open', ?, ?)""",
+        (case_type, order_id, user_id, timestamp, timestamp),
+    )
+    con.commit()
+    row = con.execute(
+        """SELECT id FROM payment_cases
+            WHERE case_type=? AND provider_order_id IS ?""",
+        (case_type, order_id),
+    ).fetchone()
+    if row is None:
+        raise RuntimeError("platobný prípad sa nepodarilo uložiť")
+    return int(row[0])
+
+
+def count_open_payment_cases(con, case_type=None) -> int:
+    if case_type is None:
+        row = con.execute(
+            "SELECT COUNT(*) FROM payment_cases WHERE status='open'"
+        ).fetchone()
+    else:
+        if case_type not in DRUHY_UPOZORNENI:
+            raise ValueError("neplatný typ platobného prípadu")
+        row = con.execute(
+            "SELECT COUNT(*) FROM payment_cases WHERE status='open' AND case_type=?",
+            (case_type,),
+        ).fetchone()
+    return int(row[0]) if row else 0
 
 
 # ---------------------------------------------------------------- vypínač
@@ -1024,8 +1082,8 @@ def uprac_udalosti(con, *, now, ponechaj_dni=UDALOSTI_PONECHAJ_DNI) -> int:
 # ---------------------------------------------------------------- upozornenia
 # Modul text len POSKLADÁ; odosiela ho volajúci (naklady.posli_ntfy). Ntfy topic
 # je natvrdo v repozitári, teda verejne čitateľný — do týchto správ preto nesmie
-# prísť e-mail, token, ani úryvok logu. Číslo objednávky áno: bez neho majiteľ
-# nevie, čo má vrátiť, a samo o sebe o nikom nič neprezradí.
+# prísť e-mail, token, úryvok logu ani identifikátor objednávky. Konkrétne
+# referencie patria výhradne do chránenej tabuľky payment_cases.
 DRUH_NAD_KAPACITU = "nad_kapacitu"
 DRUH_DUPLICITA = "duplicita"
 DRUH_IGNOROVANE = "ignorovane"
@@ -1052,31 +1110,27 @@ def _pocet(hodnota) -> int:
 
 def priprav_upozornenie(druh, *, den=None, objednavka=None, typ=None, pocet=None) -> dict:
     """Zloží titul, text a kľúč „práve raz“. Žiadne osobné údaje, žiadny log."""
-    objednavka = _cislo(objednavka)
     typ = _cislo(typ)
     pocet = _pocet(pocet)
     den = den if isinstance(den, str) and den else "?"
     if druh == DRUH_NAD_KAPACITU:
         return {
-            "kluc": f"{DRUH_NAD_KAPACITU}:{objednavka}",
+            "kluc": f"{DRUH_NAD_KAPACITU}:{den}:{pocet}",
             "titul": "Uvar.si: platba nad kapacitu — treba vrátiť peniaze",
             "sprava": (
-                f"Objednávka {objednavka}: zákazník zaplatil, ale všetkých "
-                f"{KAPACITA_ZAKLADAJUCICH} zakladajúcich miest je obsadených, "
-                "takže členstvo nedostal. V appke aj e-mailom sme mu napísali, "
-                "že sumu vrátime. Vráť platbu v LemonSqueezy (Orders → Refund). "
-                "Riadok je v tabuľke naroky so stavom 'nad_kapacitu'."
+                f"Počet nevyriešených platieb nad kapacitu: {pocet}. "
+                "Zákazník nedostal členstvo a treba mu vrátiť celú platbu. "
+                "Konkrétnu objednávku otvor v chránenej evidencii platieb."
             ),
         }
     if druh == DRUH_DUPLICITA:
         return {
-            "kluc": f"{DRUH_DUPLICITA}:{objednavka}",
+            "kluc": f"{DRUH_DUPLICITA}:{den}:{pocet}",
             "titul": "Uvar.si: druhá platba toho istého účtu",
             "sprava": (
-                f"Objednávka {objednavka}: účet zakladajúce členstvo už mal, "
-                "takže druhá platba je navyše. Zákazníkovi sme napísali, že mu "
-                "ju vrátime. Vráť ju v LemonSqueezy (Orders → Refund); riadok "
-                "je v tabuľke naroky so stavom 'duplicitny'."
+                f"Počet nevyriešených duplicitných platieb: {pocet}. "
+                "Zákazník už členstvo mal a platbu navyše treba vrátiť. "
+                "Konkrétnu objednávku otvor v chránenej evidencii platieb."
             ),
         }
     if druh == DRUH_IGNOROVANE:
@@ -1087,20 +1141,19 @@ def priprav_upozornenie(druh, *, den=None, objednavka=None, typ=None, pocet=None
                 f"Udalosť typu '{typ}' prišla, ale appka s ňou nič neurobila "
                 "(neznámy typ alebo cudzí variant). Ak to bola objednávka "
                 "zakladajúceho členstva, sedí LEMON_VARIANT_ID? Podrobnosti sú "
-                "v tabuľke platobne_udalosti. Ďalšie udalosti toho istého typu "
-                "dnes už neohlásim."
+                "v chránenej evidencii platieb."
             ),
         }
     if druh == DRUH_NEPOUZITELNA:
         return {
-            "kluc": f"{DRUH_NEPOUZITELNA}:{den}",
+            "kluc": f"{DRUH_NEPOUZITELNA}:{den}:{pocet}",
             "titul": "Uvar.si: podpísaná platba sa nedá priradiť k účtu",
             "sprava": (
                 "Prišla platba s platným podpisom, ktorú appka nevie priradiť "
                 "k žiadnemu účtu (chýbajúce custom_data alebo neznáme id). "
-                "Peniaze teda prišli a nikto za ne nič nedostal. Telo je "
-                "uložené v tabuľke platobne_odlozene — pozri sa naň a nárok "
-                "priraď ručne cez premium_cli.py, alebo platbu vráť."
+                "Peniaze teda mohli prísť a nikto za ne nič nedostal. "
+                f"Otvorených prípadov je {pocet}; podrobnosti sú iba v "
+                "chránenej evidencii platieb."
             ),
         }
     if druh == DRUH_ODLOZENE:
@@ -1116,13 +1169,13 @@ def priprav_upozornenie(druh, *, den=None, objednavka=None, typ=None, pocet=None
         }
     if druh == DRUH_BEZ_UCTU:
         return {
-            "kluc": f"{DRUH_BEZ_UCTU}:{den}",
+            "kluc": f"{DRUH_BEZ_UCTU}:{den}:{pocet}",
             "titul": "Uvar.si: zaplatené objednávky bez účtu",
             "sprava": (
                 f"Rekonciliácia našla {pocet} zaplatených objednávok, ktoré sa "
                 "nedajú priradiť k žiadnemu účtu (iná e-mailová adresa pri "
-                "platbe než pri prihlásení). Nájdi ich v LemonSqueezy a nárok "
-                "prideľ ručne: premium_cli.py <email>."
+                "platbe než pri prihlásení). Konkrétne objednávky otvor v "
+                "chránenej evidencii platieb."
             ),
         }
     if druh == DRUH_REKONCILIACIA:

@@ -157,9 +157,24 @@ def rekonciluj(con, *, objednavky, now, variant_id=None, notifikuj=None,
             # neho by bolo hádanie; majiteľ to vyrieši cez premium_cli.py.
             if platby.narok_objednavky(con, ref) is None:
                 suhrn["bez_uctu"] += 1
+                platby.create_payment_case(
+                    con,
+                    case_type=platby.DRUH_BEZ_UCTU,
+                    provider_order_id=ref,
+                    user_id=None,
+                    now=now,
+                )
             continue
         payload = platby.payload_z_objednavky(objednavka, user_id=user_id)
         if payload is None:
+            suhrn["nepouzitelne"] += 1
+            platby.create_payment_case(
+                con,
+                case_type=platby.DRUH_NEPOUZITELNA,
+                provider_order_id=ref,
+                user_id=user_id,
+                now=now,
+            )
             continue
         try:
             vysledok = platby.spracuj_udalost(
@@ -168,6 +183,13 @@ def rekonciluj(con, *, objednavky, now, variant_id=None, notifikuj=None,
             )
         except platby.UdalostNepouzitelna:
             suhrn["nepouzitelne"] += 1
+            platby.create_payment_case(
+                con,
+                case_type=platby.DRUH_NEPOUZITELNA,
+                provider_order_id=ref,
+                user_id=user_id,
+                now=now,
+            )
             continue
         akcia = vysledok["akcia"]
         if akcia == platby.AKCIA_UDELENE:
@@ -179,6 +201,13 @@ def rekonciluj(con, *, objednavky, now, variant_id=None, notifikuj=None,
             nevybavene.append((platby.DRUH_NAD_KAPACITU, vysledok))
         elif akcia == platby.AKCIA_IGNOROVANE:
             suhrn["ignorovane"] += 1
+            platby.create_payment_case(
+                con,
+                case_type=platby.DRUH_IGNOROVANE,
+                provider_order_id=ref,
+                user_id=user_id,
+                now=now,
+            )
         elif vysledok.get("stav") == platby.STAV_DUPLICITNY:
             suhrn["duplicitne"] += 1
             nevybavene.append((platby.DRUH_DUPLICITA, vysledok))
@@ -199,8 +228,18 @@ TEXTY_BEZ_PROTIHODNOTY = {
 
 def _bez_protihodnoty(con, druh, vysledok, *, now, notifikuj=None, mailuj=None) -> None:
     """Zaplatil a nič nedostal. Povie to majiteľovi aj jemu — presne raz."""
+    platby.create_payment_case(
+        con,
+        case_type=druh,
+        provider_order_id=vysledok.get("objednavka"),
+        user_id=vysledok.get("user_id"),
+        now=now,
+    )
     sprava = platby.upozornenie_raz(
-        con, druh, now=now, objednavka=vysledok.get("objednavka")
+        con,
+        druh,
+        now=now,
+        pocet=platby.count_open_payment_cases(con, druh),
     )
     if sprava is None:
         return
@@ -266,9 +305,12 @@ def _ohlas(con, suhrn, *, now, notifikuj=None) -> None:
             con, platby.DRUH_REKONCILIACIA, now=now, pocet=suhrn["udelene"]))
     if suhrn["bez_uctu"]:
         spravy.append(platby.upozornenie_raz(
-            con, platby.DRUH_BEZ_UCTU, now=now, pocet=suhrn["bez_uctu"]))
+            con, platby.DRUH_BEZ_UCTU, now=now,
+            pocet=platby.count_open_payment_cases(con, platby.DRUH_BEZ_UCTU)))
     if suhrn["nepouzitelne"]:
-        spravy.append(platby.upozornenie_raz(con, platby.DRUH_NEPOUZITELNA, now=now))
+        spravy.append(platby.upozornenie_raz(
+            con, platby.DRUH_NEPOUZITELNA, now=now,
+            pocet=platby.count_open_payment_cases(con, platby.DRUH_NEPOUZITELNA)))
     for sprava in spravy:
         if sprava is None:
             continue

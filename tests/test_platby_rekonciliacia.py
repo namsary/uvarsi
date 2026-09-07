@@ -253,7 +253,13 @@ def test_rekonciliacia_ohlasi_aj_platbu_nad_kapacitu(monkeypatch, tmp_path):
         )
 
     assert suhrn["nad_kapacitu"] == 1
-    assert "ord-51" in " ".join(s["sprava"] for s in poslane)
+    assert "ord-51" not in " ".join(s["sprava"] for s in poslane)
+    with closing(server.db()) as con:
+        row = con.execute(
+            "SELECT provider_order_id, user_id FROM payment_cases WHERE case_type=?",
+            (server.DRUH_NAD_KAPACITU,),
+        ).fetchone()
+    assert tuple(row) == ("ord-51", 1)
     assert [m[0] for m in maily] == ["neskoro@uvar.si"]
     assert "vrát" in maily[0][1].lower()
 
@@ -472,8 +478,14 @@ def test_51_platba_upozorni_majitela(monkeypatch, tmp_path):
     assert response.json()["akcia"] == "nad_kapacitu"
     assert poslane, "peniaze bez protihodnoty sa nesmú stratiť v tichu"
     text = " ".join(f"{s['titul']} {s['sprava']}" for s in poslane)
-    assert "ord-51" in text
+    assert "ord-51" not in text
     assert "@" not in text, "na verejný ntfy kanál nepatrí e-mail zákazníka"
+    with closing(server.db()) as con:
+        row = con.execute(
+            "SELECT provider_order_id, user_id FROM payment_cases WHERE case_type=?",
+            (server.DRUH_NAD_KAPACITU,),
+        ).fetchone()
+    assert tuple(row) == ("ord-51", 1)
 
 
 def test_51_platba_sa_dozvie_aj_zakaznik_v_appke(monkeypatch, tmp_path):
@@ -553,7 +565,13 @@ def test_druha_platba_upozorni_majitela(monkeypatch, tmp_path):
     posli_webhook(client, objednavka(order_id="ord-2"))
 
     assert poslane
-    assert "ord-2" in " ".join(s["sprava"] for s in poslane)
+    assert "ord-2" not in " ".join(s["sprava"] for s in poslane)
+    with closing(server.db()) as con:
+        row = con.execute(
+            "SELECT provider_order_id, user_id FROM payment_cases WHERE case_type=?",
+            (server.DRUH_DUPLICITA,),
+        ).fetchone()
+    assert tuple(row) == ("ord-2", 1)
 
 
 def test_health_ukaze_ze_niekomu_dlzime_vratenie(monkeypatch, tmp_path):
@@ -632,6 +650,7 @@ def test_upozornenia_nikdy_neobsahuju_osobne_udaje():
         )
         cely = f"{sprava['titul']} {sprava['sprava']}"
         assert "@" not in cely, f"{druh}: e-mail nepatrí na verejný kanál"
+        assert "ord-1" not in cely, f"{druh}: objednávka nepatrí na verejný kanál"
         for zakazane in ("token", "Bearer", "secret", "heslo"):
             assert zakazane not in cely, f"{druh}: {zakazane} nepatrí na verejný kanál"
 
