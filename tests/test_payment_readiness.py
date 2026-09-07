@@ -51,7 +51,7 @@ def test_all_required_gates_make_checkout_ready():
         ("checkout_url", "", "checkout_not_configured"),
         ("checkout_url", "http://example.test/buy", "checkout_not_configured"),
         ("webhook_secret", "", "webhook_not_configured"),
-        ("store_id", "", "store_not_configured"),
+        ("store_id", "", "merchant_not_configured"),
         ("variant_id", "", "variant_not_configured"),
         ("api_key", "", "api_not_configured"),
         ("source_approved", False, "price_source_not_approved"),

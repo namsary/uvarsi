@@ -122,6 +122,8 @@ from platby import (
     DRUH_ODLOZENE,
     MAIL_PREDMET_DUPLICITA,
     MAIL_PREDMET_NAD_KAPACITU,
+    CENA_ZAKLADAJUCI_CENTY,
+    MENA_ZAKLADAJUCI,
     KAPACITA_ZAKLADAJUCICH,
     MAX_TELO_WEBHOOKU,
     PlatbyNenastavene,
@@ -138,6 +140,7 @@ from platby import (
     STAV_DUPLICITNY,
     UdalostNepouzitelna,
     checkout_url,
+    create_checkout_attempt,
     email_uctu,
     hodnoverny_podpis,
     ma_narok,
@@ -223,8 +226,8 @@ NOINDEX_HEADER = "noindex, nofollow, noarchive"
 RETRY_AFTER_PUBLIC_DATA = "900"
 COMMUNITY_GOAL = KAPACITA_ZAKLADAJUCICH
 COMMUNITY_VISIBILITY_THRESHOLD = 1
-FOUNDER_PRICE_CENTS = 3900
-FOUNDER_CURRENCY = "EUR"
+FOUNDER_PRICE_CENTS = CENA_ZAKLADAJUCI_CENTY
+FOUNDER_CURRENCY = MENA_ZAKLADAJUCI
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 RECIPE_SMOKE_STATE = os.environ.get(
     "UVARSI_RECIPE_SMOKE_STATE", "/var/lib/uvarsi/recipe_engine_smoke.json"
@@ -5130,7 +5133,7 @@ def platba_stav(req: Request):
 
 
 @app.post("/api/platba/start")
-def platba_start(req: Request):
+async def platba_start(req: Request):
     u = require_user(req)
     vyzaduj_zapnute_platby()
     with closing(db()) as con:
@@ -5142,15 +5145,40 @@ def platba_start(req: Request):
             raise HTTPException(
                 503, "Platby ešte neprešli bezpečnostnou kontrolou."
             )
+        try:
+            consent = await req.json()
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            consent = None
+        if (
+            not isinstance(consent, dict)
+            or consent.get("accept_terms") is not True
+            or consent.get("legal_version") != LEGAL_VERSION
+        ):
+            raise HTTPException(
+                422, "Pred platbou potvrď aktuálne VOP a ochranu údajov."
+            )
         if ma_narok(con, u["id"]):
             raise HTTPException(409, SPRAVA_UZ_MAS)
         volne = volne_miesta(con)
-    if volne <= 0:
-        raise HTTPException(409, SPRAVA_VYPREDANE)
-    try:
-        url = checkout_url(env("LEMON_CHECKOUT_URL"), user_id=u["id"], email=u["email"])
-    except (PlatbyNenastavene, ValueError):
-        raise HTTPException(503, SPRAVA_NENASTAVENE)
+        if volne <= 0:
+            raise HTTPException(409, SPRAVA_VYPREDANE)
+        try:
+            attempt_id = create_checkout_attempt(
+                con,
+                user_id=u["id"],
+                legal_version=consent["legal_version"],
+                now=AUTH_CLOCK(),
+            )
+            url = checkout_url(
+                env("LEMON_CHECKOUT_URL"),
+                user_id=u["id"],
+                attempt_id=attempt_id,
+                email=u["email"],
+            )
+        except (PlatbyNenastavene, ValueError):
+            con.rollback()
+            raise HTTPException(503, SPRAVA_NENASTAVENE)
+        con.commit()
     return {"ok": True, "url": url, "volne_miesta": volne}
 
 

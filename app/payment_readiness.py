@@ -72,7 +72,7 @@ def assess_payment_readiness(facts: PaymentReadinessInput) -> PaymentReadiness:
     if not _present(facts.webhook_secret):
         blockers.append("webhook_not_configured")
     if not _present(facts.store_id):
-        blockers.append("store_not_configured")
+        blockers.append("merchant_not_configured")
     if not _present(facts.variant_id):
         blockers.append("variant_not_configured")
     if not _present(facts.api_key):

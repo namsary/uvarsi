@@ -112,7 +112,49 @@ def test_the_locked_pantry_tells_the_truth_when_payments_are_off():
     assert "platby_zapnute" in zamknuta, "stav platieb musí prísť zo servera"
     assert "Platby ešte nie sú spustené" in zamknuta
     assert "disabled" in zamknuta
-    assert "/api/platba/start" in zamknuta, "keď platby bežia, tlačidlo musí niekam viesť"
+    assert "vCheckout" in zamknuta, "keď platby bežia, tlačidlo musí otvoriť objednávku"
+
+
+def test_checkout_screen_shows_the_complete_one_time_offer_before_redirecting():
+    html = app_html()
+    checkout = declaration(html, "function vCheckout() ")
+
+    for text in (
+        "Zakladajúce Premium",
+        "39 €",
+        "jednorazová platba",
+        "bez automatickej obnovy",
+        "14 dní",
+        "Prejsť k objednávke s povinnosťou platby",
+    ):
+        assert text.casefold() in checkout.casefold()
+    for feature in ("špajz", "obchod", "vegetari", "vegán", "bielkov"):
+        assert feature in checkout.casefold()
+    assert "zakladajuci_volne_miesta" in checkout
+    assert 'href="/vop"' in checkout
+    assert 'href="/ochrana-osobnych-udajov"' in checkout
+    assert 'href="/odstupenie"' in checkout
+
+
+def test_checkout_requires_one_unbundled_legal_checkbox_and_posts_its_version():
+    checkout = declaration(app_html(), "function vCheckout() ")
+
+    assert checkout.count('type="checkbox"') == 1
+    assert "checkout-consent" in checkout
+    assert "disabled" in checkout
+    assert "accept_terms:true" in checkout
+    assert "legal_version:ME.pravna_verzia" in checkout
+    assert "JSON.stringify" in checkout
+    assert "/api/platba/start" in checkout
+    assert "marketing" not in checkout.casefold()
+
+
+def test_payment_button_opens_summary_instead_of_starting_checkout_immediately():
+    locked = declaration(app_html(), "function vSpajzaZamknuta() ")
+
+    assert "vCheckout" in locked
+    assert "/api/platba/start" not in locked
+    assert "platby_pripravene" in locked
 
 
 def test_nothing_on_the_locked_screen_pushes_or_counts_down():
@@ -122,7 +164,10 @@ def test_nothing_on_the_locked_screen_pushes_or_counts_down():
     for obrat in NATLAK:
         assert obrat not in html, f"appka netlačí na pílu: {obrat!r}"
     assert "setInterval" not in zamknuta, "žiadne odpočty na obrazovke o platbe"
-    assert "volne_miesta" not in zamknuta, "žiadna umelá vzácnosť miest"
+    assert "setInterval" not in declaration(html, "function vCheckout() ")
+    assert "zakladajuci_volne_miesta" in declaration(html, "function vCheckout() "), (
+        "checkout smie ukázať iba reálnu kapacitu zo servera"
+    )
 
 
 def test_premium_is_taken_from_the_server_answer_and_never_from_the_client():

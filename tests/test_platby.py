@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 TAJOMSTVO = "tajny-webhook-podpisovy-kluc"
 CHECKOUT = "https://uvarsi.lemonsqueezy.com/buy/11111111-2222-3333-4444-555555555555"
+CONSENT = {"accept_terms": True, "legal_version": "2026-09-07-v1"}
 
 PLATBY_ENV = (
     "PLATBY_ZAPNUTE",
@@ -90,13 +91,16 @@ def prihlaseny(server, session="session-token"):
 
 
 def objednavka(user_id=1, order_id="ord-1", udalost="order_created", total=3900,
-               mena="EUR", webhook_id=None, variant_id=None, typ="orders"):
+               mena="EUR", webhook_id=None, variant_id=None, typ="orders",
+               attempt_id=None):
     attributes = {"total": total, "currency": mena, "status": "paid"}
     if variant_id is not None:
         attributes["first_order_item"] = {"variant_id": variant_id}
     if typ == "subscriptions":
         attributes["order_id"] = order_id
     meta = {"event_name": udalost, "custom_data": {"user_id": str(user_id)}}
+    if attempt_id is not None:
+        meta["custom_data"]["checkout_attempt"] = attempt_id
     if webhook_id is not None:
         meta["webhook_id"] = webhook_id
     return {"meta": meta, "data": {"id": str(order_id), "type": typ, "attributes": attributes}}
@@ -214,14 +218,47 @@ def test_start_vrati_checkout_url_s_id_pouzivatela_v_custom_data(monkeypatch, tm
     server = zapnute_platby(monkeypatch, tmp_path)
     vytvor_pouzivatela(server, user_id=7, email="clen@uvar.si")
 
-    response = prihlaseny(server).post("/api/platba/start")
+    response = prihlaseny(server).post("/api/platba/start", json=CONSENT)
 
     assert response.status_code == 200
     data = response.json()
     assert data["url"].startswith(CHECKOUT + "?")
     assert "checkout%5Bcustom%5D%5Buser_id%5D=7" in data["url"]
+    assert "checkout%5Bcustom%5D%5Bcheckout_attempt%5D=" in data["url"]
     assert data["volne_miesta"] == 50
     assert naroky(server) == [], "start nesmie sám nič udeliť"
+    with closing(server.db()) as con:
+        attempt = con.execute(
+            "SELECT user_id, product, amount_cents, currency, legal_version, status "
+            "FROM checkout_attempts"
+        ).fetchone()
+    assert tuple(attempt) == (
+        7, "zakladajuci_clen", 3900, "EUR", server.LEGAL_VERSION, "pending"
+    )
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {},
+        {"accept_terms": False, "legal_version": "2026-09-07-v1"},
+        {"accept_terms": 1, "legal_version": "2026-09-07-v1"},
+        {"accept_terms": True},
+        {"accept_terms": True, "legal_version": "stara-verzia"},
+    ],
+)
+def test_checkout_vyzaduje_vyslovny_suhlas_s_aktualnou_verziou(
+    monkeypatch, tmp_path, body
+):
+    server = zapnute_platby(monkeypatch, tmp_path)
+    vytvor_pouzivatela(server)
+
+    response = prihlaseny(server).post("/api/platba/start", json=body)
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Pred platbou potvrď aktuálne VOP a ochranu údajov."
+    with closing(server.db()) as con:
+        assert con.execute("SELECT COUNT(*) FROM checkout_attempts").fetchone()[0] == 0
 
 
 def test_start_odmietne_pouzivatela_ktory_uz_narok_ma(monkeypatch, tmp_path):
@@ -230,7 +267,7 @@ def test_start_odmietne_pouzivatela_ktory_uz_narok_ma(monkeypatch, tmp_path):
     client = prihlaseny(server)
     assert posli_webhook(client, objednavka()).status_code == 200
 
-    response = client.post("/api/platba/start")
+    response = client.post("/api/platba/start", json=CONSENT)
 
     assert response.status_code == 409
     assert response.json()["detail"] == "Zakladajúce členstvo už máš aktívne."
@@ -241,7 +278,7 @@ def test_start_odmietne_ked_je_vsetkych_50_miest_obsadenych(monkeypatch, tmp_pat
     vytvor_pouzivatela(server, user_id=999, email="neskoro@uvar.si")
     naplnit_miesta(server, 50)
 
-    response = prihlaseny(server).post("/api/platba/start")
+    response = prihlaseny(server).post("/api/platba/start", json=CONSENT)
 
     assert response.status_code == 409
     assert response.json()["detail"] == "Všetkých 50 zakladajúcich miest je obsadených."
@@ -251,7 +288,7 @@ def test_start_je_503_ked_chyba_adresa_pokladne(monkeypatch, tmp_path):
     server = zapnute_platby(monkeypatch, tmp_path, LEMON_CHECKOUT_URL=None)
     vytvor_pouzivatela(server)
 
-    response = prihlaseny(server).post("/api/platba/start")
+    response = prihlaseny(server).post("/api/platba/start", json=CONSENT)
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Platobná brána zatiaľ nie je nastavená."
@@ -326,7 +363,9 @@ def test_health_a_prihlaseny_profil_zverejnia_len_bezpecny_stav_pripravenosti(
 def test_checkout_url_odmietne_nedoveryhodnu_adresu(monkeypatch, tmp_path, adresa):
     server = load_server(monkeypatch, tmp_path)
     with pytest.raises(server.PlatbyNenastavene):
-        server.checkout_url(adresa, user_id=1, email="a@uvar.si")
+        server.checkout_url(
+            adresa, user_id=1, attempt_id="x" * 43, email="a@uvar.si"
+        )
 
 
 # ------------------------------------------------------------------ podpis
@@ -577,9 +616,17 @@ def test_udalost_pre_cudzi_variant_sa_ignoruje(monkeypatch, tmp_path):
     server = zapnute_platby(monkeypatch, tmp_path, LEMON_VARIANT_ID="555")
     vytvor_pouzivatela(server)
     client = TestClient(server.app, raise_server_exceptions=False)
+    with closing(server.db()) as con:
+        attempt = server.create_checkout_attempt(
+            con, user_id=1, legal_version=server.LEGAL_VERSION, now=server.AUTH_CLOCK()
+        )
+        con.commit()
 
     cudzia = posli_webhook(client, objednavka(order_id="ord-1", variant_id=999))
-    spravna = posli_webhook(client, objednavka(order_id="ord-2", variant_id=555))
+    spravna = posli_webhook(
+        client,
+        objednavka(order_id="ord-2", variant_id=555, attempt_id=attempt),
+    )
 
     assert cudzia.json()["akcia"] == "ignorovane"
     assert spravna.json()["akcia"] == "udelene"

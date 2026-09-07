@@ -35,7 +35,14 @@ import datetime
 import hashlib
 import hmac
 import json
+import secrets
+import sqlite3
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+try:
+    from .operator_profile import LEGAL_VERSION
+except ImportError:  # server.py imports platby as a top-level production module
+    from operator_profile import LEGAL_VERSION
 
 
 POSKYTOVATEL = "lemonsqueezy"
@@ -45,6 +52,9 @@ POSKYTOVATEL = "lemonsqueezy"
 POSKYTOVATEL_RUCNE = "rucne"
 PRODUKT_ZAKLADAJUCI = "zakladajuci_clen"
 KAPACITA_ZAKLADAJUCICH = 50
+CENA_ZAKLADAJUCI_CENTY = 3900
+MENA_ZAKLADAJUCI = "EUR"
+CHECKOUT_ATTEMPT_TTL_SECONDS = 60 * 60
 
 STAV_AKTIVNY = "aktivny"
 STAV_VRATENY = "vrateny"
@@ -169,6 +179,25 @@ CREATE TABLE IF NOT EXISTS platobne_upozornenia (
   kluc TEXT PRIMARY KEY,
   poslane_o REAL NOT NULL
 );
+-- Doklad o tom, čo človek odsúhlasil pred odchodom do pokladne. Neobsahuje
+-- kartu, heslo, session token ani celé hlavičky prehliadača.
+CREATE TABLE IF NOT EXISTS checkout_attempts (
+  public_id TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  product TEXT NOT NULL,
+  amount_cents INTEGER NOT NULL,
+  currency TEXT NOT NULL,
+  legal_version TEXT NOT NULL,
+  privacy_version TEXT NOT NULL,
+  accepted_at REAL NOT NULL,
+  expires_at REAL NOT NULL,
+  status TEXT NOT NULL,
+  provider_order_id TEXT
+);
+CREATE INDEX IF NOT EXISTS checkout_attempts_user_idx
+  ON checkout_attempts(user_id, accepted_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS checkout_attempts_provider_order_idx
+  ON checkout_attempts(provider_order_id) WHERE provider_order_id IS NOT NULL;
 """
 
 
@@ -242,6 +271,100 @@ def _den(cas: float) -> str:
     ).date().isoformat()
 
 
+# ------------------------------------------------------ súhlas pred platbou
+def create_checkout_attempt(con, *, user_id, legal_version, now) -> str:
+    """Persist one current, one-time Founder offer accepted by one account."""
+    _over_id_pouzivatela(user_id)
+    if legal_version != LEGAL_VERSION:
+        raise ValueError("neplatná právna verzia")
+    if con.execute(
+        "SELECT 1 FROM pouzivatelia WHERE id=?", (user_id,)
+    ).fetchone() is None:
+        raise ValueError("neznámy používateľ")
+    accepted_at = _cas(now)
+    expires_at = accepted_at + CHECKOUT_ATTEMPT_TTL_SECONDS
+    for _ in range(3):
+        public_id = secrets.token_urlsafe(32)
+        try:
+            con.execute(
+                """INSERT INTO checkout_attempts
+                   (public_id, user_id, product, amount_cents, currency,
+                    legal_version, privacy_version, accepted_at, expires_at,
+                    status, provider_order_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL)""",
+                (
+                    public_id,
+                    user_id,
+                    PRODUKT_ZAKLADAJUCI,
+                    CENA_ZAKLADAJUCI_CENTY,
+                    MENA_ZAKLADAJUCI,
+                    LEGAL_VERSION,
+                    LEGAL_VERSION,
+                    accepted_at,
+                    expires_at,
+                ),
+            )
+            return public_id
+        except sqlite3.IntegrityError as error:
+            # A random-ID collision is the only retryable insert failure.
+            if "UNIQUE constraint failed: checkout_attempts.public_id" not in str(error):
+                raise
+    raise RuntimeError("nepodarilo sa vytvoriť bezpečný pokus objednávky")
+
+
+def get_checkout_attempt(con, public_id, *, now=None):
+    """Return a pending, unexpired attempt; expire stale attempts fail-closed."""
+    public_id = _bezpecne_id(public_id)
+    if public_id is None or len(public_id) < 43:
+        return None
+    row = con.execute(
+        "SELECT * FROM checkout_attempts WHERE public_id=?", (public_id,)
+    ).fetchone()
+    if row is None:
+        return None
+    names = [column[0] for column in con.execute(
+        "SELECT * FROM checkout_attempts LIMIT 0"
+    ).description]
+    attempt = dict(zip(names, row))
+    checked_at = _cas(now if now is not None else datetime.datetime.now(datetime.timezone.utc))
+    if attempt["status"] == "pending" and checked_at > float(attempt["expires_at"]):
+        con.execute(
+            "UPDATE checkout_attempts SET status='expired' WHERE public_id=? AND status='pending'",
+            (public_id,),
+        )
+        return None
+    if attempt["status"] != "pending":
+        return None
+    return attempt
+
+
+def mark_checkout_paid(con, *, public_id, user_id, provider_order_id, now) -> dict:
+    """Consume one matching pending attempt exactly once inside caller's transaction."""
+    attempt = get_checkout_attempt(con, public_id, now=now)
+    order_id = _bezpecne_id(provider_order_id)
+    if attempt is None or order_id is None:
+        raise UdalostNepouzitelna("neplatný alebo použitý pokus objednávky")
+    if int(attempt["user_id"]) != user_id:
+        raise UdalostNepouzitelna("pokus objednávky patrí inému účtu")
+    if (
+        attempt["product"] != PRODUKT_ZAKLADAJUCI
+        or int(attempt["amount_cents"]) != CENA_ZAKLADAJUCI_CENTY
+        or attempt["currency"] != MENA_ZAKLADAJUCI
+        or attempt["legal_version"] != LEGAL_VERSION
+        or attempt["privacy_version"] != LEGAL_VERSION
+    ):
+        raise UdalostNepouzitelna("pokus objednávky nezodpovedá aktuálnej ponuke")
+    cursor = con.execute(
+        """UPDATE checkout_attempts
+              SET status='paid', provider_order_id=?
+            WHERE public_id=? AND status='pending'""",
+        (order_id, public_id),
+    )
+    if cursor.rowcount != 1:
+        raise UdalostNepouzitelna("pokus objednávky už bol použitý")
+    return {**attempt, "status": "paid", "provider_order_id": order_id}
+
+
 # ---------------------------------------------------------------- vypínač
 def platby_zapnute(hodnota) -> bool:
     """Vypnuté, kým majiteľ nenapíše jednoznačné áno. Čokoľvek iné = vypnuté."""
@@ -251,8 +374,8 @@ def platby_zapnute(hodnota) -> bool:
 
 
 # ---------------------------------------------------------------- pokladňa
-def checkout_url(zaklad, *, user_id: int, email=None) -> str:
-    """Zostaví adresu pokladne s id používateľa v custom data (žiadne volanie von)."""
+def checkout_url(zaklad, *, user_id: int, attempt_id, email=None) -> str:
+    """Build checkout URL with account and audited attempt, never a session token."""
     if not isinstance(zaklad, str) or not zaklad.strip():
         raise PlatbyNenastavene("chýba adresa pokladne")
     casti = urlsplit(zaklad.strip())
@@ -260,6 +383,9 @@ def checkout_url(zaklad, *, user_id: int, email=None) -> str:
         raise PlatbyNenastavene("adresa pokladne musí byť https")
     if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
         raise ValueError("neplatné id používateľa")
+    attempt_id = _bezpecne_id(attempt_id)
+    if attempt_id is None or len(attempt_id) < 43:
+        raise ValueError("neplatný pokus objednávky")
     parametre = [
         (kluc, hodnota)
         for kluc, hodnota in parse_qsl(casti.query, keep_blank_values=True)
@@ -267,6 +393,7 @@ def checkout_url(zaklad, *, user_id: int, email=None) -> str:
     ]
     parametre.append(("checkout[custom][user_id]", str(user_id)))
     parametre.append(("checkout[custom][produkt]", PRODUKT_ZAKLADAJUCI))
+    parametre.append(("checkout[custom][checkout_attempt]", attempt_id))
     if isinstance(email, str) and email:
         parametre.append(("checkout[email]", email))
     return urlunsplit((casti.scheme, casti.netloc, casti.path, urlencode(parametre), ""))
@@ -453,6 +580,14 @@ def custom_user_id(payload):
     return hodnota
 
 
+def custom_checkout_attempt(payload):
+    custom = _meta(payload).get("custom_data")
+    if not isinstance(custom, dict):
+        return None
+    attempt = _bezpecne_id(custom.get("checkout_attempt"))
+    return attempt if attempt is not None and len(attempt) >= 43 else None
+
+
 def _suma(payload):
     atributy = _atributy(payload)
     total = atributy.get("total")
@@ -565,10 +700,30 @@ def _udel(con, payload, now, ocakavany_variant):
         "SELECT 1 FROM naroky WHERE poskytovatel=? AND objednavka_id=?",
         (POSKYTOVATEL, objednavka),
     ).fetchone():
-        # Tá istá objednávka už riadok má — nič nového sa nestalo.
+        # Tá istá objednávka už riadok má — nič nové sa nestalo.
         return {"akcia": AKCIA_UZ_UDELENE, "objednavka": objednavka, "user_id": user_id}
 
     suma, mena = _suma(payload)
+    # Ostrá konfigurácia vždy obsahuje variant. Vtedy už nestačí user_id z
+    # prehliadača: objednávka musí spotrebovať presne ten krátkodobý pokus, pri
+    # ktorom používateľ potvrdil aktuálne podmienky a cenu.
+    if ocakavany_variant:
+        attempt_id = custom_checkout_attempt(payload)
+        if attempt_id is None:
+            raise UdalostNepouzitelna("chýba pokus objednávky")
+        if suma != CENA_ZAKLADAJUCI_CENTY or mena != MENA_ZAKLADAJUCI:
+            raise UdalostNepouzitelna("platba nezodpovedá odsúhlasenej cene")
+        status = _atributy(payload).get("status")
+        if not isinstance(status, str) or status.strip().casefold() != "paid":
+            raise UdalostNepouzitelna("objednávka nie je zaplatená")
+        mark_checkout_paid(
+            con,
+            public_id=attempt_id,
+            user_id=user_id,
+            provider_order_id=objednavka,
+            now=now,
+        )
+
     if ma_narok(con, user_id):
         # Ten istý človek zaplatil druhýkrát. Doteraz sa nezapísalo nič, takže
         # peniaze navyše v účtovníctve neexistovali a nemal ich kto vrátiť.
@@ -1034,6 +1189,22 @@ def user_id_z_objednavky(objednavka):
     return None
 
 
+def checkout_attempt_z_objednavky(objednavka):
+    """Audited checkout token returned by the provider API, if present."""
+    atributy = _atributy_objednavky(objednavka)
+    kandidati = [atributy.get("custom_data")]
+    polozka = atributy.get("first_order_item")
+    if isinstance(polozka, dict):
+        kandidati.append(polozka.get("custom_data"))
+    for custom in kandidati:
+        if not isinstance(custom, dict):
+            continue
+        attempt = _bezpecne_id(custom.get("checkout_attempt"))
+        if attempt is not None and len(attempt) >= 43:
+            return attempt
+    return None
+
+
 def stav_objednavky(objednavka) -> str:
     atributy = _atributy_objednavky(objednavka)
     if atributy.get("refunded") is True:
@@ -1064,8 +1235,12 @@ def payload_z_objednavky(objednavka, *, user_id=None, typ=UDALOST_UDELUJUCA):
         prepis["first_order_item"] = {"variant_id": polozka.get("variant_id")}
     meta = {"event_name": typ}
     if user_id is not None:
-        meta["custom_data"] = {"user_id": str(int(user_id)),
-                               "produkt": PRODUKT_ZAKLADAJUCI}
+        custom = {"user_id": str(int(user_id)),
+                  "produkt": PRODUKT_ZAKLADAJUCI}
+        attempt = checkout_attempt_z_objednavky(objednavka)
+        if attempt is not None:
+            custom["checkout_attempt"] = attempt
+        meta["custom_data"] = custom
     return {"meta": meta,
             "data": {"id": ref, "type": "orders", "attributes": prepis}}
 
