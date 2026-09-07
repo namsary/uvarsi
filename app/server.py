@@ -46,6 +46,7 @@ from webauthn.helpers.structs import (
     UserVerificationRequirement,
 )
 import db_rezim
+import account_data
 import customer_requests
 import naklady
 import plan_jobs
@@ -592,6 +593,7 @@ def migruj_schemu(con) -> None:
     migrate_akcie_schema(con)
     migrate_platby_schema(con)
     customer_requests.migrate_customer_requests_schema(con)
+    account_data.migrate_account_data_schema(con)
     naklady.migrate_naklady_schema(con)
     plan_jobs.migrate_plan_jobs_schema(con)
     predpocet.migrate_predpocet_schema(con)
@@ -2373,6 +2375,186 @@ def auth_passkey_delete(credential_id: str, req: Request):
         ):
             raise HTTPException(404, "Passkey sa nenašiel.")
     return {"ok": True}
+
+
+# ------------------------------------------------------------- údaje účtu
+@app.get("/api/account/export")
+def account_export(req: Request):
+    user = require_user(req)
+    with closing(db()) as con:
+        try:
+            exported = account_data.export_user_data(con, user_id=user["id"])
+        except account_data.AccountNotFound:
+            raise HTTPException(404, "Účet sa nenašiel.")
+    stamp = bratislava_day().isoformat()
+    return JSONResponse(
+        exported,
+        headers={
+            "Content-Disposition": f'attachment; filename="uvarsi-udaje-{stamp}.json"'
+        },
+    )
+
+
+@app.post("/api/account/reauth/password")
+async def account_reauth_password(req: Request):
+    require_auth_origin(req)
+    user = require_user(req)
+    data = await auth_json(req)
+    now = AUTH_CLOCK()
+    auth_ip_rate_limit(req, operation="account-reauth", now=now)
+    auth_account_rate_limit(
+        account=user["email"], operation="account-reauth", now=now
+    )
+    try:
+        password = validate_password(data.get("password"))
+    except ValueError:
+        raise HTTPException(401, PASSWORD_LOGIN_FAILURE_MESSAGE)
+    authentication = await authenticate_password_async(
+        email=user["email"], password=password, now=now, rehash=False
+    )
+    if authentication is None or authentication[0] != user["id"]:
+        raise HTTPException(401, PASSWORD_LOGIN_FAILURE_MESSAGE)
+    with closing(db()) as con:
+        token = account_data.create_reauth_token(
+            con, user_id=user["id"], now=now
+        )
+    return {
+        "ok": True,
+        "reauth_token": token,
+        "expires_in": account_data.REAUTH_TTL_SECONDS,
+    }
+
+
+@app.post("/api/account/reauth/passkey/options")
+async def account_reauth_passkey_options(req: Request):
+    require_passkey_feature()
+    require_auth_origin(req)
+    user = require_user(req)
+    await auth_json(req)
+    now = AUTH_CLOCK()
+    auth_ip_rate_limit(req, operation="account-passkey-options", now=now)
+    auth_account_rate_limit(
+        account=user["email"], operation="account-passkey-options", now=now
+    )
+    with closing(db()) as con:
+        passkeys = list_passkeys(con, user_id=user["id"])
+        if not passkeys:
+            raise HTTPException(409, "K účtu nemáš pridaný Passkey.")
+        challenge = account_data.create_reauth_challenge(
+            con, user_id=user["id"], now=now
+        )
+    options = generate_authentication_options(
+        rp_id=PASSKEY_RP_ID,
+        challenge=base64url_to_bytes(challenge),
+        timeout=PASSKEY_OPTIONS_TIMEOUT_MS,
+        user_verification=UserVerificationRequirement.REQUIRED,
+        allow_credentials=[passkey_descriptor(item) for item in passkeys],
+    )
+    return JSONResponse(json.loads(options_to_json(options)))
+
+
+@app.post("/api/account/reauth/passkey/verify")
+async def account_reauth_passkey_verify(req: Request):
+    require_passkey_feature()
+    require_auth_origin(req)
+    user = require_user(req)
+    data = await auth_json(req)
+    now = AUTH_CLOCK()
+    auth_ip_rate_limit(req, operation="account-passkey-verify", now=now)
+    auth_account_rate_limit(
+        account=user["email"], operation="account-passkey-verify", now=now
+    )
+    raw_challenge = data.get("challenge")
+    try:
+        expected_challenge = base64url_to_bytes(raw_challenge)
+    except (TypeError, ValueError):
+        raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
+    with closing(db()) as con:
+        if not account_data.consume_reauth_challenge(
+            con, user_id=user["id"], raw_challenge=raw_challenge, now=now
+        ):
+            raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
+        credential = data.get("credential")
+        credential_id = passkey_credential_id(credential)
+        passkey = passkey_for_credential(con, credential_id=credential_id)
+        if passkey is None or passkey["user_id"] != user["id"]:
+            raise HTTPException(401, PASSKEY_FAILURE_MESSAGE)
+        try:
+            verified = verify_authentication_response(
+                credential=credential,
+                expected_challenge=expected_challenge,
+                expected_rp_id=PASSKEY_RP_ID,
+                expected_origin=PASSKEY_ORIGIN,
+                credential_public_key=passkey["public_key"],
+                credential_current_sign_count=passkey["sign_count"],
+                require_user_verification=True,
+            )
+            if (
+                not verified.user_verified
+                or bytes_to_base64url(verified.credential_id) != credential_id
+            ):
+                raise InvalidAuthenticationResponse("credential mismatch")
+        except Exception:
+            raise HTTPException(400, PASSKEY_FAILURE_MESSAGE)
+        try:
+            update_passkey_use(
+                con,
+                credential_id=credential_id,
+                user_id=user["id"],
+                new_sign_count=int(verified.new_sign_count),
+                now=now,
+            )
+        except PasskeyCloneDetected:
+            raise HTTPException(401, PASSKEY_FAILURE_MESSAGE)
+        token = account_data.create_reauth_token(
+            con, user_id=user["id"], now=now
+        )
+    return {
+        "ok": True,
+        "reauth_token": token,
+        "expires_in": account_data.REAUTH_TTL_SECONDS,
+    }
+
+
+@app.post("/api/account/delete")
+async def account_delete(req: Request):
+    require_auth_origin(req)
+    user = require_user(req)
+    data = await auth_json(req)
+    now = AUTH_CLOCK()
+    auth_ip_rate_limit(req, operation="account-delete", now=now)
+    with closing(db()) as con:
+        con.execute("BEGIN IMMEDIATE")
+        try:
+            if not account_data.consume_reauth_token(
+                con,
+                user_id=user["id"],
+                raw_token=data.get("reauth_token"),
+                now=now,
+            ):
+                raise HTTPException(
+                    401, "Overenie vypršalo. Potvrď zmazanie účtu znova."
+                )
+            result = account_data.delete_user_account(
+                con, user_id=user["id"], now=now
+            )
+            con.commit()
+        except account_data.AccountDeletionBlocked as error:
+            con.rollback()
+            raise HTTPException(409, str(error))
+        except account_data.AccountNotFound:
+            con.rollback()
+            raise HTTPException(404, "Účet sa nenašiel.")
+        except HTTPException:
+            con.rollback()
+            raise
+        except Exception:
+            con.rollback()
+            raise
+    req.state.renew_session_cookie = None
+    response = JSONResponse(result)
+    response.delete_cookie(COOKIE, httponly=True, samesite="lax", secure=True)
+    return response
 
 
 ACCOUNT_PAGE_STYLE = """

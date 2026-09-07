@@ -15,5 +15,12 @@ self.addEventListener('activate', e => e.waitUntil(
     .catch(() => {})
 ));
 
+self.addEventListener('message', e => {
+  if (!e.data || e.data.type !== 'CLEAR_ACCOUNT_DATA') return;
+  e.waitUntil(caches.keys().then(names =>
+    Promise.all(names.map(name => caches.delete(name)))
+  ));
+});
+
 // Kým sa registrácia zruší, nesmie nič podržať: všetko ide priamo zo siete.
 self.addEventListener('fetch', () => {});

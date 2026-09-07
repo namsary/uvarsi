@@ -39,6 +39,13 @@ self.addEventListener('activate', e => {
     Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
+self.addEventListener('message', e => {
+  if (!e.data || e.data.type !== 'CLEAR_ACCOUNT_DATA') return;
+  e.waitUntil(caches.keys().then(names =>
+    Promise.all(names.map(name => caches.delete(name)))
+  ));
+});
+
 function refresh(request) {
   return fetch(request).then(r => {
     if (r && r.ok) {

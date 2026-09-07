@@ -16,6 +16,22 @@ def app_html():
     return APP.read_text(encoding="utf-8")
 
 
+def test_profile_exposes_portability_and_freshly_reauthenticated_deletion():
+    html = app_html()
+
+    assert "Stiahnuť moje údaje" in html
+    assert "Zmazať účet" in html
+    assert "Zmazanie účtu samo osebe neznamená vrátenie platby." in html
+    assert "/api/account/export" in html
+    assert "/api/account/reauth/password" in html
+    assert "/api/account/reauth/passkey/options" in html
+    assert "/api/account/reauth/passkey/verify" in html
+    assert "/api/account/delete" in html
+    assert "localStorage.clear()" in html
+    assert "sessionStorage.clear()" in html
+    assert "CLEAR_ACCOUNT_DATA" in html
+
+
 def function_source(html, name):
     needle = f"function {name}("
     start = html.find(needle)

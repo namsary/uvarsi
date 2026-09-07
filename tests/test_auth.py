@@ -2995,6 +2995,103 @@ def seed_password_account(server, auth_data, email, password="correct horse batt
     return user_id
 
 
+def test_account_export_and_password_reauthenticated_deletion_are_end_to_end(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    password = "silné heslo na zmazanie"
+    user_id = seed_password_account(
+        server, auth_data, "delete-me@example.com", password
+    )
+    client = auth_v3_client(server)
+    assert client.post(
+        "/api/auth/login",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "delete-me@example.com", "password": password},
+    ).status_code == 200
+    with server.db() as con:
+        con.execute(
+            "INSERT INTO spajza (user_id,nazov,mnozstvo,jednotka) VALUES (?,?,?,?)",
+            (user_id, "ryža", 500, "g"),
+        )
+        con.commit()
+
+    exported = client.get("/api/account/export")
+    assert exported.status_code == 200
+    assert exported.json()["account"]["email"] == "delete-me@example.com"
+    assert exported.json()["pantry"][0]["name"] == "ryža"
+    assert exported.headers["content-disposition"].startswith(
+        'attachment; filename="uvarsi-udaje-'
+    )
+
+    wrong = client.post(
+        "/api/account/reauth/password",
+        headers=AUTH_V3_ORIGIN,
+        json={"password": "nesprávne heslo účtu"},
+    )
+    assert wrong.status_code == 401
+    unverified = client.post(
+        "/api/account/delete",
+        headers=AUTH_V3_ORIGIN,
+        json={"reauth_token": "a" * 40},
+    )
+    assert unverified.status_code == 401
+
+    verified = client.post(
+        "/api/account/reauth/password",
+        headers=AUTH_V3_ORIGIN,
+        json={"password": password},
+    )
+    assert verified.status_code == 200
+    deleted = client.post(
+        "/api/account/delete",
+        headers=AUTH_V3_ORIGIN,
+        json={"reauth_token": verified.json()["reauth_token"]},
+    )
+
+    assert deleted.status_code == 200
+    assert deleted.json()["deleted"] is True
+    assert client.get("/api/me").json() == {
+        "prihlaseny": False,
+        "auth_v3": True,
+    }
+    with sqlite3.connect(database) as con:
+        account = con.execute(
+            "SELECT email FROM pouzivatelia WHERE id=?", (user_id,)
+        ).fetchone()
+        assert account[0].endswith("@deleted.invalid")
+        assert con.execute(
+            "SELECT COUNT(*) FROM spajza WHERE user_id=?", (user_id,)
+        ).fetchone()[0] == 0
+        assert con.execute(
+            "SELECT COUNT(*) FROM sessions_v2 WHERE user_id=?", (user_id,)
+        ).fetchone()[0] == 0
+
+
+def test_account_mutations_require_same_origin(monkeypatch, tmp_path):
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    password = "bezpečné heslo účtu"
+    seed_password_account(server, auth_data, "origin-delete@example.com", password)
+    client = auth_v3_client(server)
+    assert client.post(
+        "/api/auth/login", headers=AUTH_V3_ORIGIN,
+        json={"email": "origin-delete@example.com", "password": password},
+    ).status_code == 200
+
+    for route, body in (
+        ("/api/account/reauth/password", {"password": password}),
+        ("/api/account/reauth/passkey/options", {}),
+        ("/api/account/reauth/passkey/verify", {}),
+        ("/api/account/delete", {"reauth_token": "a" * 40}),
+    ):
+        response = client.post(
+            route, headers={"Origin": "https://evil.example"}, json=body
+        )
+        assert response.status_code == 403
+
+
 def action_token_from_message(calls, page):
     text = calls[-1][1]["json"]["text"]
     match = re.search(

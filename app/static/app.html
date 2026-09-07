@@ -2075,6 +2075,126 @@ async function loadCustomerService() {
   };
 }
 
+function accountDataHtml(passkeyReady, passwordConfigured) {
+  const passwordAction = passwordConfigured ? `<label>Na potvrdenie zadaj heslo
+      <input id="account-delete-password" type="password" autocomplete="current-password"></label>
+      <button class="btn btn--ghost" id="account-delete-password-button" type="button">Potvrdiť heslom a zmazať účet</button>` : '';
+  const passkeyAction = passkeyReady
+    ? '<button class="btn btn--ghost" id="account-delete-passkey-button" type="button">Potvrdiť biometriou a zmazať účet</button>' : '';
+  const noMethod = !passwordConfigured && !passkeyReady
+    ? '<p class="muted">Pred zmazaním si najprv nastav heslo.</p>' : '';
+  return `<div class="card account-data-card"><h2>Tvoje údaje a účet</h2>
+    <p class="muted">Svoje údaje si môžeš stiahnuť ako čitateľný súbor JSON.</p>
+    <button class="btn btn--ghost" id="account-export" type="button">Stiahnuť moje údaje</button>
+    <div style="height:10px"></div>
+    <button class="btn btn--ghost" id="account-delete-open" type="button" style="color:var(--accent)">Zmazať účet</button>
+    <div id="account-delete-panel" class="hidden" style="margin-top:16px">
+      <h3>Zmazanie je trvalé</h3>
+      <p class="muted">Odstránime profil, jedálničky, špajzu, prihlasovacie údaje a všetky zariadenia. Doklady o platbe a údaje potrebné na vybavenie zákonných nárokov ponecháme iba v nevyhnutnom rozsahu. Zmazanie účtu samo osebe neznamená vrátenie platby.</p>
+      <label class="consent-row"><input id="account-delete-confirm" type="checkbox"><span>Rozumiem, že svoje jedálničky ani špajzu už neobnovím.</span></label>
+      ${passwordAction}${passkeyAction}${noMethod}
+    </div>
+    <p class="muted" id="account-data-status" role="status" aria-live="polite"></p>
+  </div>`;
+}
+
+async function downloadAccountData() {
+  const data = await api('/api/account/export');
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'uvarsi-moje-udaje.json';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function clearAccountBrowserData() {
+  try { localStorage.clear(); } catch (_error) {}
+  try { sessionStorage.clear(); } catch (_error) {}
+  try {
+    if (typeof caches !== 'undefined' && caches.keys) {
+      const names = await caches.keys();
+      await Promise.all(names.map(name => caches.delete(name)));
+    }
+  } catch (_error) {}
+  try {
+    if (navigator.serviceWorker && navigator.serviceWorker.controller)
+      navigator.serviceWorker.controller.postMessage({type:'CLEAR_ACCOUNT_DATA'});
+  } catch (_error) {}
+  clearAuthenticatedState();
+}
+
+async function deleteAccountWithToken(reauthToken) {
+  await api('/api/account/delete', {
+    method:'POST', body:JSON.stringify({reauth_token:reauthToken})
+  });
+  await clearAccountBrowserData();
+  location.replace('/');
+}
+
+async function performAccountPasskeyReauth(credentialsApi) {
+  const options = await api('/api/account/reauth/passkey/options', {
+    method:'POST', body:'{}'
+  });
+  let assertion;
+  try {
+    assertion = await credentialsApi.get({publicKey:prepareAuthenticationOptions(options)});
+  } catch (error) {
+    if (error && (error.name === 'NotAllowedError' || error.name === 'AbortError'))
+      throw new Error('Biometrické potvrdenie bolo zrušené.');
+    throw new Error('Biometrické potvrdenie sa nepodarilo. Skús heslo.');
+  }
+  if (!assertion) throw new Error('Biometrické potvrdenie bolo zrušené.');
+  return api('/api/account/reauth/passkey/verify', {
+    method:'POST', body:JSON.stringify({
+      challenge:options.challenge,
+      credential:authenticationCredentialJson(assertion)
+    })
+  });
+}
+
+function bindAccountDataControls() {
+  const status = $('#account-data-status');
+  const exportButton = $('#account-export');
+  if (exportButton) exportButton.onclick = () => runGuardedAction(
+    exportButton, status, downloadAccountData
+  );
+  const open = $('#account-delete-open'), panel = $('#account-delete-panel');
+  if (open && panel) open.onclick = () => {
+    panel.classList.remove('hidden');
+    open.classList.add('hidden');
+    const first = $('#account-delete-password') || $('#account-delete-confirm');
+    if (first && first.focus) first.focus();
+  };
+  const confirmed = () => {
+    if ($('#account-delete-confirm') && $('#account-delete-confirm').checked) return true;
+    status.textContent = 'Najprv potvrď, že rozumieš trvalému zmazaniu.';
+    return false;
+  };
+  const passwordButton = $('#account-delete-password-button');
+  if (passwordButton) passwordButton.onclick = () => {
+    if (!confirmed()) return;
+    const password = $('#account-delete-password').value;
+    return runGuardedAction(passwordButton, status, async () => {
+      const verified = await api('/api/account/reauth/password', {
+        method:'POST', body:JSON.stringify({password:password})
+      });
+      await deleteAccountWithToken(verified.reauth_token);
+    });
+  };
+  const passkeyButton = $('#account-delete-passkey-button');
+  if (passkeyButton) passkeyButton.onclick = () => {
+    if (!confirmed()) return;
+    return runGuardedAction(passkeyButton, status, async () => {
+      const verified = await performAccountPasskeyReauth(navigator.credentials);
+      await deleteAccountWithToken(verified.reauth_token);
+    });
+  };
+}
+
 function vNast() {
   const varenie = ME.frekvencia === 1 ? 'Varím každý deň' :
     'Varím raz za ' + ME.frekvencia + ' dni';
@@ -2086,7 +2206,7 @@ function vNast() {
       </form></div>` : ''} ${authV3Enabled(ME) ? `<div id="account-security">
       <div id="account-security-content">${securityPanelHtml(
         false, [], [], {loading: true})}</div>
-      ${securityStatusHtml()}</div>` : ''} <div id="customer-service"><div class="card service-card"><h2>Platba a pomoc</h2><p class="muted">Načítavam tvoje objednávky a žiadosti…</p></div></div><p class="muted" style="margin:-4px 0 16px">Porcie sú kuchársky odhad na plánovanie nákupu, nie individuálne výživové odporúčanie.</p><button class="btn btn--ghost" id="zmen">Zmeniť nastavenie</button><div style="height:10px"></div><button class="btn btn--ghost" id="odhl" style="color:var(--accent)">Odhlásiť sa</button><p id="nast-err" class="muted" style="color:var(--accent);margin-top:10px"></p>`;
+      ${securityStatusHtml()}</div>` : ''} <div id="customer-service"><div class="card service-card"><h2>Platba a pomoc</h2><p class="muted">Načítavam tvoje objednávky a žiadosti…</p></div></div>${accountDataHtml(passkeyUiAvailable(AUTH_V3_ENABLED, typeof window === 'undefined' ? null : window), !!ME.password_configured)}<p class="muted" style="margin:-4px 0 16px">Porcie sú kuchársky odhad na plánovanie nákupu, nie individuálne výživové odporúčanie.</p><button class="btn btn--ghost" id="zmen">Zmeniť nastavenie</button><div style="height:10px"></div><button class="btn btn--ghost" id="odhl" style="color:var(--accent)">Odhlásiť sa</button><p id="nast-err" class="muted" style="color:var(--accent);margin-top:10px"></p>`;
   const skipPasswordSetup = $('#skip-password-setup');
   if (skipPasswordSetup) skipPasswordSetup.onclick = () => {
     dismissPasswordSetup(ME, localStorage);
@@ -2094,6 +2214,7 @@ function vNast() {
   };
   if (authV3Enabled(ME)) loadAccountSecurity();
   loadCustomerService();
+  bindAccountDataControls();
   const passwordForm = $('#pw');
   if (passwordForm) passwordForm.onsubmit = event => {
     event.preventDefault();
