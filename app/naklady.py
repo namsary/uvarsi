@@ -101,7 +101,12 @@ CREDIT_RETRY_SECONDS = 60 * 60
 #
 # Skutočný náklad jedného poctivého behu je preto ~2,50 €, nie 1,11 €:
 #   • fáza 1 (Haiku, náhľady 320 px): 19 volaní ≈ 0,03 €
-#   • fáza 2 (Opus 5, 1500 px): ~27 volaní × 0,093 € ≈ 2,51 €
+#   • fáza 2 pôvodne (Opus 5, 1500 px): ~27 volaní × 0,093 € ≈ 2,51 €
+#
+# Od 7. 9. 2026 číta bežné potravinové dávky Sonnet 5. Opus 5 sa zavolá iba
+# pri nezhode ceny so zľavou, neplatnom výstupe alebo vynechanej vybranej
+# strane. Tvrdé stropy nechávame na pôvodnej najhoršej cene: aj keby každá
+# dávka skončila v Opus fallbacku, zber sa nesmie rozbehnúť bez hranice.
 #
 # Starý denný strop 1,50 € teda beh PRERUŠIL niekde v polovici. Obchody sa
 # spracúvajú v poradí Kaufland → Tesco → Lidl, takže vypadával ten posledný.

@@ -53,8 +53,10 @@ except ImportError:
 DB = os.environ.get("UVARSI_DB", "/opt/uvarsi/uvarsi.db")
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 
-MODEL_READ = "claude-opus-5"                 # najsilnejšia vision → presné ceny
-READ_EFFORT = "high"
+MODEL_READ = "claude-sonnet-5"               # bežné presné čítanie potravinových strán
+READ_EFFORT = "low"
+MODEL_READ_FALLBACK = "claude-opus-5"        # iba neistá alebo chybná dávka
+READ_FALLBACK_EFFORT = "high"
 READ_TOKENS = 16000
 MODEL_SCAN = "claude-haiku-4-5-20251001"     # lacné triedenie strán
 
@@ -756,6 +758,7 @@ Pravidlá:
 - kategoria: jedno z maso|zelenina|ovocie|mliecne|trvanlive|pecivo|ine
 - cena = najnižšia cena dostupná KAŽDÉMU bez karty, aplikácie, kupónu a bez podmienky minimálneho nákupu. Ak je zľavnená iba cena s kartou, do cena daj bežnú cenu dostupnú bez karty.
 - povodna = pôvodná prečiarknutá cena (ak nie je, daj null); zlava patrí výhradne k cene dostupnej každému
+- zlava a zlava_s_kartou zapisuj iba ako percento vytlačené v letáku; ak je uvedená iba úspora v eurách, daj null
 - cena_s_kartou = nižšia podmienená cena alebo null. Nikdy ňou nenahrádzaj cenu dostupnú každému.
 - Ak cena_s_kartou je null, MUSIA byť null aj zlava_s_kartou, vernostny_program, minimalny_nakup a podmienka_s_kartou. Ak pri kartovej akcii nevieš spoľahlivo prečítať bežnú aj kartovú cenu, položku úplne vynechaj.
 - vernostny_program: presne Kaufland Card, Clubcard alebo Lidl Plus; inak null
@@ -774,6 +777,141 @@ Sú to najdôležitejšie suroviny na varenie.
 
 - IBA potraviny. Žiadna drogéria, alkohol, krmivo, nepotravinový tovar.
 - Ceny musia presne sedieť s letákom. Radšej položku vynechaj, než uhádni cenu."""
+
+
+_PERCENT_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*%")
+_DISCOUNT_TOLERANCE_PERCENTAGE_POINTS = 2.0
+
+
+def _validate_discount_arithmetic(offer):
+    """Odhaľ prečítanú cifru, ktorá odporuje percentu vytlačenému v letáku.
+
+    Letáky percentá zaokrúhľujú na celé body, preto tolerujeme dva percentuálne
+    body. Chybu typu 0,07 € namiesto 1,69 € však takáto kontrola bezpečne
+    odmietne ešte pred zápisom do databázy.
+    """
+    original = offer.get("povodna")
+    if original is None:
+        return
+    for price_field, discount_field in (
+        ("cena", "zlava"),
+        ("cena_s_kartou", "zlava_s_kartou"),
+    ):
+        price = offer.get(price_field)
+        discount = offer.get(discount_field)
+        if price is None or discount in (None, ""):
+            continue
+        match = _PERCENT_RE.search(str(discount))
+        if match is None:
+            raise ValueError(f"{discount_field} nemá čitateľné percento")
+        printed = float(match.group(1).replace(",", "."))
+        calculated = (1.0 - float(price) / float(original)) * 100.0
+        if abs(calculated - printed) > _DISCOUNT_TOLERANCE_PERCENTAGE_POINTS:
+            raise ValueError(
+                f"{price_field} nezodpovedá {discount_field} a pôvodnej cene"
+            )
+
+
+def _offers_from_extraction(items, *, store, manifest, batch_pages):
+    if not isinstance(items, list):
+        raise ValueError(f"{store}: extrakcia nevrátila zoznam akcií")
+    offers = []
+    for item in items:
+        source_page = item.get("source_page") if isinstance(item, dict) else None
+        if source_page not in batch_pages:
+            raise ValueError(f"{store}: akcia odkazuje na nevybranú zdrojovú stranu")
+        try:
+            offer = {
+                "obchod": store.capitalize(),
+                "nazov": str(item["nazov"])[:40],
+                "kategoria": (item.get("kategoria") or "ine")[:20],
+                "cena": float(item["cena"]),
+                "povodna": float(item["povodna"]) if item.get("povodna") is not None else None,
+                "zlava": item.get("zlava"),
+                "jednotka": (item.get("jednotka") or "")[:12],
+                "cena_s_kartou": (
+                    float(item["cena_s_kartou"])
+                    if item.get("cena_s_kartou") is not None else None
+                ),
+                "zlava_s_kartou": item.get("zlava_s_kartou"),
+                "vernostny_program": item.get("vernostny_program"),
+                "minimalny_nakup": (
+                    float(item["minimalny_nakup"])
+                    if item.get("minimalny_nakup") is not None else None
+                ),
+                "podmienka_s_kartou": (
+                    str(item["podmienka_s_kartou"]).strip()
+                    if item.get("podmienka_s_kartou") is not None else None
+                ),
+                "source_url": manifest["source_url"],
+                "source_page": source_page,
+                "valid_from": manifest["valid_from"],
+                "valid_to": manifest["valid_to"],
+            }
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"{store}: extrakcia obsahuje neplatnú akciu") from exc
+        conditional_metadata = (
+            offer["zlava_s_kartou"], offer["vernostny_program"],
+            offer["minimalny_nakup"], offer["podmienka_s_kartou"],
+        )
+        if offer["cena_s_kartou"] is None and any(
+            value not in (None, "") for value in conditional_metadata
+        ):
+            log(
+                f"[WARN] {store}: vynechávam neúplnú vernostnú cenu "
+                f"na strane {source_page} ({offer['nazov']})"
+            )
+            continue
+        validate_offer(offer)
+        _validate_discount_arithmetic(offer)
+        offers.append(offer)
+    return offers
+
+
+def _read_offer_batch(client, *, store, manifest, batch_pages, content):
+    """Sonnet first; Opus only when the whole batch cannot be trusted."""
+    fallback_reason = None
+    try:
+        items = claude_json(
+            client, MODEL_READ, content, READ_TOKENS, effort=READ_EFFORT
+        )
+        offers = _offers_from_extraction(
+            items, store=store, manifest=manifest, batch_pages=batch_pages
+        )
+        represented = {offer["source_page"] for offer in offers}
+        missing = set(batch_pages) - represented
+        if missing:
+            raise ValueError(
+                "bez overenej položky zo strán " + ", ".join(map(str, sorted(missing)))
+            )
+        return offers
+    except naklady.KreditVycerpany:
+        raise
+    except Exception as exc:
+        fallback_reason = f"{type(exc).__name__}: {exc}"
+
+    log(
+        f"[WARN] {store}: Sonnet dávka {list(batch_pages)} je neistá "
+        f"({fallback_reason}) — overujem Opusom"
+    )
+    try:
+        items = claude_json(
+            client,
+            MODEL_READ_FALLBACK,
+            content,
+            READ_TOKENS,
+            effort=READ_FALLBACK_EFFORT,
+        )
+        return _offers_from_extraction(
+            items, store=store, manifest=manifest, batch_pages=batch_pages
+        )
+    except naklady.KreditVycerpany:
+        raise
+    except Exception as exc:
+        raise ValueError(
+            f"{store}: extrakcia strán zlyhala aj po overení Opusom "
+            f"({type(exc).__name__}: {exc})"
+        ) from exc
 
 
 def zbieraj(client, store):
@@ -823,7 +961,7 @@ def zbieraj(client, store):
         raise ValueError(f"{store}: v letáku neboli potvrdené potravinové strany")
     log(f"[INFO] {store}: potravinové strany {food} — čítam…")
 
-    # 2) presné čítanie cien (Opus 5 vision)
+    # 2) presné čítanie cien: Sonnet 5, pri neistote iba daná dávka Opusom 5
     out = []
     for batch_pages in batches(food, READ_BATCH_SIZE):
         content = []
@@ -837,67 +975,15 @@ def zbieraj(client, store):
             content.append({"type": "text", "text": f"Zdrojová strana {source_page}:"})
             content.append(img_block(encoded))
         content.append({"type": "text", "text": EXTRACT_PROMPT.format(store=store.upper())})
-        try:
-            items = claude_json(client, MODEL_READ, content, READ_TOKENS, effort=READ_EFFORT)
-        except naklady.KreditVycerpany:
-            raise
-        except Exception as exc:
-            raise ValueError(
-                f"{store}: extrakcia strán zlyhala ({type(exc).__name__}: {exc})"
-            ) from exc
-        if not isinstance(items, list):
-            raise ValueError(f"{store}: extrakcia nevrátila zoznam akcií")
-        for item in items:
-            source_page = item.get("source_page") if isinstance(item, dict) else None
-            if source_page not in batch_pages:
-                raise ValueError(f"{store}: akcia odkazuje na nevybranú zdrojovú stranu")
-            try:
-                offer = {
-                    "obchod": store.capitalize(),
-                    "nazov": str(item["nazov"])[:40],
-                    "kategoria": (item.get("kategoria") or "ine")[:20],
-                    "cena": float(item["cena"]),
-                    "povodna": float(item["povodna"]) if item.get("povodna") is not None else None,
-                    "zlava": item.get("zlava"),
-                    "jednotka": (item.get("jednotka") or "")[:12],
-                    "cena_s_kartou": (
-                        float(item["cena_s_kartou"])
-                        if item.get("cena_s_kartou") is not None else None
-                    ),
-                    "zlava_s_kartou": item.get("zlava_s_kartou"),
-                    "vernostny_program": item.get("vernostny_program"),
-                    "minimalny_nakup": (
-                        float(item["minimalny_nakup"])
-                        if item.get("minimalny_nakup") is not None else None
-                    ),
-                    "podmienka_s_kartou": (
-                        str(item["podmienka_s_kartou"]).strip()
-                        if item.get("podmienka_s_kartou") is not None else None
-                    ),
-                    "source_url": manifest["source_url"],
-                    "source_page": source_page,
-                    "valid_from": manifest["valid_from"],
-                    "valid_to": manifest["valid_to"],
-                }
-            except (KeyError, TypeError, ValueError) as exc:
-                raise ValueError(f"{store}: extrakcia obsahuje neplatnú akciu") from exc
-            conditional_metadata = (
-                offer["zlava_s_kartou"], offer["vernostny_program"],
-                offer["minimalny_nakup"], offer["podmienka_s_kartou"],
+        out.extend(
+            _read_offer_batch(
+                client,
+                store=store,
+                manifest=manifest,
+                batch_pages=batch_pages,
+                content=content,
             )
-            if offer["cena_s_kartou"] is None and any(
-                value not in (None, "") for value in conditional_metadata
-            ):
-                # Bez prečítanej kartovej ceny nevieme dokázať, že `cena` je
-                # naozaj verejná. Nejasnú položku preto vynecháme, no jedna
-                # taká položka nesmie zahodiť desiatky ostatných overených cien.
-                log(
-                    f"[WARN] {store}: vynechávam neúplnú vernostnú cenu "
-                    f"na strane {source_page} ({offer['nazov']})"
-                )
-                continue
-            validate_offer(offer)
-            out.append(offer)
+        )
     if not out:
         raise ValueError(f"{store}: extrakcia nevrátila žiadne overené akcie")
     log(f"[INFO] {store}: {len(out)} akcií")

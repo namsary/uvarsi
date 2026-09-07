@@ -367,6 +367,132 @@ def test_collection_keeps_unconditional_price_primary_and_card_price_conditional
     }]
 
 
+def test_flyer_pages_use_sonnet_first_and_opus_only_for_suspicious_prices(monkeypatch):
+    pages, manifest = flyer_fixture(1)
+    monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))
+    monkeypatch.setattr(collector, "get_b64", lambda url, max_px: url)
+    models = []
+
+    def item(*, price, discount, card_price=None, card_discount=None):
+        return {
+            "source_page": 1,
+            "nazov": "Repkový olej Raciol",
+            "kategoria": "trvanlive",
+            "cena": price,
+            "povodna": 2.99,
+            "zlava": discount,
+            "jednotka": "l",
+            "cena_s_kartou": card_price,
+            "zlava_s_kartou": card_discount,
+            "vernostny_program": "Kaufland Card" if card_price else None,
+            "minimalny_nakup": 20.0 if card_price else None,
+            "podmienka_s_kartou": None,
+        }
+
+    def fake_claude_json(client, model, content, max_tokens, effort=None):
+        models.append(model)
+        if model == collector.MODEL_SCAN:
+            return [1]
+        if model == collector.MODEL_READ:
+            # Reprodukcia produkčného preklepu: 0,07 € nezodpovedá zľave 48 %
+            # z 2,99 €. Takýto batch sa nesmie uložiť.
+            return [item(price=0.07, discount="-48 %")]
+        assert model == collector.MODEL_READ_FALLBACK
+        return [item(
+            price=1.69,
+            discount="-43 %",
+            card_price=1.55,
+            card_discount="-48 %",
+        )]
+
+    monkeypatch.setattr(collector, "claude_json", fake_claude_json)
+
+    offers = collector.zbieraj(object(), "kaufland")
+
+    assert models == [
+        collector.MODEL_SCAN,
+        "claude-sonnet-5",
+        "claude-opus-5",
+    ]
+    assert offers[0]["cena"] == 1.69
+    assert offers[0]["cena_s_kartou"] == 1.55
+
+
+def test_clean_sonnet_flyer_batch_does_not_call_opus(monkeypatch):
+    pages, manifest = flyer_fixture(1)
+    monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))
+    monkeypatch.setattr(collector, "get_b64", lambda url, max_px: url)
+    models = []
+
+    def fake_claude_json(client, model, content, max_tokens, effort=None):
+        models.append(model)
+        if model == collector.MODEL_SCAN:
+            return [1]
+        return [{
+            "source_page": 1,
+            "nazov": "Ryža",
+            "kategoria": "trvanlive",
+            "cena": 1.49,
+            "povodna": 1.99,
+            "zlava": "-25 %",
+            "jednotka": "kg",
+            "cena_s_kartou": None,
+            "zlava_s_kartou": None,
+            "vernostny_program": None,
+            "minimalny_nakup": None,
+            "podmienka_s_kartou": None,
+        }]
+
+    monkeypatch.setattr(collector, "claude_json", fake_claude_json)
+
+    offers = collector.zbieraj(object(), "tesco")
+
+    assert models == [collector.MODEL_SCAN, "claude-sonnet-5"]
+    assert offers[0]["cena"] == 1.49
+
+
+def test_sonnet_batch_missing_a_selected_food_page_is_reread_by_opus(monkeypatch):
+    pages, manifest = flyer_fixture(2)
+    monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))
+    monkeypatch.setattr(collector, "get_b64", lambda url, max_px: url)
+    models = []
+
+    def extracted(page):
+        return {
+            "source_page": page,
+            "nazov": f"Potravina {page}",
+            "kategoria": "trvanlive",
+            "cena": 1.0 + page / 10,
+            "povodna": None,
+            "zlava": None,
+            "jednotka": "ks",
+            "cena_s_kartou": None,
+            "zlava_s_kartou": None,
+            "vernostny_program": None,
+            "minimalny_nakup": None,
+            "podmienka_s_kartou": None,
+        }
+
+    def fake_claude_json(client, model, content, max_tokens, effort=None):
+        models.append(model)
+        if model == collector.MODEL_SCAN:
+            return [1, 2]
+        if model == collector.MODEL_READ:
+            return [extracted(1)]
+        return [extracted(1), extracted(2)]
+
+    monkeypatch.setattr(collector, "claude_json", fake_claude_json)
+
+    offers = collector.zbieraj(object(), "lidl")
+
+    assert models == [
+        collector.MODEL_SCAN,
+        "claude-sonnet-5",
+        "claude-opus-5",
+    ]
+    assert {offer["source_page"] for offer in offers} == {1, 2}
+
+
 def test_collection_rejects_instead_of_silently_truncating_a_loyalty_condition(monkeypatch):
     pages, manifest = flyer_fixture(1)
     monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))
