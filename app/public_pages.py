@@ -190,13 +190,12 @@ def _required_iso_date(record: dict, field: str) -> date:
         raise ValueError(f"Chýba alebo nesedí {field}.") from error
 
 
-def _shared_validity_markup(sources: list[dict]) -> tuple[str, list[str]]:
+def _shared_validity_markup(sources: list[dict]) -> str:
     shared_from: date | None = None
     shared_to: date | None = None
-    source_markup: list[str] = []
 
     for source in sources:
-        store = _required_text_field(source, "store")
+        _required_text_field(source, "store")
         valid_from = _required_iso_date(source, "valid_from")
         valid_to = _required_iso_date(source, "valid_to")
         if valid_from > valid_to:
@@ -207,27 +206,13 @@ def _shared_validity_markup(sources: list[dict]) -> tuple[str, list[str]]:
         if shared_to is None or valid_to < shared_to:
             shared_to = valid_to
 
-        label = f"{_safe_text(store)}: {_format_date(valid_from)} - {_format_date(valid_to)}"
-        if source.get("source_page") not in (None, ""):
-            label += f", strana {_safe_text(source['source_page'])}"
-        href = _safe_url(source.get("url"))
-        if href:
-            label += f' (<a href="{href}">zdroj</a>)'
-        source_markup.append(f"<li>{label}</li>")
-
     if shared_from is None or shared_to is None:
         raise ValueError("Chýbajú zdroje s platnosťou.")
 
     if shared_from <= shared_to:
-        return (
-            f'<p class="meta">Platnosť cien: {_format_date(shared_from)} - {_format_date(shared_to)}</p>',
-            source_markup,
-        )
+        return f'<p class="meta">Platnosť cien: {_format_date(shared_from)} - {_format_date(shared_to)}</p>'
 
-    return (
-        '<p class="meta">Platnosť cien sa líši podľa obchodu. Presné termíny nájdeš pri zdrojoch nižšie.</p>',
-        source_markup,
-    )
+    return '<p class="meta">Platnosť cien sa líši podľa obchodu.</p>'
 
 
 def _validate_publishable_data(payload: dict, today: date) -> None:
@@ -265,7 +250,7 @@ def _validate_publishable_data(payload: dict, today: date) -> None:
 def _weekly_body(payload: dict) -> str:
     receipt = payload["receipt"]
     sources = payload["sources"]
-    validity_markup, source_markup = _shared_validity_markup(sources)
+    validity_markup = _shared_validity_markup(sources)
     meals_markup: list[str] = []
     for meal in receipt["meals"]:
         items_markup: list[str] = []
@@ -322,11 +307,8 @@ def _weekly_body(payload: dict) -> str:
         f"{validity_markup}"
         f'<p class="meta">Aktualizované: {_format_datetime(payload["generated_at"])}</p></div>'
         + "".join(meals_markup)
-        + '<section class="card"><h2>Zdroje a strany letákov</h2><ul>'
-        + "".join(source_markup)
-        + "</ul></section>"
         + '<section class="card"><h2>Ako pracujeme s AI a dátami</h2>'
-        "<p>AI skladá návrh jedál iba z overených položiek. Ceny, obchody, jednotky aj zdrojové strany berieme výhradne z aktuálnych letákových dát a pri neplatných údajoch stránku radšej stiahneme z indexu.</p>"
+        "<p>AI skladá návrh jedál iba z overených položiek. Ceny, obchody, jednotky aj platnosť kontrolujeme pred zverejnením; pri neplatných údajoch stránku radšej stiahneme z indexu.</p>"
         f'<p><a class="cta" href="{BASE_URL}/app">Otvor aplikáciu Uvar.si</a> a priprav si celý nákupný plán.</p>'
         "</section>"
     )
@@ -444,7 +426,7 @@ def render_evergreen_page(slug: str) -> RenderedPage:
             "title": "Ako varíme z akcií bez klamlivých tvrdení | Uvar.si",
             "description": "Ako Uvar.si skladá jedlá z akcií tak, aby nevznikali vymyslené cenové sľuby.",
             "h1": "Ako varíme z akcií",
-            "lead": "Z akcií skladáme jedlá iba vtedy, keď vieme ku každej viditeľnej cenovej informácii priradiť obchod, platný zdroj a časové obdobie.",
+            "lead": "Z akcií skladáme jedlá iba vtedy, keď ku každej viditeľnej cene vieme priradiť obchod a platné časové obdobie.",
             "intro": "Najprv prejdú ponuky programovou kontrolou dôkazov. AI dostane až overené položky a pomáha z nich zostaviť použiteľné jedlá.",
             "sections": [
                 (
@@ -453,15 +435,15 @@ def render_evergreen_page(slug: str) -> RenderedPage:
                 ),
                 (
                     "Čo pri ponuke overujeme",
-                    "Pri každej ponuke kontrolujeme URL zdroja, pomenovaný obchod, cenu a rozsah platnosti od–do. Dnešný dátum musí spadať do tohto rozsahu a obchod pri položke musí zodpovedať obchodu pri validovanom zdroji.",
+                    "Pri každej ponuke kontrolujeme pomenovaný obchod, cenu, balenie a rozsah platnosti od–do. Dnešný dátum musí spadať do tohto rozsahu.",
                 ),
                 (
                     "Čo robí AI a čo program",
-                    "AI skladá jedlá a návrhy receptov z položiek, ktoré dostane. Deterministické programové kontroly overujú zdroj, dátumy, ceny, jednotky a matematiku; AI tieto dôkazy nevymýšľa ani nenahrádza.",
+                    "AI skladá jedlá a návrhy receptov z položiek, ktoré dostane. Programové kontroly overujú platnosť, ceny, jednotky a matematiku; AI tieto údaje nevymýšľa ani nenahrádza.",
                 ),
                 (
                     "Keď ponuku nevieme potvrdiť",
-                    "Pokrytie nemusí zahŕňať každú ponuku ani každý produkt v letáku. Ak chýba zdroj, nesedia dátumy, obchod alebo cena, nezobrazíme nič ako aktuálne. Týždenná stránka namiesto toho oznámi, že výber obnovujeme.",
+                    "Pokrytie nemusí zahŕňať každú ponuku ani každý produkt v letáku. Ak nesedia dátumy, obchod alebo cena, nezobrazíme nič ako aktuálne. Týždenná stránka namiesto toho oznámi, že výber obnovujeme.",
                 ),
             ],
         },

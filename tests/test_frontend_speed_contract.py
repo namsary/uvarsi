@@ -264,7 +264,7 @@ def test_service_worker_cache_name_changed_so_the_old_shell_is_dropped():
     source = worker_source()
     assert "uvarsi-v1" not in source, "stará cache by prežila a servírovala starú škrupinu"
     assert "uvarsi-v2" not in source, "po zmene SEO cache politiky treba aktivovať novú cache"
-    assert "const CACHE = 'uvarsi-v5'" in source
+    assert "const CACHE = 'uvarsi-v6'" in source
 
 
 def test_service_worker_skips_urls_with_a_query_string():

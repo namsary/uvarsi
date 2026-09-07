@@ -154,11 +154,12 @@ def test_weekly_page_renders_validated_current_data_with_metadata_and_structured
     assert "0,89 €" in page.html
     assert "S Lidl Plus pri nákupe od 20 €: 1,29 €" in page.html
     assert "aktivuj kupón v aplikácii" in page.html
-    assert "strana 2" in page.html
+    assert "strana 2" not in page.html
     assert "Aktualizované: 18. 8. 2026 05:02" in page.html
     assert "Ako pracujeme s AI a dátami" in page.html
     assert "Otvor aplikáciu Uvar.si" in page.html
-    assert "https://letak.test/lidl?ref=&quot;akcia&quot;" in page.html
+    assert "https://letak.test/" not in page.html
+    assert "Zdroje a strany letákov" not in page.html
     assert "Pôvodná cena: 2,19 €" in page.html
     assert "Pôvodná cena: 0,89 €" not in page.html
 
@@ -227,8 +228,9 @@ def test_weekly_page_uses_shared_intersection_for_mixed_source_validity_windows(
 
     assert "Platnosť cien: 19. 8. 2026 - 21. 8. 2026" in page.html
     assert "Platnosť cien: 17. 8. 2026 - 23. 8. 2026" not in page.html
-    assert "Lidl: 17. 8. 2026 - 23. 8. 2026, strana 2" in page.html
-    assert "Tesco: 19. 8. 2026 - 21. 8. 2026, strana 4" in page.html
+    assert "Lidl: 17. 8. 2026 - 23. 8. 2026, strana 2" not in page.html
+    assert "Tesco: 19. 8. 2026 - 21. 8. 2026, strana 4" not in page.html
+    assert "https://letak.test/" not in page.html
 
 
 @pytest.mark.parametrize(
@@ -329,10 +331,11 @@ def test_method_evergreen_page_names_coverage_validation_and_fail_closed_boundar
 
     assert "Lidl, Kaufland a Tesco" in text
     assert "Fresh momentálne nepokrývame" in text
-    assert all(term in text for term in ("URL zdroja", "obchod", "cenu", "rozsah platnosti"))
+    assert all(term in text for term in ("obchod", "cenu", "balenie", "rozsah platnosti"))
+    assert "URL zdroja" not in text
     assert "AI skladá jedlá a návrhy receptov" in text
-    assert "programové kontroly" in text
-    assert all(term in text for term in ("zdroj", "dátumy", "ceny", "matematiku"))
+    assert "programové kontroly" in text.casefold()
+    assert all(term in text for term in ("platnosť", "ceny", "jednotky", "matematiku"))
     assert "nemusí zahŕňať každú ponuku ani každý produkt" in text
     assert "nezobrazíme nič ako aktuálne" in text
     assert 'href="https://uvar.si/co-varit-tento-tyzden"' in page.html

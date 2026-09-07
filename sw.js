@@ -15,7 +15,7 @@
 //   • zvyšok        — z cache hneď, na pozadí sa obnoví (stale-while-revalidate):
 //                     škrupina je na obrazovke okamžite a ďalšie otvorenie ju má
 //                     už aktuálnu.
-const CACHE = 'uvarsi-v5';
+const CACHE = 'uvarsi-v6';
 const FONTS = '/static/fonts/';
 const SHELL = [
   '/app',

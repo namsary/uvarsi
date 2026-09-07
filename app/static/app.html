@@ -562,34 +562,6 @@ function offerValidity(validTo, today) {
   return {stav: 'plati', text: 'Platí do ' + dayMonthLabel(validTo)};
 }
 
-function leafletLabel(item) {
-  var store = String((item && item.obchod) || '').trim();
-  var page = Number(item && item.source_page);
-  var sameViewer = sourceHref(item && item.source_url) === publicLeafletHref(item);
-  var parts = [];
-  if (store) parts.push('Leták ' + store);
-  if (sameViewer && isFinite(page) && page > 0) parts.push('strana ' + page);
-  return parts.join(' · ');
-}
-
-function sourceHref(url) {
-  var text = String(url == null ? '' : url).trim();
-  return /^https?:\/\//i.test(text) ? text : '';
-}
-
-function publicLeafletHref(item) {
-  var href = sourceHref(item && item.source_url);
-  if (!href) return '';
-  var hostname = '';
-  try { hostname = new URL(href).hostname.toLowerCase(); } catch (_) { return ''; }
-  if (hostname !== 'app.mletaky.sk') return href;
-  var store = String((item && item.obchod) || '').trim().toLowerCase();
-  if (store === 'kaufland') return 'https://predajne.kaufland.sk/aktualna-ponuka/letak.html';
-  if (store === 'tesco') return 'https://www.kupino.sk/letaky/tesco';
-  if (store === 'lidl') return 'https://www.lidl.sk/c/online-letak/';
-  return '';
-}
-
 function todayIso() {
   var now = new Date();
   var pad = n => (n < 10 ? '0' : '') + n;
@@ -608,17 +580,11 @@ function loyaltyPriceHtml(i, packagePrice) {
 function ingredientProvenance(item, today) {
   if (!item || item.spajza || !item.offer_key) return '';
   var validity = offerValidity(item.valid_to, today);
-  var href = publicLeafletHref(item);
-  var page = Number(item.source_page);
-  var hasPage = isFinite(page) && page > 0;
   var loyalty = loyaltyPriceHtml(item, true);
-  if (!validity.text && !href && !hasPage && !loyalty) return '';
+  if (!validity.text && !loyalty) return '';
   var parts = [];
   if (loyalty) parts.push(loyalty);
-  var leaflet = leafletLabel(item);
-  if (leaflet) parts.push(`<span>${esc(leaflet)}</span>`);
   if (validity.text) parts.push(`<span class="vld vld--${validity.stav}">${esc(validity.text)}</span>`);
-  if (href) parts.push(`<a href="${esc(href)}" target="_blank" rel="noopener noreferrer nofollow">Otvoriť leták ↗</a>`);
   return parts.length ? `<div class="prov">${parts.join('')}</div>` : '';
 }
 

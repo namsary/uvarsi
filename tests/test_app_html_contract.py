@@ -606,9 +606,6 @@ def provenance_helpers(html):
         declaration(html, "function isoDay(value) "),
         declaration(html, "function dayMonthLabel(iso) "),
         declaration(html, "function offerValidity(validTo, today) "),
-        declaration(html, "function leafletLabel(item) "),
-        declaration(html, "function sourceHref(url) "),
-        declaration(html, "function publicLeafletHref(item) "),
         declaration(html, "function loyaltyPriceHtml(i, packagePrice) "),
         declaration(html, "function ingredientProvenance(item, today) "),
         declaration(html, "function ingredientRow(item, today) "),
@@ -616,27 +613,24 @@ def provenance_helpers(html):
 
 
 @needs_node
-def test_supported_stores_never_send_people_to_blocked_collector_urls(tmp_path):
+def test_customer_ui_never_exposes_flyer_links_or_page_numbers(tmp_path):
     html = app_html()
     result = run_node(
         tmp_path,
-        "public-leaflet-links.js",
+        "hidden-leaflet-sources.js",
         provenance_helpers(html)
         + """
 var blocked = 'https://app.mletaky.sk/260909_260903_kaufland_aqtzh';
-if (publicLeafletHref({obchod: 'Kaufland', source_url: blocked}) !==
-    'https://predajne.kaufland.sk/aktualna-ponuka/letak.html') process.exit(1);
-if (publicLeafletHref({obchod: 'Tesco', source_url: blocked}) !==
-    'https://www.kupino.sk/letaky/tesco') process.exit(2);
-if (publicLeafletHref({obchod: 'Lidl', source_url: blocked}) !==
-    'https://www.lidl.sk/c/online-letak/') process.exit(3);
-
 var row = ingredientRow({offer_key: 'o', nazov: 'Ryža', obchod: 'Kaufland', cena: '1,20',
   cena_za_balenie: '1,20', jednotka: '1 kg', source_url: blocked, source_page: 8,
   valid_to: '2026-09-09'}, '2026-09-06');
-if (row.indexOf('app.mletaky.sk') !== -1) process.exit(4);
-if (row.indexOf('https://predajne.kaufland.sk/aktualna-ponuka/letak.html') === -1) process.exit(5);
+if (row.indexOf('Kaufland') === -1) process.exit(1);
+if (row.indexOf('Platí do 9. 9.') === -1) process.exit(2);
+if (row.indexOf('app.mletaky.sk') !== -1) process.exit(3);
+if (row.indexOf('predajne.kaufland.sk') !== -1) process.exit(4);
+if (row.indexOf('Otvoriť leták') !== -1) process.exit(5);
 if (row.indexOf('strana 8') !== -1) process.exit(6);
+if (row.indexOf('<a ') !== -1) process.exit(7);
 process.exit(0);
 """,
     )
@@ -714,7 +708,7 @@ def test_shopping_list_explains_conditional_total_without_using_it_as_default():
 
 
 @needs_node
-def test_every_meal_price_states_its_leaflet_page_validity_and_linkable_source(tmp_path):
+def test_every_meal_price_shows_store_and_validity_without_exposing_source(tmp_path):
     html = app_html()
     result = run_node(
         tmp_path,
@@ -729,11 +723,11 @@ var item = {offer_key: 'offer_a', nazov: 'Mlieko', obchod: 'Lidl', jednotka: '1 
 var row = ingredientRow(item, TODAY);
 if (row.indexOf('Mlieko') === -1) process.exit(1);
 if (row.indexOf('Lidl') === -1) process.exit(2);
-if (row.indexOf('strana 3') === -1) process.exit(3);
+if (row.indexOf('strana 3') !== -1) process.exit(3);
 if (row.indexOf('Platí do 23. 8.') === -1) process.exit(4);
-if (row.indexOf('href="https://letak.test/lidl/32"') === -1) process.exit(5);
-if (row.indexOf('rel="noopener noreferrer nofollow"') === -1) process.exit(6);
-if (row.indexOf('target="_blank"') === -1) process.exit(7);
+if (row.indexOf('https://letak.test/lidl/32') !== -1) process.exit(5);
+if (row.indexOf('Otvoriť leták') !== -1) process.exit(6);
+if (row.indexOf('<a ') !== -1) process.exit(7);
 if (row.indexOf('1,10 € / 1 l') === -1) process.exit(8);
 if (row.indexOf('2,20 €') !== -1) process.exit(9);
 if (row.indexOf('undefined') !== -1) process.exit(10);
@@ -794,32 +788,29 @@ def test_provenance_degrades_safely_for_pantry_items_stale_plans_and_hostile_url
         provenance_helpers(html)
         + """
 var TODAY = '2026-08-18';
-if (sourceHref('javascript:alert(1)') !== '') process.exit(1);
-if (sourceHref('  https://letak.test/x  ') !== 'https://letak.test/x') process.exit(2);
-if (sourceHref(null) !== '') process.exit(3);
 var hostile = ingredientRow({offer_key: 'o', nazov: 'X', obchod: 'Lidl', cena: '1,00',
   source_url: 'javascript:alert(1)', source_page: 2, valid_to: '2026-08-23'}, TODAY);
-if (hostile.indexOf('javascript:') !== -1) process.exit(4);
-if (hostile.indexOf('strana 2') === -1) process.exit(5);
+if (hostile.indexOf('javascript:') !== -1) process.exit(1);
+if (hostile.indexOf('strana 2') !== -1) process.exit(2);
 
-if (ingredientProvenance({spajza: 'soľ'}, TODAY) !== '') process.exit(6);
+if (ingredientProvenance({spajza: 'soľ'}, TODAY) !== '') process.exit(3);
 var pantry = ingredientRow({spajza: 'soľ'}, TODAY);
-if (pantry.indexOf('zo špajze') === -1) process.exit(7);
-if (pantry.indexOf('Platí') !== -1) process.exit(8);
+if (pantry.indexOf('zo špajze') === -1) process.exit(4);
+if (pantry.indexOf('Platí') !== -1) process.exit(5);
 
 var stale = ingredientRow({offer_key: 'o', nazov: 'Chlieb', obchod: 'Tesco', cena: '1,20'}, TODAY);
-if (stale.indexOf('Chlieb') === -1) process.exit(9);
-if (stale.indexOf('undefined') !== -1) process.exit(10);
-if (stale.indexOf('null') !== -1) process.exit(11);
-if (stale.indexOf('Platí') !== -1) process.exit(12);
-if (stale.indexOf('href') !== -1) process.exit(13);
-if (stale.indexOf('class="prov"') !== -1) process.exit(14);
-if (ingredientProvenance({offer_key: 'o', nazov: 'Chlieb', obchod: 'Tesco'}, TODAY) !== '') process.exit(15);
+if (stale.indexOf('Chlieb') === -1) process.exit(6);
+if (stale.indexOf('undefined') !== -1) process.exit(7);
+if (stale.indexOf('null') !== -1) process.exit(8);
+if (stale.indexOf('Platí') !== -1) process.exit(9);
+if (stale.indexOf('href') !== -1) process.exit(10);
+if (stale.indexOf('class="prov"') !== -1) process.exit(11);
+if (ingredientProvenance({offer_key: 'o', nazov: 'Chlieb', obchod: 'Tesco'}, TODAY) !== '') process.exit(12);
 
 var quoted = ingredientRow({offer_key: 'o', nazov: 'X', obchod: 'Lidl', cena: '1,00',
   source_url: 'https://letak.test/a"onmouseover="alert(1)', source_page: 1,
   valid_to: '2026-08-23'}, TODAY);
-if (quoted.indexOf('onmouseover="') !== -1) process.exit(16);
+if (quoted.indexOf('onmouseover="') !== -1) process.exit(13);
 process.exit(0);
 """,
     )
