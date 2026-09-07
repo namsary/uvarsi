@@ -405,6 +405,15 @@ def test_dozorca_po_kredite_skusa_najviac_raz_za_hodinu(tmp_path):
     ]
 
 
+def test_receptovy_smoke_predchadza_kreditovemu_skratu():
+    """Letákový kredit nesmie po vydaní nechať deterministické recepty vypnuté."""
+    source = (ROOT / "hetzner" / "dozorca.sh").read_text(encoding="utf-8")
+    zaciatok_behu = source.index("MON_ISO=")
+    smoke = source.index("skontroluj_recipe_engine", zaciatok_behu)
+    kreditovy_skrat = source.index('if [ "$BLOKNUTE_NA" = "KREDIT" ]', zaciatok_behu)
+    assert smoke < kreditovy_skrat
+
+
 def test_dozorca_does_not_send_a_second_credit_notification(tmp_path):
     """Upozornenie posiela naklady.py práve raz — dozorca ho nesmie zdvojiť."""
     landing_data, _, notifications = _credit_exhausted_environment(tmp_path)

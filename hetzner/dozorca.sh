@@ -316,6 +316,11 @@ skontroluj_recipe_engine() {
 
 MON_ISO=$("$PY" -c 'from datetime import date, timedelta; import sys; d=date.fromisoformat(sys.argv[1]); print((d-timedelta(days=d.weekday())).isoformat())' "$TODAY")
 
+# Recepty sú lokálne a deterministické: ich release smoke nesmie čakať na
+# externý Anthropic kredit potrebný iba na čítanie letákov. Po každom vydaní
+# ich preto overíme ešte pred možným kreditovým skratom zberača.
+skontroluj_recipe_engine || log "receptový smoke sa teraz nepodaril — pri dokončení zdravého behu ho overím znova"
+
 # --- Stav z predošlých dnešných pokusov (formát: "deň neúspechy blok") ---
 # Číta sa hneď na začiatku, aby sa kreditový blok stihol uplatniť EŠTE PRED
 # zbieračom — inak by hodinový beh zbytočne búchal na API, ktoré odmieta všetko.
