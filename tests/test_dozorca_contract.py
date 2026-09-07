@@ -344,7 +344,7 @@ def _credit_exhausted_environment(tmp_path):
     fake_python.write_text(
         "#!/bin/sh\n"
         "if [ \"$1\" = \"-c\" ]; then exit 1; fi\n"
-        f"printf '%s\\n' \"$*\" >> '{bash_path(calls)}'\n"
+        f"printf '%s|%s\\n' \"${{UVARSI_DEPLOY_CREDIT_PROBE:-0}}\" \"$*\" >> '{bash_path(calls)}'\n"
         "echo 'KREDIT_VYCERPANY: na účte došiel kredit' >&2\n"
         "exit 3\n",
         encoding="utf-8",
@@ -418,6 +418,7 @@ def test_nove_vydanie_overi_dobity_kredit_bez_cakania_na_cooldown(tmp_path):
 
     assert (first.returncode, after_deploy.returncode, same_release.returncode) == (3, 3, 3)
     assert calls.read_text(encoding="utf-8").count("zbierac_akcii.py") == 2
+    assert calls.read_text(encoding="utf-8").splitlines()[1].startswith("1|")
     assert (tmp_path / ".dozorca_state").read_text(encoding="utf-8").split() == [
         "2026-08-18", "0", "KREDIT", "1000060", "b" * 40
     ]

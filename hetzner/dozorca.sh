@@ -345,6 +345,7 @@ if [ -f "$DIR/.nasadene_sha" ]; then
   CURRENT_RELEASE=${CURRENT_RELEASE%$'\r'}
   case "$CURRENT_RELEASE" in ''|*[!0-9a-f]*) CURRENT_RELEASE="-" ;; esac
 fi
+RELEASE_CHANGED=0
 
 zapis_kreditovy_blok() {
   if [ "$CURRENT_RELEASE" = "-" ]; then
@@ -359,7 +360,6 @@ zapis_kreditovy_blok() {
 # epoch a po nasadení dostane jeden okamžitý probe — bezpečný, odmietnutie stojí 0 €.
 if [ "$BLOKNUTE_NA" = "KREDIT" ]; then
   case "$LAST_CREDIT_PROBE" in *[!0-9]*|'') LAST_CREDIT_PROBE=0 ;; esac
-  RELEASE_CHANGED=0
   if [ "$CURRENT_RELEASE" != "-" ] && [ "$CURRENT_RELEASE" != "$LAST_CREDIT_RELEASE" ]; then
     RELEASE_CHANGED=1
   fi
@@ -452,7 +452,8 @@ if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
   if [ "${#ZBER_ARGS[@]}" -eq 0 ]; then
     ZBER_ARGS=(--store kaufland --store tesco --store lidl)
   fi
-  ZBER_VYSTUP=$(cd "$DIR/app" && "$PY" -u zbierac_akcii.py "${ZBER_ARGS[@]}" 2>&1)
+  ZBER_VYSTUP=$(cd "$DIR/app" && UVARSI_DEPLOY_CREDIT_PROBE="$RELEASE_CHANGED" \
+    "$PY" -u zbierac_akcii.py "${ZBER_ARGS[@]}" 2>&1)
   ZBER_RC=$?
   [ -n "$ZBER_VYSTUP" ] && printf '%s\n' "$ZBER_VYSTUP"
   case "$ZBER_VYSTUP" in

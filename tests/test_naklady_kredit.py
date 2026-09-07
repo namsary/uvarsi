@@ -239,6 +239,28 @@ def test_cerstvy_priznak_kreditu_nepusti_dalsie_api_volanie(con):
     assert volania == [], "počas hodinovej prestávky sa provider nesmie zavolať"
 
 
+def test_nove_vydanie_moze_jednorazovo_overit_dobity_kredit(
+    con, monkeypatch,
+):
+    with pytest.raises(naklady.KreditVycerpany):
+        naklady.s_rozpoctom(
+            con, "zber_letakov", "claude-haiku-4-5",
+            lambda: (_ for _ in ()).throw(bad_request_kredit()),
+            teraz=PONDELOK, notifikuj=lambda s: None,
+        )
+
+    monkeypatch.setenv("UVARSI_DEPLOY_CREDIT_PROBE", "1")
+    odpoved = naklady.s_rozpoctom(
+        con, "zber_letakov", "claude-haiku-4-5",
+        lambda: types.SimpleNamespace(usage=usage(vstup=1_000)),
+        teraz=PONDELOK + datetime.timedelta(minutes=1),
+        notifikuj=lambda s: None,
+    )
+
+    assert odpoved.usage.input_tokens == 1_000
+    assert naklady.stav(con, teraz=PONDELOK)["kredit"]["vycerpany"] is False
+
+
 def test_po_hodine_sa_kredit_overi_a_uspesny_pokus_priznak_sam_zmaze(con):
     with pytest.raises(naklady.KreditVycerpany):
         naklady.s_rozpoctom(con, "plan", "claude-sonnet-5",

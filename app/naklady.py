@@ -521,7 +521,11 @@ def _over_kreditovy_cooldown(con, *, ucel, teraz) -> None:
             SPRAVA_NECITATELNY, kod=KOD_NECITATELNY, ucel=ucel,
         ) from chyba
 
-    if vek < CREDIT_RETRY_SECONDS:
+    # Iba dozorca spustený bezprostredne po úspešnom deployi nastaví tento
+    # jednorazový príznak. Compare-and-swap nižšie naďalej rezervuje práve
+    # jeden probe; bežné requesty a hodinové crony zostávajú v cooldowne.
+    deploy_probe = os.environ.get("UVARSI_DEPLOY_CREDIT_PROBE") == "1"
+    if vek < CREDIT_RETRY_SECONDS and not deploy_probe:
         raise KreditVycerpany(ucel=ucel)
 
     novy_cas = teraz.isoformat(timespec="seconds")
