@@ -2,7 +2,7 @@
 """
 Uvar.si — backend (FastAPI + SQLite).
 
-Účty bez hesiel (magic link e-mailom), profil, špajza, generovanie osobného
+Účty s heslom a voliteľným passkey, profil, špajza, generovanie osobného
 týždenného plánu z databázy akcií (naplní ju zbierac_akcii.py raz týždenne).
 
 Beh:  /opt/uvarsi/venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8090
@@ -50,6 +50,7 @@ import plan_jobs
 import predpocet
 from config import public_base_url, admin_emails, recipe_engine_mode, release_id
 from landing_data import load_landing_data, validate_landing_data
+from legal_pages import LEGAL_SLUGS, legal_text, render_legal_page
 from public_pages import ROBOTS_TXT, render_evergreen_page, render_sitemap, render_weekly_page
 from weekly_data import offers_for_current_week, stores_missing_this_week
 from offer_data import (
@@ -4960,6 +4961,55 @@ def seo_budget_page():
 def seo_flyer_method_page():
     page = render_evergreen_page("ako-varime-z-akcii")
     return HTMLResponse(page.html, headers={"Cache-Control": PUBLIC_CACHE_CONTROL})
+
+
+def _legal_html(slug: str):
+    return HTMLResponse(
+        render_legal_page(slug),
+        headers={"Cache-Control": PUBLIC_CACHE_CONTROL},
+    )
+
+
+@app.get("/vop")
+def terms_page():
+    return _legal_html("vop")
+
+
+@app.get("/ochrana-osobnych-udajov")
+def privacy_page():
+    return _legal_html("ochrana-osobnych-udajov")
+
+
+@app.get("/cookies")
+def cookies_page():
+    return _legal_html("cookies")
+
+
+@app.get("/odstupenie")
+def withdrawal_page():
+    return _legal_html("odstupenie")
+
+
+@app.get("/reklamacie")
+def complaints_page():
+    return _legal_html("reklamacie")
+
+
+@app.get("/pravne/{slug}.txt")
+def legal_text_download(slug: str):
+    if slug not in LEGAL_SLUGS:
+        return PlainTextResponse(
+            "Dokument sa nenašiel.",
+            status_code=404,
+            headers={"X-Robots-Tag": "noindex, nofollow"},
+        )
+    return PlainTextResponse(
+        legal_text(slug),
+        headers={
+            "Cache-Control": PUBLIC_CACHE_CONTROL,
+            "Content-Disposition": f'attachment; filename="uvarsi-{slug}.txt"',
+        },
+    )
 
 
 @app.get("/robots.txt")

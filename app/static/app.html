@@ -82,6 +82,7 @@ nav button.on{color:var(--accent)}nav button.on::before{content:"";position:abso
 .security-current{display:inline-block;margin-left:6px;padding:2px 6px;border-radius:6px;background:#FFF5BE;border:1px solid #E4CB48;font:600 .65rem "IBM Plex Mono",monospace}
 .security-title:focus{outline:3px solid var(--accent);outline-offset:4px}
 .security-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.security-actions .btn{width:auto;flex:1}
+.legal-footer{width:min(680px,calc(100% - 40px));margin:28px auto 10px;padding:18px 0 6px;border-top:1px solid var(--line);color:var(--muted);font-size:.72rem;line-height:1.8;text-align:center}.legal-footer a{color:var(--muted);text-underline-offset:3px}.legal-footer a:hover{color:var(--ink)}
 @media (max-width:360px){.auth-shell{margin-top:20px}.auth-switch{padding:0 6px;font-size:.78rem}.password-toggle{padding:0 9px;font-size:.72rem}.security-row{grid-template-columns:minmax(0,1fr)}.security-row .btn{width:100%}.security-actions{display:grid;grid-template-columns:minmax(0,1fr)}.pantry-compose{grid-template-columns:minmax(0,1fr) 72px}.pantry-compose .pf-name,.pantry-row-editor .pf-name{grid-column:1/-1}.pantry-row-editor{grid-template-columns:minmax(0,1fr) 68px}.diet-choice{padding-inline:9px}}
 .spin{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;margin:34px auto}
 @keyframes sp{to{transform:rotate(360deg)}}
@@ -115,6 +116,8 @@ nav button.on{color:var(--accent)}nav button.on::before{content:"";position:abso
   <div class="skeleton-meal"><span class="skeleton-line skeleton-day"></span><span class="skeleton-copy"><span class="skeleton-line medium"></span><span class="skeleton-line short"></span></span></div>
   <div class="skeleton-meal"><span class="skeleton-line skeleton-day"></span><span class="skeleton-copy"><span class="skeleton-line"></span><span class="skeleton-line short"></span></span></div>
 </div></main>
+
+<footer class="legal-footer">PUMAR s. r. o. · <a href="/vop">VOP</a> · <a href="/ochrana-osobnych-udajov">Ochrana údajov</a> · <a href="/cookies">Cookies</a> · <a href="/odstupenie">Odstúpenie</a> · <a href="/reklamacie">Reklamácie</a> · <a href="mailto:pumaragency@gmail.com">Kontakt</a></footer>
 
 <nav id="nav" class="hidden" aria-label="Hlavná navigácia">
   <button data-t="plan" class="on" aria-current="page"><svg class="nav-icon" aria-hidden="true"><use href="#i-plan"></use></svg>Plán</button>

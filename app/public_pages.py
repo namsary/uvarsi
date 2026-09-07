@@ -20,6 +20,12 @@ EVERGREEN_URLS = {
     "lacny-jedalnicek": f"{BASE_URL}/lacny-jedalnicek",
     "ako-varime-z-akcii": f"{BASE_URL}/ako-varime-z-akcii",
 }
+LEGAL_URLS = tuple(
+    f"{BASE_URL}/{slug}"
+    for slug in (
+        "vop", "ochrana-osobnych-udajov", "cookies", "odstupenie", "reklamacie",
+    )
+)
 
 ROBOTS_TXT = """User-agent: *
 Allow: /
@@ -146,6 +152,7 @@ def _shell(
     {_nav()}
     <h1>{safe_h1}</h1>
     {body}
+    <footer class="meta"><a href="{BASE_URL}/vop">VOP</a> · <a href="{BASE_URL}/ochrana-osobnych-udajov">Ochrana údajov</a> · <a href="{BASE_URL}/cookies">Cookies</a> · <a href="{BASE_URL}/odstupenie">Odstúpenie</a> · <a href="{BASE_URL}/reklamacie">Reklamácie</a></footer>
   </main>
 </body>
 </html>"""
@@ -308,7 +315,7 @@ def _weekly_body(payload: dict) -> str:
         f'<p class="meta">Aktualizované: {_format_datetime(payload["generated_at"])}</p></div>'
         + "".join(meals_markup)
         + '<section class="card"><h2>Ako pracujeme s AI a dátami</h2>'
-        "<p>AI skladá návrh jedál iba z overených položiek. Ceny, obchody, jednotky aj platnosť kontrolujeme pred zverejnením; pri neplatných údajoch stránku radšej stiahneme z indexu.</p>"
+        "<p>AI pomáha spracovať letákové podklady. Jedlá skladá deterministický plánovač z kurátorskej knižnice; ceny, obchody, jednotky aj platnosť kontrolujeme pred zverejnením.</p>"
         f'<p><a class="cta" href="{BASE_URL}/app">Otvor aplikáciu Uvar.si</a> a priprav si celý nákupný plán.</p>'
         "</section>"
     )
@@ -427,7 +434,7 @@ def render_evergreen_page(slug: str) -> RenderedPage:
             "description": "Ako Uvar.si skladá jedlá z akcií tak, aby nevznikali vymyslené cenové sľuby.",
             "h1": "Ako varíme z akcií",
             "lead": "Z akcií skladáme jedlá iba vtedy, keď ku každej viditeľnej cene vieme priradiť obchod a platné časové obdobie.",
-            "intro": "Najprv prejdú ponuky programovou kontrolou dôkazov. AI dostane až overené položky a pomáha z nich zostaviť použiteľné jedlá.",
+            "intro": "Najprv AI pomôže spracovať letákové podklady. Ponuky potom prejdú programovou kontrolou a použiteľné jedlá z nich skladá deterministický plánovač z kurátorskej knižnice.",
             "sections": [
                 (
                     "Ktoré reťazce pokrývame",
@@ -439,7 +446,7 @@ def render_evergreen_page(slug: str) -> RenderedPage:
                 ),
                 (
                     "Čo robí AI a čo program",
-                    "AI skladá jedlá a návrhy receptov z položiek, ktoré dostane. Programové kontroly overujú platnosť, ceny, jednotky a matematiku; AI tieto údaje nevymýšľa ani nenahrádza.",
+                    "AI pomáha pri spracovaní letákových podkladov a údržbe kurátorskej knižnice. Konkrétny zákaznícky plán skladá program bez živého AI volania; programové kontroly strážia platnosť, ceny, jednotky a matematiku.",
                 ),
                 (
                     "Keď ponuku nevieme potvrdiť",
@@ -508,6 +515,7 @@ def render_sitemap(today: date, weekly_modified: date | None) -> str:
         ),
         f"  <url><loc>{EVERGREEN_URLS['lacny-jedalnicek']}</loc></url>",
         f"  <url><loc>{EVERGREEN_URLS['ako-varime-z-akcii']}</loc></url>",
+        *(f"  <url><loc>{url}</loc></url>" for url in LEGAL_URLS),
     ]
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'

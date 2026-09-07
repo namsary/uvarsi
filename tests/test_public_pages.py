@@ -333,7 +333,8 @@ def test_method_evergreen_page_names_coverage_validation_and_fail_closed_boundar
     assert "Fresh momentálne nepokrývame" in text
     assert all(term in text for term in ("obchod", "cenu", "balenie", "rozsah platnosti"))
     assert "URL zdroja" not in text
-    assert "AI skladá jedlá a návrhy receptov" in text
+    assert "AI pomáha pri spracovaní letákových podkladov" in text
+    assert "bez živého AI volania" in text
     assert "programové kontroly" in text.casefold()
     assert all(term in text for term in ("platnosť", "ceny", "jednotky", "matematiku"))
     assert "nemusí zahŕňať každú ponuku ani každý produkt" in text
@@ -362,6 +363,11 @@ def test_sitemap_contains_only_exact_public_urls_and_optional_weekly_lastmod():
         "https://uvar.si/co-varit-tento-tyzden",
         "https://uvar.si/lacny-jedalnicek",
         "https://uvar.si/ako-varime-z-akcii",
+        "https://uvar.si/vop",
+        "https://uvar.si/ochrana-osobnych-udajov",
+        "https://uvar.si/cookies",
+        "https://uvar.si/odstupenie",
+        "https://uvar.si/reklamacie",
     ]
     assert lastmods["https://uvar.si/co-varit-tento-tyzden"] == "2026-08-18"
     assert lastmods["https://uvar.si/"] is None

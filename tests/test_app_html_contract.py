@@ -16,6 +16,16 @@ def app_html():
     return Path("app/static/app.html").read_text(encoding="utf-8")
 
 
+def test_app_footer_links_every_customer_document_and_contact():
+    html = app_html()
+
+    for href in (
+        "/vop", "/ochrana-osobnych-udajov", "/cookies", "/odstupenie",
+        "/reklamacie", "mailto:pumaragency@gmail.com",
+    ):
+        assert f'href="{href}"' in html
+
+
 def declaration(html, signature):
     """Return the whole top-level function declaration that starts with signature."""
     match = re.search(re.escape(signature) + r"\{.*?\n\}", html, re.S)

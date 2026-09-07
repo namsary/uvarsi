@@ -17,6 +17,17 @@ def index_html():
     return Path("index.html").read_text(encoding="utf-8")
 
 
+def test_landing_footer_links_every_customer_document_and_contact():
+    html = index_html()
+
+    for href in (
+        "/vop", "/ochrana-osobnych-udajov", "/cookies", "/odstupenie",
+        "/reklamacie", "mailto:pumaragency@gmail.com",
+    ):
+        assert f'href="{href}"' in html
+    assert "uvedieme v konečnom checkoute" not in html
+
+
 def nested(html, signature):
     match = re.search(re.escape(signature) + r"\{.*?\n  \}", html, re.S)
     assert match, "landing must declare " + signature.strip()
