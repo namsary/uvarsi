@@ -4,6 +4,7 @@ import sqlite3
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
@@ -188,6 +189,7 @@ def test_me_checks_each_entitled_mode_once_without_building_complete_plans(
     monkeypatch.setenv("UVARSI_RECIPE_ENGINE", "on")
     server = load_server(monkeypatch, tmp_path, fixture_rows)
     server.recipe_engine_mode.cache_clear()
+    monkeypatch.setattr(server, "bratislava_day", lambda *_args: date.fromisoformat(WEEK))
     client = authenticated_client(server)
     grant_premium(server, 1)
     with server.db() as con:
@@ -207,6 +209,7 @@ def test_me_checks_each_entitled_mode_once_without_building_complete_plans(
 
     monkeypatch.setattr(server, "match_offers", match_once)
     monkeypatch.setattr(server, "load_recipe_catalog", lambda _catalog: fixture.recipes)
+    server._deterministic_catalogs.cache_clear()
 
     def check_mode(**kwargs):
         checks.append(kwargs)
