@@ -265,6 +265,42 @@ skontroluj_recipe_engine() {
     return 0
   fi
 
+  # Po úspešnom zbere sa zmení odtlačok ponúk. Starý shadow je vtedy správne
+  # neplatný, no obyčajný syntetický smoke ho nevie obnoviť. Kontrolovaný
+  # rollout prepočíta shadow maticu nad novými akciami, overí ju a vráti režim
+  # on. Pri neúplných ponukách sa nespúšťa — tie musí najprv opraviť zberač.
+  case ",$BLOCKERS," in
+    *,incomplete_offers,*) ;;
+    *,shadow_not_ready,*)
+      if [ ! -x "$DIR/recipe-engine-rollout.sh" ]; then
+        recipe_engine_alert "shadow je neaktuálny a revalidačný skript chýba"
+        return 1
+      fi
+      log "nové akcie zmenili odtlačok ponúk — revalidujem receptový engine"
+      if ! UVARSI_NOTIFY_URL="https://ntfy.sh/${NTFY_TOPIC}" \
+        "$DIR/recipe-engine-rollout.sh"; then
+        recipe_engine_alert "revalidácia po zmene akcií zlyhala"
+        return 1
+      fi
+      HEALTH=$("$CURL" -fsS --max-time 1 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true)
+      STAV_ENGINE=$(recipe_engine_health_state) || {
+        recipe_engine_alert "health po revalidácii sa nedá overiť"
+        return 1
+      }
+      MODE=${STAV_ENGINE%%|*}
+      REST=${STAV_ENGINE#*|}
+      READY=${REST%%|*}
+      BLOCKERS=${REST#*|}
+      if [ "$MODE" != "on" ] || [ "$READY" != "1" ]; then
+        recipe_engine_alert "revalidácia neskončila pripraveným režimom on: ${BLOCKERS:-unknown}"
+        return 1
+      fi
+      rm -f "$RECIPE_ENGINE_ALERT_STATE"
+      log "revalidácia receptového enginu po zmene akcií: OK"
+      return 0
+      ;;
+  esac
+
   case "$BLOCKERS" in
     smoke_missing|smoke_stale|smoke_failed) ;;
     *) recipe_engine_alert "readiness blokuje: ${BLOCKERS:-unknown}"; return 1 ;;

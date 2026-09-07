@@ -578,6 +578,67 @@ def test_dozorca_reactivates_recipe_engine_after_current_data(
     assert "receptový engine je znova aktívny" in result.stdout
 
 
+def test_dozorca_revalidates_on_engine_after_offer_fingerprint_changes(
+    monkeypatch, tmp_path,
+):
+    """Nový leták zneplatní starý shadow; dozorca musí spustiť revalidáciu."""
+    (tmp_path / "app").mkdir()
+    landing_data = tmp_path / "landing_data.json"
+    write_landing_data_atomic(landing_data, payload("2026-08-17"))
+    marker = tmp_path / "recipe-rollout-ran"
+
+    fake_python = tmp_path / "python"
+    fake_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8", newline="\n")
+    fake_python.chmod(0o755)
+    fake_sqlite = tmp_path / "sqlite3"
+    fake_sqlite.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        "  *MAX*) echo 123 ;;\n"
+        "  *zber_stav*) echo 0 ;;\n"
+        "  *) echo 60 ;;\n"
+        "esac\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_sqlite.chmod(0o755)
+
+    rollout = tmp_path / "recipe-engine-rollout.sh"
+    rollout.write_text(
+        f"#!/bin/sh\nprintf revalidated > '{bash_path(marker)}'\nexit 0\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    rollout.chmod(0o755)
+
+    stale = json.loads(health_json())
+    stale["recipe_engine"].update(
+        mode="on", ready=False, blockers=["shadow_not_ready"],
+    )
+    healthy = json.loads(health_json())
+    healthy["recipe_engine"].update(mode="on", ready=True, blockers=[])
+    fake_curl = tmp_path / "curl"
+    fake_curl.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        "  *api/health*)\n"
+        f"    if [ -f '{bash_path(marker)}' ]; then printf '%s\\n' '{json.dumps(healthy, separators=(',', ':'))}'; "
+        f"else printf '%s\\n' '{json.dumps(stale, separators=(',', ':'))}'; fi ;;\n"
+        "esac\n"
+        "exit 0\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_curl.chmod(0o755)
+    monkeypatch.setenv("UVARSI_CURL", bash_path(fake_curl))
+
+    result = run_dozorca(tmp_path, landing_data)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert marker.read_text(encoding="utf-8") == "revalidated"
+    assert "revalid" in result.stdout.lower()
+
+
 def test_dozorca_queue_handoff_failure_does_not_break_hourly_recovery(tmp_path):
     (tmp_path / "app").mkdir()
     landing_data = tmp_path / "landing_data.json"
