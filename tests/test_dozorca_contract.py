@@ -405,6 +405,24 @@ def test_dozorca_po_kredite_skusa_najviac_raz_za_hodinu(tmp_path):
     ]
 
 
+def test_nove_vydanie_overi_dobity_kredit_bez_cakania_na_cooldown(tmp_path):
+    """Úspešný deploy smie raz overiť kredit; rovnaké vydanie stále čaká hodinu."""
+    landing_data, calls, _ = _credit_exhausted_environment(tmp_path)
+    release_sha = tmp_path / ".nasadene_sha"
+    release_sha.write_text(("a" * 40) + "\n", encoding="utf-8")
+
+    first = run_dozorca(tmp_path, landing_data, UVARSI_NOW_EPOCH=1_000_000)
+    release_sha.write_text(("b" * 40) + "\n", encoding="utf-8")
+    after_deploy = run_dozorca(tmp_path, landing_data, UVARSI_NOW_EPOCH=1_000_060)
+    same_release = run_dozorca(tmp_path, landing_data, UVARSI_NOW_EPOCH=1_000_120)
+
+    assert (first.returncode, after_deploy.returncode, same_release.returncode) == (3, 3, 3)
+    assert calls.read_text(encoding="utf-8").count("zbierac_akcii.py") == 2
+    assert (tmp_path / ".dozorca_state").read_text(encoding="utf-8").split() == [
+        "2026-08-18", "0", "KREDIT", "1000060", "b" * 40
+    ]
+
+
 def test_receptovy_smoke_predchadza_kreditovemu_skratu():
     """Letákový kredit nesmie po vydaní nechať deterministické recepty vypnuté."""
     source = (ROOT / "hetzner" / "dozorca.sh").read_text(encoding="utf-8")

@@ -35,7 +35,7 @@ PY="${UVARSI_PY:-$DIR/venv/bin/python}"
 HEALTH_PY="${UVARSI_HEALTH_PY:-$PY}"
 CURL="${UVARSI_CURL:-curl}"
 DATE="${UVARSI_DATE:-date}"
-STATE="$DIR/.dozorca_state"          # "RRRR-MM-DD neúspechy blok [posledný_probe_epoch]"
+STATE="$DIR/.dozorca_state"          # "deň neúspechy blok [probe_epoch] [release_sha]"
 PLAN_QUEUE_ALERT_STATE="$DIR/.plan_queue_alert_state"
 RECIPE_ENGINE_ALERT_STATE="$DIR/.recipe_engine_alert_state"
 RECIPE_SMOKE_ATTEMPT_STATE="$DIR/.recipe_engine_smoke_attempt"
@@ -328,25 +328,50 @@ FAILS=0
 BLOKNUTE_NA="-"                      # "-" = žiadny blok; "KREDIT" = došiel kredit;
                                      # inak počet ponúk pri štrukturálnom páde
 LAST_CREDIT_PROBE=0
+LAST_CREDIT_RELEASE="-"
 if [ -f "$STATE" ]; then
-  read -r SDATE SFAILS SBLOK SPROBE < "$STATE" || true
+  read -r SDATE SFAILS SBLOK SPROBE SRELEASE < "$STATE" || true
   if [ "${SDATE:-}" = "$TODAY" ]; then
     FAILS=${SFAILS:-0}
     BLOKNUTE_NA=${SBLOK:--}
     LAST_CREDIT_PROBE=${SPROBE:-0}
+    LAST_CREDIT_RELEASE=${SRELEASE:--}
   fi
 fi
+
+CURRENT_RELEASE="-"
+if [ -f "$DIR/.nasadene_sha" ]; then
+  read -r CURRENT_RELEASE < "$DIR/.nasadene_sha" || CURRENT_RELEASE="-"
+  CURRENT_RELEASE=${CURRENT_RELEASE%$'\r'}
+  case "$CURRENT_RELEASE" in ''|*[!0-9a-f]*) CURRENT_RELEASE="-" ;; esac
+fi
+
+zapis_kreditovy_blok() {
+  if [ "$CURRENT_RELEASE" = "-" ]; then
+    echo "$TODAY $FAILS KREDIT $NOW_EPOCH" > "$STATE"
+  else
+    echo "$TODAY $FAILS KREDIT $NOW_EPOCH $CURRENT_RELEASE" > "$STATE"
+  fi
+}
 
 # Nulový kredit sa nedá opraviť opakovaním, ale dobitie účtu nevidíme. Preto
 # pustíme najviac jeden overovací pokus za hodinu. Starý trojpoľový stav nemá
 # epoch a po nasadení dostane jeden okamžitý probe — bezpečný, odmietnutie stojí 0 €.
 if [ "$BLOKNUTE_NA" = "KREDIT" ]; then
   case "$LAST_CREDIT_PROBE" in *[!0-9]*|'') LAST_CREDIT_PROBE=0 ;; esac
+  RELEASE_CHANGED=0
+  if [ "$CURRENT_RELEASE" != "-" ] && [ "$CURRENT_RELEASE" != "$LAST_CREDIT_RELEASE" ]; then
+    RELEASE_CHANGED=1
+  fi
   if [ "$LAST_CREDIT_PROBE" -gt 0 ] && \
+     [ "$RELEASE_CHANGED" -ne 1 ] && \
      { [ "$NOW_EPOCH" -lt "$LAST_CREDIT_PROBE" ] || \
        [ $((NOW_EPOCH - LAST_CREDIT_PROBE)) -lt "$CREDIT_RETRY_SECONDS" ]; }; then
     log "KREDIT VYČERPANÝ — ďalší automatický probe bude najskôr po hodinovej prestávke."
     exit "$EXIT_STRUCTURAL"
+  fi
+  if [ "$RELEASE_CHANGED" -eq 1 ]; then
+    log "nové vydanie — overujem doplnený kredit bez čakania na hodinový interval…"
   fi
   log "overujem, či bol Anthropic kredit doplnený…"
   BLOKNUTE_NA="-"
@@ -432,7 +457,7 @@ if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
   [ -n "$ZBER_VYSTUP" ] && printf '%s\n' "$ZBER_VYSTUP"
   case "$ZBER_VYSTUP" in
     *KREDIT_VYCERPANY*)
-      echo "$TODAY $FAILS KREDIT $NOW_EPOCH" > "$STATE"
+      zapis_kreditovy_blok
       log "KREDIT VYČERPANÝ — zberač bol odmietnutý ešte pred čítaním; o hodinu automaticky overím dobitie."
       exit "$EXIT_STRUCTURAL"
       ;;
@@ -512,7 +537,7 @@ RC=$?
 # (notify_kredit_preskoc), inak by majiteľ dostal to isté dvakrát za hodinu.
 case "$VYSTUP" in
   *KREDIT_VYCERPANY*)
-    echo "$TODAY $FAILS KREDIT $NOW_EPOCH" > "$STATE"
+    zapis_kreditovy_blok
     log "KREDIT VYČERPANÝ — bloček bol odmietnutý; o hodinu automaticky overím dobitie."
     exit "$EXIT_STRUCTURAL"
     ;;
