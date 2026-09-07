@@ -23,6 +23,7 @@ class PaymentReadinessInput:
     api_key: str
     source_approved: bool
     private_alerts: bool
+    consumer_workflows: bool
     smoke_verified: bool
     worker_alive: bool
     recipe_ready: bool
@@ -81,6 +82,8 @@ def assess_payment_readiness(facts: PaymentReadinessInput) -> PaymentReadiness:
         blockers.append("price_source_not_approved")
     if facts.private_alerts is not True:
         blockers.append("alerts_not_private")
+    if facts.consumer_workflows is not True:
+        blockers.append("consumer_workflow_not_ready")
     if facts.smoke_verified is not True:
         blockers.append("payment_smoke_missing")
     if facts.worker_alive is not True:

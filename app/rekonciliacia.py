@@ -51,6 +51,7 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import db_rezim  # noqa: E402
+import customer_requests  # noqa: E402
 import naklady  # noqa: E402
 import platby  # noqa: E402
 
@@ -143,7 +144,7 @@ def rekonciluj(con, *, objednavky, now, variant_id=None, notifikuj=None,
         if not ref:
             continue
         stav = platby.stav_objednavky(objednavka)
-        if stav == "refunded":
+        if stav in ("refunded", "partial_refund"):
             _vrat(con, objednavka, ref, now=now, suhrn=suhrn)
             continue
         if stav != "paid":
@@ -277,8 +278,26 @@ def _posli_mail(komu, predmet, text) -> None:
 
 def _vrat(con, objednavka, ref, *, now, suhrn) -> None:
     """Zmeškané vrátenie: bez neho by Premium bežalo ďalej za vrátené peniaze."""
+    payload = platby.payload_z_objednavky(objednavka, typ="order_refunded")
+    if payload is None or platby.refund_kind(payload) != "full":
+        suhrn["nepouzitelne"] += 1
+        platby.create_payment_case(
+            con,
+            case_type=platby.DRUH_NEPOUZITELNA,
+            provider_order_id=ref,
+            user_id=platby.user_id_z_objednavky(objednavka),
+            now=now,
+        )
+        return
     narok = platby.narok_objednavky(con, ref)
-    if narok is None or narok["stav"] != platby.STAV_AKTIVNY:
+    if narok is None:
+        return
+    platby.close_payment_cases_for_refund(
+        con, provider_order_id=ref, now=now
+    )
+    customer_requests.close_requests_for_refund(con, order_id=ref, now=now)
+    if narok["stav"] != platby.STAV_AKTIVNY:
+        con.commit()
         return
     payload = platby.payload_z_objednavky(
         objednavka, user_id=narok["user_id"], typ="order_refunded"
@@ -337,6 +356,7 @@ def main() -> int:
     con = db_rezim.otvor(DB)
     try:
         platby.migrate_platby_schema(con)
+        customer_requests.migrate_customer_requests_schema(con)
         con.commit()
 
         if tajomstvo:

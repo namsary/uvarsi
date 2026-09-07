@@ -83,6 +83,7 @@ nav button.on{color:var(--accent)}nav button.on::before{content:"";position:abso
 .security-title:focus{outline:3px solid var(--accent);outline-offset:4px}
 .security-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.security-actions .btn{width:auto;flex:1}
 .checkout-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.checkout-price{font-size:2.15rem;font-weight:800;line-height:1;white-space:nowrap}.checkout-price small{display:block;margin-top:7px;color:var(--muted);font:600 .68rem "IBM Plex Mono",monospace;text-align:right}.checkout-list{display:grid;gap:9px;list-style:none;margin:18px 0}.checkout-list li{position:relative;padding-left:26px;font-size:.9rem}.checkout-list li::before{content:"✓";position:absolute;left:0;top:0;color:var(--success);font-weight:800}.checkout-assurance{padding:14px;border-radius:12px;background:var(--surface-soft);font-size:.86rem}.consent-row{display:grid;grid-template-columns:22px minmax(0,1fr);gap:11px;align-items:start;margin:18px 0;color:var(--ink);font-size:.83rem;font-weight:600;line-height:1.55}.consent-row input{width:20px;min-height:20px;height:20px;margin-top:2px}.consent-row a{color:var(--ink);text-underline-offset:3px}.checkout-back{margin-top:10px}
+.service-card h2{margin-bottom:7px}.service-order{margin:14px 0;padding:12px 14px;border-radius:10px;background:var(--surface-soft);font-size:.82rem}.service-form{margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}.service-form textarea{min-height:112px;resize:vertical}.service-form .consent-row{margin:13px 0}.request-list{display:grid;gap:8px;margin-top:14px}.request-row{display:flex;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:.78rem}.request-row b{font-family:"IBM Plex Mono",monospace;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em}.request-status--refunded,.request-status--resolved{color:var(--success)}.request-status--requires_review{color:var(--accent)}
 .legal-footer{width:min(680px,calc(100% - 40px));margin:28px auto 10px;padding:18px 0 6px;border-top:1px solid var(--line);color:var(--muted);font-size:.72rem;line-height:1.8;text-align:center}.legal-footer a{color:var(--muted);text-underline-offset:3px}.legal-footer a:hover{color:var(--ink)}
 @media (max-width:360px){.auth-shell{margin-top:20px}.auth-switch{padding:0 6px;font-size:.78rem}.password-toggle{padding:0 9px;font-size:.72rem}.security-row{grid-template-columns:minmax(0,1fr)}.security-row .btn{width:100%}.security-actions{display:grid;grid-template-columns:minmax(0,1fr)}.pantry-compose{grid-template-columns:minmax(0,1fr) 72px}.pantry-compose .pf-name,.pantry-row-editor .pf-name{grid-column:1/-1}.pantry-row-editor{grid-template-columns:minmax(0,1fr) 68px}.diet-choice{padding-inline:9px}}
 .spin{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;margin:34px auto}
@@ -2002,6 +2003,78 @@ async function loadAccountSecurity(notice, focusTarget) {
   return true;
 }
 
+function serviceDate(epoch) {
+  const date = new Date(Number(epoch || 0) * 1000);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('sk-SK');
+}
+
+function serviceStatus(status) {
+  return ({received:'Prijaté',processing:'Spracúva sa',refunded:'Vrátené',
+    requires_review:'Vyžaduje kontrolu',resolved:'Vybavené'})[status] || 'Prijaté';
+}
+
+function customerServiceHtml(data) {
+  const orders = Array.isArray(data && data.orders) ? data.orders : [];
+  const requests = Array.isArray(data && data.requests) ? data.requests : [];
+  const order = orders[0];
+  const rows = requests.length ? `<div class="request-list">${requests.map(item =>
+    `<div class="request-row"><span>${item.request_type === 'withdrawal' ? 'Odstúpenie' : 'Reklamácia'}<br><small>${serviceDate(item.created_at)}</small></span><b class="request-status--${esc(item.status)}">${esc(serviceStatus(item.status))}</b></div>`
+  ).join('')}</div>` : '<p class="muted" style="margin-top:12px">Zatiaľ tu nemáš žiadnu žiadosť.</p>';
+  if (!order) return `<div class="card service-card"><h2>Platba a pomoc</h2><p class="muted">K tomuto účtu neevidujeme zaplatenú objednávku. Ak potrebuješ pomoc, napíš na <a href="mailto:pumaragency@gmail.com">pumaragency@gmail.com</a>.</p>${rows}</div>`;
+  const deadline = serviceDate(order.refund_deadline);
+  const inTime = Date.now() / 1000 <= Number(order.refund_deadline || 0);
+  return `<div class="card service-card"><h2>Platba a pomoc</h2>
+    <p class="muted">Žiadosť vybaví človek. Samotné odoslanie ešte neznamená, že refundácia prebehla.</p>
+    <div class="service-order"><b>Zakladajúce Premium · 39 €</b><br>Zakúpené ${serviceDate(order.purchased_at)} · 14-dňová lehota do ${deadline}</div>
+    ${rows}
+    <form id="withdrawal-form" class="service-form" data-order="${esc(order.order_id)}">
+      <h3>Odstúpenie od zmluvy</h3>
+      <p class="muted">${inTime ? 'V 14-dňovej lehote ti vrátime celú platbu.' : 'Lehota už uplynula; žiadosť prijmeme na manuálne posúdenie.'} Refundácia ešte neprebehla.</p>
+      <label class="consent-row"><input id="withdrawal-confirm" type="checkbox" required><span>Žiadam o odstúpenie a rozumiem, že po úplnom vrátení platby stratím Premium.</span></label>
+      <button class="btn btn--ghost" type="submit">Odoslať žiadosť o odstúpenie</button><p class="muted" id="withdrawal-status" aria-live="polite"></p>
+    </form>
+    <form id="complaint-form" class="service-form" data-order="${esc(order.order_id)}">
+      <h3>Reklamácia</h3><label>Čo nie je v poriadku?<textarea id="complaint-message" maxlength="4000" required placeholder="Stručne opíš problém. Ak bude treba snímku, doplníš ju odpoveďou na e-mail."></textarea></label>
+      <button class="btn btn--ghost" type="submit">Odoslať reklamáciu</button><p class="muted" id="complaint-status" aria-live="polite"></p>
+    </form></div>`;
+}
+
+async function loadCustomerService() {
+  const root = $('#customer-service');
+  if (!root) return;
+  try {
+    const data = await api('/api/consumer/requests');
+    if ($('#customer-service') !== root) return;
+    root.outerHTML = `<div id="customer-service">${customerServiceHtml(data)}</div>`;
+  } catch (error) {
+    if ($('#customer-service') !== root || (error && error.authRequired)) return;
+    root.innerHTML = '<div class="card service-card"><h2>Platba a pomoc</h2><p class="muted">Prehľad sa nepodarilo načítať. Napíš na <a href="mailto:pumaragency@gmail.com">pumaragency@gmail.com</a>.</p></div>';
+    return;
+  }
+  const withdrawal = $('#withdrawal-form');
+  if (withdrawal) withdrawal.onsubmit = event => {
+    event.preventDefault();
+    const button = withdrawal.querySelector('button'), status = $('#withdrawal-status');
+    if (!$('#withdrawal-confirm').checked) {
+      status.textContent = 'Najprv potvrď, že rozumieš následku úplnej refundácie.';
+      return;
+    }
+    runGuardedAction(button, status, async () => {
+      await api('/api/consumer/withdrawal', {method:'POST', body:JSON.stringify({order_id:withdrawal.dataset.order})});
+      await loadCustomerService();
+    });
+  };
+  const complaint = $('#complaint-form');
+  if (complaint) complaint.onsubmit = event => {
+    event.preventDefault();
+    const button = complaint.querySelector('button'), status = $('#complaint-status');
+    runGuardedAction(button, status, async () => {
+      await api('/api/consumer/complaint', {method:'POST', body:JSON.stringify({order_id:complaint.dataset.order,message:$('#complaint-message').value})});
+      await loadCustomerService();
+    });
+  };
+}
+
 function vNast() {
   const varenie = ME.frekvencia === 1 ? 'Varím každý deň' :
     'Varím raz za ' + ME.frekvencia + ' dni';
@@ -2013,13 +2086,14 @@ function vNast() {
       </form></div>` : ''} ${authV3Enabled(ME) ? `<div id="account-security">
       <div id="account-security-content">${securityPanelHtml(
         false, [], [], {loading: true})}</div>
-      ${securityStatusHtml()}</div>` : ''} <p class="muted" style="margin:-4px 0 16px">Porcie sú kuchársky odhad na plánovanie nákupu, nie individuálne výživové odporúčanie.</p><button class="btn btn--ghost" id="zmen">Zmeniť nastavenie</button><div style="height:10px"></div><button class="btn btn--ghost" id="odhl" style="color:var(--accent)">Odhlásiť sa</button><p id="nast-err" class="muted" style="color:var(--accent);margin-top:10px"></p>`;
+      ${securityStatusHtml()}</div>` : ''} <div id="customer-service"><div class="card service-card"><h2>Platba a pomoc</h2><p class="muted">Načítavam tvoje objednávky a žiadosti…</p></div></div><p class="muted" style="margin:-4px 0 16px">Porcie sú kuchársky odhad na plánovanie nákupu, nie individuálne výživové odporúčanie.</p><button class="btn btn--ghost" id="zmen">Zmeniť nastavenie</button><div style="height:10px"></div><button class="btn btn--ghost" id="odhl" style="color:var(--accent)">Odhlásiť sa</button><p id="nast-err" class="muted" style="color:var(--accent);margin-top:10px"></p>`;
   const skipPasswordSetup = $('#skip-password-setup');
   if (skipPasswordSetup) skipPasswordSetup.onclick = () => {
     dismissPasswordSetup(ME, localStorage);
     $('#password-setup-card').remove();
   };
   if (authV3Enabled(ME)) loadAccountSecurity();
+  loadCustomerService();
   const passwordForm = $('#pw');
   if (passwordForm) passwordForm.onsubmit = event => {
     event.preventDefault();

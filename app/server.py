@@ -20,6 +20,7 @@ from pathlib import Path
 import sys
 from urllib.parse import urlsplit
 from urllib.request import Request as UrlRequest, urlopen
+from zoneinfo import ZoneInfo
 
 import anyio.to_thread
 from fastapi import FastAPI, Request, HTTPException
@@ -45,6 +46,7 @@ from webauthn.helpers.structs import (
     UserVerificationRequirement,
 )
 import db_rezim
+import customer_requests
 import naklady
 import plan_jobs
 import predpocet
@@ -115,6 +117,7 @@ from platby import (
     AKCIA_IGNOROVANE,
     AKCIA_NAD_KAPACITU,
     AKCIA_ODLOZENE,
+    AKCIA_VRATENE,
     DRUH_DUPLICITA,
     DRUH_IGNOROVANE,
     DRUH_NAD_KAPACITU,
@@ -158,6 +161,7 @@ from platby import (
     stav_dozoru,
     stav_platieb,
     upozornenie_raz,
+    zaznamenaj_upozornenie,
     volne_miesta,
 )
 from auth_data import (
@@ -260,6 +264,9 @@ AUTH_V3_IP_LIMITER = ClientIpRateLimiter(
     max_requests=5, window_seconds=10 * 60, max_clients=10_000
 )
 AUTH_V3_ACCOUNT_LIMITER = ClientIpRateLimiter(
+    max_requests=5, window_seconds=10 * 60, max_clients=50_000
+)
+CONSUMER_REQUEST_LIMITER = ClientIpRateLimiter(
     max_requests=5, window_seconds=10 * 60, max_clients=50_000
 )
 AUTH_KDF_CONCURRENCY = 2
@@ -584,6 +591,7 @@ def migruj_schemu(con) -> None:
     migrate_auth_schema(con)
     migrate_akcie_schema(con)
     migrate_platby_schema(con)
+    customer_requests.migrate_customer_requests_schema(con)
     naklady.migrate_naklady_schema(con)
     plan_jobs.migrate_plan_jobs_schema(con)
     predpocet.migrate_predpocet_schema(con)
@@ -4557,6 +4565,7 @@ def _runtime_payment_readiness(
         api_key=env("LEMON_API_KEY", "") or "",
         source_approved=_approved_price_sources_ready(),
         private_alerts=_private_payment_alerts_ready(),
+        consumer_workflows=customer_requests.workflow_ready(con),
         smoke_verified=_payment_smoke_verified(
             release=current_release, store_id=store_id, variant_id=variant_id
         ),
@@ -5117,6 +5126,153 @@ def sitemap_xml():
     return Response(xml, media_type="application/xml", headers={"Cache-Control": PUBLIC_CACHE_CONTROL})
 
 
+# --------------------------------------------------- odstúpenie a reklamácie
+CONSUMER_REQUEST_RESPONSE = (
+    "Ak objednávka patrí k tomuto účtu, žiadosť sme prijali. "
+    "Jej stav nájdeš v profile."
+)
+
+
+def _consumer_request_rate_limit(user_id: int, *, operation: str, now: float) -> None:
+    if not CONSUMER_REQUEST_LIMITER.allow(f"{operation}:{user_id}", now):
+        raise HTTPException(429, "Priveľa žiadostí. Skús to znova o 10 minút.")
+
+
+def _consumer_request_receipt(request, email: str) -> None:
+    received = datetime.datetime.fromtimestamp(
+        request.created_at, datetime.timezone.utc
+    ).astimezone(ZoneInfo("Europe/Bratislava")).strftime("%d. %m. %Y o %H:%M")
+    if request.request_type == customer_requests.TYPE_WITHDRAWAL:
+        predmet = "Uvar.si: prijali sme tvoju žiadosť o odstúpenie"
+        if request.refund_scope == customer_requests.REFUND_FULL:
+            detail = (
+                "Žiadosť je v 14-dňovej lehote. Vrátime ti celú zaplatenú "
+                "sumu na pôvodný spôsob platby. Refundácia ešte nebola "
+                "vykonaná; jej stav uvidíš v profile."
+            )
+        else:
+            detail = (
+                "Žiadosť sme prijali na manuálne posúdenie, pretože bola "
+                "odoslaná po 14-dňovej lehote. Ozveme sa ti e-mailom."
+            )
+    else:
+        predmet = "Uvar.si: prijali sme tvoju reklamáciu"
+        detail = (
+            "Reklamáciu sme zaevidovali. Ozveme sa ti e-mailom; ak bude treba "
+            "doplniť snímku alebo iný podklad, môžeš odpovedať na túto správu."
+        )
+    text = (
+        f"Ahoj!\n\n{detail}\n\nPrijaté: {received}\n"
+        f"Číslo žiadosti: {request.public_id}\n\n"
+        "Kontakt: pumaragency@gmail.com\nUvar.si"
+    )
+    html = (
+        '<!DOCTYPE html><html lang="sk"><body><p>Ahoj!</p><p>'
+        + detail
+        + "</p><p>Prijaté: "
+        + received
+        + "<br>Číslo žiadosti: <b>"
+        + request.public_id
+        + "</b></p><p>Kontakt: pumaragency@gmail.com<br>Uvar.si</p></body></html>"
+    )
+    try:
+        posli_mail(
+            email,
+            predmet,
+            text,
+            html,
+            idempotency_key=f"consumer-request:{request.public_id}",
+        )
+    except Exception:
+        pass
+
+
+def _notify_consumer_requests(con, *, now: float) -> None:
+    """Public ntfy receives only the unresolved aggregate, never request data."""
+    count = customer_requests.count_unresolved_requests(con)
+    if count <= 0:
+        return
+    day = datetime.datetime.fromtimestamp(now, datetime.timezone.utc).date().isoformat()
+    try:
+        first = zaznamenaj_upozornenie(
+            con, kluc=f"consumer_requests:{day}:{count}", now=now
+        )
+    except (sqlite3.Error, OSError, ValueError):
+        return
+    if first:
+        posli_upozornenie_majitelovi({
+            "titul": "Uvar.si: čakajú požiadavky zákazníkov",
+            "sprava": (
+                f"Nevyriešené odstúpenia a reklamácie: {count}. "
+                "Otvor chránenú evidenciu požiadaviek."
+            ),
+        })
+
+
+async def _create_consumer_request(req: Request, *, request_type: str):
+    require_auth_origin(req)
+    user = require_user(req)
+    now = AUTH_CLOCK()
+    _consumer_request_rate_limit(user["id"], operation=request_type, now=now)
+    data = await auth_json(req)
+    try:
+        with closing(db()) as con:
+            if request_type == customer_requests.TYPE_WITHDRAWAL:
+                created = customer_requests.create_withdrawal(
+                    con,
+                    user_id=user["id"],
+                    order_id=data.get("order_id"),
+                    message=data.get("message", ""),
+                    now=now,
+                )
+            else:
+                created = customer_requests.create_complaint(
+                    con,
+                    user_id=user["id"],
+                    order_id=data.get("order_id"),
+                    message=data.get("message"),
+                    now=now,
+                )
+            if created.created:
+                _notify_consumer_requests(con, now=now)
+    except customer_requests.RequestNotAllowed:
+        # Same response for an absent and a foreign order: no enumeration.
+        return JSONResponse(
+            {"ok": True, "message": CONSUMER_REQUEST_RESPONSE}, status_code=202
+        )
+    except ValueError as error:
+        raise HTTPException(422, str(error))
+    if created.created:
+        _consumer_request_receipt(created, user["email"])
+    return JSONResponse(
+        {"ok": True, "message": CONSUMER_REQUEST_RESPONSE}, status_code=202
+    )
+
+
+@app.get("/api/consumer/requests")
+def consumer_request_list(req: Request):
+    user = require_user(req)
+    with closing(db()) as con:
+        return {
+            "requests": customer_requests.requests_for_user(con, user_id=user["id"]),
+            "orders": customer_requests.orders_for_user(con, user_id=user["id"]),
+        }
+
+
+@app.post("/api/consumer/withdrawal")
+async def consumer_withdrawal(req: Request):
+    return await _create_consumer_request(
+        req, request_type=customer_requests.TYPE_WITHDRAWAL
+    )
+
+
+@app.post("/api/consumer/complaint")
+async def consumer_complaint(req: Request):
+    return await _create_consumer_request(
+        req, request_type=customer_requests.TYPE_COMPLAINT
+    )
+
+
 # ---------------------------------------------------------------- platby
 # Vypnuté, kým majiteľ nenastaví PLATBY_ZAPNUTE=1. Dovtedy sa nikomu nič
 # neúčtuje a adresa poskytovateľa sa ani nezostaví.
@@ -5296,6 +5452,20 @@ def _doriesit_udalost(con, vysledok: dict, now: float) -> None:
         _ohlas_majitelovi(con, DRUH_DUPLICITA, now=now, pocet=pocet)
         _napis_zakaznikovi(con, vysledok.get("user_id"), MAIL_PREDMET_DUPLICITA,
                            SPRAVA_DUPLICITA_ZAKAZNIK)
+    elif akcia == AKCIA_VRATENE:
+        customer_requests.close_requests_for_refund(
+            con, order_id=objednavka, now=now
+        )
+        con.commit()
+        _napis_zakaznikovi(
+            con,
+            vysledok.get("user_id"),
+            "Uvar.si: platbu sme ti vrátili",
+            (
+                "Platbu sme vrátili na pôvodný spôsob platby a tvoju žiadosť "
+                "sme označili ako vybavenú. Zakladajúce Premium už nie je aktívne."
+            ),
+        )
     elif akcia == AKCIA_IGNOROVANE:
         # Podpis sedel, ale appka s udalosťou nič neurobila. Buď je to cudzí
         # produkt v tom istom obchode, alebo nesedí LEMON_VARIANT_ID — a to

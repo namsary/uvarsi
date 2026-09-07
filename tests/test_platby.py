@@ -94,6 +94,10 @@ def objednavka(user_id=1, order_id="ord-1", udalost="order_created", total=3900,
                mena="EUR", webhook_id=None, variant_id=None, typ="orders",
                attempt_id=None):
     attributes = {"total": total, "currency": mena, "status": "paid"}
+    if udalost == "order_refunded":
+        attributes.update(
+            status="refunded", refunded=True, refunded_amount=total
+        )
     if variant_id is not None:
         attributes["first_order_item"] = {"variant_id": variant_id}
     if typ == "subscriptions":

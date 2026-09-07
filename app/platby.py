@@ -423,6 +423,18 @@ def count_open_payment_cases(con, case_type=None) -> int:
     return int(row[0]) if row else 0
 
 
+def close_payment_cases_for_refund(con, *, provider_order_id, now) -> int:
+    order_id = _bezpecne_id(provider_order_id)
+    if order_id is None:
+        raise ValueError("neplatné id objednávky")
+    cursor = con.execute(
+        """UPDATE payment_cases SET status='resolved',updated_at=?
+            WHERE provider_order_id=? AND status='open'""",
+        (_cas(now), order_id),
+    )
+    return int(cursor.rowcount)
+
+
 # ---------------------------------------------------------------- vypínač
 def platby_zapnute(hodnota) -> bool:
     """Vypnuté, kým majiteľ nenapíše jednoznačné áno. Čokoľvek iné = vypnuté."""
@@ -656,6 +668,30 @@ def _suma(payload):
     else:
         mena = None
     return suma, mena
+
+
+def refund_kind(payload) -> str:
+    """Classify LemonSqueezy's shared full/partial `order_refunded` event."""
+    attributes = _atributy(payload)
+    total = attributes.get("total")
+    refunded_amount = attributes.get("refunded_amount")
+    status = attributes.get("status")
+    status = status.strip().casefold() if isinstance(status, str) else ""
+    full_flag = attributes.get("refunded") is True
+    valid_amounts = all(
+        isinstance(value, int) and not isinstance(value, bool) and value >= 0
+        for value in (total, refunded_amount)
+    )
+    if full_flag or (
+        valid_amounts and total > 0 and refunded_amount >= total
+        and status == "refunded"
+    ):
+        return "full"
+    if status == "partial_refund" or (
+        valid_amounts and 0 < refunded_amount < total
+    ):
+        return "partial"
+    return "unknown"
 
 
 def _variant(payload):
@@ -902,6 +938,10 @@ def _dalsie_rucne_id(con, user_id) -> str:
 
 
 def _odober(con, payload, now, typ):
+    if typ == "order_refunded" and refund_kind(payload) != "full":
+        # LemonSqueezy posiela rovnakú udalosť pri čiastočnom aj úplnom
+        # vrátení. Čiastočné vrátenie nesmie potichu zrušiť celý prístup.
+        raise UdalostNepouzitelna("refundácia nie je úplná")
     novy_stav, akcia = UDALOSTI_ODOBERAJUCE[typ]
     riadok = None
     objednavka = objednavka_ref(payload)
@@ -931,6 +971,10 @@ def _odober(con, payload, now, typ):
     con.execute(
         "UPDATE naroky SET stav=?, zmeneny_o=? WHERE id=?", (novy_stav, now, narok_id)
     )
+    if akcia == AKCIA_VRATENE:
+        close_payment_cases_for_refund(
+            con, provider_order_id=objednavka, now=now
+        )
     if not ma_narok(con, user_id):
         con.execute("UPDATE pouzivatelia SET platiaci=0 WHERE id=?", (user_id,))
     return {"akcia": akcia, "objednavka": objednavka, "user_id": user_id,
@@ -1284,6 +1328,9 @@ def payload_z_objednavky(objednavka, *, user_id=None, typ=UDALOST_UDELUJUCA):
         "currency": atributy.get("currency"),
         "status": atributy.get("status"),
     }
+    for field in ("refunded", "refunded_amount", "refunded_at"):
+        if field in atributy:
+            prepis[field] = atributy.get(field)
     if isinstance(polozka, dict) and polozka.get("variant_id") is not None:
         prepis["first_order_item"] = {"variant_id": polozka.get("variant_id")}
     meta = {"event_name": typ}

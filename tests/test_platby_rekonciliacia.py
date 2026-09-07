@@ -60,7 +60,7 @@ def rekonciliacia_modul():
 
 def objednavka_z_api(order_id="ord-1", email="test@uvar.si", total=3900,
                      mena="EUR", stav="paid", variant_id=None, refunded=False,
-                     custom=None):
+                     refunded_amount=None, custom=None):
     """Objednávka v tvare, v akom ju vracia LemonSqueezy API (v1/orders)."""
     attributes = {
         "identifier": f"id-{order_id}",
@@ -73,6 +73,8 @@ def objednavka_z_api(order_id="ord-1", email="test@uvar.si", total=3900,
         "created_at": "2026-08-24T10:00:00.000000Z",
         "first_order_item": {"variant_id": variant_id} if variant_id else {},
     }
+    if refunded_amount is not None:
+        attributes["refunded_amount"] = refunded_amount
     if custom is not None:
         attributes["custom_data"] = custom
     return {"type": "orders", "id": str(order_id), "attributes": attributes}
@@ -195,7 +197,8 @@ def test_rekonciliacia_dobehne_aj_zameskane_vratenie(monkeypatch, tmp_path):
         suhrn = rek.rekonciluj(
             con,
             objednavky=[objednavka_z_api(order_id="ord-42", email="test@uvar.si",
-                                         stav="refunded", refunded=True)],
+                                         stav="refunded", refunded=True,
+                                         refunded_amount=3900)],
             now=server.AUTH_CLOCK(),
         )
 
@@ -203,6 +206,33 @@ def test_rekonciliacia_dobehne_aj_zameskane_vratenie(monkeypatch, tmp_path):
     assert [row["stav"] for row in naroky(server)] == ["vrateny"]
     with closing(server.db()) as con:
         assert con.execute("SELECT platiaci FROM pouzivatelia WHERE id=1").fetchone()[0] == 0
+
+
+def test_rekonciliacia_ciastocnej_refundacie_neodoberie_cely_narok(monkeypatch, tmp_path):
+    server = zapnute_platby(monkeypatch, tmp_path)
+    rek = rekonciliacia_modul()
+    vytvor_pouzivatela(server, user_id=1, email="test@uvar.si")
+    client = TestClient(server.app, raise_server_exceptions=False)
+    posli_webhook(client, objednavka(user_id=1, order_id="ord-42"))
+
+    with closing(server.db()) as con:
+        suhrn = rek.rekonciluj(
+            con,
+            objednavky=[objednavka_z_api(
+                order_id="ord-42", email="test@uvar.si", stav="partial_refund",
+                refunded=False, refunded_amount=100,
+            )],
+            now=server.AUTH_CLOCK(),
+        )
+
+    assert suhrn["nepouzitelne"] == 1
+    assert len(aktivne(server)) == 1
+    with closing(server.db()) as con:
+        row = con.execute(
+            "SELECT provider_order_id FROM payment_cases WHERE case_type=?",
+            (server.DRUH_NEPOUZITELNA,),
+        ).fetchone()
+    assert row[0] == "ord-42"
 
 
 def test_rekonciliacia_neudeluje_nezaplatene_objednavky(monkeypatch, tmp_path):
