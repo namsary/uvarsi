@@ -106,6 +106,7 @@ from platby import (
     DRUH_ODLOZENE,
     MAIL_PREDMET_DUPLICITA,
     MAIL_PREDMET_NAD_KAPACITU,
+    KAPACITA_ZAKLADAJUCICH,
     MAX_TELO_WEBHOOKU,
     PlatbyNenastavene,
     SPRAVA_DUPLICITA_ZAKAZNIK,
@@ -128,6 +129,7 @@ from platby import (
     odloz_webhook,
     overit_podpis,
     platby_zapnute,
+    pocet_zaplatenych_zakladajucich,
     pocet_cakajucich,
     spracuj_udalost,
     stav_dozoru,
@@ -203,8 +205,8 @@ PUBLIC_CACHE_CONTROL = "public, max-age=300, must-revalidate"
 PRIVATE_CACHE_CONTROL = "private, no-store"
 NOINDEX_HEADER = "noindex, nofollow, noarchive"
 RETRY_AFTER_PUBLIC_DATA = "900"
-COMMUNITY_GOAL = 250
-COMMUNITY_VISIBILITY_THRESHOLD = 10
+COMMUNITY_GOAL = KAPACITA_ZAKLADAJUCICH
+COMMUNITY_VISIBILITY_THRESHOLD = 1
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 RECIPE_SMOKE_STATE = os.environ.get(
     "UVARSI_RECIPE_SMOKE_STATE", "/var/lib/uvarsi/recipe_engine_smoke.json"
@@ -4898,11 +4900,11 @@ def prehlad_nakladov(req: Request):
 
 
 def public_community(con) -> dict:
-    accounts = int(con.execute("SELECT COUNT(*) FROM pouzivatelia").fetchone()[0])
+    founders = pocet_zaplatenych_zakladajucich(con)
     return {
-        "accounts": accounts,
+        "founders": founders,
         "goal": COMMUNITY_GOAL,
-        "visible": accounts >= COMMUNITY_VISIBILITY_THRESHOLD,
+        "visible": founders >= COMMUNITY_VISIBILITY_THRESHOLD,
     }
 
 

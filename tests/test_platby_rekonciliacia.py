@@ -8,7 +8,7 @@ Audit pred spustením platieb našiel štyri diery, ktorými tichо odtekali pen
 2. Webhook prijatý s vypnutými platbami sa nesmie zahodiť. Telo sa uloží tak,
    ako prišlo (aj s podpisom), a spracuje sa neskôr — podpis sa overuje až vtedy,
    takže sa neoslabuje nič.
-3. 251. zákazník zaplatí a mlčky nedostane nič. Musí sa to dozvedieť majiteľ
+3. 51. zákazník zaplatí a mlčky nedostane nič. Musí sa to dozvedieť majiteľ
    (ntfy) aj zákazník (v appke aj e-mailom).
 4. Nespracovateľné udalosti musia dôjsť majiteľovi. Na ntfy sa ale nesmie
    dostať nič osobné — kanál je v repozitári a je verejne čitateľný.
@@ -58,7 +58,7 @@ def rekonciliacia_modul():
     return importlib.import_module("rekonciliacia")
 
 
-def objednavka_z_api(order_id="ord-1", email="test@uvar.si", total=1900,
+def objednavka_z_api(order_id="ord-1", email="test@uvar.si", total=3900,
                      mena="EUR", stav="paid", variant_id=None, refunded=False,
                      custom=None):
     """Objednávka v tvare, v akom ju vracia LemonSqueezy API (v1/orders)."""
@@ -97,7 +97,7 @@ def test_zaplatena_objednavka_bez_webhooku_sa_dobehne_rekonciliaciou(monkeypatch
     assert riadok["user_id"] == 5
     assert riadok["objednavka_id"] == "ord-77"
     assert riadok["poskytovatel"] == "lemonsqueezy"
-    assert riadok["suma_centy"] == 1900 and riadok["mena"] == "EUR"
+    assert riadok["suma_centy"] == 3900 and riadok["mena"] == "EUR"
 
 
 def test_rekonciliacia_dvakrat_udeli_prave_jeden_narok(monkeypatch, tmp_path):
@@ -242,18 +242,18 @@ def test_rekonciliacia_ohlasi_aj_platbu_nad_kapacitu(monkeypatch, tmp_path):
     server = zapnute_platby(monkeypatch, tmp_path)
     rek = rekonciliacia_modul()
     vytvor_pouzivatela(server, user_id=1, email="neskoro@uvar.si")
-    naplnit_miesta(server, 250)
+    naplnit_miesta(server, 50)
     poslane, maily = [], []
 
     with closing(server.db()) as con:
         suhrn = rek.rekonciluj(
-            con, objednavky=[objednavka_z_api(order_id="ord-251", email="neskoro@uvar.si")],
+            con, objednavky=[objednavka_z_api(order_id="ord-51", email="neskoro@uvar.si")],
             now=server.AUTH_CLOCK(), notifikuj=poslane.append,
             mailuj=lambda komu, predmet, text: maily.append((komu, text)),
         )
 
     assert suhrn["nad_kapacitu"] == 1
-    assert "ord-251" in " ".join(s["sprava"] for s in poslane)
+    assert "ord-51" in " ".join(s["sprava"] for s in poslane)
     assert [m[0] for m in maily] == ["neskoro@uvar.si"]
     assert "vrát" in maily[0][1].lower()
 
@@ -459,29 +459,29 @@ def test_sklad_odlozenych_ma_strop(monkeypatch, tmp_path):
 
 
 # ---------------------------------------------------------- 3. nad kapacitu
-def test_251_platba_upozorni_majitela(monkeypatch, tmp_path):
+def test_51_platba_upozorni_majitela(monkeypatch, tmp_path):
     server = zapnute_platby(monkeypatch, tmp_path)
     vytvor_pouzivatela(server)
-    naplnit_miesta(server, 250)
+    naplnit_miesta(server, 50)
     poslane = []
     monkeypatch.setattr(server, "posli_upozornenie_majitelovi", poslane.append)
     client = TestClient(server.app, raise_server_exceptions=False)
 
-    response = posli_webhook(client, objednavka(order_id="ord-251"))
+    response = posli_webhook(client, objednavka(order_id="ord-51"))
 
     assert response.json()["akcia"] == "nad_kapacitu"
     assert poslane, "peniaze bez protihodnoty sa nesmú stratiť v tichu"
     text = " ".join(f"{s['titul']} {s['sprava']}" for s in poslane)
-    assert "ord-251" in text
+    assert "ord-51" in text
     assert "@" not in text, "na verejný ntfy kanál nepatrí e-mail zákazníka"
 
 
-def test_251_platba_sa_dozvie_aj_zakaznik_v_appke(monkeypatch, tmp_path):
+def test_51_platba_sa_dozvie_aj_zakaznik_v_appke(monkeypatch, tmp_path):
     server = zapnute_platby(monkeypatch, tmp_path)
     vytvor_pouzivatela(server)
-    naplnit_miesta(server, 250)
+    naplnit_miesta(server, 50)
     client = prihlaseny(server)
-    posli_webhook(client, objednavka(order_id="ord-251"))
+    posli_webhook(client, objednavka(order_id="ord-51"))
 
     stav = client.get("/api/platba/stav").json()
 
@@ -490,16 +490,16 @@ def test_251_platba_sa_dozvie_aj_zakaznik_v_appke(monkeypatch, tmp_path):
     assert "vrát" in stav["sprava"].lower(), f"zákazník sa musí dozvedieť o vrátení: {stav['sprava']}"
 
 
-def test_251_platba_sa_zakaznikovi_aj_posle_mailom(monkeypatch, tmp_path):
+def test_51_platba_sa_zakaznikovi_aj_posle_mailom(monkeypatch, tmp_path):
     server = zapnute_platby(monkeypatch, tmp_path)
     vytvor_pouzivatela(server, user_id=1, email="neskoro@uvar.si")
-    naplnit_miesta(server, 250)
+    naplnit_miesta(server, 50)
     maily = []
     monkeypatch.setattr(server, "posli_mail",
                         lambda komu, predmet, telo, html: maily.append((komu, predmet, telo)))
     client = TestClient(server.app, raise_server_exceptions=False)
 
-    posli_webhook(client, objednavka(order_id="ord-251"))
+    posli_webhook(client, objednavka(order_id="ord-51"))
 
     assert [m[0] for m in maily] == ["neskoro@uvar.si"]
     assert "vrát" in maily[0][2].lower()
@@ -509,7 +509,7 @@ def test_zlyhany_mail_zakaznikovi_nezhodi_webhook(monkeypatch, tmp_path):
     """Poskytovateľ nesmie dostať 500 len preto, že mailer nefunguje."""
     server = zapnute_platby(monkeypatch, tmp_path)
     vytvor_pouzivatela(server)
-    naplnit_miesta(server, 250)
+    naplnit_miesta(server, 50)
 
     def padne(*args, **kwargs):
         raise RuntimeError("mailer nefunguje")
@@ -517,7 +517,7 @@ def test_zlyhany_mail_zakaznikovi_nezhodi_webhook(monkeypatch, tmp_path):
     monkeypatch.setattr(server, "posli_mail", padne)
     client = TestClient(server.app, raise_server_exceptions=False)
 
-    response = posli_webhook(client, objednavka(order_id="ord-251"))
+    response = posli_webhook(client, objednavka(order_id="ord-51"))
 
     assert response.status_code == 200
     assert response.json()["akcia"] == "nad_kapacitu"
@@ -537,7 +537,7 @@ def test_druha_platba_toho_isteho_cloveka_zanecha_stopu_v_narokoch(monkeypatch, 
     assert len(riadky) == 2, "druhá platba musí byť dohľadateľná"
     navyse = [r for r in riadky if r["objednavka_id"] == "ord-2"][0]
     assert navyse["stav"] == "duplicitny"
-    assert navyse["suma_centy"] == 1900
+    assert navyse["suma_centy"] == 3900
     assert len(aktivne(server)) == 1
 
 
@@ -560,16 +560,16 @@ def test_health_ukaze_ze_niekomu_dlzime_vratenie(monkeypatch, tmp_path):
     """Bez SSH sa majiteľ inak nedozvie, že drží peniaze bez protihodnoty."""
     server = zapnute_platby(monkeypatch, tmp_path)
     vytvor_pouzivatela(server)
-    naplnit_miesta(server, 250)
+    naplnit_miesta(server, 50)
     client = TestClient(server.app, raise_server_exceptions=False)
     assert client.get("/api/health").json()["platby"]["nevybavene_vratky"] == 0
 
-    posli_webhook(client, objednavka(order_id="ord-251"))
+    posli_webhook(client, objednavka(order_id="ord-51"))
 
     platby_stav = client.get("/api/health").json()["platby"]
     assert platby_stav["nevybavene_vratky"] == 1
     assert platby_stav["cakajucich_tiel"] == 0
-    assert platby_stav["obsadene"] == 250
+    assert platby_stav["obsadene"] == 50
 
 
 def test_health_ukaze_kolko_tiel_caka_s_vypnutymi_platbami(monkeypatch, tmp_path):

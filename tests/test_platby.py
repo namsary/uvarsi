@@ -72,7 +72,7 @@ def prihlaseny(server, session="session-token"):
     return client
 
 
-def objednavka(user_id=1, order_id="ord-1", udalost="order_created", total=1900,
+def objednavka(user_id=1, order_id="ord-1", udalost="order_created", total=3900,
                mena="EUR", webhook_id=None, variant_id=None, typ="orders"):
     attributes = {"total": total, "currency": mena, "status": "paid"}
     if variant_id is not None:
@@ -175,7 +175,7 @@ def test_stav_hovori_zrozumitelne_ze_platby_este_nebezia(monkeypatch, tmp_path):
     data = response.json()
     assert data["platby_zapnute"] is False
     assert data["ma_narok"] is False
-    assert data["volne_miesta"] == 250
+    assert data["volne_miesta"] == 50
     assert data["sprava"] == "Platby zatiaľ nie sú spustené."
 
 
@@ -203,7 +203,7 @@ def test_start_vrati_checkout_url_s_id_pouzivatela_v_custom_data(monkeypatch, tm
     data = response.json()
     assert data["url"].startswith(CHECKOUT + "?")
     assert "checkout%5Bcustom%5D%5Buser_id%5D=7" in data["url"]
-    assert data["volne_miesta"] == 250
+    assert data["volne_miesta"] == 50
     assert naroky(server) == [], "start nesmie sám nič udeliť"
 
 
@@ -219,15 +219,15 @@ def test_start_odmietne_pouzivatela_ktory_uz_narok_ma(monkeypatch, tmp_path):
     assert response.json()["detail"] == "Zakladajúce členstvo už máš aktívne."
 
 
-def test_start_odmietne_ked_je_vsetkych_250_miest_obsadenych(monkeypatch, tmp_path):
+def test_start_odmietne_ked_je_vsetkych_50_miest_obsadenych(monkeypatch, tmp_path):
     server = zapnute_platby(monkeypatch, tmp_path)
     vytvor_pouzivatela(server, user_id=999, email="neskoro@uvar.si")
-    naplnit_miesta(server, 250)
+    naplnit_miesta(server, 50)
 
     response = prihlaseny(server).post("/api/platba/start")
 
     assert response.status_code == 409
-    assert response.json()["detail"] == "Všetkých 250 zakladajúcich miest je obsadených."
+    assert response.json()["detail"] == "Všetkých 50 zakladajúcich miest je obsadených."
 
 
 def test_start_je_503_ked_chyba_adresa_pokladne(monkeypatch, tmp_path):
@@ -373,7 +373,7 @@ def test_order_created_udeli_narok_s_celym_zaznamom(monkeypatch, tmp_path):
     vytvor_pouzivatela(server)
     client = TestClient(server.app, raise_server_exceptions=False)
 
-    response = posli_webhook(client, objednavka(order_id="ord-42", total=1900))
+    response = posli_webhook(client, objednavka(order_id="ord-42", total=3900))
 
     assert response.status_code == 200
     assert response.json()["akcia"] == "udelene"
@@ -383,7 +383,7 @@ def test_order_created_udeli_narok_s_celym_zaznamom(monkeypatch, tmp_path):
     assert zaznam[0]["produkt"] == "zakladajuci_clen"
     assert zaznam[0]["poskytovatel"] == "lemonsqueezy"
     assert zaznam[0]["objednavka_id"] == "ord-42"
-    assert zaznam[0]["suma_centy"] == 1900
+    assert zaznam[0]["suma_centy"] == 3900
     assert zaznam[0]["mena"] == "EUR"
     assert zaznam[0]["stav"] == "aktivny"
     assert zaznam[0]["ziskany_o"] > 0
@@ -397,7 +397,7 @@ def test_udeleny_narok_sa_prejavi_v_stave_aj_v_profile(monkeypatch, tmp_path):
 
     stav = client.get("/api/platba/stav").json()
     assert stav["ma_narok"] is True
-    assert stav["volne_miesta"] == 249
+    assert stav["volne_miesta"] == 49
     assert stav["obsadene"] == 1
     assert client.get("/api/me").json()["platiaci"] is True
 
@@ -538,7 +538,7 @@ def test_vratenie_a_zrusenie_odoberu_narok(monkeypatch, tmp_path, udalost, ocaka
     assert [row["stav"] for row in naroky(server)] == [ocakavany_stav]
     stav = client.get("/api/platba/stav").json()
     assert stav["ma_narok"] is False
-    assert stav["volne_miesta"] == 250
+    assert stav["volne_miesta"] == 50
     assert client.get("/api/me").json()["platiaci"] is False
 
 
@@ -547,7 +547,7 @@ def test_vratenie_uvolni_miesto_pre_dalsieho_clena(monkeypatch, tmp_path):
     vytvor_pouzivatela(server)
     client = prihlaseny(server)
     posli_webhook(client, objednavka(order_id="ord-42"))
-    naplnit_miesta(server, 249, od=100)
+    naplnit_miesta(server, 49, od=100)
     assert client.get("/api/platba/stav").json()["volne_miesta"] == 0
 
     posli_webhook(client, objednavka(order_id="ord-42", udalost="order_refunded"))
@@ -579,7 +579,7 @@ def naplnit_miesta(server, pocet, od=1000):
             con.execute(
                 """INSERT INTO naroky (user_id, produkt, poskytovatel, objednavka_id,
                                        suma_centy, mena, stav, ziskany_o, zmeneny_o)
-                   VALUES (?, 'zakladajuci_clen', 'lemonsqueezy', ?, 1900, 'EUR', 'aktivny', ?, ?)""",
+                   VALUES (?, 'zakladajuci_clen', 'lemonsqueezy', ?, 3900, 'EUR', 'aktivny', ?, ?)""",
                 (user_id, f"seed-{user_id}", now, now),
             )
         con.commit()
@@ -592,30 +592,30 @@ def test_stav_hlasi_skutocny_pocet_volnych_miest(monkeypatch, tmp_path):
 
     stav = prihlaseny(server).get("/api/platba/stav").json()
 
-    assert stav["kapacita"] == 250
+    assert stav["kapacita"] == 50
     assert stav["obsadene"] == 3
-    assert stav["volne_miesta"] == 247
+    assert stav["volne_miesta"] == 47
 
 
-def test_251_platba_sa_zaznamena_ale_neudeli_narok(monkeypatch, tmp_path):
+def test_51_platba_sa_zaznamena_ale_neudeli_narok(monkeypatch, tmp_path):
     server = zapnute_platby(monkeypatch, tmp_path)
     vytvor_pouzivatela(server)
-    naplnit_miesta(server, 250)
+    naplnit_miesta(server, 50)
     client = TestClient(server.app, raise_server_exceptions=False)
 
-    response = posli_webhook(client, objednavka(order_id="ord-251"))
+    response = posli_webhook(client, objednavka(order_id="ord-51"))
 
     assert response.status_code == 200
     assert response.json()["akcia"] == "nad_kapacitu"
-    assert len(aktivne(server)) == 250
-    nadbytocny = [row for row in naroky(server) if row["objednavka_id"] == "ord-251"]
+    assert len(aktivne(server)) == 50
+    nadbytocny = [row for row in naroky(server) if row["objednavka_id"] == "ord-51"]
     assert nadbytocny[0]["stav"] == "nad_kapacitu", "peniaze sa musia dať dohľadať a vrátiť"
 
 
-def test_dve_sucasne_platby_neobsadia_miesto_251(monkeypatch, tmp_path):
+def test_dve_sucasne_platby_neobsadia_miesto_51(monkeypatch, tmp_path):
     """Race: dvaja zaplatia naraz, keď je voľné posledné miesto. Vyhrať smie jeden."""
     server = zapnute_platby(monkeypatch, tmp_path)
-    naplnit_miesta(server, 249)
+    naplnit_miesta(server, 49)
     with closing(server.db()) as con:
         con.executemany("INSERT INTO pouzivatelia (id, email) VALUES (?, ?)",
                         [(1, "prvy@uvar.si"), (2, "druhy@uvar.si")])
@@ -638,7 +638,7 @@ def test_dve_sucasne_platby_neobsadia_miesto_251(monkeypatch, tmp_path):
 
     akcie = sorted(vysledok["akcia"] for vysledok in vysledky)
     assert akcie == ["nad_kapacitu", "udelene"], f"nečakaný výsledok pretekov: {akcie}"
-    assert len(aktivne(server)) == 250
+    assert len(aktivne(server)) == 50
 
 
 def test_databaza_nedovoli_dva_aktivne_naroky_pre_jedno_konto(monkeypatch, tmp_path):
@@ -652,7 +652,7 @@ def test_databaza_nedovoli_dva_aktivne_naroky_pre_jedno_konto(monkeypatch, tmp_p
         con.execute(
             """INSERT INTO naroky (user_id, produkt, poskytovatel, objednavka_id,
                                    suma_centy, mena, stav, ziskany_o, zmeneny_o)
-               VALUES (1, 'zakladajuci_clen', 'lemonsqueezy', ?, 1900, 'EUR',
+               VALUES (1, 'zakladajuci_clen', 'lemonsqueezy', ?, 3900, 'EUR',
                        'aktivny', ?, ?)""",
             (objednavka_id, now, now),
         )
@@ -722,6 +722,29 @@ def test_rucny_narok_je_v_uctovnictve_poznat_ze_nebol_zaplateny(monkeypatch, tmp
     assert riadok["produkt"] == platby.PRODUKT_ZAKLADAJUCI
 
 
+def test_rucny_testovaci_narok_neznizi_pocet_platenych_miest(monkeypatch, tmp_path):
+    server = zapnute_platby(monkeypatch, tmp_path)
+    platby = platby_modul()
+    vytvor_pouzivatela(server)
+    vytvor_pouzivatela(server, user_id=2, email="kupujuci@uvar.si", session="session-2")
+
+    with closing(server.db()) as con:
+        platby.udel_narok_rucne(con, user_id=1, now=server.AUTH_CLOCK())
+
+    stav_pred = prihlaseny(server, "session-2").get("/api/platba/stav").json()
+    response = posli_webhook(
+        TestClient(server.app, raise_server_exceptions=False),
+        objednavka(order_id="paid-after-manual", user_id=2),
+    )
+    stav_po = prihlaseny(server, "session-2").get("/api/platba/stav").json()
+
+    assert stav_pred["obsadene"] == 0
+    assert stav_pred["volne_miesta"] == 50
+    assert response.json()["akcia"] == "udelene"
+    assert stav_po["obsadene"] == 1
+    assert stav_po["volne_miesta"] == 49
+
+
 def test_rucny_narok_neodomkne_nikoho_ineho(monkeypatch, tmp_path):
     server = load_server(monkeypatch, tmp_path)
     platby = platby_modul()
@@ -772,11 +795,11 @@ def test_rucny_narok_odmietne_nezmyselne_id(monkeypatch, tmp_path, hodnota):
 
 
 def test_rucny_narok_nevyda_miesto_nad_kapacitu(monkeypatch, tmp_path):
-    """Ani majiteľ si nevypýta 251. miesto — kapacita je kapacita."""
+    """Ani majiteľ si nevypýta 51. miesto — kapacita je kapacita."""
     server = load_server(monkeypatch, tmp_path)
     platby = platby_modul()
     vytvor_pouzivatela(server)
-    naplnit_miesta(server, 250)
+    naplnit_miesta(server, 50)
 
     with closing(server.db()) as con:
         vysledok = platby.udel_narok_rucne(con, user_id=1, now=server.AUTH_CLOCK())

@@ -92,7 +92,7 @@ def test_founding_offer_matches_the_approved_value_story():
 
     assert "39 €" in page
     assert "jednorazovo" in page.lower()
-    assert "Prvých 250" in page
+    assert "Prvých 50" in page
 
 
 def test_pricing_shows_exactly_free_founding_and_annual_premium():
@@ -107,7 +107,7 @@ def test_pricing_shows_exactly_free_founding_and_annual_premium():
     assert '<div class="plan-price">39 €</div>' in founding
     assert "jednorazovo" in founding
     assert "cena natrvalo" in founding
-    assert "Prvých 250" in founding
+    assert "Prvých 50" in founding
     assert '<div class="plan-name">Premium</div>' in premium
     assert '<div class="plan-price">49 €</div>' in premium
     assert "/ rok" in premium
@@ -147,7 +147,7 @@ def test_founding_offer_has_a_progressive_accessible_counter_slot():
     page = html()
 
     assert re.search(
-        r'<div[^>]+id="community-counter"[^>]*>\s*Prvých 250 získa zakladajúcu cenu\s*</div>',
+        r'<div[^>]+id="community-counter"[^>]*>\s*50 zakladajúcich miest za 39 € jednorazovo\s*</div>',
         page,
     )
     assert "renderCommunity(data.community)" in page
@@ -195,14 +195,14 @@ def test_interest_email_is_nonbinding_and_only_a_later_purchase_creates_entitlem
         assert live_payment_claim not in legal
 
 
-def test_account_counter_is_informational_and_never_presented_as_buyer_popularity():
+def test_founder_counter_reports_only_successful_payments_without_popularity_claims():
     page = html()
     legal = legal_terms()
 
-    assert "Počet účtov je informatívny" in page
-    assert "nejde o počet kupujúcich" in page
-    assert "Počet vytvorených účtov" in legal
-    assert "nie je počtom kupujúcich" in legal
+    assert "Počítame iba úspešne zaplatené zakladajúce členstvá" in page
+    assert "počet úspešne dokončených nákupov zakladajúcej ponuky" in legal
+    assert "Počet vytvorených účtov" not in page
+    assert "Počet vytvorených účtov" not in legal
     for fake_claim in ("najobľúbenejší", "najpopulárnejší", "najpredávanejší"):
         assert fake_claim not in page.lower()
         assert fake_claim not in legal.lower()

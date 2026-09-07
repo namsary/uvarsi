@@ -446,7 +446,7 @@ def grant_premium(server, user_id, order_id=None):
         con.execute(
             """INSERT INTO naroky (user_id, produkt, poskytovatel, objednavka_id,
                                    suma_centy, mena, stav, ziskany_o, zmeneny_o)
-               VALUES (?, 'zakladajuci_clen', 'lemonsqueezy', ?, 1900, 'EUR', 'aktivny', 1, 1)""",
+               VALUES (?, 'zakladajuci_clen', 'lemonsqueezy', ?, 3900, 'EUR', 'aktivny', 1, 1)""",
             (user_id, order_id or f"ord-{user_id}"),
         )
         con.commit()
@@ -605,19 +605,74 @@ def test_public_landing_serves_only_valid_current_data(monkeypatch, tmp_path):
     assert response.json()["week"] == current_monday()
 
 
-@pytest.mark.parametrize(
-    ("user_count", "expected_visible"),
-    [(0, False), (9, False), (10, True), (251, True)],
-)
-def test_public_landing_reports_only_anonymous_real_account_count(
-    monkeypatch, tmp_path, user_count, expected_visible
+def test_public_landing_counts_only_paid_founders_towards_the_50_places(
+    monkeypatch, tmp_path
 ):
     server = load_server(monkeypatch, tmp_path, [], landing_payload())
+    now = server.AUTH_CLOCK()
     con = server.db()
     try:
         con.executemany(
-            "INSERT INTO pouzivatelia (email) VALUES (?)",
-            [(f"member-{index}@example.test",) for index in range(user_count)],
+            "INSERT INTO pouzivatelia (id, email) VALUES (?, ?)",
+            [
+                (1, "free@example.test"),
+                (2, "founder@example.test"),
+                (3, "manual-premium@example.test"),
+            ],
+        )
+        con.execute(
+            """INSERT INTO naroky
+               (user_id, produkt, poskytovatel, objednavka_id, suma_centy,
+                mena, stav, ziskany_o, zmeneny_o)
+               VALUES (2, 'zakladajuci_clen', 'lemonsqueezy', 'paid-2', 3900,
+                       'EUR', 'aktivny', ?, ?)""",
+            (now, now),
+        )
+        con.execute(
+            """INSERT INTO naroky
+               (user_id, produkt, poskytovatel, objednavka_id, suma_centy,
+                mena, stav, ziskany_o, zmeneny_o)
+               VALUES (3, 'zakladajuci_clen', 'rucne', 'manual-3', 0,
+                       NULL, 'aktivny', ?, ?)""",
+            (now, now),
+        )
+        con.commit()
+    finally:
+        con.close()
+
+    community = TestClient(server.app).get("/api/public/landing").json()["community"]
+
+    assert community == {"founders": 1, "goal": 50, "visible": True}
+
+
+@pytest.mark.parametrize(
+    ("founder_count", "expected_visible"),
+    [(0, False), (1, True), (50, True)],
+)
+def test_public_landing_reports_only_anonymous_paid_founder_count(
+    monkeypatch, tmp_path, founder_count, expected_visible
+):
+    server = load_server(monkeypatch, tmp_path, [], landing_payload())
+    now = server.AUTH_CLOCK()
+    con = server.db()
+    try:
+        con.executemany(
+            "INSERT INTO pouzivatelia (id, email) VALUES (?, ?)",
+            [
+                (index + 1, f"member-{index}@example.test")
+                for index in range(founder_count)
+            ],
+        )
+        con.executemany(
+            """INSERT INTO naroky
+               (user_id, produkt, poskytovatel, objednavka_id, suma_centy,
+                mena, stav, ziskany_o, zmeneny_o)
+               VALUES (?, 'zakladajuci_clen', 'lemonsqueezy', ?, 3900, 'EUR',
+                       'aktivny', ?, ?)""",
+            [
+                (index + 1, f"paid-{index}", now, now)
+                for index in range(founder_count)
+            ],
         )
         con.commit()
     finally:
@@ -628,11 +683,11 @@ def test_public_landing_reports_only_anonymous_real_account_count(
     assert response.status_code == 200
     community = response.json()["community"]
     assert community == {
-        "accounts": user_count,
-        "goal": 250,
+        "founders": founder_count,
+        "goal": 50,
         "visible": expected_visible,
     }
-    assert type(community["accounts"]) is int
+    assert type(community["founders"]) is int
     assert type(community["goal"]) is int
     assert "member-" not in response.text
 
@@ -645,10 +700,10 @@ def test_public_landing_hides_community_when_count_query_fails(monkeypatch, tmp_
         def __init__(self, con):
             self.con = con
 
-        def execute(self, sql):
-            if sql == "SELECT COUNT(*) FROM pouzivatelia":
+        def execute(self, sql, parameters=()):
+            if "COUNT(*) FROM naroky" in sql:
                 raise sqlite3.Error("count unavailable")
-            return self.con.execute(sql)
+            return self.con.execute(sql, parameters)
 
         def close(self):
             self.con.close()
@@ -660,7 +715,7 @@ def test_public_landing_hides_community_when_count_query_fails(monkeypatch, tmp_
     assert response.status_code == 200
     assert response.json()["week"] == current_monday()
     assert response.json()["community"]["visible"] is False
-    assert "accounts" not in response.json()["community"]
+    assert "founders" not in response.json()["community"]
 
 
 def test_public_landing_is_503_for_stale_data(monkeypatch, tmp_path):

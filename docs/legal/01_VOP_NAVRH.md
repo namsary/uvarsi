@@ -57,11 +57,11 @@ Po spustení bude platbu technicky a zmluvne spracúvať LemonSqueezy ako mercha
 
 ## 5. Cena a predplatné
 
-Po spustení platieb bude Zakladajúce Premium stáť **39 € jednorazovo** pre prvých 250 úspešne dokončených nákupov tejto ponuky. E-mailový záujem ani samotné vytvorenie účtu poradie alebo cenu nerezervujú.
+Po spustení platieb bude Zakladajúce Premium stáť **39 € jednorazovo** pre prvých 50 úspešne dokončených nákupov tejto ponuky. E-mailový záujem ani samotné vytvorenie účtu poradie alebo cenu nerezervujú.
 
 Po skončení zakladajúcej ponuky bude Premium ponúkané za **49 € ročne**. Prípadnú automatickú obnovu, termín ďalšej platby a spôsob zrušenia uvedie konečný checkout pred nákupom.
 
-Počet vytvorených účtov je iba informatívny údaj o testovacej komunite, nie je počtom kupujúcich a nerozhoduje o dostupnosti zakladajúcej ponuky; tú určí až počet úspešne dokončených nákupov podľa konečných podmienok ponuky.
+Počítadlo zakladajúcich miest zobrazuje iba počet úspešne dokončených nákupov zakladajúcej ponuky. Vytvorenie účtu, prihlásenie do bezplatnej verzie ani ručne udelený testovací prístup miesto neobsadia.
 
 Konečnú cenu vrátane daní zobrazí checkout pred odoslaním objednávky. Neúčtujeme skryté povinné poplatky. Ak sa údaje v týchto VOP a v súhrne objednávky líšia, pre konkrétnu objednávku platí výhodnejšia jasne potvrdená podmienka, ak zákon neustanovuje inak.
 

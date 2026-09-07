@@ -194,44 +194,44 @@ def test_community_counter_is_truthful_progressive_accessible_and_capped(tmp_pat
         "landing-community-counter.js",
         helpers
         + """
-var fallback = 'Prvých 250 získa zakladajúcu cenu';
+var fallback = '50 zakladajúcich miest za 39 € jednorazovo';
 function freshCounter() {
   communityCounter = makeElement('div');
   communityCounter.textContent = fallback;
 }
 
 freshCounter();
-renderCommunity({visible: true, accounts: 9, goal: 250});
+renderCommunity({visible: false, founders: 0, goal: 50});
 if (textOf(communityCounter) !== fallback || communityCounter.children.length) process.exit(1);
 
 freshCounter();
-renderCommunity({visible: true, accounts: 10, goal: 250});
-var tenLabel = 'Testovacia komunita: 10 z cieľa 250 účtov';
+renderCommunity({visible: true, founders: 1, goal: 50});
+var tenLabel = 'Obsadené: 1 z 50 zakladajúcich miest';
 var tenLabelNode = communityCounter.children[0];
 var tenBar = communityCounter.children[1];
 if (tenLabelNode.textContent !== tenLabel) process.exit(2);
 if (tenBar.attributes['aria-valuetext'] !== tenLabel) process.exit(3);
 if (tenBar.attributes.role !== 'progressbar') process.exit(4);
 if (tenBar.attributes['aria-valuemin'] !== '0') process.exit(5);
-if (tenBar.attributes['aria-valuemax'] !== '250') process.exit(6);
-if (tenBar.attributes['aria-valuenow'] !== '10') process.exit(7);
-if (tenBar.children[0].style.width !== '4%') process.exit(8);
+if (tenBar.attributes['aria-valuemax'] !== '50') process.exit(6);
+if (tenBar.attributes['aria-valuenow'] !== '1') process.exit(7);
+if (tenBar.children[0].style.width !== '2%') process.exit(8);
 if (!tenLabelNode.id || tenBar.attributes['aria-labelledby'] !== tenLabelNode.id) process.exit(14);
 
 freshCounter();
-renderCommunity({visible: true, accounts: 251, goal: 250});
-var overLabel = 'Testovacia komunita: 251 z cieľa 250 účtov';
+renderCommunity({visible: true, founders: 51, goal: 50});
+var overLabel = 'Obsadené: 50 z 50 zakladajúcich miest';
 var overLabelNode = communityCounter.children[0];
 var overBar = communityCounter.children[1];
 if (overLabelNode.textContent !== overLabel) process.exit(9);
 if (overBar.children[0].style.width !== '100%') process.exit(10);
-if (overBar.attributes['aria-valuenow'] !== '250') process.exit(11);
+if (overBar.attributes['aria-valuenow'] !== '50') process.exit(11);
 if (overBar.attributes['aria-valuetext'] !== overLabel) process.exit(12);
 if (!overLabelNode.id || overBar.attributes['aria-labelledby'] !== overLabelNode.id) process.exit(15);
 
-[null, {}, {visible: true, accounts: '10', goal: 250},
- {visible: true, accounts: 10.5, goal: 250},
- {visible: true, accounts: 10, goal: '250'}].forEach(function (community) {
+[null, {}, {visible: true, founders: '1', goal: 50},
+ {visible: true, founders: 1.5, goal: 50},
+ {visible: true, founders: 1, goal: '50'}].forEach(function (community) {
   freshCounter();
   renderCommunity(community);
   if (textOf(communityCounter) !== fallback || communityCounter.children.length) process.exit(13);
@@ -252,7 +252,7 @@ def test_failed_landing_fetch_keeps_counter_fallback_and_uses_no_second_request(
         COMMUNITY_DOM_STUB
         + nested(html, "function loadLanding()")
         + """
-var fallback = 'Prvých 250 získa zakladajúcu cenu';
+var fallback = '50 zakladajúcich miest za 39 € jednorazovo';
 var communityCounter = makeElement('div');
 communityCounter.textContent = fallback;
 var landing = {hidden: false};

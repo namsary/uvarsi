@@ -197,7 +197,7 @@ def _grant_premium(app_db, user_id=1):
             """INSERT INTO naroky (
                 user_id, produkt, poskytovatel, objednavka_id, suma_centy,
                 mena, stav, ziskany_o, zmeneny_o
-            ) VALUES (?, 'zakladajuci_clen', 'lemonsqueezy', ?, 1900,
+            ) VALUES (?, 'zakladajuci_clen', 'lemonsqueezy', ?, 3900,
                       'EUR', 'aktivny', 1, 1)""",
             (user_id, f"ord-{user_id}"),
         )

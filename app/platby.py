@@ -44,7 +44,7 @@ POSKYTOVATEL = "lemonsqueezy"
 # že sa zaň neplatilo (nulová suma, žiadna mena).
 POSKYTOVATEL_RUCNE = "rucne"
 PRODUKT_ZAKLADAJUCI = "zakladajuci_clen"
-KAPACITA_ZAKLADAJUCICH = 250
+KAPACITA_ZAKLADAJUCICH = 50
 
 STAV_AKTIVNY = "aktivny"
 STAV_VRATENY = "vrateny"
@@ -299,8 +299,18 @@ def pocet_zakladajucich(con) -> int:
     return int(riadok[0]) if riadok else 0
 
 
+def pocet_zaplatenych_zakladajucich(con) -> int:
+    """Počet aktívnych miest získaných platbou, bez ručných testovacích nárokov."""
+    riadok = con.execute(
+        """SELECT COUNT(*) FROM naroky
+           WHERE produkt=? AND stav=? AND poskytovatel=?""",
+        (PRODUKT_ZAKLADAJUCI, STAV_AKTIVNY, POSKYTOVATEL),
+    ).fetchone()
+    return int(riadok[0]) if riadok else 0
+
+
 def volne_miesta(con) -> int:
-    return max(0, KAPACITA_ZAKLADAJUCICH - pocet_zakladajucich(con))
+    return max(0, KAPACITA_ZAKLADAJUCICH - pocet_zaplatenych_zakladajucich(con))
 
 
 def ma_narok(con, user_id: int) -> bool:
@@ -329,7 +339,7 @@ def platba_bez_protihodnoty(con, user_id: int):
 
 
 def stav_platieb(con, *, user_id: int, zapnute: bool) -> dict:
-    obsadene = pocet_zakladajucich(con)
+    obsadene = pocet_zaplatenych_zakladajucich(con)
     volne = max(0, KAPACITA_ZAKLADAJUCICH - obsadene)
     narok = ma_narok(con, user_id)
     bez_protihodnoty = platba_bez_protihodnoty(con, user_id)
@@ -574,7 +584,7 @@ def _udel(con, payload, now, ocakavany_variant):
         return {"akcia": AKCIA_UZ_UDELENE, "objednavka": objednavka,
                 "user_id": user_id, "stav": STAV_DUPLICITNY}
 
-    vypredane = pocet_zakladajucich(con) >= KAPACITA_ZAKLADAJUCICH
+    vypredane = pocet_zaplatenych_zakladajucich(con) >= KAPACITA_ZAKLADAJUCICH
     stav = STAV_NAD_KAPACITU if vypredane else STAV_AKTIVNY
     con.execute(
         """INSERT INTO naroky (user_id, produkt, poskytovatel, objednavka_id,
@@ -609,7 +619,7 @@ def udel_narok_rucne(con, *, user_id, now) -> dict:
         if ma_narok(con, user_id):
             con.commit()
             return {"akcia": AKCIA_UZ_UDELENE}
-        vypredane = pocet_zakladajucich(con) >= KAPACITA_ZAKLADAJUCICH
+        vypredane = pocet_zaplatenych_zakladajucich(con) >= KAPACITA_ZAKLADAJUCICH
         stav = STAV_NAD_KAPACITU if vypredane else STAV_AKTIVNY
         con.execute(
             """INSERT INTO naroky (user_id, produkt, poskytovatel, objednavka_id,
@@ -625,7 +635,8 @@ def udel_narok_rucne(con, *, user_id, now) -> dict:
         if con.in_transaction:
             con.rollback()
         raise
-    # Ani majiteľ nedostane 251. miesto: kapacita platí pre všetkých rovnako.
+    # Po vypredaní sa nevydávajú ani ďalšie testovacie prístupy. Testovací
+    # prístup udelený skôr však neukrojí miesto zo zakladajúcej ponuky.
     return {"akcia": AKCIA_NAD_KAPACITU if vypredane else AKCIA_UDELENE}
 
 
@@ -775,7 +786,7 @@ def stav_dozoru(con) -> dict:
         (STAV_NAD_KAPACITU, STAV_DUPLICITNY),
     ).fetchone()[0]
     return {
-        "obsadene": pocet_zakladajucich(con),
+        "obsadene": pocet_zaplatenych_zakladajucich(con),
         "kapacita": KAPACITA_ZAKLADAJUCICH,
         "cakajucich_tiel": pocet_cakajucich(con),
         "nevybavene_vratky": int(nevybavene),

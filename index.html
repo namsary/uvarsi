@@ -359,7 +359,7 @@
       </div>
 
       <div class="plan plan--hot">
-        <span class="plan-tag">Prvých 250</span>
+        <span class="plan-tag">Prvých 50</span>
         <div class="plan-name">Zakladajúci</div>
         <div class="plan-price">39 €</div>
         <div class="plan-per">jednorazovo · cena natrvalo</div>
@@ -368,7 +368,7 @@
           <li>Celý týždeň, recepty a špajza</li>
           <li>Budúce aktualizácie</li>
         </ul>
-        <div class="plan-counter" id="community-counter">Prvých 250 získa zakladajúcu cenu</div>
+        <div class="plan-counter" id="community-counter">50 zakladajúcich miest za 39 € jednorazovo</div>
         <button type="button" class="btn js-plan" data-plan="Zakladajúci (39 € jednorazovo)">Chcem zakladajúcu cenu</button>
       </div>
 
@@ -512,19 +512,19 @@
   }
 
   function renderCommunity(c){
-    communityCounter.textContent='Prvých 250 získa zakladajúcu cenu';
-    if(!c||c.visible!==true||!Number.isInteger(c.accounts)||c.accounts<10||c.goal!==250) return;
-    var a=c.accounts, t='Testovacia komunita: '+a+' z cieľa 250 účtov';
+    communityCounter.textContent='50 zakladajúcich miest za 39 € jednorazovo';
+    if(!c||c.visible!==true||!Number.isInteger(c.founders)||c.founders<1||c.goal!==50) return;
+    var a=Math.min(c.founders,50), t='Obsadené: '+a+' z 50 zakladajúcich miest';
     var r=node('div','pc-row',t), b=node('div','pc-bar'), f=node('span','');
-    f.style.width=Math.min(a/2.5,100)+'%';
+    f.style.width=Math.min(a/0.5,100)+'%';
     b.setAttribute('role','progressbar');
     b.setAttribute('aria-valuemin','0');
-    b.setAttribute('aria-valuemax','250');
-    b.setAttribute('aria-valuenow',Math.min(a,250));
+    b.setAttribute('aria-valuemax','50');
+    b.setAttribute('aria-valuenow',a);
     b.setAttribute('aria-valuetext',t);
     b.setAttribute('aria-labelledby',r.id='cp');
     b.append(f);
-    communityCounter.replaceChildren(r,b,node('small','','Počet účtov je informatívny; nejde o počet kupujúcich.'));
+    communityCounter.replaceChildren(r,b,node('small','','Počítame iba úspešne zaplatené zakladajúce členstvá.'));
   }
 
   function render(data){
