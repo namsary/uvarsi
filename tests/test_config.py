@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 
-from app.config import public_base_url, release_id
+from app.config import legal_version, public_base_url, release_id
 
 
 def test_public_url_requires_explicit_value(monkeypatch):
@@ -23,6 +23,12 @@ def test_release_id_reads_version_file(tmp_path, monkeypatch):
     monkeypatch.setenv("UVARSI_VERSION_FILE", str(path))
 
     assert release_id() == "2026.08.18.1"
+
+
+def test_legal_version_is_code_owned_not_environment_controlled(monkeypatch):
+    monkeypatch.setenv("UVARSI_LEGAL_VERSION", "attacker-controlled")
+
+    assert legal_version() == "2026-09-07-v1"
 
 
 @pytest.mark.parametrize(

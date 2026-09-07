@@ -3,6 +3,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal, cast
 
+try:
+    from .operator_profile import LEGAL_VERSION
+except ImportError:  # server.py imports config as a top-level module in production
+    from operator_profile import LEGAL_VERSION
+
 
 RecipeEngineMode = Literal["off", "shadow", "on"]
 _RECIPE_ENGINE_MODES = frozenset({"off", "shadow", "on"})
@@ -29,6 +34,11 @@ def public_base_url() -> str:
 def release_id() -> str:
     path = Path(os.environ.get("UVARSI_VERSION_FILE", "VERSION"))
     return path.read_text(encoding="utf-8").strip()
+
+
+def legal_version() -> str:
+    """Return the reviewed legal revision bundled with this release."""
+    return LEGAL_VERSION
 
 
 @lru_cache(maxsize=1)
