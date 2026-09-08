@@ -177,15 +177,10 @@ def test_interest_email_is_nonbinding_and_only_a_later_purchase_creates_entitlem
     assert "Platby sú vypnuté" in page
     assert "nezáväzný záujem" in page
     assert "nevytvára objednávku" in page
-    assert "úspešný neskorší nákup" in page
-    assert "odstúpenia a vrátenia platby" in page
-    assert "konečnom checkoute" in page
-    assert "Platby za Premium sú momentálne vypnuté" in legal
-    assert "nezáväzné prejavenie záujmu" in legal
-    assert "nevzniká objednávka" in legal
-    assert "úspešnom nákupe" in legal
-    assert "odstúpenia a vrátenia platby" in legal
-    assert "konečnom checkoute" in legal
+    assert "úspešnej platbe" in page
+    assert "úplné vrátenie do 14 dní" in page
+    assert "Premium sa aktivuje až po potvrdení platby poskytovateľom" in legal
+    assert "úplnú refundáciu bez krátenia" in legal
     for live_payment_claim in (
         "Kúpiť Premium teraz",
         "Zaplať teraz",
@@ -200,7 +195,7 @@ def test_founder_counter_reports_only_successful_payments_without_popularity_cla
     legal = legal_terms()
 
     assert "Počítame iba úspešne zaplatené zakladajúce členstvá" in page
-    assert "počet úspešne dokončených nákupov zakladajúcej ponuky" in legal
+    assert "50 úspešne zaplatených a nerefundovaných členstiev" in legal
     assert "Počet vytvorených účtov" not in page
     assert "Počet vytvorených účtov" not in legal
     for fake_claim in ("najobľúbenejší", "najpopulárnejší", "najpredávanejší"):
@@ -214,5 +209,5 @@ def test_annual_savings_is_a_model_example_not_a_guarantee():
 
     assert "Modelový príklad" in page
     assert "nie je zárukou úspory" in page
-    assert "modelového nákupného zoznamu" in legal
-    assert "Nie je zárukou osobnej úspory" in legal
+    assert "Úspora, porcie a kalórie sú odhad" in legal
+    assert "záruka ani zdravotné odporúčanie" in legal

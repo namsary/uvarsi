@@ -108,6 +108,14 @@ $subory = @(
   @{ l = "$B\app\db_rezim.py";          r = "/opt/uvarsi/app/db_rezim.py" },
   @{ l = "$B\app\naklady.py";           r = "/opt/uvarsi/app/naklady.py" },
   @{ l = "$B\app\auth_data.py";         r = "/opt/uvarsi/app/auth_data.py" },
+  @{ l = "$B\app\account_data.py";      r = "/opt/uvarsi/app/account_data.py" },
+  @{ l = "$B\app\customer_requests.py"; r = "/opt/uvarsi/app/customer_requests.py" },
+  @{ l = "$B\app\customer_requests_cli.py"; r = "/opt/uvarsi/app/customer_requests_cli.py" },
+  @{ l = "$B\app\operator_profile.py";  r = "/opt/uvarsi/app/operator_profile.py" },
+  @{ l = "$B\app\legal_pages.py";       r = "/opt/uvarsi/app/legal_pages.py" },
+  @{ l = "$B\app\payment_readiness.py"; r = "/opt/uvarsi/app/payment_readiness.py" },
+  @{ l = "$B\app\payment_smoke_marker.py"; r = "/opt/uvarsi/app/payment_smoke_marker.py" },
+  @{ l = "$B\app\source_policy.py";     r = "/opt/uvarsi/app/source_policy.py" },
   @{ l = "$B\app\weekly_data.py";       r = "/opt/uvarsi/app/weekly_data.py" },
   @{ l = "$B\app\offer_data.py";        r = "/opt/uvarsi/app/offer_data.py" },
   @{ l = "$B\app\landing_data.py";      r = "/opt/uvarsi/app/landing_data.py" },
@@ -140,10 +148,12 @@ $subory = @(
   @{ l = "$B\hetzner\recepty.py";       r = "/opt/uvarsi/recepty.py" },
   @{ l = "$B\hetzner\dozorca.sh";       r = "/opt/uvarsi/dozorca.sh" },
   @{ l = "$B\hetzner\zaloha.sh";        r = "/opt/uvarsi/zaloha.sh" },
+  @{ l = "$B\hetzner\payment-smoke.py"; r = "/opt/uvarsi/payment-smoke.py" },
   @{ l = "$B\hetzner\uvarsi-deploy-state.sh"; r = "/opt/uvarsi/uvarsi-deploy-state.sh" },
   @{ l = "$B\hetzner\recipe-engine-rollout.sh"; r = "/opt/uvarsi/recipe-engine-rollout.sh" },
   @{ l = "$B\hetzner\recipe-engine.target"; r = "/opt/uvarsi/recipe-engine.target" },
   @{ l = "$B\hetzner\uvarsi-plan-worker.service"; r = "/etc/systemd/system/uvarsi-plan-worker.service" },
+  @{ l = "$B\requirements-auth.txt";       r = "/opt/uvarsi/requirements-auth.txt" },
   @{ l = "$B\VERSION";                  r = "/opt/uvarsi/VERSION" },
   @{ l = "$B\index.html";               r = "/var/www/uvarsi/index.html" },
   @{ l = "$B\sw.js";                    r = "/var/www/uvarsi/sw.js" }
@@ -152,6 +162,7 @@ foreach ($s in $subory) {
   if (-not (Test-Path $s.l)) { Zlyhaj "chyba lokalny subor $($s.l)" }
   $nazov = Split-Path $s.l -Leaf
   if ($s.r.StartsWith("/opt/uvarsi/app/")) { $ciel = "/opt/uvarsi/releases/manual-stage/app/$nazov" }
+  elseif ($s.r -eq "/opt/uvarsi/requirements-auth.txt") { $ciel = "/opt/uvarsi/releases/manual-stage/requirements-auth.txt" }
   elseif ($s.r -eq "/opt/uvarsi/VERSION") { $ciel = "/opt/uvarsi/releases/manual-stage/VERSION" }
   elseif ($s.r -eq "/var/www/uvarsi/index.html") { $ciel = "/opt/uvarsi/releases/manual-stage/index.html" }
   elseif ($s.r -eq "/var/www/uvarsi/sw.js") { $ciel = "/opt/uvarsi/releases/manual-stage/sw.js" }
@@ -216,6 +227,14 @@ Ok "shell skripty maju LF konce riadkov"
 $svc | ssh jarvis "tr -d '\r' > /opt/uvarsi/releases/manual-stage/hetzner/uvarsi.service"
 Vyzaduj "staging systemd jednotky uvarsi zlyhal"
 
+Krok "4/8  Python venv a zavislosti"
+# Kandidatsky import a smoke bezia az po priprave vsetkych runtime zavislosti.
+# Inak by bezpecnostna brana mohla odmietnut dobry release len preto, ze novy
+# balicek sa instaloval az po prepnutí zivej appky.
+ssh jarvis "set -eu; [ -x /opt/uvarsi/venv/bin/python ] || python3 -m venv /opt/uvarsi/venv; /opt/uvarsi/venv/bin/pip -q install fastapi uvicorn anthropic pillow requests -r /opt/uvarsi/releases/manual-stage/requirements-auth.txt; command -v sqlite3 >/dev/null || apt-get install -y sqlite3 util-linux >/dev/null 2>&1; command -v flock >/dev/null || apt-get install -y util-linux >/dev/null 2>&1; command -v sqlite3 >/dev/null; command -v flock >/dev/null"
+Vyzaduj "venv alebo zavislosti sa nepodarilo pripravit"
+Ok "venv, zavislosti, sqlite3 aj flock"
+
 $releasePreflight = @'
 set -eu
 STAGE=/opt/uvarsi/releases/manual-stage
@@ -236,6 +255,16 @@ rm -f /tmp/uvarsi-manual-recipe-smoke.json
 $releasePreflight | ssh jarvis 'set -eu; SCRIPT=$(mktemp /tmp/uvarsi-release-preflight.XXXXXX); trap ''rm -f "$SCRIPT"'' EXIT; tr -d ''\r'' > "$SCRIPT"; bash "$SCRIPT"'
 Vyzaduj "receptovy library gate alebo izolovany smoke zlyhal pred prepnutim"
 Ok "receptovy katalog a izolovany smoke presli pred prepnutim"
+
+$paymentOffGate = @'
+set -eu
+. /opt/uvarsi/releases/manual-stage/hetzner/uvarsi-deploy-state.sh
+uvarsi_require_payments_off
+uvarsi_require_runtime_payments_off
+'@ -replace "`r`n", "`n"
+$paymentOffGate | ssh jarvis "tr -d '\r' > /tmp/uvarsi_payment_off_gate.sh; bash /tmp/uvarsi_payment_off_gate.sh"
+Vyzaduj "platby nie su vypnute v env subore aj v skutocne beziacom procese"
+Ok "platby su pred zmenou zivej appky vypnute"
 
 ssh jarvis "set -eu; if [ ! -f /opt/uvarsi/uvarsi-recipe-engine.env ]; then umask 077; printf 'UVARSI_RECIPE_ENGINE=off\n' > /opt/uvarsi/uvarsi-recipe-engine.env.tmp; chmod 600 /opt/uvarsi/uvarsi-recipe-engine.env.tmp; mv /opt/uvarsi/uvarsi-recipe-engine.env.tmp /opt/uvarsi/uvarsi-recipe-engine.env; fi"
 Vyzaduj "inicializacia receptoveho flagu zlyhala"
@@ -258,15 +287,8 @@ Ok "staging je kompletne nainstalovany"
 ssh jarvis "sed -i 's/\r//' /opt/uvarsi/dozorca.sh /opt/uvarsi/zaloha.sh /opt/uvarsi/uvarsi-deploy-state.sh /opt/uvarsi/recipe-engine-rollout.sh; chmod +x /opt/uvarsi/dozorca.sh /opt/uvarsi/zaloha.sh /opt/uvarsi/uvarsi-deploy-state.sh /opt/uvarsi/recipe-engine-rollout.sh"
 Vyzaduj "normalizacia nainstalovanych shell skriptov zlyhala"
 
-Krok "4/8  Python venv a zavislosti"
-# Na cerstvom serveri /opt/uvarsi/venv neexistuje - bez neho pip zlyha a systemd
-# sa toci v 203/EXEC. Vytvorime ho, ak chyba.
-ssh jarvis "set -eu; [ -x /opt/uvarsi/venv/bin/python ] || python3 -m venv /opt/uvarsi/venv; /opt/uvarsi/venv/bin/pip -q install fastapi uvicorn anthropic pillow requests; command -v sqlite3 >/dev/null || apt-get install -y sqlite3 util-linux >/dev/null 2>&1; command -v flock >/dev/null || apt-get install -y util-linux >/dev/null 2>&1; command -v sqlite3 >/dev/null; command -v flock >/dev/null; chmod +x /opt/uvarsi/dozorca.sh"
-Vyzaduj "venv alebo zavislosti sa nepodarilo pripravit"
-Ok "venv, zavislosti, sqlite3 aj flock (pre dozorcu)"
-
 Krok "5/8  Sluzba uvarsi (bezi stale, prezije restart)"
-ssh jarvis "set -eu; . /opt/uvarsi/uvarsi-deploy-state.sh; PRED_HEARTBEAT=`$(cat /opt/uvarsi/releases/manual-predosle/heartbeat.before); systemctl daemon-reload; systemctl enable uvarsi >/dev/null 2>&1; systemctl enable uvarsi-plan-worker >/dev/null 2>&1; systemctl restart uvarsi; systemctl restart uvarsi-plan-worker; systemctl is-active uvarsi >/dev/null; systemctl is-active uvarsi-plan-worker >/dev/null; uvarsi_wait_fresh_heartbeat `"`$PRED_HEARTBEAT`""
+ssh jarvis "set -eu; . /opt/uvarsi/uvarsi-deploy-state.sh; PRED_HEARTBEAT=`$(cat /opt/uvarsi/releases/manual-predosle/heartbeat.before); systemctl daemon-reload; systemctl enable uvarsi >/dev/null 2>&1; systemctl enable uvarsi-plan-worker >/dev/null 2>&1; systemctl restart uvarsi; systemctl restart uvarsi-plan-worker; systemctl is-active uvarsi >/dev/null; systemctl is-active uvarsi-plan-worker >/dev/null; uvarsi_wait_fresh_heartbeat `"`$PRED_HEARTBEAT`"; uvarsi_require_payments_off; uvarsi_require_runtime_payments_off"
 if ($LASTEXITCODE -ne 0) {
   Zlyhaj "sluzba uvarsi alebo uvarsi-plan-worker po restarte nebezi"
 }
@@ -535,6 +557,10 @@ skontroluj_presmerovanie https://www.uvarsi.sk/co-varit-tento-tyzden "www.uvarsi
 skontroluj_presmerovanie https://uvarsi.89.167.72.159.sslip.io/co-varit-tento-tyzden "sslip redirect"
 
 HEALTH=$(curl -s https://uvar.si/api/health || true)
+
+. /opt/uvarsi/uvarsi-deploy-state.sh || zle "bezpecnostny deploy modul sa neda nacitat"
+uvarsi_require_payments_off || zle "platby nie su po nasadeni vypnute v env subore"
+uvarsi_require_runtime_payments_off || zle "beziaci proces ma po nasadeni platby zapnute"
 
 POCET=$(printf '%s' "$HEALTH" | /opt/uvarsi/venv/bin/python -c 'import json,sys; print(int(json.load(sys.stdin).get("pocet", 0)))' 2>/dev/null || echo 0)
 echo "akcie: ${POCET:-0} (prah $PRAH)"

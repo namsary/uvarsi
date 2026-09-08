@@ -22,7 +22,7 @@ Kontakt: pumaragency@gmail.com
 - Ponuka je obmedzená na 50 úspešne zaplatených a nerefundovaných členstiev.
 - Účet ani otvorený checkout miesto nerezervuje.
 - Premium sa aktivuje až po potvrdení platby poskytovateľom.
-- Ročný produkt 49 €/rok sa v tomto vydaní nepredáva.
+- Ročný produkt za 49 € ročne sa v tomto vydaní nepredáva.
 
 ## Odstúpenie
 

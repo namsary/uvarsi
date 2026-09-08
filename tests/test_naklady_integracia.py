@@ -76,7 +76,7 @@ def test_zbierac_ma_tyzdenny_strop_poctu_behov(monkeypatch, tmp_path, collector)
         return [{
             "obchod": "Lidl", "nazov": f"Položka {i}", "kategoria": "trvanlive",
             "cena": 1.0 + i / 100, "povodna": 2.0, "zlava": "-50 %", "jednotka": "ks",
-            "source_url": "https://flyers.example/lidl", "source_page": i,
+            "source_url": "https://www.lidl.sk/l/test-letak", "source_page": i,
             "valid_from": "2026-08-17", "valid_to": "2026-08-23",
         } for i in range(1, 21)]
 
@@ -147,7 +147,7 @@ def test_zbierac_stale_zapise_skutocnu_spotrebu_modelu(monkeypatch, tmp_path, co
             "povodna": 2.0,
             "zlava": "-50 %",
             "jednotka": "1 kg",
-            "source_url": "https://flyers.example/lidl",
+            "source_url": "https://www.lidl.sk/l/test-letak",
             "source_page": index,
             "valid_from": "2026-08-17",
             "valid_to": "2026-08-23",

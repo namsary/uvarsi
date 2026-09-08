@@ -811,15 +811,21 @@ def test_app_render_critical_first_load_keeps_a_tight_gzip_budget():
             Vernostné ceny pribudli ako podmienená alternatíva pri surovine aj v
             nákupnom zozname; hlavné súčty ostávajú cenou pre každého. Shell má
             33 257 B a strop 33 600 B ponecháva vyše 300 B rezervy bez novej siete.
+
+            7. 9. 2026: platobne pripravený profil doplnil odstúpenie, reklamáciu,
+            export a bezpečné zmazanie účtu spolu s auditovaným súhlasom pri kúpe.
+            Review potvrdil, že rozdelenie by pridalo ďalšiu sieťovú závislosť do
+            profilovej obrazovky; jeden offline shell má 37 180 B. Strop 37 600 B
+            necháva 420 B rezervu a stále drží prvé načítanie pod 38 kB gzip.
     """
     assets = [("/app", APP), *local_render_blocking_stylesheets(APP)]
     measured = [
         (url, len(gzip.compress(path.read_bytes(), 5))) for url, path in assets
     ]
     compressed = sum(size for _url, size in measured)
-    assert compressed <= 33_600, (
+    assert compressed <= 37_600, (
         f"render-critical prvé načítanie má {compressed} B pri gzip level 5; "
-        f"požadovaný strop s rezervou je 33600 B; aktíva: {measured}"
+        f"požadovaný strop s rezervou je 37600 B; aktíva: {measured}"
     )
 
 

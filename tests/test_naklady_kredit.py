@@ -549,7 +549,8 @@ def test_zbieraj_neschova_odmietnutie_za_zlyhanie_jedneho_obchodu(con, collector
     """
     strany = [(f"https://t/{n}.jpg", f"https://f/{n}.jpg") for n in (1, 2)]
     manifest = {
-        "source_url": "https://letak.example/lidl",
+        "source_url": "https://www.lidl.sk/l/test-letak",
+        "collector_kind": "official-lidl-viewer",
         "valid_from": "2026-08-17", "valid_to": "2026-08-23",
         "pages": [{"source_page": i + 1, "thumbnail_url": t, "image_url": f}
                   for i, (t, f) in enumerate(strany)],

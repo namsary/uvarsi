@@ -60,7 +60,7 @@ def rekonciliacia_modul():
 
 def objednavka_z_api(order_id="ord-1", email="test@uvar.si", total=3900,
                      mena="EUR", stav="paid", variant_id=None, refunded=False,
-                     refunded_amount=None, custom=None):
+                     refunded_amount=None, custom=None, test_mode=False):
     """Objednávka v tvare, v akom ju vracia LemonSqueezy API (v1/orders)."""
     attributes = {
         "identifier": f"id-{order_id}",
@@ -71,6 +71,7 @@ def objednavka_z_api(order_id="ord-1", email="test@uvar.si", total=3900,
         "status": stav,
         "refunded": refunded,
         "created_at": "2026-08-24T10:00:00.000000Z",
+        "test_mode": test_mode,
         "first_order_item": {"variant_id": variant_id} if variant_id else {},
     }
     if refunded_amount is not None:
@@ -100,6 +101,60 @@ def test_zaplatena_objednavka_bez_webhooku_sa_dobehne_rekonciliaciou(monkeypatch
     assert riadok["objednavka_id"] == "ord-77"
     assert riadok["poskytovatel"] == "lemonsqueezy"
     assert riadok["suma_centy"] == 3900 and riadok["mena"] == "EUR"
+
+
+@pytest.mark.parametrize("mode", [True, None])
+def test_rekonciliacia_nikdy_neudeli_narok_z_testovacej_ani_neoznacenej_objednavky(
+        monkeypatch, tmp_path, mode):
+    server = zapnute_platby(monkeypatch, tmp_path)
+    rek = rekonciliacia_modul()
+    vytvor_pouzivatela(server, user_id=5, email="clen@uvar.si")
+    order = objednavka_z_api(
+        order_id="ord-zly-rezim", email="clen@uvar.si", test_mode=True
+    )
+    if mode is None:
+        order["attributes"].pop("test_mode")
+
+    with closing(server.db()) as con:
+        suhrn = rek.rekonciluj(
+            con, objednavky=[order], now=server.AUTH_CLOCK()
+        )
+
+    assert suhrn["nespravny_rezim"] == 1
+    assert suhrn["udelene"] == 0
+    assert naroky(server) == []
+
+
+@pytest.mark.parametrize("mode", [True, None])
+def test_rekonciliacia_nikdy_neodoberie_narok_z_testovacej_ani_neoznacenej_refundacie(
+        monkeypatch, tmp_path, mode):
+    server = zapnute_platby(monkeypatch, tmp_path)
+    rek = rekonciliacia_modul()
+    vytvor_pouzivatela(server, user_id=5, email="clen@uvar.si")
+    paid = objednavka_z_api(order_id="ord-live", email="clen@uvar.si")
+    refund = objednavka_z_api(
+        order_id="ord-live",
+        email="clen@uvar.si",
+        stav="refunded",
+        refunded=True,
+        refunded_amount=3900,
+        test_mode=True,
+    )
+    if mode is None:
+        refund["attributes"].pop("test_mode")
+
+    with closing(server.db()) as con:
+        first = rek.rekonciluj(
+            con, objednavky=[paid], now=server.AUTH_CLOCK()
+        )
+        second = rek.rekonciluj(
+            con, objednavky=[refund], now=server.AUTH_CLOCK() + 1
+        )
+
+    assert first["udelene"] == 1
+    assert second["nespravny_rezim"] == 1
+    assert second["vratene"] == 0
+    assert aktivne(server)[0]["objednavka_id"] == "ord-live"
 
 
 def test_rekonciliacia_dvakrat_udeli_prave_jeden_narok(monkeypatch, tmp_path):
@@ -453,6 +508,125 @@ def test_odlozeny_webhook_sa_spracuje_prave_raz(monkeypatch, tmp_path):
 
     assert druha["spracovane"] == 0
     assert len(aktivne(server)) == 1
+
+
+def test_produkcna_rekonciliacia_nepohlti_testovaci_webhook(monkeypatch, tmp_path):
+    """Hodinový live job musí nechať test-mode riadok pre payment smoke."""
+    server = load_server(monkeypatch, tmp_path)
+    platby = platby_modul()
+    vytvor_pouzivatela(server)
+    client = TestClient(server.app, raise_server_exceptions=False)
+    payload = objednavka(order_id="smoke-objednavka", test_mode=True)
+    test_secret = "samostatne-testovacie-tajomstvo"
+    posli_webhook(client, payload, tajomstvo=test_secret)
+
+    with closing(server.db()) as con:
+        live_result = platby.spracuj_odlozene(
+            con,
+            tajomstvo=TAJOMSTVO,
+            now=server.AUTH_CLOCK(),
+            expected_test_mode=False,
+        )
+        pending_after_live = con.execute(
+            "SELECT COUNT(*) FROM platobne_odlozene WHERE spracovane_o IS NULL"
+        ).fetchone()[0]
+        smoke_result = platby.spracuj_odlozene_pre_smoke(
+            con,
+            tajomstvo=test_secret,
+            now=server.AUTH_CLOCK(),
+            objednavka_id="smoke-objednavka",
+            event_type="order_created",
+        )
+
+    assert live_result["spracovane"] == 0
+    assert pending_after_live == 1
+    assert smoke_result["spracovane"] == 1
+    assert smoke_result["udalost"]["akcia"] == "udelene"
+
+
+def test_platobny_smoke_spracuje_len_vlastnu_podpisanu_udalost(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path)
+    platby = platby_modul()
+    vytvor_pouzivatela(server)
+    client = TestClient(server.app, raise_server_exceptions=False)
+    posli_webhook(client, objednavka(order_id="cudzia-objednavka"))
+    posli_webhook(client, objednavka(order_id="smoke-objednavka", test_mode=True))
+
+    with closing(server.db()) as con:
+        result = platby.spracuj_odlozene_pre_smoke(
+            con,
+            tajomstvo=TAJOMSTVO,
+            now=server.AUTH_CLOCK(),
+            objednavka_id="smoke-objednavka",
+            event_type="order_created",
+        )
+        rows = con.execute(
+            "SELECT telo, spracovane_o FROM platobne_odlozene ORDER BY id"
+        ).fetchall()
+
+    assert result["udalost"]["objednavka"] == "smoke-objednavka"
+    assert result["udalost"]["zdroj"] == platby.ZDROJ_ODLOZENE
+    assert rows[0]["spracovane_o"] is None
+    assert json.loads(rows[0]["telo"])["data"]["id"] == "cudzia-objednavka"
+    assert rows[1]["spracovane_o"] is not None
+
+
+@pytest.mark.parametrize("mode", [False, None])
+def test_platobny_smoke_nepouzije_live_ani_neoznaceny_webhook(
+        monkeypatch, tmp_path, mode):
+    server = load_server(monkeypatch, tmp_path)
+    platby = platby_modul()
+    vytvor_pouzivatela(server)
+    client = TestClient(server.app, raise_server_exceptions=False)
+    payload = objednavka(order_id="smoke-zly-rezim", test_mode=False)
+    if mode is None:
+        payload["data"]["attributes"].pop("test_mode")
+    posli_webhook(client, payload)
+
+    with closing(server.db()) as con:
+        result = platby.spracuj_odlozene_pre_smoke(
+            con,
+            tajomstvo=TAJOMSTVO,
+            now=server.AUTH_CLOCK(),
+            objednavka_id="smoke-zly-rezim",
+            event_type="order_created",
+        )
+        pending = con.execute(
+            "SELECT COUNT(*) FROM platobne_odlozene WHERE spracovane_o IS NULL"
+        ).fetchone()[0]
+
+    assert result == {"spracovane": 0, "udalost": None}
+    assert pending == 1
+    assert naroky(server) == []
+
+
+def test_platobny_smoke_neoznaci_falosny_presny_webhook_za_spracovany(
+        monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path)
+    platby = platby_modul()
+    vytvor_pouzivatela(server)
+    client = TestClient(server.app, raise_server_exceptions=False)
+    posli_webhook(
+        client,
+        objednavka(order_id="smoke-objednavka", test_mode=True),
+        tajomstvo="nespravny-testovaci-kluc",
+    )
+
+    with closing(server.db()) as con:
+        with pytest.raises(platby.UdalostNepouzitelna, match="podpis"):
+            platby.spracuj_odlozene_pre_smoke(
+                con,
+                tajomstvo=TAJOMSTVO,
+                now=server.AUTH_CLOCK(),
+                objednavka_id="smoke-objednavka",
+                event_type="order_created",
+            )
+        processed = con.execute(
+            "SELECT spracovane_o FROM platobne_odlozene"
+        ).fetchone()[0]
+
+    assert processed is None
+    assert naroky(server) == []
 
 
 def test_rovnake_telo_sa_neodlozi_dvakrat(monkeypatch, tmp_path):

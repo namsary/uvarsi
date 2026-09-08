@@ -130,7 +130,7 @@ def rekonciluj(con, *, objednavky, now, variant_id=None, notifikuj=None,
     suhrn = {
         "videne": 0, "udelene": 0, "uz_spracovane": 0, "vratene": 0,
         "bez_uctu": 0, "ignorovane": 0, "nad_kapacitu": 0, "duplicitne": 0,
-        "nepouzitelne": 0,
+        "nepouzitelne": 0, "nespravny_rezim": 0,
     }
     # Platby, za ktoré zákazník nič nedostal. Keď ich objaví rekonciliácia (a nie
     # webhook), musí povedať to isté, čo by povedal webhook: majiteľovi na ntfy,
@@ -138,6 +138,9 @@ def rekonciluj(con, *, objednavky, now, variant_id=None, notifikuj=None,
     nevybavene = []
     for objednavka in objednavky or ():
         suhrn["videne"] += 1
+        if platby._atributy_objednavky(objednavka).get("test_mode") is not False:
+            suhrn["nespravny_rezim"] += 1
+            continue
         ref = platby._bezpecne_id(
             objednavka.get("id") if isinstance(objednavka, dict) else None
         )
@@ -181,6 +184,7 @@ def rekonciluj(con, *, objednavky, now, variant_id=None, notifikuj=None,
             vysledok = platby.spracuj_udalost(
                 con, payload=payload, now=now, variant_id=variant_id,
                 zdroj=platby.ZDROJ_REKONCILIACIA,
+                expected_test_mode=False,
             )
         except platby.UdalostNepouzitelna:
             suhrn["nepouzitelne"] += 1
@@ -306,7 +310,8 @@ def _vrat(con, objednavka, ref, *, now, suhrn) -> None:
         return
     try:
         vysledok = platby.spracuj_udalost(
-            con, payload=payload, now=now, zdroj=platby.ZDROJ_REKONCILIACIA
+            con, payload=payload, now=now, zdroj=platby.ZDROJ_REKONCILIACIA,
+            expected_test_mode=False,
         )
     except platby.UdalostNepouzitelna:
         suhrn["nepouzitelne"] += 1
@@ -361,7 +366,11 @@ def main() -> int:
 
         if tajomstvo:
             odlozene = platby.spracuj_odlozene(
-                con, tajomstvo=tajomstvo, now=now, variant_id=variant
+                con,
+                tajomstvo=tajomstvo,
+                now=now,
+                variant_id=variant,
+                expected_test_mode=False,
             )
             if odlozene["spracovane"]:
                 print("REKONCILIACIA: odložené telá — spracovaných "

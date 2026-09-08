@@ -52,8 +52,9 @@ import naklady
 import plan_jobs
 import predpocet
 import source_policy
+from payment_smoke_marker import verify_marker
+from config import public_base_url
 from config import (
-    public_base_url,
     admin_emails,
     legal_version,
     recipe_engine_mode,
@@ -241,6 +242,9 @@ FOUNDER_CURRENCY = MENA_ZAKLADAJUCI
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 RECIPE_SMOKE_STATE = os.environ.get(
     "UVARSI_RECIPE_SMOKE_STATE", "/var/lib/uvarsi/recipe_engine_smoke.json"
+)
+PAYMENT_SMOKE_MARKER = os.environ.get(
+    "UVARSI_PAYMENT_SMOKE_MARKER", "/var/lib/uvarsi/payment-smoke.json"
 )
 RECIPE_SMOKE_ALERT_URL = os.environ.get(
     "UVARSI_RECIPE_SMOKE_ALERT_URL",
@@ -4714,9 +4718,49 @@ def _private_payment_alerts_ready() -> bool:
     return True
 
 
-def _payment_smoke_verified(*, release: str, store_id: str, variant_id: str) -> bool:
-    """Closed until a release-bound test purchase and refund marker exists."""
-    return False
+@functools.lru_cache(maxsize=8)
+def _read_payment_smoke_marker(
+        marker_path: str, modified_ns: int, size: int) -> dict | None:
+    """Parse one immutable marker version once per web process.
+
+    The file metadata is part of the cache key, so replacing the marker makes
+    the next readiness check read and verify the new contents immediately.
+    """
+    del modified_ns
+    if size > 8_192:
+        return None
+    try:
+        value = json.loads(Path(marker_path).read_text(encoding="utf-8"))
+    except (OSError, ValueError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _payment_smoke_verified(
+    *, release: str, checkout_url: str, store_id: str, variant_id: str
+) -> bool:
+    """Accept only a local signed proof for this exact release and product."""
+    secret = env("UVARSI_PAYMENT_SMOKE_SIGNING_SECRET", "") or ""
+    if not all((secret, release, checkout_url, store_id, variant_id)):
+        return False
+    try:
+        marker_path = Path(PAYMENT_SMOKE_MARKER)
+        marker_stat = marker_path.stat()
+    except OSError:
+        return False
+    marker = _read_payment_smoke_marker(
+        str(marker_path), marker_stat.st_mtime_ns, marker_stat.st_size,
+    )
+    if marker is None:
+        return False
+    return verify_marker(
+        marker,
+        secret=secret,
+        release=release,
+        checkout_url=checkout_url,
+        store_id=store_id,
+        variant_id=variant_id,
+    )
 
 
 def _recipe_gate_ready(status: dict) -> bool:
@@ -4738,13 +4782,14 @@ def _runtime_payment_readiness(
     )
     recipe_status = recipe_status or recipe_engine_health(con, today=today)
     current_release = release_id()
+    checkout_url = env("LEMON_CHECKOUT_URL", "") or ""
     store_id = env("LEMON_STORE_ID", "") or ""
     variant_id = env("LEMON_VARIANT_ID", "") or ""
     facts = PaymentReadinessInput(
         operator_errors=validate_operator_profile(OPERATOR),
         legal_version=legal_version(),
         release=current_release,
-        checkout_url=env("LEMON_CHECKOUT_URL", "") or "",
+        checkout_url=checkout_url,
         webhook_secret=env("LEMON_WEBHOOK_SECRET", "") or "",
         store_id=store_id,
         variant_id=variant_id,
@@ -4753,7 +4798,10 @@ def _runtime_payment_readiness(
         private_alerts=_private_payment_alerts_ready(),
         consumer_workflows=customer_requests.workflow_ready(con),
         smoke_verified=_payment_smoke_verified(
-            release=current_release, store_id=store_id, variant_id=variant_id
+            release=current_release,
+            checkout_url=checkout_url,
+            store_id=store_id,
+            variant_id=variant_id,
         ),
         worker_alive=queue_status.get("worker_alive") is True,
         recipe_ready=_recipe_gate_ready(recipe_status),
@@ -5701,7 +5749,8 @@ async def platba_webhook(req: Request):
         with closing(db()) as con:
             try:
                 vysledok = spracuj_udalost(
-                    con, payload=payload, now=now, variant_id=variant
+                    con, payload=payload, now=now, variant_id=variant,
+                    expected_test_mode=False,
                 )
             except UdalostNepouzitelna:
                 # Podpis sedel, teda peniaze sú skutočné — len ich nemáme komu

@@ -207,7 +207,6 @@
   .f-row{display:flex;flex-direction:column;gap:10px}
   .f-row input{min-height:50px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;font-family:inherit;font-size:1rem;background:#fff;color:var(--ink);width:100%}
   .f-row input:focus{outline:3px solid var(--yellow);outline-offset:1px}
-  .fineprint{font-size:.75rem;margin-top:12px}
   .success{display:none;text-align:center}
   .success .big{font-family:"Manrope",sans-serif;font-size:1.75rem;font-weight:800;margin-bottom:8px}
   .success .mail{background:#f7d64a6b;border:1px solid #12392e1f;border-radius:12px;padding:12px;font-family:"IBM Plex Mono",monospace;font-size:.75rem;margin-top:14px}
@@ -394,7 +393,6 @@
     <h2 class="display band-h2">Pred prvým plánom</h2>
     <div style="margin-top:34px">
       <details><summary>Môžem Uvar.si používať už teraz?</summary><p>Áno, Free. Platby sú vypnuté. E-mail je nezáväzný záujem, nevytvára objednávku. Zakladajúce Premium sa aktivuje až po úspešnej platbe; platné podmienky a právo na úplné vrátenie do 14 dní nájdeš vo VOP a poučení o odstúpení.</p></details>
-      <details><summary>Odkiaľ beriete akcie?</summary><p>Z letákov Lidla, Kauflandu a Tesca. Pri bločku uvádzame platnosť a obchody; cenu si over v predajni.</p></details>
       <details><summary>Môžem zadať, čo už mám doma?</summary><p>Áno. Zadaj surovinu aj množstvo; odrátame ich z nákupného zoznamu.</p></details>
       <details><summary>Nechcem variť každý deň. Zvládne to?</summary><p>Áno. Zvoľ varenie raz za dva či tri dni; plán zaradí zvyšky do ďalších dní.</p></details>
       <details><summary>Koľko reálne ušetrím?</summary><p>Závisí od týždňa. Ročná suma je modelový príklad a projekcia, nie je zárukou úspory.</p></details>
@@ -426,7 +424,6 @@
         <input type="hidden" name="anticsrf" value="true">
         <button class="btn" type="submit">Zapíš ma</button>
       </form>
-      <p class="fineprint">Bez spamu. Odhlásiš sa kliknutím.</p>
     </div>
 
     <div class="success" id="successState">
@@ -503,10 +500,8 @@
   }
 
   function proofNode(data){
-    var stores=sourceStores(data&&data.sources);
     var proof=node('p','rcpt-proof');
     proof.append(node('span','proof-current','Aktuálne letáky · '+data.week_label));
-    if(stores.length) proof.append(node('span','proof-stores',stores.join(' · ')));
     proof.append(node('span','proof-note','Cenu si pred nákupom over v predajni.'));
     return proof;
   }

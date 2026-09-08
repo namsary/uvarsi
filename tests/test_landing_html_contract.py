@@ -83,11 +83,10 @@ function textOf(element) {
 
 
 @needs_node
-def test_receipt_proof_names_each_store_once_without_publishing_source_urls(tmp_path):
+def test_receipt_proof_shows_week_without_publishing_source_details(tmp_path):
     html = index_html()
     helpers = DOM_STUB + "\n".join([
         nested(html, "function node(tag, className, text)"),
-        nested(html, "function sourceStores(sources)"),
         nested(html, "function proofNode(data)"),
     ])
     result = run_node(
@@ -105,8 +104,7 @@ var proof = proofNode({
 });
 var text = textOf(proof);
 if (text.indexOf('17.\u201323. 8. 2026') === -1) process.exit(1);
-if ((text.match(/Kaufland/g) || []).length !== 1) process.exit(2);
-if ((text.match(/Lidl/g) || []).length !== 1) process.exit(3);
+if (text.indexOf('Kaufland') !== -1 || text.indexOf('Lidl') !== -1) process.exit(2);
 if (text.indexOf('letak.test') !== -1) process.exit(4);
 process.exit(0);
 """,

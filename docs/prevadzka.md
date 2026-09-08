@@ -296,3 +296,105 @@ ready and the controller restarts this runbook at Stage 1.
 - [ ] If used, rollback phase, reason code, flag-off verification, and post-checks.
 - [ ] Explicit statement that no e-mail, password, cookie, token, challenge,
       environment value, database row, or other secret was captured.
+
+## Platobný release — zakladajúci člen 39 €
+
+Táto časť je povinná pred prvou ostrou platbou. Nasadenie samo platby nikdy
+nezapne. Počas deployu musí byť v `/opt/uvarsi/uvarsi.env` práve jeden explicitný
+riadok `PLATBY_ZAPNUTE=0`; chýbajúca, duplicitná alebo nejednoznačná hodnota
+release zastaví ešte pred zmenou živých súborov.
+
+### Čo deploy chráni
+
+- Pred prepnutím vytvorí online SQLite zálohu a overí jej integritu.
+- Kandidátsky kód spustí svoje migrácie pred prvou health kontrolou. Každé
+  vydanie, ktoré mení schému, musí osobitne preukázať kompatibilitu rollbacku;
+  tento platobný release novú zmenu schémy nepridáva.
+- Pri chybe vráti kód, statické súbory a Uvar.si systemd jednotky.
+- Automatický rollback nikdy neobnoví starú databázu cez živú databázu. Nová
+  relácia, plán, webhook, nárok ani zákaznícka požiadavka sa tým nestratia.
+- Databázová záloha je iba pre samostatne schválenú manuálnu obnovu po skutočnej
+  dátovej havárii, nie pre rollback vydania.
+- Caddy, Taktik-mapa a iné služby zostávajú mimo samopullu.
+
+### STOP GATE — konfigurácia a verejná pripravenosť
+
+Testovacie a živé LemonSqueezy prostriedky musia byť oddelené. Bez vypisovania
+hodnôt over prítomnosť `LEMON_TEST_API_KEY`, `LEMON_TEST_WEBHOOK_SECRET`,
+`LEMON_TEST_STORE_ID`, `LEMON_TEST_VARIANT_ID` a samostatne plánovanú živú
+konfiguráciu `LEMON_API_KEY`, `LEMON_WEBHOOK_SECRET`, `LEMON_STORE_ID`,
+`LEMON_VARIANT_ID`, `LEMON_CHECKOUT_URL`. Lokálny marker podpisuje tretie,
+nezávislé tajomstvo `UVARSI_PAYMENT_SMOKE_SIGNING_SECRET`.
+
+`/api/health` musí mať správne vydanie, živého worker-a, prejdenú receptovú
+bránu, schválené aktuálne cenové zdroje, funkčné spotrebiteľské workflow a
+nulové nevyriešené platobné prípady. Deploy kontroluje nielen hodnotu v env
+súbore, ale aj skutočný bežiaci proces: `recipe_engine.payments_enabled` musí
+byť `false`. Pred smoke testom smie byť jediný blocker
+`payment_smoke_missing`.
+
+### Jeden testovací nákup a úplná refundácia
+
+Na serveri spusti interaktívny nástroj pod účtom, ktorý smie čítať Uvar.si
+konfiguráciu a zapisovať do `/var/lib/uvarsi`:
+
+```bash
+cd /opt/uvarsi
+./venv/bin/python ./payment-smoke.py
+```
+
+Použi čistý testovací Uvar.si účet a LemonSqueezy **Test mode**. Nástroj:
+
+1. overí verejnú pripravenosť a to, že platby ostali vypnuté;
+2. prihlási testovací účet cez normálny heslový endpoint a cookie drží iba v
+   pamäti;
+3. ešte pred zobrazením odkazu cez API overí variant aj jeho nadradený produkt:
+   oba musia byť v testovacom režime, zverejnené, jednorazový variant musí stáť
+   39 € a produkt musí patriť presnému testovaciemu store;
+4. vytvorí nový testovací checkout cez API poskytovateľa a otvorenie hosťovanej
+   pokladne nechá na človeka — číslo platobnej karty ani bezpečnostný kód nikdy
+   neprijíma;
+5. cez testovacie API a presný podpísaný `order_created` webhook overí
+   objednávku, presne jeden nárok a autentifikovaný `/api/platba/stav`;
+   API rekonciliácia sa za dôkaz webhooku nepočíta;
+6. po doručení testovacieho dokladu musí operátor napísať presne
+   `POTVRDZUJEM`; potom nástroj vyžiada úplnú refundáciu cez dokumentované
+   `POST /v1/orders/:id/refund` bez čiastkovej sumy;
+7. cez presný podpísaný `order_refunded` webhook overí refundáciu, odobratie
+   Premium a nulové otvorené prípady pre túto testovaciu objednávku; nesúvisiace
+   riadky vo fronte nemení;
+8. zapíše súbor `/var/lib/uvarsi/payment-smoke.json` s právami `0600`.
+
+Marker neobsahuje e-mail, ID objednávky ani jeho hash. Obsahuje výsledky celého
+životného cyklu, identifikátory testovacieho store a variantu a HMAC podpis
+viazaný na presné vydanie aj odtlačok živej checkout URL, store a variantu.
+Zmena vydania alebo živej platobnej konfigurácie marker automaticky zneplatní.
+Hodinová produkčná rekonciliácia explicitné test-mode webhooky preskočí, aby ich
+nemohla spotrebovať skôr než tento test s vlastným testovacím tajomstvom.
+
+Zakladajúca ponuka musí byť v LemonSqueezy samostatný zverejnený **živý produkt
+s jediným variantom**. `LEMON_CHECKOUT_URL` musí byť presne `buy_now_url`, ktorú
+pre tento produkt vráti API poskytovateľa; ručne skopírovaný odkaz na iný
+produkt, testovací režim alebo viacvýznamový produkt smoke test odmietne.
+Produkčná rekonciliácia aj webhook prijmú iba udalosti s explicitným
+`test_mode=false`; testovacie alebo neoznačené udalosti nesmú meniť živé nároky.
+
+Referencie poskytovateľa: [Test mode](https://docs.lemonsqueezy.com/help/getting-started/test-mode),
+[Testing and going live](https://docs.lemonsqueezy.com/guides/developer-guide/testing-going-live)
+a [Issue a refund](https://docs.lemonsqueezy.com/api/orders/issue-refund).
+
+### Posledná brána majiteľa
+
+Po smoke teste znovu načítaj `/api/health`. `payment_readiness.ready` musí byť
+`true` a `blockers` musí byť prázdne, pričom `PLATBY_ZAPNUTE` je stále `0`.
+Zaznamenaj iba vydanie, čas a výsledky brán — nikdy kľúče, cookie, e-mail ani
+objednávkový identifikátor.
+
+`PLATBY_ZAPNUTE=1` sa smie nastaviť až po samostatnom výslovnom schválení
+majiteľa. Po zapnutí okamžite over health, checkout summary a jednu bezpečnú
+požiadavku bez dokončenia platby. Ak readiness nie je zelená, checkout ostane
+serverom zablokovaný aj pri chybne zapnutom flage.
+
+Pri platobnom incidente najprv nastav `PLATBY_ZAPNUTE=0` a reštartuj iba Uvar.si.
+Databázu nevracaj. Rekonciliácia musí ďalej spracovať už prijaté podpísané
+webhooky, refundácie a zákaznícke nároky.

@@ -106,7 +106,7 @@ if ! (cd "$CIEL/app" && UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$CIEL/VE
   exit 1
 fi
 # b) povinné súbory
-for f in app/server.py app/config.py app/auth_data.py app/public_pages.py app/plan_jobs.py app/plan_calendar.py app/plan_shortlist.py app/plan_worker.py app/predpocet.py app/deterministic_plan.py app/ingredient_catalog.py app/library_gate.py app/quantity_math.py app/recipe_catalog.py app/recipe_matcher.py app/recipe_provenance.py app/recipe_workflow.py app/regular_purchase.py app/recipe_renderer.py app/static/app.html app/catalog/ingredients.json app/catalog/recipe_sources.json app/catalog/slovak_ingredient_forms.json app/catalog/recipes/manifest.json hetzner/uvarsi.service hetzner/uvarsi-plan-worker.service hetzner/uvarsi-deploy-state.sh hetzner/recipe-engine-rollout.sh hetzner/recipe-engine.target VERSION index.html sw.js; do
+for f in app/server.py app/config.py app/auth_data.py app/account_data.py app/customer_requests.py app/operator_profile.py app/legal_pages.py app/payment_readiness.py app/payment_smoke_marker.py app/source_policy.py app/public_pages.py app/plan_jobs.py app/plan_calendar.py app/plan_shortlist.py app/plan_worker.py app/predpocet.py app/deterministic_plan.py app/ingredient_catalog.py app/library_gate.py app/quantity_math.py app/recipe_catalog.py app/recipe_matcher.py app/recipe_provenance.py app/recipe_workflow.py app/regular_purchase.py app/recipe_renderer.py app/static/app.html app/catalog/ingredients.json app/catalog/recipe_sources.json app/catalog/slovak_ingredient_forms.json app/catalog/recipes/manifest.json hetzner/uvarsi.service hetzner/uvarsi-plan-worker.service hetzner/uvarsi-deploy-state.sh hetzner/payment-smoke.py hetzner/recipe-engine-rollout.sh hetzner/recipe-engine.target VERSION index.html sw.js; do
   [ -f "$CIEL/$f" ] && [ -s "$CIEL/$f" ] || { log "vo vydaní chýba platný $f — NEPREPÍNAM"; \
     notify "Uvar.si: neúplné vydanie" "Chýba $f."; exit 1; }
 done
@@ -149,15 +149,28 @@ if ! (cd "$CIEL/app" && \
 fi
 rm -f "$PREFLIGHT_SMOKE" "$TMP/recipe-smoke.err"
 
+# c) release sa smie dotknúť živej appky iba s explicitne vypnutými platbami
+. "$CIEL/hetzner/uvarsi-deploy-state.sh" || {
+  log "bezpečnostný deploy modul sa nedá načítať — NEPREPÍNAM"; exit 1; }
+uvarsi_require_payments_off || {
+  log "platby nie sú jednoznačne vypnuté — NEPREPÍNAM"
+  notify "Uvar.si: vydanie odmietnuté" "Pred nasadením musia byť platby vypnuté."
+  exit 1
+}
+uvarsi_require_runtime_payments_off || {
+  log "bežiaca appka nemá platby jednoznačne vypnuté — NEPREPÍNAM"
+  notify "Uvar.si: vydanie odmietnuté" "Živý proces musí mať pred nasadením platby vypnuté."
+  exit 1
+}
+
 # --- 3. záloha aktuálneho stavu a prepnutie ---
 PRED="$REL/predosle"
-. "$CIEL/hetzner/uvarsi-deploy-state.sh" || { log "pomocný rollback skript sa nedá načítať — NEPREPÍNAM"; exit 1; }
 uvarsi_snapshot "$PRED" || { log "záloha appky, worker stavu alebo heartbeat značky zlyhala — NEPREPÍNAM"; exit 1; }
 cp -a "/var/www/uvarsi/index.html" "$PRED/index.html" || {
   log "záloha živého index.html zlyhala — NEPREPÍNAM"; exit 1; }
 cp -a "/var/www/uvarsi/sw.js" "$PRED/sw.js" || {
   log "záloha živého sw.js zlyhala — NEPREPÍNAM"; exit 1; }
-for f in refresh_blocek.py recepty.py dozorca.sh zaloha.sh recipe-engine-rollout.sh recipe-engine.target; do
+for f in refresh_blocek.py recepty.py dozorca.sh zaloha.sh payment-smoke.py recipe-engine-rollout.sh recipe-engine.target; do
   if [ -f "$DIR/$f" ]; then
     cp -a "$DIR/$f" "$PRED/$f" || { log "záloha $f zlyhala — NEPREPÍNAM"; exit 1; }
   else
@@ -174,6 +187,8 @@ nasad_z() {   # $1 = adresár s vydaním
   [ ! -f "$1/hetzner/recepty.py" ] || cp -a "$1/hetzner/recepty.py" "$DIR/recepty.py" || return 1
   [ ! -f "$1/hetzner/dozorca.sh" ] || { cp -a "$1/hetzner/dozorca.sh" "$DIR/dozorca.sh" && chmod +x "$DIR/dozorca.sh"; } || return 1
   [ ! -f "$1/hetzner/zaloha.sh" ] || { cp -a "$1/hetzner/zaloha.sh" "$DIR/zaloha.sh" && chmod +x "$DIR/zaloha.sh"; } || return 1
+  cp -a "$1/hetzner/payment-smoke.py" "$DIR/payment-smoke.py" || return 1
+  chmod +x "$DIR/payment-smoke.py" || return 1
   cp -a "$1/hetzner/recipe-engine-rollout.sh" "$DIR/recipe-engine-rollout.sh" || return 1
   chmod +x "$DIR/recipe-engine-rollout.sh" || return 1
   cp -a "$1/hetzner/recipe-engine.target" "$DIR/recipe-engine.target" || return 1
@@ -184,7 +199,6 @@ nasad_z() {   # $1 = adresár s vydaním
   cp -a "$1/hetzner/uvarsi-deploy-state.sh" "$DIR/uvarsi-deploy-state.sh" || return 1
   systemctl enable uvarsi >/dev/null 2>&1 || return 1
   systemctl enable uvarsi-plan-worker >/dev/null 2>&1 || return 1
-  systemctl restart uvarsi || return 1
 }
 
 zdravie() {   # čaká max 30 s na živú appku
@@ -201,11 +215,15 @@ spusti_worker() {
 
 log "prepínam na $SHA"
 LIVE_MUTATION=0
-if nasad_z "$CIEL"; then
+if nasad_z "$CIEL" && uvarsi_migrate_release "$CIEL" && \
+    systemctl restart uvarsi && uvarsi_require_payments_off; then
   LIVE_MUTATION=1
 fi
 PRED_HEARTBEAT=$(cat "$PRED/heartbeat.before" 2>/dev/null || true)
-if [ "$LIVE_MUTATION" -eq 1 ] && zdravie && spusti_worker && uvarsi_wait_fresh_heartbeat "$PRED_HEARTBEAT"; then
+if [ "$LIVE_MUTATION" -eq 1 ] && zdravie && \
+    uvarsi_require_runtime_payments_off && spusti_worker && \
+    uvarsi_wait_fresh_heartbeat "$PRED_HEARTBEAT" && \
+    uvarsi_require_payments_off && uvarsi_require_runtime_payments_off; then
   echo "$SHA" > "$STAV"
   # samopull sa aktualizuje až po úspechu, aby sa nezmenil pod vlastnými nohami
   [ -f "$DIR/samopull.sh.novy" ] && mv "$DIR/samopull.sh.novy" "$DIR/samopull.sh" && chmod +x "$DIR/samopull.sh"
@@ -230,7 +248,7 @@ cp -a "$PRED/index.html" "/var/www/uvarsi/index.html" || {
   log "rollback index.html zlyhal"; NAVRAT_OK=0; }
 cp -a "$PRED/sw.js" "/var/www/uvarsi/sw.js" || {
   log "rollback sw.js zlyhal"; NAVRAT_OK=0; }
-for f in refresh_blocek.py recepty.py dozorca.sh zaloha.sh recipe-engine-rollout.sh recipe-engine.target; do
+for f in refresh_blocek.py recepty.py dozorca.sh zaloha.sh payment-smoke.py recipe-engine-rollout.sh recipe-engine.target; do
   if [ -f "$PRED/$f" ]; then
     cp -a "$PRED/$f" "$DIR/$f" || { log "rollback $f zlyhal"; NAVRAT_OK=0; }
   elif [ -f "$PRED/$f.absent" ]; then

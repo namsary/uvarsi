@@ -258,6 +258,12 @@ def _run_samopull_catalog_gate(
         target = release / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("present\n", encoding="utf-8")
+    (release / "hetzner/uvarsi-deploy-state.sh").write_text(
+        "uvarsi_require_payments_off() { return 0; }\n"
+        "uvarsi_require_runtime_payments_off() { return 0; }\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 
     ingredients = release / "app/catalog/ingredients.json"
     slovak_forms = release / "app/catalog/slovak_ingredient_forms.json"

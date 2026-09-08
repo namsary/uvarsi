@@ -705,7 +705,10 @@ def _variant(payload):
 
 
 # ---------------------------------------------------------------- spracovanie
-def spracuj_udalost(con, *, payload, now, variant_id=None, zdroj=ZDROJ_WEBHOOK) -> dict:
+def spracuj_udalost(
+    con, *, payload, now, variant_id=None, zdroj=ZDROJ_WEBHOOK,
+    expected_test_mode=None,
+) -> dict:
     """Jedna udalosť = jedna transakcia. Idempotentné a bezpečné voči pretekom.
 
     Celý beh je v BEGIN IMMEDIATE, takže dve súbežné doručenia sa serializujú a
@@ -724,6 +727,11 @@ def spracuj_udalost(con, *, payload, now, variant_id=None, zdroj=ZDROJ_WEBHOOK) 
     """
     if not isinstance(payload, dict):
         raise UdalostNepouzitelna("telo nie je objekt")
+    if expected_test_mode not in (None, True, False):
+        raise ValueError("expected_test_mode musí byť bool alebo None")
+    test_mode = _atributy(payload).get("test_mode")
+    if expected_test_mode is not None and test_mode is not expected_test_mode:
+        raise UdalostNepouzitelna("udalosť je v nesprávnom platobnom režime")
     now = _cas(now)
     typ = typ_udalosti(payload)
     kluc = udalost_kluc(payload)
@@ -737,7 +745,7 @@ def spracuj_udalost(con, *, payload, now, variant_id=None, zdroj=ZDROJ_WEBHOOK) 
             con.commit()
             return {"akcia": AKCIA_UZ_SPRACOVANE, "typ": typ,
                     "objednavka": objednavka_ref(payload), "user_id": None,
-                    "stav": None, "zdroj": zdroj}
+                    "stav": None, "zdroj": zdroj, "test_mode": test_mode}
         con.execute(
             """INSERT INTO platobne_udalosti (udalost_kluc, event_id, typ, prijate_o, zdroj)
                VALUES (?, ?, ?, ?, ?)""",
@@ -757,6 +765,7 @@ def spracuj_udalost(con, *, payload, now, variant_id=None, zdroj=ZDROJ_WEBHOOK) 
             "user_id": vysledok.get("user_id"),
             "stav": vysledok.get("stav"),
             "zdroj": zdroj,
+            "test_mode": test_mode,
         }
     except Exception:
         if con.in_transaction:
@@ -1050,14 +1059,23 @@ def stav_dozoru(con) -> dict:
     }
 
 
-def spracuj_odlozene(con, *, tajomstvo, now, variant_id=None, limit=MAX_ODLOZENYCH) -> dict:
+def spracuj_odlozene(
+    con, *, tajomstvo, now, variant_id=None, limit=MAX_ODLOZENYCH,
+    expected_test_mode=None,
+) -> dict:
     """Dobehni telá, ktoré čakali. Každé prejde overením podpisu, ako by prišlo teraz.
 
     Beží mimo requestu (rekonciliačný skript), takže tu už tajomstvo k dispozícii
     je. Telo s podpisom, ktorý nesedí, sa neudelí a označí sa — je to buď smeť
     z internetu, alebo majiteľ nastavil iné tajomstvo, než akým poskytovateľ
     podpisuje.
+
+    Produkčný job posiela ``expected_test_mode=False``. Testovacie aj neoznačené
+    udalosti tak nechá nedotknuté pre samostatný payment smoke alebo ručnú
+    kontrolu. Nejasný režim nesmie meniť produkčné nároky.
     """
+    if expected_test_mode not in (None, True, False):
+        raise ValueError("expected_test_mode musí byť bool alebo None")
     now = _cas(now)
     suhrn = {"spracovane": 0, "udelene": 0, "neplatny_podpis": 0,
              "nepouzitelne": 0, "pokazene": 0, "akcie": {}, "udalosti": []}
@@ -1068,31 +1086,39 @@ def spracuj_odlozene(con, *, tajomstvo, now, variant_id=None, limit=MAX_ODLOZENY
     ).fetchall()
     for riadok in riadky:
         telo = bytes(riadok[1])
+        try:
+            payload = json.loads(telo)
+        except (ValueError, UnicodeDecodeError):
+            payload = None
+        if isinstance(payload, dict):
+            test_mode = _atributy(payload).get("test_mode")
+            if expected_test_mode is False and test_mode is not False:
+                continue
+            if expected_test_mode is True and test_mode is not True:
+                continue
         vysledok = None
         if not overit_podpis(tajomstvo=tajomstvo, telo=telo, podpis=riadok[2]):
             vysledok = "neplatny_podpis"
             suhrn["neplatny_podpis"] += 1
+        elif payload is None:
+            vysledok = "pokazene_telo"
+            suhrn["pokazene"] += 1
         else:
             try:
-                payload = json.loads(telo)
-            except (ValueError, UnicodeDecodeError):
-                vysledok = "pokazene_telo"
-                suhrn["pokazene"] += 1
+                udalost = spracuj_udalost(
+                    con, payload=payload, now=now, variant_id=variant_id,
+                    zdroj=ZDROJ_ODLOZENE,
+                    expected_test_mode=expected_test_mode,
+                )
+            except UdalostNepouzitelna:
+                vysledok = "nepouzitelna"
+                suhrn["nepouzitelne"] += 1
             else:
-                try:
-                    udalost = spracuj_udalost(
-                        con, payload=payload, now=now, variant_id=variant_id,
-                        zdroj=ZDROJ_ODLOZENE,
-                    )
-                except UdalostNepouzitelna:
-                    vysledok = "nepouzitelna"
-                    suhrn["nepouzitelne"] += 1
-                else:
-                    vysledok = udalost["akcia"]
-                    suhrn["akcie"][vysledok] = suhrn["akcie"].get(vysledok, 0) + 1
-                    suhrn["udalosti"].append(udalost)
-                    if vysledok == AKCIA_UDELENE:
-                        suhrn["udelene"] += 1
+                vysledok = udalost["akcia"]
+                suhrn["akcie"][vysledok] = suhrn["akcie"].get(vysledok, 0) + 1
+                suhrn["udalosti"].append(udalost)
+                if vysledok == AKCIA_UDELENE:
+                    suhrn["udelene"] += 1
         con.execute(
             "UPDATE platobne_odlozene SET spracovane_o=?, vysledok=? WHERE id=?",
             (now, vysledok, riadok[0]),
@@ -1100,6 +1126,75 @@ def spracuj_odlozene(con, *, tajomstvo, now, variant_id=None, limit=MAX_ODLOZENY
         con.commit()
         suhrn["spracovane"] += 1
     return suhrn
+
+
+def spracuj_odlozene_pre_smoke(
+    con, *, tajomstvo, now, objednavka_id, event_type, variant_id=None
+) -> dict:
+    """Process only one smoke order/event and leave every unrelated row intact.
+
+    The payment smoke runs while public payments are off, so the real webhook
+    endpoint stores signed bodies for later processing.  A smoke must prove
+    that its own webhook arrived; API reconciliation is deliberately not a
+    substitute.  We therefore locate an exact order/event pair, verify every
+    matching signature before changing anything, and never mark unrelated or
+    malformed queue rows as processed.
+    """
+    order_ref = _bezpecne_id(objednavka_id)
+    if not order_ref:
+        raise ValueError("neplatná objednávka smoke testu")
+    if event_type not in {UDALOST_UDELUJUCA, "order_refunded"}:
+        raise ValueError("neplatný typ udalosti smoke testu")
+    now = _cas(now)
+    matches = []
+    rows = con.execute(
+        """SELECT id, telo, podpis FROM platobne_odlozene
+           WHERE spracovane_o IS NULL ORDER BY id"""
+    ).fetchall()
+    for row in rows:
+        body = bytes(row[1])
+        try:
+            payload = json.loads(body)
+        except (ValueError, UnicodeDecodeError):
+            continue
+        if typ_udalosti(payload) != event_type:
+            continue
+        if objednavka_ref(payload) != order_ref:
+            continue
+        if _atributy(payload).get("test_mode") is not True:
+            continue
+        matches.append((row, body, payload))
+
+    if not matches:
+        return {"spracovane": 0, "udalost": None}
+    if any(
+        not overit_podpis(tajomstvo=tajomstvo, telo=body, podpis=row[2])
+        for row, body, _payload in matches
+    ):
+        raise UdalostNepouzitelna("podpis smoke webhooku nesedí")
+
+    primary = None
+    processed = 0
+    for row, _body, payload in matches:
+        event = spracuj_udalost(
+            con,
+            payload=payload,
+            now=now,
+            variant_id=variant_id,
+            zdroj=ZDROJ_ODLOZENE,
+            expected_test_mode=True,
+        )
+        con.execute(
+            """UPDATE platobne_odlozene
+                  SET spracovane_o=?, vysledok=?
+                WHERE id=? AND spracovane_o IS NULL""",
+            (now, event["akcia"], row[0]),
+        )
+        con.commit()
+        processed += 1
+        if primary is None or primary.get("akcia") == AKCIA_UZ_SPRACOVANE:
+            primary = event
+    return {"spracovane": processed, "udalost": primary}
 
 
 # ---------------------------------------------------------------- upratovanie
@@ -1327,6 +1422,7 @@ def payload_z_objednavky(objednavka, *, user_id=None, typ=UDALOST_UDELUJUCA):
         "total": atributy.get("total"),
         "currency": atributy.get("currency"),
         "status": atributy.get("status"),
+        "test_mode": atributy.get("test_mode"),
     }
     for field in ("refunded", "refunded_amount", "refunded_at"):
         if field in atributy:

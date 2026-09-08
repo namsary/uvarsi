@@ -14,6 +14,7 @@ UVARSI_ATOMIC_EXCHANGE="${UVARSI_ATOMIC_EXCHANGE:-}"
 UVARSI_HEARTBEAT_ATTEMPTS="${UVARSI_HEARTBEAT_ATTEMPTS:-30}"
 UVARSI_HEALTH_URL="${UVARSI_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
 UVARSI_DB="${UVARSI_DB:-$UVARSI_DIR/uvarsi.db}"
+UVARSI_ENV_FILE="${UVARSI_ENV_FILE:-$UVARSI_DIR/uvarsi.env}"
 UVARSI_WEB_DIR="${UVARSI_WEB_DIR:-/var/www/uvarsi}"
 UVARSI_WORKER_UNIT="$UVARSI_SYSTEMD_DIR/uvarsi-plan-worker.service"
 UVARSI_APP_UNIT="$UVARSI_SYSTEMD_DIR/uvarsi.service"
@@ -98,6 +99,51 @@ _uvarsi_snapshot_database() {
   else
     : > "$snapshot/uvarsi.db.absent"
   fi
+}
+
+uvarsi_require_payments_off() {
+  # Never source or print the env file.  Exactly one explicit false value is
+  # required before a release may mutate live Uvar.si files.
+  [ -f "$UVARSI_ENV_FILE" ] || return 1
+  count=$(grep -Eic '^[[:space:]]*(export[[:space:]]+)?PLATBY_ZAPNUTE[[:space:]]*=' "$UVARSI_ENV_FILE")
+  [ "$count" -eq 1 ] || return 1
+  grep -Eqi "^[[:space:]]*(export[[:space:]]+)?PLATBY_ZAPNUTE[[:space:]]*=[[:space:]]*['\"]?(0|false|off)['\"]?[[:space:]]*$" "$UVARSI_ENV_FILE"
+}
+
+uvarsi_require_runtime_payments_off() {
+  # The env file is not the final authority: a systemd Environment= override
+  # wins over it.  Ask the running process what it actually loaded.
+  health=$(
+    "$UVARSI_CURL" -fsS --max-time 5 "$UVARSI_HEALTH_URL" 2>/dev/null
+  ) || return 1
+  printf '%s' "$health" | "$UVARSI_HEALTH_PY" -c '
+import json, sys
+try:
+    payload = json.load(sys.stdin)
+    enabled = payload["recipe_engine"]["payments_enabled"]
+except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+    raise SystemExit(1)
+raise SystemExit(0 if enabled is False else 1)
+'
+}
+
+uvarsi_migrate_release() {
+  # Candidate migrations run before any health check. A release that changes
+  # schema must prove old-code compatibility separately; automated rollback
+  # must never overwrite newer customer/payment rows with the online backup.
+  release=$1
+  uvarsi_require_payments_off || return 1
+  [ -d "$release/app" ] || return 1
+  [ -f "$release/VERSION" ] || return 1
+  (
+    cd "$release/app" || exit 1
+    UVARSI_URL=https://uvar.si \
+      UVARSI_DB="$UVARSI_DB" \
+      UVARSI_VERSION_FILE="$release/VERSION" \
+      PLATBY_ZAPNUTE=0 UVARSI_PAYMENTS_ENABLED=0 \
+      "$UVARSI_HEALTH_PY" -c 'import server; server.priprav_databazu()'
+  ) || return 1
+  uvarsi_require_payments_off
 }
 
 _uvarsi_sqlite_restore() {
@@ -244,7 +290,7 @@ uvarsi_snapshot() {
   fi
   _uvarsi_snapshot_file "$UVARSI_WEB_DIR/index.html" "$snapshot" index.html || return 1
   _uvarsi_snapshot_file "$UVARSI_WEB_DIR/sw.js" "$snapshot" sw.js || return 1
-  for name in refresh_blocek.py recepty.py dozorca.sh zaloha.sh uvarsi-deploy-state.sh recipe-engine-rollout.sh recipe-engine.target; do
+  for name in refresh_blocek.py recepty.py dozorca.sh zaloha.sh payment-smoke.py uvarsi-deploy-state.sh recipe-engine-rollout.sh recipe-engine.target; do
     _uvarsi_snapshot_file "$UVARSI_DIR/$name" "$snapshot" "$name" || return 1
   done
   if [ -f "$UVARSI_WORKER_UNIT" ]; then
@@ -287,20 +333,16 @@ uvarsi_snapshot() {
 uvarsi_restore() {
   snapshot=$1
   ok=1
-  services_stopped=1
   [ -d "$snapshot/app" ] || return 1
 
-  # No process may retain an old SQLite handle while rollback replaces the DB.
+  # Roll back code, static files and Uvar.si unit state only.  Never restore the
+  # database here: a checkout webhook, session or plan may have been written
+  # after the snapshot, and replacing SQLite would silently lose that data.
   if "$UVARSI_SYSTEMCTL" is-active --quiet uvarsi-plan-worker; then
-    "$UVARSI_SYSTEMCTL" stop uvarsi-plan-worker >/dev/null 2>&1 || services_stopped=0
+    "$UVARSI_SYSTEMCTL" stop uvarsi-plan-worker >/dev/null 2>&1 || ok=0
   fi
   if "$UVARSI_SYSTEMCTL" is-active --quiet uvarsi; then
-    "$UVARSI_SYSTEMCTL" stop uvarsi >/dev/null 2>&1 || services_stopped=0
-  fi
-  if [ "$services_stopped" -eq 1 ]; then
-    _uvarsi_restore_database "$snapshot" || ok=0
-  else
-    ok=0
+    "$UVARSI_SYSTEMCTL" stop uvarsi >/dev/null 2>&1 || ok=0
   fi
 
   _uvarsi_restore_app "$snapshot" || ok=0
@@ -313,7 +355,7 @@ uvarsi_restore() {
   fi
   _uvarsi_restore_file "$UVARSI_WEB_DIR/index.html" "$snapshot" index.html || ok=0
   _uvarsi_restore_file "$UVARSI_WEB_DIR/sw.js" "$snapshot" sw.js || ok=0
-  for name in refresh_blocek.py recepty.py dozorca.sh zaloha.sh uvarsi-deploy-state.sh recipe-engine-rollout.sh recipe-engine.target; do
+  for name in refresh_blocek.py recepty.py dozorca.sh zaloha.sh payment-smoke.py uvarsi-deploy-state.sh recipe-engine-rollout.sh recipe-engine.target; do
     _uvarsi_restore_file "$UVARSI_DIR/$name" "$snapshot" "$name" || ok=0
   done
 
@@ -443,16 +485,17 @@ _uvarsi_apply_manual_targets() {
   [ -f "$release/index.html" ] || return 1
   [ -f "$release/sw.js" ] || return 1
   [ -f "$release/hetzner/uvarsi.service" ] || return 1
-  for name in refresh_blocek.py recepty.py dozorca.sh zaloha.sh uvarsi-deploy-state.sh recipe-engine-rollout.sh recipe-engine.target; do
+  for name in refresh_blocek.py recepty.py dozorca.sh zaloha.sh payment-smoke.py uvarsi-deploy-state.sh recipe-engine-rollout.sh recipe-engine.target; do
     [ -f "$release/hetzner/$name" ] || return 1
   done
   "$UVARSI_CP" -a "$release/index.html" "$UVARSI_WEB_DIR/index.html" || return 1
   "$UVARSI_CP" -a "$release/sw.js" "$UVARSI_WEB_DIR/sw.js" || return 1
-  for name in refresh_blocek.py recepty.py dozorca.sh zaloha.sh uvarsi-deploy-state.sh recipe-engine-rollout.sh recipe-engine.target; do
+  for name in refresh_blocek.py recepty.py dozorca.sh zaloha.sh payment-smoke.py uvarsi-deploy-state.sh recipe-engine-rollout.sh recipe-engine.target; do
     "$UVARSI_CP" -a "$release/hetzner/$name" "$UVARSI_DIR/$name" || return 1
   done
   chmod +x "$UVARSI_DIR/dozorca.sh" "$UVARSI_DIR/zaloha.sh" \
-    "$UVARSI_DIR/uvarsi-deploy-state.sh" "$UVARSI_DIR/recipe-engine-rollout.sh" || return 1
+    "$UVARSI_DIR/payment-smoke.py" "$UVARSI_DIR/uvarsi-deploy-state.sh" \
+    "$UVARSI_DIR/recipe-engine-rollout.sh" || return 1
   "$UVARSI_CP" -a "$release/hetzner/uvarsi.service" "$UVARSI_APP_UNIT" || return 1
   "$UVARSI_SYSTEMCTL" daemon-reload || return 1
 }
@@ -460,7 +503,10 @@ _uvarsi_apply_manual_targets() {
 uvarsi_install_manual_release() {
   release=$1
   snapshot=$2
-  if _uvarsi_apply_core "$release" && _uvarsi_apply_manual_targets "$release"; then
+  uvarsi_require_payments_off || return 1
+  if _uvarsi_apply_core "$release" && \
+      _uvarsi_apply_manual_targets "$release" && \
+      uvarsi_migrate_release "$release"; then
     return 0
   fi
   uvarsi_restore "$snapshot" || return 2

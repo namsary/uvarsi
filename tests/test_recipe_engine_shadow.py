@@ -41,9 +41,9 @@ def vyradeny_shadow_http_kontrakt(request):
         pytest.skip("shadow now serves the deterministic engine directly and never queues AI recipes")
 
 
-def _offer_rows():
+def _offer_rows(today=None):
     ingredients = load_ingredient_catalog()
-    today = date.today()
+    today = today or date.today()
     week = current_monday(today)
     valid_to = today + timedelta(days=6)
     rows = []
@@ -71,9 +71,9 @@ def _offer_rows():
     return rows
 
 
-def _server(monkeypatch, tmp_path, *, mode="shadow"):
+def _server(monkeypatch, tmp_path, *, mode="shadow", today=None):
     monkeypatch.setenv("UVARSI_RECIPE_ENGINE", mode)
-    server = load_server(monkeypatch, tmp_path, _offer_rows())
+    server = load_server(monkeypatch, tmp_path, _offer_rows(today))
     server.recipe_engine_mode.cache_clear()
     with closing(server.db()) as con:
         con.execute(
@@ -194,7 +194,7 @@ def test_scheduled_shadow_builds_the_fixed_anonymous_matrix_and_only_persists_ag
 def test_shadow_uses_bratislava_monday_during_utc_sunday_rollover(
     monkeypatch, tmp_path
 ):
-    server = _server(monkeypatch, tmp_path)
+    server = _server(monkeypatch, tmp_path, today=date(2026, 9, 7))
     predpocet = server.predpocet
     monkeypatch.setattr(predpocet.time, "perf_counter", _clock())
 

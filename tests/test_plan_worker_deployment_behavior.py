@@ -36,6 +36,7 @@ def deployment(tmp_path):
     state.mkdir()
     (app / "marker.txt").write_text("old-app", encoding="utf-8")
     (live / "VERSION").write_text("old-version", encoding="utf-8")
+    (live / "uvarsi.env").write_text("PLATBY_ZAPNUTE=0\n", encoding="utf-8")
     with sqlite3.connect(live / "uvarsi.db") as con:
         con.execute(
             "CREATE TABLE plan_worker_state (singleton INTEGER PRIMARY KEY, heartbeat_at TEXT)"
@@ -70,7 +71,8 @@ def deployment(tmp_path):
                 "last_ready": None,
                 "failed": 0,
                 "blocking_code": None,
-            }
+            },
+            "recipe_engine": {"payments_enabled": False},
         }),
         encoding="utf-8",
     )
@@ -266,7 +268,7 @@ def test_snapshot_failure_aborts_and_restore_failure_propagates(deployment):
     assert failed_restore.returncode != 0
 
 
-def test_migration_failure_restores_a_consistent_predeployment_database(deployment):
+def test_code_rollback_preserves_post_snapshot_customer_database_writes(deployment):
     database = deployment["live"] / "uvarsi.db"
     writer = sqlite3.connect(database)
     assert writer.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
@@ -292,15 +294,31 @@ def test_migration_failure_restores_a_consistent_predeployment_database(deployme
     assert restored.returncode == 0, restored.stdout + restored.stderr
     with sqlite3.connect(database) as live:
         assert live.execute("SELECT value FROM release_guard").fetchone() == (
-            "before",
+            "migrated",
         )
         assert live.execute(
             "SELECT COUNT(*) FROM sqlite_master WHERE name='migration_only'"
-        ).fetchone() == (0,)
+        ).fetchone() == (1,)
         assert live.execute("PRAGMA integrity_check").fetchone() == ("ok",)
 
 
-def test_database_restore_failure_keeps_an_app_present_and_reports_failure(deployment):
+def test_runtime_payment_gate_rejects_process_environment_override(deployment):
+    payload = json.loads(deployment["health"].read_text(encoding="utf-8"))
+    payload["recipe_engine"]["payments_enabled"] = True
+    deployment["health"].write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_library(deployment, "uvarsi_require_runtime_payments_off")
+
+    assert result.returncode != 0
+
+
+def test_runtime_payment_gate_accepts_explicit_false_from_live_health(deployment):
+    result = run_library(deployment, "uvarsi_require_runtime_payments_off")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_invalid_database_backup_does_not_block_code_rollback(deployment):
     assert run_library(
         deployment, 'uvarsi_snapshot "$UVARSI_TEST_SNAPSHOT"'
     ).returncode == 0
@@ -314,7 +332,7 @@ def test_database_restore_failure_keeps_an_app_present_and_reports_failure(deplo
 
     restored = run_library(deployment, 'uvarsi_restore "$UVARSI_TEST_SNAPSHOT"')
 
-    assert restored.returncode != 0
+    assert restored.returncode == 0, restored.stdout + restored.stderr
     assert deployment["app"].is_dir()
     assert deployment["app"].joinpath("marker.txt").read_text(
         encoding="utf-8"
@@ -404,6 +422,9 @@ def test_partial_live_mutation_rolls_back_before_returning_failure(deployment):
     release = deployment["release"]
     (release / "app").mkdir(parents=True)
     (release / "app" / "marker.txt").write_text("new-app", encoding="utf-8")
+    (release / "app" / "server.py").write_text(
+        "def priprav_databazu():\n    return None\n", encoding="utf-8"
+    )
     (release / "VERSION").write_text("new-version", encoding="utf-8")
     (release / "hetzner").mkdir()
     (release / "hetzner" / "uvarsi-plan-worker.service").write_text("new-unit", encoding="utf-8")
@@ -436,6 +457,9 @@ def test_successful_manual_release_installs_rollout_controller_and_target(deploy
     release = deployment["release"]
     (release / "app").mkdir(parents=True)
     (release / "app" / "marker.txt").write_text("new-app", encoding="utf-8")
+    (release / "app" / "server.py").write_text(
+        "def priprav_databazu():\n    return None\n", encoding="utf-8"
+    )
     (release / "VERSION").write_text("new-version", encoding="utf-8")
     (release / "index.html").write_bytes(b"new-index")
     (release / "sw.js").write_bytes(b"new-service-worker")
@@ -451,6 +475,7 @@ def test_successful_manual_release_installs_rollout_controller_and_target(deploy
         "recepty.py",
         "dozorca.sh",
         "zaloha.sh",
+        "payment-smoke.py",
         "uvarsi-deploy-state.sh",
         "recipe-engine-rollout.sh",
         "recipe-engine.target",
@@ -499,6 +524,9 @@ def test_manual_failure_restores_every_mutated_file_and_app_service_state(
     release = deployment["release"]
     (release / "app").mkdir(parents=True)
     (release / "app" / "marker.txt").write_text("new-app", encoding="utf-8")
+    (release / "app" / "server.py").write_text(
+        "def priprav_databazu():\n    return None\n", encoding="utf-8"
+    )
     (release / "VERSION").write_text("new-version", encoding="utf-8")
     (release / "index.html").write_bytes(b"new-index")
     (release / "sw.js").write_bytes(b"new-service-worker")
@@ -510,6 +538,7 @@ def test_manual_failure_restores_every_mutated_file_and_app_service_state(
         "new-app-unit", encoding="utf-8"
     )
     for name in ("refresh_blocek.py", "recepty.py", "dozorca.sh", "zaloha.sh",
+                 "payment-smoke.py",
                  "uvarsi-deploy-state.sh", "recipe-engine-rollout.sh",
                  "recipe-engine.target"):
         (release / "hetzner" / name).write_bytes(f"new-{name}".encode())

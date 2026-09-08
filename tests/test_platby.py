@@ -16,6 +16,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from app.payment_smoke_marker import create_marker, live_config_fingerprint, sign_marker
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -30,6 +32,7 @@ PLATBY_ENV = (
     "LEMON_STORE_ID",
     "LEMON_VARIANT_ID",
     "LEMON_API_KEY",
+    "UVARSI_PAYMENT_SMOKE_SIGNING_SECRET",
 )
 
 
@@ -92,8 +95,13 @@ def prihlaseny(server, session="session-token"):
 
 def objednavka(user_id=1, order_id="ord-1", udalost="order_created", total=3900,
                mena="EUR", webhook_id=None, variant_id=None, typ="orders",
-               attempt_id=None):
-    attributes = {"total": total, "currency": mena, "status": "paid"}
+               attempt_id=None, test_mode=False):
+    attributes = {
+        "total": total,
+        "currency": mena,
+        "status": "paid",
+        "test_mode": test_mode,
+    }
     if udalost == "order_refunded":
         attributes.update(
             status="refunded", refunded=True, refunded_amount=total
@@ -137,6 +145,92 @@ def aktivne(server):
 def test_platby_su_v_predvolenom_stave_vypnute(monkeypatch, tmp_path):
     server = load_server(monkeypatch, tmp_path)
     assert server.platby_zapnute(server.env("PLATBY_ZAPNUTE")) is False
+
+
+def test_payment_smoke_marker_musi_sediet_s_vydanim_obchodom_a_variantom(
+        monkeypatch, tmp_path):
+    server = load_server(
+        monkeypatch,
+        tmp_path,
+        UVARSI_PAYMENT_SMOKE_SIGNING_SECRET=TAJOMSTVO,
+    )
+    marker_path = tmp_path / "payment-smoke.json"
+    monkeypatch.setattr(server, "PAYMENT_SMOKE_MARKER", str(marker_path))
+
+    assert server._payment_smoke_verified(
+        release="release-1", checkout_url=CHECKOUT,
+        store_id="store-1", variant_id="variant-1"
+    ) is False
+
+    marker = create_marker(
+        release="release-1",
+        live_config_digest=live_config_fingerprint(
+            secret=TAJOMSTVO, checkout_url=CHECKOUT,
+            store_id="store-1", variant_id="variant-1",
+        ),
+        test_store_id="test-store",
+        test_variant_id="test-variant",
+        completed_at="2026-09-07T20:15:00+00:00",
+        receipt_email_verified=True,
+        test_mode_verified=True,
+    )
+    marker_path.write_text(
+        json.dumps(sign_marker(marker, secret=TAJOMSTVO)), encoding="utf-8"
+    )
+
+    assert server._payment_smoke_verified(
+        release="release-1", checkout_url=CHECKOUT,
+        store_id="store-1", variant_id="variant-1"
+    ) is True
+    assert server._payment_smoke_verified(
+        release="release-2", checkout_url=CHECKOUT,
+        store_id="store-1", variant_id="variant-1"
+    ) is False
+
+
+def test_nezmeneny_payment_smoke_marker_sa_necita_z_disku_opakovane(
+        monkeypatch, tmp_path):
+    server = load_server(
+        monkeypatch,
+        tmp_path,
+        UVARSI_PAYMENT_SMOKE_SIGNING_SECRET=TAJOMSTVO,
+    )
+    marker_path = tmp_path / "payment-smoke.json"
+    monkeypatch.setattr(server, "PAYMENT_SMOKE_MARKER", str(marker_path))
+    marker = create_marker(
+        release="release-1",
+        live_config_digest=live_config_fingerprint(
+            secret=TAJOMSTVO, checkout_url=CHECKOUT,
+            store_id="store-1", variant_id="variant-1",
+        ),
+        test_store_id="test-store",
+        test_variant_id="test-variant",
+        completed_at="2026-09-07T20:15:00+00:00",
+        receipt_email_verified=True,
+        test_mode_verified=True,
+    )
+    marker_path.write_text(
+        json.dumps(sign_marker(marker, secret=TAJOMSTVO)), encoding="utf-8"
+    )
+    original_read_text = server.Path.read_text
+    reads = 0
+
+    def counted_read_text(path, *args, **kwargs):
+        nonlocal reads
+        reads += 1
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(server.Path, "read_text", counted_read_text)
+    arguments = {
+        "release": "release-1",
+        "checkout_url": CHECKOUT,
+        "store_id": "store-1",
+        "variant_id": "variant-1",
+    }
+
+    assert server._payment_smoke_verified(**arguments) is True
+    assert server._payment_smoke_verified(**arguments) is True
+    assert reads == 1
 
 
 @pytest.mark.parametrize("hodnota", ["1", "true", "TRUE", "ano", "áno", "yes", "on"])
