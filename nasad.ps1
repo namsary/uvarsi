@@ -330,6 +330,24 @@ uvar.si {
 	handle /ako-varime-z-akcii {
 		reverse_proxy 127.0.0.1:8090
 	}
+	handle /vop {
+		reverse_proxy 127.0.0.1:8090
+	}
+	handle /ochrana-osobnych-udajov {
+		reverse_proxy 127.0.0.1:8090
+	}
+	handle /cookies {
+		reverse_proxy 127.0.0.1:8090
+	}
+	handle /odstupenie {
+		reverse_proxy 127.0.0.1:8090
+	}
+	handle /reklamacie {
+		reverse_proxy 127.0.0.1:8090
+	}
+	handle /pravne/* {
+		reverse_proxy 127.0.0.1:8090
+	}
 	handle /robots.txt {
 		reverse_proxy 127.0.0.1:8090
 	}
@@ -521,6 +539,12 @@ skontroluj https://uvar.si/api/health "health"
 skontroluj https://uvar.si/co-varit-tento-tyzden "verejna tyzdenna stranka"
 skontroluj https://uvar.si/lacny-jedalnicek "lacny jedalnicek"
 skontroluj https://uvar.si/ako-varime-z-akcii "ako varime z akcii"
+skontroluj https://uvar.si/vop "VOP"
+skontroluj https://uvar.si/ochrana-osobnych-udajov "ochrana osobnych udajov"
+skontroluj https://uvar.si/cookies "cookies"
+skontroluj https://uvar.si/odstupenie "odstupenie"
+skontroluj https://uvar.si/reklamacie "reklamacie"
+skontroluj https://uvar.si/pravne/vop.txt "VOP text"
 skontroluj https://uvar.si/robots.txt "robots.txt"
 skontroluj https://uvar.si/sitemap.xml "sitemap.xml"
 
