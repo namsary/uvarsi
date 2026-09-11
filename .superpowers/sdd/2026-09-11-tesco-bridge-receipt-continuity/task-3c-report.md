@@ -88,3 +88,53 @@ No test called the real network or Anthropic API.
 
 - This commit depends on the parallel stage-only collector change retaining `staged_week_readiness` and `promote_staged_week` with their current contracts; both APIs were present and their focused tests passed in this worktree.
 - SQLite promotion and filesystem replacement cannot form one cross-resource transaction. If the process dies after successful DB promotion but before `os.replace`, the old landing JSON remains intact and the next bounded supervisor run rebuilds and republishes from the retained complete stage.
+
+## Fix round 1 — shared deployment threshold
+
+Implementation commit: `4b4fe45c051f8d22b9ba58e82cd1eda1444637ce`.
+
+### Finding and fix
+
+The staging conversion had moved the supervisor's inline total-offer check from `POCET` to `STAGED_POCET`. The post-deploy contract still discovered the authoritative numeric threshold through the removed active-offer expression, so it could no longer prove that deployment readiness and the supervisor used the same value.
+
+`dozorca.sh` now declares one mechanically discoverable `MIN_TOTAL_OFFERS=30`. The staged collection gate and both active-data plan-warming gates consume that constant. The deployment contract reads the named constant, verifies that the staged gate uses it, and still verifies that `nasad.ps1` assigns the identical numeric value to `PRAH`. The test was strengthened for the staged architecture rather than removed or weakened.
+
+### RED
+
+```text
+tests/test_deploy_safety.py::test_postdeploy_check_uses_the_dozorca_offer_threshold
+FAILED: dozorca.sh must have one named numeric offer threshold
+1 failed in 0.41s
+```
+
+### GREEN and regression verification
+
+All Python runs used the required bundled interpreter, local dependency directory, disabled bytecode writes, and a worktree-local `--basetemp`.
+
+```text
+tests/test_deploy_safety.py::test_postdeploy_check_uses_the_dozorca_offer_threshold
+1 passed in 0.50s
+
+tests/test_refresh_contract.py
+tests/test_dozorca_contract.py
+tests/test_dozorca_behavior.py
+tests/test_deploy_safety.py::test_postdeploy_check_uses_the_dozorca_offer_threshold
+60 passed in 132.19s
+
+bash -n hetzner/dozorca.sh
+exit 0
+
+git diff --cached --check
+no output
+```
+
+No real network or Anthropic call was made.
+
+### Files changed
+
+- `hetzner/dozorca.sh`
+- `tests/test_deploy_safety.py`
+
+### Remaining risk
+
+`nasad.ps1` still carries the runtime `PRAH=30` literal because it is outside this fix round's write scope. The strengthened integration contract now fails if that literal drifts from `MIN_TOTAL_OFFERS` or if the staged supervisor gate stops consuming the named threshold.
