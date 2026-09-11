@@ -140,6 +140,29 @@ def test_reconstructs_every_item_total_and_exact_deduped_sources_from_db():
     ]
 
 
+def test_trusted_weighted_total_uses_the_exact_plan_cost_without_model_fields():
+    key = verified_key(1)
+    payload = build_public_receipt(
+        connection(verified_rows()),
+        selection([{"offer_key": key, "quantity": 1}]),
+        today=TODAY,
+        verified_line_totals={
+            key: {
+                "price": "1,20",
+                "original_price": "1,80",
+                "loyalty_price": None,
+            }
+        },
+    )
+
+    item = payload["receipt"]["meals"][0]["items"][0]
+    assert item["price"] == "1,20"
+    assert item["original_price"] == "1,80"
+    assert item["savings"] == "0,60"
+    assert payload["receipt"]["nakup_spolu"] == "1,20"
+    assert payload["receipt"]["bezne"] == "1,80"
+
+
 def test_receipt_keeps_card_price_as_an_uncounted_conditional_alternative():
     con = connection(verified_rows())
     con.execute(

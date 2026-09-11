@@ -152,7 +152,13 @@ def _week_label(today):
     return f"{monday.day}.–{sunday.day}. {sunday.month}. {sunday.year}"
 
 
-def build_public_receipt(con, model_output, today=None, generated_at=None):
+def build_public_receipt(
+    con,
+    model_output,
+    today=None,
+    generated_at=None,
+    verified_line_totals=None,
+):
     """Validate model content then derive every commercial value from the DB."""
     today = today or date.today()
     offers = priceable_offers(current_verified_offers(con, ALLOWED_STORES, today))
@@ -160,6 +166,10 @@ def build_public_receipt(con, model_output, today=None, generated_at=None):
         raise StructuralFailure(TOO_FEW_OFFERS)
     offers_by_key = {row["offer_key"]: row for row in offers}
     selected = _model_selection(model_output, offers_by_key)
+    verified_line_totals = verified_line_totals or {}
+    selected_keys = {offer_key for _, offer_key, _ in selected}
+    if not isinstance(verified_line_totals, dict) or set(verified_line_totals) - selected_keys:
+        raise ValueError("Overené súčty bločku nepatria k vybraným ponukám.")
 
     meals = []
     sources = []
@@ -174,9 +184,27 @@ def build_public_receipt(con, model_output, today=None, generated_at=None):
             if selected_meal is not meal:
                 continue
             row = offers_by_key[offer_key]
-            price = _cents(row["cena"], "akciová cena") * quantity
+            line_total = verified_line_totals.get(offer_key)
             verified = _regular_price(row)
-            original = verified * quantity if verified is not None else None
+            if line_total is None:
+                price = _cents(row["cena"], "akciová cena") * quantity
+                original = verified * quantity if verified is not None else None
+            else:
+                if not isinstance(line_total, dict) or set(line_total) != {
+                    "price", "original_price", "loyalty_price"
+                }:
+                    raise ValueError("Overený súčet bločku má neplatný formát.")
+                price = _cents(line_total["price"], "súčet akciovej ceny")
+                original_value = line_total["original_price"]
+                if (verified is None) != (original_value is None):
+                    raise ValueError("Overený súčet nezodpovedá bežnej cene ponuky.")
+                original = (
+                    None
+                    if original_value is None
+                    else _cents(original_value, "súčet bežnej ceny")
+                )
+                if original is not None and original < price:
+                    raise ValueError("Bežná cena položky nesmie byť nižšia ako akciová.")
             total += price
             # Bez overenej bežnej ceny položka do úspory neprispieva ničím.
             regular += original if original is not None else price
@@ -194,9 +222,16 @@ def build_public_receipt(con, model_output, today=None, generated_at=None):
                 "off": row["zlava"] or "",
             }
             if row["cena_s_kartou"] is not None:
-                loyalty_price = _cents(
-                    row["cena_s_kartou"], "vernostná cena"
-                ) * quantity
+                if line_total is None:
+                    loyalty_price = _cents(
+                        row["cena_s_kartou"], "vernostná cena"
+                    ) * quantity
+                else:
+                    if line_total["loyalty_price"] is None:
+                        raise ValueError("Overený súčet nemá vernostnú cenu ponuky.")
+                    loyalty_price = _cents(
+                        line_total["loyalty_price"], "súčet vernostnej ceny"
+                    )
                 item.update({
                     "loyalty_price": _format(loyalty_price),
                     "loyalty_discount": row["zlava_s_kartou"] or None,
@@ -207,6 +242,8 @@ def build_public_receipt(con, model_output, today=None, generated_at=None):
                     ),
                     "loyalty_condition": row["podmienka_s_kartou"],
                 })
+            elif line_total is not None and line_total["loyalty_price"] is not None:
+                raise ValueError("Overený súčet tvrdí neexistujúcu vernostnú cenu.")
             items.append(item)
             source = {
                 "store": row["obchod"],

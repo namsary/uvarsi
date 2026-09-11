@@ -5,6 +5,7 @@ import os
 import sqlite3
 import sys
 from datetime import date
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from app.deterministic_plan import NoCompatiblePlan, build_deterministic_plan
@@ -50,38 +51,139 @@ def _landing_seed(today):
     return f"landing:{week}:{digest[:12]}"
 
 
-def _receipt_selection(plan, offered_keys):
-    meals = []
-    seen = set()
-    for meal in plan.get("jedla", ()):
-        items = []
-        for ingredient in meal.get("suroviny", ()):
-            offer_key = ingredient.get("offer_key")
-            if offer_key not in offered_keys or offer_key in seen:
+def _line_amount(value, field):
+    try:
+        amount = Decimal(str(value).strip().replace(",", "."))
+    except (InvalidOperation, ValueError) as error:
+        raise ValueError(f"Plán obsahuje neplatnú {field} pre bloček.") from error
+    if not amount.is_finite() or amount <= 0:
+        raise ValueError(f"Plán obsahuje neplatnú {field} pre bloček.")
+    return amount
+
+
+def _money_text(value):
+    return format(value.quantize(Decimal("0.01")), "f").replace(".", ",")
+
+
+def _shopping_quantities(plan, offered_keys):
+    """Return the plan's real, already aggregated package counts by offer."""
+    quantities = {}
+    weighted_totals = {}
+    for group in plan.get("nakupny_zoznam", ()):
+        for item in group.get("polozky", ()):
+            offer_key = item.get("offer_key")
+            if offer_key not in offered_keys:
                 continue
-            quantity = ingredient.get("mnozstvo")
+            quantity = item.get("mnozstvo")
             if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0:
                 raise ValueError("Plán obsahuje neplatný počet balení pre bloček.")
-            seen.add(offer_key)
-            items.append({"offer_key": offer_key, "quantity": quantity})
-        if not items:
-            continue
+            quantities[offer_key] = quantities.get(offer_key, 0) + quantity
+            if item.get("predaj_na_vahu") is not True:
+                continue
+            price = _line_amount(item.get("cena"), "cenu váženej položky")
+            original = (
+                None
+                if item.get("povodna") is None
+                else _line_amount(item["povodna"], "bežnú cenu váženej položky")
+            )
+            loyalty = (
+                None
+                if item.get("cena_s_kartou") is None
+                else _line_amount(item["cena_s_kartou"], "vernostnú cenu váženej položky")
+            )
+            current = weighted_totals.get(offer_key)
+            if current is None:
+                weighted_totals[offer_key] = {
+                    "price": price,
+                    "original_price": original,
+                    "loyalty_price": loyalty,
+                }
+                continue
+            for field, amount in (
+                ("price", price),
+                ("original_price", original),
+                ("loyalty_price", loyalty),
+            ):
+                if (current[field] is None) != (amount is None):
+                    raise ValueError("Plán obsahuje nejednotné ceny váženej položky.")
+                if amount is not None:
+                    current[field] += amount
+    return quantities, {
+        offer_key: {
+            field: None if amount is None else _money_text(amount)
+            for field, amount in totals.items()
+        }
+        for offer_key, totals in weighted_totals.items()
+    }
+
+
+def _distinct_meal_offers(candidates):
+    """Choose one different purchased offer for every meal, if possible."""
+    assigned = [None] * len(candidates)
+    meal_order = sorted(range(len(candidates)), key=lambda index: len(candidates[index]))
+
+    def reserve(position, used):
+        if position == len(meal_order):
+            return True
+        meal_index = meal_order[position]
+        for offer_key in candidates[meal_index]:
+            if offer_key in used:
+                continue
+            assigned[meal_index] = offer_key
+            used.add(offer_key)
+            if reserve(position + 1, used):
+                return True
+            used.remove(offer_key)
+            assigned[meal_index] = None
+        return False
+
+    return assigned if reserve(0, set()) else None
+
+
+def _receipt_selection(plan, offered_keys, *, include_verified_totals=False):
+    source_meals = list(plan.get("jedla", ()))
+    quantities, verified_totals = _shopping_quantities(plan, offered_keys)
+    candidates = []
+    for meal in source_meals:
+        meal_keys = []
+        for ingredient in meal.get("suroviny", ()):
+            offer_key = ingredient.get("offer_key")
+            if offer_key in quantities and offer_key not in meal_keys:
+                meal_keys.append(offer_key)
+        candidates.append(meal_keys)
+
+    reserved = _distinct_meal_offers(candidates)
+    if reserved is None:
+        empty = {"meals": []}
+        return (empty, verified_totals) if include_verified_totals else empty
+
+    owners = {offer_key: index for index, offer_key in enumerate(reserved)}
+    for meal_index, meal_keys in enumerate(candidates):
+        for offer_key in meal_keys:
+            owners.setdefault(offer_key, meal_index)
+
+    meals = []
+    for meal_index, meal in enumerate(source_meals):
         recipe = meal.get("recept") or {}
         instructions = recipe.get("kroky") or []
         if not instructions:
             raise ValueError("Kurátorovaný recept nemá postup.")
+        items = [
+            {"offer_key": offer_key, "quantity": quantities[offer_key]}
+            for offer_key in candidates[meal_index]
+            if owners.get(offer_key) == meal_index
+        ]
         meals.append({
             "day": meal.get("den"),
             "name": meal.get("nazov"),
             "instructions": list(instructions),
             "items": items,
         })
-    if not meals:
-        raise ValueError("Kurátorovaný plán neobsahuje ponuky použiteľné na bloček.")
-    return {"meals": meals}
+    selection = {"meals": meals}
+    return (selection, verified_totals) if include_verified_totals else selection
 
 
-def compose_curated_receipt(offers, today):
+def compose_curated_receipt(offers, today, *, include_verified_totals=False):
     """Choose one stable weekly showcase plan without network or model calls."""
     ingredients = load_ingredient_catalog()
     recipes = load_recipe_catalog(ingredients)
@@ -110,9 +212,15 @@ def compose_curated_receipt(offers, today):
             )
         except NoCompatiblePlan:
             continue
-        selection = _receipt_selection(plan, offered_keys)
+        selection, verified_totals = _receipt_selection(
+            plan, offered_keys, include_verified_totals=True
+        )
         if len(selection["meals"]) == LANDING_FREQUENCY:
-            return selection
+            return (
+                (selection, verified_totals)
+                if include_verified_totals
+                else selection
+            )
     raise ValueError("Z aktuálnych akcií sa nepodarilo zostaviť tri odlišné jedlá.")
 
 
@@ -133,8 +241,19 @@ def refresh_from_db(path, database, compose=None, today=None):
         offers = priceable_offers(current_verified_offers(con, ALLOWED_STORES, today))
         if len(offers) < MIN_COMPOSABLE_OFFERS:
             raise StructuralFailure(TOO_FEW_OFFERS)
-        selection = (compose or compose_curated_receipt)(offers, today)
-        payload = build_public_receipt(con, selection, today=today)
+        if compose is None:
+            selection, verified_totals = compose_curated_receipt(
+                offers, today, include_verified_totals=True
+            )
+        else:
+            selection = compose(offers, today)
+            verified_totals = None
+        payload = build_public_receipt(
+            con,
+            selection,
+            today=today,
+            verified_line_totals=verified_totals,
+        )
     payload["offer_data_version"] = CURRENT_COLLECTION_DATA_VERSION
     validate_landing_data(
         payload, today, required_offer_data_version=CURRENT_COLLECTION_DATA_VERSION

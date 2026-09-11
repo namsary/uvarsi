@@ -133,7 +133,16 @@ def test_curated_receipt_composer_uses_stable_week_seed_and_real_plan_meals(
                         {"offer_key": "offer-salad", "mnozstvo": 1},
                     ],
                 },
-            ]
+            ],
+            "nakupny_zoznam": [{
+                "obchod": "Lidl",
+                "polozky": [
+                    {"offer_key": "offer-chicken", "mnozstvo": 2},
+                    {"offer_key": "offer-rice", "mnozstvo": 1},
+                    {"offer_key": "offer-tomato", "mnozstvo": 1},
+                    {"offer_key": "offer-salad", "mnozstvo": 1},
+                ],
+            }],
         }
 
     monkeypatch.setattr(refresh_blocek, "build_deterministic_plan", fake_builder)
@@ -217,6 +226,107 @@ def test_curated_receipt_composer_builds_three_practical_meals_from_real_catalog
     assert set(selected_keys) <= {offer["offer_key"] for offer in offers}
 
 
+def test_receipt_selection_reserves_a_distinct_purchase_for_each_meal():
+    plan = {
+        "jedla": [
+            {
+                "den": "PO",
+                "nazov": "Prvé jedlo",
+                "recept": {"kroky": ["Uvar prvé jedlo."]},
+                "suroviny": [
+                    {"offer_key": "offer-a", "mnozstvo": 1},
+                    {"offer_key": "offer-b", "mnozstvo": 1},
+                ],
+            },
+            {
+                "den": "ŠT",
+                "nazov": "Druhé jedlo",
+                "recept": {"kroky": ["Uvar druhé jedlo."]},
+                "suroviny": [
+                    {"offer_key": "offer-c", "mnozstvo": 1},
+                    {"offer_key": "offer-d", "mnozstvo": 1},
+                ],
+            },
+            {
+                "den": "NE",
+                "nazov": "Tretie jedlo",
+                "recept": {"kroky": ["Uvar tretie jedlo."]},
+                "suroviny": [
+                    {"offer_key": "offer-a", "mnozstvo": 1},
+                    {"offer_key": "offer-c", "mnozstvo": 1},
+                ],
+            },
+        ],
+        "nakupny_zoznam": [
+            {
+                "obchod": "Lidl",
+                "polozky": [
+                    {"offer_key": "offer-a", "mnozstvo": 4},
+                    {"offer_key": "offer-b", "mnozstvo": 2},
+                    {"offer_key": "offer-c", "mnozstvo": 3},
+                    {"offer_key": "offer-d", "mnozstvo": 5},
+                ],
+            }
+        ],
+    }
+
+    selection = refresh_blocek._receipt_selection(
+        plan, {"offer-a", "offer-b", "offer-c", "offer-d"}
+    )
+
+    assert len(selection["meals"]) == 3
+    selected = [
+        item
+        for meal in selection["meals"]
+        for item in meal["items"]
+    ]
+    assert len({item["offer_key"] for item in selected}) == len(selected)
+    assert {item["offer_key"]: item["quantity"] for item in selected} == {
+        "offer-a": 4,
+        "offer-b": 2,
+        "offer-c": 3,
+        "offer-d": 5,
+    }
+
+
+def test_receipt_selection_preserves_verified_totals_for_weighted_purchases():
+    plan = {
+        "jedla": [{
+            "den": "PO",
+            "nazov": "Pečené kurča",
+            "recept": {"kroky": ["Upeč kurča."]},
+            "suroviny": [{"offer_key": "offer-chicken", "mnozstvo": 1}],
+        }],
+        "nakupny_zoznam": [{
+            "obchod": "Kaufland",
+            "polozky": [{
+                "offer_key": "offer-chicken",
+                "mnozstvo": 1,
+                "predaj_na_vahu": True,
+                "kupit": "1.2",
+                "potrebna_jednotka": "kg",
+                "cena": "6,18",
+                "povodna": "8,40",
+            }],
+        }],
+    }
+
+    selection, verified_totals = refresh_blocek._receipt_selection(
+        plan, {"offer-chicken"}, include_verified_totals=True
+    )
+
+    assert selection["meals"][0]["items"] == [
+        {"offer_key": "offer-chicken", "quantity": 1}
+    ]
+    assert verified_totals == {
+        "offer-chicken": {
+            "price": "6,18",
+            "original_price": "8,40",
+            "loyalty_price": None,
+        }
+    }
+
+
 def test_curated_receipt_composer_tries_stable_variants_until_three_meals(
     monkeypatch,
 ):
@@ -243,14 +353,26 @@ def test_curated_receipt_composer_tries_stable_variants_until_three_meals(
                     meal("PO", "Prvé jedlo", "offer-a"),
                     meal("ŠT", "Druhé jedlo", "offer-a"),
                     meal("NE", "Tretie jedlo", "offer-a"),
-                ]
+                ],
+                "nakupny_zoznam": [{
+                    "obchod": "Lidl",
+                    "polozky": [{"offer_key": "offer-a", "mnozstvo": 1}],
+                }],
             }
         return {
             "jedla": [
                 meal("PO", "Prvé jedlo", "offer-a"),
                 meal("ŠT", "Druhé jedlo", "offer-b"),
                 meal("NE", "Tretie jedlo", "offer-c"),
-            ]
+            ],
+            "nakupny_zoznam": [{
+                "obchod": "Lidl",
+                "polozky": [
+                    {"offer_key": "offer-a", "mnozstvo": 1},
+                    {"offer_key": "offer-b", "mnozstvo": 1},
+                    {"offer_key": "offer-c", "mnozstvo": 1},
+                ],
+            }],
         }
 
     monkeypatch.setattr(refresh_blocek, "build_deterministic_plan", fake_builder)
@@ -293,7 +415,15 @@ def test_curated_receipt_composer_skips_an_incompatible_seed_variant(monkeypatch
                 meal("PO", "Prvé jedlo", "offer-a"),
                 meal("ŠT", "Druhé jedlo", "offer-b"),
                 meal("NE", "Tretie jedlo", "offer-c"),
-            ]
+            ],
+            "nakupny_zoznam": [{
+                "obchod": "Lidl",
+                "polozky": [
+                    {"offer_key": "offer-a", "mnozstvo": 1},
+                    {"offer_key": "offer-b", "mnozstvo": 1},
+                    {"offer_key": "offer-c", "mnozstvo": 1},
+                ],
+            }],
         }
 
     monkeypatch.setattr(refresh_blocek, "build_deterministic_plan", fake_builder)
