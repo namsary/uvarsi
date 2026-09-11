@@ -31,6 +31,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 TAJOMSTVO = "tajny-webhook-podpisovy-kluc"
 CHECKOUT = "https://uvarsi.lemonsqueezy.com/buy/11111111-2222-3333-4444-555555555555"
+LIVE_WEBHOOK_SECRET = "live-webhook-secret"
+LIVE_API_KEY = "live-api-key"
 TEST_CHECKOUT = "https://uvarsi.lemonsqueezy.com/checkout/test-verified"
 TEST_WEBHOOK_SECRET = "test-webhook-secret"
 TEST_STORE_ID = "test-store"
@@ -182,8 +184,10 @@ def test_payment_smoke_marker_musi_sediet_s_vydanim_obchodom_a_variantom(
     arguments = {
         "release": "release-1",
         "checkout_url": CHECKOUT,
+        "webhook_secret": LIVE_WEBHOOK_SECRET,
         "store_id": "store-1",
         "variant_id": "variant-1",
+        "api_key": LIVE_API_KEY,
         "test_checkout_url": TEST_CHECKOUT,
         "test_webhook_secret": TEST_WEBHOOK_SECRET,
         "test_store_id": TEST_STORE_ID,
@@ -198,7 +202,9 @@ def test_payment_smoke_marker_musi_sediet_s_vydanim_obchodom_a_variantom(
         release="release-1",
         live_config_digest=live_config_fingerprint(
             secret=TAJOMSTVO, checkout_url=CHECKOUT,
+            webhook_secret=LIVE_WEBHOOK_SECRET,
             store_id="store-1", variant_id="variant-1",
+            api_key=LIVE_API_KEY,
         ),
         test_config_digest=TEST_CONFIG_DIGEST,
         test_store_id=TEST_STORE_ID,
@@ -225,9 +231,13 @@ def test_payment_smoke_marker_musi_sediet_s_vydanim_obchodom_a_variantom(
     assert TEST_CHECKOUT not in stored
     assert TEST_WEBHOOK_SECRET not in stored
     assert TEST_API_KEY not in stored
+    assert LIVE_WEBHOOK_SECRET not in stored
+    assert LIVE_API_KEY not in stored
 
     for field, wrong in (
         ("release", "release-2"),
+        ("webhook_secret", "other-live-webhook-secret"),
+        ("api_key", "other-live-api-key"),
         ("test_checkout_url", "https://attacker.example/checkout"),
         ("test_webhook_secret", "other-test-webhook-secret"),
         ("test_store_id", "other-test-store"),
@@ -252,7 +262,9 @@ def test_smoke_dokaz_musi_byt_vzdy_cerstvy_pred_aktivaciou(
         release="release-1",
         live_config_digest=live_config_fingerprint(
             secret=TAJOMSTVO, checkout_url=CHECKOUT,
+            webhook_secret=LIVE_WEBHOOK_SECRET,
             store_id="store-1", variant_id="variant-1",
+            api_key=LIVE_API_KEY,
         ),
         test_config_digest=TEST_CONFIG_DIGEST,
         test_store_id=TEST_STORE_ID,
@@ -267,7 +279,9 @@ def test_smoke_dokaz_musi_byt_vzdy_cerstvy_pred_aktivaciou(
 
     assert server._payment_smoke_verified(
         release="release-1", checkout_url=CHECKOUT,
+        webhook_secret=LIVE_WEBHOOK_SECRET,
         store_id="store-1", variant_id="variant-1",
+        api_key=LIVE_API_KEY,
         test_checkout_url=TEST_CHECKOUT,
         test_webhook_secret=TEST_WEBHOOK_SECRET,
         test_store_id=TEST_STORE_ID, test_variant_id=TEST_VARIANT_ID,
@@ -288,7 +302,9 @@ def test_nezmeneny_payment_smoke_marker_sa_necita_z_disku_opakovane(
         release="release-1",
         live_config_digest=live_config_fingerprint(
             secret=TAJOMSTVO, checkout_url=CHECKOUT,
+            webhook_secret=LIVE_WEBHOOK_SECRET,
             store_id="store-1", variant_id="variant-1",
+            api_key=LIVE_API_KEY,
         ),
         test_config_digest=TEST_CONFIG_DIGEST,
         test_store_id=TEST_STORE_ID,
@@ -312,8 +328,10 @@ def test_nezmeneny_payment_smoke_marker_sa_necita_z_disku_opakovane(
     arguments = {
         "release": "release-1",
         "checkout_url": CHECKOUT,
+        "webhook_secret": LIVE_WEBHOOK_SECRET,
         "store_id": "store-1",
         "variant_id": "variant-1",
+        "api_key": LIVE_API_KEY,
         "test_checkout_url": TEST_CHECKOUT,
         "test_webhook_secret": TEST_WEBHOOK_SECRET,
         "test_store_id": TEST_STORE_ID,
@@ -698,8 +716,10 @@ def test_runtime_readiness_requires_current_receipt_test_config_and_verified_pho
     assert smoke_checks[-1] == {
         "release": server.release_id(),
         "checkout_url": CHECKOUT,
+        "webhook_secret": "live-webhook",
         "store_id": "live-store",
         "variant_id": "live-variant",
+        "api_key": "live-api",
         "test_checkout_url": "https://uvarsi.lemonsqueezy.com/checkout/test",
         "test_webhook_secret": "test-webhook",
         "test_store_id": "test-store",
@@ -718,8 +738,10 @@ def test_runtime_readiness_requires_current_receipt_test_config_and_verified_pho
     assert activation_checks[-1] == {
         "release": server.release_id(),
         "checkout_url": CHECKOUT,
+        "webhook_secret": "live-webhook",
         "store_id": "live-store",
         "variant_id": "live-variant",
+        "api_key": "live-api",
         "test_checkout_url": "https://uvarsi.lemonsqueezy.com/checkout/test",
         "test_webhook_secret": "test-webhook",
         "test_store_id": "test-store",
@@ -800,8 +822,10 @@ def test_podpisana_aktivacia_neexpiruje_ale_zmena_configu_ju_zablokuje(
         live_config_digest=live_config_fingerprint(
             secret=TAJOMSTVO,
             checkout_url=CHECKOUT,
+            webhook_secret=LIVE_WEBHOOK_SECRET,
             store_id="store-1",
             variant_id="variant-1",
+            api_key=LIVE_API_KEY,
         ),
         test_config_digest=payment_test_config_fingerprint(
             secret=TAJOMSTVO,
@@ -823,8 +847,10 @@ def test_podpisana_aktivacia_neexpiruje_ale_zmena_configu_ju_zablokuje(
         secret=TAJOMSTVO,
         release="release-1",
         checkout_url=CHECKOUT,
+        webhook_secret=LIVE_WEBHOOK_SECRET,
         store_id="store-1",
         variant_id="variant-1",
+        api_key=LIVE_API_KEY,
         test_checkout_url=TEST_CHECKOUT,
         test_webhook_secret=TEST_WEBHOOK_SECRET,
         test_store_id=TEST_STORE_ID,
@@ -836,8 +862,10 @@ def test_podpisana_aktivacia_neexpiruje_ale_zmena_configu_ju_zablokuje(
     arguments = {
         "release": "release-1",
         "checkout_url": CHECKOUT,
+        "webhook_secret": LIVE_WEBHOOK_SECRET,
         "store_id": "store-1",
         "variant_id": "variant-1",
+        "api_key": LIVE_API_KEY,
         "test_checkout_url": TEST_CHECKOUT,
         "test_webhook_secret": TEST_WEBHOOK_SECRET,
         "test_store_id": TEST_STORE_ID,
@@ -852,10 +880,119 @@ def test_podpisana_aktivacia_neexpiruje_ale_zmena_configu_ju_zablokuje(
     assert server._payment_activation_verified(
         **{**arguments, "checkout_url": CHECKOUT + "-changed"}
     ) is False
+    assert server._payment_activation_verified(
+        **{**arguments, "webhook_secret": "rotated-live-webhook"}
+    ) is False
+    assert server._payment_activation_verified(
+        **{**arguments, "api_key": "rotated-live-api"}
+    ) is False
 
     tampered = dict(activation, activated_at="2026-09-11T12:01:00+00:00")
     activation_path.write_text(json.dumps(tampered), encoding="utf-8")
     assert server._payment_activation_verified(**arguments) is False
+
+
+@pytest.mark.parametrize(
+    "secret_name,rotated_value",
+    [
+        ("LEMON_WEBHOOK_SECRET", "rotated-live-webhook-secret"),
+        ("LEMON_API_KEY", "rotated-live-api-key"),
+    ],
+)
+def test_zmena_ktorehokolvek_live_secretu_zneplatni_aktivaciu_a_checkout(
+        monkeypatch, tmp_path, secret_name, rotated_value):
+    live_webhook_secret = "verified-live-webhook-secret"
+    live_api_key = "verified-live-api-key"
+    server = load_server(
+        monkeypatch,
+        tmp_path,
+        PLATBY_ZAPNUTE="1",
+        LEMON_CHECKOUT_URL=CHECKOUT,
+        LEMON_WEBHOOK_SECRET=live_webhook_secret,
+        LEMON_STORE_ID="live-store",
+        LEMON_VARIANT_ID="live-variant",
+        LEMON_API_KEY=live_api_key,
+        LEMON_TEST_CHECKOUT_URL=TEST_CHECKOUT,
+        LEMON_TEST_WEBHOOK_SECRET=TEST_WEBHOOK_SECRET,
+        LEMON_TEST_STORE_ID=TEST_STORE_ID,
+        LEMON_TEST_VARIANT_ID=TEST_VARIANT_ID,
+        LEMON_TEST_API_KEY=TEST_API_KEY,
+        UVARSI_VERIFIED_SUPPORT_PHONE="+421 900 123 456",
+        UVARSI_PAYMENT_SMOKE_SIGNING_SECRET=TAJOMSTVO,
+    )
+    monkeypatch.setattr(
+        server, "OPERATOR", replace(server.OPERATOR, support_phone="+421 900 123 456")
+    )
+    monkeypatch.setattr(server, "legal_version", lambda: server.LEGAL_VERSION)
+    monkeypatch.setattr(server, "_approved_price_sources_ready", lambda *_a, **_k: True)
+    monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda **_k: True)
+    monkeypatch.setattr(server, "_private_payment_alerts_ready", lambda: True)
+    monkeypatch.setattr(server.customer_requests, "workflow_ready", lambda _con: True)
+    activation_path = tmp_path / "payment-activation.json"
+    monkeypatch.setattr(server, "PAYMENT_ACTIVATION_MARKER", str(activation_path))
+    release = server.release_id()
+    smoke = sign_marker(
+        create_marker(
+            release=release,
+            live_config_digest=live_config_fingerprint(
+                secret=TAJOMSTVO,
+                checkout_url=CHECKOUT,
+                webhook_secret=live_webhook_secret,
+                store_id="live-store",
+                variant_id="live-variant",
+                api_key=live_api_key,
+            ),
+            test_config_digest=TEST_CONFIG_DIGEST,
+            test_store_id=TEST_STORE_ID,
+            test_variant_id=TEST_VARIANT_ID,
+            completed_at="2026-09-11T11:30:00+00:00",
+            receipt_email_verified=True,
+            test_mode_verified=True,
+        ),
+        secret=TAJOMSTVO,
+    )
+    activation = create_activation_attestation(
+        smoke,
+        secret=TAJOMSTVO,
+        release=release,
+        checkout_url=CHECKOUT,
+        webhook_secret=live_webhook_secret,
+        store_id="live-store",
+        variant_id="live-variant",
+        api_key=live_api_key,
+        test_checkout_url=TEST_CHECKOUT,
+        test_webhook_secret=TEST_WEBHOOK_SECRET,
+        test_store_id=TEST_STORE_ID,
+        test_variant_id=TEST_VARIANT_ID,
+        test_api_key=TEST_API_KEY,
+        activated_at="2026-09-11T12:00:00+00:00",
+    )
+    activation_path.write_text(json.dumps(activation), encoding="utf-8")
+    queue = {"worker_alive": True, "blocking_code": None}
+    recipe = {
+        "ready": False,
+        "blockers": ["payments_enabled"],
+        "release_gate": {
+            "active_recipes": server.CURATED_RECIPE_COUNT,
+            "curation_generation": 1,
+            "provenance_complete": True,
+            "library_errors": 0,
+            "workflow_errors": 0,
+        },
+    }
+
+    with closing(server.db()) as con:
+        assert server._runtime_payment_readiness(
+            con, queue_status=queue, recipe_status=recipe
+        ).ready is True
+    monkeypatch.setenv(secret_name, rotated_value)
+    with closing(server.db()) as con:
+        readiness = server._runtime_payment_readiness(
+            con, queue_status=queue, recipe_status=recipe
+        )
+
+    assert readiness.ready is False
+    assert readiness.blockers == ("payment_smoke_missing",)
 
 
 def test_empty_recipe_or_blocked_plan_worker_never_passes_runtime_readiness(

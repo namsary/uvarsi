@@ -34,19 +34,24 @@ def _canonical(marker: dict) -> bytes:
 
 
 def live_config_fingerprint(
-    *, secret: str, checkout_url: str, store_id: str, variant_id: str
+    *, secret: str, checkout_url: str, webhook_secret: str,
+    store_id: str, variant_id: str, api_key: str,
 ) -> str:
-    """Bind a smoke to the exact planned live checkout without exposing its URL."""
+    """Bind every live-provider input without exposing its plaintext."""
     key = _text(secret, name="podpisové tajomstvo").encode("utf-8")
     values = {
         "checkout_url": _text(checkout_url, name="živá pokladňa"),
+        "webhook_secret": _text(webhook_secret, name="živý webhook"),
         "store_id": _text(store_id, name="živý obchod"),
         "variant_id": _text(variant_id, name="živý variant"),
+        "api_key": _text(api_key, name="živý API kľúč"),
     }
     payload = json.dumps(
         values, sort_keys=True, separators=(",", ":"), ensure_ascii=True
     ).encode("utf-8")
-    return hmac.new(key, b"uvarsi-live-payment-config-v1\0" + payload, hashlib.sha256).hexdigest()
+    return hmac.new(
+        key, b"uvarsi-live-payment-config-v2\0" + payload, hashlib.sha256
+    ).hexdigest()
 
 
 def test_config_fingerprint(
@@ -120,7 +125,7 @@ def sign_marker(marker: dict, *, secret: str) -> dict:
 
 def verify_marker(
     marker, *, secret: str, release: str, checkout_url: str,
-    store_id: str, variant_id: str
+    webhook_secret: str, store_id: str, variant_id: str, api_key: str,
 ) -> bool:
     """Fail closed unless signature, release binding and lifecycle all match."""
     if not isinstance(marker, dict) or not isinstance(secret, str) or not secret:
@@ -141,8 +146,10 @@ def verify_marker(
         live_digest = live_config_fingerprint(
             secret=secret,
             checkout_url=checkout_url,
+            webhook_secret=webhook_secret,
             store_id=store_id,
             variant_id=variant_id,
+            api_key=api_key,
         )
     except ValueError:
         return False
@@ -204,8 +211,10 @@ def create_activation_attestation(
     secret: str,
     release: str,
     checkout_url: str,
+    webhook_secret: str,
     store_id: str,
     variant_id: str,
+    api_key: str,
     test_checkout_url: str,
     test_webhook_secret: str,
     test_store_id: str,
@@ -220,8 +229,10 @@ def create_activation_attestation(
         secret=secret,
         release=release,
         checkout_url=checkout_url,
+        webhook_secret=webhook_secret,
         store_id=store_id,
         variant_id=variant_id,
+        api_key=api_key,
     ):
         raise ValueError("neplatný podpísaný smoke dôkaz")
     expected_test_digest = test_config_fingerprint(
@@ -264,8 +275,10 @@ def verify_activation_attestation(
     secret: str,
     release: str,
     checkout_url: str,
+    webhook_secret: str,
     store_id: str,
     variant_id: str,
+    api_key: str,
     test_checkout_url: str,
     test_webhook_secret: str,
     test_store_id: str,
@@ -297,8 +310,10 @@ def verify_activation_attestation(
         expected_live_digest = live_config_fingerprint(
             secret=secret,
             checkout_url=checkout_url,
+            webhook_secret=webhook_secret,
             store_id=store_id,
             variant_id=variant_id,
+            api_key=api_key,
         )
         expected_test_digest = test_config_fingerprint(
             secret=secret,

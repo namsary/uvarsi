@@ -474,7 +474,8 @@ def _write_marker(path: str, marker: dict) -> None:
 
 def _build_completed_marker(
     *, purchase_event, refund_event, release, live_checkout_url,
-    live_store_id, live_variant_id, test_checkout_url, test_webhook_secret,
+    live_webhook_secret, live_store_id, live_variant_id, live_api_key,
+    test_checkout_url, test_webhook_secret,
     test_store_id, test_variant_id, test_api_key, order_id,
     receipt_email_verified, unresolved_cases, completed_at, signing_secret,
     create_marker, live_config_fingerprint, test_config_fingerprint, sign_marker,
@@ -500,8 +501,10 @@ def _build_completed_marker(
     live_digest = live_config_fingerprint(
         secret=signing_secret,
         checkout_url=live_checkout_url,
+        webhook_secret=live_webhook_secret,
         store_id=live_store_id,
         variant_id=live_variant_id,
+        api_key=live_api_key,
     )
     test_digest = test_config_fingerprint(
         secret=signing_secret,
@@ -541,7 +544,8 @@ def _read_marker(path: str) -> dict:
 
 def _build_activation_attestation(
     *, smoke_marker, activated_at, release, live_checkout_url,
-    live_store_id, live_variant_id, test_checkout_url, test_webhook_secret,
+    live_webhook_secret, live_store_id, live_variant_id, live_api_key,
+    test_checkout_url, test_webhook_secret,
     test_store_id, test_variant_id, test_api_key, signing_secret,
     create_activation_attestation,
 ):
@@ -552,8 +556,10 @@ def _build_activation_attestation(
             secret=signing_secret,
             release=release,
             checkout_url=live_checkout_url,
+            webhook_secret=live_webhook_secret,
             store_id=live_store_id,
             variant_id=live_variant_id,
+            api_key=live_api_key,
             test_checkout_url=test_checkout_url,
             test_webhook_secret=test_webhook_secret,
             test_store_id=test_store_id,
@@ -608,6 +614,7 @@ def main(argv=None) -> int:
         for name in (
             "LEMON_API_KEY",
             "LEMON_CHECKOUT_URL",
+            "LEMON_WEBHOOK_SECRET",
             "LEMON_STORE_ID",
             "LEMON_VARIANT_ID",
         )
@@ -622,8 +629,10 @@ def main(argv=None) -> int:
     activation_arguments = {
         "release": release,
         "live_checkout_url": live_values["LEMON_CHECKOUT_URL"],
+        "live_webhook_secret": live_values["LEMON_WEBHOOK_SECRET"],
         "live_store_id": live_values["LEMON_STORE_ID"],
         "live_variant_id": live_values["LEMON_VARIANT_ID"],
+        "live_api_key": live_values["LEMON_API_KEY"],
         "test_checkout_url": test_values["LEMON_TEST_CHECKOUT_URL"],
         "test_webhook_secret": test_values["LEMON_TEST_WEBHOOK_SECRET"],
         "test_store_id": test_values["LEMON_TEST_STORE_ID"],
@@ -741,8 +750,10 @@ def main(argv=None) -> int:
         refund_event=refund_event,
         release=release,
         live_checkout_url=live_values["LEMON_CHECKOUT_URL"],
+        live_webhook_secret=live_values["LEMON_WEBHOOK_SECRET"],
         live_store_id=live_values["LEMON_STORE_ID"],
         live_variant_id=live_values["LEMON_VARIANT_ID"],
+        live_api_key=live_values["LEMON_API_KEY"],
         test_checkout_url=test_values["LEMON_TEST_CHECKOUT_URL"],
         test_webhook_secret=test_values["LEMON_TEST_WEBHOOK_SECRET"],
         test_store_id=test_values["LEMON_TEST_STORE_ID"],

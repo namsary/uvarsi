@@ -4807,7 +4807,8 @@ def _read_payment_smoke_marker(
 
 
 def _payment_smoke_verified(
-    *, release: str, checkout_url: str, store_id: str, variant_id: str,
+    *, release: str, checkout_url: str, webhook_secret: str,
+    store_id: str, variant_id: str, api_key: str,
     test_checkout_url: str, test_webhook_secret: str,
     test_store_id: str, test_variant_id: str, test_api_key: str,
     now: datetime.datetime | None = None,
@@ -4815,7 +4816,8 @@ def _payment_smoke_verified(
     """Verify one fresh, exact, signed pre-activation smoke result."""
     secret = env("UVARSI_PAYMENT_SMOKE_SIGNING_SECRET", "") or ""
     if not all((
-        secret, release, checkout_url, store_id, variant_id,
+        secret, release, checkout_url, webhook_secret, store_id, variant_id,
+        api_key,
         test_checkout_url, test_webhook_secret, test_store_id,
         test_variant_id, test_api_key,
     )):
@@ -4835,8 +4837,10 @@ def _payment_smoke_verified(
         secret=secret,
         release=release,
         checkout_url=checkout_url,
+        webhook_secret=webhook_secret,
         store_id=store_id,
         variant_id=variant_id,
+        api_key=api_key,
     ):
         return False
     if (
@@ -4880,14 +4884,16 @@ def _payment_smoke_verified(
 
 
 def _payment_activation_verified(
-    *, release: str, checkout_url: str, store_id: str, variant_id: str,
+    *, release: str, checkout_url: str, webhook_secret: str,
+    store_id: str, variant_id: str, api_key: str,
     test_checkout_url: str, test_webhook_secret: str,
     test_store_id: str, test_variant_id: str, test_api_key: str,
 ) -> bool:
     """Require a signed activation bound to the current live and test identity."""
     secret = env("UVARSI_PAYMENT_SMOKE_SIGNING_SECRET", "") or ""
     if not all((
-        secret, release, checkout_url, store_id, variant_id,
+        secret, release, checkout_url, webhook_secret, store_id, variant_id,
+        api_key,
         test_checkout_url, test_webhook_secret, test_store_id,
         test_variant_id, test_api_key,
     )):
@@ -4907,8 +4913,10 @@ def _payment_activation_verified(
         secret=secret,
         release=release,
         checkout_url=checkout_url,
+        webhook_secret=webhook_secret,
         store_id=store_id,
         variant_id=variant_id,
+        api_key=api_key,
         test_checkout_url=test_checkout_url,
         test_webhook_secret=test_webhook_secret,
         test_store_id=test_store_id,
@@ -4968,8 +4976,10 @@ def _runtime_payment_readiness(
     recipe_status = recipe_status or recipe_engine_health(con, today=today)
     current_release = release_id()
     checkout_url = env("LEMON_CHECKOUT_URL", "") or ""
+    webhook_secret = env("LEMON_WEBHOOK_SECRET", "") or ""
     store_id = env("LEMON_STORE_ID", "") or ""
     variant_id = env("LEMON_VARIANT_ID", "") or ""
+    api_key = env("LEMON_API_KEY", "") or ""
     test_checkout_url = env("LEMON_TEST_CHECKOUT_URL", "") or ""
     test_webhook_secret = env("LEMON_TEST_WEBHOOK_SECRET", "") or ""
     test_store_id = env("LEMON_TEST_STORE_ID", "") or ""
@@ -4978,8 +4988,10 @@ def _runtime_payment_readiness(
     payment_identity = {
         "release": current_release,
         "checkout_url": checkout_url,
+        "webhook_secret": webhook_secret,
         "store_id": store_id,
         "variant_id": variant_id,
+        "api_key": api_key,
         "test_checkout_url": test_checkout_url,
         "test_webhook_secret": test_webhook_secret,
         "test_store_id": test_store_id,
@@ -5005,10 +5017,10 @@ def _runtime_payment_readiness(
         founder_promise=FOUNDER_PROMISE,
         release=current_release,
         checkout_url=checkout_url,
-        webhook_secret=env("LEMON_WEBHOOK_SECRET", "") or "",
+        webhook_secret=webhook_secret,
         store_id=store_id,
         variant_id=variant_id,
-        api_key=env("LEMON_API_KEY", "") or "",
+        api_key=api_key,
         test_checkout_url=test_checkout_url,
         test_webhook_secret=test_webhook_secret,
         test_store_id=test_store_id,

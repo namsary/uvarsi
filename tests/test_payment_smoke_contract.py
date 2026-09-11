@@ -93,8 +93,10 @@ def test_signed_marker_is_bound_to_release_store_variant_and_full_lifecycle():
     live_fingerprint = marker_module.live_config_fingerprint(
         secret=secret,
         checkout_url="https://uvarsi.lemonsqueezy.com/checkout/buy/live-product",
+        webhook_secret="live-webhook-secret",
         store_id="123",
         variant_id="456",
+        api_key="live-api-key",
     )
     test_fingerprint = marker_module.test_config_fingerprint(
         secret=secret,
@@ -120,8 +122,10 @@ def test_signed_marker_is_bound_to_release_store_variant_and_full_lifecycle():
         secret=secret,
         release="2026.09.07.29",
         checkout_url="https://uvarsi.lemonsqueezy.com/checkout/buy/live-product",
+        webhook_secret="live-webhook-secret",
         store_id="123",
         variant_id="456",
+        api_key="live-api-key",
     ) is False
 
     marker = marker_module.sign_marker(marker, secret=secret)
@@ -130,8 +134,10 @@ def test_signed_marker_is_bound_to_release_store_variant_and_full_lifecycle():
         secret=secret,
         release="2026.09.07.29",
         checkout_url="https://uvarsi.lemonsqueezy.com/checkout/buy/live-product",
+        webhook_secret="live-webhook-secret",
         store_id="123",
         variant_id="456",
+        api_key="live-api-key",
     ) is True
     assert marker["purchase_webhook_verified"] is True
     assert marker["entitlement_verified"] is True
@@ -145,18 +151,24 @@ def test_signed_marker_is_bound_to_release_store_variant_and_full_lifecycle():
     assert "test-webhook-secret" not in json.dumps(marker)
     assert "test-api-key" not in json.dumps(marker)
     assert "test-product" not in json.dumps(marker)
+    assert "live-webhook-secret" not in json.dumps(marker)
+    assert "live-api-key" not in json.dumps(marker)
 
     for field, wrong in (
         ("release", "2026.09.07.30"),
         ("checkout_url", "https://uvarsi.lemonsqueezy.com/checkout/buy/other"),
+        ("webhook_secret", "other-live-webhook-secret"),
         ("store_id", "999"),
         ("variant_id", "999"),
+        ("api_key", "other-live-api-key"),
     ):
         values = {
             "release": "2026.09.07.29",
             "checkout_url": "https://uvarsi.lemonsqueezy.com/checkout/buy/live-product",
+            "webhook_secret": "live-webhook-secret",
             "store_id": "123",
             "variant_id": "456",
+            "api_key": "live-api-key",
         }
         values[field] = wrong
         assert marker_module.verify_marker(marker, secret=secret, **values) is False
@@ -167,8 +179,10 @@ def test_signed_marker_is_bound_to_release_store_variant_and_full_lifecycle():
         secret=secret,
         release="2026.09.07.29",
         checkout_url="https://uvarsi.lemonsqueezy.com/checkout/buy/live-product",
+        webhook_secret="live-webhook-secret",
         store_id="123",
         variant_id="456",
+        api_key="live-api-key",
     ) is False
 
     for bad_mode in (False, None):
@@ -185,8 +199,10 @@ def test_signed_marker_is_bound_to_release_store_variant_and_full_lifecycle():
             secret=secret,
             release="2026.09.07.29",
             checkout_url="https://uvarsi.lemonsqueezy.com/checkout/buy/live-product",
+            webhook_secret="live-webhook-secret",
             store_id="123",
             variant_id="456",
+            api_key="live-api-key",
         ) is False
 
 
@@ -198,8 +214,10 @@ def test_marker_signature_uses_canonical_hmac_sha256():
         live_config_digest=marker_module.live_config_fingerprint(
             secret=secret,
             checkout_url="https://uvarsi.lemonsqueezy.com/checkout/buy/live",
+            webhook_secret="live-webhook",
             store_id="s1",
             variant_id="v1",
+            api_key="live-api",
         ),
         test_config_digest=marker_module.test_config_fingerprint(
             secret=secret,
@@ -516,8 +534,10 @@ def test_marker_can_only_be_built_from_exact_signed_webhook_lifecycle():
     common = {
         "release": "release-1",
         "live_checkout_url": "https://uvarsi.lemonsqueezy.com/checkout/buy/live",
+        "live_webhook_secret": "live-webhook-secret",
         "live_store_id": "live-store",
         "live_variant_id": "live-variant",
+        "live_api_key": "live-api-key",
         "test_store_id": "test-store",
         "test_variant_id": "test-variant",
         "test_checkout_url": "https://uvarsi.lemonsqueezy.com/checkout/test",
@@ -556,8 +576,10 @@ def test_marker_can_only_be_built_from_exact_signed_webhook_lifecycle():
         secret=common["signing_secret"],
         release=common["release"],
         checkout_url=common["live_checkout_url"],
+        webhook_secret=common["live_webhook_secret"],
         store_id=common["live_store_id"],
         variant_id=common["live_variant_id"],
+        api_key=common["live_api_key"],
     ) is True
     assert marker["test_config_digest"] == marker_module.test_config_fingerprint(
         secret=common["signing_secret"],
@@ -571,6 +593,8 @@ def test_marker_can_only_be_built_from_exact_signed_webhook_lifecycle():
     assert common["test_checkout_url"] not in serialized
     assert common["test_webhook_secret"] not in serialized
     assert common["test_api_key"] not in serialized
+    assert common["live_webhook_secret"] not in serialized
+    assert common["live_api_key"] not in serialized
 
     with pytest.raises(smoke.SmokeFailed, match="webhook"):
         smoke._build_completed_marker(
@@ -600,8 +624,10 @@ def test_production_activation_builder_requires_fresh_signed_smoke_and_stays_val
     config = {
         "release": "release-1",
         "live_checkout_url": "https://uvarsi.lemonsqueezy.com/checkout/buy/live",
+        "live_webhook_secret": "live-webhook-secret",
         "live_store_id": "live-store",
         "live_variant_id": "live-variant",
+        "live_api_key": "live-api-key",
         "test_checkout_url": "https://uvarsi.lemonsqueezy.com/checkout/test",
         "test_webhook_secret": "test-webhook-secret",
         "test_store_id": "test-store",
@@ -623,8 +649,10 @@ def test_production_activation_builder_requires_fresh_signed_smoke_and_stays_val
             live_config_digest=marker_module.live_config_fingerprint(
                 secret=config["signing_secret"],
                 checkout_url=config["live_checkout_url"],
+                webhook_secret=config["live_webhook_secret"],
                 store_id=config["live_store_id"],
                 variant_id=config["live_variant_id"],
+                api_key=config["live_api_key"],
             ),
             test_config_digest=test_digest,
             test_store_id=config["test_store_id"],
@@ -648,8 +676,10 @@ def test_production_activation_builder_requires_fresh_signed_smoke_and_stays_val
         secret=config["signing_secret"],
         release=config["release"],
         checkout_url=config["live_checkout_url"],
+        webhook_secret=config["live_webhook_secret"],
         store_id=config["live_store_id"],
         variant_id=config["live_variant_id"],
+        api_key=config["live_api_key"],
         test_checkout_url=config["test_checkout_url"],
         test_webhook_secret=config["test_webhook_secret"],
         test_store_id=config["test_store_id"],
@@ -660,6 +690,8 @@ def test_production_activation_builder_requires_fresh_signed_smoke_and_stays_val
     assert config["test_checkout_url"] not in serialized
     assert config["test_webhook_secret"] not in serialized
     assert config["test_api_key"] not in serialized
+    assert config["live_webhook_secret"] not in serialized
+    assert config["live_api_key"] not in serialized
 
     with pytest.raises(smoke.SmokeFailed, match="čerstv"):
         smoke._build_activation_attestation(
@@ -678,6 +710,7 @@ def test_authorize_activation_command_writes_a_verified_marker_without_network(
     values = {
         "LEMON_API_KEY": "live-api-key",
         "LEMON_CHECKOUT_URL": "https://uvarsi.lemonsqueezy.com/checkout/buy/live",
+        "LEMON_WEBHOOK_SECRET": "live-webhook-secret",
         "LEMON_STORE_ID": "live-store",
         "LEMON_VARIANT_ID": "live-variant",
         "LEMON_TEST_API_KEY": "test-api-key",
@@ -693,8 +726,10 @@ def test_authorize_activation_command_writes_a_verified_marker_without_network(
             live_config_digest=marker_module.live_config_fingerprint(
                 secret=values["UVARSI_PAYMENT_SMOKE_SIGNING_SECRET"],
                 checkout_url=values["LEMON_CHECKOUT_URL"],
+                webhook_secret=values["LEMON_WEBHOOK_SECRET"],
                 store_id=values["LEMON_STORE_ID"],
                 variant_id=values["LEMON_VARIANT_ID"],
+                api_key=values["LEMON_API_KEY"],
             ),
             test_config_digest=marker_module.test_config_fingerprint(
                 secret=values["UVARSI_PAYMENT_SMOKE_SIGNING_SECRET"],
@@ -757,8 +792,10 @@ def test_authorize_activation_command_writes_a_verified_marker_without_network(
         secret=values["UVARSI_PAYMENT_SMOKE_SIGNING_SECRET"],
         release="release-1",
         checkout_url=values["LEMON_CHECKOUT_URL"],
+        webhook_secret=values["LEMON_WEBHOOK_SECRET"],
         store_id=values["LEMON_STORE_ID"],
         variant_id=values["LEMON_VARIANT_ID"],
+        api_key=values["LEMON_API_KEY"],
         test_checkout_url=values["LEMON_TEST_CHECKOUT_URL"],
         test_webhook_secret=values["LEMON_TEST_WEBHOOK_SECRET"],
         test_store_id=values["LEMON_TEST_STORE_ID"],
@@ -768,3 +805,5 @@ def test_authorize_activation_command_writes_a_verified_marker_without_network(
     serialized = json.dumps(activation)
     assert values["LEMON_TEST_WEBHOOK_SECRET"] not in serialized
     assert values["LEMON_TEST_API_KEY"] not in serialized
+    assert values["LEMON_WEBHOOK_SECRET"] not in serialized
+    assert values["LEMON_API_KEY"] not in serialized
