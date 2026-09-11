@@ -7,7 +7,7 @@ potravinové akcie do SQLite. Osobné plány sa potom skladajú z tejto databáz
 lacnými textovými volaniami — takže jeden drahý beh týždenne obslúži
 neobmedzený počet používateľov.
 
-Zdroje strán letákov: oficiálny Lidl endpoint; kupino.sk a mletaky.sk ako zálohy.
+Zdroje strán letákov: oficiálne zdroje obchodov; agregátory iba ako núdzová záloha.
 Beh:  /opt/uvarsi/venv/bin/python -u zbierac_akcii.py
 Opravný beh jedného zdroja:  ... zbierac_akcii.py --store lidl
 """
@@ -84,11 +84,13 @@ SKIP_SLUG = ("nova-predajna", "brozura", "back-to-school", "special",
 PAGE_GAP_TOLERANCE = 3      # koľko po sebe chýbajúcich strán ešte preklenieme
 MIN_PLAUSIBLE_PAGES = 8     # menej strán je podozrivé — zdroj je asi neúplný
 MAX_PAGES = 200             # poistka proti nekonečnému prechádzaniu
+MAX_MANIFEST_PAGES = 120    # žiadny deklarovaný leták nejde nad tento strop do AI
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 H = {"User-Agent": UA}
 LIDL_OVERVIEW_URL = "https://www.lidl.sk/c/online-letak/"
 LIDL_API_URL = "https://endpoints.leaflets.schwarz/v4/flyer"
+TESCO_API_URL = "https://api.prod.retail.tesco.com/marketing/leaflets-be/graphql"
 KAUFLAND_OFFERS_URL = (
     "https://predajne.kaufland.sk/aktualna-ponuka/prehlad.html"
     "?kloffer-week=current"
@@ -366,6 +368,297 @@ def official_lidl_pages(today=None):
                 "image_url": image,
             }
             for number, thumbnail, image in normalized
+        ],
+    }
+    return pages, manifest
+
+
+def _safe_tesco_media_url(value, suffix):
+    if not isinstance(value, str) or value != value.strip():
+        return None
+    try:
+        parsed = urlparse(value)
+        port = parsed.port
+    except ValueError:
+        return None
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname != "digitalcontent.api.tesco.com"
+        or parsed.username
+        or parsed.password
+        or port
+        or parsed.query
+        or parsed.fragment
+        or not parsed.path.startswith("/v2/media/dotcom-hu/")
+        or not parsed.path.lower().endswith(suffix)
+    ):
+        return None
+    return value
+
+
+def _tesco_bridge_config():
+    raw_url = os.environ.get("UVARSI_TESCO_BRIDGE_URL", "").strip()
+    secret = os.environ.get("UVARSI_TESCO_BRIDGE_SECRET", "")
+    if bool(raw_url) != bool(secret):
+        raise ValueError("Tesco bridge nie je úplne nakonfigurovaný")
+    if not raw_url:
+        return None
+    try:
+        parsed = urlparse(raw_url)
+        port = parsed.port
+    except ValueError:
+        raise ValueError("Tesco bridge má neplatnú adresu") from None
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or port
+        or parsed.query
+        or parsed.fragment
+        or parsed.path not in ("", "/")
+    ):
+        raise ValueError("Tesco bridge má neplatnú adresu")
+    return raw_url.rstrip("/"), secret
+
+
+def _production_environment():
+    return os.environ.get("UVARSI_ENV", "").strip().lower() == "production"
+
+
+def _safe_tesco_bridge_media_url(value, bridge_url):
+    if not isinstance(value, str) or value != value.strip():
+        return None
+    try:
+        parsed = urlparse(value)
+        bridge = urlparse(bridge_url)
+        port = parsed.port
+    except ValueError:
+        return None
+    if (
+        parsed.scheme != bridge.scheme
+        or parsed.hostname != bridge.hostname
+        or parsed.username
+        or parsed.password
+        or port
+        or parsed.query
+        or parsed.fragment
+        or not re.fullmatch(r"/v1/tesco/media/[A-Za-z0-9._-]{1,4096}", parsed.path)
+    ):
+        return None
+    return value
+
+
+def _direct_tesco_candidates(today, leaflet_format):
+    after = f"{today.isoformat()}T00:00:00.000Z"
+    query = f'''query CurrentSlovakLeaflets {{
+      leaflets(options: {{ filter: {{
+        country: {{ eq: sk }}
+        type: {{ eq: {leaflet_format} }}
+        validTo: {{ after: "{after}" }}
+      }} }}) {{
+        totalItems
+        items {{
+          __typename id country countryId leafletUrl pages {{ pagePNG }}
+          promoP1Name slug type validFrom validTo
+        }}
+      }}
+    }}'''
+    try:
+        response = requests.post(
+            TESCO_API_URL,
+            headers={**H, "Accept": "application/json", "Content-Type": "application/json"},
+            json={"query": query},
+            timeout=30,
+        )
+        if getattr(response, "status_code", 200) != 200:
+            raise ValueError("status")
+        payload = response.json()
+        if not isinstance(payload, dict) or payload.get("errors"):
+            raise ValueError("payload")
+        raw_items = payload["data"]["leaflets"]["items"]
+    except Exception:
+        raise ValueError("oficiálne Tesco API nevrátilo zoznam letákov") from None
+    if not isinstance(raw_items, list):
+        raise ValueError("oficiálne Tesco API nemá zoznam letákov")
+    return raw_items, None
+
+
+def _bridge_tesco_candidates(today, leaflet_format, bridge_url, secret):
+    try:
+        response = requests.post(
+            f"{bridge_url}/v1/tesco/leaflets",
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Bearer {secret}",
+                "Content-Type": "application/json",
+            },
+            json={"date": today.isoformat(), "format": leaflet_format},
+            timeout=30,
+        )
+        if getattr(response, "status_code", 200) != 200:
+            raise ValueError("status")
+        payload = response.json()
+        leaflet = payload.get("leaflet") if isinstance(payload, dict) else None
+        if not isinstance(leaflet, dict):
+            raise ValueError("payload")
+    except Exception:
+        # Nikdy neprebaľujeme text cudzej výnimky: mohol by obsahovať hlavičky.
+        raise ValueError("Tesco bridge nevrátil platný manifest") from None
+    return [leaflet], bridge_url
+
+
+def _canonical_tesco_candidate(value, leaflet_format, bridge_url=None):
+    if not isinstance(value, dict):
+        raise ValueError("Tesco kandidát nie je objekt")
+    if bridge_url is not None:
+        country = value.get("country")
+        candidate_format = value.get("format")
+        slug = value.get("slug")
+        raw_from, raw_to = value.get("valid_from"), value.get("valid_to")
+        source_url = value.get("source_url")
+        declared_pages = value.get("declared_pages")
+        raw_pages = value.get("pages")
+        if not isinstance(raw_pages, list):
+            raise ValueError("Tesco kandidát nemá manifest strán")
+        pages = []
+        for page in raw_pages:
+            if not isinstance(page, dict):
+                raise ValueError("Tesco kandidát má neplatnú stranu")
+            number = page.get("source_page")
+            thumbnail = _safe_tesco_bridge_media_url(page.get("thumbnail_url"), bridge_url)
+            image = _safe_tesco_bridge_media_url(page.get("image_url"), bridge_url)
+            if not thumbnail or not image:
+                raise ValueError("Tesco bridge vrátil neplatnú adresu strany")
+            pages.append((number, thumbnail, image))
+    else:
+        if value.get("__typename") != "Leaflet":
+            raise ValueError("Tesco kandidát nemá správny typ")
+        country = value.get("country")
+        candidate_format = value.get("type")
+        slug = value.get("slug")
+        raw_from, raw_to = value.get("validFrom"), value.get("validTo")
+        if not _safe_tesco_media_url(value.get("leafletUrl"), ".pdf"):
+            raise ValueError("Tesco kandidát nemá dôveryhodný PDF súbor")
+        segment = "hypermarkety" if candidate_format == "HM" else "supermarkety"
+        source_url = (
+            "https://www.tesco.sk/akciove-ponuky/letaky-a-katalogy/"
+            f"{segment}/{slug}/1"
+        )
+        raw_pages = value.get("pages")
+        if not isinstance(raw_pages, list):
+            raise ValueError("Tesco kandidát nemá manifest strán")
+        pages = []
+        for page in raw_pages:
+            image = _safe_tesco_media_url(
+                page.get("pagePNG") if isinstance(page, dict) else None,
+                ".jpeg",
+            )
+            parsed = urlparse(image) if image else None
+            match = re.search(r"\.([1-9]\d*)\.jpeg$", parsed.path, re.I) if parsed else None
+            if not match:
+                raise ValueError("Tesco kandidát má neplatnú stranu")
+            pages.append((int(match.group(1)), image, image))
+        declared_pages = len(pages)
+
+    if country != "sk" or candidate_format != leaflet_format:
+        raise ValueError("Tesco kandidát nesedí s požadovaným formátom")
+    if not isinstance(slug, str) or not re.fullmatch(
+        r"tesco-letak-\d{4}-\d{2}-\d{2}", slug
+    ):
+        raise ValueError("Tesco kandidát má neplatný slug")
+    if not isinstance(raw_from, str) or not isinstance(raw_to, str):
+        raise ValueError("Tesco kandidát nemá konečnú platnosť")
+    valid_from, valid_to = parse_finite_validity(f"{raw_from[:10]} {raw_to[:10]}")
+    expected_segment = "hypermarkety" if leaflet_format == "HM" else "supermarkety"
+    expected_source = (
+        "https://www.tesco.sk/akciove-ponuky/letaky-a-katalogy/"
+        f"{expected_segment}/{slug}/1"
+    )
+    if source_url != expected_source:
+        raise ValueError("Tesco kandidát nemá oficiálnu provenienciu")
+    if (
+        isinstance(declared_pages, bool)
+        or not isinstance(declared_pages, int)
+        or declared_pages != len(pages)
+        or not MIN_PLAUSIBLE_PAGES <= len(pages) <= MAX_MANIFEST_PAGES
+    ):
+        raise ValueError("Tesco kandidát má neplatný počet strán")
+    pages.sort(key=lambda row: row[0] if isinstance(row[0], int) else -1)
+    if [row[0] for row in pages] != list(range(1, len(pages) + 1)):
+        raise ValueError("Tesco kandidát nemá súvislý manifest strán")
+    return {
+        "format": leaflet_format,
+        "slug": slug,
+        "valid_from": valid_from,
+        "valid_to": valid_to,
+        "source_url": source_url,
+        "pages": pages,
+    }
+
+
+def _normalize_official_tesco_leaflet(flyer, today, leaflet_format="HM", bridge_url=None):
+    candidate = _canonical_tesco_candidate(flyer, leaflet_format, bridge_url)
+    if not flyer_is_current(candidate["valid_from"], candidate["valid_to"], today):
+        raise ValueError("Tesco kandidát dnes neplatí")
+    return candidate
+
+
+def official_tesco_pages(today=None, leaflet_format="HM"):
+    """Read one exact current Tesco format through the bridge or local diagnostics."""
+    today = today or business_day()
+    if not isinstance(today, datetime.date) or isinstance(today, datetime.datetime):
+        raise ValueError("dátum Tesco letáka nie je platný deň")
+    if leaflet_format not in {"HM", "SM"}:
+        raise ValueError("formát Tesco letáka musí byť HM alebo SM")
+
+    config = _tesco_bridge_config()
+    if config:
+        raw_items, bridge_url = _bridge_tesco_candidates(
+            today, leaflet_format, config[0], config[1]
+        )
+    elif _production_environment():
+        raise ValueError("produkčný Tesco zber vyžaduje oficiálny bridge")
+    else:
+        raw_items, bridge_url = _direct_tesco_candidates(today, leaflet_format)
+
+    candidates = []
+    for value in raw_items:
+        try:
+            candidates.append(_normalize_official_tesco_leaflet(
+                value, today, leaflet_format, bridge_url
+            ))
+        except (TypeError, ValueError):
+            # Kandidáti sa posudzujú izolovane; chybný nesmie zahodiť zdravý.
+            continue
+    if not candidates:
+        raise ValueError(
+            "oficiálna stránka Tesca neuvádza aktuálny týždenný leták "
+            "s platným manifestom"
+        )
+    candidates.sort(
+        key=lambda item: (item["valid_from"], len(item["pages"])),
+        reverse=True,
+    )
+    flyer = candidates[0]
+    pages = [(thumbnail, image) for _, thumbnail, image in flyer["pages"]]
+    manifest = {
+        "source_url": flyer["source_url"],
+        "collector_kind": "official-tesco-viewer",
+        "valid_from": flyer["valid_from"],
+        "valid_to": flyer["valid_to"],
+        "declared_pages": len(pages),
+        "leaflet_format": flyer["format"],
+        "store_label": (
+            "Tesco hypermarket" if flyer["format"] == "HM" else "Tesco supermarket"
+        ),
+        "pages": [
+            {
+                "source_page": number,
+                "thumbnail_url": thumbnail,
+                "image_url": image,
+            }
+            for number, thumbnail, image in flyer["pages"]
         ],
     }
     return pages, manifest
@@ -844,6 +1137,16 @@ def store_pages(store, today=None):
             return pages, manifest
         except Exception as e:
             log(f"[WARN] {store}: oficiálny leták odmietnutý ({e})")
+    if store == "tesco":
+        try:
+            pages, manifest = official_tesco_pages(today=today, leaflet_format="HM")
+            log(f"[INFO] {store}: oficiálny leták má {len(pages)} strán")
+            return pages, manifest
+        except Exception as e:
+            log(f"[WARN] {store}: oficiálny leták odmietnutý ({e})")
+        if _production_environment():
+            log("[WARN] tesco: produkcia nepoužije agregátor namiesto oficiálneho bridge")
+            return [], None
     try:
         meta = kupino_meta(store)
     except Exception as e:
@@ -883,12 +1186,23 @@ def store_pages(store, today=None):
     return [], None
 
 
-def get_b64(url, max_px):
-    from PIL import Image
-    r = requests.get(url, headers=H, timeout=45, allow_redirects=True)
-    if r.status_code != 200:
+def get_image_bytes(url, *, headers=None, allow_redirects=True):
+    response = requests.get(
+        url,
+        headers=headers or H,
+        timeout=45,
+        allow_redirects=allow_redirects,
+    )
+    if response.status_code != 200:
         return None
-    im = Image.open(BytesIO(r.content)).convert("RGB")
+    return response.content
+
+
+def image_bytes_b64(content, max_px):
+    from PIL import Image
+    if not content:
+        return None
+    im = Image.open(BytesIO(content)).convert("RGB")
     w, h = im.size
     s = min(1.0, max_px / max(w, h))
     if s < 1.0:
@@ -896,6 +1210,25 @@ def get_b64(url, max_px):
     buf = BytesIO()
     im.save(buf, format="JPEG", quality=82)
     return base64.standard_b64encode(buf.getvalue()).decode()
+
+
+def get_b64(url, max_px):
+    return image_bytes_b64(get_image_bytes(url), max_px)
+
+
+def _download_official_tesco_page(url):
+    config = _tesco_bridge_config()
+    if config and _safe_tesco_bridge_media_url(url, config[0]):
+        return get_image_bytes(
+            url,
+            headers={
+                **H,
+                "Accept": "image/jpeg",
+                "Authorization": f"Bearer {config[1]}",
+            },
+            allow_redirects=False,
+        )
+    return get_image_bytes(url)
 
 
 def img_block(b):
@@ -906,6 +1239,19 @@ def img_block(b):
 def validate_flyer_manifest(pages, manifest, *, store):
     if not pages or not isinstance(manifest, dict):
         raise ValueError("leták nemá úplný manifest")
+    if len(pages) > MAX_MANIFEST_PAGES:
+        raise ValueError(f"manifest môže mať najviac {MAX_MANIFEST_PAGES} strán")
+    declared_pages = manifest.get("declared_pages")
+    if declared_pages is not None and (
+        isinstance(declared_pages, bool)
+        or not isinstance(declared_pages, int)
+        or declared_pages != len(pages)
+        or declared_pages < 1
+        or declared_pages > MAX_MANIFEST_PAGES
+    ):
+        raise ValueError(
+            f"manifest má neplatný deklarovaný počet; maximum je {MAX_MANIFEST_PAGES} strán"
+        )
     source_url = manifest.get("source_url")
     if not isinstance(source_url, str) or not source_url or source_url != source_url.strip():
         raise ValueError("manifest nemá presnú URL zdroja")
@@ -1269,11 +1615,32 @@ def zbieraj(client, store):
         raise ValueError(f"{store}: leták s konečnou platnosťou nebol nájdený")
     page_manifest = validate_flyer_manifest(pages, manifest, store=store)
 
+    # Tesco bridge vydáva chránené odkazy. Všetky originály preto stiahneme
+    # ešte pred prvým AI volaním a náhľad aj detail potom vyrábame z rovnakých
+    # lokálnych bajtov. Každá stránka sa tak sťahuje presne raz za beh.
+    tesco_page_images = {}
+    if store == "tesco" and manifest.get("collector_kind") == "official-tesco-viewer":
+        for source_page, page in page_manifest.items():
+            try:
+                content = _download_official_tesco_page(page["image_url"])
+                scan_image = image_bytes_b64(content, SCAN_PX)
+                read_image = image_bytes_b64(content, READ_PX)
+            except Exception:
+                raise ValueError(
+                    f"{store}: strana {source_page} sa nepodarilo načítať"
+                ) from None
+            if not scan_image or not read_image:
+                raise ValueError(f"{store}: strana {source_page} sa nepodarilo načítať")
+            tesco_page_images[source_page] = (scan_image, read_image)
+
     # 1) lacný sken náhľadov → ktoré strany sú potravinové
     thumbs = []
     for source_page, page in page_manifest.items():
         try:
-            encoded = get_b64(page["thumbnail_url"] or page["image_url"], SCAN_PX)
+            if source_page in tesco_page_images:
+                encoded = tesco_page_images[source_page][0]
+            else:
+                encoded = get_b64(page["thumbnail_url"] or page["image_url"], SCAN_PX)
         except Exception as exc:
             raise ValueError(f"{store}: náhľad strany {source_page} sa nepodarilo načítať") from exc
         if not encoded:
@@ -1316,7 +1683,10 @@ def zbieraj(client, store):
         content = []
         for source_page in batch_pages:
             try:
-                encoded = get_b64(page_manifest[source_page]["image_url"], READ_PX)
+                if source_page in tesco_page_images:
+                    encoded = tesco_page_images[source_page][1]
+                else:
+                    encoded = get_b64(page_manifest[source_page]["image_url"], READ_PX)
             except Exception as exc:
                 raise ValueError(f"{store}: strana {source_page} sa nepodarilo načítať") from exc
             if not encoded:

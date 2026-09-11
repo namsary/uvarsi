@@ -4,6 +4,7 @@ import sqlite3
 import sys
 import types
 from datetime import date, datetime, timezone
+from io import BytesIO
 
 import pytest
 
@@ -103,7 +104,12 @@ FLYER_PAGE = (
 
 
 def _json_response(payload):
-    return types.SimpleNamespace(json=lambda: payload, text=json.dumps(payload))
+    return types.SimpleNamespace(
+        status_code=200,
+        json=lambda: payload,
+        text=json.dumps(payload),
+        raise_for_status=lambda: None,
+    )
 
 
 def _official_lidl_payload(page_count=105, valid_from="2026-08-17", valid_to="2026-08-23"):
@@ -132,6 +138,407 @@ def _official_lidl_payload(page_count=105, valid_from="2026-08-17", valid_to="20
             ],
         },
     }
+
+
+def _official_tesco_payload(*leaflets):
+    return {
+        "data": {
+            "leaflets": {
+                "totalItems": len(leaflets),
+                "items": [
+                    {"__typename": "Leaflet", **leaflet}
+                    for leaflet in leaflets
+                ],
+            },
+        },
+    }
+
+
+def _official_tesco_leaflet(
+        *, leaflet_id=691, leaflet_type="HM", page_count=46,
+        valid_from="2026-08-17T06:00:00.000Z",
+        valid_to="2026-08-23T21:59:59.000Z"):
+    suffix = "HM-CHM" if leaflet_type == "HM" else "SM"
+    page_numbers = list(range(1, page_count + 1))
+    page_numbers = page_numbers[::2] + page_numbers[1::2]
+    return {
+        "country": "sk",
+        "countryId": 3,
+        "id": leaflet_id,
+        "leafletUrl": (
+            "https://digitalcontent.api.tesco.com/v2/media/dotcom-hu/"
+            f"pdf-id/20260812_2026_P23_SK_{suffix}.pdf"
+        ),
+        "pages": [
+            {
+                "__typename": "LeafletMetadataPage",
+                "pagePNG": (
+                    "https://digitalcontent.api.tesco.com/v2/media/dotcom-hu/"
+                    f"page-{page}/20260812_2026_P23_SK_{suffix}.{page}.jpeg"
+                ),
+            }
+            for page in page_numbers
+        ],
+        "promoP1Name": f"2026_P23_SK_{suffix}_Product-Data",
+        "slug": "tesco-letak-2026-08-17",
+        "type": leaflet_type,
+        "validFrom": valid_from,
+        "validTo": valid_to,
+    }
+
+
+def _bridge_tesco_leaflet(*, leaflet_format="HM", page_count=8):
+    segment = "hypermarkety" if leaflet_format == "HM" else "supermarkety"
+    return {
+        "country": "sk",
+        "format": leaflet_format,
+        "slug": "tesco-letak-2026-08-17",
+        "valid_from": "2026-08-17",
+        "valid_to": "2026-08-23",
+        "source_url": (
+            "https://www.tesco.sk/akciove-ponuky/letaky-a-katalogy/"
+            f"{segment}/tesco-letak-2026-08-17/1"
+        ),
+        "declared_pages": page_count,
+        "pages": [
+            {
+                "source_page": page,
+                "thumbnail_url": f"https://tesco-bridge.example/v1/tesco/media/token-{page}",
+                "image_url": f"https://tesco-bridge.example/v1/tesco/media/token-{page}",
+            }
+            for page in range(1, page_count + 1)
+        ],
+    }
+
+
+def _use_local_tesco(monkeypatch):
+    monkeypatch.delenv("UVARSI_TESCO_BRIDGE_URL", raising=False)
+    monkeypatch.delenv("UVARSI_TESCO_BRIDGE_SECRET", raising=False)
+    monkeypatch.delenv("UVARSI_ENV", raising=False)
+
+
+def test_official_tesco_reads_complete_current_hypermarket_flyer(monkeypatch):
+    _use_local_tesco(monkeypatch)
+    payload = _official_tesco_payload(
+        _official_tesco_leaflet(leaflet_id=692, leaflet_type="SM", page_count=26),
+        _official_tesco_leaflet(leaflet_id=691, leaflet_type="HM", page_count=46),
+    )
+    requested = []
+
+    def post(url, **kwargs):
+        requested.append((url, kwargs))
+        return _json_response(payload)
+
+    monkeypatch.setattr(
+        collector.requests,
+        "post",
+        post,
+    )
+    monkeypatch.setattr(
+        collector.requests,
+        "get",
+        lambda *_args, **_kwargs: pytest.fail("Tesco must use its direct API"),
+    )
+
+    pages, manifest = collector.official_tesco_pages(
+        today=date(2026, 8, 20), leaflet_format="HM"
+    )
+
+    assert len(pages) == 46
+    assert pages[0][1].endswith("HM-CHM.1.jpeg")
+    assert pages[-1][1].endswith("HM-CHM.46.jpeg")
+    assert manifest["collector_kind"] == "official-tesco-viewer"
+    assert manifest["valid_from"] == "2026-08-17"
+    assert manifest["valid_to"] == "2026-08-23"
+    assert manifest["declared_pages"] == 46
+    assert manifest["leaflet_format"] == "HM"
+    assert manifest["store_label"] == "Tesco hypermarket"
+    assert manifest["pages"][-1]["source_page"] == 46
+    assert manifest["source_url"] == (
+        "https://www.tesco.sk/akciove-ponuky/letaky-a-katalogy/"
+        "hypermarkety/tesco-letak-2026-08-17/1"
+    )
+    assert requested[0][0] == collector.TESCO_API_URL
+    assert 'validTo: { after: "2026-08-20T00:00:00.000Z" }' in (
+        requested[0][1]["json"]["query"]
+    )
+    assert "type: { eq: HM }" in requested[0][1]["json"]["query"]
+
+
+def test_official_tesco_uses_authenticated_bridge_contract_without_leaking_secret(
+        monkeypatch):
+    secret = "bridge-secret-must-never-leak"
+    monkeypatch.setenv("UVARSI_TESCO_BRIDGE_URL", "https://tesco-bridge.example/")
+    monkeypatch.setenv("UVARSI_TESCO_BRIDGE_SECRET", secret)
+    monkeypatch.setenv("UVARSI_ENV", "production")
+    requested = []
+
+    def post(url, **kwargs):
+        requested.append((url, kwargs))
+        return _json_response({"leaflet": _bridge_tesco_leaflet()})
+
+    monkeypatch.setattr(collector.requests, "post", post)
+
+    pages, manifest = collector.official_tesco_pages(today=TODAY)
+
+    assert requested == [(
+        "https://tesco-bridge.example/v1/tesco/leaflets",
+        {
+            "headers": {
+                "Accept": "application/json",
+                "Authorization": f"Bearer {secret}",
+                "Content-Type": "application/json",
+            },
+            "json": {"date": "2026-08-20", "format": "HM"},
+            "timeout": 30,
+        },
+    )]
+    assert manifest["collector_kind"] == "official-tesco-viewer"
+    assert manifest["leaflet_format"] == "HM"
+    assert manifest["store_label"] == "Tesco hypermarket"
+    assert all("/v1/tesco/media/" in image for _thumb, image in pages)
+    assert secret not in repr((pages, manifest))
+
+
+def test_tesco_bridge_failure_is_secret_safe_and_production_skips_aggregators(
+        monkeypatch, capsys):
+    secret = "do-not-print-this-secret"
+    monkeypatch.setenv("UVARSI_TESCO_BRIDGE_URL", "https://tesco-bridge.example")
+    monkeypatch.setenv("UVARSI_TESCO_BRIDGE_SECRET", secret)
+    monkeypatch.setenv("UVARSI_ENV", "production")
+    monkeypatch.setattr(
+        collector.requests,
+        "post",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError(f"upstream failed with Bearer {secret}")
+        ),
+    )
+    monkeypatch.setattr(
+        collector,
+        "kupino_meta",
+        lambda _store: pytest.fail("production Tesco must never use Kupino"),
+    )
+    monkeypatch.setattr(
+        collector,
+        "mletaky_base",
+        lambda _store, _today: pytest.fail("production Tesco must never use mLetaky"),
+    )
+
+    assert collector.store_pages("tesco", today=TODAY) == ([], None)
+    assert secret not in capsys.readouterr().out
+
+
+def test_official_tesco_isolates_malformed_candidate_and_keeps_valid_requested_hm(
+        monkeypatch):
+    _use_local_tesco(monkeypatch)
+    malformed = _official_tesco_leaflet(leaflet_id=690, leaflet_type="HM", page_count=8)
+    malformed["pages"][-1]["pagePNG"] = "https://evil.example/offer.8.jpeg"
+    valid = _official_tesco_leaflet(leaflet_id=691, leaflet_type="HM", page_count=12)
+    payload = _official_tesco_payload(
+        malformed,
+        _official_tesco_leaflet(leaflet_id=692, leaflet_type="SM", page_count=20),
+        valid,
+    )
+    monkeypatch.setattr(
+        collector.requests, "post", lambda _url, **_kwargs: _json_response(payload)
+    )
+
+    pages, manifest = collector.official_tesco_pages(
+        today=TODAY, leaflet_format="HM"
+    )
+
+    assert len(pages) == 12
+    assert manifest["leaflet_format"] == "HM"
+    assert manifest["store_label"] == "Tesco hypermarket"
+
+
+@pytest.mark.parametrize("page_count", [7, 121])
+def test_official_tesco_rejects_manifest_outside_eight_to_120_pages(
+        monkeypatch, page_count):
+    _use_local_tesco(monkeypatch)
+    payload = _official_tesco_payload(_official_tesco_leaflet(page_count=page_count))
+    monkeypatch.setattr(
+        collector.requests, "post", lambda _url, **_kwargs: _json_response(payload)
+    )
+
+    with pytest.raises(ValueError, match="aktuálny týždenný leták"):
+        collector.official_tesco_pages(today=TODAY)
+
+
+def test_official_tesco_records_exact_supermarket_format_provenance(monkeypatch):
+    _use_local_tesco(monkeypatch)
+    payload = _official_tesco_payload(
+        _official_tesco_leaflet(leaflet_type="HM", page_count=12),
+        _official_tesco_leaflet(leaflet_id=692, leaflet_type="SM", page_count=10),
+    )
+    monkeypatch.setattr(
+        collector.requests, "post", lambda _url, **_kwargs: _json_response(payload)
+    )
+
+    _pages, manifest = collector.official_tesco_pages(
+        today=TODAY, leaflet_format="SM"
+    )
+
+    assert manifest["leaflet_format"] == "SM"
+    assert manifest["store_label"] == "Tesco supermarket"
+    assert "/supermarkety/" in manifest["source_url"]
+
+
+def test_production_tesco_without_bridge_fails_closed_before_any_network(
+        monkeypatch, capsys):
+    monkeypatch.setenv("UVARSI_ENV", "production")
+    monkeypatch.delenv("UVARSI_TESCO_BRIDGE_URL", raising=False)
+    monkeypatch.delenv("UVARSI_TESCO_BRIDGE_SECRET", raising=False)
+    monkeypatch.setattr(
+        collector.requests,
+        "post",
+        lambda *_args, **_kwargs: pytest.fail("production must not call Tesco directly"),
+    )
+    monkeypatch.setattr(
+        collector,
+        "kupino_meta",
+        lambda _store: pytest.fail("production Tesco must not use an aggregator"),
+    )
+
+    assert collector.store_pages("tesco", today=TODAY) == ([], None)
+    assert "bridge" in capsys.readouterr().out.lower()
+
+
+def test_official_tesco_downloads_each_bridge_page_once_and_resizes_locally(
+        monkeypatch):
+    from PIL import Image
+
+    secret = "media-bridge-secret"
+    monkeypatch.setenv("UVARSI_TESCO_BRIDGE_URL", "https://tesco-bridge.example")
+    monkeypatch.setenv("UVARSI_TESCO_BRIDGE_SECRET", secret)
+    leaflet = _bridge_tesco_leaflet(page_count=8)
+    pages = [
+        (page["thumbnail_url"], page["image_url"])
+        for page in leaflet["pages"]
+    ]
+    leaflet_format = leaflet.pop("format")
+    manifest = {
+        **leaflet,
+        "collector_kind": "official-tesco-viewer",
+        "leaflet_format": leaflet_format,
+        "store_label": "Tesco hypermarket",
+    }
+    monkeypatch.setattr(collector, "store_pages", lambda _store: (pages, manifest))
+
+    image = BytesIO()
+    Image.new("RGB", (24, 24), color=(250, 245, 230)).save(image, format="JPEG")
+    image_bytes = image.getvalue()
+    downloads = []
+
+    def get(url, **kwargs):
+        downloads.append((url, kwargs))
+        return types.SimpleNamespace(status_code=200, content=image_bytes)
+
+    monkeypatch.setattr(collector.requests, "get", get)
+
+    def claude_json(_client, model, _content, _max_tokens, effort=None):
+        if model == collector.MODEL_SCAN:
+            return [1]
+        return [{
+            "source_page": 1,
+            "nazov": "Ryža",
+            "kategoria": "trvanlive",
+            "cena": 1.49,
+            "povodna": None,
+            "zlava": None,
+            "jednotka": "kg",
+            "cena_s_kartou": None,
+            "zlava_s_kartou": None,
+            "vernostny_program": None,
+            "minimalny_nakup": None,
+            "podmienka_s_kartou": None,
+        }]
+
+    monkeypatch.setattr(collector, "claude_json", claude_json)
+
+    offers = collector.zbieraj(object(), "tesco")
+
+    assert offers[0]["obchod"] == "Tesco"
+    assert [url for url, _kwargs in downloads] == [image for _thumb, image in pages]
+    assert all(
+        call["headers"]["Authorization"] == f"Bearer {secret}"
+        for _url, call in downloads
+    )
+
+
+def test_every_declared_manifest_is_rejected_above_120_pages_before_ai_work():
+    pages, manifest = flyer_fixture(121)
+    manifest["declared_pages"] = 121
+
+    with pytest.raises(ValueError, match="120"):
+        collector.validate_flyer_manifest(pages, manifest, store="lidl")
+
+
+def test_store_pages_prefers_official_tesco_over_aggregators(monkeypatch):
+    expected = flyer_fixture(46)
+    monkeypatch.setattr(
+        collector,
+        "official_tesco_pages",
+        lambda today=None, leaflet_format="HM": expected,
+    )
+    monkeypatch.setattr(
+        collector,
+        "kupino_meta",
+        lambda store: pytest.fail("official Tesco must be tried before an aggregator"),
+    )
+
+    assert collector.store_pages("tesco", today=TODAY) == expected
+
+
+def test_expired_official_tesco_falls_back_without_publishing_old_prices(monkeypatch):
+    _use_local_tesco(monkeypatch)
+    expired = _official_tesco_payload(
+        _official_tesco_leaflet(
+            valid_from="2026-08-10T06:00:00.000Z",
+            valid_to="2026-08-16T21:59:59.000Z",
+        )
+    )
+    monkeypatch.setattr(
+        collector.requests,
+        "post",
+        lambda url, **_kwargs: _json_response(expired),
+    )
+    monkeypatch.setattr(
+        collector.requests,
+        "get",
+        lambda url, **_kwargs: types.SimpleNamespace(text=""),
+    )
+    monkeypatch.setattr(collector, "kupino_meta", lambda store: kupino_flyer())
+    monkeypatch.setattr(
+        collector,
+        "page_exists",
+        lambda url: "current-page" if "-1_320.jpg" in url else None,
+    )
+
+    pages, manifest = collector.store_pages("tesco", today=TODAY)
+
+    assert pages
+    assert manifest["collector_kind"] == "kupino-aggregator"
+
+
+def test_official_tesco_rejects_truncated_or_foreign_page_manifest(monkeypatch):
+    _use_local_tesco(monkeypatch)
+    leaflet = _official_tesco_leaflet(page_count=8)
+    leaflet["pages"][-1]["pagePNG"] = "https://evil.example/offer.8.jpeg"
+    payload = _official_tesco_payload(leaflet)
+    monkeypatch.setattr(
+        collector.requests,
+        "post",
+        lambda url, **_kwargs: _json_response(payload),
+    )
+    monkeypatch.setattr(
+        collector.requests,
+        "get",
+        lambda *_args, **_kwargs: pytest.fail("Tesco must use its direct API"),
+    )
+
+    with pytest.raises(ValueError, match="manifest"):
+        collector.official_tesco_pages(today=date(2026, 8, 20))
 
 
 def test_official_lidl_reads_the_complete_current_weekly_flyer(monkeypatch):

@@ -31,6 +31,12 @@ _REGISTRY = {
         "reviewer": "external-review-required",
         "status": PENDING_PERMISSION,
     },
+    ("Tesco", "official-tesco-viewer"): {
+        "shape": FACTS_ONLY_SHAPE,
+        "review_date": "2026-09-11",
+        "reviewer": "external-review-required",
+        "status": PENDING_PERMISSION,
+    },
     ("Lidl", "kupino-aggregator"): {
         "shape": FACTS_ONLY_SHAPE,
         "review_date": "2026-09-07",
@@ -128,6 +134,17 @@ def collector_kind_for_url(value) -> str | None:
         return "official-kaufland-offers"
     if host == "www.lidl.sk":
         return "official-lidl-viewer"
+    if (
+        host == "www.tesco.sk"
+        and not parsed.query
+        and not parsed.fragment
+        and re.fullmatch(
+            r"/akciove-ponuky/letaky-a-katalogy/"
+            r"(?:hypermarkety|supermarkety)/tesco-letak-\d{4}-\d{2}-\d{2}/1",
+            parsed.path,
+        )
+    ):
+        return "official-tesco-viewer"
     if host == "www.kupino.sk":
         return "kupino-aggregator"
     if host == "app.mletaky.sk":
@@ -147,7 +164,9 @@ def source_policy_status() -> dict:
         "Kaufland": (
             "official-kaufland-offers", "kupino-aggregator", "mletaky-aggregator",
         ),
-        "Tesco": ("kupino-aggregator", "mletaky-aggregator"),
+        "Tesco": (
+            "official-tesco-viewer", "kupino-aggregator", "mletaky-aggregator",
+        ),
         "Lidl": (
             "official-lidl-viewer", "kupino-aggregator", "mletaky-aggregator",
         ),

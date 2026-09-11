@@ -120,6 +120,22 @@ def test_collector_kind_is_derived_only_from_strict_known_hosts():
         "https://www.lidl.sk/l/sk/letak/weekly/view/flyer/page/1"
     ) == "official-lidl-viewer"
     assert source_policy.collector_kind_for_url(
+        "https://www.tesco.sk/akciove-ponuky/letaky-a-katalogy/"
+        "hypermarkety/tesco-letak-2026-09-09/1"
+    ) == "official-tesco-viewer"
+    assert source_policy.collector_kind_for_url(
+        "https://www.tesco.sk/akciove-ponuky/letaky-a-katalogy/"
+        "supermarkety/tesco-letak-2026-09-09/1"
+    ) == "official-tesco-viewer"
+    assert source_policy.collector_kind_for_url(
+        "https://www.tesco.sk/akciove-ponuky/letaky-a-katalogy/"
+        "hypermarkety/tesco-letak-2026-09-09/1/extra"
+    ) is None
+    assert source_policy.collector_kind_for_url(
+        "https://www.tesco.sk/akciove-ponuky/letaky-a-katalogy/"
+        "hypermarkety/tesco-letak-2026-09-09/1?redirect=evil"
+    ) is None
+    assert source_policy.collector_kind_for_url(
         "https://www.kupino.sk/letak/tesco-letak"
     ) == "kupino-aggregator"
     assert source_policy.collector_kind_for_url(
