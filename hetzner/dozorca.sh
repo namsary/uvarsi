@@ -35,7 +35,7 @@ PY="${UVARSI_PY:-$DIR/venv/bin/python}"
 HEALTH_PY="${UVARSI_HEALTH_PY:-$PY}"
 CURL="${UVARSI_CURL:-curl}"
 DATE="${UVARSI_DATE:-date}"
-STATE="$DIR/.dozorca_state"          # "deň neúspechy blok [probe_epoch] [release_sha]"
+STATE="$DIR/.dozorca_state"          # "deň neúspechy blok [odtlačok/probe_epoch] [release_sha]"
 PLAN_QUEUE_ALERT_STATE="$DIR/.plan_queue_alert_state"
 RECIPE_ENGINE_ALERT_STATE="$DIR/.recipe_engine_alert_state"
 RECIPE_SMOKE_ATTEMPT_STATE="$DIR/.recipe_engine_smoke_attempt"
@@ -72,7 +72,7 @@ upozorni_detail_zberu() {
 
   DETAIL=$(sqlite3 "$DIR/uvarsi.db" \
     "SELECT group_concat(obchod || ': ' || COALESCE(NULLIF(detail, ''), stav), ' | ')
-       FROM zber_stav
+       FROM zber_staging_stav
       WHERE tyzden='$WEEK' AND stav!='ok'" 2>/dev/null || true)
   DETAIL=$(printf '%s' "$DETAIL" | tr '\r\n' '  ' | head -c 900)
   [ -n "$DETAIL" ] || DETAIL="V databáze nie je uložený detail zlyhania zberu."
@@ -395,6 +395,42 @@ if [ -f "$DIR/.nasadene_sha" ]; then
 fi
 RELEASE_CHANGED=0
 
+overeny_odtlacok() {
+  # Výstup obsahuje iba hex odtlačky oddelené dvojbodkou, takže je bezpečný
+  # ako jedno pole stavového súboru. Aktívny bloček sa viaže na skutočne dnes
+  # platné riadky; staging na aktuálny zberový týždeň.
+  local TABULKA="$1"
+  local ODTLACOK_STLPEC STAV_PODMIENKA PODMIENKA OD
+  case "$TABULKA" in
+    zber_stav)
+      ODTLACOK_STLPEC="s.source_fingerprint"
+      STAV_PODMIENKA="s.stav='ok'"
+      PODMIENKA="EXISTS (SELECT 1 FROM akcie a WHERE a.obchod=s.obchod AND a.tyzden=s.tyzden AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to)"
+      ;;
+    zber_staging_stav)
+      ODTLACOK_STLPEC="CASE WHEN s.failure_kind='structural' THEN s.attempted_fingerprint ELSE s.source_fingerprint END"
+      STAV_PODMIENKA="(s.stav='ok' OR s.failure_kind='structural')"
+      PODMIENKA="s.tyzden='$MON_ISO' AND (s.failure_kind='structural' OR EXISTS (SELECT 1 FROM akcie_staging a WHERE a.obchod=s.obchod AND a.tyzden=s.tyzden))"
+      ;;
+    *) printf '%s' "-"; return ;;
+  esac
+  OD=$(sqlite3 "$DIR/uvarsi.db" \
+    "SELECT CASE WHEN COUNT(*)=3 THEN group_concat(source_fingerprint, ':') END FROM (
+       SELECT lower($ODTLACOK_STLPEC) AS source_fingerprint
+         FROM $TABULKA s
+        WHERE $STAV_PODMIENKA
+          AND COALESCE(s.data_version, 0) >= 2
+          AND length($ODTLACOK_STLPEC)=64
+          AND lower($ODTLACOK_STLPEC) NOT GLOB '*[^0-9a-f]*'
+          AND $PODMIENKA
+        ORDER BY s.obchod
+     )" 2>/dev/null || true)
+  case "$OD" in
+    ''|*[!0-9a-f:]*) printf '%s' "-" ;;
+    *) printf '%s' "$OD" ;;
+  esac
+}
+
 zapis_kreditovy_blok() {
   if [ "$CURRENT_RELEASE" = "-" ]; then
     echo "$TODAY $FAILS KREDIT $NOW_EPOCH" > "$STATE"
@@ -468,11 +504,32 @@ CHYBA_ZBER=$(sqlite3 "$DIR/uvarsi.db" \
             AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
   2>/dev/null || echo 3)
 
-if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
-  if [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
-    log "týždeň $MON_ISO: $CHYBA_ZBER obchod(ov) nemá úspešný zber — dobieham dáta…"
+STAGED_POCET=$(sqlite3 "$DIR/uvarsi.db" \
+        "SELECT COUNT(*) FROM akcie_staging
+         WHERE tyzden='$MON_ISO'
+           AND valid_from IS NOT NULL AND valid_to IS NOT NULL
+           AND valid_from <= '$TODAY' AND '$TODAY' <= valid_to" \
+        2>/dev/null || echo 0)
+STAGED_CHYBA=$(sqlite3 "$DIR/uvarsi.db" \
+  "SELECT COUNT(*) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
+   WHERE NOT EXISTS (SELECT 1 FROM zber_staging_stav s
+                     JOIN akcie_staging z ON z.obchod=s.obchod AND z.tyzden=s.tyzden
+                     WHERE s.obchod=v.o AND s.tyzden='$MON_ISO' AND s.stav='ok'
+                       AND s.failure_kind IS NULL
+                       AND COALESCE(s.data_version, 0) = 2
+                       AND z.valid_from IS NOT NULL AND z.valid_to IS NOT NULL
+                       AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to)
+      OR (SELECT COUNT(*) FROM akcie_staging a
+          WHERE a.tyzden='$MON_ISO' AND a.obchod=v.o
+            AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
+            AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
+  2>/dev/null || echo 3)
+
+if [ "${STAGED_POCET:-0}" -lt 30 ] || [ "${STAGED_CHYBA:-3}" -gt 0 ]; then
+  if [ "${STAGED_CHYBA:-3}" -gt 0 ]; then
+    log "týždeň $MON_ISO: $STAGED_CHYBA obchod(ov) nemá úspešný staging — dobieham dáta…"
   else
-    log "akcie pre týždeň $MON_ISO chýbajú ($POCET) — spúšťam zbierač…"
+    log "staging pre týždeň $MON_ISO chýba ($STAGED_POCET) — spúšťam zbierač…"
   fi
   # Opravujeme iba obchody, ktorým chýba zdravý a dnes platný leták. Opakovať
   # úspešné Vision čítanie by míňalo kredit a znižovalo šancu, že sa chybný
@@ -480,14 +537,15 @@ if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
   # spustíme všetky tri — fail-closed stav sa tým nezamaskuje.
   NEUPLNE_OBCHODY=$(sqlite3 "$DIR/uvarsi.db" \
     "SELECT lower(v.o) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
-     WHERE NOT EXISTS (SELECT 1 FROM zber_stav s
-                       JOIN akcie z ON z.obchod=s.obchod AND z.tyzden=s.tyzden
-                       WHERE s.obchod=v.o AND s.stav='ok'
-                         AND COALESCE(s.data_version, 0) >= 2
+     WHERE NOT EXISTS (SELECT 1 FROM zber_staging_stav s
+                       JOIN akcie_staging z ON z.obchod=s.obchod AND z.tyzden=s.tyzden
+                       WHERE s.obchod=v.o AND s.tyzden='$MON_ISO' AND s.stav='ok'
+                         AND s.failure_kind IS NULL
+                         AND COALESCE(s.data_version, 0) = 2
                          AND z.valid_from IS NOT NULL AND z.valid_to IS NOT NULL
-                         AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to)
-        OR (SELECT COUNT(*) FROM akcie a
-            WHERE a.obchod=v.o
+                          AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to)
+        OR (SELECT COUNT(*) FROM akcie_staging a
+            WHERE a.tyzden='$MON_ISO' AND a.obchod=v.o
               AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
              AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
     2>/dev/null || true)
@@ -510,14 +568,15 @@ if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
         log "Kaufland obnovený priamo z oficiálneho zdroja bez AI"
         NEUPLNE_OBCHODY=$(sqlite3 "$DIR/uvarsi.db" \
           "SELECT lower(v.o) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
-           WHERE NOT EXISTS (SELECT 1 FROM zber_stav s
-                             JOIN akcie z ON z.obchod=s.obchod AND z.tyzden=s.tyzden
-                             WHERE s.obchod=v.o AND s.stav='ok'
-                               AND COALESCE(s.data_version, 0) >= 2
-                               AND z.valid_from IS NOT NULL AND z.valid_to IS NOT NULL
-                               AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to)
-              OR (SELECT COUNT(*) FROM akcie a
-                  WHERE a.obchod=v.o
+           WHERE NOT EXISTS (SELECT 1 FROM zber_staging_stav s
+                             JOIN akcie_staging z ON z.obchod=s.obchod AND z.tyzden=s.tyzden
+                             WHERE s.obchod=v.o AND s.tyzden='$MON_ISO' AND s.stav='ok'
+                                AND s.failure_kind IS NULL
+                                AND COALESCE(s.data_version, 0) = 2
+                                AND z.valid_from IS NOT NULL AND z.valid_to IS NOT NULL
+                                AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to)
+              OR (SELECT COUNT(*) FROM akcie_staging a
+                  WHERE a.tyzden='$MON_ISO' AND a.obchod=v.o
                     AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
                     AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
           2>/dev/null || true)
@@ -541,20 +600,26 @@ if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
   fi
 
   if [ "${#ZBER_ARGS[@]}" -gt 0 ]; then
+    if [ "$FAILS" -ge "$MAX_TRIES" ]; then
+      log "dnes už $FAILS neúspešných pokusov — pauza do zajtra (šetrím kredit)."
+      exit 1
+    fi
   # Štrukturálna chyba Vision/extrakcie sa pri nezmenenom kóde a rovnakých
   # vstupných dátach sama neopraví. Pamätáme si ju EŠTE PRED spustením
   # plateného zberača. Nový deň, zmena zberového stavu alebo nové vydanie
   # vytvoria nový kľúč a bezpečne povolia práve jeden ďalší pokus.
   ZBER_VSTUP_REV=$(sqlite3 "$DIR/uvarsi.db" \
     "SELECT COALESCE(MAX(strftime('%s', updated)), '0')
-       FROM zber_stav WHERE tyzden='$MON_ISO'" 2>/dev/null || echo 0)
+       FROM zber_staging_stav WHERE tyzden='$MON_ISO'" 2>/dev/null || echo 0)
   NEUPLNE_KEY=$(printf '%s' "$NEUPLNE_OBCHODY" | tr '\r\n ' ':' | tr -s ':')
-  COLLECTION_KEY="${TODAY}:${MON_ISO}:${POCET:-0}:${CHYBA_ZBER:-3}:${ZBER_VSTUP_REV:-0}:${NEUPLNE_KEY:-all}:${CURRENT_RELEASE}"
+  ZBER_ODTLACOK=$(overeny_odtlacok zber_staging_stav)
+  COLLECTION_KEY="${TODAY}:${MON_ISO}:${STAGED_POCET:-0}:${STAGED_CHYBA:-3}:${ZBER_VSTUP_REV:-0}:${NEUPLNE_KEY:-all}:${ZBER_ODTLACOK}:${CURRENT_RELEASE}"
   LAST_COLLECTION_KEY=""
   if [ -f "$COLLECTION_FAILURE_STATE" ]; then
     read -r LAST_COLLECTION_KEY < "$COLLECTION_FAILURE_STATE" || LAST_COLLECTION_KEY=""
   fi
-  if [ "$LAST_COLLECTION_KEY" = "$COLLECTION_KEY" ]; then
+  if [ "$ZBER_ODTLACOK" != "-" ] && [ "$CURRENT_RELEASE" != "-" ] && \
+     [ "$LAST_COLLECTION_KEY" = "$COLLECTION_KEY" ]; then
     log "ŠTRUKTURÁLNY zber sa pri rovnakých dátach a vydaní nezmenil — platený pokus neopakujem."
     upozorni_detail_zberu "$COLLECTION_KEY" "$MON_ISO"
     exit "$EXIT_STRUCTURAL"
@@ -571,17 +636,24 @@ if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
       exit "$EXIT_STRUCTURAL"
       ;;
     *ZBER_STRUKTURALNY*)
-      # Zberač pri páde zapíše detail a nový čas do zber_stav. Blok preto
+      # Zberač pri páde zapíše detail a nový čas do stagingového stavu. Blok preto
       # viažeme na stav PO tomto zápise; inak by práve diagnostický timestamp
       # pri ďalšej hodine neúmyselne odomkol ten istý platený pokus.
       ZBER_FAILURE_REV=$(sqlite3 "$DIR/uvarsi.db" \
         "SELECT COALESCE(MAX(strftime('%s', updated)), '0')
-           FROM zber_stav WHERE tyzden='$MON_ISO'" 2>/dev/null || echo 0)
-      COLLECTION_KEY="${TODAY}:${MON_ISO}:${POCET:-0}:${CHYBA_ZBER:-3}:${ZBER_FAILURE_REV:-0}:${NEUPLNE_KEY:-all}:${CURRENT_RELEASE}"
-      printf '%s\n' "$COLLECTION_KEY" > "$COLLECTION_FAILURE_STATE"
-      log "ŠTRUKTURÁLNY zber zlyhal — rovnaký platený pokus zopakujem až po zmene dát, dňa alebo vydania."
-      upozorni_detail_zberu "$COLLECTION_KEY" "$MON_ISO"
-      exit "$EXIT_STRUCTURAL"
+           FROM zber_staging_stav WHERE tyzden='$MON_ISO'" 2>/dev/null || echo 0)
+      ZBER_ODTLACOK=$(overeny_odtlacok zber_staging_stav)
+      COLLECTION_KEY="${TODAY}:${MON_ISO}:${STAGED_POCET:-0}:${STAGED_CHYBA:-3}:${ZBER_FAILURE_REV:-0}:${NEUPLNE_KEY:-all}:${ZBER_ODTLACOK}:${CURRENT_RELEASE}"
+      if [ "$ZBER_ODTLACOK" != "-" ] && [ "$CURRENT_RELEASE" != "-" ]; then
+        printf '%s\n' "$COLLECTION_KEY" > "$COLLECTION_FAILURE_STATE"
+        log "ŠTRUKTURÁLNY zber zlyhal — rovnaký platený pokus zopakujem až po zmene odtlačku, dňa alebo vydania."
+        upozorni_detail_zberu "$COLLECTION_KEY" "$MON_ISO"
+        exit "$EXIT_STRUCTURAL"
+      fi
+      FAILS=$((FAILS+1))
+      echo "$TODAY $FAILS -" > "$STATE"
+      log "ŠTRUKTURÁLNY zber nemá úplnú identitu vstupu — ďalší pokus ostáva povolený iba v dennom limite."
+      exit 1
       ;;
   esac
   if [ "$ZBER_RC" -eq 0 ]; then
@@ -614,15 +686,37 @@ CHYBA_ZBER=$(sqlite3 "$DIR/uvarsi.db" \
             AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
             AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
   2>/dev/null || echo 3)
+STAGED_POCET=$(sqlite3 "$DIR/uvarsi.db" \
+        "SELECT COUNT(*) FROM akcie_staging
+         WHERE tyzden='$MON_ISO'
+           AND valid_from IS NOT NULL AND valid_to IS NOT NULL
+           AND valid_from <= '$TODAY' AND '$TODAY' <= valid_to" \
+        2>/dev/null || echo 0)
+STAGED_CHYBA=$(sqlite3 "$DIR/uvarsi.db" \
+  "SELECT COUNT(*) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
+   WHERE NOT EXISTS (SELECT 1 FROM zber_staging_stav s
+                     JOIN akcie_staging z ON z.obchod=s.obchod AND z.tyzden=s.tyzden
+                     WHERE s.obchod=v.o AND s.tyzden='$MON_ISO' AND s.stav='ok'
+                       AND s.failure_kind IS NULL
+                       AND COALESCE(s.data_version, 0) = 2
+                       AND z.valid_from IS NOT NULL AND z.valid_to IS NOT NULL
+                       AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to)
+      OR (SELECT COUNT(*) FROM akcie_staging a
+          WHERE a.tyzden='$MON_ISO' AND a.obchod=v.o
+            AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
+            AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
+  2>/dev/null || echo 3)
 ZBER_REV=$(sqlite3 "$DIR/uvarsi.db" \
   "SELECT COALESCE(MAX(strftime('%s', updated)), '0')
-   FROM zber_stav s
-   WHERE EXISTS (SELECT 1 FROM akcie a
+   FROM zber_staging_stav s
+   WHERE s.tyzden='$MON_ISO'
+     AND EXISTS (SELECT 1 FROM akcie_staging a
                  WHERE a.obchod=s.obchod AND a.tyzden=s.tyzden
                    AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
                    AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to)" \
   2>/dev/null || echo 0)
-DATOVY_STAV="${POCET:-0}:${CHYBA_ZBER:-3}:${ZBER_REV:-0}"
+DATOVY_STAV="${STAGED_POCET:-0}:${STAGED_CHYBA:-3}:${ZBER_REV:-0}"
+ZDROJOVY_ODTLACOK=$(overeny_odtlacok zber_staging_stav)
 # --- 1. Už je aktuálny landing JSON pripravený? ---
 if landing_data_is_current; then
   if [ "${POCET:-0}" -ge 30 ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]; then
@@ -636,9 +730,12 @@ fi
 
 # --- 2. Uplatni dnešný štrukturálny blok ---
 # Štrukturálny pád sa opakuje len vtedy, keď sa vstupné dáta odvtedy zmenili.
-if [ "$BLOKNUTE_NA" != "-" ] && [ "$BLOKNUTE_NA" = "$DATOVY_STAV" ]; then
+if [ "$BLOKNUTE_NA" != "-" ] && [ "$BLOKNUTE_NA" = "$DATOVY_STAV" ] && \
+   [ "$ZDROJOVY_ODTLACOK" != "-" ] && [ "$CURRENT_RELEASE" != "-" ] && \
+   [ "$LAST_CREDIT_PROBE" = "$ZDROJOVY_ODTLACOK" ] && \
+   [ "$LAST_CREDIT_RELEASE" = "$CURRENT_RELEASE" ]; then
   upozorni_detail_zberu "$DATOVY_STAV" "$MON_ISO"
-  log "ŠTRUKTURÁLNA chyba a stav zberu $DATOVY_STAV sa odvtedy nezmenil — nespúšťam ďalší pokus (šetrím kredit)."
+  log "ŠTRUKTURÁLNA chyba, odtlačok vstupu aj vydanie sa nezmenili — nespúšťam ďalší pokus (šetrím kredit)."
   exit "$EXIT_STRUCTURAL"
 fi
 
@@ -684,13 +781,16 @@ fi
 
 # --- 4a. Štrukturálny pád: opakovanie nepomôže, kým sa dáta nezmenia ---
 if [ "$RC" -eq "$EXIT_STRUCTURAL" ]; then
-  echo "$TODAY $FAILS $DATOVY_STAV" > "$STATE"
-  log "ŠTRUKTURÁLNA chyba (kód $RC) pri stave zberu $DATOVY_STAV — ďalšie pokusy nespúšťam, kým sa dáta nezmenia."
-  TAIL=$(tail -12 /var/log/uvarsi.log 2>/dev/null | tr '\n' ' ' | tail -c 400)
-  notify "Uvar.si: bloček sa nedá zostaviť" \
-    "Týždeň $MON_ISO — refresh_blocek skončil štrukturálnou chybou pri ${POCET:-0} ponukách v DB. Opakovanie nepomôže, treba zásah. Log: $TAIL"
-  upozorni_detail_zberu "$DATOVY_STAV" "$MON_ISO"
-  exit "$EXIT_STRUCTURAL"
+  if [ "$ZDROJOVY_ODTLACOK" != "-" ] && [ "$CURRENT_RELEASE" != "-" ]; then
+    echo "$TODAY $FAILS $DATOVY_STAV $ZDROJOVY_ODTLACOK $CURRENT_RELEASE" > "$STATE"
+    log "ŠTRUKTURÁLNA chyba (kód $RC) — blok platí iba pre tento odtlačok vstupu a vydanie."
+    TAIL=$(tail -12 /var/log/uvarsi.log 2>/dev/null | tr '\n' ' ' | tail -c 400)
+    notify "Uvar.si: bloček sa nedá zostaviť" \
+      "Týždeň $MON_ISO — refresh_blocek skončil štrukturálnou chybou pri ${STAGED_POCET:-0} staged ponukách. Opakovanie nepomôže, treba zásah. Log: $TAIL"
+    upozorni_detail_zberu "$DATOVY_STAV" "$MON_ISO"
+    exit "$EXIT_STRUCTURAL"
+  fi
+  log "ŠTRUKTURÁLNA chyba nemá úplný odtlačok vstupu alebo release — bezpečne ju ohraničujem ako dočasný neúspech."
 fi
 
 # --- 4b. Dočasný neúspech: zapíš, upozorni ak treba, o hodinu skúsi znova ---

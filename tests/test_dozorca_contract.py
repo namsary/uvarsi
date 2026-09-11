@@ -13,6 +13,7 @@ from app.landing_data import landing_data_is_current
 
 ROOT = Path(__file__).resolve().parents[1]
 BASH = Path("C:/Program Files/Git/bin/bash.exe")
+STRUCTURAL_SOURCE_IDENTITY = ":".join(["a" * 64] * 3)
 
 
 def health_json(plan_queue=None):
@@ -240,6 +241,7 @@ def test_dozorca_stops_retrying_a_structural_failure_until_the_data_changes(tmp_
     landing_data = tmp_path / "landing_data.json"
     write_landing_data_atomic(landing_data, payload("2026-08-10"))
     calls = tmp_path / "calls.txt"
+    (tmp_path / ".nasadene_sha").write_text("a" * 40 + "\n", encoding="ascii")
     fake_python = tmp_path / "python"
     fake_python.write_text(
         "#!/bin/sh\n"
@@ -250,7 +252,15 @@ def test_dozorca_stops_retrying_a_structural_failure_until_the_data_changes(tmp_
     )
     fake_python.chmod(0o755)
     fake_sqlite = tmp_path / "sqlite3"
-    fake_sqlite.write_text("#!/bin/sh\necho 431\n", encoding="utf-8")
+    fake_sqlite.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        f"  *source_fingerprint*) echo '{STRUCTURAL_SOURCE_IDENTITY}' ;;\n"
+        "  *) echo 431 ;;\n"
+        "esac\n",
+        encoding="utf-8",
+        newline="\n",
+    )
     fake_sqlite.chmod(0o755)
 
     first = run_dozorca(tmp_path, landing_data)
@@ -261,7 +271,7 @@ def test_dozorca_stops_retrying_a_structural_failure_until_the_data_changes(tmp_
     assert "ŠTRUKTURÁLNA" in first.stdout
     assert calls.read_text(encoding="utf-8").count("refresh_blocek.py") == 1
     assert (tmp_path / ".dozorca_state").read_text(encoding="utf-8").split() == [
-        "2026-08-18", "0", "431:431:431",
+        "2026-08-18", "0", "431:431:431", STRUCTURAL_SOURCE_IDENTITY, "a" * 40,
     ]
 
 
@@ -271,6 +281,7 @@ def test_structural_block_reports_stored_collection_failure_detail_once(
     landing_data = tmp_path / "landing_data.json"
     write_landing_data_atomic(landing_data, payload("2026-08-10"))
     notifications = tmp_path / "notifications.txt"
+    (tmp_path / ".nasadene_sha").write_text("a" * 40 + "\n", encoding="ascii")
 
     fake_python = tmp_path / "python"
     fake_python.write_text(
@@ -284,6 +295,7 @@ def test_structural_block_reports_stored_collection_failure_detail_once(
     fake_sqlite.write_text(
         "#!/bin/sh\n"
         "case \"$*\" in\n"
+        f"  *source_fingerprint*) echo '{STRUCTURAL_SOURCE_IDENTITY}' ;;\n"
         "  *group_concat*) echo 'Kaufland: cena_s_kartou must be lower than cena' ;;\n"
         "  *MAX*) echo 123 ;;\n"
         "  *\"SELECT COUNT(*) FROM (\"*) echo 3 ;;\n"
@@ -784,6 +796,7 @@ def test_dozorca_repairs_kaufland_from_official_source_before_paid_collector(tmp
     landing_data = tmp_path / "landing_data.json"
     write_landing_data_atomic(landing_data, payload("2026-08-10"))
     calls = tmp_path / "calls.txt"
+    (tmp_path / ".nasadene_sha").write_text("a" * 40 + "\n", encoding="ascii")
     fake_python = tmp_path / "python"
     fake_python.write_text(
         "#!/bin/sh\n"
@@ -808,6 +821,7 @@ def test_dozorca_repairs_kaufland_from_official_source_before_paid_collector(tmp
         f"DONE=0; grep -q -- --official-kaufland-only '{bash_path(calls)}' "
         "2>/dev/null && DONE=1\n"
         "case \"$*\" in\n"
+        f"  *source_fingerprint*) echo '{STRUCTURAL_SOURCE_IDENTITY}' ;;\n"
         "  *\"SELECT lower(v.o)\"*) [ \"$DONE\" -eq 0 ] && echo kaufland ;;\n"
         "  *\"SELECT COUNT(*) FROM (\"*) [ \"$DONE\" -eq 1 ] && echo 0 || echo 1 ;;\n"
         "  *MAX*) echo 0 ;;\n"
@@ -833,6 +847,7 @@ def test_dozorca_repairs_kaufland_free_when_multiple_stores_are_missing(tmp_path
     landing_data = tmp_path / "landing_data.json"
     write_landing_data_atomic(landing_data, payload("2026-08-10"))
     calls = tmp_path / "calls.txt"
+    (tmp_path / ".nasadene_sha").write_text("a" * 40 + "\n", encoding="ascii")
     fake_python = tmp_path / "python"
     fake_python.write_text(
         "#!/bin/sh\n"
@@ -857,6 +872,7 @@ def test_dozorca_repairs_kaufland_free_when_multiple_stores_are_missing(tmp_path
         f"DONE=0; grep -q -- --official-kaufland-only '{bash_path(calls)}' "
         "2>/dev/null && DONE=1\n"
         "case \"$*\" in\n"
+        f"  *source_fingerprint*) echo '{STRUCTURAL_SOURCE_IDENTITY}' ;;\n"
         "  *\"SELECT lower(v.o)\"*) "
         "if [ \"$DONE\" -eq 0 ]; then printf 'kaufland\\nlidl\\n'; else echo lidl; fi ;;\n"
         "  *\"SELECT COUNT(*) FROM (\"*) [ \"$DONE\" -eq 1 ] && echo 1 || echo 2 ;;\n"

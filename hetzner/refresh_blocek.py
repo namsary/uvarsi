@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Build the public landing receipt from verified offers and curated recipes."""
 import hashlib
+import json
 import os
 import sqlite3
 import sys
+from contextlib import contextmanager
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -23,8 +25,8 @@ from app.receipt_data import (
 from app.weekly_data import (
     current_monday,
     current_verified_offers,
-    stores_missing_this_week,
 )
+from app.zbierac_akcii import promote_staged_week, staged_week_readiness
 
 
 LANDING_DATA_PATH = Path("/var/lib/uvarsi/landing_data.json")
@@ -224,42 +226,100 @@ def compose_curated_receipt(offers, today, *, include_verified_totals=False):
     raise ValueError("Z aktuálnych akcií sa nepodarilo zostaviť tri odlišné jedlá.")
 
 
-def refresh_from_db(path, database, compose=None, today=None):
-    """Build after the DB gate, then atomically publish derived data."""
-    today = today or date.today()
-    with sqlite3.connect(database) as con:
-        con.row_factory = sqlite3.Row
-        has_status = con.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='zber_stav'"
-        ).fetchone()
-        if has_status:
-            missing = stores_missing_this_week(con, ALLOWED_STORES, today)
-            if missing:
-                raise StructuralFailure(
-                    "Bloček nevytváram z neúplného zberu: " + ", ".join(missing)
-                )
-        offers = priceable_offers(current_verified_offers(con, ALLOWED_STORES, today))
+def _validated_candidate(payload, today):
+    """Return a JSON-round-tripped receipt only after every public gate passes."""
+    try:
+        validate_landing_data(
+            payload,
+            today,
+            required_offer_data_version=CURRENT_COLLECTION_DATA_VERSION,
+        )
+        encoded = json.dumps(
+            payload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        candidate = json.loads(encoded)
+        validate_landing_data(
+            candidate,
+            today,
+            required_offer_data_version=CURRENT_COLLECTION_DATA_VERSION,
+        )
+    except (TypeError, ValueError) as error:
+        raise StructuralFailure(f"Neplatný kandidát bločka: {error}") from error
+    return candidate
+
+
+@contextmanager
+def _staged_offer_view(con, week, today):
+    """Expose one validated staged week to existing receipt builders, read-only."""
+    ready, reasons = staged_week_readiness(con, week, today=today)
+    if not ready:
+        detail = ", ".join(
+            f"{store}={reason}" for store, reason in sorted(reasons.items())
+        )
+        raise StructuralFailure(
+            "Bloček nevytváram z neúplného stagingu"
+            + (f": {detail}" if detail else ".")
+        )
+
+    con.execute(
+        "CREATE TEMP TABLE akcie AS "
+        "SELECT * FROM main.akcie_staging WHERE tyzden=?",
+        (week,),
+    )
+    try:
+        offers = priceable_offers(
+            current_verified_offers(con, ALLOWED_STORES, today)
+        )
         if len(offers) < MIN_COMPOSABLE_OFFERS:
             raise StructuralFailure(TOO_FEW_OFFERS)
-        if compose is None:
-            selection, verified_totals = compose_curated_receipt(
-                offers, today, include_verified_totals=True
+        present_stores = {offer["obchod"] for offer in offers}
+        missing_stores = sorted(ALLOWED_STORES - present_stores)
+        if missing_stores:
+            raise StructuralFailure(
+                "Bloček nevytváram bez obchodu: " + ", ".join(missing_stores)
             )
-        else:
-            selection = compose(offers, today)
-            verified_totals = None
-        payload = build_public_receipt(
-            con,
-            selection,
-            today=today,
-            verified_line_totals=verified_totals,
-        )
-    payload["offer_data_version"] = CURRENT_COLLECTION_DATA_VERSION
-    validate_landing_data(
-        payload, today, required_offer_data_version=CURRENT_COLLECTION_DATA_VERSION
-    )
-    write_landing_data_atomic(path, payload)
-    return payload
+        yield offers
+    finally:
+        con.execute("DROP TABLE temp.akcie")
+
+
+def refresh_from_db(path, database, compose=None, today=None):
+    """Validate staged data and receipt, promote, then atomically publish JSON."""
+    today = today or date.today()
+    week = current_monday(today)
+    with sqlite3.connect(database) as con:
+        con.row_factory = sqlite3.Row
+        with _staged_offer_view(con, week, today) as offers:
+            try:
+                if compose is None:
+                    selection, verified_totals = compose_curated_receipt(
+                        offers, today, include_verified_totals=True
+                    )
+                else:
+                    selection = compose(offers, today)
+                    verified_totals = None
+                payload = build_public_receipt(
+                    con,
+                    selection,
+                    today=today,
+                    verified_line_totals=verified_totals,
+                )
+                payload["offer_data_version"] = CURRENT_COLLECTION_DATA_VERSION
+                candidate = _validated_candidate(payload, today)
+            except StructuralFailure:
+                raise
+            except (KeyError, TypeError, ValueError) as error:
+                raise StructuralFailure(f"Neplatný kandidát bločka: {error}") from error
+
+        if not promote_staged_week(con, week, today=today):
+            raise StructuralFailure(
+                "Staging sa pred promotion zmenil alebo už nie je kompletný."
+            )
+    write_landing_data_atomic(path, candidate)
+    return candidate
 
 
 def main():

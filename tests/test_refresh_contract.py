@@ -36,6 +36,8 @@ def verified_database(path):
              "https://source.test/tesco", 4, "2026-08-17", "2026-08-23"),
             (3, "2026-08-17", "Lidl", "Maslo", "mliecne", 2.0, 2.5, "-20 %", "250 g",
              "https://source.test/lidl", 3, "2026-08-17", "2026-08-23"),
+            (4, "2026-08-17", "Kaufland", "Vajcia", "vajcia", 2.4, 3.0, "-20 %", "10 ks",
+             "https://source.test/kaufland", 5, "2026-08-17", "2026-08-23"),
         ],
     )
     migrate_akcie_schema(con)
@@ -48,6 +50,29 @@ def verified_database(path):
         )
     con.commit()
     con.close()
+    copy_active_offers_to_stage(path)
+
+
+def copy_active_offers_to_stage(path):
+    with sqlite3.connect(path) as con:
+        con.execute("DROP TABLE IF EXISTS akcie_staging")
+        con.execute("CREATE TABLE akcie_staging AS SELECT * FROM akcie WHERE 0")
+        con.execute("INSERT INTO akcie_staging SELECT * FROM akcie")
+        con.commit()
+
+
+@pytest.fixture(autouse=True)
+def valid_staged_gate(monkeypatch):
+    monkeypatch.setattr(
+        refresh_blocek,
+        "staged_week_readiness",
+        lambda con, week, today: (True, {}),
+    )
+    monkeypatch.setattr(
+        refresh_blocek,
+        "promote_staged_week",
+        lambda con, week, today: True,
+    )
 
 
 def model_selection():
@@ -486,7 +511,7 @@ def test_refresh_publishes_a_complete_curated_receipt_without_a_composer(tmp_pat
         )
     con.commit()
     con.close()
-
+    copy_active_offers_to_stage(database)
     payload = refresh_from_db(output, database, today=TODAY)
 
     assert output.exists()
@@ -522,7 +547,9 @@ def test_refresh_publishes_from_verified_db_without_http(monkeypatch, tmp_path):
     assert payload["offer_data_version"] == 2
 
 
-def test_refresh_refuses_to_publish_from_a_partial_versioned_collection(tmp_path):
+def test_refresh_refuses_to_publish_from_a_partial_versioned_collection(
+    monkeypatch, tmp_path
+):
     database = tmp_path / "uvarsi.db"
     output = tmp_path / "landing_data.json"
     verified_database(database)
@@ -542,6 +569,12 @@ def test_refresh_refuses_to_publish_from_a_partial_versioned_collection(tmp_path
         )
         con.commit()
 
+    monkeypatch.setattr(
+        refresh_blocek,
+        "staged_week_readiness",
+        lambda con, week, today: (False, {"Kaufland": "data_version"}),
+    )
+
     with pytest.raises(StructuralFailure, match="Kaufland"):
         refresh_from_db(
             output,
@@ -552,12 +585,222 @@ def test_refresh_refuses_to_publish_from_a_partial_versioned_collection(tmp_path
     assert not output.exists()
 
 
+def test_missing_store_preserves_existing_landing_json_before_compose(tmp_path):
+    database = tmp_path / "uvarsi.db"
+    output = tmp_path / "landing_data.json"
+    verified_database(database)
+    with sqlite3.connect(database) as con:
+        con.execute("DELETE FROM akcie WHERE obchod='Kaufland'")
+        con.execute("DELETE FROM akcie_staging WHERE obchod='Kaufland'")
+        con.commit()
+    original = b'{\n  "last_known_good": true, "opaque": "keep bytes exactly"\n}\n'
+    output.write_bytes(original)
+    compose_calls = []
+
+    with pytest.raises(StructuralFailure, match="Kaufland"):
+        refresh_from_db(
+            output,
+            database,
+            lambda offers, today: compose_calls.append((offers, today)),
+            today=TODAY,
+        )
+
+    assert compose_calls == []
+    assert output.read_bytes() == original
+
+
+def test_malformed_candidate_preserves_existing_landing_json_byte_for_byte(
+    monkeypatch, tmp_path
+):
+    database = tmp_path / "uvarsi.db"
+    output = tmp_path / "landing_data.json"
+    verified_database(database)
+    original = b'{ "last_known_good" : true, "spacing" : "matters" }\r\n'
+    output.write_bytes(original)
+    monkeypatch.setattr(
+        refresh_blocek,
+        "build_public_receipt",
+        lambda *args, **kwargs: {"schema_version": 1, "receipt": "malformed"},
+    )
+
+    with pytest.raises(StructuralFailure, match="kandidát"):
+        refresh_from_db(
+            output,
+            database,
+            lambda offers, today: model_selection(),
+            today=TODAY,
+        )
+
+    assert output.read_bytes() == original
+
+
+def test_non_json_candidate_is_rejected_before_atomic_writer_touches_disk(
+    monkeypatch, tmp_path
+):
+    database = tmp_path / "uvarsi.db"
+    output = tmp_path / "landing_data.json"
+    verified_database(database)
+    original = b'{"last_known_good":true}\n'
+    output.write_bytes(original)
+    real_builder = refresh_blocek.build_public_receipt
+
+    def build_non_json_candidate(*args, **kwargs):
+        candidate = real_builder(*args, **kwargs)
+        candidate["internal_marker"] = object()
+        return candidate
+
+    monkeypatch.setattr(
+        refresh_blocek, "build_public_receipt", build_non_json_candidate
+    )
+
+    with pytest.raises(StructuralFailure, match="kandidát"):
+        refresh_from_db(
+            output,
+            database,
+            lambda offers, today: model_selection(),
+            today=TODAY,
+        )
+
+    assert output.read_bytes() == original
+    assert not output.with_suffix(".tmp").exists()
+
+
+def test_interruption_before_atomic_replace_preserves_existing_json(
+    monkeypatch, tmp_path
+):
+    from app import landing_data
+
+    database = tmp_path / "uvarsi.db"
+    output = tmp_path / "landing_data.json"
+    verified_database(database)
+    original = b'{\n"last_known_good":true\n}\n'
+    output.write_bytes(original)
+
+    def interrupt_replace(source, destination):
+        raise InterruptedError("simulated interruption before replace")
+
+    monkeypatch.setattr(landing_data.os, "replace", interrupt_replace)
+
+    with pytest.raises(InterruptedError, match="before replace"):
+        refresh_from_db(
+            output,
+            database,
+            lambda offers, today: model_selection(),
+            today=TODAY,
+        )
+
+    assert output.read_bytes() == original
+
+
+def test_staged_candidate_is_validated_before_promotion_and_publication(
+    monkeypatch, tmp_path
+):
+    database = tmp_path / "uvarsi.db"
+    output = tmp_path / "landing_data.json"
+    verified_database(database)
+    copy_active_offers_to_stage(database)
+    with sqlite3.connect(database) as con:
+        con.execute("DELETE FROM akcie WHERE obchod='Kaufland'")
+        con.commit()
+    events = []
+    real_validate = refresh_blocek._validated_candidate
+    real_write = refresh_blocek.write_landing_data_atomic
+
+    monkeypatch.setattr(
+        refresh_blocek,
+        "staged_week_readiness",
+        lambda con, week, today: (True, {}),
+        raising=False,
+    )
+
+    def validate(candidate, today):
+        result = real_validate(candidate, today)
+        events.append("validated")
+        return result
+
+    def promote(con, week, today):
+        assert con.in_transaction is False
+        events.append("promoted")
+        return True
+
+    def publish(path, candidate):
+        events.append("published")
+        real_write(path, candidate)
+
+    monkeypatch.setattr(refresh_blocek, "_validated_candidate", validate)
+    monkeypatch.setattr(
+        refresh_blocek, "promote_staged_week", promote, raising=False
+    )
+    monkeypatch.setattr(refresh_blocek, "write_landing_data_atomic", publish)
+
+    payload = refresh_from_db(
+        output,
+        database,
+        lambda offers, today: model_selection(),
+        today=TODAY,
+    )
+
+    assert events == ["validated", "promoted", "published"]
+    assert payload["offer_data_version"] == 2
+
+
+def test_failed_staged_candidate_preserves_active_db_and_landing(
+    monkeypatch, tmp_path
+):
+    database = tmp_path / "uvarsi.db"
+    output = tmp_path / "landing_data.json"
+    verified_database(database)
+    copy_active_offers_to_stage(database)
+    original_landing = b'{\n  "last_known_good": true\n}\n'
+    output.write_bytes(original_landing)
+    with sqlite3.connect(database) as con:
+        active_before = con.execute(
+            "SELECT * FROM akcie ORDER BY id"
+        ).fetchall()
+    compose_calls = []
+    promotion_calls = []
+
+    monkeypatch.setattr(
+        refresh_blocek,
+        "staged_week_readiness",
+        lambda con, week, today: (True, {}),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        refresh_blocek,
+        "promote_staged_week",
+        lambda con, week, today: promotion_calls.append((week, today)),
+        raising=False,
+    )
+
+    def compose(offers, today):
+        compose_calls.append(tuple(offer["obchod"] for offer in offers))
+        return model_selection()
+
+    monkeypatch.setattr(
+        refresh_blocek,
+        "_validated_candidate",
+        lambda payload, today: (_ for _ in ()).throw(ValueError("malformed receipt")),
+    )
+
+    with pytest.raises(StructuralFailure, match="kandidát"):
+        refresh_from_db(output, database, compose, today=TODAY)
+
+    with sqlite3.connect(database) as con:
+        active_after = con.execute("SELECT * FROM akcie ORDER BY id").fetchall()
+    assert compose_calls and set(compose_calls[0]) == {"Kaufland", "Lidl", "Tesco"}
+    assert promotion_calls == []
+    assert active_after == active_before
+    assert output.read_bytes() == original_landing
+
+
 def test_malformed_non_null_offer_blocks_publication_before_compose(tmp_path):
     database = tmp_path / "uvarsi.db"
     output = tmp_path / "landing_data.json"
     verified_database(database)
     with sqlite3.connect(database) as con:
-        con.execute("UPDATE akcie SET source_url='' WHERE id=3")
+        con.execute("UPDATE akcie SET source_url='' WHERE id IN (3,4)")
+        con.execute("UPDATE akcie_staging SET source_url='' WHERE id IN (3,4)")
         con.commit()
     compose_calls = []
 
