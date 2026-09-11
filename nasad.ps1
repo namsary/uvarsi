@@ -1,7 +1,7 @@
 # Uvar.si - nasadenie jednym prikazom.
 # Pouzitie:  cd "$env:USERPROFILE\OneDrive\Online produkt"; .\nasad.ps1
 # Nahra subory na jarvis, restartuje sluzby a overi, ze vsetko bezi.
-# Zdielany Caddyfile sa nemeni. V crontabe sa atomicky meni iba presne
+# Zdielany Caddyfile sa nemeni. V planovaci uloh sa atomicky meni iba presne
 # ohraniceny Uvar.si rozvrh; zaznamy Taktik-mapa a inych sluzieb sa zachovaju.
 #
 # PRAVIDLO: nasadenie MUSI vediet zlyhat. Kazde vzdialene volanie kontroluje
@@ -69,7 +69,7 @@ if [ ! -f "$F" ]; then
   exit 1
 fi
 CHYBA=0
-for k in ANTHROPIC_API_KEY RESEND_API_KEY UVARSI_ENV UVARSI_TESCO_BRIDGE_URL UVARSI_TESCO_BRIDGE_WORKER_HOST UVARSI_TESCO_BRIDGE_RELEASE UVARSI_TESCO_BRIDGE_SECRET; do
+for k in ANTHROPIC_API_KEY RESEND_API_KEY UVARSI_ENV UVARSI_TESCO_BRIDGE_URL UVARSI_TESCO_BRIDGE_WORKER_HOST UVARSI_TESCO_BRIDGE_RELEASE UVARSI_TESCO_BRIDGE_VERSION_ID UVARSI_TESCO_BRIDGE_SECRET; do
   if grep -Eq "^[[:space:]]*(export[[:space:]]+)?${k}=[^[:space:]]" "$F"; then
     echo "  $k: pritomny"
   else
@@ -454,34 +454,10 @@ set -eu
 . /opt/uvarsi/uvarsi-deploy-state.sh
 # Priamy riadok ostáva iba ako zhoda s dokumentáciou starších inštalácií:
 # 0 5-21 * * * /opt/uvarsi/dozorca.sh >> /var/log/uvarsi.log 2>&1
-RIADOK='0 5-21 * * * /opt/uvarsi/uvarsi-deploy-state.sh run-supervisor >> /var/log/uvarsi.log 2>&1'
-RIADOK_ZALOHA='30 3 * * * /opt/uvarsi/zaloha.sh >> /var/log/uvarsi-zaloha.log 2>&1'
-RIADOK_PLATBY='5 * * * * cd /opt/uvarsi/app && /opt/uvarsi/venv/bin/python rekonciliacia.py >> /var/log/uvarsi-platby.log 2>&1'
 touch /var/log/uvarsi.log /var/log/uvarsi-zaloha.log /var/log/uvarsi-platby.log
 mkdir -p /var/backups/uvarsi
-uvarsi_install_supervisor_schedule
-crontab -l 2>/dev/null | grep -v '/opt/uvarsi/zaloha.sh' | grep -v '/opt/uvarsi/venv/bin/python rekonciliacia.py' > /tmp/uvarsi_cron.txt || true
-printf '%s\n' "$RIADOK_ZALOHA" >> /tmp/uvarsi_cron.txt
-printf '%s\n' "$RIADOK_PLATBY" >> /tmp/uvarsi_cron.txt
-crontab /tmp/uvarsi_cron.txt
-rm -f /tmp/uvarsi_cron.txt
-uvarsi_require_supervisor_schedule
-POCET=$(crontab -l 2>/dev/null | grep -cF "$RIADOK" || true)
-if [ "${POCET:-0}" -ne 1 ]; then
-  echo "CHYBA: v crontabe je $POCET ohranicenych riadkov s dozorcom, ocakavam presne 1"
-  exit 1
-fi
-POCET_ZALOH=$(crontab -l 2>/dev/null | grep -c 'zaloha.sh' || true)
-if [ "${POCET_ZALOH:-0}" -ne 1 ]; then
-  echo "CHYBA: v crontabe je $POCET_ZALOH riadkov so zalohou, ocakavam presne 1"
-  exit 1
-fi
-POCET_PLATIEB=$(crontab -l 2>/dev/null | grep -c 'rekonciliacia.py' || true)
-if [ "${POCET_PLATIEB:-0}" -ne 1 ]; then
-  echo "CHYBA: v crontabe je $POCET_PLATIEB riadkov s rekonciliaciou, ocakavam presne 1"
-  exit 1
-fi
-crontab -l | grep -E 'dozorca.sh|zaloha.sh|rekonciliacia.py'
+uvarsi_install_production_schedule
+uvarsi_require_production_schedule
 '@ -replace "`r`n", "`n"
 $cron | ssh jarvis "tr -d '\r' > /tmp/uvarsi_cron_install.sh; bash /tmp/uvarsi_cron_install.sh"
 Vyzaduj "bezpecny Uvar.si cron sa nepodarilo nainstalovat"

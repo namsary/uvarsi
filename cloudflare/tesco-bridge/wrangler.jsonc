@@ -3,7 +3,10 @@
   "name": "uvarsi-tesco-bridge",
   "main": "src/worker.js",
   "compatibility_date": "2026-09-11",
+  "version_metadata": {
+    "binding": "CF_VERSION_METADATA"
+  },
   "secrets": {
-    "required": ["BRIDGE_SECRET", "TOKEN_SECRET"]
+    "required": ["BRIDGE_SECRET", "TOKEN_SECRET", "WORKER_RELEASE"]
   }
 }

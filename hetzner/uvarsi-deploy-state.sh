@@ -91,11 +91,16 @@ uvarsi_require_tesco_bridge() {
   bridge_url=$(_uvarsi_env_value UVARSI_TESCO_BRIDGE_URL) || return 1
   bridge_worker_host=$(_uvarsi_env_value UVARSI_TESCO_BRIDGE_WORKER_HOST) || return 1
   bridge_release=$(_uvarsi_env_value UVARSI_TESCO_BRIDGE_RELEASE) || return 1
+  bridge_version_id=$(_uvarsi_env_value UVARSI_TESCO_BRIDGE_VERSION_ID) || return 1
   bridge_secret=$(_uvarsi_env_value UVARSI_TESCO_BRIDGE_SECRET) || return 1
   case "$bridge_release" in
     *[!0-9a-f]*|'') return 1 ;;
   esac
   [ "${#bridge_release}" -ge 12 ] && [ "${#bridge_release}" -le 64 ] || return 1
+  case "$bridge_version_id" in
+    *[!A-Za-z0-9._-]*|'') return 1 ;;
+  esac
+  [ "${#bridge_version_id}" -ge 8 ] && [ "${#bridge_version_id}" -le 128 ] || return 1
   case "$bridge_secret" in "$bridge_release".*) ;; *) return 1 ;; esac
   bridge_secret_random=${bridge_secret#*.}
   [ "${#bridge_secret_random}" -ge 32 ] || return 1
@@ -137,20 +142,47 @@ raise SystemExit(0 if valid else 1)
     rm -f "$response"
     return 1
   fi
-  if ! "$UVARSI_HEALTH_PY" -c '
-import datetime as dt, json, sys
+  if ! UVARSI_BRIDGE_VERIFY_SECRET=$bridge_secret "$UVARSI_HEALTH_PY" -c '
+import base64, datetime as dt, hashlib, hmac, json, os, sys
 from urllib.parse import urlsplit
-path, today_raw, bridge_url = sys.argv[1:4]
+path, today_raw, bridge_url, expected_release, expected_version = sys.argv[1:6]
 try:
     today = dt.date.fromisoformat(today_raw)
     with open(path, encoding="utf-8") as handle:
         payload = json.load(handle)
+    bridge = payload["bridge"]
     leaflet = payload["leaflet"]
     start = dt.date.fromisoformat(leaflet["valid_from"])
     end = dt.date.fromisoformat(leaflet["valid_to"])
     pages = leaflet["pages"]
     source = urlsplit(leaflet["source_url"])
 except (KeyError, TypeError, ValueError, json.JSONDecodeError, OSError):
+    raise SystemExit(1)
+if not isinstance(bridge, dict) or set(bridge) != {"release", "version_id", "attestation"}:
+    raise SystemExit(1)
+if bridge.get("release") != expected_release or bridge.get("version_id") != expected_version:
+    raise SystemExit(1)
+attestation = bridge.get("attestation")
+secret = os.environ.get("UVARSI_BRIDGE_VERIFY_SECRET")
+if (
+    not isinstance(attestation, str) or len(attestation) != 43
+    or any(char not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_" for char in attestation)
+    or not isinstance(secret, str) or not secret
+):
+    raise SystemExit(1)
+statement = {
+    "release": expected_release,
+    "version_id": expected_version,
+    "request_date": today_raw,
+    "request_format": "HM",
+    "leaflet": leaflet,
+}
+expected_attestation = base64.urlsafe_b64encode(hmac.new(
+    secret.encode(),
+    json.dumps(statement, ensure_ascii=False, separators=(",", ":")).encode(),
+    hashlib.sha256,
+).digest()).decode().rstrip("=")
+if not hmac.compare_digest(attestation, expected_attestation):
     raise SystemExit(1)
 slug = leaflet.get("slug")
 expected_slug = "tesco-letak-" + start.isoformat()
@@ -185,7 +217,7 @@ for expected, page in enumerate(pages, start=1):
             or not parsed.path.startswith("/v1/tesco/media/")
         ):
             raise SystemExit(1)
-' "$response" "$today" "$bridge_url" >/dev/null 2>&1; then
+' "$response" "$today" "$bridge_url" "$bridge_release" "$bridge_version_id" >/dev/null 2>&1; then
     rm -f "$response"
     return 1
   fi
@@ -221,12 +253,22 @@ def money(value):
         amount = Decimal(str(value).strip().replace(",", "."))
     except (InvalidOperation, ValueError):
         raise SystemExit(1)
-    if not amount.is_finite() or amount <= 0 or amount > Decimal("10000"):
+    if (
+        not amount.is_finite() or amount <= 0 or amount > Decimal("10000")
+        or amount != amount.quantize(Decimal("0.01"))
+    ):
         raise SystemExit(1)
     return amount
 
+def optional_money(value):
+    return None if value is None else money(value)
+
+def money_text(value):
+    return format(value.quantize(Decimal("0.01")), "f").replace(".", ",")
+
 active_offer_refs = set()
 active_offer_sources = {}
+active_offers = {}
 active_source_refs = set()
 with sqlite3.connect("file:" + database + "?mode=ro", uri=True) as con:
     required_status = {
@@ -238,8 +280,10 @@ with sqlite3.connect("file:" + database + "?mode=ro", uri=True) as con:
         if not required_status <= columns:
             raise SystemExit(1)
     required_offer = {
-        "tyzden", "obchod", "nazov", "cena", "source_url", "source_page",
-        "offer_key", "valid_from", "valid_to",
+        "tyzden", "obchod", "nazov", "cena", "povodna", "zlava", "jednotka",
+        "source_url", "source_page", "offer_key", "valid_from", "valid_to",
+        "cena_s_kartou", "zlava_s_kartou", "vernostny_program",
+        "minimalny_nakup", "podmienka_s_kartou",
     }
     for table in ("akcie", "akcie_staging"):
         columns = {row[1] for row in con.execute("PRAGMA table_info(" + table + ")")}
@@ -268,7 +312,9 @@ with sqlite3.connect("file:" + database + "?mode=ro", uri=True) as con:
         facts_by_table = []
         for table in ("akcie", "akcie_staging"):
             rows = con.execute(
-                "SELECT offer_key,nazov,cena,source_url,source_page,valid_from,valid_to "
+                "SELECT offer_key,nazov,cena,povodna,zlava,jednotka,"
+                "source_url,source_page,valid_from,valid_to,cena_s_kartou,"
+                "zlava_s_kartou,vernostny_program,minimalny_nakup,podmienka_s_kartou "
                 "FROM " + table + " WHERE tyzden=? AND obchod=?",
                 (week, store),
             ).fetchall()
@@ -276,30 +322,74 @@ with sqlite3.connect("file:" + database + "?mode=ro", uri=True) as con:
             if len(rows) < 20 or len(rows) != int(declared) or len(keys) != len(rows):
                 raise SystemExit(1)
             facts = set()
-            for offer_key, name, price, source_url, source_page, start_raw, end_raw in rows:
+            for row in rows:
+                (
+                    offer_key, name, price_raw, original_raw, discount, unit,
+                    source_url, source_page, start_raw, end_raw, loyalty_raw,
+                    loyalty_discount, loyalty_program, minimum_raw,
+                    loyalty_condition,
+                ) = row
                 try:
                     offer_start = dt.date.fromisoformat(start_raw)
                     offer_end = dt.date.fromisoformat(end_raw)
                 except (TypeError, ValueError):
                     raise SystemExit(1)
+                price = money(price_raw)
+                original = optional_money(original_raw)
+                loyalty = optional_money(loyalty_raw)
+                minimum = optional_money(minimum_raw)
                 if (
                     not isinstance(name, str) or not name.strip()
-                    or money(price) <= 0
+                    or not isinstance(unit, str) or not unit.strip()
+                    or original is not None and original < price
+                    or discount is not None and not isinstance(discount, str)
                     or isinstance(source_page, bool) or not isinstance(source_page, int)
                     or not 1 <= source_page <= 500
                     or collector_kind_for_url(source_url) != expected_kind
                     or not offer_start <= today <= offer_end
                 ):
                     raise SystemExit(1)
+                loyalty_metadata = (
+                    loyalty_discount, loyalty_program, minimum_raw, loyalty_condition,
+                )
+                if loyalty is None:
+                    if any(value not in (None, "") for value in loyalty_metadata):
+                        raise SystemExit(1)
+                elif (
+                    loyalty >= price
+                    or loyalty_discount is not None and (
+                        not isinstance(loyalty_discount, str) or not loyalty_discount.strip()
+                    )
+                    or not isinstance(loyalty_program, str) or not loyalty_program.strip()
+                    or loyalty_condition is not None and (
+                        not isinstance(loyalty_condition, str) or not loyalty_condition.strip()
+                    )
+                ):
+                    raise SystemExit(1)
                 fact = (
-                    offer_key, name, str(price), source_url, source_page,
-                    start_raw, end_raw,
+                    offer_key, name, str(price), None if original is None else str(original),
+                    discount, unit, source_url, source_page, start_raw, end_raw,
+                    None if loyalty is None else str(loyalty), loyalty_discount,
+                    loyalty_program, None if minimum is None else str(minimum),
+                    loyalty_condition,
                 )
                 facts.add(fact)
                 if table == "akcie":
                     active_offer_refs.add((store, offer_key))
                     source_ref = (store, source_url, source_page, start_raw, end_raw)
                     active_offer_sources[(store, offer_key)] = source_ref
+                    active_offers[(store, offer_key)] = {
+                        "name": name,
+                        "unit": unit,
+                        "price": price,
+                        "original": original,
+                        "discount": discount or "",
+                        "loyalty": loyalty,
+                        "loyalty_discount": loyalty_discount or None,
+                        "loyalty_program": loyalty_program,
+                        "minimum": minimum,
+                        "loyalty_condition": loyalty_condition,
+                    }
                     active_source_refs.add(source_ref)
             facts_by_table.append(facts)
         if facts_by_table[0] != facts_by_table[1]:
@@ -362,6 +452,8 @@ if (
     raise SystemExit(1)
 item_count = 0
 item_total = Decimal("0")
+item_regular_total = Decimal("0")
+substantiated_count = 0
 seen_offer_refs = set()
 for meal in meals:
     items = meal.get("items") if isinstance(meal, dict) else None
@@ -370,6 +462,14 @@ for meal in meals:
     for item in items:
         if not isinstance(item, dict):
             raise SystemExit(1)
+        base_item_fields = {
+            "offer_key", "name", "store", "unit", "quantity", "price",
+            "original_price", "savings", "off",
+        }
+        loyalty_item_fields = {
+            "loyalty_price", "loyalty_discount", "loyalty_program",
+            "loyalty_minimum_basket", "loyalty_condition",
+        }
         store = item.get("store")
         offer_key = item.get("offer_key")
         quantity = item.get("quantity")
@@ -383,16 +483,60 @@ for meal in meals:
             or quantity <= 0 or quantity > 100
         ):
             raise SystemExit(1)
+        offer = active_offers[(store, offer_key)]
+        expected_fields = (
+            base_item_fields | loyalty_item_fields
+            if offer["loyalty"] is not None else base_item_fields
+        )
+        expected_price = offer["price"] * quantity
+        expected_original = (
+            None if offer["original"] is None else offer["original"] * quantity
+        )
+        expected_savings = (
+            None if expected_original is None else expected_original - expected_price
+        )
+        if (
+            set(item) != expected_fields
+            or item.get("name") != offer["name"]
+            or item.get("unit") != offer["unit"]
+            or item.get("price") != money_text(expected_price)
+            or item.get("original_price") != (
+                None if expected_original is None else money_text(expected_original)
+            )
+            or item.get("savings") != (
+                None if expected_savings is None else money_text(expected_savings)
+            )
+            or item.get("off") != offer["discount"]
+        ):
+            raise SystemExit(1)
+        if offer["loyalty"] is not None and (
+            item.get("loyalty_price") != money_text(offer["loyalty"] * quantity)
+            or item.get("loyalty_discount") != offer["loyalty_discount"]
+            or item.get("loyalty_program") != offer["loyalty_program"]
+            or item.get("loyalty_minimum_basket") != (
+                None if offer["minimum"] is None else money_text(offer["minimum"])
+            )
+            or item.get("loyalty_condition") != offer["loyalty_condition"]
+        ):
+            raise SystemExit(1)
         seen_offer_refs.add((store, offer_key))
-        item_total += money(item.get("price"))
+        item_total += expected_price
+        item_regular_total += (
+            expected_price if expected_original is None else expected_original
+        )
+        substantiated_count += expected_original is not None
         item_count += 1
-if item_count < 3 or item_total.quantize(Decimal("0.01")) != total.quantize(Decimal("0.01")):
+if (
+    item_count < 3
+    or item_total.quantize(Decimal("0.01")) != total.quantize(Decimal("0.01"))
+    or item_regular_total.quantize(Decimal("0.01")) != regular.quantize(Decimal("0.01"))
+):
     raise SystemExit(1)
 if (
     receipt.get("polozky") != item_count
     or isinstance(receipt.get("polozky_s_beznou_cenou"), bool)
     or not isinstance(receipt.get("polozky_s_beznou_cenou"), int)
-    or not 0 <= receipt["polozky_s_beznou_cenou"] <= item_count
+    or receipt["polozky_s_beznou_cenou"] != substantiated_count
 ):
     raise SystemExit(1)
 ' "$UVARSI_DB" "$UVARSI_LANDING_DATA" "$today" >/dev/null 2>&1
@@ -401,6 +545,14 @@ if (
 
 _uvarsi_supervisor_cron_line() {
   printf '%s' '0 5-21 * * * /opt/uvarsi/uvarsi-deploy-state.sh run-supervisor >> /var/log/uvarsi.log 2>&1'
+}
+
+_uvarsi_backup_cron_line() {
+  printf '%s' '30 3 * * * /opt/uvarsi/zaloha.sh >> /var/log/uvarsi-zaloha.log 2>&1'
+}
+
+_uvarsi_payment_cron_line() {
+  printf '%s' '5 * * * * cd /opt/uvarsi/app && /opt/uvarsi/venv/bin/python rekonciliacia.py >> /var/log/uvarsi-platby.log 2>&1'
 }
 
 _uvarsi_read_crontab() {
@@ -489,6 +641,14 @@ with open(sys.argv[1], encoding="utf-8") as source, open(
     rm -f "$current" "$extracted"
     return 1
   }
+  "$UVARSI_CP" -a "$current" "$snapshot/crontab.full" || {
+    rm -f "$current" "$extracted"
+    return 1
+  }
+  chmod 600 "$snapshot/crontab.full" || {
+    rm -f "$current" "$extracted"
+    return 1
+  }
   rm -f "$current" "$extracted"
 }
 
@@ -544,10 +704,74 @@ uvarsi_install_supervisor_schedule() {
 
 uvarsi_restore_supervisor_schedule() {
   snapshot=$1
-  replacement="$snapshot/supervisor.cron"
-  [ -f "$replacement" ] || return 1
+  complete="$snapshot/crontab.full"
+  [ -f "$complete" ] || return 1
+  installed=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-restored.XXXXXX") || return 1
+  chmod 600 "$installed" || { rm -f "$installed"; return 1; }
+  if ! "$UVARSI_CRONTAB" "$complete" || ! _uvarsi_read_crontab "$installed" || \
+      ! "$UVARSI_HEALTH_PY" -c '
+import pathlib, sys
+expected = pathlib.Path(sys.argv[1]).read_bytes()
+actual = pathlib.Path(sys.argv[2]).read_bytes()
+raise SystemExit(0 if actual == expected else 1)
+' "$complete" "$installed" >/dev/null 2>&1; then
+    rm -f "$installed"
+    return 1
+  fi
+  rm -f "$installed"
+}
+
+_uvarsi_transform_production_cron() {
+  source_file=$1
+  target_file=$2
+  supervisor=$(_uvarsi_supervisor_cron_line) || return 1
+  backup=$(_uvarsi_backup_cron_line) || return 1
+  payment=$(_uvarsi_payment_cron_line) || return 1
+  "$UVARSI_HEALTH_PY" -c '
+import re, sys
+source, target, supervisor, backup, payment = sys.argv[1:6]
+patterns = (
+    re.compile(r"(?:^|\s)/opt/uvarsi/dozorca\.sh(?:\s|$)"),
+    re.compile(r"(?:^|\s)/opt/uvarsi/uvarsi-deploy-state\.sh\s+run-supervisor(?:\s|$)"),
+    re.compile(r"(?:^|\s)/opt/uvarsi/zaloha\.sh(?:\s|$)"),
+    re.compile(r"(?:^|\s)/opt/uvarsi/venv/bin/python\s+rekonciliacia\.py(?:\s|$)"),
+)
+with open(source, encoding="utf-8") as handle:
+    lines = [line.rstrip("\n") for line in handle]
+kept = [
+    line for line in lines
+    if line.lstrip().startswith("#") or not any(pattern.search(line) for pattern in patterns)
+]
+with open(target, "w", encoding="utf-8", newline="\n") as handle:
+    for line in kept + [supervisor, backup, payment]:
+        handle.write(line + "\n")
+' "$source_file" "$target_file" "$supervisor" "$backup" "$payment" >/dev/null 2>&1
+}
+
+uvarsi_require_production_schedule() {
+  current=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-check.XXXXXX") || return 1
+  chmod 600 "$current" || { rm -f "$current"; return 1; }
+  supervisor=$(_uvarsi_supervisor_cron_line) || { rm -f "$current"; return 1; }
+  backup=$(_uvarsi_backup_cron_line) || { rm -f "$current"; return 1; }
+  payment=$(_uvarsi_payment_cron_line) || { rm -f "$current"; return 1; }
+  if ! _uvarsi_read_crontab "$current" || ! "$UVARSI_HEALTH_PY" -c '
+import sys
+path, supervisor, backup, payment = sys.argv[1:5]
+with open(path, encoding="utf-8") as handle:
+    active = [line.strip() for line in handle if line.strip() and not line.lstrip().startswith("#")]
+expected = (supervisor, backup, payment)
+raise SystemExit(0 if all(active.count(line) == 1 for line in expected) else 1)
+' "$current" "$supervisor" "$backup" "$payment" >/dev/null 2>&1; then
+    rm -f "$current"
+    return 1
+  fi
+  rm -f "$current"
+  uvarsi_require_supervisor_schedule
+}
+
+uvarsi_install_production_schedule() {
   current=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-current.XXXXXX") || return 1
-  candidate=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-restore.XXXXXX") || {
+  candidate=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-candidate.XXXXXX") || {
     rm -f "$current"
     return 1
   }
@@ -556,12 +780,13 @@ uvarsi_restore_supervisor_schedule() {
     return 1
   }
   if ! _uvarsi_read_crontab "$current" || \
-      ! _uvarsi_transform_supervisor_cron "$current" "$candidate" "$replacement" || \
+      ! _uvarsi_transform_production_cron "$current" "$candidate" || \
       ! "$UVARSI_CRONTAB" "$candidate"; then
     rm -f "$current" "$candidate"
     return 1
   fi
   rm -f "$current" "$candidate"
+  uvarsi_require_production_schedule
 }
 
 _uvarsi_record_supervisor_success() {

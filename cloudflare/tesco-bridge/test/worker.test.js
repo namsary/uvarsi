@@ -12,6 +12,8 @@ import worker, {
 const NOW = Date.parse("2026-09-11T12:00:00.000Z");
 const BRIDGE_SECRET = "unit-bridge-secret";
 const TOKEN_SECRET = "unit-token-secret";
+const WORKER_RELEASE = "a1b2c3d4e5f6";
+const WORKER_VERSION_ID = "11aa22bb-33cc-44dd-88ee-99ff00112233";
 const WORKER_ORIGIN = "https://tesco-bridge.example";
 const MEDIA_PREFIX =
   "https://digitalcontent.api.tesco.com/v2/media/dotcom-hu/";
@@ -196,12 +198,25 @@ function createContext() {
 }
 
 function subject(fetchImpl, options = {}) {
-  return createWorker({
+  const bridge = createWorker({
     fetchImpl,
     cryptoImpl: mockWebCrypto(),
     cache: options.cache ?? null,
     now: options.now ?? (() => NOW),
   });
+  return {
+    fetch(request, env = {}, context) {
+      return bridge.fetch(
+        request,
+        {
+          WORKER_RELEASE,
+          CF_VERSION_METADATA: { id: WORKER_VERSION_ID },
+          ...env,
+        },
+        context,
+      );
+    },
+  };
 }
 
 async function readJson(response) {
@@ -367,6 +382,52 @@ test("uses one server-owned Tesco query and returns a normalized HM leaflet", as
   assert.equal(JSON.stringify(payload).includes("digitalcontent.api.tesco.com"), false);
   assert.equal(response.headers.get("Cache-Control"), "private, max-age=30");
   assert.equal(response.headers.get("Vary"), "Authorization");
+});
+
+test("binds the authenticated manifest to release and Cloudflare version", async () => {
+  const bridge = subject(async () => jsonUpstream(graphqlPayload(leaflet())));
+  const response = await bridge.fetch(
+    manifestRequest(),
+    { BRIDGE_SECRET, TOKEN_SECRET },
+    createContext().context,
+  );
+  const payload = await readJson(response);
+  const statement = {
+    release: WORKER_RELEASE,
+    version_id: WORKER_VERSION_ID,
+    request_date: "2026-09-11",
+    request_format: "HM",
+    leaflet: payload.leaflet,
+  };
+  const expected = base64UrlEncode(
+    pseudoMac(
+      encoder.encode(BRIDGE_SECRET),
+      encoder.encode(JSON.stringify(statement)),
+    ),
+  );
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(payload.bridge, {
+    release: WORKER_RELEASE,
+    version_id: WORKER_VERSION_ID,
+    attestation: expected,
+  });
+});
+
+test("refuses manifests without deployed version identity", async () => {
+  const bridge = subject(async () => jsonUpstream(graphqlPayload(leaflet())));
+  for (const identity of [
+    { WORKER_RELEASE: null },
+    { CF_VERSION_METADATA: null },
+  ]) {
+    const response = await bridge.fetch(
+      manifestRequest(),
+      { BRIDGE_SECRET, TOKEN_SECRET, ...identity },
+      createContext().context,
+    );
+    assert.equal(response.status, 500);
+    assert.deepEqual(await readJson(response), { error: "internal_error" });
+  }
 });
 
 test("selects only the requested SM format", async () => {
@@ -860,8 +921,9 @@ test("declares required secrets in wrangler.jsonc and uses it in package scripts
 
   assert.equal(config.main, "src/worker.js");
   assert.deepEqual(config.secrets, {
-    required: ["BRIDGE_SECRET", "TOKEN_SECRET"],
+    required: ["BRIDGE_SECRET", "TOKEN_SECRET", "WORKER_RELEASE"],
   });
+  assert.deepEqual(config.version_metadata, { binding: "CF_VERSION_METADATA" });
   assert.match(packageConfig.scripts.dev, /--config wrangler\.jsonc$/);
   assert.match(packageConfig.scripts.deploy, /--config wrangler\.jsonc$/);
   await assert.rejects(access(new URL("wrangler.toml", projectRoot)));

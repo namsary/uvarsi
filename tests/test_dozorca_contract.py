@@ -996,7 +996,7 @@ def test_dozorca_pri_stalom_landingu_najprv_obnovi_blocek_a_az_potom_zohrieva(tm
     ]
 
 
-def test_dozorca_pri_obsadenom_zamku_druhy_beh_skusene_preskoci(tmp_path):
+def test_dozorca_pri_obsadenom_zamku_vrati_bezpecny_odlisny_stav(tmp_path):
     fake_flock = tmp_path / "flock"
     fake_flock.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
     fake_flock.chmod(0o755)
@@ -1016,7 +1016,7 @@ def test_dozorca_pri_obsadenom_zamku_druhy_beh_skusene_preskoci(tmp_path):
         capture_output=True, check=False,
     )
 
-    assert result.returncode == 0
+    assert result.returncode == 75
     assert "predchádzajúci beh ešte pracuje" in result.stdout
 
 

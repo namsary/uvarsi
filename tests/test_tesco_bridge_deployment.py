@@ -1,3 +1,6 @@
+import base64
+import hashlib
+import hmac
 import json
 import os
 import shutil
@@ -19,6 +22,7 @@ NOW_EPOCH = "2000000000"
 BRIDGE_HOST = "uvarsi-tesco-bridge.account.workers.dev"
 BRIDGE_URL = f"https://{BRIDGE_HOST}"
 BRIDGE_RELEASE = "a1b2c3d4e5f6"
+BRIDGE_VERSION_ID = "11aa22bb-33cc-44dd-88ee-99ff00112233"
 BRIDGE_SECRET = f"{BRIDGE_RELEASE}.unit-bridge-secret-0123456789abcdef"
 SUPERVISOR_CRON = (
     "0 5-21 * * * /opt/uvarsi/uvarsi-deploy-state.sh run-supervisor "
@@ -36,9 +40,8 @@ def write_executable(path, text):
     path.chmod(0o755)
 
 
-def bridge_payload():
-    return {
-        "leaflet": {
+def bridge_payload(*, release=BRIDGE_RELEASE, version_id=BRIDGE_VERSION_ID):
+    leaflet = {
             "country": "sk",
             "format": "HM",
             "slug": "tesco-letak-2026-09-07",
@@ -58,6 +61,25 @@ def bridge_payload():
                 for page in range(1, 9)
             ],
         }
+    statement = {
+        "release": release,
+        "version_id": version_id,
+        "request_date": TODAY,
+        "request_format": "HM",
+        "leaflet": leaflet,
+    }
+    signature = hmac.new(
+        BRIDGE_SECRET.encode(),
+        json.dumps(statement, ensure_ascii=False, separators=(",", ":")).encode(),
+        hashlib.sha256,
+    ).digest()
+    return {
+        "bridge": {
+            "release": release,
+            "version_id": version_id,
+            "attestation": base64.urlsafe_b64encode(signature).decode().rstrip("="),
+        },
+        "leaflet": leaflet,
     }
 
 
@@ -73,7 +95,24 @@ def official_source_url(store):
 
 
 def landing_payload():
-    stores = ("Kaufland", "Tesco", "Lidl")
+    items = {
+        "Kaufland": {
+            "name": "Repkový olej Raciol", "unit": "1 l", "price": "1,55",
+            "original_price": "2,99", "savings": "1,44", "off": "-48 %",
+        },
+        "Tesco": {
+            "name": "Overená položka Tesco 1", "unit": "1 ks", "price": "1,99",
+            "original_price": "2,49", "savings": "0,50", "off": "-20 %",
+            "loyalty_price": "1,49", "loyalty_discount": "-40 %",
+            "loyalty_program": "Clubcard", "loyalty_minimum_basket": None,
+            "loyalty_condition": "iba s Clubcard",
+        },
+        "Lidl": {
+            "name": "Overená položka Lidl 1", "unit": "1 ks", "price": "1,99",
+            "original_price": "2,49", "savings": "0,50", "off": "-20 %",
+        },
+    }
+    stores = tuple(items)
     return {
         "schema_version": 1,
         "offer_data_version": 2,
@@ -97,13 +136,9 @@ def landing_payload():
                     "name": name,
                     "items": [{
                         "offer_key": f"{store.lower()}-offer-1",
-                        "name": f"Overená položka {store}",
                         "store": store,
-                        "unit": "1 ks",
                         "quantity": 1,
-                        "price": "1,99",
-                        "original_price": "2,49",
-                        "savings": "0,50",
+                        **items[store],
                     }],
                 }
                 for day, name, store in (
@@ -112,9 +147,9 @@ def landing_payload():
                     ("PI", "Cestoviny s paradajkami", "Lidl"),
                 )
             ],
-            "nakup_spolu": "5,97",
-            "bezne": "7,47",
-            "usetris": "1,50",
+            "nakup_spolu": "5,53",
+            "bezne": "7,97",
+            "usetris": "2,44",
             "polozky": 3,
             "polozky_s_beznou_cenou": 3,
         },
@@ -158,8 +193,11 @@ def seed_collection_database(path):
             con.execute(
                 f"""CREATE TABLE {table} (
                     tyzden TEXT, obchod TEXT, nazov TEXT, cena REAL,
+                    povodna REAL, zlava TEXT, jednotka TEXT,
                     source_url TEXT, source_page INTEGER, offer_key TEXT,
-                    valid_from TEXT, valid_to TEXT
+                    valid_from TEXT, valid_to TEXT, cena_s_kartou REAL,
+                    zlava_s_kartou TEXT, vernostny_program TEXT,
+                    minimalny_nakup REAL, podmienka_s_kartou TEXT
                 )"""
             )
         for index, (store, kind) in enumerate(kinds.items(), start=1):
@@ -168,22 +206,28 @@ def seed_collection_database(path):
             for table in ("zber_stav", "zber_staging_stav"):
                 con.execute(f"INSERT INTO {table} VALUES (?,?,?,?,?,?,?,?,?)", row)
             for table in ("akcie", "akcie_staging"):
-                con.executemany(
-                    f"INSERT INTO {table} VALUES (?,?,?,?,?,?,?,?,?)",
-                    [
-                        (
-                            WEEK,
-                            store,
-                            f"Overená položka {store} {offer}",
-                            1.99,
-                            official_source_url(store),
-                            offer,
-                            f"{store.lower()}-offer-{offer}",
-                            WEEK,
-                            "2026-09-13",
+                rows = []
+                for offer in range(1, 21):
+                    name = f"Overená položka {store} {offer}"
+                    price, original, discount, unit = 1.99, 2.49, "-20 %", "1 ks"
+                    card_price = card_discount = program = minimum = condition = None
+                    if store == "Kaufland" and offer == 1:
+                        name, price, original, discount, unit = (
+                            "Repkový olej Raciol", 1.55, 2.99, "-48 %", "1 l"
                         )
-                        for offer in range(1, 21)
-                    ],
+                    if store == "Tesco" and offer == 1:
+                        card_price, card_discount, program, condition = (
+                            1.49, "-40 %", "Clubcard", "iba s Clubcard"
+                        )
+                    rows.append((
+                        WEEK, store, name, price, original, discount, unit,
+                        official_source_url(store), offer,
+                        f"{store.lower()}-offer-{offer}", WEEK, "2026-09-13",
+                        card_price, card_discount, program, minimum, condition,
+                    ))
+                con.executemany(
+                    f"INSERT INTO {table} VALUES ({','.join('?' for _ in range(17))})",
+                    rows,
                 )
 
 
@@ -211,6 +255,7 @@ def deployment(tmp_path):
         f"UVARSI_TESCO_BRIDGE_URL={BRIDGE_URL}\n"
         f"UVARSI_TESCO_BRIDGE_WORKER_HOST={BRIDGE_HOST}\n"
         f"UVARSI_TESCO_BRIDGE_RELEASE={BRIDGE_RELEASE}\n"
+        f"UVARSI_TESCO_BRIDGE_VERSION_ID={BRIDGE_VERSION_ID}\n"
         f"UVARSI_TESCO_BRIDGE_SECRET={BRIDGE_SECRET}\n",
         encoding="utf-8",
     )
@@ -333,12 +378,14 @@ def run_library(deployment, command):
             f"UVARSI_TESCO_BRIDGE_URL={BRIDGE_URL}\n"
             f"UVARSI_TESCO_BRIDGE_WORKER_HOST={BRIDGE_HOST}\n"
             f"UVARSI_TESCO_BRIDGE_RELEASE={BRIDGE_RELEASE}\n"
+            f"UVARSI_TESCO_BRIDGE_VERSION_ID={BRIDGE_VERSION_ID}\n"
         ),
         (
             "UVARSI_ENV=production\nPLATBY_ZAPNUTE=0\n"
             "UVARSI_TESCO_BRIDGE_URL=http://bridge.example\n"
             f"UVARSI_TESCO_BRIDGE_WORKER_HOST={BRIDGE_HOST}\n"
             f"UVARSI_TESCO_BRIDGE_RELEASE={BRIDGE_RELEASE}\n"
+            f"UVARSI_TESCO_BRIDGE_VERSION_ID={BRIDGE_VERSION_ID}\n"
             f"UVARSI_TESCO_BRIDGE_SECRET={BRIDGE_SECRET}\n"
         ),
         (
@@ -346,6 +393,7 @@ def run_library(deployment, command):
             f"UVARSI_TESCO_BRIDGE_URL={BRIDGE_URL}?debug=1\n"
             f"UVARSI_TESCO_BRIDGE_WORKER_HOST={BRIDGE_HOST}\n"
             f"UVARSI_TESCO_BRIDGE_RELEASE={BRIDGE_RELEASE}\n"
+            f"UVARSI_TESCO_BRIDGE_VERSION_ID={BRIDGE_VERSION_ID}\n"
             f"UVARSI_TESCO_BRIDGE_SECRET={BRIDGE_SECRET}\n"
         ),
         (
@@ -353,18 +401,21 @@ def run_library(deployment, command):
             f"UVARSI_TESCO_BRIDGE_URL={BRIDGE_URL}\n"
             f"UVARSI_TESCO_BRIDGE_WORKER_HOST={BRIDGE_HOST}\n"
             f"UVARSI_TESCO_BRIDGE_RELEASE={BRIDGE_RELEASE}\n"
+            f"UVARSI_TESCO_BRIDGE_VERSION_ID={BRIDGE_VERSION_ID}\n"
             "UVARSI_TESCO_BRIDGE_SECRET=short\n"
         ),
         (
             "UVARSI_ENV=production\nPLATBY_ZAPNUTE=0\n"
             f"UVARSI_TESCO_BRIDGE_URL={BRIDGE_URL}\n"
             f"UVARSI_TESCO_BRIDGE_RELEASE={BRIDGE_RELEASE}\n"
+            f"UVARSI_TESCO_BRIDGE_VERSION_ID={BRIDGE_VERSION_ID}\n"
             f"UVARSI_TESCO_BRIDGE_SECRET={BRIDGE_SECRET}\n"
         ),
         (
             "UVARSI_ENV=production\nPLATBY_ZAPNUTE=0\n"
             f"UVARSI_TESCO_BRIDGE_URL={BRIDGE_URL}\n"
             f"UVARSI_TESCO_BRIDGE_WORKER_HOST={BRIDGE_HOST}\n"
+            f"UVARSI_TESCO_BRIDGE_VERSION_ID={BRIDGE_VERSION_ID}\n"
             f"UVARSI_TESCO_BRIDGE_SECRET={BRIDGE_SECRET}\n"
         ),
         (
@@ -372,12 +423,21 @@ def run_library(deployment, command):
             f"UVARSI_TESCO_BRIDGE_URL={BRIDGE_URL}\n"
             f"UVARSI_TESCO_BRIDGE_WORKER_HOST={BRIDGE_HOST}\n"
             "UVARSI_TESCO_BRIDGE_RELEASE=ffffffffffff\n"
+            f"UVARSI_TESCO_BRIDGE_VERSION_ID={BRIDGE_VERSION_ID}\n"
+            f"UVARSI_TESCO_BRIDGE_SECRET={BRIDGE_SECRET}\n"
+        ),
+        (
+            "UVARSI_ENV=production\nPLATBY_ZAPNUTE=0\n"
+            f"UVARSI_TESCO_BRIDGE_URL={BRIDGE_URL}\n"
+            f"UVARSI_TESCO_BRIDGE_WORKER_HOST={BRIDGE_HOST}\n"
+            f"UVARSI_TESCO_BRIDGE_RELEASE={BRIDGE_RELEASE}\n"
             f"UVARSI_TESCO_BRIDGE_SECRET={BRIDGE_SECRET}\n"
         ),
     ],
     ids=(
         "both-missing", "secret-missing", "http-url", "query-url", "short-secret",
         "worker-host-missing", "release-missing", "release-secret-mismatch",
+        "version-id-missing",
     ),
 )
 def test_bridge_preflight_fails_closed_for_missing_or_malformed_config(
@@ -430,6 +490,23 @@ def test_bridge_preflight_is_pinned_to_the_configured_worker_host_and_release(de
 
     assert result.returncode != 0
     assert not deployment["state"].joinpath("curl-args").exists()
+
+
+@pytest.mark.parametrize("claim", ["release", "version_id", "attestation"])
+def test_bridge_preflight_rejects_wrong_or_unbound_worker_identity(deployment, claim):
+    if claim == "release":
+        payload = bridge_payload(release="f" * 12)
+    elif claim == "version_id":
+        payload = bridge_payload(version_id="different-worker-version")
+    else:
+        payload = bridge_payload()
+        payload["bridge"]["attestation"] = "A" * 43
+    deployment["bridge"].write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_library(deployment, "uvarsi_require_tesco_bridge")
+
+    assert result.returncode != 0
+    assert BRIDGE_SECRET not in result.stdout + result.stderr
 
 
 @pytest.mark.parametrize("bad_source", [
@@ -505,6 +582,22 @@ def test_successful_bounded_supervisor_records_positive_liveness(deployment):
     )
 
 
+def test_lock_busy_supervisor_does_not_record_false_success(deployment):
+    deployment["supervisor_success"].write_text(
+        f"{TODAY} {int(NOW_EPOCH) - 1}\n", encoding="utf-8", newline="\n"
+    )
+    write_executable(deployment["live"] / "dozorca.sh", "#!/bin/sh\nexit 75\n")
+    deployment["env"].update(
+        UVARSI_TIMEOUT_RESULT="0",
+        UVARSI_TIMEOUT_RUN_COMMAND="1",
+    )
+
+    result = run_library(deployment, "uvarsi_run_supervisor_bounded")
+
+    assert result.returncode == 75
+    assert not deployment["supervisor_success"].exists()
+
+
 def test_production_readiness_accepts_three_current_official_reusable_stores(deployment):
     result = run_library(deployment, "uvarsi_require_production_readiness")
 
@@ -529,11 +622,12 @@ def test_production_readiness_accepts_multiple_auditable_sources_per_store(deplo
         "price": "1,99",
         "original_price": "2,49",
         "savings": "0,50",
+        "off": "-20 %",
     })
     payload["receipt"].update(
-        nakup_spolu="7,96",
-        bezne="9,96",
-        usetris="2,00",
+        nakup_spolu="7,52",
+        bezne="10,46",
+        usetris="2,94",
         polozky=4,
         polozky_s_beznou_cenou=4,
     )
@@ -628,6 +722,57 @@ def test_production_readiness_rejects_empty_or_nonpositive_receipt(deployment):
     assert run_library(deployment, "uvarsi_require_production_readiness").returncode != 0
 
 
+def test_production_readiness_rejects_consistent_but_wrong_repkovy_olej_price(
+        deployment):
+    payload = landing_payload()
+    oil = payload["receipt"]["meals"][0]["items"][0]
+    oil.update(price="0,07", original_price="0,13", savings="0,06")
+    payload["receipt"].update(
+        nakup_spolu="4,05", bezne="5,11", usetris="1,06"
+    )
+    deployment["landing"].write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_library(deployment, "uvarsi_require_production_readiness")
+
+    assert result.returncode != 0
+
+
+@pytest.mark.parametrize(
+    ("field", "wrong_value"),
+    [
+        ("name", "Iný výrobok"),
+        ("unit", "500 ml"),
+        ("off", "-99 %"),
+        ("loyalty_condition", "bez Clubcard"),
+        ("loyalty_price", "0,01"),
+    ],
+)
+def test_production_readiness_rejects_customer_facts_not_matching_offer_row(
+        deployment, field, wrong_value):
+    payload = landing_payload()
+    item = (
+        payload["receipt"]["meals"][1]["items"][0]
+        if field.startswith("loyalty_")
+        else payload["receipt"]["meals"][0]["items"][0]
+    )
+    item[field] = wrong_value
+    deployment["landing"].write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_library(deployment, "uvarsi_require_production_readiness")
+
+    assert result.returncode != 0
+
+
+def test_production_readiness_binds_line_price_to_quantity(deployment):
+    payload = landing_payload()
+    payload["receipt"]["meals"][0]["items"][0]["quantity"] = 2
+    deployment["landing"].write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_library(deployment, "uvarsi_require_production_readiness")
+
+    assert result.returncode != 0
+
+
 @pytest.mark.parametrize("missing_field", ["offer_key", "source_page", "url"])
 def test_production_readiness_requires_offer_and_source_references(
         deployment, missing_field):
@@ -708,6 +853,69 @@ def test_supervisor_schedule_install_and_rollback_preserve_taktik(deployment):
     assert TAKTIK_CRON in restored_lines
     assert old_supervisor in restored_lines
     assert SUPERVISOR_CRON not in restored_lines
+
+
+def test_complete_crontab_snapshot_and_restore_are_exact(deployment):
+    original = (
+        "# Taktik and unrelated jobs must survive byte-for-byte\n"
+        f"{TAKTIK_CRON}\n"
+        "17 2 * * * /opt/other/report.sh\n"
+        "0 5-21 * * * /opt/uvarsi/dozorca.sh\n"
+        "12 3 * * * /opt/uvarsi/zaloha.sh\n"
+    )
+    deployment["cron"].write_text(original, encoding="utf-8", newline="\n")
+    snapshot = deployment["state"] / "complete-cron-snapshot"
+    snapshot.mkdir()
+
+    snap = run_library(
+        deployment,
+        f'uvarsi_snapshot_supervisor_schedule "{bash_path(snapshot)}"',
+    )
+    assert snap.returncode == 0, snap.stdout + snap.stderr
+    deployment["cron"].write_text(
+        f"{SUPERVISOR_CRON}\n0 * * * * /tmp/new-during-deploy\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    restored = run_library(
+        deployment,
+        f'uvarsi_restore_supervisor_schedule "{bash_path(snapshot)}"',
+    )
+
+    assert restored.returncode == 0, restored.stdout + restored.stderr
+    assert deployment["cron"].read_text(encoding="utf-8") == original
+
+
+def test_complete_schedule_install_fails_closed_on_crontab_read_error(deployment):
+    original = f"{TAKTIK_CRON}\n17 2 * * * /opt/other/report.sh\n"
+    deployment["cron"].write_text(original, encoding="utf-8", newline="\n")
+    deployment["state"].joinpath("fail-crontab-list").touch()
+
+    result = run_library(deployment, "uvarsi_install_production_schedule")
+
+    assert result.returncode not in (0, 127)
+    assert deployment["cron"].read_text(encoding="utf-8") == original
+
+
+def test_complete_schedule_install_preserves_taktik_and_unrelated_rows(deployment):
+    unrelated = "17 2 * * * /opt/other/report.sh"
+    deployment["cron"].write_text(
+        f"# keep comments\n{TAKTIK_CRON}\n{unrelated}\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    result = run_library(deployment, "uvarsi_install_production_schedule")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    installed = deployment["cron"].read_text(encoding="utf-8").splitlines()
+    assert "# keep comments" in installed
+    assert TAKTIK_CRON in installed
+    assert unrelated in installed
+    assert installed.count(SUPERVISOR_CRON) == 1
+    assert sum("/opt/uvarsi/zaloha.sh" in line for line in installed) == 1
+    assert sum("rekonciliacia.py" in line for line in installed) == 1
 
 
 def test_supervisor_schedule_never_overwrites_crontab_after_a_read_error(deployment):

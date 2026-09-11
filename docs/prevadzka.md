@@ -407,8 +407,9 @@ webhooky, refundácie a zákaznícke nároky.
 Tesco bridge má dve rozdielne tajomstvá. `BRIDGE_SECRET` autentifikuje Hetzner
 voči Workeru; rovnakú hodnotu server pozná ako
 `UVARSI_TESCO_BRIDGE_SECRET`. `TOKEN_SECRET` podpisuje 24-hodinové media tokeny
-a zostáva iba v Cloudflare. Release identita je 12- až 64-znakový malý
-hexadecimálny commit SHA presne skontrolovaného Workeru. V správcovi hesiel
+a zostáva iba v Cloudflare. `WORKER_RELEASE` je 12- až 64-znakový malý
+hexadecimálny commit SHA presne skontrolovaného Workeru. Cloudflare zároveň
+pridá nemenné ID nasadenej verzie cez `CF_VERSION_METADATA`. V správcovi hesiel
 vytvor `BRIDGE_SECRET` v tvare `<release-sha>.<náhodný-base64url-reťazec>`;
 náhodná časť musí mať aspoň 32 znakov. `TOKEN_SECRET` vytvor ako samostatný
 náhodný base64url reťazec s najmenej 32 znakmi. Bridge secret rotuj pri každom
@@ -424,18 +425,20 @@ takže sa neobjaví v histórii shellu:
 ```text
 npx wrangler secret put BRIDGE_SECRET
 npx wrangler secret put TOKEN_SECRET
+npx wrangler secret put WORKER_RELEASE
 ```
 
-Po nastavení oboch tajomstiev nasaď z toho istého čistého checkoutu presne
-skontrolovaný Worker. Neutajovaný release SHA si môžeš overiť cez
+Do promptu `WORKER_RELEASE` vlož presný výstup `git rev-parse HEAD`. Potom nasaď
+z toho istého čistého checkoutu presne skontrolovaný Worker. Neutajovaný release SHA si môžeš overiť cez
 `git rev-parse HEAD`; musí sa zhodovať s prefixom uloženého `BRIDGE_SECRET`:
 
 ```text
 npm run deploy
 ```
 
-Do evidencie zapíš iba názov projektu `uvarsi-tesco-bridge`, tento release SHA,
-presný pridelený `*.workers.dev` host, čas a pass/fail — nie výstup
+Z úspešného deploy výstupu prevezmi nemenné Cloudflare Worker version ID. Do
+evidencie zapíš iba názov projektu `uvarsi-tesco-bridge`, release SHA, version
+ID, presný pridelený `*.workers.dev` host, čas a pass/fail — nie výstup
 autentifikovanej odpovede ani hodnotu tajomstva.
 
 ### 2. Hetzner bez vypísania hodnôt
@@ -453,6 +456,7 @@ UVARSI_ENV=production
 UVARSI_TESCO_BRIDGE_URL=https://uvarsi-tesco-bridge.<účet>.workers.dev
 UVARSI_TESCO_BRIDGE_WORKER_HOST=uvarsi-tesco-bridge.<účet>.workers.dev
 UVARSI_TESCO_BRIDGE_RELEASE=<release-sha>
+UVARSI_TESCO_BRIDGE_VERSION_ID=<nemenné-Cloudflare-Worker-version-ID>
 UVARSI_TESCO_BRIDGE_SECRET=<rovnaký-BRIDGE_SECRET-ako-vo-Workeri>
 PLATBY_ZAPNUTE=0
 ```
@@ -461,7 +465,9 @@ URL musí byť iba HTTPS origin bez cesty, portu, query, fragmentu alebo
 prihlasovacích údajov. Jeho host sa musí presne zhodovať so zamknutým
 `UVARSI_TESCO_BRIDGE_WORKER_HOST`, začínať `uvarsi-tesco-bridge.` a končiť
 `.workers.dev`. `UVARSI_TESCO_BRIDGE_RELEASE` sa musí presne zhodovať s prefixom
-release-bound bridge secretu. Súbor nečítaj cez `cat`, nekopíruj ho z PC a
+release-bound bridge secretu aj s release claimom odpovede.
+`UVARSI_TESCO_BRIDGE_VERSION_ID` sa musí zhodovať s Cloudflare verziou
+nasadeného kódu. Súbor nečítaj cez `cat`, nekopíruj ho z PC a
 nepridávaj ho do Gitu. Po uložení nastav práva a spusti tichý autentifikovaný
 preflight:
 
@@ -472,7 +478,9 @@ sudo /opt/uvarsi/uvarsi-deploy-state.sh check-bridge
 
 Preflight hneď vypne prípadný zdedený shell `xtrace`, potom nič nevypíše pri
 úspechu. Pri chybe vráti nenulový kód bez tela odpovede, bearer hlavičky alebo
-hodnoty kľúča. Okrem host/release zámku vyžaduje presný oficiálny Tesco
+hodnoty kľúča. Worker HMAC-om nad `BRIDGE_SECRET` podpisuje release SHA,
+Cloudflare version ID, parametre požiadavky aj celý manifest; preflight podpis
+prepočíta a porovná v konštantnom čase. Okrem tohto zámku vyžaduje presný oficiálny Tesco
 hypermarket `source_url`, slug zhodný s `valid_from`, aktuálnu platnosť a media
 URL iba z toho istého Worker originu. Chybu rieš podľa všeobecného stavu
 Workeru a DNS; do logu nekopíruj autentifikovanú odpoveď.
@@ -480,10 +488,11 @@ Workeru a DNS; do logu nekopíruj autentifikovanú odpoveď.
 ### 3. Štvorhodinová poistka dozorcu
 
 `nasad.ps1` aj samopull tento riadok skutočne nainštalujú a overia. Odstránia
-iba aktívny priamy Uvar.si riadok s `dozorca.sh` alebo starú kópiu wrappera;
-ostatné záznamy vrátane Taktik-mapa zachovajú. Pred zmenou si odložia iba
-dotknuté Uvar.si riadky a pri rollbacku ich obnovia bez prepisu zvyšku
-crontabu:
+iba presne rozpoznané Uvar.si riadky; ostatné záznamy vrátane Taktik-mapa
+zachovajú. Čítanie crontabu musí uspieť pred každou zmenou — prechodná chyba sa
+nikdy nesmie zameniť za prázdny crontab. Pred živou zmenou sa s právami `0600`
+odloží celý crontab. Inštalácia odovzdá `crontab` jeden úplný kandidátsky súbor
+a rollback rovnakým spôsobom obnoví presnú úplnú snímku:
 
 ```text
 0 5-21 * * * /opt/uvarsi/uvarsi-deploy-state.sh run-supervisor >> /var/log/uvarsi.log 2>&1
@@ -492,7 +501,9 @@ crontabu:
 Rovnaký vstup používa samopull ešte pred označením release za úspešný. Pred
 spustením znovu overí platby OFF, bridge aj presný rozvrh. TERM odošle po
 14 100 sekundách a po najviac 300 sekundách čakania pošle KILL, takže absolútny
-strop procesu zberu a zostavenia bločku je 14 400 sekúnd, nie 14 700. Timeout
+strop procesu zberu a zostavenia bločku je 14 400 sekúnd, nie 14 700. Obsadený
+`flock` skončí osobitným dočasným kódom 75; wrapper vtedy nevytvorí značku
+úspechu, ale paralelný naplánovaný pokus bezpečne nič nemení. Timeout
 neobnovuje databázu zo zálohy: kandidát žije v stagingu, takže aktívne ceny a
 `landing_data.json` zostanú poslednou overenou verziou a nové auth, zákaznícke,
 špajzové, plánové či platobné riadky sa nestratia.
@@ -517,13 +528,16 @@ oficiálnych source kinds, reálne oficiálne URL v každom aktívnom aj staging
 riadku, zhodné aktívne a staging dáta/fingerprinty a HTTP úspech Taktik-mapa.
 Aktuálny trojjedlový bloček musí mať v každom jedle položku, kladné rozumné ceny
 a súčty, presnú aritmetiku, aktuálne `valid_from`/`valid_to`, auditovateľné
-source URL/strany a `offer_key` existujúce v aktívnych cenách. Nezmenený staging
+source URL/strany a `offer_key` existujúce v aktívnych cenách. Pre každý
+`offer_key` sa proti presnému aktívnemu DB riadku kontroluje názov, jednotka,
+množstvo, akciová a pôvodná cena, zľava aj všetky podmienky a ceny vernostného
+programu; súčty sa z týchto riadkov znovu vypočítajú. Nezmenený staging
 fingerprint sa pri opakovaní znovu použije pred importom Anthropic klienta,
 takže nevznikne ďalšie platené volanie ani rozpočtová rezervácia.
 
 Ak niektorá brána zlyhá, release sa nesmie označiť za úspešný. Automatický
-rollback vracia iba kód, statické Uvar.si súbory, jednotky a predchádzajúce
-Uvar.si supervisor cron riadky. Nevracia `uvarsi.db`, `landing_data.json` ani
-žiadne používateľské dáta a nedotýka sa Caddy, Taktik-mapa ani cudzích cron
-riadkov. Ak zber alebo prísna brána zlyhá, release sa neoznačí za úspešný a
+rollback vracia iba kód, statické Uvar.si súbory, jednotky a presnú úplnú
+snímku crontabu vytvorenú pred deployom. Nevracia `uvarsi.db`,
+`landing_data.json` ani žiadne používateľské dáta a nedotýka sa Caddy ani
+Taktik-mapa. Ak zber alebo prísna brána zlyhá, release sa neoznačí za úspešný a
 platby ostanú vypnuté.

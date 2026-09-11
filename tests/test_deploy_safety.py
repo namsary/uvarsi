@@ -421,14 +421,17 @@ def test_deploy_installs_the_documented_cron_line(script):
 
 
 def test_deploy_installs_exactly_one_dozorca_cron_line(script):
-    bash = [blok for blok in _heredoc_blocks(script.splitlines()) if "crontab" in blok]
+    bash = [
+        blok for blok in _heredoc_blocks(script.splitlines())
+        if "uvarsi_install_production_schedule" in blok
+    ]
     assert bash, "očakávam bash blok, ktorý inštaluje cron"
     blok = bash[0]
-    assert "grep -v" in blok, (
-        "opakované nasadenie by inak pridalo druhý rovnaký riadok"
+    assert "uvarsi_install_production_schedule" in blok, (
+        "celý Uvar.si rozvrh musí inštalovať testovaný fail-closed helper"
     )
-    assert re.search(r"-(eq|ne) 1\b", blok), (
-        "nasadenie musí overiť, že v crontabe je práve jeden riadok s dozorcom"
+    assert not re.search(r"crontab\s+-l[^\n]*\|[^\n]*\|\|\s*true", blok), (
+        "chybu čítania crontabu nemožno zameniť za prázdny crontab"
     )
 
 
@@ -448,7 +451,10 @@ def test_deploy_verifies_the_env_file(script):
     assert "/opt/uvarsi/uvarsi.env" in script, (
         "bez uvarsi.env zlyhá prihlasovací e-mail aj generovanie plánu"
     )
-    for kluc in ("ANTHROPIC_API_KEY", "RESEND_API_KEY"):
+    for kluc in (
+        "ANTHROPIC_API_KEY", "RESEND_API_KEY",
+        "UVARSI_TESCO_BRIDGE_VERSION_ID",
+    ):
         assert kluc in script, f"nasadenie musí overiť prítomnosť {kluc}"
 
 

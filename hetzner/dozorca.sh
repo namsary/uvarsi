@@ -48,6 +48,7 @@ CREDIT_RETRY_SECONDS="${UVARSI_CREDIT_RETRY_SECONDS:-3600}"
 MAX_TRIES=6                          # max pokusov za jeden deň
 NOTIFY_AT=2                          # po koľkých neúspechoch upozorniť
 EXIT_STRUCTURAL=3                    # kód, ktorým refresh_blocek hlási "neopakuj"
+EXIT_LOCK_BUSY=75                    # dočasne obsadený zámok nie je úspešný beh
 MIN_TOTAL_OFFERS=30                  # zdieľaný prah dozorcu a post-deploy kontroly
 MIN_OFFERS_PER_STORE=20              # malá vložka sa nesmie tváriť ako celý leták
 NTFY_TOPIC="uvarsi-jarvis-8f3a2c"    # notifikácie: ntfy.sh/<topic>
@@ -99,7 +100,7 @@ if [ "${UVARSI_DOZORCA_LOCKED:-0}" != "1" ]; then
   fi
   if ! flock -n 9; then
     log "predchádzajúci beh ešte pracuje — tento hodinový pokus preskakujem."
-    exit 0
+    exit "$EXIT_LOCK_BUSY"
   fi
 fi
 

@@ -37,6 +37,20 @@ function isAuthorized(request, env) {
   );
 }
 
+function workerIdentity(env) {
+  const release = env?.WORKER_RELEASE;
+  const versionId = env?.CF_VERSION_METADATA?.id;
+  if (
+    typeof release !== "string" ||
+    !/^[0-9a-f]{12,64}$/.test(release) ||
+    typeof versionId !== "string" ||
+    !/^[A-Za-z0-9._-]{8,128}$/.test(versionId)
+  ) {
+    return null;
+  }
+  return { release, versionId };
+}
+
 function parseContentLength(headers, maximum) {
   const raw = headers.get("Content-Length");
   if (raw === null) {
@@ -467,6 +481,10 @@ async function handleManifest(
   if (typeof env?.TOKEN_SECRET !== "string" || env.TOKEN_SECRET.length === 0) {
     return errorResponse(500, "internal_error");
   }
+  const identity = workerIdentity(env);
+  if (!identity) {
+    return errorResponse(500, "internal_error");
+  }
 
   try {
     const leaflet = await fetchNormalizedLeaflet(
@@ -495,8 +513,35 @@ async function handleManifest(
         };
       }),
     );
+    const publicLeaflet = { ...leaflet, pages };
+    const statement = {
+      release: identity.release,
+      version_id: identity.versionId,
+      request_date: input.date,
+      request_format: input.format,
+      leaflet: publicLeaflet,
+    };
+    const bridgeKey = await importHmacKey(
+      cryptoImpl,
+      env.BRIDGE_SECRET,
+      "sign",
+    );
+    const attestation = base64UrlEncode(
+      await cryptoImpl.subtle.sign(
+        "HMAC",
+        bridgeKey,
+        encoder.encode(JSON.stringify(statement)),
+      ),
+    );
     return jsonResponse(
-      { leaflet: { ...leaflet, pages } },
+      {
+        bridge: {
+          release: identity.release,
+          version_id: identity.versionId,
+          attestation,
+        },
+        leaflet: publicLeaflet,
+      },
       200,
       {
         "Cache-Control": `private, max-age=${CLIENT_MANIFEST_CACHE_SECONDS}`,
