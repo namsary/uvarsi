@@ -418,6 +418,46 @@ def test_collection_derives_loyalty_program_from_the_known_store(monkeypatch):
     assert models == [collector.MODEL_SCAN, collector.MODEL_READ]
 
 
+def test_one_invalid_price_is_quarantined_without_rereading_a_healthy_page(monkeypatch):
+    """Jedna zle prečítaná cenovka nesmie zahodiť ostatné ceny ani platiť Opus."""
+    pages, manifest = flyer_fixture(1)
+    monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))
+    monkeypatch.setattr(collector, "get_b64", lambda url, max_px: url)
+    models = []
+
+    def item(name, price, discount):
+        return {
+            "source_page": 1,
+            "nazov": name,
+            "kategoria": "trvanlive",
+            "cena": price,
+            "povodna": 2.99,
+            "zlava": discount,
+            "jednotka": "l",
+            "cena_s_kartou": None,
+            "zlava_s_kartou": None,
+            "vernostny_program": None,
+            "minimalny_nakup": None,
+            "podmienka_s_kartou": None,
+        }
+
+    def fake_claude_json(client, model, content, max_tokens, effort=None):
+        models.append(model)
+        if model == collector.MODEL_SCAN:
+            return [1]
+        return [
+            item("Repkový olej Raciol", 0.07, "-48 %"),
+            item("Olivový olej", 1.99, "-33 %"),
+        ]
+
+    monkeypatch.setattr(collector, "claude_json", fake_claude_json)
+
+    offers = collector.zbieraj(object(), "kaufland")
+
+    assert [offer["nazov"] for offer in offers] == ["Olivový olej"]
+    assert models == [collector.MODEL_SCAN, collector.MODEL_READ]
+
+
 def test_flyer_pages_use_sonnet_first_and_opus_only_for_suspicious_prices(monkeypatch):
     pages, manifest = flyer_fixture(1)
     monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))

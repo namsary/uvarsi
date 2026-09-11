@@ -48,6 +48,14 @@ def health_json(plan_queue=None):
     )
 
 
+def test_dozorca_reads_health_json_even_when_readiness_http_status_is_503():
+    """503 znamená nepripravenosť produktu, nie nedostupné diagnostické JSON."""
+    source = (ROOT / "hetzner" / "dozorca.sh").read_text(encoding="utf-8")
+    assert "nacitaj_health()" in source
+    assert '"$CURL" -sS --max-time 1 "$PLAN_QUEUE_HEALTH_URL"' in source
+    assert '"$CURL" -fsS --max-time 1 "$PLAN_QUEUE_HEALTH_URL"' not in source
+
+
 @pytest.fixture(autouse=True)
 def offline_queue_health(monkeypatch, tmp_path):
     """Existing Dozorca cases do not need a real local FastAPI service."""
@@ -366,7 +374,7 @@ def _credit_exhausted_environment(tmp_path):
     fake_curl = tmp_path / "curl"
     fake_curl.write_text(
         "#!/bin/sh\n"
-        "case \"$*\" in -fsS*) exit 0 ;; esac\n"
+        "case \"$*\" in *api/health*) printf '%s\\n' \"$UVARSI_TEST_HEALTH\"; exit 0 ;; esac\n"
         f"printf '%s\\n' \"$*\" >> '{bash_path(notifications)}'\n",
         encoding="utf-8",
         newline="\n",
@@ -771,6 +779,60 @@ def test_dozorca_retries_only_the_store_whose_current_flyer_is_missing(tmp_path)
     assert collection_calls == ["-u zbierac_akcii.py --store lidl"]
 
 
+def test_dozorca_neplati_rovnaky_strukturalny_zber_opakovane_a_release_ho_odomkne(
+    tmp_path,
+):
+    """Rovnaká AI chyba sa smie zaplatiť raz; oprava kódu smie skúsiť zber znova."""
+    (tmp_path / "app").mkdir()
+    landing_data = tmp_path / "landing_data.json"
+    write_landing_data_atomic(landing_data, payload("2026-08-10"))
+    calls = tmp_path / "calls.txt"
+    release_sha = tmp_path / ".nasadene_sha"
+    release_sha.write_text(("a" * 40) + "\n", encoding="utf-8")
+
+    fake_python = tmp_path / "python"
+    fake_python.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"-c\" ]; then exit 1; fi\n"
+        f"printf '%s\\n' \"$*\" >> '{bash_path(calls)}'\n"
+        "case \"$*\" in\n"
+        "  *zbierac_akcii.py*) echo 'ZBER_STRUKTURALNY: chybná položka'; exit 1 ;;\n"
+        "esac\n"
+        "exit 3\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_python.chmod(0o755)
+    fake_sqlite = tmp_path / "sqlite3"
+    fake_sqlite.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        "  *\"SELECT lower(v.o)\"*) echo kaufland ;;\n"
+        "  *\"SELECT COUNT(*) FROM (\"*) echo 1 ;;\n"
+        f"  *MAX*) if grep -q zbierac_akcii.py '{bash_path(calls)}' 2>/dev/null; "
+        "then echo 1; else echo 0; fi ;;\n"
+        "  *) echo 40 ;;\n"
+        "esac\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_sqlite.chmod(0o755)
+
+    first = run_dozorca(tmp_path, landing_data)
+    repeated = run_dozorca(tmp_path, landing_data)
+    release_sha.write_text(("b" * 40) + "\n", encoding="utf-8")
+    after_release = run_dozorca(tmp_path, landing_data)
+
+    collection_calls = [
+        line
+        for line in calls.read_text(encoding="utf-8").splitlines()
+        if "zbierac_akcii.py" in line
+    ]
+    assert (first.returncode, repeated.returncode, after_release.returncode) == (3, 3, 3)
+    assert len(collection_calls) == 2
+    assert "nezmenil" in repeated.stdout
+
+
 def test_dozorca_pri_stalom_landingu_najprv_obnovi_blocek_a_az_potom_zohrieva(tmp_path):
     (tmp_path / "app").mkdir()
     landing_data = tmp_path / "landing_data.json"
@@ -887,7 +949,7 @@ def test_dozorca_alerts_once_for_a_stalled_plan_queue_and_clears_after_recovery(
         "#!/bin/sh\n"
         "case \"$*\" in\n"
         f"  *ntfy.sh/*) printf '%s\\n' \"$*\" >> '{bash_path(notifications)}' ;;\n"
-        "  -fsS*api/health*) printf '%s\\n' \"$UVARSI_TEST_HEALTH\" ;;\n"
+        "  *api/health*) printf '%s\\n' \"$UVARSI_TEST_HEALTH\" ;;\n"
         "esac\n",
         encoding="utf-8",
         newline="\n",
@@ -980,7 +1042,7 @@ def test_dozorca_retries_http_500_queue_notification_then_suppresses_after_succe
         "  case \"$*\" in *-fsS*) exit 22 ;; *) exit 0 ;; esac; "
         "fi; "
         f"sed -i '$s/500/200/' '{bash_path(attempts)}'; exit 0 ;;\n"
-        "  -fsS*api/health*) printf '%s\\n' \"$UVARSI_TEST_HEALTH\" ;;\n"
+        "  *api/health*) printf '%s\\n' \"$UVARSI_TEST_HEALTH\" ;;\n"
         "esac\n",
         encoding="utf-8",
         newline="\n",

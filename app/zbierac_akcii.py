@@ -845,11 +845,14 @@ def _offers_from_extraction(items, *, store, manifest, batch_pages):
     if not isinstance(items, list):
         raise ValueError(f"{store}: extrakcia nevrátila zoznam akcií")
     offers = []
+    first_rejection = None
     for item in items:
-        source_page = item.get("source_page") if isinstance(item, dict) else None
-        if source_page not in batch_pages:
-            raise ValueError(f"{store}: akcia odkazuje na nevybranú zdrojovú stranu")
         try:
+            source_page = item.get("source_page") if isinstance(item, dict) else None
+            if source_page not in batch_pages:
+                raise ValueError(
+                    f"{store}: akcia odkazuje na nevybranú zdrojovú stranu"
+                )
             offer = {
                 "obchod": store.capitalize(),
                 "nazov": str(item["nazov"])[:40],
@@ -877,27 +880,47 @@ def _offers_from_extraction(items, *, store, manifest, batch_pages):
                 "valid_from": manifest["valid_from"],
                 "valid_to": manifest["valid_to"],
             }
+            conditional_metadata = (
+                offer["zlava_s_kartou"], offer["vernostny_program"],
+                offer["minimalny_nakup"], offer["podmienka_s_kartou"],
+            )
+            if offer["cena_s_kartou"] is None and any(
+                value not in (None, "") for value in conditional_metadata
+            ):
+                raise ValueError("neúplná vernostná cena")
+            if offer["cena_s_kartou"] is not None:
+                # Obchod poznáme z aktuálne spracúvaného letáku. Názov jeho
+                # vernostného programu preto nie je údaj, ktorý má model hádať.
+                offer["vernostny_program"] = LOYALTY_PROGRAM_BY_STORE[offer["obchod"]]
+            validate_offer(offer)
+            _validate_discount_arithmetic(offer)
         except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError(f"{store}: extrakcia obsahuje neplatnú akciu") from exc
-        conditional_metadata = (
-            offer["zlava_s_kartou"], offer["vernostny_program"],
-            offer["minimalny_nakup"], offer["podmienka_s_kartou"],
-        )
-        if offer["cena_s_kartou"] is None and any(
-            value not in (None, "") for value in conditional_metadata
-        ):
+            # Vision občas zle prečíta jedinú cenovku. Taká položka nesmie
+            # zhodiť všetky ostatné overené ceny na rovnakej strane. Ak po
+            # karanténe na strane nič nezostane, kontrola pokrytia nižšie aj
+            # tak vynúti druhé čítanie alebo bezpečný pád celého batchu.
+            if first_rejection is None:
+                first_rejection = exc
+            page = item.get("source_page") if isinstance(item, dict) else "?"
+            name = item.get("nazov") if isinstance(item, dict) else "neplatná položka"
             log(
-                f"[WARN] {store}: vynechávam neúplnú vernostnú cenu "
-                f"na strane {source_page} ({offer['nazov']})"
+                f"[WARN] {store}: vynechávam neoverenú položku "
+                f"na strane {page} ({str(name)[:40]}): {exc}"
             )
             continue
-        if offer["cena_s_kartou"] is not None:
-            # Obchod poznáme z aktuálne spracúvaného letáku. Názov jeho
-            # vernostného programu preto nie je údaj, ktorý má model hádať.
-            offer["vernostny_program"] = LOYALTY_PROGRAM_BY_STORE[offer["obchod"]]
-        validate_offer(offer)
-        _validate_discount_arithmetic(offer)
         offers.append(offer)
+    if not offers and first_rejection is not None:
+        raise first_rejection
+    return offers
+
+
+def _require_every_page(offers, batch_pages):
+    represented = {offer["source_page"] for offer in offers}
+    missing = set(batch_pages) - represented
+    if missing:
+        raise ValueError(
+            "bez overenej položky zo strán " + ", ".join(map(str, sorted(missing)))
+        )
     return offers
 
 
@@ -911,13 +934,7 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content):
         offers = _offers_from_extraction(
             items, store=store, manifest=manifest, batch_pages=batch_pages
         )
-        represented = {offer["source_page"] for offer in offers}
-        missing = set(batch_pages) - represented
-        if missing:
-            raise ValueError(
-                "bez overenej položky zo strán " + ", ".join(map(str, sorted(missing)))
-            )
-        return offers
+        return _require_every_page(offers, batch_pages)
     except naklady.KreditVycerpany:
         raise
     except Exception as exc:
@@ -935,8 +952,11 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content):
             READ_TOKENS,
             effort=READ_FALLBACK_EFFORT,
         )
-        return _offers_from_extraction(
-            items, store=store, manifest=manifest, batch_pages=batch_pages
+        return _require_every_page(
+            _offers_from_extraction(
+                items, store=store, manifest=manifest, batch_pages=batch_pages
+            ),
+            batch_pages,
         )
     except naklady.KreditVycerpany:
         raise
@@ -1129,7 +1149,7 @@ def main(stores=None):
         raw_client,
         budget_purpose,
     )
-    total, failures, collected = 0, [], []
+    total, failures, structural_failures, collected = 0, [], [], []
     try:
         for store in selected_stores:
             try:
@@ -1150,10 +1170,16 @@ def main(stores=None):
                 raise SystemExit(
                     f"Zber zastavený — KREDIT_VYCERPANY: {odmietnutie}"
                 ) from None
+            except ValueError as exc:
+                failures.append(store)
+                structural_failures.append(store)
+                record_store_outcome(con, tyz, store.capitalize(), "fail", 0, str(exc)[:300])
+                log(f"[ERROR] {store}: zber zlyhal ({exc})")
+                continue
             except Exception as exc:
                 failures.append(store)
                 record_store_outcome(con, tyz, store.capitalize(), "fail", 0, str(exc)[:300])
-                log(f"[ERROR] {store}: zber zlyhal ({exc})")
+                log(f"[ERROR] {store}: dočasný zber zlyhal ({exc})")
                 continue
             total += len(akcie)
             collected.append(store)
@@ -1166,9 +1192,18 @@ def main(stores=None):
     # Strojovo čitateľný súhrn: dozorca sa nesmie spoliehať na počet riadkov,
     # dva zdravé obchody ho vždy prevýšia a tretí sa už nikdy nedozberá.
     log("[SUMMARY] " + json.dumps(
-        {"tyzden": tyz, "ok": collected, "fail": failures, "akcie": total},
+        {
+            "tyzden": tyz,
+            "ok": collected,
+            "fail": failures,
+            "structural_fail": structural_failures,
+            "akcie": total,
+        },
         ensure_ascii=False, sort_keys=True))
     if failures:
+        if len(structural_failures) == len(failures):
+            log("ZBER_STRUKTURALNY: všetky neúspešné obchody zlyhali "
+                "na rovnakej validácii vstupu alebo extrakcie")
         raise SystemExit(f"Zber zlyhal pre obchody: {', '.join(failures)}")
     log(f"[OK] Týždeň {tyz}: uložených {total} akcií (v DB spolu {n}).")
     if n < 20:

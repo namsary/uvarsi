@@ -40,6 +40,7 @@ PLAN_QUEUE_ALERT_STATE="$DIR/.plan_queue_alert_state"
 RECIPE_ENGINE_ALERT_STATE="$DIR/.recipe_engine_alert_state"
 RECIPE_SMOKE_ATTEMPT_STATE="$DIR/.recipe_engine_smoke_attempt"
 COLLECTION_DIAGNOSTIC_STATE="$DIR/.collection_diagnostic_state"
+COLLECTION_FAILURE_STATE="$DIR/.collection_failure_state"
 RECIPE_SMOKE_STATE="${UVARSI_RECIPE_SMOKE_STATE:-/var/lib/uvarsi/recipe_engine_smoke.json}"
 PLAN_QUEUE_HEALTH_URL="${UVARSI_PLAN_QUEUE_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
 RECIPE_SMOKE_MIN_INTERVAL_SECONDS="${UVARSI_RECIPE_SMOKE_MIN_INTERVAL_SECONDS:-900}"
@@ -58,6 +59,7 @@ export TZ=Europe/Bratislava
 
 log(){ echo "[$(TZ=Europe/Bratislava "$DATE" '+%F %T')] DOZORCA: $*"; }
 notify(){ "$CURL" -fsS --max-time 15 -H "Title: $1" -d "$2" "https://ntfy.sh/${NTFY_TOPIC}" >/dev/null 2>&1; }
+nacitaj_health(){ "$CURL" -sS --max-time 1 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true; }
 
 upozorni_detail_zberu() {
   DATA_KEY="$1"
@@ -114,7 +116,7 @@ case "$CREDIT_RETRY_SECONDS" in ''|*[!0-9]*|0) log "CHYBA — interval kontroly 
 skontroluj_frontu_planov() {
   # Health odpoveď je jediný zdroj pravdy: dozorca nesmie z počtu procesov
   # hádať, či worker reálne obnovuje lease.
-  HEALTH=$("$CURL" -fsS --max-time 1 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true)
+  HEALTH=$(nacitaj_health)
   [ -n "$HEALTH" ] || { log "UNKNOWN — frontu plánov sa nedá overiť cez health; značka upozornenia ostáva"; return; }
   STAV_FRONTY=$(printf '%s' "$HEALTH" | "$HEALTH_PY" -c '
 import datetime as dt, json, sys
@@ -248,7 +250,7 @@ skontroluj_recipe_engine() {
       return 1
     fi
 
-    HEALTH=$("$CURL" -fsS --max-time 1 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true)
+    HEALTH=$(nacitaj_health)
     STAV_ENGINE=$(recipe_engine_health_state) || {
       recipe_engine_alert "health po automatickej aktivácii sa nedá overiť"
       return 1
@@ -288,7 +290,7 @@ skontroluj_recipe_engine() {
         recipe_engine_alert "revalidácia po zmene akcií zlyhala"
         return 1
       fi
-      HEALTH=$("$CURL" -fsS --max-time 1 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true)
+      HEALTH=$(nacitaj_health)
       STAV_ENGINE=$(recipe_engine_health_state) || {
         recipe_engine_alert "health po revalidácii sa nedá overiť"
         return 1
@@ -339,7 +341,7 @@ skontroluj_recipe_engine() {
     return 1
   fi
 
-  HEALTH=$("$CURL" -fsS --max-time 1 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true)
+  HEALTH=$(nacitaj_health)
   STAV_ENGINE=$(recipe_engine_health_state) || {
     recipe_engine_alert "health po smoke sa nedá overiť"
     return 1
@@ -498,6 +500,26 @@ if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
   if [ "${#ZBER_ARGS[@]}" -eq 0 ]; then
     ZBER_ARGS=(--store kaufland --store tesco --store lidl)
   fi
+
+  # Štrukturálna chyba Vision/extrakcie sa pri nezmenenom kóde a rovnakých
+  # vstupných dátach sama neopraví. Pamätáme si ju EŠTE PRED spustením
+  # plateného zberača. Nový deň, zmena zberového stavu alebo nové vydanie
+  # vytvoria nový kľúč a bezpečne povolia práve jeden ďalší pokus.
+  ZBER_VSTUP_REV=$(sqlite3 "$DIR/uvarsi.db" \
+    "SELECT COALESCE(MAX(strftime('%s', updated)), '0')
+       FROM zber_stav WHERE tyzden='$MON_ISO'" 2>/dev/null || echo 0)
+  NEUPLNE_KEY=$(printf '%s' "$NEUPLNE_OBCHODY" | tr '\r\n ' ':' | tr -s ':')
+  COLLECTION_KEY="${TODAY}:${MON_ISO}:${POCET:-0}:${CHYBA_ZBER:-3}:${ZBER_VSTUP_REV:-0}:${NEUPLNE_KEY:-all}:${CURRENT_RELEASE}"
+  LAST_COLLECTION_KEY=""
+  if [ -f "$COLLECTION_FAILURE_STATE" ]; then
+    read -r LAST_COLLECTION_KEY < "$COLLECTION_FAILURE_STATE" || LAST_COLLECTION_KEY=""
+  fi
+  if [ "$LAST_COLLECTION_KEY" = "$COLLECTION_KEY" ]; then
+    log "ŠTRUKTURÁLNY zber sa pri rovnakých dátach a vydaní nezmenil — platený pokus neopakujem."
+    upozorni_detail_zberu "$COLLECTION_KEY" "$MON_ISO"
+    exit "$EXIT_STRUCTURAL"
+  fi
+
   ZBER_VYSTUP=$(cd "$DIR/app" && UVARSI_DEPLOY_CREDIT_PROBE="$RELEASE_CHANGED" \
     "$PY" -u zbierac_akcii.py "${ZBER_ARGS[@]}" 2>&1)
   ZBER_RC=$?
@@ -508,8 +530,22 @@ if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
       log "KREDIT VYČERPANÝ — zberač bol odmietnutý ešte pred čítaním; o hodinu automaticky overím dobitie."
       exit "$EXIT_STRUCTURAL"
       ;;
+    *ZBER_STRUKTURALNY*)
+      # Zberač pri páde zapíše detail a nový čas do zber_stav. Blok preto
+      # viažeme na stav PO tomto zápise; inak by práve diagnostický timestamp
+      # pri ďalšej hodine neúmyselne odomkol ten istý platený pokus.
+      ZBER_FAILURE_REV=$(sqlite3 "$DIR/uvarsi.db" \
+        "SELECT COALESCE(MAX(strftime('%s', updated)), '0')
+           FROM zber_stav WHERE tyzden='$MON_ISO'" 2>/dev/null || echo 0)
+      COLLECTION_KEY="${TODAY}:${MON_ISO}:${POCET:-0}:${CHYBA_ZBER:-3}:${ZBER_FAILURE_REV:-0}:${NEUPLNE_KEY:-all}:${CURRENT_RELEASE}"
+      printf '%s\n' "$COLLECTION_KEY" > "$COLLECTION_FAILURE_STATE"
+      log "ŠTRUKTURÁLNY zber zlyhal — rovnaký platený pokus zopakujem až po zmene dát, dňa alebo vydania."
+      upozorni_detail_zberu "$COLLECTION_KEY" "$MON_ISO"
+      exit "$EXIT_STRUCTURAL"
+      ;;
   esac
   if [ "$ZBER_RC" -eq 0 ]; then
+    rm -f "$COLLECTION_FAILURE_STATE"
     log "zbierač OK"
   else
     log "zbierač zlyhal — appka zatiaľ nemá aktuálne dáta"
@@ -599,7 +635,7 @@ if [ "$RC" -eq 0 ] && landing_data_is_current; then
   if [ "${POCET:-0}" -ge 30 ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]; then
     zahrej_plany
   fi
-  HEALTH=$("$CURL" -fsS --max-time 1 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true)
+  HEALTH=$(nacitaj_health)
   skontroluj_recipe_engine || exit 1
   rm -f "$STATE"
   exit 0
