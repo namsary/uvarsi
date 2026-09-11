@@ -4,6 +4,7 @@ from copy import deepcopy
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from urllib.parse import urlsplit
 
 try:
     from .weekly_data import current_monday
@@ -241,13 +242,60 @@ def landing_data_state(
         return HISTORICAL_LANDING_STATE, generated_day
 
 
+def _required_iso_date(record: dict, field: str) -> date:
+    try:
+        return date.fromisoformat(_required_text(record.get(field), field))
+    except ValueError as error:
+        raise ValueError(f"Chýba alebo nesedí {field}.") from error
+
+
+def validate_publishable_landing_data(
+    payload: dict,
+    today: date | None = None,
+    required_offer_data_version: int | None = None,
+) -> tuple[str, date]:
+    """Apply the same strict public-price contract to landing API and SEO."""
+    state, reference_day = landing_data_state(
+        payload, today, required_offer_data_version
+    )
+    validated_stores: set[str] = set()
+    for source in payload["sources"]:
+        store = _required_text(source.get("store"), "store").strip()
+        url = _required_text(source.get("url"), "url").strip()
+        try:
+            parsed = urlsplit(url)
+        except ValueError as error:
+            raise ValueError("Zdroj nemá platnú absolútnu URL.") from error
+        if (
+            parsed.scheme.casefold() not in {"http", "https"}
+            or not parsed.hostname
+            or any(character.isspace() for character in parsed.hostname)
+        ):
+            raise ValueError("Zdroj nemá platnú absolútnu URL.")
+        valid_from = _required_iso_date(source, "valid_from")
+        valid_to = _required_iso_date(source, "valid_to")
+        if valid_from > valid_to or not valid_from <= reference_day <= valid_to:
+            raise ValueError("Zdroj nie je platný v referenčný deň.")
+        validated_stores.add(store.casefold())
+
+    for meal in payload["receipt"]["meals"]:
+        for item in meal["items"]:
+            store = _required_text(item.get("store"), "store").strip()
+            _required_text(item.get("unit"), "unit")
+            if item.get("price") in (None, ""):
+                raise ValueError("Položka nemá cenu potrebnú na zverejnenie.")
+            if store.casefold() not in validated_stores:
+                raise ValueError("Položka nemá validovaný zdroj pre svoj obchod.")
+    return state, reference_day
+
+
 def public_landing_payload(
     payload: dict,
     today: date | None = None,
     required_offer_data_version: int | None = None,
 ) -> dict:
     """Return current data or a claim-safe last-known-good public example."""
-    state, _reference_day = landing_data_state(
+    state, _reference_day = validate_publishable_landing_data(
         payload, today, required_offer_data_version
     )
     if state == CURRENT_LANDING_STATE:

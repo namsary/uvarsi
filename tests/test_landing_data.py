@@ -314,3 +314,19 @@ def test_current_public_receipt_is_unchanged_apart_from_machine_readable_state()
     public = landing_data.public_landing_payload(data, date(2026, 8, 18))
 
     assert public == {**data, "state": "current"}
+
+
+@pytest.mark.parametrize("public_day", [date(2026, 8, 18), date(2026, 8, 25)])
+@pytest.mark.parametrize("missing", ["source_valid_from", "item_unit"])
+def test_public_receipt_rejects_data_that_the_seo_page_cannot_publish(public_day, missing):
+    data = receipt_with(
+        [item()], nakup_spolu="1,00", bezne="1,50", usetris="0,50",
+        polozky=1, polozky_s_beznou_cenou=1,
+    )
+    if missing == "source_valid_from":
+        data["sources"][0].pop("valid_from")
+    else:
+        data["receipt"]["meals"][0]["items"][0].pop("unit")
+
+    with pytest.raises(ValueError):
+        landing_data.public_landing_payload(data, public_day)

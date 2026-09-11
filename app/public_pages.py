@@ -9,17 +9,17 @@ from urllib.parse import urlsplit
 try:
     from .landing_data import (
         HISTORICAL_LANDING_STATE,
-        landing_data_state,
         public_landing_payload,
         validate_landing_data,
+        validate_publishable_landing_data,
     )
     from .offer_data import CURRENT_COLLECTION_DATA_VERSION
 except ImportError:
     from landing_data import (
         HISTORICAL_LANDING_STATE,
-        landing_data_state,
         public_landing_payload,
         validate_landing_data,
+        validate_publishable_landing_data,
     )
     from offer_data import CURRENT_COLLECTION_DATA_VERSION
 
@@ -233,38 +233,6 @@ def _shared_validity_markup(sources: list[dict]) -> str:
     return '<p class="meta">Platnosť cien sa líši podľa obchodu.</p>'
 
 
-def _validate_publishable_data(payload: dict, today: date) -> None:
-    validated_stores: set[str] = set()
-    for source in payload["sources"]:
-        store = _required_text_field(source, "store").strip()
-        url = _required_text_field(source, "url").strip()
-        try:
-            parsed = urlsplit(url)
-        except ValueError as error:
-            raise ValueError("Zdroj nemá platnú absolútnu URL.") from error
-        if (
-            parsed.scheme.casefold() not in {"http", "https"}
-            or not parsed.hostname
-            or any(character.isspace() for character in parsed.hostname)
-        ):
-            raise ValueError("Zdroj nemá platnú absolútnu URL.")
-
-        valid_from = _required_iso_date(source, "valid_from")
-        valid_to = _required_iso_date(source, "valid_to")
-        if valid_from > valid_to or not valid_from <= today <= valid_to:
-            raise ValueError("Zdroj nie je platný v dnešný deň.")
-        validated_stores.add(store.casefold())
-
-    for meal in payload["receipt"]["meals"]:
-        for item in meal["items"]:
-            store = _required_text_field(item, "store").strip()
-            _required_text_field(item, "unit")
-            if item.get("price") in (None, ""):
-                raise ValueError("Položka nemá cenu potrebnú na zverejnenie.")
-            if store.casefold() not in validated_stores:
-                raise ValueError("Položka nemá validovaný zdroj pre svoj obchod.")
-
-
 def _weekly_body(payload: dict) -> str:
     receipt = payload["receipt"]
     sources = payload["sources"]
@@ -398,12 +366,11 @@ def render_weekly_page(payload: dict | None, today: date | None = None) -> Rende
     if not isinstance(payload, dict):
         return _weekly_recovery(today)
     try:
-        state, reference_day = landing_data_state(
+        state, reference_day = validate_publishable_landing_data(
             payload,
             today,
             required_offer_data_version=CURRENT_COLLECTION_DATA_VERSION,
         )
-        _validate_publishable_data(payload, reference_day)
     except ValueError:
         return _weekly_recovery(today)
 

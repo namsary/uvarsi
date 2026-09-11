@@ -5252,7 +5252,10 @@ def public_landing():
             required_offer_data_version=CURRENT_COLLECTION_DATA_VERSION,
         )
     except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError, ValueError):
-        raise HTTPException(503, "Aktuálne letákové dáta sa obnovujú.")
+        return JSONResponse(
+            status_code=503,
+            content={"state": "unavailable", "detail": "Bloček sa práve pripravuje."},
+        )
 
     try:
         with closing(db()) as con:

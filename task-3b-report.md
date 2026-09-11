@@ -42,3 +42,17 @@
 - `task-3b-report.md`
 
 `app/static/app.html` nebolo potrebné meniť: nepoužíva verejný landing endpoint a aktuálne plánové dáta číta vlastnou oddelenou cestou.
+
+## Fix round 1 — review po commite `ffed78a`
+
+- `PLAN_ALGO_VERSION` je zvýšená z 26 na 27. Osobná aj zdieľaná cache preto nemôže vrátiť plán vytvorený pred zavedením Tesco HM/SM labelov.
+- Landing API a SEO renderer používajú spoločný prísny publishable validátor. Chýbajúce `valid_from`, neplatná absolútna URL, chýbajúca jednotka/cena alebo položka bez validovaného zdroja zneplatnia aktuálny aj historický payload ešte pred zobrazením ceny.
+- Tesco label sa odvodí iba vtedy, keď `source_policy.collector_kind_for_url` vráti `official-tesco-viewer` a cesta obsahuje presne jeden segment `hypermarkety` alebo `supermarkety`.
+- Nedostupný landing endpoint vracia HTTP 503 s bezpečným JSON kontraktom `{"state":"unavailable","detail":"Bloček sa práve pripravuje."}`.
+
+### TDD a overenie fix round 1
+
+- RED: 8 očakávaných zlyhaní reprodukovalo mäkkú landing validáciu, neoficiálny Tesco host, chýbajúci `state=unavailable` a cache algoritmu 26.
+- GREEN po jednotlivých opravách: cache `1 passed`, Tesco politika `7 passed`, strict landing/SEO `26 passed`, API/cache `3 passed`.
+- Finálna focused sada: `390 passed, 36 skipped`, bez zlyhania; jediný warning pochádza z deprecácie aliasu v Starlette test clientovi.
+- Testy použili iba lokálne fixture dáta; bez live siete, AI a serverovej mutácie.

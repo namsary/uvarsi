@@ -13,9 +13,11 @@ from urllib.parse import urlsplit
 try:
     from .weekly_data import current_monday, current_verified_offers
     from .offer_data import canonical_offer_key
+    from .source_policy import collector_kind_for_url
 except ImportError:
     from weekly_data import current_monday, current_verified_offers
     from offer_data import canonical_offer_key
+    from source_policy import collector_kind_for_url
 
 
 CENT = Decimal("0.01")
@@ -31,23 +33,9 @@ _TESCO_DISPLAY_SEGMENTS = {
 
 def _display_store_name(store, source_url):
     """Derive a customer-facing Tesco format from a trusted official URL only."""
-    if store != "Tesco" or not isinstance(source_url, str) or source_url != source_url.strip():
+    if store != "Tesco" or collector_kind_for_url(source_url) != "official-tesco-viewer":
         return store
-    try:
-        parsed = urlsplit(source_url)
-        port = parsed.port
-    except ValueError:
-        return store
-    if (
-        parsed.scheme != "https"
-        or parsed.username is not None
-        or parsed.password is not None
-        or port is not None
-        or (parsed.hostname or "").casefold() not in {"tesco.sk", "www.tesco.sk"}
-        or parsed.query
-        or parsed.fragment
-    ):
-        return store
+    parsed = urlsplit(source_url)
     segments = tuple(segment.casefold() for segment in parsed.path.split("/") if segment)
     matches = [label for segment, label in _TESCO_DISPLAY_SEGMENTS.items() if segment in segments]
     return matches[0] if len(matches) == 1 else store
@@ -1222,8 +1210,10 @@ PLAN_VARIANT_HINTS = (
 #      dostupné každému a staré plány bez podmienok kariet sa zneplatnia.
 # 26 = veľká dávka jedného vareného jedla zostáva v jednom hrnci; renderer ju
 #      už automaticky nerozdeľuje medzi viac hrncov.
+# 27 = Tesco HM/SM sa odvodzuje iba z overenej oficiálnej URL a staré cache
+#      bez tohto zobrazovacieho pravidla sa nesmú znovu použiť.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 26
+PLAN_ALGO_VERSION = 27
 
 
 def plan_variant_for(user_id, variants):

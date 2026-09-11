@@ -953,6 +953,7 @@ def test_official_tesco_source_url_sets_the_display_label_without_changing_store
     "source_url",
     [
         "https://example.test/hypermarkety/tesco-letak-2026-08-17/1",
+        "https://tesco.sk/akciove-ponuky/letaky-a-katalogy/hypermarkety/tesco-letak-2026-08-17/1",
         "https://www.tesco.sk.evil.test/akciove-ponuky/letaky-a-katalogy/hypermarkety/tesco-letak-2026-08-17/1",
         "https://www.tesco.sk/akciove-ponuky/letaky-a-katalogy/hypermarkety/tesco-letak-2026-08-17/1?redirect=1",
         "http://www.tesco.sk/akciove-ponuky/letaky-a-katalogy/hypermarkety/tesco-letak-2026-08-17/1",

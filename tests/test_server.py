@@ -647,6 +647,34 @@ def test_public_landing_keeps_a_mathematically_broken_snapshot_unavailable(
     response = TestClient(server.app).get("/api/public/landing")
 
     assert response.status_code == 503
+    assert response.json() == {
+        "state": "unavailable",
+        "detail": "Bloček sa práve pripravuje.",
+    }
+
+
+def test_public_landing_rejects_historical_price_with_incomplete_source(
+    monkeypatch, tmp_path
+):
+    today = date.today()
+    historical_monday = today - timedelta(days=today.weekday() + 7)
+    data = landing_payload(historical_monday.isoformat())
+    data["generated_at"] = historical_monday.isoformat() + "T07:00:00+02:00"
+    data["sources"][0].update(
+        valid_from=historical_monday.isoformat(),
+        valid_to=(historical_monday + timedelta(days=6)).isoformat(),
+    )
+    data["sources"][0].pop("valid_from")
+    server = load_server(monkeypatch, tmp_path, [], data)
+
+    response = TestClient(server.app).get("/api/public/landing")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "state": "unavailable",
+        "detail": "Bloček sa práve pripravuje.",
+    }
+    assert "1,00" not in response.text
 
 
 def test_public_landing_counts_only_paid_founders_towards_the_50_places(
@@ -768,7 +796,10 @@ def test_public_landing_is_503_for_stale_data(monkeypatch, tmp_path):
     response = TestClient(server.app).get("/api/public/landing")
 
     assert response.status_code == 503
-    assert response.json()["detail"] == "Aktuálne letákové dáta sa obnovujú."
+    assert response.json() == {
+        "state": "unavailable",
+        "detail": "Bloček sa práve pripravuje.",
+    }
 
 
 def test_weekly_public_page_serves_current_valid_html(monkeypatch, tmp_path):
@@ -2110,6 +2141,37 @@ def test_get_invalidates_legacy_personal_plan_without_portion_version_for_free(
     with server.db() as con:
         assert con.execute("SELECT COUNT(*) FROM plany WHERE user_id=1").fetchone()[0] == 0
         assert con.execute("SELECT COUNT(*) FROM prepocty WHERE user_id=1").fetchone()[0] == 0
+
+
+def test_tesco_display_change_invalidates_cached_plan_from_algorithm_26(
+    monkeypatch, tmp_path
+):
+    server = load_server(monkeypatch, tmp_path, current_plan_rows())
+    with server.db() as con:
+        con.execute(
+            "INSERT INTO pouzivatelia (id, email, obchody) "
+            "VALUES (1, 'tesco-label-cache@uvar.si', 'Lidl')"
+        )
+        insert_hashed_session(server, con, "tesco-label-cache-session", 1)
+        cached = build_personal_plan(con, model_plan(), ["Lidl"], 2, 4)
+        cached = server.osobny_plan_na_ulozenie(
+            cached, podpis=current_personal_signature(server),
+        )
+        cached["_uvarsi_meta"]["algo_version"] = 26
+        con.execute(
+            "INSERT INTO plany (user_id, tyzden, json) VALUES (1, ?, ?)",
+            (current_monday(), json.dumps(cached)),
+        )
+        con.commit()
+    client = TestClient(server.app)
+    client.cookies.set(server.COOKIE, "tesco-label-cache-session")
+
+    response = client.get("/api/plan")
+
+    assert response.status_code == 200
+    assert response.json()["dovod"] == "plan_zastaral"
+    with server.db() as con:
+        assert con.execute("SELECT COUNT(*) FROM plany WHERE user_id=1").fetchone()[0] == 0
 
 
 def test_portion_standard_bump_requires_get_then_allows_explicit_post_regeneration(
