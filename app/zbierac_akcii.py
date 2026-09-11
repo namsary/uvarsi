@@ -111,7 +111,6 @@ KAUFLAND_OFFERS_URL = (
 )
 COLLECTION_DATA_VERSION = CURRENT_COLLECTION_DATA_VERSION
 COLLECTION_LEASE_SECONDS = 30 * 60
-COLLECTION_POLICY_RELEASE = "task3a-fix2-2026-09-11"
 OFFICIAL_COLLECTOR_BY_STORE = {
     "Kaufland": "official-kaufland-offers",
     "Tesco": "official-tesco-viewer",
@@ -133,7 +132,37 @@ class PreparedCollection:
     manifest: dict
     page_manifest: dict
     provenance: CollectionProvenance
-    page_bytes: dict | None = None
+    page_bytes: object | None = None
+
+
+class PageByteSpool:
+    """Disk-backed one-shot page cache; full flyers never accumulate in RAM."""
+
+    def __init__(self):
+        self._directory = tempfile.TemporaryDirectory(prefix="uvarsi-source-pages-")
+        self._paths = {}
+
+    def put(self, source_page, content):
+        path = Path(self._directory.name) / f"page-{int(source_page):03d}.bin"
+        path.write_bytes(content)
+        self._paths[int(source_page)] = path
+
+    def pop(self, source_page, default=None):
+        path = self._paths.pop(int(source_page), None)
+        if path is None:
+            return default
+        try:
+            return path.read_bytes()
+        finally:
+            path.unlink(missing_ok=True)
+
+    def get(self, source_page, default=None):
+        path = self._paths.get(int(source_page))
+        return path.read_bytes() if path is not None else default
+
+    def cleanup(self):
+        self._paths.clear()
+        self._directory.cleanup()
 
 
 class ManifestPreparationError(ValueError):
@@ -311,6 +340,7 @@ def manifest_fingerprint(manifest):
         "source_url": manifest.get("source_url"),
         "collector_kind": manifest.get("collector_kind"),
         "source_identity": manifest.get("source_identity"),
+        "content_identity": manifest.get("content_identity"),
         "attempt_state": manifest.get("attempt_state"),
         "valid_from": manifest.get("valid_from"),
         "valid_to": manifest.get("valid_to"),
@@ -341,7 +371,45 @@ def _approved_official_source(store, collector_kind):
     )
 
 
-def structural_failure_identity(store, provenance, *, release=COLLECTION_POLICY_RELEASE):
+def deployed_release_identity():
+    """Return the running release identity, never a manually bumped constant."""
+    configured = os.environ.get("UVARSI_RELEASE_SHA", "").strip().lower()
+    if re.fullmatch(r"[0-9a-f]{7,64}", configured):
+        return configured
+    release_file = Path(__file__).resolve().parent.parent / ".nasadene_sha"
+    try:
+        recorded = release_file.read_text(encoding="ascii").strip().lower()
+    except (OSError, UnicodeError):
+        recorded = ""
+    if re.fullmatch(r"[0-9a-f]{7,64}", recorded):
+        return recorded
+    return "collector-sha256:" + hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+
+
+def source_policy_identity():
+    """Hash the complete live policy registry and the policy implementation."""
+    registry = []
+    for (store, collector_kind), record in sorted(source_policy._REGISTRY.items()):
+        registry.append({
+            "store": store,
+            "collector_kind": collector_kind,
+            "record": dict(sorted(record.items())),
+        })
+    try:
+        policy_code = hashlib.sha256(Path(source_policy.__file__).read_bytes()).hexdigest()
+    except (OSError, TypeError):
+        policy_code = "unavailable"
+    payload = {
+        "registry": registry,
+        "status": source_policy.source_policy_status(),
+        "policy_code_sha256": policy_code,
+    }
+    return hashlib.sha256(json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")).hexdigest()
+
+
+def structural_failure_identity(store, provenance):
     """Identify bytes plus the policy/release decision that rejected them."""
     if not isinstance(provenance, CollectionProvenance):
         raise ValueError("structural failure identity requires provenance")
@@ -351,7 +419,8 @@ def structural_failure_identity(store, provenance, *, release=COLLECTION_POLICY_
         "source_fingerprint": provenance.source_fingerprint,
         "approved": _approved_official_source(store, provenance.collector_kind),
         "data_version": COLLECTION_DATA_VERSION,
-        "release": release,
+        "release": deployed_release_identity(),
+        "source_policy": source_policy_identity(),
     }
     return hashlib.sha256(json.dumps(
         payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
@@ -1329,6 +1398,8 @@ def store_pages(store, today=None):
             pages, manifest = official_lidl_pages(today=today)
             log(f"[INFO] {store}: oficiálny leták má {len(pages)} strán")
             return pages, manifest
+        except ManifestPreparationError:
+            raise
         except Exception as e:
             log(f"[WARN] {store}: oficiálny leták odmietnutý ({e})")
     if store == "tesco":
@@ -1336,6 +1407,8 @@ def store_pages(store, today=None):
             pages, manifest = official_tesco_pages(today=today, leaflet_format="HM")
             log(f"[INFO] {store}: oficiálny leták má {len(pages)} strán")
             return pages, manifest
+        except ManifestPreparationError:
+            raise
         except Exception as e:
             log(f"[WARN] {store}: oficiálny leták odmietnutý ({e})")
         if _production_environment():
@@ -1630,6 +1703,35 @@ def guarded_client(con, client, purpose="zber_letakov"):
     )
 
 
+class _LeaseRenewingMessages:
+    def __init__(self, messages, renew):
+        self._messages = messages
+        self._renew = renew
+
+    def create(self, **kwargs):
+        if not self._renew():
+            raise RuntimeError("collection lease was lost before model request")
+        response = self._messages.create(**kwargs)
+        if not self._renew():
+            raise RuntimeError("collection lease was lost after model request")
+        return response
+
+
+class _LeaseRenewingClient:
+    def __init__(self, client, renew):
+        self.messages = _LeaseRenewingMessages(client.messages, renew)
+
+
+def lease_renewing_client(con, client, week, store, owner, source_fingerprint):
+    """Renew a bounded lease around every paid request."""
+    return _LeaseRenewingClient(
+        client,
+        lambda: renew_store_claim(
+            con, week, store, owner, source_fingerprint
+        ),
+    )
+
+
 SCAN_PROMPT = """Toto sú náhľady strán letáku. Pri každej je číslo. Vráť IBA JSON zoznam \
 čísel strán, ktoré obsahujú POTRAVINY (mäso, hydina, ryby, zelenina, ovocie, mliečne, \
 syry, vajcia, pečivo, ryža, cestoviny, múka, oleje, strukoviny, konzervy).
@@ -1831,7 +1933,7 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content):
 
 def _collect_validated_flyer(
         client, store, manifest, page_manifest, *, tesco_page_scans=None,
-        tesco_page_paths=None):
+        tesco_page_paths=None, page_cache=None):
     tesco_page_scans = tesco_page_scans or {}
     tesco_page_paths = tesco_page_paths or {}
 
@@ -1841,6 +1943,8 @@ def _collect_validated_flyer(
         try:
             if source_page in tesco_page_scans:
                 encoded = tesco_page_scans[source_page]
+            elif page_cache is not None:
+                encoded = image_bytes_b64(page_cache.get(source_page), SCAN_PX)
             else:
                 encoded = get_b64(page["thumbnail_url"] or page["image_url"], SCAN_PX)
         except Exception as exc:
@@ -1889,6 +1993,8 @@ def _collect_validated_flyer(
                     encoded = image_bytes_b64(
                         tesco_page_paths[source_page].read_bytes(), READ_PX
                     )
+                elif page_cache is not None:
+                    encoded = image_bytes_b64(page_cache.get(source_page), READ_PX)
                 else:
                     encoded = get_b64(page_manifest[source_page]["image_url"], READ_PX)
             except Exception as exc:
@@ -1955,16 +2061,13 @@ def _safe_attempted_provenance(manifest, *, attempt_state=None):
 
 
 def _attach_exact_content_identity(store, manifest, page_manifest):
-    """Use an official opaque ID, otherwise hash every source page before AI."""
-    identity = manifest.get("source_identity")
-    if isinstance(identity, str) and identity:
-        return manifest, page_manifest, None
+    """Hash every official source page before AI, regardless of its opaque ID."""
     if manifest.get("collector_kind") != OFFICIAL_COLLECTOR_BY_STORE.get(store.capitalize()):
         return manifest, page_manifest, None
 
     enriched = json.loads(json.dumps(manifest))
     rows = {row["source_page"]: row for row in enriched["pages"]}
-    page_bytes = {}
+    page_bytes = PageByteSpool()
     content_hashes = []
     for source_page, page in page_manifest.items():
         try:
@@ -1983,6 +2086,7 @@ def _attach_exact_content_identity(store, manifest, page_manifest):
                     "result": "unavailable",
                 },
             )
+            page_bytes.cleanup()
             raise ManifestPreparationError(
                 f"{store}: obsah strany {source_page} sa nepodarilo overiť",
                 attempted,
@@ -1990,11 +2094,13 @@ def _attach_exact_content_identity(store, manifest, page_manifest):
         digest = hashlib.sha256(content).hexdigest()
         rows[source_page]["content_hash"] = digest
         content_hashes.append([source_page, digest])
-        page_bytes[source_page] = content
+        page_bytes.put(source_page, content)
     exact = hashlib.sha256(json.dumps(
         content_hashes, separators=(",", ":")
     ).encode("ascii")).hexdigest()
-    enriched["source_identity"] = f"page-content-sha256:{exact}"
+    enriched["content_identity"] = f"page-content-sha256:{exact}"
+    if not enriched.get("source_identity"):
+        enriched["source_identity"] = enriched["content_identity"]
     return enriched, rows, page_bytes
 
 
@@ -2030,23 +2136,34 @@ def zbieraj(client, store, prepared=None):
     manifest = prepared.manifest
     page_manifest = prepared.page_manifest
 
-    if store == "tesco" and manifest.get("collector_kind") == "official-tesco-viewer":
-        # TemporaryDirectory removes protected originals after success and after
-        # every exception. Read-size images are created only for the active batch.
-        with tempfile.TemporaryDirectory(prefix="uvarsi-tesco-") as directory:
-            scans, paths = _stage_official_tesco_pages(
-                page_manifest, directory, prepared.page_bytes
-            )
-            return _collect_validated_flyer(
-                client,
-                store,
-                manifest,
-                page_manifest,
-                tesco_page_scans=scans,
-                tesco_page_paths=paths,
-            )
+    try:
+        if store == "tesco" and manifest.get("collector_kind") == "official-tesco-viewer":
+            # TemporaryDirectory removes protected originals after success and after
+            # every exception. Read-size images are created only for the active batch.
+            with tempfile.TemporaryDirectory(prefix="uvarsi-tesco-") as directory:
+                scans, paths = _stage_official_tesco_pages(
+                    page_manifest, directory, prepared.page_bytes
+                )
+                return _collect_validated_flyer(
+                    client,
+                    store,
+                    manifest,
+                    page_manifest,
+                    tesco_page_scans=scans,
+                    tesco_page_paths=paths,
+                )
 
-    return _collect_validated_flyer(client, store, manifest, page_manifest)
+        return _collect_validated_flyer(
+            client,
+            store,
+            manifest,
+            page_manifest,
+            page_cache=prepared.page_bytes,
+        )
+    finally:
+        cleanup = getattr(prepared.page_bytes, "cleanup", None)
+        if cleanup is not None:
+            cleanup()
 
 
 def _unique_offer_count(week, offers):
@@ -2183,6 +2300,53 @@ def claim_store_collection(
                  claimed_at=excluded.claimed_at,
                  expires_at=excluded.expires_at""",
             (week, store, owner, source_fingerprint, now_text, expires_text),
+        )
+    except Exception:
+        con.rollback()
+        raise
+    else:
+        con.commit()
+        return True
+
+
+def renew_store_claim(
+    con, week, store, owner, source_fingerprint, *, now=None,
+    lease_seconds=COLLECTION_LEASE_SECONDS,
+):
+    """Extend only the exact lease still owned by this collector."""
+    if con.in_transaction:
+        raise RuntimeError("collection renewal requires a clean connection")
+    if (
+        not isinstance(owner, str) or not owner
+        or not re.fullmatch(r"[0-9a-f]{64}", source_fingerprint or "")
+        or not 60 <= lease_seconds <= COLLECTION_LEASE_SECONDS
+    ):
+        raise ValueError("invalid collection renewal")
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=datetime.timezone.utc)
+    now = now.astimezone(datetime.timezone.utc)
+    expires = now + datetime.timedelta(seconds=lease_seconds)
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        current = _claim_row(con, week, store)
+        if (
+            current is None
+            or current[0] != owner
+            or current[1] != source_fingerprint
+        ):
+            con.rollback()
+            return False
+        con.execute(
+            "UPDATE zber_claim SET expires_at=? "
+            "WHERE tyzden=? AND obchod=? AND owner=? AND source_fingerprint=?",
+            (
+                expires.isoformat(timespec="seconds"),
+                week,
+                store,
+                owner,
+                source_fingerprint,
+            ),
         )
     except Exception:
         con.rollback()
@@ -2609,6 +2773,7 @@ def main(stores=None):
     con = db()
     today = business_day()
     reusable_stores, failures, structural_failures = [], [], []
+    free_collected, free_total = [], 0
     suppressed, busy = [], []
     prepared_by_store = {}
     expected_week = (today - datetime.timedelta(days=today.weekday())).isoformat()
@@ -2629,6 +2794,25 @@ def main(stores=None):
             ) is None:
                 reusable_stores.append(store)
                 continue
+            if _approved_official_source(
+                display_store, OFFICIAL_COLLECTOR_BY_STORE[display_store]
+            ):
+                try:
+                    official_offers = official_kaufland_offers(today=today)
+                    official_provenance = _collection_provenance(official_offers)
+                    stage_store_collection(
+                        con,
+                        tyz,
+                        display_store,
+                        official_offers,
+                        provenance=official_provenance,
+                    )
+                except Exception as exc:
+                    log(f"[WARN] kaufland: oficiálny zber zlyhal ({exc})")
+                else:
+                    free_collected.append(store)
+                    free_total += len(official_offers)
+                    continue
         try:
             prepared = prepare_store_collection(store)
         except ValueError as exc:
@@ -2739,10 +2923,10 @@ def main(stores=None):
         log("[SUMMARY] " + json.dumps(
             {
                 "tyzden": tyz,
-                "ok": [],
+                "ok": free_collected,
                 "fail": failures,
                 "structural_fail": structural_failures,
-                "akcie": 0,
+                "akcie": free_total,
                 "staged_ok": staged_ok,
                 "reused": reusable_stores,
                 "suppressed": suppressed,
@@ -2799,7 +2983,7 @@ def main(stores=None):
         raw_client,
         budget_purpose,
     )
-    total, collected = 0, []
+    total, collected = free_total, list(free_collected)
     held_claims = set()
     run_reserved = False
     try:
@@ -2815,6 +2999,17 @@ def main(stores=None):
                 busy.append(store)
                 continue
             held_claims.add(store)
+            if staged_store_problem(
+                con,
+                tyz,
+                store.capitalize(),
+                today=today,
+                expected_fingerprint=prepared.provenance.source_fingerprint,
+            ) is None:
+                reusable_stores.append(store)
+                release_store_claim(con, tyz, store.capitalize(), run_owner)
+                held_claims.remove(store)
+                continue
             if not run_reserved:
                 try:
                     naklady.rezervuj_beh(con, budget_purpose)
@@ -2824,7 +3019,31 @@ def main(stores=None):
                     raise SystemExit(f"Zber nespúšťam — {odmietnutie}")
                 run_reserved = True
             try:
-                akcie = zbieraj(client, store, prepared)
+                store_client = lease_renewing_client(
+                    con,
+                    client,
+                    tyz,
+                    store.capitalize(),
+                    run_owner,
+                    prepared.provenance.source_fingerprint,
+                )
+                if not renew_store_claim(
+                    con,
+                    tyz,
+                    store.capitalize(),
+                    run_owner,
+                    prepared.provenance.source_fingerprint,
+                ):
+                    raise RuntimeError("collection lease was lost before collection")
+                akcie = zbieraj(store_client, store, prepared)
+                if not renew_store_claim(
+                    con,
+                    tyz,
+                    store.capitalize(),
+                    run_owner,
+                    prepared.provenance.source_fingerprint,
+                ):
+                    raise RuntimeError("collection lease was lost before staging")
                 stage_store_collection(
                     con,
                     tyz,

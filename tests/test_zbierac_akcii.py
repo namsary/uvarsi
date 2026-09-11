@@ -623,6 +623,34 @@ def test_store_pages_prefers_official_tesco_over_aggregators(monkeypatch):
     assert collector.store_pages("tesco", today=TODAY) == expected
 
 
+@pytest.mark.parametrize(
+    ("store", "official_name"),
+    [
+        ("lidl", "official_lidl_pages"),
+        ("tesco", "official_tesco_pages"),
+    ],
+)
+def test_store_pages_preserves_partial_official_manifest_failure(
+    monkeypatch, store, official_name,
+):
+    attempted = prepared_collection(store).provenance
+
+    def partial_failure(*_args, **_kwargs):
+        raise collector.ManifestPreparationError("partial official manifest", attempted)
+
+    monkeypatch.setattr(collector, official_name, partial_failure)
+    monkeypatch.setattr(
+        collector,
+        "kupino_meta",
+        lambda _store: pytest.fail("partial official provenance must not be discarded"),
+    )
+
+    with pytest.raises(collector.ManifestPreparationError) as failure:
+        collector.store_pages(store, today=TODAY)
+
+    assert failure.value.attempted_provenance == attempted
+
+
 def test_expired_official_tesco_falls_back_without_publishing_old_prices(monkeypatch):
     _use_local_tesco(monkeypatch)
     expired = _official_tesco_payload(
@@ -2699,6 +2727,41 @@ def test_db_claim_blocks_parallel_spend_and_allows_only_bounded_stale_recovery()
     ) is True
 
 
+def test_claim_owner_can_extend_lease_before_another_collector_reclaims_it():
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(collector.SCHEMA)
+    start = datetime(2026, 8, 19, 7, 0, tzinfo=timezone.utc)
+    assert collector.claim_store_collection(
+        con,
+        "2026-08-17",
+        "Lidl",
+        "owner-a",
+        "a" * 64,
+        now=start,
+        lease_seconds=600,
+    )
+
+    assert collector.renew_store_claim(
+        con,
+        "2026-08-17",
+        "Lidl",
+        "owner-a",
+        "a" * 64,
+        now=start.replace(minute=9),
+        lease_seconds=600,
+    )
+    assert collector.claim_store_collection(
+        con,
+        "2026-08-17",
+        "Lidl",
+        "owner-b",
+        "a" * 64,
+        now=start.replace(minute=11),
+        lease_seconds=600,
+    ) is False
+
+
 def test_late_failure_cannot_overwrite_healthy_stage_from_new_lease_owner():
     con = sqlite3.connect(":memory:")
     con.row_factory = sqlite3.Row
@@ -2800,6 +2863,28 @@ def test_structural_failure_is_retried_after_source_policy_approval(monkeypatch)
     ) is False
 
 
+def test_structural_failure_identity_tracks_deploy_and_full_source_policy(
+    monkeypatch,
+):
+    provenance = prepared_collection("lidl").provenance
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    monkeypatch.setenv("UVARSI_RELEASE_SHA", "a" * 40)
+
+    original = collector.structural_failure_identity("Lidl", provenance)
+    monkeypatch.setenv("UVARSI_RELEASE_SHA", "b" * 40)
+    after_deploy = collector.structural_failure_identity("Lidl", provenance)
+
+    registry = {
+        key: dict(value) for key, value in collector.source_policy._REGISTRY.items()
+    }
+    registry[("Lidl", "official-lidl-viewer")]["reviewer"] = "new-reviewer"
+    monkeypatch.setattr(collector.source_policy, "_REGISTRY", registry)
+    after_policy_review = collector.structural_failure_identity("Lidl", provenance)
+
+    assert after_deploy != original
+    assert after_policy_review != after_deploy
+
+
 def test_main_retries_same_manifest_immediately_after_policy_approval(
     monkeypatch, tmp_path,
 ):
@@ -2862,6 +2947,118 @@ def test_official_manifest_ids_change_fingerprint_even_when_page_urls_stay_same(
     assert collector.manifest_fingerprint(first) != collector.manifest_fingerprint(second)
 
 
+def test_official_source_identity_cannot_hide_changed_page_bytes(monkeypatch):
+    fixture = prepared_collection("lidl")
+    revision = {"value": b"first"}
+    monkeypatch.setattr(
+        collector,
+        "store_pages",
+        lambda _store: (
+            fixture.pages,
+            json.loads(json.dumps(fixture.manifest)),
+        ),
+    )
+    monkeypatch.setattr(
+        collector,
+        "get_image_bytes",
+        lambda url: revision["value"] + b":" + url.encode("ascii"),
+    )
+
+    first = collector.prepare_store_collection("lidl")
+    revision["value"] = b"corrected"
+    second = collector.prepare_store_collection("lidl")
+
+    assert first.manifest["source_identity"] == second.manifest["source_identity"]
+    assert first.provenance.source_fingerprint != second.provenance.source_fingerprint
+
+
+def test_content_fingerprint_failure_keeps_safe_partial_official_identity(monkeypatch):
+    fixture = prepared_collection("lidl")
+    monkeypatch.setattr(
+        collector,
+        "store_pages",
+        lambda _store: (
+            fixture.pages,
+            json.loads(json.dumps(fixture.manifest)),
+        ),
+    )
+    calls = {"count": 0}
+
+    def fail_second_page(_url):
+        calls["count"] += 1
+        return b"first-page" if calls["count"] == 1 else None
+
+    monkeypatch.setattr(collector, "get_image_bytes", fail_second_page)
+
+    with pytest.raises(collector.ManifestPreparationError) as failure:
+        collector.prepare_store_collection("lidl")
+
+    attempted = failure.value.attempted_provenance
+    assert attempted.collector_kind == "official-lidl-viewer"
+    assert re.fullmatch(r"[0-9a-f]{64}", attempted.source_fingerprint)
+    assert attempted.source_fingerprint != fixture.provenance.source_fingerprint
+
+
+def test_lidl_reuses_disk_spooled_source_pages_during_paid_read(monkeypatch):
+    from PIL import Image
+
+    fixture = prepared_collection("lidl")
+    image = BytesIO()
+    Image.new("RGB", (24, 24), color=(250, 245, 230)).save(image, format="JPEG")
+    downloads = []
+    monkeypatch.setattr(
+        collector,
+        "store_pages",
+        lambda _store: (
+            fixture.pages,
+            json.loads(json.dumps(fixture.manifest)),
+        ),
+    )
+
+    def download(url):
+        downloads.append(url)
+        return image.getvalue()
+
+    monkeypatch.setattr(collector, "get_image_bytes", download)
+    prepared = collector.prepare_store_collection("lidl")
+    monkeypatch.setattr(
+        collector,
+        "get_b64",
+        lambda *_args, **_kwargs: pytest.fail(
+            "paid Lidl read must reuse the already fingerprinted page bytes"
+        ),
+    )
+
+    def claude_json(_client, model, _content, _max_tokens, effort=None):
+        if model == collector.MODEL_SCAN:
+            return [1] if any(
+                block.get("text") == "Strana 1:"
+                for block in _content
+                if isinstance(block, dict)
+            ) else []
+        return [{
+            "source_page": 1,
+            "nazov": "Ryža",
+            "kategoria": "trvanlive",
+            "cena": 1.49,
+            "povodna": None,
+            "zlava": None,
+            "jednotka": "kg",
+            "cena_s_kartou": None,
+            "zlava_s_kartou": None,
+            "vernostny_program": None,
+            "minimalny_nakup": None,
+            "podmienka_s_kartou": None,
+        }]
+
+    monkeypatch.setattr(collector, "claude_json", claude_json)
+
+    offers = collector.zbieraj(object(), "lidl", prepared)
+
+    assert offers[0]["nazov"] == "Ryža"
+    assert len(downloads) == len(fixture.pages)
+
+
 def test_manifest_validation_failure_carries_a_safe_attempted_fingerprint(monkeypatch):
     prepared = prepared_collection("lidl")
     broken = json.loads(json.dumps(prepared.manifest))
@@ -2912,17 +3109,38 @@ def test_main_bootstraps_exact_official_kaufland_without_aggregator_discovery_or
     monkeypatch, tmp_path,
 ):
     database = tmp_path / "uvarsi.db"
+    calls = []
     monkeypatch.setattr(collector, "DB", str(database))
     monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
     monkeypatch.setattr(collector, "business_day", lambda: date(2026, 8, 19))
+    monkeypatch.setattr(collector, "STORES", ["kaufland"])
     monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
     offers = [valid_offer("kaufland", index) for index in range(1, 21)]
-    con = collector.db()
-    replace_store_week(con, "2026-08-17", "Kaufland", offers)
-    collector.record_store_outcome(
-        con, "2026-08-17", "Kaufland", "ok", 20, offers=offers
+
+    def official(today=None):
+        calls.append("official")
+        return offers
+
+    def aggregator(_store):
+        calls.append("aggregator")
+        pytest.fail("Kupino fallback must run only after the official Kaufland path")
+
+    monkeypatch.setattr(collector, "official_kaufland_offers", official)
+    monkeypatch.setattr(collector, "prepare_store_collection", aggregator)
+    monkeypatch.setattr(
+        collector,
+        "load_key",
+        lambda: pytest.fail("official Kaufland facts must not call Anthropic"),
     )
-    con.commit()
+
+    collector.main(["kaufland"])
+
+    assert calls == ["official"]
+    con = sqlite3.connect(database)
+    assert con.execute(
+        "SELECT COUNT(*) FROM akcie_staging WHERE obchod='Kaufland'"
+    ).fetchone()[0] == 20
+    assert con.execute("SELECT COUNT(*) FROM akcie").fetchone()[0] == 0
     con.close()
 
 
@@ -3018,6 +3236,95 @@ def test_main_claims_store_before_entering_paid_collection(monkeypatch, tmp_path
 
     monkeypatch.setattr(collector, "zbieraj", assert_claimed)
     collector.main(["lidl"])
+
+
+def test_main_rechecks_exact_stage_after_claim_before_paid_collection(
+    monkeypatch, tmp_path,
+):
+    database = run_main_over_stores(monkeypatch, tmp_path, {"lidl": True})
+    original_claim = collector.claim_store_collection
+    offers = [valid_offer("lidl", index) for index in range(1, 21)]
+    provenance = prepared_collection("lidl").provenance
+
+    def competing_collector_finished(
+        con, week, store, owner, source_fingerprint, **kwargs,
+    ):
+        collector.stage_store_collection(
+            con, week, store, offers, provenance=provenance
+        )
+        return original_claim(
+            con, week, store, owner, source_fingerprint, **kwargs
+        )
+
+    monkeypatch.setattr(
+        collector, "claim_store_collection", competing_collector_finished
+    )
+    monkeypatch.setattr(
+        collector,
+        "zbieraj",
+        lambda *_args, **_kwargs: pytest.fail(
+            "exact staged data found after claim must suppress paid collection"
+        ),
+    )
+
+    collector.main(["lidl"])
+
+    con = sqlite3.connect(database)
+    assert con.execute(
+        "SELECT COUNT(*) FROM akcie_staging WHERE obchod='Lidl'"
+    ).fetchone()[0] == 20
+    con.close()
+
+
+def test_main_renews_store_lease_before_each_paid_model_request(
+    monkeypatch, tmp_path,
+):
+    database = run_main_over_stores(monkeypatch, tmp_path, {"lidl": True})
+    start = datetime(2026, 8, 19, 7, 0, tzinfo=timezone.utc)
+    renewal = start.replace(minute=29)
+    original_claim = collector.claim_store_collection
+    original_renew = collector.renew_store_claim
+    observed_expiries = []
+
+    def fixed_claim(con, week, store, owner, fingerprint, **_kwargs):
+        return original_claim(
+            con, week, store, owner, fingerprint, now=start
+        )
+
+    def fixed_renew(con, week, store, owner, fingerprint, **_kwargs):
+        return original_renew(
+            con, week, store, owner, fingerprint, now=renewal
+        )
+
+    class RawMessages:
+        def create(self, **_kwargs):
+            con = sqlite3.connect(database)
+            observed_expiries.append(con.execute(
+                "SELECT expires_at FROM zber_claim "
+                "WHERE tyzden='2026-08-17' AND obchod='Lidl'"
+            ).fetchone()[0])
+            con.close()
+            return types.SimpleNamespace(usage=None)
+
+    monkeypatch.setattr(collector, "claim_store_collection", fixed_claim)
+    monkeypatch.setattr(collector, "renew_store_claim", fixed_renew)
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        types.SimpleNamespace(
+            Anthropic=lambda **_kwargs: types.SimpleNamespace(messages=RawMessages())
+        ),
+    )
+
+    def one_paid_call(client, store, prepared=None):
+        client.messages.create(model=collector.MODEL_SCAN, max_tokens=1, messages=[])
+        return [valid_offer(store, index) for index in range(1, 21)]
+
+    monkeypatch.setattr(collector, "zbieraj", one_paid_call)
+
+    collector.main(["lidl"])
+
+    assert observed_expiries == ["2026-08-19T07:59:00+00:00"]
 
 
 def test_main_claims_each_store_only_immediately_before_its_paid_collection(
