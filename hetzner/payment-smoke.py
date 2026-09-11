@@ -29,6 +29,7 @@ DEFAULT_BASE_URL = "https://uvar.si"
 DEFAULT_APP_DIR = "/opt/uvarsi/app"
 DEFAULT_ENV_FILE = "/opt/uvarsi/uvarsi.env"
 DEFAULT_MARKER = "/var/lib/uvarsi/payment-smoke.json"
+DEFAULT_ACTIVATION_MARKER = "/var/lib/uvarsi/payment-activation.json"
 
 
 class SmokeFailed(RuntimeError):
@@ -314,17 +315,21 @@ def _load_runtime(app_dir: str):
     import rekonciliacia
     import server
     from payment_smoke_marker import (
+        create_activation_attestation,
         create_marker,
         live_config_fingerprint,
         sign_marker,
+        test_config_fingerprint,
     )
     return (
         server,
         platby,
         rekonciliacia,
+        create_activation_attestation,
         create_marker,
         live_config_fingerprint,
         sign_marker,
+        test_config_fingerprint,
     )
 
 
@@ -450,7 +455,8 @@ def _write_marker(path: str, marker: dict) -> None:
         prefix=target.name + ".", suffix=".tmp", dir=target.parent
     )
     try:
-        os.fchmod(descriptor, 0o600)
+        if hasattr(os, "fchmod"):
+            os.fchmod(descriptor, 0o600)
         with os.fdopen(descriptor, "w", encoding="utf-8") as output:
             json.dump(marker, output, sort_keys=True, separators=(",", ":"))
             output.write("\n")
@@ -468,9 +474,10 @@ def _write_marker(path: str, marker: dict) -> None:
 
 def _build_completed_marker(
     *, purchase_event, refund_event, release, live_checkout_url,
-    live_store_id, live_variant_id, test_store_id, test_variant_id, order_id,
+    live_store_id, live_variant_id, test_checkout_url, test_webhook_secret,
+    test_store_id, test_variant_id, test_api_key, order_id,
     receipt_email_verified, unresolved_cases, completed_at, signing_secret,
-    create_marker, live_config_fingerprint, sign_marker,
+    create_marker, live_config_fingerprint, test_config_fingerprint, sign_marker,
 ):
     expected = (
         (purchase_event, "order_created", "udelene"),
@@ -496,9 +503,18 @@ def _build_completed_marker(
         store_id=live_store_id,
         variant_id=live_variant_id,
     )
+    test_digest = test_config_fingerprint(
+        secret=signing_secret,
+        checkout_url=test_checkout_url,
+        webhook_secret=test_webhook_secret,
+        store_id=test_store_id,
+        variant_id=test_variant_id,
+        api_key=test_api_key,
+    )
     marker = create_marker(
         release=release,
         live_config_digest=live_digest,
+        test_config_digest=test_digest,
         test_store_id=test_store_id,
         test_variant_id=test_variant_id,
         completed_at=completed_at,
@@ -506,6 +522,47 @@ def _build_completed_marker(
         test_mode_verified=True,
     )
     return sign_marker(marker, secret=signing_secret)
+
+
+def _read_marker(path: str) -> dict:
+    target = Path(path)
+    try:
+        if target.stat().st_size > 8_192:
+            raise SmokeFailed("Smoke dôkaz je príliš veľký.")
+        marker = json.loads(target.read_text(encoding="utf-8"))
+    except SmokeFailed:
+        raise
+    except (OSError, ValueError, json.JSONDecodeError):
+        raise SmokeFailed("Smoke dôkaz sa nedá bezpečne načítať.") from None
+    if not isinstance(marker, dict):
+        raise SmokeFailed("Smoke dôkaz má neplatný tvar.")
+    return marker
+
+
+def _build_activation_attestation(
+    *, smoke_marker, activated_at, release, live_checkout_url,
+    live_store_id, live_variant_id, test_checkout_url, test_webhook_secret,
+    test_store_id, test_variant_id, test_api_key, signing_secret,
+    create_activation_attestation,
+):
+    """Create the production activation proof through the shared verifier."""
+    try:
+        return create_activation_attestation(
+            smoke_marker,
+            secret=signing_secret,
+            release=release,
+            checkout_url=live_checkout_url,
+            store_id=live_store_id,
+            variant_id=live_variant_id,
+            test_checkout_url=test_checkout_url,
+            test_webhook_secret=test_webhook_secret,
+            test_store_id=test_store_id,
+            test_variant_id=test_variant_id,
+            test_api_key=test_api_key,
+            activated_at=activated_at,
+        )
+    except ValueError as error:
+        raise SmokeFailed(str(error)) from None
 
 
 def main(argv=None) -> int:
@@ -516,6 +573,12 @@ def main(argv=None) -> int:
     parser.add_argument("--app-dir", default=DEFAULT_APP_DIR)
     parser.add_argument("--env-file", default=DEFAULT_ENV_FILE)
     parser.add_argument("--marker", default=DEFAULT_MARKER)
+    parser.add_argument("--activation-marker", default=DEFAULT_ACTIVATION_MARKER)
+    parser.add_argument(
+        "--authorize-activation",
+        action="store_true",
+        help="podpíše aktiváciu z čerstvého smoke dôkazu; platby nezapne",
+    )
     parser.add_argument("--timeout", type=int, default=300)
     args = parser.parse_args(argv)
 
@@ -523,15 +586,18 @@ def main(argv=None) -> int:
         server,
         platby,
         rekonciliacia,
+        create_activation_attestation,
         create_marker,
         live_config_fingerprint,
         sign_marker,
+        test_config_fingerprint,
     ) = _load_runtime(args.app_dir)
     release = server.release_id()
     test_values = {
         name: _env_value(name, env_file=args.env_file)
         for name in (
             "LEMON_TEST_API_KEY",
+            "LEMON_TEST_CHECKOUT_URL",
             "LEMON_TEST_WEBHOOK_SECRET",
             "LEMON_TEST_STORE_ID",
             "LEMON_TEST_VARIANT_ID",
@@ -553,6 +619,31 @@ def main(argv=None) -> int:
         raise SmokeFailed("Chýba časť testovacej konfigurácie poskytovateľa.")
     if not all(live_values.values()) or not signing_secret:
         raise SmokeFailed("Chýba časť plánovanej živej platobnej konfigurácie.")
+    activation_arguments = {
+        "release": release,
+        "live_checkout_url": live_values["LEMON_CHECKOUT_URL"],
+        "live_store_id": live_values["LEMON_STORE_ID"],
+        "live_variant_id": live_values["LEMON_VARIANT_ID"],
+        "test_checkout_url": test_values["LEMON_TEST_CHECKOUT_URL"],
+        "test_webhook_secret": test_values["LEMON_TEST_WEBHOOK_SECRET"],
+        "test_store_id": test_values["LEMON_TEST_STORE_ID"],
+        "test_variant_id": test_values["LEMON_TEST_VARIANT_ID"],
+        "test_api_key": test_values["LEMON_TEST_API_KEY"],
+        "signing_secret": signing_secret,
+        "create_activation_attestation": create_activation_attestation,
+    }
+    if args.authorize_activation:
+        activation = _build_activation_attestation(
+            smoke_marker=_read_marker(args.marker),
+            activated_at=dt.datetime.now(dt.timezone.utc).isoformat(
+                timespec="seconds"
+            ),
+            **activation_arguments,
+        )
+        _write_marker(args.activation_marker, activation)
+        print("OK: podpísaná aktivácia je pripravená pre aktuálnu konfiguráciu.")
+        print("Platby ostali vypnuté; tento krok nemení PLATBY_ZAPNUTE.")
+        return 0
     _public_preflight(args.base_url.rstrip("/"), release)
     _verified_test_variant(
         test_values["LEMON_TEST_API_KEY"],
@@ -652,8 +743,11 @@ def main(argv=None) -> int:
         live_checkout_url=live_values["LEMON_CHECKOUT_URL"],
         live_store_id=live_values["LEMON_STORE_ID"],
         live_variant_id=live_values["LEMON_VARIANT_ID"],
+        test_checkout_url=test_values["LEMON_TEST_CHECKOUT_URL"],
+        test_webhook_secret=test_values["LEMON_TEST_WEBHOOK_SECRET"],
         test_store_id=test_values["LEMON_TEST_STORE_ID"],
         test_variant_id=test_values["LEMON_TEST_VARIANT_ID"],
+        test_api_key=test_values["LEMON_TEST_API_KEY"],
         order_id=order_id,
         receipt_email_verified=True,
         unresolved_cases=unresolved,
@@ -661,6 +755,7 @@ def main(argv=None) -> int:
         signing_secret=signing_secret,
         create_marker=create_marker,
         live_config_fingerprint=live_config_fingerprint,
+        test_config_fingerprint=test_config_fingerprint,
         sign_marker=sign_marker,
     )
     _write_marker(args.marker, marker)

@@ -53,7 +53,11 @@ import naklady
 import plan_jobs
 import predpocet
 import source_policy
-from payment_smoke_marker import verify_marker
+from payment_smoke_marker import (
+    test_config_fingerprint,
+    verify_activation_attestation,
+    verify_marker,
+)
 from config import public_base_url
 from config import (
     admin_emails,
@@ -252,6 +256,10 @@ RECIPE_SMOKE_STATE = os.environ.get(
 )
 PAYMENT_SMOKE_MARKER = os.environ.get(
     "UVARSI_PAYMENT_SMOKE_MARKER", "/var/lib/uvarsi/payment-smoke.json"
+)
+PAYMENT_ACTIVATION_MARKER = os.environ.get(
+    "UVARSI_PAYMENT_ACTIVATION_MARKER",
+    "/var/lib/uvarsi/payment-activation.json",
 )
 PAYMENT_SMOKE_MAX_AGE_SECONDS = 24 * 60 * 60
 PAYMENT_SMOKE_FUTURE_SKEW_SECONDS = 5 * 60
@@ -4798,44 +4806,13 @@ def _read_payment_smoke_marker(
     return value if isinstance(value, dict) else None
 
 
-def _test_payment_config_fingerprint(
-    *, secret: str, checkout_url: str, webhook_secret: str,
-    store_id: str, variant_id: str, api_key: str,
-) -> str:
-    """Bind every test-provider input without persisting its plaintext."""
-    raw = {
-        "checkout_url": checkout_url,
-        "webhook_secret": webhook_secret,
-        "store_id": store_id,
-        "variant_id": variant_id,
-        "api_key": api_key,
-    }
-    if not isinstance(secret, str) or not secret:
-        raise ValueError("missing signing secret")
-    if not all(isinstance(value, str) and value.strip() for value in raw.values()):
-        raise ValueError("incomplete test payment configuration")
-    values = {key: value.strip() for key, value in raw.items()}
-    parsed = urlsplit(values["checkout_url"])
-    if parsed.scheme != "https" or not parsed.netloc:
-        raise ValueError("invalid test checkout URL")
-    payload = json.dumps(
-        values, sort_keys=True, separators=(",", ":"), ensure_ascii=True
-    ).encode("utf-8")
-    return hmac.new(
-        secret.encode("utf-8"),
-        b"uvarsi-test-payment-config-v1\0" + payload,
-        hashlib.sha256,
-    ).hexdigest()
-
-
 def _payment_smoke_verified(
     *, release: str, checkout_url: str, store_id: str, variant_id: str,
     test_checkout_url: str, test_webhook_secret: str,
     test_store_id: str, test_variant_id: str, test_api_key: str,
     now: datetime.datetime | None = None,
-    require_fresh: bool = True,
 ) -> bool:
-    """Verify exact signed config; require freshness only before activation."""
+    """Verify one fresh, exact, signed pre-activation smoke result."""
     secret = env("UVARSI_PAYMENT_SMOKE_SIGNING_SECRET", "") or ""
     if not all((
         secret, release, checkout_url, store_id, variant_id,
@@ -4868,7 +4845,7 @@ def _payment_smoke_verified(
     ):
         return False
     try:
-        expected_test_digest = _test_payment_config_fingerprint(
+        expected_test_digest = test_config_fingerprint(
             secret=secret,
             checkout_url=test_checkout_url,
             webhook_secret=test_webhook_secret,
@@ -4899,7 +4876,45 @@ def _payment_smoke_verified(
     ).total_seconds()
     if age < -PAYMENT_SMOKE_FUTURE_SKEW_SECONDS:
         return False
-    return require_fresh is False or age <= PAYMENT_SMOKE_MAX_AGE_SECONDS
+    return age <= PAYMENT_SMOKE_MAX_AGE_SECONDS
+
+
+def _payment_activation_verified(
+    *, release: str, checkout_url: str, store_id: str, variant_id: str,
+    test_checkout_url: str, test_webhook_secret: str,
+    test_store_id: str, test_variant_id: str, test_api_key: str,
+) -> bool:
+    """Require a signed activation bound to the current live and test identity."""
+    secret = env("UVARSI_PAYMENT_SMOKE_SIGNING_SECRET", "") or ""
+    if not all((
+        secret, release, checkout_url, store_id, variant_id,
+        test_checkout_url, test_webhook_secret, test_store_id,
+        test_variant_id, test_api_key,
+    )):
+        return False
+    try:
+        marker_path = Path(PAYMENT_ACTIVATION_MARKER)
+        marker_stat = marker_path.stat()
+    except OSError:
+        return False
+    marker = _read_payment_smoke_marker(
+        str(marker_path), marker_stat.st_mtime_ns, marker_stat.st_size,
+    )
+    if marker is None:
+        return False
+    return verify_activation_attestation(
+        marker,
+        secret=secret,
+        release=release,
+        checkout_url=checkout_url,
+        store_id=store_id,
+        variant_id=variant_id,
+        test_checkout_url=test_checkout_url,
+        test_webhook_secret=test_webhook_secret,
+        test_store_id=test_store_id,
+        test_variant_id=test_variant_id,
+        test_api_key=test_api_key,
+    )
 
 
 def _recipe_gate_ready(status: dict) -> bool:
@@ -4960,6 +4975,25 @@ def _runtime_payment_readiness(
     test_store_id = env("LEMON_TEST_STORE_ID", "") or ""
     test_variant_id = env("LEMON_TEST_VARIANT_ID", "") or ""
     test_api_key = env("LEMON_TEST_API_KEY", "") or ""
+    payment_identity = {
+        "release": current_release,
+        "checkout_url": checkout_url,
+        "store_id": store_id,
+        "variant_id": variant_id,
+        "test_checkout_url": test_checkout_url,
+        "test_webhook_secret": test_webhook_secret,
+        "test_store_id": test_store_id,
+        "test_variant_id": test_variant_id,
+        "test_api_key": test_api_key,
+    }
+    if platby_su_zapnute():
+        payment_evidence_verified = _payment_activation_verified(
+            **payment_identity
+        )
+    else:
+        payment_evidence_verified = _payment_smoke_verified(
+            **payment_identity
+        )
     support_phone = OPERATOR.support_phone.strip()
     facts = PaymentReadinessInput(
         operator_errors=validate_operator_profile(OPERATOR),
@@ -4984,18 +5018,7 @@ def _runtime_payment_readiness(
         receipt_ready=_strict_current_receipt_ready(today=today),
         private_alerts=_private_payment_alerts_ready(),
         consumer_workflows=customer_requests.workflow_ready(con),
-        smoke_verified=_payment_smoke_verified(
-            release=current_release,
-            checkout_url=checkout_url,
-            store_id=store_id,
-            variant_id=variant_id,
-            test_checkout_url=test_checkout_url,
-            test_webhook_secret=test_webhook_secret,
-            test_store_id=test_store_id,
-            test_variant_id=test_variant_id,
-            test_api_key=test_api_key,
-            require_fresh=not platby_su_zapnute(),
-        ),
+        smoke_verified=payment_evidence_verified,
         worker_alive=_plan_worker_gate_ready(queue_status),
         recipe_ready=_recipe_gate_ready(recipe_status),
     )
