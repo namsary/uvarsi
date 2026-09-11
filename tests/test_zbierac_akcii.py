@@ -2,6 +2,7 @@ import json
 import re
 import sqlite3
 import sys
+import tempfile
 import types
 from datetime import date, datetime, timezone
 from io import BytesIO
@@ -405,7 +406,7 @@ def test_production_tesco_without_bridge_fails_closed_before_any_network(
 
 
 def test_official_tesco_downloads_each_bridge_page_once_and_resizes_locally(
-        monkeypatch):
+        monkeypatch, tmp_path):
     from PIL import Image
 
     secret = "media-bridge-secret"
@@ -436,8 +437,20 @@ def test_official_tesco_downloads_each_bridge_page_once_and_resizes_locally(
 
     monkeypatch.setattr(collector.requests, "get", get)
 
+    resize_calls = []
+    original_resize = collector.image_bytes_b64
+
+    def tracked_resize(content, max_px):
+        resize_calls.append(max_px)
+        return original_resize(content, max_px)
+
+    monkeypatch.setattr(collector, "image_bytes_b64", tracked_resize)
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    staged_names = []
+
     def claude_json(_client, model, _content, _max_tokens, effort=None):
         if model == collector.MODEL_SCAN:
+            staged_names[:] = sorted(path.name for path in tmp_path.rglob("*.jpeg"))
             return [1]
         return [{
             "source_page": 1,
@@ -459,11 +472,54 @@ def test_official_tesco_downloads_each_bridge_page_once_and_resizes_locally(
     offers = collector.zbieraj(object(), "tesco")
 
     assert offers[0]["obchod"] == "Tesco"
+    assert offers[0]["store_label"] == "Tesco hypermarket"
     assert [url for url, _kwargs in downloads] == [image for _thumb, image in pages]
+    assert resize_calls.count(collector.SCAN_PX) == 8
+    assert resize_calls.count(collector.READ_PX) == 1
+    assert staged_names == [f"tesco-page-{page:03d}.jpeg" for page in range(1, 9)]
+    assert list(tmp_path.iterdir()) == []
     assert all(
         call["headers"]["Authorization"] == f"Bearer {secret}"
         for _url, call in downloads
     )
+
+
+def test_official_tesco_cleans_staged_pages_when_scan_fails(monkeypatch, tmp_path):
+    from PIL import Image
+
+    monkeypatch.setenv("UVARSI_TESCO_BRIDGE_URL", "https://tesco-bridge.example")
+    monkeypatch.setenv("UVARSI_TESCO_BRIDGE_SECRET", "media-bridge-secret")
+    leaflet = _bridge_tesco_leaflet(page_count=8)
+    pages = [(page["thumbnail_url"], page["image_url"]) for page in leaflet["pages"]]
+    manifest = {
+        **leaflet,
+        "collector_kind": "official-tesco-viewer",
+        "leaflet_format": leaflet.pop("format"),
+        "store_label": "Tesco hypermarket",
+    }
+    monkeypatch.setattr(collector, "store_pages", lambda _store: (pages, manifest))
+
+    image = BytesIO()
+    Image.new("RGB", (24, 24), color=(250, 245, 230)).save(image, format="JPEG")
+    monkeypatch.setattr(
+        collector.requests,
+        "get",
+        lambda _url, **_kwargs: types.SimpleNamespace(status_code=200, content=image.getvalue()),
+    )
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    staged_names = []
+
+    def fail_scan(_client, _model, _content, _max_tokens, effort=None):
+        staged_names[:] = sorted(path.name for path in tmp_path.rglob("*.jpeg"))
+        raise RuntimeError("scan boom")
+
+    monkeypatch.setattr(collector, "claude_json", fail_scan)
+
+    with pytest.raises(ValueError, match="sken strán zlyhal"):
+        collector.zbieraj(object(), "tesco")
+
+    assert staged_names == [f"tesco-page-{page:03d}.jpeg" for page in range(1, 9)]
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_every_declared_manifest_is_rejected_above_120_pages_before_ai_work():
@@ -472,6 +528,54 @@ def test_every_declared_manifest_is_rejected_above_120_pages_before_ai_work():
 
     with pytest.raises(ValueError, match="120"):
         collector.validate_flyer_manifest(pages, manifest, store="lidl")
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (lambda manifest: manifest.pop("declared_pages"), "deklarovaný počet"),
+        (lambda manifest: manifest.update(declared_pages=7), "deklarovaný počet"),
+        (lambda manifest: manifest.pop("leaflet_format"), "formát"),
+        (lambda manifest: manifest.update(leaflet_format="XX"), "formát"),
+        (lambda manifest: manifest.pop("store_label"), "označenie predajne"),
+        (lambda manifest: manifest.update(store_label="Tesco"), "označenie predajne"),
+    ],
+)
+def test_official_tesco_manifest_requires_complete_hm_provenance(mutation, message):
+    leaflet = _bridge_tesco_leaflet(page_count=8)
+    pages = [(page["thumbnail_url"], page["image_url"]) for page in leaflet["pages"]]
+    manifest = {
+        **leaflet,
+        "collector_kind": "official-tesco-viewer",
+        "leaflet_format": leaflet.pop("format"),
+        "store_label": "Tesco hypermarket",
+    }
+    mutation(manifest)
+
+    with pytest.raises(ValueError, match=message):
+        collector.validate_flyer_manifest(pages, manifest, store="tesco")
+
+
+def test_official_tesco_manifest_rejects_complete_leaflet_below_eight_pages():
+    leaflet = _bridge_tesco_leaflet(page_count=7)
+    pages = [(page["thumbnail_url"], page["image_url"]) for page in leaflet["pages"]]
+    manifest = {
+        **leaflet,
+        "collector_kind": "official-tesco-viewer",
+        "leaflet_format": leaflet.pop("format"),
+        "store_label": "Tesco hypermarket",
+    }
+
+    with pytest.raises(ValueError, match="8"):
+        collector.validate_flyer_manifest(pages, manifest, store="tesco")
+
+
+def test_non_tesco_manifest_does_not_require_tesco_provenance_fields():
+    pages, manifest = flyer_fixture(1)
+
+    page_manifest = collector.validate_flyer_manifest(pages, manifest, store="lidl")
+
+    assert list(page_manifest) == [1]
 
 
 def test_store_pages_prefers_official_tesco_over_aggregators(monkeypatch):

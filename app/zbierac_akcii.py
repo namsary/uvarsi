@@ -11,8 +11,9 @@ Zdroje strán letákov: oficiálne zdroje obchodov; agregátory iba ako núdzov�
 Beh:  /opt/uvarsi/venv/bin/python -u zbierac_akcii.py
 Opravný beh jedného zdroja:  ... zbierac_akcii.py --store lidl
 """
-import os, re, json, base64, datetime, hashlib, sqlite3, requests
+import os, re, json, base64, datetime, hashlib, sqlite3, tempfile, requests
 from io import BytesIO
+from pathlib import Path
 from urllib.parse import quote, urlparse
 
 try:
@@ -1267,6 +1268,30 @@ def validate_flyer_manifest(pages, manifest, *, store):
     ):
         raise ValueError("manifest nemá dôveryhodný typ zdroja")
 
+    if store == "tesco" and collector_kind == "official-tesco-viewer":
+        if (
+            isinstance(declared_pages, bool)
+            or not isinstance(declared_pages, int)
+            or declared_pages < MIN_PLAUSIBLE_PAGES
+            or declared_pages > MAX_MANIFEST_PAGES
+        ):
+            raise ValueError(
+                "oficiálny Tesco manifest musí mať deklarovaný počet "
+                f"{MIN_PLAUSIBLE_PAGES}..{MAX_MANIFEST_PAGES} strán"
+            )
+        leaflet_format = manifest.get("leaflet_format")
+        expected = {
+            "HM": ("Tesco hypermarket", "/hypermarkety/"),
+            "SM": ("Tesco supermarket", "/supermarkety/"),
+        }.get(leaflet_format)
+        if expected is None:
+            raise ValueError("oficiálny Tesco manifest má neplatný formát letáku")
+        expected_label, expected_path = expected
+        if manifest.get("store_label") != expected_label:
+            raise ValueError("oficiálny Tesco manifest má neplatné označenie predajne")
+        if expected_path not in parsed_url.path:
+            raise ValueError("formát Tesco letáku nesedí so zdrojovou URL")
+
     valid_from = manifest.get("valid_from")
     valid_to = manifest.get("valid_to")
     try:
@@ -1522,6 +1547,8 @@ def _offers_from_extraction(items, *, store, manifest, batch_pages):
                 "valid_from": manifest["valid_from"],
                 "valid_to": manifest["valid_to"],
             }
+            if store == "tesco" and manifest.get("collector_kind") == "official-tesco-viewer":
+                offer["store_label"] = manifest["store_label"]
             conditional_metadata = (
                 offer["zlava_s_kartou"], offer["vernostny_program"],
                 offer["minimalny_nakup"], offer["podmienka_s_kartou"],
@@ -1609,36 +1636,18 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content):
         ) from exc
 
 
-def zbieraj(client, store):
-    pages, manifest = store_pages(store)
-    if not pages:
-        raise ValueError(f"{store}: leták s konečnou platnosťou nebol nájdený")
-    page_manifest = validate_flyer_manifest(pages, manifest, store=store)
-
-    # Tesco bridge vydáva chránené odkazy. Všetky originály preto stiahneme
-    # ešte pred prvým AI volaním a náhľad aj detail potom vyrábame z rovnakých
-    # lokálnych bajtov. Každá stránka sa tak sťahuje presne raz za beh.
-    tesco_page_images = {}
-    if store == "tesco" and manifest.get("collector_kind") == "official-tesco-viewer":
-        for source_page, page in page_manifest.items():
-            try:
-                content = _download_official_tesco_page(page["image_url"])
-                scan_image = image_bytes_b64(content, SCAN_PX)
-                read_image = image_bytes_b64(content, READ_PX)
-            except Exception:
-                raise ValueError(
-                    f"{store}: strana {source_page} sa nepodarilo načítať"
-                ) from None
-            if not scan_image or not read_image:
-                raise ValueError(f"{store}: strana {source_page} sa nepodarilo načítať")
-            tesco_page_images[source_page] = (scan_image, read_image)
+def _collect_validated_flyer(
+        client, store, manifest, page_manifest, *, tesco_page_scans=None,
+        tesco_page_paths=None):
+    tesco_page_scans = tesco_page_scans or {}
+    tesco_page_paths = tesco_page_paths or {}
 
     # 1) lacný sken náhľadov → ktoré strany sú potravinové
     thumbs = []
     for source_page, page in page_manifest.items():
         try:
-            if source_page in tesco_page_images:
-                encoded = tesco_page_images[source_page][0]
+            if source_page in tesco_page_scans:
+                encoded = tesco_page_scans[source_page]
             else:
                 encoded = get_b64(page["thumbnail_url"] or page["image_url"], SCAN_PX)
         except Exception as exc:
@@ -1683,8 +1692,10 @@ def zbieraj(client, store):
         content = []
         for source_page in batch_pages:
             try:
-                if source_page in tesco_page_images:
-                    encoded = tesco_page_images[source_page][1]
+                if source_page in tesco_page_paths:
+                    encoded = image_bytes_b64(
+                        tesco_page_paths[source_page].read_bytes(), READ_PX
+                    )
                 else:
                     encoded = get_b64(page_manifest[source_page]["image_url"], READ_PX)
             except Exception as exc:
@@ -1707,6 +1718,55 @@ def zbieraj(client, store):
         raise ValueError(f"{store}: extrakcia nevrátila žiadne overené akcie")
     log(f"[INFO] {store}: {len(out)} akcií")
     return out
+
+
+def _stage_official_tesco_pages(page_manifest, directory):
+    """Download each protected page once and retain only small scans in RAM."""
+    directory = Path(directory)
+    scans = {}
+    paths = {}
+    for source_page, page in page_manifest.items():
+        # The filename is derived solely from the already validated integer page
+        # number. Neither the bridge URL nor its secret token reaches the path.
+        path = directory / f"tesco-page-{source_page:03d}.jpeg"
+        try:
+            content = _download_official_tesco_page(page["image_url"])
+            if not content:
+                raise ValueError("prázdna odpoveď")
+            path.write_bytes(content)
+            scan_image = image_bytes_b64(content, SCAN_PX)
+        except Exception:
+            raise ValueError(
+                f"tesco: strana {source_page} sa nepodarilo načítať"
+            ) from None
+        if not scan_image:
+            raise ValueError(f"tesco: strana {source_page} sa nepodarilo načítať")
+        scans[source_page] = scan_image
+        paths[source_page] = path
+    return scans, paths
+
+
+def zbieraj(client, store):
+    pages, manifest = store_pages(store)
+    if not pages:
+        raise ValueError(f"{store}: leták s konečnou platnosťou nebol nájdený")
+    page_manifest = validate_flyer_manifest(pages, manifest, store=store)
+
+    if store == "tesco" and manifest.get("collector_kind") == "official-tesco-viewer":
+        # TemporaryDirectory removes protected originals after success and after
+        # every exception. Read-size images are created only for the active batch.
+        with tempfile.TemporaryDirectory(prefix="uvarsi-tesco-") as directory:
+            scans, paths = _stage_official_tesco_pages(page_manifest, directory)
+            return _collect_validated_flyer(
+                client,
+                store,
+                manifest,
+                page_manifest,
+                tesco_page_scans=scans,
+                tesco_page_paths=paths,
+            )
+
+    return _collect_validated_flyer(client, store, manifest, page_manifest)
 
 
 def _collection_provenance(offers):
