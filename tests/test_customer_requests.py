@@ -2,6 +2,7 @@
 
 import json
 import sqlite3
+import threading
 from contextlib import closing
 from pathlib import Path
 
@@ -99,6 +100,105 @@ def test_duplicate_submission_returns_the_same_request(database):
     assert database.execute("SELECT COUNT(*) FROM consumer_requests").fetchone()[0] == 1
 
 
+def test_confirmation_delivery_is_leased_to_only_one_concurrent_worker(tmp_path):
+    database_path = tmp_path / "consumer-requests.db"
+    with closing(sqlite3.connect(database_path)) as con:
+        con.row_factory = sqlite3.Row
+        con.execute(
+            "CREATE TABLE pouzivatelia (id INTEGER PRIMARY KEY, email TEXT, platiaci INTEGER DEFAULT 0)"
+        )
+        con.execute("INSERT INTO pouzivatelia (id,email) VALUES (7,'seven@example.test')")
+        platby.migrate_platby_schema(con)
+        customer_requests.migrate_customer_requests_schema(con)
+        con.execute(
+            """INSERT INTO naroky
+               (user_id,produkt,poskytovatel,objednavka_id,suma_centy,mena,stav,ziskany_o,zmeneny_o)
+               VALUES (7,?,?,?,?,?,?,?,?)""",
+            (
+                platby.PRODUKT_ZAKLADAJUCI,
+                platby.POSKYTOVATEL,
+                "order-1",
+                3900,
+                "EUR",
+                platby.STAV_AKTIVNY,
+                1000.0,
+                1000.0,
+            ),
+        )
+        con.commit()
+        request = customer_requests.create_withdrawal(
+            con, user_id=7, order_id="order-1", now=2000
+        )
+
+    barrier = threading.Barrier(2)
+    claims = []
+
+    def claim(worker_id):
+        with closing(sqlite3.connect(database_path, timeout=3)) as con:
+            con.row_factory = sqlite3.Row
+            barrier.wait(timeout=3)
+            claims.append(
+                customer_requests.claim_confirmation_delivery(
+                    con,
+                    worker_id=worker_id,
+                    public_id=request.public_id,
+                    now=2000,
+                )
+            )
+
+    workers = [threading.Thread(target=claim, args=(f"worker-{i}",)) for i in range(2)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=5)
+
+    assert all(not worker.is_alive() for worker in workers)
+    assert len([item for item in claims if item is not None]) == 1
+
+
+def test_failed_confirmation_has_bounded_exponential_retry_and_safe_state(database):
+    request = customer_requests.create_withdrawal(
+        database, user_id=7, order_id="order-1", now=2000
+    )
+    now = 2000.0
+    idempotency_keys = set()
+
+    for attempt in range(1, customer_requests.CONFIRMATION_MAX_ATTEMPTS + 1):
+        delivery = customer_requests.claim_confirmation_delivery(
+            database,
+            worker_id=f"worker-{attempt}",
+            public_id=request.public_id,
+            now=now,
+        )
+        assert delivery is not None
+        idempotency_keys.add(delivery.idempotency_key)
+        assert customer_requests.finish_confirmation_delivery(
+            database,
+            delivery,
+            sent=False,
+            failure_code="provider_unavailable",
+            now=now,
+        )
+        row = customer_requests.requests_for_user(database, user_id=7)[0]
+        assert row["confirmation_attempts"] == attempt
+        assert row["confirmation_failure_code"] == "provider_unavailable"
+        if attempt < customer_requests.CONFIRMATION_MAX_ATTEMPTS:
+            assert row["confirmation_state"] == customer_requests.CONFIRMATION_PENDING
+            assert row["confirmation_next_attempt_at"] > now
+            now = row["confirmation_next_attempt_at"]
+        else:
+            assert row["confirmation_state"] == customer_requests.CONFIRMATION_FAILED
+            assert row["confirmation_next_attempt_at"] is None
+
+    assert len(idempotency_keys) == 1
+    assert customer_requests.claim_confirmation_delivery(
+        database,
+        worker_id="one-too-many",
+        public_id=request.public_id,
+        now=now + 86_400,
+    ) is None
+
+
 @pytest.mark.parametrize("message", ["<b>pokazené</b>", "x" * 4001])
 def test_complaint_rejects_html_and_oversized_text(database, message):
     with pytest.raises(ValueError):
@@ -181,11 +281,112 @@ def test_authenticated_withdrawal_api_records_request_and_sends_service_receipt(
 
     assert response.status_code == 202
     assert response.json()["ok"] is True
+    assert response.json()["request_received"] is True
+    assert response.json()["confirmation"] == {"state": "sent", "sent": True, "pending": False}
+    assert response.json()["request_id"]
     assert sent and sent[0][0] == "buyer@example.test"
     assert "marketing" not in sent[0][2].casefold()
     listing = client.get("/api/consumer/requests").json()
     assert listing["requests"][0]["status"] == customer_requests.STATUS_RECEIVED
     assert listing["orders"][0]["order_id"] == "order-1"
+
+
+def test_provider_failure_after_commit_returns_received_and_pending_retry(monkeypatch, tmp_path):
+    server = zapnute_platby(monkeypatch, tmp_path)
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: 20_000.0)
+    vytvor_pouzivatela(server, user_id=1, email="buyer@example.test")
+    _insert_paid_order(server, purchased_at=19_000.0)
+
+    def unavailable(*_args, **_kwargs):
+        raise server.DeliveryError("provider response must not escape")
+
+    monkeypatch.setattr(server, "posli_mail", unavailable)
+    response = prihlaseny(server).post(
+        "/api/consumer/complaint",
+        json={"order_id": "order-1", "message": "Jedálniček nezohľadnil alergiu."},
+        headers={"Origin": "https://uvar.si"},
+    )
+
+    assert response.status_code == 202
+    body = response.json()
+    assert body["request_received"] is True
+    assert body["confirmation"] == {
+        "state": "pending_retry",
+        "sent": False,
+        "pending": True,
+    }
+    assert "provider response" not in json.dumps(body)
+    with closing(server.db()) as con:
+        row = con.execute(
+            """SELECT confirmation_state,confirmation_attempts,
+                      confirmation_last_attempt_at,confirmation_next_attempt_at,
+                      confirmation_failure_code
+                 FROM consumer_requests WHERE public_id=?""",
+            (body["request_id"],),
+        ).fetchone()
+    assert tuple(row[:3]) == ("pending", 1, 20_000.0)
+    assert row[3] > 20_000.0
+    assert row[4] == "provider_unavailable"
+
+
+def test_pending_confirmation_retries_with_same_key_and_never_resends_after_success(
+    monkeypatch, tmp_path
+):
+    server = zapnute_platby(monkeypatch, tmp_path)
+    now = [30_000.0]
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now[0])
+    vytvor_pouzivatela(server, user_id=1, email="buyer@example.test")
+    _insert_paid_order(server, purchased_at=29_000.0)
+    keys = []
+
+    def fail_once(_to, _subject, _text, _html, *, idempotency_key):
+        keys.append(idempotency_key)
+        raise server.DeliveryError("temporary")
+
+    monkeypatch.setattr(server, "posli_mail", fail_once)
+    client = prihlaseny(server)
+    first = client.post(
+        "/api/consumer/withdrawal",
+        json={"order_id": "order-1", "message": "Odstupujem od zmluvy."},
+        headers={"Origin": "https://uvar.si"},
+    ).json()
+    with closing(server.db()) as con:
+        retry_at = con.execute(
+            "SELECT confirmation_next_attempt_at FROM consumer_requests"
+        ).fetchone()[0]
+
+    sent_messages = []
+
+    def accepted(to, subject, text, html, *, idempotency_key):
+        keys.append(idempotency_key)
+        sent_messages.append((to, subject, text, html))
+
+    monkeypatch.setattr(server, "posli_mail", accepted)
+    now[0] = retry_at
+    assert server.process_consumer_request_confirmation_queue("retry-worker", limit=1) == 1
+    assert server.process_consumer_request_confirmation_queue("retry-worker", limit=1) == 0
+
+    duplicate = client.post(
+        "/api/consumer/withdrawal",
+        json={"order_id": "order-1", "message": "Odstupujem od zmluvy."},
+        headers={"Origin": "https://uvar.si"},
+    ).json()
+    assert duplicate["request_id"] == first["request_id"]
+    assert duplicate["confirmation"] == {"state": "sent", "sent": True, "pending": False}
+    assert len(sent_messages) == 1
+    assert len(set(keys)) == 1
+
+    text = sent_messages[0][2]
+    assert "Odstupujem od zmluvy." in text
+    assert "order-1" in text
+    assert first["request_id"] in text
+    assert "PUMAR s. r. o." in text and "57 370 591" in text
+    assert "pumaragency@gmail.com" in text
+    assert server.LEGAL_VERSION in text
+    assert "39 € raz. Premium bez predplatného počas prevádzky služby Uvar.si." in text
+    assert "Lemon Squeezy" in text and "Merchant of Record" in text
+    assert "Pri prijatí žiadosti refundácia ešte nebola vykonaná" in text
+    assert "https://uvar.si/pravne/vop.txt" in text
 
 
 def test_foreign_order_submission_returns_generic_response_without_creating_case(

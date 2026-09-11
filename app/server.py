@@ -16,6 +16,7 @@ import os, re, json, sqlite3, datetime, threading, time, hashlib, math, tempfile
 from concurrent.futures import Future
 from contextlib import asynccontextmanager, closing
 from decimal import Decimal
+from html import escape
 from pathlib import Path
 import sys
 from urllib.parse import urlsplit
@@ -286,6 +287,17 @@ AUTH_OUTBOX_SHUTDOWN_DEADLINE = 1.0
 AUTH_OUTBOX_PROVIDER_RETRY_SECONDS = 60.0
 AUTH_OUTBOX_WAKE_HANDLES = {}
 AUTH_OUTBOX_CALL_LATER = lambda loop, delay, callback: loop.call_later(
+    delay, callback
+)
+CONSUMER_REQUEST_BACKGROUND_TASKS: set[asyncio.Task] = set()
+CONSUMER_REQUEST_OUTBOX_BATCH_SIZE = 1
+CONSUMER_REQUEST_OUTBOX_WORKER_ID = (
+    f"consumer-request-{os.getpid()}-{id(CONSUMER_REQUEST_BACKGROUND_TASKS)}"
+)
+CONSUMER_REQUEST_OUTBOX_SHUTTING_DOWN = False
+CONSUMER_REQUEST_OUTBOX_SHUTDOWN_DEADLINE = 1.0
+CONSUMER_REQUEST_OUTBOX_WAKE_HANDLES = {}
+CONSUMER_REQUEST_OUTBOX_CALL_LATER = lambda loop, delay, callback: loop.call_later(
     delay, callback
 )
 
@@ -683,21 +695,30 @@ def zvys_strop_vlakien() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    global AUTH_OUTBOX_SHUTTING_DOWN
+    global AUTH_OUTBOX_SHUTTING_DOWN, CONSUMER_REQUEST_OUTBOX_SHUTTING_DOWN
     priprav_databazu()
     with closing(db()) as con:
         cleanup_auth_records(con, now=AUTH_CLOCK())
     zvys_strop_vlakien()
     AUTH_OUTBOX_SHUTTING_DOWN = False
+    CONSUMER_REQUEST_OUTBOX_SHUTTING_DOWN = False
     ensure_password_reset_worker()
+    ensure_consumer_request_confirmation_worker()
     try:
         yield
     finally:
         AUTH_OUTBOX_SHUTTING_DOWN = True
+        CONSUMER_REQUEST_OUTBOX_SHUTTING_DOWN = True
         for handle, _wake_at in tuple(AUTH_OUTBOX_WAKE_HANDLES.values()):
             handle.cancel()
         AUTH_OUTBOX_WAKE_HANDLES.clear()
+        for handle, _wake_at in tuple(CONSUMER_REQUEST_OUTBOX_WAKE_HANDLES.values()):
+            handle.cancel()
+        CONSUMER_REQUEST_OUTBOX_WAKE_HANDLES.clear()
         await drain_password_reset_workers(deadline=AUTH_OUTBOX_SHUTDOWN_DEADLINE)
+        await drain_consumer_request_confirmation_workers(
+            deadline=CONSUMER_REQUEST_OUTBOX_SHUTDOWN_DEADLINE
+        )
 
 
 app = FastAPI(title="Uvar.si", lifespan=lifespan)
@@ -5375,17 +5396,18 @@ def _consumer_request_rate_limit(user_id: int, *, operation: str, now: float) ->
         raise HTTPException(429, "Priveľa žiadostí. Skús to znova o 10 minút.")
 
 
-def _consumer_request_receipt(request, email: str) -> None:
+def _consumer_request_receipt(delivery: customer_requests.ConfirmationDelivery) -> None:
     received = datetime.datetime.fromtimestamp(
-        request.created_at, datetime.timezone.utc
+        delivery.created_at, datetime.timezone.utc
     ).astimezone(ZoneInfo("Europe/Bratislava")).strftime("%d. %m. %Y o %H:%M")
-    if request.request_type == customer_requests.TYPE_WITHDRAWAL:
+    if delivery.request_type == customer_requests.TYPE_WITHDRAWAL:
         predmet = "Uvar.si: prijali sme tvoju žiadosť o odstúpenie"
-        if request.refund_scope == customer_requests.REFUND_FULL:
+        typ = "Žiadosť o odstúpenie od zmluvy"
+        if delivery.refund_scope == customer_requests.REFUND_FULL:
             detail = (
                 "Žiadosť je v 14-dňovej lehote. Vrátime ti celú zaplatenú "
-                "sumu na pôvodný spôsob platby. Refundácia ešte nebola "
-                "vykonaná; jej stav uvidíš v profile."
+                "sumu na pôvodný spôsob platby. Pri prijatí žiadosti refundácia "
+                "ešte nebola vykonaná; jej aktuálny stav uvidíš v profile."
             )
         else:
             detail = (
@@ -5394,34 +5416,201 @@ def _consumer_request_receipt(request, email: str) -> None:
             )
     else:
         predmet = "Uvar.si: prijali sme tvoju reklamáciu"
+        typ = "Reklamácia digitálnej služby"
         detail = (
             "Reklamáciu sme zaevidovali. Ozveme sa ti e-mailom; ak bude treba "
             "doplniť snímku alebo iný podklad, môžeš odpovedať na túto správu."
         )
+    message = delivery.message or "Bez doplňujúcej správy."
+    register = (
+        f"{OPERATOR.register_court}, oddiel {OPERATOR.register_section}, "
+        f"vložka č. {OPERATOR.register_entry}"
+    )
+    promise = "39 € raz. Premium bez predplatného počas prevádzky služby Uvar.si."
+    merchant = (
+        "Lemon Squeezy vystupuje pri nákupe ako obchodník a Merchant of Record; "
+        "PUMAR s. r. o. prevádzkuje Uvar.si a poskytuje podporu k službe."
+    )
+    legal_links = (
+        f"VOP na uloženie: {BASE_URL}/pravne/vop.txt\n"
+        f"Odstúpenie: {BASE_URL}/odstupenie\n"
+        f"Reklamácie: {BASE_URL}/reklamacie\n"
+        f"Ochrana osobných údajov: {BASE_URL}/ochrana-osobnych-udajov"
+    )
     text = (
-        f"Ahoj!\n\n{detail}\n\nPrijaté: {received}\n"
-        f"Číslo žiadosti: {request.public_id}\n\n"
-        "Kontakt: pumaragency@gmail.com\nUvar.si"
+        f"Ahoj!\n\n{detail}\n\n"
+        f"Typ podania: {typ}\n"
+        f"Prijaté: {received}\n"
+        f"Číslo žiadosti: {delivery.public_id}\n"
+        f"Objednávka: {delivery.order_id}\n"
+        f"Obsah podania:\n{message}\n\n"
+        f"Zmluvná ponuka: {promise}\n"
+        f"Predaj a prevádzka: {merchant}\n"
+        f"Právna verzia platná pri podaní: {delivery.legal_version}\n\n"
+        f"Prevádzkovateľ služby: {OPERATOR.business_name}\n"
+        f"IČO: 57 370 591\n"
+        f"Sídlo: {OPERATOR.registered_office}\n"
+        f"Register: {register}\n"
+        f"Kontakt: {OPERATOR.support_email}\n\n"
+        f"{legal_links}\n\n"
+        "Tento e-mail si môžeš uložiť ako potvrdenie svojho podania."
     )
     html = (
-        '<!DOCTYPE html><html lang="sk"><body><p>Ahoj!</p><p>'
-        + detail
-        + "</p><p>Prijaté: "
-        + received
-        + "<br>Číslo žiadosti: <b>"
-        + request.public_id
-        + "</b></p><p>Kontakt: pumaragency@gmail.com<br>Uvar.si</p></body></html>"
+        "<!DOCTYPE html><html lang='sk'><body><h1>Uvar.si</h1>"
+        f"<p>{escape(detail)}</p>"
+        f"<p><b>Typ podania:</b> {escape(typ)}<br>"
+        f"<b>Prijaté:</b> {escape(received)}<br>"
+        f"<b>Číslo žiadosti:</b> {escape(delivery.public_id)}<br>"
+        f"<b>Objednávka:</b> {escape(delivery.order_id)}</p>"
+        f"<p><b>Obsah podania:</b><br>{escape(message).replace(chr(10), '<br>')}</p>"
+        f"<p><b>Zmluvná ponuka:</b> {escape(promise)}<br>"
+        f"<b>Predaj a prevádzka:</b> {escape(merchant)}<br>"
+        f"<b>Právna verzia platná pri podaní:</b> {escape(delivery.legal_version)}</p>"
+        f"<p><b>Prevádzkovateľ služby:</b> {escape(OPERATOR.business_name)}<br>"
+        "<b>IČO:</b> 57 370 591<br>"
+        f"<b>Sídlo:</b> {escape(OPERATOR.registered_office)}<br>"
+        f"<b>Register:</b> {escape(register)}<br>"
+        f"<b>Kontakt:</b> {escape(OPERATOR.support_email)}</p>"
+        f"<p><a href='{BASE_URL}/pravne/vop.txt'>VOP na uloženie</a><br>"
+        f"<a href='{BASE_URL}/odstupenie'>Odstúpenie</a><br>"
+        f"<a href='{BASE_URL}/reklamacie'>Reklamácie</a><br>"
+        f"<a href='{BASE_URL}/ochrana-osobnych-udajov'>Ochrana osobných údajov</a></p>"
+        "<p>Tento e-mail si môžeš uložiť ako potvrdenie svojho podania.</p>"
+        "</body></html>"
     )
-    try:
-        posli_mail(
-            email,
-            predmet,
-            text,
-            html,
-            idempotency_key=f"consumer-request:{request.public_id}",
+    posli_mail(
+        delivery.email,
+        predmet,
+        text,
+        html,
+        idempotency_key=delivery.idempotency_key,
+    )
+
+
+def _consumer_request_failure_code(error: BaseException) -> str:
+    if isinstance(error, DeliveryError):
+        return "provider_unavailable"
+    return "delivery_error"
+
+
+def process_consumer_request_confirmation_queue(
+    worker_id: str,
+    *,
+    limit: int = CONSUMER_REQUEST_OUTBOX_BATCH_SIZE,
+    public_id: str | None = None,
+) -> int:
+    """Deliver due durable confirmations without duplicating successful mail."""
+    if limit <= 0 or CONSUMER_REQUEST_OUTBOX_SHUTTING_DOWN:
+        return 0
+    processed = 0
+    while processed < limit and not CONSUMER_REQUEST_OUTBOX_SHUTTING_DOWN:
+        with closing(db()) as con:
+            delivery = customer_requests.claim_confirmation_delivery(
+                con,
+                worker_id=worker_id,
+                public_id=public_id,
+                now=AUTH_CLOCK(),
+            )
+        if delivery is None:
+            break
+        sent = False
+        failure_code = None
+        try:
+            _consumer_request_receipt(delivery)
+            sent = True
+        except Exception as error:
+            failure_code = _consumer_request_failure_code(error)
+        with closing(db()) as con:
+            customer_requests.finish_confirmation_delivery(
+                con,
+                delivery,
+                sent=sent,
+                failure_code=failure_code,
+                now=AUTH_CLOCK(),
+            )
+        processed += 1
+        if public_id is not None:
+            break
+    return processed
+
+
+def schedule_consumer_request_confirmation_wake(wake_at: float) -> None:
+    if CONSUMER_REQUEST_OUTBOX_SHUTTING_DOWN:
+        return
+    loop = asyncio.get_running_loop()
+    current = CONSUMER_REQUEST_OUTBOX_WAKE_HANDLES.get(loop)
+    if current is not None:
+        handle, current_wake = current
+        if not handle.cancelled() and current_wake <= wake_at:
+            return
+        handle.cancel()
+
+    def wake() -> None:
+        CONSUMER_REQUEST_OUTBOX_WAKE_HANDLES.pop(loop, None)
+        if not CONSUMER_REQUEST_OUTBOX_SHUTTING_DOWN:
+            ensure_consumer_request_confirmation_worker()
+
+    delay = max(0.0, wake_at - AUTH_CLOCK())
+    CONSUMER_REQUEST_OUTBOX_WAKE_HANDLES[loop] = (
+        CONSUMER_REQUEST_OUTBOX_CALL_LATER(loop, delay, wake),
+        wake_at,
+    )
+
+
+def ensure_consumer_request_confirmation_worker() -> asyncio.Task:
+    loop = asyncio.get_running_loop()
+    for task in tuple(CONSUMER_REQUEST_BACKGROUND_TASKS):
+        if task.done():
+            CONSUMER_REQUEST_BACKGROUND_TASKS.discard(task)
+        elif task.get_loop() is loop:
+            return task
+    task = asyncio.create_task(
+        asyncio.to_thread(
+            process_consumer_request_confirmation_queue,
+            CONSUMER_REQUEST_OUTBOX_WORKER_ID,
+            limit=CONSUMER_REQUEST_OUTBOX_BATCH_SIZE,
         )
-    except Exception:
-        pass
+    )
+    CONSUMER_REQUEST_BACKGROUND_TASKS.add(task)
+
+    def discard_outcome(completed: asyncio.Task) -> None:
+        CONSUMER_REQUEST_BACKGROUND_TASKS.discard(completed)
+        if completed.cancelled() or CONSUMER_REQUEST_OUTBOX_SHUTTING_DOWN:
+            return
+        try:
+            completed.result()
+        except BaseException:
+            return
+        with closing(db()) as con:
+            wake_at = customer_requests.confirmation_next_wake(con, now=AUTH_CLOCK())
+        if wake_at is None:
+            return
+        if wake_at <= AUTH_CLOCK():
+            ensure_consumer_request_confirmation_worker()
+        else:
+            schedule_consumer_request_confirmation_wake(wake_at)
+
+    task.add_done_callback(discard_outcome)
+    return task
+
+
+async def drain_consumer_request_confirmation_workers(
+    *, deadline: float = CONSUMER_REQUEST_OUTBOX_SHUTDOWN_DEADLINE
+) -> bool:
+    loop = asyncio.get_running_loop()
+    stop_at = loop.time() + max(0.0, deadline)
+    while True:
+        active = [
+            task for task in CONSUMER_REQUEST_BACKGROUND_TASKS if not task.done()
+        ]
+        if not active:
+            return True
+        remaining = stop_at - loop.time()
+        if remaining <= 0:
+            return False
+        _done, pending = await asyncio.wait(active, timeout=remaining)
+        if pending:
+            return False
 
 
 def _notify_consumer_requests(con, *, now: float) -> None:
@@ -5475,14 +5664,43 @@ async def _create_consumer_request(req: Request, *, request_type: str):
     except customer_requests.RequestNotAllowed:
         # Same response for an absent and a foreign order: no enumeration.
         return JSONResponse(
-            {"ok": True, "message": CONSUMER_REQUEST_RESPONSE}, status_code=202
+            {
+                "ok": True,
+                "message": CONSUMER_REQUEST_RESPONSE,
+                "request_received": None,
+                "request_id": None,
+                "confirmation": {
+                    "state": "not_disclosed",
+                    "sent": False,
+                    "pending": False,
+                },
+            },
+            status_code=202,
         )
     except ValueError as error:
         raise HTTPException(422, str(error))
-    if created.created:
-        _consumer_request_receipt(created, user["email"])
+    await asyncio.to_thread(
+        process_consumer_request_confirmation_queue,
+        CONSUMER_REQUEST_OUTBOX_WORKER_ID,
+        limit=1,
+        public_id=created.public_id,
+    )
+    with closing(db()) as con:
+        confirmation = customer_requests.public_confirmation_state(
+            con, public_id=created.public_id
+        )
+        wake_at = customer_requests.confirmation_next_wake(con, now=AUTH_CLOCK())
+    if wake_at is not None:
+        schedule_consumer_request_confirmation_wake(wake_at)
     return JSONResponse(
-        {"ok": True, "message": CONSUMER_REQUEST_RESPONSE}, status_code=202
+        {
+            "ok": True,
+            "message": CONSUMER_REQUEST_RESPONSE,
+            "request_received": True,
+            "request_id": created.public_id,
+            "confirmation": confirmation,
+        },
+        status_code=202,
     )
 
 

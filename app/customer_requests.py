@@ -8,6 +8,11 @@ import secrets
 import sqlite3
 from dataclasses import dataclass
 
+try:
+    from .operator_profile import LEGAL_VERSION
+except ImportError:
+    from operator_profile import LEGAL_VERSION
+
 
 TYPE_WITHDRAWAL = "withdrawal"
 TYPE_COMPLAINT = "complaint"
@@ -22,6 +27,20 @@ PROVIDER = "lemonsqueezy"
 PRODUCT = "zakladajuci_clen"
 WITHDRAWAL_SECONDS = 14 * 24 * 60 * 60
 MAX_MESSAGE_LENGTH = 4_000
+CONFIRMATION_PENDING = "pending"
+CONFIRMATION_SENDING = "sending"
+CONFIRMATION_SENT = "sent"
+CONFIRMATION_FAILED = "failed"
+CONFIRMATION_MAX_ATTEMPTS = 5
+CONFIRMATION_RETRY_BASE_SECONDS = 60
+CONFIRMATION_RETRY_MAX_SECONDS = 60 * 60
+CONFIRMATION_LEASE_SECONDS = 60
+_SAFE_FAILURE_CODES = {
+    "provider_unavailable",
+    "provider_rejected",
+    "provider_malformed",
+    "delivery_error",
+}
 _ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 _HTML_RE = re.compile(r"<\s*/?\s*[A-Za-z!][^>]*>")
 _OPEN_STATUSES = (STATUS_RECEIVED, STATUS_PROCESSING, STATUS_REQUIRES_REVIEW)
@@ -40,9 +59,21 @@ CREATE TABLE IF NOT EXISTS consumer_requests (
   purchased_at REAL NOT NULL,
   created_at REAL NOT NULL,
   updated_at REAL NOT NULL,
+  legal_version TEXT NOT NULL,
+  confirmation_state TEXT NOT NULL DEFAULT 'pending',
+  confirmation_attempts INTEGER NOT NULL DEFAULT 0,
+  confirmation_last_attempt_at REAL,
+  confirmation_next_attempt_at REAL,
+  confirmation_sent_at REAL,
+  confirmation_failure_code TEXT,
+  confirmation_lease_owner TEXT,
+  confirmation_lease_expires_at REAL,
+  confirmation_idempotency_key TEXT NOT NULL,
   CHECK(request_type IN ('withdrawal','complaint')),
   CHECK(status IN ('received','processing','refunded','requires_review','resolved')),
-  CHECK(refund_scope IS NULL OR refund_scope IN ('full','review'))
+  CHECK(refund_scope IS NULL OR refund_scope IN ('full','review')),
+  CHECK(confirmation_state IN ('pending','sending','sent','failed')),
+  CHECK(confirmation_attempts >= 0)
 );
 CREATE INDEX IF NOT EXISTS consumer_requests_user_idx
   ON consumer_requests(user_id, created_at DESC);
@@ -70,17 +101,91 @@ class ConsumerRequest:
     purchased_at: float
     created_at: float
     updated_at: float
+    legal_version: str
+    confirmation_state: str
+    confirmation_attempts: int
+    confirmation_last_attempt_at: float | None
+    confirmation_next_attempt_at: float | None
+    confirmation_sent_at: float | None
+    confirmation_failure_code: str | None
+    confirmation_idempotency_key: str
     created: bool = False
+
+
+@dataclass(frozen=True)
+class ConfirmationDelivery:
+    public_id: str
+    user_id: int
+    order_id: str
+    request_type: str
+    message: str
+    status: str
+    refund_scope: str | None
+    purchased_at: float
+    created_at: float
+    legal_version: str
+    email: str
+    worker_id: str
+    attempt: int
+    idempotency_key: str
 
 
 def migrate_customer_requests_schema(con) -> None:
     con.executescript(SCHEMA)
+    columns = {row[1] for row in con.execute("PRAGMA table_info(consumer_requests)")}
+    additions = (
+        ("legal_version", "TEXT"),
+        ("confirmation_state", "TEXT"),
+        ("confirmation_attempts", "INTEGER"),
+        ("confirmation_last_attempt_at", "REAL"),
+        ("confirmation_next_attempt_at", "REAL"),
+        ("confirmation_sent_at", "REAL"),
+        ("confirmation_failure_code", "TEXT"),
+        ("confirmation_lease_owner", "TEXT"),
+        ("confirmation_lease_expires_at", "REAL"),
+        ("confirmation_idempotency_key", "TEXT"),
+    )
+    for name, kind in additions:
+        if name not in columns:
+            con.execute(f"ALTER TABLE consumer_requests ADD COLUMN {name} {kind}")
+    con.execute(
+        "UPDATE consumer_requests SET legal_version=? WHERE legal_version IS NULL OR legal_version=''",
+        (LEGAL_VERSION,),
+    )
+    con.execute(
+        """UPDATE consumer_requests
+              SET confirmation_state=COALESCE(confirmation_state, ?),
+                  confirmation_attempts=COALESCE(confirmation_attempts, 0),
+                  confirmation_next_attempt_at=COALESCE(confirmation_next_attempt_at, created_at)
+            WHERE confirmation_state IS NULL
+               OR confirmation_attempts IS NULL
+               OR confirmation_next_attempt_at IS NULL""",
+        (CONFIRMATION_PENDING,),
+    )
+    rows = con.execute(
+        """SELECT public_id FROM consumer_requests
+            WHERE confirmation_idempotency_key IS NULL
+               OR confirmation_idempotency_key=''"""
+    ).fetchall()
+    con.executemany(
+        "UPDATE consumer_requests SET confirmation_idempotency_key=? WHERE public_id=?",
+        ((f"consumer-request/{row[0]}", row[0]) for row in rows),
+    )
+    con.execute(
+        """CREATE INDEX IF NOT EXISTS consumer_requests_confirmation_idx
+             ON consumer_requests(confirmation_state, confirmation_next_attempt_at, created_at)"""
+    )
 
 
 def workflow_ready(con) -> bool:
     required = {
         "public_id", "user_id", "order_id", "request_type", "message",
         "status", "refund_scope", "purchased_at", "created_at", "updated_at",
+        "legal_version", "confirmation_state", "confirmation_attempts",
+        "confirmation_last_attempt_at", "confirmation_next_attempt_at",
+        "confirmation_sent_at", "confirmation_failure_code",
+        "confirmation_lease_owner", "confirmation_lease_expires_at",
+        "confirmation_idempotency_key",
     }
     columns = {row[1] for row in con.execute("PRAGMA table_info(consumer_requests)")}
     return required <= columns
@@ -147,6 +252,23 @@ def _from_row(row, *, created=False) -> ConsumerRequest:
         purchased_at=float(row["purchased_at"]),
         created_at=float(row["created_at"]),
         updated_at=float(row["updated_at"]),
+        legal_version=str(row["legal_version"]),
+        confirmation_state=str(row["confirmation_state"]),
+        confirmation_attempts=int(row["confirmation_attempts"]),
+        confirmation_last_attempt_at=(
+            None if row["confirmation_last_attempt_at"] is None
+            else float(row["confirmation_last_attempt_at"])
+        ),
+        confirmation_next_attempt_at=(
+            None if row["confirmation_next_attempt_at"] is None
+            else float(row["confirmation_next_attempt_at"])
+        ),
+        confirmation_sent_at=(
+            None if row["confirmation_sent_at"] is None
+            else float(row["confirmation_sent_at"])
+        ),
+        confirmation_failure_code=row["confirmation_failure_code"],
+        confirmation_idempotency_key=str(row["confirmation_idempotency_key"]),
         created=created,
     )
 
@@ -201,11 +323,15 @@ def _create(
                 con.execute(
                     """INSERT INTO consumer_requests
                        (public_id,user_id,order_id,request_type,message,status,
-                        refund_scope,purchased_at,created_at,updated_at)
-                       VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                        refund_scope,purchased_at,created_at,updated_at,legal_version,
+                        confirmation_state,confirmation_attempts,
+                        confirmation_next_attempt_at,confirmation_idempotency_key)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
                         public_id, user_id, order_id, request_type, message,
-                        status, refund_scope, paid_at, now, now,
+                        status, refund_scope, paid_at, now, now, LEGAL_VERSION,
+                        CONFIRMATION_PENDING, 0, now,
+                        f"consumer-request/{public_id}",
                     ),
                 )
                 break
@@ -254,11 +380,242 @@ def requests_for_user(con, *, user_id) -> list[dict]:
     user_id = _user_id(user_id)
     rows = con.execute(
         """SELECT public_id,order_id,request_type,message,status,refund_scope,
-                  purchased_at,created_at,updated_at
+                  purchased_at,created_at,updated_at,legal_version,
+                  confirmation_state,confirmation_attempts,
+                  confirmation_last_attempt_at,confirmation_next_attempt_at,
+                  confirmation_sent_at,confirmation_failure_code
              FROM consumer_requests WHERE user_id=? ORDER BY created_at DESC,id DESC""",
         (user_id,),
     ).fetchall()
     return [dict(row) for row in rows]
+
+
+def _worker_id(value) -> str:
+    if not isinstance(value, str):
+        raise ValueError("neplatný worker")
+    value = value.strip()
+    if not _ID_RE.fullmatch(value):
+        raise ValueError("neplatný worker")
+    return value
+
+
+def _safe_failure_code(value) -> str:
+    return value if value in _SAFE_FAILURE_CODES else "delivery_error"
+
+
+def _recover_expired_confirmation_leases(con, *, now: float) -> None:
+    con.execute(
+        """UPDATE consumer_requests
+              SET confirmation_state=CASE
+                    WHEN confirmation_attempts < ? THEN ? ELSE ? END,
+                  confirmation_next_attempt_at=CASE
+                    WHEN confirmation_attempts < ? THEN ? ELSE NULL END,
+                  confirmation_failure_code=COALESCE(
+                    confirmation_failure_code, 'delivery_error'),
+                  confirmation_lease_owner=NULL,
+                  confirmation_lease_expires_at=NULL,
+                  updated_at=?
+            WHERE confirmation_state=? AND confirmation_lease_expires_at<=?""",
+        (
+            CONFIRMATION_MAX_ATTEMPTS,
+            CONFIRMATION_PENDING,
+            CONFIRMATION_FAILED,
+            CONFIRMATION_MAX_ATTEMPTS,
+            now,
+            now,
+            CONFIRMATION_SENDING,
+            now,
+        ),
+    )
+
+
+def claim_confirmation_delivery(
+    con,
+    *,
+    worker_id,
+    now,
+    public_id=None,
+    lease_seconds=CONFIRMATION_LEASE_SECONDS,
+) -> ConfirmationDelivery | None:
+    """Lease one due confirmation; at most one worker can own it."""
+    worker_id = _worker_id(worker_id)
+    now = _time(now)
+    lease_seconds = _time(lease_seconds)
+    if lease_seconds <= 0:
+        raise ValueError("neplatný lease")
+    if public_id is not None:
+        public_id = _order_id(public_id)
+    if con.in_transaction:
+        con.commit()
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        _recover_expired_confirmation_leases(con, now=now)
+        where_public = " AND r.public_id=?" if public_id is not None else ""
+        parameters = [
+            CONFIRMATION_PENDING,
+            CONFIRMATION_MAX_ATTEMPTS,
+            now,
+        ]
+        if public_id is not None:
+            parameters.append(public_id)
+        row = con.execute(
+            f"""SELECT r.*, p.email
+                  FROM consumer_requests r
+                  JOIN pouzivatelia p ON p.id=r.user_id
+                 WHERE r.confirmation_state=?
+                   AND r.confirmation_attempts<?
+                   AND r.confirmation_next_attempt_at<=?
+                   {where_public}
+                 ORDER BY r.created_at,r.id LIMIT 1""",
+            parameters,
+        ).fetchone()
+        if row is None:
+            con.commit()
+            return None
+        attempt = int(row["confirmation_attempts"]) + 1
+        changed = con.execute(
+            """UPDATE consumer_requests
+                  SET confirmation_state=?,confirmation_attempts=?,
+                      confirmation_last_attempt_at=?,confirmation_lease_owner=?,
+                      confirmation_lease_expires_at=?,updated_at=?
+                WHERE id=? AND confirmation_state=?
+                  AND confirmation_attempts=?""",
+            (
+                CONFIRMATION_SENDING,
+                attempt,
+                now,
+                worker_id,
+                now + lease_seconds,
+                now,
+                row["id"],
+                CONFIRMATION_PENDING,
+                attempt - 1,
+            ),
+        )
+        if changed.rowcount != 1:
+            con.rollback()
+            return None
+        con.commit()
+        return ConfirmationDelivery(
+            public_id=str(row["public_id"]),
+            user_id=int(row["user_id"]),
+            order_id=str(row["order_id"]),
+            request_type=str(row["request_type"]),
+            message=str(row["message"]),
+            status=str(row["status"]),
+            refund_scope=row["refund_scope"],
+            purchased_at=float(row["purchased_at"]),
+            created_at=float(row["created_at"]),
+            legal_version=str(row["legal_version"]),
+            email=str(row["email"]),
+            worker_id=worker_id,
+            attempt=attempt,
+            idempotency_key=str(row["confirmation_idempotency_key"]),
+        )
+    except Exception:
+        if con.in_transaction:
+            con.rollback()
+        raise
+
+
+def finish_confirmation_delivery(
+    con, delivery: ConfirmationDelivery, *, sent: bool, now, failure_code=None
+) -> bool:
+    """Finalize only the caller's lease and retain no provider response body."""
+    now = _time(now)
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        row = con.execute(
+            """SELECT confirmation_attempts FROM consumer_requests
+                WHERE public_id=? AND confirmation_state=?
+                  AND confirmation_lease_owner=? AND confirmation_attempts=?""",
+            (
+                delivery.public_id,
+                CONFIRMATION_SENDING,
+                delivery.worker_id,
+                delivery.attempt,
+            ),
+        ).fetchone()
+        if row is None:
+            con.rollback()
+            return False
+        attempts = int(row[0])
+        if sent:
+            con.execute(
+                """UPDATE consumer_requests
+                      SET confirmation_state=?,confirmation_sent_at=?,
+                          confirmation_next_attempt_at=NULL,
+                          confirmation_failure_code=NULL,
+                          confirmation_lease_owner=NULL,
+                          confirmation_lease_expires_at=NULL,updated_at=?
+                    WHERE public_id=?""",
+                (CONFIRMATION_SENT, now, now, delivery.public_id),
+            )
+        else:
+            retry = attempts < CONFIRMATION_MAX_ATTEMPTS
+            delay = min(
+                CONFIRMATION_RETRY_BASE_SECONDS * (2 ** (attempts - 1)),
+                CONFIRMATION_RETRY_MAX_SECONDS,
+            )
+            con.execute(
+                """UPDATE consumer_requests
+                      SET confirmation_state=?,confirmation_next_attempt_at=?,
+                          confirmation_failure_code=?,
+                          confirmation_lease_owner=NULL,
+                          confirmation_lease_expires_at=NULL,updated_at=?
+                    WHERE public_id=?""",
+                (
+                    CONFIRMATION_PENDING if retry else CONFIRMATION_FAILED,
+                    now + delay if retry else None,
+                    _safe_failure_code(failure_code),
+                    now,
+                    delivery.public_id,
+                ),
+            )
+        con.commit()
+        return True
+    except Exception:
+        if con.in_transaction:
+            con.rollback()
+        raise
+
+
+def confirmation_next_wake(con, *, now) -> float | None:
+    """Return the next retry or abandoned-lease recovery time."""
+    now = _time(now)
+    row = con.execute(
+        """SELECT MIN(wake_at) FROM (
+             SELECT confirmation_next_attempt_at AS wake_at
+               FROM consumer_requests
+              WHERE confirmation_state=? AND confirmation_attempts<?
+             UNION ALL
+             SELECT confirmation_lease_expires_at AS wake_at
+               FROM consumer_requests WHERE confirmation_state=?
+           ) WHERE wake_at IS NOT NULL""",
+        (
+            CONFIRMATION_PENDING,
+            CONFIRMATION_MAX_ATTEMPTS,
+            CONFIRMATION_SENDING,
+        ),
+    ).fetchone()
+    if row is None or row[0] is None:
+        return None
+    return max(now, float(row[0]))
+
+
+def public_confirmation_state(con, *, public_id) -> dict:
+    public_id = _order_id(public_id)
+    row = con.execute(
+        "SELECT confirmation_state FROM consumer_requests WHERE public_id=?",
+        (public_id,),
+    ).fetchone()
+    if row is None:
+        raise RequestNotAllowed("žiadosť sa nenašla")
+    state = str(row[0])
+    sent = state == CONFIRMATION_SENT
+    pending = state in (CONFIRMATION_PENDING, CONFIRMATION_SENDING)
+    public_state = "sent" if sent else "pending_retry" if pending else "failed"
+    return {"state": public_state, "sent": sent, "pending": pending}
 
 
 def orders_for_user(con, *, user_id) -> list[dict]:
