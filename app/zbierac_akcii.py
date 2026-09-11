@@ -11,7 +11,8 @@ Zdroje strán letákov: oficiálne zdroje obchodov; agregátory iba ako núdzov�
 Beh:  /opt/uvarsi/venv/bin/python -u zbierac_akcii.py
 Opravný beh jedného zdroja:  ... zbierac_akcii.py --store lidl
 """
-import os, re, json, base64, datetime, hashlib, sqlite3, tempfile, requests
+import os, re, json, base64, datetime, hashlib, secrets, sqlite3, tempfile, requests
+from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import quote, urlparse
@@ -20,8 +21,10 @@ try:
     from offer_data import (
         CURRENT_COLLECTION_DATA_VERSION,
         LOYALTY_PROGRAM_BY_STORE,
+        canonical_offer_key,
         migrate_akcie_schema,
         migrate_offer_staging_schema,
+        offer_key_for,
         offer_key_matches,
         replace_active_week_from_staging,
         replace_store_week,
@@ -32,8 +35,10 @@ except ImportError:
     from app.offer_data import (
         CURRENT_COLLECTION_DATA_VERSION,
         LOYALTY_PROGRAM_BY_STORE,
+        canonical_offer_key,
         migrate_akcie_schema,
         migrate_offer_staging_schema,
+        offer_key_for,
         offer_key_matches,
         replace_active_week_from_staging,
         replace_store_week,
@@ -105,6 +110,28 @@ KAUFLAND_OFFERS_URL = (
     "?kloffer-week=current"
 )
 COLLECTION_DATA_VERSION = CURRENT_COLLECTION_DATA_VERSION
+COLLECTION_LEASE_SECONDS = 30 * 60
+OFFICIAL_COLLECTOR_BY_STORE = {
+    "Kaufland": "official-kaufland-offers",
+    "Tesco": "official-tesco-viewer",
+    "Lidl": "official-lidl-viewer",
+}
+
+
+@dataclass(frozen=True)
+class CollectionProvenance:
+    collector_kind: str
+    source_fingerprint: str
+    valid_from: str
+    valid_to: str
+
+
+@dataclass(frozen=True)
+class PreparedCollection:
+    pages: list
+    manifest: dict
+    page_manifest: dict
+    provenance: CollectionProvenance
 
 
 def log(*a):
@@ -176,7 +203,22 @@ CREATE TABLE IF NOT EXISTS zber_staging_stav (
   source_fingerprint TEXT,
   valid_from TEXT,
   valid_to TEXT,
+  attempted_collector_kind TEXT,
+  attempted_fingerprint TEXT,
+  attempted_valid_from TEXT,
+  attempted_valid_to TEXT,
+  failure_kind TEXT,
   updated TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tyzden, obchod)
+);
+
+CREATE TABLE IF NOT EXISTS zber_claim (
+  tyzden TEXT NOT NULL,
+  obchod TEXT NOT NULL,
+  owner TEXT NOT NULL,
+  source_fingerprint TEXT NOT NULL,
+  claimed_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
   PRIMARY KEY (tyzden, obchod)
 );
 """
@@ -198,6 +240,18 @@ def db():
     for name in ("collector_kind", "source_fingerprint", "valid_from", "valid_to"):
         if name not in columns:
             con.execute(f"ALTER TABLE zber_stav ADD COLUMN {name} TEXT")
+    staging_columns = {
+        row[1] for row in con.execute("PRAGMA table_info(zber_staging_stav)")
+    }
+    for name in (
+        "attempted_collector_kind",
+        "attempted_fingerprint",
+        "attempted_valid_from",
+        "attempted_valid_to",
+        "failure_kind",
+    ):
+        if name not in staging_columns:
+            con.execute(f"ALTER TABLE zber_staging_stav ADD COLUMN {name} TEXT")
     naklady.migrate_naklady_schema(con)
     plan_jobs.migrate_plan_jobs_schema(con)
     return con
@@ -210,6 +264,67 @@ def business_day(now=None):
 
 def monday(now=None):
     return bratislava_monday(now)
+
+
+def manifest_fingerprint(manifest):
+    """Hash the finite flyer manifest, including every page/content identity."""
+    if not isinstance(manifest, dict):
+        raise ValueError("manifest fingerprint requires a manifest")
+    pages = manifest.get("pages")
+    if not isinstance(pages, list) or not pages:
+        raise ValueError("manifest fingerprint requires pages")
+    canonical_pages = []
+    for page in pages:
+        if not isinstance(page, dict):
+            raise ValueError("manifest fingerprint requires page objects")
+        def stable_media(value):
+            if not isinstance(value, str):
+                return value
+            parsed = urlparse(value)
+            if re.fullmatch(r"/v1/tesco/media/[A-Za-z0-9._-]+", parsed.path):
+                # The bridge capability token expires and rotates; page number,
+                # leaflet slug/validity and an optional content hash are stable.
+                return f"{parsed.scheme}://{parsed.netloc}/v1/tesco/media/{{token}}"
+            return f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+
+        canonical_pages.append({
+            "source_page": page.get("source_page"),
+            "thumbnail_url": stable_media(page.get("thumbnail_url")),
+            "image_url": stable_media(page.get("image_url")),
+            "content_hash": page.get("content_hash"),
+            "etag": page.get("etag"),
+        })
+    canonical_pages.sort(key=lambda page: page["source_page"])
+    identity = {
+        "source_url": manifest.get("source_url"),
+        "collector_kind": manifest.get("collector_kind"),
+        "valid_from": manifest.get("valid_from"),
+        "valid_to": manifest.get("valid_to"),
+        "declared_pages": manifest.get("declared_pages", len(canonical_pages)),
+        "leaflet_format": manifest.get("leaflet_format"),
+        "store_label": manifest.get("store_label"),
+        "pages": canonical_pages,
+    }
+    encoded = json.dumps(
+        identity, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def provenance_from_manifest(manifest):
+    return CollectionProvenance(
+        manifest["collector_kind"],
+        manifest_fingerprint(manifest),
+        manifest["valid_from"],
+        manifest["valid_to"],
+    )
+
+
+def _approved_official_source(store, collector_kind):
+    return (
+        OFFICIAL_COLLECTOR_BY_STORE.get(str(store).capitalize()) == collector_kind
+        and source_policy.approved_source(store, collector_kind)
+    )
 
 
 # ---------------------------------------------------------------- zdroje strán
@@ -1770,11 +1885,25 @@ def _stage_official_tesco_pages(page_manifest, directory):
     return scans, paths
 
 
-def zbieraj(client, store):
+def prepare_store_collection(store):
+    """Resolve and validate the free source manifest before any paid AI call."""
     pages, manifest = store_pages(store)
     if not pages:
         raise ValueError(f"{store}: leták s konečnou platnosťou nebol nájdený")
     page_manifest = validate_flyer_manifest(pages, manifest, store=store)
+    return PreparedCollection(
+        pages=pages,
+        manifest=manifest,
+        page_manifest=page_manifest,
+        provenance=provenance_from_manifest(manifest),
+    )
+
+
+def zbieraj(client, store, prepared=None):
+    prepared = prepared or prepare_store_collection(store)
+    pages = prepared.pages
+    manifest = prepared.manifest
+    page_manifest = prepared.page_manifest
 
     if store == "tesco" and manifest.get("collector_kind") == "official-tesco-viewer":
         # TemporaryDirectory removes protected originals after success and after
@@ -1793,9 +1922,17 @@ def zbieraj(client, store):
     return _collect_validated_flyer(client, store, manifest, page_manifest)
 
 
-def _collection_provenance(offers):
+def _unique_offer_count(week, offers):
+    keys = set()
+    for offer in offers:
+        validate_offer(offer)
+        keys.add(offer_key_for(week, offer))
+    return len(keys)
+
+
+def _collection_provenance(offers, provenance=None):
     if not offers:
-        return (None, None, None, None)
+        return CollectionProvenance(None, None, None, None)
     urls = {item.get("source_url") for item in offers if isinstance(item, dict)}
     starts = {item.get("valid_from") for item in offers if isinstance(item, dict)}
     ends = {item.get("valid_to") for item in offers if isinstance(item, dict)}
@@ -1805,19 +1942,48 @@ def _collection_provenance(offers):
     collector_kind = source_policy.collector_kind_for_url(source_url)
     if collector_kind is None:
         raise ValueError("zber používa neznámy zdroj")
-    return (
-        collector_kind,
-        source_policy.source_fingerprint(source_url),
-        min(starts),
-        max(ends),
+    if provenance is not None:
+        if (
+            provenance.collector_kind != collector_kind
+            or provenance.valid_from != min(starts)
+            or provenance.valid_to != max(ends)
+            or not re.fullmatch(r"[0-9a-f]{64}", provenance.source_fingerprint or "")
+        ):
+            raise ValueError("manifest a zozbierané akcie nemajú rovnakú provenienciu")
+        return provenance
+    facts = []
+    for item in offers:
+        facts.append({
+            key: item.get(key)
+            for key in (
+                "obchod", "nazov", "kategoria", "cena", "povodna", "zlava",
+                "jednotka", "source_url", "source_page", "valid_from", "valid_to",
+                "cena_s_kartou", "zlava_s_kartou", "vernostny_program",
+                "minimalny_nakup", "podmienka_s_kartou",
+            )
+        })
+    fingerprint = hashlib.sha256(json.dumps(
+        sorted(facts, key=lambda item: json.dumps(item, sort_keys=True, default=str)),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    ).encode("utf-8")).hexdigest()
+    return CollectionProvenance(
+        collector_kind, fingerprint, min(starts), max(ends)
     )
 
 
 def record_store_outcome(
-    con, week, store, status, count=0, detail=None, offers=None, *, staging=False
+    con, week, store, status, count=0, detail=None, offers=None, *, staging=False,
+    provenance=None,
 ):
     """Zapíš výsledok zberu jedného obchodu, aby bol čiastočný beh viditeľný."""
-    provenance = _collection_provenance(offers) if status == "ok" else (None,) * 4
+    provenance = (
+        _collection_provenance(offers, provenance)
+        if status == "ok"
+        else CollectionProvenance(None, None, None, None)
+    )
     table = "zber_staging_stav" if staging else "zber_stav"
     con.execute(
         f"""INSERT INTO {table}
@@ -1831,25 +1997,124 @@ def record_store_outcome(
              source_fingerprint=excluded.source_fingerprint,
              valid_from=excluded.valid_from,valid_to=excluded.valid_to,
              updated=excluded.updated""",
-        (week, store, status, count, detail, COLLECTION_DATA_VERSION, *provenance),
+        (
+            week, store, status, count, detail, COLLECTION_DATA_VERSION,
+            provenance.collector_kind, provenance.source_fingerprint,
+            provenance.valid_from, provenance.valid_to,
+        ),
     )
 
 
-def stage_store_collection(con, week, store, offers):
+def _claim_row(con, week, store):
+    return con.execute(
+        "SELECT owner,source_fingerprint,expires_at FROM zber_claim "
+        "WHERE tyzden=? AND obchod=?",
+        (week, store),
+    ).fetchone()
+
+
+def claim_store_collection(
+    con, week, store, owner, source_fingerprint, *, now=None,
+    lease_seconds=COLLECTION_LEASE_SECONDS,
+):
+    """Atomically claim one paid store read; reclaim only a bounded stale lease."""
+    if con.in_transaction:
+        raise RuntimeError("collection claim requires a clean connection")
+    if (
+        not isinstance(owner, str) or not owner
+        or not re.fullmatch(r"[0-9a-f]{64}", source_fingerprint or "")
+        or not 60 <= lease_seconds <= COLLECTION_LEASE_SECONDS
+    ):
+        raise ValueError("invalid collection claim")
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=datetime.timezone.utc)
+    now = now.astimezone(datetime.timezone.utc)
+    expires = now + datetime.timedelta(seconds=lease_seconds)
+    now_text = now.isoformat(timespec="seconds")
+    expires_text = expires.isoformat(timespec="seconds")
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        current = _claim_row(con, week, store)
+        if current is not None:
+            try:
+                current_expiry = datetime.datetime.fromisoformat(current[2])
+            except (TypeError, ValueError):
+                current_expiry = now
+            if current_expiry.tzinfo is None:
+                current_expiry = current_expiry.replace(tzinfo=datetime.timezone.utc)
+            if current[0] != owner and current_expiry > now:
+                con.rollback()
+                return False
+        con.execute(
+            """INSERT INTO zber_claim
+               (tyzden,obchod,owner,source_fingerprint,claimed_at,expires_at)
+               VALUES (?,?,?,?,?,?)
+               ON CONFLICT(tyzden,obchod) DO UPDATE SET
+                 owner=excluded.owner,
+                 source_fingerprint=excluded.source_fingerprint,
+                 claimed_at=excluded.claimed_at,
+                 expires_at=excluded.expires_at""",
+            (week, store, owner, source_fingerprint, now_text, expires_text),
+        )
+    except Exception:
+        con.rollback()
+        raise
+    else:
+        con.commit()
+        return True
+
+
+def release_store_claim(con, week, store, owner):
+    if con.in_transaction:
+        raise RuntimeError("claim release requires a clean connection")
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        con.execute(
+            "DELETE FROM zber_claim WHERE tyzden=? AND obchod=? AND owner=?",
+            (week, store, owner),
+        )
+    except Exception:
+        con.rollback()
+        raise
+    else:
+        con.commit()
+
+
+def _require_claim_owner(con, week, store, owner):
+    if owner is None:
+        return
+    current = _claim_row(con, week, store)
+    if current is None or current[0] != owner:
+        raise RuntimeError("collection lease is no longer owned")
+
+
+def stage_store_collection(con, week, store, offers, *, owner=None, provenance=None):
     """Commit one complete store into the inactive layer, never into active offers."""
     offers = list(offers)
-    if len(offers) < MIN_VERIFIED_OFFERS_PER_STORE:
+    unique_count = _unique_offer_count(week, offers)
+    if unique_count < MIN_VERIFIED_OFFERS_PER_STORE:
         raise ValueError(
-            f"{store.lower()}: iba {len(offers)} overených akcií; "
+            f"{store.lower()}: iba {unique_count} unikátnych overených akcií; "
             f"minimum je {MIN_VERIFIED_OFFERS_PER_STORE}"
         )
     if con.in_transaction:
         raise RuntimeError("store staging requires a clean connection")
     con.execute("BEGIN IMMEDIATE")
     try:
+        _require_claim_owner(con, week, store, owner)
         stage_store_week(con, week, store, offers)
         record_store_outcome(
-            con, week, store, "ok", len(offers), offers=offers, staging=True
+            con, week, store, "ok", unique_count, offers=offers, staging=True,
+            provenance=provenance,
+        )
+        con.execute(
+            """UPDATE zber_staging_stav SET
+                 attempted_collector_kind=NULL,attempted_fingerprint=NULL,
+                 attempted_valid_from=NULL,attempted_valid_to=NULL,
+                 failure_kind=NULL
+               WHERE tyzden=? AND obchod=?""",
+            (week, store),
         )
     except Exception:
         con.rollback()
@@ -1858,23 +2123,89 @@ def stage_store_collection(con, week, store, offers):
         con.commit()
 
 
-def record_stage_failure(con, week, store, detail):
+def record_stage_failure(
+    con, week, store, detail, *, owner=None, attempted_provenance=None,
+    structural=False,
+):
     """Persist a failed attempt without changing active offers or active status."""
     if con.in_transaction:
         raise RuntimeError("failure staging requires a clean connection")
     con.execute("BEGIN IMMEDIATE")
     try:
-        record_store_outcome(
-            con, week, store, "fail", 0, detail, staging=True
+        try:
+            _require_claim_owner(con, week, store, owner)
+        except RuntimeError:
+            con.rollback()
+            return False
+        current = con.execute(
+            "SELECT stav FROM zber_staging_stav WHERE tyzden=? AND obchod=?",
+            (week, store),
+        ).fetchone()
+        if current is None:
+            record_store_outcome(
+                con, week, store, "fail", 0, detail, staging=True
+            )
+        else:
+            con.execute(
+                "UPDATE zber_staging_stav SET detail=?,updated=CURRENT_TIMESTAMP "
+                "WHERE tyzden=? AND obchod=?",
+                (detail, week, store),
+            )
+        attempted = attempted_provenance or CollectionProvenance(None, None, None, None)
+        con.execute(
+            """UPDATE zber_staging_stav SET
+                 attempted_collector_kind=?,attempted_fingerprint=?,
+                 attempted_valid_from=?,attempted_valid_to=?,failure_kind=?
+               WHERE tyzden=? AND obchod=?""",
+            (
+                attempted.collector_kind, attempted.source_fingerprint,
+                attempted.valid_from, attempted.valid_to,
+                "structural" if structural else "transient", week, store,
+            ),
         )
     except Exception:
         con.rollback()
         raise
     else:
         con.commit()
+        return True
 
 
-def staged_store_problem(con, week, store, *, today, require_approved=True):
+def unchanged_structural_failure(con, week, store, source_fingerprint):
+    row = con.execute(
+        "SELECT failure_kind,attempted_fingerprint FROM zber_staging_stav "
+        "WHERE tyzden=? AND obchod=?",
+        (week, store),
+    ).fetchone()
+    if not row or row[0] != "structural":
+        return False
+    if row[1] == source_fingerprint:
+        return True
+    if con.in_transaction:
+        raise RuntimeError("failure reset requires a clean connection")
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        con.execute(
+            """UPDATE zber_staging_stav SET
+                 attempted_collector_kind=NULL,attempted_fingerprint=NULL,
+                 attempted_valid_from=NULL,attempted_valid_to=NULL,
+                 failure_kind=NULL
+               WHERE tyzden=? AND obchod=? AND failure_kind='structural'
+                 AND attempted_fingerprint<>?""",
+            (week, store, source_fingerprint),
+        )
+    except Exception:
+        con.rollback()
+        raise
+    else:
+        con.commit()
+    return False
+
+
+def staged_store_problem(
+    con, week, store, *, today, require_approved=True,
+    expected_fingerprint=None,
+):
     """Name the first reason one staged store cannot be safely reused."""
     status = con.execute(
         """SELECT stav,pocet,data_version,collector_kind,source_fingerprint,
@@ -1889,9 +2220,15 @@ def staged_store_problem(con, week, store, *, today, require_approved=True):
     if int(status[2] or 0) != COLLECTION_DATA_VERSION:
         return "data_version"
     collector_kind = status[3]
-    if require_approved and not source_policy.approved_source(store, collector_kind):
+    if require_approved and not _approved_official_source(store, collector_kind):
+        if collector_kind != OFFICIAL_COLLECTOR_BY_STORE.get(store):
+            return "source_not_official"
         return "source_not_approved"
     fingerprint = status[4]
+    if re.fullmatch(r"[0-9a-f]{64}", fingerprint or "") is None:
+        return "invalid_provenance"
+    if expected_fingerprint is not None and fingerprint != expected_fingerprint:
+        return "source_changed"
     try:
         status_from = datetime.date.fromisoformat(status[5])
         status_to = datetime.date.fromisoformat(status[6])
@@ -1906,9 +2243,12 @@ def staged_store_problem(con, week, store, *, today, require_approved=True):
     )
     columns = [column[0] for column in cursor.description]
     staged = [dict(zip(columns, row)) for row in cursor.fetchall()]
+    unique_keys = {
+        canonical_offer_key(row.get("offer_key")) for row in staged
+    }
     if (
-        len(staged) < MIN_VERIFIED_OFFERS_PER_STORE
-        or int(status[1] or 0) != len(staged)
+        len(unique_keys) < MIN_VERIFIED_OFFERS_PER_STORE
+        or int(status[1] or 0) != len(unique_keys)
     ):
         return "too_few_offers"
     source_urls = {row["source_url"] for row in staged}
@@ -1917,10 +2257,9 @@ def staged_store_problem(con, week, store, *, today, require_approved=True):
     source_url = next(iter(source_urls))
     try:
         expected_kind = source_policy.collector_kind_for_url(source_url)
-        expected_fingerprint = source_policy.source_fingerprint(source_url)
     except ValueError:
         return "invalid_provenance"
-    if expected_kind != collector_kind or fingerprint != expected_fingerprint:
+    if expected_kind != collector_kind:
         return "invalid_provenance"
 
     for offer in staged:
@@ -1935,6 +2274,79 @@ def staged_store_problem(con, week, store, *, today, require_approved=True):
         ):
             return "invalid_offer_rows"
     return None
+
+
+def bootstrap_active_store_stage(
+    con, week, store, *, today, expected_provenance,
+):
+    """Reuse a current verified active store without another paid read."""
+    if not _approved_official_source(store, expected_provenance.collector_kind):
+        return False
+    status = con.execute(
+        """SELECT stav,pocet,data_version,collector_kind,source_fingerprint,
+                  valid_from,valid_to
+           FROM zber_stav WHERE tyzden=? AND obchod=?""",
+        (week, store),
+    ).fetchone()
+    if (
+        status is None or status[0] != "ok"
+        or int(status[2] or 0) != COLLECTION_DATA_VERSION
+        or status[3] != expected_provenance.collector_kind
+        or status[5] != expected_provenance.valid_from
+        or status[6] != expected_provenance.valid_to
+    ):
+        return False
+    try:
+        valid_from = datetime.date.fromisoformat(status[5])
+        valid_to = datetime.date.fromisoformat(status[6])
+    except (TypeError, ValueError):
+        return False
+    if not valid_from <= today <= valid_to:
+        return False
+
+    cursor = con.execute(
+        "SELECT * FROM akcie WHERE tyzden=? AND obchod=?", (week, store)
+    )
+    columns = [column[0] for column in cursor.description]
+    offers = [dict(zip(columns, row)) for row in cursor.fetchall()]
+    try:
+        unique_count = _unique_offer_count(week, offers)
+    except (TypeError, ValueError):
+        return False
+    if (
+        unique_count < MIN_VERIFIED_OFFERS_PER_STORE
+        or int(status[1] or 0) != unique_count
+        or any(not offer_key_matches(row.get("offer_key"), week, row) for row in offers)
+    ):
+        return False
+    source_urls = {row.get("source_url") for row in offers}
+    if len(source_urls) != 1:
+        return False
+    source_url = next(iter(source_urls))
+    try:
+        legacy_fingerprint = source_policy.source_fingerprint(source_url)
+    except ValueError:
+        return False
+    if status[4] not in {
+        legacy_fingerprint, expected_provenance.source_fingerprint
+    }:
+        return False
+
+    if con.in_transaction:
+        raise RuntimeError("bootstrap requires a clean connection")
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        stage_store_week(con, week, store, offers)
+        record_store_outcome(
+            con, week, store, "ok", unique_count, offers=offers,
+            staging=True, provenance=expected_provenance,
+        )
+    except Exception:
+        con.rollback()
+        raise
+    else:
+        con.commit()
+        return True
 
 
 def staged_week_readiness(con, week, *, today=None, require_approved=True):
@@ -1984,8 +2396,20 @@ def promote_staged_week(con, week, *, today=None):
             )
             columns = [column[0] for column in cursor.description]
             offers = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            status = con.execute(
+                """SELECT collector_kind,source_fingerprint,valid_from,valid_to
+                   FROM zber_staging_stav WHERE tyzden=? AND obchod=?""",
+                (week, store),
+            ).fetchone()
+            provenance = CollectionProvenance(*status)
             record_store_outcome(
-                con, week, store, "ok", len(offers), offers=offers
+                con,
+                week,
+                store,
+                "ok",
+                _unique_offer_count(week, offers),
+                offers=offers,
+                provenance=provenance,
             )
     except Exception:
         con.rollback()
@@ -2007,14 +2431,15 @@ def official_kaufland_main():
                 f"minimum je {MIN_VERIFIED_OFFERS_PER_STORE}"
             )
         stage_store_collection(con, tyz, "Kaufland", offers)
-        promoted = promote_staged_week(con, tyz)
     except Exception as exc:
         con.rollback()
         raise SystemExit(f"Oficiálny zber Kauflandu zlyhal: {exc}") from None
     finally:
         con.close()
-    state = "publikované" if promoted else "bezpečne pripravené v stagingu"
-    log(f"[OK] Kaufland: {len(offers)} oficiálnych akcií {state} bez AI.")
+    log(
+        f"[OK] Kaufland: {len(offers)} oficiálnych akcií bezpečne "
+        "pripravených v stagingu bez AI; čakajú na overený bloček."
+    )
 
 
 def collection_budget_purpose(con, week, selected_stores):
@@ -2043,24 +2468,78 @@ def main(stores=None):
     tyz = monday()
     con = db()
     today = business_day()
-    reusable_stores = []
+    reusable_stores, failures, structural_failures = [], [], []
+    suppressed, busy = [], []
+    prepared_by_store = {}
     expected_week = (today - datetime.timedelta(days=today.weekday())).isoformat()
-    if tyz == expected_week:
-        reusable_stores = [
-            store
-            for store in selected_stores
-            if staged_store_problem(
+    stores_to_collect = []
+    for store in selected_stores:
+        display_store = store.capitalize()
+        try:
+            prepared = prepare_store_collection(store)
+        except ValueError as exc:
+            failures.append(store)
+            structural_failures.append(store)
+            record_stage_failure(
+                con, tyz, display_store, str(exc)[:300], structural=True
+            )
+            log(f"[ERROR] {store}: vstupný manifest zlyhal ({exc})")
+            continue
+        prepared_by_store[store] = prepared
+        provenance = prepared.provenance
+
+        if not _approved_official_source(display_store, provenance.collector_kind):
+            if unchanged_structural_failure(
+                con, tyz, display_store, provenance.source_fingerprint
+            ):
+                suppressed.append(store)
+                continue
+            record_stage_failure(
                 con,
                 tyz,
-                store.capitalize(),
+                display_store,
+                "aktuálny manifest nemá schválený oficiálny zdroj",
+                attempted_provenance=provenance,
+                structural=True,
+            )
+            failures.append(store)
+            structural_failures.append(store)
+            continue
+
+        if tyz == expected_week:
+            problem = staged_store_problem(
+                con,
+                tyz,
+                display_store,
                 today=today,
-                require_approved=False,
-            ) is None
-        ]
-    stores_to_collect = [store for store in selected_stores if store not in reusable_stores]
+                expected_fingerprint=provenance.source_fingerprint,
+            )
+            if problem:
+                bootstrap_active_store_stage(
+                    con,
+                    tyz,
+                    display_store,
+                    today=today,
+                    expected_provenance=provenance,
+                )
+            problem = staged_store_problem(
+                con,
+                tyz,
+                display_store,
+                today=today,
+                expected_fingerprint=provenance.source_fingerprint,
+            )
+            if problem is None:
+                reusable_stores.append(store)
+                continue
+            if unchanged_structural_failure(
+                con, tyz, display_store, provenance.source_fingerprint
+            ):
+                suppressed.append(store)
+                continue
+        stores_to_collect.append(store)
 
     if not stores_to_collect:
-        promoted = promote_staged_week(con, tyz, today=today)
         n = con.execute(
             "SELECT COUNT(*) c FROM akcie WHERE tyzden=?", (tyz,)
         ).fetchone()["c"]
@@ -2077,23 +2556,25 @@ def main(stores=None):
             {
                 "tyzden": tyz,
                 "ok": [],
-                "fail": [],
-                "structural_fail": [],
+                "fail": failures,
+                "structural_fail": structural_failures,
                 "akcie": 0,
                 "staged_ok": staged_ok,
                 "reused": reusable_stores,
-                "promotion": "promoted" if promoted else "waiting",
+                "suppressed": suppressed,
+                "busy": busy,
+                "promotion": "waiting_receipt",
                 "active_akcie": n,
             },
             ensure_ascii=False, sort_keys=True,
         ))
-        if promoted:
-            log(f"[OK] Týždeň {tyz}: publikovaných {n} akcií z troch obchodov bez nového AI zberu.")
-        else:
-            log(f"[WAIT] Týždeň {tyz}: staging je zachovaný; aktívne dáta sa nemenili.")
+        log(
+            f"[WAIT] Týždeň {tyz}: staging je zachovaný; aktívne dáta "
+            "sa nemenili a čakajú na overený bloček."
+        )
+        if failures:
+            raise SystemExit(f"Zber zlyhal pre obchody: {', '.join(failures)}")
         return
-
-    import anthropic
 
     budget_purpose = collection_budget_purpose(con, tyz, stores_to_collect)
     # Najprv over dostatočnú štartovaciu rezervu, až potom zaber jeden z mála
@@ -2113,6 +2594,40 @@ def main(stores=None):
     except naklady.RozpocetVycerpany as odmietnutie:
         con.close()
         raise SystemExit(f"Zber odkladám — {odmietnutie}") from None
+
+    run_owner = secrets.token_hex(16)
+    claimed_stores = []
+    for store in stores_to_collect:
+        if claim_store_collection(
+            con,
+            tyz,
+            store.capitalize(),
+            run_owner,
+            prepared_by_store[store].provenance.source_fingerprint,
+        ):
+            claimed_stores.append(store)
+        else:
+            busy.append(store)
+    stores_to_collect = claimed_stores
+    if not stores_to_collect:
+        con.close()
+        log("[SUMMARY] " + json.dumps({
+            "tyzden": tyz,
+            "ok": [],
+            "fail": failures,
+            "structural_fail": structural_failures,
+            "akcie": 0,
+            "staged_ok": reusable_stores,
+            "reused": reusable_stores,
+            "suppressed": suppressed,
+            "busy": busy,
+            "promotion": "waiting_receipt",
+            "active_akcie": 0,
+        }, ensure_ascii=False, sort_keys=True))
+        return
+
+    import anthropic
+
     # Vision beh je najdrahšia operácia v celej appke (~0,37 € za obchod). Miesto
     # v týždennom počte behov sa berie EŠTE PRED prvým volaním — vďaka tomu je
     # rozbehnutá slučka štrukturálne nemožná, nie iba nepravdepodobná. Presne
@@ -2122,11 +2637,15 @@ def main(stores=None):
             api_key=load_key(), timeout=180.0, max_retries=1
         )
     except BaseException:
+        for store in stores_to_collect:
+            release_store_claim(con, tyz, store.capitalize(), run_owner)
         con.close()
         raise
     try:
         naklady.rezervuj_beh(con, budget_purpose)
     except naklady.RozpocetVycerpany as odmietnutie:
+        for store in stores_to_collect:
+            release_store_claim(con, tyz, store.capitalize(), run_owner)
         con.close()
         raise SystemExit(f"Zber nespúšťam — {odmietnutie}")
     # Cez strážený klient sa nedá zavolať model bez zaúčtovania a bez stropu.
@@ -2135,17 +2654,21 @@ def main(stores=None):
         raw_client,
         budget_purpose,
     )
-    total, failures, structural_failures, collected = 0, [], [], []
+    total, collected = 0, []
+    held_claims = set(stores_to_collect)
     try:
         for store in stores_to_collect:
             try:
-                akcie = zbieraj(client, store)
-                if len(akcie) < MIN_VERIFIED_OFFERS_PER_STORE:
-                    raise ValueError(
-                        f"{store}: iba {len(akcie)} overených akcií; "
-                        f"minimum je {MIN_VERIFIED_OFFERS_PER_STORE}"
-                    )
-                stage_store_collection(con, tyz, store.capitalize(), akcie)
+                prepared = prepared_by_store[store]
+                akcie = zbieraj(client, store, prepared)
+                stage_store_collection(
+                    con,
+                    tyz,
+                    store.capitalize(),
+                    akcie,
+                    owner=run_owner,
+                    provenance=prepared.provenance,
+                )
             except naklady.KreditVycerpany as odmietnutie:
                 # API odmietlo request EŠTE PRED prácou — nespotreboval sa ani
                 # token, takže zabraté miesto v týždennom počte behov patrí
@@ -2159,17 +2682,36 @@ def main(stores=None):
             except ValueError as exc:
                 failures.append(store)
                 structural_failures.append(store)
-                record_stage_failure(con, tyz, store.capitalize(), str(exc)[:300])
+                record_stage_failure(
+                    con,
+                    tyz,
+                    store.capitalize(),
+                    str(exc)[:300],
+                    owner=run_owner,
+                    attempted_provenance=prepared_by_store[store].provenance,
+                    structural=True,
+                )
                 log(f"[ERROR] {store}: zber zlyhal ({exc})")
                 continue
             except Exception as exc:
                 failures.append(store)
-                record_stage_failure(con, tyz, store.capitalize(), str(exc)[:300])
+                record_stage_failure(
+                    con,
+                    tyz,
+                    store.capitalize(),
+                    str(exc)[:300],
+                    owner=run_owner,
+                    attempted_provenance=prepared_by_store[store].provenance,
+                    structural=False,
+                )
                 log(f"[ERROR] {store}: dočasný zber zlyhal ({exc})")
                 continue
+            finally:
+                if store in held_claims:
+                    release_store_claim(con, tyz, store.capitalize(), run_owner)
+                    held_claims.remove(store)
             total += len(akcie)
             collected.append(store)
-        promoted = promote_staged_week(con, tyz)
         n = con.execute("SELECT COUNT(*) c FROM akcie WHERE tyzden=?", (tyz,)).fetchone()["c"]
         staged_ok = [
             row[0].lower()
@@ -2179,6 +2721,8 @@ def main(stores=None):
             ).fetchall()
         ]
     finally:
+        for store in list(held_claims):
+            release_store_claim(con, tyz, store.capitalize(), run_owner)
         con.close()
     # Strojovo čitateľný súhrn: dozorca sa nesmie spoliehať na počet riadkov,
     # dva zdravé obchody ho vždy prevýšia a tretí sa už nikdy nedozberá.
@@ -2191,7 +2735,9 @@ def main(stores=None):
             "akcie": total,
             "staged_ok": staged_ok,
             "reused": reusable_stores,
-            "promotion": "promoted" if promoted else "waiting",
+            "suppressed": suppressed,
+            "busy": busy,
+            "promotion": "waiting_receipt",
             "active_akcie": n,
         },
         ensure_ascii=False, sort_keys=True))
@@ -2200,10 +2746,10 @@ def main(stores=None):
             log("ZBER_STRUKTURALNY: všetky neúspešné obchody zlyhali "
                 "na rovnakej validácii vstupu alebo extrakcie")
         raise SystemExit(f"Zber zlyhal pre obchody: {', '.join(failures)}")
-    if promoted:
-        log(f"[OK] Týždeň {tyz}: publikovaných {n} akcií z troch obchodov.")
-    else:
-        log(f"[WAIT] Týždeň {tyz}: {total} akcií je v stagingu; aktívne dáta sa nemenili.")
+    log(
+        f"[WAIT] Týždeň {tyz}: {total} akcií je v stagingu; aktívne "
+        "dáta sa nemenili a čakajú na overený bloček."
+    )
 
 
 def cli(argv=None):

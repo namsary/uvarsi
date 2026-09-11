@@ -2048,6 +2048,14 @@ def test_page_discovery_warns_when_the_page_count_is_implausibly_low(monkeypatch
 
 # --------------------------------------------------- per-store run bookkeeping
 def valid_offer(store, index):
+    official_urls = {
+        "kaufland": collector.KAUFLAND_OFFERS_URL,
+        "lidl": "https://www.lidl.sk/c/akcny-letak/s10023254",
+        "tesco": (
+            "https://www.tesco.sk/akciove-ponuky/letaky-a-katalogy/"
+            "hypermarkety/tesco-letak-2026-08-17/1"
+        ),
+    }
     return {
         "obchod": store.capitalize(),
         "nazov": f"Položka {index}",
@@ -2056,11 +2064,42 @@ def valid_offer(store, index):
         "povodna": 2.0,
         "zlava": "-50 %",
         "jednotka": "ks",
-        "source_url": f"https://www.kupino.sk/letak/{store}-test-current",
+        "source_url": official_urls[store],
         "source_page": index,
         "valid_from": "2026-08-17",
         "valid_to": "2026-08-23",
     }
+
+
+def prepared_collection(store):
+    offer = valid_offer(store, 1)
+    kind = collector.source_policy.collector_kind_for_url(offer["source_url"])
+    pages = [
+        (f"https://images.example/{store}-{page}-thumb.jpg",
+         f"https://images.example/{store}-{page}-full.jpg")
+        for page in range(1, 21)
+    ]
+    manifest = {
+        "source_url": offer["source_url"],
+        "collector_kind": kind,
+        "valid_from": "2026-08-17",
+        "valid_to": "2026-08-23",
+        "declared_pages": len(pages),
+        "pages": [
+            {
+                "source_page": page,
+                "thumbnail_url": urls[0],
+                "image_url": urls[1],
+            }
+            for page, urls in enumerate(pages, start=1)
+        ],
+    }
+    return collector.PreparedCollection(
+        pages=pages,
+        manifest=manifest,
+        page_manifest={row["source_page"]: row for row in manifest["pages"]},
+        provenance=collector.provenance_from_manifest(manifest),
+    )
 
 
 def run_main_over_stores(monkeypatch, tmp_path, outcomes):
@@ -2071,8 +2110,10 @@ def run_main_over_stores(monkeypatch, tmp_path, outcomes):
     monkeypatch.setattr(collector, "STORES", list(outcomes))
     monkeypatch.setattr(collector, "load_key", lambda: "unused-test-value")
     monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    monkeypatch.setattr(collector, "prepare_store_collection", prepared_collection)
 
-    def zbieraj(client, store):
+    def zbieraj(client, store, prepared=None):
+        assert prepared == prepared_collection(store)
         if not outcomes[store]:
             raise ValueError(f"{store}: leták sa nepodarilo prečítať")
         return [valid_offer(store, index) for index in range(1, 21)]
@@ -2118,8 +2159,11 @@ def test_successful_run_marks_every_store_as_collected(monkeypatch, tmp_path):
     con = sqlite3.connect(database)
     con.row_factory = sqlite3.Row
     rows = con.execute(
-        "SELECT obchod, stav, pocet FROM zber_stav WHERE tyzden=? ORDER BY obchod", ("2026-08-17",)
+        "SELECT obchod, stav, pocet FROM zber_staging_stav "
+        "WHERE tyzden=? ORDER BY obchod", ("2026-08-17",)
     ).fetchall()
+    assert con.execute("SELECT COUNT(*) FROM akcie").fetchone()[0] == 0
+    assert con.execute("SELECT COUNT(*) FROM zber_stav").fetchone()[0] == 0
     con.close()
 
     assert [(row["obchod"], row["stav"], row["pocet"]) for row in rows] == [
@@ -2135,7 +2179,7 @@ def test_implausibly_small_store_result_is_failed_and_not_published(monkeypatch,
     monkeypatch.setattr(
         collector,
         "zbieraj",
-        lambda client, store: [valid_offer(store, 1)],
+        lambda client, store, prepared=None: [valid_offer(store, 1)],
     )
 
     with pytest.raises(SystemExit, match="lidl"):
@@ -2240,7 +2284,10 @@ def test_a_current_healthy_stage_is_reused_without_calling_the_source_again(monk
 
 def seed_stage(con, week, store, count=20):
     offers = [valid_offer(store.lower(), index) for index in range(1, count + 1)]
-    collector.stage_store_collection(con, week, store, offers)
+    collector.stage_store_collection(
+        con, week, store, offers,
+        provenance=prepared_collection(store.lower()).provenance,
+    )
     return offers
 
 
@@ -2292,6 +2339,9 @@ def test_three_valid_approved_stages_promote_in_one_active_snapshot(monkeypatch,
     con = collector.db()
     for store in ("Kaufland", "Tesco", "Lidl"):
         seed_stage(con, "2026-08-17", store)
+    staged_fingerprints = dict(con.execute(
+        "SELECT obchod,source_fingerprint FROM zber_staging_stav"
+    ).fetchall())
 
     assert collector.promote_staged_week(
         con, "2026-08-17", today=date(2026, 8, 19)
@@ -2309,6 +2359,9 @@ def test_three_valid_approved_stages_promote_in_one_active_snapshot(monkeypatch,
         ("Lidl", "ok", 20),
         ("Tesco", "ok", 20),
     ]
+    assert dict(con.execute(
+        "SELECT obchod,source_fingerprint FROM zber_stav"
+    ).fetchall()) == staged_fingerprints
     con.close()
 
 
@@ -2400,12 +2453,13 @@ def test_targeted_retry_reuses_two_healthy_stages_and_promotes(monkeypatch):
     assert con.execute("SELECT COUNT(*) FROM akcie").fetchone()[0] == 60
 
 
-def test_complete_current_stage_promotes_without_loading_anthropic(monkeypatch, tmp_path):
+def test_complete_current_stage_waits_for_receipt_without_loading_anthropic(monkeypatch, tmp_path):
     database = tmp_path / "uvarsi.db"
     monkeypatch.setattr(collector, "DB", str(database))
     monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
     monkeypatch.setattr(collector, "business_day", lambda: date(2026, 8, 19))
     monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    monkeypatch.setattr(collector, "prepare_store_collection", prepared_collection)
     con = collector.db()
     for store in ("Kaufland", "Tesco", "Lidl"):
         seed_stage(con, "2026-08-17", store)
@@ -2428,7 +2482,8 @@ def test_complete_current_stage_promotes_without_loading_anthropic(monkeypatch, 
     collector.main()
 
     con = sqlite3.connect(database)
-    assert con.execute("SELECT COUNT(*) FROM akcie").fetchone()[0] == 60
+    assert con.execute("SELECT COUNT(*) FROM akcie").fetchone()[0] == 0
+    assert con.execute("SELECT COUNT(*) FROM akcie_staging").fetchone()[0] == 60
     con.close()
 
 
@@ -2445,7 +2500,10 @@ def test_default_retry_collects_only_the_missing_stage(monkeypatch, tmp_path):
     con.close()
     requested = []
 
-    def collect_only_missing(_client, store):
+    monkeypatch.setattr(collector, "prepare_store_collection", prepared_collection)
+
+    def collect_only_missing(_client, store, prepared=None):
+        assert prepared == prepared_collection(store)
         requested.append(store)
         return [valid_offer(store, index) for index in range(1, 21)]
 
@@ -2461,7 +2519,8 @@ def test_default_retry_collects_only_the_missing_stage(monkeypatch, tmp_path):
 
     assert requested == ["lidl"]
     con = sqlite3.connect(database)
-    assert con.execute("SELECT COUNT(*) FROM akcie").fetchone()[0] == 60
+    assert con.execute("SELECT COUNT(*) FROM akcie").fetchone()[0] == 0
+    assert con.execute("SELECT COUNT(*) FROM akcie_staging").fetchone()[0] == 60
     con.close()
 
 
@@ -2497,3 +2556,293 @@ def test_promotion_write_failure_rolls_back_active_rows_and_collection_state(mon
     assert [tuple(row) for row in con.execute(
         "SELECT obchod,stav,pocet FROM zber_stav"
     ).fetchall()] == [("Lidl", "ok", 1)]
+
+
+def test_twenty_duplicate_rows_do_not_satisfy_the_verified_minimum():
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(collector.SCHEMA)
+    collector.migrate_offer_staging_schema(con)
+    duplicate = valid_offer("lidl", 1)
+
+    with pytest.raises(ValueError, match="unikátnych"):
+        collector.stage_store_collection(
+            con, "2026-08-17", "Lidl", [duplicate.copy() for _ in range(20)]
+        )
+
+    assert con.execute("SELECT COUNT(*) FROM akcie_staging").fetchone()[0] == 0
+
+
+def test_reuse_rejects_even_allowlisted_aggregator_stage(monkeypatch):
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(collector.SCHEMA)
+    collector.migrate_offer_staging_schema(con)
+    offers = [valid_offer("lidl", index) for index in range(1, 21)]
+    for offer in offers:
+        offer["source_url"] = "https://www.kupino.sk/letak/lidl-test-current"
+    collector.stage_store_collection(con, "2026-08-17", "Lidl", offers)
+
+    assert collector.staged_store_problem(
+        con, "2026-08-17", "Lidl", today=date(2026, 8, 19)
+    ) == "source_not_official"
+
+
+def test_main_recollects_an_aggregator_stage_from_current_official_manifest(
+    monkeypatch, tmp_path,
+):
+    database = run_main_over_stores(monkeypatch, tmp_path, {"lidl": True})
+    con = collector.db()
+    offers = [valid_offer("lidl", index) for index in range(1, 21)]
+    for offer in offers:
+        offer["source_url"] = "https://www.kupino.sk/letak/lidl-test-current"
+    collector.stage_store_collection(con, "2026-08-17", "Lidl", offers)
+    con.close()
+    calls = []
+
+    def collect_official(client, store, prepared=None):
+        calls.append(store)
+        return [valid_offer(store, index) for index in range(1, 21)]
+
+    monkeypatch.setattr(collector, "zbieraj", collect_official)
+    collector.main(["lidl"])
+
+    assert calls == ["lidl"]
+    con = sqlite3.connect(database)
+    assert con.execute(
+        "SELECT collector_kind FROM zber_staging_stav WHERE obchod='Lidl'"
+    ).fetchone()[0] == "official-lidl-viewer"
+    con.close()
+
+
+def test_manifest_fingerprint_changes_when_content_manifest_changes():
+    base = {
+        "source_url": "https://www.lidl.sk/c/akcny-letak/s10023254",
+        "collector_kind": "official-lidl-viewer",
+        "valid_from": "2026-08-17",
+        "valid_to": "2026-08-23",
+        "declared_pages": 2,
+        "pages": [
+            {"source_page": 1, "thumbnail_url": "https://img.test/a", "image_url": "https://img.test/A"},
+            {"source_page": 2, "thumbnail_url": "https://img.test/b", "image_url": "https://img.test/B"},
+        ],
+    }
+    changed = json.loads(json.dumps(base))
+    changed["pages"][1]["image_url"] = "https://img.test/B-v2"
+
+    assert collector.manifest_fingerprint(base) != collector.manifest_fingerprint(changed)
+
+
+def test_manifest_fingerprint_ignores_rotating_tesco_bridge_access_tokens():
+    first = prepared_collection("tesco").manifest
+    second = json.loads(json.dumps(first))
+    first["pages"][0]["image_url"] = (
+        "https://tesco-bridge.example/v1/tesco/media/token-exp-100"
+    )
+    second["pages"][0]["image_url"] = (
+        "https://tesco-bridge.example/v1/tesco/media/token-exp-200"
+    )
+
+    assert collector.manifest_fingerprint(first) == collector.manifest_fingerprint(second)
+
+
+def test_db_claim_blocks_parallel_spend_and_allows_only_bounded_stale_recovery():
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(collector.SCHEMA)
+    now = datetime(2026, 8, 19, 7, 0, tzinfo=timezone.utc)
+
+    assert collector.claim_store_collection(
+        con, "2026-08-17", "Lidl", "owner-a", "a" * 64, now=now
+    ) is True
+    assert collector.claim_store_collection(
+        con, "2026-08-17", "Lidl", "owner-b", "a" * 64, now=now
+    ) is False
+    assert collector.claim_store_collection(
+        con,
+        "2026-08-17",
+        "Lidl",
+        "owner-b",
+        "b" * 64,
+        now=now.replace(hour=8),
+    ) is True
+
+
+def test_late_failure_cannot_overwrite_healthy_stage_from_new_lease_owner():
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(collector.SCHEMA)
+    collector.migrate_offer_staging_schema(con)
+    now = datetime(2026, 8, 19, 7, 0, tzinfo=timezone.utc)
+    assert collector.claim_store_collection(
+        con, "2026-08-17", "Lidl", "old", "a" * 64, now=now
+    )
+    assert collector.claim_store_collection(
+        con, "2026-08-17", "Lidl", "new", "b" * 64, now=now.replace(hour=8)
+    )
+    offers = [valid_offer("lidl", index) for index in range(1, 21)]
+    provenance = collector.CollectionProvenance(
+        "official-lidl-viewer", "b" * 64, "2026-08-17", "2026-08-23"
+    )
+    collector.stage_store_collection(
+        con, "2026-08-17", "Lidl", offers, owner="new", provenance=provenance
+    )
+
+    assert collector.record_stage_failure(
+        con,
+        "2026-08-17",
+        "Lidl",
+        "starý proces zlyhal",
+        owner="old",
+        attempted_provenance=collector.CollectionProvenance(
+            "official-lidl-viewer", "a" * 64, "2026-08-17", "2026-08-23"
+        ),
+        structural=True,
+    ) is False
+    assert tuple(con.execute(
+        "SELECT stav,source_fingerprint FROM zber_staging_stav"
+    ).fetchone()) == ("ok", "b" * 64)
+
+
+def test_structural_failure_is_suppressed_only_for_unchanged_manifest():
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(collector.SCHEMA)
+    provenance = collector.CollectionProvenance(
+        "official-lidl-viewer", "a" * 64, "2026-08-17", "2026-08-23"
+    )
+    collector.record_stage_failure(
+        con,
+        "2026-08-17",
+        "Lidl",
+        "nečitateľný layout",
+        attempted_provenance=provenance,
+        structural=True,
+    )
+
+    assert collector.unchanged_structural_failure(
+        con, "2026-08-17", "Lidl", "a" * 64
+    ) is True
+    assert collector.unchanged_structural_failure(
+        con, "2026-08-17", "Lidl", "b" * 64
+    ) is False
+    assert tuple(con.execute(
+        "SELECT failure_kind,attempted_fingerprint FROM zber_staging_stav"
+    ).fetchone()) == (None, None)
+
+
+def test_bootstrap_current_verified_active_store_upgrades_legacy_fingerprint_without_ai(
+    monkeypatch,
+):
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(collector.SCHEMA)
+    collector.migrate_offer_staging_schema(con)
+    offers = [valid_offer("lidl", index) for index in range(1, 21)]
+    replace_store_week(con, "2026-08-17", "Lidl", offers)
+    collector.record_store_outcome(
+        con, "2026-08-17", "Lidl", "ok", 20, offers=offers
+    )
+    con.execute(
+        "UPDATE zber_stav SET source_fingerprint=? WHERE obchod='Lidl'",
+        (collector.source_policy.source_fingerprint(offers[0]["source_url"]),),
+    )
+    con.commit()
+    expected = collector.CollectionProvenance(
+        "official-lidl-viewer", "c" * 64, "2026-08-17", "2026-08-23"
+    )
+
+    assert collector.bootstrap_active_store_stage(
+        con,
+        "2026-08-17",
+        "Lidl",
+        today=date(2026, 8, 19),
+        expected_provenance=expected,
+    ) is True
+    assert con.execute("SELECT COUNT(*) FROM akcie_staging").fetchone()[0] == 20
+    assert con.execute(
+        "SELECT source_fingerprint FROM zber_staging_stav"
+    ).fetchone()[0] == "c" * 64
+
+
+def test_main_claims_store_before_entering_paid_collection(monkeypatch, tmp_path):
+    database = run_main_over_stores(monkeypatch, tmp_path, {"lidl": True})
+    original_collect = collector.zbieraj
+
+    def assert_claimed(client, store, prepared=None):
+        con = sqlite3.connect(database)
+        owner = con.execute(
+            "SELECT owner FROM zber_claim WHERE tyzden=? AND obchod=?",
+            ("2026-08-17", "Lidl"),
+        ).fetchone()
+        con.close()
+        assert owner is not None
+        return original_collect(client, store, prepared)
+
+    monkeypatch.setattr(collector, "zbieraj", assert_claimed)
+    collector.main(["lidl"])
+
+
+def test_unchanged_structural_manifest_skips_another_paid_read(monkeypatch, tmp_path):
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setattr(collector, "DB", str(database))
+    monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    monkeypatch.setattr(collector, "business_day", lambda: date(2026, 8, 19))
+    monkeypatch.setattr(collector, "STORES", ["lidl"])
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    monkeypatch.setattr(collector, "prepare_store_collection", prepared_collection)
+    prepared = prepared_collection("lidl")
+    con = collector.db()
+    collector.record_stage_failure(
+        con,
+        "2026-08-17",
+        "Lidl",
+        "nezmenený chybný layout",
+        attempted_provenance=prepared.provenance,
+        structural=True,
+    )
+    con.close()
+    monkeypatch.setattr(
+        collector,
+        "load_key",
+        lambda: pytest.fail("nezmenený štrukturálny vstup nesmie míňať API"),
+    )
+
+    collector.main(["lidl"])
+
+
+def test_bootstrapped_active_store_is_reused_by_main_without_anthropic(
+    monkeypatch, tmp_path,
+):
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setattr(collector, "DB", str(database))
+    monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    monkeypatch.setattr(collector, "business_day", lambda: date(2026, 8, 19))
+    monkeypatch.setattr(collector, "STORES", ["lidl"])
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    monkeypatch.setattr(collector, "prepare_store_collection", prepared_collection)
+    offers = [valid_offer("lidl", index) for index in range(1, 21)]
+    con = collector.db()
+    replace_store_week(con, "2026-08-17", "Lidl", offers)
+    collector.record_store_outcome(
+        con, "2026-08-17", "Lidl", "ok", 20, offers=offers
+    )
+    con.execute(
+        "UPDATE zber_stav SET source_fingerprint=? WHERE obchod='Lidl'",
+        (collector.source_policy.source_fingerprint(offers[0]["source_url"]),),
+    )
+    con.commit()
+    con.close()
+    monkeypatch.setattr(
+        collector,
+        "load_key",
+        lambda: pytest.fail("overený aktívny zber sa má bootstrapnúť bez API"),
+    )
+
+    collector.main(["lidl"])
+
+    con = sqlite3.connect(database)
+    assert con.execute("SELECT COUNT(*) FROM akcie_staging").fetchone()[0] == 20
+    con.close()
