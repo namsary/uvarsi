@@ -11,9 +11,57 @@ CSCRIPT = Path("C:/Windows/System32/cscript.exe")
 NODE = os.environ.get("UVARSI_NODE") or shutil.which("node")
 needs_node = pytest.mark.skipif(NODE is None, reason="node runtime is not available")
 
+FOUNDER_PROMISE = "39 € raz. Premium bez predplatného počas prevádzky služby Uvar.si."
+
 
 def app_html():
     return Path("app/static/app.html").read_text(encoding="utf-8")
+
+
+def test_checkout_uses_the_exact_founder_promise_without_perpetual_wording():
+    page = app_html()
+    checkout = page.split("function vCheckout()", 1)[1].split(
+        "function vSpajzaZamknuta()", 1
+    )[0]
+
+    assert FOUNDER_PROMISE in checkout
+    assert "cena natrvalo" not in checkout.casefold()
+    assert "premium natrvalo" not in checkout.casefold()
+
+
+def test_checkout_names_seller_operator_and_paid_activation_remedy():
+    page = app_html()
+    checkout = page.split("function vCheckout()", 1)[1].split(
+        "function vSpajzaZamknuta()", 1
+    )[0].casefold()
+
+    assert "lemon squeezy" in checkout
+    assert "merchant of record" in checkout
+    assert "predávajúci" in checkout
+    assert "pumar s. r. o." in checkout
+    assert "prevádzkovateľ" in checkout
+    assert "platba prebehne" in checkout
+    assert "ručne aktivujeme" in checkout
+    assert "úplné vrátenie platby" in checkout
+
+
+def test_online_withdrawal_form_collects_the_complete_optional_notice():
+    page = app_html()
+    form = page.split('<form id="withdrawal-form"', 1)[1].split("</form>", 1)[0]
+    handler = page.split("if (withdrawal) withdrawal.onsubmit", 1)[1].split(
+        "const complaint", 1
+    )[0]
+
+    assert "Použitie tohto formulára nie je povinné" in form
+    assert 'id="withdrawal-name"' in form
+    assert 'id="withdrawal-address"' in form
+    assert "Dátum objednávky" in form
+    assert "Číslo objednávky" in form
+    assert "E-mail účtu" in form
+    assert "message:" in handler
+    assert "withdrawal-name" in handler
+    assert "withdrawal-address" in handler
+    assert "Dátum odoslania" in handler
 
 
 def test_app_footer_links_every_customer_document_and_contact():

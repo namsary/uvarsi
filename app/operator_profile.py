@@ -16,6 +16,7 @@ class OperatorProfile:
     register_section: str
     register_entry: str
     support_email: str
+    support_phone: str
 
 
 OPERATOR = OperatorProfile(
@@ -26,10 +27,13 @@ OPERATOR = OperatorProfile(
     register_section="Sro",
     register_entry="64515/V",
     support_email="pumaragency@gmail.com",
+    # A real public support number has not yet been verified.  Keeping this
+    # empty deliberately makes payment readiness fail closed.
+    support_phone="",
 )
 
-LEGAL_VERSION = "2026-09-07-v1"
-LEGAL_EFFECTIVE_DATE = datetime.date(2026, 9, 7)
+LEGAL_VERSION = "2026-09-11-v2"
+LEGAL_EFFECTIVE_DATE = datetime.date(2026, 9, 11)
 
 _EMAIL = re.compile(
     r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@"
@@ -37,6 +41,7 @@ _EMAIL = re.compile(
     r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+"
 )
 _PLACEHOLDERS = ("doplniť", "doplnit", "todo", "[", "]")
+_PHONE = re.compile(r"\+[1-9]\d(?:[\s()-]*\d){7,14}")
 
 
 def validate_operator_profile(profile: OperatorProfile) -> tuple[str, ...]:
@@ -55,6 +60,10 @@ def validate_operator_profile(profile: OperatorProfile) -> tuple[str, ...]:
         invalid.append("company_id")
     if not _EMAIL.fullmatch(profile.support_email.strip()):
         invalid.append("support_email")
+    if profile.support_phone.strip() and not _PHONE.fullmatch(
+        profile.support_phone.strip()
+    ):
+        invalid.append("support_phone")
     return tuple(dict.fromkeys(invalid))
 
 
@@ -64,7 +73,7 @@ def _formatted_company_id(company_id: str) -> str:
 
 def public_operator_dict() -> dict[str, str]:
     """Public identity only; absent tax, VAT and phone data stay absent."""
-    return {
+    public = {
         "business_name": OPERATOR.business_name,
         "company_id": _formatted_company_id(OPERATOR.company_id),
         "registered_office": OPERATOR.registered_office,
@@ -76,3 +85,6 @@ def public_operator_dict() -> dict[str, str]:
         "legal_version": LEGAL_VERSION,
         "legal_effective_date": LEGAL_EFFECTIVE_DATE.isoformat(),
     }
+    if OPERATOR.support_phone.strip():
+        public["support_phone"] = OPERATOR.support_phone.strip()
+    return public

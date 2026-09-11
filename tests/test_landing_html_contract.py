@@ -240,6 +240,22 @@ def test_premium_is_a_nonbinding_email_interest_action_not_checkout():
     assert "planField.value=plan" in html.replace(" ", "")
 
 
+def test_waitlist_consent_names_operator_scope_privacy_and_unsubscribe():
+    html = index_html()
+    modal = html.split('<div class="modal" id="modal"', 1)[1].split(
+        '<iframe name="ml_sink"', 1
+    )[0]
+
+    assert "PUMAR s. r. o." in modal
+    assert "spustení Uvar.si" in modal
+    assert "zakladajúcej ponuke" in modal
+    assert 'href="/ochrana-osobnych-udajov"' in modal
+    assert "odhlásiť" in modal
+    assert "odvolať súhlas" in modal
+    assert re.search(r'<input[^>]+id="waitlist-consent"[^>]+required', modal)
+    assert "všeobecný marketing" not in modal.casefold()
+
+
 def test_founding_and_premium_share_the_same_core_functionality():
     html = index_html()
     section = html.split('<section class="plans-band"', 1)[1].split("</section>", 1)[0]
@@ -256,7 +272,9 @@ def test_founding_and_premium_share_the_same_core_functionality():
         "Celý týždeň, recepty a špajza",
         "Budúce aktualizácie",
     ]
-    assert "natrvalo" in founding
+    assert "39 € raz. Premium bez predplatného počas prevádzky služby Uvar.si." in founding
+    assert "cena natrvalo" not in founding.casefold()
+    assert "premium natrvalo" not in founding.casefold()
     assert "/ rok" in premium
 
 

@@ -1707,6 +1707,7 @@ function vCheckout() {
     <div class="checkout-head"><div><h2 class="display" style="font-size:1.25rem">Zakladajúce Premium</h2>
       <p class="muted" style="margin-top:5px">Jednorazová platba · bez automatickej obnovy</p></div>
       <div class="checkout-price">39 €<small>jedna platba</small></div></div>
+    <p><b>39 € raz. Premium bez predplatného počas prevádzky služby Uvar.si.</b></p>
     <ul class="checkout-list">
       <li>Špajza, ktorá odráta to, čo už máš doma</li>
       <li>Porovnanie všetkých podporovaných obchodov</li>
@@ -1715,6 +1716,8 @@ function vCheckout() {
     </ul>
     <div class="checkout-assurance"><b>14 dní na rozmyslenie.</b> Ak ti Uvar.si nesadne,
       požiadaš o vrátenie celej platby. Postup je v <a href="/odstupenie" target="_blank" rel="noopener">poučení o odstúpení</a>.</div>
+    <p class="muted" style="margin-top:14px">Lemon Squeezy je v pokladni Merchant of Record a predávajúci pre platobnú transakciu. PUMAR s. r. o. je prevádzkovateľ Uvar.si a kontakt pre podporu produktu.</p>
+    <p class="muted" style="margin-top:8px">Ak platba prebehne, ale Premium sa nesprístupní, po spárovaní objednávky ho ručne aktivujeme alebo zabezpečíme úplné vrátenie platby. Nemusíš zaplatiť znova.</p>
     <p class="muted" style="margin-top:14px">Voľných je ${zostava} z 50 zakladajúcich miest. Po úspešnej platbe sa Premium sprístupní po potvrdení platby.</p>
     <label class="consent-row" for="checkout-consent"><input id="checkout-consent" type="checkbox">
       <span>Súhlasím s aktuálnymi <a href="/vop" target="_blank" rel="noopener">VOP</a> a potvrdzujem, že som sa oboznámil/a s <a href="/ochrana-osobnych-udajov" target="_blank" rel="noopener">ochranou osobných údajov</a>.</span></label>
@@ -2025,11 +2028,15 @@ function customerServiceHtml(data) {
   const inTime = Date.now() / 1000 <= Number(order.refund_deadline || 0);
   return `<div class="card service-card"><h2>Platba a pomoc</h2>
     <p class="muted">Žiadosť vybaví človek. Samotné odoslanie ešte neznamená, že refundácia prebehla.</p>
-    <div class="service-order"><b>Zakladajúce Premium · 39 €</b><br>Zakúpené ${serviceDate(order.purchased_at)} · 14-dňová lehota do ${deadline}</div>
+    <div class="service-order"><b>Zakladajúce Premium · 39 €</b><br>Dátum objednávky: ${serviceDate(order.purchased_at)} · 14-dňová lehota do ${deadline}<br>Číslo objednávky: ${esc(order.order_id)} · E-mail účtu: ${esc(ME.email)}</div>
     ${rows}
-    <form id="withdrawal-form" class="service-form" data-order="${esc(order.order_id)}">
+    <form id="withdrawal-form" class="service-form" data-order="${esc(order.order_id)}" data-purchased="${esc(order.purchased_at)}">
       <h3>Odstúpenie od zmluvy</h3>
+      <p class="muted">Použitie tohto formulára nie je povinné. Odstúpiť môžeš aj akýmkoľvek jednoznačným oznámením na pumaragency@gmail.com.</p>
+      <p class="muted">Dátum objednávky: ${serviceDate(order.purchased_at)} · Číslo objednávky: ${esc(order.order_id)} · E-mail účtu: ${esc(ME.email)}</p>
       <p class="muted">${inTime ? 'V 14-dňovej lehote ti vrátime celú platbu.' : 'Lehota už uplynula; žiadosť prijmeme na manuálne posúdenie.'} Refundácia ešte neprebehla.</p>
+      <label>Meno a priezvisko<input id="withdrawal-name" maxlength="160" autocomplete="name" required></label>
+      <label>Adresa spotrebiteľa<textarea id="withdrawal-address" maxlength="500" autocomplete="street-address" required></textarea></label>
       <label class="consent-row"><input id="withdrawal-confirm" type="checkbox" required><span>Žiadam o odstúpenie a rozumiem, že po úplnom vrátení platby stratím Premium.</span></label>
       <button class="btn btn--ghost" type="submit">Odoslať žiadosť o odstúpenie</button><p class="muted" id="withdrawal-status" aria-live="polite"></p>
     </form>
@@ -2060,7 +2067,19 @@ async function loadCustomerService() {
       return;
     }
     runGuardedAction(button, status, async () => {
-      await api('/api/consumer/withdrawal', {method:'POST', body:JSON.stringify({order_id:withdrawal.dataset.order})});
+      const name = $('#withdrawal-name').value.trim();
+      const address = $('#withdrawal-address').value.trim();
+      const sentAt = new Date().toISOString().slice(0, 10);
+      const message = [
+        'Oznamujem, že odstupujem od zmluvy o digitálnej službe Uvar.si.',
+        'Meno a priezvisko spotrebiteľa: ' + name,
+        'Adresa spotrebiteľa: ' + address,
+        'E-mail účtu: ' + ME.email,
+        'Číslo objednávky: ' + withdrawal.dataset.order,
+        'Dátum objednávky: ' + withdrawal.dataset.purchased,
+        'Dátum odoslania: ' + sentAt
+      ].join('\n');
+      await api('/api/consumer/withdrawal', {method:'POST', body:JSON.stringify({order_id:withdrawal.dataset.order,message:message})});
       await loadCustomerService();
     });
   };

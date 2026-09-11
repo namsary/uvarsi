@@ -207,6 +207,8 @@
   .f-row{display:flex;flex-direction:column;gap:10px}
   .f-row input{min-height:50px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;font-family:inherit;font-size:1rem;background:#fff;color:var(--ink);width:100%}
   .f-row input:focus{outline:3px solid var(--yellow);outline-offset:1px}
+  .waitlist-consent{display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:start;color:var(--ink-soft);font-size:.82rem;line-height:1.45}
+  .f-row .waitlist-consent input{width:20px;min-height:20px;margin:2px 0 0;padding:0}
   .success{display:none;text-align:center}
   .success .big{font-family:"Manrope",sans-serif;font-size:1.75rem;font-weight:800;margin-bottom:8px}
   .success .mail{background:#f7d64a6b;border:1px solid #12392e1f;border-radius:12px;padding:12px;font-family:"IBM Plex Mono",monospace;font-size:.75rem;margin-top:14px}
@@ -361,7 +363,7 @@
         <span class="plan-tag">Prvých 50</span>
         <div class="plan-name">Zakladajúci</div>
         <div class="plan-price">39 €</div>
-        <div class="plan-per">jednorazovo · cena natrvalo</div>
+        <div class="plan-per">39 € raz. Premium bez predplatného počas prevádzky služby Uvar.si.</div>
         <ul>
           <li>Všetky podporované obchody</li>
           <li>Celý týždeň, recepty a špajza</li>
@@ -414,12 +416,13 @@
     <div id="formState">
       <span class="chosen" id="chosen">—</span>
       <h3 id="mTitle">Daj mi vedieť</h3>
-      <p>Nezáväzný záujem, bez platby.</p>
+      <p>PUMAR s. r. o. ti pošle iba informácie o spustení Uvar.si a zakladajúcej ponuke. Nezáväzný záujem, bez platby.</p>
       <form class="f-row" id="wf"
             action="https://assets.mailerlite.com/jsonp/2513849/forms/193159378287724436/subscribe"
             method="post" target="ml_sink">
         <input type="hidden" name="fields[plan]" id="planField" value="">
         <input type="email" name="fields[email]" placeholder="tvoj@email.sk" aria-label="E-mailová adresa" required>
+        <label class="waitlist-consent"><input type="checkbox" id="waitlist-consent" required><span>Súhlasím so správami v uvedenom rozsahu. Podrobnosti sú v <a href="/ochrana-osobnych-udajov" target="_blank" rel="noopener">ochrane osobných údajov</a>. Z každej správy sa môžem odhlásiť alebo odvolať súhlas e-mailom na pumaragency@gmail.com.</span></label>
         <input type="hidden" name="ml-submit" value="1">
         <input type="hidden" name="anticsrf" value="true">
         <button class="btn" type="submit">Zapíš ma</button>
@@ -428,7 +431,7 @@
 
     <div class="success" id="successState">
       <div class="big">Zapísali sme ťa</div>
-      <p>Ponuku pošleme pred spustením.</p>
+      <p>Informácie o spustení a zakladajúcej ponuke pošleme na potvrdený e-mail.</p>
       <div class="mail"><b>Potvrď e-mail.</b></div>
     </div>
   </div>

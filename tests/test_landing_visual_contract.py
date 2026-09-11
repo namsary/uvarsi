@@ -105,8 +105,9 @@ def test_pricing_shows_exactly_free_founding_and_annual_premium():
     assert '<div class="plan-per">navždy</div>' in free
     assert '<div class="plan-name">Zakladajúci</div>' in founding
     assert '<div class="plan-price">39 €</div>' in founding
-    assert "jednorazovo" in founding
-    assert "cena natrvalo" in founding
+    assert "39 € raz. Premium bez predplatného počas prevádzky služby Uvar.si." in founding
+    assert "cena natrvalo" not in founding.casefold()
+    assert "premium natrvalo" not in founding.casefold()
     assert "Prvých 50" in founding
     assert '<div class="plan-name">Premium</div>' in premium
     assert '<div class="plan-price">49 €</div>' in premium

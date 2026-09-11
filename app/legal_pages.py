@@ -22,6 +22,9 @@ except ImportError:
 
 
 BASE_URL = "https://uvar.si"
+FOUNDER_PROMISE = (
+    "39 € raz. Premium bez predplatného počas prevádzky služby Uvar.si."
+)
 
 
 @dataclass(frozen=True)
@@ -85,31 +88,58 @@ _DOCUMENTS: dict[str, LegalDocument] = {
             LegalSection(
                 "Zakladajúce Premium a uzavretie zmluvy",
                 (
-                    "Zakladajúce Premium stojí 39 € jednorazovo. Ide o platbu "
-                    "bez automatickej obnovy, nejde o predplatné a nevznikne "
-                    "žiadny ďalší pravidelný poplatok.",
+                    FOUNDER_PROMISE,
+                    "Ide o platbu bez automatickej obnovy, nejde o predplatné a "
+                    "nevznikne žiadny ďalší pravidelný poplatok.",
                     "Ponuka je určená najviac pre prvých 50 úspešne zaplatených "
                     "a nerefundovaných členstiev. Samotné vytvorenie účtu ani "
                     "otvorenie checkoutu miesto nerezervuje.",
                     "Pred odoslaním objednávky uvidíte súhrn produktu, konečnú "
-                    "cenu, tieto podmienky a poučenie o odstúpení. Zmluva vznikne "
-                    "po úspešnom potvrdení platby a aktivácii Premium. Checkout "
-                    "a doklad môže poskytovať Lemon Squeezy ako obchodník "
-                    "zodpovedný za spracovanie platby; PUMAR s. r. o. zostáva "
-                    "prevádzkovateľom služby a kontaktným miestom podpory.",
+                    "cenu, tieto podmienky a poučenie o odstúpení. Lemon Squeezy "
+                    "vystupuje v checkoute ako Merchant of Record a predávajúci "
+                    "pre platobnú transakciu. Zmluva o Zakladajúcom Premium sa "
+                    "uzavrie potvrdením objednávky spoločnosťou Lemon Squeezy.",
+                    "PUMAR s. r. o. je prevádzkovateľ služby Uvar.si, zabezpečuje "
+                    "prístup k produktu a je kontaktným miestom pre produktovú "
+                    "podporu, reklamácie a odstúpenie.",
                 ),
             ),
             LegalSection(
-                "Sprístupnenie a zmeny služby",
+                "Sprístupnenie, trvanie a ukončenie služby",
                 (
-                    "Premium sprístupníme bez zbytočného odkladu po potvrdení "
-                    "platby poskytovateľom. Dostupnosť môže krátko obmedziť "
+                    "Premium aktivujeme bez zbytočného odkladu po prijatí "
+                    "overeného potvrdenia platby. Ak platba prebehne, ale Premium "
+                    "sa nesprístupní, po spárovaní objednávky ho ručne aktivujeme "
+                    "alebo zabezpečíme úplné vrátenie platby. Nemusíte zaplatiť znova.",
+                    "Zakladajúce Premium trvá počas prevádzky služby Uvar.si; "
+                    "nesľubuje prevádzku na neurčitý ani neobmedzený čas. Ak sa "
+                    "PUMAR s. r. o. rozhodne ukončiť prevádzku, oznámi dátum "
+                    "ukončenia v predstihu primeranom okolnostiam na trvanlivom "
+                    "médiu, ak je to vzhľadom na dôvod ukončenia možné.",
+                    "Ukončením prevádzky nezanikajú už vzniknuté zákonné práva "
+                    "spotrebiteľa ani nároky, ktoré nemožno zmluvne vylúčiť, "
+                    "vrátane práv z vád, reklamácie, odstúpenia, primeranej zľavy, "
+                    "vrátenia platby alebo náhrady škody, ak ich priznáva zákon.",
+                    "Dostupnosť môže krátko obmedziť "
                     "údržba, obnova letákov, bezpečnostná udalosť alebo výpadok "
                     "dodávateľa.",
+                ),
+            ),
+            LegalSection(
+                "Zmeny digitálnej služby",
+                (
                     "Funkcie môžeme primerane meniť kvôli bezpečnosti, zákonu, "
                     "oprave alebo zlepšeniu. Zmena nesmie vytvoriť nový poplatok "
-                    "bez vašej samostatnej objednávky. O podstatnej nepriaznivej "
-                    "zmene informujeme vhodným spôsobom vopred.",
+                    "bez vašej samostatnej objednávky.",
+                    "O podstatnej nepriaznivej zmene, ktorá viac než zanedbateľne "
+                    "ovplyvní prístup k službe alebo jej používanie, vás jasne "
+                    "informujeme vopred na trvanlivom médiu. Oznámenie uvedie "
+                    "povahu a čas zmeny aj spôsob, ako možno bezplatne ukončiť zmluvu.",
+                    "Môžete bezplatne ukončiť zmluvu do 30 dní od doručenia "
+                    "oznámenia alebo od vykonania zmeny, podľa toho, čo nastane "
+                    "neskôr. Toto právo nevznikne, ak si môžete bez dodatočných "
+                    "nákladov ponechať nezmenenú verziu služby a tá zostane v súlade "
+                    "so zmluvou.",
                 ),
             ),
             LegalSection(
@@ -158,11 +188,15 @@ _DOCUMENTS: dict[str, LegalDocument] = {
             LegalSection(
                 "Reklamácie a zodpovednosť",
                 (
+                    "PUMAR s. r. o. zodpovedá za vady digitálnej služby, ktoré "
+                    "sa prejavia počas celej dohodnutej doby poskytovania služby.",
                     "Vadu služby môžete vytknúť cez funkciu v účte alebo na "
                     "pumaragency@gmail.com. Prijatie reklamácie písomne potvrdíme "
                     "a vybavíme ju bezplatne v primeranej lehote; ak zákon "
                     "neurčuje inak, oznámená lehota neprekročí 30 dní bez "
                     "objektívneho dôvodu, ktorý nevieme ovplyvniť.",
+                    "Ak reklamáciu zamietneme, oznámime vám výsledok aj písomné "
+                    "dôvody zamietnutia na trvanlivom médiu.",
                     "Nič v týchto podmienkach neobmedzuje zákonné práva "
                     "spotrebiteľa ani zodpovednosť, ktorú nemožno zmluvne "
                     "vylúčiť. Nezodpovedáme za samostatnú kúpnu zmluvu medzi "
@@ -227,6 +261,25 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                 ),
             ),
             LegalSection(
+                "Povinné údaje a následky ich neposkytnutia",
+                (
+                    "Na vytvorenie a zabezpečenie účtu sú povinné údaje e-mail "
+                    "a heslo alebo iný zvolený prihlasovací prostriedok. Na "
+                    "zostavenie plánu potrebujeme počet dospelých a detí, rytmus "
+                    "varenia, vybrané obchody a režim stravovania. Bez e-mailu "
+                    "a prihlasovacieho prostriedku nemožno vytvoriť účet; bez "
+                    "potrebných nastavení nemožno zostaviť osobný plán.",
+                    "Na kúpu Premium sú potrebné údaje účtu, identifikácia "
+                    "objednávky, produkt, cena, mena a potvrdenie aktuálnych "
+                    "zmluvných podmienok. Platobné údaje zadávate spoločnosti "
+                    "Lemon Squeezy. Bez údajov potrebných pre objednávku Premium "
+                    "nemožno kúpiť ani aktivovať.",
+                    "Údaje špajze, passkey a odpoveď na nepovinnú otázku nie sú "
+                    "podmienkou vytvorenia účtu ani kúpy Premium, ak pri konkrétnej "
+                    "funkcii výslovne neuvedieme inak.",
+                ),
+            ),
+            LegalSection(
                 "AI a automatizácia",
                 (
                     "AI používame najmä pri spracovaní letákov a pri kurátorskej "
@@ -255,10 +308,16 @@ _DOCUMENTS: dict[str, LegalDocument] = {
             LegalSection(
                 "Prenosy mimo EHP",
                 (
-                    "Niektorí dodávatelia môžu spracúvať údaje mimo Európskeho "
-                    "hospodárskeho priestoru. V takom prípade sa použije platný "
-                    "mechanizmus podľa GDPR, napríklad rozhodnutie o primeranosti "
-                    "alebo štandardné zmluvné doložky a primerané doplnkové opatrenia.",
+                    "Hetzner poskytuje hosting v Európskom hospodárskom priestore. "
+                    "Ak Anthropic, Resend alebo MailerLite prenášajú osobné údaje "
+                    "mimo EHP, ich aktuálne zmluvy o spracúvaní údajov zahŕňajú "
+                    "štandardné zmluvné doložky Európskej komisie. Uplatnia sa aj "
+                    "primerané doplnkové bezpečnostné opatrenia podľa rizika.",
+                    "Lemon Squeezy vystupuje pri platbe ako Merchant of Record a "
+                    "samostatný predávajúci. Platobné údaje spracúva podľa vlastných "
+                    "podmienok a informácií o ochrane súkromia, ktoré sú dostupné "
+                    "pred odoslaním objednávky; PUMAR s. r. o. dostane iba údaje "
+                    "potrebné na spárovanie objednávky, sprístupnenie služby a podporu.",
                 ),
             ),
             LegalSection(
@@ -273,6 +332,25 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                     "Reklamácie, odstúpenia a dôkazy súhlasu počas vybavenia a "
                     "následne iba po dobu potrebnú na zákonnú povinnosť alebo "
                     "ochranu právnych nárokov.",
+                    "Kontakt na čakacej listine uchovávame do odvolania súhlasu, "
+                    "najviac 12 mesiacov od prihlásenia alebo najviac 30 dní po "
+                    "poslednej požadovanej správe o spustení Uvar.si či "
+                    "zakladajúcej ponuke, podľa toho, čo nastane skôr. Potom ho "
+                    "z MailerLite vymažeme alebo zaradíme "
+                    "na blokovací zoznam iba v minimálnom rozsahu potrebnom na "
+                    "rešpektovanie odhlásenia.",
+                ),
+            ),
+            LegalSection(
+                "Čakacia listina",
+                (
+                    "Súhlas s čakacou listinou sa vzťahuje iba na požadované "
+                    "informácie o spustení Uvar.si, dostupnosti a skončení "
+                    "zakladajúcej ponuky. Nie je to súhlas na neobmedzený marketing.",
+                    "Z každej správy sa môžete odhlásiť odkazom na odhlásenie "
+                    "alebo môžete odvolať súhlas e-mailom na "
+                    "pumaragency@gmail.com. Odvolanie nemá vplyv na zákonnosť "
+                    "spracúvania pred jeho doručením.",
                 ),
             ),
             LegalSection(
@@ -320,9 +398,9 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                 "Lokálne úložisko",
                 (),
                 (
-                    "uvarsi_profil: minimálny údaj o dokončení úvodného nastavenia, aby sa aplikácia zobrazila rýchlejšie.",
-                    "uvarsi_done:*: zaškrtnuté položky nákupného zoznamu pre konkrétny účet a týždeň.",
-                    "uvarsi_kupim:*: voľba kúpiť položku, hoci je evidovaná v špajzi, pre konkrétny účet a plán.",
+                    "uvarsi_profil: minimálny údaj o dokončení úvodného nastavenia, aby sa aplikácia zobrazila rýchlejšie; uchováva sa do odhlásenia, vymazania účtu alebo vymazania údajov stránky v prehliadači.",
+                    "uvarsi_done:*: zaškrtnuté položky nákupného zoznamu pre konkrétny účet a týždeň; automaticky neexpirujú, pri inom pláne sa nepoužijú a zostanú do vymazania účtu alebo údajov stránky v prehliadači.",
+                    "uvarsi_kupim:*: voľba kúpiť položku, hoci je evidovaná v špajzi, pre konkrétny účet a plán; automaticky neexpiruje a zostane do vymazania účtu alebo údajov stránky v prehliadači.",
                 ),
             ),
             LegalSection(
@@ -351,7 +429,7 @@ _DOCUMENTS: dict[str, LegalDocument] = {
     ),
     "odstupenie": LegalDocument(
         "Odstúpenie od zmluvy Uvar.si",
-        "Ako do 14 dní požiadať o úplné vrátenie jednorazovej platby za Zakladajúce Premium.",
+        "Ako uplatniť právo na odstúpenie od zmluvy a úplné vrátenie jednorazovej platby za Zakladajúce Premium.",
         (
             _COMMON_OPERATOR,
             LegalSection(
@@ -361,6 +439,9 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                     "dôvodu do 14 dní od uzavretia zmluvy. Uvar.si poskytne pri "
                     "Zakladajúcom Premium úplné vrátenie jednorazovej platby "
                     "39 € bez krátenia aj po začatí používania služby.",
+                    "Lehota je zachovaná, ak oznámenie o odstúpení odošlete pred "
+                    "uplynutím 14-dňovej lehoty. Rozhoduje včasné odoslanie "
+                    "oznámenia, nie deň jeho vybavenia ani deň vrátenia platby.",
                 ),
             ),
             LegalSection(
@@ -393,10 +474,18 @@ _DOCUMENTS: dict[str, LegalDocument] = {
             LegalSection(
                 "Vzor oznámenia",
                 (
-                    "Adresát: PUMAR s. r. o., Alexandra Dubčeka 4318/33, "
-                    "075 01 Trebišov, pumaragency@gmail.com. Oznamujem, že "
-                    "odstupujem od zmluvy o službe Uvar.si. V správe uvediem "
-                    "meno, e-mail účtu, číslo a dátum objednávky a dátum odoslania.",
+                    "Použitie vzoru nie je povinné. Stačí akékoľvek jednoznačné "
+                    "vyhlásenie, z ktorého vyplýva, že odstupujete od zmluvy.",
+                ),
+                (
+                    "Adresát: PUMAR s. r. o., Alexandra Dubčeka 4318/33, 075 01 Trebišov, pumaragency@gmail.com.",
+                    "Oznamujem, že odstupujem od zmluvy o digitálnej službe Uvar.si.",
+                    "Meno a priezvisko spotrebiteľa.",
+                    "Adresa spotrebiteľa.",
+                    "E-mail účtu a číslo objednávky, ak je k dispozícii.",
+                    "Dátum objednávky.",
+                    "Dátum odoslania.",
+                    "Podpis spotrebiteľa (iba ak sa vzor posiela v listinnej podobe).",
                 ),
             ),
         ),
@@ -420,6 +509,8 @@ _DOCUMENTS: dict[str, LegalDocument] = {
             LegalSection(
                 "Potvrdenie a vybavenie",
                 (
+                    "PUMAR s. r. o. zodpovedá za vady digitálnej služby, ktoré "
+                    "sa prejavia počas celej dohodnutej doby poskytovania služby.",
                     "Prijatie bezodkladne písomne potvrdíme. Vadu odstránime "
                     "bezplatne, v primeranej lehote a bez závažných ťažkostí. "
                     "Oznámená lehota spravidla neprekročí 30 dní; dlhšiu lehotu "
@@ -428,6 +519,8 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                     "Ak vadu neodstránime, opakuje sa, je závažná alebo je "
                     "zrejmé, že ju neodstránime, môžete mať podľa zákona právo "
                     "na primeranú zľavu alebo odstúpenie od zmluvy.",
+                    "Ak reklamáciu zamietneme, doručíme vám výsledok aj písomné "
+                    "dôvody zamietnutia na trvanlivom médiu.",
                 ),
             ),
             LegalSection(
@@ -485,8 +578,10 @@ def legal_text(slug: str) -> str:
         f"Sídlo: {operator['registered_office']}",
         f"Register: {operator['register']}",
         f"Kontakt: {operator['support_email']}",
-        "",
     ]
+    if operator.get("support_phone"):
+        lines.append(f"Telefón: {operator['support_phone']}")
+    lines.append("")
     for section in document.sections:
         lines.extend((section.heading, "-" * len(section.heading)))
         for paragraph in section.paragraphs:
@@ -501,6 +596,15 @@ def legal_text(slug: str) -> str:
 def render_legal_page(slug: str) -> str:
     document = _document(slug)
     operator = public_operator_dict()
+    phone = (
+        '<p><a href="tel:'
+        + escape(operator["support_phone"].replace(" ", ""), quote=True)
+        + '">'
+        + escape(operator["support_phone"])
+        + "</a></p>"
+        if operator.get("support_phone")
+        else ""
+    )
     canonical = f"{BASE_URL}/{slug}"
     body: list[str] = []
     for section in document.sections:
@@ -542,6 +646,7 @@ def render_legal_page(slug: str) -> str:
     <p><strong>{escape(operator['business_name'])}</strong> · IČO {escape(operator['company_id'])}</p>
     <p>{escape(operator['registered_office'])} · {escape(operator['register'])}</p>
     <p><a href="mailto:{escape(operator['support_email'], quote=True)}">{escape(operator['support_email'])}</a></p>
+    {phone}
   </div>
   <div class="actions"><a href="/pravne/{slug}.txt" download>Stiahnuť textovú verziu</a><a href="/app">Otvoriť Uvar.si</a></div>
   {''.join(body)}
