@@ -19,11 +19,19 @@ UVARSI_WEB_DIR="${UVARSI_WEB_DIR:-/var/www/uvarsi}"
 UVARSI_APP_DIR="${UVARSI_APP_DIR:-$UVARSI_DIR/app}"
 UVARSI_LANDING_DATA="${UVARSI_LANDING_DATA:-/var/lib/uvarsi/landing_data.json}"
 UVARSI_TIMEOUT="${UVARSI_TIMEOUT:-timeout}"
+UVARSI_BASH="${UVARSI_BASH:-/bin/bash}"
+UVARSI_CRONTAB="${UVARSI_CRONTAB:-crontab}"
 UVARSI_SUPERVISOR="${UVARSI_SUPERVISOR:-$UVARSI_DIR/dozorca.sh}"
+UVARSI_COLLECTOR="${UVARSI_COLLECTOR:-$UVARSI_APP_DIR/zbierac_akcii.py}"
+UVARSI_RECEIPT_REFRESH="${UVARSI_RECEIPT_REFRESH:-$UVARSI_DIR/refresh_blocek.py}"
+UVARSI_DEPLOY_STATE_SCRIPT="${UVARSI_DEPLOY_STATE_SCRIPT:-${BASH_SOURCE[0]}}"
 UVARSI_SUPERVISOR_STATE="${UVARSI_SUPERVISOR_STATE:-$UVARSI_DIR/.dozorca_state}"
+UVARSI_SUPERVISOR_SUCCESS_STATE="${UVARSI_SUPERVISOR_SUCCESS_STATE:-$UVARSI_DIR/.supervisor_success_state}"
+UVARSI_SUPERVISOR_SUCCESS_MAX_AGE_SECONDS="${UVARSI_SUPERVISOR_SUCCESS_MAX_AGE_SECONDS:-18000}"
 UVARSI_COLLECTION_FAILURE_STATE="${UVARSI_COLLECTION_FAILURE_STATE:-$UVARSI_DIR/.collection_failure_state}"
 UVARSI_TAKTIK_URL="${UVARSI_TAKTIK_URL:-https://mapa.89.167.72.159.sslip.io/}"
 UVARSI_MAX_COLLECTION_SECONDS="${UVARSI_MAX_COLLECTION_SECONDS:-14400}"
+UVARSI_TERMINATION_GRACE_SECONDS="${UVARSI_TERMINATION_GRACE_SECONDS:-300}"
 UVARSI_WORKER_UNIT="$UVARSI_SYSTEMD_DIR/uvarsi-plan-worker.service"
 UVARSI_APP_UNIT="$UVARSI_SYSTEMD_DIR/uvarsi.service"
 
@@ -32,6 +40,14 @@ _uvarsi_today() {
     printf '%s' "$UVARSI_TODAY"
   else
     TZ=Europe/Bratislava date +%F
+  fi
+}
+
+_uvarsi_now_epoch() {
+  if [ -n "${UVARSI_NOW_EPOCH:-}" ]; then
+    printf '%s' "$UVARSI_NOW_EPOCH"
+  else
+    date +%s
   fi
 }
 
@@ -65,13 +81,24 @@ print(matches[0], end="")
 }
 
 uvarsi_require_tesco_bridge() {
+  # A parent shell may have enabled xtrace. Disable it before command
+  # substitutions can place an env value (especially the secret) in stderr.
+  case $- in *x*) set +x ;; esac
   # Values are read without sourcing or printing the env file. The bearer
   # header reaches curl over stdin config, so it is absent from argv and logs.
   environment=$(_uvarsi_env_value UVARSI_ENV) || return 1
   [ "$environment" = production ] || return 1
   bridge_url=$(_uvarsi_env_value UVARSI_TESCO_BRIDGE_URL) || return 1
+  bridge_worker_host=$(_uvarsi_env_value UVARSI_TESCO_BRIDGE_WORKER_HOST) || return 1
+  bridge_release=$(_uvarsi_env_value UVARSI_TESCO_BRIDGE_RELEASE) || return 1
   bridge_secret=$(_uvarsi_env_value UVARSI_TESCO_BRIDGE_SECRET) || return 1
-  [ "${#bridge_secret}" -ge 32 ] || return 1
+  case "$bridge_release" in
+    *[!0-9a-f]*|'') return 1 ;;
+  esac
+  [ "${#bridge_release}" -ge 12 ] && [ "${#bridge_release}" -le 64 ] || return 1
+  case "$bridge_secret" in "$bridge_release".*) ;; *) return 1 ;; esac
+  bridge_secret_random=${bridge_secret#*.}
+  [ "${#bridge_secret_random}" -ge 32 ] || return 1
   case "$bridge_secret" in *[!A-Za-z0-9._~-]*) return 1 ;; esac
 
   "$UVARSI_HEALTH_PY" -c '
@@ -82,13 +109,18 @@ try:
     port = parsed.port
 except ValueError:
     raise SystemExit(1)
+expected_host = sys.argv[2]
 valid = (
     parsed.scheme == "https" and bool(parsed.hostname)
+    and expected_host == expected_host.lower()
+    and expected_host.startswith("uvarsi-tesco-bridge.")
+    and expected_host.endswith(".workers.dev")
+    and parsed.hostname == expected_host
     and parsed.username is None and parsed.password is None and port is None
     and parsed.path in ("", "/") and not parsed.query and not parsed.fragment
 )
 raise SystemExit(0 if valid else 1)
-' "$bridge_url" >/dev/null 2>&1 || return 1
+' "$bridge_url" "$bridge_worker_host" >/dev/null 2>&1 || return 1
   bridge_url=${bridge_url%/}
   today=$(_uvarsi_today) || return 1
   response=$(mktemp "${TMPDIR:-/tmp}/uvarsi-bridge.XXXXXX") || return 1
@@ -117,11 +149,22 @@ try:
     start = dt.date.fromisoformat(leaflet["valid_from"])
     end = dt.date.fromisoformat(leaflet["valid_to"])
     pages = leaflet["pages"]
+    source = urlsplit(leaflet["source_url"])
 except (KeyError, TypeError, ValueError, json.JSONDecodeError, OSError):
     raise SystemExit(1)
+slug = leaflet.get("slug")
+expected_slug = "tesco-letak-" + start.isoformat()
+expected_source_path = (
+    "/akciove-ponuky/letaky-a-katalogy/hypermarkety/" + expected_slug + "/1"
+)
 if (
     not isinstance(leaflet, dict) or leaflet.get("country") != "sk"
     or leaflet.get("format") != "HM" or not start <= today <= end
+    or slug != expected_slug
+    or source.scheme != "https" or source.hostname != "www.tesco.sk"
+    or source.username is not None or source.password is not None
+    or source.port is not None or source.path != expected_source_path
+    or source.query or source.fragment
     or not isinstance(pages, list) or not 8 <= len(pages) <= 120
     or leaflet.get("declared_pages") != len(pages)
 ):
@@ -159,7 +202,9 @@ _uvarsi_require_collection_readiness() {
     cd "$UVARSI_APP_DIR" || exit 1
     "$UVARSI_HEALTH_PY" -c '
 import datetime as dt, json, re, sqlite3, sys
-from landing_data import validate_landing_data
+from decimal import Decimal, InvalidOperation
+from landing_data import CURRENT_LANDING_STATE, validate_publishable_landing_data
+from source_policy import collector_kind_for_url
 
 database, landing_path, today_raw = sys.argv[1:4]
 today = dt.date.fromisoformat(today_raw)
@@ -170,14 +215,35 @@ stores = {
     "Lidl": "official-lidl-viewer",
 }
 fingerprint = re.compile(r"[0-9a-f]{64}")
+
+def money(value):
+    try:
+        amount = Decimal(str(value).strip().replace(",", "."))
+    except (InvalidOperation, ValueError):
+        raise SystemExit(1)
+    if not amount.is_finite() or amount <= 0 or amount > Decimal("10000"):
+        raise SystemExit(1)
+    return amount
+
+active_offer_refs = set()
+active_offer_sources = {}
+active_source_refs = set()
 with sqlite3.connect("file:" + database + "?mode=ro", uri=True) as con:
-    required = {
+    required_status = {
         "tyzden", "obchod", "stav", "pocet", "data_version",
         "collector_kind", "source_fingerprint", "valid_from", "valid_to",
     }
     for table in ("zber_stav", "zber_staging_stav"):
         columns = {row[1] for row in con.execute("PRAGMA table_info(" + table + ")")}
-        if not required <= columns:
+        if not required_status <= columns:
+            raise SystemExit(1)
+    required_offer = {
+        "tyzden", "obchod", "nazov", "cena", "source_url", "source_page",
+        "offer_key", "valid_from", "valid_to",
+    }
+    for table in ("akcie", "akcie_staging"):
+        columns = {row[1] for row in con.execute("PRAGMA table_info(" + table + ")")}
+        if not required_offer <= columns:
             raise SystemExit(1)
     for store, expected_kind in stores.items():
         query = (
@@ -199,29 +265,332 @@ with sqlite3.connect("file:" + database + "?mode=ro", uri=True) as con:
             or fingerprint.fullmatch(source_hash) is None or not current
         ):
             raise SystemExit(1)
+        facts_by_table = []
         for table in ("akcie", "akcie_staging"):
-            count = con.execute(
-                "SELECT COUNT(*) FROM " + table +
-                " WHERE tyzden=? AND obchod=? AND valid_from<=? AND ?<=valid_to",
-                (week, store, today_raw, today_raw),
-            ).fetchone()[0]
-            if int(count or 0) < 20 or int(count) != int(declared):
+            rows = con.execute(
+                "SELECT offer_key,nazov,cena,source_url,source_page,valid_from,valid_to "
+                "FROM " + table + " WHERE tyzden=? AND obchod=?",
+                (week, store),
+            ).fetchall()
+            keys = {row[0] for row in rows if isinstance(row[0], str) and row[0].strip()}
+            if len(rows) < 20 or len(rows) != int(declared) or len(keys) != len(rows):
                 raise SystemExit(1)
+            facts = set()
+            for offer_key, name, price, source_url, source_page, start_raw, end_raw in rows:
+                try:
+                    offer_start = dt.date.fromisoformat(start_raw)
+                    offer_end = dt.date.fromisoformat(end_raw)
+                except (TypeError, ValueError):
+                    raise SystemExit(1)
+                if (
+                    not isinstance(name, str) or not name.strip()
+                    or money(price) <= 0
+                    or isinstance(source_page, bool) or not isinstance(source_page, int)
+                    or not 1 <= source_page <= 500
+                    or collector_kind_for_url(source_url) != expected_kind
+                    or not offer_start <= today <= offer_end
+                ):
+                    raise SystemExit(1)
+                fact = (
+                    offer_key, name, str(price), source_url, source_page,
+                    start_raw, end_raw,
+                )
+                facts.add(fact)
+                if table == "akcie":
+                    active_offer_refs.add((store, offer_key))
+                    source_ref = (store, source_url, source_page, start_raw, end_raw)
+                    active_offer_sources[(store, offer_key)] = source_ref
+                    active_source_refs.add(source_ref)
+            facts_by_table.append(facts)
+        if facts_by_table[0] != facts_by_table[1]:
+            raise SystemExit(1)
 
 with open(landing_path, encoding="utf-8") as handle:
     landing = json.load(handle)
-validate_landing_data(landing, today, required_offer_data_version=2)
+state, reference_day = validate_publishable_landing_data(
+    landing, today, required_offer_data_version=2
+)
+if state != CURRENT_LANDING_STATE or reference_day != today:
+    raise SystemExit(1)
 meals = landing.get("receipt", {}).get("meals")
 if not isinstance(meals, list) or len(meals) != 3:
     raise SystemExit(1)
-source_stores = {
-    source.get("store") for source in landing.get("sources", [])
-    if isinstance(source, dict)
-}
+sources = landing.get("sources")
+if not isinstance(sources, list) or len(sources) < 3:
+    raise SystemExit(1)
+source_stores = set()
+landing_source_refs = set()
+for source in sources:
+    try:
+        store = source["store"]
+        source_url = source["url"]
+        source_page = source["source_page"]
+        start_raw = source["valid_from"]
+        end_raw = source["valid_to"]
+        start = dt.date.fromisoformat(start_raw)
+        end = dt.date.fromisoformat(end_raw)
+    except (KeyError, TypeError, ValueError):
+        raise SystemExit(1)
+    source_ref = (store, source_url, source_page, start_raw, end_raw)
+    if (
+        store not in stores
+        or collector_kind_for_url(source_url) != stores[store]
+        or isinstance(source_page, bool) or not isinstance(source_page, int)
+        or not 1 <= source_page <= 500 or not start <= today <= end
+        or source_ref not in active_source_refs
+        or source_ref in landing_source_refs
+    ):
+        raise SystemExit(1)
+    source_stores.add(store)
+    landing_source_refs.add(source_ref)
 if source_stores != set(stores):
+    raise SystemExit(1)
+
+receipt = landing["receipt"]
+total = money(receipt.get("nakup_spolu"))
+regular = money(receipt.get("bezne"))
+try:
+    savings = Decimal(str(receipt.get("usetris")).strip().replace(",", "."))
+except (InvalidOperation, ValueError):
+    raise SystemExit(1)
+if (
+    not savings.is_finite() or savings < 0 or savings > Decimal("10000")
+    or regular < total
+    or (regular - total).quantize(Decimal("0.01"))
+    != savings.quantize(Decimal("0.01"))
+):
+    raise SystemExit(1)
+item_count = 0
+item_total = Decimal("0")
+seen_offer_refs = set()
+for meal in meals:
+    items = meal.get("items") if isinstance(meal, dict) else None
+    if not isinstance(items, list) or not items:
+        raise SystemExit(1)
+    for item in items:
+        if not isinstance(item, dict):
+            raise SystemExit(1)
+        store = item.get("store")
+        offer_key = item.get("offer_key")
+        quantity = item.get("quantity")
+        if (
+            store not in stores
+            or not isinstance(offer_key, str) or not offer_key.strip()
+            or (store, offer_key) not in active_offer_refs
+            or active_offer_sources.get((store, offer_key)) not in landing_source_refs
+            or (store, offer_key) in seen_offer_refs
+            or isinstance(quantity, bool) or not isinstance(quantity, int)
+            or quantity <= 0 or quantity > 100
+        ):
+            raise SystemExit(1)
+        seen_offer_refs.add((store, offer_key))
+        item_total += money(item.get("price"))
+        item_count += 1
+if item_count < 3 or item_total.quantize(Decimal("0.01")) != total.quantize(Decimal("0.01")):
+    raise SystemExit(1)
+if (
+    receipt.get("polozky") != item_count
+    or isinstance(receipt.get("polozky_s_beznou_cenou"), bool)
+    or not isinstance(receipt.get("polozky_s_beznou_cenou"), int)
+    or not 0 <= receipt["polozky_s_beznou_cenou"] <= item_count
+):
     raise SystemExit(1)
 ' "$UVARSI_DB" "$UVARSI_LANDING_DATA" "$today" >/dev/null 2>&1
   )
+}
+
+_uvarsi_supervisor_cron_line() {
+  printf '%s' '0 5-21 * * * /opt/uvarsi/uvarsi-deploy-state.sh run-supervisor >> /var/log/uvarsi.log 2>&1'
+}
+
+_uvarsi_read_crontab() {
+  target=$1
+  error_file=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-error.XXXXXX") || return 1
+  chmod 600 "$error_file" || { rm -f "$error_file"; return 1; }
+  if LC_ALL=C "$UVARSI_CRONTAB" -l > "$target" 2>"$error_file"; then
+    rm -f "$error_file"
+    return 0
+  fi
+  if grep -Eqi '^no crontab for ' "$error_file"; then
+    : > "$target"
+    rm -f "$error_file"
+    return 0
+  fi
+  rm -f "$error_file"
+  return 1
+}
+
+_uvarsi_transform_supervisor_cron() {
+  source_file=$1
+  target_file=$2
+  replacement_file=$3
+  "$UVARSI_HEALTH_PY" -c '
+import re, sys
+source, target, replacement = sys.argv[1:4]
+direct = re.compile(r"(?:^|\s)/opt/uvarsi/dozorca\.sh(?:\s|$)")
+wrapped = re.compile(
+    r"(?:^|\s)/opt/uvarsi/uvarsi-deploy-state\.sh\s+run-supervisor(?:\s|$)"
+)
+
+def is_target(line):
+    stripped = line.strip()
+    return bool(stripped and not stripped.startswith("#") and (
+        direct.search(stripped) or wrapped.search(stripped)
+    ))
+
+with open(source, encoding="utf-8") as handle:
+    kept = [line.rstrip("\n") for line in handle if not is_target(line)]
+with open(replacement, encoding="utf-8") as handle:
+    additions = [line.strip() for line in handle if line.strip()]
+if any(line.startswith("#") or not is_target(line) for line in additions):
+    raise SystemExit(1)
+with open(target, "w", encoding="utf-8", newline="\n") as handle:
+    for line in kept + additions:
+        handle.write(line + "\n")
+' "$source_file" "$target_file" "$replacement_file" >/dev/null 2>&1
+}
+
+uvarsi_snapshot_supervisor_schedule() {
+  snapshot=$1
+  [ -d "$snapshot" ] || return 1
+  current=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-current.XXXXXX") || return 1
+  extracted=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-snapshot.XXXXXX") || {
+    rm -f "$current"
+    return 1
+  }
+  chmod 600 "$current" "$extracted" || {
+    rm -f "$current" "$extracted"
+    return 1
+  }
+  if ! _uvarsi_read_crontab "$current" || ! "$UVARSI_HEALTH_PY" -c '
+import re, sys
+direct = re.compile(r"(?:^|\s)/opt/uvarsi/dozorca\.sh(?:\s|$)")
+wrapped = re.compile(
+    r"(?:^|\s)/opt/uvarsi/uvarsi-deploy-state\.sh\s+run-supervisor(?:\s|$)"
+)
+with open(sys.argv[1], encoding="utf-8") as source, open(
+    sys.argv[2], "w", encoding="utf-8", newline="\n"
+) as target:
+    for line in source:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and (
+            direct.search(stripped) or wrapped.search(stripped)
+        ):
+            target.write(stripped + "\n")
+' "$current" "$extracted" >/dev/null 2>&1; then
+    rm -f "$current" "$extracted"
+    return 1
+  fi
+  "$UVARSI_CP" -a "$extracted" "$snapshot/supervisor.cron" || {
+    rm -f "$current" "$extracted"
+    return 1
+  }
+  chmod 600 "$snapshot/supervisor.cron" || {
+    rm -f "$current" "$extracted"
+    return 1
+  }
+  rm -f "$current" "$extracted"
+}
+
+uvarsi_require_supervisor_schedule() {
+  current=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-check.XXXXXX") || return 1
+  chmod 600 "$current" || { rm -f "$current"; return 1; }
+  canonical=$(_uvarsi_supervisor_cron_line) || { rm -f "$current"; return 1; }
+  if ! _uvarsi_read_crontab "$current" || ! "$UVARSI_HEALTH_PY" -c '
+import re, sys
+path, canonical = sys.argv[1:3]
+direct = re.compile(r"(?:^|\s)/opt/uvarsi/dozorca\.sh(?:\s|$)")
+wrapped = re.compile(
+    r"(?:^|\s)/opt/uvarsi/uvarsi-deploy-state\.sh\s+run-supervisor(?:\s|$)"
+)
+with open(path, encoding="utf-8") as handle:
+    active = [line.strip() for line in handle if line.strip() and not line.lstrip().startswith("#")]
+targets = [line for line in active if direct.search(line) or wrapped.search(line)]
+raise SystemExit(0 if targets == [canonical] else 1)
+' "$current" "$canonical" >/dev/null 2>&1; then
+    rm -f "$current"
+    return 1
+  fi
+  rm -f "$current"
+}
+
+uvarsi_install_supervisor_schedule() {
+  current=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-current.XXXXXX") || return 1
+  replacement=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-replacement.XXXXXX") || {
+    rm -f "$current"
+    return 1
+  }
+  candidate=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-candidate.XXXXXX") || {
+    rm -f "$current" "$replacement"
+    return 1
+  }
+  chmod 600 "$current" "$replacement" "$candidate" || {
+    rm -f "$current" "$replacement" "$candidate"
+    return 1
+  }
+  _uvarsi_supervisor_cron_line > "$replacement" || {
+    rm -f "$current" "$replacement" "$candidate"
+    return 1
+  }
+  if ! _uvarsi_read_crontab "$current" || \
+      ! _uvarsi_transform_supervisor_cron "$current" "$candidate" "$replacement" || \
+      ! "$UVARSI_CRONTAB" "$candidate"; then
+    rm -f "$current" "$replacement" "$candidate"
+    return 1
+  fi
+  rm -f "$current" "$replacement" "$candidate"
+  uvarsi_require_supervisor_schedule
+}
+
+uvarsi_restore_supervisor_schedule() {
+  snapshot=$1
+  replacement="$snapshot/supervisor.cron"
+  [ -f "$replacement" ] || return 1
+  current=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-current.XXXXXX") || return 1
+  candidate=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-restore.XXXXXX") || {
+    rm -f "$current"
+    return 1
+  }
+  chmod 600 "$current" "$candidate" || {
+    rm -f "$current" "$candidate"
+    return 1
+  }
+  if ! _uvarsi_read_crontab "$current" || \
+      ! _uvarsi_transform_supervisor_cron "$current" "$candidate" "$replacement" || \
+      ! "$UVARSI_CRONTAB" "$candidate"; then
+    rm -f "$current" "$candidate"
+    return 1
+  fi
+  rm -f "$current" "$candidate"
+}
+
+_uvarsi_record_supervisor_success() {
+  today=$(_uvarsi_today) || return 1
+  now=$(_uvarsi_now_epoch) || return 1
+  case "$now" in ''|*[!0-9]*) return 1 ;; esac
+  temporary="${UVARSI_SUPERVISOR_SUCCESS_STATE}.tmp.$$"
+  (umask 077; printf '%s %s\n' "$today" "$now" > "$temporary") || return 1
+  "$UVARSI_MV" "$temporary" "$UVARSI_SUPERVISOR_SUCCESS_STATE" || {
+    rm -f "$temporary"
+    return 1
+  }
+}
+
+_uvarsi_require_supervisor_liveness() {
+  uvarsi_require_supervisor_schedule || return 1
+  [ -s "$UVARSI_SUPERVISOR_SUCCESS_STATE" ] || return 1
+  read -r success_day success_epoch success_extra < "$UVARSI_SUPERVISOR_SUCCESS_STATE" || return 1
+  [ -z "${success_extra:-}" ] || return 1
+  today=$(_uvarsi_today) || return 1
+  now=$(_uvarsi_now_epoch) || return 1
+  case "$success_epoch" in ''|*[!0-9]*) return 1 ;; esac
+  case "$now" in ''|*[!0-9]*) return 1 ;; esac
+  case "$UVARSI_SUPERVISOR_SUCCESS_MAX_AGE_SECONDS" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  [ "$success_day" = "$today" ] || return 1
+  [ "$success_epoch" -le "$now" ] || return 1
+  [ $((now - success_epoch)) -le "$UVARSI_SUPERVISOR_SUCCESS_MAX_AGE_SECONDS" ]
 }
 
 _uvarsi_require_runtime_health() {
@@ -234,6 +603,7 @@ _uvarsi_require_runtime_health() {
     [ "$failed_day" != "$today" ] || return 1
   fi
   [ ! -s "$UVARSI_COLLECTION_FAILURE_STATE" ] || return 1
+  _uvarsi_require_supervisor_liveness || return 1
 
   health=$(mktemp "${TMPDIR:-/tmp}/uvarsi-health.XXXXXX") || return 1
   chmod 600 "$health" || { rm -f "$health"; return 1; }
@@ -278,6 +648,22 @@ uvarsi_require_production_readiness() {
   _uvarsi_require_runtime_health
 }
 
+_uvarsi_supervisor_cycle() {
+  [ "${UVARSI_BOUNDED_CYCLE:-0}" = 1 ] || return 1
+  uvarsi_require_payments_off || return 1
+  uvarsi_require_tesco_bridge || return 1
+  if ! _uvarsi_require_collection_readiness; then
+    (
+      cd "$UVARSI_APP_DIR" || exit 1
+      "$UVARSI_HEALTH_PY" -u "$UVARSI_COLLECTOR"
+    ) || return 1
+    "$UVARSI_HEALTH_PY" -u "$UVARSI_RECEIPT_REFRESH" \
+      "$UVARSI_LANDING_DATA" || return 1
+    _uvarsi_require_collection_readiness || return 1
+  fi
+  "$UVARSI_SUPERVISOR"
+}
+
 uvarsi_run_supervisor_bounded() {
   # The collector and receipt writer stage their candidate state. Killing this
   # wrapper on timeout therefore leaves the live DB rows and landing JSON as-is.
@@ -288,15 +674,55 @@ uvarsi_run_supervisor_bounded() {
   esac
   [ "$UVARSI_MAX_COLLECTION_SECONDS" -gt 0 ] || return 1
   [ "$UVARSI_MAX_COLLECTION_SECONDS" -le 14400 ] || return 1
+  case "$UVARSI_TERMINATION_GRACE_SECONDS" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  [ "$UVARSI_TERMINATION_GRACE_SECONDS" -gt 0 ] || return 1
+  [ "$UVARSI_TERMINATION_GRACE_SECONDS" -lt "$UVARSI_MAX_COLLECTION_SECONDS" ] || return 1
   [ -x "$UVARSI_SUPERVISOR" ] || return 1
-  if "$UVARSI_TIMEOUT" --signal=TERM --kill-after=300 \
-      "$UVARSI_MAX_COLLECTION_SECONDS" "$UVARSI_SUPERVISOR"; then
+  uvarsi_require_supervisor_schedule || return 1
+  rm -f "$UVARSI_SUPERVISOR_SUCCESS_STATE" || return 1
+  terminate_after=$((UVARSI_MAX_COLLECTION_SECONDS - UVARSI_TERMINATION_GRACE_SECONDS))
+  if _uvarsi_require_collection_readiness; then
+    bounded_command=$UVARSI_SUPERVISOR
+    bounded_argument=
+  else
+    bounded_command=$UVARSI_BASH
+    bounded_argument=$UVARSI_DEPLOY_STATE_SCRIPT
+  fi
+  if [ -n "$bounded_argument" ]; then
+    if UVARSI_BOUNDED_CYCLE=1 "$UVARSI_TIMEOUT" --signal=TERM \
+        --kill-after="$UVARSI_TERMINATION_GRACE_SECONDS" "$terminate_after" \
+        "$bounded_command" "$bounded_argument" internal-supervisor-cycle; then
+      result=0
+    else
+      result=$?
+    fi
+  elif "$UVARSI_TIMEOUT" --signal=TERM \
+      --kill-after="$UVARSI_TERMINATION_GRACE_SECONDS" "$terminate_after" \
+      "$bounded_command"; then
     result=0
   else
     result=$?
   fi
   uvarsi_require_payments_off || return 1
+  if [ "$result" -eq 0 ]; then
+    _uvarsi_require_collection_readiness || return 1
+    _uvarsi_record_supervisor_success || return 1
+  fi
   return "$result"
+}
+
+uvarsi_bootstrap_production_readiness() {
+  # This is intentionally ordered so a first official rollout may replace
+  # stale/aggregator staging before the strict current-data gate evaluates it.
+  # Payments and the authenticated bridge still fail closed first.
+  uvarsi_require_payments_off || return 1
+  uvarsi_require_runtime_payments_off || return 1
+  uvarsi_require_tesco_bridge || return 1
+  uvarsi_require_supervisor_schedule || return 1
+  uvarsi_run_supervisor_bounded || return 1
+  uvarsi_require_production_readiness
 }
 
 _uvarsi_exchange_directories() {
@@ -822,6 +1248,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     check-bridge) uvarsi_require_tesco_bridge ;;
     check-readiness) uvarsi_require_production_readiness ;;
     run-supervisor) uvarsi_run_supervisor_bounded ;;
+    internal-supervisor-cycle) _uvarsi_supervisor_cycle ;;
     *) exit 64 ;;
   esac
 fi

@@ -158,14 +158,15 @@ def test_samopull_preflight_checks_public_pages_before_switching():
     )
 
 
-def test_samopull_starts_guardian_after_successful_release():
+def test_samopull_runs_guardian_before_strict_readiness_and_success():
     script = SAMOPULL.read_text(encoding="utf-8")
+    guardian = script.index("uvarsi_run_supervisor_bounded")
+    readiness = script.index("uvarsi_require_production_readiness", guardian)
     success = script.index('log "OK — nasadené vydanie')
-    guardian = script.index('nohup "$DIR/uvarsi-deploy-state.sh" run-supervisor')
     rollback = script.index("# --- 4. neúspech")
 
-    assert success < guardian < rollback
-    assert '>> /var/log/uvarsi.log 2>&1 &' in script
+    assert guardian < readiness < success < rollback
+    assert 'nohup "$DIR/uvarsi-deploy-state.sh" run-supervisor' not in script
 
 
 def test_both_release_paths_stage_the_autonomous_recipe_controller_after_health():
@@ -431,6 +432,17 @@ def test_deploy_installs_exactly_one_dozorca_cron_line(script):
     )
 
 
+def test_deploy_actually_sends_and_checks_the_replacement_cron(lines):
+    kod = _powershell_lines(lines)
+    cron_send = [
+        i for i, (_, line) in enumerate(kod)
+        if re.search(r"\$cron\s*\|\s*ssh\s+jarvis", line)
+    ]
+    assert cron_send, "definovaný cron heredoc sa musí skutočne poslať na server"
+    following = " ".join(line for _, line in kod[cron_send[0]:cron_send[0] + 4])
+    assert "Vyzaduj" in following or "$LASTEXITCODE" in following
+
+
 # ------------------------------------------------------------------ 6. uvarsi.env
 def test_deploy_verifies_the_env_file(script):
     assert "/opt/uvarsi/uvarsi.env" in script, (
@@ -613,7 +625,7 @@ def test_deploy_compares_live_release_id_with_local_version(script):
 def test_both_release_paths_require_bridge_preflight_before_live_mutation(script):
     automatic = SAMOPULL.read_text(encoding="utf-8")
     assert automatic.index("uvarsi_require_tesco_bridge") < automatic.index(
-        'uvarsi_snapshot "$PRED"'
+        'if nasad_z "$CIEL"'
     )
     assert script.index("uvarsi_require_tesco_bridge") < script.index(
         "$script:LiveMutationStarted = $true"
@@ -637,12 +649,21 @@ def test_both_release_paths_require_full_production_readiness(script):
     assert MAPA_SITE in script
 
 
+def test_both_release_paths_collect_before_the_strict_current_data_gate(script):
+    automatic = SAMOPULL.read_text(encoding="utf-8")
+    assert automatic.index("uvarsi_run_supervisor_bounded") < automatic.index(
+        "uvarsi_require_production_readiness"
+    )
+    assert script.index("uvarsi_run_supervisor_bounded") < script.index(
+        "uvarsi_require_production_readiness"
+    )
+
+
 def test_autonomous_release_uses_the_bounded_supervisor_entrypoint():
     automatic = SAMOPULL.read_text(encoding="utf-8")
     success = automatic.index('log "OK — nasadené vydanie')
-    after_success = automatic[success:]
-    assert "uvarsi-deploy-state.sh\" run-supervisor" in after_success
-    assert 'nohup "$DIR/dozorca.sh"' not in after_success
+    assert automatic.index("uvarsi_run_supervisor_bounded") < success
+    assert 'nohup "$DIR/dozorca.sh"' not in automatic
 
 
 def test_release_never_uploads_or_replaces_runtime_data(script):

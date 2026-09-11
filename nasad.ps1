@@ -1,7 +1,8 @@
 # Uvar.si - nasadenie jednym prikazom.
 # Pouzitie:  cd "$env:USERPROFILE\OneDrive\Online produkt"; .\nasad.ps1
 # Nahra subory na jarvis, restartuje sluzby a overi, ze vsetko bezi.
-# Rutinne vydanie nikdy nemeni zdielany Caddyfile ani systemovy cron.
+# Zdielany Caddyfile sa nemeni. V crontabe sa atomicky meni iba presne
+# ohraniceny Uvar.si rozvrh; zaznamy Taktik-mapa a inych sluzieb sa zachovaju.
 #
 # PRAVIDLO: nasadenie MUSI vediet zlyhat. Kazde vzdialene volanie kontroluje
 # navratovy kod a pri prvej chybe sa konci `exit 1`. Na serveri bezi aj druha
@@ -33,7 +34,10 @@ function VratPredosleUvarsi {
   $rollback = @'
 set -u
 . /opt/uvarsi/releases/manual-stage/hetzner/uvarsi-deploy-state.sh || exit 1
-uvarsi_restore /opt/uvarsi/releases/manual-predosle
+OK=1
+uvarsi_restore /opt/uvarsi/releases/manual-predosle || OK=0
+uvarsi_restore_supervisor_schedule /opt/uvarsi/releases/manual-predosle || OK=0
+exit $((1 - OK))
 '@ -replace "`r`n", "`n"
   $rollback | ssh jarvis "tr -d '\r' > /tmp/uvarsi_rollback.sh; bash /tmp/uvarsi_rollback.sh"
   if ($LASTEXITCODE -ne 0) {
@@ -65,7 +69,7 @@ if [ ! -f "$F" ]; then
   exit 1
 fi
 CHYBA=0
-for k in ANTHROPIC_API_KEY RESEND_API_KEY UVARSI_ENV UVARSI_TESCO_BRIDGE_URL UVARSI_TESCO_BRIDGE_SECRET; do
+for k in ANTHROPIC_API_KEY RESEND_API_KEY UVARSI_ENV UVARSI_TESCO_BRIDGE_URL UVARSI_TESCO_BRIDGE_WORKER_HOST UVARSI_TESCO_BRIDGE_RELEASE UVARSI_TESCO_BRIDGE_SECRET; do
   if grep -Eq "^[[:space:]]*(export[[:space:]]+)?${k}=[^[:space:]]" "$F"; then
     echo "  $k: pritomny"
   else
@@ -101,6 +105,7 @@ $backup = @'
 set -eu
 . /opt/uvarsi/releases/manual-stage/hetzner/uvarsi-deploy-state.sh
 uvarsi_snapshot /opt/uvarsi/releases/manual-predosle
+uvarsi_snapshot_supervisor_schedule /opt/uvarsi/releases/manual-predosle
 '@ -replace "`r`n", "`n"
 
 $subory = @(
@@ -437,7 +442,7 @@ echo "caddy OK (zaloha: $ZALOHA)"
 '@ -replace "`r`n", "`n"
 Ok "Caddy ostal nedotknuty"
 
-Krok "7/8  Prevadzkové kontroly bez zmeny crontabu"
+Krok "7/8  Bezpecny rozvrh a ohraniceny produkcny zber"
 # Tabulka `naroky` je jediny zaznam o tom, kto zaplatil - bez nocnej zalohy by
 # ju strata disku zmazala nenavratne. Rekonciliacia dobehne platby, o ktorych sa
 # appka z webhooku nikdy nedozvedela; bez nej je kazdy neprijaty webhook
@@ -446,6 +451,7 @@ Krok "7/8  Prevadzkové kontroly bez zmeny crontabu"
 # serveri (taktik-mapa) ostavaju nedotknute.
 $cron = @'
 set -eu
+. /opt/uvarsi/uvarsi-deploy-state.sh
 # Priamy riadok ostáva iba ako zhoda s dokumentáciou starších inštalácií:
 # 0 5-21 * * * /opt/uvarsi/dozorca.sh >> /var/log/uvarsi.log 2>&1
 RIADOK='0 5-21 * * * /opt/uvarsi/uvarsi-deploy-state.sh run-supervisor >> /var/log/uvarsi.log 2>&1'
@@ -453,15 +459,16 @@ RIADOK_ZALOHA='30 3 * * * /opt/uvarsi/zaloha.sh >> /var/log/uvarsi-zaloha.log 2>
 RIADOK_PLATBY='5 * * * * cd /opt/uvarsi/app && /opt/uvarsi/venv/bin/python rekonciliacia.py >> /var/log/uvarsi-platby.log 2>&1'
 touch /var/log/uvarsi.log /var/log/uvarsi-zaloha.log /var/log/uvarsi-platby.log
 mkdir -p /var/backups/uvarsi
-crontab -l 2>/dev/null | grep -v 'dozorca.sh' | grep -v 'zaloha.sh' | grep -v 'rekonciliacia.py' > /tmp/uvarsi_cron.txt || true
-printf '%s\n' "$RIADOK" >> /tmp/uvarsi_cron.txt
+uvarsi_install_supervisor_schedule
+crontab -l 2>/dev/null | grep -v '/opt/uvarsi/zaloha.sh' | grep -v '/opt/uvarsi/venv/bin/python rekonciliacia.py' > /tmp/uvarsi_cron.txt || true
 printf '%s\n' "$RIADOK_ZALOHA" >> /tmp/uvarsi_cron.txt
 printf '%s\n' "$RIADOK_PLATBY" >> /tmp/uvarsi_cron.txt
 crontab /tmp/uvarsi_cron.txt
 rm -f /tmp/uvarsi_cron.txt
-POCET=$(crontab -l 2>/dev/null | grep -c 'dozorca.sh' || true)
+uvarsi_require_supervisor_schedule
+POCET=$(crontab -l 2>/dev/null | grep -cF "$RIADOK" || true)
 if [ "${POCET:-0}" -ne 1 ]; then
-  echo "CHYBA: v crontabe je $POCET riadkov s dozorcom, ocakavam presne 1"
+  echo "CHYBA: v crontabe je $POCET ohranicenych riadkov s dozorcom, ocakavam presne 1"
   exit 1
 fi
 POCET_ZALOH=$(crontab -l 2>/dev/null | grep -c 'zaloha.sh' || true)
@@ -476,7 +483,9 @@ if [ "${POCET_PLATIEB:-0}" -ne 1 ]; then
 fi
 crontab -l | grep -E 'dozorca.sh|zaloha.sh|rekonciliacia.py'
 '@ -replace "`r`n", "`n"
-Ok "crontab ostal nedotknuty"
+$cron | ssh jarvis "tr -d '\r' > /tmp/uvarsi_cron_install.sh; bash /tmp/uvarsi_cron_install.sh"
+Vyzaduj "bezpecny Uvar.si cron sa nepodarilo nainstalovat"
+Ok "Uvar.si cron pouziva ohraniceny wrapper; ostatne zaznamy ostali zachovane"
 
 # Rekonciliacia bez kluca len ticho nic nerobi - to by sa dalo prehliadnut az do
 # prvej reklamacie. Preto to nasadenie povie nahlas (a hodnoty klucov NEVYPISUJE).
@@ -516,6 +525,21 @@ Ok "platobne kluce overene"
 ssh jarvis "/opt/uvarsi/zaloha.sh"
 Vyzaduj "prva zaloha databazy zlyhala - tabulka naroky by ostala bez zalohy"
 Ok "prva zaloha databazy overena"
+
+# Striktné aktuálne dáta sa kontrolujú až PO tomto ohraničenom behu. Prvý
+# rollout tak môže nahradiť starý/agregátorový staging oficiálnymi zdrojmi;
+# platby, bridge a bezpečný cron sú pritom overené ešte pred zberom.
+$bootstrap = @'
+set -eu
+. /opt/uvarsi/uvarsi-deploy-state.sh
+uvarsi_require_payments_off
+uvarsi_require_runtime_payments_off
+uvarsi_run_supervisor_bounded
+uvarsi_require_production_readiness
+'@ -replace "`r`n", "`n"
+$bootstrap | ssh jarvis "tr -d '\r' > /tmp/uvarsi_bootstrap.sh; bash /tmp/uvarsi_bootstrap.sh"
+Vyzaduj "ohraniceny zber alebo produkcna brana po zbere nepresli"
+Ok "oficialny zber, blocek a produkcna brana presli"
 
 Krok "8/8  Kontrola (caka na sluzbu; 500 a 502 su chyba, nie uspech)"
 $verzia = (Get-Content "$B\VERSION" -Raw).Trim()

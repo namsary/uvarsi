@@ -157,20 +157,12 @@ uvarsi_require_payments_off || {
   notify "Uvar.si: vydanie odmietnuté" "Pred nasadením musia byť platby vypnuté."
   exit 1
 }
-uvarsi_require_tesco_bridge || {
-  log "Tesco bridge nie je bezpečne nakonfigurovaný alebo dostupný — NEPREPÍNAM"
-  notify "Uvar.si: vydanie odmietnuté" "Produkčný Tesco bridge neprešiel bezpečnou kontrolou."
-  exit 1
-}
-uvarsi_require_runtime_payments_off || {
-  log "bežiaca appka nemá platby jednoznačne vypnuté — NEPREPÍNAM"
-  notify "Uvar.si: vydanie odmietnuté" "Živý proces musí mať pred nasadením platby vypnuté."
-  exit 1
-}
 
 # --- 3. záloha aktuálneho stavu a prepnutie ---
 PRED="$REL/predosle"
 uvarsi_snapshot "$PRED" || { log "záloha appky, worker stavu alebo heartbeat značky zlyhala — NEPREPÍNAM"; exit 1; }
+uvarsi_snapshot_supervisor_schedule "$PRED" || {
+  log "záloha Uvar.si rozvrhu dozorcu zlyhala — NEPREPÍNAM"; exit 1; }
 cp -a "/var/www/uvarsi/index.html" "$PRED/index.html" || {
   log "záloha živého index.html zlyhala — NEPREPÍNAM"; exit 1; }
 cp -a "/var/www/uvarsi/sw.js" "$PRED/sw.js" || {
@@ -218,6 +210,19 @@ spusti_worker() {
   systemctl restart uvarsi-plan-worker && systemctl is-active --quiet uvarsi-plan-worker
 }
 
+# Zálohovanie nemení živú appku. Bridge a runtime platby preto kontrolujeme až
+# tu: stále pred prvou živou mutáciou, ale mimo izolovanej release-content brány.
+uvarsi_require_tesco_bridge || {
+  log "Tesco bridge nie je bezpečne nakonfigurovaný alebo dostupný — NEPREPÍNAM"
+  notify "Uvar.si: vydanie odmietnuté" "Produkčný Tesco bridge neprešiel bezpečnou kontrolou."
+  exit 1
+}
+uvarsi_require_runtime_payments_off || {
+  log "bežiaca appka nemá platby jednoznačne vypnuté — NEPREPÍNAM"
+  notify "Uvar.si: vydanie odmietnuté" "Živý proces musí mať pred nasadením platby vypnuté."
+  exit 1
+}
+
 log "prepínam na $SHA"
 LIVE_MUTATION=0
 if nasad_z "$CIEL" && uvarsi_migrate_release "$CIEL" && \
@@ -229,16 +234,15 @@ if [ "$LIVE_MUTATION" -eq 1 ] && zdravie && \
     uvarsi_require_runtime_payments_off && spusti_worker && \
     uvarsi_wait_fresh_heartbeat "$PRED_HEARTBEAT" && \
     uvarsi_require_payments_off && uvarsi_require_runtime_payments_off && \
+    uvarsi_install_supervisor_schedule && \
+    uvarsi_run_supervisor_bounded && \
     uvarsi_require_production_readiness; then
   echo "$SHA" > "$STAV"
   # samopull sa aktualizuje až po úspechu, aby sa nezmenil pod vlastnými nohami
   [ -f "$DIR/samopull.sh.novy" ] && mv "$DIR/samopull.sh.novy" "$DIR/samopull.sh" && chmod +x "$DIR/samopull.sh"
   VER=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
   log "OK — nasadené vydanie $VER ($SHA)"
-  # Nečakáme na najbližšiu celú hodinu. Dozorca má vlastný flock, takže sa
-  # bezpečne ukončí, ak už práve beží iný zber.
-  nohup "$DIR/uvarsi-deploy-state.sh" run-supervisor >> /var/log/uvarsi.log 2>&1 &
-  log "dozorca spustený na pozadí s tvrdým štvorhodinovým limitom"
+  log "dozorca prešiel ohraničeným behom a je naplánovaný iba cez bezpečný wrapper"
   UVARSI_NOTIFY_URL="https://ntfy.sh/$NTFY" nohup "$DIR/recipe-engine-rollout.sh" >> /var/log/uvarsi-recipe-rollout.log 2>&1 &
   log "autonómny receptový rollout spustený na pozadí"
   notify "Uvar.si nasadené" "Vydanie $VER je živé. Appka odpovedá."
@@ -250,6 +254,8 @@ log "nasadenie alebo čerstvý heartbeat zlyhali — VRACIAM predošlú verziu"
 NAVRAT_OK=1
 rm -f "$DIR/samopull.sh.novy" || NAVRAT_OK=0
 uvarsi_restore "$PRED" || { log "rollback appky alebo worker stavu zlyhal"; NAVRAT_OK=0; }
+uvarsi_restore_supervisor_schedule "$PRED" || {
+  log "rollback Uvar.si rozvrhu dozorcu zlyhal"; NAVRAT_OK=0; }
 cp -a "$PRED/index.html" "/var/www/uvarsi/index.html" || {
   log "rollback index.html zlyhal"; NAVRAT_OK=0; }
 cp -a "$PRED/sw.js" "/var/www/uvarsi/sw.js" || {
