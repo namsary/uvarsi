@@ -252,3 +252,138 @@ deployment invariant that the protected secret is prefixed with, and rotated
 for, the reviewed Worker commit SHA. Production reachability and cron execution
 remain operator verification steps because real infrastructure calls were
 explicitly prohibited for this task.
+
+## Fix round 2 — complete schedule safety and bound Worker identity
+
+Implementation commit: `bfb26378911779b77c88860e5d3d111c7cd77790`.
+
+### Implemented behavior
+
+- Deployment reads the current crontab before any change and fails closed on a
+  transient read error. The snapshot contains the complete crontab with mode
+  `0600`; installation submits one complete candidate, and rollback restores
+  and byte-checks the complete snapshot. Taktik and unrelated rows remain
+  unchanged.
+- The Tesco Worker exposes its reviewed release and immutable Cloudflare
+  version ID. It HMAC-signs those values, the request date and format, and the
+  complete normalized leaflet. Hetzner accepts only the configured release,
+  version, official Tesco provenance, and valid response-bound signature.
+- Receipt readiness compares every public item with its exact active DB offer:
+  name, unit, quantity, sale and original prices, discount, loyalty price and
+  conditions, source reference, and validity. It recomputes line and receipt
+  totals from those DB facts.
+- `dozorca.sh` returns status 75 when its lock is busy. The bounded wrapper
+  propagates that status and never writes a success marker for the skipped run.
+- The existing 14,400-second absolute cap, xtrace shutdown before secret reads,
+  payments-OFF gates, staged rollback behavior, and Taktik isolation remain in
+  force.
+
+### TDD evidence
+
+The first Python RED run covered bridge identity, strict receipt fields,
+complete crontab restoration, and production schedule installation:
+
+```text
+13 failed, 1 passed, 44 deselected in 49.52s
+```
+
+The Worker RED run proved that the response and config lacked release/version
+attestation:
+
+```text
+3 failed
+```
+
+The separate deployment/liveness RED run proved that `nasad.ps1` lacked the
+production schedule helper and version check, and that lock contention returned
+false success:
+
+```text
+3 failed in 1.53s
+```
+
+Final bounded GREEN verification used workspace-local base directories and the
+checked-in dependency directory. Each command ran under a hard process timeout:
+
+```text
+tests/test_tesco_bridge_deployment.py
+55 passed in 178.50s (240s timeout)
+
+tests/test_deploy_safety.py
+tests/test_stropy_pokryju_cely_zber.py
+tests/test_deploy_shell_scripts.py
+65 passed in 1.09s (120s timeout)
+
+tests/test_refresh_contract.py
+tests/test_dozorca_contract.py
+tests/test_dozorca_behavior.py
++ 10 staging/promotion cases from tests/test_zbierac_akcii.py
+73 passed in 148.82s (330s timeout)
+
+tests/test_plan_worker_deployment_behavior.py
+19 passed in 97.53s (180s timeout)
+
+tests/test_plan_worker_deployment_contract.py
+4 passed, 1 dependency deprecation warning in 2.83s (120s timeout)
+
+tests/test_recipe_catalog_deployment.py
+35 passed in 45.17s (180s timeout)
+
+cloudflare/tesco-bridge/test/worker.test.js
+22 passed in 631.66ms (60s timeout)
+```
+
+Bash parsed `uvarsi-deploy-state.sh`, `samopull.sh`, and `dozorca.sh` under a
+30-second limit. PowerShell parsed `nasad.ps1`, and `git diff --cached --check`
+returned no errors. Tests used local fakes; they made no real network, SSH,
+Cloudflare, or Anthropic calls.
+
+### Hung test diagnosis
+
+One long parallel regression stalled after test 162 while
+`test_runtime_payment_gate_accepts_explicit_false_from_live_health` waited for
+its Bash test harness. The root Python PID 27332 held child PIDs 57016 and
+50280 with negligible CPU progress. The test-harness child chain, not the
+production code, had stalled under the parallel Windows/MSYS run: the same test
+passed alone in 0.91s, and its complete file passed serially (19/19) under the
+180-second limit. Only that verified process tree was terminated. All final
+runs were serial and bounded.
+
+### Broader regression blockers outside this round
+
+The first broad run produced `289 passed, 3 skipped, 10 failed`. The in-scope
+deploy selector failure was fixed and passed. The remaining failures predate or
+sit outside this round's allowed files:
+
+- Seven `test_naklady_kredit.py` / `test_naklady_integracia.py` collector tests
+  still mock the pre-staging collector path. They fail before their cost
+  assertions under the current Task 3 collector. The previous Task 4 report
+  already records this incompatibility.
+- Two `test_dozorca_chybajuci_obchod.py` assertions expect the old active-row
+  expressions replaced by Task 3C staging and fingerprint gates.
+- Six cases in `test_receipt_data.py` create only the retired active-table
+  fixture and therefore fail before receipt construction because
+  `zber_staging_stav` is absent. The current Task 3C receipt contract and real
+  staging/promotion cases pass in the 73-test bounded group above.
+
+Changing these tests or `app/zbierac_akcii.py` would violate the approved scope,
+so this round leaves them untouched.
+
+### Files changed in the implementation commit
+
+- `cloudflare/tesco-bridge/src/worker.js`
+- `cloudflare/tesco-bridge/test/worker.test.js`
+- `cloudflare/tesco-bridge/wrangler.jsonc`
+- `docs/prevadzka.md`
+- `hetzner/dozorca.sh`
+- `hetzner/uvarsi-deploy-state.sh`
+- `nasad.ps1`
+- `tests/test_deploy_safety.py`
+- `tests/test_dozorca_contract.py`
+- `tests/test_tesco_bridge_deployment.py`
+
+### Remaining operational risk
+
+Production rollout still requires the operator to deploy the reviewed Worker,
+record Cloudflare's immutable version ID, and set the matching Hetzner value.
+This task did not contact production. Payments remain OFF.
