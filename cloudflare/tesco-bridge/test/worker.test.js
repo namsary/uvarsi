@@ -636,7 +636,7 @@ test("rejects tampered and expired media tokens before fetching media", async ()
   assert.equal(mediaFetches, 0);
 });
 
-test("keeps a media token valid for the full autonomous run but not past 60 minutes", async () => {
+test("keeps a media token valid through 23:59:59 but not at 24:00:00", async () => {
   let currentTime = NOW;
   let mediaFetches = 0;
   const fetchMock = async (input) => {
@@ -653,7 +653,7 @@ test("keeps a media token valid for the full autonomous run but not past 60 minu
     now: () => currentTime,
   });
 
-  currentTime = NOW + 3_599_000;
+  currentTime = NOW + 86_399_000;
   const beforeLimit = await bridge.fetch(
     new Request(url, { headers: authorizedHeaders() }),
     { BRIDGE_SECRET, TOKEN_SECRET },
@@ -661,7 +661,7 @@ test("keeps a media token valid for the full autonomous run but not past 60 minu
   );
   assert.equal(beforeLimit.status, 200);
 
-  currentTime = NOW + 3_600_000;
+  currentTime = NOW + 86_400_000;
   const atLimit = await bridge.fetch(
     new Request(url, { headers: authorizedHeaders() }),
     { BRIDGE_SECRET, TOKEN_SECRET },
@@ -672,7 +672,7 @@ test("keeps a media token valid for the full autonomous run but not past 60 minu
   assert.equal(mediaFetches, 1);
 });
 
-test("caps client media caching one second before the 60-minute token boundary", async () => {
+test("caps client media caching one second before the 24-hour token boundary", async () => {
   const fetchMock = async (input) =>
     String(input) === TESCO_GRAPHQL_ENDPOINT
       ? jsonUpstream(graphqlPayload(leaflet()))
@@ -689,7 +689,7 @@ test("caps client media caching one second before the 60-minute token boundary",
   assert.equal(response.status, 200);
   assert.equal(
     response.headers.get("Cache-Control"),
-    "private, max-age=3599, immutable",
+    "private, max-age=86399, immutable",
   );
 });
 
