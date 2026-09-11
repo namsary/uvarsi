@@ -150,3 +150,105 @@ files were not reset, edited or staged by Task 4.
   unrelated stale worktree metadata for `uvarsi-protect-costs`; the Task 4
   implementation commit itself succeeded and contains only the eight files
   listed above.
+
+---
+
+## Review fix round 1 — 2026-09-11
+
+Status: complete. Implementation commit:
+`15493d631d6029e6787372d5373aa0aa77191c85`.
+
+### Reviewer findings resolved
+
+- `nasad.ps1` now sends and installs the replacement crontab. Both manual and
+  automatic deployment paths install exactly one bounded Uvar.si supervisor
+  row and preserve unrelated rows, including Taktik. Rollback restores the
+  previous Uvar.si schedule.
+- The timeout now sends TERM at 14,100 seconds and allows 300 seconds for
+  shutdown before KILL, so the complete collector/receipt cycle has a hard
+  14,400-second maximum rather than 4 h 05 min.
+- A stale receipt or current aggregator provenance no longer creates a circular
+  bootstrap gate. With payments OFF, the bounded cycle first refreshes official
+  collection and the receipt, validates the strict state, and only then admits
+  production readiness. The normal supervisor path remains the fast path when
+  the strict state is already current.
+- Bridge admission is pinned to the configured `workers.dev` Worker hostname
+  and a reviewed 12–64-character lowercase hexadecimal release. The protected
+  bearer secret is release-bound (`<release>.<random-suffix>`) and must be
+  rotated with every Worker release. Tesco manifest and offer provenance must
+  use the exact official hypermarket flyer URL and matching validity slug.
+- Readiness now enforces the publishable receipt contract: current validity,
+  real non-empty items, unique offer references, official source links,
+  positive bounded quantities/prices/totals, exact arithmetic and exact
+  agreement with active/staging offer facts.
+- Readiness requires both the exact installed bounded schedule and a fresh
+  success marker written atomically only after a successful bounded cycle.
+- Inherited Bash xtrace is disabled before any protected env value is read or
+  used. Tests prove the release-bound bridge secret does not appear in output.
+- The bridge check in `samopull.sh` remains before the first live mutation but
+  follows non-mutating release validation and snapshots. This keeps the
+  release-content integration harness isolated without weakening the gate.
+
+Payments remain fail-closed and OFF throughout. No real network, SSH,
+Cloudflare or Anthropic call was made; all external commands in tests were
+local fakes.
+
+### TDD evidence
+
+RED runs captured the individual defects before implementation:
+
+```text
+inherited-xtrace secret test: 1 failed, 22 deselected in 7.54s
+samopull bounded-run ordering: 1 failed, 46 deselected in 1.10s
+multiple official source pages: 1 failed in 3.96s
+crontab read failure fail-closed: 1 failed in 2.01s
+current aggregator bootstrap: 1 failed in 10.02s
+release-content/deploy compatibility: 1 failed, 63 passed in 1.84s
+```
+
+Final focused GREEN verification:
+
+```text
+tests/test_tesco_bridge_deployment.py
+40 passed in 63.07s
+
+tests/test_recipe_catalog_deployment.py::{two samopull integration tests}
++ tests/test_deploy_safety.py + tests/test_stropy_pokryju_cely_zber.py
+64 passed in 1.90s
+
+tests/test_plan_worker_deployment_behavior.py
+19 passed in 65.90s
+
+tests/test_naklady.py
+50 passed in 2.00s
+```
+
+Static verification also passed: Bash syntax for both deployment scripts,
+PowerShell parsing for `nasad.ps1`, and Git whitespace checks.
+
+Three broader application integration modules could not be collected with the
+bundled Python because `fastapi` is unavailable. The existing workspace-local
+dependency directory is owned by concurrent work and denies traversal, and no
+network dependency installation was attempted. This does not affect the
+focused Task 4/deployment runs above.
+
+### Files changed in round 1
+
+- `docs/prevadzka.md`
+- `hetzner/samopull.sh`
+- `hetzner/uvarsi-deploy-state.sh`
+- `nasad.ps1`
+- `tests/test_deploy_safety.py`
+- `tests/test_tesco_bridge_deployment.py`
+
+`app/naklady.py` and `tests/test_stropy_pokryju_cely_zber.py` required no code
+change in this review round and were not included in the implementation commit.
+
+### Remaining operational risk
+
+The allowed Task 4 scope cannot add a signed release claim to the Worker
+response itself. Release pinning therefore depends on the documented
+deployment invariant that the protected secret is prefixed with, and rotated
+for, the reviewed Worker commit SHA. Production reachability and cron execution
+remain operator verification steps because real infrastructure calls were
+explicitly prohibited for this task.
