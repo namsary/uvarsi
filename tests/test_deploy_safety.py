@@ -472,8 +472,11 @@ def test_missing_env_file_fails_the_deploy(script):
 # ----------------------------------------------------------- 7. kontrola po nasadení
 def _dozorca_threshold() -> str:
     text = DOZORCA.read_text(encoding="utf-8")
-    match = re.search(r'"\$\{POCET:-0\}"\s*-lt\s*(\d+)', text)
-    assert match, "dozorca.sh musí mať číselný prah počtu akcií"
+    match = re.search(r"^MIN_TOTAL_OFFERS=(\d+)\b", text, re.MULTILINE)
+    assert match, "dozorca.sh musí mať jeden pomenovaný číselný prah počtu akcií"
+    assert re.search(
+        r'"\$\{STAGED_POCET:-0\}"\s*-lt\s*"\$MIN_TOTAL_OFFERS"', text
+    ), "stagingová brána dozorcu musí používať pomenovaný prah"
     return match.group(1)
 
 

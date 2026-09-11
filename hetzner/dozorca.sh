@@ -48,6 +48,7 @@ CREDIT_RETRY_SECONDS="${UVARSI_CREDIT_RETRY_SECONDS:-3600}"
 MAX_TRIES=6                          # max pokusov za jeden deň
 NOTIFY_AT=2                          # po koľkých neúspechoch upozorniť
 EXIT_STRUCTURAL=3                    # kód, ktorým refresh_blocek hlási "neopakuj"
+MIN_TOTAL_OFFERS=30                  # zdieľaný prah dozorcu a post-deploy kontroly
 MIN_OFFERS_PER_STORE=20              # malá vložka sa nesmie tváriť ako celý leták
 NTFY_TOPIC="uvarsi-jarvis-8f3a2c"    # notifikácie: ntfy.sh/<topic>
 
@@ -525,7 +526,7 @@ STAGED_CHYBA=$(sqlite3 "$DIR/uvarsi.db" \
             AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
   2>/dev/null || echo 3)
 
-if [ "${STAGED_POCET:-0}" -lt 30 ] || [ "${STAGED_CHYBA:-3}" -gt 0 ]; then
+if [ "${STAGED_POCET:-0}" -lt "$MIN_TOTAL_OFFERS" ] || [ "${STAGED_CHYBA:-3}" -gt 0 ]; then
   if [ "${STAGED_CHYBA:-3}" -gt 0 ]; then
     log "týždeň $MON_ISO: $STAGED_CHYBA obchod(ov) nemá úspešný staging — dobieham dáta…"
   else
@@ -719,7 +720,7 @@ DATOVY_STAV="${STAGED_POCET:-0}:${STAGED_CHYBA:-3}:${ZBER_REV:-0}"
 ZDROJOVY_ODTLACOK=$(overeny_odtlacok zber_staging_stav)
 # --- 1. Už je aktuálny landing JSON pripravený? ---
 if landing_data_is_current; then
-  if [ "${POCET:-0}" -ge 30 ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]; then
+  if [ "${POCET:-0}" -ge "$MIN_TOTAL_OFFERS" ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]; then
     zahrej_plany
   fi
   [ "$RECIPE_ENGINE_PRECHECK_OK" -eq 1 ] || exit 1
@@ -770,7 +771,7 @@ if [ "$RC" -eq 0 ] && landing_data_is_current; then
   if [ "$FAILS" -gt 0 ]; then
     notify "Uvar.si opravené" "Landing JSON sa obnovil na týždeň $MON_ISO (po $FAILS neúspešných pokusoch)."
   fi
-  if [ "${POCET:-0}" -ge 30 ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]; then
+  if [ "${POCET:-0}" -ge "$MIN_TOTAL_OFFERS" ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]; then
     zahrej_plany
   fi
   HEALTH=$(nacitaj_health)
