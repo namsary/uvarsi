@@ -77,6 +77,38 @@ def migrate_akcie_schema(con):
             con.execute(f"ALTER TABLE akcie ADD COLUMN {name} {column_type}")
 
 
+def migrate_offer_staging_schema(con):
+    """Create the inactive offer layer used before a three-store promotion."""
+    con.execute(
+        """CREATE TABLE IF NOT EXISTS akcie_staging (
+               id INTEGER PRIMARY KEY AUTOINCREMENT,
+               tyzden TEXT NOT NULL,
+               obchod TEXT NOT NULL,
+               nazov TEXT NOT NULL,
+               kategoria TEXT,
+               cena REAL,
+               povodna REAL,
+               zlava TEXT,
+               jednotka TEXT,
+               source_url TEXT,
+               source_page INTEGER,
+               valid_from TEXT,
+               valid_to TEXT,
+               offer_key TEXT,
+               cena_s_kartou REAL,
+               zlava_s_kartou TEXT,
+               vernostny_program TEXT,
+               minimalny_nakup REAL,
+               podmienka_s_kartou TEXT,
+               staged_at TEXT DEFAULT CURRENT_TIMESTAMP
+           )"""
+    )
+    con.execute(
+        """CREATE INDEX IF NOT EXISTS idx_akcie_staging_week_store
+           ON akcie_staging(tyzden, obchod)"""
+    )
+
+
 def _validated_iso_date(value, field):
     if not isinstance(value, str):
         raise ValueError(f"{field} must be an ISO date")
@@ -266,6 +298,18 @@ def _stored_offer_records(con):
         yield canonical_offer_key(offer.get("offer_key")), canonical
 
 
+def _staged_offer_records(con):
+    cursor = con.execute("SELECT * FROM akcie_staging")
+    columns = [column[0] for column in cursor.description]
+    for row in cursor.fetchall():
+        offer = dict(row) if hasattr(row, "keys") else dict(zip(columns, row))
+        try:
+            canonical = _offer_facts(offer.get("tyzden"), offer)
+        except (ValueError, KeyError, TypeError):
+            continue
+        yield canonical_offer_key(offer.get("offer_key")), canonical
+
+
 def replace_store_week(con, week, store, offers):
     """Atomically replace a single store's captured-week offers after validation."""
     if store not in ALLOWED_STORES:
@@ -316,3 +360,73 @@ def replace_store_week(con, week, store, offers):
             con.execute("RELEASE SAVEPOINT replace_store_week")
         else:
             con.commit()
+
+
+def stage_store_week(con, week, store, offers):
+    """Replace one inactive store stage without committing its caller's work."""
+    if not con.in_transaction:
+        raise RuntimeError("stage_store_week requires a caller-owned transaction")
+    if store not in ALLOWED_STORES:
+        raise ValueError("store must be Lidl, Kaufland, or Tesco")
+
+    prepared = []
+    batch = []
+    for offer in list(offers):
+        if offer.get("obchod") != store:
+            raise ValueError("offer store must match staged store")
+        validate_offer(offer)
+        record = {"tyzden": week, **offer}
+        record["offer_key"] = offer_key_for(week, offer)
+        prepared.append(record)
+        batch.append((canonical_offer_key(record["offer_key"]), _offer_facts(week, offer)))
+    detect_offer_key_collision(batch)
+
+    placeholders = ", ".join("?" for _ in _INSERT_COLUMNS)
+    con.execute("SAVEPOINT stage_store_week")
+    try:
+        con.execute(
+            "DELETE FROM akcie_staging WHERE tyzden=? AND obchod=?",
+            (week, store),
+        )
+        con.executemany(
+            f"INSERT INTO akcie_staging ({', '.join(_INSERT_COLUMNS)}) "
+            f"VALUES ({placeholders})",
+            [tuple(offer.get(column) for column in _INSERT_COLUMNS) for offer in prepared],
+        )
+        detect_offer_key_collision(_staged_offer_records(con))
+    except Exception:
+        con.execute("ROLLBACK TO SAVEPOINT stage_store_week")
+        con.execute("RELEASE SAVEPOINT stage_store_week")
+        raise
+    else:
+        con.execute("RELEASE SAVEPOINT stage_store_week")
+
+
+def replace_active_week_from_staging(con, week, stores):
+    """Copy staged store sets into the active layer inside an outer transaction."""
+    if not con.in_transaction:
+        raise RuntimeError("promotion requires a caller-owned transaction")
+    stores = tuple(dict.fromkeys(stores))
+    if not stores or any(store not in ALLOWED_STORES for store in stores):
+        raise ValueError("promotion stores must be allowlisted")
+
+    placeholders = ",".join("?" for _ in stores)
+    con.execute("SAVEPOINT replace_active_week")
+    try:
+        con.execute(
+            f"DELETE FROM akcie WHERE tyzden=? AND obchod IN ({placeholders})",
+            (week, *stores),
+        )
+        con.execute(
+            f"""INSERT INTO akcie ({', '.join(_INSERT_COLUMNS)})
+                SELECT {', '.join(_INSERT_COLUMNS)} FROM akcie_staging
+                WHERE tyzden=? AND obchod IN ({placeholders})""",
+            (week, *stores),
+        )
+        detect_offer_key_collision(_stored_offer_records(con))
+    except Exception:
+        con.execute("ROLLBACK TO SAVEPOINT replace_active_week")
+        con.execute("RELEASE SAVEPOINT replace_active_week")
+        raise
+    else:
+        con.execute("RELEASE SAVEPOINT replace_active_week")

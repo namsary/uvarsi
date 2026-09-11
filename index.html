@@ -459,11 +459,9 @@
   }
 
   function itemsOf(data){
-    var all=[];
-    (data.receipt.meals||[]).forEach(function(meal){
-      (meal.items||[]).forEach(function(item){ all.push(item); });
-    });
-    return all;
+    return (data.receipt.meals||[]).reduce(function(all,meal){
+      return all.concat(meal.items||[]);
+    },[]);
   }
 
   function mondayIso(now){
@@ -490,19 +488,11 @@
     return count===1?one:(count>=2&&count<=4?few:many);
   }
 
-  function sourceStores(sources){
-    var seen={}, stores=[];
-    (sources||[]).forEach(function(source){
-      var store=String((source&&source.store)||'').trim();
-      if(store&&!seen[store]){ seen[store]=true; stores.push(store); }
-    });
-    return stores;
-  }
-
   function proofNode(data){
     var proof=node('p','rcpt-proof');
-    proof.append(node('span','proof-current','Aktuálne letáky · '+data.week_label));
-    proof.append(node('span','proof-note','Cenu si pred nákupom over v predajni.'));
+    if(data.state==='historical_example') proof.append(node('span','proof-current',data.notice));
+    else proof.append(node('span','proof-current','Aktuálne letáky · '+data.week_label),
+      node('span','proof-note','Cenu si pred nákupom over v predajni.'));
     return proof;
   }
 
@@ -523,11 +513,12 @@
   }
 
   function render(data){
+    var h=data.state==='historical_example';
     var receipt=node('div','rcpt');
     var head=node('div','rcpt-head');
     head.append(node('div','rcpt-logo','Uvar.si'));
-    head.append(node('div','rcpt-sub','Tvoj týždeň · varíš '+data.receipt.meals.length+'×'));
-    head.append(node('div','rcpt-sub',data.week_label));
+    head.append(node('div','rcpt-sub',(h?'Ukážka':'Tvoj týždeň')+' · varíš '+data.receipt.meals.length+'×'));
+    if(!h) head.append(node('div','rcpt-sub',data.week_label));
     receipt.append(head,node('hr','rule-solid'));
 
     data.receipt.meals.forEach(function(meal){
@@ -545,7 +536,9 @@
       });
     });
     receipt.append(node('hr','rule'));
-    [['Nákup spolu',data.receipt.nakup_spolu,'row'],['Bežne by stál',data.receipt.bezne,'row'],['Ušetríš',data.receipt.usetris,'save']].forEach(function(entry){
+    var totals=[[h?'Nákup v ukážke':'Nákup spolu',data.receipt.nakup_spolu,'row']];
+    if(!h) totals.push(['Bežne by stál',data.receipt.bezne,'row'],['Ušetríš',data.receipt.usetris,'save']);
+    totals.forEach(function(entry){
       var row=node('div',entry[2]);
       row.append(node('span','',entry[0]),node('span','',amount(entry[1])));
       receipt.append(row);
@@ -637,18 +630,21 @@
 
   function loadLanding(){
     return fetch("/api/public/landing").then(function(response){
-      if(!response.ok) throw new Error('landing data unavailable');
+      if(!response.ok) throw Error();
       return response.json();
     }).then(function(data){
-      if(!sourcesAreCurrent(data,new Date())) throw new Error('landing source expired');
+      var current=data.state==='current';
+      if(!current&&data.state!=='historical_example') throw Error();
+      if(current){
+        if(!sourcesAreCurrent(data,new Date())) throw Error();
+      }
       render(data);
-      renderModel(data,new Date());
+      if(current) renderModel(data,new Date());
       renderCommunity(data.community);
     }).catch(function(){
       landing.hidden=true;
       model.hidden=true;
       status.hidden=false;
-      status.textContent='Aktuálne letákové dáta práve obnovujeme.';
     });
   }
 

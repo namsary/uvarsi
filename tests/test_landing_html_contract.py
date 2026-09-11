@@ -140,6 +140,75 @@ def test_landing_claims_only_that_prices_come_from_current_leaflets():
         assert overstated not in html
 
 
+@needs_node
+def test_historical_receipt_is_rendered_with_a_warning_and_without_current_saving_claims(
+    tmp_path,
+):
+    html = index_html()
+    helpers = COMMUNITY_DOM_STUB + "\n".join([
+        nested(html, "function node(tag, className, text)"),
+        nested(html, "function amount(value)"),
+        nested(html, "function proofNode(data)"),
+        nested(html, "function render(data)"),
+    ])
+    result = run_node(
+        tmp_path,
+        "landing-historical-receipt.js",
+        helpers
+        + """
+var landing = makeElement('div'); landing.hidden = true;
+var status = makeElement('p'); status.hidden = false;
+render({
+  state: 'historical_example',
+  notice: 'Uk\u00e1\u017eka z minul\u00e9ho t\u00fd\u017ed\u0148a \u2013 ceny u\u017e nemusia plati\u0165.',
+  receipt: {meals: [{day: 'PO', name: 'Cestoviny', items: [
+    {name: 'Cestoviny', store: 'Tesco hypermarket', price: '1,29'}
+  ]}], nakup_spolu: '1,29'}
+});
+var text = textOf(landing);
+if (landing.hidden !== false || status.hidden !== true) process.exit(1);
+if (text.indexOf('Uk\u00e1\u017eka z minul\u00e9ho t\u00fd\u017ed\u0148a') === -1) process.exit(2);
+if (text.indexOf('N\u00e1kup v uk\u00e1\u017eke') === -1) process.exit(3);
+['Aktu\u00e1lne let\u00e1ky', 'U\u0161etr\u00ed\u0161', 'Be\u017ene by st\u00e1l', 'undefined'].forEach(function (claim) {
+  if (text.indexOf(claim) !== -1) process.exit(4);
+});
+process.exit(0);
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
+def test_landing_loader_accepts_server_validated_historical_state_without_current_sources(
+    tmp_path,
+):
+    html = index_html()
+    result = run_node(
+        tmp_path,
+        "landing-historical-load.js",
+        COMMUNITY_DOM_STUB
+        + nested(html, "function loadLanding()")
+        + """
+var payload = {state:'historical_example', receipt:{meals:[{items:[]}]}};
+var landing = {hidden:true}, model = {hidden:true};
+var status = {hidden:false, textContent:''};
+var rendered = false, communityRendered = false;
+function fetch() { return Promise.resolve({ok:true, json:function(){return Promise.resolve(payload);}}); }
+function sourcesAreCurrent() { throw new Error('historical state must not claim current sources'); }
+function render(data) { if (data === payload) rendered = true; }
+function renderModel() { throw new Error('historical receipt must not power the savings model'); }
+function renderCommunity() { communityRendered = true; }
+loadLanding().then(function () {
+  if (!rendered || !communityRendered) process.exit(1);
+  process.exit(0);
+}).catch(function (error) { console.error(error); process.exit(2); });
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_landing_keeps_its_current_title_and_description():
     html = index_html()
 

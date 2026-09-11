@@ -7,10 +7,20 @@ from html import escape
 from urllib.parse import urlsplit
 
 try:
-    from .landing_data import validate_landing_data
+    from .landing_data import (
+        HISTORICAL_LANDING_STATE,
+        landing_data_state,
+        public_landing_payload,
+        validate_landing_data,
+    )
     from .offer_data import CURRENT_COLLECTION_DATA_VERSION
 except ImportError:
-    from landing_data import validate_landing_data
+    from landing_data import (
+        HISTORICAL_LANDING_STATE,
+        landing_data_state,
+        public_landing_payload,
+        validate_landing_data,
+    )
     from offer_data import CURRENT_COLLECTION_DATA_VERSION
 
 
@@ -44,6 +54,7 @@ class RenderedPage:
     html: str
     indexable: bool
     last_modified: date | None = None
+    available: bool = True
 
 
 def _safe_text(value: object) -> str:
@@ -321,6 +332,34 @@ def _weekly_body(payload: dict) -> str:
     )
 
 
+def _historical_weekly_body(payload: dict) -> str:
+    receipt = payload["receipt"]
+    meals_markup: list[str] = []
+    for meal in receipt["meals"]:
+        items_markup = "".join(
+            "<li>"
+            f"<strong>{_safe_text(item['name'])}</strong> "
+            f"({_safe_text(item['store'])}, {_safe_text(item['unit'])}) "
+            f'<span class="price">{_safe_text(item["price"])} €</span>'
+            "</li>"
+            for item in meal["items"]
+        )
+        meals_markup.append(
+            '<section class="card">'
+            f'<p class="eyebrow">{_safe_text(meal["day"])}</p>'
+            f'<h2>{_safe_text(meal["name"])}</h2><ul>{items_markup}</ul></section>'
+        )
+    return (
+        f'<p class="lede"><strong>{_safe_text(payload["notice"])}</strong></p>'
+        '<div class="card"><p>Toto je posledný plne overený príklad, kým pripravujeme nový bloček. '
+        'Slúži na ukážku fungovania Uvar.si, nie ako aktuálny nákupný podklad.</p>'
+        f'<p class="meta">Nákup v ukážke: {_safe_text(receipt["nakup_spolu"])} €</p></div>'
+        + "".join(meals_markup)
+        + '<section class="card"><p><a class="cta" href="'
+        + f'{BASE_URL}/app">Otvor aplikáciu Uvar.si</a> a priprav si svoj plán.</p></section>'
+    )
+
+
 def _weekly_recovery(today: date | None) -> RenderedPage:
     title = "Týždenné ceny práve overujeme | Uvar.si"
     description = (
@@ -350,6 +389,7 @@ def _weekly_recovery(today: date | None) -> RenderedPage:
         ),
         indexable=False,
         last_modified=None,
+        available=False,
     )
 
 
@@ -358,14 +398,49 @@ def render_weekly_page(payload: dict | None, today: date | None = None) -> Rende
     if not isinstance(payload, dict):
         return _weekly_recovery(today)
     try:
-        validated = validate_landing_data(
+        state, reference_day = landing_data_state(
             payload,
             today,
             required_offer_data_version=CURRENT_COLLECTION_DATA_VERSION,
         )
-        _validate_publishable_data(validated, today)
+        _validate_publishable_data(payload, reference_day)
     except ValueError:
         return _weekly_recovery(today)
+
+    if state == HISTORICAL_LANDING_STATE:
+        historical = public_landing_payload(
+            payload,
+            today,
+            required_offer_data_version=CURRENT_COLLECTION_DATA_VERSION,
+        )
+        title = "Ukážka jedálnička z minulého týždňa | Uvar.si"
+        description = (
+            "Posledná overená ukážka jedálnička Uvar.si; uvedené ceny už nemusia platiť."
+        )
+        try:
+            body = _historical_weekly_body(historical)
+        except (KeyError, TypeError, ValueError):
+            return _weekly_recovery(today)
+        return RenderedPage(
+            html=_shell(
+                title=title,
+                description=description,
+                canonical=WEEKLY_URL,
+                h1="Ukážka jedálnička z minulého týždňa",
+                body=body,
+                json_ld_payload=[_breadcrumbs("Ukážka jedálnička", WEEKLY_URL)],
+                indexable=False,
+            ),
+            indexable=False,
+            last_modified=None,
+            available=True,
+        )
+
+    validated = validate_landing_data(
+        payload,
+        today,
+        required_offer_data_version=CURRENT_COLLECTION_DATA_VERSION,
+    )
 
     title = "Čo variť tento týždeň z akcií | Uvar.si"
     description = (

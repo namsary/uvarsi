@@ -189,19 +189,34 @@ def test_weekly_page_escapes_payload_strings_and_serializes_json_ld_safely():
     assert "Lidl &amp; spol." in visible_html
 
 
-def test_weekly_page_fails_closed_when_data_is_missing_invalid_or_stale():
-    stale = render_weekly_page(payload(), today=date(2026, 8, 25))
+def test_weekly_page_renders_a_safe_nonindexable_historical_example():
+    historical = render_weekly_page(payload(), today=date(2026, 8, 25))
+
+    assert historical.available is True
+    assert historical.indexable is False
+    assert historical.last_modified is None
+    assert historical.html.count("<h1") == 1
+    assert 'content="noindex,follow"' in historical.html
+    assert "Ukážka z minulého týždňa – ceny už nemusia platiť." in historical.html
+    assert "Cestoviny s paradajkami" in historical.html
+    assert "1,49 €" in historical.html
+    for current_claim in (
+        "Aktuálny týždenný jedálniček", "aktuálne platných letákoch",
+        "Platnosť cien", "17.–23. 8. 2026", "Pôvodná cena", "2,19 €",
+        "Ušetríš", "usetris",
+    ):
+        assert current_claim not in historical.html
+    assert "https://letak.test/" not in historical.html
+
+
+def test_weekly_page_fails_closed_when_data_is_missing():
     missing = render_weekly_page(None, today=date(2026, 8, 25))
 
-    for page in (stale, missing):
-        assert page.indexable is False
-        assert page.last_modified is None
-        assert page.html.count("<h1") == 1
-        assert 'content="noindex,follow"' in page.html
-        assert "Týždenné ceny práve overujeme" in page.html
-        assert "1,49 €" not in page.html
-        assert "2,19 €" not in page.html
-        assert "https://letak.test/" not in page.html
+    assert missing.available is False
+    assert missing.indexable is False
+    assert missing.last_modified is None
+    assert "Týždenné ceny práve overujeme" in missing.html
+    assert "1,49 €" not in missing.html
 
 
 def test_weekly_page_fails_closed_for_sparse_validator_accepted_payload():

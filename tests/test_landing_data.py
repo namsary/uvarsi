@@ -1,6 +1,7 @@
 from datetime import date
 
 import pytest
+import app.landing_data as landing_data
 
 from app.landing_data import (
     landing_data_is_current,
@@ -275,3 +276,41 @@ def test_expired_last_good_receipt_stays_on_disk_but_is_not_current(tmp_path):
 
     assert landing_data_is_current(path, date(2026, 8, 20)) is False
     assert load_landing_data(path) == data
+
+
+def test_expired_but_originally_valid_receipt_becomes_a_safe_historical_example():
+    data = receipt_with(
+        [item()], nakup_spolu="1,00", bezne="1,50", usetris="0,50",
+        polozky=1, polozky_s_beznou_cenou=1,
+    )
+
+    public = landing_data.public_landing_payload(data, date(2026, 8, 25))
+
+    assert public["state"] == "historical_example"
+    assert public["notice"] == "Ukážka z minulého týždňa – ceny už nemusia platiť."
+    assert "week" not in public
+    assert "week_label" not in public
+    assert "sources" not in public
+    assert "generated_at" not in public
+    assert public["receipt"]["nakup_spolu"] == "1,00"
+    assert "bezne" not in public["receipt"]
+    assert "usetris" not in public["receipt"]
+    public_item = public["receipt"]["meals"][0]["items"][0]
+    assert public_item["price"] == "1,00"
+    for field in (
+        "original_price", "savings", "off", "loyalty_price", "loyalty_discount",
+        "loyalty_program", "loyalty_minimum_basket", "loyalty_condition",
+        "source_url", "source_page", "valid_from", "valid_to",
+    ):
+        assert field not in public_item
+
+
+def test_current_public_receipt_is_unchanged_apart_from_machine_readable_state():
+    data = receipt_with(
+        [item()], nakup_spolu="1,00", bezne="1,50", usetris="0,50",
+        polozky=1, polozky_s_beznou_cenou=1,
+    )
+
+    public = landing_data.public_landing_payload(data, date(2026, 8, 18))
+
+    assert public == {**data, "state": "current"}

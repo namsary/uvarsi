@@ -21,7 +21,11 @@ try:
         CURRENT_COLLECTION_DATA_VERSION,
         LOYALTY_PROGRAM_BY_STORE,
         migrate_akcie_schema,
+        migrate_offer_staging_schema,
+        offer_key_matches,
+        replace_active_week_from_staging,
         replace_store_week,
+        stage_store_week,
         validate_offer,
     )
 except ImportError:
@@ -29,7 +33,11 @@ except ImportError:
         CURRENT_COLLECTION_DATA_VERSION,
         LOYALTY_PROGRAM_BY_STORE,
         migrate_akcie_schema,
+        migrate_offer_staging_schema,
+        offer_key_matches,
+        replace_active_week_from_staging,
         replace_store_week,
+        stage_store_week,
         validate_offer,
     )
 
@@ -156,6 +164,21 @@ CREATE TABLE IF NOT EXISTS zber_stav (
   updated TEXT DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (tyzden, obchod)
 );
+
+CREATE TABLE IF NOT EXISTS zber_staging_stav (
+  tyzden  TEXT NOT NULL,
+  obchod  TEXT NOT NULL,
+  stav    TEXT NOT NULL,
+  pocet   INTEGER NOT NULL DEFAULT 0,
+  detail  TEXT,
+  data_version INTEGER NOT NULL DEFAULT 1,
+  collector_kind TEXT,
+  source_fingerprint TEXT,
+  valid_from TEXT,
+  valid_to TEXT,
+  updated TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tyzden, obchod)
+);
 """
 
 
@@ -166,6 +189,7 @@ def db():
     con = db_rezim.otvor(DB)
     con.executescript(SCHEMA)
     migrate_akcie_schema(con)
+    migrate_offer_staging_schema(con)
     columns = {row[1] for row in con.execute("PRAGMA table_info(zber_stav)")}
     if "data_version" not in columns:
         con.execute(
@@ -1789,11 +1813,14 @@ def _collection_provenance(offers):
     )
 
 
-def record_store_outcome(con, week, store, status, count=0, detail=None, offers=None):
+def record_store_outcome(
+    con, week, store, status, count=0, detail=None, offers=None, *, staging=False
+):
     """Zapíš výsledok zberu jedného obchodu, aby bol čiastočný beh viditeľný."""
     provenance = _collection_provenance(offers) if status == "ok" else (None,) * 4
+    table = "zber_staging_stav" if staging else "zber_stav"
     con.execute(
-        """INSERT INTO zber_stav
+        f"""INSERT INTO {table}
            (tyzden, obchod, stav, pocet, detail, data_version,
             collector_kind,source_fingerprint,valid_from,valid_to,updated)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -1806,7 +1833,166 @@ def record_store_outcome(con, week, store, status, count=0, detail=None, offers=
              updated=excluded.updated""",
         (week, store, status, count, detail, COLLECTION_DATA_VERSION, *provenance),
     )
-    con.commit()
+
+
+def stage_store_collection(con, week, store, offers):
+    """Commit one complete store into the inactive layer, never into active offers."""
+    offers = list(offers)
+    if len(offers) < MIN_VERIFIED_OFFERS_PER_STORE:
+        raise ValueError(
+            f"{store.lower()}: iba {len(offers)} overených akcií; "
+            f"minimum je {MIN_VERIFIED_OFFERS_PER_STORE}"
+        )
+    if con.in_transaction:
+        raise RuntimeError("store staging requires a clean connection")
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        stage_store_week(con, week, store, offers)
+        record_store_outcome(
+            con, week, store, "ok", len(offers), offers=offers, staging=True
+        )
+    except Exception:
+        con.rollback()
+        raise
+    else:
+        con.commit()
+
+
+def record_stage_failure(con, week, store, detail):
+    """Persist a failed attempt without changing active offers or active status."""
+    if con.in_transaction:
+        raise RuntimeError("failure staging requires a clean connection")
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        record_store_outcome(
+            con, week, store, "fail", 0, detail, staging=True
+        )
+    except Exception:
+        con.rollback()
+        raise
+    else:
+        con.commit()
+
+
+def staged_store_problem(con, week, store, *, today, require_approved=True):
+    """Name the first reason one staged store cannot be safely reused."""
+    status = con.execute(
+        """SELECT stav,pocet,data_version,collector_kind,source_fingerprint,
+                  valid_from,valid_to
+           FROM zber_staging_stav WHERE tyzden=? AND obchod=?""",
+        (week, store),
+    ).fetchone()
+    if status is None:
+        return "missing"
+    if status[0] != "ok":
+        return "failed"
+    if int(status[2] or 0) != COLLECTION_DATA_VERSION:
+        return "data_version"
+    collector_kind = status[3]
+    if require_approved and not source_policy.approved_source(store, collector_kind):
+        return "source_not_approved"
+    fingerprint = status[4]
+    try:
+        status_from = datetime.date.fromisoformat(status[5])
+        status_to = datetime.date.fromisoformat(status[6])
+    except (TypeError, ValueError):
+        return "invalid_validity"
+    if not status_from <= today <= status_to:
+        return "not_current"
+
+    cursor = con.execute(
+        "SELECT * FROM akcie_staging WHERE tyzden=? AND obchod=?",
+        (week, store),
+    )
+    columns = [column[0] for column in cursor.description]
+    staged = [dict(zip(columns, row)) for row in cursor.fetchall()]
+    if (
+        len(staged) < MIN_VERIFIED_OFFERS_PER_STORE
+        or int(status[1] or 0) != len(staged)
+    ):
+        return "too_few_offers"
+    source_urls = {row["source_url"] for row in staged}
+    if len(source_urls) != 1:
+        return "mixed_provenance"
+    source_url = next(iter(source_urls))
+    try:
+        expected_kind = source_policy.collector_kind_for_url(source_url)
+        expected_fingerprint = source_policy.source_fingerprint(source_url)
+    except ValueError:
+        return "invalid_provenance"
+    if expected_kind != collector_kind or fingerprint != expected_fingerprint:
+        return "invalid_provenance"
+
+    for offer in staged:
+        try:
+            offer_from = datetime.date.fromisoformat(offer["valid_from"])
+            offer_to = datetime.date.fromisoformat(offer["valid_to"])
+        except (TypeError, ValueError):
+            return "invalid_offer_rows"
+        if (
+            not offer_from <= today <= offer_to
+            or not offer_key_matches(offer.get("offer_key"), week, offer)
+        ):
+            return "invalid_offer_rows"
+    return None
+
+
+def staged_week_readiness(con, week, *, today=None, require_approved=True):
+    """Return whether one current, complete three-store stage exists."""
+    today = today or business_day()
+    if not isinstance(today, datetime.date) or isinstance(today, datetime.datetime):
+        return False, {"week": "invalid_today"}
+    expected_week = (today - datetime.timedelta(days=today.weekday())).isoformat()
+    if week != expected_week:
+        return False, {"week": "not_current"}
+
+    reasons = {}
+    for store in ("Kaufland", "Tesco", "Lidl"):
+        problem = staged_store_problem(
+            con,
+            week,
+            store,
+            today=today,
+            require_approved=require_approved,
+        )
+        if problem:
+            reasons[store] = problem
+    return not reasons, reasons
+
+
+def promote_staged_week(con, week, *, today=None):
+    """Publish all three staged stores in one BEGIN IMMEDIATE transaction."""
+    today = today or business_day()
+    ready, _ = staged_week_readiness(con, week, today=today)
+    if not ready:
+        return False
+    if con.in_transaction:
+        raise RuntimeError("promotion requires a clean connection")
+
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        ready, _ = staged_week_readiness(con, week, today=today)
+        if not ready:
+            con.rollback()
+            return False
+        stores = ("Kaufland", "Tesco", "Lidl")
+        replace_active_week_from_staging(con, week, stores)
+        for store in stores:
+            cursor = con.execute(
+                "SELECT * FROM akcie_staging WHERE tyzden=? AND obchod=?",
+                (week, store),
+            )
+            columns = [column[0] for column in cursor.description]
+            offers = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            record_store_outcome(
+                con, week, store, "ok", len(offers), offers=offers
+            )
+    except Exception:
+        con.rollback()
+        raise
+    else:
+        con.commit()
+        return True
 
 
 def official_kaufland_main():
@@ -1820,18 +2006,15 @@ def official_kaufland_main():
                 f"kaufland: iba {len(offers)} overených oficiálnych akcií; "
                 f"minimum je {MIN_VERIFIED_OFFERS_PER_STORE}"
             )
-        con.commit()
-        con.execute("BEGIN IMMEDIATE")
-        replace_store_week(con, tyz, "Kaufland", offers)
-        record_store_outcome(
-            con, tyz, "Kaufland", "ok", len(offers), offers=offers
-        )
+        stage_store_collection(con, tyz, "Kaufland", offers)
+        promoted = promote_staged_week(con, tyz)
     except Exception as exc:
         con.rollback()
         raise SystemExit(f"Oficiálny zber Kauflandu zlyhal: {exc}") from None
     finally:
         con.close()
-    log(f"[OK] Kaufland: uložených {len(offers)} oficiálnych akcií bez AI.")
+    state = "publikované" if promoted else "bezpečne pripravené v stagingu"
+    log(f"[OK] Kaufland: {len(offers)} oficiálnych akcií {state} bez AI.")
 
 
 def collection_budget_purpose(con, week, selected_stores):
@@ -1841,7 +2024,7 @@ def collection_budget_purpose(con, week, selected_stores):
         return "zber_letakov"
     placeholders = ",".join("?" for _ in stores)
     rows = con.execute(
-        f"SELECT stav, data_version FROM zber_stav WHERE tyzden=? AND obchod IN ({placeholders})",
+        f"SELECT stav, data_version FROM zber_staging_stav WHERE tyzden=? AND obchod IN ({placeholders})",
         (week, *stores),
     ).fetchall()
     if rows and any(
@@ -1853,14 +2036,66 @@ def collection_budget_purpose(con, week, selected_stores):
 
 
 def main(stores=None):
-    import anthropic
     selected_stores = list(dict.fromkeys(stores or STORES))
     unknown = [store for store in selected_stores if store not in STORES]
     if unknown:
         raise ValueError(f"Neznámy obchod: {', '.join(unknown)}")
     tyz = monday()
     con = db()
-    budget_purpose = collection_budget_purpose(con, tyz, selected_stores)
+    today = business_day()
+    reusable_stores = []
+    expected_week = (today - datetime.timedelta(days=today.weekday())).isoformat()
+    if tyz == expected_week:
+        reusable_stores = [
+            store
+            for store in selected_stores
+            if staged_store_problem(
+                con,
+                tyz,
+                store.capitalize(),
+                today=today,
+                require_approved=False,
+            ) is None
+        ]
+    stores_to_collect = [store for store in selected_stores if store not in reusable_stores]
+
+    if not stores_to_collect:
+        promoted = promote_staged_week(con, tyz, today=today)
+        n = con.execute(
+            "SELECT COUNT(*) c FROM akcie WHERE tyzden=?", (tyz,)
+        ).fetchone()["c"]
+        staged_ok = [
+            row[0].lower()
+            for row in con.execute(
+                "SELECT obchod FROM zber_staging_stav "
+                "WHERE tyzden=? AND stav='ok' ORDER BY obchod",
+                (tyz,),
+            ).fetchall()
+        ]
+        con.close()
+        log("[SUMMARY] " + json.dumps(
+            {
+                "tyzden": tyz,
+                "ok": [],
+                "fail": [],
+                "structural_fail": [],
+                "akcie": 0,
+                "staged_ok": staged_ok,
+                "reused": reusable_stores,
+                "promotion": "promoted" if promoted else "waiting",
+                "active_akcie": n,
+            },
+            ensure_ascii=False, sort_keys=True,
+        ))
+        if promoted:
+            log(f"[OK] Týždeň {tyz}: publikovaných {n} akcií z troch obchodov bez nového AI zberu.")
+        else:
+            log(f"[WAIT] Týždeň {tyz}: staging je zachovaný; aktívne dáta sa nemenili.")
+        return
+
+    import anthropic
+
+    budget_purpose = collection_budget_purpose(con, tyz, stores_to_collect)
     # Najprv over dostatočnú štartovaciu rezervu, až potom zaber jeden z mála
     # týždenných pokusov. Tak sa cielená obnova Tesca a Lidla môže po polnoci
     # sama rozbehnúť s čerstvým denným rozpočtom namiesto zlyhania tesne pred
@@ -1870,7 +2105,7 @@ def main(stores=None):
             con,
             budget_purpose,
             odhad_eur=0.0,
-            rezervovane_eur=MIN_START_BUDGET_PER_STORE_EUR * len(selected_stores),
+            rezervovane_eur=MIN_START_BUDGET_PER_STORE_EUR * len(stores_to_collect),
         )
     except naklady.KreditVycerpany as odmietnutie:
         con.close()
@@ -1902,7 +2137,7 @@ def main(stores=None):
     )
     total, failures, structural_failures, collected = 0, [], [], []
     try:
-        for store in selected_stores:
+        for store in stores_to_collect:
             try:
                 akcie = zbieraj(client, store)
                 if len(akcie) < MIN_VERIFIED_OFFERS_PER_STORE:
@@ -1910,7 +2145,7 @@ def main(stores=None):
                         f"{store}: iba {len(akcie)} overených akcií; "
                         f"minimum je {MIN_VERIFIED_OFFERS_PER_STORE}"
                     )
-                replace_store_week(con, tyz, store.capitalize(), akcie)
+                stage_store_collection(con, tyz, store.capitalize(), akcie)
             except naklady.KreditVycerpany as odmietnutie:
                 # API odmietlo request EŠTE PRED prácou — nespotreboval sa ani
                 # token, takže zabraté miesto v týždennom počte behov patrí
@@ -1924,20 +2159,25 @@ def main(stores=None):
             except ValueError as exc:
                 failures.append(store)
                 structural_failures.append(store)
-                record_store_outcome(con, tyz, store.capitalize(), "fail", 0, str(exc)[:300])
+                record_stage_failure(con, tyz, store.capitalize(), str(exc)[:300])
                 log(f"[ERROR] {store}: zber zlyhal ({exc})")
                 continue
             except Exception as exc:
                 failures.append(store)
-                record_store_outcome(con, tyz, store.capitalize(), "fail", 0, str(exc)[:300])
+                record_stage_failure(con, tyz, store.capitalize(), str(exc)[:300])
                 log(f"[ERROR] {store}: dočasný zber zlyhal ({exc})")
                 continue
             total += len(akcie)
             collected.append(store)
-            record_store_outcome(
-                con, tyz, store.capitalize(), "ok", len(akcie), offers=akcie
-            )
+        promoted = promote_staged_week(con, tyz)
         n = con.execute("SELECT COUNT(*) c FROM akcie WHERE tyzden=?", (tyz,)).fetchone()["c"]
+        staged_ok = [
+            row[0].lower()
+            for row in con.execute(
+                "SELECT obchod FROM zber_staging_stav WHERE tyzden=? AND stav='ok' ORDER BY obchod",
+                (tyz,),
+            ).fetchall()
+        ]
     finally:
         con.close()
     # Strojovo čitateľný súhrn: dozorca sa nesmie spoliehať na počet riadkov,
@@ -1949,6 +2189,10 @@ def main(stores=None):
             "fail": failures,
             "structural_fail": structural_failures,
             "akcie": total,
+            "staged_ok": staged_ok,
+            "reused": reusable_stores,
+            "promotion": "promoted" if promoted else "waiting",
+            "active_akcie": n,
         },
         ensure_ascii=False, sort_keys=True))
     if failures:
@@ -1956,9 +2200,10 @@ def main(stores=None):
             log("ZBER_STRUKTURALNY: všetky neúspešné obchody zlyhali "
                 "na rovnakej validácii vstupu alebo extrakcie")
         raise SystemExit(f"Zber zlyhal pre obchody: {', '.join(failures)}")
-    log(f"[OK] Týždeň {tyz}: uložených {total} akcií (v DB spolu {n}).")
-    if n < 20:
-        raise SystemExit("Málo akcií — niečo je zle.")
+    if promoted:
+        log(f"[OK] Týždeň {tyz}: publikovaných {n} akcií z troch obchodov.")
+    else:
+        log(f"[WAIT] Týždeň {tyz}: {total} akcií je v stagingu; aktívne dáta sa nemenili.")
 
 
 def cli(argv=None):

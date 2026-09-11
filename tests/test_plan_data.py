@@ -915,6 +915,69 @@ def test_shopping_row_explains_recipe_use_and_what_remains_from_the_pack():
     assert items[0]["zostane"] == "700 g"
 
 
+@pytest.mark.parametrize(
+    ("segment", "expected_label"),
+    [
+        ("hypermarkety", "Tesco hypermarket"),
+        ("supermarkety", "Tesco supermarket"),
+    ],
+)
+def test_official_tesco_source_url_sets_the_display_label_without_changing_store_identity(
+    segment, expected_label
+):
+    rows = verified_rows()
+    tesco = list(rows[1])
+    tesco[9] = (
+        "https://www.tesco.sk/akciove-ponuky/letaky-a-katalogy/"
+        f"{segment}/tesco-letak-2026-08-17/1"
+    )
+    rows[1] = tuple(tesco)
+    con = connection(rows)
+    output = model_output()
+    output["meals"][1]["items"][0]["offer_key"] = con.execute(
+        "SELECT offer_key FROM akcie WHERE nazov='Chlieb'"
+    ).fetchone()[0]
+
+    plan = build_personal_plan(
+        con, output, ["Lidl", "Tesco"], 2, 4,
+        pantry=["soľ"], today=TODAY,
+    )
+
+    assert con.execute("SELECT obchod FROM akcie WHERE nazov='Chlieb'").fetchone()[0] == "Tesco"
+    tesco_ingredient = plan["jedla"][1]["suroviny"][0]
+    assert tesco_ingredient["obchod"] == expected_label
+    assert expected_label in [group["obchod"] for group in plan["nakupny_zoznam"]]
+
+
+@pytest.mark.parametrize(
+    "source_url",
+    [
+        "https://example.test/hypermarkety/tesco-letak-2026-08-17/1",
+        "https://www.tesco.sk.evil.test/akciove-ponuky/letaky-a-katalogy/hypermarkety/tesco-letak-2026-08-17/1",
+        "https://www.tesco.sk/akciove-ponuky/letaky-a-katalogy/hypermarkety/tesco-letak-2026-08-17/1?redirect=1",
+        "http://www.tesco.sk/akciove-ponuky/letaky-a-katalogy/hypermarkety/tesco-letak-2026-08-17/1",
+    ],
+)
+def test_tesco_display_label_rejects_nonofficial_or_ambiguous_source_urls(source_url):
+    rows = verified_rows()
+    tesco = list(rows[1])
+    tesco[9] = source_url
+    rows[1] = tuple(tesco)
+    con = connection(rows)
+    output = model_output()
+    output["meals"][1]["items"][0]["offer_key"] = con.execute(
+        "SELECT offer_key FROM akcie WHERE nazov='Chlieb'"
+    ).fetchone()[0]
+
+    plan = build_personal_plan(
+        con, output, ["Lidl", "Tesco"], 2, 4,
+        pantry=["soľ"], today=TODAY,
+    )
+
+    assert plan["jedla"][1]["suroviny"][0]["obchod"] == "Tesco"
+    assert "Tesco" in [group["obchod"] for group in plan["nakupny_zoznam"]]
+
+
 def test_piece_offer_must_match_the_recipe_unit_and_eggs_remain_usable():
     corn = {"nazov": "Kukurica lahôdková", "kategoria": "zelenina", "jednotka": "ks"}
     eggs = {"nazov": "Vajcia M", "kategoria": "vajcia", "jednotka": "10 ks"}

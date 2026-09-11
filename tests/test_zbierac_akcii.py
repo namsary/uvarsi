@@ -974,9 +974,12 @@ def test_official_kaufland_recovery_persists_without_loading_anthropic_key(
     collector.official_kaufland_main()
 
     con = sqlite3.connect(database)
-    assert con.execute("SELECT COUNT(*) FROM akcie WHERE obchod='Kaufland'").fetchone()[0] == 20
+    assert con.execute("SELECT COUNT(*) FROM akcie WHERE obchod='Kaufland'").fetchone()[0] == 0
     assert con.execute(
-        "SELECT collector_kind,stav FROM zber_stav WHERE obchod='Kaufland'"
+        "SELECT COUNT(*) FROM akcie_staging WHERE obchod='Kaufland'"
+    ).fetchone()[0] == 20
+    assert con.execute(
+        "SELECT collector_kind,stav FROM zber_staging_stav WHERE obchod='Kaufland'"
     ).fetchone() == ("official-kaufland-offers", "ok")
     con.close()
 
@@ -1525,7 +1528,7 @@ def test_collection_budget_purpose_is_migration_until_every_selected_store_is_cu
     con.executescript(collector.SCHEMA)
     week = "2026-08-31"
     con.executemany(
-        "INSERT INTO zber_stav (tyzden, obchod, stav, pocet, data_version) VALUES (?,?,?,?,?)",
+        "INSERT INTO zber_staging_stav (tyzden, obchod, stav, pocet, data_version) VALUES (?,?,?,?,?)",
         [
             (week, "Kaufland", "ok", 40, collector.COLLECTION_DATA_VERSION),
             (week, "Tesco", "ok", 40, collector.COLLECTION_DATA_VERSION - 1),
@@ -1537,7 +1540,7 @@ def test_collection_budget_purpose_is_migration_until_every_selected_store_is_cu
     ) == "zber_migracia"
 
     con.execute(
-        "UPDATE zber_stav SET data_version=? WHERE obchod='Tesco'",
+        "UPDATE zber_staging_stav SET data_version=? WHERE obchod='Tesco'",
         (collector.COLLECTION_DATA_VERSION,),
     )
     assert collector.collection_budget_purpose(
@@ -1551,7 +1554,7 @@ def test_failed_current_schema_collection_stays_in_bounded_migration_recovery_bu
     con.executescript(collector.SCHEMA)
     week = "2026-08-31"
     con.execute(
-        "INSERT INTO zber_stav (tyzden, obchod, stav, pocet, data_version) VALUES (?,?,?,?,?)",
+        "INSERT INTO zber_staging_stav (tyzden, obchod, stav, pocet, data_version) VALUES (?,?,?,?,?)",
         (week, "Lidl", "fail", 0, collector.COLLECTION_DATA_VERSION),
     )
 
@@ -2064,8 +2067,10 @@ def run_main_over_stores(monkeypatch, tmp_path, outcomes):
     database = tmp_path / "uvarsi.db"
     monkeypatch.setattr(collector, "DB", str(database))
     monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    monkeypatch.setattr(collector, "business_day", lambda: date(2026, 8, 19))
     monkeypatch.setattr(collector, "STORES", list(outcomes))
     monkeypatch.setattr(collector, "load_key", lambda: "unused-test-value")
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
 
     def zbieraj(client, store):
         if not outcomes[store]:
@@ -2093,7 +2098,10 @@ def test_partial_run_records_which_stores_succeeded_for_the_week(monkeypatch, tm
     con.row_factory = sqlite3.Row
     outcomes = {
         row["obchod"]: row["stav"]
-        for row in con.execute("SELECT obchod, stav FROM zber_stav WHERE tyzden=?", ("2026-08-17",))
+            for row in con.execute(
+                "SELECT obchod, stav FROM zber_staging_stav WHERE tyzden=?",
+                ("2026-08-17",),
+            )
     }
     con.close()
 
@@ -2135,7 +2143,7 @@ def test_implausibly_small_store_result_is_failed_and_not_published(monkeypatch,
 
     con = sqlite3.connect(database)
     outcome = con.execute(
-        "SELECT stav, pocet FROM zber_stav WHERE tyzden=? AND obchod='Lidl'",
+        "SELECT stav, pocet FROM zber_staging_stav WHERE tyzden=? AND obchod='Lidl'",
         ("2026-08-17",),
     ).fetchone()
     offers = con.execute("SELECT COUNT(*) FROM akcie").fetchone()[0]
@@ -2154,7 +2162,7 @@ def test_targeted_recovery_collects_only_the_requested_store(monkeypatch, tmp_pa
 
     con = sqlite3.connect(database)
     rows = con.execute(
-        "SELECT obchod, stav, pocet FROM zber_stav ORDER BY obchod"
+        "SELECT obchod, stav, pocet FROM zber_staging_stav ORDER BY obchod"
     ).fetchall()
     con.close()
     assert rows == [("Lidl", "ok", 20)]
@@ -2210,19 +2218,282 @@ def test_cli_passes_repeated_store_arguments_to_targeted_collection(monkeypatch)
     assert selected == ["lidl", "tesco"]
 
 
-def test_a_stores_stale_success_is_replaced_by_a_later_failure(monkeypatch, tmp_path):
+def test_a_current_healthy_stage_is_reused_without_calling_the_source_again(monkeypatch, tmp_path):
     database = run_main_over_stores(monkeypatch, tmp_path, {"lidl": True})
     collector.main()
 
     monkeypatch.setattr(
         collector, "zbieraj", lambda client, store: (_ for _ in ()).throw(ValueError("prázdny leták"))
     )
+    collector.main()
+
+    con = sqlite3.connect(database)
+    con.row_factory = sqlite3.Row
+    row = con.execute(
+        "SELECT stav, pocet FROM zber_staging_stav WHERE tyzden=?",
+        ("2026-08-17",),
+    ).fetchone()
+    con.close()
+
+    assert (row["stav"], row["pocet"]) == ("ok", 20)
+
+
+def seed_stage(con, week, store, count=20):
+    offers = [valid_offer(store.lower(), index) for index in range(1, count + 1)]
+    collector.stage_store_collection(con, week, store, offers)
+    return offers
+
+
+def test_record_store_outcome_does_not_commit_an_outer_transaction():
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(collector.SCHEMA)
+
+    con.execute("BEGIN IMMEDIATE")
+    collector.record_store_outcome(con, "2026-08-17", "Lidl", "fail", detail="test")
+    assert con.in_transaction is True
+    con.rollback()
+
+    assert con.execute("SELECT COUNT(*) FROM zber_stav").fetchone()[0] == 0
+
+
+def test_partial_three_store_run_keeps_active_week_untouched(monkeypatch, tmp_path):
+    database = run_main_over_stores(
+        monkeypatch, tmp_path, {"kaufland": True, "tesco": True, "lidl": False}
+    )
+    con = collector.db()
+    old = valid_offer("lidl", 99)
+    old["nazov"] = "Pôvodný aktívny týždeň"
+    replace_store_week(con, "2026-08-17", "Lidl", [old])
+    con.close()
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+
     with pytest.raises(SystemExit, match="lidl"):
         collector.main()
 
     con = sqlite3.connect(database)
-    con.row_factory = sqlite3.Row
-    row = con.execute("SELECT stav, pocet FROM zber_stav WHERE tyzden=?", ("2026-08-17",)).fetchone()
+    assert con.execute(
+        "SELECT obchod,nazov FROM akcie WHERE tyzden='2026-08-17'"
+    ).fetchall() == [("Lidl", "Pôvodný aktívny týždeň")]
+    assert con.execute(
+        "SELECT obchod,stav,pocet FROM zber_staging_stav ORDER BY obchod"
+    ).fetchall() == [
+        ("Kaufland", "ok", 20),
+        ("Lidl", "fail", 0),
+        ("Tesco", "ok", 20),
+    ]
     con.close()
 
-    assert (row["stav"], row["pocet"]) == ("fail", 0)
+
+def test_three_valid_approved_stages_promote_in_one_active_snapshot(monkeypatch, tmp_path):
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setattr(collector, "DB", str(database))
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    con = collector.db()
+    for store in ("Kaufland", "Tesco", "Lidl"):
+        seed_stage(con, "2026-08-17", store)
+
+    assert collector.promote_staged_week(
+        con, "2026-08-17", today=date(2026, 8, 19)
+    ) is True
+
+    assert [tuple(row) for row in con.execute(
+        "SELECT obchod,COUNT(*) FROM akcie WHERE tyzden='2026-08-17' "
+        "GROUP BY obchod ORDER BY obchod"
+    ).fetchall()] == [("Kaufland", 20), ("Lidl", 20), ("Tesco", 20)]
+    assert [tuple(row) for row in con.execute(
+        "SELECT obchod,stav,pocet FROM zber_stav WHERE tyzden='2026-08-17' "
+        "ORDER BY obchod"
+    ).fetchall()] == [
+        ("Kaufland", "ok", 20),
+        ("Lidl", "ok", 20),
+        ("Tesco", "ok", 20),
+    ]
+    con.close()
+
+
+@pytest.mark.parametrize(
+    "break_stage",
+    [
+        lambda con: con.execute(
+            "UPDATE zber_staging_stav SET stav='fail' WHERE obchod='Tesco'"
+        ),
+        lambda con: con.execute(
+            "UPDATE zber_staging_stav SET data_version=data_version-1 WHERE obchod='Tesco'"
+        ),
+        lambda con: con.execute(
+            "UPDATE zber_staging_stav SET valid_to='2026-08-18' WHERE obchod='Tesco'"
+        ),
+        lambda con: con.execute(
+            "UPDATE zber_staging_stav SET source_fingerprint='bad' WHERE obchod='Tesco'"
+        ),
+        lambda con: con.execute(
+            "DELETE FROM akcie_staging WHERE obchod='Tesco' AND source_page > 19"
+        ),
+    ],
+    ids=("status", "data-version", "validity", "fingerprint", "minimum"),
+)
+def test_invalid_stage_cannot_replace_active_week(monkeypatch, break_stage):
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(collector.SCHEMA)
+    collector.migrate_offer_staging_schema(con)
+    old = valid_offer("lidl", 99)
+    old["nazov"] = "Stará aktívna položka"
+    replace_store_week(con, "2026-08-17", "Lidl", [old])
+    for store in ("Kaufland", "Tesco", "Lidl"):
+        seed_stage(con, "2026-08-17", store)
+    break_stage(con)
+    con.commit()
+
+    assert collector.promote_staged_week(
+        con, "2026-08-17", today=date(2026, 8, 19)
+    ) is False
+
+    assert [tuple(row) for row in con.execute("SELECT nazov FROM akcie").fetchall()] == [
+        ("Stará aktívna položka",)
+    ]
+
+
+def test_unapproved_collector_cannot_promote(monkeypatch):
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(collector.SCHEMA)
+    collector.migrate_offer_staging_schema(con)
+    for store in ("Kaufland", "Tesco", "Lidl"):
+        seed_stage(con, "2026-08-17", store)
+    monkeypatch.setattr(
+        collector.source_policy,
+        "approved_source",
+        lambda store, _kind: store != "Tesco",
+    )
+
+    assert collector.promote_staged_week(
+        con, "2026-08-17", today=date(2026, 8, 19)
+    ) is False
+    assert con.execute("SELECT COUNT(*) FROM akcie").fetchone()[0] == 0
+
+
+def test_targeted_retry_reuses_two_healthy_stages_and_promotes(monkeypatch):
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(collector.SCHEMA)
+    collector.migrate_offer_staging_schema(con)
+    seed_stage(con, "2026-08-17", "Kaufland")
+    seed_stage(con, "2026-08-17", "Tesco")
+    before = con.execute(
+        "SELECT obchod,offer_key FROM akcie_staging ORDER BY obchod,offer_key"
+    ).fetchall()
+
+    seed_stage(con, "2026-08-17", "Lidl")
+    assert collector.promote_staged_week(
+        con, "2026-08-17", today=date(2026, 8, 19)
+    ) is True
+
+    after = con.execute(
+        "SELECT obchod,offer_key FROM akcie_staging "
+        "WHERE obchod IN ('Kaufland','Tesco') ORDER BY obchod,offer_key"
+    ).fetchall()
+    assert [tuple(row) for row in after] == [tuple(row) for row in before]
+    assert con.execute("SELECT COUNT(*) FROM akcie").fetchone()[0] == 60
+
+
+def test_complete_current_stage_promotes_without_loading_anthropic(monkeypatch, tmp_path):
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setattr(collector, "DB", str(database))
+    monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    monkeypatch.setattr(collector, "business_day", lambda: date(2026, 8, 19))
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    con = collector.db()
+    for store in ("Kaufland", "Tesco", "Lidl"):
+        seed_stage(con, "2026-08-17", store)
+    con.close()
+    monkeypatch.setattr(
+        collector,
+        "load_key",
+        lambda: pytest.fail("zdravý stage nesmie znovu načítať Anthropic kľúč"),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        types.SimpleNamespace(
+            Anthropic=lambda **_kwargs: pytest.fail(
+                "zdravý stage nesmie vytvoriť Anthropic klienta"
+            )
+        ),
+    )
+
+    collector.main()
+
+    con = sqlite3.connect(database)
+    assert con.execute("SELECT COUNT(*) FROM akcie").fetchone()[0] == 60
+    con.close()
+
+
+def test_default_retry_collects_only_the_missing_stage(monkeypatch, tmp_path):
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setattr(collector, "DB", str(database))
+    monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    monkeypatch.setattr(collector, "business_day", lambda: date(2026, 8, 19))
+    monkeypatch.setattr(collector, "STORES", ["kaufland", "tesco", "lidl"])
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    con = collector.db()
+    seed_stage(con, "2026-08-17", "Kaufland")
+    seed_stage(con, "2026-08-17", "Tesco")
+    con.close()
+    requested = []
+
+    def collect_only_missing(_client, store):
+        requested.append(store)
+        return [valid_offer(store, index) for index in range(1, 21)]
+
+    monkeypatch.setattr(collector, "load_key", lambda: "unused-test-value")
+    monkeypatch.setattr(collector, "zbieraj", collect_only_missing)
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        types.SimpleNamespace(Anthropic=lambda **_kwargs: object()),
+    )
+
+    collector.main()
+
+    assert requested == ["lidl"]
+    con = sqlite3.connect(database)
+    assert con.execute("SELECT COUNT(*) FROM akcie").fetchone()[0] == 60
+    con.close()
+
+
+def test_promotion_write_failure_rolls_back_active_rows_and_collection_state(monkeypatch):
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(collector.SCHEMA)
+    collector.migrate_offer_staging_schema(con)
+    old = valid_offer("lidl", 99)
+    old["nazov"] = "Bezpečný aktívny snapshot"
+    replace_store_week(con, "2026-08-17", "Lidl", [old])
+    con.execute(
+        "INSERT INTO zber_stav (tyzden,obchod,stav,pocet) VALUES (?,?,?,?)",
+        ("2026-08-17", "Lidl", "ok", 1),
+    )
+    con.commit()
+    for store in ("Kaufland", "Tesco", "Lidl"):
+        seed_stage(con, "2026-08-17", store)
+    con.execute(
+        """CREATE TRIGGER reject_tesco_promotion
+           BEFORE INSERT ON akcie WHEN NEW.obchod='Tesco'
+           BEGIN SELECT RAISE(FAIL, 'simulated promotion failure'); END"""
+    )
+    con.commit()
+
+    with pytest.raises(sqlite3.IntegrityError, match="simulated promotion failure"):
+        collector.promote_staged_week(con, "2026-08-17", today=date(2026, 8, 19))
+
+    assert [tuple(row) for row in con.execute("SELECT nazov FROM akcie").fetchall()] == [
+        ("Bezpečný aktívny snapshot",)
+    ]
+    assert [tuple(row) for row in con.execute(
+        "SELECT obchod,stav,pocet FROM zber_stav"
+    ).fetchall()] == [("Lidl", "ok", 1)]

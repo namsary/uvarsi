@@ -603,6 +603,50 @@ def test_public_landing_serves_only_valid_current_data(monkeypatch, tmp_path):
 
     assert response.status_code == 200
     assert response.json()["week"] == current_monday()
+    assert response.json()["state"] == "current"
+
+
+def test_public_landing_serves_an_expired_valid_snapshot_as_a_sanitized_example(
+    monkeypatch, tmp_path
+):
+    today = date.today()
+    historical_monday = today - timedelta(days=today.weekday() + 7)
+    data = landing_payload(historical_monday.isoformat())
+    data["generated_at"] = historical_monday.isoformat() + "T07:00:00+02:00"
+    data["week_label"] = "minulý týždeň"
+    data["sources"][0].update(
+        valid_from=historical_monday.isoformat(),
+        valid_to=(historical_monday + timedelta(days=6)).isoformat(),
+    )
+    server = load_server(monkeypatch, tmp_path, [], data)
+
+    response = TestClient(server.app).get("/api/public/landing")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["state"] == "historical_example"
+    assert body["notice"] == "Ukážka z minulého týždňa – ceny už nemusia platiť."
+    assert "week" not in body and "week_label" not in body and "sources" not in body
+    assert "usetris" not in body["receipt"] and "bezne" not in body["receipt"]
+
+
+def test_public_landing_keeps_a_mathematically_broken_snapshot_unavailable(
+    monkeypatch, tmp_path
+):
+    today = date.today()
+    historical_monday = today - timedelta(days=today.weekday() + 7)
+    data = landing_payload(historical_monday.isoformat())
+    data["generated_at"] = historical_monday.isoformat() + "T07:00:00+02:00"
+    data["sources"][0].update(
+        valid_from=historical_monday.isoformat(),
+        valid_to=(historical_monday + timedelta(days=6)).isoformat(),
+    )
+    data["receipt"]["usetris"] = "0,50"
+    server = load_server(monkeypatch, tmp_path, [], data)
+
+    response = TestClient(server.app).get("/api/public/landing")
+
+    assert response.status_code == 503
 
 
 def test_public_landing_counts_only_paid_founders_towards_the_50_places(
@@ -736,6 +780,31 @@ def test_weekly_public_page_serves_current_valid_html(monkeypatch, tmp_path):
     assert response.headers["content-type"] == "text/html; charset=utf-8"
     assert response.headers["cache-control"] == "public, max-age=300, must-revalidate"
     assert "Čo variť tento týždeň" in response.text
+
+
+def test_weekly_public_page_serves_a_historical_example_without_current_claims(
+    monkeypatch, tmp_path
+):
+    today = date.today()
+    historical_monday = today - timedelta(days=today.weekday() + 7)
+    data = landing_payload(historical_monday.isoformat())
+    data["generated_at"] = historical_monday.isoformat() + "T07:00:00+02:00"
+    data["week_label"] = "minulý týždeň"
+    data["sources"][0].update(
+        valid_from=historical_monday.isoformat(),
+        valid_to=(historical_monday + timedelta(days=6)).isoformat(),
+    )
+    server = load_server(monkeypatch, tmp_path, [], data)
+
+    response = TestClient(server.app).get("/co-varit-tento-tyzden")
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "public, max-age=300, must-revalidate"
+    assert "Ukážka z minulého týždňa – ceny už nemusia platiť." in response.text
+    assert 'content="noindex,follow"' in response.text
+    assert "Ušetríš" not in response.text
+    assert "Platnosť cien" not in response.text
+    assert "retry-after" not in response.headers
 
 
 @pytest.mark.parametrize(

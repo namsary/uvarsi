@@ -60,7 +60,7 @@ from config import (
     recipe_engine_mode,
     release_id,
 )
-from landing_data import load_landing_data, validate_landing_data
+from landing_data import load_landing_data, public_landing_payload, validate_landing_data
 from legal_pages import LEGAL_SLUGS, legal_text, render_legal_page
 from operator_profile import LEGAL_VERSION, OPERATOR, validate_operator_profile
 from payment_readiness import (
@@ -5246,12 +5246,12 @@ def public_community(con) -> dict:
 @app.get("/api/public/landing")
 def public_landing():
     try:
-        payload = validate_landing_data(
+        payload = public_landing_payload(
             load_landing_data(LANDING_DATA),
             bratislava_day(),
             required_offer_data_version=CURRENT_COLLECTION_DATA_VERSION,
         )
-    except (FileNotFoundError, ValueError):
+    except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError, ValueError):
         raise HTTPException(503, "Aktuálne letákové dáta sa obnovujú.")
 
     try:
@@ -5276,7 +5276,7 @@ def seo_weekly_page():
     page = _weekly_public_page()
     headers = {"Cache-Control": PUBLIC_CACHE_CONTROL}
     status_code = 200
-    if not page.indexable:
+    if not page.available:
         status_code = 503
         headers = {
             "Cache-Control": "no-store",

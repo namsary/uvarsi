@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_HALF_UP
 from pathlib import Path
+from urllib.parse import urlsplit
 
 try:
     from .weekly_data import current_monday, current_verified_offers
@@ -21,6 +22,35 @@ CENT = Decimal("0.01")
 DAY_ORDER = ("PO", "UT", "ST", "ŠT", "PI", "SO", "NE")
 STORE_ORDER = ("Kaufland", "Lidl", "Tesco")
 ALLOWED_DIET_MODES = ("standard", "high_protein", "vegetarian", "vegan")
+
+_TESCO_DISPLAY_SEGMENTS = {
+    "hypermarkety": "Tesco hypermarket",
+    "supermarkety": "Tesco supermarket",
+}
+
+
+def _display_store_name(store, source_url):
+    """Derive a customer-facing Tesco format from a trusted official URL only."""
+    if store != "Tesco" or not isinstance(source_url, str) or source_url != source_url.strip():
+        return store
+    try:
+        parsed = urlsplit(source_url)
+        port = parsed.port
+    except ValueError:
+        return store
+    if (
+        parsed.scheme != "https"
+        or parsed.username is not None
+        or parsed.password is not None
+        or port is not None
+        or (parsed.hostname or "").casefold() not in {"tesco.sk", "www.tesco.sk"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        return store
+    segments = tuple(segment.casefold() for segment in parsed.path.split("/") if segment)
+    matches = [label for segment, label in _TESCO_DISPLAY_SEGMENTS.items() if segment in segments]
+    return matches[0] if len(matches) == 1 else store
 
 
 def _recipe_library_version() -> int:
@@ -1710,7 +1740,8 @@ def build_personal_plan(con, model_output, stores, frequency, household_size=Non
             price = _price(row["cena"], "akciová cena") * quantity
             original = _price(row["povodna"], "bežná cena") * quantity if row["povodna"] is not None else None
             ingredient = {
-                "offer_key": row["offer_key"], "nazov": row["nazov"], "obchod": row["obchod"],
+                "offer_key": row["offer_key"], "nazov": row["nazov"],
+                "obchod": _display_store_name(row["obchod"], row.get("source_url")),
                 "jednotka": row["jednotka"], "mnozstvo": quantity,
                 # Koľko sa naozaj použije v recepte — dopočítané z porcií, nie od modelu.
                 "davka": davka, "cena": _format(price),
@@ -1759,7 +1790,8 @@ def build_personal_plan(con, model_output, stores, frequency, household_size=Non
     shopping_items, total, regular = _aggregate_purchases(purchases)
     grouped = {}
     for item in shopping_items:
-        grouped.setdefault(item["obchod"], []).append({
+        display_store = _display_store_name(item["obchod"], item.get("source_url"))
+        grouped.setdefault((item["obchod"], display_store), []).append({
             key: item[key] for key in (
                 "offer_key", "nazov", "jednotka", "mnozstvo", "cena", "povodna", "zlava",
                 "potrebne", "potrebna_jednotka", "cena_za_balenie", "povodna_za_balenie",
@@ -1770,8 +1802,12 @@ def build_personal_plan(con, model_output, stores, frequency, household_size=Non
             ) if key in item
         })
     shopping = [
-        {"obchod": store, "polozky": sorted(items, key=lambda item: (item["nazov"].casefold(), item["offer_key"]))}
-        for store, items in sorted(grouped.items(), key=lambda pair: STORE_ORDER.index(pair[0]))
+        {"obchod": display_store, "polozky": sorted(
+            items, key=lambda item: (item["nazov"].casefold(), item["offer_key"])
+        )}
+        for (store, display_store), items in sorted(
+            grouped.items(), key=lambda pair: (STORE_ORDER.index(pair[0][0]), pair[0][1])
+        )
     ]
     return {
         "tyzden": current_monday(today), "jedla": plan_meals, "nakupny_zoznam": shopping,

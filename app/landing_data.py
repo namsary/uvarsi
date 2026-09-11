@@ -1,5 +1,6 @@
 import json
 import os
+from copy import deepcopy
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -194,6 +195,82 @@ def validate_landing_data(
             raise ValueError("Bloček tvrdí úsporu bez overenej bežnej ceny.")
 
     return payload
+
+
+CURRENT_LANDING_STATE = "current"
+HISTORICAL_LANDING_STATE = "historical_example"
+HISTORICAL_LANDING_NOTICE = "Ukážka z minulého týždňa – ceny už nemusia platiť."
+
+_HISTORICAL_ITEM_FIELDS = frozenset({
+    "original_price", "savings", "off",
+    "loyalty_price", "loyalty_discount", "loyalty_program",
+    "loyalty_minimum_basket", "loyalty_condition",
+    "source_url", "source_page", "valid_from", "valid_to",
+})
+
+
+def landing_data_state(
+    payload: dict,
+    today: date | None = None,
+    required_offer_data_version: int | None = None,
+) -> tuple[str, date]:
+    """Classify a valid receipt without weakening the current-data validator.
+
+    Historical fallback is allowed only when the same immutable payload was
+    valid on the day it says it was generated. Any schema, provenance or
+    arithmetic failure therefore remains unavailable.
+    """
+    today = today or date.today()
+    try:
+        validate_landing_data(payload, today, required_offer_data_version)
+        return CURRENT_LANDING_STATE, today
+    except ValueError as current_error:
+        generated_at = payload.get("generated_at") if isinstance(payload, dict) else None
+        if not isinstance(generated_at, str):
+            raise current_error
+        try:
+            generated_day = datetime.fromisoformat(generated_at).date()
+        except ValueError:
+            raise current_error
+        if generated_day >= today:
+            raise current_error
+        try:
+            validate_landing_data(payload, generated_day, required_offer_data_version)
+        except ValueError:
+            raise current_error
+        return HISTORICAL_LANDING_STATE, generated_day
+
+
+def public_landing_payload(
+    payload: dict,
+    today: date | None = None,
+    required_offer_data_version: int | None = None,
+) -> dict:
+    """Return current data or a claim-safe last-known-good public example."""
+    state, _reference_day = landing_data_state(
+        payload, today, required_offer_data_version
+    )
+    if state == CURRENT_LANDING_STATE:
+        return {**payload, "state": CURRENT_LANDING_STATE}
+
+    receipt = deepcopy(payload["receipt"])
+    receipt.pop("bezne", None)
+    receipt.pop("usetris", None)
+    receipt.pop("polozky_s_beznou_cenou", None)
+    for meal in receipt["meals"]:
+        for item in meal["items"]:
+            for field in _HISTORICAL_ITEM_FIELDS:
+                item.pop(field, None)
+
+    historical = {
+        "schema_version": payload["schema_version"],
+        "state": HISTORICAL_LANDING_STATE,
+        "notice": HISTORICAL_LANDING_NOTICE,
+        "receipt": receipt,
+    }
+    if "offer_data_version" in payload:
+        historical["offer_data_version"] = payload["offer_data_version"]
+    return historical
 
 
 def model_example_is_publishable(payload: object, today: date | None = None) -> bool:
