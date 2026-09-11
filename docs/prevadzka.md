@@ -398,3 +398,103 @@ serverom zablokovaný aj pri chybne zapnutom flage.
 Pri platobnom incidente najprv nastav `PLATBY_ZAPNUTE=0` a reštartuj iba Uvar.si.
 Databázu nevracaj. Rekonciliácia musí ďalej spracovať už prijaté podpísané
 webhooky, refundácie a zákaznícke nároky.
+
+## Tesco bridge — bezpečné nastavenie a release gate
+
+Tesco bridge má dve rozdielne tajomstvá. `BRIDGE_SECRET` autentifikuje Hetzner
+voči Workeru; rovnakú hodnotu server pozná ako
+`UVARSI_TESCO_BRIDGE_SECRET`. `TOKEN_SECRET` podpisuje 24-hodinové media tokeny
+a zostáva iba v Cloudflare. Obe hodnoty vytvor v správcovi hesiel ako nezávislé
+náhodné base64url reťazce s najmenej 32 znakmi. Nevkladaj ich do príkazu,
+commitu, ticketu, chatu ani release reportu.
+
+### 1. Cloudflare Worker
+
+V lokálnom adresári `cloudflare/tesco-bridge` spusti nasledujúce príkazy po
+jednom. Wrangler si hodnotu vypýta interaktívne; vlož ju až do jeho promptu,
+takže sa neobjaví v histórii shellu:
+
+```text
+npx wrangler secret put BRIDGE_SECRET
+npx wrangler secret put TOKEN_SECRET
+```
+
+Po nastavení oboch tajomstiev nasaď z toho istého adresára presne skontrolovaný
+Worker:
+
+```text
+npm run deploy
+```
+
+Do evidencie zapíš iba názov projektu, release identifikátor, čas a pass/fail —
+nie výstup autentifikovanej odpovede ani hodnotu tajomstva.
+
+### 2. Hetzner bez vypísania hodnôt
+
+Na serveri otvor konfiguráciu priamo v editore:
+
+```text
+sudoedit /opt/uvarsi/uvarsi.env
+```
+
+V editore nastav práve jeden riadok pre každý z týchto kľúčov:
+
+```text
+UVARSI_ENV=production
+UVARSI_TESCO_BRIDGE_URL=https://<presný-worker-host>
+UVARSI_TESCO_BRIDGE_SECRET=<rovnaký-BRIDGE_SECRET-ako-vo-Workeri>
+PLATBY_ZAPNUTE=0
+```
+
+URL musí byť iba HTTPS origin bez cesty, portu, query, fragmentu alebo
+prihlasovacích údajov. Súbor nečítaj cez `cat`, nekopíruj ho z PC a nepridávaj
+ho do Gitu. Po uložení nastav práva a spusti tichý autentifikovaný preflight:
+
+```text
+sudo chmod 600 /opt/uvarsi/uvarsi.env
+sudo /opt/uvarsi/uvarsi-deploy-state.sh check-bridge
+```
+
+Preflight nič nevypíše pri úspechu. Pri chybe vráti nenulový kód bez tela
+odpovede, bearer hlavičky alebo hodnoty kľúča. Chybu rieš podľa všeobecného
+stavu Workeru a DNS; do logu nekopíruj autentifikovanú odpoveď.
+
+### 3. Štvorhodinová poistka dozorcu
+
+V `sudo crontab -e` nahraď iba existujúci Uvar.si riadok s `dozorca.sh` týmto
+riadkom. Ostatné záznamy vrátane Taktik-mapa nechaj bez zmeny:
+
+```text
+0 5-21 * * * /opt/uvarsi/uvarsi-deploy-state.sh run-supervisor >> /var/log/uvarsi.log 2>&1
+```
+
+Rovnaký vstup používa samopull po úspešnom release. Pred spustením znovu
+overí platby OFF a bridge, exportuje iba tri potrebné produkčné premenné a celý
+zber aj zostavenie bločku ukončí najneskôr po 14 400 sekundách (TERM, potom
+päťminútová rezerva na KILL). Timeout neobnovuje databázu zo zálohy: kandidát
+žije v stagingu, takže aktívne ceny a `landing_data.json` zostanú poslednou
+overenou verziou a nové auth, zákaznícke, špajzové, plánové či platobné riadky
+sa nestratia.
+
+### 4. Povinný smoke a rollback
+
+Pred živou zmenou musí prejsť `check-bridge`; po reštarte musí prejsť:
+
+```text
+sudo /opt/uvarsi/uvarsi-deploy-state.sh check-readiness
+```
+
+Brána je tichá a fail-closed. Overí platby OFF v súbore aj procese, dostupný
+bridge, aktívnu appku a worker s čerstvým heartbeat, zdravý stav dozorcu,
+Kaufland/Tesco/Lidl po najmenej 20 aktuálnych ponúk z presne povolených
+oficiálnych source kinds, zhodné aktívne a staging fingerprinty, aktuálny
+trojjedlový bloček a HTTP úspech Taktik-mapa. Nezmenený staging fingerprint sa
+pri opakovaní znovu použije pred importom Anthropic klienta, takže nevznikne
+ďalšie platené volanie ani rozpočtová rezervácia.
+
+Ak niektorá brána zlyhá, release sa nesmie označiť za úspešný. Automatický
+rollback vracia iba kód, statické Uvar.si súbory a jednotky. Nevracia
+`uvarsi.db`, `landing_data.json` ani žiadne používateľské dáta a nedotýka sa
+Caddy či Taktik-mapa. Predošlá verzia deploy-state nepozná vstup
+`run-supervisor`, takže po rollbacku ostane nový bridge zber bezpečne vypnutý,
+kým operátor neobnoví skontrolovaný release.

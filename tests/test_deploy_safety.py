@@ -24,6 +24,7 @@ import pytest
 DEPLOY = Path("nasad.ps1")
 DOZORCA = Path("hetzner/dozorca.sh")
 SAMOPULL = Path("hetzner/samopull.sh")
+DEPLOY_STATE = Path("hetzner/uvarsi-deploy-state.sh")
 MAPA_SITE = "mapa.89.167.72.159.sslip.io"
 CADDYFILE = "/etc/caddy/Caddyfile"
 
@@ -160,7 +161,7 @@ def test_samopull_preflight_checks_public_pages_before_switching():
 def test_samopull_starts_guardian_after_successful_release():
     script = SAMOPULL.read_text(encoding="utf-8")
     success = script.index('log "OK — nasadené vydanie')
-    guardian = script.index('nohup "$DIR/dozorca.sh"')
+    guardian = script.index('nohup "$DIR/uvarsi-deploy-state.sh" run-supervisor')
     rollback = script.index("# --- 4. neúspech")
 
     assert success < guardian < rollback
@@ -604,3 +605,54 @@ def test_deploy_compares_live_release_id_with_local_version(script):
     assert any("OCAKAVANE" in blok or "ocakavane" in blok for blok in bloky), (
         "živé vydanie sa musí porovnať s očakávaným, nie len vypísať"
     )
+
+
+def test_both_release_paths_require_bridge_preflight_before_live_mutation(script):
+    automatic = SAMOPULL.read_text(encoding="utf-8")
+    assert automatic.index("uvarsi_require_tesco_bridge") < automatic.index(
+        'uvarsi_snapshot "$PRED"'
+    )
+    assert script.index("uvarsi_require_tesco_bridge") < script.index(
+        "$script:LiveMutationStarted = $true"
+    )
+
+
+def test_both_release_paths_prove_payments_off_before_bridge_access(script):
+    automatic = SAMOPULL.read_text(encoding="utf-8")
+    assert automatic.index("uvarsi_require_payments_off") < automatic.index(
+        "uvarsi_require_tesco_bridge"
+    )
+    assert script.index("uvarsi_require_payments_off") < script.index(
+        "uvarsi_require_tesco_bridge"
+    )
+
+
+def test_both_release_paths_require_full_production_readiness(script):
+    automatic = SAMOPULL.read_text(encoding="utf-8")
+    assert "uvarsi_require_production_readiness" in automatic
+    assert "uvarsi_require_production_readiness" in script
+    assert MAPA_SITE in script
+
+
+def test_autonomous_release_uses_the_bounded_supervisor_entrypoint():
+    automatic = SAMOPULL.read_text(encoding="utf-8")
+    success = automatic.index('log "OK — nasadené vydanie')
+    after_success = automatic[success:]
+    assert "uvarsi-deploy-state.sh\" run-supervisor" in after_success
+    assert 'nohup "$DIR/dozorca.sh"' not in after_success
+
+
+def test_release_never_uploads_or_replaces_runtime_data(script):
+    state = DEPLOY_STATE.read_text(encoding="utf-8")
+    for protected in (
+        "uvarsi.db",
+        "landing_data.json",
+        "sessions_v2",
+        "pouzivatelia",
+        "spajza",
+        "plany",
+        "naroky",
+    ):
+        assert not re.search(rf'(scp|cp -a|rm -f|mv)[^\n]*{re.escape(protected)}', script)
+    restore = state.split("uvarsi_restore()", 1)[1].split("_uvarsi_apply_core()", 1)[0]
+    assert "_uvarsi_restore_database" not in restore

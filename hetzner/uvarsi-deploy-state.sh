@@ -16,8 +16,288 @@ UVARSI_HEALTH_URL="${UVARSI_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
 UVARSI_DB="${UVARSI_DB:-$UVARSI_DIR/uvarsi.db}"
 UVARSI_ENV_FILE="${UVARSI_ENV_FILE:-$UVARSI_DIR/uvarsi.env}"
 UVARSI_WEB_DIR="${UVARSI_WEB_DIR:-/var/www/uvarsi}"
+UVARSI_APP_DIR="${UVARSI_APP_DIR:-$UVARSI_DIR/app}"
+UVARSI_LANDING_DATA="${UVARSI_LANDING_DATA:-/var/lib/uvarsi/landing_data.json}"
+UVARSI_TIMEOUT="${UVARSI_TIMEOUT:-timeout}"
+UVARSI_SUPERVISOR="${UVARSI_SUPERVISOR:-$UVARSI_DIR/dozorca.sh}"
+UVARSI_SUPERVISOR_STATE="${UVARSI_SUPERVISOR_STATE:-$UVARSI_DIR/.dozorca_state}"
+UVARSI_COLLECTION_FAILURE_STATE="${UVARSI_COLLECTION_FAILURE_STATE:-$UVARSI_DIR/.collection_failure_state}"
+UVARSI_TAKTIK_URL="${UVARSI_TAKTIK_URL:-https://mapa.89.167.72.159.sslip.io/}"
+UVARSI_MAX_COLLECTION_SECONDS="${UVARSI_MAX_COLLECTION_SECONDS:-14400}"
 UVARSI_WORKER_UNIT="$UVARSI_SYSTEMD_DIR/uvarsi-plan-worker.service"
 UVARSI_APP_UNIT="$UVARSI_SYSTEMD_DIR/uvarsi.service"
+
+_uvarsi_today() {
+  if [ -n "${UVARSI_TODAY:-}" ]; then
+    printf '%s' "$UVARSI_TODAY"
+  else
+    TZ=Europe/Bratislava date +%F
+  fi
+}
+
+_uvarsi_env_value() {
+  key=$1
+  [ -f "$UVARSI_ENV_FILE" ] || return 1
+  "$UVARSI_HEALTH_PY" -c '
+import re, sys
+path, wanted = sys.argv[1:3]
+matches = []
+with open(path, encoding="utf-8") as handle:
+    for raw in handle:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].lstrip()
+        if "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        if name.strip() != wanted:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"\047":
+            value = value[1:-1]
+        matches.append(value)
+if len(matches) != 1 or not matches[0] or re.search(r"[\x00-\x1f\x7f]", matches[0]):
+    raise SystemExit(1)
+print(matches[0], end="")
+' "$UVARSI_ENV_FILE" "$key" 2>/dev/null
+}
+
+uvarsi_require_tesco_bridge() {
+  # Values are read without sourcing or printing the env file. The bearer
+  # header reaches curl over stdin config, so it is absent from argv and logs.
+  environment=$(_uvarsi_env_value UVARSI_ENV) || return 1
+  [ "$environment" = production ] || return 1
+  bridge_url=$(_uvarsi_env_value UVARSI_TESCO_BRIDGE_URL) || return 1
+  bridge_secret=$(_uvarsi_env_value UVARSI_TESCO_BRIDGE_SECRET) || return 1
+  [ "${#bridge_secret}" -ge 32 ] || return 1
+  case "$bridge_secret" in *[!A-Za-z0-9._~-]*) return 1 ;; esac
+
+  "$UVARSI_HEALTH_PY" -c '
+import sys
+from urllib.parse import urlsplit
+try:
+    parsed = urlsplit(sys.argv[1])
+    port = parsed.port
+except ValueError:
+    raise SystemExit(1)
+valid = (
+    parsed.scheme == "https" and bool(parsed.hostname)
+    and parsed.username is None and parsed.password is None and port is None
+    and parsed.path in ("", "/") and not parsed.query and not parsed.fragment
+)
+raise SystemExit(0 if valid else 1)
+' "$bridge_url" >/dev/null 2>&1 || return 1
+  bridge_url=${bridge_url%/}
+  today=$(_uvarsi_today) || return 1
+  response=$(mktemp "${TMPDIR:-/tmp}/uvarsi-bridge.XXXXXX") || return 1
+  chmod 600 "$response" || { rm -f "$response"; return 1; }
+  request=$(printf '{"date":"%s","format":"HM"}' "$today")
+  if ! {
+    printf 'header = "Accept: application/json"\n'
+    printf 'header = "Content-Type: application/json"\n'
+    printf 'header = "Authorization: Bearer %s"\n' "$bridge_secret"
+  } | "$UVARSI_CURL" --disable --config - --silent --show-error --fail \
+      --max-time 30 --request POST --data-binary "$request" \
+      --output "$response" "$bridge_url/v1/tesco/leaflets" \
+      >/dev/null 2>&1; then
+    rm -f "$response"
+    return 1
+  fi
+  if ! "$UVARSI_HEALTH_PY" -c '
+import datetime as dt, json, sys
+from urllib.parse import urlsplit
+path, today_raw, bridge_url = sys.argv[1:4]
+try:
+    today = dt.date.fromisoformat(today_raw)
+    with open(path, encoding="utf-8") as handle:
+        payload = json.load(handle)
+    leaflet = payload["leaflet"]
+    start = dt.date.fromisoformat(leaflet["valid_from"])
+    end = dt.date.fromisoformat(leaflet["valid_to"])
+    pages = leaflet["pages"]
+except (KeyError, TypeError, ValueError, json.JSONDecodeError, OSError):
+    raise SystemExit(1)
+if (
+    not isinstance(leaflet, dict) or leaflet.get("country") != "sk"
+    or leaflet.get("format") != "HM" or not start <= today <= end
+    or not isinstance(pages, list) or not 8 <= len(pages) <= 120
+    or leaflet.get("declared_pages") != len(pages)
+):
+    raise SystemExit(1)
+origin = urlsplit(bridge_url)
+for expected, page in enumerate(pages, start=1):
+    if not isinstance(page, dict) or page.get("source_page") != expected:
+        raise SystemExit(1)
+    for field in ("thumbnail_url", "image_url"):
+        value = page.get(field)
+        if not isinstance(value, str):
+            raise SystemExit(1)
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme != origin.scheme or parsed.hostname != origin.hostname
+            or parsed.username is not None or parsed.password is not None
+            or parsed.port is not None or parsed.query or parsed.fragment
+            or not parsed.path.startswith("/v1/tesco/media/")
+        ):
+            raise SystemExit(1)
+' "$response" "$today" "$bridge_url" >/dev/null 2>&1; then
+    rm -f "$response"
+    return 1
+  fi
+  rm -f "$response" || return 1
+  UVARSI_TESCO_BRIDGE_URL=$bridge_url
+  UVARSI_TESCO_BRIDGE_SECRET=$bridge_secret
+  UVARSI_ENV=production
+  export UVARSI_TESCO_BRIDGE_URL UVARSI_TESCO_BRIDGE_SECRET UVARSI_ENV
+}
+
+_uvarsi_require_collection_readiness() {
+  today=$(_uvarsi_today) || return 1
+  (
+    cd "$UVARSI_APP_DIR" || exit 1
+    "$UVARSI_HEALTH_PY" -c '
+import datetime as dt, json, re, sqlite3, sys
+from landing_data import validate_landing_data
+
+database, landing_path, today_raw = sys.argv[1:4]
+today = dt.date.fromisoformat(today_raw)
+week = (today - dt.timedelta(days=today.weekday())).isoformat()
+stores = {
+    "Kaufland": "official-kaufland-offers",
+    "Tesco": "official-tesco-viewer",
+    "Lidl": "official-lidl-viewer",
+}
+fingerprint = re.compile(r"[0-9a-f]{64}")
+with sqlite3.connect("file:" + database + "?mode=ro", uri=True) as con:
+    required = {
+        "tyzden", "obchod", "stav", "pocet", "data_version",
+        "collector_kind", "source_fingerprint", "valid_from", "valid_to",
+    }
+    for table in ("zber_stav", "zber_staging_stav"):
+        columns = {row[1] for row in con.execute("PRAGMA table_info(" + table + ")")}
+        if not required <= columns:
+            raise SystemExit(1)
+    for store, expected_kind in stores.items():
+        query = (
+            "SELECT stav,pocet,data_version,collector_kind,source_fingerprint,"
+            "valid_from,valid_to FROM {} WHERE tyzden=? AND obchod=?"
+        )
+        active = con.execute(query.format("zber_stav"), (week, store)).fetchone()
+        staged = con.execute(query.format("zber_staging_stav"), (week, store)).fetchone()
+        if active is None or staged is None or tuple(active) != tuple(staged):
+            raise SystemExit(1)
+        status, declared, version, kind, source_hash, start, end = active
+        try:
+            current = dt.date.fromisoformat(start) <= today <= dt.date.fromisoformat(end)
+        except (TypeError, ValueError):
+            raise SystemExit(1)
+        if (
+            status != "ok" or int(declared or 0) < 20 or int(version or 0) < 2
+            or kind != expected_kind or not isinstance(source_hash, str)
+            or fingerprint.fullmatch(source_hash) is None or not current
+        ):
+            raise SystemExit(1)
+        for table in ("akcie", "akcie_staging"):
+            count = con.execute(
+                "SELECT COUNT(*) FROM " + table +
+                " WHERE tyzden=? AND obchod=? AND valid_from<=? AND ?<=valid_to",
+                (week, store, today_raw, today_raw),
+            ).fetchone()[0]
+            if int(count or 0) < 20 or int(count) != int(declared):
+                raise SystemExit(1)
+
+with open(landing_path, encoding="utf-8") as handle:
+    landing = json.load(handle)
+validate_landing_data(landing, today, required_offer_data_version=2)
+meals = landing.get("receipt", {}).get("meals")
+if not isinstance(meals, list) or len(meals) != 3:
+    raise SystemExit(1)
+source_stores = {
+    source.get("store") for source in landing.get("sources", [])
+    if isinstance(source, dict)
+}
+if source_stores != set(stores):
+    raise SystemExit(1)
+' "$UVARSI_DB" "$UVARSI_LANDING_DATA" "$today" >/dev/null 2>&1
+  )
+}
+
+_uvarsi_require_runtime_health() {
+  "$UVARSI_SYSTEMCTL" is-active --quiet uvarsi || return 1
+  "$UVARSI_SYSTEMCTL" is-active --quiet uvarsi-plan-worker || return 1
+  [ -x "$UVARSI_SUPERVISOR" ] || return 1
+  today=$(_uvarsi_today) || return 1
+  if [ -s "$UVARSI_SUPERVISOR_STATE" ]; then
+    read -r failed_day _rest < "$UVARSI_SUPERVISOR_STATE" || return 1
+    [ "$failed_day" != "$today" ] || return 1
+  fi
+  [ ! -s "$UVARSI_COLLECTION_FAILURE_STATE" ] || return 1
+
+  health=$(mktemp "${TMPDIR:-/tmp}/uvarsi-health.XXXXXX") || return 1
+  chmod 600 "$health" || { rm -f "$health"; return 1; }
+  if ! "$UVARSI_CURL" --silent --show-error --fail --max-time 5 \
+      --output "$health" "$UVARSI_HEALTH_URL" >/dev/null 2>&1; then
+    rm -f "$health"
+    return 1
+  fi
+  if ! "$UVARSI_HEALTH_PY" -c '
+import json, sys
+try:
+    with open(sys.argv[1], encoding="utf-8") as handle:
+        payload = json.load(handle)
+    queue = payload["plan_queue"]
+    engine = payload["recipe_engine"]
+except (KeyError, TypeError, ValueError, OSError, json.JSONDecodeError):
+    raise SystemExit(1)
+heartbeat = queue.get("heartbeat_seconds")
+if (
+    queue.get("worker_alive") is not True
+    or not isinstance(heartbeat, int) or isinstance(heartbeat, bool)
+    or heartbeat < 0 or heartbeat > 60
+    or engine.get("payments_enabled") is not False
+):
+    raise SystemExit(1)
+' "$health" >/dev/null 2>&1; then
+    rm -f "$health"
+    return 1
+  fi
+  rm -f "$health" || return 1
+  "$UVARSI_CURL" --silent --show-error --fail --max-time 10 \
+    --output /dev/null "$UVARSI_TAKTIK_URL" >/dev/null 2>&1
+}
+
+uvarsi_require_production_readiness() {
+  # Every call is quiet: callers report stable reason codes, never response
+  # bodies, bearer headers or environment values.
+  uvarsi_require_payments_off || return 1
+  uvarsi_require_tesco_bridge || return 1
+  uvarsi_require_runtime_payments_off || return 1
+  _uvarsi_require_collection_readiness || return 1
+  _uvarsi_require_runtime_health
+}
+
+uvarsi_run_supervisor_bounded() {
+  # The collector and receipt writer stage their candidate state. Killing this
+  # wrapper on timeout therefore leaves the live DB rows and landing JSON as-is.
+  uvarsi_require_payments_off || return 1
+  uvarsi_require_tesco_bridge || return 1
+  case "$UVARSI_MAX_COLLECTION_SECONDS" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  [ "$UVARSI_MAX_COLLECTION_SECONDS" -gt 0 ] || return 1
+  [ "$UVARSI_MAX_COLLECTION_SECONDS" -le 14400 ] || return 1
+  [ -x "$UVARSI_SUPERVISOR" ] || return 1
+  if "$UVARSI_TIMEOUT" --signal=TERM --kill-after=300 \
+      "$UVARSI_MAX_COLLECTION_SECONDS" "$UVARSI_SUPERVISOR"; then
+    result=0
+  else
+    result=$?
+  fi
+  uvarsi_require_payments_off || return 1
+  return "$result"
+}
 
 _uvarsi_exchange_directories() {
   first=$1
@@ -536,3 +816,12 @@ raise SystemExit(0 if (not before or instant(current) > instant(before)) else 1)
   done
   return 1
 }
+
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  case "${1:-}" in
+    check-bridge) uvarsi_require_tesco_bridge ;;
+    check-readiness) uvarsi_require_production_readiness ;;
+    run-supervisor) uvarsi_run_supervisor_bounded ;;
+    *) exit 64 ;;
+  esac
+fi

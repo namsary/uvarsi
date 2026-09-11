@@ -35,6 +35,7 @@ Odtiaľ štvrtá vrstva:
 import datetime
 import math
 import os
+import re
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -92,6 +93,9 @@ PRAHY_UPOZORNENIA = (50, 80)
 # za hodinu. Keď majiteľ dobije účet, systém sa tak rozbehne sám; dovtedy sa
 # paralelné požiadavky nedostanú k providerovi a nezaplnia log.
 CREDIT_RETRY_SECONDS = 60 * 60
+# Podpísané Tesco media tokeny platia 24 hodín. Jeden zber vrátane zostavenia
+# bločku preto musí mať podstatne kratší, neprekročiteľný procesný limit.
+MAX_TRVANIE_ZBERU_SEKUND = 4 * 60 * 60
 
 # ---------------------------------------------------------------- východzie stropy
 # PREKALIBROVANÉ 24. 8. 2026. Predošlé čísla (denný 1,50 €, mesačný 8,00 €,
@@ -194,6 +198,44 @@ SPRAVA_KREDIT_NTFY = (
     "Nič sa neúčtovalo (odmietnuté volania nespotrebovali ani token) a "
     "opakované pokusy sú zastavené, aby log nezaplavili."
 )
+
+
+_TAJNE_PREMENNE = ("ANTHROPIC_API_KEY", "UVARSI_TESCO_BRIDGE_SECRET")
+_BEARER = re.compile(r"(?i)(?:authorization\s*:\s*)?bearer\s+[^\s;,]+")
+_ANTHROPIC_KEY = re.compile(r"(?i)sk-ant-[a-z0-9_-]+")
+_TELO_POSKYTOVATELA = re.compile(
+    r"(?is)(?:provider|upstream|anthropic).{0,40}(?:response|odpoveď).{0,20}(?:body|telo)"
+)
+_STRUKTUROVANE_TELO = re.compile(
+    r"(?is)(?:response[_ ]?body|telo odpovede|"
+    r"(?:error code|status code|http status|http)\s*:?\s*\d{3}\b.{0,200}[\[{])"
+)
+
+
+def bezpecny_detail(detail):
+    """Sanitize diagnostic text before it can reach DB, health, logs or CLI.
+
+    Provider response bodies are deliberately discarded wholesale. Known
+    runtime secrets and bearer headers are redacted even from otherwise local
+    diagnostics. The result is suitable only as a short reason code, never as
+    a copy of an external exception.
+    """
+    if detail is None:
+        return None
+    text = str(detail)
+    if (
+        _TELO_POSKYTOVATELA.search(text)
+        or _STRUKTUROVANE_TELO.search(text)
+        or text.lstrip().startswith(("{", "["))
+    ):
+        return "externý detail odstránený"
+    text = _BEARER.sub("citlivý údaj odstránený", text)
+    text = _ANTHROPIC_KEY.sub("citlivý údaj odstránený", text)
+    for name in _TAJNE_PREMENNE:
+        secret = os.environ.get(name)
+        if secret:
+            text = text.replace(secret, "citlivý údaj odstránený")
+    return text[:300]
 
 
 class RozpocetVycerpany(Exception):
@@ -833,7 +875,7 @@ def zapis(con, ucel, model, usage=None, *, detail=None, teraz=None,
         (teraz.isoformat(timespec="seconds"), den, mesiac, tyzden, str(ucel),
          normalizuj_model(model), tokeny["vstup"], tokeny["vystup"],
          tokeny["cache_write"], tokeny["cache_read"], eur, je_odhad,
-         None if detail is None else str(detail)[:300]),
+         bezpecny_detail(detail)),
     )
     con.commit()
     _upozorni_ak_treba(con, mesiac, notifikuj)
@@ -1006,7 +1048,10 @@ def stav(con, teraz=None, limit_poslednych=5) -> dict:
                 "limit": limit,
             }
     except (RozpocetVycerpany, sqlite3.Error, OSError) as chyba:
-        return {**zaklad, "chyba": f"{type(chyba).__name__}: {chyba}"[:200]}
+        return {
+            **zaklad,
+            "chyba": bezpecny_detail(f"{type(chyba).__name__}: {chyba}")[:200],
+        }
 
     return {
         **zaklad,
@@ -1071,7 +1116,8 @@ def oprav_kredit(con, *, teraz=None, tyzden=None, vykonaj=False) -> dict:
         "vratene_behy": {},
         "riadky": [
             {"id": r["id"], "cas": r["cas"], "ucel": r["ucel"],
-             "eur": round(float(r["eur"]), 6), "detail": r["detail"]}
+             "eur": round(float(r["eur"]), 6),
+             "detail": bezpecny_detail(r["detail"])}
             for r in kandidati
         ],
     }

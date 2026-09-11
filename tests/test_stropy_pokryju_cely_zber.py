@@ -104,3 +104,7 @@ def test_rozsah_citania_sa_nezmenil_bez_prepoctu_stropov(premenna):
 def test_pocet_behov_zberu_ostava_obmedzeny():
     """Tretí pokus obnoví zber, no slučka zostáva tvrdo obmedzená."""
     assert naklady.VYCHODZI_LIMIT_BEHOV.get("zber_letakov", 0) == 3
+
+
+def test_jeden_zber_ma_tvrdý_strop_styri_hodiny():
+    assert naklady.MAX_TRVANIE_ZBERU_SEKUND == 4 * 60 * 60

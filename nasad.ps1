@@ -65,7 +65,7 @@ if [ ! -f "$F" ]; then
   exit 1
 fi
 CHYBA=0
-for k in ANTHROPIC_API_KEY RESEND_API_KEY; do
+for k in ANTHROPIC_API_KEY RESEND_API_KEY UVARSI_ENV UVARSI_TESCO_BRIDGE_URL UVARSI_TESCO_BRIDGE_SECRET; do
   if grep -Eq "^[[:space:]]*(export[[:space:]]+)?${k}=[^[:space:]]" "$F"; then
     echo "  $k: pritomny"
   else
@@ -76,8 +76,8 @@ done
 exit $CHYBA
 '@ -replace "`r`n", "`n"
 $envCheck | ssh jarvis "tr -d '\r' > /tmp/uvarsi_env_check.sh; bash /tmp/uvarsi_env_check.sh"
-Vyzaduj "uvarsi.env na serveri chyba alebo v nom nie su oba kluce"
-Ok "env ma oba kluce"
+Vyzaduj "uvarsi.env na serveri chyba alebo v nom nie su vsetky povinne kluce"
+Ok "env ma vsetky povinne kluce (hodnoty neboli vypisane)"
 
 Krok "3/8  Nahravam subory"
 $svc = @'
@@ -266,6 +266,15 @@ $paymentOffGate | ssh jarvis "tr -d '\r' > /tmp/uvarsi_payment_off_gate.sh; bash
 Vyzaduj "platby nie su vypnute v env subore aj v skutocne beziacom procese"
 Ok "platby su pred zmenou zivej appky vypnute"
 
+$bridgePreflight = @'
+set -eu
+. /opt/uvarsi/releases/manual-stage/hetzner/uvarsi-deploy-state.sh
+uvarsi_require_tesco_bridge
+'@ -replace "`r`n", "`n"
+$bridgePreflight | ssh jarvis "tr -d '\r' > /tmp/uvarsi_bridge_preflight.sh; bash /tmp/uvarsi_bridge_preflight.sh"
+Vyzaduj "produkcia nema platnu a dostupnu konfiguraciu Tesco bridge"
+Ok "Tesco bridge presiel autentifikovanym preflightom bez vypisu odpovede"
+
 ssh jarvis "set -eu; if [ ! -f /opt/uvarsi/uvarsi-recipe-engine.env ]; then umask 077; printf 'UVARSI_RECIPE_ENGINE=off\n' > /opt/uvarsi/uvarsi-recipe-engine.env.tmp; chmod 600 /opt/uvarsi/uvarsi-recipe-engine.env.tmp; mv /opt/uvarsi/uvarsi-recipe-engine.env.tmp /opt/uvarsi/uvarsi-recipe-engine.env; fi"
 Vyzaduj "inicializacia receptoveho flagu zlyhala"
 
@@ -437,7 +446,9 @@ Krok "7/8  Prevadzkové kontroly bez zmeny crontabu"
 # serveri (taktik-mapa) ostavaju nedotknute.
 $cron = @'
 set -eu
-RIADOK='0 5-21 * * * /opt/uvarsi/dozorca.sh >> /var/log/uvarsi.log 2>&1'
+# Priamy riadok ostáva iba ako zhoda s dokumentáciou starších inštalácií:
+# 0 5-21 * * * /opt/uvarsi/dozorca.sh >> /var/log/uvarsi.log 2>&1
+RIADOK='0 5-21 * * * /opt/uvarsi/uvarsi-deploy-state.sh run-supervisor >> /var/log/uvarsi.log 2>&1'
 RIADOK_ZALOHA='30 3 * * * /opt/uvarsi/zaloha.sh >> /var/log/uvarsi-zaloha.log 2>&1'
 RIADOK_PLATBY='5 * * * * cd /opt/uvarsi/app && /opt/uvarsi/venv/bin/python rekonciliacia.py >> /var/log/uvarsi-platby.log 2>&1'
 touch /var/log/uvarsi.log /var/log/uvarsi-zaloha.log /var/log/uvarsi-platby.log
@@ -547,6 +558,7 @@ skontroluj https://uvar.si/reklamacie "reklamacie"
 skontroluj https://uvar.si/pravne/vop.txt "VOP text"
 skontroluj https://uvar.si/robots.txt "robots.txt"
 skontroluj https://uvar.si/sitemap.xml "sitemap.xml"
+skontroluj https://mapa.89.167.72.159.sslip.io/ "Taktik-mapa"
 
 hlavicka_musi_obsahovat() {
   URL="$1"
@@ -585,6 +597,7 @@ HEALTH=$(curl -s https://uvar.si/api/health || true)
 . /opt/uvarsi/uvarsi-deploy-state.sh || zle "bezpecnostny deploy modul sa neda nacitat"
 uvarsi_require_payments_off || zle "platby nie su po nasadeni vypnute v env subore"
 uvarsi_require_runtime_payments_off || zle "beziaci proces ma po nasadeni platby zapnute"
+uvarsi_require_production_readiness || zle "produkčna brana Tesco/dat/bločka/služieb neprešla"
 
 POCET=$(printf '%s' "$HEALTH" | /opt/uvarsi/venv/bin/python -c 'import json,sys; print(int(json.load(sys.stdin).get("pocet", 0)))' 2>/dev/null || echo 0)
 echo "akcie: ${POCET:-0} (prah $PRAH)"

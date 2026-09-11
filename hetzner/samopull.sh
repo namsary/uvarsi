@@ -157,6 +157,11 @@ uvarsi_require_payments_off || {
   notify "Uvar.si: vydanie odmietnuté" "Pred nasadením musia byť platby vypnuté."
   exit 1
 }
+uvarsi_require_tesco_bridge || {
+  log "Tesco bridge nie je bezpečne nakonfigurovaný alebo dostupný — NEPREPÍNAM"
+  notify "Uvar.si: vydanie odmietnuté" "Produkčný Tesco bridge neprešiel bezpečnou kontrolou."
+  exit 1
+}
 uvarsi_require_runtime_payments_off || {
   log "bežiaca appka nemá platby jednoznačne vypnuté — NEPREPÍNAM"
   notify "Uvar.si: vydanie odmietnuté" "Živý proces musí mať pred nasadením platby vypnuté."
@@ -223,7 +228,8 @@ PRED_HEARTBEAT=$(cat "$PRED/heartbeat.before" 2>/dev/null || true)
 if [ "$LIVE_MUTATION" -eq 1 ] && zdravie && \
     uvarsi_require_runtime_payments_off && spusti_worker && \
     uvarsi_wait_fresh_heartbeat "$PRED_HEARTBEAT" && \
-    uvarsi_require_payments_off && uvarsi_require_runtime_payments_off; then
+    uvarsi_require_payments_off && uvarsi_require_runtime_payments_off && \
+    uvarsi_require_production_readiness; then
   echo "$SHA" > "$STAV"
   # samopull sa aktualizuje až po úspechu, aby sa nezmenil pod vlastnými nohami
   [ -f "$DIR/samopull.sh.novy" ] && mv "$DIR/samopull.sh.novy" "$DIR/samopull.sh" && chmod +x "$DIR/samopull.sh"
@@ -231,8 +237,8 @@ if [ "$LIVE_MUTATION" -eq 1 ] && zdravie && \
   log "OK — nasadené vydanie $VER ($SHA)"
   # Nečakáme na najbližšiu celú hodinu. Dozorca má vlastný flock, takže sa
   # bezpečne ukončí, ak už práve beží iný zber.
-  nohup "$DIR/dozorca.sh" >> /var/log/uvarsi.log 2>&1 &
-  log "dozorca spustený na pozadí po nasadení"
+  nohup "$DIR/uvarsi-deploy-state.sh" run-supervisor >> /var/log/uvarsi.log 2>&1 &
+  log "dozorca spustený na pozadí s tvrdým štvorhodinovým limitom"
   UVARSI_NOTIFY_URL="https://ntfy.sh/$NTFY" nohup "$DIR/recipe-engine-rollout.sh" >> /var/log/uvarsi-recipe-rollout.log 2>&1 &
   log "autonómny receptový rollout spustený na pozadí"
   notify "Uvar.si nasadené" "Vydanie $VER je živé. Appka odpovedá."
