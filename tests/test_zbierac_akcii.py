@@ -249,6 +249,7 @@ def test_official_tesco_reads_complete_current_hypermarket_flyer(monkeypatch):
     assert pages[0][1].endswith("HM-CHM.1.jpeg")
     assert pages[-1][1].endswith("HM-CHM.46.jpeg")
     assert manifest["collector_kind"] == "official-tesco-viewer"
+    assert manifest["source_identity"] == "tesco-leaflet:691"
     assert manifest["valid_from"] == "2026-08-17"
     assert manifest["valid_to"] == "2026-08-23"
     assert manifest["declared_pages"] == 46
@@ -482,6 +483,34 @@ def test_official_tesco_downloads_each_bridge_page_once_and_resizes_locally(
         call["headers"]["Authorization"] == f"Bearer {secret}"
         for _url, call in downloads
     )
+
+
+def test_tesco_bridge_fingerprints_actual_page_bytes_before_paid_ai(monkeypatch):
+    monkeypatch.setenv("UVARSI_TESCO_BRIDGE_URL", "https://tesco-bridge.example")
+    monkeypatch.setenv("UVARSI_TESCO_BRIDGE_SECRET", "media-bridge-secret")
+    monkeypatch.setattr(collector, "business_day", lambda: TODAY)
+    leaflet = _bridge_tesco_leaflet(page_count=8)
+    monkeypatch.setattr(
+        collector.requests,
+        "post",
+        lambda _url, **_kwargs: _json_response({"leaflet": leaflet}),
+    )
+    content = {"revision": b"first"}
+
+    def get(url, **_kwargs):
+        page = url.rsplit("-", 1)[-1].encode("ascii")
+        return types.SimpleNamespace(
+            status_code=200, content=content["revision"] + b":" + page
+        )
+
+    monkeypatch.setattr(collector.requests, "get", get)
+
+    first = collector.prepare_store_collection("tesco")
+    content["revision"] = b"corrected"
+    second = collector.prepare_store_collection("tesco")
+
+    assert first.manifest["source_identity"].startswith("page-content-sha256:")
+    assert first.provenance.source_fingerprint != second.provenance.source_fingerprint
 
 
 def test_official_tesco_cleans_staged_pages_when_scan_fails(monkeypatch, tmp_path):
@@ -2082,6 +2111,7 @@ def prepared_collection(store):
     manifest = {
         "source_url": offer["source_url"],
         "collector_kind": kind,
+        "source_identity": f"test-manifest:{store}:2026-08-17",
         "valid_from": "2026-08-17",
         "valid_to": "2026-08-23",
         "declared_pages": len(pages),
@@ -2732,7 +2762,215 @@ def test_structural_failure_is_suppressed_only_for_unchanged_manifest():
     ).fetchone()) == (None, None)
 
 
-def test_bootstrap_current_verified_active_store_upgrades_legacy_fingerprint_without_ai(
+def test_structural_failure_is_retried_after_source_policy_approval(monkeypatch):
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(collector.SCHEMA)
+    collector.migrate_offer_staging_schema(con)
+    provenance = prepared_collection("lidl").provenance
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: False)
+    pending_identity = collector.structural_failure_identity("Lidl", provenance)
+    collector.record_stage_failure(
+        con,
+        "2026-08-17",
+        "Lidl",
+        "zdroj čaká na schválenie",
+        attempted_provenance=provenance,
+        failure_identity=pending_identity,
+        structural=True,
+    )
+
+    assert collector.unchanged_structural_failure(
+        con,
+        "2026-08-17",
+        "Lidl",
+        provenance.source_fingerprint,
+        failure_identity=pending_identity,
+    ) is True
+
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    approved_identity = collector.structural_failure_identity("Lidl", provenance)
+    assert approved_identity != pending_identity
+    assert collector.unchanged_structural_failure(
+        con,
+        "2026-08-17",
+        "Lidl",
+        provenance.source_fingerprint,
+        failure_identity=approved_identity,
+    ) is False
+
+
+def test_main_retries_same_manifest_immediately_after_policy_approval(
+    monkeypatch, tmp_path,
+):
+    database = tmp_path / "uvarsi.db"
+    approved = {"value": False}
+    calls = []
+    monkeypatch.setattr(collector, "DB", str(database))
+    monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    monkeypatch.setattr(collector, "business_day", lambda: date(2026, 8, 19))
+    monkeypatch.setattr(collector, "STORES", ["lidl"])
+    monkeypatch.setattr(collector, "prepare_store_collection", prepared_collection)
+    monkeypatch.setattr(
+        collector.source_policy,
+        "approved_source",
+        lambda *_args: approved["value"],
+    )
+
+    with pytest.raises(SystemExit, match="lidl"):
+        collector.main(["lidl"])
+
+    approved["value"] = True
+    monkeypatch.setattr(collector, "load_key", lambda: "unused-test-value")
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        types.SimpleNamespace(Anthropic=lambda **_kwargs: object()),
+    )
+
+    def collect(_client, store, prepared=None):
+        calls.append(store)
+        return [valid_offer(store, index) for index in range(1, 21)]
+
+    monkeypatch.setattr(collector, "zbieraj", collect)
+    collector.main(["lidl"])
+
+    assert calls == ["lidl"]
+
+
+def test_official_manifest_ids_change_fingerprint_even_when_page_urls_stay_same(
+    monkeypatch,
+):
+    overview = (
+        '<a href="https://www.lidl.sk/l/sk/letak/'
+        'online-letak-platny-od-17-08-2026/ar/1">Leták</a>'
+    )
+    payload = _official_lidl_payload(page_count=8)
+
+    def get(url, **_kwargs):
+        if url == collector.LIDL_OVERVIEW_URL:
+            return types.SimpleNamespace(text=overview)
+        return _json_response(payload)
+
+    monkeypatch.setattr(collector.requests, "get", get)
+    _pages, first = collector.official_lidl_pages(today=TODAY)
+    payload["flyer"]["id"] = "01b-corrected-current-flyer"
+    _pages, second = collector.official_lidl_pages(today=TODAY)
+
+    assert first["source_identity"] == "lidl-flyer:01a-test-current-flyer"
+    assert second["source_identity"] == "lidl-flyer:01b-corrected-current-flyer"
+    assert collector.manifest_fingerprint(first) != collector.manifest_fingerprint(second)
+
+
+def test_manifest_validation_failure_carries_a_safe_attempted_fingerprint(monkeypatch):
+    prepared = prepared_collection("lidl")
+    broken = json.loads(json.dumps(prepared.manifest))
+    broken["pages"][0]["source_page"] = 2
+    monkeypatch.setattr(
+        collector, "store_pages", lambda _store: (prepared.pages, broken)
+    )
+
+    with pytest.raises(collector.ManifestPreparationError) as failure:
+        collector.prepare_store_collection("lidl")
+
+    attempted = failure.value.attempted_provenance
+    assert attempted.collector_kind == "official-lidl-viewer"
+    assert re.fullmatch(r"[0-9a-f]{64}", attempted.source_fingerprint)
+
+
+def test_main_persists_attempted_fingerprint_from_manifest_preparation_failure(
+    monkeypatch, tmp_path,
+):
+    database = tmp_path / "uvarsi.db"
+    attempted = prepared_collection("lidl").provenance
+    monkeypatch.setattr(collector, "DB", str(database))
+    monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    monkeypatch.setattr(collector, "business_day", lambda: date(2026, 8, 19))
+    monkeypatch.setattr(collector, "STORES", ["lidl"])
+    monkeypatch.setattr(
+        collector,
+        "prepare_store_collection",
+        lambda _store: (_ for _ in ()).throw(
+            collector.ManifestPreparationError("broken manifest", attempted)
+        ),
+    )
+
+    with pytest.raises(SystemExit, match="lidl"):
+        collector.main(["lidl"])
+
+    con = sqlite3.connect(database)
+    row = con.execute(
+        "SELECT attempted_fingerprint,failure_identity "
+        "FROM zber_staging_stav WHERE obchod='Lidl'"
+    ).fetchone()
+    con.close()
+    assert row[0] == attempted.source_fingerprint
+    assert re.fullmatch(r"[0-9a-f]{64}", row[1])
+
+
+def test_main_bootstraps_exact_official_kaufland_without_aggregator_discovery_or_ai(
+    monkeypatch, tmp_path,
+):
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setattr(collector, "DB", str(database))
+    monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    monkeypatch.setattr(collector, "business_day", lambda: date(2026, 8, 19))
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    offers = [valid_offer("kaufland", index) for index in range(1, 21)]
+    con = collector.db()
+    replace_store_week(con, "2026-08-17", "Kaufland", offers)
+    collector.record_store_outcome(
+        con, "2026-08-17", "Kaufland", "ok", 20, offers=offers
+    )
+    con.commit()
+    con.close()
+
+
+def test_main_reuses_exact_official_kaufland_stage_without_discovery_or_ai(
+    monkeypatch, tmp_path,
+):
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setattr(collector, "DB", str(database))
+    monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    monkeypatch.setattr(collector, "business_day", lambda: date(2026, 8, 19))
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    offers = [valid_offer("kaufland", index) for index in range(1, 21)]
+    con = collector.db()
+    collector.stage_store_collection(con, "2026-08-17", "Kaufland", offers)
+    con.close()
+    monkeypatch.setattr(
+        collector,
+        "prepare_store_collection",
+        lambda _store: pytest.fail("presný Kaufland staging nepotrebuje discovery"),
+    )
+    monkeypatch.setattr(
+        collector,
+        "load_key",
+        lambda: pytest.fail("presný Kaufland staging nesmie volať Anthropic"),
+    )
+
+    collector.main(["kaufland"])
+    monkeypatch.setattr(
+        collector,
+        "prepare_store_collection",
+        lambda _store: pytest.fail("overený Kaufland nesmie ísť cez agregátor"),
+    )
+    monkeypatch.setattr(
+        collector,
+        "load_key",
+        lambda: pytest.fail("overený Kaufland nesmie volať Anthropic"),
+    )
+
+    collector.main(["kaufland"])
+
+    con = sqlite3.connect(database)
+    assert con.execute(
+        "SELECT COUNT(*) FROM akcie_staging WHERE obchod='Kaufland'"
+    ).fetchone()[0] == 20
+    con.close()
+
+
+def test_bootstrap_refuses_to_relabel_legacy_url_fingerprint_as_current_manifest(
     monkeypatch,
 ):
     monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
@@ -2760,11 +2998,8 @@ def test_bootstrap_current_verified_active_store_upgrades_legacy_fingerprint_wit
         "Lidl",
         today=date(2026, 8, 19),
         expected_provenance=expected,
-    ) is True
-    assert con.execute("SELECT COUNT(*) FROM akcie_staging").fetchone()[0] == 20
-    assert con.execute(
-        "SELECT source_fingerprint FROM zber_staging_stav"
-    ).fetchone()[0] == "c" * 64
+    ) is False
+    assert con.execute("SELECT COUNT(*) FROM akcie_staging").fetchone()[0] == 0
 
 
 def test_main_claims_store_before_entering_paid_collection(monkeypatch, tmp_path):
@@ -2783,6 +3018,33 @@ def test_main_claims_store_before_entering_paid_collection(monkeypatch, tmp_path
 
     monkeypatch.setattr(collector, "zbieraj", assert_claimed)
     collector.main(["lidl"])
+
+
+def test_main_claims_each_store_only_immediately_before_its_paid_collection(
+    monkeypatch, tmp_path,
+):
+    database = run_main_over_stores(
+        monkeypatch, tmp_path, {"tesco": True, "lidl": True}
+    )
+    calls = []
+
+    def assert_only_current_store_is_claimed(_client, store, prepared=None):
+        con = sqlite3.connect(database)
+        claimed = [
+            row[0] for row in con.execute(
+                "SELECT obchod FROM zber_claim ORDER BY obchod"
+            ).fetchall()
+        ]
+        con.close()
+        assert claimed == [store.capitalize()]
+        calls.append(store)
+        return [valid_offer(store, index) for index in range(1, 21)]
+
+    monkeypatch.setattr(collector, "zbieraj", assert_only_current_store_is_claimed)
+
+    collector.main(["tesco", "lidl"])
+
+    assert calls == ["tesco", "lidl"]
 
 
 def test_unchanged_structural_manifest_skips_another_paid_read(monkeypatch, tmp_path):
@@ -2827,11 +3089,13 @@ def test_bootstrapped_active_store_is_reused_by_main_without_anthropic(
     con = collector.db()
     replace_store_week(con, "2026-08-17", "Lidl", offers)
     collector.record_store_outcome(
-        con, "2026-08-17", "Lidl", "ok", 20, offers=offers
-    )
-    con.execute(
-        "UPDATE zber_stav SET source_fingerprint=? WHERE obchod='Lidl'",
-        (collector.source_policy.source_fingerprint(offers[0]["source_url"]),),
+        con,
+        "2026-08-17",
+        "Lidl",
+        "ok",
+        20,
+        offers=offers,
+        provenance=prepared_collection("lidl").provenance,
     )
     con.commit()
     con.close()

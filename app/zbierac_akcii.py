@@ -111,6 +111,7 @@ KAUFLAND_OFFERS_URL = (
 )
 COLLECTION_DATA_VERSION = CURRENT_COLLECTION_DATA_VERSION
 COLLECTION_LEASE_SECONDS = 30 * 60
+COLLECTION_POLICY_RELEASE = "task3a-fix2-2026-09-11"
 OFFICIAL_COLLECTOR_BY_STORE = {
     "Kaufland": "official-kaufland-offers",
     "Tesco": "official-tesco-viewer",
@@ -132,6 +133,15 @@ class PreparedCollection:
     manifest: dict
     page_manifest: dict
     provenance: CollectionProvenance
+    page_bytes: dict | None = None
+
+
+class ManifestPreparationError(ValueError):
+    """A free manifest failed validation, with safe identity when available."""
+
+    def __init__(self, message, attempted_provenance=None):
+        super().__init__(message)
+        self.attempted_provenance = attempted_provenance
 
 
 def log(*a):
@@ -208,6 +218,7 @@ CREATE TABLE IF NOT EXISTS zber_staging_stav (
   attempted_valid_from TEXT,
   attempted_valid_to TEXT,
   failure_kind TEXT,
+  failure_identity TEXT,
   updated TEXT DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (tyzden, obchod)
 );
@@ -249,6 +260,7 @@ def db():
         "attempted_valid_from",
         "attempted_valid_to",
         "failure_kind",
+        "failure_identity",
     ):
         if name not in staging_columns:
             con.execute(f"ALTER TABLE zber_staging_stav ADD COLUMN {name} TEXT")
@@ -298,6 +310,8 @@ def manifest_fingerprint(manifest):
     identity = {
         "source_url": manifest.get("source_url"),
         "collector_kind": manifest.get("collector_kind"),
+        "source_identity": manifest.get("source_identity"),
+        "attempt_state": manifest.get("attempt_state"),
         "valid_from": manifest.get("valid_from"),
         "valid_to": manifest.get("valid_to"),
         "declared_pages": manifest.get("declared_pages", len(canonical_pages)),
@@ -325,6 +339,23 @@ def _approved_official_source(store, collector_kind):
         OFFICIAL_COLLECTOR_BY_STORE.get(str(store).capitalize()) == collector_kind
         and source_policy.approved_source(store, collector_kind)
     )
+
+
+def structural_failure_identity(store, provenance, *, release=COLLECTION_POLICY_RELEASE):
+    """Identify bytes plus the policy/release decision that rejected them."""
+    if not isinstance(provenance, CollectionProvenance):
+        raise ValueError("structural failure identity requires provenance")
+    payload = {
+        "store": str(store).strip().capitalize(),
+        "collector_kind": provenance.collector_kind,
+        "source_fingerprint": provenance.source_fingerprint,
+        "approved": _approved_official_source(store, provenance.collector_kind),
+        "data_version": COLLECTION_DATA_VERSION,
+        "release": release,
+    }
+    return hashlib.sha256(json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")).hexdigest()
 
 
 # ---------------------------------------------------------------- zdroje strán
@@ -457,6 +488,12 @@ def official_lidl_pages(today=None):
         raise ValueError("oficiálny endpoint vrátil leták pre inú krajinu")
     if flyer.get("isActive") is not True or flyer.get("status") != "current":
         raise ValueError("oficiálny endpoint neoznačil leták ako aktuálny")
+    flyer_id = flyer.get("id")
+    if (
+        not isinstance(flyer_id, str)
+        or not re.fullmatch(r"[A-Za-z0-9._-]{1,200}", flyer_id)
+    ):
+        raise ValueError("oficiálny leták nemá pevnú identitu obsahu")
 
     raw_from = flyer.get("offerStartDate")
     raw_to = flyer.get("offerEndDate")
@@ -498,6 +535,7 @@ def official_lidl_pages(today=None):
     manifest = {
         "source_url": source_url,
         "collector_kind": "official-lidl-viewer",
+        "source_identity": f"lidl-flyer:{flyer_id}",
         "valid_from": valid_from,
         "valid_to": valid_to,
         "declared_pages": len(normalized),
@@ -659,6 +697,12 @@ def _canonical_tesco_candidate(value, leaflet_format, bridge_url=None):
         source_url = value.get("source_url")
         declared_pages = value.get("declared_pages")
         raw_pages = value.get("pages")
+        source_identity = value.get("source_identity")
+        if source_identity is not None and (
+            not isinstance(source_identity, str)
+            or not re.fullmatch(r"[A-Za-z0-9:._-]{1,300}", source_identity)
+        ):
+            raise ValueError("Tesco bridge vrátil neplatnú identitu obsahu")
         if not isinstance(raw_pages, list):
             raise ValueError("Tesco kandidát nemá manifest strán")
         pages = []
@@ -678,6 +722,14 @@ def _canonical_tesco_candidate(value, leaflet_format, bridge_url=None):
         candidate_format = value.get("type")
         slug = value.get("slug")
         raw_from, raw_to = value.get("validFrom"), value.get("validTo")
+        leaflet_id = value.get("id")
+        if (
+            isinstance(leaflet_id, bool)
+            or not isinstance(leaflet_id, (int, str))
+            or not re.fullmatch(r"[A-Za-z0-9._-]{1,200}", str(leaflet_id))
+        ):
+            raise ValueError("Tesco kandidát nemá pevnú identitu obsahu")
+        source_identity = f"tesco-leaflet:{leaflet_id}"
         if not _safe_tesco_media_url(value.get("leafletUrl"), ".pdf"):
             raise ValueError("Tesco kandidát nemá dôveryhodný PDF súbor")
         segment = "hypermarkety" if candidate_format == "HM" else "supermarkety"
@@ -733,6 +785,7 @@ def _canonical_tesco_candidate(value, leaflet_format, bridge_url=None):
         "valid_from": valid_from,
         "valid_to": valid_to,
         "source_url": source_url,
+        "source_identity": source_identity,
         "pages": pages,
     }
 
@@ -785,6 +838,7 @@ def official_tesco_pages(today=None, leaflet_format="HM"):
     manifest = {
         "source_url": flyer["source_url"],
         "collector_kind": "official-tesco-viewer",
+        "source_identity": flyer.get("source_identity"),
         "valid_from": flyer["valid_from"],
         "valid_to": flyer["valid_to"],
         "declared_pages": len(pages),
@@ -1859,17 +1913,20 @@ def _collect_validated_flyer(
     return out
 
 
-def _stage_official_tesco_pages(page_manifest, directory):
+def _stage_official_tesco_pages(page_manifest, directory, page_bytes=None):
     """Download each protected page once and retain only small scans in RAM."""
     directory = Path(directory)
     scans = {}
     paths = {}
+    page_bytes = page_bytes or {}
     for source_page, page in page_manifest.items():
         # The filename is derived solely from the already validated integer page
         # number. Neither the bridge URL nor its secret token reaches the path.
         path = directory / f"tesco-page-{source_page:03d}.jpeg"
         try:
-            content = _download_official_tesco_page(page["image_url"])
+            content = page_bytes.pop(source_page, None)
+            if content is None:
+                content = _download_official_tesco_page(page["image_url"])
             if not content:
                 raise ValueError("prázdna odpoveď")
             path.write_bytes(content)
@@ -1885,17 +1942,85 @@ def _stage_official_tesco_pages(page_manifest, directory):
     return scans, paths
 
 
+def _safe_attempted_provenance(manifest, *, attempt_state=None):
+    if not isinstance(manifest, dict):
+        return None
+    candidate = json.loads(json.dumps(manifest))
+    if attempt_state is not None:
+        candidate["attempt_state"] = attempt_state
+    try:
+        return provenance_from_manifest(candidate)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _attach_exact_content_identity(store, manifest, page_manifest):
+    """Use an official opaque ID, otherwise hash every source page before AI."""
+    identity = manifest.get("source_identity")
+    if isinstance(identity, str) and identity:
+        return manifest, page_manifest, None
+    if manifest.get("collector_kind") != OFFICIAL_COLLECTOR_BY_STORE.get(store.capitalize()):
+        return manifest, page_manifest, None
+
+    enriched = json.loads(json.dumps(manifest))
+    rows = {row["source_page"]: row for row in enriched["pages"]}
+    page_bytes = {}
+    content_hashes = []
+    for source_page, page in page_manifest.items():
+        try:
+            if store == "tesco":
+                content = _download_official_tesco_page(page["image_url"])
+            else:
+                content = get_image_bytes(page["image_url"])
+        except Exception:
+            content = None
+        if not content:
+            attempted = _safe_attempted_provenance(
+                enriched,
+                attempt_state={
+                    "content_hashes": content_hashes,
+                    "failed_page": source_page,
+                    "result": "unavailable",
+                },
+            )
+            raise ManifestPreparationError(
+                f"{store}: obsah strany {source_page} sa nepodarilo overiť",
+                attempted,
+            )
+        digest = hashlib.sha256(content).hexdigest()
+        rows[source_page]["content_hash"] = digest
+        content_hashes.append([source_page, digest])
+        page_bytes[source_page] = content
+    exact = hashlib.sha256(json.dumps(
+        content_hashes, separators=(",", ":")
+    ).encode("ascii")).hexdigest()
+    enriched["source_identity"] = f"page-content-sha256:{exact}"
+    return enriched, rows, page_bytes
+
+
 def prepare_store_collection(store):
     """Resolve and validate the free source manifest before any paid AI call."""
     pages, manifest = store_pages(store)
     if not pages:
-        raise ValueError(f"{store}: leták s konečnou platnosťou nebol nájdený")
-    page_manifest = validate_flyer_manifest(pages, manifest, store=store)
+        raise ManifestPreparationError(
+            f"{store}: leták s konečnou platnosťou nebol nájdený",
+            _safe_attempted_provenance(manifest),
+        )
+    try:
+        page_manifest = validate_flyer_manifest(pages, manifest, store=store)
+    except ValueError as exc:
+        raise ManifestPreparationError(
+            str(exc), _safe_attempted_provenance(manifest)
+        ) from exc
+    manifest, page_manifest, page_bytes = _attach_exact_content_identity(
+        store, manifest, page_manifest
+    )
     return PreparedCollection(
         pages=pages,
         manifest=manifest,
         page_manifest=page_manifest,
         provenance=provenance_from_manifest(manifest),
+        page_bytes=page_bytes,
     )
 
 
@@ -1909,7 +2034,9 @@ def zbieraj(client, store, prepared=None):
         # TemporaryDirectory removes protected originals after success and after
         # every exception. Read-size images are created only for the active batch.
         with tempfile.TemporaryDirectory(prefix="uvarsi-tesco-") as directory:
-            scans, paths = _stage_official_tesco_pages(page_manifest, directory)
+            scans, paths = _stage_official_tesco_pages(
+                page_manifest, directory, prepared.page_bytes
+            )
             return _collect_validated_flyer(
                 client,
                 store,
@@ -2112,7 +2239,7 @@ def stage_store_collection(con, week, store, offers, *, owner=None, provenance=N
             """UPDATE zber_staging_stav SET
                  attempted_collector_kind=NULL,attempted_fingerprint=NULL,
                  attempted_valid_from=NULL,attempted_valid_to=NULL,
-                 failure_kind=NULL
+                 failure_kind=NULL,failure_identity=NULL
                WHERE tyzden=? AND obchod=?""",
             (week, store),
         )
@@ -2125,7 +2252,7 @@ def stage_store_collection(con, week, store, offers, *, owner=None, provenance=N
 
 def record_stage_failure(
     con, week, store, detail, *, owner=None, attempted_provenance=None,
-    structural=False,
+    structural=False, failure_identity=None,
 ):
     """Persist a failed attempt without changing active offers or active status."""
     if con.in_transaction:
@@ -2152,15 +2279,19 @@ def record_stage_failure(
                 (detail, week, store),
             )
         attempted = attempted_provenance or CollectionProvenance(None, None, None, None)
+        if structural and attempted_provenance is not None and failure_identity is None:
+            failure_identity = structural_failure_identity(store, attempted_provenance)
         con.execute(
             """UPDATE zber_staging_stav SET
                  attempted_collector_kind=?,attempted_fingerprint=?,
-                 attempted_valid_from=?,attempted_valid_to=?,failure_kind=?
+                 attempted_valid_from=?,attempted_valid_to=?,failure_kind=?,
+                 failure_identity=?
                WHERE tyzden=? AND obchod=?""",
             (
                 attempted.collector_kind, attempted.source_fingerprint,
                 attempted.valid_from, attempted.valid_to,
-                "structural" if structural else "transient", week, store,
+                "structural" if structural else "transient", failure_identity,
+                week, store,
             ),
         )
     except Exception:
@@ -2171,15 +2302,19 @@ def record_stage_failure(
         return True
 
 
-def unchanged_structural_failure(con, week, store, source_fingerprint):
+def unchanged_structural_failure(
+    con, week, store, source_fingerprint, *, failure_identity=None,
+):
     row = con.execute(
-        "SELECT failure_kind,attempted_fingerprint FROM zber_staging_stav "
+        "SELECT failure_kind,attempted_fingerprint,failure_identity "
+        "FROM zber_staging_stav "
         "WHERE tyzden=? AND obchod=?",
         (week, store),
     ).fetchone()
     if not row or row[0] != "structural":
         return False
-    if row[1] == source_fingerprint:
+    same_identity = failure_identity is None or row[2] == failure_identity
+    if row[1] == source_fingerprint and same_identity:
         return True
     if con.in_transaction:
         raise RuntimeError("failure reset requires a clean connection")
@@ -2189,10 +2324,10 @@ def unchanged_structural_failure(con, week, store, source_fingerprint):
             """UPDATE zber_staging_stav SET
                  attempted_collector_kind=NULL,attempted_fingerprint=NULL,
                  attempted_valid_from=NULL,attempted_valid_to=NULL,
-                 failure_kind=NULL
+                 failure_kind=NULL,failure_identity=NULL
                WHERE tyzden=? AND obchod=? AND failure_kind='structural'
-                 AND attempted_fingerprint<>?""",
-            (week, store, source_fingerprint),
+                 AND (attempted_fingerprint<>? OR COALESCE(failure_identity,'')<>?)""",
+            (week, store, source_fingerprint, failure_identity or ""),
         )
     except Exception:
         con.rollback()
@@ -2277,11 +2412,9 @@ def staged_store_problem(
 
 
 def bootstrap_active_store_stage(
-    con, week, store, *, today, expected_provenance,
+    con, week, store, *, today, expected_provenance=None,
 ):
     """Reuse a current verified active store without another paid read."""
-    if not _approved_official_source(store, expected_provenance.collector_kind):
-        return False
     status = con.execute(
         """SELECT stav,pocet,data_version,collector_kind,source_fingerprint,
                   valid_from,valid_to
@@ -2291,10 +2424,15 @@ def bootstrap_active_store_stage(
     if (
         status is None or status[0] != "ok"
         or int(status[2] or 0) != COLLECTION_DATA_VERSION
-        or status[3] != expected_provenance.collector_kind
-        or status[5] != expected_provenance.valid_from
-        or status[6] != expected_provenance.valid_to
+        or not _approved_official_source(store, status[3])
+        or re.fullmatch(r"[0-9a-f]{64}", status[4] or "") is None
     ):
+        return False
+    active_provenance = CollectionProvenance(status[3], status[4], status[5], status[6])
+    if expected_provenance is not None and active_provenance != expected_provenance:
+        return False
+    if expected_provenance is None and store != "Kaufland":
+        # Lidl/Tesco need the current official manifest to prove exact identity.
         return False
     try:
         valid_from = datetime.date.fromisoformat(status[5])
@@ -2323,14 +2461,16 @@ def bootstrap_active_store_stage(
     if len(source_urls) != 1:
         return False
     source_url = next(iter(source_urls))
-    try:
-        legacy_fingerprint = source_policy.source_fingerprint(source_url)
-    except ValueError:
+    if source_policy.collector_kind_for_url(source_url) != status[3]:
         return False
-    if status[4] not in {
-        legacy_fingerprint, expected_provenance.source_fingerprint
-    }:
-        return False
+    if expected_provenance is None:
+        # Kaufland's official collector fingerprints the exact normalized facts.
+        # Recompute those facts instead of relabelling old rows as new provenance.
+        try:
+            if _collection_provenance(offers).source_fingerprint != status[4]:
+                return False
+        except (TypeError, ValueError):
+            return False
 
     if con.in_transaction:
         raise RuntimeError("bootstrap requires a clean connection")
@@ -2339,7 +2479,7 @@ def bootstrap_active_store_stage(
         stage_store_week(con, week, store, offers)
         record_store_outcome(
             con, week, store, "ok", unique_count, offers=offers,
-            staging=True, provenance=expected_provenance,
+            staging=True, provenance=active_provenance,
         )
     except Exception:
         con.rollback()
@@ -2475,22 +2615,61 @@ def main(stores=None):
     stores_to_collect = []
     for store in selected_stores:
         display_store = store.capitalize()
+        if store == "kaufland" and tyz == expected_week:
+            problem = staged_store_problem(
+                con, tyz, display_store, today=today
+            )
+            if problem is None:
+                reusable_stores.append(store)
+                continue
+            if bootstrap_active_store_stage(
+                con, tyz, display_store, today=today
+            ) and staged_store_problem(
+                con, tyz, display_store, today=today
+            ) is None:
+                reusable_stores.append(store)
+                continue
         try:
             prepared = prepare_store_collection(store)
         except ValueError as exc:
+            attempted = getattr(exc, "attempted_provenance", None)
+            failure_identity = (
+                structural_failure_identity(display_store, attempted)
+                if attempted is not None else None
+            )
+            if attempted is not None and unchanged_structural_failure(
+                con,
+                tyz,
+                display_store,
+                attempted.source_fingerprint,
+                failure_identity=failure_identity,
+            ):
+                suppressed.append(store)
+                continue
             failures.append(store)
             structural_failures.append(store)
             record_stage_failure(
-                con, tyz, display_store, str(exc)[:300], structural=True
+                con,
+                tyz,
+                display_store,
+                str(exc)[:300],
+                attempted_provenance=attempted,
+                structural=True,
+                failure_identity=failure_identity,
             )
             log(f"[ERROR] {store}: vstupný manifest zlyhal ({exc})")
             continue
         prepared_by_store[store] = prepared
         provenance = prepared.provenance
+        failure_identity = structural_failure_identity(display_store, provenance)
 
         if not _approved_official_source(display_store, provenance.collector_kind):
             if unchanged_structural_failure(
-                con, tyz, display_store, provenance.source_fingerprint
+                con,
+                tyz,
+                display_store,
+                provenance.source_fingerprint,
+                failure_identity=failure_identity,
             ):
                 suppressed.append(store)
                 continue
@@ -2501,6 +2680,7 @@ def main(stores=None):
                 "aktuálny manifest nemá schválený oficiálny zdroj",
                 attempted_provenance=provenance,
                 structural=True,
+                failure_identity=failure_identity,
             )
             failures.append(store)
             structural_failures.append(store)
@@ -2533,7 +2713,11 @@ def main(stores=None):
                 reusable_stores.append(store)
                 continue
             if unchanged_structural_failure(
-                con, tyz, display_store, provenance.source_fingerprint
+                con,
+                tyz,
+                display_store,
+                provenance.source_fingerprint,
+                failure_identity=failure_identity,
             ):
                 suppressed.append(store)
                 continue
@@ -2596,36 +2780,6 @@ def main(stores=None):
         raise SystemExit(f"Zber odkladám — {odmietnutie}") from None
 
     run_owner = secrets.token_hex(16)
-    claimed_stores = []
-    for store in stores_to_collect:
-        if claim_store_collection(
-            con,
-            tyz,
-            store.capitalize(),
-            run_owner,
-            prepared_by_store[store].provenance.source_fingerprint,
-        ):
-            claimed_stores.append(store)
-        else:
-            busy.append(store)
-    stores_to_collect = claimed_stores
-    if not stores_to_collect:
-        con.close()
-        log("[SUMMARY] " + json.dumps({
-            "tyzden": tyz,
-            "ok": [],
-            "fail": failures,
-            "structural_fail": structural_failures,
-            "akcie": 0,
-            "staged_ok": reusable_stores,
-            "reused": reusable_stores,
-            "suppressed": suppressed,
-            "busy": busy,
-            "promotion": "waiting_receipt",
-            "active_akcie": 0,
-        }, ensure_ascii=False, sort_keys=True))
-        return
-
     import anthropic
 
     # Vision beh je najdrahšia operácia v celej appke (~0,37 € za obchod). Miesto
@@ -2637,17 +2791,8 @@ def main(stores=None):
             api_key=load_key(), timeout=180.0, max_retries=1
         )
     except BaseException:
-        for store in stores_to_collect:
-            release_store_claim(con, tyz, store.capitalize(), run_owner)
         con.close()
         raise
-    try:
-        naklady.rezervuj_beh(con, budget_purpose)
-    except naklady.RozpocetVycerpany as odmietnutie:
-        for store in stores_to_collect:
-            release_store_claim(con, tyz, store.capitalize(), run_owner)
-        con.close()
-        raise SystemExit(f"Zber nespúšťam — {odmietnutie}")
     # Cez strážený klient sa nedá zavolať model bez zaúčtovania a bez stropu.
     client = guarded_client(
         con,
@@ -2655,11 +2800,30 @@ def main(stores=None):
         budget_purpose,
     )
     total, collected = 0, []
-    held_claims = set(stores_to_collect)
+    held_claims = set()
+    run_reserved = False
     try:
         for store in stores_to_collect:
+            prepared = prepared_by_store[store]
+            if not claim_store_collection(
+                con,
+                tyz,
+                store.capitalize(),
+                run_owner,
+                prepared.provenance.source_fingerprint,
+            ):
+                busy.append(store)
+                continue
+            held_claims.add(store)
+            if not run_reserved:
+                try:
+                    naklady.rezervuj_beh(con, budget_purpose)
+                except naklady.RozpocetVycerpany as odmietnutie:
+                    release_store_claim(con, tyz, store.capitalize(), run_owner)
+                    held_claims.remove(store)
+                    raise SystemExit(f"Zber nespúšťam — {odmietnutie}")
+                run_reserved = True
             try:
-                prepared = prepared_by_store[store]
                 akcie = zbieraj(client, store, prepared)
                 stage_store_collection(
                     con,
@@ -2690,6 +2854,9 @@ def main(stores=None):
                     owner=run_owner,
                     attempted_provenance=prepared_by_store[store].provenance,
                     structural=True,
+                    failure_identity=structural_failure_identity(
+                        store.capitalize(), prepared_by_store[store].provenance
+                    ),
                 )
                 log(f"[ERROR] {store}: zber zlyhal ({exc})")
                 continue
