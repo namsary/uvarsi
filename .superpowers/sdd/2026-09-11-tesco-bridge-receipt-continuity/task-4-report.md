@@ -387,3 +387,63 @@ so this round leaves them untouched.
 Production rollout still requires the operator to deploy the reviewed Worker,
 record Cloudflare's immutable version ID, and set the matching Hetzner value.
 This task did not contact production. Payments remain OFF.
+
+## Fix round 3 — managed cron rollback and weighted receipt totals
+
+Implementation commit: `dc60f39b48dbd4b1bcd0097101f61fd055f8bd3f`.
+
+### Implemented behavior
+
+- Rollback now reads the live crontab, removes only recognized Uvar.si jobs,
+  and restores the original Uvar.si jobs from the protected snapshot. It
+  preserves current Taktik and unrelated rows, including rows added after the
+  snapshot, and does not resurrect an unrelated row removed during deployment.
+  A live crontab read error prevents every write. The merged candidate is
+  installed in one operation and checked byte for byte.
+- The production schedule installer continues to derive its complete candidate
+  from the live crontab, so it preserves Taktik and unrelated jobs.
+- Receipt readiness accepts a one-line weighted purchase whose customer totals
+  use the production generator's weight multiplier. It derives that multiplier
+  from the sale subtotal and recomputes the original and loyalty totals from
+  the same reviewed DB offer. The gate still rejects altered sale, original,
+  loyalty, quantity, unit, validity, savings, and receipt totals.
+- Worker attestation, lock-busy handling, the four-hour cap, secret-safe output,
+  and payments-OFF behavior are unchanged.
+
+### TDD and verification evidence
+
+The first RED run proved both review findings:
+
+```text
+2 failed, 1 passed, 54 deselected in 10.90s
+```
+
+The second RED run isolated strict weighted original-price validation:
+
+```text
+1 failed, 4 passed, 57 deselected in 25.19s
+```
+
+Bounded GREEN runs used local fakes and workspace-local temporary directories:
+
+```text
+tests/test_tesco_bridge_deployment.py
+63 passed in 225.38s (240s timeout)
+
+tests/test_deploy_safety.py
+tests/test_stropy_pokryju_cely_zber.py
+tests/test_refresh_contract.py::test_receipt_selection_preserves_verified_totals_for_weighted_purchases
+tests/test_offer_matcher.py::test_bare_kilogram_is_weight_pricing_not_a_fixed_package
+64 passed in 1.30s (120s timeout)
+```
+
+Bash parsed `hetzner/uvarsi-deploy-state.sh` under a 30-second limit, and
+`git diff --check` returned no errors. The tests made no real network, SSH,
+Cloudflare, Anthropic, deployment, or payment calls. Taktik files and services
+remained untouched.
+
+### Files changed
+
+- `docs/prevadzka.md`
+- `hetzner/uvarsi-deploy-state.sh`
+- `tests/test_tesco_bridge_deployment.py`
