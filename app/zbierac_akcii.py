@@ -529,6 +529,84 @@ def _safe_lidl_image_url(value):
     return value
 
 
+def _received_manifest_digest(value):
+    """Hash received free metadata without retaining its raw values or tokens."""
+    encoded = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=lambda item: f"<{type(item).__name__}>",
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _best_effort_received_validity(raw_from, raw_to):
+    if not isinstance(raw_from, str) or not isinstance(raw_to, str):
+        return None, None
+    try:
+        return parse_finite_validity(f"{raw_from[:10]} {raw_to[:10]}")
+    except ValueError:
+        return None, None
+
+
+def _partial_official_provenance(
+    *, collector_kind, source_url, source_identity, raw_from, raw_to,
+    received_manifest,
+):
+    """Build a failure-only fingerprint from metadata actually received upstream."""
+    digest = _received_manifest_digest(received_manifest)
+    valid_from, valid_to = _best_effort_received_validity(raw_from, raw_to)
+    manifest = {
+        "source_url": source_url,
+        "collector_kind": collector_kind,
+        "source_identity": source_identity or f"received-manifest-sha256:{digest}",
+        "valid_from": valid_from,
+        "valid_to": valid_to,
+        "declared_pages": 1,
+        # This is deliberately a failure-only sentinel, never an active page.
+        # Its hash proves which received manifest was rejected without inventing
+        # source bytes or persisting capability URLs from the Tesco bridge.
+        "pages": [{"source_page": 1, "content_hash": digest}],
+        "attempt_state": {
+            "phase": "official-manifest-validation",
+            "received_manifest_sha256": digest,
+        },
+    }
+    return provenance_from_manifest(manifest)
+
+
+def _lidl_attempted_provenance(slug, flyer):
+    flyer_id = flyer.get("id") if isinstance(flyer, dict) else None
+    source_identity = (
+        f"lidl-flyer:{flyer_id}"
+        if isinstance(flyer_id, str)
+        and re.fullmatch(r"[A-Za-z0-9._-]{1,200}", flyer_id)
+        else None
+    )
+    source_url = flyer.get("flyerUrlAbsolute") if isinstance(flyer, dict) else None
+    try:
+        parsed_source = urlparse(source_url) if isinstance(source_url, str) else None
+        source_host = parsed_source.hostname if parsed_source else None
+    except ValueError:
+        parsed_source = None
+        source_host = None
+    if (
+        not parsed_source
+        or parsed_source.scheme != "https"
+        or source_host != "www.lidl.sk"
+    ):
+        source_url = f"https://www.lidl.sk/l/sk/letak/{quote(slug, safe='-')}/view/flyer/page/1"
+    return _partial_official_provenance(
+        collector_kind="official-lidl-viewer",
+        source_url=source_url,
+        source_identity=source_identity,
+        raw_from=flyer.get("offerStartDate") if isinstance(flyer, dict) else None,
+        raw_to=flyer.get("offerEndDate") if isinstance(flyer, dict) else None,
+        received_manifest=flyer,
+    )
+
+
 def official_lidl_pages(today=None):
     """Read the national weekly flyer from Lidl's own public viewer API.
 
@@ -551,50 +629,78 @@ def official_lidl_pages(today=None):
     endpoint = f"{LIDL_API_URL}?flyer_identifier={quote(slug, safe='')}"
     payload = requests.get(endpoint, headers=H, timeout=30).json()
     flyer = payload.get("flyer") if isinstance(payload, dict) and payload.get("success") is True else None
+    attempted = _lidl_attempted_provenance(
+        slug, flyer if isinstance(flyer, dict) else payload
+    )
     if not isinstance(flyer, dict):
-        raise ValueError("oficiálny endpoint nevrátil leták")
+        raise ManifestPreparationError(
+            "oficiálny endpoint nevrátil leták", attempted
+        )
     if flyer.get("apiCountryCode") != "SK":
-        raise ValueError("oficiálny endpoint vrátil leták pre inú krajinu")
+        raise ManifestPreparationError(
+            "oficiálny endpoint vrátil leták pre inú krajinu", attempted
+        )
     if flyer.get("isActive") is not True or flyer.get("status") != "current":
-        raise ValueError("oficiálny endpoint neoznačil leták ako aktuálny")
+        raise ManifestPreparationError(
+            "oficiálny endpoint neoznačil leták ako aktuálny", attempted
+        )
     flyer_id = flyer.get("id")
     if (
         not isinstance(flyer_id, str)
         or not re.fullmatch(r"[A-Za-z0-9._-]{1,200}", flyer_id)
     ):
-        raise ValueError("oficiálny leták nemá pevnú identitu obsahu")
+        raise ManifestPreparationError(
+            "oficiálny leták nemá pevnú identitu obsahu", attempted
+        )
 
     raw_from = flyer.get("offerStartDate")
     raw_to = flyer.get("offerEndDate")
     if not isinstance(raw_from, str) or not isinstance(raw_to, str):
-        raise ValueError("oficiálny leták nemá konečnú platnosť ponuky")
-    valid_from, valid_to = parse_finite_validity(f"{raw_from[:10]} {raw_to[:10]}")
+        raise ManifestPreparationError(
+            "oficiálny leták nemá konečnú platnosť ponuky", attempted
+        )
+    try:
+        valid_from, valid_to = parse_finite_validity(f"{raw_from[:10]} {raw_to[:10]}")
+    except ValueError as exc:
+        raise ManifestPreparationError(str(exc), attempted) from exc
     if not flyer_is_current(valid_from, valid_to, today):
         raise ValueError(f"oficiálny leták dnes neplatí ({valid_from} – {valid_to})")
 
     raw_pages = flyer.get("pages")
     if not isinstance(raw_pages, list):
-        raise ValueError("oficiálny leták nemá zoznam strán")
+        raise ManifestPreparationError(
+            "oficiálny leták nemá zoznam strán", attempted
+        )
     normalized = []
     seen = set()
     for item in raw_pages:
         if not isinstance(item, dict) or isinstance(item.get("number"), bool):
-            raise ValueError("oficiálny leták má neplatné číslo strany")
+            raise ManifestPreparationError(
+                "oficiálny leták má neplatné číslo strany", attempted
+            )
         try:
             number = int(item["number"])
         except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError("oficiálny leták má neplatné číslo strany") from exc
+            raise ManifestPreparationError(
+                "oficiálny leták má neplatné číslo strany", attempted
+            ) from exc
         thumbnail = _safe_lidl_image_url(item.get("thumbnail") or item.get("image"))
         image = _safe_lidl_image_url(item.get("zoom") or item.get("image"))
         if number < 1 or number in seen or not thumbnail or not image:
-            raise ValueError("oficiálny leták má neúplný manifest strán")
+            raise ManifestPreparationError(
+                "oficiálny leták má neúplný manifest strán", attempted
+            )
         seen.add(number)
         normalized.append((number, thumbnail, image))
     normalized.sort(key=lambda row: row[0])
     if len(normalized) < MIN_PLAUSIBLE_PAGES:
-        raise ValueError("oficiálny týždenný leták má podozrivo málo strán")
+        raise ManifestPreparationError(
+            "oficiálny týždenný leták má podozrivo málo strán", attempted
+        )
     if [row[0] for row in normalized] != list(range(1, len(normalized) + 1)):
-        raise ValueError("oficiálnemu letáku chýbajú strany")
+        raise ManifestPreparationError(
+            "oficiálnemu letáku chýbajú strany", attempted
+        )
 
     source_url = flyer.get("flyerUrlAbsolute")
     parsed_source = urlparse(source_url) if isinstance(source_url, str) else None
@@ -866,6 +972,55 @@ def _normalize_official_tesco_leaflet(flyer, today, leaflet_format="HM", bridge_
     return candidate
 
 
+def _tesco_attempted_provenance(value, leaflet_format, bridge_url=None):
+    """Preserve a target flyer's safe identity before strict page validation."""
+    if not isinstance(value, dict):
+        return None
+    if bridge_url is not None:
+        candidate_format = value.get("format")
+        raw_from, raw_to = value.get("valid_from"), value.get("valid_to")
+        source_identity = value.get("source_identity")
+    else:
+        candidate_format = value.get("type")
+        raw_from, raw_to = value.get("validFrom"), value.get("validTo")
+        leaflet_id = value.get("id")
+        source_identity = (
+            f"tesco-leaflet:{leaflet_id}"
+            if not isinstance(leaflet_id, bool)
+            and isinstance(leaflet_id, (int, str))
+            and re.fullmatch(r"[A-Za-z0-9._-]{1,200}", str(leaflet_id))
+            else None
+        )
+    # A valid leaflet of the other Tesco format is not a failed attempt for
+    # this collection target and must not suppress the requested format.
+    if candidate_format != leaflet_format:
+        return None
+    if source_identity is not None and (
+        not isinstance(source_identity, str)
+        or not re.fullmatch(r"[A-Za-z0-9:._-]{1,300}", source_identity)
+    ):
+        source_identity = None
+    slug = value.get("slug")
+    if isinstance(slug, str) and re.fullmatch(
+        r"tesco-letak-\d{4}-\d{2}-\d{2}", slug
+    ):
+        segment = "hypermarkety" if leaflet_format == "HM" else "supermarkety"
+        source_url = (
+            "https://www.tesco.sk/akciove-ponuky/letaky-a-katalogy/"
+            f"{segment}/{slug}/1"
+        )
+    else:
+        source_url = "https://www.tesco.sk/akciove-ponuky/letaky-a-katalogy/"
+    return _partial_official_provenance(
+        collector_kind="official-tesco-viewer",
+        source_url=source_url,
+        source_identity=source_identity,
+        raw_from=raw_from,
+        raw_to=raw_to,
+        received_manifest=value,
+    )
+
+
 def official_tesco_pages(today=None, leaflet_format="HM"):
     """Read one exact current Tesco format through the bridge or local diagnostics."""
     today = today or business_day()
@@ -885,15 +1040,37 @@ def official_tesco_pages(today=None, leaflet_format="HM"):
         raw_items, bridge_url = _direct_tesco_candidates(today, leaflet_format)
 
     candidates = []
+    rejected_attempts = []
     for value in raw_items:
+        attempted = _tesco_attempted_provenance(
+            value, leaflet_format, bridge_url
+        )
         try:
-            candidates.append(_normalize_official_tesco_leaflet(
-                value, today, leaflet_format, bridge_url
-            ))
+            candidate = _canonical_tesco_candidate(
+                value, leaflet_format, bridge_url
+            )
         except (TypeError, ValueError):
             # Kandidáti sa posudzujú izolovane; chybný nesmie zahodiť zdravý.
+            if attempted is not None:
+                rejected_attempts.append(attempted)
             continue
+        if flyer_is_current(candidate["valid_from"], candidate["valid_to"], today):
+            candidates.append(candidate)
     if not candidates:
+        if rejected_attempts:
+            rejected_attempts.sort(
+                key=lambda item: (
+                    item.valid_from or "",
+                    item.valid_to or "",
+                    item.source_fingerprint,
+                ),
+                reverse=True,
+            )
+            raise ManifestPreparationError(
+                "oficiálna stránka Tesca neuvádza aktuálny týždenný leták "
+                "s platným manifestom",
+                rejected_attempts[0],
+            )
         raise ValueError(
             "oficiálna stránka Tesca neuvádza aktuálny týždenný leták "
             "s platným manifestom"

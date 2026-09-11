@@ -702,6 +702,51 @@ def test_official_tesco_rejects_truncated_or_foreign_page_manifest(monkeypatch):
         collector.official_tesco_pages(today=date(2026, 8, 20))
 
 
+def test_actual_tesco_validation_failure_preserves_safe_attempted_identity(
+        monkeypatch, tmp_path):
+    _use_local_tesco(monkeypatch)
+    leaflet = _official_tesco_leaflet(page_count=8)
+    leaflet["pages"][-1]["pagePNG"] = "https://evil.example/offer.8.jpeg"
+    monkeypatch.setattr(
+        collector.requests,
+        "post",
+        lambda _url, **_kwargs: _json_response(_official_tesco_payload(leaflet)),
+    )
+    monkeypatch.setattr(collector, "kupino_meta", lambda _store: None)
+    monkeypatch.setattr(collector, "mletaky_base", lambda _store, _today: None)
+
+    with pytest.raises(collector.ManifestPreparationError) as failure:
+        collector.store_pages("tesco", today=TODAY)
+
+    attempted = failure.value.attempted_provenance
+    assert attempted.collector_kind == "official-tesco-viewer"
+    assert attempted.valid_from == "2026-08-17"
+    assert attempted.valid_to == "2026-08-23"
+    assert re.fullmatch(r"[0-9a-f]{64}", attempted.source_fingerprint)
+
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setattr(collector, "DB", str(database))
+    monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    monkeypatch.setattr(collector, "business_day", lambda: TODAY)
+    with pytest.raises(SystemExit, match="tesco"):
+        collector.main(["tesco"])
+
+    con = sqlite3.connect(database)
+    persisted = con.execute(
+        "SELECT attempted_collector_kind,attempted_fingerprint,"
+        "attempted_valid_from,attempted_valid_to,failure_kind "
+        "FROM zber_staging_stav WHERE obchod='Tesco'"
+    ).fetchone()
+    con.close()
+    assert persisted == (
+        "official-tesco-viewer",
+        attempted.source_fingerprint,
+        "2026-08-17",
+        "2026-08-23",
+        "structural",
+    )
+
+
 def test_official_lidl_reads_the_complete_current_weekly_flyer(monkeypatch):
     overview = (
         '<a href="https://www.lidl.sk/l/sk/letak/'
@@ -730,6 +775,56 @@ def test_official_lidl_reads_the_complete_current_weekly_flyer(monkeypatch):
     assert manifest["declared_pages"] == 105
     assert manifest["pages"][-1]["source_page"] == 105
     assert requested[-1].endswith("flyer_identifier=online-letak-platny-od-17-08-2026")
+
+
+def test_actual_lidl_validation_failure_preserves_safe_attempted_identity(
+        monkeypatch, tmp_path):
+    overview = (
+        '<a href="https://www.lidl.sk/l/sk/letak/'
+        'online-letak-platny-od-17-08-2026/ar/1">Pozri si leták</a>'
+    )
+    payload = _official_lidl_payload(page_count=8)
+    payload["flyer"]["pages"][-1]["zoom"] = "https://evil.example/page-8.jpg"
+
+    def get(url, **_kwargs):
+        if url == collector.LIDL_OVERVIEW_URL:
+            return types.SimpleNamespace(text=overview)
+        return _json_response(payload)
+
+    monkeypatch.setattr(collector.requests, "get", get)
+    monkeypatch.setattr(collector, "kupino_meta", lambda _store: None)
+    monkeypatch.setattr(collector, "mletaky_base", lambda _store, _today: None)
+
+    with pytest.raises(collector.ManifestPreparationError) as failure:
+        collector.store_pages("lidl", today=TODAY)
+
+    attempted = failure.value.attempted_provenance
+    assert attempted.collector_kind == "official-lidl-viewer"
+    assert attempted.valid_from == "2026-08-17"
+    assert attempted.valid_to == "2026-08-23"
+    assert re.fullmatch(r"[0-9a-f]{64}", attempted.source_fingerprint)
+
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setattr(collector, "DB", str(database))
+    monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    monkeypatch.setattr(collector, "business_day", lambda: TODAY)
+    with pytest.raises(SystemExit, match="lidl"):
+        collector.main(["lidl"])
+
+    con = sqlite3.connect(database)
+    persisted = con.execute(
+        "SELECT attempted_collector_kind,attempted_fingerprint,"
+        "attempted_valid_from,attempted_valid_to,failure_kind "
+        "FROM zber_staging_stav WHERE obchod='Lidl'"
+    ).fetchone()
+    con.close()
+    assert persisted == (
+        "official-lidl-viewer",
+        attempted.source_fingerprint,
+        "2026-08-17",
+        "2026-08-23",
+        "structural",
+    )
 
 
 def test_store_pages_prefers_official_lidl_over_third_party_sources(monkeypatch):
