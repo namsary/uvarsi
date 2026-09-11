@@ -296,6 +296,9 @@ CONSUMER_REQUEST_OUTBOX_WORKER_ID = (
 )
 CONSUMER_REQUEST_OUTBOX_SHUTTING_DOWN = False
 CONSUMER_REQUEST_OUTBOX_SHUTDOWN_DEADLINE = 1.0
+CONSUMER_REQUEST_OUTBOX_INTERNAL_RETRY_SECONDS = float(
+    customer_requests.CONFIRMATION_RETRY_BASE_SECONDS
+)
 CONSUMER_REQUEST_OUTBOX_WAKE_HANDLES = {}
 CONSUMER_REQUEST_OUTBOX_CALL_LATER = lambda loop, delay, callback: loop.call_later(
     delay, callback
@@ -5432,11 +5435,13 @@ def _consumer_request_receipt(delivery: customer_requests.ConfirmationDelivery) 
         "PUMAR s. r. o. prevádzkuje Uvar.si a poskytuje podporu k službe."
     )
     legal_links = (
-        f"VOP na uloženie: {BASE_URL}/pravne/vop.txt\n"
+        "Aktuálne online odkazy pre pohodlné otvorenie (môžu sa neskôr zmeniť):\n"
+        f"VOP: {BASE_URL}/pravne/vop.txt\n"
         f"Odstúpenie: {BASE_URL}/odstupenie\n"
         f"Reklamácie: {BASE_URL}/reklamacie\n"
         f"Ochrana osobných údajov: {BASE_URL}/ochrana-osobnych-udajov"
     )
+    legal_snapshot = delivery.legal_snapshot.strip()
     text = (
         f"Ahoj!\n\n{detail}\n\n"
         f"Typ podania: {typ}\n"
@@ -5453,7 +5458,12 @@ def _consumer_request_receipt(delivery: customer_requests.ConfirmationDelivery) 
         f"Register: {register}\n"
         f"Kontakt: {OPERATOR.support_email}\n\n"
         f"{legal_links}\n\n"
-        "Tento e-mail si môžeš uložiť ako potvrdenie svojho podania."
+        "Nižšie je nemenná kópia zmluvných informácií uložená presne pri "
+        "prijatí podania. Táto kópia je rozhodujúca pre zachovanie vtedy "
+        "platného znenia:\n\n"
+        f"{legal_snapshot}\n\n"
+        "Tento e-mail si môžeš uložiť ako potvrdenie svojho podania a "
+        "vtedy platných zmluvných informácií."
     )
     html = (
         "<!DOCTYPE html><html lang='sk'><body><h1>Uvar.si</h1>"
@@ -5471,11 +5481,17 @@ def _consumer_request_receipt(delivery: customer_requests.ConfirmationDelivery) 
         f"<b>Sídlo:</b> {escape(OPERATOR.registered_office)}<br>"
         f"<b>Register:</b> {escape(register)}<br>"
         f"<b>Kontakt:</b> {escape(OPERATOR.support_email)}</p>"
-        f"<p><a href='{BASE_URL}/pravne/vop.txt'>VOP na uloženie</a><br>"
+        "<p><b>Aktuálne online odkazy pre pohodlné otvorenie "
+        "(môžu sa neskôr zmeniť):</b><br>"
+        f"<a href='{BASE_URL}/pravne/vop.txt'>VOP</a><br>"
         f"<a href='{BASE_URL}/odstupenie'>Odstúpenie</a><br>"
         f"<a href='{BASE_URL}/reklamacie'>Reklamácie</a><br>"
         f"<a href='{BASE_URL}/ochrana-osobnych-udajov'>Ochrana osobných údajov</a></p>"
-        "<p>Tento e-mail si môžeš uložiť ako potvrdenie svojho podania.</p>"
+        "<h2>Nemenná kópia zmluvných informácií pri prijatí podania</h2>"
+        "<p>Táto uložená kópia je rozhodujúca pre zachovanie vtedy platného znenia.</p>"
+        f"<pre style='white-space:pre-wrap'>{escape(legal_snapshot)}</pre>"
+        "<p>Tento e-mail si môžeš uložiť ako potvrdenie svojho podania a "
+        "vtedy platných zmluvných informácií.</p>"
         "</body></html>"
     )
     posli_mail(
@@ -5580,9 +5596,22 @@ def ensure_consumer_request_confirmation_worker() -> asyncio.Task:
         try:
             completed.result()
         except BaseException:
+            LOG.error("consumer request confirmation worker failed; retry scheduled")
+            schedule_consumer_request_confirmation_wake(
+                AUTH_CLOCK() + CONSUMER_REQUEST_OUTBOX_INTERNAL_RETRY_SECONDS
+            )
             return
-        with closing(db()) as con:
-            wake_at = customer_requests.confirmation_next_wake(con, now=AUTH_CLOCK())
+        try:
+            with closing(db()) as con:
+                wake_at = customer_requests.confirmation_next_wake(
+                    con, now=AUTH_CLOCK()
+                )
+        except Exception:
+            LOG.error("consumer request confirmation wake lookup failed; retry scheduled")
+            schedule_consumer_request_confirmation_wake(
+                AUTH_CLOCK() + CONSUMER_REQUEST_OUTBOX_INTERNAL_RETRY_SECONDS
+            )
+            return
         if wake_at is None:
             return
         if wake_at <= AUTH_CLOCK():
@@ -5660,7 +5689,10 @@ async def _create_consumer_request(req: Request, *, request_type: str):
                     now=now,
                 )
             if created.created:
-                _notify_consumer_requests(con, now=now)
+                try:
+                    _notify_consumer_requests(con, now=now)
+                except Exception:
+                    LOG.error("consumer request owner notification failed after persistence")
     except customer_requests.RequestNotAllowed:
         # Same response for an absent and a foreign order: no enumeration.
         return JSONResponse(
@@ -5679,19 +5711,40 @@ async def _create_consumer_request(req: Request, *, request_type: str):
         )
     except ValueError as error:
         raise HTTPException(422, str(error))
-    await asyncio.to_thread(
-        process_consumer_request_confirmation_queue,
-        CONSUMER_REQUEST_OUTBOX_WORKER_ID,
-        limit=1,
-        public_id=created.public_id,
-    )
-    with closing(db()) as con:
-        confirmation = customer_requests.public_confirmation_state(
-            con, public_id=created.public_id
+    confirmation = {"state": "pending_retry", "sent": False, "pending": True}
+    fallback_wake = now + CONSUMER_REQUEST_OUTBOX_INTERNAL_RETRY_SECONDS
+    try:
+        await asyncio.to_thread(
+            process_consumer_request_confirmation_queue,
+            CONSUMER_REQUEST_OUTBOX_WORKER_ID,
+            limit=1,
+            public_id=created.public_id,
         )
-        wake_at = customer_requests.confirmation_next_wake(con, now=AUTH_CLOCK())
+    except Exception:
+        LOG.error("consumer request confirmation queue failed after persistence")
+        wake_at = fallback_wake
+    else:
+        try:
+            with closing(db()) as con:
+                confirmation = customer_requests.public_confirmation_state(
+                    con, public_id=created.public_id
+                )
+                wake_at = customer_requests.confirmation_next_wake(
+                    con, now=AUTH_CLOCK()
+                )
+        except Exception:
+            LOG.error("consumer request confirmation state unavailable after persistence")
+            confirmation = {
+                "state": "pending_retry",
+                "sent": False,
+                "pending": True,
+            }
+            wake_at = fallback_wake
     if wake_at is not None:
-        schedule_consumer_request_confirmation_wake(wake_at)
+        try:
+            schedule_consumer_request_confirmation_wake(wake_at)
+        except Exception:
+            LOG.error("consumer request confirmation wake scheduling failed")
     return JSONResponse(
         {
             "ok": True,

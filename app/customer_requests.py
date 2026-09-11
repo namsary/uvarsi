@@ -9,8 +9,10 @@ import sqlite3
 from dataclasses import dataclass
 
 try:
+    from .legal_pages import legal_text
     from .operator_profile import LEGAL_VERSION
 except ImportError:
+    from legal_pages import legal_text
     from operator_profile import LEGAL_VERSION
 
 
@@ -35,6 +37,12 @@ CONFIRMATION_MAX_ATTEMPTS = 5
 CONFIRMATION_RETRY_BASE_SECONDS = 60
 CONFIRMATION_RETRY_MAX_SECONDS = 60 * 60
 CONFIRMATION_LEASE_SECONDS = 60
+LEGACY_LEGAL_VERSION = "legacy-unknown"
+LEGACY_LEGAL_SNAPSHOT = (
+    "Historické podanie: presná verzia zmluvných dokumentov platná pri prijatí "
+    "nebola v pôvodnej evidencii uložená. Prevádzkovateľ ju preto spätne "
+    "nenahrádza aktuálnym znením."
+)
 _SAFE_FAILURE_CODES = {
     "provider_unavailable",
     "provider_rejected",
@@ -60,6 +68,7 @@ CREATE TABLE IF NOT EXISTS consumer_requests (
   created_at REAL NOT NULL,
   updated_at REAL NOT NULL,
   legal_version TEXT NOT NULL,
+  legal_snapshot TEXT NOT NULL,
   confirmation_state TEXT NOT NULL DEFAULT 'pending',
   confirmation_attempts INTEGER NOT NULL DEFAULT 0,
   confirmation_last_attempt_at REAL,
@@ -102,6 +111,7 @@ class ConsumerRequest:
     created_at: float
     updated_at: float
     legal_version: str
+    legal_snapshot: str
     confirmation_state: str
     confirmation_attempts: int
     confirmation_last_attempt_at: float | None
@@ -124,6 +134,7 @@ class ConfirmationDelivery:
     purchased_at: float
     created_at: float
     legal_version: str
+    legal_snapshot: str
     email: str
     worker_id: str
     attempt: int
@@ -135,6 +146,7 @@ def migrate_customer_requests_schema(con) -> None:
     columns = {row[1] for row in con.execute("PRAGMA table_info(consumer_requests)")}
     additions = (
         ("legal_version", "TEXT"),
+        ("legal_snapshot", "TEXT"),
         ("confirmation_state", "TEXT"),
         ("confirmation_attempts", "INTEGER"),
         ("confirmation_last_attempt_at", "REAL"),
@@ -149,8 +161,15 @@ def migrate_customer_requests_schema(con) -> None:
         if name not in columns:
             con.execute(f"ALTER TABLE consumer_requests ADD COLUMN {name} {kind}")
     con.execute(
-        "UPDATE consumer_requests SET legal_version=? WHERE legal_version IS NULL OR legal_version=''",
-        (LEGAL_VERSION,),
+        """UPDATE consumer_requests
+              SET legal_version=?, legal_snapshot=?
+            WHERE legal_snapshot IS NULL OR legal_snapshot=''""",
+        (LEGACY_LEGAL_VERSION, LEGACY_LEGAL_SNAPSHOT),
+    )
+    con.execute(
+        """UPDATE consumer_requests SET legal_version=?
+            WHERE legal_version IS NULL OR legal_version=''""",
+        (LEGACY_LEGAL_VERSION,),
     )
     con.execute(
         """UPDATE consumer_requests
@@ -181,7 +200,8 @@ def workflow_ready(con) -> bool:
     required = {
         "public_id", "user_id", "order_id", "request_type", "message",
         "status", "refund_scope", "purchased_at", "created_at", "updated_at",
-        "legal_version", "confirmation_state", "confirmation_attempts",
+        "legal_version", "legal_snapshot", "confirmation_state",
+        "confirmation_attempts",
         "confirmation_last_attempt_at", "confirmation_next_attempt_at",
         "confirmation_sent_at", "confirmation_failure_code",
         "confirmation_lease_owner", "confirmation_lease_expires_at",
@@ -240,6 +260,27 @@ def _owned_order(con, *, user_id: int, order_id: str):
     ).fetchone()
 
 
+def _current_legal_snapshot(request_type: str) -> str:
+    if request_type == TYPE_WITHDRAWAL:
+        request_slug = "odstupenie"
+        request_title = "PODMIENKY A POUČENIE K ODSTÚPENIU"
+    elif request_type == TYPE_COMPLAINT:
+        request_slug = "reklamacie"
+        request_title = "REKLAMAČNÉ PODMIENKY"
+    else:
+        raise ValueError("neplatný typ žiadosti")
+    return (
+        "NEMENNÁ KÓPIA ZMLUVNÝCH INFORMÁCIÍ PLATNÝCH PRI PODANÍ\n"
+        f"Právna verzia: {LEGAL_VERSION}\n\n"
+        "VŠEOBECNÉ OBCHODNÉ PODMIENKY\n"
+        "--------------------------------\n"
+        f"{legal_text('vop').rstrip()}\n\n"
+        f"{request_title}\n"
+        f"{'-' * len(request_title)}\n"
+        f"{legal_text(request_slug).rstrip()}\n"
+    )
+
+
 def _from_row(row, *, created=False) -> ConsumerRequest:
     return ConsumerRequest(
         public_id=str(row["public_id"]),
@@ -253,6 +294,7 @@ def _from_row(row, *, created=False) -> ConsumerRequest:
         created_at=float(row["created_at"]),
         updated_at=float(row["updated_at"]),
         legal_version=str(row["legal_version"]),
+        legal_snapshot=str(row["legal_snapshot"]),
         confirmation_state=str(row["confirmation_state"]),
         confirmation_attempts=int(row["confirmation_attempts"]),
         confirmation_last_attempt_at=(
@@ -280,6 +322,7 @@ def _create(
     order_id = _order_id(order_id)
     now = _time(now)
     message = _message(message, required=request_type == TYPE_COMPLAINT)
+    legal_snapshot = _current_legal_snapshot(request_type)
     if con.in_transaction:
         con.commit()
     con.execute("BEGIN IMMEDIATE")
@@ -323,13 +366,15 @@ def _create(
                 con.execute(
                     """INSERT INTO consumer_requests
                        (public_id,user_id,order_id,request_type,message,status,
-                        refund_scope,purchased_at,created_at,updated_at,legal_version,
-                        confirmation_state,confirmation_attempts,
-                        confirmation_next_attempt_at,confirmation_idempotency_key)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                         refund_scope,purchased_at,created_at,updated_at,legal_version,
+                         legal_snapshot,
+                         confirmation_state,confirmation_attempts,
+                         confirmation_next_attempt_at,confirmation_idempotency_key)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
                         public_id, user_id, order_id, request_type, message,
                         status, refund_scope, paid_at, now, now, LEGAL_VERSION,
+                        legal_snapshot,
                         CONFIRMATION_PENDING, 0, now,
                         f"consumer-request/{public_id}",
                     ),
@@ -507,6 +552,7 @@ def claim_confirmation_delivery(
             purchased_at=float(row["purchased_at"]),
             created_at=float(row["created_at"]),
             legal_version=str(row["legal_version"]),
+            legal_snapshot=str(row["legal_snapshot"]),
             email=str(row["email"]),
             worker_id=worker_id,
             attempt=attempt,
