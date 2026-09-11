@@ -383,6 +383,41 @@ def test_collection_keeps_unconditional_price_primary_and_card_price_conditional
     }]
 
 
+def test_collection_derives_loyalty_program_from_the_known_store(monkeypatch):
+    """A model label mix-up must not reject a whole otherwise valid store batch."""
+    pages, manifest = flyer_fixture(1)
+    monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))
+    monkeypatch.setattr(collector, "get_b64", lambda url, max_px: url)
+    models = []
+
+    def fake_claude_json(client, model, content, max_tokens, effort=None):
+        models.append(model)
+        if model == collector.MODEL_SCAN:
+            return [1]
+        return [{
+            "source_page": 1,
+            "nazov": "Repkový olej Raciol",
+            "kategoria": "trvanlive",
+            "cena": 1.69,
+            "povodna": 2.99,
+            "zlava": "-43 %",
+            "jednotka": "l",
+            "cena_s_kartou": 1.55,
+            "zlava_s_kartou": "-48 %",
+            # Produkčný incident: model zamenil názov programu iného obchodu.
+            "vernostny_program": "Clubcard",
+            "minimalny_nakup": 20.0,
+            "podmienka_s_kartou": None,
+        }]
+
+    monkeypatch.setattr(collector, "claude_json", fake_claude_json)
+
+    offers = collector.zbieraj(object(), "kaufland")
+
+    assert offers[0]["vernostny_program"] == "Kaufland Card"
+    assert models == [collector.MODEL_SCAN, collector.MODEL_READ]
+
+
 def test_flyer_pages_use_sonnet_first_and_opus_only_for_suspicious_prices(monkeypatch):
     pages, manifest = flyer_fixture(1)
     monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))

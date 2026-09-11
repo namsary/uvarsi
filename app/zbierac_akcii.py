@@ -18,6 +18,7 @@ from urllib.parse import quote, urlparse
 try:
     from offer_data import (
         CURRENT_COLLECTION_DATA_VERSION,
+        LOYALTY_PROGRAM_BY_STORE,
         migrate_akcie_schema,
         replace_store_week,
         validate_offer,
@@ -25,6 +26,7 @@ try:
 except ImportError:
     from app.offer_data import (
         CURRENT_COLLECTION_DATA_VERSION,
+        LOYALTY_PROGRAM_BY_STORE,
         migrate_akcie_schema,
         replace_store_week,
         validate_offer,
@@ -889,6 +891,10 @@ def _offers_from_extraction(items, *, store, manifest, batch_pages):
                 f"na strane {source_page} ({offer['nazov']})"
             )
             continue
+        if offer["cena_s_kartou"] is not None:
+            # Obchod poznáme z aktuálne spracúvaného letáku. Názov jeho
+            # vernostného programu preto nie je údaj, ktorý má model hádať.
+            offer["vernostny_program"] = LOYALTY_PROGRAM_BY_STORE[offer["obchod"]]
         validate_offer(offer)
         _validate_discount_arithmetic(offer)
         offers.append(offer)
