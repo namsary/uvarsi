@@ -18,6 +18,11 @@ def collection_db():
           PRIMARY KEY (tyzden, obchod)
         )"""
     )
+    con.execute(
+        """CREATE TABLE akcie (
+          tyzden TEXT, obchod TEXT, valid_from TEXT, valid_to TEXT
+        )"""
+    )
     return con
 
 
@@ -29,6 +34,11 @@ def add_source(con, store, *, kind="manual-reviewed-facts", start="2026-09-07",
            VALUES ('2026-09-07',?,?,?,?,?,?,?)""",
         (store, status, count, kind, fingerprint, start, end),
     )
+    con.executemany(
+        "INSERT INTO akcie (tyzden,obchod,valid_from,valid_to) "
+        "VALUES ('2026-09-07',?,?,?)",
+        [(store, start, end)] * count,
+    )
 
 
 def test_unknown_or_unapproved_collector_blocks_payment_readiness():
@@ -36,6 +46,7 @@ def test_unknown_or_unapproved_collector_blocks_payment_readiness():
     assert source_policy.approved_source("Lidl", "official-lidl-viewer") is False
     assert source_policy.approved_source("Tesco", "mletaky-aggregator") is False
     assert source_policy.approved_source("Kaufland", "kupino-aggregator") is False
+    assert source_policy.approved_source("Kaufland", "official-kaufland-offers") is False
     assert source_policy.approved_source("Lidl", "manual-reviewed-facts") is True
 
 
@@ -84,7 +95,27 @@ def test_expired_incomplete_or_current_unreviewed_source_is_never_approved():
         con.close()
 
 
+def test_collection_window_cannot_hide_a_day_without_current_offer_rows():
+    con = collection_db()
+    for store in source_policy.REQUIRED_STORES:
+        add_source(con, store)
+    con.execute("DELETE FROM akcie WHERE obchod='Kaufland'")
+    con.executemany(
+        "INSERT INTO akcie (tyzden,obchod,valid_from,valid_to) "
+        "VALUES ('2026-09-07','Kaufland',?,?)",
+        [("2026-09-07", "2026-09-08")] * 20
+        + [("2026-09-11", "2026-09-13")] * 20,
+    )
+
+    assert source_policy.collection_is_approved(
+        con, week="2026-09-07", today=datetime.date(2026, 9, 9)
+    ) is False
+
+
 def test_collector_kind_is_derived_only_from_strict_known_hosts():
+    assert source_policy.collector_kind_for_url(
+        "https://predajne.kaufland.sk/aktualna-ponuka/prehlad.html?kloffer-week=current"
+    ) == "official-kaufland-offers"
     assert source_policy.collector_kind_for_url(
         "https://www.lidl.sk/l/sk/letak/weekly/view/flyer/page/1"
     ) == "official-lidl-viewer"

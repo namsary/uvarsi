@@ -489,8 +489,43 @@ if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
         OR (SELECT COUNT(*) FROM akcie a
             WHERE a.obchod=v.o
               AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
-              AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
+             AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
     2>/dev/null || true)
+
+  # Kaufland má verejný oficiálny prehľad so strojovo čitateľnými cenami.
+  # Opravíme ho preto najprv bez Vision/Anthropic a až potom rozhodneme,
+  # či ešte vôbec treba spúšťať platený zber pre zostávajúce obchody.
+  OFICIALNY_KAUFLAND_OPRAVENY=0
+  CHYBA_KAUFLAND=0
+  for OBCHOD in $NEUPLNE_OBCHODY; do
+    [ "$OBCHOD" = "kaufland" ] && CHYBA_KAUFLAND=1
+  done
+  if [ "$CHYBA_KAUFLAND" -eq 1 ]; then
+      OFICIALNY_KAUFLAND_VYSTUP=$(cd "$DIR/app" && \
+        "$PY" -u zbierac_akcii.py --official-kaufland-only 2>&1)
+      OFICIALNY_KAUFLAND_RC=$?
+      [ -n "$OFICIALNY_KAUFLAND_VYSTUP" ] && printf '%s\n' "$OFICIALNY_KAUFLAND_VYSTUP"
+      if [ "$OFICIALNY_KAUFLAND_RC" -eq 0 ]; then
+        OFICIALNY_KAUFLAND_OPRAVENY=1
+        log "Kaufland obnovený priamo z oficiálneho zdroja bez AI"
+        NEUPLNE_OBCHODY=$(sqlite3 "$DIR/uvarsi.db" \
+          "SELECT lower(v.o) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
+           WHERE NOT EXISTS (SELECT 1 FROM zber_stav s
+                             JOIN akcie z ON z.obchod=s.obchod AND z.tyzden=s.tyzden
+                             WHERE s.obchod=v.o AND s.stav='ok'
+                               AND COALESCE(s.data_version, 0) >= 2
+                               AND z.valid_from IS NOT NULL AND z.valid_to IS NOT NULL
+                               AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to)
+              OR (SELECT COUNT(*) FROM akcie a
+                  WHERE a.obchod=v.o
+                    AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
+                    AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
+          2>/dev/null || true)
+      else
+        log "oficiálny Kaufland zdroj zlyhal — ponechávam ohraničený Vision fallback"
+      fi
+  fi
+
   ZBER_ARGS=()
   for OBCHOD in $NEUPLNE_OBCHODY; do
     case "$OBCHOD" in
@@ -498,9 +533,14 @@ if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
     esac
   done
   if [ "${#ZBER_ARGS[@]}" -eq 0 ]; then
-    ZBER_ARGS=(--store kaufland --store tesco --store lidl)
+    if [ "$OFICIALNY_KAUFLAND_OPRAVENY" -eq 1 ]; then
+      log "všetky chýbajúce dáta doplnil bezplatný oficiálny zber — Vision nespúšťam"
+    else
+      ZBER_ARGS=(--store kaufland --store tesco --store lidl)
+    fi
   fi
 
+  if [ "${#ZBER_ARGS[@]}" -gt 0 ]; then
   # Štrukturálna chyba Vision/extrakcie sa pri nezmenenom kóde a rovnakých
   # vstupných dátach sama neopraví. Pamätáme si ju EŠTE PRED spustením
   # plateného zberača. Nový deň, zmena zberového stavu alebo nové vydanie
@@ -549,6 +589,7 @@ if [ "${POCET:-0}" -lt 30 ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; then
     log "zbierač OK"
   else
     log "zbierač zlyhal — appka zatiaľ nemá aktuálne dáta"
+  fi
   fi
 fi
 

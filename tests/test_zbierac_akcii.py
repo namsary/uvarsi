@@ -203,6 +203,373 @@ def test_expired_official_lidl_falls_back_instead_of_publishing_old_prices(monke
     assert manifest["source_url"].startswith("https://www.kupino.sk/")
 
 
+def _official_kaufland_html():
+    payload = {
+        "component": "OfferTemplate",
+        "props": {"offerData": {"cycles": [{"categories": [
+            {
+                "displayName": "Trvanlivé potraviny",
+                "dateFrom": "2026-08-17",
+                "dateTo": "2026-08-23",
+                "offers": [
+                    {
+                        "offerId": "oil",
+                        "dateFrom": "2026-08-17",
+                        "dateTo": "2026-08-23",
+                        "title": "Raciol",
+                        "subtitle": "Repkový olej",
+                        "unit": "1 l",
+                        "price": 1.69,
+                        "discount": 43,
+                        "formattedOldPrice": "2,99",
+                        "loyaltyDiscount": 48,
+                        "loyaltyFormattedPrice": "1,55",
+                        "detailDescription": "Nakúpte nad 20 € a získate cenu s kartou.",
+                    },
+                    {
+                        "offerId": "future",
+                        "dateFrom": "2026-08-22",
+                        "dateTo": "2026-08-23",
+                        "title": "Budúca ryža",
+                        "unit": "1 kg",
+                        "price": 0.99,
+                        "discount": 50,
+                        "formattedOldPrice": "1,99",
+                    },
+                ],
+            },
+            {
+                "displayName": "Dom, domácnosť",
+                "dateFrom": "2026-08-17",
+                "dateTo": "2026-08-23",
+                "offers": [{
+                    "offerId": "pan",
+                    "dateFrom": "2026-08-17",
+                    "dateTo": "2026-08-23",
+                    "title": "Panvica",
+                    "unit": "1 kus",
+                    "price": 9.99,
+                    "discount": 50,
+                    "formattedOldPrice": "19,99",
+                }],
+            },
+            {
+                "displayName": "Kaufland Card XTRA  17.08.2026 - 23.08.2026",
+                "offers": [
+                    {
+                        "offerId": "cream",
+                        "dateFrom": "2026-08-17",
+                        "dateTo": "2026-08-23",
+                        "unit": "200 ml",
+                        "price": 1.19,
+                        "discount": 20,
+                        "formattedOldPrice": "1,49",
+                        "loyaltyDiscount": 33,
+                        "loyaltyFormattedPrice": "0,99",
+                        "detailTitle": "Cena s Kaufland XTRA\nSmotana na varenie 15 %",
+                        "detailDescription": "Rama Crema\nSmotana na varenie 15 %\n200 ml",
+                    },
+                    {
+                        "offerId": "wine",
+                        "dateFrom": "2026-08-17",
+                        "dateTo": "2026-08-23",
+                        "title": "Červené víno",
+                        "unit": "0,75 l",
+                        "price": 3.99,
+                        "discount": 20,
+                        "formattedOldPrice": "4,99",
+                        "loyaltyDiscount": 30,
+                        "loyaltyFormattedPrice": "3,49",
+                        "detailDescription": "Červené víno 12 % alk.",
+                    },
+                    {
+                        "offerId": "brumik",
+                        "dateFrom": "2026-08-17",
+                        "dateTo": "2026-08-23",
+                        "title": "Brumík",
+                        "subtitle": "Mliečny rez",
+                        "unit": "5 x 30 g",
+                        "price": 2.49,
+                        "discount": 24,
+                        "formattedOldPrice": "3,29",
+                        "loyaltyDiscount": 30,
+                        "loyaltyFormattedPrice": "2,29",
+                    },
+                ],
+            },
+            {
+                "displayName": "Nápoje",
+                "offers": [
+                    {
+                        "offerId": "water",
+                        "dateFrom": "2026-08-17",
+                        "dateTo": "2026-08-23",
+                        "title": "Minerálna voda",
+                        "unit": "1,5 l",
+                        "price": 0.49,
+                        "discount": 28,
+                        "formattedOldPrice": "0,69",
+                    },
+                    {
+                        "offerId": "drink-wine",
+                        "dateFrom": "2026-08-17",
+                        "dateTo": "2026-08-23",
+                        "title": "Biele víno",
+                        "unit": "0,75 l",
+                        "price": 3.99,
+                        "discount": 20,
+                        "formattedOldPrice": "4,99",
+                    },
+                ],
+            },
+            {
+                "displayName": "Ponuka OD DO  19.08.2026 - 20.08.2026",
+                "offers": [{
+                    "offerId": "short-tomato",
+                    "dateFrom": "2026-08-19",
+                    "dateTo": "2026-08-20",
+                    "title": "Paradajky",
+                    "unit": "1 kg",
+                    "price": 1.49,
+                    "discount": 25,
+                    "formattedOldPrice": "1,99",
+                }],
+            },
+            {
+                "displayName": "Proteín  01.08.2026 - 31.08.2026",
+                "offers": [{
+                    "offerId": "protein-pasta",
+                    "dateFrom": "2026-08-01",
+                    "dateTo": "2026-08-31",
+                    "title": "Proteínové cestoviny",
+                    "unit": "250 g",
+                    "price": 1.49,
+                    "discount": 25,
+                    "formattedOldPrice": "1,99",
+                }],
+            },
+            {
+                "displayName": "Aktuálna ponuka – top produkty",
+                "offers": [
+                    {
+                        "offerId": "top-rice",
+                        "dateFrom": "2026-08-17",
+                        "dateTo": "2026-08-23",
+                        "title": "Ryža dlhozrnná",
+                        "unit": "1 kg",
+                        "price": 1.49,
+                        "discount": 25,
+                        "formattedOldPrice": "1,99",
+                    },
+                    {
+                        "offerId": "top-pan",
+                        "dateFrom": "2026-08-17",
+                        "dateTo": "2026-08-23",
+                        "title": "Panvica",
+                        "unit": "1 kus",
+                        "price": 9.99,
+                        "discount": 50,
+                        "formattedOldPrice": "19,99",
+                    },
+                    {
+                        "offerId": "top-binder",
+                        "dateFrom": "2026-08-17",
+                        "dateTo": "2026-08-23",
+                        "title": "Talentus Zakladač",
+                        "unit": "1 kus",
+                        "price": 1.99,
+                        "discount": 50,
+                        "formattedOldPrice": "3,99",
+                    },
+                ],
+            },
+        ]}]}}
+    }
+    return (
+        "<html><script>window.SSR = window.SSR || {}; "
+        "window.SSR['fixture'] = " + json.dumps(payload, ensure_ascii=False)
+        + ";</script></html>"
+    )
+
+
+def test_official_kaufland_reads_current_food_prices_without_ai(monkeypatch):
+    monkeypatch.setattr(
+        collector.requests,
+        "get",
+        lambda *args, **kwargs: types.SimpleNamespace(
+            status_code=200,
+            text=_official_kaufland_html(),
+            headers={"content-type": "text/html; charset=UTF-8"},
+        ),
+    )
+
+    offers = collector.official_kaufland_offers(today=TODAY)
+
+    assert len(offers) == 7
+    assert offers[0] == {
+        "obchod": "Kaufland",
+        "nazov": "Raciol Repkový olej 1 l",
+        "kategoria": "trvanlive",
+        "cena": 1.69,
+        "povodna": 2.99,
+        "zlava": "-43 %",
+        "jednotka": "l",
+        "cena_s_kartou": 1.55,
+        "zlava_s_kartou": "-48 %",
+        "vernostny_program": "Kaufland Card",
+        "minimalny_nakup": 20.0,
+        "podmienka_s_kartou": "Nákup aspoň za 20 €",
+        "source_url": collector.KAUFLAND_OFFERS_URL,
+        "source_page": 1,
+        "valid_from": "2026-08-17",
+        "valid_to": "2026-08-23",
+    }
+    assert offers[1]["nazov"] == "Rama Crema Smotana na varenie 15 % 200 ml"
+    assert offers[1]["kategoria"] == "mliecne"
+    assert offers[1]["cena"] == 1.19
+    assert offers[1]["cena_s_kartou"] == 0.99
+    by_name = {offer["nazov"]: offer for offer in offers}
+    assert "Brumík Mliečny rez 5 x 30 g" in by_name
+    assert "Minerálna voda 1,5 l" in by_name
+    assert "Proteínové cestoviny 250 g" in by_name
+    assert "Ryža dlhozrnná 1 kg" in by_name
+    assert "Panvica 1 kus" not in by_name
+    assert "Talentus Zakladač 1 kus" not in by_name
+    assert by_name["Paradajky 1 kg"]["valid_from"] == "2026-08-19"
+    assert by_name["Paradajky 1 kg"]["valid_to"] == "2026-08-20"
+
+
+def test_official_kaufland_recovery_persists_without_loading_anthropic_key(
+    monkeypatch, tmp_path
+):
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setattr(collector, "DB", str(database))
+    monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    offers = []
+    for index in range(20):
+        offer = valid_offer("kaufland", index + 1)
+        offer.update(
+            source_url=collector.KAUFLAND_OFFERS_URL,
+            source_page=1,
+        )
+        offers.append(offer)
+    monkeypatch.setattr(collector, "official_kaufland_offers", lambda: offers)
+    monkeypatch.setattr(
+        collector,
+        "load_key",
+        lambda: pytest.fail("oficiálny Kaufland nesmie načítať Anthropic kľúč"),
+    )
+
+    collector.official_kaufland_main()
+
+    con = sqlite3.connect(database)
+    assert con.execute("SELECT COUNT(*) FROM akcie WHERE obchod='Kaufland'").fetchone()[0] == 20
+    assert con.execute(
+        "SELECT collector_kind,stav FROM zber_stav WHERE obchod='Kaufland'"
+    ).fetchone() == ("official-kaufland-offers", "ok")
+    con.close()
+
+
+def test_official_kaufland_failure_preserves_previous_collection_state(
+    monkeypatch, tmp_path
+):
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setattr(collector, "DB", str(database))
+    monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    con = collector.db()
+    collector.record_store_outcome(
+        con, "2026-08-17", "Kaufland", "fail", 0, "pôvodný platený pád"
+    )
+    con.execute(
+        "UPDATE zber_stav SET updated='2026-08-20 07:00:00' "
+        "WHERE tyzden='2026-08-17' AND obchod='Kaufland'"
+    )
+    con.commit()
+    before = tuple(con.execute(
+        "SELECT stav,detail,updated FROM zber_stav "
+        "WHERE tyzden='2026-08-17' AND obchod='Kaufland'"
+    ).fetchone())
+    con.close()
+    monkeypatch.setattr(
+        collector,
+        "official_kaufland_offers",
+        lambda: (_ for _ in ()).throw(ValueError("oficiálny zdroj je nedostupný")),
+    )
+
+    with pytest.raises(SystemExit, match="oficiálny zdroj je nedostupný"):
+        collector.official_kaufland_main()
+
+    con = sqlite3.connect(database)
+    after = con.execute(
+        "SELECT stav,detail,updated FROM zber_stav "
+        "WHERE tyzden='2026-08-17' AND obchod='Kaufland'"
+    ).fetchone()
+    con.close()
+    assert after == before
+
+
+def test_official_kaufland_success_is_atomic_with_collection_state(
+    monkeypatch, tmp_path
+):
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setattr(collector, "DB", str(database))
+    monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    previous = valid_offer("kaufland", 1)
+    previous["nazov"] = "Pôvodná bezpečná položka"
+    con = collector.db()
+    replace_store_week(con, "2026-08-17", "Kaufland", [previous])
+    con.close()
+    fresh = [valid_offer("kaufland", index) for index in range(1, 21)]
+    monkeypatch.setattr(collector, "official_kaufland_offers", lambda: fresh)
+    original_record = collector.record_store_outcome
+
+    def fail_success_state(con, week, store, status, *args, **kwargs):
+        if status == "ok":
+            raise sqlite3.OperationalError("stav zberu sa nedá zapísať")
+        return original_record(con, week, store, status, *args, **kwargs)
+
+    monkeypatch.setattr(collector, "record_store_outcome", fail_success_state)
+
+    with pytest.raises(SystemExit, match="stav zberu sa nedá zapísať"):
+        collector.official_kaufland_main()
+
+    con = sqlite3.connect(database)
+    names = [row[0] for row in con.execute(
+        "SELECT nazov FROM akcie WHERE tyzden='2026-08-17' AND obchod='Kaufland'"
+    )]
+    status = con.execute(
+        "SELECT stav FROM zber_stav "
+        "WHERE tyzden='2026-08-17' AND obchod='Kaufland'"
+    ).fetchone()
+    con.close()
+    assert names == ["Pôvodná bezpečná položka"]
+    assert status is None
+
+
+def test_collection_state_covers_all_active_official_kaufland_windows(
+    monkeypatch, tmp_path
+):
+    database = tmp_path / "uvarsi.db"
+    old = valid_offer("kaufland", 1)
+    new = valid_offer("kaufland", 2)
+    for offer in (old, new):
+        offer["source_url"] = collector.KAUFLAND_OFFERS_URL
+        offer["source_page"] = 1
+    old.update(valid_from="2026-08-01", valid_to="2026-08-31")
+    new.update(valid_from="2026-08-19", valid_to="2026-08-20")
+    monkeypatch.setattr(collector, "DB", str(database))
+    con = collector.db()
+    collector.record_store_outcome(
+        con, "2026-08-17", "Kaufland", "ok", 2, offers=[old, new]
+    )
+    window = con.execute(
+        "SELECT valid_from,valid_to FROM zber_stav "
+        "WHERE tyzden='2026-08-17' AND obchod='Kaufland'"
+    ).fetchone()
+    con.close()
+    assert tuple(window) == ("2026-08-01", "2026-08-31")
+
+
 def flyer_fixture(page_count):
     pages = [
         (f"https://images.example/thumb-{page}.jpg", f"https://images.example/full-{page}.jpg")

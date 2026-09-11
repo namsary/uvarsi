@@ -779,6 +779,104 @@ def test_dozorca_retries_only_the_store_whose_current_flyer_is_missing(tmp_path)
     assert collection_calls == ["-u zbierac_akcii.py --store lidl"]
 
 
+def test_dozorca_repairs_kaufland_from_official_source_before_paid_collector(tmp_path):
+    (tmp_path / "app").mkdir()
+    landing_data = tmp_path / "landing_data.json"
+    write_landing_data_atomic(landing_data, payload("2026-08-10"))
+    calls = tmp_path / "calls.txt"
+    fake_python = tmp_path / "python"
+    fake_python.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"-c\" ]; then\n"
+        "  case \"$2\" in *landing_data_is_current*) exit 1 ;; esac\n"
+        "  case \"$2\" in *'from datetime import date'*) echo 2026-08-17; exit 0 ;; esac\n"
+        "  exit 1\n"
+        "fi\n"
+        f"printf '%s\\n' \"$*\" >> '{bash_path(calls)}'\n"
+        "case \"$*\" in\n"
+        "  *--official-kaufland-only*) exit 0 ;;\n"
+        "  *refresh_blocek.py*) exit 3 ;;\n"
+        "esac\n"
+        "exit 0\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_python.chmod(0o755)
+    fake_sqlite = tmp_path / "sqlite3"
+    fake_sqlite.write_text(
+        "#!/bin/sh\n"
+        f"DONE=0; grep -q -- --official-kaufland-only '{bash_path(calls)}' "
+        "2>/dev/null && DONE=1\n"
+        "case \"$*\" in\n"
+        "  *\"SELECT lower(v.o)\"*) [ \"$DONE\" -eq 0 ] && echo kaufland ;;\n"
+        "  *\"SELECT COUNT(*) FROM (\"*) [ \"$DONE\" -eq 1 ] && echo 0 || echo 1 ;;\n"
+        "  *MAX*) echo 0 ;;\n"
+        "  *) echo 40 ;;\n"
+        "esac\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_sqlite.chmod(0o755)
+
+    result = run_dozorca(tmp_path, landing_data)
+    recorded = calls.read_text(encoding="utf-8").splitlines()
+
+    assert result.returncode == 3
+    assert recorded.count("-u zbierac_akcii.py --official-kaufland-only") == 1
+    assert not any(
+        "zbierac_akcii.py --store" in call for call in recorded
+    ), "úspešný bezplatný zber nesmie spustiť platený Vision fallback"
+
+
+def test_dozorca_repairs_kaufland_free_when_multiple_stores_are_missing(tmp_path):
+    (tmp_path / "app").mkdir()
+    landing_data = tmp_path / "landing_data.json"
+    write_landing_data_atomic(landing_data, payload("2026-08-10"))
+    calls = tmp_path / "calls.txt"
+    fake_python = tmp_path / "python"
+    fake_python.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"-c\" ]; then\n"
+        "  case \"$2\" in *landing_data_is_current*) exit 1 ;; esac\n"
+        "  case \"$2\" in *'from datetime import date'*) echo 2026-08-17; exit 0 ;; esac\n"
+        "  exit 1\n"
+        "fi\n"
+        f"printf '%s\\n' \"$*\" >> '{bash_path(calls)}'\n"
+        "case \"$*\" in\n"
+        "  *--official-kaufland-only*) exit 0 ;;\n"
+        "  *refresh_blocek.py*) exit 3 ;;\n"
+        "esac\n"
+        "exit 0\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_python.chmod(0o755)
+    fake_sqlite = tmp_path / "sqlite3"
+    fake_sqlite.write_text(
+        "#!/bin/sh\n"
+        f"DONE=0; grep -q -- --official-kaufland-only '{bash_path(calls)}' "
+        "2>/dev/null && DONE=1\n"
+        "case \"$*\" in\n"
+        "  *\"SELECT lower(v.o)\"*) "
+        "if [ \"$DONE\" -eq 0 ]; then printf 'kaufland\\nlidl\\n'; else echo lidl; fi ;;\n"
+        "  *\"SELECT COUNT(*) FROM (\"*) [ \"$DONE\" -eq 1 ] && echo 1 || echo 2 ;;\n"
+        "  *MAX*) echo 0 ;;\n"
+        "  *) echo 40 ;;\n"
+        "esac\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_sqlite.chmod(0o755)
+
+    result = run_dozorca(tmp_path, landing_data)
+    recorded = calls.read_text(encoding="utf-8").splitlines()
+
+    assert result.returncode == 3
+    assert recorded.count("-u zbierac_akcii.py --official-kaufland-only") == 1
+    paid = [call for call in recorded if "zbierac_akcii.py --store" in call]
+    assert paid == ["-u zbierac_akcii.py --store lidl"]
+
+
 def test_dozorca_neplati_rovnaky_strukturalny_zber_opakovane_a_release_ho_odomkne(
     tmp_path,
 ):
@@ -826,7 +924,7 @@ def test_dozorca_neplati_rovnaky_strukturalny_zber_opakovane_a_release_ho_odomkn
     collection_calls = [
         line
         for line in calls.read_text(encoding="utf-8").splitlines()
-        if "zbierac_akcii.py" in line
+        if "zbierac_akcii.py --store" in line
     ]
     assert (first.returncode, repeated.returncode, after_release.returncode) == (3, 3, 3)
     assert len(collection_calls) == 2

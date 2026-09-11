@@ -89,6 +89,10 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 H = {"User-Agent": UA}
 LIDL_OVERVIEW_URL = "https://www.lidl.sk/c/online-letak/"
 LIDL_API_URL = "https://endpoints.leaflets.schwarz/v4/flyer"
+KAUFLAND_OFFERS_URL = (
+    "https://predajne.kaufland.sk/aktualna-ponuka/prehlad.html"
+    "?kloffer-week=current"
+)
 COLLECTION_DATA_VERSION = CURRENT_COLLECTION_DATA_VERSION
 
 
@@ -365,6 +369,298 @@ def official_lidl_pages(today=None):
         ],
     }
     return pages, manifest
+
+
+_KAUFLAND_FOOD_CATEGORIES = (
+    "Čerstvé ovocie a zelenina",
+    "Mäso, hydina, údeniny",
+    "Čerstvé ryby",
+    "Čerstvé výrobky",
+    "Mrazené výrobky",
+    "Lahôdky",
+    "Trvanlivé potraviny",
+    "Pečivo",
+    "Káva, čaj, sladké, slané",
+    "Nápoje",
+    "Kaufland Card XTRA",
+    "Ponuka OD DO",
+    "Proteín",
+    "Aktuálna ponuka",
+    "Polovičné ceny",
+)
+_KAUFLAND_PLANT_WORDS = (
+    "kvetináč", "kytica", "ruža", "ľalia", "chryzantém", "antúria",
+    "orchidea", "azalka", "hortenzia", "cyklámen", "okrasná tráva",
+)
+_KAUFLAND_ALCOHOL_WORDS = (
+    "alk.", "alkohol", "víno", "pivo", "liehovina", "destilát",
+    "slivovica", "vodka", "rum", "whisky", "gin",
+)
+_KAUFLAND_NONFOOD_WORDS = (
+    "panvica", "hrniec", "naberačka", "obracačka", "šampón", "kondicionér",
+    "zubná pasta", "plienky", "granuly pre psa", "granuly pre mačku", "vysávač",
+    "kanvica", "žehlička", "tričko", "mikina", "nohavice", "hračka",
+)
+_KAUFLAND_MIXED_CATEGORIES = ("Aktuálna ponuka", "Polovičné ceny")
+_KAUFLAND_FOOD_WORDS = (
+    "ryža", "cestovin", "múka", "cukor", "soľ", "olej", "ocot", "korenie",
+    "mäso", "kurac", "morčac", "bravč", "hovädz", "šunka", "saláma", "klobása",
+    "párky", "slanina", "ryba", "losos", "tuniak", "sardink", "vajc",
+    "mlie", "syr", "jogurt", "smotan", "tvaroh", "maslo", "kefír", "puding",
+    "chlieb", "pečivo", "rožok", "žemľa", "vianočka", "croissant", "tortilla",
+    "paradaj", "paprik", "zemiak", "cibuľ", "cesnak", "mrkv", "cuketa",
+    "brokolic", "karfiol", "uhork", "kapust", "zeler", "špenát", "šalát",
+    "jabl", "hrušk", "banán", "hrozno", "citrón", "pomaranč", "mandarín",
+    "nektár", "brosky", "slivk", "melón", "avokádo", "čučoried", "malin",
+    "jahod", "mango", "ananás", "kiwi", "strukovin", "fazuľ", "šošovic",
+    "cícer", "konzerv", "kečup", "horčic", "majonéz", "omáčk", "polievk",
+    "džem", "med", "káva", "čaj", "kakao", "čokolád", "sušien", "oblátk",
+    "cukrík", "dezert", "koláč", "minerálna voda", "džús", "nápoj",
+)
+
+
+def _kaufland_offer_template(page_html):
+    decoder = json.JSONDecoder()
+    assignment = re.compile(r"window\.SSR\['[^']+'\]\s*=\s*")
+    for match in assignment.finditer(page_html or ""):
+        try:
+            payload, _ = decoder.raw_decode(page_html, match.end())
+        except (TypeError, ValueError):
+            continue
+        if isinstance(payload, dict) and payload.get("component") == "OfferTemplate":
+            return payload
+    raise ValueError("oficiálna stránka Kauflandu nemá čitateľné dáta ponúk")
+
+
+def _decimal_price(value):
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        number = float(value)
+    elif isinstance(value, str):
+        match = re.search(r"\d+(?:[.,]\d+)?", value.replace(" ", ""))
+        if not match:
+            return None
+        number = float(match.group(0).replace(",", "."))
+    else:
+        return None
+    return number if number > 0 else None
+
+
+def _contains_whole_word(text, words):
+    return any(
+        re.search(rf"(?<!\w){re.escape(word)}(?!\w)", text, re.I)
+        for word in words
+    )
+
+
+def _kaufland_is_alcohol(text):
+    if re.search(r"(?<!\w)nealkohol", text, re.I):
+        return False
+    return _contains_whole_word(text, _KAUFLAND_ALCOHOL_WORDS)
+
+
+def _kaufland_category(display_name, name):
+    lowered = name.lower()
+    if display_name.startswith(("Mäso", "Čerstvé ryby")) or any(
+        word in lowered for word in (
+            "mäso", "šunka", "saláma", "klobása", "párky", "držky", "ryba",
+            "losos", "tuniak", "kurča", "kuracie", "morčacie", "bravčové",
+            "hovädzie",
+        )
+    ):
+        return "maso"
+    if display_name.startswith("Čerstvé ovocie a zelenina"):
+        fruits = (
+            "jabl", "hrušk", "banán", "hrozno", "citrón", "pomaranč",
+            "mandarín", "nektár", "brosky", "slivk", "melón", "avokádo",
+            "čučoried", "malin", "jahod", "mango", "ananás", "kiwi",
+        )
+        return "ovocie" if any(word in lowered for word in fruits) else "zelenina"
+    if any(word in lowered for word in (
+        "jabl", "hrušk", "banán", "hrozno", "citrón", "pomaranč", "mandarín",
+        "nektár", "brosky", "slivk", "melón", "avokádo", "čučoried", "malin",
+        "jahod", "mango", "ananás", "kiwi",
+    )):
+        return "ovocie"
+    if any(word in lowered for word in (
+        "paradaj", "paprik", "zemiak", "cibuľ", "cesnak", "mrkv", "cuketa",
+        "brokolic", "karfiol", "uhork", "kapust", "zeler", "špenát", "šalát",
+    )):
+        return "zelenina"
+    if display_name.startswith("Pečivo") or any(
+        word in lowered for word in ("chlieb", "pečivo", "rožok", "žemľa", "vianočka")
+    ):
+        return "pecivo"
+    if display_name.startswith("Čerstvé výrobky") or any(
+        word in lowered for word in (
+            "mlieko", "syr", "jogurt", "smotana", "tvaroh", "maslo", "kefír",
+            "nátierka", "puding",
+        )
+    ):
+        dairy = ("mlie", "syr", "jogurt", "smotan", "tvaroh", "maslo", "kefír")
+        return "mliecne" if any(word in lowered for word in dairy) else "ine"
+    if display_name.startswith(("Trvanlivé", "Káva")):
+        return "trvanlive"
+    return "ine"
+
+
+def _kaufland_offer_name(item):
+    parts = [
+        str(value).strip()
+        for value in (item.get("title"), item.get("subtitle"))
+        if str(value or "").strip()
+    ]
+    if not parts:
+        detail_lines = [
+            line.strip()
+            for line in str(item.get("detailDescription") or "").splitlines()
+            if line.strip() and line.strip() != "."
+        ]
+        useful = [
+            line for line in detail_lines
+            if line.lower() != "rôzne druhy"
+            and not re.fullmatch(r"\d+(?:[.,]\d+)?\s*(?:g|kg|ml|l|ks)", line, re.I)
+        ]
+        parts = useful[:2]
+    if not parts:
+        parts = [
+            line.strip()
+            for line in str(item.get("detailTitle") or "").splitlines()
+            if line.strip() and not line.lower().startswith("cena s kaufland")
+        ][:2]
+    return " ".join(parts)
+
+
+def _kaufland_unit(raw_unit):
+    value = str(raw_unit or "").lower()
+    if re.search(r"(?:^|\s)1\s*kg(?:\s|$)", value):
+        return "kg"
+    if re.search(r"(?:^|\s)1\s*l(?:\s|$)", value):
+        return "l"
+    if "kus" in value and not re.search(r"\d+\s*x\s*", value):
+        return "ks"
+    return "balenie"
+
+
+def official_kaufland_offers(today=None):
+    """Čítaj cenové fakty priamo z verejného Kaufland OfferTemplate bez AI."""
+    today = today or business_day()
+    response = requests.get(KAUFLAND_OFFERS_URL, headers=H, timeout=45)
+    content_type = str(response.headers.get("content-type", "")).lower()
+    if response.status_code != 200 or "text/html" not in content_type:
+        raise ValueError(
+            f"oficiálny Kaufland zdroj vrátil HTTP {response.status_code}"
+        )
+    payload = _kaufland_offer_template(response.text)
+    try:
+        cycles = payload["props"]["offerData"]["cycles"]
+    except (KeyError, TypeError) as exc:
+        raise ValueError("oficiálny Kaufland zdroj nemá zoznam kampaní") from exc
+
+    candidates = []
+    for cycle in cycles if isinstance(cycles, list) else []:
+        categories = cycle.get("categories", []) if isinstance(cycle, dict) else []
+        for category in categories:
+            if not isinstance(category, dict):
+                continue
+            display_name = str(category.get("displayName") or "")
+            if not display_name.startswith(_KAUFLAND_FOOD_CATEGORIES):
+                continue
+            for item in category.get("offers", []):
+                if not isinstance(item, dict):
+                    continue
+                valid_from = item.get("dateFrom")
+                valid_to = item.get("dateTo")
+                try:
+                    start = datetime.date.fromisoformat(valid_from)
+                    end = datetime.date.fromisoformat(valid_to)
+                except (TypeError, ValueError):
+                    continue
+                if start <= today <= end:
+                    candidates.append((display_name, item, valid_from, valid_to))
+    if not candidates:
+        raise ValueError("oficiálny Kaufland zdroj nemá dnešné potravinové ponuky")
+
+    offers, seen = [], set()
+    for display_name, item, start, end in candidates:
+        raw_name = _kaufland_offer_name(item)
+        raw_unit = str(item.get("unit") or "").strip()
+        if raw_unit and raw_unit.lower() not in raw_name.lower():
+            raw_name = f"{raw_name} {raw_unit}".strip()
+        plant_text = " ".join(
+            (raw_name, str(item.get("detailDescription") or ""))
+        ).lower()
+        if (
+            not raw_name
+            or (
+                display_name.startswith(_KAUFLAND_MIXED_CATEGORIES)
+                and not any(word in plant_text for word in _KAUFLAND_FOOD_WORDS)
+            )
+            or any(word in plant_text for word in _KAUFLAND_PLANT_WORDS)
+            or _kaufland_is_alcohol(plant_text)
+            or _contains_whole_word(plant_text, _KAUFLAND_NONFOOD_WORDS)
+        ):
+            continue
+
+        price = _decimal_price(item.get("price"))
+        original = _decimal_price(item.get("formattedOldPrice"))
+        discount = _decimal_price(item.get("discount"))
+        card_price = _decimal_price(item.get("loyaltyFormattedPrice"))
+        card_discount = _decimal_price(item.get("loyaltyDiscount"))
+        if price is None or original is None or original < price:
+            continue
+        if not discount and not card_discount:
+            continue
+        if card_price is None or card_price >= price:
+            card_price = card_discount = None
+
+        detail = str(item.get("detailDescription") or "")
+        minimum_match = re.search(r"nad\s*(\d+(?:[.,]\d+)?)\s*€", detail, re.I)
+        minimum = (
+            float(minimum_match.group(1).replace(",", "."))
+            if card_price is not None and minimum_match else None
+        )
+        identity = item.get("offerId") or (raw_name, raw_unit, price, card_price)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        offer = {
+            "obchod": "Kaufland",
+            "nazov": raw_name[:120],
+            "kategoria": _kaufland_category(display_name, raw_name),
+            "cena": price,
+            "povodna": original,
+            "zlava": f"-{int(round(discount))} %" if discount else None,
+            "jednotka": _kaufland_unit(raw_unit),
+            "cena_s_kartou": card_price,
+            "zlava_s_kartou": (
+                f"-{int(round(card_discount))} %" if card_discount else None
+            ),
+            "vernostny_program": "Kaufland Card" if card_price else None,
+            "minimalny_nakup": minimum,
+            "podmienka_s_kartou": (
+                f"Nákup aspoň za {minimum:g} €" if minimum is not None else None
+            ),
+            "source_url": KAUFLAND_OFFERS_URL,
+            "source_page": 1,
+            "valid_from": start,
+            "valid_to": end,
+        }
+        try:
+            validate_offer(offer)
+            _validate_discount_arithmetic(offer)
+        except ValueError as exc:
+            log(
+                f"[WARN] kaufland: oficiálnu položku {raw_name[:40]} "
+                f"vynechávam ({exc})"
+            )
+            continue
+        offers.append(offer)
+    if not offers:
+        raise ValueError("oficiálny Kaufland zdroj nevrátil overiteľné akciové ceny")
+    log(f"[INFO] kaufland: oficiálny zdroj, {len(offers)} akcií bez AI")
+    return offers
 
 
 def _mletaky_declared_page_counts(page_html, store):
@@ -1049,7 +1345,7 @@ def _collection_provenance(offers):
     urls = {item.get("source_url") for item in offers if isinstance(item, dict)}
     starts = {item.get("valid_from") for item in offers if isinstance(item, dict)}
     ends = {item.get("valid_to") for item in offers if isinstance(item, dict)}
-    if len(urls) != 1 or len(starts) != 1 or len(ends) != 1:
+    if len(urls) != 1 or not starts or not ends:
         raise ValueError("zber nemá jednotnú internú provenienciu")
     source_url = urls.pop()
     collector_kind = source_policy.collector_kind_for_url(source_url)
@@ -1058,8 +1354,8 @@ def _collection_provenance(offers):
     return (
         collector_kind,
         source_policy.source_fingerprint(source_url),
-        starts.pop(),
-        ends.pop(),
+        min(starts),
+        max(ends),
     )
 
 
@@ -1081,6 +1377,31 @@ def record_store_outcome(con, week, store, status, count=0, detail=None, offers=
         (week, store, status, count, detail, COLLECTION_DATA_VERSION, *provenance),
     )
     con.commit()
+
+
+def official_kaufland_main():
+    """Bezplatná opravná cesta pre Kaufland; nikdy nenačíta Anthropic kľúč."""
+    tyz = monday()
+    con = db()
+    try:
+        offers = official_kaufland_offers()
+        if len(offers) < MIN_VERIFIED_OFFERS_PER_STORE:
+            raise ValueError(
+                f"kaufland: iba {len(offers)} overených oficiálnych akcií; "
+                f"minimum je {MIN_VERIFIED_OFFERS_PER_STORE}"
+            )
+        con.commit()
+        con.execute("BEGIN IMMEDIATE")
+        replace_store_week(con, tyz, "Kaufland", offers)
+        record_store_outcome(
+            con, tyz, "Kaufland", "ok", len(offers), offers=offers
+        )
+    except Exception as exc:
+        con.rollback()
+        raise SystemExit(f"Oficiálny zber Kauflandu zlyhal: {exc}") from None
+    finally:
+        con.close()
+    log(f"[OK] Kaufland: uložených {len(offers)} oficiálnych akcií bez AI.")
 
 
 def collection_budget_purpose(con, week, selected_stores):
@@ -1220,7 +1541,17 @@ def cli(argv=None):
         "--store", action="append", choices=STORES, dest="stores",
         help="opravný zber iba jedného obchodu; možno uviesť opakovane",
     )
+    parser.add_argument(
+        "--official-kaufland-only",
+        action="store_true",
+        help="bezplatný cielený zber z oficiálneho Kaufland prehľadu",
+    )
     args = parser.parse_args(argv)
+    if args.official_kaufland_only:
+        if args.stores:
+            parser.error("--official-kaufland-only nemožno kombinovať s --store")
+        official_kaufland_main()
+        return 0
     main(args.stores)
     return 0
 

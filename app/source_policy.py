@@ -19,6 +19,12 @@ PENDING_PERMISSION = "pending_permission"
 # current automated readers remain useful to the free beta, but cannot unlock
 # paid checkout until their terms/licence have a documented defensible basis.
 _REGISTRY = {
+    ("Kaufland", "official-kaufland-offers"): {
+        "shape": FACTS_ONLY_SHAPE,
+        "review_date": "2026-09-11",
+        "reviewer": "external-review-required",
+        "status": PENDING_PERMISSION,
+    },
     ("Lidl", "official-lidl-viewer"): {
         "shape": FACTS_ONLY_SHAPE,
         "review_date": "2026-09-07",
@@ -115,6 +121,11 @@ def collector_kind_for_url(value) -> str | None:
     if parsed.scheme != "https" or parsed.username or parsed.password or port:
         return None
     host = (parsed.hostname or "").lower()
+    if (
+        host == "predajne.kaufland.sk"
+        and parsed.path == "/aktualna-ponuka/prehlad.html"
+    ):
+        return "official-kaufland-offers"
     if host == "www.lidl.sk":
         return "official-lidl-viewer"
     if host == "www.kupino.sk":
@@ -133,7 +144,9 @@ def source_fingerprint(source_url: str) -> str:
 
 def source_policy_status() -> dict:
     current = {
-        "Kaufland": ("kupino-aggregator", "mletaky-aggregator"),
+        "Kaufland": (
+            "official-kaufland-offers", "kupino-aggregator", "mletaky-aggregator",
+        ),
         "Tesco": ("kupino-aggregator", "mletaky-aggregator"),
         "Lidl": (
             "official-lidl-viewer", "kupino-aggregator", "mletaky-aggregator",
@@ -192,6 +205,15 @@ def collection_is_approved(con, *, week: str, today: datetime.date) -> bool:
         except (TypeError, ValueError):
             return False
         if not valid_from <= today <= valid_to:
+            return False
+        current_facts = con.execute(
+            """SELECT COUNT(*) FROM akcie
+               WHERE tyzden=? AND obchod=?
+                 AND valid_from IS NOT NULL AND valid_to IS NOT NULL
+                 AND valid_from <= ? AND ? <= valid_to""",
+            (week, store, today.isoformat(), today.isoformat()),
+        ).fetchone()[0]
+        if int(current_facts or 0) < MIN_FACTS_PER_STORE:
             return False
     return True
 
