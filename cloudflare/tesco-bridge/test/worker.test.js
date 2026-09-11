@@ -208,10 +208,10 @@ async function readJson(response) {
   return JSON.parse(await response.text());
 }
 
-async function issueMediaToken({ fetchImpl, cache = null } = {}) {
+async function issueMediaToken({ fetchImpl, cache = null, now } = {}) {
   const upstream =
     fetchImpl ?? (async () => jsonUpstream(graphqlPayload(leaflet())));
-  const bridge = subject(upstream, { cache });
+  const bridge = subject(upstream, { cache, now });
   const response = await bridge.fetch(
     manifestRequest(),
     { BRIDGE_SECRET, TOKEN_SECRET },
@@ -634,6 +634,63 @@ test("rejects tampered and expired media tokens before fetching media", async ()
     assert.deepEqual(await readJson(response), { error: "invalid_token" });
   }
   assert.equal(mediaFetches, 0);
+});
+
+test("keeps a media token valid for the full autonomous run but not past 60 minutes", async () => {
+  let currentTime = NOW;
+  let mediaFetches = 0;
+  const fetchMock = async (input) => {
+    if (String(input) === TESCO_GRAPHQL_ENDPOINT) {
+      return jsonUpstream(graphqlPayload(leaflet()));
+    }
+    mediaFetches += 1;
+    return new Response(Uint8Array.from([0xff, 0xd8, 0xff]), {
+      headers: { "Content-Type": "image/jpeg" },
+    });
+  };
+  const { bridge, url } = await issueMediaToken({
+    fetchImpl: fetchMock,
+    now: () => currentTime,
+  });
+
+  currentTime = NOW + 3_599_000;
+  const beforeLimit = await bridge.fetch(
+    new Request(url, { headers: authorizedHeaders() }),
+    { BRIDGE_SECRET, TOKEN_SECRET },
+    createContext().context,
+  );
+  assert.equal(beforeLimit.status, 200);
+
+  currentTime = NOW + 3_600_000;
+  const atLimit = await bridge.fetch(
+    new Request(url, { headers: authorizedHeaders() }),
+    { BRIDGE_SECRET, TOKEN_SECRET },
+    createContext().context,
+  );
+  assert.equal(atLimit.status, 400);
+  assert.deepEqual(await readJson(atLimit), { error: "invalid_token" });
+  assert.equal(mediaFetches, 1);
+});
+
+test("caps client media caching one second before the 60-minute token boundary", async () => {
+  const fetchMock = async (input) =>
+    String(input) === TESCO_GRAPHQL_ENDPOINT
+      ? jsonUpstream(graphqlPayload(leaflet()))
+      : new Response(Uint8Array.from([0xff, 0xd8, 0xff]), {
+          headers: { "Content-Type": "image/jpeg" },
+        });
+  const { bridge, url } = await issueMediaToken({ fetchImpl: fetchMock });
+  const response = await bridge.fetch(
+    new Request(url, { headers: authorizedHeaders() }),
+    { BRIDGE_SECRET, TOKEN_SECRET },
+    createContext().context,
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(
+    response.headers.get("Cache-Control"),
+    "private, max-age=3599, immutable",
+  );
 });
 
 test("revalidates the decoded media URL after a valid HMAC", async () => {
