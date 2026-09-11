@@ -266,6 +266,15 @@ def optional_money(value):
 def money_text(value):
     return format(value.quantize(Decimal("0.01")), "f").replace(".", ",")
 
+def weighted_line_totals_match(price_pairs):
+    cent = Decimal("0.01")
+    line_price, unit_price = price_pairs[0]
+    multiplier = line_price / unit_price
+    return multiplier > 0 and all(
+        (unit * multiplier).quantize(cent) == line
+        for line, unit in price_pairs
+    )
+
 active_offer_refs = set()
 active_offer_sources = {}
 active_offers = {}
@@ -488,29 +497,60 @@ for meal in meals:
             base_item_fields | loyalty_item_fields
             if offer["loyalty"] is not None else base_item_fields
         )
-        expected_price = offer["price"] * quantity
-        expected_original = (
-            None if offer["original"] is None else offer["original"] * quantity
-        )
-        expected_savings = (
-            None if expected_original is None else expected_original - expected_price
-        )
         if (
             set(item) != expected_fields
             or item.get("name") != offer["name"]
             or item.get("unit") != offer["unit"]
-            or item.get("price") != money_text(expected_price)
-            or item.get("original_price") != (
-                None if expected_original is None else money_text(expected_original)
-            )
-            or item.get("savings") != (
-                None if expected_savings is None else money_text(expected_savings)
-            )
             or item.get("off") != offer["discount"]
         ):
             raise SystemExit(1)
+        line_price = money(item.get("price"))
+        line_original = optional_money(item.get("original_price"))
+        line_loyalty = optional_money(item.get("loyalty_price"))
+        if (offer["original"] is None) != (line_original is None):
+            raise SystemExit(1)
+        weighted = offer["unit"].strip().casefold() == "kg"
+        if weighted:
+            price_pairs = [(line_price, offer["price"])]
+            if quantity != 1 or (
+                offer["original"] is None and offer["loyalty"] is None
+            ):
+                raise SystemExit(1)
+            if line_original is not None:
+                if line_original < line_price:
+                    raise SystemExit(1)
+                price_pairs.append((line_original, offer["original"]))
+            if line_loyalty is not None:
+                if line_loyalty >= line_price:
+                    raise SystemExit(1)
+                price_pairs.append((line_loyalty, offer["loyalty"]))
+            if not weighted_line_totals_match(price_pairs):
+                raise SystemExit(1)
+            expected_price = line_price
+            expected_original = line_original
+        else:
+            expected_price = offer["price"] * quantity
+            expected_original = (
+                None if offer["original"] is None else offer["original"] * quantity
+            )
+            expected_loyalty = (
+                None if offer["loyalty"] is None else offer["loyalty"] * quantity
+            )
+            if (
+                line_price != expected_price
+                or line_original != expected_original
+                or line_loyalty != expected_loyalty
+            ):
+                raise SystemExit(1)
+        expected_savings = (
+            None if expected_original is None else expected_original - expected_price
+        )
+        if item.get("savings") != (
+            None if expected_savings is None else money_text(expected_savings)
+        ):
+            raise SystemExit(1)
         if offer["loyalty"] is not None and (
-            item.get("loyalty_price") != money_text(offer["loyalty"] * quantity)
+            line_loyalty is None
             or item.get("loyalty_discount") != offer["loyalty_discount"]
             or item.get("loyalty_program") != offer["loyalty_program"]
             or item.get("loyalty_minimum_basket") != (
@@ -706,19 +746,56 @@ uvarsi_restore_supervisor_schedule() {
   snapshot=$1
   complete="$snapshot/crontab.full"
   [ -f "$complete" ] || return 1
-  installed=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-restored.XXXXXX") || return 1
-  chmod 600 "$installed" || { rm -f "$installed"; return 1; }
-  if ! "$UVARSI_CRONTAB" "$complete" || ! _uvarsi_read_crontab "$installed" || \
+  current=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-current.XXXXXX") || return 1
+  candidate=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-candidate.XXXXXX") || {
+    rm -f "$current"
+    return 1
+  }
+  installed=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-restored.XXXXXX") || {
+    rm -f "$current" "$candidate"
+    return 1
+  }
+  chmod 600 "$current" "$candidate" "$installed" || {
+    rm -f "$current" "$candidate" "$installed"
+    return 1
+  }
+  if ! _uvarsi_read_crontab "$current" || ! "$UVARSI_HEALTH_PY" -c '
+import re, sys
+current_path, snapshot_path, candidate_path = sys.argv[1:4]
+patterns = (
+    re.compile(r"(?:^|\s)/opt/uvarsi/dozorca\.sh(?:\s|$)"),
+    re.compile(r"(?:^|\s)/opt/uvarsi/uvarsi-deploy-state\.sh\s+run-supervisor(?:\s|$)"),
+    re.compile(r"(?:^|\s)/opt/uvarsi/zaloha\.sh(?:\s|$)"),
+    re.compile(r"(?:^|\s)/opt/uvarsi/venv/bin/python\s+rekonciliacia\.py(?:\s|$)"),
+)
+
+def managed(line):
+    return (
+        bool(line.strip()) and not line.lstrip().startswith("#")
+        and any(pattern.search(line) for pattern in patterns)
+    )
+
+with open(current_path, encoding="utf-8") as source:
+    current = [line.rstrip("\n") for line in source]
+with open(snapshot_path, encoding="utf-8") as source:
+    snapshot = [line.rstrip("\n") for line in source]
+merged = [line for line in current if not managed(line)]
+merged.extend(line for line in snapshot if managed(line))
+with open(candidate_path, "w", encoding="utf-8", newline="\n") as target:
+    for line in merged:
+        target.write(line + "\n")
+' "$current" "$complete" "$candidate" >/dev/null 2>&1 || \
+      ! "$UVARSI_CRONTAB" "$candidate" || ! _uvarsi_read_crontab "$installed" || \
       ! "$UVARSI_HEALTH_PY" -c '
 import pathlib, sys
 expected = pathlib.Path(sys.argv[1]).read_bytes()
 actual = pathlib.Path(sys.argv[2]).read_bytes()
 raise SystemExit(0 if actual == expected else 1)
-' "$complete" "$installed" >/dev/null 2>&1; then
-    rm -f "$installed"
+' "$candidate" "$installed" >/dev/null 2>&1; then
+    rm -f "$current" "$candidate" "$installed"
     return 1
   fi
-  rm -f "$installed"
+  rm -f "$current" "$candidate" "$installed"
 }
 
 _uvarsi_transform_production_cron() {

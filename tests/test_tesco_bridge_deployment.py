@@ -737,6 +737,87 @@ def test_production_readiness_rejects_consistent_but_wrong_repkovy_olej_price(
     assert result.returncode != 0
 
 
+def weighted_receipt_payload(deployment):
+    with sqlite3.connect(deployment["database"]) as con:
+        for table in ("akcie", "akcie_staging"):
+            con.execute(
+                f"""UPDATE {table}
+                    SET nazov=?, cena=?, povodna=?, zlava=?, jednotka=?,
+                        cena_s_kartou=?, zlava_s_kartou=?, vernostny_program=?,
+                        podmienka_s_kartou=?
+                    WHERE obchod='Tesco' AND offer_key='tesco-offer-1'""",
+                (
+                    "Kuracie prsia na váhu", 5.15, 6.99, "-26 %", "kg",
+                    4.75, "-32 %", "Clubcard", "iba s Clubcard",
+                ),
+            )
+
+    payload = landing_payload()
+    chicken = payload["receipt"]["meals"][1]["items"][0]
+    chicken.update(
+        name="Kuracie prsia na váhu",
+        unit="kg",
+        price="6,18",
+        original_price="8,39",
+        savings="2,21",
+        off="-26 %",
+        loyalty_price="5,70",
+        loyalty_discount="-32 %",
+    )
+    payload["receipt"].update(
+        nakup_spolu="9,72", bezne="13,87", usetris="4,15"
+    )
+    return payload
+
+
+def test_production_readiness_accepts_exact_weighted_line_totals(deployment):
+    deployment["landing"].write_text(
+        json.dumps(weighted_receipt_payload(deployment)), encoding="utf-8"
+    )
+
+    result = run_library(deployment, "uvarsi_require_production_readiness")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_production_readiness_rejects_wrong_weighted_subtotal(deployment):
+    payload = weighted_receipt_payload(deployment)
+    chicken = payload["receipt"]["meals"][1]["items"][0]
+    chicken.update(price="6,17", savings="2,22")
+    payload["receipt"].update(nakup_spolu="9,71", usetris="4,16")
+    deployment["landing"].write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_library(deployment, "uvarsi_require_production_readiness")
+
+    assert result.returncode != 0
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["original_price", "loyalty_price", "quantity", "unit", "validity"],
+)
+def test_production_readiness_rejects_wrong_weighted_offer_facts(
+        deployment, mutation):
+    payload = weighted_receipt_payload(deployment)
+    chicken = payload["receipt"]["meals"][1]["items"][0]
+    if mutation == "original_price":
+        chicken.update(original_price="8,38", savings="2,20")
+        payload["receipt"].update(bezne="13,86", usetris="4,14")
+    elif mutation == "loyalty_price":
+        chicken["loyalty_price"] = "5,69"
+    elif mutation == "quantity":
+        chicken["quantity"] = 2
+    elif mutation == "unit":
+        chicken["unit"] = "500 g"
+    else:
+        payload["sources"][1]["valid_to"] = "2026-09-14"
+    deployment["landing"].write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_library(deployment, "uvarsi_require_production_readiness")
+
+    assert result.returncode != 0
+
+
 @pytest.mark.parametrize(
     ("field", "wrong_value"),
     [
@@ -855,13 +936,17 @@ def test_supervisor_schedule_install_and_rollback_preserve_taktik(deployment):
     assert SUPERVISOR_CRON not in restored_lines
 
 
-def test_complete_crontab_snapshot_and_restore_are_exact(deployment):
+def test_crontab_rollback_merges_snapshot_managed_rows_with_current_unrelated_rows(
+        deployment):
+    removed_during_deploy = "17 2 * * * /opt/other/retired-report.sh"
+    old_supervisor = "0 5-21 * * * /opt/uvarsi/dozorca.sh"
+    old_backup = "12 3 * * * /opt/uvarsi/zaloha.sh"
     original = (
-        "# Taktik and unrelated jobs must survive byte-for-byte\n"
+        "# Original crontab\n"
         f"{TAKTIK_CRON}\n"
-        "17 2 * * * /opt/other/report.sh\n"
-        "0 5-21 * * * /opt/uvarsi/dozorca.sh\n"
-        "12 3 * * * /opt/uvarsi/zaloha.sh\n"
+        f"{removed_during_deploy}\n"
+        f"{old_supervisor}\n"
+        f"{old_backup}\n"
     )
     deployment["cron"].write_text(original, encoding="utf-8", newline="\n")
     snapshot = deployment["state"] / "complete-cron-snapshot"
@@ -872,8 +957,18 @@ def test_complete_crontab_snapshot_and_restore_are_exact(deployment):
         f'uvarsi_snapshot_supervisor_schedule "{bash_path(snapshot)}"',
     )
     assert snap.returncode == 0, snap.stdout + snap.stderr
+    concurrent_addition = "0 * * * * /opt/other/new-during-deploy.sh"
+    current = (
+        "# Current crontab\n"
+        f"{TAKTIK_CRON}\n"
+        f"{concurrent_addition}\n"
+        f"{SUPERVISOR_CRON}\n"
+        "30 3 * * * /opt/uvarsi/zaloha.sh\n"
+        "5 * * * * cd /opt/uvarsi/app && "
+        "/opt/uvarsi/venv/bin/python rekonciliacia.py\n"
+    )
     deployment["cron"].write_text(
-        f"{SUPERVISOR_CRON}\n0 * * * * /tmp/new-during-deploy\n",
+        current,
         encoding="utf-8",
         newline="\n",
     )
@@ -884,7 +979,39 @@ def test_complete_crontab_snapshot_and_restore_are_exact(deployment):
     )
 
     assert restored.returncode == 0, restored.stdout + restored.stderr
-    assert deployment["cron"].read_text(encoding="utf-8") == original
+    restored_lines = deployment["cron"].read_text(encoding="utf-8").splitlines()
+    assert "# Current crontab" in restored_lines
+    assert TAKTIK_CRON in restored_lines
+    assert concurrent_addition in restored_lines
+    assert removed_during_deploy not in restored_lines
+    assert old_supervisor in restored_lines
+    assert old_backup in restored_lines
+    assert SUPERVISOR_CRON not in restored_lines
+    assert sum("rekonciliacia.py" in line for line in restored_lines) == 0
+
+
+def test_crontab_rollback_fails_closed_when_current_crontab_cannot_be_read(
+        deployment):
+    original = f"{TAKTIK_CRON}\n0 5-21 * * * /opt/uvarsi/dozorca.sh\n"
+    deployment["cron"].write_text(original, encoding="utf-8", newline="\n")
+    snapshot = deployment["state"] / "rollback-read-error-snapshot"
+    snapshot.mkdir()
+    snap = run_library(
+        deployment,
+        f'uvarsi_snapshot_supervisor_schedule "{bash_path(snapshot)}"',
+    )
+    assert snap.returncode == 0, snap.stdout + snap.stderr
+    current = f"{TAKTIK_CRON}\n{SUPERVISOR_CRON}\n"
+    deployment["cron"].write_text(current, encoding="utf-8", newline="\n")
+    deployment["state"].joinpath("fail-crontab-list").touch()
+
+    restored = run_library(
+        deployment,
+        f'uvarsi_restore_supervisor_schedule "{bash_path(snapshot)}"',
+    )
+
+    assert restored.returncode != 0
+    assert deployment["cron"].read_text(encoding="utf-8") == current
 
 
 def test_complete_schedule_install_fails_closed_on_crontab_read_error(deployment):

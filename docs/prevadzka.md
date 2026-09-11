@@ -492,7 +492,9 @@ iba presne rozpoznané Uvar.si riadky; ostatné záznamy vrátane Taktik-mapa
 zachovajú. Čítanie crontabu musí uspieť pred každou zmenou — prechodná chyba sa
 nikdy nesmie zameniť za prázdny crontab. Pred živou zmenou sa s právami `0600`
 odloží celý crontab. Inštalácia odovzdá `crontab` jeden úplný kandidátsky súbor
-a rollback rovnakým spôsobom obnoví presnú úplnú snímku:
+a rollback zloží nový kandidát z aktuálnych nespravovaných riadkov a pôvodných
+spravovaných riadkov Uvar.si. Preto zachová aj cudzí riadok pridaný počas
+deployu a nevráti cudzí riadok, ktorý medzitým oprávnene zmizol:
 
 ```text
 0 5-21 * * * /opt/uvarsi/uvarsi-deploy-state.sh run-supervisor >> /var/log/uvarsi.log 2>&1
@@ -531,13 +533,16 @@ a súčty, presnú aritmetiku, aktuálne `valid_from`/`valid_to`, auditovateľn�
 source URL/strany a `offer_key` existujúce v aktívnych cenách. Pre každý
 `offer_key` sa proti presnému aktívnemu DB riadku kontroluje názov, jednotka,
 množstvo, akciová a pôvodná cena, zľava aj všetky podmienky a ceny vernostného
-programu; súčty sa z týchto riadkov znovu vypočítajú. Nezmenený staging
+programu. Pri predaji na váhu zostáva množstvo jedným váženým nákupom; súčet
+riadku určí skutočný cenový násobok hmotnosti a pôvodná aj vernostná cena sa
+znovu vypočítajú z rovnakého násobku. Ostatné súčty sa počítajú ako cena
+balenia krát množstvo. Nezmenený staging
 fingerprint sa pri opakovaní znovu použije pred importom Anthropic klienta,
 takže nevznikne ďalšie platené volanie ani rozpočtová rezervácia.
 
 Ak niektorá brána zlyhá, release sa nesmie označiť za úspešný. Automatický
-rollback vracia iba kód, statické Uvar.si súbory, jednotky a presnú úplnú
-snímku crontabu vytvorenú pred deployom. Nevracia `uvarsi.db`,
+rollback vracia iba kód, statické Uvar.si súbory, jednotky a pôvodné spravované
+riadky Uvar.si zo snímky crontabu. Aktuálne nesúvisiace riadky zachová. Nevracia `uvarsi.db`,
 `landing_data.json` ani žiadne používateľské dáta a nedotýka sa Caddy ani
 Taktik-mapa. Ak zber alebo prísna brána zlyhá, release sa neoznačí za úspešný a
 platby ostanú vypnuté.
