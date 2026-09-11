@@ -61,8 +61,14 @@ from config import (
     recipe_engine_mode,
     release_id,
 )
-from landing_data import load_landing_data, public_landing_payload, validate_landing_data
-from legal_pages import LEGAL_SLUGS, legal_text, render_legal_page
+from landing_data import (
+    CURRENT_LANDING_STATE,
+    load_landing_data,
+    public_landing_payload,
+    validate_landing_data,
+    validate_publishable_landing_data,
+)
+from legal_pages import FOUNDER_PROMISE, LEGAL_SLUGS, legal_text, render_legal_page
 from operator_profile import LEGAL_VERSION, OPERATOR, validate_operator_profile
 from payment_readiness import (
     PaymentReadiness,
@@ -247,6 +253,8 @@ RECIPE_SMOKE_STATE = os.environ.get(
 PAYMENT_SMOKE_MARKER = os.environ.get(
     "UVARSI_PAYMENT_SMOKE_MARKER", "/var/lib/uvarsi/payment-smoke.json"
 )
+PAYMENT_SMOKE_MAX_AGE_SECONDS = 24 * 60 * 60
+PAYMENT_SMOKE_FUTURE_SKEW_SECONDS = 5 * 60
 RECIPE_SMOKE_ALERT_URL = os.environ.get(
     "UVARSI_RECIPE_SMOKE_ALERT_URL",
     "https://ntfy.sh/uvarsi-jarvis-8f3a2c",
@@ -4732,9 +4740,39 @@ def recipe_engine_health(con, *, today=None):
 def _approved_price_sources_ready(con, *, today=None) -> bool:
     """Require current reviewed provenance stored by the server-side collector."""
     today = today or bratislava_day()
-    return source_policy.collection_is_approved(
+    if not source_policy.collection_is_approved(
         con, week=monday(today), today=today
+    ):
+        return False
+    try:
+        verified = offers_for_current_week(
+            con, list(source_policy.REQUIRED_STORES), today
+        )
+    except (sqlite3.Error, OfferKeyCollision, TypeError, ValueError):
+        return False
+    counts = {store: 0 for store in source_policy.REQUIRED_STORES}
+    for offer in verified:
+        store = offer.get("obchod")
+        if store in counts:
+            counts[store] += 1
+    return all(
+        counts[store] >= source_policy.MIN_FACTS_PER_STORE
+        for store in source_policy.REQUIRED_STORES
     )
+
+
+def _strict_current_receipt_ready(*, today=None) -> bool:
+    """Require the exact current, public-price-safe receipt before checkout."""
+    today = today or bratislava_day()
+    try:
+        state, _reference_day = validate_publishable_landing_data(
+            load_landing_data(LANDING_DATA),
+            today,
+            required_offer_data_version=CURRENT_COLLECTION_DATA_VERSION,
+        )
+    except (OSError, TypeError, ValueError):
+        return False
+    return state == CURRENT_LANDING_STATE
 
 
 def _private_payment_alerts_ready() -> bool:
@@ -4761,11 +4799,16 @@ def _read_payment_smoke_marker(
 
 
 def _payment_smoke_verified(
-    *, release: str, checkout_url: str, store_id: str, variant_id: str
+    *, release: str, checkout_url: str, store_id: str, variant_id: str,
+    test_store_id: str, test_variant_id: str,
+    now: datetime.datetime | None = None,
 ) -> bool:
-    """Accept only a local signed proof for this exact release and product."""
+    """Accept a fresh signed proof bound to exact live and test products."""
     secret = env("UVARSI_PAYMENT_SMOKE_SIGNING_SECRET", "") or ""
-    if not all((secret, release, checkout_url, store_id, variant_id)):
+    if not all((
+        secret, release, checkout_url, store_id, variant_id,
+        test_store_id, test_variant_id,
+    )):
         return False
     try:
         marker_path = Path(PAYMENT_SMOKE_MARKER)
@@ -4777,23 +4820,74 @@ def _payment_smoke_verified(
     )
     if marker is None:
         return False
-    return verify_marker(
+    if not verify_marker(
         marker,
         secret=secret,
         release=release,
         checkout_url=checkout_url,
         store_id=store_id,
         variant_id=variant_id,
-    )
+    ):
+        return False
+    if (
+        marker.get("test_store_id") != test_store_id
+        or marker.get("test_variant_id") != test_variant_id
+    ):
+        return False
+    try:
+        completed_at = datetime.datetime.fromisoformat(marker["completed_at"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    if completed_at.utcoffset() is None:
+        return False
+    checked_at = now or datetime.datetime.now(datetime.timezone.utc)
+    if checked_at.utcoffset() is None:
+        checked_at = checked_at.replace(tzinfo=datetime.timezone.utc)
+    age = (
+        checked_at.astimezone(datetime.timezone.utc)
+        - completed_at.astimezone(datetime.timezone.utc)
+    ).total_seconds()
+    return -PAYMENT_SMOKE_FUTURE_SKEW_SECONDS <= age <= PAYMENT_SMOKE_MAX_AGE_SECONDS
 
 
 def _recipe_gate_ready(status: dict) -> bool:
     """The payment switch itself is not a recipe defect."""
+    if not isinstance(status, dict) or not {
+        "ready", "blockers", "release_gate"
+    } <= status.keys():
+        return False
+    raw_blockers = status.get("blockers")
+    release_gate = status.get("release_gate")
+    if (
+        not isinstance(raw_blockers, (list, tuple))
+        or not all(isinstance(code, str) for code in raw_blockers)
+        or not isinstance(release_gate, dict)
+    ):
+        return False
+    if not (
+        release_gate.get("active_recipes") == CURATED_RECIPE_COUNT
+        and release_gate.get("curation_generation") == 1
+        and release_gate.get("provenance_complete") is True
+        and release_gate.get("library_errors") == 0
+        and release_gate.get("workflow_errors") == 0
+    ):
+        return False
     blockers = {
-        str(code) for code in status.get("blockers", ())
-        if code != "payments_enabled"
+        code for code in raw_blockers if code != "payments_enabled"
     }
-    return not blockers
+    return not blockers and (
+        status.get("ready") is True
+        or set(raw_blockers) == {"payments_enabled"}
+    )
+
+
+def _plan_worker_gate_ready(status: dict) -> bool:
+    """A heartbeat alone is insufficient when the queue is already overdue."""
+    return (
+        isinstance(status, dict)
+        and status.get("worker_alive") is True
+        and status.get("blocking_code") in (None, "")
+    )
 
 
 def _runtime_payment_readiness(
@@ -4809,16 +4903,31 @@ def _runtime_payment_readiness(
     checkout_url = env("LEMON_CHECKOUT_URL", "") or ""
     store_id = env("LEMON_STORE_ID", "") or ""
     variant_id = env("LEMON_VARIANT_ID", "") or ""
+    test_checkout_url = env("LEMON_TEST_CHECKOUT_URL", "") or ""
+    test_store_id = env("LEMON_TEST_STORE_ID", "") or ""
+    test_variant_id = env("LEMON_TEST_VARIANT_ID", "") or ""
+    support_phone = OPERATOR.support_phone.strip()
     facts = PaymentReadinessInput(
         operator_errors=validate_operator_profile(OPERATOR),
+        support_phone_verified=(
+            bool(support_phone)
+            and env("UVARSI_VERIFIED_SUPPORT_PHONE", "") == support_phone
+        ),
         legal_version=legal_version(),
+        founder_promise=FOUNDER_PROMISE,
         release=current_release,
         checkout_url=checkout_url,
         webhook_secret=env("LEMON_WEBHOOK_SECRET", "") or "",
         store_id=store_id,
         variant_id=variant_id,
         api_key=env("LEMON_API_KEY", "") or "",
+        test_checkout_url=test_checkout_url,
+        test_webhook_secret=env("LEMON_TEST_WEBHOOK_SECRET", "") or "",
+        test_store_id=test_store_id,
+        test_variant_id=test_variant_id,
+        test_api_key=env("LEMON_TEST_API_KEY", "") or "",
         source_approved=_approved_price_sources_ready(con, today=today),
+        receipt_ready=_strict_current_receipt_ready(today=today),
         private_alerts=_private_payment_alerts_ready(),
         consumer_workflows=customer_requests.workflow_ready(con),
         smoke_verified=_payment_smoke_verified(
@@ -4826,8 +4935,10 @@ def _runtime_payment_readiness(
             checkout_url=checkout_url,
             store_id=store_id,
             variant_id=variant_id,
+            test_store_id=test_store_id,
+            test_variant_id=test_variant_id,
         ),
-        worker_alive=queue_status.get("worker_alive") is True,
+        worker_alive=_plan_worker_gate_ready(queue_status),
         recipe_ready=_recipe_gate_ready(recipe_status),
     )
     return assess_payment_readiness(facts)

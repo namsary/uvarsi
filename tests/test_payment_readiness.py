@@ -14,17 +14,31 @@ from app.payment_readiness import (
 )
 
 
+REQUIRED_LEGAL_VERSION = "2026-09-11-v2"
+REQUIRED_FOUNDER_PROMISE = (
+    "39 € raz. Premium bez predplatného počas prevádzky služby Uvar.si."
+)
+
+
 def valid_input(**changes):
     value = PaymentReadinessInput(
         operator_errors=(),
-        legal_version="2026-09-07-v1",
-        release="2026.09.07.28",
+        support_phone_verified=True,
+        legal_version=REQUIRED_LEGAL_VERSION,
+        founder_promise=REQUIRED_FOUNDER_PROMISE,
+        release="2026.09.11.28",
         checkout_url="https://uvarsi.lemonsqueezy.com/buy/test",
         webhook_secret="webhook-secret",
         store_id="12345",
         variant_id="67890",
         api_key="api-key",
+        test_checkout_url="https://uvarsi.lemonsqueezy.com/checkout/test",
+        test_webhook_secret="test-webhook-secret",
+        test_store_id="test-store",
+        test_variant_id="test-variant",
+        test_api_key="test-api-key",
         source_approved=True,
+        receipt_ready=True,
         private_alerts=True,
         consumer_workflows=True,
         smoke_verified=True,
@@ -39,15 +53,18 @@ def test_all_required_gates_make_checkout_ready():
 
     assert result.ready is True
     assert result.blockers == ()
-    assert result.legal_version == "2026-09-07-v1"
-    assert result.release == "2026.09.07.28"
+    assert result.legal_version == REQUIRED_LEGAL_VERSION
+    assert result.release == "2026.09.11.28"
 
 
 @pytest.mark.parametrize(
     ("change", "value", "blocker"),
     [
         ("operator_errors", ("company_id",), "operator_invalid"),
+        ("support_phone_verified", False, "support_phone_not_verified"),
         ("legal_version", "", "legal_version_missing"),
+        ("legal_version", "2026-09-07-v1", "legal_version_stale"),
+        ("founder_promise", "cena natrvalo", "legal_promise_mismatch"),
         ("release", "", "release_missing"),
         ("checkout_url", "", "checkout_not_configured"),
         ("checkout_url", "http://example.test/buy", "checkout_not_configured"),
@@ -55,7 +72,14 @@ def test_all_required_gates_make_checkout_ready():
         ("store_id", "", "merchant_not_configured"),
         ("variant_id", "", "variant_not_configured"),
         ("api_key", "", "api_not_configured"),
+        ("test_checkout_url", "", "test_checkout_not_configured"),
+        ("test_checkout_url", "http://example.test", "test_checkout_not_configured"),
+        ("test_webhook_secret", "", "test_webhook_not_configured"),
+        ("test_store_id", "", "test_merchant_not_configured"),
+        ("test_variant_id", "", "test_variant_not_configured"),
+        ("test_api_key", "", "test_api_not_configured"),
         ("source_approved", False, "price_source_not_approved"),
+        ("receipt_ready", False, "receipt_unhealthy"),
         ("private_alerts", False, "alerts_not_private"),
         ("consumer_workflows", False, "consumer_workflow_not_ready"),
         ("smoke_verified", False, "payment_smoke_missing"),
@@ -81,8 +105,8 @@ def test_public_status_contains_only_safe_stable_fields():
     assert public == {
         "ready": False,
         "blockers": ["webhook_not_configured"],
-        "legal_version": "2026-09-07-v1",
-        "release": "2026.09.07.28",
+        "legal_version": REQUIRED_LEGAL_VERSION,
+        "release": "2026.09.11.28",
     }
     assert "LEMON_WEBHOOK_SECRET" not in encoded
     assert "top-secret-api-key" not in encoded

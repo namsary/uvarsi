@@ -11,6 +11,8 @@ import json
 import sys
 import threading
 from contextlib import closing
+from dataclasses import replace
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -23,7 +25,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 TAJOMSTVO = "tajny-webhook-podpisovy-kluc"
 CHECKOUT = "https://uvarsi.lemonsqueezy.com/buy/11111111-2222-3333-4444-555555555555"
-CONSENT = {"accept_terms": True, "legal_version": "2026-09-07-v1"}
+CURRENT_LEGAL_VERSION = "2026-09-11-v2"
+CONSENT = {"accept_terms": True, "legal_version": CURRENT_LEGAL_VERSION}
+SMOKE_NOW = datetime(2026, 9, 11, 12, 0, tzinfo=timezone.utc)
 
 PLATBY_ENV = (
     "PLATBY_ZAPNUTE",
@@ -32,6 +36,12 @@ PLATBY_ENV = (
     "LEMON_STORE_ID",
     "LEMON_VARIANT_ID",
     "LEMON_API_KEY",
+    "LEMON_TEST_CHECKOUT_URL",
+    "LEMON_TEST_WEBHOOK_SECRET",
+    "LEMON_TEST_STORE_ID",
+    "LEMON_TEST_VARIANT_ID",
+    "LEMON_TEST_API_KEY",
+    "UVARSI_VERIFIED_SUPPORT_PHONE",
     "UVARSI_PAYMENT_SMOKE_SIGNING_SECRET",
 )
 
@@ -159,7 +169,9 @@ def test_payment_smoke_marker_musi_sediet_s_vydanim_obchodom_a_variantom(
 
     assert server._payment_smoke_verified(
         release="release-1", checkout_url=CHECKOUT,
-        store_id="store-1", variant_id="variant-1"
+        store_id="store-1", variant_id="variant-1",
+        test_store_id="test-store", test_variant_id="test-variant",
+        now=SMOKE_NOW,
     ) is False
 
     marker = create_marker(
@@ -170,7 +182,7 @@ def test_payment_smoke_marker_musi_sediet_s_vydanim_obchodom_a_variantom(
         ),
         test_store_id="test-store",
         test_variant_id="test-variant",
-        completed_at="2026-09-07T20:15:00+00:00",
+        completed_at="2026-09-11T11:30:00+00:00",
         receipt_email_verified=True,
         test_mode_verified=True,
     )
@@ -180,11 +192,55 @@ def test_payment_smoke_marker_musi_sediet_s_vydanim_obchodom_a_variantom(
 
     assert server._payment_smoke_verified(
         release="release-1", checkout_url=CHECKOUT,
-        store_id="store-1", variant_id="variant-1"
+        store_id="store-1", variant_id="variant-1",
+        test_store_id="test-store", test_variant_id="test-variant",
+        now=SMOKE_NOW,
     ) is True
     assert server._payment_smoke_verified(
         release="release-2", checkout_url=CHECKOUT,
-        store_id="store-1", variant_id="variant-1"
+        store_id="store-1", variant_id="variant-1",
+        test_store_id="test-store", test_variant_id="test-variant",
+        now=SMOKE_NOW,
+    ) is False
+
+    assert server._payment_smoke_verified(
+        release="release-1", checkout_url=CHECKOUT,
+        store_id="store-1", variant_id="variant-1",
+        test_store_id="other-test-store", test_variant_id="test-variant",
+        now=SMOKE_NOW,
+    ) is False
+
+
+def test_payment_smoke_marker_po_24_hodinach_uz_neodomkne_checkout(
+        monkeypatch, tmp_path):
+    server = load_server(
+        monkeypatch,
+        tmp_path,
+        UVARSI_PAYMENT_SMOKE_SIGNING_SECRET=TAJOMSTVO,
+    )
+    marker_path = tmp_path / "payment-smoke.json"
+    monkeypatch.setattr(server, "PAYMENT_SMOKE_MARKER", str(marker_path))
+    marker = create_marker(
+        release="release-1",
+        live_config_digest=live_config_fingerprint(
+            secret=TAJOMSTVO, checkout_url=CHECKOUT,
+            store_id="store-1", variant_id="variant-1",
+        ),
+        test_store_id="test-store",
+        test_variant_id="test-variant",
+        completed_at="2026-09-10T11:59:59+00:00",
+        receipt_email_verified=True,
+        test_mode_verified=True,
+    )
+    marker_path.write_text(
+        json.dumps(sign_marker(marker, secret=TAJOMSTVO)), encoding="utf-8"
+    )
+
+    assert server._payment_smoke_verified(
+        release="release-1", checkout_url=CHECKOUT,
+        store_id="store-1", variant_id="variant-1",
+        test_store_id="test-store", test_variant_id="test-variant",
+        now=SMOKE_NOW,
     ) is False
 
 
@@ -205,7 +261,7 @@ def test_nezmeneny_payment_smoke_marker_sa_necita_z_disku_opakovane(
         ),
         test_store_id="test-store",
         test_variant_id="test-variant",
-        completed_at="2026-09-07T20:15:00+00:00",
+        completed_at="2026-09-11T11:30:00+00:00",
         receipt_email_verified=True,
         test_mode_verified=True,
     )
@@ -226,6 +282,9 @@ def test_nezmeneny_payment_smoke_marker_sa_necita_z_disku_opakovane(
         "checkout_url": CHECKOUT,
         "store_id": "store-1",
         "variant_id": "variant-1",
+        "test_store_id": "test-store",
+        "test_variant_id": "test-variant",
+        "now": SMOKE_NOW,
     }
 
     assert server._payment_smoke_verified(**arguments) is True
@@ -339,8 +398,8 @@ def test_start_vrati_checkout_url_s_id_pouzivatela_v_custom_data(monkeypatch, tm
     "body",
     [
         {},
-        {"accept_terms": False, "legal_version": "2026-09-07-v1"},
-        {"accept_terms": 1, "legal_version": "2026-09-07-v1"},
+        {"accept_terms": False, "legal_version": CURRENT_LEGAL_VERSION},
+        {"accept_terms": 1, "legal_version": CURRENT_LEGAL_VERSION},
         {"accept_terms": True},
         {"accept_terms": True, "legal_version": "stara-verzia"},
     ],
@@ -480,13 +539,202 @@ def test_runtime_price_source_gate_reads_only_complete_reviewed_server_rows(
                        '2026-09-07','2026-09-13')""",
             [(store, "a" * 64) for store in server.source_policy.REQUIRED_STORES],
         )
+        for store in server.source_policy.REQUIRED_STORES:
+            for index in range(server.source_policy.MIN_FACTS_PER_STORE):
+                offer = {
+                    "obchod": store,
+                    "nazov": f"{store} potravina {index}",
+                    "kategoria": "trvanlive",
+                    "cena": 1.0 + index / 100,
+                    "povodna": None,
+                    "zlava": "",
+                    "jednotka": "1 ks",
+                    "source_url": f"https://example.test/{store.casefold()}/{index}",
+                    "source_page": index + 1,
+                    "valid_from": "2026-09-07",
+                    "valid_to": "2026-09-13",
+                    "cena_s_kartou": None,
+                    "zlava_s_kartou": None,
+                    "vernostny_program": None,
+                    "minimalny_nakup": None,
+                    "podmienka_s_kartou": None,
+                }
+                con.execute(
+                    """INSERT INTO akcie
+                       (tyzden,obchod,nazov,kategoria,cena,povodna,zlava,jednotka,
+                        source_url,source_page,valid_from,valid_to,offer_key,
+                        cena_s_kartou,zlava_s_kartou,vernostny_program,
+                        minimalny_nakup,podmienka_s_kartou)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        "2026-09-07", offer["obchod"], offer["nazov"],
+                        offer["kategoria"], offer["cena"], offer["povodna"],
+                        offer["zlava"], offer["jednotka"], offer["source_url"],
+                        offer["source_page"], offer["valid_from"], offer["valid_to"],
+                        server.offer_key_for("2026-09-07", offer),
+                        offer["cena_s_kartou"], offer["zlava_s_kartou"],
+                        offer["vernostny_program"], offer["minimalny_nakup"],
+                        offer["podmienka_s_kartou"],
+                    ),
+                )
 
         assert server._approved_price_sources_ready(con, today=today) is True
 
+        con.execute("UPDATE akcie SET cena=-1 WHERE obchod='Tesco'")
+        assert server._approved_price_sources_ready(con, today=today) is False
+        con.execute(
+            "UPDATE akcie SET cena=1.0 + (source_page - 1) / 100.0 "
+            "WHERE obchod='Tesco'"
+        )
+
+        con.execute(
+            "UPDATE zber_stav SET collector_kind=CASE obchod "
+            "WHEN 'Kaufland' THEN 'official-kaufland-offers' "
+            "WHEN 'Tesco' THEN 'official-tesco-viewer' "
+            "WHEN 'Lidl' THEN 'official-lidl-viewer' END"
+        )
+        assert server._approved_price_sources_ready(con, today=today) is False
+
+        con.execute(
+            "UPDATE zber_stav SET collector_kind='manual-reviewed-facts'"
+        )
         con.execute(
             "UPDATE zber_stav SET collector_kind='kupino-aggregator' WHERE obchod='Tesco'"
         )
         assert server._approved_price_sources_ready(con, today=today) is False
+
+
+def test_runtime_readiness_requires_current_receipt_test_config_and_verified_phone(
+        monkeypatch, tmp_path):
+    server = load_server(
+        monkeypatch,
+        tmp_path,
+        LEMON_CHECKOUT_URL=CHECKOUT,
+        LEMON_WEBHOOK_SECRET="live-webhook",
+        LEMON_STORE_ID="live-store",
+        LEMON_VARIANT_ID="live-variant",
+        LEMON_API_KEY="live-api",
+        LEMON_TEST_CHECKOUT_URL="https://uvarsi.lemonsqueezy.com/checkout/test",
+        LEMON_TEST_WEBHOOK_SECRET="test-webhook",
+        LEMON_TEST_STORE_ID="test-store",
+        LEMON_TEST_VARIANT_ID="test-variant",
+        LEMON_TEST_API_KEY="test-api",
+        UVARSI_VERIFIED_SUPPORT_PHONE="+421 900 123 456",
+    )
+    monkeypatch.setattr(
+        server, "OPERATOR", replace(server.OPERATOR, support_phone="+421 900 123 456")
+    )
+    monkeypatch.setattr(server, "legal_version", lambda: server.LEGAL_VERSION)
+    monkeypatch.setattr(server, "_approved_price_sources_ready", lambda *_a, **_k: True)
+    monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda **_k: True)
+    monkeypatch.setattr(server.customer_requests, "workflow_ready", lambda _con: True)
+    monkeypatch.setattr(server, "_payment_smoke_verified", lambda **_k: True)
+
+    queue = {"worker_alive": True, "blocking_code": None}
+    recipe = {
+        "ready": False,
+        "blockers": ["payments_enabled"],
+        "release_gate": {
+            "active_recipes": server.CURATED_RECIPE_COUNT,
+            "curation_generation": 1,
+            "provenance_complete": True,
+            "library_errors": 0,
+            "workflow_errors": 0,
+        },
+    }
+    with closing(server.db()) as con:
+        result = server._runtime_payment_readiness(
+            con, queue_status=queue, recipe_status=recipe
+        )
+
+    assert result.ready is True
+
+    monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda **_k: False)
+    with closing(server.db()) as con:
+        result = server._runtime_payment_readiness(
+            con, queue_status=queue, recipe_status=recipe
+        )
+    assert result.ready is False
+    assert result.blockers == ("receipt_unhealthy",)
+
+
+def test_empty_recipe_or_blocked_plan_worker_never_passes_runtime_readiness(
+        monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path)
+
+    assert server._recipe_gate_ready({}) is False
+    assert server._recipe_gate_ready({
+        "ready": False,
+        "blockers": ["payments_enabled"],
+        "release_gate": {"provenance_complete": True},
+    }) is False
+    assert server._recipe_gate_ready({
+        "ready": False,
+        "blockers": None,
+        "release_gate": {},
+    }) is False
+    assert server._plan_worker_gate_ready(
+        {"worker_alive": True, "blocking_code": "queue_oldest_exceeded"}
+    ) is False
+
+
+def test_strict_receipt_gate_rejects_historical_or_incomplete_payload(
+        monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path)
+    landing_path = tmp_path / "landing.json"
+    monkeypatch.setattr(server, "LANDING_DATA", str(landing_path))
+
+    landing_path.write_text("{}", encoding="utf-8")
+    assert server._strict_current_receipt_ready(today=date(2026, 9, 11)) is False
+
+    payload = {
+        "schema_version": 1,
+        "offer_data_version": server.CURRENT_COLLECTION_DATA_VERSION,
+        "generated_at": "2026-09-11T08:00:00+02:00",
+        "week": "2026-09-07",
+        "week_label": "7.–13. 9. 2026",
+        "sources": [
+            {
+                "store": store,
+                "url": f"https://example.test/{store.casefold()}",
+                "valid_from": "2026-09-07",
+                "valid_to": "2026-09-13",
+            }
+            for store in ("Kaufland", "Tesco", "Lidl")
+        ],
+        "receipt": {
+            "meals": [{
+                "day": "PI",
+                "name": "Testovacie jedlo",
+                "instructions": ["Uvar suroviny domäkka."],
+                "items": [
+                    {
+                        "offer_key": f"offer-{store.casefold()}",
+                        "name": f"Surovina {store}",
+                        "store": store,
+                        "unit": "1 ks",
+                        "quantity": 1,
+                        "price": "1,00",
+                        "original_price": "1,50" if store == "Kaufland" else None,
+                        "savings": "0,50" if store == "Kaufland" else None,
+                        "off": "-33 %" if store == "Kaufland" else "",
+                    }
+                    for store in ("Kaufland", "Tesco", "Lidl")
+                ],
+            }],
+            "nakup_spolu": "3,00",
+            "bezne": "3,50",
+            "usetris": "0,50",
+            "polozky": 3,
+            "polozky_s_beznou_cenou": 1,
+        },
+    }
+    landing_path.write_text(json.dumps(payload), encoding="utf-8")
+    assert server._strict_current_receipt_ready(today=date(2026, 9, 11)) is True
+
+    payload["week"] = "2026-08-31"
+    landing_path.write_text(json.dumps(payload), encoding="utf-8")
+    assert server._strict_current_receipt_ready(today=date(2026, 9, 11)) is False
 
 
 @pytest.mark.parametrize("adresa", ["http://uvarsi.lemonsqueezy.com/buy/x", "javascript:alert(1)", "", "   "])
