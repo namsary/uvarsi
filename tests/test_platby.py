@@ -25,6 +25,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 TAJOMSTVO = "tajny-webhook-podpisovy-kluc"
 CHECKOUT = "https://uvarsi.lemonsqueezy.com/buy/11111111-2222-3333-4444-555555555555"
+TEST_CHECKOUT = "https://uvarsi.lemonsqueezy.com/checkout/test-verified"
+TEST_WEBHOOK_SECRET = "test-webhook-secret"
+TEST_STORE_ID = "test-store"
+TEST_VARIANT_ID = "test-variant"
+TEST_API_KEY = "test-api-key"
+TEST_CONFIG_DIGEST = "c92c6b55bd48b997ddb73fbc7abbaf44074f989d5bedb0ee0f590a9c9e464a7e"
 CURRENT_LEGAL_VERSION = "2026-09-11-v2"
 CONSENT = {"accept_terms": True, "legal_version": CURRENT_LEGAL_VERSION}
 SMOKE_NOW = datetime(2026, 9, 11, 12, 0, tzinfo=timezone.utc)
@@ -166,13 +172,20 @@ def test_payment_smoke_marker_musi_sediet_s_vydanim_obchodom_a_variantom(
     )
     marker_path = tmp_path / "payment-smoke.json"
     monkeypatch.setattr(server, "PAYMENT_SMOKE_MARKER", str(marker_path))
+    arguments = {
+        "release": "release-1",
+        "checkout_url": CHECKOUT,
+        "store_id": "store-1",
+        "variant_id": "variant-1",
+        "test_checkout_url": TEST_CHECKOUT,
+        "test_webhook_secret": TEST_WEBHOOK_SECRET,
+        "test_store_id": TEST_STORE_ID,
+        "test_variant_id": TEST_VARIANT_ID,
+        "test_api_key": TEST_API_KEY,
+        "now": SMOKE_NOW,
+    }
 
-    assert server._payment_smoke_verified(
-        release="release-1", checkout_url=CHECKOUT,
-        store_id="store-1", variant_id="variant-1",
-        test_store_id="test-store", test_variant_id="test-variant",
-        now=SMOKE_NOW,
-    ) is False
+    assert server._payment_smoke_verified(**arguments) is False
 
     marker = create_marker(
         release="release-1",
@@ -180,8 +193,8 @@ def test_payment_smoke_marker_musi_sediet_s_vydanim_obchodom_a_variantom(
             secret=TAJOMSTVO, checkout_url=CHECKOUT,
             store_id="store-1", variant_id="variant-1",
         ),
-        test_store_id="test-store",
-        test_variant_id="test-variant",
+        test_store_id=TEST_STORE_ID,
+        test_variant_id=TEST_VARIANT_ID,
         completed_at="2026-09-11T11:30:00+00:00",
         receipt_email_verified=True,
         test_mode_verified=True,
@@ -189,29 +202,34 @@ def test_payment_smoke_marker_musi_sediet_s_vydanim_obchodom_a_variantom(
     marker_path.write_text(
         json.dumps(sign_marker(marker, secret=TAJOMSTVO)), encoding="utf-8"
     )
+    assert server._payment_smoke_verified(**arguments) is False
 
-    assert server._payment_smoke_verified(
-        release="release-1", checkout_url=CHECKOUT,
-        store_id="store-1", variant_id="variant-1",
-        test_store_id="test-store", test_variant_id="test-variant",
-        now=SMOKE_NOW,
-    ) is True
-    assert server._payment_smoke_verified(
-        release="release-2", checkout_url=CHECKOUT,
-        store_id="store-1", variant_id="variant-1",
-        test_store_id="test-store", test_variant_id="test-variant",
-        now=SMOKE_NOW,
-    ) is False
+    marker["test_config_digest"] = TEST_CONFIG_DIGEST
+    signed_marker = sign_marker(marker, secret=TAJOMSTVO)
+    marker_path.write_text(
+        json.dumps(signed_marker), encoding="utf-8"
+    )
 
-    assert server._payment_smoke_verified(
-        release="release-1", checkout_url=CHECKOUT,
-        store_id="store-1", variant_id="variant-1",
-        test_store_id="other-test-store", test_variant_id="test-variant",
-        now=SMOKE_NOW,
-    ) is False
+    assert server._payment_smoke_verified(**arguments) is True
+    stored = json.dumps(signed_marker)
+    assert TEST_CHECKOUT not in stored
+    assert TEST_WEBHOOK_SECRET not in stored
+    assert TEST_API_KEY not in stored
+
+    for field, wrong in (
+        ("release", "release-2"),
+        ("test_checkout_url", "https://attacker.example/checkout"),
+        ("test_webhook_secret", "other-test-webhook-secret"),
+        ("test_store_id", "other-test-store"),
+        ("test_variant_id", "other-test-variant"),
+        ("test_api_key", "other-test-api-key"),
+    ):
+        assert server._payment_smoke_verified(
+            **{**arguments, field: wrong}
+        ) is False
 
 
-def test_payment_smoke_marker_po_24_hodinach_uz_neodomkne_checkout(
+def test_smoke_freshness_plati_pri_aktivacii_a_config_binding_aj_potom(
         monkeypatch, tmp_path):
     server = load_server(
         monkeypatch,
@@ -226,12 +244,13 @@ def test_payment_smoke_marker_po_24_hodinach_uz_neodomkne_checkout(
             secret=TAJOMSTVO, checkout_url=CHECKOUT,
             store_id="store-1", variant_id="variant-1",
         ),
-        test_store_id="test-store",
-        test_variant_id="test-variant",
+        test_store_id=TEST_STORE_ID,
+        test_variant_id=TEST_VARIANT_ID,
         completed_at="2026-09-10T11:59:59+00:00",
         receipt_email_verified=True,
         test_mode_verified=True,
     )
+    marker["test_config_digest"] = TEST_CONFIG_DIGEST
     marker_path.write_text(
         json.dumps(sign_marker(marker, secret=TAJOMSTVO)), encoding="utf-8"
     )
@@ -239,8 +258,33 @@ def test_payment_smoke_marker_po_24_hodinach_uz_neodomkne_checkout(
     assert server._payment_smoke_verified(
         release="release-1", checkout_url=CHECKOUT,
         store_id="store-1", variant_id="variant-1",
-        test_store_id="test-store", test_variant_id="test-variant",
+        test_checkout_url=TEST_CHECKOUT,
+        test_webhook_secret=TEST_WEBHOOK_SECRET,
+        test_store_id=TEST_STORE_ID, test_variant_id=TEST_VARIANT_ID,
+        test_api_key=TEST_API_KEY,
         now=SMOKE_NOW,
+    ) is False
+
+    assert server._payment_smoke_verified(
+        release="release-1", checkout_url=CHECKOUT,
+        store_id="store-1", variant_id="variant-1",
+        test_checkout_url=TEST_CHECKOUT,
+        test_webhook_secret=TEST_WEBHOOK_SECRET,
+        test_store_id=TEST_STORE_ID, test_variant_id=TEST_VARIANT_ID,
+        test_api_key=TEST_API_KEY,
+        now=SMOKE_NOW,
+        require_fresh=False,
+    ) is True
+
+    assert server._payment_smoke_verified(
+        release="release-1", checkout_url=CHECKOUT,
+        store_id="store-1", variant_id="variant-1",
+        test_checkout_url=TEST_CHECKOUT,
+        test_webhook_secret=TEST_WEBHOOK_SECRET,
+        test_store_id=TEST_STORE_ID, test_variant_id=TEST_VARIANT_ID,
+        test_api_key="changed-after-activation",
+        now=SMOKE_NOW,
+        require_fresh=False,
     ) is False
 
 
@@ -259,12 +303,13 @@ def test_nezmeneny_payment_smoke_marker_sa_necita_z_disku_opakovane(
             secret=TAJOMSTVO, checkout_url=CHECKOUT,
             store_id="store-1", variant_id="variant-1",
         ),
-        test_store_id="test-store",
-        test_variant_id="test-variant",
+        test_store_id=TEST_STORE_ID,
+        test_variant_id=TEST_VARIANT_ID,
         completed_at="2026-09-11T11:30:00+00:00",
         receipt_email_verified=True,
         test_mode_verified=True,
     )
+    marker["test_config_digest"] = TEST_CONFIG_DIGEST
     marker_path.write_text(
         json.dumps(sign_marker(marker, secret=TAJOMSTVO)), encoding="utf-8"
     )
@@ -282,8 +327,11 @@ def test_nezmeneny_payment_smoke_marker_sa_necita_z_disku_opakovane(
         "checkout_url": CHECKOUT,
         "store_id": "store-1",
         "variant_id": "variant-1",
-        "test_store_id": "test-store",
-        "test_variant_id": "test-variant",
+        "test_checkout_url": TEST_CHECKOUT,
+        "test_webhook_secret": TEST_WEBHOOK_SECRET,
+        "test_store_id": TEST_STORE_ID,
+        "test_variant_id": TEST_VARIANT_ID,
+        "test_api_key": TEST_API_KEY,
         "now": SMOKE_NOW,
     }
 
@@ -628,7 +676,13 @@ def test_runtime_readiness_requires_current_receipt_test_config_and_verified_pho
     monkeypatch.setattr(server, "_approved_price_sources_ready", lambda *_a, **_k: True)
     monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda **_k: True)
     monkeypatch.setattr(server.customer_requests, "workflow_ready", lambda _con: True)
-    monkeypatch.setattr(server, "_payment_smoke_verified", lambda **_k: True)
+    smoke_checks = []
+
+    def verify_smoke(**facts):
+        smoke_checks.append(facts)
+        return True
+
+    monkeypatch.setattr(server, "_payment_smoke_verified", verify_smoke)
 
     queue = {"worker_alive": True, "blocking_code": None}
     recipe = {
@@ -648,6 +702,26 @@ def test_runtime_readiness_requires_current_receipt_test_config_and_verified_pho
         )
 
     assert result.ready is True
+    assert smoke_checks[-1] == {
+        "release": server.release_id(),
+        "checkout_url": CHECKOUT,
+        "store_id": "live-store",
+        "variant_id": "live-variant",
+        "test_checkout_url": "https://uvarsi.lemonsqueezy.com/checkout/test",
+        "test_webhook_secret": "test-webhook",
+        "test_store_id": "test-store",
+        "test_variant_id": "test-variant",
+        "test_api_key": "test-api",
+        "require_fresh": True,
+    }
+
+    monkeypatch.setenv("PLATBY_ZAPNUTE", "1")
+    with closing(server.db()) as con:
+        result = server._runtime_payment_readiness(
+            con, queue_status=queue, recipe_status=recipe
+        )
+    assert result.ready is True
+    assert smoke_checks[-1]["require_fresh"] is False
 
     monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda **_k: False)
     with closing(server.db()) as con:

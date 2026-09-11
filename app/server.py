@@ -12,7 +12,7 @@ import asyncio
 import copy
 import functools
 import logging
-import os, re, json, sqlite3, datetime, threading, time, hashlib, math, tempfile
+import os, re, json, sqlite3, datetime, threading, time, hashlib, hmac, math, tempfile
 from concurrent.futures import Future
 from contextlib import asynccontextmanager, closing
 from decimal import Decimal
@@ -4798,16 +4798,49 @@ def _read_payment_smoke_marker(
     return value if isinstance(value, dict) else None
 
 
+def _test_payment_config_fingerprint(
+    *, secret: str, checkout_url: str, webhook_secret: str,
+    store_id: str, variant_id: str, api_key: str,
+) -> str:
+    """Bind every test-provider input without persisting its plaintext."""
+    raw = {
+        "checkout_url": checkout_url,
+        "webhook_secret": webhook_secret,
+        "store_id": store_id,
+        "variant_id": variant_id,
+        "api_key": api_key,
+    }
+    if not isinstance(secret, str) or not secret:
+        raise ValueError("missing signing secret")
+    if not all(isinstance(value, str) and value.strip() for value in raw.values()):
+        raise ValueError("incomplete test payment configuration")
+    values = {key: value.strip() for key, value in raw.items()}
+    parsed = urlsplit(values["checkout_url"])
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise ValueError("invalid test checkout URL")
+    payload = json.dumps(
+        values, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("utf-8")
+    return hmac.new(
+        secret.encode("utf-8"),
+        b"uvarsi-test-payment-config-v1\0" + payload,
+        hashlib.sha256,
+    ).hexdigest()
+
+
 def _payment_smoke_verified(
     *, release: str, checkout_url: str, store_id: str, variant_id: str,
-    test_store_id: str, test_variant_id: str,
+    test_checkout_url: str, test_webhook_secret: str,
+    test_store_id: str, test_variant_id: str, test_api_key: str,
     now: datetime.datetime | None = None,
+    require_fresh: bool = True,
 ) -> bool:
-    """Accept a fresh signed proof bound to exact live and test products."""
+    """Verify exact signed config; require freshness only before activation."""
     secret = env("UVARSI_PAYMENT_SMOKE_SIGNING_SECRET", "") or ""
     if not all((
         secret, release, checkout_url, store_id, variant_id,
-        test_store_id, test_variant_id,
+        test_checkout_url, test_webhook_secret, test_store_id,
+        test_variant_id, test_api_key,
     )):
         return False
     try:
@@ -4835,6 +4868,23 @@ def _payment_smoke_verified(
     ):
         return False
     try:
+        expected_test_digest = _test_payment_config_fingerprint(
+            secret=secret,
+            checkout_url=test_checkout_url,
+            webhook_secret=test_webhook_secret,
+            store_id=test_store_id,
+            variant_id=test_variant_id,
+            api_key=test_api_key,
+        )
+    except ValueError:
+        return False
+    recorded_test_digest = marker.get("test_config_digest")
+    if (
+        not isinstance(recorded_test_digest, str)
+        or not hmac.compare_digest(recorded_test_digest, expected_test_digest)
+    ):
+        return False
+    try:
         completed_at = datetime.datetime.fromisoformat(marker["completed_at"])
     except (KeyError, TypeError, ValueError):
         return False
@@ -4847,7 +4897,9 @@ def _payment_smoke_verified(
         checked_at.astimezone(datetime.timezone.utc)
         - completed_at.astimezone(datetime.timezone.utc)
     ).total_seconds()
-    return -PAYMENT_SMOKE_FUTURE_SKEW_SECONDS <= age <= PAYMENT_SMOKE_MAX_AGE_SECONDS
+    if age < -PAYMENT_SMOKE_FUTURE_SKEW_SECONDS:
+        return False
+    return require_fresh is False or age <= PAYMENT_SMOKE_MAX_AGE_SECONDS
 
 
 def _recipe_gate_ready(status: dict) -> bool:
@@ -4904,8 +4956,10 @@ def _runtime_payment_readiness(
     store_id = env("LEMON_STORE_ID", "") or ""
     variant_id = env("LEMON_VARIANT_ID", "") or ""
     test_checkout_url = env("LEMON_TEST_CHECKOUT_URL", "") or ""
+    test_webhook_secret = env("LEMON_TEST_WEBHOOK_SECRET", "") or ""
     test_store_id = env("LEMON_TEST_STORE_ID", "") or ""
     test_variant_id = env("LEMON_TEST_VARIANT_ID", "") or ""
+    test_api_key = env("LEMON_TEST_API_KEY", "") or ""
     support_phone = OPERATOR.support_phone.strip()
     facts = PaymentReadinessInput(
         operator_errors=validate_operator_profile(OPERATOR),
@@ -4922,10 +4976,10 @@ def _runtime_payment_readiness(
         variant_id=variant_id,
         api_key=env("LEMON_API_KEY", "") or "",
         test_checkout_url=test_checkout_url,
-        test_webhook_secret=env("LEMON_TEST_WEBHOOK_SECRET", "") or "",
+        test_webhook_secret=test_webhook_secret,
         test_store_id=test_store_id,
         test_variant_id=test_variant_id,
-        test_api_key=env("LEMON_TEST_API_KEY", "") or "",
+        test_api_key=test_api_key,
         source_approved=_approved_price_sources_ready(con, today=today),
         receipt_ready=_strict_current_receipt_ready(today=today),
         private_alerts=_private_payment_alerts_ready(),
@@ -4935,8 +4989,12 @@ def _runtime_payment_readiness(
             checkout_url=checkout_url,
             store_id=store_id,
             variant_id=variant_id,
+            test_checkout_url=test_checkout_url,
+            test_webhook_secret=test_webhook_secret,
             test_store_id=test_store_id,
             test_variant_id=test_variant_id,
+            test_api_key=test_api_key,
+            require_fresh=not platby_su_zapnute(),
         ),
         worker_alive=_plan_worker_gate_ready(queue_status),
         recipe_ready=_recipe_gate_ready(recipe_status),
