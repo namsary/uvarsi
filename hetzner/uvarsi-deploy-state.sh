@@ -1856,7 +1856,12 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   case "${1:-}" in
     check-bridge) _uvarsi_require_tesco_bridge_transport ;;
     check-readiness) uvarsi_require_production_readiness ;;
-    run-supervisor) uvarsi_run_supervisor_bounded ;;
+    run-supervisor)
+      # Prechodové vydanie nás môže zavolať cez `bash subor` ešte
+      # predtým, než nový samopull nastaví execute bit pre priamy cron.
+      chmod +x "$UVARSI_DEPLOY_STATE_SCRIPT" || exit 1
+      uvarsi_run_supervisor_bounded
+      ;;
     internal-supervisor-cycle) _uvarsi_supervisor_cycle ;;
     *) exit 64 ;;
   esac

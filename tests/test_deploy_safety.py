@@ -742,6 +742,11 @@ def test_autonomous_release_keeps_direct_cron_entrypoint_executable():
     guardian = DOZORCA.read_text(encoding="utf-8")
     assert 'chmod +x "$DEPLOY_STATE_SCRIPT"' in guardian
 
+    state = DEPLOY_STATE.read_text(encoding="utf-8")
+    cli = state.rsplit('\n    run-supervisor)', 1)[1].split(';;', 1)[0]
+    assert 'chmod +x "$UVARSI_DEPLOY_STATE_SCRIPT"' in cli
+    assert cli.index("chmod +x") < cli.index("uvarsi_run_supervisor_bounded")
+
 
 def test_release_never_uploads_or_replaces_runtime_data(script):
     state = DEPLOY_STATE.read_text(encoding="utf-8")

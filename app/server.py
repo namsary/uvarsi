@@ -5435,7 +5435,13 @@ def health():
     """
     today = bratislava_day()
     with closing(db()) as con:
-        rows = offers_for_current_week(con, ["Kaufland", "Tesco", "Lidl"], today)
+        stores = ["Kaufland", "Tesco", "Lidl"]
+        rows = offers_for_current_week(con, stores, today)
+        offers_by_store = {store: 0 for store in stores}
+        for row in rows:
+            store = row.get("obchod")
+            if store in offers_by_store:
+                offers_by_store[store] += 1
         utrata = naklady.stav(con)
         zahrievanie = predpocet.stav(con)
         platby_stav = stav_dozoru(con)
@@ -5447,6 +5453,7 @@ def health():
             con, queue_status=fronta_planov, recipe_status=recipe_status
         )
     return {"vydanie": release_id(), "tyzden": monday(today), "pocet": len(rows),
+            "ponuky_podla_obchodu": offers_by_store,
             "naklady": utrata, "predpocet": zahrievanie, "platby": platby_stav,
             "plan_queue": fronta_planov, "recipe_engine": recipe_status,
             "payment_readiness": public_readiness(payment_status)}

@@ -1,4 +1,9 @@
 
+## 2026-09-12 — Per-store offer diagnostics (vydanie 2026.09.12.13)
+
+- Verejný health pridáva iba bezpečné súhrnné počty aktuálnych týždenných ponúk pre Kaufland, Tesco a Lidl; neobsahuje osobné údaje, tajomstvá ani zdrojové odpovede.
+- Diagnostika bez SSH ukáže, ktorý konkrétny reťazec po odfiltrovaní mesačných kampaní nespĺňa produkčný prah.
+
 ## 2026-09-12 — Same-release deployment gates (vydanie 2026.09.12.12)
 
 - Automatické nasadenie po prepnutí spúšťa dozor aj finálnu kontrolu z práve nasadeného vydania, nie z funkcií predošlej verzie načítaných pri štarte samonasadzovača.

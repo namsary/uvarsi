@@ -117,6 +117,11 @@ def test_health_reports_release_week_and_offer_count(fresh_server):
     )
     assert data["tyzden"] == fresh_server.monday()
     assert data["pocet"] == 0
+    assert data["ponuky_podla_obchodu"] == {
+        "Kaufland": 0,
+        "Tesco": 0,
+        "Lidl": 0,
+    }
 
 
 def test_health_offer_count_matches_pocet_akcii(fresh_server):
