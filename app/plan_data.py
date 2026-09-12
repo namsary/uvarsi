@@ -1213,7 +1213,7 @@ PLAN_VARIANT_HINTS = (
 # 27 = Tesco HM/SM sa odvodzuje iba z overenej oficiálnej URL a staré cache
 #      bez tohto zobrazovacieho pravidla sa nesmú znovu použiť.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 27
+PLAN_ALGO_VERSION = 28
 
 
 def plan_variant_for(user_id, variants):

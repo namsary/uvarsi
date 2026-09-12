@@ -12,7 +12,12 @@ from pathlib import Path
 
 from app.deterministic_plan import NoCompatiblePlan, build_deterministic_plan
 from app.ingredient_catalog import load_ingredient_catalog
-from app.landing_data import validate_landing_data, write_landing_data_atomic
+from app.landing_data import (
+    landing_data_is_current,
+    load_landing_data,
+    validate_landing_data,
+    write_landing_data_atomic,
+)
 from app.offer_data import ALLOWED_STORES, CURRENT_COLLECTION_DATA_VERSION
 from app.recipe_catalog import load_recipe_catalog
 from app.receipt_data import (
@@ -21,6 +26,7 @@ from app.receipt_data import (
     StructuralFailure,
     build_public_receipt,
     priceable_offers,
+    public_receipt_matches_verified_offers,
 )
 from app.weekly_data import (
     current_monday,
@@ -337,8 +343,35 @@ def refresh_from_db(path, database, compose=None, today=None):
     return candidate
 
 
+def landing_data_is_verified_current(path, database, today=None):
+    """Require a current receipt that can be rebuilt exactly from live offers."""
+    today = today or date.today()
+    try:
+        if not landing_data_is_current(
+            path,
+            today,
+            required_offer_data_version=CURRENT_COLLECTION_DATA_VERSION,
+        ):
+            return False
+        payload = load_landing_data(path)
+        with sqlite3.connect(database) as con:
+            con.row_factory = sqlite3.Row
+            return public_receipt_matches_verified_offers(con, payload, today=today)
+    except (OSError, sqlite3.Error, UnicodeDecodeError, ValueError, TypeError):
+        return False
+
+
 def main():
     """Odlíš štrukturálny pád od dočasného a zachovaj posledný dobrý bloček."""
+    if sys.argv[1:2] == ["--verify-current"]:
+        if len(sys.argv) != 4:
+            raise SystemExit(
+                "Použitie: refresh_blocek.py --verify-current LANDING_JSON DATABAZA"
+            )
+        valid = landing_data_is_verified_current(
+            Path(sys.argv[2]), sys.argv[3], today=date.today()
+        )
+        raise SystemExit(0 if valid else 1)
     path = landing_data_output_path(sys.argv[1:])
     database = os.environ.get("UVARSI_DB", DATABASE_PATH)
     try:

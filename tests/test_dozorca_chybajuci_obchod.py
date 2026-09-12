@@ -134,7 +134,13 @@ def test_previous_week_data_does_not_hide_a_missing_store(tmp_path, skript):
     con.close()
 
 def test_dozorca_rebuilds_even_date_current_landing_from_old_offer_schema(skript):
-    assert "required_offer_data_version=2" in skript
+    assert "landing_data_is_verified_current" in skript
+
+
+def test_dozorca_rebuilds_date_current_landing_when_receipt_no_longer_matches_db(skript):
+    assert "public_receipt_matches_verified_offers" in Path(
+        "hetzner/refresh_blocek.py"
+    ).read_text(encoding="utf-8")
 
 
 def test_structural_block_is_released_when_collection_revision_changes(skript):

@@ -887,8 +887,8 @@ def _large_pan_batch_step(
     )
     guidance = (
         f"Rozdeľ {ingredients} na menšie dávky tak, aby panvica nebola "
-        "preplnená a pevné kúsky boli rozložené v jednej vrstve; podľa "
-        "potreby použi ďalšiu panvicu."
+        "preplnená a pevné kúsky boli rozložené v jednej vrstve. Priprav ich "
+        "postupne v tej istej panvici."
     )
     doneness_text = doneness.group(0).rstrip(".!?")
     per_batch = (
@@ -1216,7 +1216,11 @@ def _validate_step_detail(step: str) -> None:
         raise ValueError("Tepelný krok musí uvádzať intenzitu ohrevu alebo teplotu.")
     capacity_safe_batch = all(
         marker in folded
-        for marker in ("kazdu davku", "jednej vrstve", "dalsiu panvicu")
+        for marker in (
+            "kazdu davku",
+            "jednej vrstve",
+            "postupne v tej istej panvici",
+        )
     )
     if _TIME.search(folded) is None and not capacity_safe_batch:
         raise ValueError("Tepelný krok musí uvádzať čas prípravy v minútach.")

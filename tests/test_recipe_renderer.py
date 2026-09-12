@@ -214,7 +214,8 @@ def test_large_multi_day_pan_batch_uses_capacity_safe_deterministic_guidance(
     assert "kuracie prsia" in cooking_step
     assert "2,2 kg" not in cooking_step
     assert "jednej vrstve" in cooking_step
-    assert "ďalšiu panvicu" in cooking_step
+    assert "postupne v tej istej panvici" in cooking_step
+    assert "ďalšiu panvicu" not in cooking_step
     assert "kým bude mäso zlatisté a v strede prepečené" in cooking_step
     assert "8 minút" not in cooking_step
 
@@ -258,7 +259,8 @@ def test_large_tomato_pan_step_does_not_depend_on_opekaj_keyword(ingredients):
         for step in meal.instructions
         if "paradajky" in step and "panvic" in step
     )
-    assert "ďalšiu panvicu" in tomato_step
+    assert "postupne v tej istej panvici" in tomato_step
+    assert "ďalšiu panvicu" not in tomato_step
     assert "Každú dávku tepelne uprav v panvici na miernom ohni" in tomato_step
     assert "kým omáčka začne jemne bublať a bude hustejšia" in tomato_step
     assert "10 minút" not in tomato_step
@@ -320,7 +322,8 @@ def test_large_egg_pan_step_supports_vlej_and_preserves_doneness(ingredients):
         for step in meal.instructions
         if "vajcia" in step and "panvic" in step
     )
-    assert "ďalšiu panvicu" in egg_step
+    assert "postupne v tej istej panvici" in egg_step
+    assert "ďalšiu panvicu" not in egg_step
     assert "Každú dávku tepelne uprav v panvici na miernom ohni" in egg_step
     assert "kým úplne stuhnú" in egg_step
     assert "5 minút" not in egg_step
@@ -363,7 +366,8 @@ def test_all_catalog_variants_are_capacity_safe_through_refrigerated_limit(
                 if step_grams <= Decimal("800"):
                     continue
                 audited_capacity_steps += 1
-                assert "ďalšiu panvicu" in output, (recipe.id, output)
+                assert "postupne v tej istej panvici" in output, (recipe.id, output)
+                assert "ďalšiu panvicu" not in output, (recipe.id, output)
                 assert "Každú dávku tepelne uprav v panvici" in output
                 assert re.search(r"\d+(?:[,.]\d+)?\s*minút", output) is None
                 assert "kým" in output

@@ -464,7 +464,7 @@ if [ "$BLOKNUTE_NA" = "KREDIT" ]; then
 fi
 
 landing_data_is_current() {
-  (cd "$DIR" && "$PY" -c 'from app.landing_data import landing_data_is_current; from datetime import date; import sys; raise SystemExit(0 if landing_data_is_current(sys.argv[1], date.fromisoformat(sys.argv[2]), required_offer_data_version=2) else 1)' "$LANDING_DATA" "$TODAY")
+  (cd "$DIR" && "$PY" -c 'from datetime import date; from refresh_blocek import landing_data_is_verified_current as landing_data_is_current; import sys; raise SystemExit(0 if landing_data_is_current(sys.argv[1], sys.argv[2], date.fromisoformat(sys.argv[3])) else 1)' "$LANDING_DATA" "$DIR/uvarsi.db" "$TODAY")
 }
 
 zahrej_plany() {
