@@ -1,4 +1,12 @@
 
+## 2026-09-12 — Weekly receipt readiness alignment (vydanie 2026.09.12.11)
+
+- Produkčná brána používa rovnaké maximálne 21-dňové letákové okno ako aplikácia, dozorca a platobná kontrola.
+- Mesačná tematická kampaň Kauflandu už nemôže spôsobiť falošné potvrdenie zdravého týždenného bločka.
+- Ak sa pravidlá ponúk po vydaní zmenia, ohraničený dozorca bloček prestavia hneď počas nasadenia z existujúcej databázy, bez nového AI čítania letákov a bez čakania na ďalšiu hodinu.
+- Regresný test pokrýva presne incident s mesačným „Fínskym chlebom“ aj autonómnu obnovu bločka bez dostupnosti externého Tesco bridge.
+- Platby ostávajú vypnuté a Taktik-mapa je mimo nasadenia.
+
 ## 2026-09-12 — Code/data failure isolation (vydanie 2026.09.12.10)
 
 - Nasadenie aplikácie už nie je blokované dočasným výpadkom externého zdroja letáka, pokiaľ sú platby vypnuté a aplikácia, worker aj dozorca sú funkčné.

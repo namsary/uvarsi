@@ -331,7 +331,8 @@ _uvarsi_require_collection_readiness() {
 import datetime as dt, json, re, sqlite3, sys
 from decimal import Decimal, InvalidOperation
 from landing_data import CURRENT_LANDING_STATE, validate_publishable_landing_data
-from source_policy import collector_kind_for_url
+from offer_data import MAX_FLYER_VALIDITY_DAYS
+from source_policy import MIN_FACTS_PER_STORE, collector_kind_for_url
 
 database, landing_path, today_raw, readiness_scope = sys.argv[1:5]
 if readiness_scope not in {"full", "offers"}:
@@ -412,7 +413,8 @@ with sqlite3.connect("file:" + database + "?mode=ro", uri=True) as con:
         except (TypeError, ValueError):
             raise SystemExit(1)
         if (
-            status != "ok" or int(declared or 0) < 20 or int(version or 0) < 2
+            status != "ok" or int(declared or 0) < MIN_FACTS_PER_STORE
+            or int(version or 0) < 2
             or kind != expected_kind or not isinstance(source_hash, str)
             or fingerprint.fullmatch(source_hash) is None or not current
         ):
@@ -426,7 +428,10 @@ with sqlite3.connect("file:" + database + "?mode=ro", uri=True) as con:
                 (week, store),
             ).fetchall()
             keys = {row[0] for row in rows if isinstance(row[0], str) and row[0].strip()}
-            if len(rows) < 20 or len(rows) != int(declared) or len(keys) != len(rows):
+            if (
+                len(rows) < MIN_FACTS_PER_STORE
+                or len(rows) != int(declared) or len(keys) != len(rows)
+            ):
                 raise SystemExit(1)
             facts = set()
             for row in rows:
@@ -473,6 +478,13 @@ with sqlite3.connect("file:" + database + "?mode=ro", uri=True) as con:
                     )
                 ):
                     raise SystemExit(1)
+                # Tematické mesačné kampane sú legitímne ponuky obchodu,
+                # ale nie sú súčasťou týždenného letáka Uvar.si. Brána
+                # nasadenia musí použiť rovnaké okno ako appka a dozorca;
+                # inak by vedela označiť starý bloček za zdravý, hoci ho
+                # backend pre platby správne odmieta.
+                if (offer_end - offer_start).days + 1 > MAX_FLYER_VALIDITY_DAYS:
+                    continue
                 fact = (
                     offer_key, name, str(price), None if original is None else str(original),
                     discount, unit, source_url, source_page, start_raw, end_raw,
@@ -498,6 +510,8 @@ with sqlite3.connect("file:" + database + "?mode=ro", uri=True) as con:
                         "loyalty_condition": loyalty_condition,
                     }
                     active_source_refs.add(source_ref)
+            if len(facts) < MIN_FACTS_PER_STORE:
+                raise SystemExit(1)
 
 if readiness_scope == "offers":
     raise SystemExit(0)

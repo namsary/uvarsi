@@ -720,6 +720,53 @@ def test_production_readiness_accepts_three_current_official_reusable_stores(dep
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_production_readiness_rejects_monthly_campaign_in_weekly_receipt(deployment):
+    """A long thematic campaign must not make the weekly receipt deploy-ready."""
+    monthly_key = "kaufland-monthly-protein-1"
+    with sqlite3.connect(deployment["database"]) as con:
+        con.execute(
+            "INSERT INTO akcie VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                WEEK, "Kaufland", "Fínske chlieb 100 % ražné", 1.55, 2.99,
+                "-48 %", "1 ks", official_source_url("Kaufland"), 80,
+                monthly_key, "2026-09-01", "2026-09-30", None, None, None,
+                None, None,
+            ),
+        )
+        con.execute(
+            "UPDATE zber_stav SET pocet=21 WHERE obchod='Kaufland'"
+        )
+
+    payload = landing_payload()
+    payload["sources"][0].update({
+        "source_page": 80,
+        "valid_from": "2026-09-01",
+        "valid_to": "2026-09-30",
+    })
+    payload["receipt"]["meals"][0]["items"][0].update({
+        "offer_key": monthly_key,
+        "name": "Fínske chlieb 100 % ražné",
+        "unit": "1 ks",
+    })
+    deployment["landing"].write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_library(deployment, "uvarsi_require_production_readiness")
+
+    assert result.returncode != 0
+
+
+def test_offer_readiness_counts_only_weekly_offers_toward_store_minimum(deployment):
+    with sqlite3.connect(deployment["database"]) as con:
+        con.execute(
+            "UPDATE akcie SET valid_from='2026-09-01', valid_to='2026-09-30' "
+            "WHERE obchod='Kaufland' AND offer_key='kaufland-offer-20'"
+        )
+
+    result = run_library(deployment, "_uvarsi_require_official_offer_data")
+
+    assert result.returncode != 0
+
+
 def test_production_readiness_serves_verified_current_data_when_bridge_is_unavailable(
         deployment):
     payload = bridge_payload(release="f" * 12)
@@ -772,6 +819,58 @@ def test_bounded_supervisor_rebuilds_stale_receipt_from_current_offers_without_b
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert json.loads(deployment["landing"].read_text(encoding="utf-8"))["week"] == WEEK
+
+
+def test_bounded_supervisor_rebuilds_receipt_that_references_monthly_campaign(
+        deployment):
+    ready_landing = deployment["state"] / "ready-landing.json"
+    shutil.copy2(deployment["landing"], ready_landing)
+    monthly_key = "kaufland-monthly-protein-1"
+    with sqlite3.connect(deployment["database"]) as con:
+        con.execute(
+            "INSERT INTO akcie VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                WEEK, "Kaufland", "Fínske chlieb 100 % ražné", 1.55, 2.99,
+                "-48 %", "1 ks", official_source_url("Kaufland"), 80,
+                monthly_key, "2026-09-01", "2026-09-30", None, None, None,
+                None, None,
+            ),
+        )
+        con.execute("UPDATE zber_stav SET pocet=21 WHERE obchod='Kaufland'")
+    stale = landing_payload()
+    stale["sources"][0].update({
+        "source_page": 80,
+        "valid_from": "2026-09-01",
+        "valid_to": "2026-09-30",
+    })
+    stale["receipt"]["meals"][0]["items"][0].update({
+        "offer_key": monthly_key,
+        "name": "Fínske chlieb 100 % ražné",
+        "unit": "1 ks",
+    })
+    deployment["landing"].write_text(json.dumps(stale), encoding="utf-8")
+    receipt = deployment["state"] / "refresh_receipt.py"
+    receipt.write_text(
+        "import os, shutil\n"
+        "def native(path):\n"
+        "    return path[1].upper() + ':' + path[2:] if path.startswith('/c/') else path\n"
+        "shutil.copy2(native(os.environ['UVARSI_READY_LANDING']), "
+        "native(os.environ['UVARSI_LANDING_DATA']))\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    deployment["env"].update({
+        "UVARSI_TIMEOUT_RESULT": "0",
+        "UVARSI_TIMEOUT_RUN_COMMAND": "1",
+        "UVARSI_READY_LANDING": bash_path(ready_landing),
+        "UVARSI_RECEIPT_REFRESH": bash_path(receipt),
+    })
+
+    result = run_library(deployment, "uvarsi_run_supervisor_bounded")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    refreshed = json.loads(deployment["landing"].read_text(encoding="utf-8"))
+    assert refreshed["sources"][0]["valid_to"] == "2026-09-13"
 
 
 def test_bounded_supervisor_still_requires_bridge_before_collecting_missing_data(
