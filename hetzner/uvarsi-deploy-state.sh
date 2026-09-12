@@ -34,6 +34,14 @@ UVARSI_MAX_COLLECTION_SECONDS="${UVARSI_MAX_COLLECTION_SECONDS:-14400}"
 UVARSI_TERMINATION_GRACE_SECONDS="${UVARSI_TERMINATION_GRACE_SECONDS:-300}"
 UVARSI_WORKER_UNIT="$UVARSI_SYSTEMD_DIR/uvarsi-plan-worker.service"
 UVARSI_APP_UNIT="$UVARSI_SYSTEMD_DIR/uvarsi.service"
+UVARSI_BRIDGE_FAILURE_REASON="not_checked"
+
+_uvarsi_bridge_fail() {
+  # Stable operator-facing enum only.  Never include a URL, response body,
+  # bearer value or environment content in this state.
+  UVARSI_BRIDGE_FAILURE_REASON=$1
+  return 1
+}
 
 _uvarsi_today() {
   if [ -n "${UVARSI_TODAY:-}" ]; then
@@ -86,6 +94,7 @@ _uvarsi_require_tesco_bridge_transport() {
   case $- in *x*) set +x ;; esac
   # Values are read without sourcing or printing the env file. The bearer
   # header reaches curl over stdin config, so it is absent from argv and logs.
+  UVARSI_BRIDGE_FAILURE_REASON="config_invalid"
   environment=$(_uvarsi_env_value UVARSI_ENV) || return 1
   [ "$environment" = production ] || return 1
   bridge_url=$(_uvarsi_env_value UVARSI_TESCO_BRIDGE_URL) || return 1
@@ -125,11 +134,13 @@ valid = (
     and parsed.path in ("", "/") and not parsed.query and not parsed.fragment
 )
 raise SystemExit(0 if valid else 1)
-' "$bridge_url" "$bridge_worker_host" >/dev/null 2>&1 || return 1
+  ' "$bridge_url" "$bridge_worker_host" >/dev/null 2>&1 || return 1
   bridge_url=${bridge_url%/}
-  today=$(_uvarsi_today) || return 1
-  response=$(mktemp "${TMPDIR:-/tmp}/uvarsi-bridge.XXXXXX") || return 1
-  chmod 600 "$response" || { rm -f "$response"; return 1; }
+  today=$(_uvarsi_today) || { _uvarsi_bridge_fail local_error; return 1; }
+  response=$(mktemp "${TMPDIR:-/tmp}/uvarsi-bridge.XXXXXX") || {
+    _uvarsi_bridge_fail local_error; return 1; }
+  chmod 600 "$response" || {
+    rm -f "$response"; _uvarsi_bridge_fail local_error; return 1; }
   request=$(printf '{"date":"%s","format":"HM"}' "$today")
   if ! {
     printf 'header = "Accept: application/json"\n'
@@ -140,6 +151,7 @@ raise SystemExit(0 if valid else 1)
       --output "$response" "$bridge_url/v1/tesco/leaflets" \
       >/dev/null 2>&1; then
     rm -f "$response"
+    _uvarsi_bridge_fail request_failed
     return 1
   fi
   if ! UVARSI_BRIDGE_VERIFY_SECRET=$bridge_secret "$UVARSI_HEALTH_PY" -c '
@@ -217,15 +229,17 @@ for expected, page in enumerate(pages, start=1):
             or not parsed.path.startswith("/v1/tesco/media/")
         ):
             raise SystemExit(1)
-' "$response" "$today" "$bridge_url" "$bridge_release" "$bridge_version_id" >/dev/null 2>&1; then
+  ' "$response" "$today" "$bridge_url" "$bridge_release" "$bridge_version_id" >/dev/null 2>&1; then
     rm -f "$response"
+    _uvarsi_bridge_fail response_invalid
     return 1
   fi
-  rm -f "$response" || return 1
+  rm -f "$response" || { _uvarsi_bridge_fail local_error; return 1; }
   UVARSI_TESCO_BRIDGE_URL=$bridge_url
   UVARSI_TESCO_BRIDGE_SECRET=$bridge_secret
   UVARSI_ENV=production
   export UVARSI_TESCO_BRIDGE_URL UVARSI_TESCO_BRIDGE_SECRET UVARSI_ENV
+  UVARSI_BRIDGE_FAILURE_REASON="ok"
 }
 
 _uvarsi_require_collection_readiness() {
@@ -291,7 +305,10 @@ with sqlite3.connect("file:" + database + "?mode=ro", uri=True) as con:
         "tyzden", "obchod", "stav", "pocet", "data_version",
         "collector_kind", "source_fingerprint", "valid_from", "valid_to",
     }
-    for table in ("zber_stav", "zber_staging_stav"):
+    # Runtime readiness is about the atomically promoted, public dataset.  A
+    # failed future collection may legitimately leave staging incomplete or
+    # different; that scratch state must never poison the last-known-good rows.
+    for table in ("zber_stav",):
         columns = {row[1] for row in con.execute("PRAGMA table_info(" + table + ")")}
         if not required_status <= columns:
             raise SystemExit(1)
@@ -301,7 +318,7 @@ with sqlite3.connect("file:" + database + "?mode=ro", uri=True) as con:
         "cena_s_kartou", "zlava_s_kartou", "vernostny_program",
         "minimalny_nakup", "podmienka_s_kartou",
     }
-    for table in ("akcie", "akcie_staging"):
+    for table in ("akcie",):
         columns = {row[1] for row in con.execute("PRAGMA table_info(" + table + ")")}
         if not required_offer <= columns:
             raise SystemExit(1)
@@ -311,8 +328,7 @@ with sqlite3.connect("file:" + database + "?mode=ro", uri=True) as con:
             "valid_from,valid_to FROM {} WHERE tyzden=? AND obchod=?"
         )
         active = con.execute(query.format("zber_stav"), (week, store)).fetchone()
-        staged = con.execute(query.format("zber_staging_stav"), (week, store)).fetchone()
-        if active is None or staged is None or tuple(active) != tuple(staged):
+        if active is None:
             raise SystemExit(1)
         status, declared, version, kind, source_hash, start, end = active
         try:
@@ -325,8 +341,7 @@ with sqlite3.connect("file:" + database + "?mode=ro", uri=True) as con:
             or fingerprint.fullmatch(source_hash) is None or not current
         ):
             raise SystemExit(1)
-        facts_by_table = []
-        for table in ("akcie", "akcie_staging"):
+        for table in ("akcie",):
             rows = con.execute(
                 "SELECT offer_key,nazov,cena,povodna,zlava,jednotka,"
                 "source_url,source_page,valid_from,valid_to,cena_s_kartou,"
@@ -407,9 +422,6 @@ with sqlite3.connect("file:" + database + "?mode=ro", uri=True) as con:
                         "loyalty_condition": loyalty_condition,
                     }
                     active_source_refs.add(source_ref)
-            facts_by_table.append(facts)
-        if facts_by_table[0] != facts_by_table[1]:
-            raise SystemExit(1)
 
 if readiness_scope == "offers":
     raise SystemExit(0)

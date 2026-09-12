@@ -560,6 +560,25 @@ def test_legacy_bridge_gate_allows_one_transition_with_verified_official_data(
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_legacy_bridge_gate_reuses_current_active_data_after_failed_staging_run(
+        deployment):
+    """An abandoned staging candidate must not poison last-known-good data."""
+    with sqlite3.connect(deployment["database"]) as con:
+        con.execute(
+            "UPDATE zber_staging_stav SET source_fingerprint=? WHERE obchod='Tesco'",
+            ("f" * 64,),
+        )
+        con.execute(
+            "DELETE FROM akcie_staging WHERE obchod='Lidl' AND rowid IN "
+            "(SELECT rowid FROM akcie_staging WHERE obchod='Lidl' LIMIT 1)"
+        )
+    deployment["state"].joinpath("fail-curl").touch()
+
+    result = run_library(deployment, "uvarsi_require_tesco_bridge")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_legacy_bridge_gate_still_fails_closed_when_official_data_are_missing(
         deployment):
     with sqlite3.connect(deployment["database"]) as con:
@@ -574,6 +593,22 @@ def test_legacy_bridge_gate_still_fails_closed_when_official_data_are_missing(
     result = run_library(deployment, "uvarsi_require_tesco_bridge")
 
     assert result.returncode != 0
+
+
+def test_bridge_failure_exposes_only_a_stable_secret_safe_reason(deployment):
+    deployment["state"].joinpath("fail-curl").touch()
+
+    result = run_library(
+        deployment,
+        "_uvarsi_require_tesco_bridge_transport || "
+        "printf '%s' \"$UVARSI_BRIDGE_FAILURE_REASON\"",
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 0
+    assert result.stdout == "request_failed"
+    assert BRIDGE_SECRET not in output
+    assert "provider-response-body" not in output
 
 
 def test_guarded_supervisor_refuses_payments_on_before_bridge_or_collection(deployment):
@@ -776,11 +811,23 @@ def test_production_readiness_rejects_claimed_official_kind_with_aggregator_urls
     assert result.returncode != 0
 
 
-def test_production_readiness_requires_matching_reusable_fingerprints(deployment):
+def test_production_readiness_ignores_an_abandoned_staging_fingerprint(deployment):
     with sqlite3.connect(deployment["database"]) as con:
         con.execute(
             "UPDATE zber_staging_stav SET source_fingerprint=? WHERE obchod='Tesco'",
             ("f" * 64,),
+        )
+
+    result = run_library(deployment, "uvarsi_require_production_readiness")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_production_readiness_rejects_an_invalid_active_fingerprint(deployment):
+    with sqlite3.connect(deployment["database"]) as con:
+        con.execute(
+            "UPDATE zber_stav SET source_fingerprint=? WHERE obchod='Tesco'",
+            ("not-a-sha256",),
         )
 
     result = run_library(deployment, "uvarsi_require_production_readiness")

@@ -642,8 +642,9 @@ if [ "${STAGED_POCET:-0}" -lt "$MIN_TOTAL_OFFERS" ] || [ "${STAGED_CHYBA:-3}" -g
   fi
 
   if ! tesco_bridge_preflight; then
-    log "Tesco bridge neprešiel kontrolou priamo pred zberom — aktuálne dáta nemením."
-    notify "Uvar.si: zber odložený" "Tesco bridge neprešiel bezpečnostnou kontrolou priamo pred zberom."
+    BRIDGE_REASON=${UVARSI_BRIDGE_FAILURE_REASON:-unknown}
+    log "Tesco bridge neprešiel kontrolou priamo pred zberom ($BRIDGE_REASON) — aktuálne dáta nemením."
+    notify "Uvar.si: zber odložený" "Tesco bridge neprešiel bezpečnostnou kontrolou ($BRIDGE_REASON)."
     exit 1
   fi
 

@@ -216,8 +216,9 @@ spusti_worker() {
 # každým zberom, ktorý má chýbajúce dáta doplniť.
 if ! _uvarsi_require_official_offer_data; then
   _uvarsi_require_tesco_bridge_transport || {
-    log "chýbajú aktuálne oficiálne ponuky a Tesco bridge nie je bezpečne dostupný — NEPREPÍNAM"
-    notify "Uvar.si: vydanie odmietnuté" "Chýbajú aktuálne oficiálne ponuky a produkčný Tesco bridge neprešiel bezpečnou kontrolou."
+    BRIDGE_REASON=${UVARSI_BRIDGE_FAILURE_REASON:-unknown}
+    log "chýbajú aktuálne oficiálne ponuky a Tesco bridge nie je bezpečne dostupný ($BRIDGE_REASON) — NEPREPÍNAM"
+    notify "Uvar.si: vydanie odmietnuté" "Chýbajú aktuálne oficiálne ponuky a Tesco bridge neprešiel kontrolou ($BRIDGE_REASON)."
     exit 1
   }
 fi
