@@ -612,11 +612,14 @@ def test_legacy_samopull_can_install_code_only_fix_with_payments_off(deployment)
         json.dumps(bridge_payload(release="f" * 12)), encoding="utf-8"
     )
     deployment["env"]["UVARSI_TIMEOUT_RESULT"] = "0"
+    deployment["env"]["UVARSI_HEARTBEAT_ATTEMPTS"] = "1"
+    deployment["env"]["UVARSI_SLEEP"] = "true"
 
     transition = run_library(
         deployment,
         "uvarsi_require_tesco_bridge && "
         "test \"$UVARSI_LEGACY_CODE_DEPLOY\" = 1 && "
+        "uvarsi_wait_fresh_heartbeat \"2026-09-11T03:09:55+00:00\" && "
         "uvarsi_run_supervisor_bounded && "
         "uvarsi_require_production_readiness",
     )

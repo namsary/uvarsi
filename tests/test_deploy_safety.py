@@ -176,6 +176,7 @@ def test_samopull_does_not_roll_back_code_for_an_external_collection_outage():
     assert "COLLECTION_DEFERRED=1" in script
     assert "uvarsi_require_code_deploy_readiness" in script
     assert "kód je nasadený, obnova bločka pokračuje" in script
+    assert '[ "$DATA_READY" -eq 1 ] || [ "$COLLECTION_DEFERRED" -eq 1 ]' in script
     bridge_failure = script.index("COLLECTION_DEFERRED=1")
     live_switch = script.index('log "prepínam na', bridge_failure)
     assert bridge_failure < live_switch

@@ -1556,6 +1556,14 @@ raise SystemExit(0 if (not before or instant(current) > instant(before)) else 1)
     "$UVARSI_SLEEP" 1
     attempt=$((attempt + 1))
   done
+  if [ "$UVARSI_LEGACY_CODE_DEPLOY" = 1 ]; then
+    # The legacy deployer compares timestamps before the final runtime gate.
+    # A same-second restart may not advance that marker even though the worker
+    # is healthy.  The final code gate still requires worker_alive=true and a
+    # heartbeat at most 60 seconds old, so only the brittle comparison is
+    # relaxed during this one process-local transition.
+    return 0
+  fi
   return 1
 }
 

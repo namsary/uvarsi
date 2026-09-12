@@ -245,7 +245,9 @@ if [ "$LIVE_MUTATION" -eq 1 ] && zdravie && \
       uvarsi_require_production_readiness; then
     DATA_READY=1
   fi
-  if uvarsi_require_code_deploy_readiness; then
+  if uvarsi_require_code_deploy_readiness && {
+      [ "$DATA_READY" -eq 1 ] || [ "$COLLECTION_DEFERRED" -eq 1 ]
+    }; then
     echo "$SHA" > "$STAV"
     # samopull sa aktualizuje až po úspechu, aby sa nezmenil pod vlastnými nohami
     [ -f "$DIR/samopull.sh.novy" ] && mv "$DIR/samopull.sh.novy" "$DIR/samopull.sh" && chmod +x "$DIR/samopull.sh"
