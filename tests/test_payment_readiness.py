@@ -5,6 +5,7 @@ from dataclasses import replace
 
 import pytest
 
+from app import config as app_config
 from app.payment_readiness import (
     PaymentReadinessBlocked,
     PaymentReadinessInput,
@@ -127,3 +128,42 @@ def test_checkout_guard_accepts_ready_release():
     result = assess_payment_readiness(valid_input())
 
     assert require_checkout_ready(result) is result
+
+
+def test_subscription_checkout_configuration_keeps_live_and_test_ids_separate(
+    monkeypatch,
+):
+    values = {
+        "LEMON_API_KEY": "live-api",
+        "LEMON_STORE_ID": "live-store",
+        "LEMON_SUBSCRIPTION_VARIANT_ID": "live-variant",
+        "LEMON_FOUNDER_DISCOUNT_ID": "live-discount",
+        "LEMON_FOUNDER_DISCOUNT_CODE": "LIVE-FOUNDERS",
+        "LEMON_TEST_API_KEY": "test-api",
+        "LEMON_TEST_STORE_ID": "test-store",
+        "LEMON_TEST_SUBSCRIPTION_VARIANT_ID": "test-variant",
+        "LEMON_TEST_FOUNDER_DISCOUNT_ID": "test-discount",
+        "LEMON_TEST_FOUNDER_DISCOUNT_CODE": "TEST-FOUNDERS",
+    }
+    monkeypatch.delenv("PLATBY_ZAPNUTE", raising=False)
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+
+    live = app_config.lemon_subscription_checkout_config(test_mode=False)
+    test = app_config.lemon_subscription_checkout_config(test_mode=True)
+
+    assert (
+        live.store_id,
+        live.variant_id,
+        live.founder_discount_id,
+        live.founder_discount_code,
+    ) == ("live-store", "live-variant", "live-discount", "LIVE-FOUNDERS")
+    assert (
+        test.store_id,
+        test.variant_id,
+        test.founder_discount_id,
+        test.founder_discount_code,
+    ) == ("test-store", "test-variant", "test-discount", "TEST-FOUNDERS")
+    assert live.api_key == "live-api"
+    assert test.api_key == "test-api"
+    assert app_config.os.environ.get("PLATBY_ZAPNUTE", "") == ""

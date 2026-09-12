@@ -1,7 +1,8 @@
 import os
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal, cast
+from typing import Callable, Literal, cast
 
 try:
     from .operator_profile import LEGAL_VERSION
@@ -11,6 +12,41 @@ except ImportError:  # server.py imports config as a top-level module in product
 
 RecipeEngineMode = Literal["off", "shadow", "on"]
 _RECIPE_ENGINE_MODES = frozenset({"off", "shadow", "on"})
+
+
+@dataclass(frozen=True)
+class LemonSubscriptionCheckoutConfig:
+    """One mode's server-only identity for annual checkout creation."""
+
+    api_key: str = field(repr=False)
+    store_id: str
+    variant_id: str
+    founder_discount_id: str
+    founder_discount_code: str = field(repr=False)
+    test_mode: bool
+
+
+def lemon_subscription_checkout_config(
+    *,
+    test_mode: bool,
+    getenv: Callable[[str, str], str | None] | None = None,
+) -> LemonSubscriptionCheckoutConfig:
+    """Read live or test annual checkout settings without caching secrets."""
+    read = getenv or os.environ.get
+    prefix = "LEMON_TEST_" if test_mode else "LEMON_"
+
+    def value(name: str) -> str:
+        raw = read(f"{prefix}{name}", "")
+        return raw.strip() if isinstance(raw, str) else ""
+
+    return LemonSubscriptionCheckoutConfig(
+        api_key=value("API_KEY"),
+        store_id=value("STORE_ID"),
+        variant_id=value("SUBSCRIPTION_VARIANT_ID"),
+        founder_discount_id=value("FOUNDER_DISCOUNT_ID"),
+        founder_discount_code=value("FOUNDER_DISCOUNT_CODE"),
+        test_mode=test_mode,
+    )
 
 
 def admin_emails(raw: str) -> frozenset[str]:

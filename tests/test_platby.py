@@ -40,7 +40,13 @@ TEST_VARIANT_ID = "test-variant"
 TEST_API_KEY = "test-api-key"
 TEST_CONFIG_DIGEST = "c92c6b55bd48b997ddb73fbc7abbaf44074f989d5bedb0ee0f590a9c9e464a7e"
 CURRENT_LEGAL_VERSION = "2026-09-12-v4"
-CONSENT = {"accept_terms": True, "legal_version": CURRENT_LEGAL_VERSION}
+CONSENT = {
+    "accept_terms": True,
+    "accept_automatic_renewal": True,
+    "request_immediate_activation": True,
+    "acknowledge_withdrawal_proration": True,
+    "legal_version": CURRENT_LEGAL_VERSION,
+}
 SMOKE_NOW = datetime(2026, 9, 11, 12, 0, tzinfo=timezone.utc)
 
 PLATBY_ENV = (
@@ -50,15 +56,54 @@ PLATBY_ENV = (
     "LEMON_STORE_ID",
     "LEMON_VARIANT_ID",
     "LEMON_API_KEY",
+    "LEMON_SUBSCRIPTION_VARIANT_ID",
+    "LEMON_FOUNDER_DISCOUNT_ID",
+    "LEMON_FOUNDER_DISCOUNT_CODE",
     "LEMON_TEST_CHECKOUT_URL",
     "LEMON_TEST_WEBHOOK_SECRET",
     "LEMON_TEST_STORE_ID",
     "LEMON_TEST_VARIANT_ID",
     "LEMON_TEST_API_KEY",
+    "LEMON_TEST_SUBSCRIPTION_VARIANT_ID",
+    "LEMON_TEST_FOUNDER_DISCOUNT_ID",
+    "LEMON_TEST_FOUNDER_DISCOUNT_CODE",
     "UVARSI_VERIFIED_SUPPORT_PHONE",
     "UVARSI_PAYMENT_SMOKE_SIGNING_SECRET",
     "UVARSI_PAYMENT_ACTIVATION_MARKER",
 )
+
+
+class FakeSubscriptionCheckoutProvider:
+    api_key = "live-api-key"
+    store_id = "live-store"
+    variant_id = "live-subscription-variant"
+    founder_discount_id = "live-founder-discount"
+    founder_discount_code = "FOUNDERS"
+
+    def __init__(self):
+        self.last_checkout_payload = None
+
+    def create_checkout(self, payload):
+        self.last_checkout_payload = payload
+        attributes = payload["data"]["attributes"]
+        total = 3900 if "discount_code" in attributes["checkout_data"] else 4900
+        return {
+            "data": {
+                "type": "checkouts",
+                "id": "checkout-api-1",
+                "attributes": {
+                    "store_id": self.store_id,
+                    "variant_id": self.variant_id,
+                    "test_mode": attributes["test_mode"],
+                    "expires_at": attributes["expires_at"],
+                    "preview": {"currency": "EUR", "total": total},
+                    "url": (
+                        "https://uvarsi.lemonsqueezy.com/checkout/custom/checkout-api-1"
+                        "?expires=1&signature=fake-signature"
+                    ),
+                },
+            }
+        }
 
 
 def load_server(monkeypatch, tmp_path, **prostredie):
@@ -95,6 +140,14 @@ def zapnute_platby(monkeypatch, tmp_path, **prostredie):
     monkeypatch.setattr(
         server, "_runtime_payment_readiness", lambda con, **kwargs: ready
     )
+    provider = FakeSubscriptionCheckoutProvider()
+    monkeypatch.setattr(
+        server,
+        "_subscription_checkout_provider",
+        lambda *, test_mode: provider,
+        raising=False,
+    )
+    server._fake_subscription_checkout_provider = provider
     return server
 
 
@@ -424,7 +477,9 @@ def test_platobne_endpointy_odmietnu_neprihlaseneho(monkeypatch, tmp_path, metod
 
 
 # ------------------------------------------------------------------ checkout
-def test_start_vrati_checkout_url_s_id_pouzivatela_v_custom_data(monkeypatch, tmp_path):
+def test_start_vytvori_overeny_rocny_checkout_s_nepriehladnym_attempt_id(
+    monkeypatch, tmp_path
+):
     server = zapnute_platby(monkeypatch, tmp_path)
     vytvor_pouzivatela(server, user_id=7, email="clen@uvar.si")
 
@@ -432,18 +487,36 @@ def test_start_vrati_checkout_url_s_id_pouzivatela_v_custom_data(monkeypatch, tm
 
     assert response.status_code == 200
     data = response.json()
-    assert data["url"].startswith(CHECKOUT + "?")
-    assert "checkout%5Bcustom%5D%5Buser_id%5D=7" in data["url"]
-    assert "checkout%5Bcustom%5D%5Bcheckout_attempt%5D=" in data["url"]
+    assert data["url"].endswith("signature=fake-signature")
+    assert data["founder"] is True
+    assert data["amount_cents"] == 3900
+    assert data["renewal_amount_cents"] == 4900
     assert data["volne_miesta"] == 50
     assert naroky(server) == [], "start nesmie sám nič udeliť"
+    payload = server._fake_subscription_checkout_provider.last_checkout_payload
+    custom = payload["data"]["attributes"]["checkout_data"]["custom"]
+    assert set(custom) == {"attempt_id"}
+    assert len(custom["attempt_id"]) >= 43
+    assert "custom_price" not in payload["data"]["attributes"]
     with closing(server.db()) as con:
         attempt = con.execute(
-            "SELECT user_id, product, amount_cents, currency, legal_version, status "
+            "SELECT user_id,product,amount_cents,renewal_amount_cents,currency,"
+            "billing_interval,auto_renews,founder,legal_version,status,"
+            "provider_checkout_id "
             "FROM checkout_attempts"
         ).fetchone()
     assert tuple(attempt) == (
-        7, "zakladajuci_clen", 3900, "EUR", server.LEGAL_VERSION, "pending"
+        7,
+        "premium_annual",
+        3900,
+        4900,
+        "EUR",
+        "year",
+        1,
+        1,
+        server.LEGAL_VERSION,
+        "pending",
+        "checkout-api-1",
     )
 
 
@@ -483,20 +556,36 @@ def test_start_odmietne_pouzivatela_ktory_uz_narok_ma(monkeypatch, tmp_path):
     assert response.json()["detail"] == "Zakladajúce členstvo už máš aktívne."
 
 
-def test_start_odmietne_ked_je_vsetkych_50_miest_obsadenych(monkeypatch, tmp_path):
+def test_start_po_50_zakladateloch_vytvori_bezny_checkout_za_49(
+    monkeypatch, tmp_path
+):
     server = zapnute_platby(monkeypatch, tmp_path)
     vytvor_pouzivatela(server, user_id=999, email="neskoro@uvar.si")
-    naplnit_miesta(server, 50)
+    naplnit_predplatene_zakladajuce_miesta(server, 50)
 
     response = prihlaseny(server).post("/api/platba/start", json=CONSENT)
 
-    assert response.status_code == 409
-    assert response.json()["detail"] == "Všetkých 50 zakladajúcich miest je obsadených."
+    assert response.status_code == 200
+    assert response.json()["founder"] is False
+    assert response.json()["amount_cents"] == 4900
+    checkout_data = server._fake_subscription_checkout_provider.last_checkout_payload[
+        "data"
+    ]["attributes"]["checkout_data"]
+    assert "discount_code" not in checkout_data
 
 
-def test_start_je_503_ked_chyba_adresa_pokladne(monkeypatch, tmp_path):
-    server = zapnute_platby(monkeypatch, tmp_path, LEMON_CHECKOUT_URL=None)
+def test_start_je_503_ked_chyba_konfiguracia_rocnej_pokladne(
+    monkeypatch, tmp_path
+):
+    server = zapnute_platby(monkeypatch, tmp_path)
     vytvor_pouzivatela(server)
+    monkeypatch.setattr(
+        server,
+        "_subscription_checkout_provider",
+        lambda *, test_mode: (_ for _ in ()).throw(
+            server.PlatbyNenastavene("missing")
+        ),
+    )
 
     response = prihlaseny(server).post("/api/platba/start", json=CONSENT)
 
@@ -1426,6 +1515,43 @@ def naplnit_miesta(server, pocet, od=1000):
                                        suma_centy, mena, stav, ziskany_o, zmeneny_o)
                    VALUES (?, 'zakladajuci_clen', 'lemonsqueezy', ?, 3900, 'EUR', 'aktivny', ?, ?)""",
                 (user_id, f"seed-{user_id}", now, now),
+            )
+        con.commit()
+
+
+def naplnit_predplatene_zakladajuce_miesta(server, pocet, od=1000):
+    """Create verified founder subscriptions for annual checkout capacity tests."""
+    now = server.AUTH_CLOCK()
+    with closing(server.db()) as con:
+        for index in range(pocet):
+            user_id = od + index
+            con.execute(
+                """INSERT INTO subscriptions
+                   (user_id,product,provider,provider_customer_id,
+                    provider_order_id,provider_subscription_id,
+                    provider_variant_id,currency,test_mode,status,period_start,
+                    period_end,renews_at,ends_at,paid_through,
+                    initial_amount_cents,renewal_amount_cents,discount_id,
+                    founder,initial_payment_verified,needs_review,review_reason,
+                    last_verified_event_at,created_at,updated_at)
+                   VALUES (?,'premium_annual','lemonsqueezy',?,?,?,?,
+                           'EUR',0,'active',?,?,?,?,?,3900,4900,?,1,1,0,NULL,?,?,?)""",
+                (
+                    user_id,
+                    f"customer-{user_id}",
+                    f"order-{user_id}",
+                    f"subscription-{user_id}",
+                    "live-subscription-variant",
+                    now,
+                    now + 365 * 24 * 60 * 60,
+                    now + 365 * 24 * 60 * 60,
+                    None,
+                    now + 365 * 24 * 60 * 60,
+                    "live-founder-discount",
+                    now,
+                    now,
+                    now,
+                ),
             )
         con.commit()
 

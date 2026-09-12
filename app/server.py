@@ -62,6 +62,7 @@ from payment_smoke_marker import (
 from config import public_base_url
 from config import (
     admin_emails,
+    lemon_subscription_checkout_config,
     legal_version,
     recipe_engine_mode,
     release_id,
@@ -162,8 +163,11 @@ from platby import (
     count_open_payment_cases,
     create_payment_case,
     create_checkout_attempt,
+    create_provider_subscription_checkout,
+    create_subscription_checkout_attempt,
     custom_user_id,
     email_uctu,
+    founder_places_used,
     hodnoverny_podpis,
     ma_narok,
     migrate_platby_schema,
@@ -173,10 +177,12 @@ from platby import (
     platby_zapnute,
     pocet_zaplatenych_zakladajucich,
     pocet_cakajucich,
+    record_provider_checkout,
     spracuj_udalost,
     stav_dozoru,
     stav_platieb,
     upozornenie_raz,
+    validate_annual_checkout_consent,
     zaznamenaj_upozornenie,
     volne_miesta,
 )
@@ -6004,6 +6010,72 @@ async def consumer_complaint(req: Request):
 # ---------------------------------------------------------------- platby
 # Vypnuté, kým majiteľ nenastaví PLATBY_ZAPNUTE=1. Dovtedy sa nikomu nič
 # neúčtuje a adresa poskytovateľa sa ani nezostaví.
+
+
+def _lemon_checkout_request(api_key: str, payload: dict) -> dict:
+    """Create one Lemon checkout without logging its signed response URL."""
+    if not isinstance(api_key, str) or not api_key.strip():
+        raise PlatbyNenastavene("chýba API kľúč pokladne")
+    encoded = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    request = UrlRequest(
+        "https://api.lemonsqueezy.com/v1/checkouts",
+        data=encoded,
+        method="POST",
+        headers={
+            "Accept": "application/vnd.api+json",
+            "Content-Type": "application/vnd.api+json",
+            "Authorization": f"Bearer {api_key}",
+        },
+    )
+    try:
+        with urlopen(request, timeout=20) as response:
+            body = response.read(1_048_577)
+    except (OSError, ValueError):
+        raise PlatbyNenastavene("poskytovateľ pokladne je nedostupný") from None
+    if len(body) > 1_048_576:
+        raise PlatbyNenastavene("poskytovateľ vrátil priveľkú odpoveď")
+    try:
+        decoded = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise PlatbyNenastavene("poskytovateľ vrátil neplatnú odpoveď") from None
+    if not isinstance(decoded, dict):
+        raise PlatbyNenastavene("poskytovateľ vrátil neplatnú odpoveď")
+    return decoded
+
+
+class _LemonSubscriptionCheckoutProvider:
+    """Server-only adapter; repr deliberately excludes secrets."""
+
+    def __init__(self, settings):
+        values = {
+            "api_key": settings.api_key,
+            "store_id": settings.store_id,
+            "variant_id": settings.variant_id,
+            "founder_discount_id": settings.founder_discount_id,
+            "founder_discount_code": settings.founder_discount_code,
+        }
+        if any(not isinstance(value, str) or not value.strip() for value in values.values()):
+            raise PlatbyNenastavene("chýba konfigurácia ročnej pokladne")
+        self._api_key = settings.api_key.strip()
+        self.store_id = settings.store_id.strip()
+        self.variant_id = settings.variant_id.strip()
+        self.founder_discount_id = settings.founder_discount_id.strip()
+        self.founder_discount_code = settings.founder_discount_code.strip()
+
+    def __repr__(self):
+        return "_LemonSubscriptionCheckoutProvider(<redacted>)"
+
+    def create_checkout(self, payload):
+        return _lemon_checkout_request(self._api_key, payload)
+
+
+def _subscription_checkout_provider(*, test_mode: bool):
+    settings = lemon_subscription_checkout_config(
+        test_mode=test_mode, getenv=env
+    )
+    return _LemonSubscriptionCheckoutProvider(settings)
+
+
 def platby_su_zapnute() -> bool:
     return platby_zapnute(env("PLATBY_ZAPNUTE"))
 
@@ -6037,37 +6109,60 @@ async def platba_start(req: Request):
             consent = await req.json()
         except (json.JSONDecodeError, UnicodeDecodeError):
             consent = None
-        if (
-            not isinstance(consent, dict)
-            or consent.get("accept_terms") is not True
-            or consent.get("legal_version") != LEGAL_VERSION
-        ):
+        try:
+            validate_annual_checkout_consent(
+                consent,
+                legal_version=(
+                    consent.get("legal_version") if isinstance(consent, dict) else ""
+                ),
+            )
+        except ValueError:
             raise HTTPException(
                 422, "Pred platbou potvrď aktuálne VOP a ochranu údajov."
             )
         if ma_narok(con, u["id"]):
             raise HTTPException(409, SPRAVA_UZ_MAS)
-        volne = volne_miesta(con)
-        if volne <= 0:
-            raise HTTPException(409, SPRAVA_VYPREDANE)
         try:
-            attempt_id = create_checkout_attempt(
+            provider = _subscription_checkout_provider(test_mode=False)
+            volne = max(
+                0, KAPACITA_ZAKLADAJUCICH - founder_places_used(con)
+            )
+            attempt = create_subscription_checkout_attempt(
                 con,
                 user_id=u["id"],
                 legal_version=consent["legal_version"],
+                consent=consent,
                 now=AUTH_CLOCK(),
+                founder_discount_id=provider.founder_discount_id,
+                founder_discount_code=provider.founder_discount_code,
+                test_mode=False,
             )
-            url = checkout_url(
-                env("LEMON_CHECKOUT_URL"),
-                user_id=u["id"],
-                attempt_id=attempt_id,
-                email=u["email"],
-            )
-        except (PlatbyNenastavene, ValueError):
+        except (PlatbyNenastavene, RuntimeError, sqlite3.Error, ValueError):
             con.rollback()
             raise HTTPException(503, SPRAVA_NENASTAVENE)
-        con.commit()
-    return {"ok": True, "url": url, "volne_miesta": volne}
+    try:
+        url = await anyio.to_thread.run_sync(
+            functools.partial(
+                create_provider_subscription_checkout,
+                attempt=attempt,
+                email=u["email"],
+                provider=provider,
+                test_mode=False,
+            )
+        )
+        with closing(db()) as con:
+            record_provider_checkout(con, attempt=attempt)
+            con.commit()
+    except (PlatbyNenastavene, OSError, RuntimeError, sqlite3.Error, ValueError):
+        raise HTTPException(503, SPRAVA_NENASTAVENE)
+    return {
+        "ok": True,
+        "url": url,
+        "volne_miesta": volne,
+        "founder": attempt.founder,
+        "amount_cents": attempt.amount_cents,
+        "renewal_amount_cents": attempt.renewal_amount_cents,
+    }
 
 
 def _ohlas_nepripravene_platby(con) -> None:

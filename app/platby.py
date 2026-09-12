@@ -37,6 +37,7 @@ import hmac
 import json
 import secrets
 import sqlite3
+from dataclasses import dataclass
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 try:
@@ -51,10 +52,20 @@ POSKYTOVATEL = "lemonsqueezy"
 # že sa zaň neplatilo (nulová suma, žiadna mena).
 POSKYTOVATEL_RUCNE = "rucne"
 PRODUKT_ZAKLADAJUCI = "zakladajuci_clen"
+PRODUKT_PREMIUM_ROCNY = "premium_annual"
 KAPACITA_ZAKLADAJUCICH = 50
 CENA_ZAKLADAJUCI_CENTY = 3900
+CENA_PRVY_ROK_CENTY = 3900
+CENA_OBNOVA_CENTY = 4900
 MENA_ZAKLADAJUCI = "EUR"
+INTERVAL_ROK = "year"
 CHECKOUT_ATTEMPT_TTL_SECONDS = 60 * 60
+ANNUAL_CONSENT_FIELDS = (
+    "accept_terms",
+    "accept_automatic_renewal",
+    "request_immediate_activation",
+    "acknowledge_withdrawal_proration",
+)
 
 STAV_AKTIVNY = "aktivny"
 STAV_VRATENY = "vrateny"
@@ -186,12 +197,22 @@ CREATE TABLE IF NOT EXISTS checkout_attempts (
   user_id INTEGER NOT NULL,
   product TEXT NOT NULL,
   amount_cents INTEGER NOT NULL,
+  renewal_amount_cents INTEGER,
   currency TEXT NOT NULL,
+  billing_interval TEXT,
+  auto_renews INTEGER,
+  founder INTEGER,
+  discount_id TEXT,
+  discount_code TEXT,
   legal_version TEXT NOT NULL,
   privacy_version TEXT NOT NULL,
+  consent_json TEXT,
   accepted_at REAL NOT NULL,
   expires_at REAL NOT NULL,
+  founder_reserved_until REAL,
+  test_mode INTEGER,
   status TEXT NOT NULL,
+  provider_checkout_id TEXT,
   provider_order_id TEXT
 );
 CREATE INDEX IF NOT EXISTS checkout_attempts_user_idx
@@ -223,10 +244,57 @@ class UdalostNepouzitelna(RuntimeError):
     """Podpísaná udalosť sa nedá priradiť k účtu alebo objednávke."""
 
 
+@dataclass
+class CheckoutAttempt:
+    """Immutable checkout terms plus the non-secret provider checkout ID."""
+
+    public_id: str
+    user_id: int
+    product: str
+    amount_cents: int
+    renewal_amount_cents: int
+    currency: str
+    billing_interval: str
+    auto_renews: bool
+    founder: bool
+    discount_id: str | None
+    discount_code: str | None
+    legal_version: str
+    privacy_version: str
+    consent: dict
+    accepted_at: float
+    expires_at: float
+    founder_reserved_until: float | None
+    test_mode: bool
+    provider_checkout_id: str | None = None
+
+
 def migrate_platby_schema(con) -> None:
     """Aditívne vytvorí platobné tabuľky; na existujúcej databáze nič neprepíše."""
     con.executescript(PLATBY_SCHEMA)
     _doplni_stlpec(con, "platobne_udalosti", "zdroj", "TEXT")
+    for column, definition in (
+        ("renewal_amount_cents", "INTEGER"),
+        ("billing_interval", "TEXT"),
+        ("auto_renews", "INTEGER"),
+        ("founder", "INTEGER"),
+        ("discount_id", "TEXT"),
+        ("discount_code", "TEXT"),
+        ("consent_json", "TEXT"),
+        ("founder_reserved_until", "REAL"),
+        ("test_mode", "INTEGER"),
+        ("provider_checkout_id", "TEXT"),
+    ):
+        _doplni_stlpec(con, "checkout_attempts", column, definition)
+    con.execute(
+        """CREATE UNIQUE INDEX IF NOT EXISTS checkout_attempts_provider_checkout_idx
+           ON checkout_attempts(provider_checkout_id)
+           WHERE provider_checkout_id IS NOT NULL"""
+    )
+    con.execute(
+        """CREATE INDEX IF NOT EXISTS checkout_attempts_founder_reservation_idx
+           ON checkout_attempts(status, founder, founder_reserved_until)"""
+    )
     _zjednot_casy(con)
 
 
@@ -283,6 +351,357 @@ def _den(cas: float) -> str:
     return datetime.datetime.fromtimestamp(
         cas, datetime.timezone.utc
     ).date().isoformat()
+
+
+def _required_text(value, message: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise PlatbyNenastavene(message)
+    stripped = value.strip()
+    if len(stripped) > 256 or "\r" in stripped or "\n" in stripped:
+        raise PlatbyNenastavene(message)
+    return stripped
+
+
+def _annual_consent_json(consent, *, legal_version: str) -> str:
+    if not isinstance(consent, dict):
+        raise ValueError("neplatný súhlas s ročným predplatným")
+    if any(consent.get(field) is not True for field in ANNUAL_CONSENT_FIELDS):
+        raise ValueError("neúplný súhlas s ročným predplatným")
+    recorded_version = consent.get("legal_version")
+    if recorded_version is not None and recorded_version != legal_version:
+        raise ValueError("súhlas má inú právnu verziu")
+    if not all(isinstance(key, str) for key in consent):
+        raise ValueError("neplatný súhlas s ročným predplatným")
+    try:
+        return json.dumps(
+            consent, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
+    except (TypeError, ValueError):
+        raise ValueError("neplatný súhlas s ročným predplatným") from None
+
+
+def validate_annual_checkout_consent(consent, *, legal_version: str) -> None:
+    """Reject implicit, incomplete, or stale annual checkout consent."""
+    if legal_version != LEGAL_VERSION:
+        raise ValueError("neplatná právna verzia")
+    _annual_consent_json(consent, legal_version=legal_version)
+
+
+def founder_places_used(con) -> int:
+    """Count successful first founder payments, including ended subscriptions."""
+    row = con.execute(
+        """SELECT COUNT(*) FROM subscriptions
+           WHERE founder=1 AND initial_payment_verified=1"""
+    ).fetchone()
+    return int(row[0]) if row else 0
+
+
+def _pending_founder_places(con, *, now: float) -> int:
+    row = con.execute(
+        """SELECT COUNT(*) FROM checkout_attempts
+           WHERE founder=1 AND status='pending'
+             AND founder_reserved_until IS NOT NULL
+             AND founder_reserved_until>=?""",
+        (now,),
+    ).fetchone()
+    return int(row[0]) if row else 0
+
+
+def create_subscription_checkout_attempt(
+    con,
+    *,
+    user_id,
+    legal_version,
+    consent,
+    now,
+    founder_discount_id=None,
+    founder_discount_code=None,
+    test_mode=False,
+) -> CheckoutAttempt:
+    """Atomically reserve founder capacity and persist the annual contract."""
+    _over_id_pouzivatela(user_id)
+    if legal_version != LEGAL_VERSION:
+        raise ValueError("neplatná právna verzia")
+    if type(test_mode) is not bool:
+        raise ValueError("neplatný režim pokladne")
+    accepted_at = _cas(now)
+    expires_at = accepted_at + CHECKOUT_ATTEMPT_TTL_SECONDS
+    consent_json = _annual_consent_json(consent, legal_version=legal_version)
+    if (founder_discount_id is None) != (founder_discount_code is None):
+        raise ValueError("neúplná konfigurácia zakladajúcej zľavy")
+    if founder_discount_id is not None:
+        founder_discount_id = _required_text(
+            founder_discount_id, "neplatný identifikátor zakladajúcej zľavy"
+        )
+        founder_discount_code = _required_text(
+            founder_discount_code, "neplatný kód zakladajúcej zľavy"
+        )
+    if con.in_transaction:
+        raise RuntimeError("rezervácia zakladajúceho miesta vyžaduje čisté spojenie")
+
+    try:
+        con.execute("BEGIN IMMEDIATE")
+        if con.execute(
+            "SELECT 1 FROM pouzivatelia WHERE id=?", (user_id,)
+        ).fetchone() is None:
+            raise ValueError("neznámy používateľ")
+        con.execute(
+            """UPDATE checkout_attempts
+                  SET status='expired', founder_reserved_until=NULL
+                WHERE status='pending' AND founder=1
+                  AND founder_reserved_until IS NOT NULL
+                  AND founder_reserved_until<?""",
+            (accepted_at,),
+        )
+        # One account cannot starve the founder pool with several open tabs.
+        con.execute(
+            """UPDATE checkout_attempts
+                  SET status='expired', founder_reserved_until=NULL
+                WHERE user_id=? AND status='pending'""",
+            (user_id,),
+        )
+        founder = (
+            founder_places_used(con)
+            + _pending_founder_places(con, now=accepted_at)
+            < KAPACITA_ZAKLADAJUCICH
+        )
+        amount_cents = CENA_PRVY_ROK_CENTY if founder else CENA_OBNOVA_CENTY
+        discount_id = founder_discount_id if founder else None
+        discount_code = founder_discount_code if founder else None
+        reserved_until = expires_at if founder else None
+        public_id = None
+        for _ in range(3):
+            candidate = secrets.token_urlsafe(32)
+            try:
+                con.execute(
+                    """INSERT INTO checkout_attempts
+                       (public_id,user_id,product,amount_cents,
+                        renewal_amount_cents,currency,billing_interval,
+                        auto_renews,founder,discount_id,discount_code,
+                        legal_version,privacy_version,consent_json,accepted_at,
+                        expires_at,founder_reserved_until,test_mode,status,
+                        provider_checkout_id,provider_order_id)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,
+                               'pending',NULL,NULL)""",
+                    (
+                        candidate,
+                        user_id,
+                        PRODUKT_PREMIUM_ROCNY,
+                        amount_cents,
+                        CENA_OBNOVA_CENTY,
+                        MENA_ZAKLADAJUCI,
+                        INTERVAL_ROK,
+                        1,
+                        int(founder),
+                        discount_id,
+                        discount_code,
+                        legal_version,
+                        legal_version,
+                        consent_json,
+                        accepted_at,
+                        expires_at,
+                        reserved_until,
+                        int(test_mode),
+                    ),
+                )
+                public_id = candidate
+                break
+            except sqlite3.IntegrityError as error:
+                if "UNIQUE constraint failed: checkout_attempts.public_id" not in str(error):
+                    raise
+        if public_id is None:
+            raise RuntimeError("nepodarilo sa vytvoriť bezpečný pokus objednávky")
+        con.commit()
+    except Exception:
+        con.rollback()
+        raise
+
+    return CheckoutAttempt(
+        public_id=public_id,
+        user_id=user_id,
+        product=PRODUKT_PREMIUM_ROCNY,
+        amount_cents=amount_cents,
+        renewal_amount_cents=CENA_OBNOVA_CENTY,
+        currency=MENA_ZAKLADAJUCI,
+        billing_interval=INTERVAL_ROK,
+        auto_renews=True,
+        founder=founder,
+        discount_id=discount_id,
+        discount_code=discount_code,
+        legal_version=legal_version,
+        privacy_version=legal_version,
+        consent=json.loads(consent_json),
+        accepted_at=accepted_at,
+        expires_at=expires_at,
+        founder_reserved_until=reserved_until,
+        test_mode=test_mode,
+    )
+
+
+def _provider_expiry(value) -> float:
+    if not isinstance(value, str) or not value.strip():
+        raise PlatbyNenastavene("poskytovateľ nepotvrdil expiráciu pokladne")
+    normalized = value.strip()
+    if normalized.endswith("Z"):
+        normalized = f"{normalized[:-1]}+00:00"
+    try:
+        parsed = datetime.datetime.fromisoformat(normalized)
+    except ValueError:
+        raise PlatbyNenastavene(
+            "poskytovateľ nepotvrdil expiráciu pokladne"
+        ) from None
+    if parsed.utcoffset() is None:
+        raise PlatbyNenastavene("poskytovateľ nepotvrdil expiráciu pokladne")
+    return parsed.timestamp()
+
+
+def _signed_checkout_url(value) -> str:
+    if not isinstance(value, str):
+        raise PlatbyNenastavene("poskytovateľ nevrátil bezpečnú pokladňu")
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError:
+        raise PlatbyNenastavene(
+            "poskytovateľ nevrátil bezpečnú pokladňu"
+        ) from None
+    hostname = parsed.hostname
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    if (
+        parsed.scheme != "https"
+        or not isinstance(hostname, str)
+        or not (
+            hostname == "lemonsqueezy.com"
+            or hostname.endswith(".lemonsqueezy.com")
+        )
+        or parsed.username is not None
+        or parsed.password is not None
+        or port is not None
+        or not parsed.path.startswith("/checkout/")
+        or parsed.fragment
+        or not query.get("expires")
+        or not query.get("signature")
+    ):
+        raise PlatbyNenastavene("poskytovateľ nevrátil bezpečnú pokladňu")
+    return value
+
+
+def create_provider_subscription_checkout(
+    *, attempt: CheckoutAttempt, email, provider, test_mode
+) -> str:
+    """Create and verify one short-lived annual checkout; never retain its URL."""
+    if not isinstance(attempt, CheckoutAttempt):
+        raise ValueError("neplatný pokus objednávky")
+    if type(test_mode) is not bool:
+        raise ValueError("neplatný režim pokladne")
+    email = _required_text(email, "chýba e-mail pokladne")
+    store_id = _required_text(
+        getattr(provider, "store_id", None), "chýba obchod pokladne"
+    )
+    variant_id = _required_text(
+        getattr(provider, "variant_id", None), "chýba ročný variant pokladne"
+    )
+    checkout_data = {
+        "email": email,
+        "custom": {"attempt_id": attempt.public_id},
+    }
+    if attempt.founder:
+        provider_discount_id = _required_text(
+            getattr(provider, "founder_discount_id", None),
+            "chýba identifikátor zakladajúcej zľavy",
+        )
+        provider_discount_code = _required_text(
+            getattr(provider, "founder_discount_code", None),
+            "chýba kód zakladajúcej zľavy",
+        )
+        if attempt.discount_id not in (None, provider_discount_id):
+            raise PlatbyNenastavene("pokus má inú zakladajúcu zľavu")
+        if attempt.discount_code not in (None, provider_discount_code):
+            raise PlatbyNenastavene("pokus má iný kód zakladajúcej zľavy")
+        attempt.discount_id = provider_discount_id
+        attempt.discount_code = provider_discount_code
+        checkout_data["discount_code"] = provider_discount_code
+    elif attempt.discount_id is not None or attempt.discount_code is not None:
+        raise PlatbyNenastavene("bežná pokladňa nesmie použiť zakladajúcu zľavu")
+
+    expires_at = datetime.datetime.fromtimestamp(
+        attempt.expires_at, datetime.timezone.utc
+    ).isoformat().replace("+00:00", "Z")
+    payload = {
+        "data": {
+            "type": "checkouts",
+            "attributes": {
+                "test_mode": test_mode,
+                "product_options": {"enabled_variants": [variant_id]},
+                "checkout_options": {
+                    "discount": False,
+                    "skip_trial": True,
+                    "subscription_preview": True,
+                },
+                "checkout_data": checkout_data,
+                "expires_at": expires_at,
+                "preview": True,
+            },
+            "relationships": {
+                "store": {"data": {"type": "stores", "id": store_id}},
+                "variant": {"data": {"type": "variants", "id": variant_id}},
+            },
+        }
+    }
+    create_checkout = getattr(provider, "create_checkout", None)
+    if not callable(create_checkout):
+        raise PlatbyNenastavene("poskytovateľ nevie vytvoriť pokladňu")
+    response = create_checkout(payload)
+    data = response.get("data") if isinstance(response, dict) else None
+    if not isinstance(data, dict) or data.get("type") != "checkouts":
+        raise PlatbyNenastavene("poskytovateľ vrátil neplatnú pokladňu")
+    checkout_id = _required_text(
+        data.get("id"), "poskytovateľ nevrátil identifikátor pokladne"
+    )
+    attributes = data.get("attributes")
+    if not isinstance(attributes, dict):
+        raise PlatbyNenastavene("poskytovateľ vrátil neplatnú pokladňu")
+    if str(attributes.get("store_id")) != store_id:
+        raise PlatbyNenastavene("poskytovateľ vrátil pokladňu iného obchodu")
+    if str(attributes.get("variant_id")) != variant_id:
+        raise PlatbyNenastavene("poskytovateľ vrátil iný variant pokladne")
+    if attributes.get("test_mode") is not test_mode:
+        raise PlatbyNenastavene("poskytovateľ vrátil pokladňu v inom režime")
+    if abs(_provider_expiry(attributes.get("expires_at")) - attempt.expires_at) > 0.001:
+        raise PlatbyNenastavene("poskytovateľ vrátil inú expiráciu pokladne")
+    preview = attributes.get("preview")
+    if not isinstance(preview, dict) or preview.get("currency") != attempt.currency:
+        raise PlatbyNenastavene("poskytovateľ nepotvrdil menu pokladne")
+    if preview.get("total") != attempt.amount_cents:
+        raise PlatbyNenastavene("poskytovateľ nepotvrdil schválenú sumu pokladne")
+    checkout_url = _signed_checkout_url(attributes.get("url"))
+    attempt.test_mode = test_mode
+    attempt.provider_checkout_id = checkout_id
+    return checkout_url
+
+
+def record_provider_checkout(con, *, attempt: CheckoutAttempt) -> None:
+    """Store only the provider ID after validation; the signed URL has no sink."""
+    if not isinstance(attempt, CheckoutAttempt):
+        raise ValueError("neplatný pokus objednávky")
+    checkout_id = _required_text(
+        attempt.provider_checkout_id, "chýba identifikátor pokladne"
+    )
+    cursor = con.execute(
+        """UPDATE checkout_attempts
+              SET provider_checkout_id=?,discount_id=?,discount_code=?,test_mode=?
+            WHERE public_id=? AND status='pending'
+              AND provider_checkout_id IS NULL""",
+        (
+            checkout_id,
+            attempt.discount_id,
+            attempt.discount_code,
+            int(attempt.test_mode),
+            attempt.public_id,
+        ),
+    )
+    if cursor.rowcount != 1:
+        raise ValueError("pokus objednávky už nemožno priradiť k pokladni")
 
 
 # ------------------------------------------------------ súhlas pred platbou

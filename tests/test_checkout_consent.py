@@ -1,9 +1,12 @@
-"""Auditable consent and one-time checkout-attempt contracts."""
+"""Auditable consent and checkout-attempt contracts."""
 
+import json
 import sqlite3
 
 import pytest
 
+from app import platby as annual_platby
+from app import predplatne
 from app.operator_profile import LEGAL_VERSION
 from app.platby import (
     AKCIA_UDELENE,
@@ -31,6 +34,8 @@ def con():
         [(7, "seven@example.test"), (8, "eight@example.test")],
     )
     migrate_platby_schema(database)
+    predplatne.migrate_subscription_schema(database)
+    database.commit()
     yield database
     database.close()
 
@@ -79,6 +84,64 @@ def test_checkout_attempt_records_the_exact_one_time_offer_and_legal_versions(co
         None,
     )
     assert len(attempt) >= 43, "verejný identifikátor musí mať aspoň 256 bitov entropie"
+
+
+def test_annual_checkout_persists_the_complete_consent_before_provider_work(con):
+    consent = {
+        "accept_terms": True,
+        "accept_automatic_renewal": True,
+        "request_immediate_activation": True,
+        "acknowledge_withdrawal_proration": True,
+        "legal_version": LEGAL_VERSION,
+    }
+
+    attempt = annual_platby.create_subscription_checkout_attempt(
+        con,
+        user_id=7,
+        legal_version=LEGAL_VERSION,
+        consent=consent,
+        now=1000,
+    )
+
+    stored = con.execute(
+        "SELECT consent_json,accepted_at FROM checkout_attempts WHERE public_id=?",
+        (attempt.public_id,),
+    ).fetchone()
+    assert json.loads(stored["consent_json"]) == consent
+    assert stored["accepted_at"] == 1000.0
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        "accept_terms",
+        "accept_automatic_renewal",
+        "request_immediate_activation",
+        "acknowledge_withdrawal_proration",
+    ],
+)
+def test_annual_checkout_rejects_incomplete_or_implicit_consent(con, missing):
+    consent = {
+        "accept_terms": True,
+        "accept_automatic_renewal": True,
+        "request_immediate_activation": True,
+        "acknowledge_withdrawal_proration": True,
+        "legal_version": LEGAL_VERSION,
+    }
+    consent[missing] = 1 if missing == "accept_terms" else False
+
+    with pytest.raises(ValueError, match="súhlas"):
+        annual_platby.create_subscription_checkout_attempt(
+            con,
+            user_id=7,
+            legal_version=LEGAL_VERSION,
+            consent=consent,
+            now=1000,
+        )
+
+    assert con.execute(
+        "SELECT COUNT(*) FROM checkout_attempts WHERE product='premium_annual'"
+    ).fetchone()[0] == 0
 
 
 def test_stale_legal_version_cannot_create_checkout_attempt(con):
