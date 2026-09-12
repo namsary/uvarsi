@@ -192,6 +192,9 @@ def test_deploy_trace_is_allowlisted_and_cannot_include_runtime_values():
         "install_core_ok", "install_core_failed",
         "migration_ok", "migration_failed",
         "heartbeat_ok", "heartbeat_compat",
+        "schedule_ok", "schedule_failed",
+        "supervisor_ok", "supervisor_failed",
+        "production_ready", "production_failed",
     ):
         assert stage in library
 

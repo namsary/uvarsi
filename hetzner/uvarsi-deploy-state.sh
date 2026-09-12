@@ -53,7 +53,9 @@ _uvarsi_release_trace() {
   stage=$1
   case "$stage" in
     runtime_payments_ok|runtime_payments_failed|install_core_ok|install_core_failed|\
-    migration_ok|migration_failed|heartbeat_ok|heartbeat_compat) ;;
+    migration_ok|migration_failed|heartbeat_ok|heartbeat_compat|\
+    schedule_ok|schedule_failed|supervisor_ok|supervisor_failed|\
+    production_ready|production_failed) ;;
     *) stage=unknown ;;
   esac
   in_samopull=0
@@ -845,7 +847,12 @@ raise SystemExit(0 if targets == [canonical] else 1)
 uvarsi_install_supervisor_schedule() {
   # Normal releases never mutate the shared root crontab. A schedule migration
   # is a separate operator action; release only verifies the canonical row.
-  uvarsi_require_supervisor_schedule
+  if uvarsi_require_supervisor_schedule; then
+    _uvarsi_release_trace schedule_ok
+    return 0
+  fi
+  _uvarsi_release_trace schedule_failed
+  return 1
 }
 
 uvarsi_restore_supervisor_schedule() {
@@ -1000,13 +1007,22 @@ uvarsi_require_production_readiness() {
   # Every call is quiet: callers report stable reason codes, never response
   # bodies, bearer headers or environment values.
   if [ "$UVARSI_LEGACY_CODE_DEPLOY" = 1 ]; then
-    uvarsi_require_code_deploy_readiness
-    return
+    if uvarsi_require_code_deploy_readiness; then
+      _uvarsi_release_trace production_ready
+      return 0
+    fi
+    _uvarsi_release_trace production_failed
+    return 1
   fi
-  uvarsi_require_payments_off || return 1
-  uvarsi_require_runtime_payments_off || return 1
-  _uvarsi_require_collection_readiness || return 1
-  _uvarsi_require_runtime_health
+  if uvarsi_require_payments_off && \
+      uvarsi_require_runtime_payments_off && \
+      _uvarsi_require_collection_readiness && \
+      _uvarsi_require_runtime_health; then
+    _uvarsi_release_trace production_ready
+    return 0
+  fi
+  _uvarsi_release_trace production_failed
+  return 1
 }
 
 uvarsi_require_code_deploy_readiness() {
@@ -1036,7 +1052,7 @@ _uvarsi_supervisor_cycle() {
   "$UVARSI_SUPERVISOR"
 }
 
-uvarsi_run_supervisor_bounded() {
+_uvarsi_run_supervisor_bounded() {
   # The collector and receipt writer stage their candidate state. Killing this
   # wrapper on timeout therefore leaves the live DB rows and landing JSON as-is.
   uvarsi_require_payments_off || return 1
@@ -1096,6 +1112,17 @@ uvarsi_run_supervisor_bounded() {
     return 0
   fi
   return "$result"
+}
+
+uvarsi_run_supervisor_bounded() {
+  if _uvarsi_run_supervisor_bounded; then
+    _uvarsi_release_trace supervisor_ok
+    return 0
+  else
+    result=$?
+    _uvarsi_release_trace supervisor_failed
+    return "$result"
+  fi
 }
 
 uvarsi_bootstrap_production_readiness() {
