@@ -120,6 +120,22 @@ def test_current_query_excludes_unproven_and_outside_validity_offers():
     assert [row["nazov"] for row in rows] == ["Overená"]
 
 
+def test_current_query_excludes_month_long_campaigns_outside_weekly_flyers():
+    con = full_connection([
+        offer(1, "Týždenný chlieb"),
+        offer(
+            2,
+            "Fínske chlieb z mesačnej kampane",
+            valid_from="2026-08-01",
+            valid_to="2026-08-31",
+        ),
+    ])
+
+    rows = offers_for_current_week(con, ["Lidl"], date(2026, 8, 18))
+
+    assert [row["nazov"] for row in rows] == ["Týždenný chlieb"]
+
+
 def test_thursday_flyer_stays_readable_after_the_monday_week_flip():
     """Slovak flyers run Thu–Wed: the Mon–Wed tail must survive the bucket flip."""
     con = full_connection([

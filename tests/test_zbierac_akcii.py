@@ -1068,7 +1068,7 @@ def test_official_kaufland_reads_current_food_prices_without_ai(monkeypatch):
 
     offers = collector.official_kaufland_offers(today=TODAY)
 
-    assert len(offers) == 7
+    assert len(offers) == 6
     assert offers[0] == {
         "obchod": "Kaufland",
         "nazov": "Raciol Repkový olej 1 l",
@@ -1094,7 +1094,7 @@ def test_official_kaufland_reads_current_food_prices_without_ai(monkeypatch):
     by_name = {offer["nazov"]: offer for offer in offers}
     assert "Brumík Mliečny rez 5 x 30 g" in by_name
     assert "Minerálna voda 1,5 l" in by_name
-    assert "Proteínové cestoviny 250 g" in by_name
+    assert "Proteínové cestoviny 250 g" not in by_name
     assert "Ryža dlhozrnná 1 kg" in by_name
     assert "Panvica 1 kus" not in by_name
     assert "Talentus Zakladač 1 kus" not in by_name

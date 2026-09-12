@@ -21,6 +21,7 @@ try:
     from offer_data import (
         CURRENT_COLLECTION_DATA_VERSION,
         LOYALTY_PROGRAM_BY_STORE,
+        MAX_FLYER_VALIDITY_DAYS,
         canonical_offer_key,
         migrate_akcie_schema,
         migrate_offer_staging_schema,
@@ -35,6 +36,7 @@ except ImportError:
     from app.offer_data import (
         CURRENT_COLLECTION_DATA_VERSION,
         LOYALTY_PROGRAM_BY_STORE,
+        MAX_FLYER_VALIDITY_DAYS,
         canonical_offer_key,
         migrate_akcie_schema,
         migrate_offer_staging_schema,
@@ -1336,6 +1338,8 @@ def official_kaufland_offers(today=None):
                     start = datetime.date.fromisoformat(valid_from)
                     end = datetime.date.fromisoformat(valid_to)
                 except (TypeError, ValueError):
+                    continue
+                if (end - start).days + 1 > MAX_FLYER_VALIDITY_DAYS:
                     continue
                 if start <= today <= end:
                     candidates.append((display_name, item, valid_from, valid_to))

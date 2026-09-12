@@ -8,6 +8,9 @@ from urllib.parse import urlparse
 
 ALLOWED_STORES = frozenset({"Lidl", "Kaufland", "Tesco"})
 CURRENT_COLLECTION_DATA_VERSION = 2
+# Osobné plány skladajú jedlá z letákov, nie z mesačných tematických kampaní.
+# Tri týždne ponechávajú rezervu pre sviatočné dvojtýždňové letáky.
+MAX_FLYER_VALIDITY_DAYS = 21
 LOYALTY_PROGRAM_BY_STORE = {
     "Kaufland": "Kaufland Card",
     "Tesco": "Clubcard",

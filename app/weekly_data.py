@@ -2,14 +2,16 @@ from datetime import date, timedelta
 
 try:
     from .offer_data import (
-        ALLOWED_STORES, CURRENT_COLLECTION_DATA_VERSION, canonical_offer_key,
+        ALLOWED_STORES, CURRENT_COLLECTION_DATA_VERSION, MAX_FLYER_VALIDITY_DAYS,
+        canonical_offer_key,
         detect_offer_key_collision, migrate_akcie_schema,
         offer_key_matches, validate_offer,
     )
     from .offer_data import _offer_facts as _offer_facts
 except ImportError:
     from offer_data import (
-        ALLOWED_STORES, CURRENT_COLLECTION_DATA_VERSION, canonical_offer_key,
+        ALLOWED_STORES, CURRENT_COLLECTION_DATA_VERSION, MAX_FLYER_VALIDITY_DAYS,
+        canonical_offer_key,
         detect_offer_key_collision, migrate_akcie_schema,
         offer_key_matches, validate_offer,
     )
@@ -64,6 +66,10 @@ def current_verified_offers(con, stores, today: date | None = None):
         offer = dict(row) if hasattr(row, "keys") else dict(zip(columns, row))
         try:
             validate_offer(offer)
+            valid_from = date.fromisoformat(offer["valid_from"])
+            valid_to = date.fromisoformat(offer["valid_to"])
+            if (valid_to - valid_from).days + 1 > MAX_FLYER_VALIDITY_DAYS:
+                continue
             # Predobraz kľúča si necháme — o chvíľu z neho ide kontrola kolízie
             # a rátať ho druhýkrát by bol hash navyše pri každej požiadavke.
             facts = _offer_facts(offer["tyzden"], offer)
