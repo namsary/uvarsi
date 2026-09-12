@@ -541,7 +541,12 @@ STAGED_CHYBA=$(sqlite3 "$DIR/uvarsi.db" \
             AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
   2>/dev/null || echo 3)
 
-if [ "${STAGED_POCET:-0}" -lt "$MIN_TOTAL_OFFERS" ] || [ "${STAGED_CHYBA:-3}" -gt 0 ]; then
+# Staging je iba rozpracovaný kandidát. Ak atomicky publikovaná aktívna trojica
+# obchodov už obsahuje dnešné overené ponuky, opustený alebo čiastočný staging
+# nesmie spustiť nový (potenciálne platený) zber. Bloček sa nižšie opraví priamo
+# z aktívnej DB. Zberač dobieha staging iba vtedy, keď chýbajú aj živé dáta.
+if { [ "${POCET:-0}" -lt "$MIN_TOTAL_OFFERS" ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; } && \
+   { [ "${STAGED_POCET:-0}" -lt "$MIN_TOTAL_OFFERS" ] || [ "${STAGED_CHYBA:-3}" -gt 0 ]; }; then
   if [ "${STAGED_CHYBA:-3}" -gt 0 ]; then
     log "týždeň $MON_ISO: $STAGED_CHYBA obchod(ov) nemá úspešný staging — dobieham dáta…"
   else

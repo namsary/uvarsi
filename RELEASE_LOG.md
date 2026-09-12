@@ -1,8 +1,9 @@
 
-## 2026-09-12 — Published-data recovery (vydanie 2026.09.12.2)
+## 2026-09-12 — Published-data recovery (vydanie 2026.09.12.3)
 
 - Oprava koreňa: bezpečnostná brána posudzuje atomicky publikované ponuky, nie nedokončenú staging kópiu po zlyhanom zbere.
 - Dôsledok: 849 aktuálnych oficiálnych ponúk sa dá znovu použiť na obnovu bločka bez ďalšieho čítania letákov a bez ďalšieho AI nákladu.
+- Dozorca: neúplný staging už nespúšťa zber, keď sú aktívne ponuky všetkých troch obchodov aktuálne; opraví iba bloček z publikovanej DB.
 - Diagnostika: zlyhanie Tesco bridge používa iba bezpečné dôvody `config_invalid`, `request_failed`, `response_invalid` alebo `local_error`; kľúče, URL a odpovede sa nezapisujú.
 - Bezpečnosť: zber naďalej publikuje nové dáta až po všetkých kontrolách; platby ostávajú vypnuté a Taktik-mapa je mimo nasadenia.
 - Testy: 159 testov deploy/dozorca a 409 testov celého dátového okruhu prešlo bez chyby.

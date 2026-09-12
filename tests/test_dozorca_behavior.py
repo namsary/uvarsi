@@ -174,6 +174,58 @@ def test_collection_stops_before_collector_when_last_moment_bridge_check_fails(
     assert "priamo pred zberom" in result.stdout
 
 
+def test_current_active_offers_rebuild_receipt_without_touching_failed_staging(
+        supervisor_environment):
+    """A broken scratch candidate must not trigger Tesco or block the receipt."""
+    context = supervisor_environment
+    ready_marker = context["tmp_path"] / "landing-ready"
+    fake_python = context["tmp_path"] / "python"
+    fake_python.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"-c\" ]; then\n"
+        "  case \"$2\" in\n"
+        f"    *landing_data_is_current*) [ -f '{bash_path(ready_marker)}' ] ; exit $? ;;\n"
+        f"    *'from datetime import date'*) echo {WEEK}; exit 0 ;;\n"
+        "  esac\n"
+        "  exit 1\n"
+        "fi\n"
+        f"printf '%s\\n' \"$*\" >> '{bash_path(context['calls'])}'\n"
+        "case \"$*\" in\n"
+        f"  *refresh_blocek.py*) touch '{bash_path(ready_marker)}'; exit 0 ;;\n"
+        "  *zbierac_akcii.py*) exit 99 ;;\n"
+        "esac\n"
+        "exit 0\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_python.chmod(0o755)
+    fake_sqlite = context["tmp_path"] / "sqlite3"
+    fake_sqlite.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        f"  *source_fingerprint*zber_staging_stav*) cat '{bash_path(context['staged_fingerprint'])}' ;;\n"
+        f"  *source_fingerprint*) cat '{bash_path(context['active_fingerprint'])}' ;;\n"
+        "  *'SELECT COUNT(*) FROM ('*zber_staging*) echo 1 ;;\n"
+        "  *'SELECT COUNT(*) FROM ('*) echo 0 ;;\n"
+        "  *akcie_staging*) echo 40 ;;\n"
+        "  *MAX*) echo 1000 ;;\n"
+        "  *) echo 60 ;;\n"
+        "esac\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_sqlite.chmod(0o755)
+
+    result = run_supervisor(
+        context, UVARSI_TEST_BRIDGE_PREFLIGHT="/usr/bin/false"
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    calls = context["calls"].read_text(encoding="utf-8")
+    assert "refresh_blocek.py" in calls
+    assert "zbierac_akcii.py" not in calls
+
+
 def configure_structural_collection(context):
     calls = context["calls"]
     fingerprint = context["staged_fingerprint"]
