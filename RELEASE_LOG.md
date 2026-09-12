@@ -1,4 +1,10 @@
 
+## 2026-09-12 — Immediate free-receipt repair (vydanie 2026.09.12.17)
+
+- Nasadenie rozlišuje použiteľnosť registrovaných dát pre bezplatný bloček od prísnejšieho právneho schválenia potrebného pre platby.
+- Ak aktívne týždenné ponuky sú kompletné a zhodujú sa s podpísaným stavom svojho registrovaného zberača, bloček sa prestavia okamžite počas deployu bez AI a bez čakania na hodinový cron.
+- Nezhoda zdroja, odtlačku, platnosti alebo počtu naďalej zlyhá bezpečne a spustí pôvodnú cestu doplnenia dát; platby zostávajú vypnuté.
+
 ## 2026-09-12 — Registered-source receipt recovery (vydanie 2026.09.12.16)
 
 - Bezplatný ukážkový bloček možno bezpečne prestavať aj zo stále platných ponúk registrovaného záložného čítača, keď sú ceny, platnosť, strana a pôvod každej položky overiteľné.

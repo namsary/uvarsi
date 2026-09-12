@@ -806,7 +806,7 @@ log "landing JSON nie je aktuálny — pokus $((FAILS+1))/$MAX_TRIES…"
 # o dátach alebo o účte. Bez toho by nulový kredit vyzeral ako hocijaká iná
 # štrukturálna chyba a majiteľ by dostal hlášku, ktorá mu nepovie, čo urobiť.
 if [ "${POCET:-0}" -ge "$MIN_TOTAL_OFFERS" ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]; then
-  VYSTUP=$(cd "$DIR" && "$PY" -u refresh_blocek.py --active-current "$LANDING_DATA" 2>&1)
+  VYSTUP=$(cd "$DIR" && "$PY" -u refresh_blocek.py --active-current-verified "$LANDING_DATA" 2>&1)
 else
   VYSTUP=$(cd "$DIR" && "$PY" -u refresh_blocek.py "$LANDING_DATA" 2>&1)
 fi

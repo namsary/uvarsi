@@ -8,6 +8,7 @@ import pytest
 
 from hetzner import refresh_blocek
 from hetzner.refresh_blocek import (
+    active_offers_are_reusable,
     landing_data_output_path,
     refresh_from_active_db,
     refresh_from_db,
@@ -862,6 +863,107 @@ def test_active_refresh_rejects_an_unknown_offer_source(monkeypatch, tmp_path):
     assert not output.exists()
 
 
+def test_reusable_active_offers_require_matching_registered_collection_status(
+    monkeypatch, tmp_path
+):
+    database = tmp_path / "uvarsi.db"
+    verified_database(database)
+    monkeypatch.setattr(refresh_blocek, "MIN_FACTS_PER_STORE", 1)
+    kinds = {
+        "https://source.test/kaufland": "official-kaufland-offers",
+        "https://source.test/tesco": "official-tesco-viewer",
+        "https://source.test/lidl": "official-lidl-viewer",
+    }
+    monkeypatch.setattr(
+        refresh_blocek, "collector_kind_for_url", lambda url: kinds.get(url)
+    )
+    with sqlite3.connect(database) as con:
+        con.execute(
+            "CREATE TABLE zber_stav (tyzden TEXT, obchod TEXT, stav TEXT, "
+            "pocet INTEGER, data_version INTEGER, collector_kind TEXT, "
+            "source_fingerprint TEXT, valid_from TEXT, valid_to TEXT)"
+        )
+        con.executemany(
+            "INSERT INTO zber_stav VALUES (?,?,?,?,?,?,?,?,?)",
+            [
+                (
+                    "2026-08-17", store, "ok", count, 2, kind, "a" * 64,
+                    "2026-08-17", "2026-08-23",
+                )
+                for store, kind, count in (
+                    ("Kaufland", "official-kaufland-offers", 1),
+                    ("Tesco", "official-tesco-viewer", 1),
+                    ("Lidl", "official-lidl-viewer", 2),
+                )
+            ],
+        )
+
+    assert active_offers_are_reusable(database, today=TODAY) is True
+    monthly = {
+        "obchod": "Kaufland",
+        "nazov": "Fínske pečivo",
+        "kategoria": "pecivo",
+        "cena": 1.55,
+        "povodna": 2.99,
+        "zlava": "-48 %",
+        "jednotka": "1 ks",
+        "source_url": "https://source.test/kaufland",
+        "source_page": 80,
+        "valid_from": "2026-08-01",
+        "valid_to": "2026-09-30",
+    }
+    monthly_key = offer_key_for("2026-08-17", monthly)
+    with sqlite3.connect(database) as con:
+        con.execute(
+            "INSERT INTO akcie (tyzden,obchod,nazov,kategoria,cena,povodna,"
+            "zlava,jednotka,source_url,source_page,offer_key,valid_from,valid_to) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                "2026-08-17", monthly["obchod"], monthly["nazov"],
+                monthly["kategoria"], monthly["cena"], monthly["povodna"],
+                monthly["zlava"], monthly["jednotka"], monthly["source_url"],
+                monthly["source_page"], monthly_key, monthly["valid_from"],
+                monthly["valid_to"],
+            ),
+        )
+        con.execute(
+            "UPDATE zber_stav SET pocet=2,valid_from='2026-08-01',"
+            "valid_to='2026-09-30' WHERE obchod='Kaufland'"
+        )
+    assert active_offers_are_reusable(database, today=TODAY) is True
+    with sqlite3.connect(database) as con:
+        con.execute("DELETE FROM akcie WHERE offer_key=?", (monthly_key,))
+        con.execute(
+            "UPDATE zber_stav SET pocet=1,valid_from='2026-08-17',"
+            "valid_to='2026-08-23' WHERE obchod='Kaufland'"
+        )
+    with sqlite3.connect(database) as con:
+        con.execute(
+            "UPDATE zber_stav SET pocet=2 WHERE obchod='Tesco'"
+        )
+    assert active_offers_are_reusable(database, today=TODAY) is False
+    with sqlite3.connect(database) as con:
+        con.execute(
+            "UPDATE zber_stav SET pocet=1 WHERE obchod='Tesco'"
+        )
+        con.execute(
+            "UPDATE zber_stav SET collector_kind='kupino-aggregator' "
+            "WHERE obchod='Tesco'"
+        )
+    assert active_offers_are_reusable(database, today=TODAY) is False
+    output = tmp_path / "landing_data.json"
+    output.write_text('{"last_known_good":true}', encoding="utf-8")
+    with pytest.raises(StructuralFailure, match="registrovaným stavom"):
+        refresh_from_active_db(
+            output,
+            database,
+            lambda offers, today: model_selection(),
+            today=TODAY,
+            require_registered_status=True,
+        )
+    assert output.read_text(encoding="utf-8") == '{"last_known_good":true}'
+
+
 def test_malformed_non_null_offer_blocks_publication_before_compose(tmp_path):
     database = tmp_path / "uvarsi.db"
     output = tmp_path / "landing_data.json"
@@ -922,7 +1024,9 @@ def test_main_active_mode_uses_published_database_without_staging(monkeypatch):
     monkeypatch.setattr(
         refresh_blocek,
         "refresh_from_active_db",
-        lambda path, database, today: calls.append((path, database, today)),
+        lambda path, database, today, require_registered_status=False: calls.append(
+            (path, database, today, require_registered_status)
+        ),
     )
     monkeypatch.setattr(
         refresh_blocek,
@@ -934,6 +1038,34 @@ def test_main_active_mode_uses_published_database_without_staging(monkeypatch):
 
     assert calls[0][0] == Path("/var/lib/uvarsi/landing_data.json")
     assert calls[0][1] == "D:/data/uvarsi.db"
+    assert calls[0][3] is False
+
+
+def test_main_verified_active_mode_checks_status_in_same_refresh(monkeypatch):
+    calls = []
+    monkeypatch.setenv("UVARSI_DB", "D:/data/uvarsi.db")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "refresh_blocek.py",
+            "--active-current-verified",
+            "/var/lib/uvarsi/landing_data.json",
+        ],
+    )
+    monkeypatch.setattr(
+        refresh_blocek,
+        "refresh_from_active_db",
+        lambda path, database, today, require_registered_status=False: calls.append(
+            (path, database, today, require_registered_status)
+        ),
+    )
+
+    refresh_blocek.main()
+
+    assert calls[0][0] == Path("/var/lib/uvarsi/landing_data.json")
+    assert calls[0][1] == "D:/data/uvarsi.db"
+    assert calls[0][3] is True
 
 
 def failing_main(monkeypatch, error):

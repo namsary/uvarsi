@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import sys
 from contextlib import contextmanager
@@ -379,15 +380,111 @@ def refresh_from_db(path, database, compose=None, today=None):
     return candidate
 
 
-def refresh_from_active_db(path, database, compose=None, today=None):
-    """Rebuild a stale receipt from published offers without touching staging."""
+def refresh_from_active_db(
+    path, database, compose=None, today=None, require_registered_status=False
+):
+    """Rebuild a stale receipt from one snapshot of published offers."""
     today = today or date.today()
+    if not Path(database).is_file():
+        raise StructuralFailure("Databáza aktívnych ponúk neexistuje.")
     with sqlite3.connect(database) as con:
         con.row_factory = sqlite3.Row
+        con.execute("BEGIN")
         with _active_offer_view(con, today) as offers:
+            if require_registered_status and not _active_offer_set_matches_status(
+                con, offers, today
+            ):
+                raise StructuralFailure(
+                    "Aktívne ponuky sa nezhodujú s registrovaným stavom zberu."
+                )
             candidate = _candidate_from_offers(con, offers, compose, today)
     write_landing_data_atomic(path, candidate)
     return candidate
+
+
+def _active_offer_set_matches_status(con, offers, today):
+    """Match every offer bucket to exactly one signed collection outcome."""
+    status_columns = {
+        row[1] for row in con.execute("PRAGMA table_info(zber_stav)")
+    }
+    required = {
+        "tyzden", "obchod", "stav", "pocet", "data_version",
+        "collector_kind", "source_fingerprint", "valid_from", "valid_to",
+    }
+    if not required <= status_columns:
+        return False
+    by_bucket = {}
+    for offer in offers:
+        bucket = (offer["obchod"], offer["tyzden"])
+        details = by_bucket.setdefault(bucket, {"count": 0, "urls": set()})
+        details["count"] += 1
+        details["urls"].add(offer["source_url"])
+    healthy_stores = set()
+    for (store, week), details in by_bucket.items():
+        if details["count"] < MIN_FACTS_PER_STORE or len(details["urls"]) != 1:
+            return False
+        row = con.execute(
+            "SELECT stav,pocet,data_version,collector_kind,source_fingerprint,"
+            "valid_from,valid_to FROM zber_stav WHERE obchod=? AND tyzden=?",
+            (store, week),
+        ).fetchone()
+        if row is None:
+            return False
+        try:
+            status_from = date.fromisoformat(row[5])
+            status_to = date.fromisoformat(row[6])
+            recorded_count = int(row[1])
+            data_version = int(row[2])
+        except (TypeError, ValueError):
+            return False
+        raw_rows = con.execute(
+            "SELECT source_url,valid_from,valid_to FROM akcie "
+            "WHERE obchod=? AND tyzden=?",
+            (store, week),
+        ).fetchall()
+        try:
+            raw_urls = {item[0] for item in raw_rows}
+            raw_starts = [date.fromisoformat(item[1]) for item in raw_rows]
+            raw_ends = [date.fromisoformat(item[2]) for item in raw_rows]
+        except (TypeError, ValueError):
+            return False
+        if len(raw_urls) != 1 or not raw_starts or not raw_ends:
+            return False
+        source_url = next(iter(raw_urls))
+        source_kind = collector_kind_for_url(source_url)
+        if not (
+            row[0] == "ok"
+            and recorded_count == len(raw_rows)
+            and recorded_count >= details["count"]
+            and data_version >= CURRENT_COLLECTION_DATA_VERSION
+            and isinstance(row[4], str)
+            and re.fullmatch(r"[0-9a-f]{64}", row[4]) is not None
+            and row[3] == source_kind
+            and details["urls"] == raw_urls
+            and status_from == min(raw_starts)
+            and status_to == max(raw_ends)
+            and status_from <= today <= status_to
+        ):
+            return False
+        healthy_stores.add(store)
+    return healthy_stores == set(ALLOWED_STORES)
+
+
+def active_offers_are_reusable(database, today=None):
+    """Non-publishing decision helper used by tests and diagnostics."""
+    today = today or date.today()
+    if not Path(database).is_file():
+        return False
+    try:
+        with sqlite3.connect(database) as con:
+            con.row_factory = sqlite3.Row
+            con.execute("BEGIN")
+            with _active_offer_view(con, today) as offers:
+                return _active_offer_set_matches_status(con, offers, today)
+    except (
+        OSError, sqlite3.Error, StructuralFailure, KeyError, TypeError, ValueError
+    ):
+        return False
 
 
 def landing_data_is_verified_current(path, database, today=None):
@@ -419,13 +516,21 @@ def main():
             Path(sys.argv[2]), sys.argv[3], today=date.today()
         )
         raise SystemExit(0 if valid else 1)
-    active_current = sys.argv[1:2] == ["--active-current"]
+    verified_active = sys.argv[1:2] == ["--active-current-verified"]
+    active_current = verified_active or sys.argv[1:2] == ["--active-current"]
     arguments = sys.argv[2:] if active_current else sys.argv[1:]
     path = landing_data_output_path(arguments)
     database = os.environ.get("UVARSI_DB", DATABASE_PATH)
     try:
-        refresh = refresh_from_active_db if active_current else refresh_from_db
-        refresh(path, database, today=date.today())
+        if active_current:
+            refresh_from_active_db(
+                path,
+                database,
+                today=date.today(),
+                require_registered_status=verified_active,
+            )
+        else:
+            refresh_from_db(path, database, today=date.today())
     except StructuralFailure as failure:
         print(f"ŠTRUKTURÁLNA CHYBA: {failure}", file=sys.stderr)
         raise SystemExit(StructuralFailure.EXIT_CODE) from None

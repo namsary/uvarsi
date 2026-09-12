@@ -707,6 +707,14 @@ _uvarsi_require_official_offer_data() {
   _uvarsi_require_collection_readiness offers
 }
 
+_uvarsi_require_current_receipt() {
+  (
+    cd "$UVARSI_APP_DIR" || exit 1
+    "$UVARSI_HEALTH_PY" -u "$UVARSI_RECEIPT_REFRESH" --verify-current \
+      "$UVARSI_LANDING_DATA" "$UVARSI_DB" >/dev/null 2>&1
+  )
+}
+
 # Kompatibilita iba pre jednu prechodovú verziu: starý samopull volal túto
 # bránu pri každom deployi. Nový release sa tak môže nasadiť z už overených
 # aktuálnych ponúk aj počas výpadku transportu. Všetky nové zberové cesty volajú
@@ -1195,10 +1203,14 @@ uvarsi_require_code_deploy_readiness() {
 }
 
 _uvarsi_supervisor_cycle() {
+  local reused_active_offers=0
   [ "${UVARSI_BOUNDED_CYCLE:-0}" = 1 ] || return 1
   uvarsi_require_payments_off || return 1
   if ! _uvarsi_require_collection_readiness; then
-    if _uvarsi_require_official_offer_data; then
+    if "$UVARSI_HEALTH_PY" -u "$UVARSI_RECEIPT_REFRESH" \
+        --active-current-verified "$UVARSI_LANDING_DATA"; then
+      reused_active_offers=1
+    elif _uvarsi_require_official_offer_data; then
       "$UVARSI_HEALTH_PY" -u "$UVARSI_RECEIPT_REFRESH" \
         --active-current "$UVARSI_LANDING_DATA" || return 1
     else
@@ -1210,7 +1222,9 @@ _uvarsi_supervisor_cycle() {
       "$UVARSI_HEALTH_PY" -u "$UVARSI_RECEIPT_REFRESH" \
         "$UVARSI_LANDING_DATA" || return 1
     fi
-    _uvarsi_require_collection_readiness || return 1
+    if [ "$reused_active_offers" -ne 1 ]; then
+      _uvarsi_require_collection_readiness || return 1
+    fi
   fi
   "$UVARSI_SUPERVISOR"
 }
@@ -1219,12 +1233,6 @@ _uvarsi_run_supervisor_bounded() {
   # The collector and receipt writer stage their candidate state. Killing this
   # wrapper on timeout therefore leaves the live DB rows and landing JSON as-is.
   uvarsi_require_payments_off || return 1
-  if ! _uvarsi_require_official_offer_data; then
-    if [ "$UVARSI_LEGACY_CODE_DEPLOY" != 1 ] && \
-       [ "${UVARSI_CODE_DEPLOY:-0}" != 1 ]; then
-      _uvarsi_require_tesco_bridge_transport || return 1
-    fi
-  fi
   case "$UVARSI_MAX_COLLECTION_SECONDS" in
     ''|*[!0-9]*) return 1 ;;
   esac
@@ -1263,7 +1271,8 @@ _uvarsi_run_supervisor_bounded() {
   fi
   uvarsi_require_payments_off || return 1
   if [ "$result" -eq 0 ]; then
-    if _uvarsi_require_collection_readiness; then
+    if _uvarsi_require_collection_readiness || \
+       _uvarsi_require_current_receipt; then
       _uvarsi_record_supervisor_success || return 1
     elif [ "$UVARSI_LEGACY_CODE_DEPLOY" != 1 ] && \
          [ "${UVARSI_CODE_DEPLOY:-0}" != 1 ]; then

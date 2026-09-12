@@ -795,13 +795,19 @@ def test_bounded_supervisor_rebuilds_stale_receipt_from_current_offers_without_b
     stale = landing_payload()
     stale["week"] = "2026-08-31"
     deployment["landing"].write_text(json.dumps(stale), encoding="utf-8")
+    with sqlite3.connect(deployment["database"]) as con:
+        con.execute(
+            "UPDATE zber_stav SET collector_kind='mletaky-aggregator' "
+            "WHERE obchod='Tesco'"
+        )
     deployment["bridge"].write_text(
         json.dumps(bridge_payload(release="f" * 12)), encoding="utf-8"
     )
     receipt = deployment["state"] / "refresh_receipt.py"
     receipt.write_text(
         "import os, shutil, sys\n"
-        "if sys.argv[1] != '--active-current': raise SystemExit(9)\n"
+        "if sys.argv[1] == '--verify-current': raise SystemExit(0)\n"
+        "if sys.argv[1] != '--active-current-verified': raise SystemExit(9)\n"
         "def native(path):\n"
         "    return path[1].upper() + ':' + path[2:] if path.startswith('/c/') else path\n"
         "shutil.copy2(native(os.environ['UVARSI_READY_LANDING']), "
@@ -820,6 +826,7 @@ def test_bounded_supervisor_rebuilds_stale_receipt_from_current_offers_without_b
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert json.loads(deployment["landing"].read_text(encoding="utf-8"))["week"] == WEEK
+    assert deployment["supervisor_success"].is_file()
 
 
 def test_bounded_supervisor_rebuilds_receipt_that_references_monthly_campaign(
@@ -853,7 +860,7 @@ def test_bounded_supervisor_rebuilds_receipt_that_references_monthly_campaign(
     receipt = deployment["state"] / "refresh_receipt.py"
     receipt.write_text(
         "import os, shutil, sys\n"
-        "if sys.argv[1] != '--active-current': raise SystemExit(9)\n"
+        "if sys.argv[1] != '--active-current-verified': raise SystemExit(9)\n"
         "def native(path):\n"
         "    return path[1].upper() + ':' + path[2:] if path.startswith('/c/') else path\n"
         "shutil.copy2(native(os.environ['UVARSI_READY_LANDING']), "
@@ -875,7 +882,7 @@ def test_bounded_supervisor_rebuilds_receipt_that_references_monthly_campaign(
     assert refreshed["sources"][0]["valid_to"] == "2026-09-13"
 
 
-def test_bounded_supervisor_still_requires_bridge_before_collecting_missing_data(
+def test_bounded_supervisor_checks_bridge_inside_cycle_before_collecting_missing_data(
         deployment):
     with sqlite3.connect(deployment["database"]) as con:
         con.execute(
@@ -888,7 +895,7 @@ def test_bounded_supervisor_still_requires_bridge_before_collecting_missing_data
     result = run_library(deployment, "uvarsi_run_supervisor_bounded")
 
     assert result.returncode != 0
-    assert not deployment["state"].joinpath("timeout-args").exists()
+    assert deployment["state"].joinpath("timeout-args").exists()
 
 
 def test_production_readiness_accepts_multiple_auditable_sources_per_store(deployment):
@@ -1471,7 +1478,8 @@ def test_bootstrap_runs_bounded_collector_before_strict_readiness(
     )
     receipt = deployment["state"] / "refresh_receipt.py"
     receipt.write_text(
-        "import os, shutil\n"
+        "import os, shutil, sys\n"
+        "if sys.argv[1] == '--active-current-verified': raise SystemExit(9)\n"
         "def native(path):\n"
         "    return path[1].upper() + ':' + path[2:] if path.startswith('/c/') else path\n"
         "shutil.copy2(native(os.environ['UVARSI_READY_LANDING']), "
