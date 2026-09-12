@@ -1,4 +1,10 @@
 
+## 2026-09-12 — Registered-source receipt recovery (vydanie 2026.09.12.16)
+
+- Bezplatný ukážkový bloček možno bezpečne prestavať aj zo stále platných ponúk registrovaného záložného čítača, keď sú ceny, platnosť, strana a pôvod každej položky overiteľné.
+- Neznámy alebo nepovolený zdroj je naďalej odmietnutý a nemôže prepísať posledný dobrý bloček.
+- Toto uvoľnenie neplatí pre platený predaj: právna brána zdrojov a všetky platby zostávajú vypnuté až do samostatného schválenia.
+
 ## 2026-09-12 — Recovery-state cleanup (vydanie 2026.09.12.15)
 
 - Úspešná obnova bločka z kompletnej publikovanej databázy odstráni starý príznak neúspešného staging zberu, aby už vyriešený incident neblokoval finálnu kontrolu nasadenia.

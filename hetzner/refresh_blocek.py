@@ -32,7 +32,11 @@ from app.weekly_data import (
     current_monday,
     current_verified_offers,
 )
-from app.source_policy import MIN_FACTS_PER_STORE, collector_kind_for_url
+from app.source_policy import (
+    MIN_FACTS_PER_STORE,
+    collector_kind_for_url,
+    known_source,
+)
 from app.zbierac_akcii import promote_staged_week, staged_week_readiness
 
 
@@ -44,11 +48,6 @@ LANDING_ADULTS = 2
 LANDING_CHILDREN = 2
 LANDING_FREQUENCY = 3
 LANDING_PLAN_VARIANTS = 12
-OFFICIAL_COLLECTORS = {
-    "Kaufland": "official-kaufland-offers",
-    "Tesco": "official-tesco-viewer",
-    "Lidl": "official-lidl-viewer",
-}
 
 
 def landing_data_output_path(arguments):
@@ -315,7 +314,7 @@ def _staged_offer_view(con, week, today):
 
 @contextmanager
 def _active_offer_view(con, today):
-    """Expose only complete, current weekly offers from official live sources."""
+    """Expose complete current weekly offers from registered live sources."""
     offers = priceable_offers(
         current_verified_offers(con, ALLOWED_STORES, today)
     )
@@ -323,9 +322,9 @@ def _active_offer_view(con, today):
     for offer in offers:
         store = offer["obchod"]
         source_kind = collector_kind_for_url(offer.get("source_url"))
-        if source_kind != OFFICIAL_COLLECTORS.get(store):
+        if not known_source(store, source_kind):
             raise StructuralFailure(
-                f"Aktívne ponuky obchodu {store} nemajú oficiálny týždenný zdroj."
+                f"Aktívne ponuky obchodu {store} nemajú známy týždenný zdroj."
             )
         counts[store] += 1
     incomplete = sorted(

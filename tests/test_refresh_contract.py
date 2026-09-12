@@ -844,6 +844,24 @@ def test_active_refresh_ignores_incomplete_staging_and_never_promotes(
     assert json.loads(output.read_text(encoding="utf-8"))["week"] == "2026-08-17"
 
 
+def test_active_refresh_rejects_an_unknown_offer_source(monkeypatch, tmp_path):
+    database = tmp_path / "uvarsi.db"
+    output = tmp_path / "landing_data.json"
+    verified_database(database)
+    monkeypatch.setattr(refresh_blocek, "MIN_FACTS_PER_STORE", 1)
+    monkeypatch.setattr(refresh_blocek, "collector_kind_for_url", lambda url: None)
+
+    with pytest.raises(StructuralFailure, match="známy týždenný zdroj"):
+        refresh_from_active_db(
+            output,
+            database,
+            lambda offers, today: model_selection(),
+            today=TODAY,
+        )
+
+    assert not output.exists()
+
+
 def test_malformed_non_null_offer_blocks_publication_before_compose(tmp_path):
     database = tmp_path / "uvarsi.db"
     output = tmp_path / "landing_data.json"
