@@ -51,6 +51,7 @@ import account_data
 import customer_requests
 import naklady
 import plan_jobs
+import predplatne
 import predpocet
 import source_policy
 from payment_smoke_marker import (
@@ -633,6 +634,7 @@ def migruj_schemu(con) -> None:
     account_data.migrate_account_data_schema(con)
     naklady.migrate_naklady_schema(con)
     plan_jobs.migrate_plan_jobs_schema(con)
+    predplatne.migrate_subscription_schema(con)
     predpocet.migrate_predpocet_schema(con)
     con.commit()
 

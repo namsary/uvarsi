@@ -145,6 +145,7 @@ $subory = @(
   @{ l = "$B\app\plan_worker.py";       r = "/opt/uvarsi/app/plan_worker.py" },
   @{ l = "$B\app\deterministic_plan.py"; r = "/opt/uvarsi/app/deterministic_plan.py" },
   @{ l = "$B\app\predpocet.py";         r = "/opt/uvarsi/app/predpocet.py" },
+  @{ l = "$B\app\predplatne.py";        r = "/opt/uvarsi/app/predplatne.py" },
   @{ l = "$B\app\server.py";            r = "/opt/uvarsi/app/server.py" },
   @{ l = "$B\app\platby.py";            r = "/opt/uvarsi/app/platby.py" },
   @{ l = "$B\app\premium_cli.py";       r = "/opt/uvarsi/app/premium_cli.py" },
