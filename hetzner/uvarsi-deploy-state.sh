@@ -46,6 +46,25 @@ _uvarsi_bridge_fail() {
   return 1
 }
 
+_uvarsi_release_trace() {
+  # Temporary-safe deployment breadcrumb for an installed legacy samopull.
+  # Only fixed enum values may leave the host; no runtime value is interpolated.
+  stage=$1
+  case "$stage" in
+    runtime_payments_ok|runtime_payments_failed|install_core_ok|install_core_failed|\
+    migration_ok|migration_failed|heartbeat_ok|heartbeat_compat) ;;
+    *) stage=unknown ;;
+  esac
+  in_samopull=0
+  for source_file in "${BASH_SOURCE[@]}"; do
+    case "$source_file" in */samopull.sh) in_samopull=1 ;; esac
+  done
+  if [ "$in_samopull" -eq 1 ] && declare -F notify >/dev/null 2>&1; then
+    notify "Uvar.si deploy diagnostika" "stage=$stage"
+  fi
+  return 0
+}
+
 _uvarsi_today() {
   if [ -n "${UVARSI_TODAY:-}" ]; then
     printf '%s' "$UVARSI_TODAY"
@@ -1135,10 +1154,9 @@ uvarsi_require_payments_off() {
 uvarsi_require_runtime_payments_off() {
   # The env file is not the final authority: a systemd Environment= override
   # wins over it.  Ask the running process what it actually loaded.
-  health=$(
-    "$UVARSI_CURL" -fsS --max-time 5 "$UVARSI_HEALTH_URL" 2>/dev/null
-  ) || return 1
-  printf '%s' "$health" | "$UVARSI_HEALTH_PY" -c '
+  if health=$(
+      "$UVARSI_CURL" -fsS --max-time 5 "$UVARSI_HEALTH_URL" 2>/dev/null
+    ) && printf '%s' "$health" | "$UVARSI_HEALTH_PY" -c '
 import json, sys
 try:
     payload = json.load(sys.stdin)
@@ -1146,7 +1164,12 @@ try:
 except (KeyError, TypeError, ValueError, json.JSONDecodeError):
     raise SystemExit(1)
 raise SystemExit(0 if enabled is False else 1)
-'
+'; then
+    _uvarsi_release_trace runtime_payments_ok
+    return 0
+  fi
+  _uvarsi_release_trace runtime_payments_failed
+  return 1
 }
 
 uvarsi_migrate_release() {
@@ -1154,9 +1177,12 @@ uvarsi_migrate_release() {
   # schema must prove old-code compatibility separately; automated rollback
   # must never overwrite newer customer/payment rows with the online backup.
   release=$1
-  uvarsi_require_payments_off || return 1
-  [ -d "$release/app" ] || return 1
-  [ -f "$release/VERSION" ] || return 1
+  uvarsi_require_payments_off || {
+    _uvarsi_release_trace migration_failed; return 1; }
+  [ -d "$release/app" ] || {
+    _uvarsi_release_trace migration_failed; return 1; }
+  [ -f "$release/VERSION" ] || {
+    _uvarsi_release_trace migration_failed; return 1; }
   (
     cd "$release/app" || exit 1
     UVARSI_URL=https://uvar.si \
@@ -1164,8 +1190,13 @@ uvarsi_migrate_release() {
       UVARSI_VERSION_FILE="$release/VERSION" \
       PLATBY_ZAPNUTE=0 UVARSI_PAYMENTS_ENABLED=0 \
       "$UVARSI_HEALTH_PY" -c 'import server; server.priprav_databazu()'
-  ) || return 1
-  uvarsi_require_payments_off
+  ) || { _uvarsi_release_trace migration_failed; return 1; }
+  if uvarsi_require_payments_off; then
+    _uvarsi_release_trace migration_ok
+    return 0
+  fi
+  _uvarsi_release_trace migration_failed
+  return 1
 }
 
 _uvarsi_sqlite_restore() {
@@ -1496,8 +1527,10 @@ uvarsi_install_core() {
   release=$1
   snapshot=$2
   if _uvarsi_apply_core "$release"; then
+    _uvarsi_release_trace install_core_ok
     return 0
   fi
+  _uvarsi_release_trace install_core_failed
   uvarsi_restore "$snapshot" || return 2
   return 1
 }
@@ -1551,6 +1584,7 @@ def instant(value):
     if parsed.tzinfo is None: parsed = parsed.replace(tzinfo=dt.timezone.utc)
     return parsed.astimezone(dt.timezone.utc)
 raise SystemExit(0 if (not before or instant(current) > instant(before)) else 1)' "$before" "$marker"; then
+      _uvarsi_release_trace heartbeat_ok
       return 0
     fi
     "$UVARSI_SLEEP" 1
@@ -1562,6 +1596,7 @@ raise SystemExit(0 if (not before or instant(current) > instant(before)) else 1)
     # is healthy.  The final code gate still requires worker_alive=true and a
     # heartbeat at most 60 seconds old, so only the brittle comparison is
     # relaxed during this one process-local transition.
+    _uvarsi_release_trace heartbeat_compat
     return 0
   fi
   return 1

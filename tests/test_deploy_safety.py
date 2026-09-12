@@ -182,6 +182,20 @@ def test_samopull_does_not_roll_back_code_for_an_external_collection_outage():
     assert bridge_failure < live_switch
 
 
+def test_deploy_trace_is_allowlisted_and_cannot_include_runtime_values():
+    library = Path("hetzner/uvarsi-deploy-state.sh").read_text(encoding="utf-8")
+
+    assert '_uvarsi_release_trace()' in library
+    assert 'stage=unknown' in library
+    for stage in (
+        "runtime_payments_ok", "runtime_payments_failed",
+        "install_core_ok", "install_core_failed",
+        "migration_ok", "migration_failed",
+        "heartbeat_ok", "heartbeat_compat",
+    ):
+        assert stage in library
+
+
 def test_both_release_paths_stage_the_autonomous_recipe_controller_after_health():
     auto = SAMOPULL.read_text(encoding="utf-8")
     manual = Path("nasad.ps1").read_text(encoding="utf-8")
