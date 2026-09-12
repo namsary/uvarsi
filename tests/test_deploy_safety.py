@@ -160,8 +160,12 @@ def test_samopull_preflight_checks_public_pages_before_switching():
 
 def test_samopull_runs_guardian_before_strict_readiness_and_success():
     script = SAMOPULL.read_text(encoding="utf-8")
-    guardian = script.index("uvarsi_run_supervisor_bounded")
-    readiness = script.index("uvarsi_require_production_readiness", guardian)
+    guardian = script.index(
+        '"$UVARSI_BASH" "$DIR/uvarsi-deploy-state.sh" run-supervisor'
+    )
+    readiness = script.index(
+        '"$UVARSI_BASH" "$DIR/uvarsi-deploy-state.sh" check-readiness', guardian
+    )
     success = script.index('log "OK — nasadené vydanie')
     rollback = script.index("# --- 4. neúspech")
 
@@ -686,15 +690,20 @@ def test_both_release_paths_prove_payments_off_before_bridge_access(script):
 
 def test_both_release_paths_require_full_production_readiness(script):
     automatic = SAMOPULL.read_text(encoding="utf-8")
-    assert "uvarsi_require_production_readiness" in automatic
+    assert (
+        '"$UVARSI_BASH" "$DIR/uvarsi-deploy-state.sh" check-readiness'
+        in automatic
+    )
     assert "uvarsi_require_production_readiness" in script
     assert MAPA_SITE in script
 
 
 def test_both_release_paths_collect_before_the_strict_current_data_gate(script):
     automatic = SAMOPULL.read_text(encoding="utf-8")
-    assert automatic.index("uvarsi_run_supervisor_bounded") < automatic.index(
-        "uvarsi_require_production_readiness"
+    assert automatic.index(
+        '"$UVARSI_BASH" "$DIR/uvarsi-deploy-state.sh" run-supervisor'
+    ) < automatic.index(
+        '"$UVARSI_BASH" "$DIR/uvarsi-deploy-state.sh" check-readiness'
     )
     assert script.index("uvarsi_run_supervisor_bounded") < script.index(
         "uvarsi_require_production_readiness"
@@ -704,8 +713,34 @@ def test_both_release_paths_collect_before_the_strict_current_data_gate(script):
 def test_autonomous_release_uses_the_bounded_supervisor_entrypoint():
     automatic = SAMOPULL.read_text(encoding="utf-8")
     success = automatic.index('log "OK — nasadené vydanie')
-    assert automatic.index("uvarsi_run_supervisor_bounded") < success
+    assert automatic.index(
+        '"$UVARSI_BASH" "$DIR/uvarsi-deploy-state.sh" run-supervisor'
+    ) < success
+    assert (
+        'UVARSI_CODE_DEPLOY=1 "$UVARSI_BASH" '
+        '"$DIR/uvarsi-deploy-state.sh" run-supervisor'
+        in automatic
+    )
+    assert (
+        '"$UVARSI_BASH" "$DIR/uvarsi-deploy-state.sh" check-readiness'
+        in automatic
+    )
+    assert "UVARSI_CODE_DEPLOY=1 uvarsi_run_supervisor_bounded" not in automatic
     assert 'nohup "$DIR/dozorca.sh"' not in automatic
+
+
+def test_autonomous_release_keeps_direct_cron_entrypoint_executable():
+    automatic = SAMOPULL.read_text(encoding="utf-8")
+    copied = automatic.index(
+        'cp -a "$1/hetzner/uvarsi-deploy-state.sh" "$DIR/uvarsi-deploy-state.sh"'
+    )
+    executable = automatic.index(
+        'chmod +x "$DIR/uvarsi-deploy-state.sh"', copied
+    )
+    assert copied < executable
+
+    guardian = DOZORCA.read_text(encoding="utf-8")
+    assert 'chmod +x "$DEPLOY_STATE_SCRIPT"' in guardian
 
 
 def test_release_never_uploads_or_replaces_runtime_data(script):

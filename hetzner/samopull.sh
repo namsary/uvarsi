@@ -194,6 +194,7 @@ nasad_z() {   # $1 = adresár s vydaním
   fi
   [ ! -f "$1/hetzner/samopull.sh" ] || cp -a "$1/hetzner/samopull.sh" "$DIR/samopull.sh.novy" || return 1
   cp -a "$1/hetzner/uvarsi-deploy-state.sh" "$DIR/uvarsi-deploy-state.sh" || return 1
+  chmod +x "$DIR/uvarsi-deploy-state.sh" || return 1
   systemctl enable uvarsi >/dev/null 2>&1 || return 1
   systemctl enable uvarsi-plan-worker >/dev/null 2>&1 || return 1
 }
@@ -241,8 +242,11 @@ if [ "$LIVE_MUTATION" -eq 1 ] && zdravie && \
     uvarsi_require_payments_off && uvarsi_require_runtime_payments_off && \
     uvarsi_install_supervisor_schedule; then
   DATA_READY=0
-  if UVARSI_CODE_DEPLOY=1 uvarsi_run_supervisor_bounded && \
-      uvarsi_require_production_readiness; then
+  # Po prepnutí spusti už PRÁVE NASADENÝ dozor a jeho readiness bránu.
+  # Funkcie sourcnuté na začiatku tohto dlhého procesu patria predošlému
+  # vydaniu a pri zmene dátových pravidiel by boli o jednu verziu pozadu.
+  if UVARSI_CODE_DEPLOY=1 "$UVARSI_BASH" "$DIR/uvarsi-deploy-state.sh" run-supervisor && \
+      "$UVARSI_BASH" "$DIR/uvarsi-deploy-state.sh" check-readiness; then
     DATA_READY=1
   fi
   if uvarsi_require_code_deploy_readiness && {

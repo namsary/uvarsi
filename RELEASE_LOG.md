@@ -1,4 +1,11 @@
 
+## 2026-09-12 — Same-release deployment gates (vydanie 2026.09.12.12)
+
+- Automatické nasadenie po prepnutí spúšťa dozor aj finálnu kontrolu z práve nasadeného vydania, nie z funkcií predošlej verzie načítaných pri štarte samonasadzovača.
+- Zmeny pravidiel akcií sa preto uplatnia na bloček okamžite v tom istom deployi; oprava už nie je o jeden desaťminútový cyklus alebo jedno vydanie pozadu.
+- Nasadzovač aj prvý prechodový dozor zabezpečia spustiteľnosť bezpečného cron vstupného bodu, takže hodinová autonómna obnova nezlyhá na právach súboru.
+- Finálna kontrola zostáva ohraničená timeoutom, vyžaduje vypnuté platby a nemení Taktik-mapu.
+
 ## 2026-09-12 — Weekly receipt readiness alignment (vydanie 2026.09.12.11)
 
 - Produkčná brána používa rovnaké maximálne 21-dňové letákové okno ako aplikácia, dozorca a platobná kontrola.

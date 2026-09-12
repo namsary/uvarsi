@@ -64,6 +64,16 @@ log(){ echo "[$(TZ=Europe/Bratislava "$DATE" '+%F %T')] DOZORCA: $*"; }
 notify(){ "$CURL" -fsS --max-time 15 -H "Title: $1" -d "$2" "https://ntfy.sh/${NTFY_TOPIC}" >/dev/null 2>&1; }
 nacitaj_health(){ "$CURL" -sS --max-time 1 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true; }
 
+# Git uchováva tento shell modul ako bežný súbor (100644), no bezpečný
+# cron ho spúšťa ako vstupný bod. Prvý dozor po prechodovom vydaní
+# preto jednorazovo napraví iba jeho execute bit; obsah ani cudzí cron nemení.
+if [ -f "$DEPLOY_STATE_SCRIPT" ] && [ ! -x "$DEPLOY_STATE_SCRIPT" ]; then
+  if ! chmod +x "$DEPLOY_STATE_SCRIPT"; then
+    log "CHYBA — vstupný bod bezpečného dozorcu sa nedá spustiť."
+    exit 1
+  fi
+fi
+
 tesco_bridge_preflight() {
   if [ -n "${UVARSI_TEST_BRIDGE_PREFLIGHT:-}" ]; then
     "$UVARSI_TEST_BRIDGE_PREFLIGHT"
