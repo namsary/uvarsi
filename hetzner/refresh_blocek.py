@@ -19,6 +19,7 @@ from app.landing_data import (
     validate_landing_data,
     write_landing_data_atomic,
 )
+from app.landing_static import publish_landing_html
 from app.offer_data import ALLOWED_STORES, CURRENT_COLLECTION_DATA_VERSION
 from app.recipe_catalog import load_recipe_catalog
 from app.receipt_data import (
@@ -42,6 +43,7 @@ from app.zbierac_akcii import promote_staged_week, staged_week_readiness
 
 
 LANDING_DATA_PATH = Path("/var/lib/uvarsi/landing_data.json")
+PUBLIC_INDEX_PATH = Path("/var/www/uvarsi/index.html")
 DATABASE_PATH = "/opt/uvarsi/uvarsi.db"
 # Dohoda s dozorcom: 1 = skús o hodinu znova, 3 = opakovanie nemá zmysel.
 EXIT_RETRY = 1
@@ -57,6 +59,15 @@ def landing_data_output_path(arguments):
     if len(arguments) == 1 and Path(arguments[0]) == LANDING_DATA_PATH:
         return LANDING_DATA_PATH
     raise SystemExit("Použitie: refresh_blocek.py /var/lib/uvarsi/landing_data.json")
+
+
+def publish_static_from_disk(landing_path, index_path, today=None):
+    """Publish the same validated receipt for first paint and no-JS crawlers."""
+    try:
+        payload = load_landing_data(landing_path)
+    except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
+        payload = None
+    return publish_landing_html(index_path, payload, today=today or date.today())
 
 
 def _landing_seed(today):
@@ -513,6 +524,19 @@ def landing_data_is_verified_current(path, database, today=None):
 
 def main():
     """Odlíš štrukturálny pád od dočasného a zachovaj posledný dobrý bloček."""
+    if sys.argv[1:2] == ["--publish-html"]:
+        if len(sys.argv) not in (4, 5):
+            raise SystemExit(
+                "Použitie: refresh_blocek.py --publish-html LANDING_JSON INDEX_HTML [YYYY-MM-DD]"
+            )
+        try:
+            today = date.fromisoformat(sys.argv[4]) if len(sys.argv) == 5 else date.today()
+            state = publish_static_from_disk(sys.argv[2], sys.argv[3], today=today)
+        except (OSError, UnicodeDecodeError, ValueError) as error:
+            print(f"DOČASNÁ CHYBA HTML BLOČKA: {type(error).__name__}: {error}", file=sys.stderr)
+            raise SystemExit(EXIT_RETRY) from None
+        print(f"[OK] HTML bloček: {state}", flush=True)
+        return
     if sys.argv[1:2] == ["--verify-current"]:
         if len(sys.argv) != 4:
             raise SystemExit(
@@ -529,14 +553,17 @@ def main():
     database = os.environ.get("UVARSI_DB", DATABASE_PATH)
     try:
         if active_current:
-            refresh_from_active_db(
+            candidate = refresh_from_active_db(
                 path,
                 database,
                 today=date.today(),
                 require_registered_status=verified_active,
             )
         else:
-            refresh_from_db(path, database, today=date.today())
+            candidate = refresh_from_db(path, database, today=date.today())
+        public_index = Path(os.environ.get("UVARSI_PUBLIC_INDEX", PUBLIC_INDEX_PATH))
+        if public_index.is_file():
+            publish_landing_html(public_index, candidate, today=date.today())
     except StructuralFailure as failure:
         print(f"ŠTRUKTURÁLNA CHYBA: {failure}", file=sys.stderr)
         raise SystemExit(StructuralFailure.EXIT_CODE) from None

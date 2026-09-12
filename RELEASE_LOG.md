@@ -1,4 +1,12 @@
 
+## 2026-09-12 — Právne spresnenia a bloček bez JavaScriptu (vydanie 2026.09.12.21)
+
+- Lehota na vrátenie platby je pevne oddelená od prípadnej dohody o inom spôsobe vrátenia; nepovinné technológie zostávajú vypnuté, kým používateľ neudelí platný súhlas.
+- Aktuálny bloček sa atomicky vloží aj priamo do HTML úvodnej stránky. Je preto viditeľný pri prvom načítaní, bez JavaScriptu aj pre vyhľadávače a odpovedné AI systémy.
+- Statická kópia vzniká výhradne z rovnakého overeného JSON-u ako verejné API, obnovuje ju každý úspešný týždenný refresh, hodinový dozorca aj nasadenie a nevolá Anthropic API.
+- Po skončení platnosti sa starý bloček automaticky označí ako historická ukážka a prestane tvrdiť úsporu; pri neplatných dátach sa skryje.
+- Platby zostávajú vypnuté, kým nebude doplnený a overený telefón, obchodné rozhodnutie o minimálnej dobe služby a platobný smoke test.
+
 ## 2026-09-12 — Available receipt from current weekly facts (vydanie 2026.09.12.20)
 
 - Ak starší technický záznam zberača nesedí, bezplatný bloček sa môže obnoviť z už publikovaných ponúk, ktoré majú platný kľúč, dnešnú platnosť, známy zdroj a aspoň 20 položiek z každého obchodu.

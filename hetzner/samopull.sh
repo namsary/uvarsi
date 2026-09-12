@@ -106,7 +106,7 @@ if ! (cd "$CIEL/app" && UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$CIEL/VE
   exit 1
 fi
 # b) povinné súbory
-for f in app/server.py app/config.py app/auth_data.py app/account_data.py app/customer_requests.py app/operator_profile.py app/legal_pages.py app/payment_readiness.py app/payment_smoke_marker.py app/source_policy.py app/public_pages.py app/plan_jobs.py app/plan_calendar.py app/plan_shortlist.py app/plan_worker.py app/predpocet.py app/deterministic_plan.py app/ingredient_catalog.py app/library_gate.py app/quantity_math.py app/recipe_catalog.py app/recipe_matcher.py app/recipe_provenance.py app/recipe_workflow.py app/regular_purchase.py app/recipe_renderer.py app/static/app.html app/catalog/ingredients.json app/catalog/recipe_sources.json app/catalog/slovak_ingredient_forms.json app/catalog/recipes/manifest.json hetzner/uvarsi.service hetzner/uvarsi-plan-worker.service hetzner/uvarsi-deploy-state.sh hetzner/payment-smoke.py hetzner/recipe-engine-rollout.sh hetzner/recipe-engine.target VERSION index.html sw.js; do
+for f in app/server.py app/config.py app/auth_data.py app/account_data.py app/customer_requests.py app/operator_profile.py app/legal_pages.py app/payment_readiness.py app/payment_smoke_marker.py app/source_policy.py app/public_pages.py app/landing_static.py app/plan_jobs.py app/plan_calendar.py app/plan_shortlist.py app/plan_worker.py app/predpocet.py app/deterministic_plan.py app/ingredient_catalog.py app/library_gate.py app/quantity_math.py app/recipe_catalog.py app/recipe_matcher.py app/recipe_provenance.py app/recipe_workflow.py app/regular_purchase.py app/recipe_renderer.py app/static/app.html app/catalog/ingredients.json app/catalog/recipe_sources.json app/catalog/slovak_ingredient_forms.json app/catalog/recipes/manifest.json hetzner/uvarsi.service hetzner/uvarsi-plan-worker.service hetzner/uvarsi-deploy-state.sh hetzner/payment-smoke.py hetzner/recipe-engine-rollout.sh hetzner/recipe-engine.target VERSION index.html sw.js; do
   [ -f "$CIEL/$f" ] && [ -s "$CIEL/$f" ] || { log "vo vydaní chýba platný $f — NEPREPÍNAM"; \
     notify "Uvar.si: neúplné vydanie" "Chýba $f."; exit 1; }
 done
@@ -181,6 +181,9 @@ nasad_z() {   # $1 = adresár s vydaním
   cp -a "$1/index.html" "/var/www/uvarsi/index.html" || return 1
   cp -a "$1/sw.js" "/var/www/uvarsi/sw.js" || return 1
   [ ! -f "$1/hetzner/refresh_blocek.py" ] || cp -a "$1/hetzner/refresh_blocek.py" "$DIR/refresh_blocek.py" || return 1
+  TODAY_SK=$(TZ=Europe/Bratislava date +%F) || return 1
+  "$PY" -u "$DIR/refresh_blocek.py" --publish-html \
+    /var/lib/uvarsi/landing_data.json /var/www/uvarsi/index.html "$TODAY_SK" || return 1
   [ ! -f "$1/hetzner/recepty.py" ] || cp -a "$1/hetzner/recepty.py" "$DIR/recepty.py" || return 1
   [ ! -f "$1/hetzner/dozorca.sh" ] || { cp -a "$1/hetzner/dozorca.sh" "$DIR/dozorca.sh" && chmod +x "$DIR/dozorca.sh"; } || return 1
   [ ! -f "$1/hetzner/zaloha.sh" ] || { cp -a "$1/hetzner/zaloha.sh" "$DIR/zaloha.sh" && chmod +x "$DIR/zaloha.sh"; } || return 1

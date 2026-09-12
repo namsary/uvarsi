@@ -762,3 +762,14 @@ def test_release_never_uploads_or_replaces_runtime_data(script):
         assert not re.search(rf'(scp|cp -a|rm -f|mv)[^\n]*{re.escape(protected)}', script)
     restore = state.split("uvarsi_restore()", 1)[1].split("_uvarsi_apply_core()", 1)[0]
     assert "_uvarsi_restore_database" not in restore
+
+
+def test_autonomous_release_and_hourly_guardian_publish_a_no_js_receipt_snapshot():
+    automatic = SAMOPULL.read_text(encoding="utf-8")
+    guardian = DOZORCA.read_text(encoding="utf-8")
+
+    assert "--publish-html" in automatic
+    assert "/var/lib/uvarsi/landing_data.json" in automatic
+    assert "/var/www/uvarsi/index.html" in automatic
+    assert "publish_static_receipt" in guardian
+    assert "publish_landing_html" in guardian

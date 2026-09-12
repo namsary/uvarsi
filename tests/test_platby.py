@@ -39,7 +39,7 @@ TEST_STORE_ID = "test-store"
 TEST_VARIANT_ID = "test-variant"
 TEST_API_KEY = "test-api-key"
 TEST_CONFIG_DIGEST = "c92c6b55bd48b997ddb73fbc7abbaf44074f989d5bedb0ee0f590a9c9e464a7e"
-CURRENT_LEGAL_VERSION = "2026-09-11-v2"
+CURRENT_LEGAL_VERSION = "2026-09-12-v3"
 CONSENT = {"accept_terms": True, "legal_version": CURRENT_LEGAL_VERSION}
 SMOKE_NOW = datetime(2026, 9, 11, 12, 0, tzinfo=timezone.utc)
 

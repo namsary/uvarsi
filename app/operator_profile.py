@@ -32,8 +32,8 @@ OPERATOR = OperatorProfile(
     support_phone="",
 )
 
-LEGAL_VERSION = "2026-09-11-v2"
-LEGAL_EFFECTIVE_DATE = datetime.date(2026, 9, 11)
+LEGAL_VERSION = "2026-09-12-v3"
+LEGAL_EFFECTIVE_DATE = datetime.date(2026, 9, 12)
 
 _EMAIL = re.compile(
     r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@"

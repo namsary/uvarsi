@@ -85,6 +85,8 @@ def test_withdrawal_deadline_and_optional_template_are_complete():
     assert "lehota je zachovaná" in text
     assert "odošlete pred uplynutím" in text
     assert "použitie vzoru nie je povinné" in text
+    assert "najneskôr do 14 dní od doručenia oznámenia." in text
+    assert "14 dní od doručenia oznámenia, ak sa s vami nedohodneme inak" not in text
     for field in (
         "adresát",
         "meno a priezvisko spotrebiteľa",
@@ -118,6 +120,8 @@ def test_privacy_and_cookie_text_match_the_current_product():
     assert "uvarsi_setup" in cookies
     assert "90 dní" in cookies
     assert "analytické ani reklamné cookies" in cookies
+    assert "kým používateľ neudelí platný súhlas" in cookies
+    assert "kým na ne nebude potrebný platný súhlas" not in cookies
 
 
 def test_privacy_states_required_data_consequences_and_real_transfer_safeguards():

@@ -124,6 +124,7 @@ $subory = @(
   @{ l = "$B\app\weekly_data.py";       r = "/opt/uvarsi/app/weekly_data.py" },
   @{ l = "$B\app\offer_data.py";        r = "/opt/uvarsi/app/offer_data.py" },
   @{ l = "$B\app\landing_data.py";      r = "/opt/uvarsi/app/landing_data.py" },
+  @{ l = "$B\app\landing_static.py";    r = "/opt/uvarsi/app/landing_static.py" },
   @{ l = "$B\app\library_gate.py";      r = "/opt/uvarsi/app/library_gate.py" },
   @{ l = "$B\app\ingredient_catalog.py"; r = "/opt/uvarsi/app/ingredient_catalog.py" },
   @{ l = "$B\app\nutrition.py";         r = "/opt/uvarsi/app/nutrition.py" },

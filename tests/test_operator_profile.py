@@ -22,8 +22,8 @@ def test_operator_profile_has_verified_company_identity_but_missing_phone_blocks
 
 
 def test_legal_version_is_explicit_and_immutable():
-    assert LEGAL_VERSION == "2026-09-11-v2"
-    assert LEGAL_EFFECTIVE_DATE.isoformat() == "2026-09-11"
+    assert LEGAL_VERSION == "2026-09-12-v3"
+    assert LEGAL_EFFECTIVE_DATE.isoformat() == "2026-09-12"
     with pytest.raises(FrozenInstanceError):
         OPERATOR.business_name = "Iná firma"
 

@@ -422,7 +422,7 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                     "Pri výmaze účtu aplikácia odstráni Uvar.si cookies, lokálne "
                     "údaje a cache v technicky možnom rozsahu. Ak niekedy "
                     "pridáme analytiku alebo reklamu, nenutné technológie zostanú "
-                    "vypnuté, kým na ne nebude potrebný platný súhlas.",
+                    "vypnuté, kým používateľ neudelí platný súhlas.",
                 ),
             ),
         ),
@@ -465,7 +465,8 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                     "Elektronické odstúpenie bezodkladne potvrdíme e-mailom "
                     "spolu s dátumom a časom prijatia. Úplnú platbu vrátime "
                     "rovnakým spôsobom, akým bola prijatá, najneskôr do 14 dní "
-                    "od doručenia oznámenia, ak sa s vami nedohodneme inak.",
+                    "od doručenia oznámenia. Na inom spôsobe vrátenia sa môžeme "
+                    "dohodnúť iba výslovne a bez dodatočných poplatkov pre vás.",
                     "Po potvrdení refundácie poskytovateľom platby sa Zakladajúce "
                     "Premium ukončí. Výmaz účtu je samostatný úkon a refundáciu "
                     "nespustí automaticky.",

@@ -10,10 +10,12 @@ from hetzner import refresh_blocek
 from hetzner.refresh_blocek import (
     active_offers_are_reusable,
     landing_data_output_path,
+    publish_static_from_disk,
     refresh_from_active_db,
     refresh_from_db,
 )
 from app.deterministic_plan import NoCompatiblePlan
+from app.landing_data import write_landing_data_atomic
 from app.offer_data import migrate_akcie_schema, offer_key_for
 from app.receipt_data import StructuralFailure
 from app.ingredient_catalog import load_ingredient_catalog
@@ -120,6 +122,38 @@ def test_public_receipt_refresh_contains_no_recipe_model_or_api_key_path():
         "strazeny_klient",
     ):
         assert forbidden not in source
+
+
+def test_static_publish_command_reads_the_canonical_json_without_model_calls(tmp_path):
+    landing_data = tmp_path / "landing_data.json"
+    index = tmp_path / "index.html"
+    payload = {
+        "schema_version": 1,
+        "offer_data_version": 2,
+        "generated_at": "2026-08-18T05:02:20+02:00",
+        "week": "2026-08-17",
+        "week_label": "17.–23. 8. 2026",
+        "sources": [{
+            "store": "Lidl", "url": "https://source.test/lidl",
+            "valid_from": "2026-08-17", "valid_to": "2026-08-23",
+        }],
+        "receipt": {
+            "meals": [{"day": "PO", "name": "Test", "items": []}],
+            "nakup_spolu": "1,00", "bezne": "2,00", "usetris": "1,00",
+        },
+    }
+    write_landing_data_atomic(landing_data, payload)
+    index.write_text(
+        '<div class="rcpt-wrap" id="landing-data" aria-live="polite" hidden>'
+        '<!-- RCPT:START --><!-- RCPT:END --></div>'
+        '<p class="rcpt-proof" id="landing-status" aria-live="polite">Čakám</p>',
+        encoding="utf-8",
+    )
+
+    assert publish_static_from_disk(
+        landing_data, index, today=TODAY
+    ) == "current"
+    assert "17.–23. 8. 2026" in index.read_text(encoding="utf-8")
 
 
 def test_curated_receipt_composer_uses_stable_week_seed_and_real_plan_meals(
