@@ -92,9 +92,11 @@ def database():
     con.execute(
         """INSERT INTO consumer_requests
            (public_id,user_id,order_id,request_type,message,status,refund_scope,
-            purchased_at,created_at,updated_at)
+             purchased_at,created_at,updated_at,legal_version,legal_snapshot,
+             confirmation_idempotency_key)
            VALUES ('request-7',7,'order-7','complaint','Vybavený problém.',
-                   'resolved',NULL,700,710,800)"""
+                   'resolved',NULL,700,710,800,'v1','archívna právna snímka',
+                   'consumer-request/request-7')"""
     )
     con.commit()
     yield con

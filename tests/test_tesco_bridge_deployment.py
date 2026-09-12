@@ -28,6 +28,11 @@ SUPERVISOR_CRON = (
     "0 5-21 * * * /opt/uvarsi/uvarsi-deploy-state.sh run-supervisor "
     ">> /var/log/uvarsi.log 2>&1"
 )
+BACKUP_CRON = "30 3 * * * /opt/uvarsi/zaloha.sh >> /var/log/uvarsi-zaloha.log 2>&1"
+PAYMENT_CRON = (
+    "5 * * * * cd /opt/uvarsi/app && /opt/uvarsi/venv/bin/python "
+    "rekonciliacia.py >> /var/log/uvarsi-platby.log 2>&1"
+)
 TAKTIK_CRON = "*/5 * * * * /opt/taktik-mapa/refresh.sh"
 
 
@@ -303,6 +308,7 @@ def deployment(tmp_path):
         "cat \"$UVARSI_FAKE_STATE/crontab\"\n"
         "  exit 0\n"
         "fi\n"
+        "touch \"$UVARSI_FAKE_STATE/crontab-written\"\n"
         "cp \"$1\" \"$UVARSI_FAKE_STATE/crontab\"\n",
     )
     timeout = tmp_path / "timeout"
@@ -763,6 +769,7 @@ def weighted_receipt_payload(deployment):
         off="-26 %",
         loyalty_price="5,70",
         loyalty_discount="-32 %",
+        weight_multiplier="1.2",
     )
     payload["receipt"].update(
         nakup_spolu="9,72", bezne="13,87", usetris="4,15"
@@ -785,6 +792,36 @@ def test_production_readiness_rejects_wrong_weighted_subtotal(deployment):
     chicken = payload["receipt"]["meals"][1]["items"][0]
     chicken.update(price="6,17", savings="2,22")
     payload["receipt"].update(nakup_spolu="9,71", usetris="4,16")
+    deployment["landing"].write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_library(deployment, "uvarsi_require_production_readiness")
+
+    assert result.returncode != 0
+
+
+def test_production_readiness_rejects_weighted_line_without_multiplier(deployment):
+    payload = weighted_receipt_payload(deployment)
+    del payload["receipt"]["meals"][1]["items"][0]["weight_multiplier"]
+    deployment["landing"].write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_library(deployment, "uvarsi_require_production_readiness")
+
+    assert result.returncode != 0
+
+
+def test_production_readiness_rejects_proportionally_tampered_weighted_prices(
+        deployment):
+    payload = weighted_receipt_payload(deployment)
+    chicken = payload["receipt"]["meals"][1]["items"][0]
+    chicken.update(
+        price="6,70",
+        original_price="9,09",
+        savings="2,39",
+        loyalty_price="6,18",
+    )
+    payload["receipt"].update(
+        nakup_spolu="10,24", bezne="14,57", usetris="4,33"
+    )
     deployment["landing"].write_text(json.dumps(payload), encoding="utf-8")
 
     result = run_library(deployment, "uvarsi_require_production_readiness")
@@ -906,7 +943,7 @@ def test_production_readiness_requires_recent_supervisor_success_and_schedule(de
     assert unsafe_schedule.returncode != 0
 
 
-def test_supervisor_schedule_install_and_rollback_preserve_taktik(deployment):
+def test_supervisor_schedule_install_is_verify_only_and_preserves_crontab(deployment):
     old_supervisor = "0 5-21 * * * /opt/uvarsi/dozorca.sh >> /var/log/uvarsi.log 2>&1"
     deployment["cron"].write_text(
         f"{TAKTIK_CRON}\n{old_supervisor}\n", encoding="utf-8"
@@ -919,24 +956,27 @@ def test_supervisor_schedule_install_and_rollback_preserve_taktik(deployment):
         f'uvarsi_snapshot_supervisor_schedule "{bash_path(snapshot)}"\n'
         "uvarsi_install_supervisor_schedule",
     )
-    assert installed.returncode == 0, installed.stdout + installed.stderr
-    installed_lines = deployment["cron"].read_text().splitlines()
-    assert TAKTIK_CRON in installed_lines
-    assert old_supervisor not in installed_lines
-    assert installed_lines.count(SUPERVISOR_CRON) == 1
+    assert installed.returncode != 0
+    assert deployment["cron"].read_text().splitlines() == [TAKTIK_CRON, old_supervisor]
+    assert not deployment["state"].joinpath("crontab-written").exists()
+
+    canonical = f"{TAKTIK_CRON}\n{SUPERVISOR_CRON}\n"
+    deployment["cron"].write_text(canonical, encoding="utf-8", newline="\n")
+    verified = run_library(deployment, "uvarsi_install_supervisor_schedule")
+    assert verified.returncode == 0, verified.stdout + verified.stderr
+    assert deployment["cron"].read_text(encoding="utf-8") == canonical
+    assert not deployment["state"].joinpath("crontab-written").exists()
 
     restored = run_library(
         deployment,
         f'uvarsi_restore_supervisor_schedule "{bash_path(snapshot)}"',
     )
     assert restored.returncode == 0, restored.stdout + restored.stderr
-    restored_lines = deployment["cron"].read_text().splitlines()
-    assert TAKTIK_CRON in restored_lines
-    assert old_supervisor in restored_lines
-    assert SUPERVISOR_CRON not in restored_lines
+    assert deployment["cron"].read_text(encoding="utf-8") == canonical
+    assert not deployment["state"].joinpath("crontab-written").exists()
 
 
-def test_crontab_rollback_merges_snapshot_managed_rows_with_current_unrelated_rows(
+def test_crontab_rollback_is_noop_and_preserves_concurrent_changes(
         deployment):
     removed_during_deploy = "17 2 * * * /opt/other/retired-report.sh"
     old_supervisor = "0 5-21 * * * /opt/uvarsi/dozorca.sh"
@@ -984,13 +1024,14 @@ def test_crontab_rollback_merges_snapshot_managed_rows_with_current_unrelated_ro
     assert TAKTIK_CRON in restored_lines
     assert concurrent_addition in restored_lines
     assert removed_during_deploy not in restored_lines
-    assert old_supervisor in restored_lines
-    assert old_backup in restored_lines
-    assert SUPERVISOR_CRON not in restored_lines
-    assert sum("rekonciliacia.py" in line for line in restored_lines) == 0
+    assert old_supervisor not in restored_lines
+    assert old_backup not in restored_lines
+    assert SUPERVISOR_CRON in restored_lines
+    assert sum("rekonciliacia.py" in line for line in restored_lines) == 1
+    assert not deployment["state"].joinpath("crontab-written").exists()
 
 
-def test_crontab_rollback_fails_closed_when_current_crontab_cannot_be_read(
+def test_crontab_rollback_is_noop_when_current_crontab_cannot_be_read(
         deployment):
     original = f"{TAKTIK_CRON}\n0 5-21 * * * /opt/uvarsi/dozorca.sh\n"
     deployment["cron"].write_text(original, encoding="utf-8", newline="\n")
@@ -1010,8 +1051,9 @@ def test_crontab_rollback_fails_closed_when_current_crontab_cannot_be_read(
         f'uvarsi_restore_supervisor_schedule "{bash_path(snapshot)}"',
     )
 
-    assert restored.returncode != 0
+    assert restored.returncode == 0, restored.stdout + restored.stderr
     assert deployment["cron"].read_text(encoding="utf-8") == current
+    assert not deployment["state"].joinpath("crontab-written").exists()
 
 
 def test_complete_schedule_install_fails_closed_on_crontab_read_error(deployment):
@@ -1025,10 +1067,11 @@ def test_complete_schedule_install_fails_closed_on_crontab_read_error(deployment
     assert deployment["cron"].read_text(encoding="utf-8") == original
 
 
-def test_complete_schedule_install_preserves_taktik_and_unrelated_rows(deployment):
+def test_complete_schedule_install_only_verifies_existing_schedule(deployment):
     unrelated = "17 2 * * * /opt/other/report.sh"
     deployment["cron"].write_text(
-        f"# keep comments\n{TAKTIK_CRON}\n{unrelated}\n",
+        f"# keep comments\n{TAKTIK_CRON}\n{unrelated}\n{SUPERVISOR_CRON}\n"
+        f"{BACKUP_CRON}\n{PAYMENT_CRON}\n",
         encoding="utf-8",
         newline="\n",
     )
@@ -1043,6 +1086,23 @@ def test_complete_schedule_install_preserves_taktik_and_unrelated_rows(deploymen
     assert installed.count(SUPERVISOR_CRON) == 1
     assert sum("/opt/uvarsi/zaloha.sh" in line for line in installed) == 1
     assert sum("rekonciliacia.py" in line for line in installed) == 1
+    assert not deployment["state"].joinpath("crontab-written").exists()
+
+
+def test_complete_schedule_rejects_noncanonical_duplicate_uvarsi_jobs(deployment):
+    deployment["cron"].write_text(
+        f"{TAKTIK_CRON}\n{SUPERVISOR_CRON}\n{BACKUP_CRON}\n{PAYMENT_CRON}\n"
+        "45 2 * * * /opt/uvarsi/zaloha.sh >> /var/log/old-backup.log 2>&1\n"
+        "10 * * * * cd /opt/uvarsi/app && "
+        "/opt/uvarsi/venv/bin/python rekonciliacia.py >> /var/log/old-payments.log 2>&1\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    result = run_library(deployment, "uvarsi_install_production_schedule")
+
+    assert result.returncode != 0
+    assert not deployment["state"].joinpath("crontab-written").exists()
 
 
 def test_supervisor_schedule_never_overwrites_crontab_after_a_read_error(deployment):

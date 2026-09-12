@@ -23,6 +23,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 ZALOHA = ROOT / "hetzner" / "zaloha.sh"
 DEPLOY = ROOT / "nasad.ps1"
+DEPLOY_STATE = ROOT / "hetzner" / "uvarsi-deploy-state.sh"
 
 
 @pytest.fixture(scope="module")
@@ -128,26 +129,22 @@ def test_deploy_transfers_the_backup_script(deploy):
     assert 'r = "/opt/uvarsi/zaloha.sh"' in deploy
 
 
-def test_deploy_installs_the_documented_backup_cron_line(deploy):
+def test_release_verifies_the_documented_backup_cron_line(deploy):
     riadok = _documented_cron_line()
-    assert riadok in deploy, (
-        "rozvrh zálohy ostal iba komentárom — na serveri sa nikdy nespustí. "
-        f"Očakávam v nasad.ps1 presne:\n  {riadok}"
+    state = DEPLOY_STATE.read_text(encoding="utf-8")
+    assert riadok in state, (
+        "release musí overiť presný produkčný rozvrh zálohy: " + riadok
     )
 
 
-def test_deploy_installs_exactly_one_backup_cron_line(deploy):
-    bloky = [
-        blok for blok in re.findall(r"@'\n(.*?)\n'@", deploy, flags=re.S)
-        if "crontab" in blok and "zaloha.sh" in blok
-    ]
-    assert bloky, "očakávam bash blok, ktorý inštaluje cron pre zálohu"
-    blok = bloky[0]
-    assert "grep -v" in blok, (
-        "opakované nasadenie by inak pridalo druhý rovnaký riadok"
-    )
-    assert re.search(r"zaloha\.sh'\s*\|\|\s*true|-c 'zaloha\.sh'|grep -c", blok), (
-        "nasadenie musí overiť, že v crontabe je práve jeden riadok so zálohou"
+def test_release_requires_exactly_one_backup_cron_line(deploy):
+    state = DEPLOY_STATE.read_text(encoding="utf-8")
+    assert "uvarsi_install_production_schedule()" in state
+    assert "uvarsi_require_production_schedule" in state
+    assert "active.count(line) == 1" in state
+    assert "no_variants" in state
+    assert '"$UVARSI_CRONTAB" "$candidate"' not in state, (
+        "bežný release nesmie potichu prepísať zdieľaný root crontab"
     )
 
 

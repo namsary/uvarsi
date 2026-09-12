@@ -880,7 +880,7 @@ def test_plan_screen_promises_only_what_the_leaflet_actually_proves():
     html = app_html()
     plan_view = declaration(html, "function vPlan() ")
 
-    assert "over" in plan_view.lower(), "the plan must invite the user to check the price"
+    assert "akciové ceny sú z letákov" in plan_view.lower()
     for overstated in ("overené u obchodníka", "overujeme priamo v obchode", "garantujeme",
                        "nezávisle overené", "potvrdené obchodom"):
         assert overstated not in html, "the app must not claim more than reading a leaflet page"

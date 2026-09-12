@@ -2562,23 +2562,20 @@ def test_invalid_stage_cannot_replace_active_week(monkeypatch, break_stage):
     ]
 
 
-def test_unapproved_collector_cannot_promote(monkeypatch):
+def test_current_official_beta_stage_can_publish_but_cannot_unlock_payments():
     con = sqlite3.connect(":memory:")
     con.row_factory = sqlite3.Row
     con.executescript(collector.SCHEMA)
     collector.migrate_offer_staging_schema(con)
     for store in ("Kaufland", "Tesco", "Lidl"):
         seed_stage(con, "2026-08-17", store)
-    monkeypatch.setattr(
-        collector.source_policy,
-        "approved_source",
-        lambda store, _kind: store != "Tesco",
-    )
-
     assert collector.promote_staged_week(
         con, "2026-08-17", today=date(2026, 8, 19)
+    ) is True
+    assert con.execute("SELECT COUNT(*) FROM akcie").fetchone()[0] == 60
+    assert collector.source_policy.collection_is_approved(
+        con, week="2026-08-17", today=date(2026, 8, 19)
     ) is False
-    assert con.execute("SELECT COUNT(*) FROM akcie").fetchone()[0] == 0
 
 
 def test_targeted_retry_reuses_two_healthy_stages_and_promotes(monkeypatch):
@@ -2740,6 +2737,35 @@ def test_reuse_rejects_even_allowlisted_aggregator_stage(monkeypatch):
     assert collector.staged_store_problem(
         con, "2026-08-17", "Lidl", today=date(2026, 8, 19)
     ) == "source_not_official"
+
+
+def test_manual_reviewed_facts_accept_the_stores_official_source_url(monkeypatch):
+    monkeypatch.setattr(
+        collector.source_policy,
+        "approved_source",
+        lambda store, kind: store == "Lidl" and kind == "manual-reviewed-facts",
+    )
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(collector.SCHEMA)
+    collector.migrate_offer_staging_schema(con)
+    offers = [valid_offer("lidl", index) for index in range(1, 21)]
+    collector.stage_store_collection(
+        con,
+        "2026-08-17",
+        "Lidl",
+        offers,
+        provenance=collector.CollectionProvenance(
+            "manual-reviewed-facts",
+            "d" * 64,
+            "2026-08-17",
+            "2026-08-23",
+        ),
+    )
+
+    assert collector.staged_store_problem(
+        con, "2026-08-17", "Lidl", today=date(2026, 8, 19)
+    ) is None
 
 
 def test_main_recollects_an_aggregator_stage_from_current_official_manifest(
@@ -2980,7 +3006,7 @@ def test_structural_failure_identity_tracks_deploy_and_full_source_policy(
     assert after_policy_review != after_deploy
 
 
-def test_main_retries_same_manifest_immediately_after_policy_approval(
+def test_main_collects_official_beta_manifest_without_commercial_approval(
     monkeypatch, tmp_path,
 ):
     database = tmp_path / "uvarsi.db"
@@ -2997,10 +3023,6 @@ def test_main_retries_same_manifest_immediately_after_policy_approval(
         lambda *_args: approved["value"],
     )
 
-    with pytest.raises(SystemExit, match="lidl"):
-        collector.main(["lidl"])
-
-    approved["value"] = True
     monkeypatch.setattr(collector, "load_key", lambda: "unused-test-value")
     monkeypatch.setitem(
         sys.modules,
@@ -3016,6 +3038,7 @@ def test_main_retries_same_manifest_immediately_after_policy_approval(
     collector.main(["lidl"])
 
     assert calls == ["lidl"]
+    assert approved["value"] is False
 
 
 def test_official_manifest_ids_change_fingerprint_even_when_page_urls_stay_same(

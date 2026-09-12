@@ -364,11 +364,38 @@ def provenance_from_manifest(manifest):
     )
 
 
+def _operational_source(store, collector_kind):
+    """Allow official beta collection without granting commercial approval.
+
+    A separately reviewed facts feed may also operate. Payment readiness stays
+    stricter and is evaluated only by ``source_policy.collection_is_approved``.
+    """
+    return (
+        OFFICIAL_COLLECTOR_BY_STORE.get(str(store).capitalize()) == collector_kind
+        or (
+            collector_kind == "manual-reviewed-facts"
+            and source_policy.approved_source(store, collector_kind)
+        )
+    )
+
+
 def _approved_official_source(store, collector_kind):
+    """Commercial approval used only in payment/policy identities."""
     return (
         OFFICIAL_COLLECTOR_BY_STORE.get(str(store).capitalize()) == collector_kind
         and source_policy.approved_source(store, collector_kind)
     )
+
+
+def _source_url_matches_collector(store, collector_kind, source_url):
+    """Bind provenance to the store without conflating review with transport."""
+    derived_kind = source_policy.collector_kind_for_url(source_url)
+    if collector_kind == "manual-reviewed-facts":
+        return (
+            source_policy.approved_source(store, collector_kind)
+            and derived_kind == OFFICIAL_COLLECTOR_BY_STORE.get(str(store).capitalize())
+        )
+    return derived_kind == collector_kind
 
 
 def deployed_release_identity():
@@ -2364,8 +2391,15 @@ def _collection_provenance(offers, provenance=None):
     if collector_kind is None:
         raise ValueError("zber používa neznámy zdroj")
     if provenance is not None:
+        stores = {
+            str(item.get("obchod", "")).strip().capitalize()
+            for item in offers if isinstance(item, dict)
+        }
         if (
-            provenance.collector_kind != collector_kind
+            len(stores) != 1
+            or not _source_url_matches_collector(
+                next(iter(stores)), provenance.collector_kind, source_url
+            )
             or provenance.valid_from != min(starts)
             or provenance.valid_to != max(ends)
             or not re.fullmatch(r"[0-9a-f]{64}", provenance.source_fingerprint or "")
@@ -2679,7 +2713,7 @@ def unchanged_structural_failure(
 
 
 def staged_store_problem(
-    con, week, store, *, today, require_approved=True,
+    con, week, store, *, today, require_approved=False,
     expected_fingerprint=None,
 ):
     """Name the first reason one staged store cannot be safely reused."""
@@ -2696,9 +2730,9 @@ def staged_store_problem(
     if int(status[2] or 0) != COLLECTION_DATA_VERSION:
         return "data_version"
     collector_kind = status[3]
-    if require_approved and not _approved_official_source(store, collector_kind):
-        if collector_kind != OFFICIAL_COLLECTOR_BY_STORE.get(store):
-            return "source_not_official"
+    if not _operational_source(store, collector_kind):
+        return "source_not_official"
+    if require_approved and not source_policy.approved_source(store, collector_kind):
         return "source_not_approved"
     fingerprint = status[4]
     if re.fullmatch(r"[0-9a-f]{64}", fingerprint or "") is None:
@@ -2735,7 +2769,7 @@ def staged_store_problem(
         expected_kind = source_policy.collector_kind_for_url(source_url)
     except ValueError:
         return "invalid_provenance"
-    if expected_kind != collector_kind:
+    if not _source_url_matches_collector(store, collector_kind, source_url):
         return "invalid_provenance"
 
     for offer in staged:
@@ -2765,7 +2799,7 @@ def bootstrap_active_store_stage(
     if (
         status is None or status[0] != "ok"
         or int(status[2] or 0) != COLLECTION_DATA_VERSION
-        or not _approved_official_source(store, status[3])
+        or not _operational_source(store, status[3])
         or re.fullmatch(r"[0-9a-f]{64}", status[4] or "") is None
     ):
         return False
@@ -2802,7 +2836,7 @@ def bootstrap_active_store_stage(
     if len(source_urls) != 1:
         return False
     source_url = next(iter(source_urls))
-    if source_policy.collector_kind_for_url(source_url) != status[3]:
+    if not _source_url_matches_collector(store, status[3], source_url):
         return False
     if expected_provenance is None:
         # Kaufland's official collector fingerprints the exact normalized facts.
@@ -2830,7 +2864,7 @@ def bootstrap_active_store_stage(
         return True
 
 
-def staged_week_readiness(con, week, *, today=None, require_approved=True):
+def staged_week_readiness(con, week, *, today=None, require_approved=False):
     """Return whether one current, complete three-store stage exists."""
     today = today or business_day()
     if not isinstance(today, datetime.date) or isinstance(today, datetime.datetime):
@@ -2941,6 +2975,29 @@ def collection_budget_purpose(con, week, selected_stores):
     return "zber_letakov"
 
 
+def guard_known_credit_before_source_download(con):
+    """Avoid re-downloading a whole flyer during the known credit cooldown.
+
+    The source download itself is free, but it can be dozens of pages.  Once
+    Anthropic has already reported an empty balance, the guarded client would
+    reject the later model request anyway.  This is only a read-only hint; the
+    guarded model call still reserves the single recovery probe atomically.
+    """
+    if not naklady.kredit_stav(con)["vycerpany"]:
+        return
+    try:
+        probe_ready = naklady.kreditovy_probe_je_pripraveny(
+            con, ucel="zber_letakov"
+        )
+    except naklady.RozpocetVycerpany as refusal:
+        raise SystemExit(f"Zber odkladám — {refusal}") from None
+    if not probe_ready:
+        refusal = naklady.KreditVycerpany(ucel="zber_letakov")
+        raise SystemExit(
+            f"Zber zastavený — KREDIT_VYCERPANY: {refusal}"
+        ) from None
+
+
 def main(stores=None):
     selected_stores = list(dict.fromkeys(stores or STORES))
     unknown = [store for store in selected_stores if store not in STORES]
@@ -2971,7 +3028,7 @@ def main(stores=None):
             ) is None:
                 reusable_stores.append(store)
                 continue
-            if _approved_official_source(
+            if _operational_source(
                 display_store, OFFICIAL_COLLECTOR_BY_STORE[display_store]
             ):
                 try:
@@ -2990,6 +3047,7 @@ def main(stores=None):
                     free_collected.append(store)
                     free_total += len(official_offers)
                     continue
+        guard_known_credit_before_source_download(con)
         try:
             prepared = prepare_store_collection(store)
         except ValueError as exc:
@@ -3024,7 +3082,7 @@ def main(stores=None):
         provenance = prepared.provenance
         failure_identity = structural_failure_identity(display_store, provenance)
 
-        if not _approved_official_source(display_store, provenance.collector_kind):
+        if not _operational_source(display_store, provenance.collector_kind):
             if unchanged_structural_failure(
                 con,
                 tyz,
@@ -3132,6 +3190,7 @@ def main(stores=None):
             budget_purpose,
             odhad_eur=0.0,
             rezervovane_eur=MIN_START_BUDGET_PER_STORE_EUR * len(stores_to_collect),
+            kontroluj_kredit=False,
         )
     except naklady.KreditVycerpany as odmietnutie:
         con.close()
@@ -3163,6 +3222,7 @@ def main(stores=None):
     total, collected = free_total, list(free_collected)
     held_claims = set()
     run_reserved = False
+    run_cost_marker = None
     try:
         for store in stores_to_collect:
             prepared = prepared_by_store[store]
@@ -3189,6 +3249,9 @@ def main(stores=None):
                 continue
             if not run_reserved:
                 try:
+                    run_cost_marker = con.execute(
+                        "SELECT COALESCE(MAX(id), 0) FROM naklady"
+                    ).fetchone()[0]
                     naklady.rezervuj_beh(con, budget_purpose)
                 except naklady.RozpocetVycerpany as odmietnutie:
                     release_store_claim(con, tyz, store.capitalize(), run_owner)
@@ -3234,7 +3297,12 @@ def main(stores=None):
                 # token, takže zabraté miesto v týždennom počte behov patrí
                 # späť. Inak by zbierač po dobití kreditu ostal zablokovaný do
                 # konca týždňa za behy, ktoré nikdy nebežali (incident 24. 8.).
-                naklady.uvolni_beh(con, budget_purpose)
+                spent_in_this_run = con.execute(
+                    "SELECT EXISTS(SELECT 1 FROM naklady WHERE id>? AND ucel=?)",
+                    (int(run_cost_marker or 0), budget_purpose),
+                ).fetchone()[0]
+                if not spent_in_this_run:
+                    naklady.uvolni_beh(con, budget_purpose)
                 log(f"[ERROR] {store}: {odmietnutie}")
                 raise SystemExit(
                     f"Zber zastavený — KREDIT_VYCERPANY: {odmietnutie}"

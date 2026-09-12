@@ -530,13 +530,8 @@ def _obdobie_behu(ucel, teraz):
     return (den - datetime.timedelta(days=den.weekday())).isoformat()
 
 
-def _over_kreditovy_cooldown(con, *, ucel, teraz) -> None:
-    """Pusť jeden atómovo rezervovaný API probe po hodinovej prestávke.
-
-    Príznak sa nemaže pred volaním: health naďalej hovorí pravdu, kým úspešná
-    odpoveď v :func:`zapis` nepreukáže, že kredit už je. UPDATE s pôvodnou
-    hodnotou je malý compare-and-swap — pri súbehu vyhrá iba jeden proces.
-    """
+def _kreditovy_cooldown(con, *, ucel, teraz):
+    """Return the persisted credit row and its age without reserving a probe."""
     try:
         riadok = con.execute(
             "SELECT den, zistene FROM naklady_kredit ORDER BY den DESC LIMIT 1"
@@ -546,7 +541,7 @@ def _over_kreditovy_cooldown(con, *, ucel, teraz) -> None:
             SPRAVA_NECITATELNY, kod=KOD_NECITATELNY, ucel=ucel,
         ) from chyba
     if riadok is None:
-        return
+        return None, None, None
 
     povodne = riadok["zistene"]
     try:
@@ -562,6 +557,39 @@ def _over_kreditovy_cooldown(con, *, ucel, teraz) -> None:
         raise RozpocetVycerpany(
             SPRAVA_NECITATELNY, kod=KOD_NECITATELNY, ucel=ucel,
         ) from chyba
+    return riadok, povodne, vek
+
+
+def kreditovy_probe_je_pripraveny(con, *, ucel="zber_letakov", teraz=None) -> bool:
+    """Read-only hint used to avoid needless flyer downloads during cooldown.
+
+    This deliberately does not reserve the probe.  The guarded model call does
+    the atomic compare-and-swap immediately before contacting the provider.
+    """
+    teraz = _teraz(teraz)
+    riadok, _povodne, vek = _kreditovy_cooldown(
+        con, ucel=ucel, teraz=teraz
+    )
+    if riadok is None:
+        return True
+    return (
+        os.environ.get("UVARSI_DEPLOY_CREDIT_PROBE") == "1"
+        or vek >= CREDIT_RETRY_SECONDS
+    )
+
+
+def _over_kreditovy_cooldown(con, *, ucel, teraz) -> None:
+    """Pusť jeden atómovo rezervovaný API probe po hodinovej prestávke.
+
+    Príznak sa nemaže pred volaním: health naďalej hovorí pravdu, kým úspešná
+    odpoveď v :func:`zapis` nepreukáže, že kredit už je. UPDATE s pôvodnou
+    hodnotou je malý compare-and-swap — pri súbehu vyhrá iba jeden proces.
+    """
+    riadok, povodne, vek = _kreditovy_cooldown(
+        con, ucel=ucel, teraz=teraz
+    )
+    if riadok is None:
+        return
 
     # Iba dozorca spustený bezprostredne po úspešnom deployi nastaví tento
     # jednorazový príznak. Compare-and-swap nižšie naďalej rezervuje práve
@@ -637,7 +665,10 @@ def je_posledny_migracny_dobeh(con, ucel, teraz) -> bool:
 
 
 # ---------------------------------------------------------------- strop PRED volaním
-def skontroluj(con, ucel, odhad_eur=None, teraz=None, rezervovane_eur=0.0):
+def skontroluj(
+    con, ucel, odhad_eur=None, teraz=None, rezervovane_eur=0.0,
+    *, kontroluj_kredit=True,
+):
     """Smie sa teraz minúť? Keď nie, vyhodí RozpocetVycerpany a NIČ sa nevolá.
 
     Započítava sa aj odhad ceny volania, ktoré sa práve chystá — inak by sa
@@ -698,7 +729,8 @@ def skontroluj(con, ucel, odhad_eur=None, teraz=None, rezervovane_eur=0.0):
             f"({ucel_eur:.2f} € z {strop_ucelu:.2f} €).",
             kod=KOD_UCEL, ucel=ucel, minute_eur=ucel_eur, strop_eur=strop_ucelu,
         )
-    _over_kreditovy_cooldown(con, ucel=ucel, teraz=teraz)
+    if kontroluj_kredit:
+        _over_kreditovy_cooldown(con, ucel=ucel, teraz=teraz)
     return {
         "dnes_eur": dnes_eur,
         "mesiac_eur": mesiac_eur,

@@ -679,7 +679,7 @@ def test_runtime_readiness_requires_current_receipt_test_config_and_verified_pho
     )
     monkeypatch.setattr(server, "legal_version", lambda: server.LEGAL_VERSION)
     monkeypatch.setattr(server, "_approved_price_sources_ready", lambda *_a, **_k: True)
-    monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda **_k: True)
+    monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda *_a, **_k: True)
     monkeypatch.setattr(server.customer_requests, "workflow_ready", lambda _con: True)
     smoke_checks = []
     activation_checks = []
@@ -749,7 +749,7 @@ def test_runtime_readiness_requires_current_receipt_test_config_and_verified_pho
         "test_api_key": "test-api",
     }
 
-    monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda **_k: False)
+    monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda *_a, **_k: False)
     with closing(server.db()) as con:
         result = server._runtime_payment_readiness(
             con, queue_status=queue, recipe_status=recipe
@@ -781,7 +781,7 @@ def test_zapnuty_flag_bez_podpisanej_aktivacie_neodomkne_checkout(
     )
     monkeypatch.setattr(server, "legal_version", lambda: server.LEGAL_VERSION)
     monkeypatch.setattr(server, "_approved_price_sources_ready", lambda *_a, **_k: True)
-    monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda **_k: True)
+    monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda *_a, **_k: True)
     monkeypatch.setattr(server, "_private_payment_alerts_ready", lambda: True)
     monkeypatch.setattr(server.customer_requests, "workflow_ready", lambda _con: True)
     monkeypatch.setattr(server, "_payment_smoke_verified", lambda **_facts: True)
@@ -925,7 +925,7 @@ def test_zmena_ktorehokolvek_live_secretu_zneplatni_aktivaciu_a_checkout(
     )
     monkeypatch.setattr(server, "legal_version", lambda: server.LEGAL_VERSION)
     monkeypatch.setattr(server, "_approved_price_sources_ready", lambda *_a, **_k: True)
-    monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda **_k: True)
+    monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda *_a, **_k: True)
     monkeypatch.setattr(server, "_private_payment_alerts_ready", lambda: True)
     monkeypatch.setattr(server.customer_requests, "workflow_ready", lambda _con: True)
     activation_path = tmp_path / "payment-activation.json"
@@ -1022,7 +1022,8 @@ def test_strict_receipt_gate_rejects_historical_or_incomplete_payload(
     monkeypatch.setattr(server, "LANDING_DATA", str(landing_path))
 
     landing_path.write_text("{}", encoding="utf-8")
-    assert server._strict_current_receipt_ready(today=date(2026, 9, 11)) is False
+    with closing(server.db()) as con:
+        assert server._strict_current_receipt_ready(con, today=date(2026, 9, 11)) is False
 
     payload = {
         "schema_version": 1,
@@ -1067,11 +1068,14 @@ def test_strict_receipt_gate_rejects_historical_or_incomplete_payload(
         },
     }
     landing_path.write_text(json.dumps(payload), encoding="utf-8")
-    assert server._strict_current_receipt_ready(today=date(2026, 9, 11)) is True
+    monkeypatch.setattr(server, "public_receipt_matches_verified_offers", lambda *_args: True)
+    with closing(server.db()) as con:
+        assert server._strict_current_receipt_ready(con, today=date(2026, 9, 11)) is True
 
     payload["week"] = "2026-08-31"
     landing_path.write_text(json.dumps(payload), encoding="utf-8")
-    assert server._strict_current_receipt_ready(today=date(2026, 9, 11)) is False
+    with closing(server.db()) as con:
+        assert server._strict_current_receipt_ready(con, today=date(2026, 9, 11)) is False
 
 
 @pytest.mark.parametrize("adresa", ["http://uvarsi.lemonsqueezy.com/buy/x", "javascript:alert(1)", "", "   "])

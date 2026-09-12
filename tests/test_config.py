@@ -28,7 +28,7 @@ def test_release_id_reads_version_file(tmp_path, monkeypatch):
 def test_legal_version_is_code_owned_not_environment_controlled(monkeypatch):
     monkeypatch.setenv("UVARSI_LEGAL_VERSION", "attacker-controlled")
 
-    assert legal_version() == "2026-09-07-v1"
+    assert legal_version() == "2026-09-11-v2"
 
 
 @pytest.mark.parametrize(

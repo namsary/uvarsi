@@ -266,14 +266,14 @@ def optional_money(value):
 def money_text(value):
     return format(value.quantize(Decimal("0.01")), "f").replace(".", ",")
 
-def weighted_line_totals_match(price_pairs):
-    cent = Decimal("0.01")
-    line_price, unit_price = price_pairs[0]
-    multiplier = line_price / unit_price
-    return multiplier > 0 and all(
-        (unit * multiplier).quantize(cent) == line
-        for line, unit in price_pairs
-    )
+def weight_multiplier(value):
+    try:
+        amount = Decimal(str(value).strip().replace(",", "."))
+    except (InvalidOperation, ValueError):
+        raise SystemExit(1)
+    if not amount.is_finite() or amount <= 0 or amount > Decimal("100"):
+        raise SystemExit(1)
+    return amount
 
 active_offer_refs = set()
 active_offer_sources = {}
@@ -493,10 +493,10 @@ for meal in meals:
         ):
             raise SystemExit(1)
         offer = active_offers[(store, offer_key)]
-        expected_fields = (
-            base_item_fields | loyalty_item_fields
-            if offer["loyalty"] is not None else base_item_fields
-        )
+        weighted = offer["unit"].strip().casefold() == "kg"
+        expected_fields = base_item_fields | ({"weight_multiplier"} if weighted else set())
+        if offer["loyalty"] is not None:
+            expected_fields |= loyalty_item_fields
         if (
             set(item) != expected_fields
             or item.get("name") != offer["name"]
@@ -509,25 +509,33 @@ for meal in meals:
         line_loyalty = optional_money(item.get("loyalty_price"))
         if (offer["original"] is None) != (line_original is None):
             raise SystemExit(1)
-        weighted = offer["unit"].strip().casefold() == "kg"
         if weighted:
-            price_pairs = [(line_price, offer["price"])]
+            multiplier = weight_multiplier(item.get("weight_multiplier"))
             if quantity != 1 or (
                 offer["original"] is None and offer["loyalty"] is None
             ):
                 raise SystemExit(1)
+            expected_price = (offer["price"] * multiplier).quantize(Decimal("0.01"))
+            expected_original = (
+                None if offer["original"] is None
+                else (offer["original"] * multiplier).quantize(Decimal("0.01"))
+            )
+            expected_loyalty = (
+                None if offer["loyalty"] is None
+                else (offer["loyalty"] * multiplier).quantize(Decimal("0.01"))
+            )
             if line_original is not None:
                 if line_original < line_price:
                     raise SystemExit(1)
-                price_pairs.append((line_original, offer["original"]))
             if line_loyalty is not None:
                 if line_loyalty >= line_price:
                     raise SystemExit(1)
-                price_pairs.append((line_loyalty, offer["loyalty"]))
-            if not weighted_line_totals_match(price_pairs):
+            if (
+                line_price != expected_price
+                or line_original != expected_original
+                or line_loyalty != expected_loyalty
+            ):
                 raise SystemExit(1)
-            expected_price = line_price
-            expected_original = line_original
         else:
             expected_price = offer["price"] * quantity
             expected_original = (
@@ -715,87 +723,16 @@ raise SystemExit(0 if targets == [canonical] else 1)
 }
 
 uvarsi_install_supervisor_schedule() {
-  current=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-current.XXXXXX") || return 1
-  replacement=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-replacement.XXXXXX") || {
-    rm -f "$current"
-    return 1
-  }
-  candidate=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-candidate.XXXXXX") || {
-    rm -f "$current" "$replacement"
-    return 1
-  }
-  chmod 600 "$current" "$replacement" "$candidate" || {
-    rm -f "$current" "$replacement" "$candidate"
-    return 1
-  }
-  _uvarsi_supervisor_cron_line > "$replacement" || {
-    rm -f "$current" "$replacement" "$candidate"
-    return 1
-  }
-  if ! _uvarsi_read_crontab "$current" || \
-      ! _uvarsi_transform_supervisor_cron "$current" "$candidate" "$replacement" || \
-      ! "$UVARSI_CRONTAB" "$candidate"; then
-    rm -f "$current" "$replacement" "$candidate"
-    return 1
-  fi
-  rm -f "$current" "$replacement" "$candidate"
+  # Normal releases never mutate the shared root crontab. A schedule migration
+  # is a separate operator action; release only verifies the canonical row.
   uvarsi_require_supervisor_schedule
 }
 
 uvarsi_restore_supervisor_schedule() {
   snapshot=$1
   complete="$snapshot/crontab.full"
-  [ -f "$complete" ] || return 1
-  current=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-current.XXXXXX") || return 1
-  candidate=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-candidate.XXXXXX") || {
-    rm -f "$current"
-    return 1
-  }
-  installed=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-restored.XXXXXX") || {
-    rm -f "$current" "$candidate"
-    return 1
-  }
-  chmod 600 "$current" "$candidate" "$installed" || {
-    rm -f "$current" "$candidate" "$installed"
-    return 1
-  }
-  if ! _uvarsi_read_crontab "$current" || ! "$UVARSI_HEALTH_PY" -c '
-import re, sys
-current_path, snapshot_path, candidate_path = sys.argv[1:4]
-patterns = (
-    re.compile(r"(?:^|\s)/opt/uvarsi/dozorca\.sh(?:\s|$)"),
-    re.compile(r"(?:^|\s)/opt/uvarsi/uvarsi-deploy-state\.sh\s+run-supervisor(?:\s|$)"),
-    re.compile(r"(?:^|\s)/opt/uvarsi/zaloha\.sh(?:\s|$)"),
-    re.compile(r"(?:^|\s)/opt/uvarsi/venv/bin/python\s+rekonciliacia\.py(?:\s|$)"),
-)
-
-def managed(line):
-    return (
-        bool(line.strip()) and not line.lstrip().startswith("#")
-        and any(pattern.search(line) for pattern in patterns)
-    )
-
-with open(current_path, encoding="utf-8") as source:
-    current = [line.rstrip("\n") for line in source]
-with open(snapshot_path, encoding="utf-8") as source:
-    snapshot = [line.rstrip("\n") for line in source]
-merged = [line for line in current if not managed(line)]
-merged.extend(line for line in snapshot if managed(line))
-with open(candidate_path, "w", encoding="utf-8", newline="\n") as target:
-    for line in merged:
-        target.write(line + "\n")
-' "$current" "$complete" "$candidate" >/dev/null 2>&1 || \
-      ! "$UVARSI_CRONTAB" "$candidate" || ! _uvarsi_read_crontab "$installed" || \
-      ! "$UVARSI_HEALTH_PY" -c '
-import pathlib, sys
-expected = pathlib.Path(sys.argv[1]).read_bytes()
-actual = pathlib.Path(sys.argv[2]).read_bytes()
-raise SystemExit(0 if actual == expected else 1)
-' "$candidate" "$installed" >/dev/null 2>&1; then
-    rm -f "$current" "$candidate" "$installed"
-    return 1
-  fi
-  rm -f "$current" "$candidate" "$installed"
+  # There is nothing to roll back because normal releases never write cron.
+  [ -f "$complete" ]
 }
 
 _uvarsi_transform_production_cron() {
@@ -832,12 +769,22 @@ uvarsi_require_production_schedule() {
   backup=$(_uvarsi_backup_cron_line) || { rm -f "$current"; return 1; }
   payment=$(_uvarsi_payment_cron_line) || { rm -f "$current"; return 1; }
   if ! _uvarsi_read_crontab "$current" || ! "$UVARSI_HEALTH_PY" -c '
-import sys
+import re, sys
 path, supervisor, backup, payment = sys.argv[1:5]
 with open(path, encoding="utf-8") as handle:
     active = [line.strip() for line in handle if line.strip() and not line.lstrip().startswith("#")]
 expected = (supervisor, backup, payment)
-raise SystemExit(0 if all(active.count(line) == 1 for line in expected) else 1)
+patterns = (
+    re.compile(r"(?:^|\s)/opt/uvarsi/(?:dozorca\.sh|uvarsi-deploy-state\.sh\s+run-supervisor)(?:\s|$)"),
+    re.compile(r"(?:^|\s)/opt/uvarsi/zaloha\.sh(?:\s|$)"),
+    re.compile(r"(?:^|\s)/opt/uvarsi/venv/bin/python\s+rekonciliacia\.py(?:\s|$)"),
+)
+unique = all(active.count(line) == 1 for line in expected)
+no_variants = all(
+    [line for line in active if pattern.search(line)] == [canonical]
+    for pattern, canonical in zip(patterns, expected)
+)
+raise SystemExit(0 if unique and no_variants else 1)
 ' "$current" "$supervisor" "$backup" "$payment" >/dev/null 2>&1; then
     rm -f "$current"
     return 1
@@ -847,22 +794,7 @@ raise SystemExit(0 if all(active.count(line) == 1 for line in expected) else 1)
 }
 
 uvarsi_install_production_schedule() {
-  current=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-current.XXXXXX") || return 1
-  candidate=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-candidate.XXXXXX") || {
-    rm -f "$current"
-    return 1
-  }
-  chmod 600 "$current" "$candidate" || {
-    rm -f "$current" "$candidate"
-    return 1
-  }
-  if ! _uvarsi_read_crontab "$current" || \
-      ! _uvarsi_transform_production_cron "$current" "$candidate" || \
-      ! "$UVARSI_CRONTAB" "$candidate"; then
-    rm -f "$current" "$candidate"
-    return 1
-  fi
-  rm -f "$current" "$candidate"
+  # Verify-only for the same reason as the supervisor schedule above.
   uvarsi_require_production_schedule
 }
 

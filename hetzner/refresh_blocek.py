@@ -67,6 +67,10 @@ def _money_text(value):
     return format(value.quantize(Decimal("0.01")), "f").replace(".", ",")
 
 
+def _decimal_text(value):
+    return format(value.normalize(), "f")
+
+
 def _shopping_quantities(plan, offered_keys):
     """Return the plan's real, already aggregated package counts by offer."""
     quantities = {}
@@ -82,6 +86,9 @@ def _shopping_quantities(plan, offered_keys):
             quantities[offer_key] = quantities.get(offer_key, 0) + quantity
             if item.get("predaj_na_vahu") is not True:
                 continue
+            weight_multiplier = _line_amount(
+                item.get("weight_multiplier"), "hmotnostný násobok váženej položky"
+            )
             price = _line_amount(item.get("cena"), "cenu váženej položky")
             original = (
                 None
@@ -99,6 +106,7 @@ def _shopping_quantities(plan, offered_keys):
                     "price": price,
                     "original_price": original,
                     "loyalty_price": loyalty,
+                    "weight_multiplier": weight_multiplier,
                 }
                 continue
             for field, amount in (
@@ -110,9 +118,16 @@ def _shopping_quantities(plan, offered_keys):
                     raise ValueError("Plán obsahuje nejednotné ceny váženej položky.")
                 if amount is not None:
                     current[field] += amount
+            current["weight_multiplier"] += weight_multiplier
     return quantities, {
         offer_key: {
-            field: None if amount is None else _money_text(amount)
+            field: (
+                None
+                if amount is None
+                else _decimal_text(amount)
+                if field == "weight_multiplier"
+                else _money_text(amount)
+            )
             for field, amount in totals.items()
         }
         for offer_key, totals in weighted_totals.items()

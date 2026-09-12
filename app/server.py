@@ -83,6 +83,7 @@ from payment_readiness import (
     require_checkout_ready,
 )
 from public_pages import ROBOTS_TXT, render_evergreen_page, render_sitemap, render_weekly_page
+from receipt_data import public_receipt_matches_verified_offers
 from weekly_data import offers_for_current_week, stores_missing_this_week
 from offer_data import (
     CURRENT_COLLECTION_DATA_VERSION,
@@ -4769,18 +4770,21 @@ def _approved_price_sources_ready(con, *, today=None) -> bool:
     )
 
 
-def _strict_current_receipt_ready(*, today=None) -> bool:
+def _strict_current_receipt_ready(con, *, today=None) -> bool:
     """Require the exact current, public-price-safe receipt before checkout."""
     today = today or bratislava_day()
     try:
+        payload = load_landing_data(LANDING_DATA)
         state, _reference_day = validate_publishable_landing_data(
-            load_landing_data(LANDING_DATA),
+            payload,
             today,
             required_offer_data_version=CURRENT_COLLECTION_DATA_VERSION,
         )
     except (OSError, TypeError, ValueError):
         return False
-    return state == CURRENT_LANDING_STATE
+    if state != CURRENT_LANDING_STATE:
+        return False
+    return public_receipt_matches_verified_offers(con, payload, today)
 
 
 def _private_payment_alerts_ready() -> bool:
@@ -5027,7 +5031,7 @@ def _runtime_payment_readiness(
         test_variant_id=test_variant_id,
         test_api_key=test_api_key,
         source_approved=_approved_price_sources_ready(con, today=today),
-        receipt_ready=_strict_current_receipt_ready(today=today),
+        receipt_ready=_strict_current_receipt_ready(con, today=today),
         private_alerts=_private_payment_alerts_ready(),
         consumer_workflows=customer_requests.workflow_ready(con),
         smoke_verified=payment_evidence_verified,

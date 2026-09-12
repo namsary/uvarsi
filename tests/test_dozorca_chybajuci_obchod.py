@@ -27,7 +27,7 @@ def _dotaz_na_neuplny_zber(skript: str, today: str = "2026-08-18") -> str:
     Berie posledný reťazec v úvodzovkách pred `2>/dev/null` — prvý je cesta
     k databáze, druhý je samotný dotaz.
     """
-    m = re.search(r'CHYBA_ZBER=\$\(sqlite3\s+"[^"]*"\s*\\?\s*"(.*?)"\s*\\?\s*\n?\s*2>',
+    m = re.search(r'STAGED_CHYBA=\$\(sqlite3\s+"[^"]*"\s*\\?\s*"(.*?)"\s*\\?\s*\n?\s*2>',
                   skript, re.S)
     assert m, "dozorca musí zisťovať neúspešné zbery samostatným SQL dotazom"
     return (
@@ -42,15 +42,15 @@ def test_old_collection_data_version_forces_one_safe_recollection(tmp_path, skri
     db = tmp_path / "t.db"
     con = sqlite3.connect(db)
     con.execute(
-        "CREATE TABLE zber_stav (tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER, data_version INTEGER)"
+        "CREATE TABLE zber_staging_stav (tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER, data_version INTEGER, failure_kind TEXT)"
     )
-    con.execute("CREATE TABLE akcie (tyzden TEXT, obchod TEXT, valid_from TEXT, valid_to TEXT)")
+    con.execute("CREATE TABLE akcie_staging (tyzden TEXT, obchod TEXT, valid_from TEXT, valid_to TEXT)")
     con.executemany(
-        "INSERT INTO zber_stav VALUES (?,?,?,?,?)",
+        "INSERT INTO zber_staging_stav (tyzden,obchod,stav,pocet,data_version) VALUES (?,?,?,?,?)",
         [("2026-08-31", store, "ok", 40, 1) for store in OBCHODY],
     )
     con.executemany(
-        "INSERT INTO akcie VALUES (?,?,?,?)",
+        "INSERT INTO akcie_staging VALUES (?,?,?,?)",
         [("2026-08-31", store, "2026-09-03", "2026-09-09") for store in OBCHODY for _ in range(10)],
     )
     con.commit()
@@ -60,17 +60,17 @@ def test_old_collection_data_version_forces_one_safe_recollection(tmp_path, skri
     )
     assert con.execute(dotaz).fetchone()[0] == 3
 
-    con.execute("UPDATE zber_stav SET data_version=2")
+    con.execute("UPDATE zber_staging_stav SET data_version=2")
     con.commit()
     assert con.execute(dotaz).fetchone()[0] == 0
     con.close()
 
 
 def test_dozorca_checks_for_missing_stores_not_only_total_count(skript):
-    assert "CHYBA_ZBER" in skript, (
+    assert "STAGED_CHYBA" in skript, (
         "dozorca musí kontrolovať stav zberu, nie iba prítomnosť jedného riadka"
     )
-    assert re.search(r'CHYBA_ZBER[^\n]*-gt 0', skript), (
+    assert re.search(r'STAGED_CHYBA[^\n]*-gt 0', skript), (
         "neúspešný alebo chýbajúci zber musí spustiť zber rovnako ako nízky počet"
     )
 
@@ -79,8 +79,8 @@ def test_all_three_stores_are_covered_by_the_check(skript):
     dotaz = _dotaz_na_neuplny_zber(skript)
     for obchod in OBCHODY:
         assert obchod in dotaz, f"kontrola musí zahŕňať {obchod}"
-    assert "zber_stav" in dotaz and "stav='ok'" in dotaz.replace(" ", ""), (
-        "jeden náhodný riadok akcie nestačí — každý obchod musí mať úspešný stav zberu"
+    assert "zber_staging_stav" in dotaz and "stav='ok'" in dotaz.replace(" ", ""), (
+        "jeden náhodný riadok akcie_staging nestačí — každý obchod musí mať úspešný stav zberu"
     )
 
 
@@ -88,15 +88,15 @@ def test_query_finds_failed_store_even_when_each_store_has_some_rows(tmp_path, s
     """Aj 28+1+1 riadkov je neúplný zber, keď Lidl skončil stavom fail."""
     db = tmp_path / "t.db"
     con = sqlite3.connect(db)
-    con.execute("CREATE TABLE zber_stav (tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER, data_version INTEGER)")
-    con.execute("CREATE TABLE akcie (tyzden TEXT, obchod TEXT, valid_from TEXT, valid_to TEXT)")
-    con.executemany("INSERT INTO zber_stav VALUES (?,?,?,?,?)", [
+    con.execute("CREATE TABLE zber_staging_stav (tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER, data_version INTEGER, failure_kind TEXT)")
+    con.execute("CREATE TABLE akcie_staging (tyzden TEXT, obchod TEXT, valid_from TEXT, valid_to TEXT)")
+    con.executemany("INSERT INTO zber_staging_stav (tyzden,obchod,stav,pocet,data_version) VALUES (?,?,?,?,?)", [
         ("2026-08-17", "Kaufland", "ok", 28, 2),
         ("2026-08-17", "Tesco", "ok", 1, 2),
         ("2026-08-17", "Lidl", "fail", 1, 2),
     ])
     con.executemany(
-        "INSERT INTO akcie VALUES (?,?,?,?)",
+        "INSERT INTO akcie_staging VALUES (?,?,?,?)",
         [("2026-08-17", store, "2026-08-17", "2026-08-23") for store in OBCHODY for _ in range(10)],
     )
     con.commit()
@@ -105,7 +105,7 @@ def test_query_finds_failed_store_even_when_each_store_has_some_rows(tmp_path, s
     chyba = con.execute(dotaz).fetchone()[0]
     assert chyba == 1, "musí nájsť práve jeden neúspešný obchod (Lidl)"
 
-    con.execute("UPDATE zber_stav SET stav='ok', pocet=75 WHERE obchod='Lidl'")
+    con.execute("UPDATE zber_staging_stav SET stav='ok', pocet=75 WHERE obchod='Lidl'")
     con.commit()
     assert con.execute(dotaz).fetchone()[0] == 0, (
         "po doplnení Lidlu už nesmie hlásiť nič chýbajúce"
@@ -117,15 +117,15 @@ def test_previous_week_data_does_not_hide_a_missing_store(tmp_path, skript):
     """Minulotýždňový Lidl nesmie vyzerať ako splnená podmienka."""
     db = tmp_path / "t.db"
     con = sqlite3.connect(db)
-    con.execute("CREATE TABLE zber_stav (tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER, data_version INTEGER)")
-    con.execute("CREATE TABLE akcie (tyzden TEXT, obchod TEXT, valid_from TEXT, valid_to TEXT)")
-    con.executemany("INSERT INTO zber_stav VALUES (?,?,?,?,?)", [
+    con.execute("CREATE TABLE zber_staging_stav (tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER, data_version INTEGER, failure_kind TEXT)")
+    con.execute("CREATE TABLE akcie_staging (tyzden TEXT, obchod TEXT, valid_from TEXT, valid_to TEXT)")
+    con.executemany("INSERT INTO zber_staging_stav (tyzden,obchod,stav,pocet,data_version) VALUES (?,?,?,?,?)", [
         ("2026-08-17", "Kaufland", "ok", 100, 2),
         ("2026-08-17", "Tesco", "ok", 100, 2),
         ("2026-08-10", "Lidl", "ok", 100, 2),
     ])
     con.executemany(
-        "INSERT INTO akcie VALUES (?,?,?,?)",
+        "INSERT INTO akcie_staging VALUES (?,?,?,?)",
         [("2026-08-17", store, "2026-08-17", "2026-08-23") for store in OBCHODY for _ in range(10)],
     )
     con.commit()
@@ -133,16 +133,15 @@ def test_previous_week_data_does_not_hide_a_missing_store(tmp_path, skript):
     assert con.execute(dotaz).fetchone()[0] == 1
     con.close()
 
-
 def test_dozorca_rebuilds_even_date_current_landing_from_old_offer_schema(skript):
     assert "required_offer_data_version=2" in skript
 
 
 def test_structural_block_is_released_when_collection_revision_changes(skript):
     assert "ZBER_REV" in skript
-    assert "DATOVY_STAV=\"${POCET:-0}:${CHYBA_ZBER:-3}:${ZBER_REV:-0}\"" in skript
+    assert "DATOVY_STAV=\"${STAGED_POCET:-0}:${STAGED_CHYBA:-3}:${ZBER_REV:-0}\"" in skript
     assert '[ "$BLOKNUTE_NA" = "$DATOVY_STAV" ]' in skript
-    assert 'echo "$TODAY $FAILS $DATOVY_STAV" > "$STATE"' in skript
+    assert re.search(r'echo "\$TODAY \$FAILS \$DATOVY_STAV[^\"]*" > "\$STATE"', skript)
 
 
 
@@ -151,14 +150,14 @@ def test_expired_offers_trigger_new_collection_inside_same_monday_week(tmp_path,
     """Štvrtkový leták sa musí zbierať aj po úspešnom pondelkovom behu."""
     db = tmp_path / "t.db"
     con = sqlite3.connect(db)
-    con.execute("CREATE TABLE zber_stav (tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER, data_version INTEGER)")
-    con.execute("CREATE TABLE akcie (tyzden TEXT, obchod TEXT, valid_from TEXT, valid_to TEXT)")
+    con.execute("CREATE TABLE zber_staging_stav (tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER, data_version INTEGER, failure_kind TEXT)")
+    con.execute("CREATE TABLE akcie_staging (tyzden TEXT, obchod TEXT, valid_from TEXT, valid_to TEXT)")
     con.executemany(
-        "INSERT INTO zber_stav VALUES (?,?,?,?,?)",
+        "INSERT INTO zber_staging_stav (tyzden,obchod,stav,pocet,data_version) VALUES (?,?,?,?,?)",
         [("2026-08-31", store, "ok", 40, 2) for store in OBCHODY],
     )
     con.executemany(
-        "INSERT INTO akcie VALUES (?,?,?,?)",
+        "INSERT INTO akcie_staging VALUES (?,?,?,?)",
         [
             ("2026-08-31", store, "2026-08-27", "2026-09-02")
             for store in OBCHODY
@@ -173,7 +172,7 @@ def test_expired_offers_trigger_new_collection_inside_same_monday_week(tmp_path,
     assert con.execute(dotaz).fetchone()[0] == 3
 
     con.executemany(
-        "INSERT INTO akcie VALUES (?,?,?,?)",
+        "INSERT INTO akcie_staging VALUES (?,?,?,?)",
         [
             ("2026-08-31", store, "2026-09-03", "2026-09-09")
             for store in OBCHODY
@@ -185,22 +184,22 @@ def test_expired_offers_trigger_new_collection_inside_same_monday_week(tmp_path,
     con.close()
 
 
-def test_monday_flip_reuses_only_still_valid_verified_flyers(tmp_path, skript):
-    """V pondelok ostanú staršie platné letáky; skončený Lidl sa musí dozbierať."""
+def test_monday_flip_requests_a_fresh_stage_for_all_stores(tmp_path, skript):
+    """Dozorca vyžiada nový staging; presné opätovné použitie rozhodne zberač."""
     db = tmp_path / "t.db"
     con = sqlite3.connect(db)
-    con.execute("CREATE TABLE zber_stav (tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER, data_version INTEGER)")
-    con.execute("CREATE TABLE akcie (tyzden TEXT, obchod TEXT, valid_from TEXT, valid_to TEXT)")
-    con.executemany("INSERT INTO zber_stav VALUES (?,?,?,?,?)", [
+    con.execute("CREATE TABLE zber_staging_stav (tyzden TEXT, obchod TEXT, stav TEXT, pocet INTEGER, data_version INTEGER, failure_kind TEXT)")
+    con.execute("CREATE TABLE akcie_staging (tyzden TEXT, obchod TEXT, valid_from TEXT, valid_to TEXT)")
+    con.executemany("INSERT INTO zber_staging_stav (tyzden,obchod,stav,pocet,data_version) VALUES (?,?,?,?,?)", [
         ("2026-08-31", "Kaufland", "ok", 40, 2),
         ("2026-08-31", "Tesco", "ok", 40, 2),
         ("2026-08-31", "Lidl", "ok", 40, 2),
     ])
-    con.executemany("INSERT INTO akcie VALUES (?,?,?,?)", [
+    con.executemany("INSERT INTO akcie_staging VALUES (?,?,?,?)", [
         ("2026-08-31", store, "2026-09-03", "2026-09-09")
         for store in ("Kaufland", "Tesco") for _ in range(10)
     ])
-    con.executemany("INSERT INTO akcie VALUES (?,?,?,?)", [
+    con.executemany("INSERT INTO akcie_staging VALUES (?,?,?,?)", [
         ("2026-08-31", "Lidl", "2026-08-31", "2026-09-06")
         for _ in range(10)
     ])
@@ -209,5 +208,5 @@ def test_monday_flip_reuses_only_still_valid_verified_flyers(tmp_path, skript):
     dotaz = _dotaz_na_neuplny_zber(skript, "2026-09-07").replace(
         "$MON_ISO", "2026-09-07"
     )
-    assert con.execute(dotaz).fetchone()[0] == 1
+    assert con.execute(dotaz).fetchone()[0] == 3
     con.close()

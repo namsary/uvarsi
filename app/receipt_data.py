@@ -51,6 +51,20 @@ def _format(amount):
     return format(amount.quantize(CENT), "f").replace(".", ",")
 
 
+def _weight_multiplier(value):
+    try:
+        amount = Decimal(str(value).strip().replace(",", "."))
+    except (InvalidOperation, ValueError) as error:
+        raise ValueError("Neplatný hmotnostný násobok váženej položky.") from error
+    if not amount.is_finite() or amount <= 0 or amount > Decimal("100"):
+        raise ValueError("Neplatný hmotnostný násobok váženej položky.")
+    return amount
+
+
+def _format_multiplier(amount):
+    return format(amount.normalize(), "f")
+
+
 def _regular_price(row):
     """Bežná cena len vtedy, keď ju leták naozaj niesol — inak None."""
     original = row["povodna"]
@@ -191,10 +205,16 @@ def build_public_receipt(
                 original = verified * quantity if verified is not None else None
             else:
                 if not isinstance(line_total, dict) or set(line_total) != {
-                    "price", "original_price", "loyalty_price"
+                    "price", "original_price", "loyalty_price", "weight_multiplier"
                 }:
                     raise ValueError("Overený súčet bločku má neplatný formát.")
+                multiplier = _weight_multiplier(line_total["weight_multiplier"])
+                if quantity != 1 or str(row["jednotka"]).strip().casefold() != "kg":
+                    raise ValueError("Hmotnostný násobok patrí iba k predaju na váhu.")
                 price = _cents(line_total["price"], "súčet akciovej ceny")
+                expected_price = (_cents(row["cena"], "akciová cena") * multiplier).quantize(CENT)
+                if price != expected_price:
+                    raise ValueError("Súčet váženej položky nezodpovedá jej hmotnosti.")
                 original_value = line_total["original_price"]
                 if (verified is None) != (original_value is None):
                     raise ValueError("Overený súčet nezodpovedá bežnej cene ponuky.")
@@ -205,6 +225,8 @@ def build_public_receipt(
                 )
                 if original is not None and original < price:
                     raise ValueError("Bežná cena položky nesmie byť nižšia ako akciová.")
+                if original is not None and original != (verified * multiplier).quantize(CENT):
+                    raise ValueError("Bežná cena váženej položky nezodpovedá jej hmotnosti.")
             total += price
             # Bez overenej bežnej ceny položka do úspory neprispieva ničím.
             regular += original if original is not None else price
@@ -221,6 +243,8 @@ def build_public_receipt(
                 "savings": _format(original - price) if original is not None else None,
                 "off": row["zlava"] or "",
             }
+            if line_total is not None:
+                item["weight_multiplier"] = _format_multiplier(multiplier)
             if row["cena_s_kartou"] is not None:
                 if line_total is None:
                     loyalty_price = _cents(
@@ -232,6 +256,13 @@ def build_public_receipt(
                     loyalty_price = _cents(
                         line_total["loyalty_price"], "súčet vernostnej ceny"
                     )
+                    expected_loyalty = (
+                        _cents(row["cena_s_kartou"], "vernostná cena") * multiplier
+                    ).quantize(CENT)
+                    if loyalty_price != expected_loyalty:
+                        raise ValueError(
+                            "Vernostná cena váženej položky nezodpovedá jej hmotnosti."
+                        )
                 item.update({
                     "loyalty_price": _format(loyalty_price),
                     "loyalty_discount": row["zlava_s_kartou"] or None,
@@ -280,3 +311,59 @@ def build_public_receipt(
             "polozky_s_beznou_cenou": substantiated,
         },
     }
+
+
+def public_receipt_matches_verified_offers(con, payload, today=None):
+    """Rebuild the public receipt from SQLite and require an exact match.
+
+    This is deliberately independent of the landing-page arithmetic validator.
+    It is used by the payment gate so a self-consistent but forged public
+    receipt cannot make checkout ready.
+    """
+    today = today or date.today()
+    try:
+        receipt = payload["receipt"]
+        public_meals = receipt["meals"]
+        if not isinstance(public_meals, list) or not public_meals:
+            return False
+
+        offers = priceable_offers(current_verified_offers(con, ALLOWED_STORES, today))
+        offers_by_key = {row["offer_key"]: row for row in offers}
+        model_meals = []
+        line_totals = {}
+        for meal in public_meals:
+            model_items = []
+            for item in meal["items"]:
+                offer_key = item["offer_key"]
+                quantity = item["quantity"]
+                row = offers_by_key.get(offer_key)
+                if row is None:
+                    return False
+                weighted = str(row["jednotka"]).strip().casefold() == "kg"
+                if weighted != ("weight_multiplier" in item):
+                    return False
+                model_items.append({"offer_key": offer_key, "quantity": quantity})
+                if weighted:
+                    line_totals[offer_key] = {
+                        "price": item.get("price"),
+                        "original_price": item.get("original_price"),
+                        "loyalty_price": item.get("loyalty_price"),
+                        "weight_multiplier": item.get("weight_multiplier"),
+                    }
+            model_meals.append({
+                "day": meal["day"],
+                "name": meal["name"],
+                "instructions": meal["instructions"],
+                "items": model_items,
+            })
+
+        rebuilt = build_public_receipt(
+            con,
+            {"meals": model_meals},
+            today=today,
+            generated_at=payload.get("generated_at"),
+            verified_line_totals=line_totals,
+        )
+    except (KeyError, TypeError, ValueError, StructuralFailure):
+        return False
+    return rebuilt["receipt"] == receipt and rebuilt["sources"] == payload.get("sources")

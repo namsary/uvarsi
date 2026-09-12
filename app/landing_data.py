@@ -32,6 +32,16 @@ def _optional_amount(value: object) -> Decimal | None:
     return None if value is None else _amount(value)
 
 
+def _validate_weight_multiplier(item: dict) -> None:
+    if "weight_multiplier" not in item:
+        return
+    amount = _amount(item["weight_multiplier"])
+    if amount <= 0 or amount > Decimal("100"):
+        raise ValueError("Neplatný hmotnostný násobok váženej položky.")
+    if str(item.get("unit", "")).strip().casefold() != "kg":
+        raise ValueError("Hmotnostný násobok patrí iba k predaju na váhu.")
+
+
 def _validate_item_saving(item: dict) -> bool:
     """Úsporu smie tvrdiť len položka s overenou prečiarknutou cenou.
 
@@ -175,6 +185,7 @@ def validate_landing_data(
             _required_text(item.get("store"), "store")
             if "price" in item:
                 _amount(item["price"])
+            _validate_weight_multiplier(item)
             _validate_item_loyalty_price(item)
             items_seen += 1
             items_with_regular_price += _validate_item_saving(item)
@@ -207,6 +218,7 @@ _HISTORICAL_ITEM_FIELDS = frozenset({
     "loyalty_price", "loyalty_discount", "loyalty_program",
     "loyalty_minimum_basket", "loyalty_condition",
     "source_url", "source_page", "valid_from", "valid_to",
+    "weight_multiplier",
 })
 
 

@@ -1094,7 +1094,10 @@ def test_dozorca_spusta_predpocet_len_nad_kompletnymi_ponukami():
         "predpočet musí byť napojený na dozorcu — inak ho nikto nikdy nespustí"
     )
     zbierac = text.index('"$PY" -u zbierac_akcii.py')
-    podmienka = text.index('if [ "${POCET:-0}" -ge 30 ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]')
+    podmienka = text.index(
+        'if [ "${POCET:-0}" -ge "$MIN_TOTAL_OFFERS" ] '
+        '&& [ "${CHYBA_ZBER:-3}" -eq 0 ]'
+    )
     volanie = text.index("zahrej_plany", podmienka)
     assert zbierac < podmienka < volanie, (
         "predpočet sa smie opakovať nezávisle od zberu, ale až po novom overení, "

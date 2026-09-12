@@ -1,18 +1,23 @@
 import sqlite3
+from contextlib import contextmanager
 from datetime import date
 
 import pytest
 
 from app.landing_data import landing_data_is_current, load_landing_data
 from app.receipt_data import (
+    MIN_COMPOSABLE_OFFERS,
+    TOO_FEW_OFFERS,
     StructuralFailure,
     build_public_receipt,
     composition_prompt,
     eligible_offers,
     priceable_offers,
+    public_receipt_matches_verified_offers,
 )
-from app.offer_data import migrate_akcie_schema, offer_key_for, replace_store_week
+from app.offer_data import ALLOWED_STORES, migrate_akcie_schema, offer_key_for, replace_store_week
 from app.weekly_data import current_verified_offers
+from hetzner import refresh_blocek
 from hetzner.refresh_blocek import refresh_from_db
 
 
@@ -21,6 +26,23 @@ ROW_FIELDS = (
     "id", "tyzden", "obchod", "nazov", "kategoria", "cena", "povodna", "zlava",
     "jednotka", "source_url", "source_page", "valid_from", "valid_to",
 )
+
+
+@pytest.fixture(autouse=True)
+def isolate_legacy_receipt_unit_tests_from_the_staging_gate(monkeypatch):
+    """These tests exercise receipt construction, not the separately tested stage."""
+
+    @contextmanager
+    def active_offer_view(con, week, today):
+        offers = priceable_offers(current_verified_offers(con, ALLOWED_STORES, today=today))
+        if len(offers) < MIN_COMPOSABLE_OFFERS:
+            raise StructuralFailure(TOO_FEW_OFFERS)
+        yield offers
+
+    monkeypatch.setattr(refresh_blocek, "_staged_offer_view", active_offer_view)
+    monkeypatch.setattr(
+        refresh_blocek, "promote_staged_week", lambda con, week, today: True
+    )
 
 
 def connection(rows):
@@ -141,9 +163,12 @@ def test_reconstructs_every_item_total_and_exact_deduped_sources_from_db():
 
 
 def test_trusted_weighted_total_uses_the_exact_plan_cost_without_model_fields():
-    key = verified_key(1)
+    rows = verified_rows()
+    rows[0] = (*rows[0][:8], "kg", *rows[0][9:])
+    key = key_of(rows[0])
+    con = connection(rows)
     payload = build_public_receipt(
-        connection(verified_rows()),
+        con,
         selection([{"offer_key": key, "quantity": 1}]),
         today=TODAY,
         verified_line_totals={
@@ -151,6 +176,7 @@ def test_trusted_weighted_total_uses_the_exact_plan_cost_without_model_fields():
                 "price": "1,20",
                 "original_price": "1,80",
                 "loyalty_price": None,
+                "weight_multiplier": "1.2",
             }
         },
     )
@@ -159,8 +185,58 @@ def test_trusted_weighted_total_uses_the_exact_plan_cost_without_model_fields():
     assert item["price"] == "1,20"
     assert item["original_price"] == "1,80"
     assert item["savings"] == "0,60"
+    assert item["weight_multiplier"] == "1.2"
     assert payload["receipt"]["nakup_spolu"] == "1,20"
     assert payload["receipt"]["bezne"] == "1,80"
+
+
+def test_public_weighted_receipt_must_match_database_multiplier():
+    rows = verified_rows()
+    rows[0] = (*rows[0][:8], "kg", *rows[0][9:])
+    key = key_of(rows[0])
+    con = connection(rows)
+    payload = build_public_receipt(
+        con,
+        selection([{"offer_key": key, "quantity": 1}]),
+        today=TODAY,
+        verified_line_totals={
+            key: {
+                "price": "1,20",
+                "original_price": "1,80",
+                "loyalty_price": None,
+                "weight_multiplier": "1.2",
+            }
+        },
+    )
+
+    assert public_receipt_matches_verified_offers(con, payload, today=TODAY) is True
+    payload["receipt"]["meals"][0]["items"][0].pop("weight_multiplier")
+    assert public_receipt_matches_verified_offers(con, payload, today=TODAY) is False
+
+
+def test_public_weighted_receipt_rejects_proportional_price_tampering():
+    rows = verified_rows()
+    rows[0] = (*rows[0][:8], "kg", *rows[0][9:])
+    key = key_of(rows[0])
+    con = connection(rows)
+    payload = build_public_receipt(
+        con,
+        selection([{"offer_key": key, "quantity": 1}]),
+        today=TODAY,
+        verified_line_totals={
+            key: {
+                "price": "1,20",
+                "original_price": "1,80",
+                "loyalty_price": None,
+                "weight_multiplier": "1.2",
+            }
+        },
+    )
+    item = payload["receipt"]["meals"][0]["items"][0]
+    item.update(price="2,40", original_price="3,60", savings="1,20")
+    payload["receipt"].update(nakup_spolu="2,40", bezne="3,60", usetris="1,20")
+
+    assert public_receipt_matches_verified_offers(con, payload, today=TODAY) is False
 
 
 def test_receipt_keeps_card_price_as_an_uncounted_conditional_alternative():
@@ -306,7 +382,7 @@ def test_malformed_model_output_preserves_existing_landing_json(tmp_path):
     disk.commit()
     disk.close()
 
-    with pytest.raises(ValueError, match="neznáme"):
+    with pytest.raises(StructuralFailure, match="neznáme"):
         refresh_from_db(
             path, database,
             lambda offers, today: selection([{"offer_key": "offer_unknown", "quantity": 1}]),

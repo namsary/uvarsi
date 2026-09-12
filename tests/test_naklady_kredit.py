@@ -278,6 +278,43 @@ def test_po_hodine_sa_kredit_overi_a_uspesny_pokus_priznak_sam_zmaze(con):
     assert naklady.stav(con, teraz=PONDELOK)["kredit"]["vycerpany"] is False
 
 
+def test_read_only_collection_preflight_does_not_consume_the_recovery_probe(con):
+    with pytest.raises(naklady.KreditVycerpany):
+        naklady.s_rozpoctom(
+            con,
+            "zber_letakov",
+            "claude-haiku-4-5",
+            lambda: (_ for _ in ()).throw(bad_request_kredit()),
+            teraz=PONDELOK,
+            notifikuj=lambda _message: None,
+        )
+
+    retry_at = PONDELOK + datetime.timedelta(seconds=naklady.CREDIT_RETRY_SECONDS)
+    original = con.execute("SELECT zistene FROM naklady_kredit").fetchone()[0]
+    assert naklady.kreditovy_probe_je_pripraveny(
+        con, ucel="zber_letakov", teraz=retry_at
+    )
+    naklady.skontroluj(
+        con,
+        "zber_letakov",
+        odhad_eur=0.0,
+        teraz=retry_at,
+        kontroluj_kredit=False,
+    )
+    assert con.execute("SELECT zistene FROM naklady_kredit").fetchone()[0] == original
+
+    response = naklady.s_rozpoctom(
+        con,
+        "zber_letakov",
+        "claude-haiku-4-5",
+        lambda: types.SimpleNamespace(usage=usage(vstup=1_000)),
+        teraz=retry_at,
+        notifikuj=lambda _message: None,
+    )
+    assert response.usage.input_tokens == 1_000
+    assert naklady.kredit_stav(con)["vycerpany"] is False
+
+
 def test_neuspesna_hodinova_skuska_posunie_prestavku_bez_druhej_notifikacie(con):
     poslane = []
     with pytest.raises(naklady.KreditVycerpany):
@@ -476,6 +513,27 @@ def priprav_zbierac(monkeypatch, tmp_path, collector, create):
     monkeypatch.setattr(collector, "DB", str(database))
     monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
     monkeypatch.setattr(collector, "load_key", lambda: "unused-test-value")
+    monkeypatch.setattr(collector, "business_day", lambda: datetime.date(2026, 8, 19))
+
+    def prepared(store):
+        display = store.capitalize()
+        kind = collector.OFFICIAL_COLLECTOR_BY_STORE[display]
+        return collector.PreparedCollection(
+            pages=[],
+            manifest={
+                "source_url": f"https://www.{store}.sk/test-letak",
+                "collector_kind": kind,
+                "valid_from": "2026-08-17",
+                "valid_to": "2026-08-23",
+                "pages": [],
+            },
+            page_manifest={},
+            provenance=collector.CollectionProvenance(
+                kind, "a" * 64, "2026-08-17", "2026-08-23"
+            ),
+        )
+
+    monkeypatch.setattr(collector, "prepare_store_collection", prepared)
     # Zbierač importuje `naklady` ako top-level modul, test cez `app.naklady` —
     # sú to dva objekty tej istej triedy, tak sa umlčia oba.
     monkeypatch.setattr(naklady, "posli_ntfy", lambda sprava: None)
@@ -495,7 +553,7 @@ def test_zbierac_pri_nulovom_kredite_nespotrebuje_tyzdenny_beh(monkeypatch, tmp_
         raise bad_request_kredit()
 
     database = priprav_zbierac(monkeypatch, tmp_path, collector, create)
-    monkeypatch.setattr(collector, "zbieraj", lambda client, store: client.messages.create(
+    monkeypatch.setattr(collector, "zbieraj", lambda client, store, prepared=None: client.messages.create(
         model="claude-opus-5", max_tokens=100, messages=[]))
 
     for _ in range(6):                      # dozorca skúša každú hodinu
@@ -528,7 +586,7 @@ def test_zbierac_oznaci_kredit_aj_ked_dojde_pocas_citania_strany(
     monkeypatch.setattr(
         collector,
         "zbieraj",
-        lambda client, store: (_ for _ in ()).throw(
+        lambda client, store, prepared=None: (_ for _ in ()).throw(
             collector.naklady.KreditVycerpany()
         ),
     )
@@ -539,6 +597,58 @@ def test_zbierac_oznaci_kredit_aj_ked_dojde_pocas_citania_strany(
     assert "KREDIT_VYCERPANY" in str(koniec.value)
     with collector.naklady.pripoj(database) as con:
         assert collector.naklady.stav(con)["behy"]["zber_letakov"]["pocet"] == 0
+
+
+def test_partial_paid_collection_keeps_its_weekly_run_slot(
+    monkeypatch, tmp_path, collector
+):
+    calls = []
+
+    def create(**_kwargs):
+        calls.append("provider")
+        if len(calls) == 1:
+            return types.SimpleNamespace(usage=usage(vstup=8_000, vystup=500))
+        raise bad_request_kredit()
+
+    database = priprav_zbierac(monkeypatch, tmp_path, collector, create)
+
+    def zbieraj(client, store, prepared=None):
+        client.messages.create(
+            model="claude-sonnet-5", max_tokens=100, messages=[]
+        )
+        if store == "tesco":
+            raise AssertionError("the second provider call must fail first")
+        return [
+            {
+                "obchod": "Lidl",
+                "nazov": f"Položka {index}",
+                "kategoria": "trvanlive",
+                "cena": 1.0,
+                "povodna": 2.0,
+                "zlava": "-50 %",
+                "jednotka": "1 kg",
+                "source_url": "https://www.lidl.sk/l/test-letak",
+                "source_page": index,
+                "valid_from": "2026-08-17",
+                "valid_to": "2026-08-23",
+            }
+            for index in range(1, 21)
+        ]
+
+    monkeypatch.setattr(collector, "zbieraj", zbieraj)
+
+    with pytest.raises(SystemExit, match="KREDIT_VYCERPANY"):
+        collector.main(["lidl", "tesco"])
+
+    with collector.naklady.pripoj(database) as connection:
+        runs = connection.execute(
+            "SELECT pocet FROM naklady_behy WHERE ucel='zber_letakov'"
+        ).fetchone()[0]
+        spent = connection.execute(
+            "SELECT COUNT(*) FROM naklady WHERE ucel='zber_letakov'"
+        ).fetchone()[0]
+    assert spent == 1
+    assert runs == 1, "partially paid collection must not get its run slot back"
 
 
 def test_zbieraj_neschova_odmietnutie_za_zlyhanie_jedneho_obchodu(con, collector, monkeypatch):
@@ -557,6 +667,8 @@ def test_zbieraj_neschova_odmietnutie_za_zlyhanie_jedneho_obchodu(con, collector
     }
     monkeypatch.setattr(collector, "store_pages", lambda store: (strany, manifest))
     monkeypatch.setattr(collector, "get_b64", lambda url, px: "AAAA")
+    monkeypatch.setattr(collector, "get_image_bytes", lambda url: b"verified-page")
+    monkeypatch.setattr(collector, "image_bytes_b64", lambda content, px: "AAAA")
 
     class Klient:
         def __init__(self):

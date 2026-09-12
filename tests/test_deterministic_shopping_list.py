@@ -276,6 +276,7 @@ def test_weight_priced_food_uses_proportional_price_without_fake_packages():
     assert chicken["jednotka"] == "1 kg"
     assert chicken["mnozstvo"] == 1
     assert chicken["kupit"] == "1 200"
+    assert chicken["weight_multiplier"] == "1.2"
     assert chicken["potrebna_jednotka"] == "g"
     assert chicken["cena"] == "6,18"
     assert chicken["povodna"] == "7,79"
@@ -290,6 +291,7 @@ def test_weight_priced_food_subtracts_pantry_before_proportional_price():
 
     chicken = result[0]["polozky"][0]
     assert chicken["kupit"] == "1 000"
+    assert chicken["weight_multiplier"] == "1"
     assert chicken["cena"] == "5,15"
     assert chicken["povodna"] == "6,49"
 

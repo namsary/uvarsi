@@ -1607,6 +1607,10 @@ def build_shopping_list(
             if offer.pricing_basis == "weight":
                 row.update({
                     "predaj_na_vahu": True,
+                    # Canonical ratio of the bought weight to the leaflet's
+                    # priced unit. Receipt verification must never infer this
+                    # value back from monetary totals.
+                    "weight_multiplier": format(price_multiplier.normalize(), "f"),
                     "kupit": _decimal_text(display_to_buy.amount),
                 })
             if offer.loyalty_price is not None:

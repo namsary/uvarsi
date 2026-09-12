@@ -59,6 +59,27 @@ def priprav_zbierac(monkeypatch, tmp_path, collector):
     monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
     monkeypatch.setattr(collector, "STORES", ["lidl"])
     monkeypatch.setattr(collector, "load_key", lambda: "unused-test-value")
+    monkeypatch.setattr(collector, "business_day", lambda: date(2026, 8, 19))
+
+    def prepared(store):
+        display = store.capitalize()
+        kind = collector.OFFICIAL_COLLECTOR_BY_STORE[display]
+        return collector.PreparedCollection(
+            pages=[],
+            manifest={
+                "source_url": f"https://www.{store}.sk/test-letak",
+                "collector_kind": kind,
+                "valid_from": "2026-08-17",
+                "valid_to": "2026-08-23",
+                "pages": [],
+            },
+            page_manifest={},
+            provenance=collector.CollectionProvenance(
+                kind, "a" * 64, "2026-08-17", "2026-08-23"
+            ),
+        )
+
+    monkeypatch.setattr(collector, "prepare_store_collection", prepared)
     monkeypatch.setitem(
         sys.modules, "anthropic",
         types.SimpleNamespace(Anthropic=lambda **kwargs: object()),
@@ -71,14 +92,9 @@ def test_zbierac_ma_tyzdenny_strop_poctu_behov(monkeypatch, tmp_path, collector)
     database = priprav_zbierac(monkeypatch, tmp_path, collector)
     behy = []
 
-    def zbieraj(client, store):
+    def zbieraj(client, store, prepared=None):
         behy.append(store)
-        return [{
-            "obchod": "Lidl", "nazov": f"Položka {i}", "kategoria": "trvanlive",
-            "cena": 1.0 + i / 100, "povodna": 2.0, "zlava": "-50 %", "jednotka": "ks",
-            "source_url": "https://www.lidl.sk/l/test-letak", "source_page": i,
-            "valid_from": "2026-08-17", "valid_to": "2026-08-23",
-        } for i in range(1, 21)]
+        raise ValueError("lidl: bezpečný test opakovaného neúspešného zberu")
 
     monkeypatch.setattr(collector, "zbieraj", zbieraj)
 
@@ -90,9 +106,16 @@ def test_zbierac_ma_tyzdenny_strop_poctu_behov(monkeypatch, tmp_path, collector)
             if "rozpočet" in str(koniec).lower() or "strop" in str(koniec).lower():
                 odmietnutia += 1
 
-    assert len(behy) == naklady.limit_behov("zber_letakov")
-    assert odmietnutia > 0, "zastavené behy musia byť viditeľné, nie tiché"
-    assert str(database)  # ledger žije v tej istej DB
+    assert len(behy) == 1, (
+        "nezmenená štrukturálna chyba sa má potlačiť ešte skôr než narazí na "
+        "týždenný strop"
+    )
+    with sqlite3.connect(database) as con:
+        pocet = con.execute(
+            "SELECT pocet FROM naklady_behy WHERE ucel='zber_letakov'"
+        ).fetchone()[0]
+    assert pocet == 1 <= naklady.limit_behov("zber_letakov")
+    assert odmietnutia == 0
 
 
 def test_zbierac_zauctuje_kazde_volanie_modelu(monkeypatch, tmp_path, collector):
@@ -100,7 +123,7 @@ def test_zbierac_zauctuje_kazde_volanie_modelu(monkeypatch, tmp_path, collector)
     database = priprav_zbierac(monkeypatch, tmp_path, collector)
     zachyteny = {}
 
-    def zbieraj(client, store):
+    def zbieraj(client, store, prepared=None):
         zachyteny["client"] = client
         raise ValueError("lidl: leták sa nepodarilo prečítať")
 
@@ -111,8 +134,10 @@ def test_zbierac_zauctuje_kazde_volanie_modelu(monkeypatch, tmp_path, collector)
     # Zbierač importuje `naklady` ako top-level modul, test cez `app.naklady` —
     # sú to dva objekty tej istej triedy, tak porovnávame meno a účel.
     klient = zachyteny["client"]
-    assert type(klient).__name__ == "StrazenyKlient"
-    assert klient.ucel == "zber_letakov"
+    assert type(klient).__name__ == "_LeaseRenewingClient"
+    strazene_spravy = klient.messages._messages
+    assert type(strazene_spravy).__name__ == "_StrazeneSpravy"
+    assert strazene_spravy._s.ucel == "zber_letakov"
 
 
 def test_zbierac_stale_zapise_skutocnu_spotrebu_modelu(monkeypatch, tmp_path, collector):
@@ -137,7 +162,7 @@ def test_zbierac_stale_zapise_skutocnu_spotrebu_modelu(monkeypatch, tmp_path, co
         ),
     )
 
-    def zbieraj(client, store):
+    def zbieraj(client, store, prepared=None):
         client.messages.create(model=collector.MODEL_READ, messages=[])
         return [{
             "obchod": store.capitalize(),
@@ -352,7 +377,7 @@ def test_cely_incident_sa_zastavi_na_strope(monkeypatch, tmp_path, collector):
     )
     volania = []
 
-    def zbieraj(client, store):
+    def zbieraj(client, store, prepared=None):
         """Vision beh, ktorý sa podarí zaplatiť a potom deterministicky padne."""
         for _ in range(9):                     # ~36 strán po 4 v dávke
             try:

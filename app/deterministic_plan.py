@@ -837,6 +837,7 @@ def _ingredient_payload(
     }
     if weighted:
         result["predaj_na_vahu"] = True
+        result["weight_multiplier"] = _decimal_text(price_multiplier)
     if item.offer.loyalty_price is not None:
         result.update({
             "cena_s_kartou_za_balenie": _money(item.offer.loyalty_price),

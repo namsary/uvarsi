@@ -37,10 +37,32 @@ def model_section(html=None):
 
 
 def nested(html, signature):
-    """Vytiahni funkciu deklarovanú vnútri landing IIFE (odsadenie dve medzery)."""
-    match = re.search(re.escape(signature) + r"\{.*?\n  \}", html, re.S)
-    assert match, "landing musí deklarovať " + signature.strip()
-    return match.group(0)
+    """Vytiahni celú funkciu aj z whitespace-minifikovaného landingu."""
+    start = html.find(signature + "{")
+    assert start >= 0, "landing musí deklarovať " + signature.strip()
+
+    depth = 0
+    quote = None
+    escaped = False
+    for index in range(html.find("{", start), len(html)):
+        char = html[index]
+        if quote is not None:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = None
+            continue
+        if char in ("'", '"', "`"):
+            quote = char
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return html[start:index + 1]
+    raise AssertionError("landing funkcia nie je uzavretá: " + signature.strip())
 
 
 # ------------------------------------------------------------------ HTML

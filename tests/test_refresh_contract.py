@@ -328,6 +328,7 @@ def test_receipt_selection_preserves_verified_totals_for_weighted_purchases():
                 "offer_key": "offer-chicken",
                 "mnozstvo": 1,
                 "predaj_na_vahu": True,
+                "weight_multiplier": "1.2",
                 "kupit": "1.2",
                 "potrebna_jednotka": "kg",
                 "cena": "6,18",
@@ -348,6 +349,7 @@ def test_receipt_selection_preserves_verified_totals_for_weighted_purchases():
             "price": "6,18",
             "original_price": "8,40",
             "loyalty_price": None,
+            "weight_multiplier": "1.2",
         }
     }
 
