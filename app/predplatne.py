@@ -1191,6 +1191,13 @@ def _process_payment_success(con, payload, expected: dict, *, now: float) -> dic
             paid_through=period_end,
             provider_updated_at=revision,
         )
+    else:
+        _replace_verified_snapshot(
+            con,
+            snapshot,
+            now=now,
+            provider_updated_at=revision,
+        )
     return {"action": "invoice_recorded", "user_id": snapshot.user_id}
 
 

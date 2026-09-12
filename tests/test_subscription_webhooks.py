@@ -336,6 +336,46 @@ def test_subscription_created_activates_only_the_matching_verified_attempt(db):
     assert access(db, now=P0_END - 1.0) is True
 
 
+def test_initial_payment_advances_revision_past_delayed_unpaid_update(db):
+    process(db, event("order_created", updated_at="2026-09-12T00:01:00Z"))
+    process(
+        db,
+        event("subscription_created", updated_at="2026-09-12T00:02:00Z"),
+    )
+    initial = process(
+        db,
+        event(
+            "subscription_payment_success",
+            billing_reason="initial",
+            updated_at="2026-09-12T00:04:00Z",
+        ),
+    )
+    after_payment = predplatne.subscription_for_user(db, 1)
+
+    delayed = process(
+        db,
+        event(
+            "subscription_updated",
+            status="unpaid",
+            updated_at="2026-09-12T00:03:00Z",
+        ),
+    )
+    current = predplatne.subscription_for_user(db, 1)
+
+    assert initial["review_required"] is False
+    assert after_payment.provider_updated_at == P0_START + 240.0
+    assert delayed["review_required"] is True
+    assert current.status == "active"
+    assert current.period_start == P0_START
+    assert current.period_end == P0_END
+    assert current.paid_through == P0_END
+    assert current.provider_updated_at == P0_START + 240.0
+    assert access(db, now=P0_END - 1.0) is True
+    assert db.execute(
+        "SELECT COUNT(*) FROM subscription_invoices"
+    ).fetchone()[0] == 1
+
+
 def test_second_valid_attempt_cannot_replace_verified_provider_identity(db):
     activate_founder(db)
     before = predplatne.subscription_for_user(db, 1)
