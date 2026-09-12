@@ -1,4 +1,9 @@
 
+## 2026-09-12 — Collector-count compatible recovery (vydanie 2026.09.12.19)
+
+- Overenie používa rovnakú definíciu počtu ako zberač: unikátne ponuky, nie fyzické databázové riadky. Opakovaná rovnaká akcia na viacerých miestach preto nevyvolá falošný nový zber.
+- Pri prekrývajúcich sa týždňoch sa každý blok stále overí samostatne, ale minimálny počet sa posudzuje za celý obchod; platný menší zvyšok staršieho letáka tak nezablokuje bezpečnú obnovu.
+
 ## 2026-09-12 — Atomic registered-source recovery (vydanie 2026.09.12.18)
 
 - Overenie aktívnych ponúk a prestavba bločka prebiehajú v jednom databázovom snímku; medzi kontrolou a použitím sa už nemôže vymeniť dátová sada.

@@ -421,7 +421,7 @@ def _active_offer_set_matches_status(con, offers, today):
         details["urls"].add(offer["source_url"])
     healthy_stores = set()
     for (store, week), details in by_bucket.items():
-        if details["count"] < MIN_FACTS_PER_STORE or len(details["urls"]) != 1:
+        if details["count"] < 1 or len(details["urls"]) != 1:
             return False
         row = con.execute(
             "SELECT stav,pocet,data_version,collector_kind,source_fingerprint,"
@@ -438,23 +438,29 @@ def _active_offer_set_matches_status(con, offers, today):
         except (TypeError, ValueError):
             return False
         raw_rows = con.execute(
-            "SELECT source_url,valid_from,valid_to FROM akcie "
+            "SELECT offer_key,source_url,valid_from,valid_to FROM akcie "
             "WHERE obchod=? AND tyzden=?",
             (store, week),
         ).fetchall()
         try:
-            raw_urls = {item[0] for item in raw_rows}
-            raw_starts = [date.fromisoformat(item[1]) for item in raw_rows]
-            raw_ends = [date.fromisoformat(item[2]) for item in raw_rows]
+            raw_keys = {item[0] for item in raw_rows}
+            raw_urls = {item[1] for item in raw_rows}
+            raw_starts = [date.fromisoformat(item[2]) for item in raw_rows]
+            raw_ends = [date.fromisoformat(item[3]) for item in raw_rows]
         except (TypeError, ValueError):
             return False
-        if len(raw_urls) != 1 or not raw_starts or not raw_ends:
+        if (
+            len(raw_urls) != 1
+            or not raw_starts
+            or not raw_ends
+            or any(not isinstance(key, str) or not key for key in raw_keys)
+        ):
             return False
         source_url = next(iter(raw_urls))
         source_kind = collector_kind_for_url(source_url)
         if not (
             row[0] == "ok"
-            and recorded_count == len(raw_rows)
+            and recorded_count == len(raw_keys)
             and recorded_count >= details["count"]
             and data_version >= CURRENT_COLLECTION_DATA_VERSION
             and isinstance(row[4], str)

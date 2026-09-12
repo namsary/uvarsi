@@ -899,6 +899,17 @@ def test_reusable_active_offers_require_matching_registered_collection_status(
         )
 
     assert active_offers_are_reusable(database, today=TODAY) is True
+    with sqlite3.connect(database) as con:
+        columns = [
+            row[1] for row in con.execute("PRAGMA table_info(akcie)")
+            if row[1] != "id"
+        ]
+        names = ",".join(columns)
+        con.execute(
+            f"INSERT INTO akcie ({names}) SELECT {names} FROM akcie "
+            "WHERE obchod='Tesco' LIMIT 1"
+        )
+    assert active_offers_are_reusable(database, today=TODAY) is True
     monthly = {
         "obchod": "Kaufland",
         "nazov": "Fínske pečivo",
