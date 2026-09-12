@@ -709,11 +709,11 @@ def test_cancel_keeps_access_until_verified_end_but_expiry_removes_it(db):
     assert access(db, now=P0_END + 1.0) is False
 
 
-def test_active_and_past_due_access_never_exceeds_verified_paid_through(db):
+def test_active_and_past_due_keep_access_after_verified_paid_through(db):
     activate_founder(db)
 
     assert access(db, now=P0_END - 1.0) is True
-    assert access(db, now=P0_END + 1.0) is False
+    assert access(db, now=P0_END + 1.0) is True
     process(
         db,
         event(
@@ -724,7 +724,7 @@ def test_active_and_past_due_access_never_exceeds_verified_paid_through(db):
             updated_at="2026-09-12T00:02:00Z",
         ),
     )
-    assert access(db, now=P0_END + 1.0) is False
+    assert access(db, now=P0_END + 1.0) is True
 
 
 def test_delayed_active_update_cannot_revive_verified_expiry(db):

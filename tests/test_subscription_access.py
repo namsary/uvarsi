@@ -199,6 +199,59 @@ def test_cancelled_paid_period_keeps_every_premium_gate_local_and_open(
         ]
 
 
+@pytest.mark.parametrize("status", ("active", "past_due"))
+@pytest.mark.parametrize("paid_through_offset", (0, -1))
+def test_active_and_past_due_keep_premium_routes_open_at_and_after_paid_through(
+    monkeypatch, tmp_path, status, paid_through_offset
+):
+    server = deterministic_server(
+        monkeypatch,
+        tmp_path,
+        premium=False,
+        pantry=(("ryža", 950, "g"),),
+    )
+    now = server.AUTH_CLOCK()
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now)
+    paid_through = now + paid_through_offset
+    seed_subscription(
+        server,
+        status=status,
+        now=now,
+        period_start=now - YEAR,
+        period_end=paid_through,
+        paid_through=paid_through,
+        renews_at=paid_through,
+    )
+    forbid_external_clients(monkeypatch, server)
+    client = plan_client(server, 1, wait_for_worker=False)
+
+    me = client.get("/api/me")
+    assert me.status_code == 200
+    assert me.json()["premium"] is True
+    assert me.json()["spajza_dostupna"] is True
+    assert client.post(
+        "/api/profil",
+        json={
+            "adults": 2,
+            "children": 2,
+            "frekvencia": 2,
+            "obchody": ["Lidl", "Tesco"],
+            "stravovanie": "standard",
+        },
+    ).status_code == 200
+    assert client.post(
+        "/api/spajza",
+        json={"polozky": [{"nazov": "ryža", "mnozstvo": 900, "jednotka": "g"}]},
+    ).status_code == 200
+    pantry_plan = client.post("/api/plan/zo-spajze")
+    assert pantry_plan.status_code == 200, pantry_plan.text
+    assert pantry_plan.json()["meta"]["engine"] == "deterministic"
+    payment = client.get("/api/platba/stav")
+    assert payment.status_code == 200
+    assert payment.json()["ma_narok"] is True
+    assert payment.json()["status"] == status
+
+
 @pytest.mark.parametrize("status", ("unpaid", "expired"))
 def test_unpaid_and_expired_snapshots_close_every_premium_gate(
     monkeypatch, tmp_path, status
@@ -391,6 +444,51 @@ def test_payment_status_is_server_owned_and_scoped_to_authenticated_user(
     assert response.json()["can_manage"] is True
 
 
+def test_payment_status_derives_access_and_fields_from_one_read_snapshot(
+    monkeypatch, tmp_path
+):
+    server = premium_user_server(monkeypatch, tmp_path)
+    now = server.AUTH_CLOCK()
+    active = seed_subscription(server, now=now)
+    expired = replace(
+        active,
+        status="expired",
+        renews_at=None,
+        ends_at=None,
+        paid_through=now - 1,
+    )
+    snapshots = iter((active, expired))
+    reads = []
+
+    def read_legacy(con, user_id):
+        reads.append(("legacy", id(con), con.in_transaction))
+        return False
+
+    def read_subscription(con, user_id):
+        reads.append(("subscription", id(con), con.in_transaction))
+        return next(snapshots)
+
+    monkeypatch.setattr(server, "ma_narok", read_legacy)
+    monkeypatch.setattr(
+        server.predplatne, "subscription_for_user", read_subscription
+    )
+    response = plan_client(server, 1, wait_for_worker=False).get(
+        "/api/platba/stav"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["ma_narok"] is True
+    assert response.json()["status"] == "active"
+    assert response.json()["renews_at"] == active.renews_at
+    assert response.json()["auto_renews"] is True
+    assert [kind for kind, _connection, _transaction in reads] == [
+        "legacy",
+        "subscription",
+    ]
+    assert len({connection for _kind, connection, _transaction in reads}) == 1
+    assert all(transaction for _kind, _connection, transaction in reads)
+
+
 def test_payment_status_requires_authentication(monkeypatch, tmp_path):
     server = premium_user_server(monkeypatch, tmp_path)
 
@@ -433,3 +531,99 @@ def test_existing_subscription_blocks_checkout_before_provider_contact(
     )
 
     assert response.status_code == 409
+
+
+@pytest.mark.parametrize("status", ("expired", "unpaid", "cancelled"))
+def test_ended_subscription_checkout_returns_state_conflict_without_provider_call(
+    monkeypatch, tmp_path, status
+):
+    server = premium_user_server(monkeypatch, tmp_path)
+    now = server.AUTH_CLOCK()
+    seed_subscription(
+        server,
+        status=status,
+        now=now,
+        period_start=now - YEAR,
+        period_end=now - 1,
+        paid_through=now - 1,
+        ends_at=now - 1 if status == "cancelled" else None,
+    )
+    ready = server.PaymentReadiness(
+        ready=True,
+        blockers=(),
+        legal_version=server.LEGAL_VERSION,
+        release=server.release_id(),
+    )
+    monkeypatch.setattr(server, "vyzaduj_zapnute_platby", lambda: None)
+    monkeypatch.setattr(server, "_runtime_payment_readiness", lambda _con: ready)
+
+    def forbidden_checkout(_payload):
+        raise AssertionError("existing subscription reached the provider")
+
+    provider = SimpleNamespace(
+        store_id="store-test",
+        variant_id="variant-test",
+        founder_discount_id="discount-test",
+        founder_discount_code="FOUNDERS",
+        create_checkout=forbidden_checkout,
+    )
+    monkeypatch.setattr(
+        server,
+        "_subscription_checkout_provider",
+        lambda *, test_mode: provider,
+    )
+    response = plan_client(server, 1, wait_for_worker=False).post(
+        "/api/platba/start",
+        json={
+            "accept_terms": True,
+            "accept_automatic_renewal": True,
+            "request_immediate_activation": True,
+            "acknowledge_withdrawal_proration": True,
+            "legal_version": server.LEGAL_VERSION,
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["kod"] == "subscription_exists"
+    assert response.json()["subscription_status"] == status
+    assert status in response.json()["detail"]
+
+
+@pytest.mark.parametrize("entitlement", ("manual", "legacy_payment"))
+def test_legacy_only_premium_still_blocks_checkout_before_provider_contact(
+    monkeypatch, tmp_path, entitlement
+):
+    server = premium_user_server(monkeypatch, tmp_path)
+    if entitlement == "manual":
+        with closing(server.db()) as con:
+            importlib.import_module("platby").udel_narok_rucne(
+                con, user_id=1, now=server.AUTH_CLOCK()
+            )
+    else:
+        grant_premium(server, 1)
+    ready = server.PaymentReadiness(
+        ready=True,
+        blockers=(),
+        legal_version=server.LEGAL_VERSION,
+        release=server.release_id(),
+    )
+    monkeypatch.setattr(server, "vyzaduj_zapnute_platby", lambda: None)
+    monkeypatch.setattr(server, "_runtime_payment_readiness", lambda _con: ready)
+
+    def forbidden_provider(*_args, **_kwargs):
+        raise AssertionError("legacy Premium reached checkout configuration")
+
+    monkeypatch.setattr(server, "_subscription_checkout_provider", forbidden_provider)
+    response = plan_client(server, 1, wait_for_worker=False).post(
+        "/api/platba/start",
+        json={
+            "accept_terms": True,
+            "accept_automatic_renewal": True,
+            "request_immediate_activation": True,
+            "acknowledge_withdrawal_proration": True,
+            "legal_version": server.LEGAL_VERSION,
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == server.SPRAVA_UZ_MAS

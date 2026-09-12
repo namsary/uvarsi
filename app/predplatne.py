@@ -228,11 +228,7 @@ def subscription_access(snapshot, *, now: float) -> bool:
         return snapshot.ends_at is not None and now < snapshot.ends_at
     if snapshot.status == "paused":
         return snapshot.paid_through is not None and now < snapshot.paid_through
-    return (
-        snapshot.status in ACCESS_STATUSES
-        and snapshot.paid_through is not None
-        and now < snapshot.paid_through
-    )
+    return snapshot.status in ACCESS_STATUSES
 
 
 def _valid_time(value) -> bool:

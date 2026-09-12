@@ -146,6 +146,7 @@ from platby import (
     MENA_ZAKLADAJUCI,
     KAPACITA_ZAKLADAJUCICH,
     CheckoutAlreadyActive,
+    SubscriptionAlreadyExists,
     MAX_TELO_WEBHOOKU,
     PlatbyNenastavene,
     SPRAVA_DUPLICITA_ZAKAZNIK,
@@ -945,11 +946,22 @@ SPRAVA_OBCHODY_PREMIUM = (
 )
 
 
+def _local_premium_state(con, *, user_id: int, now: float):
+    """Read each local source once and apply the single Premium access rule."""
+    legacy_entitlement = ma_narok(con, user_id)
+    subscription = predplatne.subscription_for_user(con, user_id)
+    premium = legacy_entitlement or predplatne.subscription_access(
+        subscription, now=now
+    )
+    return premium, subscription
+
+
 def has_premium(con, *, user_id: int, now: float) -> bool:
     """Combine legacy entitlement and the last verified local subscription."""
-    return ma_narok(con, user_id) or predplatne.subscription_access(
-        predplatne.subscription_for_user(con, user_id), now=now
+    premium, _subscription = _local_premium_state(
+        con, user_id=user_id, now=now
     )
+    return premium
 
 
 def je_premium(con, user_id) -> bool:
@@ -6100,12 +6112,16 @@ def platba_stav(req: Request):
     u = require_user(req)
     with closing(db()) as con:
         now = AUTH_CLOCK()
+        con.execute("BEGIN")
+        premium, subscription = _local_premium_state(
+            con, user_id=u["id"], now=now
+        )
         return stav_platieb(
             con,
             user_id=u["id"],
             zapnute=platby_su_zapnute(),
-            premium=has_premium(con, user_id=u["id"], now=now),
-            subscription=predplatne.subscription_for_user(con, u["id"]),
+            premium=premium,
+            subscription=subscription,
         )
 
 
@@ -6153,6 +6169,14 @@ async def platba_start(req: Request):
                 test_mode=False,
             )
             volne = volne_miesta(con, test_mode=False, now=checkout_now)
+        except SubscriptionAlreadyExists as error:
+            con.rollback()
+            return odmietni(
+                409,
+                str(error),
+                "subscription_exists",
+                subscription_status=error.status,
+            )
         except CheckoutAlreadyActive as error:
             con.rollback()
             raise HTTPException(409, str(error))

@@ -278,6 +278,72 @@ def test_retry_keeps_provider_backed_attempt_intact_until_its_true_expiry(db):
     assert db.execute("SELECT COUNT(*) FROM checkout_attempts").fetchone()[0] == 2
 
 
+@pytest.mark.parametrize(
+    ("status", "ends_at"),
+    (("expired", None), ("unpaid", None), ("cancelled", 90.0)),
+)
+def test_existing_same_mode_annual_subscription_blocks_new_checkout_attempt(
+    db, status, ends_at
+):
+    _insert_verified_founders(db, 1, first_user_id=60)
+    db.execute(
+        "UPDATE subscriptions SET status=?,renews_at=NULL,ends_at=?,"
+        "period_end=90,paid_through=90 WHERE user_id=60",
+        (status, ends_at),
+    )
+    db.commit()
+
+    with pytest.raises(
+        platby.SubscriptionAlreadyExists, match="evidované predplatné"
+    ) as blocked:
+        _create_attempt(db, user_id=60, now=100.0)
+
+    assert blocked.value.status == status
+    assert db.execute(
+        "SELECT COUNT(*) FROM checkout_attempts WHERE user_id=60"
+    ).fetchone()[0] == 0
+
+
+def test_checkout_waits_for_concurrent_subscription_then_fails_closed(tmp_path):
+    path = tmp_path / "subscription-checkout-race.db"
+    setup = _open_database(path)
+    setup.execute("BEGIN IMMEDIATE")
+    _insert_verified_founders(setup, 1, first_user_id=60)
+
+    started = threading.Event()
+    finished = threading.Event()
+    result = {}
+
+    def reserve_from_second_connection():
+        con = sqlite3.connect(path, timeout=2)
+        con.row_factory = sqlite3.Row
+        try:
+            started.set()
+            result["attempt"] = _create_attempt(con, user_id=60, now=100.0)
+        except Exception as error:  # surfaced by the assertions below
+            result["error"] = error
+        finally:
+            con.close()
+            finished.set()
+
+    worker = threading.Thread(target=reserve_from_second_connection)
+    worker.start()
+    assert started.wait(1)
+    time.sleep(0.05)
+    assert finished.is_set() is False
+    setup.commit()
+    assert finished.wait(2)
+    worker.join(timeout=1)
+
+    assert "attempt" not in result
+    assert isinstance(result.get("error"), platby.SubscriptionAlreadyExists)
+    assert result["error"].status == "active"
+    assert setup.execute(
+        "SELECT COUNT(*) FROM checkout_attempts WHERE user_id=60"
+    ).fetchone()[0] == 0
+    setup.close()
+
+
 def test_test_reservations_do_not_consume_live_founder_capacity(db):
     for user_id in range(1, 51):
         _create_attempt(db, user_id=user_id, test_mode=True)

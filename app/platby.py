@@ -257,6 +257,17 @@ class CheckoutAlreadyActive(RuntimeError):
         )
 
 
+class SubscriptionAlreadyExists(RuntimeError):
+    """A local annual subscription identity makes a new checkout unsafe."""
+
+    def __init__(self, *, status: str):
+        self.status = status
+        super().__init__(
+            "Pre používateľa je už evidované predplatné Premium "
+            f"v stave {status}. Novú platbu nemožno bezpečne vytvoriť."
+        )
+
+
 @dataclass(frozen=True)
 class CheckoutAttempt:
     """Immutable annual checkout terms captured before provider I/O."""
@@ -471,6 +482,14 @@ def create_subscription_checkout_attempt(
             "SELECT 1 FROM pouzivatelia WHERE id=?", (user_id,)
         ).fetchone() is None:
             raise ValueError("neznámy používateľ")
+        subscription = con.execute(
+            """SELECT status FROM subscriptions
+               WHERE user_id=? AND product=? AND test_mode=?
+               LIMIT 1""",
+            (user_id, PRODUKT_PREMIUM_ROCNY, int(test_mode)),
+        ).fetchone()
+        if subscription is not None:
+            raise SubscriptionAlreadyExists(status=str(subscription[0]))
         con.execute(
             """UPDATE checkout_attempts
                   SET status='expired', founder_reserved_until=NULL

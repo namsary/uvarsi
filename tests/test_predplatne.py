@@ -46,11 +46,14 @@ def sample(**overrides):
 
 
 @pytest.mark.parametrize("status", ("active", "past_due"))
-def test_verified_access_statuses_grant_access(db, status):
+@pytest.mark.parametrize("checked_at", (2_000.0, 2_001.0))
+def test_verified_access_statuses_grant_access_at_and_after_paid_through(
+    db, status, checked_at
+):
     predplatne.upsert_snapshot(db, sample(status=status), now=1_000.0)
 
     assert predplatne.subscription_access(
-        predplatne.subscription_for_user(db, 1), now=1_999.0
+        predplatne.subscription_for_user(db, 1), now=checked_at
     ) is True
 
 
