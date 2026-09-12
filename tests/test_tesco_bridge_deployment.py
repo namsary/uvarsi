@@ -450,7 +450,7 @@ def test_bridge_preflight_fails_closed_for_missing_or_malformed_config(
         deployment, env_text):
     deployment["env_file"].write_text(env_text, encoding="utf-8")
 
-    result = run_library(deployment, "uvarsi_require_tesco_bridge")
+    result = run_library(deployment, "_uvarsi_require_tesco_bridge_transport")
 
     assert result.returncode != 0
     assert not deployment["state"].joinpath("curl-args").exists()
@@ -459,7 +459,7 @@ def test_bridge_preflight_fails_closed_for_missing_or_malformed_config(
 def test_bridge_preflight_uses_stdin_auth_and_never_exposes_failure_body(deployment):
     deployment["state"].joinpath("fail-curl").touch()
 
-    result = run_library(deployment, "uvarsi_require_tesco_bridge")
+    result = run_library(deployment, "_uvarsi_require_tesco_bridge_transport")
 
     assert result.returncode != 0
     output = result.stdout + result.stderr
@@ -473,7 +473,7 @@ def test_bridge_preflight_uses_stdin_auth_and_never_exposes_failure_body(deploym
 def test_bridge_preflight_disables_inherited_xtrace_before_reading_secrets(deployment):
     deployment["state"].joinpath("fail-curl").touch()
 
-    result = run_library(deployment, "set -x\nuvarsi_require_tesco_bridge")
+    result = run_library(deployment, "set -x\n_uvarsi_require_tesco_bridge_transport")
 
     output = result.stdout + result.stderr
     assert result.returncode != 0
@@ -492,7 +492,7 @@ def test_bridge_preflight_is_pinned_to_the_configured_worker_host_and_release(de
         page["image_url"] = page["image_url"].replace(BRIDGE_URL, rogue_url)
     deployment["bridge"].write_text(json.dumps(payload), encoding="utf-8")
 
-    result = run_library(deployment, "uvarsi_require_tesco_bridge")
+    result = run_library(deployment, "_uvarsi_require_tesco_bridge_transport")
 
     assert result.returncode != 0
     assert not deployment["state"].joinpath("curl-args").exists()
@@ -509,7 +509,7 @@ def test_bridge_preflight_rejects_wrong_or_unbound_worker_identity(deployment, c
         payload["bridge"]["attestation"] = "A" * 43
     deployment["bridge"].write_text(json.dumps(payload), encoding="utf-8")
 
-    result = run_library(deployment, "uvarsi_require_tesco_bridge")
+    result = run_library(deployment, "_uvarsi_require_tesco_bridge_transport")
 
     assert result.returncode != 0
     assert BRIDGE_SECRET not in result.stdout + result.stderr
@@ -526,7 +526,7 @@ def test_bridge_preflight_requires_exact_official_tesco_source_provenance(
     payload["leaflet"]["source_url"] = bad_source
     deployment["bridge"].write_text(json.dumps(payload), encoding="utf-8")
 
-    result = run_library(deployment, "uvarsi_require_tesco_bridge")
+    result = run_library(deployment, "_uvarsi_require_tesco_bridge_transport")
 
     assert result.returncode != 0
 
@@ -537,16 +537,43 @@ def test_bridge_preflight_rejects_an_invalid_success_body_without_printing_it(de
         encoding="utf-8",
     )
 
-    result = run_library(deployment, "uvarsi_require_tesco_bridge")
+    result = run_library(deployment, "_uvarsi_require_tesco_bridge_transport")
 
     assert result.returncode != 0
     assert "provider-response-body" not in result.stdout + result.stderr
 
 
 def test_bridge_preflight_accepts_a_current_bounded_hm_manifest(deployment):
+    result = run_library(deployment, "_uvarsi_require_tesco_bridge_transport")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_legacy_bridge_gate_allows_one_transition_with_verified_official_data(
+        deployment):
+    deployment["bridge"].write_text(
+        json.dumps(bridge_payload(release="f" * 12)), encoding="utf-8"
+    )
+
     result = run_library(deployment, "uvarsi_require_tesco_bridge")
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_legacy_bridge_gate_still_fails_closed_when_official_data_are_missing(
+        deployment):
+    with sqlite3.connect(deployment["database"]) as con:
+        con.execute(
+            "UPDATE zber_stav SET collector_kind='kupino-aggregator' "
+            "WHERE obchod='Tesco'"
+        )
+    deployment["bridge"].write_text(
+        json.dumps(bridge_payload(release="f" * 12)), encoding="utf-8"
+    )
+
+    result = run_library(deployment, "uvarsi_require_tesco_bridge")
+
+    assert result.returncode != 0
 
 
 def test_guarded_supervisor_refuses_payments_on_before_bridge_or_collection(deployment):
@@ -608,6 +635,76 @@ def test_production_readiness_accepts_three_current_official_reusable_stores(dep
     result = run_library(deployment, "uvarsi_require_production_readiness")
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_production_readiness_serves_verified_current_data_when_bridge_is_unavailable(
+        deployment):
+    payload = bridge_payload(release="f" * 12)
+    deployment["bridge"].write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_library(deployment, "uvarsi_require_production_readiness")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_bounded_supervisor_skips_bridge_when_verified_current_data_are_ready(
+        deployment):
+    payload = bridge_payload(release="f" * 12)
+    deployment["bridge"].write_text(json.dumps(payload), encoding="utf-8")
+    deployment["env"]["UVARSI_TIMEOUT_RESULT"] = "0"
+
+    result = run_library(deployment, "uvarsi_run_supervisor_bounded")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_bounded_supervisor_rebuilds_stale_receipt_from_current_offers_without_bridge(
+        deployment):
+    ready_landing = deployment["state"] / "ready-landing.json"
+    shutil.copy2(deployment["landing"], ready_landing)
+    stale = landing_payload()
+    stale["week"] = "2026-08-31"
+    deployment["landing"].write_text(json.dumps(stale), encoding="utf-8")
+    deployment["bridge"].write_text(
+        json.dumps(bridge_payload(release="f" * 12)), encoding="utf-8"
+    )
+    receipt = deployment["state"] / "refresh_receipt.py"
+    receipt.write_text(
+        "import os, shutil\n"
+        "def native(path):\n"
+        "    return path[1].upper() + ':' + path[2:] if path.startswith('/c/') else path\n"
+        "shutil.copy2(native(os.environ['UVARSI_READY_LANDING']), "
+        "native(os.environ['UVARSI_LANDING_DATA']))\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    deployment["env"].update({
+        "UVARSI_TIMEOUT_RESULT": "0",
+        "UVARSI_TIMEOUT_RUN_COMMAND": "1",
+        "UVARSI_READY_LANDING": bash_path(ready_landing),
+        "UVARSI_RECEIPT_REFRESH": bash_path(receipt),
+    })
+
+    result = run_library(deployment, "uvarsi_run_supervisor_bounded")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(deployment["landing"].read_text(encoding="utf-8"))["week"] == WEEK
+
+
+def test_bounded_supervisor_still_requires_bridge_before_collecting_missing_data(
+        deployment):
+    with sqlite3.connect(deployment["database"]) as con:
+        con.execute(
+            "UPDATE zber_stav SET collector_kind='kupino-aggregator' "
+            "WHERE obchod='Tesco'"
+        )
+    payload = bridge_payload(release="f" * 12)
+    deployment["bridge"].write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_library(deployment, "uvarsi_run_supervisor_bounded")
+
+    assert result.returncode != 0
+    assert not deployment["state"].joinpath("timeout-args").exists()
 
 
 def test_production_readiness_accepts_multiple_auditable_sources_per_store(deployment):
@@ -1146,7 +1243,15 @@ def test_bootstrap_runs_bounded_collector_before_strict_readiness(
         newline="\n",
     )
     receipt = deployment["state"] / "refresh_receipt.py"
-    receipt.write_text("raise SystemExit(0)\n", encoding="utf-8", newline="\n")
+    receipt.write_text(
+        "import os, shutil\n"
+        "def native(path):\n"
+        "    return path[1].upper() + ':' + path[2:] if path.startswith('/c/') else path\n"
+        "shutil.copy2(native(os.environ['UVARSI_READY_LANDING']), "
+        "native(os.environ['UVARSI_LANDING_DATA']))\n",
+        encoding="utf-8",
+        newline="\n",
+    )
     deployment["env"].update({
         "UVARSI_TIMEOUT_RESULT": "0",
         "UVARSI_TIMEOUT_RUN_COMMAND": "1",

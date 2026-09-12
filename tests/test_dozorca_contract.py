@@ -16,6 +16,11 @@ BASH = Path("C:/Program Files/Git/bin/bash.exe")
 STRUCTURAL_SOURCE_IDENTITY = ":".join(["a" * 64] * 3)
 
 
+@pytest.fixture(autouse=True)
+def _successful_bridge_preflight_for_supervisor_contracts(monkeypatch):
+    monkeypatch.setenv("UVARSI_TEST_BRIDGE_PREFLIGHT", "/usr/bin/true")
+
+
 def health_json(plan_queue=None):
     return json.dumps(
         {

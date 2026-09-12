@@ -628,12 +628,18 @@ def test_deploy_compares_live_release_id_with_local_version(script):
     )
 
 
-def test_both_release_paths_require_bridge_preflight_before_live_mutation(script):
+def test_both_release_paths_require_current_offers_or_bridge_before_live_mutation(script):
     automatic = SAMOPULL.read_text(encoding="utf-8")
-    assert automatic.index("uvarsi_require_tesco_bridge") < automatic.index(
+    conditional = (
+        r'if\s+!\s+_uvarsi_require_official_offer_data;\s+then\s+'
+        r'_uvarsi_require_tesco_bridge_transport'
+    )
+    assert re.search(conditional, automatic)
+    assert automatic.index("_uvarsi_require_tesco_bridge_transport") < automatic.index(
         'if nasad_z "$CIEL"'
     )
-    assert script.index("uvarsi_require_tesco_bridge") < script.index(
+    assert re.search(conditional, script)
+    assert script.index("_uvarsi_require_tesco_bridge_transport") < script.index(
         "$script:LiveMutationStarted = $true"
     )
 
@@ -641,10 +647,10 @@ def test_both_release_paths_require_bridge_preflight_before_live_mutation(script
 def test_both_release_paths_prove_payments_off_before_bridge_access(script):
     automatic = SAMOPULL.read_text(encoding="utf-8")
     assert automatic.index("uvarsi_require_payments_off") < automatic.index(
-        "uvarsi_require_tesco_bridge"
+        "_uvarsi_require_tesco_bridge_transport"
     )
     assert script.index("uvarsi_require_payments_off") < script.index(
-        "uvarsi_require_tesco_bridge"
+        "_uvarsi_require_tesco_bridge_transport"
     )
 
 

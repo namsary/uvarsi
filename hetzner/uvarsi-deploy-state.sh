@@ -80,7 +80,7 @@ print(matches[0], end="")
 ' "$UVARSI_ENV_FILE" "$key" 2>/dev/null
 }
 
-uvarsi_require_tesco_bridge() {
+_uvarsi_require_tesco_bridge_transport() {
   # A parent shell may have enabled xtrace. Disable it before command
   # substitutions can place an env value (especially the secret) in stderr.
   case $- in *x*) set +x ;; esac
@@ -229,6 +229,11 @@ for expected, page in enumerate(pages, start=1):
 }
 
 _uvarsi_require_collection_readiness() {
+  readiness_scope=${1:-full}
+  case "$readiness_scope" in
+    full|offers) ;;
+    *) return 1 ;;
+  esac
   today=$(_uvarsi_today) || return 1
   (
     cd "$UVARSI_APP_DIR" || exit 1
@@ -238,7 +243,9 @@ from decimal import Decimal, InvalidOperation
 from landing_data import CURRENT_LANDING_STATE, validate_publishable_landing_data
 from source_policy import collector_kind_for_url
 
-database, landing_path, today_raw = sys.argv[1:4]
+database, landing_path, today_raw, readiness_scope = sys.argv[1:5]
+if readiness_scope not in {"full", "offers"}:
+    raise SystemExit(1)
 today = dt.date.fromisoformat(today_raw)
 week = (today - dt.timedelta(days=today.weekday())).isoformat()
 stores = {
@@ -403,6 +410,9 @@ with sqlite3.connect("file:" + database + "?mode=ro", uri=True) as con:
             facts_by_table.append(facts)
         if facts_by_table[0] != facts_by_table[1]:
             raise SystemExit(1)
+
+if readiness_scope == "offers":
+    raise SystemExit(0)
 
 with open(landing_path, encoding="utf-8") as handle:
     landing = json.load(handle)
@@ -587,8 +597,23 @@ if (
     or receipt["polozky_s_beznou_cenou"] != substantiated_count
 ):
     raise SystemExit(1)
-' "$UVARSI_DB" "$UVARSI_LANDING_DATA" "$today" >/dev/null 2>&1
+' "$UVARSI_DB" "$UVARSI_LANDING_DATA" "$today" "$readiness_scope" >/dev/null 2>&1
   )
+}
+
+_uvarsi_require_official_offer_data() {
+  _uvarsi_require_collection_readiness offers
+}
+
+# Kompatibilita iba pre jednu prechodovú verziu: starý samopull volal túto
+# bránu pri každom deployi. Nový release sa tak môže nasadiť z už overených
+# aktuálnych ponúk aj počas výpadku transportu. Všetky nové zberové cesty volajú
+# priamo prísnu transportnú kontrolu vyššie.
+uvarsi_require_tesco_bridge() {
+  if _uvarsi_require_official_offer_data; then
+    return 0
+  fi
+  _uvarsi_require_tesco_bridge_transport
 }
 
 _uvarsi_supervisor_cron_line() {
@@ -876,7 +901,6 @@ uvarsi_require_production_readiness() {
   # Every call is quiet: callers report stable reason codes, never response
   # bodies, bearer headers or environment values.
   uvarsi_require_payments_off || return 1
-  uvarsi_require_tesco_bridge || return 1
   uvarsi_require_runtime_payments_off || return 1
   _uvarsi_require_collection_readiness || return 1
   _uvarsi_require_runtime_health
@@ -885,12 +909,14 @@ uvarsi_require_production_readiness() {
 _uvarsi_supervisor_cycle() {
   [ "${UVARSI_BOUNDED_CYCLE:-0}" = 1 ] || return 1
   uvarsi_require_payments_off || return 1
-  uvarsi_require_tesco_bridge || return 1
   if ! _uvarsi_require_collection_readiness; then
-    (
-      cd "$UVARSI_APP_DIR" || exit 1
-      "$UVARSI_HEALTH_PY" -u "$UVARSI_COLLECTOR"
-    ) || return 1
+    if ! _uvarsi_require_official_offer_data; then
+      _uvarsi_require_tesco_bridge_transport || return 1
+      (
+        cd "$UVARSI_APP_DIR" || exit 1
+        "$UVARSI_HEALTH_PY" -u "$UVARSI_COLLECTOR"
+      ) || return 1
+    fi
     "$UVARSI_HEALTH_PY" -u "$UVARSI_RECEIPT_REFRESH" \
       "$UVARSI_LANDING_DATA" || return 1
     _uvarsi_require_collection_readiness || return 1
@@ -902,7 +928,9 @@ uvarsi_run_supervisor_bounded() {
   # The collector and receipt writer stage their candidate state. Killing this
   # wrapper on timeout therefore leaves the live DB rows and landing JSON as-is.
   uvarsi_require_payments_off || return 1
-  uvarsi_require_tesco_bridge || return 1
+  if ! _uvarsi_require_official_offer_data; then
+    _uvarsi_require_tesco_bridge_transport || return 1
+  fi
   case "$UVARSI_MAX_COLLECTION_SECONDS" in
     ''|*[!0-9]*) return 1 ;;
   esac
@@ -950,10 +978,10 @@ uvarsi_run_supervisor_bounded() {
 uvarsi_bootstrap_production_readiness() {
   # This is intentionally ordered so a first official rollout may replace
   # stale/aggregator staging before the strict current-data gate evaluates it.
-  # Payments and the authenticated bridge still fail closed first.
+  # Payments still fail closed first. The authenticated bridge is required only
+  # when current verified official offer data are not already reusable.
   uvarsi_require_payments_off || return 1
   uvarsi_require_runtime_payments_off || return 1
-  uvarsi_require_tesco_bridge || return 1
   uvarsi_require_supervisor_schedule || return 1
   uvarsi_run_supervisor_bounded || return 1
   uvarsi_require_production_readiness
@@ -1479,7 +1507,7 @@ raise SystemExit(0 if (not before or instant(current) > instant(before)) else 1)
 
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   case "${1:-}" in
-    check-bridge) uvarsi_require_tesco_bridge ;;
+    check-bridge) _uvarsi_require_tesco_bridge_transport ;;
     check-readiness) uvarsi_require_production_readiness ;;
     run-supervisor) uvarsi_run_supervisor_bounded ;;
     internal-supervisor-cycle) _uvarsi_supervisor_cycle ;;

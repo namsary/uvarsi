@@ -210,13 +210,17 @@ spusti_worker() {
   systemctl restart uvarsi-plan-worker && systemctl is-active --quiet uvarsi-plan-worker
 }
 
-# Zálohovanie nemení živú appku. Bridge a runtime platby preto kontrolujeme až
-# tu: stále pred prvou živou mutáciou, ale mimo izolovanej release-content brány.
-uvarsi_require_tesco_bridge || {
-  log "Tesco bridge nie je bezpečne nakonfigurovaný alebo dostupný — NEPREPÍNAM"
-  notify "Uvar.si: vydanie odmietnuté" "Produkčný Tesco bridge neprešiel bezpečnou kontrolou."
-  exit 1
-}
+# Zálohovanie nemení živú appku. Ak už server drží aktuálne, navzájom zhodné
+# a oficiálne ponuky všetkých troch reťazcov, dostupnosť transportného bridge
+# nie je podmienkou nasadenia aplikačnej opravy. Bridge ostáva povinný pred
+# každým zberom, ktorý má chýbajúce dáta doplniť.
+if ! _uvarsi_require_official_offer_data; then
+  _uvarsi_require_tesco_bridge_transport || {
+    log "chýbajú aktuálne oficiálne ponuky a Tesco bridge nie je bezpečne dostupný — NEPREPÍNAM"
+    notify "Uvar.si: vydanie odmietnuté" "Chýbajú aktuálne oficiálne ponuky a produkčný Tesco bridge neprešiel bezpečnou kontrolou."
+    exit 1
+  }
+fi
 uvarsi_require_runtime_payments_off || {
   log "bežiaca appka nemá platby jednoznačne vypnuté — NEPREPÍNAM"
   notify "Uvar.si: vydanie odmietnuté" "Živý proces musí mať pred nasadením platby vypnuté."

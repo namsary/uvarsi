@@ -123,6 +123,7 @@ def supervisor_environment(tmp_path):
         "UVARSI_TODAY": TODAY,
         "UVARSI_NOW_EPOCH": "1000000",
         "UVARSI_DOZORCA_LOCKED": "1",
+        "UVARSI_TEST_BRIDGE_PREFLIGHT": "/usr/bin/true",
         "PATH": f"{bash_path(tmp_path)}:/usr/bin",
     }
     return {
@@ -157,6 +158,20 @@ def refresh_call_count(context):
     return context["calls"].read_text(encoding="utf-8").count(
         "refresh_blocek.py"
     )
+
+
+def test_collection_stops_before_collector_when_last_moment_bridge_check_fails(
+        supervisor_environment):
+    configure_structural_collection(supervisor_environment)
+
+    result = run_supervisor(
+        supervisor_environment,
+        UVARSI_TEST_BRIDGE_PREFLIGHT="/usr/bin/false",
+    )
+
+    assert result.returncode != 0
+    assert not supervisor_environment["calls"].exists()
+    assert "priamo pred zberom" in result.stdout
 
 
 def configure_structural_collection(context):

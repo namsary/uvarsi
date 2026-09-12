@@ -274,11 +274,13 @@ Ok "platby su pred zmenou zivej appky vypnute"
 $bridgePreflight = @'
 set -eu
 . /opt/uvarsi/releases/manual-stage/hetzner/uvarsi-deploy-state.sh
-uvarsi_require_tesco_bridge
+if ! _uvarsi_require_official_offer_data; then
+  _uvarsi_require_tesco_bridge_transport
+fi
 '@ -replace "`r`n", "`n"
 $bridgePreflight | ssh jarvis "tr -d '\r' > /tmp/uvarsi_bridge_preflight.sh; bash /tmp/uvarsi_bridge_preflight.sh"
-Vyzaduj "produkcia nema platnu a dostupnu konfiguraciu Tesco bridge"
-Ok "Tesco bridge presiel autentifikovanym preflightom bez vypisu odpovede"
+Vyzaduj "produkcia nema ani aktualne overene ponuky, ani platny Tesco bridge"
+Ok "predzberova brana presla cez aktualne ponuky alebo overeny Tesco bridge"
 
 ssh jarvis "set -eu; if [ ! -f /opt/uvarsi/uvarsi-recipe-engine.env ]; then umask 077; printf 'UVARSI_RECIPE_ENGINE=off\n' > /opt/uvarsi/uvarsi-recipe-engine.env.tmp; chmod 600 /opt/uvarsi/uvarsi-recipe-engine.env.tmp; mv /opt/uvarsi/uvarsi-recipe-engine.env.tmp /opt/uvarsi/uvarsi-recipe-engine.env; fi"
 Vyzaduj "inicializacia receptoveho flagu zlyhala"

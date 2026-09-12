@@ -52,6 +52,7 @@ EXIT_LOCK_BUSY=75                    # dočasne obsadený zámok nie je úspešn
 MIN_TOTAL_OFFERS=30                  # zdieľaný prah dozorcu a post-deploy kontroly
 MIN_OFFERS_PER_STORE=20              # malá vložka sa nesmie tváriť ako celý leták
 NTFY_TOPIC="uvarsi-jarvis-8f3a2c"    # notifikácie: ntfy.sh/<topic>
+DEPLOY_STATE_SCRIPT="${UVARSI_DEPLOY_STATE_SCRIPT:-$DIR/uvarsi-deploy-state.sh}"
 
 # Cron aj ručne spustený samopull môžu dediť UTC z hostiteľa. Všetky Python
 # procesy, ktoré dozorca spúšťa (zberač, rozpočtová poistka, bloček), však
@@ -62,6 +63,19 @@ export TZ=Europe/Bratislava
 log(){ echo "[$(TZ=Europe/Bratislava "$DATE" '+%F %T')] DOZORCA: $*"; }
 notify(){ "$CURL" -fsS --max-time 15 -H "Title: $1" -d "$2" "https://ntfy.sh/${NTFY_TOPIC}" >/dev/null 2>&1; }
 nacitaj_health(){ "$CURL" -sS --max-time 1 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true; }
+
+tesco_bridge_preflight() {
+  if [ -n "${UVARSI_TEST_BRIDGE_PREFLIGHT:-}" ]; then
+    "$UVARSI_TEST_BRIDGE_PREFLIGHT"
+    return
+  fi
+  [ -r "$DEPLOY_STATE_SCRIPT" ] || return 1
+  # Sourcing keeps the verified bridge URL and secret exported in this exact
+  # process, so the collector immediately below uses the same authenticated
+  # transport that passed the preflight.
+  . "$DEPLOY_STATE_SCRIPT" || return 1
+  _uvarsi_require_tesco_bridge_transport
+}
 
 upozorni_detail_zberu() {
   DATA_KEY="$1"
@@ -625,6 +639,12 @@ if [ "${STAGED_POCET:-0}" -lt "$MIN_TOTAL_OFFERS" ] || [ "${STAGED_CHYBA:-3}" -g
     log "ŠTRUKTURÁLNY zber sa pri rovnakých dátach a vydaní nezmenil — platený pokus neopakujem."
     upozorni_detail_zberu "$COLLECTION_KEY" "$MON_ISO"
     exit "$EXIT_STRUCTURAL"
+  fi
+
+  if ! tesco_bridge_preflight; then
+    log "Tesco bridge neprešiel kontrolou priamo pred zberom — aktuálne dáta nemením."
+    notify "Uvar.si: zber odložený" "Tesco bridge neprešiel bezpečnostnou kontrolou priamo pred zberom."
+    exit 1
   fi
 
   ZBER_VYSTUP=$(cd "$DIR/app" && UVARSI_DEPLOY_CREDIT_PROBE="$RELEASE_CHANGED" \
