@@ -21,6 +21,8 @@ UVARSI_LANDING_DATA="${UVARSI_LANDING_DATA:-/var/lib/uvarsi/landing_data.json}"
 UVARSI_TIMEOUT="${UVARSI_TIMEOUT:-timeout}"
 UVARSI_BASH="${UVARSI_BASH:-/bin/bash}"
 UVARSI_CRONTAB="${UVARSI_CRONTAB:-crontab}"
+UVARSI_FLOCK="${UVARSI_FLOCK:-flock}"
+UVARSI_CRON_LOCK="${UVARSI_CRON_LOCK:-$UVARSI_DIR/.crontab.lock}"
 UVARSI_SUPERVISOR="${UVARSI_SUPERVISOR:-$UVARSI_DIR/dozorca.sh}"
 UVARSI_COLLECTOR="${UVARSI_COLLECTOR:-$UVARSI_APP_DIR/zbierac_akcii.py}"
 UVARSI_RECEIPT_REFRESH="${UVARSI_RECEIPT_REFRESH:-$UVARSI_DIR/refresh_blocek.py}"
@@ -772,6 +774,28 @@ with open(target, "w", encoding="utf-8", newline="\n") as handle:
 ' "$source_file" "$target_file" "$replacement_file" >/dev/null 2>&1
 }
 
+_uvarsi_extract_supervisor_cron() {
+  source_file=$1
+  target_file=$2
+  "$UVARSI_HEALTH_PY" -c '
+import re, sys
+source, target = sys.argv[1:3]
+direct = re.compile(r"(?:^|\s)/opt/uvarsi/dozorca\.sh(?:\s|$)")
+wrapped = re.compile(
+    r"(?:^|\s)/opt/uvarsi/uvarsi-deploy-state\.sh\s+run-supervisor(?:\s|$)"
+)
+with open(source, encoding="utf-8") as handle, open(
+    target, "w", encoding="utf-8", newline="\n"
+) as output:
+    for line in handle:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and (
+            direct.search(stripped) or wrapped.search(stripped)
+        ):
+            output.write(stripped + "\n")
+' "$source_file" "$target_file" >/dev/null 2>&1
+}
+
 uvarsi_snapshot_supervisor_schedule() {
   snapshot=$1
   [ -d "$snapshot" ] || return 1
@@ -844,22 +868,144 @@ raise SystemExit(0 if targets == [canonical] else 1)
   rm -f "$current"
 }
 
+_uvarsi_supervisor_schedule_matches() (
+  uvarsi_expected_file=$1
+  uvarsi_verify_current=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-verify.XXXXXX") || return 1
+  chmod 600 "$uvarsi_verify_current" || { rm -f "$uvarsi_verify_current"; return 1; }
+  if ! _uvarsi_read_crontab "$uvarsi_verify_current" || ! "$UVARSI_HEALTH_PY" -c '
+import re, sys
+current_path, expected_path = sys.argv[1:3]
+direct = re.compile(r"(?:^|\s)/opt/uvarsi/dozorca\.sh(?:\s|$)")
+wrapped = re.compile(
+    r"(?:^|\s)/opt/uvarsi/uvarsi-deploy-state\.sh\s+run-supervisor(?:\s|$)"
+)
+
+def targets(path):
+    with open(path, encoding="utf-8") as handle:
+        return [
+            line.strip() for line in handle
+            if line.strip() and not line.lstrip().startswith("#")
+            and (direct.search(line) or wrapped.search(line))
+        ]
+
+raise SystemExit(0 if targets(current_path) == targets(expected_path) else 1)
+' "$uvarsi_verify_current" "$uvarsi_expected_file" >/dev/null 2>&1; then
+    rm -f "$uvarsi_verify_current"
+    return 1
+  fi
+  rm -f "$uvarsi_verify_current"
+)
+
+_uvarsi_apply_supervisor_schedule() (
+  uvarsi_replacement=$1
+  [ -f "$uvarsi_replacement" ] || return 1
+  uvarsi_before=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-before.XXXXXX") || return 1
+  uvarsi_candidate=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-candidate.XXXXXX") || {
+    rm -f "$uvarsi_before"
+    return 1
+  }
+  uvarsi_rollback_source=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-rollback-source.XXXXXX") || {
+    rm -f "$uvarsi_before" "$uvarsi_candidate"
+    return 1
+  }
+  uvarsi_rollback_candidate=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-rollback.XXXXXX") || {
+    rm -f "$uvarsi_before" "$uvarsi_candidate" "$uvarsi_rollback_source"
+    return 1
+  }
+  uvarsi_previous=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-previous.XXXXXX") || {
+    rm -f "$uvarsi_before" "$uvarsi_candidate" \
+      "$uvarsi_rollback_source" "$uvarsi_rollback_candidate"
+    return 1
+  }
+  chmod 600 "$uvarsi_before" "$uvarsi_candidate" \
+      "$uvarsi_rollback_source" "$uvarsi_rollback_candidate" "$uvarsi_previous" || {
+    rm -f "$uvarsi_before" "$uvarsi_candidate" \
+      "$uvarsi_rollback_source" "$uvarsi_rollback_candidate" "$uvarsi_previous"
+    return 1
+  }
+
+  # Serialize every Uvar.si cron writer. The transform below removes and adds
+  # only the supervisor row; all unrelated root jobs are copied unchanged.
+  exec 9>"$UVARSI_CRON_LOCK" || {
+    rm -f "$uvarsi_before" "$uvarsi_candidate" \
+      "$uvarsi_rollback_source" "$uvarsi_rollback_candidate" "$uvarsi_previous"
+    return 1
+  }
+  "$UVARSI_FLOCK" -x 9 >/dev/null 2>&1 || {
+    rm -f "$uvarsi_before" "$uvarsi_candidate" \
+      "$uvarsi_rollback_source" "$uvarsi_rollback_candidate" "$uvarsi_previous"
+    return 1
+  }
+  if ! _uvarsi_read_crontab "$uvarsi_before" || \
+      ! _uvarsi_extract_supervisor_cron "$uvarsi_before" "$uvarsi_previous" || \
+      ! _uvarsi_transform_supervisor_cron \
+        "$uvarsi_before" "$uvarsi_candidate" "$uvarsi_replacement"; then
+    rm -f "$uvarsi_before" "$uvarsi_candidate" \
+      "$uvarsi_rollback_source" "$uvarsi_rollback_candidate" "$uvarsi_previous"
+    return 1
+  fi
+  if ! "$UVARSI_CRONTAB" "$uvarsi_candidate" >/dev/null 2>&1 || \
+      ! _uvarsi_supervisor_schedule_matches "$uvarsi_replacement"; then
+    # Prefer a targeted rollback based on the newest readable crontab, so even
+    # a concurrent unrelated edit survives. If the crontab cannot be read,
+    # restore the exact pre-write snapshot rather than leave a half-verified row.
+    if _uvarsi_read_crontab "$uvarsi_rollback_source" && \
+        _uvarsi_transform_supervisor_cron \
+          "$uvarsi_rollback_source" "$uvarsi_rollback_candidate" "$uvarsi_previous"; then
+      "$UVARSI_CRONTAB" "$uvarsi_rollback_candidate" >/dev/null 2>&1 || true
+    else
+      "$UVARSI_CRONTAB" "$uvarsi_before" >/dev/null 2>&1 || true
+    fi
+    rm -f "$uvarsi_before" "$uvarsi_candidate" \
+      "$uvarsi_rollback_source" "$uvarsi_rollback_candidate" "$uvarsi_previous"
+    return 1
+  fi
+  rm -f "$uvarsi_before" "$uvarsi_candidate" \
+    "$uvarsi_rollback_source" "$uvarsi_rollback_candidate" "$uvarsi_previous"
+)
+
 uvarsi_install_supervisor_schedule() {
-  # Normal releases never mutate the shared root crontab. A schedule migration
-  # is a separate operator action; release only verifies the canonical row.
   if uvarsi_require_supervisor_schedule; then
     _uvarsi_release_trace schedule_ok
     return 0
   fi
+  replacement=$(mktemp "${TMPDIR:-/tmp}/uvarsi-cron-replacement.XXXXXX") || {
+    _uvarsi_release_trace schedule_failed
+    return 1
+  }
+  chmod 600 "$replacement" || {
+    rm -f "$replacement"
+    _uvarsi_release_trace schedule_failed
+    return 1
+  }
+  canonical=$(_uvarsi_supervisor_cron_line) || {
+    rm -f "$replacement"
+    _uvarsi_release_trace schedule_failed
+    return 1
+  }
+  printf '%s\n' "$canonical" > "$replacement" || {
+    rm -f "$replacement"
+    _uvarsi_release_trace schedule_failed
+    return 1
+  }
+  if _uvarsi_apply_supervisor_schedule "$replacement" && \
+      uvarsi_require_supervisor_schedule; then
+    rm -f "$replacement"
+    _uvarsi_release_trace schedule_ok
+    return 0
+  fi
+  rm -f "$replacement"
   _uvarsi_release_trace schedule_failed
   return 1
 }
 
 uvarsi_restore_supervisor_schedule() {
   snapshot=$1
-  complete="$snapshot/crontab.full"
-  # There is nothing to roll back because normal releases never write cron.
-  [ -f "$complete" ]
+  previous="$snapshot/supervisor.cron"
+  [ -f "$previous" ] || return 1
+  # Restore only Uvar.si's supervisor row. Any unrelated job added or changed
+  # during the release (including the co-hosted Taktik app) stays untouched.
+  _uvarsi_apply_supervisor_schedule "$previous"
 }
 
 _uvarsi_transform_production_cron() {

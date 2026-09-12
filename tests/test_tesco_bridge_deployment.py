@@ -304,12 +304,22 @@ def deployment(tmp_path):
         "#!/bin/sh\n"
         "if [ \"${1:-}\" = -l ]; then\n"
         "  [ ! -f \"$UVARSI_FAKE_STATE/fail-crontab-list\" ] || exit 9\n"
+        "  if [ -f \"$UVARSI_FAKE_STATE/fail-crontab-list-after-write\" ] && "
+        "[ -f \"$UVARSI_FAKE_STATE/crontab-written\" ]; then exit 9; fi\n"
         "  [ ! -f \"$UVARSI_FAKE_STATE/crontab\" ] || "
         "cat \"$UVARSI_FAKE_STATE/crontab\"\n"
         "  exit 0\n"
         "fi\n"
         "touch \"$UVARSI_FAKE_STATE/crontab-written\"\n"
         "cp \"$1\" \"$UVARSI_FAKE_STATE/crontab\"\n",
+    )
+    flock = tmp_path / "flock"
+    write_executable(
+        flock,
+        "#!/bin/sh\n"
+        "[ \"${1:-}\" = -x ] || exit 2\n"
+        "[ \"${2:-}\" = 9 ] || exit 2\n"
+        "touch \"$UVARSI_FAKE_STATE/cron-lock-acquired\"\n",
     )
     timeout = tmp_path / "timeout"
     write_executable(
@@ -336,6 +346,8 @@ def deployment(tmp_path):
         "UVARSI_CURL": bash_path(curl),
         "UVARSI_SYSTEMCTL": bash_path(systemctl),
         "UVARSI_CRONTAB": bash_path(crontab),
+        "UVARSI_FLOCK": bash_path(flock),
+        "UVARSI_CRON_LOCK": bash_path(state / "crontab.lock"),
         "UVARSI_TIMEOUT": bash_path(timeout),
         "UVARSI_SUPERVISOR": bash_path(supervisor),
         "UVARSI_SUPERVISOR_SUCCESS_STATE": bash_path(supervisor_success),
@@ -1123,10 +1135,13 @@ def test_production_readiness_requires_recent_supervisor_success_and_schedule(de
     assert unsafe_schedule.returncode != 0
 
 
-def test_supervisor_schedule_install_is_verify_only_and_preserves_crontab(deployment):
+def test_supervisor_schedule_install_migrates_only_uvarsi_row_and_preserves_crontab(
+        deployment):
     old_supervisor = "0 5-21 * * * /opt/uvarsi/dozorca.sh >> /var/log/uvarsi.log 2>&1"
+    unrelated = "17 2 * * * /opt/other/report.sh"
     deployment["cron"].write_text(
-        f"{TAKTIK_CRON}\n{old_supervisor}\n", encoding="utf-8"
+        f"# keep comments\n{TAKTIK_CRON}\n{unrelated}\n{old_supervisor}\n",
+        encoding="utf-8",
     )
     snapshot = deployment["state"] / "schedule-snapshot"
     snapshot.mkdir()
@@ -1136,12 +1151,19 @@ def test_supervisor_schedule_install_is_verify_only_and_preserves_crontab(deploy
         f'uvarsi_snapshot_supervisor_schedule "{bash_path(snapshot)}"\n'
         "uvarsi_install_supervisor_schedule",
     )
-    assert installed.returncode != 0
-    assert deployment["cron"].read_text().splitlines() == [TAKTIK_CRON, old_supervisor]
-    assert not deployment["state"].joinpath("crontab-written").exists()
+    assert installed.returncode == 0, installed.stdout + installed.stderr
+    installed_lines = deployment["cron"].read_text().splitlines()
+    assert "# keep comments" in installed_lines
+    assert TAKTIK_CRON in installed_lines
+    assert unrelated in installed_lines
+    assert old_supervisor not in installed_lines
+    assert installed_lines.count(SUPERVISOR_CRON) == 1
+    assert deployment["state"].joinpath("crontab-written").exists()
+    assert deployment["state"].joinpath("cron-lock-acquired").exists()
 
     canonical = f"{TAKTIK_CRON}\n{SUPERVISOR_CRON}\n"
     deployment["cron"].write_text(canonical, encoding="utf-8", newline="\n")
+    deployment["state"].joinpath("crontab-written").unlink()
     verified = run_library(deployment, "uvarsi_install_supervisor_schedule")
     assert verified.returncode == 0, verified.stdout + verified.stderr
     assert deployment["cron"].read_text(encoding="utf-8") == canonical
@@ -1152,11 +1174,14 @@ def test_supervisor_schedule_install_is_verify_only_and_preserves_crontab(deploy
         f'uvarsi_restore_supervisor_schedule "{bash_path(snapshot)}"',
     )
     assert restored.returncode == 0, restored.stdout + restored.stderr
-    assert deployment["cron"].read_text(encoding="utf-8") == canonical
-    assert not deployment["state"].joinpath("crontab-written").exists()
+    restored_lines = deployment["cron"].read_text(encoding="utf-8").splitlines()
+    assert TAKTIK_CRON in restored_lines
+    assert old_supervisor in restored_lines
+    assert SUPERVISOR_CRON not in restored_lines
+    assert deployment["state"].joinpath("crontab-written").exists()
 
 
-def test_crontab_rollback_is_noop_and_preserves_concurrent_changes(
+def test_crontab_rollback_restores_only_supervisor_and_preserves_concurrent_changes(
         deployment):
     removed_during_deploy = "17 2 * * * /opt/other/retired-report.sh"
     old_supervisor = "0 5-21 * * * /opt/uvarsi/dozorca.sh"
@@ -1204,14 +1229,14 @@ def test_crontab_rollback_is_noop_and_preserves_concurrent_changes(
     assert TAKTIK_CRON in restored_lines
     assert concurrent_addition in restored_lines
     assert removed_during_deploy not in restored_lines
-    assert old_supervisor not in restored_lines
+    assert old_supervisor in restored_lines
     assert old_backup not in restored_lines
-    assert SUPERVISOR_CRON in restored_lines
+    assert SUPERVISOR_CRON not in restored_lines
     assert sum("rekonciliacia.py" in line for line in restored_lines) == 1
-    assert not deployment["state"].joinpath("crontab-written").exists()
+    assert deployment["state"].joinpath("crontab-written").exists()
 
 
-def test_crontab_rollback_is_noop_when_current_crontab_cannot_be_read(
+def test_crontab_rollback_fails_closed_when_current_crontab_cannot_be_read(
         deployment):
     original = f"{TAKTIK_CRON}\n0 5-21 * * * /opt/uvarsi/dozorca.sh\n"
     deployment["cron"].write_text(original, encoding="utf-8", newline="\n")
@@ -1231,7 +1256,7 @@ def test_crontab_rollback_is_noop_when_current_crontab_cannot_be_read(
         f'uvarsi_restore_supervisor_schedule "{bash_path(snapshot)}"',
     )
 
-    assert restored.returncode == 0, restored.stdout + restored.stderr
+    assert restored.returncode != 0
     assert deployment["cron"].read_text(encoding="utf-8") == current
     assert not deployment["state"].joinpath("crontab-written").exists()
 
@@ -1294,6 +1319,24 @@ def test_supervisor_schedule_never_overwrites_crontab_after_a_read_error(deploym
 
     assert result.returncode != 0
     assert deployment["cron"].read_text(encoding="utf-8") == original
+
+
+def test_supervisor_schedule_restores_previous_uvarsi_row_when_verification_fails(
+        deployment):
+    old_supervisor = "0 5-21 * * * /opt/uvarsi/dozorca.sh"
+    unrelated = "17 2 * * * /opt/other/report.sh"
+    original = f"{TAKTIK_CRON}\n{unrelated}\n{old_supervisor}\n"
+    deployment["cron"].write_text(original, encoding="utf-8", newline="\n")
+    deployment["state"].joinpath("fail-crontab-list-after-write").touch()
+
+    result = run_library(deployment, "uvarsi_install_supervisor_schedule")
+
+    assert result.returncode != 0
+    restored = deployment["cron"].read_text(encoding="utf-8").splitlines()
+    assert TAKTIK_CRON in restored
+    assert unrelated in restored
+    assert old_supervisor in restored
+    assert SUPERVISOR_CRON not in restored
 
 
 @pytest.mark.parametrize("initial_state", ["stale-receipt", "aggregator-provenance"])

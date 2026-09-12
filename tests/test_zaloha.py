@@ -143,8 +143,14 @@ def test_release_requires_exactly_one_backup_cron_line(deploy):
     assert "uvarsi_require_production_schedule" in state
     assert "active.count(line) == 1" in state
     assert "no_variants" in state
-    assert '"$UVARSI_CRONTAB" "$candidate"' not in state, (
-        "bežný release nesmie potichu prepísať zdieľaný root crontab"
+    complete_installer = state.split("uvarsi_install_production_schedule()", 1)[1].split(
+        "_uvarsi_record_supervisor_success()", 1
+    )[0]
+    assert '"$UVARSI_CRONTAB"' not in complete_installer, (
+        "bežný release nesmie meniť zálohovací ani platobný cron"
+    )
+    assert "_uvarsi_transform_supervisor_cron" in state, (
+        "automatická migrácia smie cielene nahradiť iba riadok dozorcu Uvar.si"
     )
 
 

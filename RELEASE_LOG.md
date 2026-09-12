@@ -1,5 +1,5 @@
 
-## 2026-09-12 — Code/data failure isolation (vydanie 2026.09.12.8)
+## 2026-09-12 — Code/data failure isolation (vydanie 2026.09.12.9)
 
 - Nasadenie aplikácie už nie je blokované dočasným výpadkom externého zdroja letáka, pokiaľ sú platby vypnuté a aplikácia, worker aj dozorca sú funkčné.
 - Čerstvosť ponúk a bločka ostáva samostatnou prísnou bránou: neúspešný zber sa nikdy nevydáva za úspešný a nemôže povoliť platby.
@@ -10,6 +10,7 @@
 - Prechod zo starého produkčného nasadzovača zapisuje do schváleného anonymného kanála iba allowlistovanú fázu deployu, aby sa chyba štartu dala lokalizovať bez SSH a bez úniku runtime hodnôt.
 - Ak starý ťažký health endpoint dočasne visí, samopull smie potvrdiť vypnuté platby iba dvojitou kontrolou serverového OFF súboru a dvoch allowlistovaných príznakov priamo v prostredí živého procesu; platný ON signál sa nikdy neprebíja fallbackom.
 - Diagnostická stopa rozlišuje aj posledné tri post-deploy brány: bezpečný rozvrh dozorcu, ohraničený beh dozorcu a finálnu produkčnú readiness.
+- Starý cron dozorcu sa pri prechode nahradí automaticky a transakčne; mení sa iba presne rozpoznaný riadok Uvar.si, zvyšok zdieľaného crontabu vrátane Taktik mapy zostáva zachovaný.
 - Overenie delty: 266 kritických testov zberu, bločka, dozorcu a nasadzovania prešlo bez chyby; predchádzajúci integrovaný beh mal 3 866 úspešných testov.
 - Platby ostávajú vypnuté a Taktik-mapa je mimo nasadenia.
 
