@@ -54,6 +54,7 @@ import db_rezim  # noqa: E402
 import customer_requests  # noqa: E402
 import naklady  # noqa: E402
 import platby  # noqa: E402
+import predplatne  # noqa: E402
 
 DB = os.environ.get("UVARSI_DB", "/opt/uvarsi/uvarsi.db")
 ENV_FILE = os.environ.get("UVARSI_ENV_FILE", "/opt/uvarsi/uvarsi.env")
@@ -351,6 +352,8 @@ def main() -> int:
     tajomstvo = env("LEMON_WEBHOOK_SECRET")
     variant = env("LEMON_VARIANT_ID")
     store_id = env("LEMON_STORE_ID")
+    subscription_variant = env("LEMON_SUBSCRIPTION_VARIANT_ID")
+    founder_discount = env("LEMON_FOUNDER_DISCOUNT_ID")
     now = time.time()
 
     if not api_key and not tajomstvo:
@@ -361,6 +364,7 @@ def main() -> int:
     con = db_rezim.otvor(DB)
     try:
         platby.migrate_platby_schema(con)
+        predplatne.migrate_subscription_schema(con)
         customer_requests.migrate_customer_requests_schema(con)
         con.commit()
 
@@ -371,6 +375,13 @@ def main() -> int:
                 now=now,
                 variant_id=variant,
                 expected_test_mode=False,
+                subscription_expected={
+                    "store_id": store_id,
+                    "variant_id": subscription_variant,
+                    "founder_discount_id": founder_discount,
+                    "currency": "EUR",
+                    "test_mode": False,
+                },
             )
             if odlozene["spracovane"]:
                 print("REKONCILIACIA: odložené telá — spracovaných "

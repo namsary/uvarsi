@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WEBHOOK_SECRET = "task-3-webhook-secret"
 ATTEMPT_ID = "attempt_" + "a" * 43
 OTHER_ATTEMPT_ID = "attempt_" + "b" * 43
+TEST_WEBHOOK_SECRET = "task-3-test-webhook-secret"
 STORE_ID = "store_1"
 VARIANT_ID = "variant_annual"
 FOUNDER_DISCOUNT_ID = "discount_founders"
@@ -74,6 +75,7 @@ def seed_attempt(
     test_mode=True,
     status="pending",
     provider_order_id=None,
+    provider_checkout_id="checkout_1",
 ):
     amount = 3_900 if founder else 4_900
     discount_id = FOUNDER_DISCOUNT_ID if founder else None
@@ -115,7 +117,7 @@ def seed_attempt(
             P0_END if founder else None,
             int(test_mode),
             status,
-            "checkout_1",
+            provider_checkout_id,
             provider_order_id,
         ),
     )
@@ -152,6 +154,8 @@ def event(
     test_mode=True,
     user_id=None,
     billing_reason=None,
+    customer_id="cus_1",
+    updated_at="2026-09-12T00:01:40Z",
 ):
     custom = {"attempt_id": attempt_id} if attempt_id is not None else {}
     if user_id is not None:
@@ -163,12 +167,12 @@ def event(
         "currency": currency,
         "test_mode": test_mode,
         "order_id": order_id,
-        "customer_id": "cus_1",
+        "customer_id": customer_id,
         "subscription_id": subscription_id,
         "billing_period_start": _iso(period_start),
         "billing_period_end": _iso(period_end),
         "renews_at": _iso(period_end),
-        "updated_at": "2026-09-12T00:01:40Z",
+        "updated_at": updated_at,
         "total": total,
         "discount_id": discount_id,
     }
@@ -204,12 +208,20 @@ def delivery_digest(payload):
     return hashlib.sha256(body).hexdigest()
 
 
-def process(con, payload, *, now=NOW, source="webhook", delivery_key=None):
+def process(
+    con,
+    payload,
+    *,
+    now=NOW,
+    source="webhook",
+    delivery_key=None,
+    expected=EXPECTED,
+):
     return predplatne.process_subscription_event(
         con,
         payload=payload,
         now=now,
-        expected=EXPECTED,
+        expected=expected,
         source=source,
         delivery_key=delivery_key or delivery_digest(payload),
     )
@@ -272,7 +284,7 @@ def test_payment_event_without_provider_invoice_id_is_rejected_even_with_order_a
         predplatne.subscription_event_key(payload, verified_body_digest="a" * 64)
 
 
-def test_reconciliation_key_is_supported_without_replacing_webhook_digest():
+def test_reconciliation_key_takes_precedence_and_stays_distinct_from_webhook_key():
     payload = event("subscription_updated")
     reconciliation_key = "subscriptions:sub_1:2026-09-12T00_01_40Z"
 
@@ -283,6 +295,10 @@ def test_reconciliation_key_is_supported_without_replacing_webhook_digest():
         payload,
         verified_body_digest="c" * 64,
         reconciliation_key=reconciliation_key,
+    ) == f"lemon:reconcile:subscription_updated:{reconciliation_key}"
+    assert predplatne.subscription_event_key(
+        payload,
+        verified_body_digest="c" * 64,
     ) == "lemon:webhook:subscription_updated:" + "c" * 64
 
 
@@ -318,6 +334,75 @@ def test_subscription_created_activates_only_the_matching_verified_attempt(db):
     assert snapshot.renewal_amount_cents == 4_900
     assert snapshot.initial_payment_verified is True
     assert access(db, now=P0_END - 1.0) is True
+
+
+def test_second_valid_attempt_cannot_replace_verified_provider_identity(db):
+    activate_founder(db)
+    before = predplatne.subscription_for_user(db, 1)
+    invoices_before = [
+        tuple(row)
+        for row in db.execute(
+            "SELECT provider_invoice_id,provider_subscription_id,provider_order_id "
+            "FROM subscription_invoices ORDER BY id"
+        )
+    ]
+    seed_attempt(
+        db,
+        public_id=OTHER_ATTEMPT_ID,
+        user_id=1,
+        provider_checkout_id="checkout_2",
+    )
+    second_order = event(
+        "order_created",
+        attempt_id=OTHER_ATTEMPT_ID,
+        order_id="ord_2",
+        subscription_id="sub_2",
+        customer_id="cus_2",
+        updated_at="2026-09-12T00:03:00Z",
+    )
+    second_created = event(
+        "subscription_created",
+        attempt_id=OTHER_ATTEMPT_ID,
+        order_id="ord_2",
+        subscription_id="sub_2",
+        customer_id="cus_2",
+        updated_at="2026-09-12T00:03:01Z",
+    )
+
+    assert process(db, second_order)["review_required"] is False
+    result = process(db, second_created)
+
+    after = predplatne.subscription_for_user(db, 1)
+    assert result["review_required"] is True
+    assert (
+        after.provider_customer_id,
+        after.provider_order_id,
+        after.provider_subscription_id,
+    ) == (
+        before.provider_customer_id,
+        before.provider_order_id,
+        before.provider_subscription_id,
+    )
+    assert [
+        tuple(row)
+        for row in db.execute(
+            "SELECT provider_invoice_id,provider_subscription_id,provider_order_id "
+            "FROM subscription_invoices ORDER BY id"
+        )
+    ] == invoices_before
+
+
+def test_repeated_subscription_created_with_same_provider_identity_is_allowed(db):
+    process(db, event("order_created"))
+    process(db, event("subscription_created"))
+
+    repeated = event(
+        "subscription_created", updated_at="2026-09-12T00:02:00Z"
+    )
+    result = process(db, repeated)
+
+    assert result["review_required"] is False
+    assert predplatne.subscription_for_user(db, 1).provider_subscription_id == "sub_1"
 
 
 def test_two_renewal_invoices_for_one_subscription_are_both_recorded(db):
@@ -460,6 +545,116 @@ def test_payment_quarantines_wrong_subscription_and_regressive_period(db):
     assert predplatne.subscription_for_user(db, 1).paid_through == P0_END
 
 
+def test_invoice_before_subscription_is_reviewed_without_partial_write_then_repairable(db):
+    initial_invoice = event(
+        "subscription_payment_success", billing_reason="initial"
+    )
+
+    reviewed = process(db, initial_invoice)
+
+    assert reviewed["review_required"] is True
+    assert db.execute("SELECT COUNT(*) FROM subscription_invoices").fetchone()[0] == 0
+    process(db, event("order_created"))
+    process(db, event("subscription_created"))
+
+    repaired = process(db, initial_invoice)
+
+    assert repaired["duplicate"] is False
+    assert repaired["review_required"] is False
+    assert db.execute("SELECT COUNT(*) FROM subscription_invoices").fetchone()[0] == 1
+    assert db.execute(
+        "SELECT processing_status FROM subscription_events "
+        "WHERE event_key='lemon:invoice:subscription_payment_success:inv_0'"
+    ).fetchone()[0] == "processed"
+
+
+def test_incomplete_renewal_rolls_back_invoice_and_corrected_webhook_repairs_it(db):
+    activate_founder(db)
+    incomplete = event(
+        "subscription_payment_success",
+        invoice_id="inv_1",
+        total=4_900,
+        discount_id=None,
+        period_start=P0_END,
+        period_end=P1_END,
+        billing_reason="renewal",
+        updated_at="2027-09-12T00:00:01Z",
+    )
+    incomplete["data"]["attributes"]["renews_at"] = None
+
+    reviewed = process(db, incomplete)
+
+    assert reviewed["review_required"] is True
+    assert db.execute("SELECT COUNT(*) FROM subscription_invoices").fetchone()[0] == 1
+    assert predplatne.subscription_for_user(db, 1).paid_through == P0_END
+
+    corrected = event(
+        "subscription_payment_success",
+        invoice_id="inv_1",
+        total=4_900,
+        discount_id=None,
+        period_start=P0_END,
+        period_end=P1_END,
+        billing_reason="renewal",
+        updated_at="2027-09-12T00:00:02Z",
+    )
+    repaired = process(db, corrected)
+
+    assert repaired["duplicate"] is False
+    assert repaired["review_required"] is False
+    assert db.execute("SELECT COUNT(*) FROM subscription_invoices").fetchone()[0] == 2
+    assert predplatne.subscription_for_user(db, 1).paid_through == P1_END
+
+
+def test_reconciliation_can_repair_reviewed_invoice_with_separate_namespace(db):
+    activate_founder(db)
+    incomplete = event(
+        "subscription_payment_success",
+        invoice_id="inv_reconcile",
+        total=4_900,
+        discount_id=None,
+        period_start=P0_END,
+        period_end=P1_END,
+        billing_reason="renewal",
+        updated_at="2027-09-12T00:00:01Z",
+    )
+    incomplete["data"]["attributes"]["renews_at"] = None
+    assert process(db, incomplete)["review_required"] is True
+    assert db.execute("SELECT COUNT(*) FROM subscription_invoices").fetchone()[0] == 1
+
+    corrected = event(
+        "subscription_payment_success",
+        invoice_id="inv_reconcile",
+        total=4_900,
+        discount_id=None,
+        period_start=P0_END,
+        period_end=P1_END,
+        billing_reason="renewal",
+        updated_at="2027-09-12T00:00:02Z",
+    )
+    repaired = process(
+        db,
+        corrected,
+        source="reconciliation",
+        delivery_key="invoice:inv_reconcile:corrected",
+    )
+
+    assert repaired["duplicate"] is False
+    assert repaired["review_required"] is False
+    assert db.execute("SELECT COUNT(*) FROM subscription_invoices").fetchone()[0] == 2
+    keys = {
+        row[0]
+        for row in db.execute(
+            "SELECT event_key FROM subscription_events "
+            "WHERE provider_invoice_id='inv_reconcile'"
+        )
+    }
+    assert keys == {
+        "lemon:invoice:subscription_payment_success:inv_reconcile",
+        "lemon:reconcile:subscription_payment_success:invoice:inv_reconcile:corrected",
+    }
+
+
 def test_cancel_keeps_access_until_verified_end_but_expiry_removes_it(db):
     activate_founder(db)
     cancelled = event("subscription_cancelled", status="cancelled")
@@ -472,6 +667,85 @@ def test_cancel_keeps_access_until_verified_end_but_expiry_removes_it(db):
     process(db, event("subscription_expired", status="expired"), now=P0_END + 1.0)
     assert predplatne.subscription_for_user(db, 1).status == "expired"
     assert access(db, now=P0_END + 1.0) is False
+
+
+def test_active_and_past_due_access_never_exceeds_verified_paid_through(db):
+    activate_founder(db)
+
+    assert access(db, now=P0_END - 1.0) is True
+    assert access(db, now=P0_END + 1.0) is False
+    process(
+        db,
+        event(
+            "subscription_payment_failed",
+            invoice_id="inv_late",
+            status="failed",
+            subscription_status="past_due",
+            updated_at="2026-09-12T00:02:00Z",
+        ),
+    )
+    assert access(db, now=P0_END + 1.0) is False
+
+
+def test_delayed_active_update_cannot_revive_verified_expiry(db):
+    activate_founder(db)
+    expired = event(
+        "subscription_expired",
+        status="expired",
+        updated_at="2027-09-12T00:00:01Z",
+    )
+    process(db, expired, now=P0_END + 1.0)
+    verified = predplatne.subscription_for_user(db, 1)
+
+    delayed = event(
+        "subscription_updated",
+        status="active",
+        updated_at="2026-09-12T00:02:00Z",
+    )
+    result = process(db, delayed, now=P0_END + 2.0)
+    current = predplatne.subscription_for_user(db, 1)
+
+    assert result["review_required"] is True
+    assert current.status == "expired"
+    assert current.paid_through == verified.paid_through
+    assert current.provider_updated_at == verified.provider_updated_at
+    assert access(db, now=P0_END + 2.0) is False
+
+
+def test_generic_active_update_cannot_recover_unpaid_but_verified_payment_can(db):
+    activate_founder(db)
+    process(
+        db,
+        event(
+            "subscription_updated",
+            status="unpaid",
+            updated_at="2026-09-12T00:03:00Z",
+        ),
+    )
+
+    generic = process(
+        db,
+        event(
+            "subscription_updated",
+            status="active",
+            updated_at="2026-09-12T00:04:00Z",
+        ),
+    )
+    assert generic["review_required"] is True
+    assert predplatne.subscription_for_user(db, 1).status == "unpaid"
+
+    recovered = process(
+        db,
+        event(
+            "subscription_payment_recovered",
+            invoice_id="inv_recovery_strict",
+            status="paid",
+            subscription_status="active",
+            updated_at="2026-09-12T00:05:00Z",
+        ),
+    )
+    assert recovered["review_required"] is False
+    assert predplatne.subscription_for_user(db, 1).status == "active"
 
 
 def test_verified_unpaid_suspends_and_payment_recovery_restores_access(db):
@@ -637,16 +911,108 @@ def test_every_supported_lifecycle_event_has_an_idempotent_transition(db, event_
     )
 
     assert first["duplicate"] is False
-    assert replay["duplicate"] is True
+    assert replay["duplicate"] is (event_name != "subscription_paused")
+    assert replay["review_required"] is (event_name == "subscription_paused")
     assert state_after_replay == state_after_first
 
 
-def _load_server(monkeypatch, tmp_path):
+def test_durable_event_payload_is_a_strict_redacted_projection(db):
+    payload = event("order_created")
+    payload["meta"].update(
+        {
+            "webhook_secret": "never-store-secret",
+            "signed_url": "https://signed.example/secret-token",
+            "customer_email": "private@example.sk",
+        }
+    )
+    payload["data"]["attributes"].update(
+        {
+            "urls": {"receipt": "https://receipt.example/private"},
+            "user_name": "Private Person",
+            "api_token": "provider-api-token",
+        }
+    )
+    payload["data"]["relationships"] = {
+        "customer": {
+            "data": {
+                "id": "cus_1",
+                "email": "nested@example.sk",
+                "url": "https://customer.example/private",
+            }
+        }
+    }
+
+    process(db, payload)
+
+    stored = db.execute(
+        "SELECT payload_json FROM subscription_events ORDER BY id DESC LIMIT 1"
+    ).fetchone()[0]
+    projection = json.loads(stored)
+    assert set(projection) <= {
+        "amount_cents",
+        "billing_reason",
+        "currency",
+        "discount_present",
+        "event_name",
+        "period_end",
+        "period_start",
+        "provider_invoice_id",
+        "provider_order_id",
+        "provider_subscription_id",
+        "provider_updated_at",
+        "refunded_amount_cents",
+        "resource_id",
+        "resource_type",
+        "status",
+        "store_id",
+        "subscription_status",
+        "test_mode",
+        "variant_id",
+    }
+    assert projection["event_name"] == "order_created"
+    for forbidden in (
+        "never-store-secret",
+        "secret-token",
+        "private@example.sk",
+        "nested@example.sk",
+        "provider-api-token",
+        "Private Person",
+        "https://",
+        ATTEMPT_ID,
+    ):
+        assert forbidden not in stored
+
+
+@pytest.mark.parametrize("outcome", ("review", "replay"))
+def test_processor_uses_savepoint_without_committing_caller_transaction(db, outcome):
+    original = event("order_created")
+    process(db, original)
+    db.execute(
+        "INSERT INTO pouzivatelia (id,email,platiaci) VALUES (3,'pending@example.sk',0)"
+    )
+
+    if outcome == "review":
+        payload = event("subscription_created")
+        payload["data"]["attributes"].pop("variant_id")
+        result = process(db, payload)
+        assert result["review_required"] is True
+    else:
+        result = process(db, original)
+        assert result["duplicate"] is True
+
+    assert db.in_transaction is True
+    db.rollback()
+    assert db.execute(
+        "SELECT 1 FROM pouzivatelia WHERE id=3"
+    ).fetchone() is None
+
+
+def _load_server(monkeypatch, tmp_path, *, payments_enabled=True):
     monkeypatch.setenv("UVARSI_DB", str(tmp_path / "task3.db"))
     monkeypatch.setenv("UVARSI_URL", "https://uvar.si")
     monkeypatch.setenv("UVARSI_VERSION_FILE", str(ROOT / "VERSION"))
     monkeypatch.setenv("UVARSI_STATIC", str(tmp_path / "static"))
-    monkeypatch.setenv("PLATBY_ZAPNUTE", "1")
+    monkeypatch.setenv("PLATBY_ZAPNUTE", "1" if payments_enabled else "0")
     monkeypatch.setenv("LEMON_WEBHOOK_SECRET", WEBHOOK_SECRET)
     monkeypatch.setenv("LEMON_STORE_ID", STORE_ID)
     monkeypatch.setenv("LEMON_SUBSCRIPTION_VARIANT_ID", VARIANT_ID)
@@ -660,63 +1026,296 @@ def _load_server(monkeypatch, tmp_path):
         con.execute(
             "INSERT INTO pouzivatelia (id,email,platiaci) VALUES (1,'one@example.sk',0)"
         )
-        seed_attempt(con)
+        seed_attempt(con, test_mode=False)
     return server
 
 
-def test_server_verifies_raw_hmac_before_hashing_and_dispatches_exact_body_digest(monkeypatch, tmp_path):
-    server = _load_server(monkeypatch, tmp_path)
-    payload = event("order_created")
-    body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
-    calls = []
-    real_sha256 = hashlib.sha256
-
-    def verify(*, tajomstvo, telo, podpis):
-        calls.append(("hmac", bytes(telo)))
-        return True
-
-    def sha256(value):
-        calls.append(("sha256", bytes(value)))
-        return real_sha256(value)
-
-    def dispatch(con, *, payload, now, expected, source, delivery_key):
-        calls.append(("dispatch", delivery_key))
-        assert expected == {
-            "store_id": STORE_ID,
-            "variant_id": VARIANT_ID,
-            "founder_discount_id": FOUNDER_DISCOUNT_ID,
-            "currency": "EUR",
-            "test_mode": False,
-        }
-        assert source == "webhook"
-        return {
-            "duplicate": False,
-            "review_required": False,
-            "event_type": "order_created",
-            "action": "paired",
-            "user_id": 1,
-        }
-
-    monkeypatch.setattr(server, "overit_podpis", verify)
-    monkeypatch.setattr(server, "hashlib", SimpleNamespace(sha256=sha256))
-    monkeypatch.setattr(
-        server.predplatne, "process_subscription_event", dispatch, raising=False
-    )
-    response = TestClient(server.app, raise_server_exceptions=False).post(
+def _signed_post(client, payload, *, secret=WEBHOOK_SECRET, indent=None):
+    body = json.dumps(
+        payload,
+        ensure_ascii=False,
+        indent=indent,
+        separators=None if indent is not None else (",", ":"),
+    ).encode("utf-8")
+    response = client.post(
         "/api/platba/webhook",
         content=body,
         headers={
             "Content-Type": "application/json",
             "X-Signature": hmac.new(
-                WEBHOOK_SECRET.encode("utf-8"), body, real_sha256
+                secret.encode("utf-8"), body, hashlib.sha256
             ).hexdigest(),
         },
     )
+    return response, body
 
-    assert response.status_code == 200
-    assert response.json() == {"ok": True, "akcia": "paired"}
-    assert calls == [
-        ("hmac", body),
-        ("sha256", body),
-        ("dispatch", real_sha256(body).hexdigest()),
+
+def test_real_live_endpoint_verifies_hmac_then_digest_and_processes_annual_lifecycle(
+    monkeypatch, tmp_path
+):
+    server = _load_server(monkeypatch, tmp_path)
+    calls = []
+    real_verify = server.overit_podpis
+    real_sha256 = hashlib.sha256
+
+    def verify(*, tajomstvo, telo, podpis):
+        calls.append(("hmac", bytes(telo)))
+        return real_verify(tajomstvo=tajomstvo, telo=telo, podpis=podpis)
+
+    def sha256(value):
+        calls.append(("sha256", bytes(value)))
+        return real_sha256(value)
+
+    monkeypatch.setattr(server, "overit_podpis", verify)
+    monkeypatch.setattr(server, "hashlib", SimpleNamespace(sha256=sha256))
+    client = TestClient(server.app, raise_server_exceptions=False)
+    payloads = [
+        event("order_created", test_mode=False),
+        event("subscription_created", test_mode=False),
+        event(
+            "subscription_payment_success",
+            test_mode=False,
+            billing_reason="initial",
+        ),
     ]
+    bodies = []
+    actions = []
+    for payload in payloads:
+        response, body = _signed_post(client, payload, indent=2)
+        assert response.status_code == 200
+        actions.append(response.json()["akcia"])
+        bodies.append(body)
+
+    assert actions == ["paired", "activated", "invoice_recorded"]
+    assert calls == [
+        item
+        for body in bodies
+        for item in (("hmac", body), ("sha256", body))
+    ]
+    with closing(server.db()) as con:
+        snapshot = predplatne.subscription_for_user(con, 1)
+        invoice = con.execute(
+            "SELECT provider_invoice_id,amount_cents FROM subscription_invoices"
+        ).fetchone()
+    assert snapshot.test_mode is False
+    assert snapshot.provider_subscription_id == "sub_1"
+    assert tuple(invoice) == ("inv_0", 3_900)
+
+
+def test_deferred_live_annual_order_subscription_and_payment_use_real_processor(
+    monkeypatch, tmp_path
+):
+    server = _load_server(monkeypatch, tmp_path, payments_enabled=False)
+    client = TestClient(server.app, raise_server_exceptions=False)
+    payloads = [
+        event("order_created", test_mode=False),
+        event("subscription_created", test_mode=False),
+        event(
+            "subscription_payment_success",
+            test_mode=False,
+            billing_reason="initial",
+        ),
+    ]
+    for payload in payloads:
+        response, _body = _signed_post(client, payload)
+        assert response.status_code == 200
+        assert response.json()["akcia"] == "odlozene"
+
+    with closing(server.db()) as con:
+        result = platby.spracuj_odlozene(
+            con,
+            tajomstvo=WEBHOOK_SECRET,
+            now=NOW,
+            expected_test_mode=False,
+            subscription_expected={**EXPECTED, "test_mode": False},
+        )
+        snapshot = predplatne.subscription_for_user(con, 1)
+        invoices = con.execute(
+            "SELECT provider_invoice_id,amount_cents FROM subscription_invoices"
+        ).fetchall()
+        queued = con.execute(
+            "SELECT telo,podpis,spracovane_o FROM platobne_odlozene ORDER BY id"
+        ).fetchall()
+
+    assert result["spracovane"] == 3
+    assert [item["akcia"] for item in result["udalosti"]] == [
+        "paired",
+        "activated",
+        "invoice_recorded",
+    ]
+    assert snapshot.provider_subscription_id == "sub_1"
+    assert [tuple(row) for row in invoices] == [("inv_0", 3_900)]
+    assert all(bytes(row["telo"]) == b"" for row in queued)
+    assert all(row["podpis"] is None for row in queued)
+    assert all(row["spracovane_o"] is not None for row in queued)
+
+
+def test_deferred_replay_authenticates_before_digest_and_json_and_keeps_bad_body_pending(
+    db, monkeypatch
+):
+    malformed = b'{"meta":'
+    signature = hmac.new(
+        WEBHOOK_SECRET.encode("utf-8"), malformed, hashlib.sha256
+    ).hexdigest()
+    platby.odloz_webhook(db, telo=malformed, podpis=signature, now=NOW)
+    calls = []
+    real_sha256 = hashlib.sha256
+    real_loads = json.loads
+
+    def verify(*, tajomstvo, telo, podpis):
+        calls.append("hmac")
+        expected_signature = hmac.new(
+            tajomstvo.encode("utf-8"), bytes(telo), real_sha256
+        ).hexdigest()
+        return hmac.compare_digest(expected_signature, podpis)
+
+    def sha256(value):
+        calls.append("sha256")
+        return real_sha256(value)
+
+    def loads(value):
+        calls.append("json")
+        return real_loads(value)
+
+    monkeypatch.setattr(platby, "overit_podpis", verify)
+    monkeypatch.setattr(platby, "hashlib", SimpleNamespace(sha256=sha256))
+    monkeypatch.setattr(platby, "json", SimpleNamespace(loads=loads))
+
+    result = platby.spracuj_odlozene(
+        db,
+        tajomstvo=WEBHOOK_SECRET,
+        now=NOW,
+        expected_test_mode=False,
+        subscription_expected={**EXPECTED, "test_mode": False},
+    )
+
+    assert calls == ["hmac", "sha256", "json"]
+    assert result["spracovane"] == 0
+    assert result["pokazene"] == 1
+    row = db.execute(
+        "SELECT telo,spracovane_o FROM platobne_odlozene"
+    ).fetchone()
+    assert bytes(row["telo"]) == malformed
+    assert row["spracovane_o"] is None
+
+
+def test_deferred_replay_rejects_signature_before_hash_or_json_and_keeps_row_pending(
+    db, monkeypatch
+):
+    payload = event("order_created", test_mode=False)
+    body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    platby.odloz_webhook(db, telo=body, podpis="a" * 64, now=NOW)
+    calls = []
+    real_sha256 = hashlib.sha256
+
+    def verify(*, tajomstvo, telo, podpis):
+        calls.append("hmac")
+        expected_signature = hmac.new(
+            tajomstvo.encode("utf-8"), bytes(telo), real_sha256
+        ).hexdigest()
+        return hmac.compare_digest(expected_signature, podpis)
+
+    def forbidden(*_args, **_kwargs):
+        calls.append("forbidden")
+        raise AssertionError("digest/JSON ran before a valid signature")
+
+    monkeypatch.setattr(platby, "overit_podpis", verify)
+    monkeypatch.setattr(platby, "hashlib", SimpleNamespace(sha256=forbidden))
+    monkeypatch.setattr(platby, "json", SimpleNamespace(loads=forbidden))
+
+    result = platby.spracuj_odlozene(
+        db,
+        tajomstvo=WEBHOOK_SECRET,
+        now=NOW,
+        expected_test_mode=False,
+        subscription_expected={**EXPECTED, "test_mode": False},
+    )
+
+    assert calls == ["hmac"]
+    assert result["spracovane"] == 0
+    assert result["neplatny_podpis"] == 1
+    assert db.execute(
+        "SELECT spracovane_o FROM platobne_odlozene"
+    ).fetchone()[0] is None
+
+
+def test_deferred_replay_binds_test_secret_mode_and_annual_config(db):
+    test_variant = "variant_test_annual"
+    valid = event(
+        "order_created", test_mode=True, variant_id=test_variant
+    )
+    valid_body = json.dumps(valid, separators=(",", ":")).encode("utf-8")
+    valid_signature = hmac.new(
+        TEST_WEBHOOK_SECRET.encode("utf-8"), valid_body, hashlib.sha256
+    ).hexdigest()
+    platby.odloz_webhook(
+        db, telo=valid_body, podpis=valid_signature, now=NOW
+    )
+    forged_mode = event(
+        "order_created",
+        order_id="ord_wrong_mode",
+        attempt_id=OTHER_ATTEMPT_ID,
+        test_mode=False,
+        variant_id=test_variant,
+    )
+    forged_body = json.dumps(forged_mode, separators=(",", ":")).encode("utf-8")
+    forged_signature = hmac.new(
+        TEST_WEBHOOK_SECRET.encode("utf-8"), forged_body, hashlib.sha256
+    ).hexdigest()
+    platby.odloz_webhook(
+        db, telo=forged_body, podpis=forged_signature, now=NOW
+    )
+
+    result = platby.spracuj_odlozene(
+        db,
+        tajomstvo=WEBHOOK_SECRET,
+        test_tajomstvo=TEST_WEBHOOK_SECRET,
+        now=NOW,
+        subscription_expected={**EXPECTED, "test_mode": False},
+        test_subscription_expected={
+            **EXPECTED,
+            "variant_id": test_variant,
+            "test_mode": True,
+        },
+    )
+
+    assert result["spracovane"] == 1
+    assert result["udalosti"][0]["akcia"] == "paired"
+    rows = db.execute(
+        "SELECT telo,podpis,spracovane_o FROM platobne_odlozene ORDER BY id"
+    ).fetchall()
+    assert bytes(rows[0]["telo"]) == b""
+    assert rows[0]["podpis"] is None
+    assert rows[0]["spracovane_o"] is not None
+    assert bytes(rows[1]["telo"]) == forged_body
+    assert rows[1]["spracovane_o"] is None
+
+
+def test_deferred_annual_quarantine_is_durable_before_raw_queue_body_is_removed(db):
+    invalid = event("order_created", variant_id="wrong_variant")
+    body = json.dumps(invalid, separators=(",", ":")).encode("utf-8")
+    signature = hmac.new(
+        TEST_WEBHOOK_SECRET.encode("utf-8"), body, hashlib.sha256
+    ).hexdigest()
+    platby.odloz_webhook(db, telo=body, podpis=signature, now=NOW)
+
+    result = platby.spracuj_odlozene(
+        db,
+        tajomstvo=TEST_WEBHOOK_SECRET,
+        now=NOW,
+        expected_test_mode=True,
+        test_subscription_expected=EXPECTED,
+    )
+
+    assert result["spracovane"] == 1
+    assert result["udalosti"][0]["akcia"] == "requires_review"
+    audit = db.execute(
+        "SELECT processing_status,needs_review FROM subscription_events"
+    ).fetchone()
+    queued = db.execute(
+        "SELECT telo,podpis,spracovane_o FROM platobne_odlozene"
+    ).fetchone()
+    assert tuple(audit) == ("requires_review", 1)
+    assert bytes(queued["telo"]) == b""
+    assert queued["podpis"] is None
+    assert queued["spracovane_o"] is not None

@@ -137,6 +137,7 @@ def test_subscription_schema_has_required_fields_and_indexes():
         "needs_review",
         "review_reason",
         "last_verified_event_at",
+        "provider_updated_at",
         "created_at",
         "updated_at",
     }
@@ -150,6 +151,22 @@ def test_subscription_schema_has_required_fields_and_indexes():
         "subscriptions_provider_order_idx",
         "subscriptions_provider_subscription_idx",
     }
+
+
+def test_subscription_migration_adds_provider_revision_to_existing_task_1_table():
+    db = connection()
+    old_schema = predplatne.SUBSCRIPTION_SCHEMA.replace(
+        "  provider_updated_at REAL,\n", ""
+    )
+    db.executescript(old_schema)
+
+    predplatne.migrate_subscription_schema(db)
+    predplatne.migrate_subscription_schema(db)
+
+    columns = {
+        row[1] for row in db.execute("PRAGMA table_info(subscriptions)")
+    }
+    assert "provider_updated_at" in columns
 
 
 def test_provider_ids_are_unique_within_provider_mode():

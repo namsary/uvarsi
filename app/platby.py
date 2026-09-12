@@ -1554,14 +1554,14 @@ def stav_dozoru(con) -> dict:
 
 def spracuj_odlozene(
     con, *, tajomstvo, now, variant_id=None, limit=MAX_ODLOZENYCH,
-    expected_test_mode=None,
+    expected_test_mode=None, test_tajomstvo=None,
+    subscription_expected=None, test_subscription_expected=None,
 ) -> dict:
     """Dobehni telá, ktoré čakali. Každé prejde overením podpisu, ako by prišlo teraz.
 
     Beží mimo requestu (rekonciliačný skript), takže tu už tajomstvo k dispozícii
-    je. Telo s podpisom, ktorý nesedí, sa neudelí a označí sa — je to buď smeť
-    z internetu, alebo majiteľ nastavil iné tajomstvo, než akým poskytovateľ
-    podpisuje.
+    je. Telo s podpisom, ktorý nesedí, alebo sa nedá dekódovať, ostáva čakajúce.
+    Replay tak zlyhá zatvorene a nestratí dôkazy pri zle nastavenom tajomstve.
 
     Produkčný job posiela ``expected_test_mode=False``. Testovacie aj neoznačené
     udalosti tak nechá nedotknuté pre samostatný payment smoke alebo ručnú
@@ -1569,6 +1569,10 @@ def spracuj_odlozene(
     """
     if expected_test_mode not in (None, True, False):
         raise ValueError("expected_test_mode musí byť bool alebo None")
+    try:
+        from . import predplatne as subscription_domain
+    except ImportError:  # pragma: no cover - script import path
+        import predplatne as subscription_domain
     now = _cas(now)
     suhrn = {"spracovane": 0, "udelene": 0, "neplatny_podpis": 0,
              "nepouzitelne": 0, "pokazene": 0, "akcie": {}, "udalosti": []}
@@ -1579,42 +1583,81 @@ def spracuj_odlozene(
     ).fetchall()
     for riadok in riadky:
         telo = bytes(riadok[1])
+        if expected_test_mode is True:
+            candidates = [(True, test_tajomstvo or tajomstvo)]
+        elif expected_test_mode is False:
+            candidates = [(False, tajomstvo)]
+        else:
+            candidates = [(False, tajomstvo)]
+            if test_tajomstvo:
+                candidates.append((True, test_tajomstvo))
+        matching_modes = [
+            mode
+            for mode, secret in candidates
+            if overit_podpis(
+                tajomstvo=secret, telo=telo, podpis=riadok[2]
+            )
+        ]
+        if len(matching_modes) != 1:
+            suhrn["neplatny_podpis"] += 1
+            continue
+        verified_mode = matching_modes[0]
+        verified_body_digest = hashlib.sha256(telo).hexdigest()
         try:
             payload = json.loads(telo)
         except (ValueError, UnicodeDecodeError):
-            payload = None
-        if isinstance(payload, dict):
-            test_mode = _atributy(payload).get("test_mode")
-            if expected_test_mode is False and test_mode is not False:
-                continue
-            if expected_test_mode is True and test_mode is not True:
-                continue
-        vysledok = None
-        if not overit_podpis(tajomstvo=tajomstvo, telo=telo, podpis=riadok[2]):
-            vysledok = "neplatny_podpis"
-            suhrn["neplatny_podpis"] += 1
-        elif payload is None:
-            vysledok = "pokazene_telo"
             suhrn["pokazene"] += 1
-        else:
-            try:
+            continue
+        if not isinstance(payload, dict):
+            suhrn["pokazene"] += 1
+            continue
+        declared_mode = _atributy(payload).get("test_mode")
+        if declared_mode is not verified_mode:
+            suhrn["nepouzitelne"] += 1
+            continue
+        try:
+            if subscription_domain.is_subscription_event(con, payload):
+                annual_expected = (
+                    test_subscription_expected
+                    if verified_mode
+                    else subscription_expected
+                )
+                if annual_expected is None:
+                    raise subscription_domain.SubscriptionEventRejected(
+                        "chýba konfigurácia odloženého predplatného"
+                    )
+                annual_result = subscription_domain.process_subscription_event(
+                    con,
+                    payload=payload,
+                    now=now,
+                    expected=annual_expected,
+                    source=ZDROJ_ODLOZENE,
+                    delivery_key=verified_body_digest,
+                )
+                udalost = {
+                    "akcia": annual_result["action"],
+                    "typ": annual_result["event_type"],
+                    "user_id": annual_result.get("user_id"),
+                    "zdroj": ZDROJ_ODLOZENE,
+                }
+            else:
                 udalost = spracuj_udalost(
                     con, payload=payload, now=now, variant_id=variant_id,
                     zdroj=ZDROJ_ODLOZENE,
-                    expected_test_mode=expected_test_mode,
+                    expected_test_mode=verified_mode,
                 )
-            except UdalostNepouzitelna:
-                vysledok = "nepouzitelna"
-                suhrn["nepouzitelne"] += 1
-            else:
-                vysledok = udalost["akcia"]
-                suhrn["akcie"][vysledok] = suhrn["akcie"].get(vysledok, 0) + 1
-                suhrn["udalosti"].append(udalost)
-                if vysledok == AKCIA_UDELENE:
-                    suhrn["udelene"] += 1
+        except (UdalostNepouzitelna, subscription_domain.SubscriptionEventRejected):
+            suhrn["nepouzitelne"] += 1
+            continue
+        vysledok = udalost["akcia"]
+        suhrn["akcie"][vysledok] = suhrn["akcie"].get(vysledok, 0) + 1
+        suhrn["udalosti"].append(udalost)
+        if vysledok == AKCIA_UDELENE:
+            suhrn["udelene"] += 1
         con.execute(
-            "UPDATE platobne_odlozene SET spracovane_o=?, vysledok=? WHERE id=?",
-            (now, vysledok, riadok[0]),
+            "UPDATE platobne_odlozene SET telo=?,podpis=NULL,spracovane_o=?,vysledok=? "
+            "WHERE id=? AND spracovane_o IS NULL",
+            (b"", now, vysledok, riadok[0]),
         )
         con.commit()
         suhrn["spracovane"] += 1
@@ -1644,8 +1687,14 @@ def spracuj_odlozene_pre_smoke(
         """SELECT id, telo, podpis FROM platobne_odlozene
            WHERE spracovane_o IS NULL ORDER BY id"""
     ).fetchall()
+    saw_invalid_signature = False
     for row in rows:
         body = bytes(row[1])
+        if not overit_podpis(
+            tajomstvo=tajomstvo, telo=body, podpis=row[2]
+        ):
+            saw_invalid_signature = True
+            continue
         try:
             payload = json.loads(body)
         except (ValueError, UnicodeDecodeError):
@@ -1659,12 +1708,9 @@ def spracuj_odlozene_pre_smoke(
         matches.append((row, body, payload))
 
     if not matches:
+        if saw_invalid_signature:
+            raise UdalostNepouzitelna("podpis smoke webhooku nesedí")
         return {"spracovane": 0, "udalost": None}
-    if any(
-        not overit_podpis(tajomstvo=tajomstvo, telo=body, podpis=row[2])
-        for row, body, _payload in matches
-    ):
-        raise UdalostNepouzitelna("podpis smoke webhooku nesedí")
 
     primary = None
     processed = 0
@@ -1679,9 +1725,9 @@ def spracuj_odlozene_pre_smoke(
         )
         con.execute(
             """UPDATE platobne_odlozene
-                  SET spracovane_o=?, vysledok=?
+                  SET telo=?, podpis=NULL, spracovane_o=?, vysledok=?
                 WHERE id=? AND spracovane_o IS NULL""",
-            (now, event["akcia"], row[0]),
+            (b"", now, event["akcia"], row[0]),
         )
         con.commit()
         processed += 1

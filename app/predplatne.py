@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   needs_review INTEGER NOT NULL DEFAULT 0 CHECK(needs_review IN (0, 1)),
   review_reason TEXT,
   last_verified_event_at REAL NOT NULL,
+  provider_updated_at REAL,
   created_at REAL NOT NULL,
   updated_at REAL NOT NULL,
   UNIQUE(user_id, product)
@@ -170,6 +171,7 @@ class SubscriptionSnapshot:
     needs_review: bool = False
     review_reason: str | None = None
     last_verified_event_at: float | None = None
+    provider_updated_at: float | None = None
     created_at: float | None = None
     updated_at: float | None = None
 
@@ -177,6 +179,13 @@ class SubscriptionSnapshot:
 def migrate_subscription_schema(con) -> None:
     """Create subscription storage without changing existing application data."""
     con.executescript(SUBSCRIPTION_SCHEMA)
+    columns = {
+        row[1] for row in con.execute("PRAGMA table_info(subscriptions)")
+    }
+    if "provider_updated_at" not in columns:
+        con.execute(
+            "ALTER TABLE subscriptions ADD COLUMN provider_updated_at REAL"
+        )
 
 
 def _nonempty_text(value) -> bool:
@@ -219,7 +228,11 @@ def subscription_access(snapshot, *, now: float) -> bool:
         return snapshot.ends_at is not None and now < snapshot.ends_at
     if snapshot.status == "paused":
         return snapshot.paid_through is not None and now < snapshot.paid_through
-    return snapshot.status in ACCESS_STATUSES
+    return (
+        snapshot.status in ACCESS_STATUSES
+        and snapshot.paid_through is not None
+        and now < snapshot.paid_through
+    )
 
 
 def _valid_time(value) -> bool:
@@ -287,6 +300,8 @@ def _validation_error(snapshot: SubscriptionSnapshot) -> str | None:
     for name in ("renews_at", "ends_at"):
         if not _valid_optional_time(getattr(snapshot, name)):
             return f"invalid {name}"
+    if not _valid_optional_time(snapshot.provider_updated_at):
+        return "invalid provider_updated_at"
     if snapshot.status in ACCESS_STATUSES and snapshot.renews_at is None:
         return "missing renews_at"
     if snapshot.status == "cancelled" and snapshot.ends_at is None:
@@ -337,6 +352,48 @@ def upsert_snapshot(con, snapshot: SubscriptionSnapshot, *, now: float) -> bool:
         _queue_review(con, snapshot, reason=reason, now=now)
         return False
 
+    existing = con.execute(
+        "SELECT provider,provider_customer_id,provider_order_id,"
+        "provider_subscription_id,provider_variant_id,currency,test_mode,"
+        "provider_updated_at FROM subscriptions WHERE user_id=? AND product=?",
+        (snapshot.user_id, snapshot.product),
+    ).fetchone()
+    if existing is not None:
+        incoming_identity = (
+            snapshot.provider,
+            snapshot.provider_customer_id,
+            snapshot.provider_order_id,
+            snapshot.provider_subscription_id,
+            snapshot.provider_variant_id,
+            snapshot.currency,
+            int(snapshot.test_mode),
+        )
+        if tuple(existing[:7]) != incoming_identity:
+            _queue_review(
+                con,
+                snapshot,
+                reason="provider identity conflicts with verified subscription",
+                now=now,
+            )
+            return False
+        existing_revision = existing[7]
+        if (
+            snapshot.provider_updated_at is not None
+            and existing_revision is not None
+            and snapshot.provider_updated_at < existing_revision
+        ):
+            _queue_review(
+                con,
+                snapshot,
+                reason="provider update is older than verified subscription",
+                now=now,
+            )
+            return False
+        if snapshot.provider_updated_at is None and existing_revision is not None:
+            snapshot = replace(
+                snapshot, provider_updated_at=float(existing_revision)
+            )
+
     needs_review = snapshot.needs_review or snapshot.status == "paused"
     review_reason = snapshot.review_reason
     if snapshot.status == "paused" and not review_reason:
@@ -385,6 +442,7 @@ def upsert_snapshot(con, snapshot: SubscriptionSnapshot, *, now: float) -> bool:
         int(needs_review),
         review_reason,
         now,
+        snapshot.provider_updated_at,
         now,
         now,
     )
@@ -396,8 +454,8 @@ def upsert_snapshot(con, snapshot: SubscriptionSnapshot, *, now: float) -> bool:
                 status,period_start,period_end,renews_at,ends_at,paid_through,
                 initial_amount_cents,renewal_amount_cents,discount_id,founder,
                 initial_payment_verified,needs_review,review_reason,
-                last_verified_event_at,created_at,updated_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                last_verified_event_at,provider_updated_at,created_at,updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(user_id,product) DO UPDATE SET
                  provider=excluded.provider,
                  provider_customer_id=excluded.provider_customer_id,
@@ -420,6 +478,7 @@ def upsert_snapshot(con, snapshot: SubscriptionSnapshot, *, now: float) -> bool:
                  needs_review=excluded.needs_review,
                  review_reason=excluded.review_reason,
                  last_verified_event_at=excluded.last_verified_event_at,
+                 provider_updated_at=excluded.provider_updated_at,
                  updated_at=excluded.updated_at""",
             values,
         )
@@ -458,6 +517,7 @@ _SNAPSHOT_COLUMNS = (
     "needs_review",
     "review_reason",
     "last_verified_event_at",
+    "provider_updated_at",
     "created_at",
     "updated_at",
 )
@@ -545,6 +605,15 @@ def subscription_event_key(
     event_name = _event_name(payload)
     if event_name not in SUBSCRIPTION_EVENT_TYPES:
         raise SubscriptionEventRejected("nepodporovaný typ udalosti")
+    if reconciliation_key is not None:
+        if (
+            not isinstance(reconciliation_key, str)
+            or not reconciliation_key.strip()
+            or len(reconciliation_key) > 512
+            or any(character in reconciliation_key for character in "\r\n\0")
+        ):
+            raise SubscriptionEventRejected("neplatný kľúč rekonciliácie")
+        return f"lemon:reconcile:{event_name}:{reconciliation_key.strip()}"
     invoice_id = _provider_invoice_id(payload)
     if event_name in PAYMENT_EVENT_TYPES:
         if invoice_id is None:
@@ -558,15 +627,6 @@ def subscription_event_key(
         ):
             raise SubscriptionEventRejected("neplatný digest overeného tela")
         return f"lemon:webhook:{event_name}:{verified_body_digest.lower()}"
-    if reconciliation_key is not None:
-        if (
-            not isinstance(reconciliation_key, str)
-            or not reconciliation_key.strip()
-            or len(reconciliation_key) > 512
-            or any(character in reconciliation_key for character in "\r\n\0")
-        ):
-            raise SubscriptionEventRejected("neplatný kľúč rekonciliácie")
-        return f"lemon:reconcile:{event_name}:{reconciliation_key.strip()}"
     raise SubscriptionEventRejected("chýba bezpečný kľúč doručenia")
 
 
@@ -689,6 +749,25 @@ def _timestamp(value) -> float | None:
         return None
     result = parsed.timestamp()
     return result if math.isfinite(result) and result >= 0 else None
+
+
+def _provider_revision(payload) -> float:
+    revision = _timestamp(_payload_attributes(payload).get("updated_at"))
+    if revision is None:
+        raise _ReviewRequired("udalosti chýba dôveryhodný updated_at")
+    return revision
+
+
+def _fresh_provider_revision(
+    snapshot: SubscriptionSnapshot, payload
+) -> float:
+    revision = _provider_revision(payload)
+    if (
+        snapshot.provider_updated_at is not None
+        and revision < snapshot.provider_updated_at
+    ):
+        raise _ReviewRequired("udalosť je staršia než overený stav predplatného")
+    return revision
 
 
 def _period(payload) -> tuple[float, float]:
@@ -881,6 +960,42 @@ def _validate_snapshot_identity(
         raise _ReviewRequired("pokus patrí inému predplatnému")
 
 
+def _validate_existing_provider_identity(
+    snapshot: SubscriptionSnapshot,
+    *,
+    customer_id: str,
+    order_id: str,
+    subscription_id: str,
+    expected: dict,
+) -> None:
+    identity = (
+        snapshot.provider,
+        snapshot.provider_customer_id,
+        snapshot.provider_order_id,
+        snapshot.provider_subscription_id,
+        snapshot.provider_variant_id,
+        snapshot.currency,
+        snapshot.test_mode,
+    )
+    incoming = (
+        "lemonsqueezy",
+        customer_id,
+        order_id,
+        subscription_id,
+        expected["variant_id"],
+        expected["currency"],
+        expected["test_mode"],
+    )
+    if identity != incoming:
+        raise _ReviewRequired(
+            "nové predplatné nesmie prepísať overenú identitu poskytovateľa"
+        )
+    if snapshot.status != "active":
+        raise _ReviewRequired(
+            "opakované vytvorenie nesmie obnoviť ukončené predplatné"
+        )
+
+
 def _replace_verified_snapshot(
     con, snapshot: SubscriptionSnapshot, *, now: float, **changes
 ) -> None:
@@ -916,6 +1031,23 @@ def _process_subscription_created(con, payload, expected: dict, *, now: float) -
     order_id = _provider_order_id(payload)
     if subscription_id is None or customer_id is None or order_id is None:
         raise _ReviewRequired("chýba identita predplatného")
+    revision = _provider_revision(payload)
+    existing = subscription_for_user(con, attempt["user_id"])
+    if existing is not None:
+        _validate_existing_provider_identity(
+            existing,
+            customer_id=customer_id,
+            order_id=order_id,
+            subscription_id=subscription_id,
+            expected=expected,
+        )
+        if (
+            existing.provider_updated_at is not None
+            and revision < existing.provider_updated_at
+        ):
+            raise _ReviewRequired(
+                "udalosť je staršia než overený stav predplatného"
+            )
     status = _payload_attributes(payload).get("status")
     status = status.strip().casefold() if isinstance(status, str) else ""
     if status != "active":
@@ -946,6 +1078,7 @@ def _process_subscription_created(con, payload, expected: dict, *, now: float) -
         discount_id=attempt["discount_id"],
         founder=founder,
         initial_payment_verified=True,
+        provider_updated_at=revision,
     )
     if not upsert_snapshot(con, snapshot, now=now):
         raise _ReviewRequired("predplatné sa nedá bezpečne aktivovať")
@@ -980,6 +1113,7 @@ def _validate_current_period(snapshot: SubscriptionSnapshot, payload) -> tuple[f
 
 def _process_payment_success(con, payload, expected: dict, *, now: float) -> dict:
     snapshot, attempt = _existing_context(con, payload, expected)
+    revision = _fresh_provider_revision(snapshot, payload)
     invoice_id = _provider_invoice_id(payload)
     if invoice_id is None:
         raise SubscriptionEventRejected("platobnej udalosti chýba id faktúry")
@@ -1018,6 +1152,11 @@ def _process_payment_success(con, payload, expected: dict, *, now: float) -> dic
     status = _payload_attributes(payload).get("status")
     if not isinstance(status, str) or status.strip().casefold() != "paid":
         raise _ReviewRequired("faktúra nie je zaplatená")
+    renews_at = None
+    if renewal:
+        renews_at = _timestamp(_payload_attributes(payload).get("renews_at"))
+        if renews_at is None or renews_at < period_end:
+            raise _ReviewRequired("obnove chýba ďalší dátum obnovy")
     con.execute(
         """INSERT INTO subscription_invoices
            (provider,test_mode,provider_invoice_id,provider_subscription_id,
@@ -1040,9 +1179,6 @@ def _process_payment_success(con, payload, expected: dict, *, now: float) -> dic
         ),
     )
     if renewal:
-        renews_at = _timestamp(_payload_attributes(payload).get("renews_at"))
-        if renews_at is None or renews_at < period_end:
-            raise _ReviewRequired("obnove chýba ďalší dátum obnovy")
         _replace_verified_snapshot(
             con,
             snapshot,
@@ -1053,12 +1189,14 @@ def _process_payment_success(con, payload, expected: dict, *, now: float) -> dic
             renews_at=renews_at,
             ends_at=None,
             paid_through=period_end,
+            provider_updated_at=revision,
         )
     return {"action": "invoice_recorded", "user_id": snapshot.user_id}
 
 
 def _process_dunning(con, payload, expected: dict, *, now: float, recovered: bool) -> dict:
     snapshot, _attempt_row = _existing_context(con, payload, expected)
+    revision = _fresh_provider_revision(snapshot, payload)
     _validate_current_period(snapshot, payload)
     attributes = _payload_attributes(payload)
     invoice_status = attributes.get("status")
@@ -1073,8 +1211,17 @@ def _process_dunning(con, payload, expected: dict, *, now: float, recovered: boo
     wanted_subscription = "active" if recovered else "past_due"
     if invoice_status != wanted_invoice or provider_status != wanted_subscription:
         raise _ReviewRequired("stav záchrany platby nie je overený")
+    if recovered:
+        if snapshot.status not in {"active", "past_due", "unpaid", "expired"}:
+            raise _ReviewRequired("stav predplatného neumožňuje obnovu platby")
+    elif snapshot.status not in {"active", "past_due"}:
+        raise _ReviewRequired("stav predplatného neumožňuje dunning")
     _replace_verified_snapshot(
-        con, snapshot, now=now, status=wanted_subscription
+        con,
+        snapshot,
+        now=now,
+        status=wanted_subscription,
+        provider_updated_at=revision,
     )
     return {
         "action": "payment_recovered" if recovered else "payment_failed",
@@ -1128,6 +1275,7 @@ def _process_subscription_transition(
     con, payload, expected: dict, *, now: float, event_name: str
 ) -> dict:
     snapshot, _attempt_row = _existing_context(con, payload, expected)
+    revision = _fresh_provider_revision(snapshot, payload)
     _validate_current_period(snapshot, payload)
     attributes = _payload_attributes(payload)
     status = attributes.get("status")
@@ -1139,6 +1287,8 @@ def _process_subscription_transition(
 
     changes = {}
     if event_name == "subscription_cancelled" or status == "cancelled":
+        if snapshot.status not in {"active", "past_due", "cancelled"}:
+            raise _ReviewRequired("stav predplatného neumožňuje zrušenie")
         ends_at = _timestamp(attributes.get("ends_at"))
         if status != "cancelled" or ends_at != snapshot.paid_through:
             raise _ReviewRequired("zrušenie nemá overený koniec prístupu")
@@ -1155,11 +1305,19 @@ def _process_subscription_transition(
             raise _ReviewRequired("predplatné nemožno bezpečne obnoviť")
         changes = {"status": "active", "renews_at": renews_at, "ends_at": None}
     elif event_name == "subscription_expired" or status == "expired":
+        if snapshot.status not in {
+            "active",
+            "past_due",
+            "unpaid",
+            "cancelled",
+            "expired",
+        }:
+            raise _ReviewRequired("stav predplatného neumožňuje expiráciu")
         if status != "expired":
             raise _ReviewRequired("expirácia nie je overená")
         changes = {"status": "expired", "renews_at": None, "ends_at": snapshot.ends_at}
     elif event_name == "subscription_unpaused":
-        if status != "active":
+        if status != "active" or snapshot.status not in {"active", "past_due"}:
             raise _ReviewRequired("obnovený stav po pauze nie je aktívny")
         renews_at = _timestamp(attributes.get("renews_at"))
         if renews_at is None:
@@ -1167,30 +1325,111 @@ def _process_subscription_transition(
         changes = {"status": "active", "renews_at": renews_at, "ends_at": None}
     elif event_name in {"subscription_updated"}:
         if status in {"active", "past_due"}:
+            allowed_from = {"active"} if status == "active" else {"active", "past_due"}
+            if snapshot.status not in allowed_from:
+                raise _ReviewRequired(
+                    "všeobecná aktualizácia nesmie obnoviť ukončené predplatné"
+                )
             renews_at = _timestamp(attributes.get("renews_at"))
             if renews_at is None:
                 raise _ReviewRequired("aktívnemu stavu chýba dátum obnovy")
             changes = {"status": status, "renews_at": renews_at}
         elif status == "unpaid":
+            if snapshot.status not in {"active", "past_due", "unpaid"}:
+                raise _ReviewRequired("stav predplatného neumožňuje unpaid prechod")
             changes = {"status": "unpaid"}
         else:
             raise _ReviewRequired("nepodporovaný aktualizačný prechod")
     else:
         raise _ReviewRequired("nepodporovaný prechod predplatného")
-    _replace_verified_snapshot(con, snapshot, now=now, **changes)
+    _replace_verified_snapshot(
+        con, snapshot, now=now, provider_updated_at=revision, **changes
+    )
     return {"action": status, "user_id": snapshot.user_id}
 
 
 def _event_payload_json(payload) -> str:
-    try:
-        return json.dumps(
-            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-        )
-    except (TypeError, ValueError):
-        raise SubscriptionEventRejected("udalosť nie je platný JSON objekt") from None
+    if not isinstance(payload, dict):
+        raise SubscriptionEventRejected("udalosť nie je platný JSON objekt")
+    attributes = _payload_attributes(payload)
+    resource_type = _resource_type(payload)
+    projection = {
+        "event_name": _event_name(payload),
+        "resource_type": (
+            resource_type
+            if resource_type in {"orders", "subscriptions", "subscription-invoices"}
+            else None
+        ),
+        "resource_id": _safe_id(_payload_data(payload).get("id")),
+        "provider_order_id": _provider_order_id(payload),
+        "provider_subscription_id": _provider_subscription_id(payload),
+        "provider_invoice_id": _provider_invoice_id(payload),
+        "store_id": _provider_store_id(payload),
+        "variant_id": _provider_variant_id(payload),
+        "currency": _currency(payload),
+        "test_mode": (
+            attributes.get("test_mode")
+            if type(attributes.get("test_mode")) is bool
+            else None
+        ),
+        "status": _safe_id(attributes.get("status")),
+        "subscription_status": _safe_id(attributes.get("subscription_status")),
+        "billing_reason": _safe_id(attributes.get("billing_reason")),
+        "amount_cents": _amount(payload),
+        "refunded_amount_cents": _amount(payload, "refunded_amount"),
+        "discount_present": attributes.get("discount_id") is not None,
+        "period_start": _timestamp(
+            attributes.get("billing_period_start", attributes.get("period_start"))
+        ),
+        "period_end": _timestamp(
+            attributes.get("billing_period_end", attributes.get("period_end"))
+        ),
+        "provider_updated_at": _timestamp(attributes.get("updated_at")),
+    }
+    return json.dumps(
+        {name: value for name, value in projection.items() if value is not None},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
 
 
 def _insert_delivery_event(
+    con,
+    *,
+    event_key: str,
+    payload,
+    event_name: str,
+    source: str,
+    now: float,
+) -> bool:
+    attributes = _payload_attributes(payload)
+    test_mode = attributes.get("test_mode")
+    test_mode = int(test_mode) if type(test_mode) is bool else None
+    cursor = con.execute(
+        """INSERT INTO subscription_events
+           (event_key,provider,test_mode,provider_event_id,
+            provider_subscription_id,provider_invoice_id,event_type,source,
+            payload_json,processing_status,needs_review,review_reason,
+            received_at,processed_at,updated_at)
+           VALUES (?,'lemonsqueezy',?,NULL,?,?,?, ?,?,'processing',0,NULL,?,NULL,?)
+           ON CONFLICT(event_key) DO NOTHING""",
+        (
+            event_key,
+            test_mode,
+            _provider_subscription_id(payload),
+            _provider_invoice_id(payload),
+            event_name,
+            source,
+            _event_payload_json(payload),
+            now,
+            now,
+        ),
+    )
+    return cursor.rowcount == 1
+
+
+def _retry_reviewed_delivery(
     con,
     *,
     event_key: str,
@@ -1203,14 +1442,12 @@ def _insert_delivery_event(
     test_mode = attributes.get("test_mode")
     test_mode = int(test_mode) if type(test_mode) is bool else None
     con.execute(
-        """INSERT INTO subscription_events
-           (event_key,provider,test_mode,provider_event_id,
-            provider_subscription_id,provider_invoice_id,event_type,source,
-            payload_json,processing_status,needs_review,review_reason,
-            received_at,processed_at,updated_at)
-           VALUES (?,'lemonsqueezy',?,NULL,?,?,?, ?,?,'processing',0,NULL,?,NULL,?)""",
+        """UPDATE subscription_events
+              SET test_mode=?,provider_subscription_id=?,provider_invoice_id=?,
+                  event_type=?,source=?,payload_json=?,processing_status='processing',
+                  needs_review=0,review_reason=NULL,processed_at=NULL,updated_at=?
+            WHERE event_key=? AND processing_status!='processed'""",
         (
-            event_key,
             test_mode,
             _provider_subscription_id(payload),
             _provider_invoice_id(payload),
@@ -1218,7 +1455,7 @@ def _insert_delivery_event(
             source,
             _event_payload_json(payload),
             now,
-            now,
+            event_key,
         ),
     )
 
@@ -1267,22 +1504,13 @@ def process_subscription_event(
         raise SubscriptionEventRejected("neznámy zdroj udalosti")
     event_name = _event_name(payload)
 
-    if con.in_transaction:
-        con.commit()
-    con.execute("BEGIN IMMEDIATE")
+    # SAVEPOINT owns only this delivery.  On a clean connection RELEASE commits
+    # it; inside a caller transaction RELEASE never commits the caller's work.
+    outer_savepoint = "annual_subscription_delivery"
+    domain_savepoint = "annual_subscription_domain"
+    con.execute(f"SAVEPOINT {outer_savepoint}")
     try:
-        if con.execute(
-            "SELECT 1 FROM subscription_events WHERE event_key=?", (event_key,)
-        ).fetchone() is not None:
-            con.commit()
-            return {
-                "duplicate": True,
-                "review_required": False,
-                "event_type": event_name,
-                "action": "duplicate",
-                "user_id": None,
-            }
-        _insert_delivery_event(
+        inserted = _insert_delivery_event(
             con,
             event_key=event_key,
             payload=payload,
@@ -1290,6 +1518,29 @@ def process_subscription_event(
             source=source,
             now=now,
         )
+        if not inserted:
+            previous = con.execute(
+                "SELECT processing_status FROM subscription_events WHERE event_key=?",
+                (event_key,),
+            ).fetchone()
+            if previous is not None and previous[0] == "processed":
+                con.execute(f"RELEASE SAVEPOINT {outer_savepoint}")
+                return {
+                    "duplicate": True,
+                    "review_required": False,
+                    "event_type": event_name,
+                    "action": "duplicate",
+                    "user_id": None,
+                }
+            _retry_reviewed_delivery(
+                con,
+                event_key=event_key,
+                payload=payload,
+                event_name=event_name,
+                source=source,
+                now=now,
+            )
+        con.execute(f"SAVEPOINT {domain_savepoint}")
         try:
             if event_name == "order_created":
                 result = _process_order_created(con, payload, expected, now=now)
@@ -1312,6 +1563,8 @@ def process_subscription_event(
                     con, payload, expected, now=now, event_name=event_name
                 )
         except _ReviewRequired as error:
+            con.execute(f"ROLLBACK TO SAVEPOINT {domain_savepoint}")
+            con.execute(f"RELEASE SAVEPOINT {domain_savepoint}")
             _mark_delivery(
                 con,
                 event_key,
@@ -1319,7 +1572,7 @@ def process_subscription_event(
                 status="requires_review",
                 review_reason=str(error),
             )
-            con.commit()
+            con.execute(f"RELEASE SAVEPOINT {outer_savepoint}")
             return {
                 "duplicate": False,
                 "review_required": True,
@@ -1327,8 +1580,9 @@ def process_subscription_event(
                 "action": "requires_review",
                 "user_id": None,
             }
+        con.execute(f"RELEASE SAVEPOINT {domain_savepoint}")
         _mark_delivery(con, event_key, now=now, status="processed")
-        con.commit()
+        con.execute(f"RELEASE SAVEPOINT {outer_savepoint}")
         return {
             "duplicate": False,
             "review_required": False,
@@ -1336,8 +1590,11 @@ def process_subscription_event(
             **result,
         }
     except Exception:
-        if con.in_transaction:
-            con.rollback()
+        try:
+            con.execute(f"ROLLBACK TO SAVEPOINT {outer_savepoint}")
+            con.execute(f"RELEASE SAVEPOINT {outer_savepoint}")
+        except sqlite3.OperationalError:
+            pass
         raise
 
 
