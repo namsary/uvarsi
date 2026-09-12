@@ -800,7 +800,8 @@ def test_bounded_supervisor_rebuilds_stale_receipt_from_current_offers_without_b
     )
     receipt = deployment["state"] / "refresh_receipt.py"
     receipt.write_text(
-        "import os, shutil\n"
+        "import os, shutil, sys\n"
+        "if sys.argv[1] != '--active-current': raise SystemExit(9)\n"
         "def native(path):\n"
         "    return path[1].upper() + ':' + path[2:] if path.startswith('/c/') else path\n"
         "shutil.copy2(native(os.environ['UVARSI_READY_LANDING']), "
@@ -851,7 +852,8 @@ def test_bounded_supervisor_rebuilds_receipt_that_references_monthly_campaign(
     deployment["landing"].write_text(json.dumps(stale), encoding="utf-8")
     receipt = deployment["state"] / "refresh_receipt.py"
     receipt.write_text(
-        "import os, shutil\n"
+        "import os, shutil, sys\n"
+        "if sys.argv[1] != '--active-current': raise SystemExit(9)\n"
         "def native(path):\n"
         "    return path[1].upper() + ':' + path[2:] if path.startswith('/c/') else path\n"
         "shutil.copy2(native(os.environ['UVARSI_READY_LANDING']), "

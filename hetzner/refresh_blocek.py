@@ -32,6 +32,7 @@ from app.weekly_data import (
     current_monday,
     current_verified_offers,
 )
+from app.source_policy import MIN_FACTS_PER_STORE, collector_kind_for_url
 from app.zbierac_akcii import promote_staged_week, staged_week_readiness
 
 
@@ -43,6 +44,11 @@ LANDING_ADULTS = 2
 LANDING_CHILDREN = 2
 LANDING_FREQUENCY = 3
 LANDING_PLAN_VARIANTS = 12
+OFFICIAL_COLLECTORS = {
+    "Kaufland": "official-kaufland-offers",
+    "Tesco": "official-tesco-viewer",
+    "Lidl": "official-lidl-viewer",
+}
 
 
 def landing_data_output_path(arguments):
@@ -307,6 +313,56 @@ def _staged_offer_view(con, week, today):
         con.execute("DROP TABLE temp.akcie")
 
 
+@contextmanager
+def _active_offer_view(con, today):
+    """Expose only complete, current weekly offers from official live sources."""
+    offers = priceable_offers(
+        current_verified_offers(con, ALLOWED_STORES, today)
+    )
+    counts = {store: 0 for store in ALLOWED_STORES}
+    for offer in offers:
+        store = offer["obchod"]
+        source_kind = collector_kind_for_url(offer.get("source_url"))
+        if source_kind != OFFICIAL_COLLECTORS.get(store):
+            raise StructuralFailure(
+                f"Aktívne ponuky obchodu {store} nemajú oficiálny týždenný zdroj."
+            )
+        counts[store] += 1
+    incomplete = sorted(
+        store for store, count in counts.items()
+        if count < MIN_FACTS_PER_STORE
+    )
+    if incomplete:
+        raise StructuralFailure(
+            "Bloček nevytváram z neúplných aktívnych ponúk: "
+            + ", ".join(incomplete)
+        )
+    yield offers
+
+
+def _candidate_from_offers(con, offers, compose, today):
+    try:
+        if compose is None:
+            selection, verified_totals = compose_curated_receipt(
+                offers, today, include_verified_totals=True
+            )
+        else:
+            selection = compose(offers, today)
+            verified_totals = None
+        payload = build_public_receipt(
+            con,
+            selection,
+            today=today,
+            verified_line_totals=verified_totals,
+        )
+        payload["offer_data_version"] = CURRENT_COLLECTION_DATA_VERSION
+        return _validated_candidate(payload, today)
+    except StructuralFailure:
+        raise
+    except (KeyError, TypeError, ValueError) as error:
+        raise StructuralFailure(f"Neplatný kandidát bločka: {error}") from error
+
+
 def refresh_from_db(path, database, compose=None, today=None):
     """Validate staged data and receipt, promote, then atomically publish JSON."""
     today = today or date.today()
@@ -314,31 +370,23 @@ def refresh_from_db(path, database, compose=None, today=None):
     with sqlite3.connect(database) as con:
         con.row_factory = sqlite3.Row
         with _staged_offer_view(con, week, today) as offers:
-            try:
-                if compose is None:
-                    selection, verified_totals = compose_curated_receipt(
-                        offers, today, include_verified_totals=True
-                    )
-                else:
-                    selection = compose(offers, today)
-                    verified_totals = None
-                payload = build_public_receipt(
-                    con,
-                    selection,
-                    today=today,
-                    verified_line_totals=verified_totals,
-                )
-                payload["offer_data_version"] = CURRENT_COLLECTION_DATA_VERSION
-                candidate = _validated_candidate(payload, today)
-            except StructuralFailure:
-                raise
-            except (KeyError, TypeError, ValueError) as error:
-                raise StructuralFailure(f"Neplatný kandidát bločka: {error}") from error
+            candidate = _candidate_from_offers(con, offers, compose, today)
 
         if not promote_staged_week(con, week, today=today):
             raise StructuralFailure(
                 "Staging sa pred promotion zmenil alebo už nie je kompletný."
             )
+    write_landing_data_atomic(path, candidate)
+    return candidate
+
+
+def refresh_from_active_db(path, database, compose=None, today=None):
+    """Rebuild a stale receipt from published offers without touching staging."""
+    today = today or date.today()
+    with sqlite3.connect(database) as con:
+        con.row_factory = sqlite3.Row
+        with _active_offer_view(con, today) as offers:
+            candidate = _candidate_from_offers(con, offers, compose, today)
     write_landing_data_atomic(path, candidate)
     return candidate
 
@@ -372,10 +420,13 @@ def main():
             Path(sys.argv[2]), sys.argv[3], today=date.today()
         )
         raise SystemExit(0 if valid else 1)
-    path = landing_data_output_path(sys.argv[1:])
+    active_current = sys.argv[1:2] == ["--active-current"]
+    arguments = sys.argv[2:] if active_current else sys.argv[1:]
+    path = landing_data_output_path(arguments)
     database = os.environ.get("UVARSI_DB", DATABASE_PATH)
     try:
-        refresh_from_db(path, database, today=date.today())
+        refresh = refresh_from_active_db if active_current else refresh_from_db
+        refresh(path, database, today=date.today())
     except StructuralFailure as failure:
         print(f"ŠTRUKTURÁLNA CHYBA: {failure}", file=sys.stderr)
         raise SystemExit(StructuralFailure.EXIT_CODE) from None

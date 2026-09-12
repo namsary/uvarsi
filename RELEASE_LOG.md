@@ -1,4 +1,12 @@
 
+## 2026-09-12 — Active weekly receipt recovery (vydanie 2026.09.12.14)
+
+- Neaktuálny verejný bloček sa obnoví priamo z už publikovaných ponúk, keď sú všetky tri obchody kompletné a ich údaje pochádzajú z oficiálnych týždenných zdrojov.
+- Oprava bločka nemení rozpracovaný staging, nespúšťa zberač a nepoužíva Anthropic API; z už načítaného týždňa preto nevznikne ďalší kreditový náklad.
+- Mesačné tematické kampane sa nezapočítajú ani do bločka, ani do rozhodovania hodinového dozorcu. Položky typu „Fínsky chlieb“ mimo týždenného letáka sa tak nemôžu vrátiť cez vedľajšiu cestu.
+- Ak aktívne ponuky nie sú úplné, ostáva zachovaný pôvodný bezpečný postup: dokončiť staging, overiť ho a až potom ho atomicky publikovať.
+- Overenie: 134 testov obnovy bločka, dozorcu a nasadzovania prešlo; platby zostávajú vypnuté a Taktik-mapa je mimo nasadenia.
+
 ## 2026-09-12 — Per-store offer diagnostics (vydanie 2026.09.12.13)
 
 - Verejný health pridáva iba bezpečné súhrnné počty aktuálnych týždenných ponúk pre Kaufland, Tesco a Lidl; neobsahuje osobné údaje, tajomstvá ani zdrojové odpovede.

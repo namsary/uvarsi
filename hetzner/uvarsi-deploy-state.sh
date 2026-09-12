@@ -1198,15 +1198,18 @@ _uvarsi_supervisor_cycle() {
   [ "${UVARSI_BOUNDED_CYCLE:-0}" = 1 ] || return 1
   uvarsi_require_payments_off || return 1
   if ! _uvarsi_require_collection_readiness; then
-    if ! _uvarsi_require_official_offer_data; then
+    if _uvarsi_require_official_offer_data; then
+      "$UVARSI_HEALTH_PY" -u "$UVARSI_RECEIPT_REFRESH" \
+        --active-current "$UVARSI_LANDING_DATA" || return 1
+    else
       _uvarsi_require_tesco_bridge_transport || return 1
       (
         cd "$UVARSI_APP_DIR" || exit 1
         "$UVARSI_HEALTH_PY" -u "$UVARSI_COLLECTOR"
       ) || return 1
+      "$UVARSI_HEALTH_PY" -u "$UVARSI_RECEIPT_REFRESH" \
+        "$UVARSI_LANDING_DATA" || return 1
     fi
-    "$UVARSI_HEALTH_PY" -u "$UVARSI_RECEIPT_REFRESH" \
-      "$UVARSI_LANDING_DATA" || return 1
     _uvarsi_require_collection_readiness || return 1
   fi
   "$UVARSI_SUPERVISOR"

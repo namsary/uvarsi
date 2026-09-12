@@ -966,7 +966,8 @@ def test_dozorca_pri_stalom_landingu_najprv_obnovi_blocek_a_az_potom_zohrieva(tm
         "fi\n"
         f"printf '%s\\n' \"$*\" >> '{bash_path(calls)}'\n"
         "if [ \"$2\" = \"refresh_blocek.py\" ]; then\n"
-        "  printf '{\"schema_version\":1,\"generated_at\":\"2026-08-18T05:02:20+02:00\",\"week\":\"2026-08-17\",\"week_label\":\"17.–23. 8. 2026\",\"sources\":[],\"receipt\":{\"meals\":[{\"day\":\"PO\",\"name\":\"Test\",\"items\":[]}],\"nakup_spolu\":\"1,00\",\"bezne\":\"2,00\",\"usetris\":\"1,00\"}}' > \"$3\"\n"
+        "  [ \"$3\" = \"--active-current\" ] || exit 9\n"
+        "  printf '{\"schema_version\":1,\"generated_at\":\"2026-08-18T05:02:20+02:00\",\"week\":\"2026-08-17\",\"week_label\":\"17.–23. 8. 2026\",\"sources\":[],\"receipt\":{\"meals\":[{\"day\":\"PO\",\"name\":\"Test\",\"items\":[]}],\"nakup_spolu\":\"1,00\",\"bezne\":\"2,00\",\"usetris\":\"1,00\"}}' > \"$4\"\n"
         "fi\n"
         "exit 0\n",
         encoding="utf-8",
@@ -996,7 +997,7 @@ def test_dozorca_pri_stalom_landingu_najprv_obnovi_blocek_a_az_potom_zohrieva(tm
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert calls.read_text(encoding="utf-8").splitlines() == [
-        f"-u refresh_blocek.py {bash_path(landing_data)}",
+        f"-u refresh_blocek.py --active-current {bash_path(landing_data)}",
         "-u predpocet.py --zahrej",
     ]
 

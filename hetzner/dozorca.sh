@@ -431,7 +431,7 @@ overeny_odtlacok() {
     zber_stav)
       ODTLACOK_STLPEC="s.source_fingerprint"
       STAV_PODMIENKA="s.stav='ok'"
-      PODMIENKA="EXISTS (SELECT 1 FROM akcie a WHERE a.obchod=s.obchod AND a.tyzden=s.tyzden AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to)"
+      PODMIENKA="EXISTS (SELECT 1 FROM akcie a WHERE a.obchod=s.obchod AND a.tyzden=s.tyzden AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to AND (julianday(a.valid_to)-julianday(a.valid_from)+1) <= 21)"
       ;;
     zber_staging_stav)
       ODTLACOK_STLPEC="CASE WHEN s.failure_kind='structural' THEN s.attempted_fingerprint ELSE s.source_fingerprint END"
@@ -510,7 +510,8 @@ zahrej_plany() {
 POCET=$(sqlite3 "$DIR/uvarsi.db" \
         "SELECT COUNT(*) FROM akcie
          WHERE valid_from IS NOT NULL AND valid_to IS NOT NULL
-           AND valid_from <= '$TODAY' AND '$TODAY' <= valid_to" \
+           AND valid_from <= '$TODAY' AND '$TODAY' <= valid_to
+           AND (julianday(valid_to)-julianday(valid_from)+1) <= 21" \
         2>/dev/null || echo 0)
 
 # Celkový počet nestačí: keď zlyhá JEDEN obchod, ostatné dva ľahko prekročia
@@ -523,18 +524,21 @@ CHYBA_ZBER=$(sqlite3 "$DIR/uvarsi.db" \
                      WHERE s.obchod=v.o AND s.stav='ok'
                        AND COALESCE(s.data_version, 0) >= 2
                        AND z.valid_from IS NOT NULL AND z.valid_to IS NOT NULL
-                       AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to)
+                       AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to
+                       AND (julianday(z.valid_to)-julianday(z.valid_from)+1) <= 21)
       OR (SELECT COUNT(*) FROM akcie a
           WHERE a.obchod=v.o
             AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
-            AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
+            AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to
+            AND (julianday(a.valid_to)-julianday(a.valid_from)+1) <= 21) < $MIN_OFFERS_PER_STORE" \
   2>/dev/null || echo 3)
 
 STAGED_POCET=$(sqlite3 "$DIR/uvarsi.db" \
         "SELECT COUNT(*) FROM akcie_staging
          WHERE tyzden='$MON_ISO'
            AND valid_from IS NOT NULL AND valid_to IS NOT NULL
-           AND valid_from <= '$TODAY' AND '$TODAY' <= valid_to" \
+           AND valid_from <= '$TODAY' AND '$TODAY' <= valid_to
+           AND (julianday(valid_to)-julianday(valid_from)+1) <= 21" \
         2>/dev/null || echo 0)
 STAGED_CHYBA=$(sqlite3 "$DIR/uvarsi.db" \
   "SELECT COUNT(*) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
@@ -544,11 +548,13 @@ STAGED_CHYBA=$(sqlite3 "$DIR/uvarsi.db" \
                        AND s.failure_kind IS NULL
                        AND COALESCE(s.data_version, 0) = 2
                        AND z.valid_from IS NOT NULL AND z.valid_to IS NOT NULL
-                       AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to)
+                       AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to
+                       AND (julianday(z.valid_to)-julianday(z.valid_from)+1) <= 21)
       OR (SELECT COUNT(*) FROM akcie_staging a
           WHERE a.tyzden='$MON_ISO' AND a.obchod=v.o
             AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
-            AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
+            AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to
+            AND (julianday(a.valid_to)-julianday(a.valid_from)+1) <= 21) < $MIN_OFFERS_PER_STORE" \
   2>/dev/null || echo 3)
 
 # Staging je iba rozpracovaný kandidát. Ak atomicky publikovaná aktívna trojica
@@ -574,11 +580,13 @@ if { [ "${POCET:-0}" -lt "$MIN_TOTAL_OFFERS" ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; 
                          AND s.failure_kind IS NULL
                          AND COALESCE(s.data_version, 0) = 2
                          AND z.valid_from IS NOT NULL AND z.valid_to IS NOT NULL
-                          AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to)
+                          AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to
+                          AND (julianday(z.valid_to)-julianday(z.valid_from)+1) <= 21)
         OR (SELECT COUNT(*) FROM akcie_staging a
             WHERE a.tyzden='$MON_ISO' AND a.obchod=v.o
               AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
-             AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
+             AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to
+             AND (julianday(a.valid_to)-julianday(a.valid_from)+1) <= 21) < $MIN_OFFERS_PER_STORE" \
     2>/dev/null || true)
 
   # Kaufland má verejný oficiálny prehľad so strojovo čitateľnými cenami.
@@ -605,11 +613,13 @@ if { [ "${POCET:-0}" -lt "$MIN_TOTAL_OFFERS" ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; 
                                 AND s.failure_kind IS NULL
                                 AND COALESCE(s.data_version, 0) = 2
                                 AND z.valid_from IS NOT NULL AND z.valid_to IS NOT NULL
-                                AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to)
+                                AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to
+                                AND (julianday(z.valid_to)-julianday(z.valid_from)+1) <= 21)
               OR (SELECT COUNT(*) FROM akcie_staging a
                   WHERE a.tyzden='$MON_ISO' AND a.obchod=v.o
                     AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
-                    AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
+                    AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to
+                    AND (julianday(a.valid_to)-julianday(a.valid_from)+1) <= 21) < $MIN_OFFERS_PER_STORE" \
           2>/dev/null || true)
       else
         log "oficiálny Kaufland zdroj zlyhal — ponechávam ohraničený Vision fallback"
@@ -709,7 +719,8 @@ fi
 POCET=$(sqlite3 "$DIR/uvarsi.db" \
         "SELECT COUNT(*) FROM akcie
          WHERE valid_from IS NOT NULL AND valid_to IS NOT NULL
-           AND valid_from <= '$TODAY' AND '$TODAY' <= valid_to" \
+           AND valid_from <= '$TODAY' AND '$TODAY' <= valid_to
+           AND (julianday(valid_to)-julianday(valid_from)+1) <= 21" \
         2>/dev/null || echo 0)
 CHYBA_ZBER=$(sqlite3 "$DIR/uvarsi.db" \
   "SELECT COUNT(*) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
@@ -718,17 +729,20 @@ CHYBA_ZBER=$(sqlite3 "$DIR/uvarsi.db" \
                      WHERE s.obchod=v.o AND s.stav='ok'
                        AND COALESCE(s.data_version, 0) >= 2
                        AND z.valid_from IS NOT NULL AND z.valid_to IS NOT NULL
-                       AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to)
+                       AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to
+                       AND (julianday(z.valid_to)-julianday(z.valid_from)+1) <= 21)
       OR (SELECT COUNT(*) FROM akcie a
           WHERE a.obchod=v.o
             AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
-            AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
+            AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to
+            AND (julianday(a.valid_to)-julianday(a.valid_from)+1) <= 21) < $MIN_OFFERS_PER_STORE" \
   2>/dev/null || echo 3)
 STAGED_POCET=$(sqlite3 "$DIR/uvarsi.db" \
         "SELECT COUNT(*) FROM akcie_staging
          WHERE tyzden='$MON_ISO'
            AND valid_from IS NOT NULL AND valid_to IS NOT NULL
-           AND valid_from <= '$TODAY' AND '$TODAY' <= valid_to" \
+           AND valid_from <= '$TODAY' AND '$TODAY' <= valid_to
+           AND (julianday(valid_to)-julianday(valid_from)+1) <= 21" \
         2>/dev/null || echo 0)
 STAGED_CHYBA=$(sqlite3 "$DIR/uvarsi.db" \
   "SELECT COUNT(*) FROM (SELECT 'Kaufland' o UNION SELECT 'Tesco' UNION SELECT 'Lidl') v
@@ -738,11 +752,13 @@ STAGED_CHYBA=$(sqlite3 "$DIR/uvarsi.db" \
                        AND s.failure_kind IS NULL
                        AND COALESCE(s.data_version, 0) = 2
                        AND z.valid_from IS NOT NULL AND z.valid_to IS NOT NULL
-                       AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to)
+                       AND z.valid_from <= '$TODAY' AND '$TODAY' <= z.valid_to
+                       AND (julianday(z.valid_to)-julianday(z.valid_from)+1) <= 21)
       OR (SELECT COUNT(*) FROM akcie_staging a
           WHERE a.tyzden='$MON_ISO' AND a.obchod=v.o
             AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
-            AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to) < $MIN_OFFERS_PER_STORE" \
+            AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to
+            AND (julianday(a.valid_to)-julianday(a.valid_from)+1) <= 21) < $MIN_OFFERS_PER_STORE" \
   2>/dev/null || echo 3)
 ZBER_REV=$(sqlite3 "$DIR/uvarsi.db" \
   "SELECT COALESCE(MAX(strftime('%s', updated)), '0')
@@ -751,7 +767,8 @@ ZBER_REV=$(sqlite3 "$DIR/uvarsi.db" \
      AND EXISTS (SELECT 1 FROM akcie_staging a
                  WHERE a.obchod=s.obchod AND a.tyzden=s.tyzden
                    AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
-                   AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to)" \
+                   AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to
+                   AND (julianday(a.valid_to)-julianday(a.valid_from)+1) <= 21)" \
   2>/dev/null || echo 0)
 DATOVY_STAV="${STAGED_POCET:-0}:${STAGED_CHYBA:-3}:${ZBER_REV:-0}"
 ZDROJOVY_ODTLACOK=$(overeny_odtlacok zber_staging_stav)
@@ -788,7 +805,11 @@ log "landing JSON nie je aktuálny — pokus $((FAILS+1))/$MAX_TRIES…"
 # Výstup ide do premennej aj do logu: dozorca z neho musí prečítať, ČI bol pád
 # o dátach alebo o účte. Bez toho by nulový kredit vyzeral ako hocijaká iná
 # štrukturálna chyba a majiteľ by dostal hlášku, ktorá mu nepovie, čo urobiť.
-VYSTUP=$(cd "$DIR" && "$PY" -u refresh_blocek.py "$LANDING_DATA" 2>&1)
+if [ "${POCET:-0}" -ge "$MIN_TOTAL_OFFERS" ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]; then
+  VYSTUP=$(cd "$DIR" && "$PY" -u refresh_blocek.py --active-current "$LANDING_DATA" 2>&1)
+else
+  VYSTUP=$(cd "$DIR" && "$PY" -u refresh_blocek.py "$LANDING_DATA" 2>&1)
+fi
 RC=$?
 [ -n "$VYSTUP" ] && printf '%s\n' "$VYSTUP"
 

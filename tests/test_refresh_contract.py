@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 
 from hetzner import refresh_blocek
-from hetzner.refresh_blocek import landing_data_output_path, refresh_from_db
+from hetzner.refresh_blocek import (
+    landing_data_output_path,
+    refresh_from_active_db,
+    refresh_from_db,
+)
 from app.deterministic_plan import NoCompatiblePlan
 from app.offer_data import migrate_akcie_schema, offer_key_for
 from app.receipt_data import StructuralFailure
@@ -796,6 +800,50 @@ def test_failed_staged_candidate_preserves_active_db_and_landing(
     assert output.read_bytes() == original_landing
 
 
+def test_active_refresh_ignores_incomplete_staging_and_never_promotes(
+    monkeypatch, tmp_path
+):
+    database = tmp_path / "uvarsi.db"
+    output = tmp_path / "landing_data.json"
+    verified_database(database)
+    with sqlite3.connect(database) as con:
+        con.execute("DELETE FROM akcie_staging WHERE obchod='Tesco'")
+        staged_before = con.execute(
+            "SELECT * FROM akcie_staging ORDER BY id"
+        ).fetchall()
+
+    monkeypatch.setattr(refresh_blocek, "MIN_FACTS_PER_STORE", 1)
+    monkeypatch.setattr(
+        refresh_blocek,
+        "collector_kind_for_url",
+        lambda url: {
+            "https://source.test/kaufland": "official-kaufland-offers",
+            "https://source.test/tesco": "official-tesco-viewer",
+            "https://source.test/lidl": "official-lidl-viewer",
+        }.get(url),
+    )
+    monkeypatch.setattr(
+        refresh_blocek,
+        "promote_staged_week",
+        lambda *args, **kwargs: pytest.fail("active refresh must not promote staging"),
+    )
+
+    payload = refresh_from_active_db(
+        output,
+        database,
+        lambda offers, today: model_selection(),
+        today=TODAY,
+    )
+
+    with sqlite3.connect(database) as con:
+        staged_after = con.execute(
+            "SELECT * FROM akcie_staging ORDER BY id"
+        ).fetchall()
+    assert payload["offer_data_version"] == 2
+    assert staged_after == staged_before
+    assert json.loads(output.read_text(encoding="utf-8"))["week"] == "2026-08-17"
+
+
 def test_malformed_non_null_offer_blocks_publication_before_compose(tmp_path):
     database = tmp_path / "uvarsi.db"
     output = tmp_path / "landing_data.json"
@@ -839,6 +887,35 @@ def test_main_uses_default_or_explicit_database_path(monkeypatch, configured, ex
 
     assert calls[0][0] == Path("/var/lib/uvarsi/landing_data.json")
     assert calls[0][1] == expected
+
+
+def test_main_active_mode_uses_published_database_without_staging(monkeypatch):
+    calls = []
+    monkeypatch.setenv("UVARSI_DB", "D:/data/uvarsi.db")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "refresh_blocek.py",
+            "--active-current",
+            "/var/lib/uvarsi/landing_data.json",
+        ],
+    )
+    monkeypatch.setattr(
+        refresh_blocek,
+        "refresh_from_active_db",
+        lambda path, database, today: calls.append((path, database, today)),
+    )
+    monkeypatch.setattr(
+        refresh_blocek,
+        "refresh_from_db",
+        lambda *args, **kwargs: pytest.fail("staging refresh must not run"),
+    )
+
+    refresh_blocek.main()
+
+    assert calls[0][0] == Path("/var/lib/uvarsi/landing_data.json")
+    assert calls[0][1] == "D:/data/uvarsi.db"
 
 
 def failing_main(monkeypatch, error):
