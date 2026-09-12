@@ -23,7 +23,8 @@ except ImportError:
 
 BASE_URL = "https://uvar.si"
 FOUNDER_PROMISE = (
-    "39 € raz. Premium bez predplatného počas prevádzky služby Uvar.si."
+    "39 € raz. Premium garantované na 24 mesiacov, potom bez predplatného "
+    "počas ďalšej prevádzky služby Uvar.si."
 )
 
 
@@ -48,7 +49,8 @@ _COMMON_OPERATOR = LegalSection(
         "4318/33, 075 01 Trebišov, IČO 57 370 591, zapísaná v Obchodnom "
         "registri Mestského súdu Košice, oddiel Sro, vložka č. 64515/V.",
         "Kontaktný e-mail pre podporu, ochranu osobných údajov, odstúpenie "
-        "aj reklamácie je pumaragency@gmail.com.",
+        "aj reklamácie je pumaragency@gmail.com. Telefonický kontakt je "
+        "+421 917 347 009.",
     ),
 )
 
@@ -111,11 +113,17 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                     "overeného potvrdenia platby. Ak platba prebehne, ale Premium "
                     "sa nesprístupní, po spárovaní objednávky ho ručne aktivujeme "
                     "alebo zabezpečíme úplné vrátenie platby. Nemusíte zaplatiť znova.",
-                    "Zakladajúce Premium trvá počas prevádzky služby Uvar.si; "
-                    "nesľubuje prevádzku na neurčitý ani neobmedzený čas. Ak sa "
-                    "PUMAR s. r. o. rozhodne ukončiť prevádzku, oznámi dátum "
-                    "ukončenia v predstihu primeranom okolnostiam na trvanlivom "
-                    "médiu, ak je to vzhľadom na dôvod ukončenia možné.",
+                    "Zakladajúce Premium poskytujeme najmenej 24 mesiacov od "
+                    "uzavretia zmluvy. Po uplynutí garantovaných 24 mesiacov "
+                    "pokračuje bez automatickej obnovy a bez ďalšieho poplatku "
+                    "počas ďalšej prevádzky služby Uvar.si.",
+                    "Ak sa PUMAR s. r. o. z vlastného rozhodnutia rozhodne "
+                    "ukončiť prevádzku pred uplynutím 24 mesiacov od uzavretia "
+                    "zmluvy, oznámi dátum ukončenia v primeranom predstihu na "
+                    "trvanlivom médiu a vráti pomernú časť jednorazovej ceny za "
+                    "nevyužité kalendárne dni garantovaného obdobia. Vrátená "
+                    "suma sa vypočíta ako 39 € × počet nevyužitých kalendárnych "
+                    "dní / počet kalendárnych dní celého 24-mesačného obdobia.",
                     "Ukončením prevádzky nezanikajú už vzniknuté zákonné práva "
                     "spotrebiteľa ani nároky, ktoré nemožno zmluvne vylúčiť, "
                     "vrátane práv z vád, reklamácie, odstúpenia, primeranej zľavy, "

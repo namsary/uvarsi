@@ -8,7 +8,10 @@ from app.operator_profile import LEGAL_VERSION
 from test_server import load_server
 
 
-FOUNDER_PROMISE = "39 € raz. Premium bez predplatného počas prevádzky služby Uvar.si."
+FOUNDER_PROMISE = (
+    "39 € raz. Premium garantované na 24 mesiacov, potom bez predplatného "
+    "počas ďalšej prevádzky služby Uvar.si."
+)
 
 
 @pytest.mark.parametrize("slug", sorted(LEGAL_SLUGS))
@@ -43,13 +46,24 @@ def test_terms_describe_exact_founder_offer_and_full_refund_policy():
 def test_terms_define_service_duration_termination_and_preserve_statutory_remedies():
     text = legal_text("vop").casefold()
 
-    assert "počas prevádzky služby uvar.si" in text
+    assert "24 mesiacov od uzavretia zmluvy" in text
+    assert "počas ďalšej prevádzky služby uvar.si" in text
     assert "ukončiť prevádzku" in text
-    assert "v predstihu" in text
+    assert "v primeranom predstihu" in text
     assert "trvanlivom médiu" in text
-    assert "ak je to vzhľadom na dôvod ukončenia možné" in text
+    assert "z vlastného rozhodnutia" in text
+    assert "nevyužitých kalendárnych dní" in text
+    assert "39 € × počet nevyužitých kalendárnych dní" in text
+    assert "počet kalendárnych dní celého 24-mesačného obdobia" in text
+    assert "bez automatickej obnovy" in text
+    assert "bez ďalšieho poplatku" in text
     assert "zákonné práva" in text
     assert "ukončením prevádzky nezanikajú" in text
+
+
+def test_every_legal_document_publishes_verified_support_phone():
+    for slug in LEGAL_SLUGS:
+        assert "+421 917 347 009" in legal_text(slug)
 
 
 def test_terms_name_the_checkout_seller_operator_and_paid_activation_remedy():

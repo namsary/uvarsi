@@ -296,10 +296,22 @@ def test_founding_and_premium_share_the_same_core_functionality():
         "Celý týždeň, recepty a špajza",
         "Budúce aktualizácie",
     ]
-    assert "39 € raz. Premium bez predplatného počas prevádzky služby Uvar.si." in founding
+    assert (
+        "39 € raz. Premium garantované na 24 mesiacov, potom bez predplatného "
+        "počas ďalšej prevádzky služby Uvar.si."
+    ) in founding
     assert "cena natrvalo" not in founding.casefold()
     assert "premium natrvalo" not in founding.casefold()
     assert "/ rok" in premium
+
+
+def test_founding_duration_and_early_shutdown_refund_are_explained_in_faq():
+    faq = index_html().split('<div class="shell faq">', 1)[1].split("</section>", 1)[0]
+
+    assert "najmenej 24 mesiacov" in faq
+    assert "bez ďalšieho poplatku" in faq
+    assert "pomernú časť ceny" in faq
+    assert "ukončíme skôr" in faq
 
 
 @needs_node

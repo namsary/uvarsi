@@ -27,12 +27,10 @@ OPERATOR = OperatorProfile(
     register_section="Sro",
     register_entry="64515/V",
     support_email="pumaragency@gmail.com",
-    # A real public support number has not yet been verified.  Keeping this
-    # empty deliberately makes payment readiness fail closed.
-    support_phone="",
+    support_phone="+421 917 347 009",
 )
 
-LEGAL_VERSION = "2026-09-12-v3"
+LEGAL_VERSION = "2026-09-12-v4"
 LEGAL_EFFECTIVE_DATE = datetime.date(2026, 9, 12)
 
 _EMAIL = re.compile(

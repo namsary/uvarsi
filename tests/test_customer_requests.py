@@ -474,7 +474,10 @@ def test_pending_confirmation_retries_with_same_key_and_never_resends_after_succ
     assert "PUMAR s. r. o." in text and "57 370 591" in text
     assert "pumaragency@gmail.com" in text
     assert server.LEGAL_VERSION in text
-    assert "39 € raz. Premium bez predplatného počas prevádzky služby Uvar.si." in text
+    assert (
+        "39 € raz. Premium garantované na 24 mesiacov, potom bez predplatného "
+        "počas ďalšej prevádzky služby Uvar.si."
+    ) in text
     assert "Lemon Squeezy" in text and "Merchant of Record" in text
     assert "Pri prijatí žiadosti refundácia ešte nebola vykonaná" in text
     assert "https://uvar.si/pravne/vop.txt" in text

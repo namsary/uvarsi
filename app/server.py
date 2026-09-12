@@ -5011,11 +5011,11 @@ def _runtime_payment_readiness(
             **payment_identity
         )
     support_phone = OPERATOR.support_phone.strip()
+    operator_errors = validate_operator_profile(OPERATOR)
     facts = PaymentReadinessInput(
-        operator_errors=validate_operator_profile(OPERATOR),
+        operator_errors=operator_errors,
         support_phone_verified=(
-            bool(support_phone)
-            and env("UVARSI_VERIFIED_SUPPORT_PHONE", "") == support_phone
+            bool(support_phone) and "support_phone" not in operator_errors
         ),
         legal_version=legal_version(),
         founder_promise=FOUNDER_PROMISE,
@@ -5644,7 +5644,10 @@ def _consumer_request_receipt(delivery: customer_requests.ConfirmationDelivery) 
         f"{OPERATOR.register_court}, oddiel {OPERATOR.register_section}, "
         f"vložka č. {OPERATOR.register_entry}"
     )
-    promise = "39 € raz. Premium bez predplatného počas prevádzky služby Uvar.si."
+    promise = (
+        "39 € raz. Premium garantované na 24 mesiacov, potom bez predplatného "
+        "počas ďalšej prevádzky služby Uvar.si."
+    )
     merchant = (
         "Lemon Squeezy vystupuje pri nákupe ako obchodník a Merchant of Record; "
         "PUMAR s. r. o. prevádzkuje Uvar.si a poskytuje podporu k službe."

@@ -39,7 +39,7 @@ TEST_STORE_ID = "test-store"
 TEST_VARIANT_ID = "test-variant"
 TEST_API_KEY = "test-api-key"
 TEST_CONFIG_DIGEST = "c92c6b55bd48b997ddb73fbc7abbaf44074f989d5bedb0ee0f590a9c9e464a7e"
-CURRENT_LEGAL_VERSION = "2026-09-12-v3"
+CURRENT_LEGAL_VERSION = "2026-09-12-v4"
 CONSENT = {"accept_terms": True, "legal_version": CURRENT_LEGAL_VERSION}
 SMOKE_NOW = datetime(2026, 9, 11, 12, 0, tzinfo=timezone.utc)
 
@@ -657,7 +657,7 @@ def test_runtime_price_source_gate_reads_only_complete_reviewed_server_rows(
         assert server._approved_price_sources_ready(con, today=today) is False
 
 
-def test_runtime_readiness_requires_current_receipt_test_config_and_verified_phone(
+def test_runtime_readiness_accepts_the_code_owned_verified_support_phone(
         monkeypatch, tmp_path):
     server = load_server(
         monkeypatch,
@@ -672,11 +672,8 @@ def test_runtime_readiness_requires_current_receipt_test_config_and_verified_pho
         LEMON_TEST_STORE_ID="test-store",
         LEMON_TEST_VARIANT_ID="test-variant",
         LEMON_TEST_API_KEY="test-api",
-        UVARSI_VERIFIED_SUPPORT_PHONE="+421 900 123 456",
     )
-    monkeypatch.setattr(
-        server, "OPERATOR", replace(server.OPERATOR, support_phone="+421 900 123 456")
-    )
+    assert server.OPERATOR.support_phone == "+421 917 347 009"
     monkeypatch.setattr(server, "legal_version", lambda: server.LEGAL_VERSION)
     monkeypatch.setattr(server, "_approved_price_sources_ready", lambda *_a, **_k: True)
     monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda *_a, **_k: True)

@@ -11,7 +11,10 @@ CSCRIPT = Path("C:/Windows/System32/cscript.exe")
 NODE = os.environ.get("UVARSI_NODE") or shutil.which("node")
 needs_node = pytest.mark.skipif(NODE is None, reason="node runtime is not available")
 
-FOUNDER_PROMISE = "39 € raz. Premium bez predplatného počas prevádzky služby Uvar.si."
+FOUNDER_PROMISE = (
+    "39 € raz. Premium garantované na 24 mesiacov, potom bez predplatného "
+    "počas ďalšej prevádzky služby Uvar.si."
+)
 
 
 def app_html():

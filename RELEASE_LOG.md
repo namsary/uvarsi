@@ -1,4 +1,11 @@
 
+## 2026-09-12 — Verejný kontakt a 24-mesačná garancia (vydanie 2026.09.12.22)
+
+- Verejný kontakt PUMAR s. r. o. obsahuje potvrdené telefónne číslo +421 917 347 009.
+- Zakladajúce Premium za 39 € je garantované na 24 mesiacov od uzavretia zmluvy; potom pokračuje bez ďalšieho poplatku počas ďalšej prevádzky Uvar.si.
+- Ak PUMAR s. r. o. z vlastného rozhodnutia ukončí službu skôr, vráti pomernú časť ceny za nevyužité kalendárne dni garantovaného obdobia.
+- Rovnaké znenie ponuky je použité na úvodnej stránke, v aplikácii, objednávke aj platobnej bráne. Platby zostávajú vypnuté do úspešného skúšobného nákupu a refundácie.
+
 ## 2026-09-12 — Právne spresnenia a bloček bez JavaScriptu (vydanie 2026.09.12.21)
 
 - Lehota na vrátenie platby je pevne oddelená od prípadnej dohody o inom spôsobe vrátenia; nepovinné technológie zostávajú vypnuté, kým používateľ neudelí platný súhlas.
