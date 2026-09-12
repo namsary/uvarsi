@@ -1,4 +1,10 @@
 
+## 2026-09-12 — Atomic registered-source recovery (vydanie 2026.09.12.18)
+
+- Overenie aktívnych ponúk a prestavba bločka prebiehajú v jednom databázovom snímku; medzi kontrolou a použitím sa už nemôže vymeniť dátová sada.
+- Stav zberu sa musí presne zhodovať s celým surovým blokom podľa obchodu, týždňa, zdroja, počtu a rozsahu platnosti. Dlhšie tematické kampane ostanú auditovateľné v databáze, ale do týždenného bločka nevstúpia.
+- Úspešná obnova zo schváleného záložného zdroja obnoví aj heartbeat dozorcu, no prísna brána pre budúce platby ostáva nezávisle zatvorená.
+
 ## 2026-09-12 — Immediate free-receipt repair (vydanie 2026.09.12.17)
 
 - Nasadenie rozlišuje použiteľnosť registrovaných dát pre bezplatný bloček od prísnejšieho právneho schválenia potrebného pre platby.
