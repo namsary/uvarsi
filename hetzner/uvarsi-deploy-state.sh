@@ -1210,6 +1210,17 @@ _uvarsi_supervisor_cycle() {
     if "$UVARSI_HEALTH_PY" -u "$UVARSI_RECEIPT_REFRESH" \
         --active-current-verified "$UVARSI_LANDING_DATA"; then
       reused_active_offers=1
+    elif [ "${UVARSI_CODE_DEPLOY:-0}" = 1 ] && \
+        "$UVARSI_HEALTH_PY" -u "$UVARSI_RECEIPT_REFRESH" \
+        --active-current "$UVARSI_LANDING_DATA"; then
+      # Availability fallback for the free public receipt.  The receipt writer
+      # still verifies every offer key, validity window, known source and the
+      # per-store minimum, and excludes thematic campaigns longer than 21 days.
+      # This is intentionally available only during a code deploy with payments
+      # off.  It deliberately does NOT satisfy collection/payment readiness:
+      # stale collector bookkeeping must not blank the free demo, but it can
+      # never unlock checkout or replace a strict collection bootstrap.
+      reused_active_offers=1
     elif _uvarsi_require_official_offer_data; then
       "$UVARSI_HEALTH_PY" -u "$UVARSI_RECEIPT_REFRESH" \
         --active-current "$UVARSI_LANDING_DATA" || return 1

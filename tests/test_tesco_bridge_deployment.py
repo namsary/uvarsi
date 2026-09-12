@@ -829,6 +829,54 @@ def test_bounded_supervisor_rebuilds_stale_receipt_from_current_offers_without_b
     assert deployment["supervisor_success"].is_file()
 
 
+def test_bounded_supervisor_falls_back_to_known_current_rows_when_status_is_stale(
+        deployment):
+    """Free receipt availability must not depend on stale collector bookkeeping."""
+    ready_landing = deployment["state"] / "ready-landing.json"
+    shutil.copy2(deployment["landing"], ready_landing)
+    stale = landing_payload()
+    stale["week"] = "2026-08-31"
+    deployment["landing"].write_text(json.dumps(stale), encoding="utf-8")
+    with sqlite3.connect(deployment["database"]) as con:
+        con.execute(
+            "UPDATE zber_stav SET source_fingerprint=NULL WHERE obchod='Tesco'"
+        )
+    receipt_calls = deployment["state"] / "receipt-calls"
+    receipt = deployment["state"] / "refresh_receipt.py"
+    receipt.write_text(
+        "import os, shutil, sys\n"
+        "def native(path):\n"
+        "    return path[1].upper() + ':' + path[2:] if path.startswith('/c/') else path\n"
+        "with open(native(os.environ['UVARSI_RECEIPT_CALLS']), 'a', encoding='utf-8') as f:\n"
+        "    f.write(' '.join(sys.argv[1:]) + '\\n')\n"
+        "if sys.argv[1] == '--verify-current': raise SystemExit(0)\n"
+        "if sys.argv[1] == '--active-current-verified': raise SystemExit(3)\n"
+        "if sys.argv[1] != '--active-current': raise SystemExit(9)\n"
+        "shutil.copy2(native(os.environ['UVARSI_READY_LANDING']), "
+        "native(os.environ['UVARSI_LANDING_DATA']))\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    deployment["env"].update({
+        "UVARSI_CODE_DEPLOY": "1",
+        "UVARSI_TIMEOUT_RESULT": "0",
+        "UVARSI_TIMEOUT_RUN_COMMAND": "1",
+        "UVARSI_READY_LANDING": bash_path(ready_landing),
+        "UVARSI_RECEIPT_CALLS": bash_path(receipt_calls),
+        "UVARSI_RECEIPT_REFRESH": bash_path(receipt),
+    })
+
+    result = run_library(deployment, "uvarsi_run_supervisor_bounded")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    calls = receipt_calls.read_text(encoding="utf-8").splitlines()
+    assert any(line.startswith("--active-current-verified ") for line in calls)
+    assert any(line.startswith("--active-current ") for line in calls)
+    assert not deployment["state"].joinpath("curl-args").exists()
+    assert json.loads(deployment["landing"].read_text(encoding="utf-8"))["week"] == WEEK
+    assert deployment["supervisor_success"].is_file()
+
+
 def test_bounded_supervisor_rebuilds_receipt_that_references_monthly_campaign(
         deployment):
     ready_landing = deployment["state"] / "ready-landing.json"

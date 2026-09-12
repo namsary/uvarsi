@@ -1,4 +1,10 @@
 
+## 2026-09-12 — Available receipt from current weekly facts (vydanie 2026.09.12.20)
+
+- Ak starší technický záznam zberača nesedí, bezplatný bloček sa môže obnoviť z už publikovaných ponúk, ktoré majú platný kľúč, dnešnú platnosť, známy zdroj a aspoň 20 položiek z každého obchodu.
+- Tematické kampane dlhšie než 21 dní sú aj v tejto ceste vyradené; napríklad mesačné Fínske pečivo sa do týždenného bločka nedostane.
+- Dostupnostná cesta neoznačí zber za právne schválený a nikdy neodomkne platby. Prísna platobná brána zostáva nezmenená.
+
 ## 2026-09-12 — Collector-count compatible recovery (vydanie 2026.09.12.19)
 
 - Overenie používa rovnakú definíciu počtu ako zberač: unikátne ponuky, nie fyzické databázové riadky. Opakovaná rovnaká akcia na viacerých miestach preto nevyvolá falošný nový zber.
