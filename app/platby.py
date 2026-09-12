@@ -5,11 +5,10 @@ Tri pravidlá, ktoré tento modul drží:
 1. Vypínač. `PLATBY_ZAPNUTE` je v predvolenom stave vypnutý. Kým ho majiteľ
    vedome nezapne, žiadna platba nevznikne a žiadna adresa poskytovateľa sa ani
    nezostaví.
-2. Nárok je vždy riadok v tabuľke `naroky` a nikde inde. Z internetu ho vie
-   vytvoriť jedine podpísaný webhook; druhá — a jediná ďalšia — cesta je
-   `udel_narok_rucne()`, ktorú spustí majiteľ pri databáze, keď si potrebuje
-   Premium vyskúšať s vypnutými platbami. Klient o svojom nároku nepovie nič,
-   čomu by sa verilo.
+2. Historický jednorazový alebo ručný nárok je riadok v tabuľke `naroky`.
+   Ročné Premium drží posledný overený lokálny snapshot v `subscriptions`.
+   Obe cesty vznikajú iba serverovým spracovaním alebo ručným zásahom majiteľa;
+   klient o svojom nároku nepovie nič, čomu by sa verilo.
 3. Tajomstvá sa sem odovzdávajú z prostredia ako argumenty, nikdy sa neukladajú
    ani nevypisujú. Modul zámerne neobsahuje žiadny výstup.
 
@@ -1001,6 +1000,7 @@ def volne_miesta(con, *, test_mode=None, now=None) -> int:
 
 
 def ma_narok(con, user_id: int) -> bool:
+    """Return only the historical one-time or manual entitlement."""
     riadok = con.execute(
         "SELECT 1 FROM naroky WHERE user_id=? AND produkt=? AND stav=?",
         (user_id, PRODUKT_ZAKLADAJUCI, STAV_AKTIVNY),
@@ -1025,10 +1025,14 @@ def platba_bez_protihodnoty(con, user_id: int):
     return riadok[0] if riadok else None
 
 
-def stav_platieb(con, *, user_id: int, zapnute: bool) -> dict:
+def stav_platieb(
+    con, *, user_id: int, zapnute: bool, premium: bool, subscription
+) -> dict:
+    if type(premium) is not bool:
+        raise ValueError("neplatný stav Premium")
     obsadene = pocet_zaplatenych_zakladajucich(con)
     volne = max(0, KAPACITA_ZAKLADAJUCICH - obsadene)
-    narok = ma_narok(con, user_id)
+    narok = premium
     bez_protihodnoty = platba_bez_protihodnoty(con, user_id)
     if not zapnute:
         sprava = SPRAVA_VYPNUTE
@@ -1046,6 +1050,20 @@ def stav_platieb(con, *, user_id: int, zapnute: bool) -> dict:
         sprava = SPRAVA_NAD_KAPACITU_ZAKAZNIK
     elif bez_protihodnoty == STAV_DUPLICITNY:
         upozornenie = SPRAVA_DUPLICITA_ZAKAZNIK
+    status = getattr(subscription, "status", None)
+    renews_at = getattr(subscription, "renews_at", None)
+    ends_at = getattr(subscription, "ends_at", None)
+    next_amount_cents = getattr(subscription, "renewal_amount_cents", None)
+    auto_renews = bool(
+        status in {"active", "past_due"} and renews_at is not None
+    )
+    can_manage = bool(
+        subscription is not None
+        and getattr(subscription, "provider", None) == POSKYTOVATEL
+        and getattr(subscription, "product", None) == PRODUKT_PREMIUM_ROCNY
+        and getattr(subscription, "provider_customer_id", None)
+        and getattr(subscription, "provider_subscription_id", None)
+    )
     return {
         "platby_zapnute": zapnute,
         "ma_narok": narok,
@@ -1056,6 +1074,12 @@ def stav_platieb(con, *, user_id: int, zapnute: bool) -> dict:
         "sprava": sprava,
         "platba_bez_miesta": bez_protihodnoty == STAV_NAD_KAPACITU and not narok,
         "upozornenie": upozornenie,
+        "status": status,
+        "renews_at": renews_at,
+        "ends_at": ends_at,
+        "next_amount_cents": next_amount_cents,
+        "auto_renews": auto_renews,
+        "can_manage": can_manage,
     }
 
 

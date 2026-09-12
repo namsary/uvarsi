@@ -668,7 +668,9 @@ def aktivne_profily(con, server) -> list:
             if frekvencia not in (1, 2, 3):
                 continue
             variant = server.plan_variant_for(riadok["id"], server.PLAN_VARIANTS)
-            premium = server.je_premium(con, riadok["id"])
+            premium = server.has_premium(
+                con, user_id=riadok["id"], now=server.AUTH_CLOCK()
+            )
             obchody = server.efektivne_obchody(riadok, premium)
             profily.append(Profil(
                 tuple(obchody), int(dospeli), int(deti), frekvencia, variant,

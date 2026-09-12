@@ -174,9 +174,14 @@ def test_premium_is_taken_from_the_server_answer_and_never_from_the_client():
     html = app_html()
 
     remembered = declaration(html, "function rememberProfile(me) ")
-    assert "premium" not in remembered, (
-        "zapamätaný profil nesmie odomykať nič — o nároku rozhoduje server"
-    )
+    for field in (
+        "premium", "status", "renews_at", "ends_at", "next_amount_cents",
+        "auto_renews", "can_manage",
+    ):
+        assert field not in remembered, (
+            "zapamätaný profil ani platobný stav nesmú odomykať nič — "
+            "o nároku rozhoduje server"
+        )
     assert "localStorage" not in declaration(html, "function vSpajzaZamknuta() ")
 
 

@@ -911,9 +911,10 @@ def validuj_zlozenie_domacnosti(data):
 
 # ---------------------------------------------------------------- Premium
 # Špajza a vyšší denný strop prepočtov sú platené. Rozhoduje o nich výhradne
-# server, a to z tabuľky `naroky` (platby.py) — teda z podpísanej udalosti
-# poskytovateľa. Ani cookie, ani telo požiadavky, ani stĺpec `platiaci` nie sú
-# dôkazom o platbe. Kým sú platby vypnuté, nárok nemá nikto a všetci sú zadarmo.
+# server: buď z historického/ručného nároku v `naroky`, alebo z posledného
+# overeného lokálneho snapshotu predplatného. Ani cookie, ani telo požiadavky,
+# ani stĺpec `platiaci` nie sú dôkazom. Vypínač platieb riadi iba nový checkout,
+# nie už existujúci Premium prístup.
 LIMIT_PREPOCTOV_ZDARMA = 1
 LIMIT_PREPOCTOV_PREMIUM = 5
 ALLOWED_STORES = ("Kaufland", "Tesco", "Lidl")
@@ -944,9 +945,16 @@ SPRAVA_OBCHODY_PREMIUM = (
 )
 
 
+def has_premium(con, *, user_id: int, now: float) -> bool:
+    """Combine legacy entitlement and the last verified local subscription."""
+    return ma_narok(con, user_id) or predplatne.subscription_access(
+        predplatne.subscription_for_user(con, user_id), now=now
+    )
+
+
 def je_premium(con, user_id) -> bool:
-    """Odvodené na každej požiadavke nanovo: vrátená platba platí okamžite."""
-    return ma_narok(con, user_id)
+    """Compatibility name for older local callers and test helpers."""
+    return has_premium(con, user_id=user_id, now=AUTH_CLOCK())
 
 
 def ulozene_stravovanie(row) -> str:
@@ -2815,7 +2823,7 @@ def me(req: Request):
             password_configured = con.execute(
                 "SELECT 1 FROM auth_credentials WHERE user_id=?", (u["id"],)
             ).fetchone() is not None
-        premium = je_premium(con, u["id"])
+        premium = has_premium(con, user_id=u["id"], now=AUTH_CLOCK())
         stored_diet, effective_diet, available_diets = diet_context_for_week(
             con, u, premium
         )
@@ -2835,7 +2843,7 @@ def me(req: Request):
               "frekvencia": u["frekvencia"],
               "obchody": efektivne_obchody(u, premium),
               "onboarding": bool(u["onboarding"]),
-              # `platiaci` je len stĺpec; pravdu o platbe drží tabuľka nárokov.
+              # `platiaci` je len stĺpec; pravdu drží lokálna Premium autorita.
               "platiaci": premium, "premium": premium,
               "platby_zapnute": platby_su_zapnute(),
               "platby_pripravene": payment_status.ready,
@@ -2894,7 +2902,7 @@ async def uloz_profil(req: Request):
             "SELECT osoby, dospeli, deti, frekvencia, obchody, stravovanie "
             "FROM pouzivatelia WHERE id=?", (u["id"],)
         ).fetchone()
-        premium = je_premium(con, u["id"])
+        premium = has_premium(con, user_id=u["id"], now=AUTH_CLOCK())
         if obchody is None:
             obchody = ulozene_obchody(old)
         elif not obchody:
@@ -2964,7 +2972,7 @@ async def uloz_spajzu(req: Request):
     # modelu bez vyzvania. Rozdiel oproti plánu ukáže appka ako tichý návrh.
     with closing(db()) as con:
         con.execute("BEGIN IMMEDIATE")
-        if not je_premium(con, u["id"]):
+        if not has_premium(con, user_id=u["id"], now=AUTH_CLOCK()):
             # Uložené riadky ostávajú ležať — odmietnutie nie je mazanie.
             ulozenych = pocet_ulozenej_spajze(con, u["id"])
             con.rollback()
@@ -3411,7 +3419,7 @@ def zahrej_plan_pre_pouzivatela(user_id):
         ).fetchone()
         if profil is None:
             return None
-        premium = je_premium(con, user_id)
+        premium = has_premium(con, user_id=user_id, now=AUTH_CLOCK())
         _stored_diet, diet_mode, _available_diets = diet_context_for_week(
             con, profil, premium, check_availability=False
         )
@@ -3625,7 +3633,7 @@ def _generuj_plan_sync(req: Request, force: int = 0):
     tyz = monday()
     force_baseline_json = None
     with closing(db()) as con:
-        premium = je_premium(con, u["id"])
+        premium = has_premium(con, user_id=u["id"], now=AUTH_CLOCK())
         obchody = efektivne_obchody(u, premium)
         rows = akcie_pre(obchody)
         if not rows:
@@ -3795,7 +3803,7 @@ def _plan_zo_spajze_sync(req: Request):
     adults, children = zlozenie_domacnosti(u)
     tyz = monday()
     with closing(db()) as con:
-        premium = je_premium(con, u["id"])
+        premium = has_premium(con, user_id=u["id"], now=AUTH_CLOCK())
         obchody = efektivne_obchody(u, premium)
         if not premium:
             return odmietni(
@@ -3906,7 +3914,9 @@ def _current_job_context(job, stores, frequency, adults, children, *, con, now):
         ).fetchone()
         if profile is None:
             raise StalePlanJob("invalid_profile")
-        premium = je_premium(con, job.user_id)
+        premium = has_premium(
+            con, user_id=job.user_id, now=AUTH_CLOCK()
+        )
         current_stores = efektivne_obchody(profile, premium)
         current_adults, current_children = zlozenie_domacnosti(profile)
         try:
@@ -4195,7 +4205,7 @@ def daj_plan(req: Request):
     tyz = monday()
     adults, children = zlozenie_domacnosti(u)
     with closing(db()) as con:
-        premium = je_premium(con, u["id"])
+        premium = has_premium(con, user_id=u["id"], now=AUTH_CLOCK())
         obchody = efektivne_obchody(u, premium)
         if stores_missing_this_week(con, obchody, bratislava_day()):
             raise HTTPException(503, sprava_o_chybajucich_akciach())
@@ -6089,7 +6099,14 @@ def vyzaduj_zapnute_platby():
 def platba_stav(req: Request):
     u = require_user(req)
     with closing(db()) as con:
-        return stav_platieb(con, user_id=u["id"], zapnute=platby_su_zapnute())
+        now = AUTH_CLOCK()
+        return stav_platieb(
+            con,
+            user_id=u["id"],
+            zapnute=platby_su_zapnute(),
+            premium=has_premium(con, user_id=u["id"], now=now),
+            subscription=predplatne.subscription_for_user(con, u["id"]),
+        )
 
 
 @app.post("/api/platba/start")
@@ -6120,11 +6137,11 @@ async def platba_start(req: Request):
             raise HTTPException(
                 422, "Pred platbou potvrď aktuálne VOP a ochranu údajov."
             )
-        if ma_narok(con, u["id"]):
+        checkout_now = AUTH_CLOCK()
+        if has_premium(con, user_id=u["id"], now=checkout_now):
             raise HTTPException(409, SPRAVA_UZ_MAS)
         try:
             provider = _subscription_checkout_provider(test_mode=False)
-            checkout_now = AUTH_CLOCK()
             attempt = create_subscription_checkout_attempt(
                 con,
                 user_id=u["id"],
