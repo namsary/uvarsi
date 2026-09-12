@@ -830,6 +830,9 @@ if [ "$RC" -eq 0 ] && landing_data_is_current; then
     notify "Uvar.si opravené" "Landing JSON sa obnovil na týždeň $MON_ISO (po $FAILS neúspešných pokusoch)."
   fi
   if [ "${POCET:-0}" -ge "$MIN_TOTAL_OFFERS" ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]; then
+    # Platný bloček postavený z kompletnej publikovanej DB je zároveň dôkaz,
+    # že starý neúspešný staging už nebráni prevádzke ani deploy readiness.
+    rm -f "$COLLECTION_FAILURE_STATE"
     zahrej_plany
   fi
   HEALTH=$(nacitaj_health)

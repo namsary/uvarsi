@@ -956,6 +956,8 @@ def test_dozorca_pri_stalom_landingu_najprv_obnovi_blocek_a_az_potom_zohrieva(tm
     (tmp_path / "app").mkdir()
     landing_data = tmp_path / "landing_data.json"
     write_landing_data_atomic(landing_data, payload("2026-08-10"))
+    collection_failure = tmp_path / ".collection_failure_state"
+    collection_failure.write_text("stary-neuspesny-zber\n", encoding="utf-8")
     calls = tmp_path / "calls.txt"
     fake_python = tmp_path / "python"
     fake_python.write_text(
@@ -1000,6 +1002,7 @@ def test_dozorca_pri_stalom_landingu_najprv_obnovi_blocek_a_az_potom_zohrieva(tm
         f"-u refresh_blocek.py --active-current {bash_path(landing_data)}",
         "-u predpocet.py --zahrej",
     ]
+    assert not collection_failure.exists()
 
 
 def test_dozorca_pri_obsadenom_zamku_vrati_bezpecny_odlisny_stav(tmp_path):

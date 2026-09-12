@@ -1,4 +1,10 @@
 
+## 2026-09-12 — Recovery-state cleanup (vydanie 2026.09.12.15)
+
+- Úspešná obnova bločka z kompletnej publikovanej databázy odstráni starý príznak neúspešného staging zberu, aby už vyriešený incident neblokoval finálnu kontrolu nasadenia.
+- Príznak sa odstraňuje až po zápise a opätovnom overení aktuálneho bločka; neúspešná alebo neúplná obnova ho zachová.
+- Platby zostávajú vypnuté a zmena nespúšťa zber ani AI.
+
 ## 2026-09-12 — Active weekly receipt recovery (vydanie 2026.09.12.14)
 
 - Neaktuálny verejný bloček sa obnoví priamo z už publikovaných ponúk, keď sú všetky tri obchody kompletné a ich údaje pochádzajú z oficiálnych týždenných zdrojov.
