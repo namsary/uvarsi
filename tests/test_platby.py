@@ -110,6 +110,23 @@ class FakeSubscriptionCheckoutProvider:
         }
 
 
+class PausingSubscriptionCheckoutProvider(FakeSubscriptionCheckoutProvider):
+    """Pause the first completed fake checkout before local ID binding."""
+
+    def __init__(self):
+        super().__init__()
+        self.checkout_created = threading.Event()
+        self.allow_binding = threading.Event()
+
+    def create_checkout(self, payload):
+        response = super().create_checkout(payload)
+        if self.call_count == 1:
+            self.checkout_created.set()
+            if not self.allow_binding.wait(5):
+                raise RuntimeError("test checkout binding was not released")
+        return response
+
+
 def load_server(monkeypatch, tmp_path, **prostredie):
     """server.py nad čerstvou databázou a s presne určeným platobným prostredím."""
     database = tmp_path / "uvarsi.db"
@@ -574,6 +591,85 @@ def test_start_retry_with_active_checkout_fails_closed_without_second_provider_c
         "pending",
         "checkout-api-2",
         before[2] + 1 + 60 * 60,
+    )
+
+
+def test_concurrent_retry_is_rejected_while_first_checkout_waits_for_local_binding(
+    monkeypatch, tmp_path
+):
+    server = zapnute_platby(monkeypatch, tmp_path)
+    vytvor_pouzivatela(server, user_id=7, email="clen@uvar.si")
+    provider = PausingSubscriptionCheckoutProvider()
+    monkeypatch.setattr(
+        server,
+        "_subscription_checkout_provider",
+        lambda *, test_mode: provider,
+    )
+    result = {}
+
+    def start_first_checkout():
+        try:
+            result["response"] = prihlaseny(server).post(
+                "/api/platba/start", json=CONSENT
+            )
+        except BaseException as error:  # surfaced in the main test thread
+            result["error"] = error
+
+    worker = threading.Thread(target=start_first_checkout)
+    worker.start()
+    assert provider.checkout_created.wait(3)
+    with closing(server.db()) as con:
+        before_retry = tuple(
+            con.execute(
+                "SELECT public_id,status,provider_checkout_id,expires_at,"
+                "founder_reserved_until FROM checkout_attempts"
+            ).fetchone()
+        )
+
+    try:
+        retry = prihlaseny(server).post("/api/platba/start", json=CONSENT)
+
+        assert retry.status_code == 409
+        assert retry.json()["detail"] == (
+            "Platobná pokladňa je už aktívna. "
+            "Dokonči ju alebo počkaj do jej expirácie."
+        )
+        assert provider.call_count == 1
+        with closing(server.db()) as con:
+            assert con.execute(
+                "SELECT COUNT(*) FROM checkout_attempts"
+            ).fetchone()[0] == 1
+            after_retry = tuple(
+                con.execute(
+                    "SELECT public_id,status,provider_checkout_id,expires_at,"
+                    "founder_reserved_until FROM checkout_attempts"
+                ).fetchone()
+            )
+        assert after_retry == before_retry
+        assert after_retry[1] == "pending"
+        assert after_retry[2] is None
+    finally:
+        provider.allow_binding.set()
+        worker.join(timeout=5)
+
+    assert worker.is_alive() is False
+    assert "error" not in result
+    assert result["response"].status_code == 200
+    assert provider.call_count == 1
+    with closing(server.db()) as con:
+        bound = tuple(
+            con.execute(
+                "SELECT public_id,status,provider_checkout_id,expires_at,"
+                "founder_reserved_until FROM checkout_attempts"
+            ).fetchone()
+        )
+        assert con.execute("SELECT COUNT(*) FROM checkout_attempts").fetchone()[0] == 1
+    assert bound == (
+        before_retry[0],
+        "pending",
+        "checkout-api-1",
+        before_retry[3],
+        before_retry[4],
     )
 
 

@@ -481,7 +481,7 @@ def create_subscription_checkout_attempt(
         active = con.execute(
             """SELECT public_id,expires_at FROM checkout_attempts
                WHERE user_id=? AND status='pending' AND test_mode=?
-                 AND provider_checkout_id IS NOT NULL AND expires_at>?
+                 AND expires_at>?
                ORDER BY accepted_at DESC LIMIT 1""",
             (user_id, int(test_mode), accepted_at),
         ).fetchone()
@@ -489,15 +489,6 @@ def create_subscription_checkout_attempt(
             raise CheckoutAlreadyActive(
                 public_id=str(active[0]), expires_at=float(active[1])
             )
-        # An attempt that never reached the provider cannot charge the user and
-        # may be safely superseded. Provider-backed attempts are handled above.
-        con.execute(
-            """UPDATE checkout_attempts
-                  SET status='expired', founder_reserved_until=NULL
-                WHERE user_id=? AND status='pending' AND test_mode=?
-                  AND provider_checkout_id IS NULL""",
-            (user_id, int(test_mode)),
-        )
         founder = (
             founder_places_used(con, test_mode=test_mode)
             + _pending_founder_places(
