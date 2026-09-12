@@ -12,6 +12,14 @@ from dataclasses import asdict, dataclass
 ACCESS_STATUSES = frozenset({"active", "past_due"})
 SUSPENDED_STATUSES = frozenset({"unpaid", "expired"})
 KNOWN_STATUSES = ACCESS_STATUSES | SUSPENDED_STATUSES | {"cancelled", "paused"}
+ACCESS_BEARING_STATUSES = ACCESS_STATUSES | {"cancelled", "paused"}
+ANNUAL_PREMIUM_PRODUCT = "premium_annual"
+ANNUAL_PREMIUM_CURRENCY = "EUR"
+ANNUAL_RENEWAL_AMOUNT_CENTS = 4_900
+FOUNDER_DISCOUNT_AMOUNT_CENTS = 1_000
+FOUNDER_INITIAL_AMOUNT_CENTS = (
+    ANNUAL_RENEWAL_AMOUNT_CENTS - FOUNDER_DISCOUNT_AMOUNT_CENTS
+)
 
 
 SUBSCRIPTION_SCHEMA = """
@@ -144,18 +152,47 @@ def migrate_subscription_schema(con) -> None:
     con.executescript(SUBSCRIPTION_SCHEMA)
 
 
-def subscription_access(snapshot, *, now):
-    if snapshot is None or snapshot.status in SUSPENDED_STATUSES:
+def _nonempty_text(value) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _approved_annual_offer(snapshot: SubscriptionSnapshot) -> bool:
+    if (
+        snapshot.product != ANNUAL_PREMIUM_PRODUCT
+        or snapshot.currency != ANNUAL_PREMIUM_CURRENCY
+    ):
+        return False
+    if snapshot.founder is True:
+        return (
+            snapshot.initial_amount_cents == FOUNDER_INITIAL_AMOUNT_CENTS
+            and snapshot.renewal_amount_cents == ANNUAL_RENEWAL_AMOUNT_CENTS
+            and _nonempty_text(snapshot.discount_id)
+        )
+    if snapshot.founder is False:
+        return (
+            snapshot.initial_amount_cents == ANNUAL_RENEWAL_AMOUNT_CENTS
+            and snapshot.renewal_amount_cents == ANNUAL_RENEWAL_AMOUNT_CENTS
+            and snapshot.discount_id is None
+        )
+    return False
+
+
+def subscription_access(snapshot, *, now: float) -> bool:
+    if (
+        not isinstance(snapshot, SubscriptionSnapshot)
+        or not _approved_annual_offer(snapshot)
+        or (
+            snapshot.status in ACCESS_BEARING_STATUSES
+            and snapshot.initial_payment_verified is not True
+        )
+        or snapshot.status in SUSPENDED_STATUSES
+    ):
         return False
     if snapshot.status == "cancelled":
         return snapshot.ends_at is not None and now < snapshot.ends_at
     if snapshot.status == "paused":
         return snapshot.paid_through is not None and now < snapshot.paid_through
     return snapshot.status in ACCESS_STATUSES
-
-
-def _nonempty_text(value) -> bool:
-    return isinstance(value, str) and bool(value.strip())
 
 
 def _valid_time(value) -> bool:
@@ -204,6 +241,17 @@ def _validation_error(snapshot: SubscriptionSnapshot) -> str | None:
     for name in ("founder", "initial_payment_verified", "needs_review"):
         if type(getattr(snapshot, name)) is not bool:
             return f"invalid {name}"
+    if snapshot.product != ANNUAL_PREMIUM_PRODUCT:
+        return "unsupported product"
+    if snapshot.currency != ANNUAL_PREMIUM_CURRENCY:
+        return "invalid annual Premium currency"
+    if not _approved_annual_offer(snapshot):
+        return "invalid annual Premium price"
+    if (
+        snapshot.status in ACCESS_BEARING_STATUSES
+        and not snapshot.initial_payment_verified
+    ):
+        return "initial payment not verified"
     for name in ("period_start", "period_end", "paid_through"):
         if not _valid_time(getattr(snapshot, name)):
             return f"missing {name}"
@@ -266,6 +314,18 @@ def upsert_snapshot(con, snapshot: SubscriptionSnapshot, *, now: float) -> bool:
     review_reason = snapshot.review_reason
     if snapshot.status == "paused" and not review_reason:
         review_reason = "paused subscription requires reconciliation"
+    if snapshot.status == "paused" and con.execute(
+        "SELECT 1 FROM subscriptions "
+        "WHERE user_id=? AND product=? AND initial_payment_verified=1",
+        (snapshot.user_id, snapshot.product),
+    ).fetchone() is not None:
+        _queue_review(
+            con,
+            snapshot,
+            reason=review_reason,
+            now=now,
+        )
+        return False
     if needs_review:
         _queue_review(
             con,

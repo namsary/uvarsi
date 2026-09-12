@@ -7,6 +7,7 @@ každý nový modul musí byť v deploy manifeste, inak testy zčervenajú.
 """
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -105,40 +106,29 @@ def bash_executable() -> str:
     return executable
 
 
-def test_samopull_missing_plan_calendar_aborts_before_live_mutation(
-        tmp_path, bash_executable):
-    """Removing plan_calendar.py must stop the real required-files gate."""
+@pytest.mark.parametrize(
+    "missing_required_file",
+    ("app/plan_calendar.py", "app/predplatne.py"),
+)
+def test_samopull_missing_required_module_aborts_before_live_mutation(
+        tmp_path, bash_executable, missing_required_file):
+    """A missing runtime module must stop the real required-files gate."""
     release = tmp_path / "release with spaces"
-    required = (
-        "app/server.py",
-        "app/auth_data.py",
-        "app/public_pages.py",
-        "app/plan_jobs.py",
-        "app/plan_calendar.py",
-        "app/plan_shortlist.py",
-        "app/plan_worker.py",
-        "app/predpocet.py",
-        "app/static/app.html",
-        "app/catalog/ingredients.json",
-        "app/catalog/recipes/manifest.json",
-        "app/catalog/recipes/smoke.json",
-        "hetzner/uvarsi-plan-worker.service",
-        "hetzner/uvarsi-deploy-state.sh",
-        "VERSION",
-        "index.html",
-        "sw.js",
+    script = SAMOPULL.read_text(encoding="utf-8")
+    required_files_gate = (
+        script.split("# b) povinné súbory", 1)[1].split("done", 1)[0] + "done"
     )
+    manifest_match = re.search(r"for f in (.*); do", required_files_gate)
+    assert manifest_match is not None
+    required = manifest_match.group(1).split()
+
     for relative in required:
-        if relative == "app/plan_calendar.py":
+        if relative == missing_required_file:
             continue
         target = release / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("present\n", encoding="utf-8")
 
-    script = SAMOPULL.read_text(encoding="utf-8")
-    required_files_gate = script.split("# b) povinné súbory", 1)[1].split(
-        "# --- 3. záloha aktuálneho stavu a prepnutie ---", 1
-    )[0]
     mutation_marker = tmp_path / "live-mutation-reached"
     command = (
         "log() { :; }\n"
