@@ -145,6 +145,7 @@ from platby import (
     CENA_ZAKLADAJUCI_CENTY,
     MENA_ZAKLADAJUCI,
     KAPACITA_ZAKLADAJUCICH,
+    CheckoutAlreadyActive,
     MAX_TELO_WEBHOOKU,
     PlatbyNenastavene,
     SPRAVA_DUPLICITA_ZAKAZNIK,
@@ -167,7 +168,6 @@ from platby import (
     create_subscription_checkout_attempt,
     custom_user_id,
     email_uctu,
-    founder_places_used,
     hodnoverny_podpis,
     ma_narok,
     migrate_platby_schema,
@@ -6124,19 +6124,21 @@ async def platba_start(req: Request):
             raise HTTPException(409, SPRAVA_UZ_MAS)
         try:
             provider = _subscription_checkout_provider(test_mode=False)
-            volne = max(
-                0, KAPACITA_ZAKLADAJUCICH - founder_places_used(con)
-            )
+            checkout_now = AUTH_CLOCK()
             attempt = create_subscription_checkout_attempt(
                 con,
                 user_id=u["id"],
                 legal_version=consent["legal_version"],
                 consent=consent,
-                now=AUTH_CLOCK(),
+                now=checkout_now,
                 founder_discount_id=provider.founder_discount_id,
                 founder_discount_code=provider.founder_discount_code,
                 test_mode=False,
             )
+            volne = volne_miesta(con, test_mode=False, now=checkout_now)
+        except CheckoutAlreadyActive as error:
+            con.rollback()
+            raise HTTPException(409, str(error))
         except (PlatbyNenastavene, RuntimeError, sqlite3.Error, ValueError):
             con.rollback()
             raise HTTPException(503, SPRAVA_NENASTAVENE)
@@ -6151,7 +6153,18 @@ async def platba_start(req: Request):
             )
         )
         with closing(db()) as con:
-            record_provider_checkout(con, attempt=attempt)
+            record_provider_checkout(
+                con,
+                attempt=attempt,
+                provider_checkout_id=url.provider_checkout_id,
+                test_mode=False,
+                discount_id=(
+                    provider.founder_discount_id if attempt.founder else None
+                ),
+                discount_code=(
+                    provider.founder_discount_code if attempt.founder else None
+                ),
+            )
             con.commit()
     except (PlatbyNenastavene, OSError, RuntimeError, sqlite3.Error, ValueError):
         raise HTTPException(503, SPRAVA_NENASTAVENE)

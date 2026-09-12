@@ -6,6 +6,7 @@ import json
 import sqlite3
 import threading
 import time
+from dataclasses import FrozenInstanceError
 
 import pytest
 
@@ -32,8 +33,10 @@ class FakeCheckoutProvider:
     def __init__(self):
         self.last_checkout_payload = None
         self.overrides = {}
+        self.call_count = 0
 
     def create_checkout(self, payload):
+        self.call_count += 1
         self.last_checkout_payload = payload
         attributes = payload["data"]["attributes"]
         checkout_data = attributes["checkout_data"]
@@ -83,7 +86,9 @@ def db():
     con.close()
 
 
-def _insert_verified_founders(con, count, *, first_user_id=1):
+def _insert_verified_founders(
+    con, count, *, first_user_id=1, test_mode=False
+):
     values = []
     for offset in range(count):
         user_id = first_user_id + offset
@@ -97,7 +102,7 @@ def _insert_verified_founders(con, count, *, first_user_id=1):
                 f"subscription-{user_id}",
                 "variant-test",
                 "EUR",
-                1,
+                int(test_mode),
                 "active",
                 10.0,
                 20.0,
@@ -129,7 +134,14 @@ def _insert_verified_founders(con, count, *, first_user_id=1):
     )
 
 
-def _create_attempt(db, *, user_id=60, now=100.0, with_discount=True):
+def _create_attempt(
+    db,
+    *,
+    user_id=60,
+    now=100.0,
+    with_discount=True,
+    test_mode=False,
+):
     extra = {}
     if with_discount:
         extra = {
@@ -142,6 +154,7 @@ def _create_attempt(db, *, user_id=60, now=100.0, with_discount=True):
         legal_version=LEGAL_VERSION,
         consent=dict(VALID_CONSENT),
         now=now,
+        test_mode=test_mode,
         **extra,
     )
 
@@ -220,6 +233,101 @@ def test_abandoned_founder_reservation_expires_and_frees_the_slot(db):
     ).fetchone()[0] == "expired"
 
 
+def test_retry_keeps_provider_backed_attempt_intact_until_its_true_expiry(db):
+    active = _create_attempt(db, user_id=1, now=100.0)
+    db.execute(
+        "UPDATE checkout_attempts SET provider_checkout_id=? WHERE public_id=?",
+        ("checkout-active", active.public_id),
+    )
+    db.commit()
+    before = tuple(
+        db.execute(
+            "SELECT status,provider_checkout_id,expires_at,founder_reserved_until "
+            "FROM checkout_attempts WHERE public_id=?",
+            (active.public_id,),
+        ).fetchone()
+    )
+
+    with pytest.raises(RuntimeError, match="aktívna"):
+        _create_attempt(db, user_id=1, now=200.0)
+
+    after_retry = tuple(
+        db.execute(
+            "SELECT status,provider_checkout_id,expires_at,founder_reserved_until "
+            "FROM checkout_attempts WHERE public_id=?",
+            (active.public_id,),
+        ).fetchone()
+    )
+    assert after_retry == before == (
+        "pending",
+        "checkout-active",
+        3700.0,
+        3700.0,
+    )
+    assert db.execute("SELECT COUNT(*) FROM checkout_attempts").fetchone()[0] == 1
+
+    replacement = _create_attempt(db, user_id=1, now=3701.0)
+
+    expired = db.execute(
+        "SELECT status,provider_checkout_id,expires_at FROM checkout_attempts "
+        "WHERE public_id=?",
+        (active.public_id,),
+    ).fetchone()
+    assert tuple(expired) == ("expired", "checkout-active", 3700.0)
+    assert replacement.public_id != active.public_id
+    assert db.execute("SELECT COUNT(*) FROM checkout_attempts").fetchone()[0] == 2
+
+
+def test_test_reservations_do_not_consume_live_founder_capacity(db):
+    for user_id in range(1, 51):
+        _create_attempt(db, user_id=user_id, test_mode=True)
+
+    first_live = _create_attempt(db, user_id=60, test_mode=False)
+
+    assert first_live.founder is True
+    assert first_live.amount_cents == 3900
+    assert platby.volne_miesta(db, test_mode=True, now=100.0) == 0
+    assert platby.volne_miesta(db, test_mode=False, now=100.0) == 49
+
+
+def test_live_reservations_do_not_consume_test_founder_capacity(db):
+    for user_id in range(1, 51):
+        _create_attempt(db, user_id=user_id, test_mode=False)
+
+    first_test = _create_attempt(db, user_id=60, test_mode=True)
+
+    assert first_test.founder is True
+    assert first_test.amount_cents == 3900
+    assert platby.volne_miesta(db, test_mode=False, now=100.0) == 0
+    assert platby.volne_miesta(db, test_mode=True, now=100.0) == 49
+
+
+@pytest.mark.parametrize(
+    ("occupied_mode", "candidate_mode"),
+    [(True, False), (False, True)],
+)
+def test_successful_founders_do_not_consume_the_other_mode_capacity(
+    db, occupied_mode, candidate_mode
+):
+    _insert_verified_founders(db, 50, test_mode=occupied_mode)
+    db.commit()
+
+    candidate = _create_attempt(db, user_id=60, test_mode=candidate_mode)
+
+    assert candidate.founder is True
+    assert candidate.amount_cents == 3900
+
+
+def test_free_places_count_same_mode_pending_and_just_created_reservation(db):
+    _create_attempt(db, user_id=1, now=100.0, test_mode=False)
+    _create_attempt(db, user_id=2, now=100.0, test_mode=True)
+
+    assert platby.volne_miesta(db, test_mode=False, now=100.0) == 49
+    assert platby.volne_miesta(db, test_mode=True, now=100.0) == 49
+    assert platby.volne_miesta(db, test_mode=False, now=3700.0) == 50
+    assert platby.volne_miesta(db, test_mode=True, now=3700.0) == 50
+
+
 def test_founder_reservation_waits_for_the_immediate_writer_before_counting(tmp_path):
     path = tmp_path / "atomic-founder.db"
     setup = _open_database(path)
@@ -259,7 +367,7 @@ def test_founder_reservation_waits_for_the_immediate_writer_before_counting(tmp_
 
 
 def test_subscription_checkout_never_sets_custom_price_and_sends_only_attempt_id(db):
-    attempt = _create_attempt(db, user_id=1, now=100.0)
+    attempt = _create_attempt(db, user_id=1, now=100.0, test_mode=True)
     provider = FakeCheckoutProvider()
 
     url = platby.create_provider_subscription_checkout(
@@ -286,13 +394,57 @@ def test_subscription_checkout_never_sets_custom_price_and_sends_only_attempt_id
         "variant": {"data": {"type": "variants", "id": "variant-test"}},
     }
     assert url.endswith("signature=signed-secret-value")
-    assert attempt.provider_checkout_id == "checkout-123"
+    assert attempt.provider_checkout_id is None
+    assert url.provider_checkout_id == "checkout-123"
+
+
+def test_checkout_terms_are_frozen_and_persisted_before_provider_io(db):
+    attempt = _create_attempt(db, user_id=1, now=100.0, test_mode=True)
+
+    row = db.execute(
+        "SELECT test_mode,discount_id,discount_code FROM checkout_attempts "
+        "WHERE public_id=?",
+        (attempt.public_id,),
+    ).fetchone()
+
+    assert tuple(row) == (1, "discount-test", "FOUNDERS")
+    with pytest.raises(FrozenInstanceError):
+        attempt.amount_cents = 1
+    with pytest.raises(TypeError):
+        attempt.consent["accept_terms"] = False
+
+
+@pytest.mark.parametrize(
+    ("test_mode", "provider_discount_id", "provider_discount_code", "match"),
+    [
+        (False, "discount-test", "FOUNDERS", "režim"),
+        (True, "other-discount", "FOUNDERS", "zľav"),
+        (True, "discount-test", "OTHER", "kód"),
+    ],
+)
+def test_provider_rejects_immutable_mode_or_discount_mismatch_before_call(
+    db, test_mode, provider_discount_id, provider_discount_code, match
+):
+    attempt = _create_attempt(db, user_id=1, now=100.0, test_mode=True)
+    provider = FakeCheckoutProvider()
+    provider.founder_discount_id = provider_discount_id
+    provider.founder_discount_code = provider_discount_code
+
+    with pytest.raises(platby.PlatbyNenastavene, match=match):
+        platby.create_provider_subscription_checkout(
+            attempt=attempt,
+            email="a@example.sk",
+            provider=provider,
+            test_mode=test_mode,
+        )
+
+    assert provider.call_count == 0
 
 
 def test_regular_checkout_has_no_founder_discount(db):
-    _insert_verified_founders(db, 50)
+    _insert_verified_founders(db, 50, test_mode=True)
     db.commit()
-    attempt = _create_attempt(db, user_id=60, now=100.0)
+    attempt = _create_attempt(db, user_id=60, now=100.0, test_mode=True)
     provider = FakeCheckoutProvider()
 
     platby.create_provider_subscription_checkout(
@@ -322,7 +474,7 @@ def test_regular_checkout_has_no_founder_discount(db):
 def test_provider_checkout_is_rejected_before_url_return_when_identity_is_wrong(
     db, override, match
 ):
-    attempt = _create_attempt(db, user_id=1, now=100.0)
+    attempt = _create_attempt(db, user_id=1, now=100.0, test_mode=True)
     provider = FakeCheckoutProvider()
     provider.overrides = override
 
@@ -340,7 +492,7 @@ def test_provider_checkout_is_rejected_before_url_return_when_identity_is_wrong(
 def test_provider_checkout_id_is_stored_but_signed_url_is_never_persisted_or_logged(
     db, caplog, capsys
 ):
-    attempt = _create_attempt(db, user_id=1, now=100.0)
+    attempt = _create_attempt(db, user_id=1, now=100.0, test_mode=True)
     provider = FakeCheckoutProvider()
 
     url = platby.create_provider_subscription_checkout(
@@ -349,21 +501,69 @@ def test_provider_checkout_id_is_stored_but_signed_url_is_never_persisted_or_log
         provider=provider,
         test_mode=True,
     )
-    platby.record_provider_checkout(db, attempt=attempt)
+    before = dict(
+        db.execute(
+            "SELECT * FROM checkout_attempts WHERE public_id=?",
+            (attempt.public_id,),
+        ).fetchone()
+    )
+    platby.record_provider_checkout(
+        db,
+        attempt=attempt,
+        provider_checkout_id=url.provider_checkout_id,
+        test_mode=True,
+        discount_id="discount-test",
+        discount_code="FOUNDERS",
+    )
     db.commit()
 
-    stored = db.execute(
-        "SELECT provider_checkout_id FROM checkout_attempts WHERE public_id=?",
-        (attempt.public_id,),
-    ).fetchone()[0]
+    after = dict(
+        db.execute(
+            "SELECT * FROM checkout_attempts WHERE public_id=?",
+            (attempt.public_id,),
+        ).fetchone()
+    )
     dump = "\n".join(db.iterdump())
     output = capsys.readouterr()
-    assert stored == "checkout-123"
+    assert after["provider_checkout_id"] == "checkout-123"
+    after["provider_checkout_id"] = None
+    assert after == before
     assert url not in dump
     assert "signed-secret-value" not in dump
     assert "signed-secret-value" not in output.out
     assert "signed-secret-value" not in output.err
     assert "signed-secret-value" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("test_mode", "discount_id", "discount_code"),
+    [
+        (False, "discount-test", "FOUNDERS"),
+        (True, "other-discount", "FOUNDERS"),
+        (True, "discount-test", "OTHER"),
+    ],
+)
+def test_record_provider_checkout_rejects_mode_or_discount_mismatch_without_write(
+    db, test_mode, discount_id, discount_code
+):
+    attempt = _create_attempt(db, user_id=1, now=100.0, test_mode=True)
+
+    with pytest.raises(platby.PlatbyNenastavene):
+        platby.record_provider_checkout(
+            db,
+            attempt=attempt,
+            provider_checkout_id="checkout-mismatch",
+            test_mode=test_mode,
+            discount_id=discount_id,
+            discount_code=discount_code,
+        )
+
+    row = db.execute(
+        "SELECT provider_checkout_id,test_mode,discount_id,discount_code "
+        "FROM checkout_attempts WHERE public_id=?",
+        (attempt.public_id,),
+    ).fetchone()
+    assert tuple(row) == (None, 1, "discount-test", "FOUNDERS")
 
 
 def test_checkout_migration_preserves_existing_account_plan_pantry_and_attempt_data():

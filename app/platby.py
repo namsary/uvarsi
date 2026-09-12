@@ -38,6 +38,8 @@ import json
 import secrets
 import sqlite3
 from dataclasses import dataclass
+from types import MappingProxyType
+from typing import Mapping
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 try:
@@ -244,9 +246,21 @@ class UdalostNepouzitelna(RuntimeError):
     """Podpísaná udalosť sa nedá priradiť k účtu alebo objednávke."""
 
 
-@dataclass
+class CheckoutAlreadyActive(RuntimeError):
+    """A provider-backed checkout is still payable and cannot be recovered."""
+
+    def __init__(self, *, public_id: str, expires_at: float):
+        self.public_id = public_id
+        self.expires_at = expires_at
+        super().__init__(
+            "Platobná pokladňa je už aktívna. "
+            "Dokonči ju alebo počkaj do jej expirácie."
+        )
+
+
+@dataclass(frozen=True)
 class CheckoutAttempt:
-    """Immutable checkout terms plus the non-secret provider checkout ID."""
+    """Immutable annual checkout terms captured before provider I/O."""
 
     public_id: str
     user_id: int
@@ -261,12 +275,21 @@ class CheckoutAttempt:
     discount_code: str | None
     legal_version: str
     privacy_version: str
-    consent: dict
+    consent: Mapping[str, object]
     accepted_at: float
     expires_at: float
     founder_reserved_until: float | None
     test_mode: bool
     provider_checkout_id: str | None = None
+
+
+class ProviderCheckoutURL(str):
+    """Ephemeral signed URL carrying only its validated non-secret checkout ID."""
+
+    def __new__(cls, value: str, *, provider_checkout_id: str):
+        instance = super().__new__(cls, value)
+        instance.provider_checkout_id = provider_checkout_id
+        return instance
 
 
 def migrate_platby_schema(con) -> None:
@@ -387,22 +410,26 @@ def validate_annual_checkout_consent(consent, *, legal_version: str) -> None:
     _annual_consent_json(consent, legal_version=legal_version)
 
 
-def founder_places_used(con) -> int:
+def founder_places_used(con, *, test_mode: bool = False) -> int:
     """Count successful first founder payments, including ended subscriptions."""
+    if type(test_mode) is not bool:
+        raise ValueError("neplatný režim pokladne")
     row = con.execute(
         """SELECT COUNT(*) FROM subscriptions
-           WHERE founder=1 AND initial_payment_verified=1"""
+           WHERE founder=1 AND initial_payment_verified=1 AND test_mode=?""",
+        (int(test_mode),),
     ).fetchone()
     return int(row[0]) if row else 0
 
 
-def _pending_founder_places(con, *, now: float) -> int:
+def _pending_founder_places(con, *, now: float, test_mode: bool) -> int:
     row = con.execute(
         """SELECT COUNT(*) FROM checkout_attempts
            WHERE founder=1 AND status='pending'
+             AND test_mode=?
              AND founder_reserved_until IS NOT NULL
-             AND founder_reserved_until>=?""",
-        (now,),
+             AND founder_reserved_until>?""",
+        (int(test_mode), now),
     ).fetchone()
     return int(row[0]) if row else 0
 
@@ -448,21 +475,34 @@ def create_subscription_checkout_attempt(
         con.execute(
             """UPDATE checkout_attempts
                   SET status='expired', founder_reserved_until=NULL
-                WHERE status='pending' AND founder=1
-                  AND founder_reserved_until IS NOT NULL
-                  AND founder_reserved_until<?""",
-            (accepted_at,),
+                WHERE status='pending' AND test_mode=? AND expires_at<=?""",
+            (int(test_mode), accepted_at),
         )
-        # One account cannot starve the founder pool with several open tabs.
+        active = con.execute(
+            """SELECT public_id,expires_at FROM checkout_attempts
+               WHERE user_id=? AND status='pending' AND test_mode=?
+                 AND provider_checkout_id IS NOT NULL AND expires_at>?
+               ORDER BY accepted_at DESC LIMIT 1""",
+            (user_id, int(test_mode), accepted_at),
+        ).fetchone()
+        if active is not None:
+            raise CheckoutAlreadyActive(
+                public_id=str(active[0]), expires_at=float(active[1])
+            )
+        # An attempt that never reached the provider cannot charge the user and
+        # may be safely superseded. Provider-backed attempts are handled above.
         con.execute(
             """UPDATE checkout_attempts
                   SET status='expired', founder_reserved_until=NULL
-                WHERE user_id=? AND status='pending'""",
-            (user_id,),
+                WHERE user_id=? AND status='pending' AND test_mode=?
+                  AND provider_checkout_id IS NULL""",
+            (user_id, int(test_mode)),
         )
         founder = (
-            founder_places_used(con)
-            + _pending_founder_places(con, now=accepted_at)
+            founder_places_used(con, test_mode=test_mode)
+            + _pending_founder_places(
+                con, now=accepted_at, test_mode=test_mode
+            )
             < KAPACITA_ZAKLADAJUCICH
         )
         amount_cents = CENA_PRVY_ROK_CENTY if founder else CENA_OBNOVA_CENTY
@@ -530,7 +570,7 @@ def create_subscription_checkout_attempt(
         discount_code=discount_code,
         legal_version=legal_version,
         privacy_version=legal_version,
-        consent=json.loads(consent_json),
+        consent=MappingProxyType(json.loads(consent_json)),
         accepted_at=accepted_at,
         expires_at=expires_at,
         founder_reserved_until=reserved_until,
@@ -594,6 +634,8 @@ def create_provider_subscription_checkout(
         raise ValueError("neplatný pokus objednávky")
     if type(test_mode) is not bool:
         raise ValueError("neplatný režim pokladne")
+    if attempt.test_mode is not test_mode:
+        raise PlatbyNenastavene("pokus má iný režim pokladne")
     email = _required_text(email, "chýba e-mail pokladne")
     store_id = _required_text(
         getattr(provider, "store_id", None), "chýba obchod pokladne"
@@ -614,12 +656,10 @@ def create_provider_subscription_checkout(
             getattr(provider, "founder_discount_code", None),
             "chýba kód zakladajúcej zľavy",
         )
-        if attempt.discount_id not in (None, provider_discount_id):
+        if attempt.discount_id != provider_discount_id:
             raise PlatbyNenastavene("pokus má inú zakladajúcu zľavu")
-        if attempt.discount_code not in (None, provider_discount_code):
+        if attempt.discount_code != provider_discount_code:
             raise PlatbyNenastavene("pokus má iný kód zakladajúcej zľavy")
-        attempt.discount_id = provider_discount_id
-        attempt.discount_code = provider_discount_code
         checkout_data["discount_code"] = provider_discount_code
     elif attempt.discount_id is not None or attempt.discount_code is not None:
         raise PlatbyNenastavene("bežná pokladňa nesmie použiť zakladajúcu zľavu")
@@ -675,30 +715,59 @@ def create_provider_subscription_checkout(
     if preview.get("total") != attempt.amount_cents:
         raise PlatbyNenastavene("poskytovateľ nepotvrdil schválenú sumu pokladne")
     checkout_url = _signed_checkout_url(attributes.get("url"))
-    attempt.test_mode = test_mode
-    attempt.provider_checkout_id = checkout_id
-    return checkout_url
+    return ProviderCheckoutURL(checkout_url, provider_checkout_id=checkout_id)
 
 
-def record_provider_checkout(con, *, attempt: CheckoutAttempt) -> None:
+def record_provider_checkout(
+    con,
+    *,
+    attempt: CheckoutAttempt,
+    provider_checkout_id,
+    test_mode,
+    discount_id,
+    discount_code,
+) -> None:
     """Store only the provider ID after validation; the signed URL has no sink."""
     if not isinstance(attempt, CheckoutAttempt):
         raise ValueError("neplatný pokus objednávky")
+    if type(test_mode) is not bool or attempt.test_mode is not test_mode:
+        raise PlatbyNenastavene("pokus má iný režim pokladne")
+    if attempt.founder:
+        discount_id = _required_text(
+            discount_id, "chýba identifikátor zakladajúcej zľavy"
+        )
+        discount_code = _required_text(
+            discount_code, "chýba kód zakladajúcej zľavy"
+        )
+    elif discount_id is not None or discount_code is not None:
+        raise PlatbyNenastavene("bežná pokladňa nesmie použiť zakladajúcu zľavu")
+    if attempt.discount_id != discount_id:
+        raise PlatbyNenastavene("pokus má inú zakladajúcu zľavu")
+    if attempt.discount_code != discount_code:
+        raise PlatbyNenastavene("pokus má iný kód zakladajúcej zľavy")
     checkout_id = _required_text(
-        attempt.provider_checkout_id, "chýba identifikátor pokladne"
+        provider_checkout_id, "chýba identifikátor pokladne"
     )
+    stored = con.execute(
+        """SELECT test_mode,discount_id,discount_code FROM checkout_attempts
+           WHERE public_id=? AND status='pending'
+             AND provider_checkout_id IS NULL""",
+        (attempt.public_id,),
+    ).fetchone()
+    if stored is None:
+        raise ValueError("pokus objednávky už nemožno priradiť k pokladni")
+    if (
+        stored[0] != int(test_mode)
+        or stored[1] != discount_id
+        or stored[2] != discount_code
+    ):
+        raise PlatbyNenastavene("uložený pokus má iné nemenné podmienky")
     cursor = con.execute(
         """UPDATE checkout_attempts
-              SET provider_checkout_id=?,discount_id=?,discount_code=?,test_mode=?
+              SET provider_checkout_id=?
             WHERE public_id=? AND status='pending'
               AND provider_checkout_id IS NULL""",
-        (
-            checkout_id,
-            attempt.discount_id,
-            attempt.discount_code,
-            int(attempt.test_mode),
-            attempt.public_id,
-        ),
+        (checkout_id, attempt.public_id),
     )
     if cursor.rowcount != 1:
         raise ValueError("pokus objednávky už nemožno priradiť k pokladni")
@@ -925,8 +994,19 @@ def pocet_zaplatenych_zakladajucich(con) -> int:
     return int(riadok[0]) if riadok else 0
 
 
-def volne_miesta(con) -> int:
-    return max(0, KAPACITA_ZAKLADAJUCICH - pocet_zaplatenych_zakladajucich(con))
+def volne_miesta(con, *, test_mode=None, now=None) -> int:
+    if test_mode is None:
+        return max(
+            0, KAPACITA_ZAKLADAJUCICH - pocet_zaplatenych_zakladajucich(con)
+        )
+    if type(test_mode) is not bool or now is None:
+        raise ValueError("neplatný režim alebo čas kapacity pokladne")
+    checked_at = _cas(now)
+    occupied = founder_places_used(con, test_mode=test_mode)
+    reserved = _pending_founder_places(
+        con, now=checked_at, test_mode=test_mode
+    )
+    return max(0, KAPACITA_ZAKLADAJUCICH - occupied - reserved)
 
 
 def ma_narok(con, user_id: int) -> bool:

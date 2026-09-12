@@ -82,15 +82,18 @@ class FakeSubscriptionCheckoutProvider:
 
     def __init__(self):
         self.last_checkout_payload = None
+        self.call_count = 0
 
     def create_checkout(self, payload):
+        self.call_count += 1
         self.last_checkout_payload = payload
         attributes = payload["data"]["attributes"]
         total = 3900 if "discount_code" in attributes["checkout_data"] else 4900
+        checkout_id = f"checkout-api-{self.call_count}"
         return {
             "data": {
                 "type": "checkouts",
-                "id": "checkout-api-1",
+                "id": checkout_id,
                 "attributes": {
                     "store_id": self.store_id,
                     "variant_id": self.variant_id,
@@ -98,7 +101,8 @@ class FakeSubscriptionCheckoutProvider:
                     "expires_at": attributes["expires_at"],
                     "preview": {"currency": "EUR", "total": total},
                     "url": (
-                        "https://uvarsi.lemonsqueezy.com/checkout/custom/checkout-api-1"
+                        "https://uvarsi.lemonsqueezy.com/checkout/custom/"
+                        f"{checkout_id}"
                         "?expires=1&signature=fake-signature"
                     ),
                 },
@@ -491,7 +495,7 @@ def test_start_vytvori_overeny_rocny_checkout_s_nepriehladnym_attempt_id(
     assert data["founder"] is True
     assert data["amount_cents"] == 3900
     assert data["renewal_amount_cents"] == 4900
-    assert data["volne_miesta"] == 50
+    assert data["volne_miesta"] == 49
     assert naroky(server) == [], "start nesmie sám nič udeliť"
     payload = server._fake_subscription_checkout_provider.last_checkout_payload
     custom = payload["data"]["attributes"]["checkout_data"]["custom"]
@@ -517,6 +521,59 @@ def test_start_vytvori_overeny_rocny_checkout_s_nepriehladnym_attempt_id(
         server.LEGAL_VERSION,
         "pending",
         "checkout-api-1",
+    )
+
+
+def test_start_retry_with_active_checkout_fails_closed_without_second_provider_call(
+    monkeypatch, tmp_path
+):
+    server = zapnute_platby(monkeypatch, tmp_path)
+    vytvor_pouzivatela(server, user_id=7, email="clen@uvar.si")
+    client = prihlaseny(server)
+
+    first = client.post("/api/platba/start", json=CONSENT)
+    assert first.status_code == 200
+    with closing(server.db()) as con:
+        before = tuple(
+            con.execute(
+                "SELECT status,provider_checkout_id,expires_at,"
+                "founder_reserved_until FROM checkout_attempts"
+            ).fetchone()
+        )
+
+    retry = client.post("/api/platba/start", json=CONSENT)
+
+    assert retry.status_code == 409
+    assert retry.json()["detail"] == (
+        "Platobná pokladňa je už aktívna. Dokonči ju alebo počkaj do jej expirácie."
+    )
+    assert server._fake_subscription_checkout_provider.call_count == 1
+    with closing(server.db()) as con:
+        assert con.execute("SELECT COUNT(*) FROM checkout_attempts").fetchone()[0] == 1
+        after_retry = tuple(
+            con.execute(
+                "SELECT status,provider_checkout_id,expires_at,"
+                "founder_reserved_until FROM checkout_attempts"
+            ).fetchone()
+        )
+    assert after_retry == before
+
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: before[2] + 1)
+    after_expiry = client.post("/api/platba/start", json=CONSENT)
+
+    assert after_expiry.status_code == 200
+    assert server._fake_subscription_checkout_provider.call_count == 2
+    with closing(server.db()) as con:
+        rows = con.execute(
+            "SELECT status,provider_checkout_id,expires_at "
+            "FROM checkout_attempts ORDER BY accepted_at"
+        ).fetchall()
+    assert len(rows) == 2
+    assert tuple(rows[0]) == ("expired", "checkout-api-1", before[2])
+    assert tuple(rows[1]) == (
+        "pending",
+        "checkout-api-2",
+        before[2] + 1 + 60 * 60,
     )
 
 
