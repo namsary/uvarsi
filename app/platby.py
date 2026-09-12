@@ -1144,8 +1144,11 @@ def custom_checkout_attempt(payload):
     custom = _meta(payload).get("custom_data")
     if not isinstance(custom, dict):
         return None
-    attempt = _bezpecne_id(custom.get("checkout_attempt"))
-    return attempt if attempt is not None and len(attempt) >= 43 else None
+    for key in ("attempt_id", "checkout_attempt"):
+        attempt = _bezpecne_id(custom.get(key))
+        if attempt is not None and len(attempt) >= 43:
+            return attempt
+    return None
 
 
 def _suma(payload):

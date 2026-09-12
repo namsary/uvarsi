@@ -6,7 +6,9 @@ import hashlib
 import json
 import math
 import sqlite3
-from dataclasses import asdict, dataclass
+import datetime
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass, replace
 
 
 ACCESS_STATUSES = frozenset({"active", "past_due"})
@@ -20,6 +22,31 @@ FOUNDER_DISCOUNT_AMOUNT_CENTS = 1_000
 FOUNDER_INITIAL_AMOUNT_CENTS = (
     ANNUAL_RENEWAL_AMOUNT_CENTS - FOUNDER_DISCOUNT_AMOUNT_CENTS
 )
+PAYMENT_EVENT_TYPES = frozenset(
+    {
+        "subscription_payment_success",
+        "subscription_payment_failed",
+        "subscription_payment_recovered",
+        "subscription_payment_refunded",
+        "order_refunded",
+    }
+)
+SUBSCRIPTION_EVENT_TYPES = frozenset(
+    {
+        "order_created",
+        "subscription_created",
+        "subscription_updated",
+        "subscription_cancelled",
+        "subscription_resumed",
+        "subscription_expired",
+        "subscription_paused",
+        "subscription_unpaused",
+    }
+) | PAYMENT_EVENT_TYPES
+_SAFE_ID_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
+)
+_HEX_CHARS = frozenset("0123456789abcdefABCDEF")
 
 
 SUBSCRIPTION_SCHEMA = """
@@ -451,3 +478,904 @@ def subscription_for_user(con, user_id: int) -> SubscriptionSnapshot | None:
     for name in ("test_mode", "founder", "initial_payment_verified", "needs_review"):
         values[name] = bool(values[name])
     return SubscriptionSnapshot(**values)
+
+
+class SubscriptionEventRejected(RuntimeError):
+    """A delivery lacks the trusted identity required for safe processing."""
+
+
+class _ReviewRequired(RuntimeError):
+    pass
+
+
+def _payload_meta(payload) -> dict:
+    value = payload.get("meta") if isinstance(payload, dict) else None
+    return value if isinstance(value, dict) else {}
+
+
+def _payload_data(payload) -> dict:
+    value = payload.get("data") if isinstance(payload, dict) else None
+    return value if isinstance(value, dict) else {}
+
+
+def _payload_attributes(payload) -> dict:
+    value = _payload_data(payload).get("attributes")
+    return value if isinstance(value, dict) else {}
+
+
+def _safe_id(value) -> str | None:
+    if isinstance(value, int) and not isinstance(value, bool):
+        value = str(value)
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value or len(value) > 128 or not set(value) <= _SAFE_ID_CHARS:
+        return None
+    return value
+
+
+def _event_name(payload) -> str:
+    value = _payload_meta(payload).get("event_name")
+    if not isinstance(value, str):
+        return ""
+    value = value.strip()
+    if (
+        not value
+        or len(value) > 64
+        or not value.replace("_", "").isalnum()
+    ):
+        return ""
+    return value
+
+
+def _provider_invoice_id(payload) -> str | None:
+    attributes = _payload_attributes(payload)
+    invoice_id = _safe_id(attributes.get("invoice_id"))
+    data = _payload_data(payload)
+    data_type = str(data.get("type") or "").replace("_", "-").casefold()
+    if invoice_id is None and data_type == "subscription-invoices":
+        invoice_id = _safe_id(data.get("id"))
+    return invoice_id
+
+
+def subscription_event_key(
+    payload, *, verified_body_digest=None, reconciliation_key=None
+) -> str:
+    """Return a delivery key without ever treating an original order as an invoice."""
+    event_name = _event_name(payload)
+    if event_name not in SUBSCRIPTION_EVENT_TYPES:
+        raise SubscriptionEventRejected("nepodporovaný typ udalosti")
+    invoice_id = _provider_invoice_id(payload)
+    if event_name in PAYMENT_EVENT_TYPES:
+        if invoice_id is None:
+            raise SubscriptionEventRejected("platobnej udalosti chýba id faktúry")
+        return f"lemon:invoice:{event_name}:{invoice_id}"
+    if verified_body_digest is not None:
+        if (
+            not isinstance(verified_body_digest, str)
+            or len(verified_body_digest) != 64
+            or not set(verified_body_digest) <= _HEX_CHARS
+        ):
+            raise SubscriptionEventRejected("neplatný digest overeného tela")
+        return f"lemon:webhook:{event_name}:{verified_body_digest.lower()}"
+    if reconciliation_key is not None:
+        if (
+            not isinstance(reconciliation_key, str)
+            or not reconciliation_key.strip()
+            or len(reconciliation_key) > 512
+            or any(character in reconciliation_key for character in "\r\n\0")
+        ):
+            raise SubscriptionEventRejected("neplatný kľúč rekonciliácie")
+        return f"lemon:reconcile:{event_name}:{reconciliation_key.strip()}"
+    raise SubscriptionEventRejected("chýba bezpečný kľúč doručenia")
+
+
+def _attempt_id(payload) -> str | None:
+    custom = _payload_meta(payload).get("custom_data")
+    if not isinstance(custom, dict):
+        return None
+    for name in ("attempt_id", "checkout_attempt"):
+        value = _safe_id(custom.get(name))
+        if value is not None and len(value) >= 43:
+            return value
+    return None
+
+
+def _custom_user_id(payload) -> int | None:
+    custom = _payload_meta(payload).get("custom_data")
+    if not isinstance(custom, dict):
+        return None
+    value = custom.get("user_id")
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        value = value.strip()
+        if not value.isdigit() or len(value) > 18:
+            return None
+        value = int(value)
+    return value if isinstance(value, int) and value > 0 else None
+
+
+def _resource_type(payload) -> str:
+    value = _payload_data(payload).get("type")
+    return value.strip().replace("_", "-").casefold() if isinstance(value, str) else ""
+
+
+def _provider_order_id(payload) -> str | None:
+    attributes = _payload_attributes(payload)
+    value = _safe_id(attributes.get("order_id"))
+    if value is None and _resource_type(payload) == "orders":
+        value = _safe_id(_payload_data(payload).get("id"))
+    return value
+
+
+def _provider_subscription_id(payload) -> str | None:
+    attributes = _payload_attributes(payload)
+    value = _safe_id(attributes.get("subscription_id"))
+    if value is None and _resource_type(payload) == "subscriptions":
+        value = _safe_id(_payload_data(payload).get("id"))
+    return value
+
+
+def _relationship_id(payload, name: str) -> str | None:
+    relationships = _payload_data(payload).get("relationships")
+    if not isinstance(relationships, dict):
+        return None
+    relationship = relationships.get(name)
+    data = relationship.get("data") if isinstance(relationship, dict) else None
+    return _safe_id(data.get("id")) if isinstance(data, dict) else None
+
+
+def _provider_store_id(payload) -> str | None:
+    return _safe_id(_payload_attributes(payload).get("store_id")) or _relationship_id(
+        payload, "store"
+    )
+
+
+def _provider_variant_id(payload) -> str | None:
+    attributes = _payload_attributes(payload)
+    value = _safe_id(attributes.get("variant_id"))
+    first_item = attributes.get("first_order_item")
+    if value is None and isinstance(first_item, dict):
+        value = _safe_id(first_item.get("variant_id"))
+    return value or _relationship_id(payload, "variant")
+
+
+def _currency(payload) -> str | None:
+    value = _payload_attributes(payload).get("currency")
+    if (
+        not isinstance(value, str)
+        or len(value.strip()) != 3
+        or not value.strip().isascii()
+        or not value.strip().isalpha()
+    ):
+        return None
+    return value.strip().upper()
+
+
+def _amount(payload, name="total") -> int | None:
+    value = _payload_attributes(payload).get(name)
+    if (
+        not isinstance(value, int)
+        or isinstance(value, bool)
+        or value < 0
+        or value > 10**9
+    ):
+        return None
+    return value
+
+
+def _discount_id(payload) -> str | None:
+    value = _payload_attributes(payload).get("discount_id")
+    return None if value is None else _safe_id(value)
+
+
+def _timestamp(value) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        result = float(value)
+        return result if math.isfinite(result) and result >= 0 else None
+    if not isinstance(value, str) or not value.strip():
+        return None
+    normalized = value.strip()
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+    try:
+        parsed = datetime.datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.utcoffset() is None:
+        return None
+    result = parsed.timestamp()
+    return result if math.isfinite(result) and result >= 0 else None
+
+
+def _period(payload) -> tuple[float, float]:
+    attributes = _payload_attributes(payload)
+    start = _timestamp(
+        attributes.get("billing_period_start", attributes.get("period_start"))
+    )
+    end = _timestamp(
+        attributes.get("billing_period_end", attributes.get("period_end"))
+    )
+    if start is None or end is None or start >= end:
+        raise _ReviewRequired("neplatné obdobie predplatného")
+    return start, end
+
+
+def _row_dict(con, query: str, parameters=()) -> dict | None:
+    cursor = con.execute(query, parameters)
+    row = cursor.fetchone()
+    if row is None:
+        return None
+    names = [column[0] for column in cursor.description]
+    return dict(zip(names, tuple(row)))
+
+
+def _attempt(con, payload) -> dict:
+    public_id = _attempt_id(payload)
+    if public_id is None:
+        raise _ReviewRequired("chýba bezpečný pokus objednávky")
+    row = _row_dict(
+        con, "SELECT * FROM checkout_attempts WHERE public_id=?", (public_id,)
+    )
+    if row is None:
+        raise _ReviewRequired("neznámy pokus objednávky")
+    return row
+
+
+def _snapshot_from_values(values: dict) -> SubscriptionSnapshot:
+    for name in ("test_mode", "founder", "initial_payment_verified", "needs_review"):
+        values[name] = bool(values[name])
+    return SubscriptionSnapshot(**values)
+
+
+def _snapshot_for_subscription(
+    con, provider_subscription_id: str, *, test_mode: bool
+) -> SubscriptionSnapshot | None:
+    cursor = con.execute(
+        f"SELECT {','.join(_SNAPSHOT_COLUMNS)} FROM subscriptions "
+        "WHERE provider='lemonsqueezy' AND provider_subscription_id=? "
+        "AND test_mode=? ORDER BY updated_at DESC,id DESC LIMIT 1",
+        (provider_subscription_id, int(test_mode)),
+    )
+    row = cursor.fetchone()
+    if row is None:
+        return None
+    return _snapshot_from_values(dict(zip(_SNAPSHOT_COLUMNS, tuple(row))))
+
+
+def _expected_value(expected, name: str):
+    if isinstance(expected, Mapping):
+        return expected.get(name)
+    return getattr(expected, name, None)
+
+
+def _validated_expected(expected) -> dict:
+    values = {
+        "store_id": _safe_id(_expected_value(expected, "store_id")),
+        "variant_id": _safe_id(_expected_value(expected, "variant_id")),
+        "founder_discount_id": _safe_id(
+            _expected_value(expected, "founder_discount_id")
+        ),
+        "currency": _expected_value(expected, "currency"),
+        "test_mode": _expected_value(expected, "test_mode"),
+    }
+    if (
+        values["store_id"] is None
+        or values["variant_id"] is None
+        or values["founder_discount_id"] is None
+        or values["currency"] != ANNUAL_PREMIUM_CURRENCY
+        or type(values["test_mode"]) is not bool
+    ):
+        raise SubscriptionEventRejected("neúplná očakávaná konfigurácia predplatného")
+    return values
+
+
+def _validate_common(payload, expected: dict) -> None:
+    facts = {
+        "store_id": _provider_store_id(payload),
+        "variant_id": _provider_variant_id(payload),
+        "currency": _currency(payload),
+        "test_mode": _payload_attributes(payload).get("test_mode"),
+    }
+    for name in ("store_id", "variant_id", "currency"):
+        if facts[name] != expected[name]:
+            raise _ReviewRequired(f"udalosť má neplatné {name}")
+    if facts["test_mode"] is not expected["test_mode"]:
+        raise _ReviewRequired("udalosť má nesprávny test_mode")
+
+
+def _validate_attempt(attempt: dict, payload, expected: dict) -> None:
+    founder = attempt.get("founder") == 1
+    expected_initial = (
+        FOUNDER_INITIAL_AMOUNT_CENTS if founder else ANNUAL_RENEWAL_AMOUNT_CENTS
+    )
+    expected_discount = expected["founder_discount_id"] if founder else None
+    if (
+        attempt.get("product") != ANNUAL_PREMIUM_PRODUCT
+        or attempt.get("currency") != ANNUAL_PREMIUM_CURRENCY
+        or attempt.get("billing_interval") != "year"
+        or attempt.get("auto_renews") != 1
+        or attempt.get("amount_cents") != expected_initial
+        or attempt.get("renewal_amount_cents") != ANNUAL_RENEWAL_AMOUNT_CENTS
+        or attempt.get("discount_id") != expected_discount
+        or attempt.get("test_mode") != int(expected["test_mode"])
+        or attempt.get("status") not in {"pending", "paid"}
+    ):
+        raise _ReviewRequired("pokus nezodpovedá ročnej ponuke")
+    user_id = attempt.get("user_id")
+    if (
+        not isinstance(user_id, int)
+        or isinstance(user_id, bool)
+        or user_id <= 0
+    ):
+        raise _ReviewRequired("pokus nemá platného používateľa")
+    custom_user_id = _custom_user_id(payload)
+    if custom_user_id is not None and custom_user_id != user_id:
+        raise _ReviewRequired("udalosť patrí inému používateľovi")
+
+
+def _validate_user_exists(con, attempt: dict) -> None:
+    user_id = attempt.get("user_id")
+    if (
+        not isinstance(user_id, int)
+        or isinstance(user_id, bool)
+        or user_id <= 0
+        or con.execute(
+            "SELECT 1 FROM pouzivatelia WHERE id=?", (user_id,)
+        ).fetchone()
+        is None
+    ):
+        raise _ReviewRequired("pokus nemá známeho používateľa")
+
+
+def _validate_offer(payload, attempt: dict, expected: dict, *, renewal: bool) -> None:
+    founder = attempt["founder"] == 1
+    wanted_amount = (
+        ANNUAL_RENEWAL_AMOUNT_CENTS
+        if renewal or not founder
+        else FOUNDER_INITIAL_AMOUNT_CENTS
+    )
+    wanted_discount = expected["founder_discount_id"] if founder and not renewal else None
+    if _amount(payload) != wanted_amount:
+        raise _ReviewRequired("fakturovaná suma nezodpovedá obdobiu")
+    if _discount_id(payload) != wanted_discount:
+        raise _ReviewRequired("zľava nezodpovedá obdobiu")
+
+
+def _pair_attempt(con, attempt: dict, payload, *, require_paid_status: bool) -> None:
+    order_id = _provider_order_id(payload)
+    if order_id is None:
+        raise _ReviewRequired("chýba id objednávky")
+    if require_paid_status:
+        status = _payload_attributes(payload).get("status")
+        if not isinstance(status, str) or status.strip().casefold() != "paid":
+            raise _ReviewRequired("objednávka nie je zaplatená")
+    stored_order = _safe_id(attempt.get("provider_order_id"))
+    if stored_order is not None and stored_order != order_id:
+        raise _ReviewRequired("pokus je spárovaný s inou objednávkou")
+    if attempt.get("status") == "pending":
+        cursor = con.execute(
+            "UPDATE checkout_attempts SET status='paid',provider_order_id=? "
+            "WHERE public_id=? AND status='pending'",
+            (order_id, attempt["public_id"]),
+        )
+        if cursor.rowcount != 1:
+            raise _ReviewRequired("pokus objednávky už nemožno spárovať")
+    elif attempt.get("status") != "paid":
+        raise _ReviewRequired("pokus objednávky už nemožno spárovať")
+
+
+def _validate_snapshot_identity(
+    snapshot: SubscriptionSnapshot, payload, attempt: dict | None = None
+) -> None:
+    if snapshot.provider_order_id != _provider_order_id(payload):
+        raise _ReviewRequired("udalosť má inú pôvodnú objednávku")
+    if snapshot.provider_customer_id != _safe_id(
+        _payload_attributes(payload).get("customer_id")
+    ):
+        raise _ReviewRequired("udalosť má iného zákazníka")
+    if attempt is not None and snapshot.user_id != attempt.get("user_id"):
+        raise _ReviewRequired("pokus patrí inému predplatnému")
+
+
+def _replace_verified_snapshot(
+    con, snapshot: SubscriptionSnapshot, *, now: float, **changes
+) -> None:
+    candidate = replace(
+        snapshot,
+        needs_review=False,
+        review_reason=None,
+        **changes,
+    )
+    if not upsert_snapshot(con, candidate, now=now):
+        raise _ReviewRequired("prechod predplatného sa nedá bezpečne uložiť")
+
+
+def _process_order_created(con, payload, expected: dict, *, now: float) -> dict:
+    _validate_common(payload, expected)
+    attempt = _attempt(con, payload)
+    _validate_attempt(attempt, payload, expected)
+    _validate_user_exists(con, attempt)
+    _validate_offer(payload, attempt, expected, renewal=False)
+    _pair_attempt(con, attempt, payload, require_paid_status=True)
+    return {"action": "paired", "user_id": attempt["user_id"]}
+
+
+def _process_subscription_created(con, payload, expected: dict, *, now: float) -> dict:
+    _validate_common(payload, expected)
+    attempt = _attempt(con, payload)
+    _validate_attempt(attempt, payload, expected)
+    _validate_user_exists(con, attempt)
+    _validate_offer(payload, attempt, expected, renewal=False)
+    _pair_attempt(con, attempt, payload, require_paid_status=False)
+    subscription_id = _provider_subscription_id(payload)
+    customer_id = _safe_id(_payload_attributes(payload).get("customer_id"))
+    order_id = _provider_order_id(payload)
+    if subscription_id is None or customer_id is None or order_id is None:
+        raise _ReviewRequired("chýba identita predplatného")
+    status = _payload_attributes(payload).get("status")
+    status = status.strip().casefold() if isinstance(status, str) else ""
+    if status != "active":
+        raise _ReviewRequired("nové predplatné nie je aktívne")
+    period_start, period_end = _period(payload)
+    renews_at = _timestamp(_payload_attributes(payload).get("renews_at"))
+    if renews_at is None or renews_at < period_end:
+        raise _ReviewRequired("chýba overený dátum obnovy")
+    founder = attempt["founder"] == 1
+    snapshot = SubscriptionSnapshot(
+        user_id=attempt["user_id"],
+        product=ANNUAL_PREMIUM_PRODUCT,
+        provider="lemonsqueezy",
+        provider_customer_id=customer_id,
+        provider_order_id=order_id,
+        provider_subscription_id=subscription_id,
+        provider_variant_id=expected["variant_id"],
+        currency=expected["currency"],
+        test_mode=expected["test_mode"],
+        status="active",
+        period_start=period_start,
+        period_end=period_end,
+        renews_at=renews_at,
+        ends_at=None,
+        paid_through=period_end,
+        initial_amount_cents=attempt["amount_cents"],
+        renewal_amount_cents=attempt["renewal_amount_cents"],
+        discount_id=attempt["discount_id"],
+        founder=founder,
+        initial_payment_verified=True,
+    )
+    if not upsert_snapshot(con, snapshot, now=now):
+        raise _ReviewRequired("predplatné sa nedá bezpečne aktivovať")
+    return {"action": "activated", "user_id": attempt["user_id"]}
+
+
+def _existing_context(con, payload, expected: dict) -> tuple[SubscriptionSnapshot, dict | None]:
+    _validate_common(payload, expected)
+    subscription_id = _provider_subscription_id(payload)
+    if subscription_id is None:
+        raise _ReviewRequired("chýba id predplatného")
+    snapshot = _snapshot_for_subscription(
+        con, subscription_id, test_mode=expected["test_mode"]
+    )
+    if snapshot is None:
+        raise _ReviewRequired("udalosť patrí neznámemu predplatnému")
+    attempt = None
+    if _attempt_id(payload) is not None:
+        attempt = _attempt(con, payload)
+        _validate_attempt(attempt, payload, expected)
+        _validate_user_exists(con, attempt)
+    _validate_snapshot_identity(snapshot, payload, attempt)
+    return snapshot, attempt
+
+
+def _validate_current_period(snapshot: SubscriptionSnapshot, payload) -> tuple[float, float]:
+    period_start, period_end = _period(payload)
+    if period_start != snapshot.period_start or period_end != snapshot.period_end:
+        raise _ReviewRequired("udalosť mení obdobie bez overenej faktúry")
+    return period_start, period_end
+
+
+def _process_payment_success(con, payload, expected: dict, *, now: float) -> dict:
+    snapshot, attempt = _existing_context(con, payload, expected)
+    invoice_id = _provider_invoice_id(payload)
+    if invoice_id is None:
+        raise SubscriptionEventRejected("platobnej udalosti chýba id faktúry")
+    count = con.execute(
+        "SELECT COUNT(*) FROM subscription_invoices WHERE provider='lemonsqueezy' "
+        "AND test_mode=? AND provider_subscription_id=?",
+        (int(expected["test_mode"]), snapshot.provider_subscription_id),
+    ).fetchone()[0]
+    billing_reason = _payload_attributes(payload).get("billing_reason")
+    billing_reason = (
+        billing_reason.strip().casefold() if isinstance(billing_reason, str) else ""
+    )
+    invoice_kind = "initial" if count == 0 else "renewal"
+    if billing_reason not in {
+        invoice_kind,
+        "subscription_created" if invoice_kind == "initial" else "renewal",
+    }:
+        raise _ReviewRequired("dôvod faktúry nezodpovedá poradiu obdobia")
+    if attempt is None:
+        attempt = _row_dict(
+            con,
+            "SELECT * FROM checkout_attempts WHERE provider_order_id=?",
+            (snapshot.provider_order_id,),
+        )
+        if attempt is None:
+            raise _ReviewRequired("predplatnému chýba pokus objednávky")
+        _validate_attempt(attempt, payload, expected)
+    renewal = invoice_kind == "renewal"
+    _validate_offer(payload, attempt, expected, renewal=renewal)
+    period_start, period_end = _period(payload)
+    if renewal:
+        if period_start != snapshot.paid_through or period_end <= period_start:
+            raise _ReviewRequired("obnovovacia faktúra nenadväzuje na zaplatené obdobie")
+    elif period_start != snapshot.period_start or period_end != snapshot.period_end:
+        raise _ReviewRequired("prvá faktúra nemá prvé obdobie predplatného")
+    status = _payload_attributes(payload).get("status")
+    if not isinstance(status, str) or status.strip().casefold() != "paid":
+        raise _ReviewRequired("faktúra nie je zaplatená")
+    con.execute(
+        """INSERT INTO subscription_invoices
+           (provider,test_mode,provider_invoice_id,provider_subscription_id,
+            provider_order_id,invoice_kind,status,amount_cents,currency,
+            period_start,period_end,paid_at,refunded_amount_cents,created_at,updated_at)
+           VALUES ('lemonsqueezy',?,?,?,?,?,'paid',?,?,?,?,?,0,?,?)""",
+        (
+            int(expected["test_mode"]),
+            invoice_id,
+            snapshot.provider_subscription_id,
+            snapshot.provider_order_id,
+            invoice_kind,
+            _amount(payload),
+            expected["currency"],
+            period_start,
+            period_end,
+            now,
+            now,
+            now,
+        ),
+    )
+    if renewal:
+        renews_at = _timestamp(_payload_attributes(payload).get("renews_at"))
+        if renews_at is None or renews_at < period_end:
+            raise _ReviewRequired("obnove chýba ďalší dátum obnovy")
+        _replace_verified_snapshot(
+            con,
+            snapshot,
+            now=now,
+            status="active",
+            period_start=period_start,
+            period_end=period_end,
+            renews_at=renews_at,
+            ends_at=None,
+            paid_through=period_end,
+        )
+    return {"action": "invoice_recorded", "user_id": snapshot.user_id}
+
+
+def _process_dunning(con, payload, expected: dict, *, now: float, recovered: bool) -> dict:
+    snapshot, _attempt_row = _existing_context(con, payload, expected)
+    _validate_current_period(snapshot, payload)
+    attributes = _payload_attributes(payload)
+    invoice_status = attributes.get("status")
+    invoice_status = (
+        invoice_status.strip().casefold() if isinstance(invoice_status, str) else ""
+    )
+    provider_status = attributes.get("subscription_status")
+    provider_status = (
+        provider_status.strip().casefold() if isinstance(provider_status, str) else ""
+    )
+    wanted_invoice = "paid" if recovered else "failed"
+    wanted_subscription = "active" if recovered else "past_due"
+    if invoice_status != wanted_invoice or provider_status != wanted_subscription:
+        raise _ReviewRequired("stav záchrany platby nie je overený")
+    _replace_verified_snapshot(
+        con, snapshot, now=now, status=wanted_subscription
+    )
+    return {
+        "action": "payment_recovered" if recovered else "payment_failed",
+        "user_id": snapshot.user_id,
+    }
+
+
+def _process_refund(con, payload, expected: dict, *, now: float) -> dict:
+    snapshot, _attempt_row = _existing_context(con, payload, expected)
+    invoice_id = _provider_invoice_id(payload)
+    invoice = _row_dict(
+        con,
+        "SELECT * FROM subscription_invoices WHERE provider='lemonsqueezy' "
+        "AND test_mode=? AND provider_invoice_id=?",
+        (int(expected["test_mode"]), invoice_id),
+    )
+    if invoice is None:
+        raise _ReviewRequired("refundácia nemá známu faktúru")
+    period_start, period_end = _period(payload)
+    if (
+        invoice["provider_subscription_id"] != snapshot.provider_subscription_id
+        or invoice["provider_order_id"] != snapshot.provider_order_id
+        or invoice["amount_cents"] != _amount(payload)
+        or invoice["currency"] != _currency(payload)
+        or invoice["period_start"] != period_start
+        or invoice["period_end"] != period_end
+    ):
+        raise _ReviewRequired("refundácia nezodpovedá presnej faktúre")
+    refunded = _amount(payload, "refunded_amount")
+    if (
+        refunded is None
+        or refunded <= 0
+        or refunded > invoice["amount_cents"]
+        or refunded < invoice["refunded_amount_cents"]
+    ):
+        raise _ReviewRequired("refundovaná suma nie je platná")
+    status = _payload_attributes(payload).get("status")
+    status = status.strip().casefold() if isinstance(status, str) else ""
+    wanted_status = "refunded" if refunded == invoice["amount_cents"] else "partial_refund"
+    if status != wanted_status:
+        raise _ReviewRequired("stav refundácie nezodpovedá sume")
+    con.execute(
+        "UPDATE subscription_invoices SET status=?,refunded_amount_cents=?,updated_at=? "
+        "WHERE id=?",
+        (wanted_status, refunded, now, invoice["id"]),
+    )
+    return {"action": wanted_status, "user_id": snapshot.user_id}
+
+
+def _process_subscription_transition(
+    con, payload, expected: dict, *, now: float, event_name: str
+) -> dict:
+    snapshot, _attempt_row = _existing_context(con, payload, expected)
+    _validate_current_period(snapshot, payload)
+    attributes = _payload_attributes(payload)
+    status = attributes.get("status")
+    status = status.strip().casefold() if isinstance(status, str) else ""
+    if event_name == "subscription_paused" or status == "paused":
+        raise _ReviewRequired("pozastavené predplatné vyžaduje kontrolu")
+    if status not in KNOWN_STATUSES:
+        raise _ReviewRequired("neznámy alebo neúplný stav predplatného")
+
+    changes = {}
+    if event_name == "subscription_cancelled" or status == "cancelled":
+        ends_at = _timestamp(attributes.get("ends_at"))
+        if status != "cancelled" or ends_at != snapshot.paid_through:
+            raise _ReviewRequired("zrušenie nemá overený koniec prístupu")
+        changes = {"status": "cancelled", "renews_at": None, "ends_at": ends_at}
+    elif event_name == "subscription_resumed":
+        renews_at = _timestamp(attributes.get("renews_at"))
+        if (
+            status != "active"
+            or snapshot.status != "cancelled"
+            or snapshot.ends_at is None
+            or now >= snapshot.ends_at
+            or renews_at is None
+        ):
+            raise _ReviewRequired("predplatné nemožno bezpečne obnoviť")
+        changes = {"status": "active", "renews_at": renews_at, "ends_at": None}
+    elif event_name == "subscription_expired" or status == "expired":
+        if status != "expired":
+            raise _ReviewRequired("expirácia nie je overená")
+        changes = {"status": "expired", "renews_at": None, "ends_at": snapshot.ends_at}
+    elif event_name == "subscription_unpaused":
+        if status != "active":
+            raise _ReviewRequired("obnovený stav po pauze nie je aktívny")
+        renews_at = _timestamp(attributes.get("renews_at"))
+        if renews_at is None:
+            raise _ReviewRequired("po pauze chýba dátum obnovy")
+        changes = {"status": "active", "renews_at": renews_at, "ends_at": None}
+    elif event_name in {"subscription_updated"}:
+        if status in {"active", "past_due"}:
+            renews_at = _timestamp(attributes.get("renews_at"))
+            if renews_at is None:
+                raise _ReviewRequired("aktívnemu stavu chýba dátum obnovy")
+            changes = {"status": status, "renews_at": renews_at}
+        elif status == "unpaid":
+            changes = {"status": "unpaid"}
+        else:
+            raise _ReviewRequired("nepodporovaný aktualizačný prechod")
+    else:
+        raise _ReviewRequired("nepodporovaný prechod predplatného")
+    _replace_verified_snapshot(con, snapshot, now=now, **changes)
+    return {"action": status, "user_id": snapshot.user_id}
+
+
+def _event_payload_json(payload) -> str:
+    try:
+        return json.dumps(
+            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
+    except (TypeError, ValueError):
+        raise SubscriptionEventRejected("udalosť nie je platný JSON objekt") from None
+
+
+def _insert_delivery_event(
+    con,
+    *,
+    event_key: str,
+    payload,
+    event_name: str,
+    source: str,
+    now: float,
+) -> None:
+    attributes = _payload_attributes(payload)
+    test_mode = attributes.get("test_mode")
+    test_mode = int(test_mode) if type(test_mode) is bool else None
+    con.execute(
+        """INSERT INTO subscription_events
+           (event_key,provider,test_mode,provider_event_id,
+            provider_subscription_id,provider_invoice_id,event_type,source,
+            payload_json,processing_status,needs_review,review_reason,
+            received_at,processed_at,updated_at)
+           VALUES (?,'lemonsqueezy',?,NULL,?,?,?, ?,?,'processing',0,NULL,?,NULL,?)""",
+        (
+            event_key,
+            test_mode,
+            _provider_subscription_id(payload),
+            _provider_invoice_id(payload),
+            event_name,
+            source,
+            _event_payload_json(payload),
+            now,
+            now,
+        ),
+    )
+
+
+def _mark_delivery(
+    con,
+    event_key: str,
+    *,
+    now: float,
+    status: str,
+    review_reason: str | None = None,
+) -> None:
+    con.execute(
+        "UPDATE subscription_events SET processing_status=?,needs_review=?,"
+        "review_reason=?,processed_at=?,updated_at=? WHERE event_key=?",
+        (
+            status,
+            int(review_reason is not None),
+            review_reason,
+            now,
+            now,
+            event_key,
+        ),
+    )
+
+
+def process_subscription_event(
+    con, *, payload, now, expected, source, delivery_key
+) -> dict:
+    """Validate and apply one annual lifecycle event in one idempotent transaction."""
+    if not isinstance(payload, dict):
+        raise SubscriptionEventRejected("telo udalosti nie je objekt")
+    if not _valid_time(now):
+        raise ValueError("neplatný čas udalosti")
+    now = float(now)
+    expected = _validated_expected(expected)
+    if source in {"webhook", "odlozene"}:
+        event_key = subscription_event_key(
+            payload, verified_body_digest=delivery_key
+        )
+    elif source in {"reconciliation", "rekonciliacia"}:
+        event_key = subscription_event_key(
+            payload, reconciliation_key=delivery_key
+        )
+    else:
+        raise SubscriptionEventRejected("neznámy zdroj udalosti")
+    event_name = _event_name(payload)
+
+    if con.in_transaction:
+        con.commit()
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        if con.execute(
+            "SELECT 1 FROM subscription_events WHERE event_key=?", (event_key,)
+        ).fetchone() is not None:
+            con.commit()
+            return {
+                "duplicate": True,
+                "review_required": False,
+                "event_type": event_name,
+                "action": "duplicate",
+                "user_id": None,
+            }
+        _insert_delivery_event(
+            con,
+            event_key=event_key,
+            payload=payload,
+            event_name=event_name,
+            source=source,
+            now=now,
+        )
+        try:
+            if event_name == "order_created":
+                result = _process_order_created(con, payload, expected, now=now)
+            elif event_name == "subscription_created":
+                result = _process_subscription_created(con, payload, expected, now=now)
+            elif event_name == "subscription_payment_success":
+                result = _process_payment_success(con, payload, expected, now=now)
+            elif event_name == "subscription_payment_failed":
+                result = _process_dunning(
+                    con, payload, expected, now=now, recovered=False
+                )
+            elif event_name == "subscription_payment_recovered":
+                result = _process_dunning(
+                    con, payload, expected, now=now, recovered=True
+                )
+            elif event_name in {"subscription_payment_refunded", "order_refunded"}:
+                result = _process_refund(con, payload, expected, now=now)
+            else:
+                result = _process_subscription_transition(
+                    con, payload, expected, now=now, event_name=event_name
+                )
+        except _ReviewRequired as error:
+            _mark_delivery(
+                con,
+                event_key,
+                now=now,
+                status="requires_review",
+                review_reason=str(error),
+            )
+            con.commit()
+            return {
+                "duplicate": False,
+                "review_required": True,
+                "event_type": event_name,
+                "action": "requires_review",
+                "user_id": None,
+            }
+        _mark_delivery(con, event_key, now=now, status="processed")
+        con.commit()
+        return {
+            "duplicate": False,
+            "review_required": False,
+            "event_type": event_name,
+            **result,
+        }
+    except Exception:
+        if con.in_transaction:
+            con.rollback()
+        raise
+
+
+def is_subscription_event(con, payload) -> bool:
+    """Identify annual events while preserving historical one-time cancellation."""
+    event_name = _event_name(payload)
+    if event_name not in SUBSCRIPTION_EVENT_TYPES:
+        return False
+    custom = _payload_meta(payload).get("custom_data")
+    if isinstance(custom, dict) and (
+        "attempt_id" in custom or "checkout_attempt" in custom
+    ):
+        public_id = _attempt_id(payload)
+        if public_id is not None:
+            row = con.execute(
+                "SELECT product FROM checkout_attempts WHERE public_id=?",
+                (public_id,),
+            ).fetchone()
+            if row is not None:
+                return row[0] == ANNUAL_PREMIUM_PRODUCT
+        # Task 2's provider contract owns this new key.  The old
+        # ``checkout_attempt`` key remains available to historical one-time
+        # purchases and must not make an unknown delivery look annual.
+        return "attempt_id" in custom
+    resource_type = _resource_type(payload)
+    if resource_type == "subscription-invoices":
+        return True
+    subscription_id = _provider_subscription_id(payload)
+    test_mode = _payload_attributes(payload).get("test_mode")
+    if subscription_id is not None and type(test_mode) is bool:
+        if con.execute(
+            "SELECT 1 FROM subscriptions WHERE provider='lemonsqueezy' "
+            "AND provider_subscription_id=? AND test_mode=?",
+            (subscription_id, int(test_mode)),
+        ).fetchone() is not None:
+            return True
+    if event_name == "subscription_created" and resource_type == "subscriptions":
+        return True
+    if event_name == "order_refunded" and _provider_invoice_id(payload) is not None:
+        return True
+    return False

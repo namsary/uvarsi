@@ -6340,6 +6340,7 @@ async def platba_webhook(req: Request):
         podpis=podpis,
     ):
         raise HTTPException(401, SPRAVA_NEPLATNY_PODPIS)
+    verified_body_digest = hashlib.sha256(bytes(telo)).hexdigest()
     try:
         payload = json.loads(telo)
     except (json.JSONDecodeError, UnicodeDecodeError):
@@ -6350,11 +6351,31 @@ async def platba_webhook(req: Request):
     def spracuj():
         with closing(db()) as con:
             try:
+                if predplatne.is_subscription_event(con, payload):
+                    config = lemon_subscription_checkout_config(test_mode=False)
+                    vysledok_predplatne = predplatne.process_subscription_event(
+                        con,
+                        payload=payload,
+                        now=now,
+                        expected={
+                            "store_id": config.store_id,
+                            "variant_id": config.variant_id,
+                            "founder_discount_id": config.founder_discount_id,
+                            "currency": "EUR",
+                            "test_mode": False,
+                        },
+                        source="webhook",
+                        delivery_key=verified_body_digest,
+                    )
+                    return {
+                        "ok": True,
+                        "akcia": vysledok_predplatne["action"],
+                    }
                 vysledok = spracuj_udalost(
                     con, payload=payload, now=now, variant_id=variant,
                     expected_test_mode=False,
                 )
-            except UdalostNepouzitelna:
+            except (UdalostNepouzitelna, predplatne.SubscriptionEventRejected):
                 # Podpis sedel, teda peniaze sú skutočné — len ich nemáme komu
                 # priradiť. Telo si odložíme, aby sa dalo dohľadať, a majiteľ
                 # sa to musí dozvedieť; inak tá platba mlčky zmizne.
@@ -6376,7 +6397,7 @@ async def platba_webhook(req: Request):
 
     try:
         return await anyio.to_thread.run_sync(spracuj)
-    except UdalostNepouzitelna:
+    except (UdalostNepouzitelna, predplatne.SubscriptionEventRejected):
         raise HTTPException(400, SPRAVA_NEPRIRADITELNA)
 
 
