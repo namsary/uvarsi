@@ -34,6 +34,11 @@ def deployment(tmp_path):
     systemd.mkdir()
     web.mkdir()
     state.mkdir()
+    proc = tmp_path / "proc"
+    proc.joinpath("4242").mkdir(parents=True)
+    proc.joinpath("4242", "environ").write_bytes(
+        b"TZ=Europe/Bratislava\0PLATBY_ZAPNUTE=0\0"
+    )
     (app / "marker.txt").write_text("old-app", encoding="utf-8")
     (live / "VERSION").write_text("old-version", encoding="utf-8")
     (live / "uvarsi.env").write_text("PLATBY_ZAPNUTE=0\n", encoding="utf-8")
@@ -84,6 +89,7 @@ def deployment(tmp_path):
         "set -u\n"
         "cmd=$1\n"
         "shift\n"
+        "if [ \"$cmd\" = show ]; then printf '4242\\n'; exit 0; fi\n"
         "[ \"${1:-}\" != \"--quiet\" ] || shift\n"
         "service=${1:-}\n"
         "enabled=enabled\n"
@@ -111,7 +117,12 @@ def deployment(tmp_path):
         "esac\n",
     )
     curl = tmp_path / "curl"
-    write_executable(curl, "#!/bin/sh\ncat \"$UVARSI_HEALTH_FILE\"\n")
+    write_executable(
+        curl,
+        "#!/bin/sh\n"
+        "[ ! -f \"$UVARSI_FAKE_STATE/fail-health\" ] || exit 22\n"
+        "cat \"$UVARSI_HEALTH_FILE\"\n",
+    )
     sleep = tmp_path / "sleep"
     write_executable(sleep, "#!/bin/sh\nexit 0\n")
     cp = tmp_path / "cp"
@@ -189,6 +200,7 @@ def deployment(tmp_path):
         "UVARSI_ATOMIC_EXCHANGE": bash_path(exchange),
         "UVARSI_FAKE_STATE": bash_path(state),
         "UVARSI_HEARTBEAT_ATTEMPTS": "1",
+        "UVARSI_PROC_ROOT": bash_path(proc),
         "UVARSI_TEST_SNAPSHOT": "snapshot",
         "UVARSI_TEST_RELEASE": "release",
     }
@@ -316,6 +328,32 @@ def test_runtime_payment_gate_accepts_explicit_false_from_live_health(deployment
     result = run_library(deployment, "uvarsi_require_runtime_payments_off")
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_legacy_samopull_can_verify_payments_off_from_running_process_when_health_hangs(
+        deployment):
+    deployment["state"].joinpath("fail-health").touch()
+    legacy = deployment["base"] / "samopull.sh"
+    write_executable(
+        legacy,
+        f'#!/bin/bash\n. "{bash_path(LIBRARY)}"\n'
+        "uvarsi_require_runtime_payments_off\n",
+    )
+
+    allowed = subprocess.run(
+        [str(BASH), bash_path(legacy)], cwd=deployment["base"],
+        env=deployment["env"], capture_output=True, text=True, check=False,
+    )
+    deployment["base"].joinpath("proc", "4242", "environ").write_bytes(
+        b"PLATBY_ZAPNUTE=1\0"
+    )
+    refused = subprocess.run(
+        [str(BASH), bash_path(legacy)], cwd=deployment["base"],
+        env=deployment["env"], capture_output=True, text=True, check=False,
+    )
+
+    assert allowed.returncode == 0, allowed.stdout + allowed.stderr
+    assert refused.returncode != 0
 
 
 def test_invalid_database_backup_does_not_block_code_rollback(deployment):

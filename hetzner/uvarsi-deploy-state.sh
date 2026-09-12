@@ -34,6 +34,7 @@ UVARSI_MAX_COLLECTION_SECONDS="${UVARSI_MAX_COLLECTION_SECONDS:-14400}"
 UVARSI_TERMINATION_GRACE_SECONDS="${UVARSI_TERMINATION_GRACE_SECONDS:-300}"
 UVARSI_WORKER_UNIT="$UVARSI_SYSTEMD_DIR/uvarsi-plan-worker.service"
 UVARSI_APP_UNIT="$UVARSI_SYSTEMD_DIR/uvarsi.service"
+UVARSI_PROC_ROOT="${UVARSI_PROC_ROOT:-/proc}"
 UVARSI_BRIDGE_FAILURE_REASON="not_checked"
 # Reset on every source.  Only the compatibility function below may enable
 # this process-local escape for the already-installed pre-decoupling samopull.
@@ -63,6 +64,55 @@ _uvarsi_release_trace() {
     notify "Uvar.si deploy diagnostika" "stage=$stage"
   fi
   return 0
+}
+
+_uvarsi_called_from_samopull() {
+  for source_file in "${BASH_SOURCE[@]}"; do
+    case "$source_file" in */samopull.sh) return 0 ;; esac
+  done
+  return 1
+}
+
+_uvarsi_require_process_payments_off() {
+  # Health may be temporarily blocked by a long SQLite operation.  The legacy
+  # deployer may then inspect only the two payment flags of the running process.
+  # The env file remains the primary explicit OFF gate and no environment value
+  # is printed, logged or copied.
+  uvarsi_require_payments_off || return 1
+  "$UVARSI_SYSTEMCTL" is-active --quiet uvarsi || return 1
+  pid=$("$UVARSI_SYSTEMCTL" show --property=MainPID --value uvarsi 2>/dev/null) || return 1
+  case "$pid" in ''|*[!0-9]*|0) return 1 ;; esac
+  process_environment="$UVARSI_PROC_ROOT/$pid/environ"
+  [ -r "$process_environment" ] || return 1
+  "$UVARSI_HEALTH_PY" -c '
+import sys
+
+path = sys.argv[1]
+allowed_false = {"", "0", "false", "off", "no", "nie"}
+watched = {"PLATBY_ZAPNUTE", "UVARSI_PAYMENTS_ENABLED"}
+seen = {}
+with open(path, "rb") as handle:
+    entries = handle.read().split(b"\0")
+for entry in entries:
+    if b"=" not in entry:
+        continue
+    raw_key, raw_value = entry.split(b"=", 1)
+    try:
+        key = raw_key.decode("ascii")
+    except UnicodeDecodeError:
+        continue
+    if key not in watched:
+        continue
+    if key in seen:
+        raise SystemExit(1)
+    try:
+        value = raw_value.decode("utf-8").strip().casefold()
+    except UnicodeDecodeError:
+        raise SystemExit(1)
+    if value not in allowed_false:
+        raise SystemExit(1)
+    seen[key] = value
+' "$process_environment" >/dev/null 2>&1
 }
 
 _uvarsi_today() {
@@ -1156,15 +1206,28 @@ uvarsi_require_runtime_payments_off() {
   # wins over it.  Ask the running process what it actually loaded.
   if health=$(
       "$UVARSI_CURL" -fsS --max-time 5 "$UVARSI_HEALTH_URL" 2>/dev/null
-    ) && printf '%s' "$health" | "$UVARSI_HEALTH_PY" -c '
+    ); then
+    printf '%s' "$health" | "$UVARSI_HEALTH_PY" -c '
 import json, sys
 try:
     payload = json.load(sys.stdin)
     enabled = payload["recipe_engine"]["payments_enabled"]
 except (KeyError, TypeError, ValueError, json.JSONDecodeError):
     raise SystemExit(1)
-raise SystemExit(0 if enabled is False else 1)
-'; then
+if enabled is False:
+    raise SystemExit(0)
+raise SystemExit(2 if enabled is True else 1)
+'
+    health_status=$?
+    if [ "$health_status" -eq 0 ]; then
+      _uvarsi_release_trace runtime_payments_ok
+      return 0
+    fi
+    # A valid live ON signal must never be overridden by the process fallback.
+    _uvarsi_release_trace runtime_payments_failed
+    return 1
+  fi
+  if _uvarsi_called_from_samopull && _uvarsi_require_process_payments_off; then
     _uvarsi_release_trace runtime_payments_ok
     return 0
   fi
