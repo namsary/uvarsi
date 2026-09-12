@@ -579,7 +579,7 @@ def test_legacy_bridge_gate_reuses_current_active_data_after_failed_staging_run(
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_legacy_bridge_gate_still_fails_closed_when_official_data_are_missing(
+def test_legacy_code_only_transition_still_fails_closed_when_payments_are_on(
         deployment):
     with sqlite3.connect(deployment["database"]) as con:
         con.execute(
@@ -589,10 +589,43 @@ def test_legacy_bridge_gate_still_fails_closed_when_official_data_are_missing(
     deployment["bridge"].write_text(
         json.dumps(bridge_payload(release="f" * 12)), encoding="utf-8"
     )
+    deployment["env_file"].write_text(
+        deployment["env_file"].read_text().replace(
+            "PLATBY_ZAPNUTE=0", "PLATBY_ZAPNUTE=1"
+        ),
+        encoding="utf-8",
+    )
 
     result = run_library(deployment, "uvarsi_require_tesco_bridge")
 
     assert result.returncode != 0
+
+
+def test_legacy_samopull_can_install_code_only_fix_with_payments_off(deployment):
+    """The old caller gets one process-local escape; strict state stays strict."""
+    with sqlite3.connect(deployment["database"]) as con:
+        con.execute(
+            "UPDATE zber_stav SET collector_kind='kupino-aggregator' "
+            "WHERE obchod='Tesco'"
+        )
+    deployment["bridge"].write_text(
+        json.dumps(bridge_payload(release="f" * 12)), encoding="utf-8"
+    )
+    deployment["env"]["UVARSI_TIMEOUT_RESULT"] = "0"
+
+    transition = run_library(
+        deployment,
+        "uvarsi_require_tesco_bridge && "
+        "test \"$UVARSI_LEGACY_CODE_DEPLOY\" = 1 && "
+        "uvarsi_run_supervisor_bounded && "
+        "uvarsi_require_production_readiness",
+    )
+    strict_fresh_process = run_library(
+        deployment, "uvarsi_require_production_readiness"
+    )
+
+    assert transition.returncode == 0, transition.stdout + transition.stderr
+    assert strict_fresh_process.returncode != 0
 
 
 def test_bridge_failure_exposes_only_a_stable_secret_safe_reason(deployment):

@@ -214,12 +214,12 @@ spusti_worker() {
 # a oficiálne ponuky všetkých troch reťazcov, dostupnosť transportného bridge
 # nie je podmienkou nasadenia aplikačnej opravy. Bridge ostáva povinný pred
 # každým zberom, ktorý má chýbajúce dáta doplniť.
+COLLECTION_DEFERRED=0
 if ! _uvarsi_require_official_offer_data; then
   _uvarsi_require_tesco_bridge_transport || {
     BRIDGE_REASON=${UVARSI_BRIDGE_FAILURE_REASON:-unknown}
-    log "chýbajú aktuálne oficiálne ponuky a Tesco bridge nie je bezpečne dostupný ($BRIDGE_REASON) — NEPREPÍNAM"
-    notify "Uvar.si: vydanie odmietnuté" "Chýbajú aktuálne oficiálne ponuky a Tesco bridge neprešiel kontrolou ($BRIDGE_REASON)."
-    exit 1
+    COLLECTION_DEFERRED=1
+    log "zber je dočasne odložený ($BRIDGE_REASON) — aplikačný kód môžem nasadiť s vypnutými platbami"
   }
 fi
 uvarsi_require_runtime_payments_off || {
@@ -239,19 +239,29 @@ if [ "$LIVE_MUTATION" -eq 1 ] && zdravie && \
     uvarsi_require_runtime_payments_off && spusti_worker && \
     uvarsi_wait_fresh_heartbeat "$PRED_HEARTBEAT" && \
     uvarsi_require_payments_off && uvarsi_require_runtime_payments_off && \
-    uvarsi_install_supervisor_schedule && \
-    uvarsi_run_supervisor_bounded && \
-    uvarsi_require_production_readiness; then
-  echo "$SHA" > "$STAV"
-  # samopull sa aktualizuje až po úspechu, aby sa nezmenil pod vlastnými nohami
-  [ -f "$DIR/samopull.sh.novy" ] && mv "$DIR/samopull.sh.novy" "$DIR/samopull.sh" && chmod +x "$DIR/samopull.sh"
-  VER=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
-  log "OK — nasadené vydanie $VER ($SHA)"
-  log "dozorca prešiel ohraničeným behom a je naplánovaný iba cez bezpečný wrapper"
-  UVARSI_NOTIFY_URL="https://ntfy.sh/$NTFY" nohup "$DIR/recipe-engine-rollout.sh" >> /var/log/uvarsi-recipe-rollout.log 2>&1 &
-  log "autonómny receptový rollout spustený na pozadí"
-  notify "Uvar.si nasadené" "Vydanie $VER je živé. Appka odpovedá."
-  exit 0
+    uvarsi_install_supervisor_schedule; then
+  DATA_READY=0
+  if UVARSI_CODE_DEPLOY=1 uvarsi_run_supervisor_bounded && \
+      uvarsi_require_production_readiness; then
+    DATA_READY=1
+  fi
+  if uvarsi_require_code_deploy_readiness; then
+    echo "$SHA" > "$STAV"
+    # samopull sa aktualizuje až po úspechu, aby sa nezmenil pod vlastnými nohami
+    [ -f "$DIR/samopull.sh.novy" ] && mv "$DIR/samopull.sh.novy" "$DIR/samopull.sh" && chmod +x "$DIR/samopull.sh"
+    VER=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
+    log "OK — nasadené vydanie $VER ($SHA)"
+    if [ "$DATA_READY" -eq 1 ]; then
+      log "dozorca prešiel ohraničeným behom a je naplánovaný iba cez bezpečný wrapper"
+      UVARSI_NOTIFY_URL="https://ntfy.sh/$NTFY" nohup "$DIR/recipe-engine-rollout.sh" >> /var/log/uvarsi-recipe-rollout.log 2>&1 &
+      log "autonómny receptový rollout spustený na pozadí"
+      notify "Uvar.si nasadené" "Vydanie $VER je živé. Appka aj aktuálny bloček odpovedajú."
+    else
+      log "kód je nasadený, obnova bločka pokračuje"
+      notify "Uvar.si kód nasadený" "Vydanie $VER je živé; obnova bločka pokračuje autonómne. Platby ostávajú vypnuté."
+    fi
+    exit 0
+  fi
 fi
 
 # --- 4. neúspech → návrat ---

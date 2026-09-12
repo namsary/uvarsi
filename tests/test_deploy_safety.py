@@ -169,6 +169,18 @@ def test_samopull_runs_guardian_before_strict_readiness_and_success():
     assert 'nohup "$DIR/uvarsi-deploy-state.sh" run-supervisor' not in script
 
 
+def test_samopull_does_not_roll_back_code_for_an_external_collection_outage():
+    script = SAMOPULL.read_text(encoding="utf-8")
+
+    assert "COLLECTION_DEFERRED=0" in script
+    assert "COLLECTION_DEFERRED=1" in script
+    assert "uvarsi_require_code_deploy_readiness" in script
+    assert "kód je nasadený, obnova bločka pokračuje" in script
+    bridge_failure = script.index("COLLECTION_DEFERRED=1")
+    live_switch = script.index('log "prepínam na', bridge_failure)
+    assert bridge_failure < live_switch
+
+
 def test_both_release_paths_stage_the_autonomous_recipe_controller_after_health():
     auto = SAMOPULL.read_text(encoding="utf-8")
     manual = Path("nasad.ps1").read_text(encoding="utf-8")

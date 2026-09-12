@@ -1,4 +1,13 @@
 
+## 2026-09-12 — Code/data failure isolation (vydanie 2026.09.12.4)
+
+- Nasadenie aplikácie už nie je blokované dočasným výpadkom externého zdroja letáka, pokiaľ sú platby vypnuté a aplikácia, worker aj dozorca sú funkčné.
+- Čerstvosť ponúk a bločka ostáva samostatnou prísnou bránou: neúspešný zber sa nikdy nevydáva za úspešný a nemôže povoliť platby.
+- Starý nasadzovač dostal jednorazovú procesnú kompatibilitu, aby vedel nainštalovať túto opravu; nový proces už používa oddelené brány natrvalo.
+- Pri odloženom zbere ostávajú posledné overené dáta nedotknuté a dozorca pokračuje v autonómnych pokusoch.
+- Overenie delty: 266 kritických testov zberu, bločka, dozorcu a nasadzovania prešlo bez chyby; predchádzajúci integrovaný beh mal 3 866 úspešných testov.
+- Platby ostávajú vypnuté a Taktik-mapa je mimo nasadenia.
+
 ## 2026-09-12 — Published-data recovery (vydanie 2026.09.12.3)
 
 - Oprava koreňa: bezpečnostná brána posudzuje atomicky publikované ponuky, nie nedokončenú staging kópiu po zlyhanom zbere.

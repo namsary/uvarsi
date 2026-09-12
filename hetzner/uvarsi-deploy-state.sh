@@ -35,6 +35,9 @@ UVARSI_TERMINATION_GRACE_SECONDS="${UVARSI_TERMINATION_GRACE_SECONDS:-300}"
 UVARSI_WORKER_UNIT="$UVARSI_SYSTEMD_DIR/uvarsi-plan-worker.service"
 UVARSI_APP_UNIT="$UVARSI_SYSTEMD_DIR/uvarsi.service"
 UVARSI_BRIDGE_FAILURE_REASON="not_checked"
+# Reset on every source.  Only the compatibility function below may enable
+# this process-local escape for the already-installed pre-decoupling samopull.
+UVARSI_LEGACY_CODE_DEPLOY=0
 
 _uvarsi_bridge_fail() {
   # Stable operator-facing enum only.  Never include a URL, response body,
@@ -625,7 +628,18 @@ uvarsi_require_tesco_bridge() {
   if _uvarsi_require_official_offer_data; then
     return 0
   fi
-  _uvarsi_require_tesco_bridge_transport
+  if _uvarsi_require_tesco_bridge_transport; then
+    return 0
+  fi
+  # One-release compatibility path: old samopull incorrectly made an external
+  # collector transport a prerequisite for installing application code.  With
+  # payments explicitly off it may install the reviewed code, but this flag is
+  # not exported and cannot make a fresh process or payment gate data-ready.
+  if uvarsi_require_payments_off; then
+    UVARSI_LEGACY_CODE_DEPLOY=1
+    return 0
+  fi
+  return 1
 }
 
 _uvarsi_supervisor_cron_line() {
@@ -864,17 +878,10 @@ _uvarsi_require_supervisor_liveness() {
   [ $((now - success_epoch)) -le "$UVARSI_SUPERVISOR_SUCCESS_MAX_AGE_SECONDS" ]
 }
 
-_uvarsi_require_runtime_health() {
+_uvarsi_require_runtime_services() {
   "$UVARSI_SYSTEMCTL" is-active --quiet uvarsi || return 1
   "$UVARSI_SYSTEMCTL" is-active --quiet uvarsi-plan-worker || return 1
   [ -x "$UVARSI_SUPERVISOR" ] || return 1
-  today=$(_uvarsi_today) || return 1
-  if [ -s "$UVARSI_SUPERVISOR_STATE" ]; then
-    read -r failed_day _rest < "$UVARSI_SUPERVISOR_STATE" || return 1
-    [ "$failed_day" != "$today" ] || return 1
-  fi
-  [ ! -s "$UVARSI_COLLECTION_FAILURE_STATE" ] || return 1
-  _uvarsi_require_supervisor_liveness || return 1
 
   health=$(mktemp "${TMPDIR:-/tmp}/uvarsi-health.XXXXXX") || return 1
   chmod 600 "$health" || { rm -f "$health"; return 1; }
@@ -909,13 +916,37 @@ if (
     --output /dev/null "$UVARSI_TAKTIK_URL" >/dev/null 2>&1
 }
 
+_uvarsi_require_runtime_health() {
+  _uvarsi_require_runtime_services || return 1
+  today=$(_uvarsi_today) || return 1
+  if [ -s "$UVARSI_SUPERVISOR_STATE" ]; then
+    read -r failed_day _rest < "$UVARSI_SUPERVISOR_STATE" || return 1
+    [ "$failed_day" != "$today" ] || return 1
+  fi
+  [ ! -s "$UVARSI_COLLECTION_FAILURE_STATE" ] || return 1
+  _uvarsi_require_supervisor_liveness
+}
+
 uvarsi_require_production_readiness() {
   # Every call is quiet: callers report stable reason codes, never response
   # bodies, bearer headers or environment values.
+  if [ "$UVARSI_LEGACY_CODE_DEPLOY" = 1 ]; then
+    uvarsi_require_code_deploy_readiness
+    return
+  fi
   uvarsi_require_payments_off || return 1
   uvarsi_require_runtime_payments_off || return 1
   _uvarsi_require_collection_readiness || return 1
   _uvarsi_require_runtime_health
+}
+
+uvarsi_require_code_deploy_readiness() {
+  # Application releases and external weekly collection have separate health
+  # boundaries.  This gate never claims that prices or a receipt are current.
+  uvarsi_require_payments_off || return 1
+  uvarsi_require_runtime_payments_off || return 1
+  uvarsi_require_supervisor_schedule || return 1
+  _uvarsi_require_runtime_services
 }
 
 _uvarsi_supervisor_cycle() {
@@ -941,7 +972,10 @@ uvarsi_run_supervisor_bounded() {
   # wrapper on timeout therefore leaves the live DB rows and landing JSON as-is.
   uvarsi_require_payments_off || return 1
   if ! _uvarsi_require_official_offer_data; then
-    _uvarsi_require_tesco_bridge_transport || return 1
+    if [ "$UVARSI_LEGACY_CODE_DEPLOY" != 1 ] && \
+       [ "${UVARSI_CODE_DEPLOY:-0}" != 1 ]; then
+      _uvarsi_require_tesco_bridge_transport || return 1
+    fi
   fi
   case "$UVARSI_MAX_COLLECTION_SECONDS" in
     ''|*[!0-9]*) return 1 ;;
@@ -981,8 +1015,16 @@ uvarsi_run_supervisor_bounded() {
   fi
   uvarsi_require_payments_off || return 1
   if [ "$result" -eq 0 ]; then
-    _uvarsi_require_collection_readiness || return 1
-    _uvarsi_record_supervisor_success || return 1
+    if _uvarsi_require_collection_readiness; then
+      _uvarsi_record_supervisor_success || return 1
+    elif [ "$UVARSI_LEGACY_CODE_DEPLOY" != 1 ] && \
+         [ "${UVARSI_CODE_DEPLOY:-0}" != 1 ]; then
+      return 1
+    fi
+  elif [ "$UVARSI_LEGACY_CODE_DEPLOY" = 1 ]; then
+    # The old caller may finish installing code after a fail-closed collection
+    # attempt.  Do not record a false supervisor success or touch data state.
+    return 0
   fi
   return "$result"
 }
