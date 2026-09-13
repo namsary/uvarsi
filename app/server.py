@@ -5646,6 +5646,36 @@ CONSUMER_REQUEST_RESPONSE = (
 )
 
 
+def _consumer_request_result(created=None) -> dict:
+    annual = (
+        isinstance(created, customer_requests.ConsumerRequest)
+        and created.invoice_id is not None
+    )
+    late_cancellation = (
+        annual
+        and created.refund_scope
+        == customer_requests.REFUND_CANCEL_AT_PERIOD_END
+    )
+    return {
+        "request_type": created.request_type if created is not None else None,
+        "request_classification": (
+            created.request_classification if created is not None else None
+        ),
+        "remedy_type": created.remedy_type if created is not None else None,
+        "refund_scope": created.refund_scope if created is not None else None,
+        "refund_preview_cents": (
+            created.refund_preview_cents if created is not None else None
+        ),
+        "invoice_id": created.invoice_id if created is not None else None,
+        "provider_action_required": annual,
+        "refund_executed": False,
+        "subscription_changed": False,
+        "cancellation_state": (
+            "action_required" if late_cancellation else "not_requested"
+        ),
+    }
+
+
 def _consumer_request_rate_limit(user_id: int, *, operation: str, now: float) -> None:
     if not CONSUMER_REQUEST_LIMITER.allow(f"{operation}:{user_id}", now):
         raise HTTPException(429, "Priveľa žiadostí. Skús to znova o 10 minút.")
@@ -5664,6 +5694,30 @@ def _consumer_request_receipt(delivery: customer_requests.ConfirmationDelivery) 
                 "sumu na pôvodný spôsob platby. Pri prijatí žiadosti refundácia "
                 "ešte nebola vykonaná; jej aktuálny stav uvidíš v profile."
             )
+        elif delivery.refund_scope == customer_requests.REFUND_STATUTORY_REVIEW:
+            preview = delivery.refund_preview_cents or 0
+            preview_label = f"{preview // 100},{preview % 100:02d} €"
+            if delivery.consent_valid_for_proration:
+                detail = (
+                    "Žiadosť je v 14-dňovej lehote a čaká na zákonné "
+                    f"posúdenie. Nezáväzný pomerný náhľad refundácie je {preview_label}; "
+                    "konečný výsledok ešte nebol schválený ani vykonaný."
+                )
+            else:
+                detail = (
+                    "Žiadosť je v 14-dňovej lehote a čaká na zákonné "
+                    f"posúdenie. Keďže uložený doklad nepreukazuje podmienky "
+                    f"na účtovanie už poskytnutej časti služby, náhľad {preview_label} "
+                    "ju neodpočítava. Refundácia ešte nebola vykonaná."
+                )
+        elif delivery.refund_scope == customer_requests.REFUND_CANCEL_AT_PERIOD_END:
+            detail = (
+                "Pri obyčajnej zmene názoru po 14-dňovej lehote nevzniká "
+                "náhľad refundácie. Zaznamenali sme tvoj zámer zastaviť budúcu "
+                "obnovu, ale predplatné sme ešte nezrušili ani nezmenili. "
+                "Zrušenie treba dokončiť cez Customer Portal alebo s podporou; "
+                "prístup potom zostane do konca zaplateného obdobia."
+            )
         else:
             detail = (
                 "Žiadosť sme prijali na manuálne posúdenie, pretože bola "
@@ -5671,20 +5725,47 @@ def _consumer_request_receipt(delivery: customer_requests.ConfirmationDelivery) 
             )
     else:
         predmet = "Uvar.si: prijali sme tvoju reklamáciu"
-        typ = "Reklamácia digitálnej služby"
-        detail = (
-            "Reklamáciu sme zaevidovali. Ozveme sa ti e-mailom; ak bude treba "
-            "doplniť snímku alebo iný podklad, môžeš odpovedať na túto správu."
+        remedy_labels = {
+            customer_requests.REMEDY_DEFECT: "Vada digitálnej služby",
+            customer_requests.REMEDY_NONCONFORMITY: "Nesúlad digitálnej služby",
+            customer_requests.REMEDY_UNAVAILABLE_SERVICE: "Nedostupná služba",
+            customer_requests.REMEDY_DUPLICATE_CHARGE: "Duplicitná platba",
+            customer_requests.REMEDY_UNAUTHORIZED_CHARGE: "Neoprávnená platba",
+        }
+        typ = remedy_labels.get(
+            delivery.remedy_type, "Reklamácia digitálnej služby"
         )
+        if delivery.remedy_type:
+            detail = (
+                "Podanie sme zaevidovali ako samostatnú žiadosť o nápravu. "
+                "Nebolo preklasifikované na oneskorenú zmenu názoru ani automaticky "
+                "zamietnuté. Ozveme sa ti e-mailom; ak bude treba doplniť snímku "
+                "alebo iný podklad, môžeš odpovedať na túto správu."
+            )
+        else:
+            detail = (
+                "Reklamáciu sme zaevidovali na manuálne posúdenie. Ozveme sa ti "
+                "e-mailom; ak bude treba doplniť snímku alebo iný podklad, môžeš "
+                "odpovedať na túto správu."
+            )
     message = delivery.message or "Bez doplňujúcej správy."
     register = (
         f"{OPERATOR.register_court}, oddiel {OPERATOR.register_section}, "
         f"vložka č. {OPERATOR.register_entry}"
     )
-    promise = (
-        "39 € raz. Premium garantované na 24 mesiacov, potom bez predplatného "
-        "počas ďalšej prevádzky služby Uvar.si."
-    )
+    if delivery.invoice_id is not None:
+        amount = delivery.invoice_amount_cents or 0
+        amount_label = f"{amount // 100},{amount % 100:02d} €"
+        promise = (
+            f"Ročné Premium; toto podanie je viazané na presnú faktúru "
+            f"{delivery.invoice_id} vo výške {amount_label}. Budúca obnova "
+            "stojí 49,00 € ročne, kým ju zákazník nezruší."
+        )
+    else:
+        promise = (
+            "39 € raz. Premium garantované na 24 mesiacov, potom bez predplatného "
+            "počas ďalšej prevádzky služby Uvar.si."
+        )
     merchant = (
         "Lemon Squeezy vystupuje pri nákupe ako obchodník a Merchant of Record; "
         "PUMAR s. r. o. prevádzkuje Uvar.si a poskytuje podporu k službe."
@@ -5697,12 +5778,19 @@ def _consumer_request_receipt(delivery: customer_requests.ConfirmationDelivery) 
         f"Ochrana osobných údajov: {BASE_URL}/ochrana-osobnych-udajov"
     )
     legal_snapshot = delivery.legal_snapshot.strip()
+    invoice_text = f"Faktúra: {delivery.invoice_id}\n" if delivery.invoice_id else ""
+    invoice_html = (
+        f"<br><b>Faktúra:</b> {escape(delivery.invoice_id)}"
+        if delivery.invoice_id
+        else ""
+    )
     text = (
         f"Ahoj!\n\n{detail}\n\n"
         f"Typ podania: {typ}\n"
         f"Prijaté: {received}\n"
         f"Číslo žiadosti: {delivery.public_id}\n"
         f"Objednávka: {delivery.order_id}\n"
+        f"{invoice_text}"
         f"Obsah podania:\n{message}\n\n"
         f"Zmluvná ponuka: {promise}\n"
         f"Predaj a prevádzka: {merchant}\n"
@@ -5726,7 +5814,7 @@ def _consumer_request_receipt(delivery: customer_requests.ConfirmationDelivery) 
         f"<p><b>Typ podania:</b> {escape(typ)}<br>"
         f"<b>Prijaté:</b> {escape(received)}<br>"
         f"<b>Číslo žiadosti:</b> {escape(delivery.public_id)}<br>"
-        f"<b>Objednávka:</b> {escape(delivery.order_id)}</p>"
+        f"<b>Objednávka:</b> {escape(delivery.order_id)}{invoice_html}</p>"
         f"<p><b>Obsah podania:</b><br>{escape(message).replace(chr(10), '<br>')}</p>"
         f"<p><b>Zmluvná ponuka:</b> {escape(promise)}<br>"
         f"<b>Predaj a prevádzka:</b> {escape(merchant)}<br>"
@@ -5927,11 +6015,54 @@ async def _create_consumer_request(req: Request, *, request_type: str):
     data = await auth_json(req)
     try:
         with closing(db()) as con:
-            if request_type == customer_requests.TYPE_WITHDRAWAL:
+            invoice_id = data.get("invoice_id")
+            order_id = data.get("order_id")
+            if invoice_id is not None and order_id is not None:
+                raise ValueError("vyber iba jednu platbu")
+            if invoice_id is None and order_id is None:
+                try:
+                    invoice_id = customer_requests.current_subscription_invoice_id(
+                        con, user_id=user["id"], now=now
+                    )
+                except customer_requests.RequestNotAllowed:
+                    invoice_id = None
+            if invoice_id is not None:
+                reason = data.get("reason")
+                if request_type == customer_requests.TYPE_WITHDRAWAL:
+                    if reason is None or reason == "change_of_mind":
+                        created = customer_requests.create_subscription_withdrawal(
+                            con,
+                            user_id=user["id"],
+                            invoice_id=invoice_id,
+                            message=data.get("message", ""),
+                            now=now,
+                        )
+                    elif reason in customer_requests.SUBSCRIPTION_REMEDIES:
+                        created = customer_requests.create_subscription_remedy(
+                            con,
+                            user_id=user["id"],
+                            invoice_id=invoice_id,
+                            remedy_type=reason,
+                            message=data.get("message"),
+                            now=now,
+                        )
+                    else:
+                        raise ValueError("neplatný dôvod žiadosti")
+                else:
+                    reason = reason or customer_requests.REMEDY_DEFECT
+                    created = customer_requests.create_subscription_remedy(
+                        con,
+                        user_id=user["id"],
+                        invoice_id=invoice_id,
+                        remedy_type=reason,
+                        message=data.get("message"),
+                        now=now,
+                    )
+            elif request_type == customer_requests.TYPE_WITHDRAWAL:
                 created = customer_requests.create_withdrawal(
                     con,
                     user_id=user["id"],
-                    order_id=data.get("order_id"),
+                    order_id=order_id,
                     message=data.get("message", ""),
                     now=now,
                 )
@@ -5939,7 +6070,7 @@ async def _create_consumer_request(req: Request, *, request_type: str):
                 created = customer_requests.create_complaint(
                     con,
                     user_id=user["id"],
-                    order_id=data.get("order_id"),
+                    order_id=order_id,
                     message=data.get("message"),
                     now=now,
                 )
@@ -5961,6 +6092,7 @@ async def _create_consumer_request(req: Request, *, request_type: str):
                     "sent": False,
                     "pending": False,
                 },
+                **_consumer_request_result(),
             },
             status_code=202,
         )
@@ -6007,6 +6139,7 @@ async def _create_consumer_request(req: Request, *, request_type: str):
             "request_received": True,
             "request_id": created.public_id,
             "confirmation": confirmation,
+            **_consumer_request_result(created),
         },
         status_code=202,
     )

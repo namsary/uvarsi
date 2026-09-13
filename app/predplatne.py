@@ -9,6 +9,7 @@ import sqlite3
 import datetime
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, replace
+from decimal import Decimal, ROUND_HALF_UP
 
 
 ACCESS_STATUSES = frozenset({"active", "past_due"})
@@ -229,6 +230,37 @@ def subscription_access(snapshot, *, now: float) -> bool:
     if snapshot.status == "paused":
         return snapshot.paid_through is not None and now < snapshot.paid_through
     return snapshot.status in ACCESS_STATUSES
+
+
+def pro_rata_refund_preview(
+    *, amount_cents, period_start, period_end, withdrawn_at
+) -> int:
+    """Return the unused paid-period amount, rounded to the nearest cent."""
+    if (
+        not isinstance(amount_cents, int)
+        or isinstance(amount_cents, bool)
+        or amount_cents < 0
+    ):
+        raise ValueError("invalid amount")
+    values = (period_start, period_end, withdrawn_at)
+    if any(
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(float(value))
+        for value in values
+    ):
+        raise ValueError("invalid period")
+    start = Decimal(str(period_start))
+    end = Decimal(str(period_end))
+    withdrawn = Decimal(str(withdrawn_at))
+    if start < 0 or end <= start:
+        raise ValueError("invalid period")
+    bounded = min(max(withdrawn, start), end)
+    unused = end - bounded
+    preview = (
+        Decimal(amount_cents) * unused / (end - start)
+    ).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return min(amount_cents, max(0, int(preview)))
 
 
 def _valid_time(value) -> bool:

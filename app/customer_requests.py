@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import datetime
+import json
+import math
 import re
 import secrets
 import sqlite3
 from dataclasses import dataclass
 
 try:
+    from . import predplatne
     from .legal_pages import legal_text
     from .operator_profile import LEGAL_VERSION
 except ImportError:
+    import predplatne
     from legal_pages import legal_text
     from operator_profile import LEGAL_VERSION
 
@@ -25,8 +29,26 @@ STATUS_REQUIRES_REVIEW = "requires_review"
 STATUS_RESOLVED = "resolved"
 REFUND_FULL = "full"
 REFUND_REVIEW = "review"
+REFUND_STATUTORY_REVIEW = "statutory_review"
+REFUND_CANCEL_AT_PERIOD_END = "cancel_at_period_end"
+CLASSIFICATION_REMEDY_REVIEW = "remedy_review"
+REMEDY_DEFECT = "defect"
+REMEDY_NONCONFORMITY = "nonconformity"
+REMEDY_UNAVAILABLE_SERVICE = "unavailable_service"
+REMEDY_DUPLICATE_CHARGE = "duplicate_charge"
+REMEDY_UNAUTHORIZED_CHARGE = "unauthorized_charge"
+SUBSCRIPTION_REMEDIES = frozenset(
+    {
+        REMEDY_DEFECT,
+        REMEDY_NONCONFORMITY,
+        REMEDY_UNAVAILABLE_SERVICE,
+        REMEDY_DUPLICATE_CHARGE,
+        REMEDY_UNAUTHORIZED_CHARGE,
+    }
+)
 PROVIDER = "lemonsqueezy"
 PRODUCT = "zakladajuci_clen"
+SUBSCRIPTION_PRODUCT = "premium_annual"
 WITHDRAWAL_SECONDS = 14 * 24 * 60 * 60
 MAX_MESSAGE_LENGTH = 4_000
 CONFIRMATION_PENDING = "pending"
@@ -78,6 +100,20 @@ CREATE TABLE IF NOT EXISTS consumer_requests (
   confirmation_lease_owner TEXT,
   confirmation_lease_expires_at REAL,
   confirmation_idempotency_key TEXT NOT NULL,
+  invoice_id TEXT,
+  subscription_id TEXT,
+  invoice_amount_cents INTEGER,
+  invoice_refunded_amount_cents INTEGER,
+  invoice_currency TEXT,
+  period_start REAL,
+  period_end REAL,
+  consent_accepted_at REAL,
+  consent_snapshot TEXT,
+  consent_valid_for_proration INTEGER,
+  refund_preview_cents INTEGER,
+  consumed_charge_preview_cents INTEGER,
+  request_classification TEXT,
+  remedy_type TEXT,
   CHECK(request_type IN ('withdrawal','complaint')),
   CHECK(status IN ('received','processing','refunded','requires_review','resolved')),
   CHECK(refund_scope IS NULL OR refund_scope IN ('full','review')),
@@ -119,6 +155,19 @@ class ConsumerRequest:
     confirmation_sent_at: float | None
     confirmation_failure_code: str | None
     confirmation_idempotency_key: str
+    invoice_id: str | None
+    subscription_id: str | None
+    invoice_amount_cents: int | None
+    invoice_refunded_amount_cents: int | None
+    invoice_currency: str | None
+    period_start: float | None
+    period_end: float | None
+    consent_accepted_at: float | None
+    consent_valid_for_proration: bool | None
+    refund_preview_cents: int | None
+    consumed_charge_preview_cents: int | None
+    request_classification: str | None
+    remedy_type: str | None
     created: bool = False
 
 
@@ -139,6 +188,16 @@ class ConfirmationDelivery:
     worker_id: str
     attempt: int
     idempotency_key: str
+    invoice_id: str | None
+    invoice_amount_cents: int | None
+    invoice_currency: str | None
+    period_start: float | None
+    period_end: float | None
+    consent_valid_for_proration: bool | None
+    refund_preview_cents: int | None
+    consumed_charge_preview_cents: int | None
+    request_classification: str | None
+    remedy_type: str | None
 
 
 def migrate_customer_requests_schema(con) -> None:
@@ -156,6 +215,20 @@ def migrate_customer_requests_schema(con) -> None:
         ("confirmation_lease_owner", "TEXT"),
         ("confirmation_lease_expires_at", "REAL"),
         ("confirmation_idempotency_key", "TEXT"),
+        ("invoice_id", "TEXT"),
+        ("subscription_id", "TEXT"),
+        ("invoice_amount_cents", "INTEGER"),
+        ("invoice_refunded_amount_cents", "INTEGER"),
+        ("invoice_currency", "TEXT"),
+        ("period_start", "REAL"),
+        ("period_end", "REAL"),
+        ("consent_accepted_at", "REAL"),
+        ("consent_snapshot", "TEXT"),
+        ("consent_valid_for_proration", "INTEGER"),
+        ("refund_preview_cents", "INTEGER"),
+        ("consumed_charge_preview_cents", "INTEGER"),
+        ("request_classification", "TEXT"),
+        ("remedy_type", "TEXT"),
     )
     for name, kind in additions:
         if name not in columns:
@@ -194,6 +267,20 @@ def migrate_customer_requests_schema(con) -> None:
         """CREATE INDEX IF NOT EXISTS consumer_requests_confirmation_idx
              ON consumer_requests(confirmation_state, confirmation_next_attempt_at, created_at)"""
     )
+    con.execute("DROP INDEX IF EXISTS consumer_requests_one_open_idx")
+    con.execute(
+        """CREATE UNIQUE INDEX IF NOT EXISTS consumer_requests_one_open_legacy_idx
+             ON consumer_requests(user_id, order_id, request_type)
+          WHERE invoice_id IS NULL
+            AND status IN ('received','processing','requires_review')"""
+    )
+    con.execute(
+        """CREATE UNIQUE INDEX IF NOT EXISTS consumer_requests_one_annual_idx
+             ON consumer_requests(
+               user_id, invoice_id, request_type, COALESCE(remedy_type, '')
+             )
+          WHERE invoice_id IS NOT NULL"""
+    )
 
 
 def workflow_ready(con) -> bool:
@@ -206,6 +293,12 @@ def workflow_ready(con) -> bool:
         "confirmation_sent_at", "confirmation_failure_code",
         "confirmation_lease_owner", "confirmation_lease_expires_at",
         "confirmation_idempotency_key",
+        "invoice_id", "subscription_id", "invoice_amount_cents",
+        "invoice_refunded_amount_cents", "invoice_currency", "period_start",
+        "period_end", "consent_accepted_at", "consent_snapshot",
+        "consent_valid_for_proration", "refund_preview_cents",
+        "consumed_charge_preview_cents", "request_classification",
+        "remedy_type",
     }
     columns = {row[1] for row in con.execute("PRAGMA table_info(consumer_requests)")}
     return required <= columns
@@ -230,7 +323,7 @@ def _time(value) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError("neplatný čas")
     value = float(value)
-    if value < 0:
+    if value < 0 or not math.isfinite(value):
         raise ValueError("neplatný čas")
     return value
 
@@ -282,6 +375,10 @@ def _current_legal_snapshot(request_type: str) -> str:
 
 
 def _from_row(row, *, created=False) -> ConsumerRequest:
+    classification = row["request_classification"]
+    refund_scope = row["refund_scope"]
+    if row["request_type"] == TYPE_WITHDRAWAL and classification is not None:
+        refund_scope = classification
     return ConsumerRequest(
         public_id=str(row["public_id"]),
         user_id=int(row["user_id"]),
@@ -289,7 +386,7 @@ def _from_row(row, *, created=False) -> ConsumerRequest:
         request_type=str(row["request_type"]),
         message=str(row["message"]),
         status=str(row["status"]),
-        refund_scope=row["refund_scope"],
+        refund_scope=refund_scope,
         purchased_at=float(row["purchased_at"]),
         created_at=float(row["created_at"]),
         updated_at=float(row["updated_at"]),
@@ -311,6 +408,41 @@ def _from_row(row, *, created=False) -> ConsumerRequest:
         ),
         confirmation_failure_code=row["confirmation_failure_code"],
         confirmation_idempotency_key=str(row["confirmation_idempotency_key"]),
+        invoice_id=row["invoice_id"],
+        subscription_id=row["subscription_id"],
+        invoice_amount_cents=(
+            None if row["invoice_amount_cents"] is None
+            else int(row["invoice_amount_cents"])
+        ),
+        invoice_refunded_amount_cents=(
+            None if row["invoice_refunded_amount_cents"] is None
+            else int(row["invoice_refunded_amount_cents"])
+        ),
+        invoice_currency=row["invoice_currency"],
+        period_start=(
+            None if row["period_start"] is None else float(row["period_start"])
+        ),
+        period_end=(
+            None if row["period_end"] is None else float(row["period_end"])
+        ),
+        consent_accepted_at=(
+            None if row["consent_accepted_at"] is None
+            else float(row["consent_accepted_at"])
+        ),
+        consent_valid_for_proration=(
+            None if row["consent_valid_for_proration"] is None
+            else bool(row["consent_valid_for_proration"])
+        ),
+        refund_preview_cents=(
+            None if row["refund_preview_cents"] is None
+            else int(row["refund_preview_cents"])
+        ),
+        consumed_charge_preview_cents=(
+            None if row["consumed_charge_preview_cents"] is None
+            else int(row["consumed_charge_preview_cents"])
+        ),
+        request_classification=classification,
+        remedy_type=row["remedy_type"],
         created=created,
     )
 
@@ -421,14 +553,373 @@ def create_complaint(con, *, user_id, order_id, message, now) -> ConsumerRequest
     )
 
 
+def _subscription_invoice_context(con, *, user_id: int, invoice_id: str) -> dict:
+    cursor = con.execute(
+        """SELECT i.provider_invoice_id AS invoice_id,
+                  i.provider_subscription_id AS subscription_id,
+                  i.provider_order_id AS provider_order_id,
+                  i.invoice_kind,i.status AS invoice_status,
+                  i.amount_cents,i.refunded_amount_cents,
+                  i.currency,i.period_start,i.period_end,i.paid_at,
+                  s.initial_amount_cents,s.renewal_amount_cents,
+                  a.public_id AS consent_attempt_id,
+                  a.status AS consent_attempt_status,
+                  a.legal_version AS consent_legal_version,
+                  a.privacy_version AS consent_privacy_version,
+                  a.consent_json,a.accepted_at AS consent_accepted_at
+             FROM subscription_invoices i
+             JOIN subscriptions s
+               ON s.provider=i.provider
+              AND s.test_mode=i.test_mode
+              AND s.provider_subscription_id=i.provider_subscription_id
+              AND s.provider_order_id=i.provider_order_id
+              AND s.currency=i.currency
+               AND s.user_id=?
+               AND s.product=?
+               AND s.initial_payment_verified=1
+             LEFT JOIN checkout_attempts a
+               ON a.user_id=s.user_id
+              AND a.product=s.product
+              AND a.test_mode=s.test_mode
+              AND a.provider_order_id=s.provider_order_id
+            WHERE i.provider=? AND i.provider_invoice_id=?
+            LIMIT 1""",
+        (user_id, SUBSCRIPTION_PRODUCT, PROVIDER, invoice_id),
+    )
+    row = cursor.fetchone()
+    if row is None:
+        raise RequestNotAllowed("faktúra sa nedá použiť")
+    context = dict(zip((column[0] for column in cursor.description), tuple(row)))
+    try:
+        amount = int(context["amount_cents"])
+        refunded = int(context["refunded_amount_cents"])
+        paid_at = _time(context["paid_at"])
+        period_start = _time(context["period_start"])
+        period_end = _time(context["period_end"])
+    except (TypeError, ValueError, OverflowError):
+        raise RequestNotAllowed("faktúra sa nedá použiť") from None
+    invoice_kind = context["invoice_kind"]
+    wanted_amount = (
+        context["initial_amount_cents"]
+        if invoice_kind == "initial"
+        else context["renewal_amount_cents"]
+        if invoice_kind == "renewal"
+        else None
+    )
+    if (
+        context["invoice_status"] not in {"paid", "partial_refund", "refunded"}
+        or not isinstance(wanted_amount, int)
+        or amount != wanted_amount
+        or amount < 0
+        or refunded < 0
+        or refunded > amount
+        or context["currency"] != "EUR"
+        or period_start >= period_end
+        or not _ID_RE.fullmatch(str(context["provider_order_id"] or ""))
+        or not _ID_RE.fullmatch(str(context["subscription_id"] or ""))
+    ):
+        raise RequestNotAllowed("faktúra sa nedá použiť")
+    context.update(
+        amount_cents=amount,
+        refunded_amount_cents=refunded,
+        paid_at=paid_at,
+        period_start=period_start,
+        period_end=period_end,
+    )
+    return context
+
+
+def current_subscription_invoice_id(con, *, user_id, now) -> str:
+    user_id = _user_id(user_id)
+    now = _time(now)
+    rows = con.execute(
+        """SELECT i.provider_invoice_id
+             FROM subscriptions s
+             JOIN subscription_invoices i
+               ON i.provider=s.provider
+              AND i.test_mode=s.test_mode
+              AND i.provider_subscription_id=s.provider_subscription_id
+              AND i.provider_order_id=s.provider_order_id
+              AND i.currency=s.currency
+              AND i.period_start=s.period_start
+              AND i.period_end=s.period_end
+            WHERE s.user_id=? AND s.product=?
+              AND i.status IN ('paid','partial_refund','refunded')
+              AND i.period_start<=? AND ?<i.period_end
+            ORDER BY i.paid_at DESC,i.id DESC LIMIT 2""",
+        (user_id, SUBSCRIPTION_PRODUCT, now, now),
+    ).fetchall()
+    if len(rows) != 1:
+        raise RequestNotAllowed("faktúra sa nedá použiť")
+    return str(rows[0][0])
+
+
+def _safe_snapshot_text(value) -> str | None:
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value or len(value) > 128 or any(char in value for char in "\r\n\0"):
+        return None
+    return value
+
+
+def _consent_proof(context: dict) -> tuple[str, float | None, bool]:
+    try:
+        decoded = json.loads(context.get("consent_json"))
+    except (TypeError, json.JSONDecodeError):
+        decoded = None
+    decoded = decoded if isinstance(decoded, dict) else {}
+    facts = {
+        name: decoded.get(name) is True
+        for name in (
+            "accept_terms",
+            "accept_automatic_renewal",
+            "request_immediate_activation",
+            "acknowledge_withdrawal_proration",
+        )
+    }
+    accepted = context.get("consent_accepted_at")
+    accepted_at = (
+        float(accepted)
+        if not isinstance(accepted, bool)
+        and isinstance(accepted, (int, float))
+        and math.isfinite(float(accepted))
+        and float(accepted) >= 0
+        else None
+    )
+    legal_version = _safe_snapshot_text(context.get("consent_legal_version"))
+    privacy_version = _safe_snapshot_text(context.get("consent_privacy_version"))
+    attempt_id = _safe_snapshot_text(context.get("consent_attempt_id"))
+    valid = (
+        context.get("consent_attempt_status") == "paid"
+        and attempt_id is not None
+        and legal_version is not None
+        and privacy_version is not None
+        and decoded.get("legal_version") == legal_version
+        and accepted_at is not None
+        and accepted_at <= context["paid_at"]
+        and all(facts.values())
+    )
+    snapshot = json.dumps(
+        {
+            "attempt_id": attempt_id,
+            "accepted_at": accepted_at,
+            "legal_version": legal_version,
+            "privacy_version": privacy_version,
+            "facts": facts,
+            "valid_for_proration": valid,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return snapshot, accepted_at, valid
+
+
+def _existing_subscription_request(
+    con, *, user_id: int, invoice_id: str, request_type: str, remedy_type: str | None
+):
+    status_filter = ""
+    parameters = [user_id, invoice_id, request_type, remedy_type or ""]
+    if request_type == TYPE_COMPLAINT:
+        status_filter = " AND status IN ('received','processing','requires_review')"
+    return con.execute(
+        """SELECT * FROM consumer_requests
+            WHERE user_id=? AND invoice_id=? AND request_type=?
+              AND COALESCE(remedy_type,'')=?"""
+        + status_filter
+        + " ORDER BY id DESC LIMIT 1",
+        parameters,
+    ).fetchone()
+
+
+def _create_subscription_request(
+    con,
+    *,
+    user_id,
+    invoice_id,
+    message,
+    now,
+    request_type,
+    remedy_type=None,
+) -> ConsumerRequest:
+    user_id = _user_id(user_id)
+    invoice_id = _order_id(invoice_id)
+    now = _time(now)
+    if request_type == TYPE_WITHDRAWAL:
+        message = _message(message, required=False)
+        remedy_type = None
+    elif request_type == TYPE_COMPLAINT:
+        message = _message(message, required=True)
+        if remedy_type not in SUBSCRIPTION_REMEDIES:
+            raise ValueError("neplatný dôvod nápravy")
+    else:
+        raise ValueError("neplatný typ žiadosti")
+    legal_snapshot = _current_legal_snapshot(request_type)
+    if con.in_transaction:
+        con.commit()
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        invoice = _subscription_invoice_context(
+            con, user_id=user_id, invoice_id=invoice_id
+        )
+        if now < invoice["paid_at"]:
+            raise ValueError("žiadosť nemôže predchádzať platbe")
+        existing = _existing_subscription_request(
+            con,
+            user_id=user_id,
+            invoice_id=invoice_id,
+            request_type=request_type,
+            remedy_type=remedy_type,
+        )
+        if existing is not None:
+            con.commit()
+            return _from_row(existing, created=False)
+
+        consent_snapshot, consent_accepted_at, consent_valid = _consent_proof(
+            invoice
+        )
+        refund_preview = None
+        consumed_preview = None
+        if request_type == TYPE_WITHDRAWAL:
+            if now <= invoice["paid_at"] + WITHDRAWAL_SECONDS:
+                classification = REFUND_STATUTORY_REVIEW
+                target_refund = (
+                    predplatne.pro_rata_refund_preview(
+                        amount_cents=invoice["amount_cents"],
+                        period_start=invoice["period_start"],
+                        period_end=invoice["period_end"],
+                        withdrawn_at=now,
+                    )
+                    if consent_valid
+                    else invoice["amount_cents"]
+                )
+                refund_preview = min(
+                    invoice["amount_cents"] - invoice["refunded_amount_cents"],
+                    max(0, target_refund - invoice["refunded_amount_cents"]),
+                )
+                consumed_preview = invoice["amount_cents"] - target_refund
+            else:
+                classification = REFUND_CANCEL_AT_PERIOD_END
+                refund_preview = 0
+        else:
+            classification = CLASSIFICATION_REMEDY_REVIEW
+
+        public_id = None
+        for _ in range(3):
+            candidate = secrets.token_urlsafe(32)
+            cursor = con.execute(
+                """INSERT OR IGNORE INTO consumer_requests
+                   (public_id,user_id,order_id,request_type,message,status,
+                    refund_scope,purchased_at,created_at,updated_at,legal_version,
+                    legal_snapshot,confirmation_state,confirmation_attempts,
+                    confirmation_next_attempt_at,confirmation_idempotency_key,
+                    invoice_id,subscription_id,invoice_amount_cents,
+                    invoice_refunded_amount_cents,invoice_currency,
+                    period_start,period_end,consent_accepted_at,consent_snapshot,
+                    consent_valid_for_proration,refund_preview_cents,
+                    consumed_charge_preview_cents,request_classification,remedy_type)
+                   VALUES (?,?,?,?,?, ?,NULL,?,?,?,?,?, ?,0,?,?, ?,?,?,?,?,?,?,?, ?,?,?,?,?,?)""",
+                (
+                    candidate,
+                    user_id,
+                    invoice["provider_order_id"],
+                    request_type,
+                    message,
+                    STATUS_REQUIRES_REVIEW,
+                    invoice["paid_at"],
+                    now,
+                    now,
+                    LEGAL_VERSION,
+                    legal_snapshot,
+                    CONFIRMATION_PENDING,
+                    now,
+                    f"consumer-request/{candidate}",
+                    invoice_id,
+                    invoice["subscription_id"],
+                    invoice["amount_cents"],
+                    invoice["refunded_amount_cents"],
+                    invoice["currency"],
+                    invoice["period_start"],
+                    invoice["period_end"],
+                    consent_accepted_at,
+                    consent_snapshot,
+                    int(consent_valid),
+                    refund_preview,
+                    consumed_preview,
+                    classification,
+                    remedy_type,
+                ),
+            )
+            if cursor.rowcount == 1:
+                public_id = candidate
+                break
+            existing = _existing_subscription_request(
+                con,
+                user_id=user_id,
+                invoice_id=invoice_id,
+                request_type=request_type,
+                remedy_type=remedy_type,
+            )
+            if existing is not None:
+                con.commit()
+                return _from_row(existing, created=False)
+        if public_id is None:
+            raise RuntimeError("žiadosť sa nepodarilo uložiť")
+        row = con.execute(
+            "SELECT * FROM consumer_requests WHERE public_id=?", (public_id,)
+        ).fetchone()
+        con.commit()
+        return _from_row(row, created=True)
+    except Exception:
+        if con.in_transaction:
+            con.rollback()
+        raise
+
+
+def create_subscription_withdrawal(
+    con, *, user_id, invoice_id, message, now
+) -> ConsumerRequest:
+    return _create_subscription_request(
+        con,
+        user_id=user_id,
+        invoice_id=invoice_id,
+        message=message,
+        now=now,
+        request_type=TYPE_WITHDRAWAL,
+    )
+
+
+def create_subscription_remedy(
+    con, *, user_id, invoice_id, remedy_type, message, now
+) -> ConsumerRequest:
+    return _create_subscription_request(
+        con,
+        user_id=user_id,
+        invoice_id=invoice_id,
+        message=message,
+        now=now,
+        request_type=TYPE_COMPLAINT,
+        remedy_type=remedy_type,
+    )
+
+
 def requests_for_user(con, *, user_id) -> list[dict]:
     user_id = _user_id(user_id)
     rows = con.execute(
-        """SELECT public_id,order_id,request_type,message,status,refund_scope,
+        """SELECT public_id,order_id,request_type,message,status,
+                  CASE WHEN request_type='withdrawal'
+                            AND request_classification IS NOT NULL
+                       THEN request_classification ELSE refund_scope END AS refund_scope,
                   purchased_at,created_at,updated_at,legal_version,
                   confirmation_state,confirmation_attempts,
                   confirmation_last_attempt_at,confirmation_next_attempt_at,
-                  confirmation_sent_at,confirmation_failure_code
+                  confirmation_sent_at,confirmation_failure_code,
+                  invoice_id,subscription_id,invoice_amount_cents,
+                  invoice_refunded_amount_cents,invoice_currency,
+                  period_start,period_end,consent_accepted_at,
+                  consent_valid_for_proration,refund_preview_cents,
+                  consumed_charge_preview_cents,request_classification,remedy_type
              FROM consumer_requests WHERE user_id=? ORDER BY created_at DESC,id DESC""",
         (user_id,),
     ).fetchall()
@@ -541,6 +1032,10 @@ def claim_confirmation_delivery(
             con.rollback()
             return None
         con.commit()
+        classification = row["request_classification"]
+        refund_scope = row["refund_scope"]
+        if row["request_type"] == TYPE_WITHDRAWAL and classification is not None:
+            refund_scope = classification
         return ConfirmationDelivery(
             public_id=str(row["public_id"]),
             user_id=int(row["user_id"]),
@@ -548,7 +1043,7 @@ def claim_confirmation_delivery(
             request_type=str(row["request_type"]),
             message=str(row["message"]),
             status=str(row["status"]),
-            refund_scope=row["refund_scope"],
+            refund_scope=refund_scope,
             purchased_at=float(row["purchased_at"]),
             created_at=float(row["created_at"]),
             legal_version=str(row["legal_version"]),
@@ -557,6 +1052,33 @@ def claim_confirmation_delivery(
             worker_id=worker_id,
             attempt=attempt,
             idempotency_key=str(row["confirmation_idempotency_key"]),
+            invoice_id=row["invoice_id"],
+            invoice_amount_cents=(
+                None if row["invoice_amount_cents"] is None
+                else int(row["invoice_amount_cents"])
+            ),
+            invoice_currency=row["invoice_currency"],
+            period_start=(
+                None if row["period_start"] is None
+                else float(row["period_start"])
+            ),
+            period_end=(
+                None if row["period_end"] is None else float(row["period_end"])
+            ),
+            consent_valid_for_proration=(
+                None if row["consent_valid_for_proration"] is None
+                else bool(row["consent_valid_for_proration"])
+            ),
+            refund_preview_cents=(
+                None if row["refund_preview_cents"] is None
+                else int(row["refund_preview_cents"])
+            ),
+            consumed_charge_preview_cents=(
+                None if row["consumed_charge_preview_cents"] is None
+                else int(row["consumed_charge_preview_cents"])
+            ),
+            request_classification=classification,
+            remedy_type=row["remedy_type"],
         )
     except Exception:
         if con.in_transaction:
