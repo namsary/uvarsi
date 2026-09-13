@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Owner-run LemonSqueezy test purchase/refund smoke for one Uvar.si release.
+"""Owner-run annual LemonSqueezy lifecycle smoke for one Uvar.si release.
 
-The script runs on the Uvar.si server.  It keeps payments publicly disabled,
-authenticates through the normal password endpoint, creates one audited test
-checkout, verifies the resulting entitlement, issues a full test refund and
-verifies revocation.  It never accepts or stores payment-instrument data.
+The script runs on the Uvar.si server with payments publicly disabled. It
+verifies the live and test provider economics, authenticates through the normal
+password endpoint, validates the complete test-subscription lifecycle recorded
+by the app and writes only a signed, privacy-safe release attestation. It never
+accepts or stores payment-instrument data or prints provider portal URLs.
 """
 
 from __future__ import annotations
@@ -12,8 +13,10 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import getpass
+import hmac
 import http.cookiejar
 import json
+import math
 import os
 from contextlib import closing
 from pathlib import Path
@@ -218,6 +221,290 @@ def _verified_live_configuration(
     return verified
 
 
+def _verified_annual_provider_evidence(
+    api_key,
+    *,
+    config,
+    signing_secret,
+    request=_provider_request,
+    evidence_type,
+    fingerprint,
+):
+    """Read and validate one annual variant and its founder discount."""
+    mode_name = "testovacom" if config.test_mode else "živom"
+    variant_response = request(api_key, f"/v1/variants/{config.variant_id}")
+    variant, variant_attributes = _resource(
+        variant_response, resource_type="variants", resource_id=config.variant_id
+    )
+    if (
+        variant_attributes.get("test_mode") is not config.test_mode
+        or variant_attributes.get("status") != "published"
+        or variant_attributes.get("is_subscription") is not True
+        or type(variant_attributes.get("price")) is not int
+        or variant_attributes.get("price") != 4_900
+        or variant_attributes.get("interval") != "year"
+        or type(variant_attributes.get("interval_count")) is not int
+        or variant_attributes.get("interval_count") != 1
+        or variant_attributes.get("has_free_trial") is not False
+    ):
+        raise SmokeFailed(
+            f"Ročný variant v {mode_name} režime nemá schválenú ekonomiku."
+        )
+    product_id = variant_attributes.get("product_id")
+    if not isinstance(product_id, (str, int)) or not str(product_id).strip():
+        raise SmokeFailed("Ročný variant nemá platný produkt.")
+    product_id = str(product_id)
+    product_response = request(api_key, f"/v1/products/{product_id}")
+    _product, product_attributes = _resource(
+        product_response, resource_type="products", resource_id=product_id
+    )
+    if (
+        product_attributes.get("test_mode") is not config.test_mode
+        or str(product_attributes.get("store_id")) != str(config.store_id)
+        or product_attributes.get("status") != "published"
+    ):
+        raise SmokeFailed("Ročný variant patrí inému alebo nezverejnenému obchodu.")
+    store_response = request(api_key, f"/v1/stores/{config.store_id}")
+    _store, store_attributes = _resource(
+        store_response, resource_type="stores", resource_id=config.store_id
+    )
+    if store_attributes.get("currency") != "EUR":
+        raise SmokeFailed("Ročný variant nie je účtovaný v eurách.")
+
+    query = urllib.parse.urlencode({"filter[product_id]": product_id})
+    variants_response = request(api_key, f"/v1/variants?{query}")
+    variants = variants_response.get("data") if isinstance(variants_response, dict) else None
+    if not isinstance(variants, list) or len(variants) != 1:
+        raise SmokeFailed("Ročný produkt musí mať práve jeden variant.")
+    listed = variants[0]
+    listed_attributes = listed.get("attributes") if isinstance(listed, dict) else None
+    if (
+        not isinstance(listed, dict)
+        or listed.get("type") != "variants"
+        or str(listed.get("id")) != str(config.variant_id)
+        or not isinstance(listed_attributes, dict)
+        or str(listed_attributes.get("product_id")) != product_id
+        or listed_attributes.get("test_mode") is not config.test_mode
+        or listed_attributes.get("status") != "published"
+    ):
+        raise SmokeFailed("Ročný produkt obsahuje neočakávaný variant.")
+
+    discount_response = request(api_key, f"/v1/discounts/{config.discount_id}")
+    _discount, discount_attributes = _resource(
+        discount_response, resource_type="discounts", resource_id=config.discount_id
+    )
+    related_response = request(
+        api_key, f"/v1/discounts/{config.discount_id}/variants"
+    )
+    related_variants = (
+        related_response.get("data") if isinstance(related_response, dict) else None
+    )
+    variant_ids = tuple(
+        str(item.get("id"))
+        for item in related_variants
+        if isinstance(item, dict) and item.get("type") == "variants"
+    ) if isinstance(related_variants, list) else ()
+    if (
+        discount_attributes.get("test_mode") is not config.test_mode
+        or str(discount_attributes.get("store_id")) != str(config.store_id)
+        or discount_attributes.get("amount_type") != "fixed"
+        or type(discount_attributes.get("amount")) is not int
+        or discount_attributes.get("amount") != 1_000
+        or discount_attributes.get("duration") != "once"
+        or discount_attributes.get("status") != "published"
+        or discount_attributes.get("is_limited_redemptions") is not True
+        or type(discount_attributes.get("max_redemptions")) is not int
+        or discount_attributes.get("max_redemptions") != 50
+        or variant_ids != (str(config.variant_id),)
+    ):
+        raise SmokeFailed("Zakladajúca zľava nemá schválené obmedzenia.")
+    provider_code = discount_attributes.get("code")
+    if not isinstance(provider_code, str) or not provider_code.strip():
+        raise SmokeFailed("Poskytovateľ nevrátil kód zakladajúcej zľavy.")
+    provider_code_digest = fingerprint(
+        signing_secret=signing_secret,
+        discount_code=provider_code,
+    )
+    configured_code_digest = fingerprint(
+        signing_secret=signing_secret,
+        discount_code=config.discount_code,
+    )
+    if not hmac.compare_digest(provider_code_digest, configured_code_digest):
+        raise SmokeFailed("Kód zakladajúcej zľavy sa nezhoduje s providerom.")
+    return evidence_type(
+        store_id=str(config.store_id),
+        variant_id=str(config.variant_id),
+        discount_id=str(config.discount_id),
+        test_mode=config.test_mode,
+        annual_price_cents=4_900,
+        currency="EUR",
+        billing_interval="year",
+        billing_interval_count=1,
+        trial_days=0,
+        variant_status="published",
+        discount_kind="fixed",
+        discount_amount_cents=1_000,
+        discount_duration="once",
+        discount_status="published",
+        discount_variant_ids=(str(config.variant_id),),
+        discount_redemption_limit=50,
+        discount_code_fingerprint=provider_code_digest,
+    )
+
+
+def _lifecycle_evidence_from_records(
+    *, subscription, invoices, events, portal_access_verified,
+    unresolved_cases, evidence_type,
+):
+    """Derive lifecycle proof only from processed test-mode server records."""
+    if type(unresolved_cases) is not int or unresolved_cases != 0:
+        raise SmokeFailed("Po teste ostal nevyriešený platobný prípad.")
+    if (
+        not isinstance(subscription, dict)
+        or subscription.get("test_mode") != 1
+        or subscription.get("status") != "expired"
+        or type(subscription.get("initial_amount_cents")) is not int
+        or subscription.get("initial_amount_cents") != 3_900
+        or type(subscription.get("renewal_amount_cents")) is not int
+        or subscription.get("renewal_amount_cents") != 4_900
+        or subscription.get("founder") != 1
+        or subscription.get("initial_payment_verified") != 1
+        or subscription.get("needs_review") != 0
+        or portal_access_verified is not True
+    ):
+        raise SmokeFailed("Lokálny lifecycle predplatného nie je úplný.")
+    if not isinstance(invoices, (list, tuple)) or not isinstance(events, (list, tuple)):
+        raise SmokeFailed("Lokálny lifecycle predplatného nie je úplný.")
+    initial_invoice = any(
+        isinstance(invoice, dict)
+        and invoice.get("invoice_kind") == "initial"
+        and invoice.get("status") in {"paid", "refunded"}
+        and type(invoice.get("amount_cents")) is int
+        and invoice.get("amount_cents") == 3_900
+        for invoice in invoices
+    )
+    renewal_invoice = any(
+        isinstance(invoice, dict)
+        and invoice.get("invoice_kind") == "renewal"
+        and invoice.get("status") in {"paid", "refunded"}
+        and type(invoice.get("amount_cents")) is int
+        and invoice.get("amount_cents") == 4_900
+        for invoice in invoices
+    )
+    refunded_invoice = any(
+        isinstance(invoice, dict)
+        and invoice.get("status") == "refunded"
+        and type(invoice.get("amount_cents")) is int
+        and type(invoice.get("refunded_amount_cents")) is int
+        and invoice.get("amount_cents") > 0
+        and invoice.get("refunded_amount_cents") == invoice.get("amount_cents")
+        for invoice in invoices
+    )
+    clean_events = {
+        event.get("event_type")
+        for event in events
+        if isinstance(event, dict)
+        and event.get("processing_status") == "processed"
+        and event.get("needs_review") == 0
+        and event.get("source") in {"webhook", "odlozene"}
+    }
+    required_events = {
+        "subscription_created",
+        "subscription_payment_success",
+        "subscription_payment_failed",
+        "subscription_payment_recovered",
+        "subscription_cancelled",
+        "subscription_expired",
+        "subscription_payment_refunded",
+    }
+    paid_through = subscription.get("paid_through")
+    if (
+        type(paid_through) not in {int, float}
+        or not math.isfinite(paid_through)
+        or paid_through <= 0
+    ):
+        raise SmokeFailed("Lokálny lifecycle predplatného nie je úplný.")
+
+    def processed_time(event_type):
+        values = [
+            event.get("processed_at")
+            for event in events
+            if isinstance(event, dict)
+            and event.get("event_type") == event_type
+            and event.get("source") in {"webhook", "odlozene"}
+            and event.get("processing_status") == "processed"
+            and event.get("needs_review") == 0
+        ]
+        if not values or any(
+            type(value) not in {int, float}
+            or not math.isfinite(value)
+            or value <= 0
+            for value in values
+        ):
+            raise SmokeFailed("Lokálny lifecycle predplatného nie je úplný.")
+        return max(values)
+
+    cancelled_at = processed_time("subscription_cancelled")
+    expired_at = processed_time("subscription_expired")
+    failed_at = processed_time("subscription_payment_failed")
+    recovered_at = processed_time("subscription_payment_recovered")
+    reconciliation_verified = any(
+        isinstance(event, dict)
+        and event.get("processing_status") == "processed"
+        and event.get("needs_review") == 0
+        and event.get("source") in {"reconciliation", "rekonciliacia"}
+        for event in events
+    )
+    if (
+        not initial_invoice
+        or not renewal_invoice
+        or not refunded_invoice
+        or not required_events <= clean_events
+        or not reconciliation_verified
+        or cancelled_at >= paid_through
+        or expired_at < paid_through
+        or recovered_at <= failed_at
+    ):
+        raise SmokeFailed("Lokálny lifecycle predplatného nie je úplný.")
+    return evidence_type(
+        initial_charge_cents=3_900,
+        renewal_displayed_cents=4_900,
+        activation_verified=True,
+        renewal_invoice_cents=4_900,
+        failed_payment_verified=True,
+        recovery_verified=True,
+        cancellation_verified=True,
+        access_retained_until_period_end=True,
+        expiration_verified=True,
+        refund_verified=True,
+        portal_access_verified=True,
+        webhook_signature_verified=True,
+        reconciliation_verified=True,
+    )
+
+
+def _build_annual_subscription_marker(
+    *, expectation, live_provider, test_provider, lifecycle, completed_at,
+    create_marker, sign_marker,
+):
+    """Create one short-lived signed marker from already verified evidence."""
+    if not isinstance(completed_at, dt.datetime) or completed_at.utcoffset() is None:
+        raise SmokeFailed("Čas annual smoke dôkazu nie je dôveryhodný.")
+    completed_at = completed_at.astimezone(dt.timezone.utc).replace(microsecond=0)
+    try:
+        unsigned = create_marker(
+            expectation=expectation,
+            live_provider=live_provider,
+            test_provider=test_provider,
+            lifecycle=lifecycle,
+            completed_at=completed_at.isoformat(),
+            expires_at=(completed_at + dt.timedelta(hours=24)).isoformat(),
+        )
+        return sign_marker(unsigned, secret=expectation.signing_secret)
+    except (TypeError, ValueError):
+        raise SmokeFailed("Annual smoke dôkaz sa nedá bezpečne podpísať.") from None
+
+
 def _create_verified_test_checkout(
     api_key, *, store_id, variant_id, user_id, attempt_id, email,
     request=_provider_request,
@@ -311,26 +598,153 @@ def _public_preflight(base_url: str, expected_release: str) -> dict:
 def _load_runtime(app_dir: str):
     if app_dir not in sys.path:
         sys.path.insert(0, app_dir)
-    import platby
-    import rekonciliacia
     import server
     from payment_smoke_marker import (
-        create_activation_attestation,
-        create_marker,
-        live_config_fingerprint,
+        AnnualProviderEvidence,
+        SubscriptionConfig,
+        SubscriptionLifecycleEvidence,
+        SubscriptionMarkerExpectation,
+        create_subscription_activation_attestation,
+        create_subscription_marker,
+        discount_code_fingerprint,
         sign_marker,
-        test_config_fingerprint,
     )
     return (
         server,
-        platby,
-        rekonciliacia,
-        create_activation_attestation,
-        create_marker,
-        live_config_fingerprint,
+        AnnualProviderEvidence,
+        SubscriptionConfig,
+        SubscriptionLifecycleEvidence,
+        SubscriptionMarkerExpectation,
+        create_subscription_activation_attestation,
+        create_subscription_marker,
+        discount_code_fingerprint,
         sign_marker,
-        test_config_fingerprint,
     )
+
+
+def _annual_expectation_from_env(
+    *, release, env_file, config_type, expectation_type,
+):
+    def mode_config(test_mode: bool):
+        prefix = "LEMON_TEST_" if test_mode else "LEMON_"
+        values = {
+            "api_key": _env_value(f"{prefix}API_KEY", env_file=env_file),
+            "store_id": _env_value(f"{prefix}STORE_ID", env_file=env_file),
+            "variant_id": _env_value(
+                f"{prefix}SUBSCRIPTION_VARIANT_ID", env_file=env_file
+            ),
+            "discount_id": _env_value(
+                f"{prefix}FOUNDER_DISCOUNT_ID", env_file=env_file
+            ),
+            "discount_code": _env_value(
+                f"{prefix}FOUNDER_DISCOUNT_CODE", env_file=env_file
+            ),
+            "webhook_secret": _env_value(
+                f"{prefix}WEBHOOK_SECRET", env_file=env_file
+            ),
+        }
+        if not all(values.values()):
+            label = "testovacej" if test_mode else "živej"
+            raise SmokeFailed(
+                f"Chýba časť {label} konfigurácie ročného predplatného."
+            )
+        return config_type(test_mode=test_mode, **values)
+
+    signing_secret = _env_value(
+        "UVARSI_PAYMENT_SMOKE_SIGNING_SECRET", env_file=env_file
+    )
+    if not signing_secret:
+        raise SmokeFailed("Chýba podpisové tajomstvo smoke dôkazu.")
+    return expectation_type(
+        release=release,
+        live=mode_config(False),
+        test=mode_config(True),
+        signing_secret=signing_secret,
+    )
+
+
+def _load_annual_lifecycle_records(server, *, email, test_config):
+    """Load only the named account's matching test subscription evidence."""
+    normalized = server.normalize_email(email)
+    with closing(server.db()) as con:
+        user = con.execute(
+            "SELECT id FROM pouzivatelia WHERE email=?", (normalized,)
+        ).fetchone()
+        if user is None:
+            raise SmokeFailed("Testovací účet v databáze neexistuje.")
+        user_id = int(user[0])
+        row = con.execute(
+            """SELECT * FROM subscriptions
+                 WHERE user_id=? AND provider='lemonsqueezy' AND test_mode=1
+                   AND provider_variant_id=? AND discount_id=?""",
+            (user_id, test_config.variant_id, test_config.discount_id),
+        ).fetchone()
+        if row is None:
+            raise SmokeFailed(
+                "Účet nemá lifecycle pre presný testovací variant a zľavu."
+            )
+        subscription = dict(row)
+        subscription_id = subscription.get("provider_subscription_id")
+        if not isinstance(subscription_id, str) or not subscription_id:
+            raise SmokeFailed("Testovacie predplatné nemá bezpečný identifikátor.")
+        invoices = [
+            dict(item) for item in con.execute(
+                """SELECT * FROM subscription_invoices
+                     WHERE provider='lemonsqueezy' AND test_mode=1
+                       AND provider_subscription_id=?""",
+                (subscription_id,),
+            ).fetchall()
+        ]
+        events = [
+            dict(item) for item in con.execute(
+                """SELECT * FROM subscription_events
+                     WHERE provider='lemonsqueezy' AND test_mode=1
+                       AND provider_subscription_id=?""",
+                (subscription_id,),
+            ).fetchall()
+        ]
+        open_cases = int(con.execute(
+            "SELECT COUNT(*) FROM payment_cases WHERE user_id=? AND status='open'",
+            (user_id,),
+        ).fetchone()[0])
+        unsafe_events = sum(
+            1 for event in events
+            if event.get("processing_status") != "processed"
+            or event.get("needs_review") != 0
+        )
+    return subscription, invoices, events, open_cases + unsafe_events, subscription_id
+
+
+def _verified_test_portal_access(
+    api_key, *, subscription_id, variant_id, request=_provider_request,
+) -> bool:
+    response = request(api_key, f"/v1/subscriptions/{subscription_id}")
+    _subscription, attributes = _resource(
+        response, resource_type="subscriptions", resource_id=subscription_id
+    )
+    urls = attributes.get("urls")
+    portal_url = urls.get("customer_portal") if isinstance(urls, dict) else None
+    try:
+        parsed = urllib.parse.urlsplit(portal_url)
+        port = parsed.port
+    except (TypeError, ValueError):
+        raise SmokeFailed("Provider nepotvrdil bezpečný testovací portál.") from None
+    valid_host = isinstance(parsed.hostname, str) and (
+        parsed.hostname == "lemonsqueezy.com"
+        or parsed.hostname.endswith(".lemonsqueezy.com")
+    )
+    if (
+        attributes.get("test_mode") is not True
+        or str(attributes.get("variant_id")) != str(variant_id)
+        or parsed.scheme != "https"
+        or not valid_host
+        or parsed.username is not None
+        or parsed.password is not None
+        or port is not None
+        or not parsed.path
+    ):
+        raise SmokeFailed("Provider nepotvrdil bezpečný testovací portál.")
+    return True
 
 
 def _prepare_checkout(server, platby, *, email: str):
@@ -573,7 +987,7 @@ def _build_activation_attestation(
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        description="Bezpečný test nákupu a úplnej refundácie Uvar.si"
+        description="Bezpečný test celého ročného predplatného Uvar.si"
     )
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL)
     parser.add_argument("--app-dir", default=DEFAULT_APP_DIR)
@@ -585,192 +999,90 @@ def main(argv=None) -> int:
         action="store_true",
         help="podpíše aktiváciu z čerstvého smoke dôkazu; platby nezapne",
     )
-    parser.add_argument("--timeout", type=int, default=300)
     args = parser.parse_args(argv)
 
     (
         server,
-        platby,
-        rekonciliacia,
-        create_activation_attestation,
-        create_marker,
-        live_config_fingerprint,
+        annual_provider_evidence_type,
+        subscription_config_type,
+        subscription_lifecycle_evidence_type,
+        subscription_marker_expectation_type,
+        create_subscription_activation_attestation,
+        create_subscription_marker,
+        discount_code_fingerprint,
         sign_marker,
-        test_config_fingerprint,
     ) = _load_runtime(args.app_dir)
     release = server.release_id()
-    test_values = {
-        name: _env_value(name, env_file=args.env_file)
-        for name in (
-            "LEMON_TEST_API_KEY",
-            "LEMON_TEST_CHECKOUT_URL",
-            "LEMON_TEST_WEBHOOK_SECRET",
-            "LEMON_TEST_STORE_ID",
-            "LEMON_TEST_VARIANT_ID",
-        )
-    }
-    live_values = {
-        name: _env_value(name, env_file=args.env_file)
-        for name in (
-            "LEMON_API_KEY",
-            "LEMON_CHECKOUT_URL",
-            "LEMON_WEBHOOK_SECRET",
-            "LEMON_STORE_ID",
-            "LEMON_VARIANT_ID",
-        )
-    }
-    signing_secret = _env_value(
-        "UVARSI_PAYMENT_SMOKE_SIGNING_SECRET", env_file=args.env_file
+    expectation = _annual_expectation_from_env(
+        release=release,
+        env_file=args.env_file,
+        config_type=subscription_config_type,
+        expectation_type=subscription_marker_expectation_type,
     )
-    if not all(test_values.values()):
-        raise SmokeFailed("Chýba časť testovacej konfigurácie poskytovateľa.")
-    if not all(live_values.values()) or not signing_secret:
-        raise SmokeFailed("Chýba časť plánovanej živej platobnej konfigurácie.")
-    activation_arguments = {
-        "release": release,
-        "live_checkout_url": live_values["LEMON_CHECKOUT_URL"],
-        "live_webhook_secret": live_values["LEMON_WEBHOOK_SECRET"],
-        "live_store_id": live_values["LEMON_STORE_ID"],
-        "live_variant_id": live_values["LEMON_VARIANT_ID"],
-        "live_api_key": live_values["LEMON_API_KEY"],
-        "test_checkout_url": test_values["LEMON_TEST_CHECKOUT_URL"],
-        "test_webhook_secret": test_values["LEMON_TEST_WEBHOOK_SECRET"],
-        "test_store_id": test_values["LEMON_TEST_STORE_ID"],
-        "test_variant_id": test_values["LEMON_TEST_VARIANT_ID"],
-        "test_api_key": test_values["LEMON_TEST_API_KEY"],
-        "signing_secret": signing_secret,
-        "create_activation_attestation": create_activation_attestation,
-    }
     if args.authorize_activation:
-        activation = _build_activation_attestation(
-            smoke_marker=_read_marker(args.marker),
-            activated_at=dt.datetime.now(dt.timezone.utc).isoformat(
-                timespec="seconds"
-            ),
-            **activation_arguments,
-        )
+        try:
+            activation = create_subscription_activation_attestation(
+                _read_marker(args.marker), expectation
+            )
+        except (TypeError, ValueError):
+            raise SmokeFailed(
+                "Aktivácia vyžaduje čerstvý annual smoke dôkaz."
+            ) from None
         _write_marker(args.activation_marker, activation)
         print("OK: podpísaná aktivácia je pripravená pre aktuálnu konfiguráciu.")
         print("Platby ostali vypnuté; tento krok nemení PLATBY_ZAPNUTE.")
         return 0
+
     _public_preflight(args.base_url.rstrip("/"), release)
-    _verified_test_variant(
-        test_values["LEMON_TEST_API_KEY"],
-        store_id=test_values["LEMON_TEST_STORE_ID"],
-        variant_id=test_values["LEMON_TEST_VARIANT_ID"],
+    live_provider = _verified_annual_provider_evidence(
+        expectation.live.api_key,
+        config=expectation.live,
+        signing_secret=expectation.signing_secret,
+        evidence_type=annual_provider_evidence_type,
+        fingerprint=discount_code_fingerprint,
     )
-    _verified_live_configuration(
-        live_values["LEMON_API_KEY"],
-        store_id=live_values["LEMON_STORE_ID"],
-        variant_id=live_values["LEMON_VARIANT_ID"],
-        checkout_url=live_values["LEMON_CHECKOUT_URL"],
+    test_provider = _verified_annual_provider_evidence(
+        expectation.test.api_key,
+        config=expectation.test,
+        signing_secret=expectation.signing_secret,
+        evidence_type=annual_provider_evidence_type,
+        fingerprint=discount_code_fingerprint,
     )
 
-    email = input("E-mail čistého testovacieho účtu: ").strip()
+    email = input("E-mail účtu s dokončeným testovacím lifecycle: ").strip()
     password = getpass.getpass("Heslo testovacieho účtu: ")
     opener = _authenticated_opener(args.base_url.rstrip("/"), email, password)
     del password
-    initial = _payment_status(opener, args.base_url.rstrip("/"))
-    if initial["ma_narok"]:
-        raise SmokeFailed("Testovací účet už má Premium.")
-
-    user_id, attempt = _prepare_checkout(server, platby, email=email)
-    checkout = _create_verified_test_checkout(
-        test_values["LEMON_TEST_API_KEY"],
-        store_id=test_values["LEMON_TEST_STORE_ID"],
-        variant_id=test_values["LEMON_TEST_VARIANT_ID"],
-        user_id=user_id,
-        attempt_id=attempt,
-        email=email,
+    _payment_status(opener, args.base_url.rstrip("/"))
+    subscription, invoices, events, unresolved, subscription_id = (
+        _load_annual_lifecycle_records(
+            server, email=email, test_config=expectation.test
+        )
     )
-    print("\nOtvor túto TESTOVACIU pokladňu v prehliadači:")
-    print(checkout)
-    print("Platobné údaje zadávaj iba v hosťovanej pokladni poskytovateľa.")
-    input("Po dokončení testovacieho nákupu stlač Enter...")
-
-    order = _wait_for_order(
-        rekonciliacia,
-        api_key=test_values["LEMON_TEST_API_KEY"],
-        store_id=test_values["LEMON_TEST_STORE_ID"],
-        variant_id=test_values["LEMON_TEST_VARIANT_ID"],
-        attempt_id=attempt,
-        timeout_seconds=args.timeout,
+    portal_access_verified = _verified_test_portal_access(
+        expectation.test.api_key,
+        subscription_id=subscription_id,
+        variant_id=expectation.test.variant_id,
     )
-    order_id = str(order["id"])
-    purchase_event = _wait_for_signed_webhook(
-        server,
-        platby,
-        secret=test_values["LEMON_TEST_WEBHOOK_SECRET"],
-        variant_id=test_values["LEMON_TEST_VARIANT_ID"],
-        order_id=order_id,
-        event_type="order_created",
-        timeout_seconds=args.timeout,
-    )
-    if purchase_event.get("akcia") != platby.AKCIA_UDELENE:
-        raise SmokeFailed("Podpísaný nákup neudelil nový Premium nárok.")
-    if _payment_status(opener, args.base_url.rstrip("/"))["ma_narok"] is not True:
-        raise SmokeFailed("Testovací nákup neudelil Premium.")
-    receipt_confirmation = input(
-        "Over testovací doklad v mailboxe a napíš POTVRDZUJEM: "
-    ).strip()
-    if receipt_confirmation != "POTVRDZUJEM":
-        raise SmokeFailed("Doručenie testovacieho dokladu nebolo potvrdené.")
-
-    _refund_test_order(test_values["LEMON_TEST_API_KEY"], order_id)
-    refunded = _wait_for_refund(
-        test_values["LEMON_TEST_API_KEY"], order_id, timeout_seconds=args.timeout
-    )
-    if str(refunded.get("id")) != order_id:
-        raise SmokeFailed("Poskytovateľ potvrdil refundáciu inej objednávky.")
-    refund_event = _wait_for_signed_webhook(
-        server,
-        platby,
-        secret=test_values["LEMON_TEST_WEBHOOK_SECRET"],
-        variant_id=test_values["LEMON_TEST_VARIANT_ID"],
-        order_id=order_id,
-        event_type="order_refunded",
-        timeout_seconds=args.timeout,
-    )
-    if refund_event.get("akcia") != platby.AKCIA_VRATENE:
-        raise SmokeFailed("Podpísaná refundácia neodobrala Premium nárok.")
-    if _payment_status(opener, args.base_url.rstrip("/"))["ma_narok"] is not False:
-        raise SmokeFailed("Úplná refundácia neodobrala Premium.")
-
-    with closing(server.db()) as con:
-        unresolved = int(con.execute(
-            """SELECT COUNT(*) FROM payment_cases
-                 WHERE provider_order_id=? AND status='open'""",
-            (order_id,),
-        ).fetchone()[0])
-    if unresolved:
-        raise SmokeFailed("Po teste ostal nevyriešený platobný prípad.")
-
-    marker = _build_completed_marker(
-        purchase_event=purchase_event,
-        refund_event=refund_event,
-        release=release,
-        live_checkout_url=live_values["LEMON_CHECKOUT_URL"],
-        live_webhook_secret=live_values["LEMON_WEBHOOK_SECRET"],
-        live_store_id=live_values["LEMON_STORE_ID"],
-        live_variant_id=live_values["LEMON_VARIANT_ID"],
-        live_api_key=live_values["LEMON_API_KEY"],
-        test_checkout_url=test_values["LEMON_TEST_CHECKOUT_URL"],
-        test_webhook_secret=test_values["LEMON_TEST_WEBHOOK_SECRET"],
-        test_store_id=test_values["LEMON_TEST_STORE_ID"],
-        test_variant_id=test_values["LEMON_TEST_VARIANT_ID"],
-        test_api_key=test_values["LEMON_TEST_API_KEY"],
-        order_id=order_id,
-        receipt_email_verified=True,
+    lifecycle = _lifecycle_evidence_from_records(
+        subscription=subscription,
+        invoices=invoices,
+        events=events,
+        portal_access_verified=portal_access_verified,
         unresolved_cases=unresolved,
-        completed_at=dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
-        signing_secret=signing_secret,
-        create_marker=create_marker,
-        live_config_fingerprint=live_config_fingerprint,
-        test_config_fingerprint=test_config_fingerprint,
+        evidence_type=subscription_lifecycle_evidence_type,
+    )
+    marker = _build_annual_subscription_marker(
+        expectation=expectation,
+        live_provider=live_provider,
+        test_provider=test_provider,
+        lifecycle=lifecycle,
+        completed_at=dt.datetime.now(dt.timezone.utc),
+        create_marker=create_subscription_marker,
         sign_marker=sign_marker,
     )
     _write_marker(args.marker, marker)
-    print("OK: nákup, Premium, úplná refundácia aj odobratie Premium prešli.")
+    print("OK: annual provider nastavenie a celý testovací lifecycle prešli.")
     print("Platby ostali vypnuté; ich zapnutie vyžaduje samostatné schválenie.")
     return 0
 

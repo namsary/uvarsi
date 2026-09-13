@@ -8,7 +8,7 @@ import json
 import re
 import secrets
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
 
@@ -22,6 +22,7 @@ SUBSCRIPTION_SCHEMA_VERSION = 4
 SUBSCRIPTION_ACTIVATION_SCHEMA_VERSION = 2
 SUBSCRIPTION_SMOKE_MAX_AGE_SECONDS = 24 * 60 * 60
 SUBSCRIPTION_SMOKE_FUTURE_SKEW_SECONDS = 5 * 60
+SUBSCRIPTION_ACTIVATION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,7 @@ class AnnualProviderEvidence:
     discount_status: str
     discount_variant_ids: tuple[str, ...]
     discount_redemption_limit: int
+    discount_code_fingerprint: str
 
 
 @dataclass(frozen=True)
@@ -250,6 +252,13 @@ def _secret_fingerprint(secret: str, *, label: str, value: str) -> str:
     ).hexdigest()
 
 
+def discount_code_fingerprint(*, signing_secret: str, discount_code: str) -> str:
+    """Bind a provider-returned discount code without persisting the code."""
+    return _secret_fingerprint(
+        signing_secret, label="discount-code", value=discount_code
+    )
+
+
 def _subscription_config_identity(
     config: SubscriptionConfig, *, signing_secret: str
 ) -> dict:
@@ -322,7 +331,9 @@ def create_subscription_marker(
     }
 
 
-def _valid_provider_evidence(value, config: SubscriptionConfig) -> bool:
+def _valid_provider_evidence(
+    value, config: SubscriptionConfig, *, signing_secret: str
+) -> bool:
     if not isinstance(value, dict):
         return False
     if type(value.get("test_mode")) is not bool:
@@ -355,6 +366,10 @@ def _valid_provider_evidence(value, config: SubscriptionConfig) -> bool:
         "discount_status": "published",
         "discount_variant_ids": [config.variant_id],
         "discount_redemption_limit": 50,
+        "discount_code_fingerprint": discount_code_fingerprint(
+            signing_secret=signing_secret,
+            discount_code=config.discount_code,
+        ),
     }
 
 
@@ -454,13 +469,36 @@ def subscription_marker_status(
         or marker.get("test_config") != expected_test
     ):
         return "subscription_smoke_mismatch"
-    if not _valid_provider_evidence(marker.get("live_provider"), expectation.live):
+    live_provider = marker.get("live_provider")
+    test_provider = marker.get("test_provider")
+    expected_live_code = discount_code_fingerprint(
+        signing_secret=secret, discount_code=expectation.live.discount_code
+    )
+    expected_test_code = discount_code_fingerprint(
+        signing_secret=secret, discount_code=expectation.test.discount_code
+    )
+    if (
+        isinstance(live_provider, dict)
+        and live_provider.get("discount_code_fingerprint") != expected_live_code
+    ) or (
+        isinstance(test_provider, dict)
+        and test_provider.get("discount_code_fingerprint") != expected_test_code
+    ):
+        return "subscription_smoke_mismatch"
+    if not _valid_provider_evidence(
+        live_provider, expectation.live, signing_secret=secret
+    ):
         return "subscription_smoke_incomplete"
-    if not _valid_provider_evidence(marker.get("test_provider"), expectation.test):
+    if not _valid_provider_evidence(
+        test_provider, expectation.test, signing_secret=secret
+    ):
         return "subscription_smoke_incomplete"
     if not _valid_lifecycle_evidence(marker.get("lifecycle")):
         return "subscription_smoke_incomplete"
-    if marker.get("unresolved_cases") != 0:
+    if (
+        type(marker.get("unresolved_cases")) is not int
+        or marker.get("unresolved_cases") != 0
+    ):
         return "subscription_smoke_incomplete"
     try:
         completed = _parse_aware_timestamp(marker.get("completed_at"))
@@ -492,11 +530,9 @@ def valid_subscription_marker(
 def create_subscription_activation_attestation(
     smoke_marker: dict,
     expectation: SubscriptionMarkerExpectation,
-    *,
-    activated_at: str,
 ) -> dict:
     """Authorize this exact release/config only from a fresh full test proof."""
-    activation_time = _parse_aware_timestamp(activated_at)
+    activation_time = _trusted_utcnow()
     status = subscription_marker_status(
         smoke_marker, expectation, now=activation_time
     )
@@ -511,13 +547,19 @@ def create_subscription_activation_attestation(
         "smoke_evidence_digest": _smoke_evidence_digest(smoke_marker),
         "smoke_completed_at": smoke_marker["completed_at"],
         "smoke_expires_at": smoke_marker["expires_at"],
-        "activated_at": activated_at,
+        "activated_at": activation_time.isoformat(),
+        "activation_expires_at": (
+            activation_time
+            + timedelta(seconds=SUBSCRIPTION_ACTIVATION_MAX_AGE_SECONDS)
+        ).isoformat(),
     }
     return sign_marker(unsigned, secret=expectation.signing_secret)
 
 
 def subscription_activation_status(
-    attestation, expectation: SubscriptionMarkerExpectation
+    attestation, expectation: SubscriptionMarkerExpectation,
+    *,
+    now: datetime | None = None,
 ) -> str:
     """Return a safe status for the durable, release-bound activation proof."""
     if attestation is None:
@@ -540,7 +582,8 @@ def subscription_activation_status(
     required = {
         "schema_version", "release", "attestation_id", "live_config",
         "test_config", "smoke_evidence_digest", "smoke_completed_at",
-        "smoke_expires_at", "activated_at", "signature",
+        "smoke_expires_at", "activated_at", "activation_expires_at",
+        "signature",
     }
     if set(attestation) != required:
         return "subscription_smoke_incomplete"
@@ -554,6 +597,9 @@ def subscription_activation_status(
         completed = _parse_aware_timestamp(attestation.get("smoke_completed_at"))
         expires = _parse_aware_timestamp(attestation.get("smoke_expires_at"))
         activated = _parse_aware_timestamp(attestation.get("activated_at"))
+        activation_expires = _parse_aware_timestamp(
+            attestation.get("activation_expires_at")
+        )
     except (TypeError, ValueError):
         return "subscription_smoke_invalid"
     if (
@@ -574,21 +620,37 @@ def subscription_activation_status(
         return "subscription_smoke_mismatch"
     validity = (expires - completed).total_seconds()
     activation_age = (activated - completed).total_seconds()
+    activation_validity = (activation_expires - activated).total_seconds()
+    checked = (now or _trusted_utcnow()).astimezone(timezone.utc)
+    current_activation_age = (checked - activated).total_seconds()
     if (
         validity <= 0
         or validity > SUBSCRIPTION_SMOKE_MAX_AGE_SECONDS
         or activation_age < -SUBSCRIPTION_SMOKE_FUTURE_SKEW_SECONDS
         or activated > expires
+        or activation_validity <= 0
+        or activation_validity > SUBSCRIPTION_ACTIVATION_MAX_AGE_SECONDS
+        or current_activation_age < -SUBSCRIPTION_SMOKE_FUTURE_SKEW_SECONDS
+        or checked > activation_expires
     ):
         return "subscription_smoke_stale"
     return "verified"
 
 
 def valid_subscription_activation_attestation(
-    attestation, expectation: SubscriptionMarkerExpectation
+    attestation, expectation: SubscriptionMarkerExpectation,
+    *,
+    now: datetime | None = None,
 ) -> bool:
     """Validate a durable activation bound to one release and both modes."""
-    return subscription_activation_status(attestation, expectation) == "verified"
+    return subscription_activation_status(
+        attestation, expectation, now=now
+    ) == "verified"
+
+
+def _trusted_utcnow() -> datetime:
+    """Return the server clock used for signed activation timestamps."""
+    return datetime.now(timezone.utc)
 
 
 def _parse_aware_timestamp(value) -> datetime:

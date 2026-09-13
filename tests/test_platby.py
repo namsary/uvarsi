@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import importlib
 import json
+import os
 import sys
 import threading
 from contextlib import closing
@@ -199,6 +200,10 @@ def _full_annual_subscription_smoke(server, *, completed_at=None):
             discount_status="published",
             discount_variant_ids=(config.variant_id,),
             discount_redemption_limit=50,
+            discount_code_fingerprint=marker_module.discount_code_fingerprint(
+                signing_secret=expectation.signing_secret,
+                discount_code=config.discount_code,
+            ),
         )
 
     lifecycle = marker_module.SubscriptionLifecycleEvidence(
@@ -447,7 +452,7 @@ def test_smoke_dokaz_musi_byt_vzdy_cerstvy_pred_aktivaciou(
         now=SMOKE_NOW,
     ) is False
 
-def test_nezmeneny_payment_smoke_marker_sa_necita_z_disku_opakovane(
+def test_atomic_replace_same_size_and_mtime_zneplatni_payment_marker_cache(
         monkeypatch, tmp_path):
     server = load_server(
         monkeypatch,
@@ -474,15 +479,6 @@ def test_nezmeneny_payment_smoke_marker_sa_necita_z_disku_opakovane(
     marker_path.write_text(
         json.dumps(sign_marker(marker, secret=TAJOMSTVO)), encoding="utf-8"
     )
-    original_read_text = server.Path.read_text
-    reads = 0
-
-    def counted_read_text(path, *args, **kwargs):
-        nonlocal reads
-        reads += 1
-        return original_read_text(path, *args, **kwargs)
-
-    monkeypatch.setattr(server.Path, "read_text", counted_read_text)
     arguments = {
         "release": "release-1",
         "checkout_url": CHECKOUT,
@@ -499,8 +495,33 @@ def test_nezmeneny_payment_smoke_marker_sa_necita_z_disku_opakovane(
     }
 
     assert server._payment_smoke_verified(**arguments) is True
-    assert server._payment_smoke_verified(**arguments) is True
-    assert reads == 1
+    original_stat = marker_path.stat()
+    replacement = sign_marker(
+        create_marker(
+            release="release-2",
+            live_config_digest=marker["live_config_digest"],
+            test_config_digest=marker["test_config_digest"],
+            test_store_id=TEST_STORE_ID,
+            test_variant_id=TEST_VARIANT_ID,
+            completed_at=marker["completed_at"],
+            receipt_email_verified=True,
+            test_mode_verified=True,
+        ),
+        secret=TAJOMSTVO,
+    )
+    replacement_path = tmp_path / "payment-smoke.replacement"
+    replacement_path.write_text(json.dumps(replacement), encoding="utf-8")
+    assert replacement_path.stat().st_size == original_stat.st_size
+    os.replace(replacement_path, marker_path)
+    os.utime(
+        marker_path,
+        ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns),
+    )
+    replaced_stat = marker_path.stat()
+    assert replaced_stat.st_size == original_stat.st_size
+    assert replaced_stat.st_mtime_ns == original_stat.st_mtime_ns
+
+    assert server._payment_smoke_verified(**arguments) is False
 
 
 @pytest.mark.parametrize("hodnota", ["1", "true", "TRUE", "ano", "áno", "yes", "on"])
@@ -1100,10 +1121,9 @@ def test_runtime_readiness_accepts_the_code_owned_verified_support_phone(
     assert result.ready is True
     assert result.blockers == ()
 
+    monkeypatch.setattr(marker_module, "_trusted_utcnow", lambda: completed_at)
     activation = marker_module.create_subscription_activation_attestation(
-        smoke,
-        expectation,
-        activated_at=completed_at.isoformat(),
+        smoke, expectation
     )
     activation_path.write_text(json.dumps(activation), encoding="utf-8")
     monkeypatch.setenv("PLATBY_ZAPNUTE", "1")
@@ -1163,6 +1183,65 @@ def test_zapnuty_flag_bez_podpisanej_aktivacie_neodomkne_checkout(
 
     assert result.ready is False
     assert result.blockers == ("subscription_smoke_missing",)
+
+
+def test_zapnuty_flag_vyzaduje_cerstvy_provider_marker_a_ekonomiku(
+        monkeypatch, tmp_path):
+    server = load_server(
+        monkeypatch,
+        tmp_path,
+        **_annual_payment_environment(PLATBY_ZAPNUTE="1"),
+    )
+    monkeypatch.setattr(server, "legal_version", lambda: server.LEGAL_VERSION)
+    monkeypatch.setattr(server, "_approved_price_sources_ready", lambda *_a, **_k: True)
+    monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda *_a, **_k: True)
+    monkeypatch.setattr(server.customer_requests, "workflow_ready", lambda _con: True)
+    smoke_path = tmp_path / "annual-payment-smoke.json"
+    activation_path = tmp_path / "annual-payment-activation.json"
+    monkeypatch.setattr(server, "PAYMENT_SMOKE_MARKER", str(smoke_path))
+    monkeypatch.setattr(server, "PAYMENT_ACTIVATION_MARKER", str(activation_path))
+    marker_module, expectation, smoke, completed_at = (
+        _full_annual_subscription_smoke(server)
+    )
+    monkeypatch.setattr(
+        marker_module, "_trusted_utcnow", lambda: completed_at
+    )
+    activation = marker_module.create_subscription_activation_attestation(
+        smoke, expectation
+    )
+    smoke_path.write_text(json.dumps(smoke), encoding="utf-8")
+    activation_path.write_text(json.dumps(activation), encoding="utf-8")
+    queue = {"worker_alive": True, "blocking_code": None}
+    recipe = {
+        "ready": False,
+        "blockers": ["payments_enabled"],
+        "release_gate": {
+            "active_recipes": server.CURATED_RECIPE_COUNT,
+            "curation_generation": 1,
+            "provenance_complete": True,
+            "library_errors": 0,
+            "workflow_errors": 0,
+        },
+    }
+
+    with closing(server.db()) as con:
+        assert server._runtime_payment_readiness(
+            con, queue_status=queue, recipe_status=recipe
+        ).ready is True
+
+    changed_economics = json.loads(json.dumps(smoke))
+    changed_economics["live_provider"]["annual_price_cents"] = 3_900
+    changed_economics = marker_module.sign_marker(
+        changed_economics, secret=expectation.signing_secret
+    )
+    smoke_path.write_text(json.dumps(changed_economics), encoding="utf-8")
+
+    with closing(server.db()) as con:
+        readiness = server._runtime_payment_readiness(
+            con, queue_status=queue, recipe_status=recipe
+        )
+    assert readiness.ready is False
+    assert readiness.blockers == ("subscription_smoke_incomplete",)
 
 
 def test_podpisana_aktivacia_neexpiruje_ale_zmena_configu_ju_zablokuje(
@@ -1278,16 +1357,18 @@ def test_zmena_ktorehokolvek_live_secretu_zneplatni_aktivaciu_a_checkout(
     monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda *_a, **_k: True)
     monkeypatch.setattr(server, "_private_payment_alerts_ready", lambda: True)
     monkeypatch.setattr(server.customer_requests, "workflow_ready", lambda _con: True)
+    smoke_path = tmp_path / "payment-smoke.json"
     activation_path = tmp_path / "payment-activation.json"
+    monkeypatch.setattr(server, "PAYMENT_SMOKE_MARKER", str(smoke_path))
     monkeypatch.setattr(server, "PAYMENT_ACTIVATION_MARKER", str(activation_path))
     marker_module, expectation, smoke, completed_at = (
         _full_annual_subscription_smoke(server)
     )
+    monkeypatch.setattr(marker_module, "_trusted_utcnow", lambda: completed_at)
     activation = marker_module.create_subscription_activation_attestation(
-        smoke,
-        expectation,
-        activated_at=completed_at.isoformat(),
+        smoke, expectation
     )
+    smoke_path.write_text(json.dumps(smoke), encoding="utf-8")
     activation_path.write_text(json.dumps(activation), encoding="utf-8")
     queue = {"worker_alive": True, "blocking_code": None}
     recipe = {

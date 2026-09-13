@@ -56,6 +56,10 @@ def provider_evidence(*, test_mode: bool):
         discount_status="published",
         discount_variant_ids=(config.variant_id,),
         discount_redemption_limit=50,
+        discount_code_fingerprint=marker.discount_code_fingerprint(
+            signing_secret=expected().signing_secret,
+            discount_code=config.discount_code,
+        ),
     )
 
 
@@ -180,6 +184,32 @@ def test_marker_is_bound_to_release_mode_and_every_provider_identity():
     assert marker.valid_subscription_marker(proof, wrong_mode, now=NOW) is False
 
 
+def test_provider_discount_code_is_bound_by_hmac_without_entering_marker():
+    proof = signed_marker()
+
+    assert proof["test_provider"]["discount_code_fingerprint"] == (
+        marker.discount_code_fingerprint(
+            signing_secret=expected().signing_secret,
+            discount_code=expected().test.discount_code,
+        )
+    )
+    assert expected().test.discount_code not in json.dumps(proof)
+
+    wrong_provider_code = json.loads(json.dumps(proof))
+    wrong_provider_code["test_provider"]["discount_code_fingerprint"] = (
+        marker.discount_code_fingerprint(
+            signing_secret=expected().signing_secret,
+            discount_code="WRONG-PROVIDER-CODE",
+        )
+    )
+    wrong_provider_code = marker.sign_marker(
+        wrong_provider_code, secret=expected().signing_secret
+    )
+    assert marker.subscription_marker_status(
+        wrong_provider_code, expected(), now=NOW
+    ) == "subscription_smoke_mismatch"
+
+
 def test_marker_has_explicit_freshness_and_rejects_old_future_or_partial_proof():
     assert marker.subscription_marker_status(None, expected(), now=NOW) == (
         "subscription_smoke_missing"
@@ -210,16 +240,16 @@ def test_marker_never_contains_secrets_pii_or_signed_provider_urls():
         assert forbidden not in encoded
 
 
-def test_activation_attestation_requires_a_fresh_full_subscription_marker():
+def test_activation_attestation_requires_a_fresh_full_subscription_marker(
+        monkeypatch):
     proof = signed_marker()
+    monkeypatch.setattr(marker, "_trusted_utcnow", lambda: NOW)
     activation = marker.create_subscription_activation_attestation(
-        proof,
-        expected(),
-        activated_at="2026-09-13T10:00:00+00:00",
+        proof, expected()
     )
 
     assert marker.valid_subscription_activation_attestation(
-        activation, expected()
+        activation, expected(), now=NOW
     ) is True
     assert marker.valid_subscription_activation_attestation(
         activation, replace(expected(), release="another-release")
@@ -231,11 +261,11 @@ def test_activation_attestation_requires_a_fresh_full_subscription_marker():
         marker.create_subscription_activation_attestation(
             signed_marker(expires_at="2026-09-13T09:59:59+00:00"),
             expected(),
-            activated_at="2026-09-13T10:00:00+00:00",
         )
 
 
-def test_activation_attestation_reports_missing_corrupt_and_partial_evidence():
+def test_activation_attestation_reports_missing_corrupt_and_partial_evidence(
+        monkeypatch):
     assert marker.subscription_activation_status(None, expected()) == (
         "subscription_smoke_missing"
     )
@@ -243,10 +273,9 @@ def test_activation_attestation_reports_missing_corrupt_and_partial_evidence():
         "subscription_smoke_invalid"
     )
 
+    monkeypatch.setattr(marker, "_trusted_utcnow", lambda: NOW)
     activation = marker.create_subscription_activation_attestation(
-        signed_marker(),
-        expected(),
-        activated_at="2026-09-13T10:00:00+00:00",
+        signed_marker(), expected()
     )
     activation.pop("smoke_evidence_digest")
     partial = marker.sign_marker(
@@ -255,6 +284,53 @@ def test_activation_attestation_reports_missing_corrupt_and_partial_evidence():
     assert marker.subscription_activation_status(partial, expected()) == (
         "subscription_smoke_incomplete"
     )
+
+
+def test_activation_uses_trusted_server_clock_and_rejects_caller_timestamp(
+        monkeypatch):
+    monkeypatch.setattr(marker, "_trusted_utcnow", lambda: NOW, raising=False)
+    try:
+        activation = marker.create_subscription_activation_attestation(
+            signed_marker(), expected()
+        )
+    except TypeError as error:
+        pytest.fail(f"aktivácia stále vyžaduje čas od volajúceho: {error}")
+
+    assert activation["activated_at"] == "2026-09-13T10:00:00+00:00"
+    assert activation["activation_expires_at"] == "2026-09-20T10:00:00+00:00"
+    assert marker.subscription_activation_status(
+        activation, expected(), now=NOW
+    ) == "verified"
+    with pytest.raises(TypeError):
+        marker.create_subscription_activation_attestation(
+            signed_marker(), expected(),
+            activated_at="2020-01-01T00:00:00+00:00",
+        )
+
+
+@pytest.mark.parametrize(
+    ("activated_at", "expires_at"),
+    [
+        ("2020-01-01T00:00:00+00:00", "2020-01-08T00:00:00+00:00"),
+        ("2026-09-13T10:05:01+00:00", "2026-09-20T10:05:01+00:00"),
+        ("2026-09-06T09:59:59+00:00", "2026-09-13T09:59:59+00:00"),
+    ],
+)
+def test_activation_rejects_old_future_and_expired_signed_times(
+        monkeypatch, activated_at, expires_at):
+    monkeypatch.setattr(marker, "_trusted_utcnow", lambda: NOW, raising=False)
+    activation = marker.create_subscription_activation_attestation(
+        signed_marker(), expected()
+    )
+    activation["activated_at"] = activated_at
+    activation["activation_expires_at"] = expires_at
+    activation = marker.sign_marker(
+        activation, secret=expected().signing_secret
+    )
+
+    assert marker.subscription_activation_status(
+        activation, expected(), now=NOW
+    ) == "subscription_smoke_stale"
 
 
 def test_boolean_lifecycle_claims_and_mode_are_not_truthy_shortcuts():
@@ -266,3 +342,14 @@ def test_boolean_lifecycle_claims_and_mode_are_not_truthy_shortcuts():
     wrong_mode = replace(provider_evidence(test_mode=True), test_mode=1)
     proof = signed_marker(test_provider=wrong_mode)
     assert marker.valid_subscription_marker(proof, expected(), now=NOW) is False
+
+
+@pytest.mark.parametrize("unresolved", [False, 0.0, "0", None])
+def test_unresolved_cases_requires_exact_integer_zero(unresolved):
+    proof = signed_marker()
+    proof["unresolved_cases"] = unresolved
+    proof = marker.sign_marker(proof, secret=expected().signing_secret)
+
+    assert marker.subscription_marker_status(
+        proof, expected(), now=NOW
+    ) == "subscription_smoke_incomplete"

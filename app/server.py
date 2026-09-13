@@ -4841,15 +4841,12 @@ def _private_payment_alerts_ready() -> bool:
     return True
 
 
-@functools.lru_cache(maxsize=8)
-def _read_payment_smoke_marker(
-        marker_path: str, modified_ns: int, size: int) -> dict | None:
-    """Parse one immutable marker version once per web process.
-
-    The file metadata is part of the cache key, so replacing the marker makes
-    the next readiness check read and verify the new contents immediately.
-    """
-    del modified_ns
+def _read_payment_smoke_marker(marker_path: str) -> dict | None:
+    """Re-read one local marker so filesystem metadata can never confer trust."""
+    try:
+        size = Path(marker_path).stat().st_size
+    except OSError:
+        return None
     if size > 8_192:
         return None
     try:
@@ -4877,12 +4874,10 @@ def _payment_smoke_verified(
         return False
     try:
         marker_path = Path(PAYMENT_SMOKE_MARKER)
-        marker_stat = marker_path.stat()
+        marker_path.stat()
     except OSError:
         return False
-    marker = _read_payment_smoke_marker(
-        str(marker_path), marker_stat.st_mtime_ns, marker_stat.st_size,
-    )
+    marker = _read_payment_smoke_marker(str(marker_path))
     if marker is None:
         return False
     if not verify_marker(
@@ -4953,12 +4948,10 @@ def _payment_activation_verified(
         return False
     try:
         marker_path = Path(PAYMENT_ACTIVATION_MARKER)
-        marker_stat = marker_path.stat()
+        marker_path.stat()
     except OSError:
         return False
-    marker = _read_payment_smoke_marker(
-        str(marker_path), marker_stat.st_mtime_ns, marker_stat.st_size,
-    )
+    marker = _read_payment_smoke_marker(str(marker_path))
     if marker is None:
         return False
     return verify_activation_attestation(
@@ -5019,18 +5012,33 @@ def _subscription_evidence_status(
         PAYMENT_ACTIVATION_MARKER if activated else PAYMENT_SMOKE_MARKER
     )
     try:
-        marker_stat = marker_path.stat()
+        marker_path.stat()
     except FileNotFoundError:
         return "subscription_smoke_missing"
     except OSError:
         return "subscription_smoke_invalid"
-    marker = _read_payment_smoke_marker(
-        str(marker_path), marker_stat.st_mtime_ns, marker_stat.st_size,
-    )
+    marker = _read_payment_smoke_marker(str(marker_path))
     if marker is None:
         return "subscription_smoke_invalid"
     if activated:
-        return subscription_activation_status(marker, expectation)
+        activation_status = subscription_activation_status(
+            marker, expectation, now=now
+        )
+        if activation_status != "verified":
+            return activation_status
+        current_path = Path(PAYMENT_SMOKE_MARKER)
+        try:
+            current_path.stat()
+        except FileNotFoundError:
+            return "subscription_smoke_missing"
+        except OSError:
+            return "subscription_smoke_invalid"
+        current_marker = _read_payment_smoke_marker(str(current_path))
+        if current_marker is None:
+            return "subscription_smoke_invalid"
+        return subscription_marker_status(
+            current_marker, expectation, now=now
+        )
     return subscription_marker_status(marker, expectation, now=now)
 
 

@@ -2,11 +2,13 @@ import hashlib
 import hmac
 import importlib.util
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sys
 
 import pytest
+
+from app.payment_readiness import PaymentReadinessInput, assess_payment_readiness
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,6 +37,156 @@ def _load_smoke_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _annual_expectation(marker_module):
+    return marker_module.SubscriptionMarkerExpectation(
+        release="release-annual-1",
+        live=marker_module.SubscriptionConfig(
+            "live-store", "live-annual", "live-founder", "LIVE-CODE",
+            "live-webhook", "live-api", False,
+        ),
+        test=marker_module.SubscriptionConfig(
+            "test-store", "test-annual", "test-founder", "TEST-CODE",
+            "test-webhook", "test-api", True,
+        ),
+        signing_secret="marker-secret",
+    )
+
+
+def _annual_provider_request(*, mode, code, changes=None):
+    store_id = f"{mode}-store"
+    variant_id = f"{mode}-annual"
+    discount_id = f"{mode}-founder"
+    test_mode = mode == "test"
+    values = {
+        "store_currency": "EUR",
+        "variant_price": 4_900,
+        "variant_interval": "year",
+        "variant_interval_count": 1,
+        "variant_has_free_trial": False,
+        "discount_amount": 1_000,
+        "discount_amount_type": "fixed",
+        "discount_duration": "once",
+        "discount_status": "published",
+        "discount_max_redemptions": 50,
+        "discount_code": code,
+    }
+    values.update(changes or {})
+
+    def request(_api_key, path, **_kwargs):
+        if path == f"/v1/stores/{store_id}":
+            return {"data": {"type": "stores", "id": store_id, "attributes": {
+                "currency": values["store_currency"],
+            }}}
+        if path == f"/v1/variants/{variant_id}":
+            return {"data": {"type": "variants", "id": variant_id, "attributes": {
+                "product_id": f"{mode}-product",
+                "test_mode": test_mode,
+                "status": "published",
+                "price": values["variant_price"],
+                "is_subscription": True,
+                "interval": values["variant_interval"],
+                "interval_count": values["variant_interval_count"],
+                "has_free_trial": values["variant_has_free_trial"],
+            }}}
+        if path == f"/v1/products/{mode}-product":
+            return {"data": {"type": "products", "id": f"{mode}-product", "attributes": {
+                "store_id": store_id,
+                "test_mode": test_mode,
+                "status": "published",
+            }}}
+        if path == f"/v1/variants?filter%5Bproduct_id%5D={mode}-product":
+            return {"data": [{
+                "type": "variants", "id": variant_id,
+                "attributes": {
+                    "product_id": f"{mode}-product",
+                    "test_mode": test_mode,
+                    "status": "published",
+                },
+            }]}
+        if path == f"/v1/discounts/{discount_id}":
+            return {"data": {
+                "type": "discounts",
+                "id": discount_id,
+                "attributes": {
+                    "store_id": store_id,
+                    "test_mode": test_mode,
+                    "code": values["discount_code"],
+                    "amount": values["discount_amount"],
+                    "amount_type": values["discount_amount_type"],
+                    "duration": values["discount_duration"],
+                    "status": values["discount_status"],
+                    "is_limited_redemptions": True,
+                    "max_redemptions": values["discount_max_redemptions"],
+                },
+            }}
+        if path == f"/v1/discounts/{discount_id}/variants":
+            return {"data": [{"type": "variants", "id": variant_id}]}
+        raise AssertionError(path)
+
+    return request
+
+
+def _complete_local_lifecycle_records():
+    subscription = {
+        "test_mode": 1,
+        "status": "expired",
+        "initial_amount_cents": 3_900,
+        "renewal_amount_cents": 4_900,
+        "founder": 1,
+        "initial_payment_verified": 1,
+        "needs_review": 0,
+        "paid_through": 3_000.0,
+    }
+    invoices = [
+        {
+            "invoice_kind": "initial", "status": "refunded",
+            "amount_cents": 3_900, "refunded_amount_cents": 3_900,
+            "period_end": 2_000.0,
+        },
+        {
+            "invoice_kind": "renewal", "status": "paid",
+            "amount_cents": 4_900, "refunded_amount_cents": 0,
+            "period_end": 3_000.0,
+        },
+    ]
+    event_types = (
+        "subscription_created",
+        "subscription_payment_success",
+        "subscription_payment_failed",
+        "subscription_payment_recovered",
+        "subscription_cancelled",
+        "subscription_expired",
+        "subscription_payment_refunded",
+    )
+    processed_times = {
+        "subscription_created": 1_000.0,
+        "subscription_payment_success": 1_100.0,
+        "subscription_payment_failed": 2_000.0,
+        "subscription_payment_recovered": 2_100.0,
+        "subscription_cancelled": 2_500.0,
+        "subscription_expired": 3_000.0,
+        "subscription_payment_refunded": 3_100.0,
+    }
+    events = [
+        {
+            "event_type": event_type,
+            "source": "webhook",
+            "processing_status": "processed",
+            "needs_review": 0,
+            "processed_at": processed_times[event_type],
+        }
+        for event_type in event_types
+    ]
+    events.append({
+        "event_type": "subscription_updated",
+        "source": "reconciliation",
+        "processing_status": "processed",
+        "needs_review": 0,
+        "processed_at": 3_200.0,
+    })
+    return subscription, invoices, events
 
 
 def test_deployment_starts_with_payments_off_and_migrates_before_health():
@@ -526,18 +678,23 @@ def test_test_checkout_url_comes_from_provider_confirmed_test_checkout():
     }
 
 
-def test_smoke_tool_requires_explicit_receipt_confirmation_and_never_reconciles():
+def test_smoke_tool_main_is_annual_and_never_falls_back_to_one_time_flow():
     source = SMOKE_SCRIPT.read_text(encoding="utf-8")
+    main_source = source[source.index("def main("):]
 
-    assert "POTVRDZUJEM" in source
-    assert "receipt_email_verified=True" in source
+    assert 'prefix = "LEMON_TEST_" if test_mode else "LEMON_"' in source
+    assert 'f"{prefix}SUBSCRIPTION_VARIANT_ID"' in source
+    assert 'f"{prefix}FOUNDER_DISCOUNT_ID"' in source
+    assert 'f"{prefix}FOUNDER_DISCOUNT_CODE"' in source
+    assert "_annual_expectation_from_env" in main_source
+    assert "_verified_annual_provider_evidence" in main_source
+    assert "_lifecycle_evidence_from_records" in main_source
+    assert "_build_annual_subscription_marker" in main_source
+    assert "LEMON_CHECKOUT_URL" not in main_source
+    assert '"LEMON_VARIANT_ID"' not in main_source
+    assert "_refund_test_order(" not in main_source
     assert "spracuj_odlozene(" not in source
     assert "rekonciluj(" not in source
-    assert "LEMON_TEST_API_KEY" in source
-    assert "LEMON_TEST_CHECKOUT_URL" in source
-    assert "LEMON_TEST_WEBHOOK_SECRET" in source
-    assert "LEMON_TEST_STORE_ID" in source
-    assert "LEMON_TEST_VARIANT_ID" in source
 
 
 def test_invalid_exact_smoke_signature_fails_cleanly_without_traceback():
@@ -752,46 +909,66 @@ def test_authorize_activation_command_writes_a_verified_marker_without_network(
         monkeypatch, tmp_path):
     smoke = _load_smoke_module()
     marker_module = _load_marker_module()
-    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    now = datetime.now(timezone.utc).replace(microsecond=0)
     values = {
         "LEMON_API_KEY": "live-api-key",
-        "LEMON_CHECKOUT_URL": "https://uvarsi.lemonsqueezy.com/checkout/buy/live",
         "LEMON_WEBHOOK_SECRET": "live-webhook-secret",
         "LEMON_STORE_ID": "live-store",
-        "LEMON_VARIANT_ID": "live-variant",
+        "LEMON_SUBSCRIPTION_VARIANT_ID": "live-annual",
+        "LEMON_FOUNDER_DISCOUNT_ID": "live-founder",
+        "LEMON_FOUNDER_DISCOUNT_CODE": "LIVE-CODE",
         "LEMON_TEST_API_KEY": "test-api-key",
-        "LEMON_TEST_CHECKOUT_URL": "https://uvarsi.lemonsqueezy.com/checkout/test",
         "LEMON_TEST_WEBHOOK_SECRET": "test-webhook-secret",
         "LEMON_TEST_STORE_ID": "test-store",
-        "LEMON_TEST_VARIANT_ID": "test-variant",
+        "LEMON_TEST_SUBSCRIPTION_VARIANT_ID": "test-annual",
+        "LEMON_TEST_FOUNDER_DISCOUNT_ID": "test-founder",
+        "LEMON_TEST_FOUNDER_DISCOUNT_CODE": "TEST-CODE",
         "UVARSI_PAYMENT_SMOKE_SIGNING_SECRET": "marker-secret",
     }
-    signed_smoke = marker_module.sign_marker(
-        marker_module.create_marker(
-            release="release-1",
-            live_config_digest=marker_module.live_config_fingerprint(
-                secret=values["UVARSI_PAYMENT_SMOKE_SIGNING_SECRET"],
-                checkout_url=values["LEMON_CHECKOUT_URL"],
-                webhook_secret=values["LEMON_WEBHOOK_SECRET"],
-                store_id=values["LEMON_STORE_ID"],
-                variant_id=values["LEMON_VARIANT_ID"],
-                api_key=values["LEMON_API_KEY"],
-            ),
-            test_config_digest=marker_module.test_config_fingerprint(
-                secret=values["UVARSI_PAYMENT_SMOKE_SIGNING_SECRET"],
-                checkout_url=values["LEMON_TEST_CHECKOUT_URL"],
-                webhook_secret=values["LEMON_TEST_WEBHOOK_SECRET"],
-                store_id=values["LEMON_TEST_STORE_ID"],
-                variant_id=values["LEMON_TEST_VARIANT_ID"],
-                api_key=values["LEMON_TEST_API_KEY"],
-            ),
-            test_store_id=values["LEMON_TEST_STORE_ID"],
-            test_variant_id=values["LEMON_TEST_VARIANT_ID"],
-            completed_at=now,
-            receipt_email_verified=True,
-            test_mode_verified=True,
+    expectation = marker_module.SubscriptionMarkerExpectation(
+        release="release-1",
+        live=marker_module.SubscriptionConfig(
+            values["LEMON_STORE_ID"],
+            values["LEMON_SUBSCRIPTION_VARIANT_ID"],
+            values["LEMON_FOUNDER_DISCOUNT_ID"],
+            values["LEMON_FOUNDER_DISCOUNT_CODE"],
+            values["LEMON_WEBHOOK_SECRET"], values["LEMON_API_KEY"], False,
         ),
-        secret=values["UVARSI_PAYMENT_SMOKE_SIGNING_SECRET"],
+        test=marker_module.SubscriptionConfig(
+            values["LEMON_TEST_STORE_ID"],
+            values["LEMON_TEST_SUBSCRIPTION_VARIANT_ID"],
+            values["LEMON_TEST_FOUNDER_DISCOUNT_ID"],
+            values["LEMON_TEST_FOUNDER_DISCOUNT_CODE"],
+            values["LEMON_TEST_WEBHOOK_SECRET"],
+            values["LEMON_TEST_API_KEY"], True,
+        ),
+        signing_secret=values["UVARSI_PAYMENT_SMOKE_SIGNING_SECRET"],
+    )
+    live_provider = smoke._verified_annual_provider_evidence(
+        values["LEMON_API_KEY"], config=expectation.live,
+        signing_secret=expectation.signing_secret,
+        request=_annual_provider_request(mode="live", code="LIVE-CODE"),
+        evidence_type=marker_module.AnnualProviderEvidence,
+        fingerprint=marker_module.discount_code_fingerprint,
+    )
+    test_provider = smoke._verified_annual_provider_evidence(
+        values["LEMON_TEST_API_KEY"], config=expectation.test,
+        signing_secret=expectation.signing_secret,
+        request=_annual_provider_request(mode="test", code="TEST-CODE"),
+        evidence_type=marker_module.AnnualProviderEvidence,
+        fingerprint=marker_module.discount_code_fingerprint,
+    )
+    subscription, invoices, events = _complete_local_lifecycle_records()
+    lifecycle = smoke._lifecycle_evidence_from_records(
+        subscription=subscription, invoices=invoices, events=events,
+        portal_access_verified=True, unresolved_cases=0,
+        evidence_type=marker_module.SubscriptionLifecycleEvidence,
+    )
+    signed_smoke = smoke._build_annual_subscription_marker(
+        expectation=expectation, live_provider=live_provider,
+        test_provider=test_provider, lifecycle=lifecycle, completed_at=now,
+        create_marker=marker_module.create_subscription_marker,
+        sign_marker=marker_module.sign_marker,
     )
     smoke_path = tmp_path / "payment-smoke.json"
     activation_path = tmp_path / "payment-activation.json"
@@ -807,13 +984,14 @@ def test_authorize_activation_command_writes_a_verified_marker_without_network(
         "_load_runtime",
         lambda _app_dir: (
             Server,
-            object(),
-            object(),
-            marker_module.create_activation_attestation,
-            marker_module.create_marker,
-            marker_module.live_config_fingerprint,
+            marker_module.AnnualProviderEvidence,
+            marker_module.SubscriptionConfig,
+            marker_module.SubscriptionLifecycleEvidence,
+            marker_module.SubscriptionMarkerExpectation,
+            marker_module.create_subscription_activation_attestation,
+            marker_module.create_subscription_marker,
+            marker_module.discount_code_fingerprint,
             marker_module.sign_marker,
-            marker_module.test_config_fingerprint,
         ),
     )
     monkeypatch.setattr(
@@ -833,23 +1011,369 @@ def test_authorize_activation_command_writes_a_verified_marker_without_network(
 
     assert result == 0
     activation = json.loads(activation_path.read_text(encoding="utf-8"))
-    assert marker_module.verify_activation_attestation(
-        activation,
-        secret=values["UVARSI_PAYMENT_SMOKE_SIGNING_SECRET"],
-        release="release-1",
-        checkout_url=values["LEMON_CHECKOUT_URL"],
-        webhook_secret=values["LEMON_WEBHOOK_SECRET"],
-        store_id=values["LEMON_STORE_ID"],
-        variant_id=values["LEMON_VARIANT_ID"],
-        api_key=values["LEMON_API_KEY"],
-        test_checkout_url=values["LEMON_TEST_CHECKOUT_URL"],
-        test_webhook_secret=values["LEMON_TEST_WEBHOOK_SECRET"],
-        test_store_id=values["LEMON_TEST_STORE_ID"],
-        test_variant_id=values["LEMON_TEST_VARIANT_ID"],
-        test_api_key=values["LEMON_TEST_API_KEY"],
+    assert marker_module.valid_subscription_activation_attestation(
+        activation, expectation, now=now,
     ) is True
     serialized = json.dumps(activation)
+    assert values["LEMON_FOUNDER_DISCOUNT_CODE"] not in serialized
+    assert values["LEMON_TEST_FOUNDER_DISCOUNT_CODE"] not in serialized
     assert values["LEMON_TEST_WEBHOOK_SECRET"] not in serialized
     assert values["LEMON_TEST_API_KEY"] not in serialized
     assert values["LEMON_WEBHOOK_SECRET"] not in serialized
     assert values["LEMON_API_KEY"] not in serialized
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"variant_price": 3_900},
+        {"store_currency": "USD"},
+        {"variant_interval": "month"},
+        {"variant_interval_count": 12},
+        {"variant_has_free_trial": True},
+        {"discount_amount": 999},
+        {"discount_amount_type": "percent"},
+        {"discount_duration": "forever"},
+        {"discount_status": "draft"},
+        {"discount_max_redemptions": 51},
+    ],
+)
+def test_annual_provider_tool_rejects_wrong_variant_or_discount_economics(changes):
+    smoke = _load_smoke_module()
+    marker_module = _load_marker_module()
+    expectation = _annual_expectation(marker_module)
+
+    with pytest.raises(smoke.SmokeFailed):
+        smoke._verified_annual_provider_evidence(
+            "test-api",
+            config=expectation.test,
+            signing_secret=expectation.signing_secret,
+            request=_annual_provider_request(
+                mode="test", code="TEST-CODE", changes=changes
+            ),
+            evidence_type=marker_module.AnnualProviderEvidence,
+            fingerprint=marker_module.discount_code_fingerprint,
+        )
+
+
+def test_provider_returned_discount_code_fingerprint_must_match_runtime_code():
+    smoke = _load_smoke_module()
+    marker_module = _load_marker_module()
+    expectation = _annual_expectation(marker_module)
+
+    with pytest.raises(smoke.SmokeFailed, match="zľav"):
+        smoke._verified_annual_provider_evidence(
+            "test-api",
+            config=expectation.test,
+            signing_secret=expectation.signing_secret,
+            request=_annual_provider_request(mode="test", code="WRONG-CODE"),
+            evidence_type=marker_module.AnnualProviderEvidence,
+            fingerprint=marker_module.discount_code_fingerprint,
+        )
+
+
+def test_test_portal_proof_is_provider_bound_and_never_returns_signed_url():
+    smoke = _load_smoke_module()
+    signed_url = "https://app.lemonsqueezy.com/my-orders/abc?signature=secret"
+
+    def request(_api_key, path, **_kwargs):
+        assert path == "/v1/subscriptions/sub-1"
+        return {"data": {
+            "type": "subscriptions",
+            "id": "sub-1",
+            "attributes": {
+                "test_mode": True,
+                "variant_id": "test-annual",
+                "urls": {"customer_portal": signed_url},
+            },
+        }}
+
+    assert smoke._verified_test_portal_access(
+        "test-api", subscription_id="sub-1", variant_id="test-annual",
+        request=request,
+    ) is True
+
+    def hostile_request(*_args, **_kwargs):
+        payload = request(None, "/v1/subscriptions/sub-1")
+        payload["data"]["attributes"]["urls"]["customer_portal"] = (
+            "https://attacker.invalid/portal"
+        )
+        return payload
+
+    with pytest.raises(smoke.SmokeFailed, match="portál"):
+        smoke._verified_test_portal_access(
+            "test-api", subscription_id="sub-1", variant_id="test-annual",
+            request=hostile_request,
+        )
+
+
+def test_local_records_must_prove_the_complete_annual_lifecycle():
+    smoke = _load_smoke_module()
+    marker_module = _load_marker_module()
+    subscription, invoices, events = _complete_local_lifecycle_records()
+
+    lifecycle = smoke._lifecycle_evidence_from_records(
+        subscription=subscription,
+        invoices=invoices,
+        events=events,
+        portal_access_verified=True,
+        unresolved_cases=0,
+        evidence_type=marker_module.SubscriptionLifecycleEvidence,
+    )
+
+    assert lifecycle == marker_module.SubscriptionLifecycleEvidence(
+        initial_charge_cents=3_900,
+        renewal_displayed_cents=4_900,
+        activation_verified=True,
+        renewal_invoice_cents=4_900,
+        failed_payment_verified=True,
+        recovery_verified=True,
+        cancellation_verified=True,
+        access_retained_until_period_end=True,
+        expiration_verified=True,
+        refund_verified=True,
+        portal_access_verified=True,
+        webhook_signature_verified=True,
+        reconciliation_verified=True,
+    )
+
+    incomplete = [
+        event for event in events
+        if event["event_type"] != "subscription_payment_recovered"
+    ]
+    with pytest.raises(smoke.SmokeFailed, match="lifecycle"):
+        smoke._lifecycle_evidence_from_records(
+            subscription=subscription,
+            invoices=invoices,
+            events=incomplete,
+            portal_access_verified=True,
+            unresolved_cases=0,
+            evidence_type=marker_module.SubscriptionLifecycleEvidence,
+        )
+
+    refund_without_refunded_invoice = [dict(invoice) for invoice in invoices]
+    refund_without_refunded_invoice[0].update(
+        status="paid", refunded_amount_cents=0
+    )
+    with pytest.raises(smoke.SmokeFailed, match="lifecycle"):
+        smoke._lifecycle_evidence_from_records(
+            subscription=subscription,
+            invoices=refund_without_refunded_invoice,
+            events=events,
+            portal_access_verified=True,
+            unresolved_cases=0,
+            evidence_type=marker_module.SubscriptionLifecycleEvidence,
+        )
+
+    late_cancellation = [dict(event) for event in events]
+    for event in late_cancellation:
+        if event["event_type"] == "subscription_cancelled":
+            event["processed_at"] = 3_001.0
+    with pytest.raises(smoke.SmokeFailed, match="lifecycle"):
+        smoke._lifecycle_evidence_from_records(
+            subscription=subscription,
+            invoices=invoices,
+            events=late_cancellation,
+            portal_access_verified=True,
+            unresolved_cases=0,
+            evidence_type=marker_module.SubscriptionLifecycleEvidence,
+        )
+
+
+@pytest.mark.parametrize("unresolved", [False, 0.0, "0", None])
+def test_annual_tool_rejects_non_integer_unresolved_count(unresolved):
+    smoke = _load_smoke_module()
+    marker_module = _load_marker_module()
+    subscription, invoices, events = _complete_local_lifecycle_records()
+
+    with pytest.raises(smoke.SmokeFailed, match="nevyriešen"):
+        smoke._lifecycle_evidence_from_records(
+            subscription=subscription,
+            invoices=invoices,
+            events=events,
+            portal_access_verified=True,
+            unresolved_cases=unresolved,
+            evidence_type=marker_module.SubscriptionLifecycleEvidence,
+        )
+
+
+def test_annual_tool_output_passes_marker_verifier_and_readiness_gate():
+    smoke = _load_smoke_module()
+    marker_module = _load_marker_module()
+    expectation = _annual_expectation(marker_module)
+    live_provider = smoke._verified_annual_provider_evidence(
+        "live-api",
+        config=expectation.live,
+        signing_secret=expectation.signing_secret,
+        request=_annual_provider_request(mode="live", code="LIVE-CODE"),
+        evidence_type=marker_module.AnnualProviderEvidence,
+        fingerprint=marker_module.discount_code_fingerprint,
+    )
+    test_provider = smoke._verified_annual_provider_evidence(
+        "test-api",
+        config=expectation.test,
+        signing_secret=expectation.signing_secret,
+        request=_annual_provider_request(mode="test", code="TEST-CODE"),
+        evidence_type=marker_module.AnnualProviderEvidence,
+        fingerprint=marker_module.discount_code_fingerprint,
+    )
+    subscription, invoices, events = _complete_local_lifecycle_records()
+    lifecycle = smoke._lifecycle_evidence_from_records(
+        subscription=subscription,
+        invoices=invoices,
+        events=events,
+        portal_access_verified=True,
+        unresolved_cases=0,
+        evidence_type=marker_module.SubscriptionLifecycleEvidence,
+    )
+    completed = datetime(2026, 9, 13, 10, 0, tzinfo=timezone.utc)
+
+    proof = smoke._build_annual_subscription_marker(
+        expectation=expectation,
+        live_provider=live_provider,
+        test_provider=test_provider,
+        lifecycle=lifecycle,
+        completed_at=completed,
+        create_marker=marker_module.create_subscription_marker,
+        sign_marker=marker_module.sign_marker,
+    )
+    status = marker_module.subscription_marker_status(
+        proof, expectation, now=completed
+    )
+    readiness = assess_payment_readiness(PaymentReadinessInput(
+        operator_errors=(), support_phone_verified=True,
+        legal_version="2026-09-12-v5",
+        founder_promise=(
+            "Prvý rok za 39 €. Potom 49 € ročne. Predplatné sa automaticky "
+            "obnovuje, kým ho nezrušíš. Zrušiť ho môžeš kedykoľvek; Premium "
+            "zostane aktívne do konca zaplateného obdobia."
+        ),
+        release=expectation.release,
+        webhook_secret=expectation.live.webhook_secret,
+        store_id=expectation.live.store_id,
+        variant_id=expectation.live.variant_id,
+        discount_id=expectation.live.discount_id,
+        discount_code=expectation.live.discount_code,
+        api_key=expectation.live.api_key,
+        test_webhook_secret=expectation.test.webhook_secret,
+        test_store_id=expectation.test.store_id,
+        test_variant_id=expectation.test.variant_id,
+        test_discount_id=expectation.test.discount_id,
+        test_discount_code=expectation.test.discount_code,
+        test_api_key=expectation.test.api_key,
+        source_approved=True, receipt_ready=True, private_alerts=True,
+        consumer_workflows=True, subscription_smoke=status,
+        worker_alive=True, recipe_ready=True,
+    ))
+
+    assert readiness.ready is True
+    encoded = json.dumps(proof)
+    assert "LIVE-CODE" not in encoded
+    assert "TEST-CODE" not in encoded
+
+
+def test_annual_main_output_passes_verifier_and_readiness_without_network(
+        monkeypatch, tmp_path):
+    smoke = _load_smoke_module()
+    marker_module = _load_marker_module()
+    expectation = _annual_expectation(marker_module)
+    values = {
+        "LEMON_API_KEY": expectation.live.api_key,
+        "LEMON_STORE_ID": expectation.live.store_id,
+        "LEMON_SUBSCRIPTION_VARIANT_ID": expectation.live.variant_id,
+        "LEMON_FOUNDER_DISCOUNT_ID": expectation.live.discount_id,
+        "LEMON_FOUNDER_DISCOUNT_CODE": expectation.live.discount_code,
+        "LEMON_WEBHOOK_SECRET": expectation.live.webhook_secret,
+        "LEMON_TEST_API_KEY": expectation.test.api_key,
+        "LEMON_TEST_STORE_ID": expectation.test.store_id,
+        "LEMON_TEST_SUBSCRIPTION_VARIANT_ID": expectation.test.variant_id,
+        "LEMON_TEST_FOUNDER_DISCOUNT_ID": expectation.test.discount_id,
+        "LEMON_TEST_FOUNDER_DISCOUNT_CODE": expectation.test.discount_code,
+        "LEMON_TEST_WEBHOOK_SECRET": expectation.test.webhook_secret,
+        "UVARSI_PAYMENT_SMOKE_SIGNING_SECRET": expectation.signing_secret,
+    }
+
+    class Server:
+        @staticmethod
+        def release_id():
+            return expectation.release
+
+    monkeypatch.setattr(smoke, "_load_runtime", lambda _app_dir: (
+        Server,
+        marker_module.AnnualProviderEvidence,
+        marker_module.SubscriptionConfig,
+        marker_module.SubscriptionLifecycleEvidence,
+        marker_module.SubscriptionMarkerExpectation,
+        marker_module.create_subscription_activation_attestation,
+        marker_module.create_subscription_marker,
+        marker_module.discount_code_fingerprint,
+        marker_module.sign_marker,
+    ))
+    monkeypatch.setattr(
+        smoke, "_env_value", lambda name, **_kwargs: values.get(name, "")
+    )
+    monkeypatch.setattr(smoke, "_public_preflight", lambda *_a, **_k: {})
+    verify_provider = smoke._verified_annual_provider_evidence
+
+    def provider(api_key, *, config, signing_secret, evidence_type,
+                 fingerprint):
+        mode = "test" if config.test_mode else "live"
+        return verify_provider(
+            api_key, config=config, signing_secret=signing_secret,
+            request=_annual_provider_request(
+                mode=mode, code=config.discount_code
+            ),
+            evidence_type=evidence_type, fingerprint=fingerprint,
+        )
+
+    monkeypatch.setattr(smoke, "_verified_annual_provider_evidence", provider)
+    monkeypatch.setattr("builtins.input", lambda _prompt: "test@example.test")
+    monkeypatch.setattr(smoke.getpass, "getpass", lambda _prompt: "password")
+    monkeypatch.setattr(smoke, "_authenticated_opener", lambda *_a: object())
+    monkeypatch.setattr(smoke, "_payment_status", lambda *_a: {"ma_narok": False})
+    subscription, invoices, events = _complete_local_lifecycle_records()
+    monkeypatch.setattr(
+        smoke, "_load_annual_lifecycle_records",
+        lambda *_a, **_k: (subscription, invoices, events, 0, "sub-1"),
+    )
+    monkeypatch.setattr(smoke, "_verified_test_portal_access", lambda *_a, **_k: True)
+    marker_path = tmp_path / "annual-smoke.json"
+
+    assert smoke.main(["--marker", str(marker_path)]) == 0
+    proof = json.loads(marker_path.read_text(encoding="utf-8"))
+    status = marker_module.subscription_marker_status(
+        proof, expectation, now=datetime.now(timezone.utc)
+    )
+    readiness = assess_payment_readiness(PaymentReadinessInput(
+        operator_errors=(), support_phone_verified=True,
+        legal_version="2026-09-12-v5",
+        founder_promise=(
+            "Prvý rok za 39 €. Potom 49 € ročne. Predplatné sa automaticky "
+            "obnovuje, kým ho nezrušíš. Zrušiť ho môžeš kedykoľvek; Premium "
+            "zostane aktívne do konca zaplateného obdobia."
+        ),
+        release=expectation.release,
+        webhook_secret=expectation.live.webhook_secret,
+        store_id=expectation.live.store_id,
+        variant_id=expectation.live.variant_id,
+        discount_id=expectation.live.discount_id,
+        discount_code=expectation.live.discount_code,
+        api_key=expectation.live.api_key,
+        test_webhook_secret=expectation.test.webhook_secret,
+        test_store_id=expectation.test.store_id,
+        test_variant_id=expectation.test.variant_id,
+        test_discount_id=expectation.test.discount_id,
+        test_discount_code=expectation.test.discount_code,
+        test_api_key=expectation.test.api_key,
+        source_approved=True, receipt_ready=True, private_alerts=True,
+        consumer_workflows=True, subscription_smoke=status,
+        worker_alive=True, recipe_ready=True,
+    ))
+
+    assert readiness.ready is True
+    encoded = json.dumps(proof)
+    for secret in values.values():
+        if secret not in {expectation.live.store_id, expectation.live.variant_id,
+                          expectation.live.discount_id, expectation.test.store_id,
+                          expectation.test.variant_id, expectation.test.discount_id}:
+            assert secret not in encoded
