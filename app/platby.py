@@ -60,6 +60,8 @@ CENA_PRVY_ROK_CENTY = 3900
 CENA_OBNOVA_CENTY = 4900
 MENA_ZAKLADAJUCI = "EUR"
 INTERVAL_ROK = "year"
+FOUNDER_OFFER_ID = "premium-annual-founder-first-year-v1"
+STANDARD_OFFER_ID = "premium-annual-standard-v1"
 CHECKOUT_ATTEMPT_TTL_SECONDS = 60 * 60
 ANNUAL_CONSENT_FIELDS = (
     "accept_terms",
@@ -257,6 +259,14 @@ class CheckoutAlreadyActive(RuntimeError):
         )
 
 
+class CheckoutPriceChanged(RuntimeError):
+    """The server offer no longer matches the price explicitly accepted by the user."""
+
+    def __init__(self, offer):
+        self.offer = MappingProxyType(dict(offer))
+        super().__init__("Cena sa zmenila. Skontroluj nový súhrn a potvrď ho znova.")
+
+
 class SubscriptionAlreadyExists(RuntimeError):
     """A local annual subscription identity makes a new checkout unsafe."""
 
@@ -420,6 +430,43 @@ def validate_annual_checkout_consent(consent, *, legal_version: str) -> None:
     _annual_consent_json(consent, legal_version=legal_version)
 
 
+def annual_checkout_offer(*, founder: bool) -> dict[str, object]:
+    """Return the one server-owned annual offer a customer may accept now."""
+    if type(founder) is not bool:
+        raise ValueError("neplatný typ ponuky")
+    if founder:
+        return {
+            "offer_id": FOUNDER_OFFER_ID,
+            "founder": True,
+            "amount_cents": CENA_PRVY_ROK_CENTY,
+            "renewal_amount_cents": CENA_OBNOVA_CENTY,
+            "currency": MENA_ZAKLADAJUCI,
+            "billing_interval": INTERVAL_ROK,
+            "auto_renews": True,
+            "title": "Zakladajúce Premium",
+            "price_note": "prvý rok",
+            "summary": (
+                "Prvý rok za 39 €. Potom 49 € ročne. Predplatné sa automaticky "
+                "obnovuje, kým ho nezrušíš."
+            ),
+        }
+    return {
+        "offer_id": STANDARD_OFFER_ID,
+        "founder": False,
+        "amount_cents": CENA_OBNOVA_CENTY,
+        "renewal_amount_cents": CENA_OBNOVA_CENTY,
+        "currency": MENA_ZAKLADAJUCI,
+        "billing_interval": INTERVAL_ROK,
+        "auto_renews": True,
+        "title": "Premium",
+        "price_note": "ročne",
+        "summary": (
+            "49 € ročne. Predplatné sa automaticky obnovuje každý rok, "
+            "kým ho nezrušíš."
+        ),
+    }
+
+
 def founder_places_used(con, *, test_mode: bool = False) -> int:
     """Count successful first founder payments, including ended subscriptions."""
     if type(test_mode) is not bool:
@@ -515,6 +562,13 @@ def create_subscription_checkout_attempt(
             < KAPACITA_ZAKLADAJUCICH
         )
         amount_cents = CENA_PRVY_ROK_CENTY if founder else CENA_OBNOVA_CENTY
+        offer = annual_checkout_offer(founder=founder)
+        if (
+            consent.get("expected_offer_id") != offer["offer_id"]
+            or type(consent.get("expected_amount_cents")) is not int
+            or consent.get("expected_amount_cents") != amount_cents
+        ):
+            raise CheckoutPriceChanged(offer)
         discount_id = founder_discount_id if founder else None
         discount_code = founder_discount_code if founder else None
         reserved_until = expires_at if founder else None
@@ -684,10 +738,10 @@ def create_provider_subscription_checkout(
                 "product_options": {
                     "enabled_variants": [variant_id],
                     "redirect_url": "https://uvar.si/app",
+                    "receipt_link_url": "https://uvar.si/app",
                     "receipt_button_text": "Otvoriť Uvar.si",
                     "receipt_thank_you_note": (
-                        "Platbu sme prijali. Premium sprístupníme po potvrdení "
-                        "platby."
+                        "Premium aktivujeme, keď nám Lemon Squeezy potvrdí platbu."
                     ),
                 },
                 "checkout_options": {

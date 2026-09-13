@@ -158,6 +158,7 @@ from platby import (
     MENA_ZAKLADAJUCI,
     KAPACITA_ZAKLADAJUCICH,
     CheckoutAlreadyActive,
+    CheckoutPriceChanged,
     SubscriptionAlreadyExists,
     MAX_TELO_WEBHOOKU,
     PlatbyNenastavene,
@@ -179,6 +180,7 @@ from platby import (
     create_checkout_attempt,
     create_provider_subscription_checkout,
     create_subscription_checkout_attempt,
+    annual_checkout_offer,
     custom_user_id,
     email_uctu,
     hodnoverny_podpis,
@@ -2856,7 +2858,7 @@ def me(req: Request):
         limit = limit_prepoctov(premium)
         zostava = max(0, limit - pouzite_prepocty(con, u["id"], den))
         payment_status = _runtime_payment_readiness(con)
-        founder_places = volne_miesta(con)
+        founder_places = volne_miesta(con, test_mode=False, now=AUTH_CLOCK())
     # Špajza uspatá koncom Premium sa nezamlčí: appka vie, koľko riadkov leží
     # a prečo do plánu nevstupujú. Ich názvy sem nepatria — obrazovka o platbe
     # nemá zobrazovať údaje, ktoré práve nič neovplyvňujú.
@@ -2875,6 +2877,7 @@ def me(req: Request):
               "zakladajuci_cena_centy": FOUNDER_PRICE_CENTS,
               "zakladajuci_mena": FOUNDER_CURRENCY,
               "zakladajuci_volne_miesta": founder_places,
+              "checkout_offer": annual_checkout_offer(founder=founder_places > 0),
               "stravovanie": effective_diet,
               "stravovanie_ulozene": stored_diet,
               "stravovanie_moznosti": list(ALLOWED_DIET_MODES),
@@ -5702,6 +5705,24 @@ def _consumer_request_rate_limit(user_id: int, *, operation: str, now: float) ->
         raise HTTPException(429, "Priveľa žiadostí. Skús to znova o 10 minút.")
 
 
+def _annual_invoice_offer_summary(
+    delivery: customer_requests.ConfirmationDelivery,
+) -> str:
+    amount = delivery.invoice_amount_cents
+    amount_label = (
+        f"{amount // 100},{amount % 100:02d} €"
+        if type(amount) is int and amount >= 0
+        else "neuvedená suma"
+    )
+    if delivery.invoice_kind == "initial" and amount == 3_900:
+        return "Prvý rok: 39,00 €. Ďalšie obnovenie: 49,00 € ročne."
+    if delivery.invoice_kind == "initial" and amount == 4_900:
+        return "Ročné Premium: 49,00 € za prvý rok aj každé ďalšie obnovenie."
+    if delivery.invoice_kind == "renewal" and amount == 4_900:
+        return "Obnovenie ročného Premium: 49,00 € za ďalší rok."
+    return f"Ročné Premium podľa vybranej faktúry vo výške {amount_label}."
+
+
 def _consumer_request_receipt(delivery: customer_requests.ConfirmationDelivery) -> None:
     received = datetime.datetime.fromtimestamp(
         delivery.created_at, datetime.timezone.utc
@@ -5811,12 +5832,11 @@ def _consumer_request_receipt(delivery: customer_requests.ConfirmationDelivery) 
         amount = delivery.invoice_amount_cents or 0
         amount_label = f"{amount // 100},{amount % 100:02d} €"
         promise = (
-            f"{ANNUAL_PREMIUM_PROMISE} Toto podanie je viazané na presnú "
-            f"faktúru {delivery.invoice_id} vo výške {amount_label}. Pri bežnom "
-            "Premium po skončení zakladajúcej ponuky stojí aj prvý rok 49 €."
+            f"{_annual_invoice_offer_summary(delivery)} Toto podanie je viazané "
+            f"na presnú faktúru {delivery.invoice_id} vo výške {amount_label}."
         )
     else:
-        promise = ANNUAL_PREMIUM_PROMISE
+        promise = f"Ponuka podľa vybranej objednávky {delivery.order_id}."
     merchant = (
         "Lemon Squeezy vystupuje pri nákupe ako obchodník a Merchant of Record; "
         "PUMAR s. r. o. prevádzkuje Uvar.si a poskytuje podporu k službe."
@@ -6071,14 +6091,6 @@ async def _create_consumer_request(req: Request, *, request_type: str):
             order_id = data.get("order_id")
             if invoice_id is not None and order_id is not None:
                 raise ValueError("vyber iba jednu platbu")
-            if invoice_id is None and order_id is None:
-                try:
-                    invoice_id = customer_requests.current_subscription_invoice_id(
-                        con, user_id=user["id"], now=now
-                    )
-                    annual_invoice_selected = True
-                except customer_requests.RequestNotAllowed:
-                    invoice_id = None
             if invoice_id is None and order_id is None:
                 raise ValueError("vyber platbu, ku ktorej podávaš žiadosť")
             if invoice_id is not None:
@@ -6635,6 +6647,14 @@ async def platba_start(req: Request):
                 str(error),
                 "subscription_exists",
                 subscription_status=error.status,
+            )
+        except CheckoutPriceChanged as error:
+            con.rollback()
+            return odmietni(
+                409,
+                str(error),
+                "price_changed",
+                offer=dict(error.offer),
             )
         except CheckoutAlreadyActive as error:
             con.rollback()

@@ -20,6 +20,12 @@ VALID_CONSENT = {
     "request_immediate_activation": True,
     "acknowledge_withdrawal_proration": True,
     "legal_version": LEGAL_VERSION,
+    "expected_offer_id": "premium-annual-founder-first-year-v1",
+    "expected_amount_cents": 3900,
+}
+STANDARD_EXPECTATION = {
+    "expected_offer_id": "premium-annual-standard-v1",
+    "expected_amount_cents": 4900,
 }
 
 
@@ -141,6 +147,7 @@ def _create_attempt(
     now=100.0,
     with_discount=True,
     test_mode=False,
+    expected_founder=True,
 ):
     extra = {}
     if with_discount:
@@ -152,7 +159,11 @@ def _create_attempt(
         db,
         user_id=user_id,
         legal_version=LEGAL_VERSION,
-        consent=dict(VALID_CONSENT),
+        consent=(
+            dict(VALID_CONSENT)
+            if expected_founder
+            else {**VALID_CONSENT, **STANDARD_EXPECTATION}
+        ),
         now=now,
         test_mode=test_mode,
         **extra,
@@ -188,7 +199,9 @@ def test_50th_attempt_is_founder_and_51st_is_regular(db):
     db.commit()
 
     fiftieth = _create_attempt(db, user_id=50, now=100.0)
-    fifty_first = _create_attempt(db, user_id=51, now=100.0)
+    fifty_first = _create_attempt(
+        db, user_id=51, now=100.0, expected_founder=False
+    )
 
     assert fiftieth.founder is True
     assert fiftieth.amount_cents == 3900
@@ -218,7 +231,9 @@ def test_abandoned_founder_reservation_expires_and_frees_the_slot(db):
     db.commit()
     held = _create_attempt(db, user_id=50, now=100.0)
 
-    regular = _create_attempt(db, user_id=51, now=100.0)
+    regular = _create_attempt(
+        db, user_id=51, now=100.0, expected_founder=False
+    )
     after_expiry = _create_attempt(
         db,
         user_id=52,
@@ -428,8 +443,36 @@ def test_founder_reservation_waits_for_the_immediate_writer_before_counting(tmp_
     worker.join(timeout=1)
     setup.close()
 
-    assert "error" not in result
-    assert result["attempt"].founder is False
+    assert "attempt" not in result
+    assert isinstance(result.get("error"), platby.CheckoutPriceChanged)
+    assert result["error"].offer == {
+        "offer_id": "premium-annual-standard-v1",
+        "founder": False,
+        "amount_cents": 4900,
+        "renewal_amount_cents": 4900,
+        "currency": "EUR",
+        "billing_interval": "year",
+        "auto_renews": True,
+        "title": "Premium",
+        "price_note": "ročne",
+        "summary": (
+            "49 € ročne. Predplatné sa automaticky obnovuje každý rok, "
+            "kým ho nezrušíš."
+        ),
+    }
+
+    retry_db = sqlite3.connect(path, timeout=2)
+    retry_db.row_factory = sqlite3.Row
+    try:
+        retry = _create_attempt(
+            retry_db,
+            user_id=51,
+            now=100.0,
+            expected_founder=False,
+        )
+        assert retry.founder is False
+    finally:
+        retry_db.close()
 
 
 def test_subscription_checkout_never_sets_custom_price_and_sends_only_attempt_id(db):
@@ -451,9 +494,10 @@ def test_subscription_checkout_never_sets_custom_price_and_sends_only_attempt_id
     assert attributes["checkout_options"]["skip_trial"] is True
     assert attributes["product_options"]["enabled_variants"] == ["variant-test"]
     assert attributes["product_options"]["redirect_url"] == "https://uvar.si/app"
+    assert attributes["product_options"]["receipt_link_url"] == "https://uvar.si/app"
     assert attributes["product_options"]["receipt_button_text"] == "Otvoriť Uvar.si"
     assert attributes["product_options"]["receipt_thank_you_note"] == (
-        "Platbu sme prijali. Premium sprístupníme po potvrdení platby."
+        "Premium aktivujeme, keď nám Lemon Squeezy potvrdí platbu."
     )
     assert attributes["checkout_data"] == {
         "email": "a@example.sk",
@@ -515,7 +559,9 @@ def test_provider_rejects_immutable_mode_or_discount_mismatch_before_call(
 def test_regular_checkout_has_no_founder_discount(db):
     _insert_verified_founders(db, 50, test_mode=True)
     db.commit()
-    attempt = _create_attempt(db, user_id=60, now=100.0, test_mode=True)
+    attempt = _create_attempt(
+        db, user_id=60, now=100.0, test_mode=True, expected_founder=False
+    )
     provider = FakeCheckoutProvider()
 
     platby.create_provider_subscription_checkout(

@@ -220,6 +220,7 @@ class ConfirmationDelivery:
     attempt: int
     idempotency_key: str
     invoice_id: str | None
+    invoice_kind: str | None
     subscription_status: str | None
     subscription_ends_at: float | None
     invoice_amount_cents: int | None
@@ -1208,6 +1209,7 @@ def claim_confirmation_delivery(
             attempt=attempt,
             idempotency_key=str(row["confirmation_idempotency_key"]),
             invoice_id=row["invoice_id"],
+            invoice_kind=row["invoice_kind"],
             subscription_status=row["subscription_status"],
             subscription_ends_at=(
                 None if row["subscription_ends_at"] is None

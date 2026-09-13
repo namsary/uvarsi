@@ -61,6 +61,17 @@ def declaration(html, signature):
     return match.group(0)
 
 
+def profile_declaration(module, signature):
+    """Vráti jednu funkciu z odsadeného profilového IIFE modulu."""
+    match = re.search(
+        re.escape(signature) + r"\{.*?\}(?=(?:async\s+)?function\s)",
+        module,
+        re.S,
+    )
+    assert match, "profil musí deklarovať " + signature.strip()
+    return match.group(0)
+
+
 def run_node(tmp_path, name, source):
     script = tmp_path / name
     script.write_text(source, encoding="utf-8")
@@ -139,8 +150,6 @@ def test_checkout_screen_shows_the_complete_annual_offer_before_redirecting():
     checkout = declaration(html, "function vCheckout() ")
 
     for text in (
-        "Zakladajúce Premium",
-        "39 €",
         "49 € ročne",
         "automaticky obnovuje",
         "do konca zaplateného obdobia",
@@ -148,6 +157,11 @@ def test_checkout_screen_shows_the_complete_annual_offer_before_redirecting():
         "Objednať Premium s povinnosťou platby",
     ):
         assert text.casefold() in checkout.casefold()
+    assert "offer.title" in checkout
+    assert "offer.amount_cents" in checkout
+    assert "offer.summary" in checkout
+    assert "premium-annual-founder-first-year-v1" in checkout
+    assert "premium-annual-standard-v1" in checkout
     for feature in ("špajz", "obchod", "vegetari", "vegán", "bielkov"):
         assert feature in checkout.casefold()
     assert "zakladajuci_volne_miesta" in checkout
@@ -176,6 +190,194 @@ def test_checkout_requires_four_explicit_consents_and_posts_their_version():
     assert "JSON.stringify" in checkout
     assert "/api/platba/start" in checkout
     assert "marketing" not in checkout.casefold()
+
+
+@needs_node
+def test_zero_founder_slots_render_only_the_server_standard_offer(tmp_path):
+    checkout = declaration(app_html(), "function vCheckout() ")
+    result = run_node(
+        tmp_path,
+        "standard-checkout-offer.js",
+        """
+var ME={platby_zapnute:true,platby_pripravene:true,pravna_verzia:'2026-09-12-v5',
+  zakladajuci_volne_miesta:0,checkout_offer:{offer_id:'premium-annual-standard-v1',
+  founder:false,amount_cents:4900,renewal_amount_cents:4900,currency:'EUR',
+  billing_interval:'year',auto_renews:true,title:'Premium',price_note:'ročne',
+  summary:'49 € ročne. Predplatné sa automaticky obnovuje každý rok, kým ho nezrušíš.'}};
+var nodes={}, checks=[], html='';
+var M={querySelectorAll:function(){return checks;}};
+Object.defineProperty(M,'innerHTML',{get:function(){return html;},set:function(value){
+  html=value; checks=[]; for(var i=0;i<4;i++) checks.push({checked:false,onchange:null});
+  nodes={'#checkout-pay':{disabled:true,textContent:'pay'},'#checkout-back':{},
+    '#checkout-err':{textContent:''}};
+}});
+function $(selector){return nodes[selector];}
+function esc(value){return String(value);}
+function runGuardedAction(){throw new Error('checkout must not start while rendering');}
+function api(){throw new Error('checkout must not start while rendering');}
+function vSpajzaZamknuta(){throw new Error('valid server offer was rejected');}
+var location={href:'unchanged'};
+"""
+        + checkout
+        + """
+vCheckout();
+if(html.indexOf('49 €')<0) throw new Error('standard price missing');
+if(html.indexOf('39 €')>=0) throw new Error('stale founder price rendered');
+if(html.indexOf('Zakladajúce Premium')>=0) throw new Error('stale founder title rendered');
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
+def test_price_change_rerenders_summary_and_requires_fresh_consent(tmp_path):
+    html = app_html()
+    functions = "\n".join(
+        declaration(html, signature)
+        for signature in (
+            "async function runGuardedAction(button, errorNode, action) ",
+            "function vCheckout() ",
+        )
+    )
+    result = run_node(
+        tmp_path,
+        "checkout-price-change.js",
+        """
+var founder={offer_id:'premium-annual-founder-first-year-v1',founder:true,
+  amount_cents:3900,renewal_amount_cents:4900,currency:'EUR',billing_interval:'year',
+  auto_renews:true,title:'Zakladajúce Premium',price_note:'prvý rok',
+  summary:'Prvý rok za 39 €. Potom 49 € ročne.'};
+var standard={offer_id:'premium-annual-standard-v1',founder:false,
+  amount_cents:4900,renewal_amount_cents:4900,currency:'EUR',billing_interval:'year',
+  auto_renews:true,title:'Premium',price_note:'ročne',
+  summary:'49 € ročne. Predplatné sa automaticky obnovuje každý rok, kým ho nezrušíš.'};
+var ME={platby_zapnute:true,platby_pripravene:true,pravna_verzia:'2026-09-12-v5',
+  zakladajuci_volne_miesta:1,checkout_offer:founder};
+var nodes={},checks=[],rendered='';
+var M={querySelectorAll:function(){return checks;}};
+Object.defineProperty(M,'innerHTML',{get:function(){return rendered;},set:function(value){
+  rendered=value; checks=[]; for(var i=0;i<4;i++) checks.push({checked:false,onchange:null});
+  nodes={'#checkout-pay':{disabled:true,textContent:'Objednať'},'#checkout-back':{},
+    '#checkout-err':{textContent:''}};
+}});
+function $(selector){return nodes[selector];}
+function esc(value){return String(value);}
+function vSpajzaZamknuta(){throw new Error('valid checkout offer was rejected');}
+var location={href:'unchanged'};
+var apiCalls=[];
+function api(url,options){
+  apiCalls.push(JSON.parse(options.body));
+  var failure=new Error('Cena sa zmenila.'); failure.code='price_changed';
+  failure.offer=standard; return Promise.reject(failure);
+}
+"""
+        + functions
+        + """
+(async function(){
+  vCheckout();
+  checks.forEach(function(item){item.checked=true; item.onchange();});
+  await nodes['#checkout-pay'].onclick();
+  if(location.href!=='unchanged') throw new Error('navigated after price change');
+  if(rendered.indexOf('49 €')<0 || rendered.indexOf('39 €')>=0)
+    throw new Error('server standard summary did not replace founder offer');
+  if(!nodes['#checkout-pay'].disabled || checks.some(function(item){return item.checked;}))
+    throw new Error('fresh explicit consent was not required');
+  if(ME.checkout_offer.offer_id!==standard.offer_id) throw new Error('offer was not refreshed');
+  if(apiCalls.length!==1 || apiCalls[0].expected_offer_id!==founder.offer_id ||
+      apiCalls[0].expected_amount_cents!==3900) throw new Error('price handshake missing');
+})().catch(function(error){console.error(error.stack||error);process.exit(1);});
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
+def test_api_error_preserves_only_the_server_price_change_offer(tmp_path):
+    reader = declaration(app_html(), "async function readApiResponse(r) ")
+    result = run_node(
+        tmp_path,
+        "price-change-response.js",
+        """
+var offer={offer_id:'premium-annual-standard-v1',amount_cents:4900};
+var response={ok:false,status:409,json:function(){return Promise.resolve({
+  detail:'Cena sa zmenila.',kod:'price_changed',offer:offer});}};
+function handleApiUnauthorized(){return false;}
+function apiErrorMessage(status,payload){return payload.detail;}
+"""
+        + reader
+        + """
+(async function(){
+  try { await readApiResponse(response); }
+  catch(error){
+    if(error.code!=='price_changed' || error.offer!==offer)
+      throw new Error('server offer was lost');
+    return;
+  }
+  throw new Error('error response resolved');
+})().catch(function(error){console.error(error.stack||error);process.exit(1);});
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
+def test_customer_service_shows_all_invoices_and_requires_explicit_selection(tmp_path):
+    _asset, _path, module = subscription_asset()
+    functions = "\n".join(
+        profile_declaration(module, signature)
+        for signature in (
+            "function d(epoch)",
+            "function a(cents)",
+            "function st(status)",
+            "function service(data)",
+        )
+    )
+    result = run_node(
+        tmp_path,
+        "invoice-selection.js",
+        """
+var ME={email:'owner@example.test'};
+function esc(value){return String(value);}
+"""
+        + functions
+        + """
+var page=service({orders:[],requests:[],invoices:[
+  {invoice_id:'inv_initial',invoice_kind:'initial',amount_cents:3900,paid_at:1},
+  {invoice_id:'inv_renewal',invoice_kind:'renewal',amount_cents:4900,paid_at:2}
+]});
+var withdrawal=page.split('<form id="withdrawal-form"')[1].split('</form>')[0];
+var complaint=page.split('<form id="complaint-form"')[1].split('</form>')[0];
+if((page.match(/inv_initial/g)||[]).length<2 || (page.match(/inv_renewal/g)||[]).length<2)
+  throw new Error('all owner invoices are not shown');
+if(withdrawal.indexOf('id="withdrawal-invoice"')<0 ||
+   withdrawal.indexOf('inv_initial')<0 || withdrawal.indexOf('inv_renewal')>=0)
+  throw new Error('withdrawal is not bound to an explicit initial invoice');
+if(complaint.indexOf('id="complaint-invoice"')<0 ||
+   complaint.indexOf('inv_initial')<0 || complaint.indexOf('inv_renewal')<0)
+  throw new Error('complaint cannot select a concrete invoice');
+if(complaint.indexOf('id="complaint-reason"')<0 ||
+   complaint.indexOf('duplicate_charge')<0 || complaint.indexOf('unauthorized_charge')<0)
+  throw new Error('payment remedy selection is missing');
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_customer_service_does_not_claim_that_submitting_cancels_renewal():
+    _asset, _path, module = subscription_asset()
+    renderer = profile_declaration(module, "function service(data)")
+    handler = module.split("async function loadService()", 1)[1]
+
+    assert "zastavíme iba budúcu obnovu" not in renderer
+    assert "Customer Portal" in renderer
+    assert "cez podporu" in renderer
+    assert "withdrawal-invoice" in handler
+    assert "complaint-invoice" in handler
+    assert "complaint-reason" in handler
 
 
 def test_payment_button_opens_summary_instead_of_starting_checkout_immediately():

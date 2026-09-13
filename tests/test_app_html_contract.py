@@ -29,13 +29,17 @@ def subscription_profile_source():
     return Path("app/static", match.group(1)).read_text(encoding="utf-8")
 
 
-def test_checkout_uses_the_exact_annual_promise_without_stale_wording():
+def test_checkout_uses_the_server_owned_annual_offer_without_stale_wording():
     page = app_html()
     checkout = page.split("function vCheckout()", 1)[1].split(
         "function vSpajzaZamknuta()", 1
     )[0]
 
-    assert ANNUAL_PREMIUM_PROMISE in checkout
+    assert "offer.summary" in checkout
+    assert "premium-annual-founder-first-year-v1" in checkout
+    assert "premium-annual-standard-v1" in checkout
+    assert "expected_offer_id:offer.offer_id" in checkout
+    assert "expected_amount_cents:offer.amount_cents" in checkout
     for stale in ("39 € raz", "24 mesiacov", "bez automatickej obnovy", "navždy"):
         assert stale not in checkout.casefold()
 

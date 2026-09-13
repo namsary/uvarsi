@@ -412,6 +412,8 @@ async function readApiResponse(r) {
     failure.status = r.status;
     const serverCode = payload && (payload.kod || payload.code);
     failure.code = typeof serverCode === 'string' ? serverCode.slice(0,100) : '';
+    if (failure.code === 'price_changed' && payload && payload.offer &&
+        typeof payload.offer === 'object') failure.offer = payload.offer;
     failure.suggestions = (Array.isArray(payload?.navrhy) ? payload.navrhy : []).map(item => item.text);
     if (payload && typeof payload.retry_allowed === 'boolean')
       failure.retry_allowed = payload.retry_allowed;
@@ -1695,18 +1697,28 @@ function vZoznam() {
 
 function vCheckout() {
   if (!(ME && ME.platby_zapnute && ME.platby_pripravene)) return vSpajzaZamknuta();
+  const offer = ME.checkout_offer;
+  const founder = !!(offer && offer.offer_id === 'premium-annual-founder-first-year-v1' &&
+    offer.founder === true && offer.amount_cents === 3900 &&
+    offer.renewal_amount_cents === 4900 && offer.currency === 'EUR' &&
+    offer.billing_interval === 'year' && offer.auto_renews === true);
+  const standard = !!(offer && offer.offer_id === 'premium-annual-standard-v1' &&
+    offer.founder === false && offer.amount_cents === 4900 &&
+    offer.renewal_amount_cents === 4900 && offer.currency === 'EUR' &&
+    offer.billing_interval === 'year' && offer.auto_renews === true);
+  if (!founder && !standard) return vSpajzaZamknuta();
   const zostava = Math.max(0, Math.min(50,
     Math.floor(Number(ME.zakladajuci_volne_miesta) || 0)));
   M.innerHTML = `<div style="margin:18px 0 6px">
-    <span class="eyebrow">Objednávka · zakladajúca ponuka</span>
+    <span class="eyebrow">Objednávka · ${founder ? 'zakladajúca ponuka' : 'ročné Premium'}</span>
     <h1 class="display" style="font-size:1.65rem;margin:10px 0 8px">Skontroluj si objednávku</h1>
     <p class="muted">Do zabezpečenej pokladne prejdeš až po potvrdení údajov nižšie.</p>
   </div>
   <div class="card">
-    <div class="checkout-head"><div><h2 class="display" style="font-size:1.25rem">Zakladajúce Premium</h2>
-      <p class="muted" style="margin-top:5px">Ročné predplatné · prvý rok so zľavou</p></div>
-      <div class="checkout-price">39 €<small>prvý rok</small></div></div>
-    <p><b>Prvý rok za 39 €. Potom 49 € ročne. Predplatné sa automaticky obnovuje, kým ho nezrušíš. Zrušiť ho môžeš kedykoľvek; Premium zostane aktívne do konca zaplateného obdobia.</b></p>
+    <div class="checkout-head"><div><h2 class="display" style="font-size:1.25rem">${esc(offer.title)}</h2>
+      <p class="muted" style="margin-top:5px">Ročné predplatné${founder ? ' · prvý rok so zľavou' : ''}</p></div>
+      <div class="checkout-price">${offer.amount_cents / 100} €<small>${esc(offer.price_note)}</small></div></div>
+    <p><b>${esc(offer.summary)} Zrušiť ho môžeš kedykoľvek; Premium zostane aktívne do konca zaplateného obdobia.</b></p>
     <ul class="checkout-list">
       <li>Špajza, ktorá odráta to, čo už máš doma</li>
       <li>Porovnanie všetkých podporovaných obchodov</li>
@@ -1716,10 +1728,11 @@ function vCheckout() {
     <div class="checkout-assurance"><b>Odstúpenie do 14 dní.</b> Pri okamžitej aktivácii môže poskytovateľ od vrátenej sumy odpočítať pomernú časť za už poskytnuté obdobie. Podrobnosti sú v <a href="/odstupenie" target="_blank" rel="noopener">poučení o odstúpení</a>.</div>
     <p class="muted" style="margin-top:14px">Lemon Squeezy je v pokladni Merchant of Record a predávajúci pre platobnú transakciu. PUMAR s. r. o. je prevádzkovateľ Uvar.si a kontakt pre podporu produktu.</p>
     <p class="muted" style="margin-top:8px">Ak platba prebehne, ale Premium sa nesprístupní, po spárovaní objednávky ho ručne aktivujeme alebo zabezpečíme úplné vrátenie platby. Nemusíš zaplatiť znova.</p>
-    <p class="muted" style="margin-top:14px">Voľných je ${zostava} z 50 zakladajúcich miest. Po úspešnej platbe sa Premium sprístupní po potvrdení platby.</p>
+    ${founder ? `<p class="muted" style="margin-top:14px">Voľných je ${zostava} z 50 zakladajúcich miest.</p>` : ''}
+    <p class="muted" style="margin-top:14px">Premium aktivujeme, keď nám Lemon Squeezy potvrdí platbu.</p>
     <p class="muted" style="margin-top:14px">Obnovu zrušíš v Profile cez <b>Spravovať predplatné</b>. Ďalšia platba potom nevznikne.</p>
     <label class="consent-row" for="checkout-terms"><input id="checkout-terms" data-checkout-consent type="checkbox"><span>Súhlasím s <a href="/vop" target="_blank" rel="noopener">VOP</a> a oboznámil/a som sa s <a href="/ochrana-osobnych-udajov" target="_blank" rel="noopener">ochranou osobných údajov</a>.</span></label>
-    <label class="consent-row" for="checkout-renewal"><input id="checkout-renewal" data-checkout-consent type="checkbox"><span>Súhlasím, že po prvom roku sa predplatné automaticky obnoví za 49 € ročne, kým ho nezruším.</span></label>
+    <label class="consent-row" for="checkout-renewal"><input id="checkout-renewal" data-checkout-consent type="checkbox"><span>Súhlasím, že ${founder ? 'po prvom roku sa predplatné' : 'predplatné sa'} automaticky obnovuje za 49 € ročne, kým ho nezruším.</span></label>
     <label class="consent-row" for="checkout-immediate"><input id="checkout-immediate" data-checkout-consent type="checkbox"><span>Výslovne žiadam o okamžitú aktiváciu Premium po potvrdení platby, teda ešte pred uplynutím 14 dní.</span></label>
     <label class="consent-row" for="checkout-proration"><input id="checkout-proration" data-checkout-consent type="checkbox"><span>Rozumiem, že pri odstúpení do 14 dní môžem uhradiť pomernú časť ceny za už poskytnuté obdobie.</span></label>
     <button class="btn" id="checkout-pay" disabled>Objednať Premium s povinnosťou platby</button>
@@ -1733,8 +1746,16 @@ function vCheckout() {
   });
   $('#checkout-back').onclick = vSpajzaZamknuta;
   pay.onclick = () => runGuardedAction(pay, $('#checkout-err'), async () => {
-    const platba = await api('/api/platba/start', {method:'POST', body:JSON.stringify({accept_terms:true,accept_automatic_renewal:true,request_immediate_activation:true,acknowledge_withdrawal_proration:true,legal_version:ME.pravna_verzia})});
-    location.href = platba.url;
+    try {
+      const platba = await api('/api/platba/start', {method:'POST', body:JSON.stringify({accept_terms:true,accept_automatic_renewal:true,request_immediate_activation:true,acknowledge_withdrawal_proration:true,legal_version:ME.pravna_verzia,expected_offer_id:offer.offer_id,expected_amount_cents:offer.amount_cents})});
+      location.href = platba.url;
+    } catch (error) {
+      if (!(error && error.code === 'price_changed' && error.offer)) throw error;
+      ME.checkout_offer = error.offer;
+      vCheckout();
+      const status = $('#checkout-err');
+      if (status) status.textContent = 'Cena sa zmenila. Skontroluj nový súhrn a potvrď ho znova.';
+    }
   });
 }
 
@@ -2009,7 +2030,7 @@ async function loadAccountSecurity(notice, focusTarget) {
   return true;
 }
 
-const SUBSCRIPTION_ASSET=Object.freeze({url:'/static/subscription-profile.6805efa9d12e.js',integrity:'sha384-hXw53ZXb8fvlIUhqa1+5R//NRYPyIcXXaAi8BPcqecc7wsVO4Eg2R0lsukHe+CRd'});
+const SUBSCRIPTION_ASSET=Object.freeze({url:'/static/subscription-profile.19ddd6feb9d0.js',integrity:'sha384-DSgloEnJ5TtADKx65+HpPDanSeDa0yy5ZfEbk1jHD5i7eMnFr54ytHjqPkSno6Lt'});
 let SUBSCRIPTION_MODULE_PROMISE;
 async function loadProfilePayments() {
   const subscription = $('#subscription-management');

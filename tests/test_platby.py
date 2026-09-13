@@ -46,6 +46,13 @@ CONSENT = {
     "request_immediate_activation": True,
     "acknowledge_withdrawal_proration": True,
     "legal_version": CURRENT_LEGAL_VERSION,
+    "expected_offer_id": "premium-annual-founder-first-year-v1",
+    "expected_amount_cents": 3900,
+}
+STANDARD_CONSENT = {
+    **CONSENT,
+    "expected_offer_id": "premium-annual-standard-v1",
+    "expected_amount_cents": 4900,
 }
 SMOKE_NOW = datetime(2026, 9, 11, 12, 0, tzinfo=timezone.utc)
 
@@ -718,7 +725,9 @@ def test_start_po_50_zakladateloch_vytvori_bezny_checkout_za_49(
     vytvor_pouzivatela(server, user_id=999, email="neskoro@uvar.si")
     naplnit_predplatene_zakladajuce_miesta(server, 50)
 
-    response = prihlaseny(server).post("/api/platba/start", json=CONSENT)
+    response = prihlaseny(server).post(
+        "/api/platba/start", json=STANDARD_CONSENT
+    )
 
     assert response.status_code == 200
     assert response.json()["founder"] is False
@@ -727,6 +736,78 @@ def test_start_po_50_zakladateloch_vytvori_bezny_checkout_za_49(
         "data"
     ]["attributes"]["checkout_data"]
     assert "discount_code" not in checkout_data
+
+
+def test_stale_founder_price_never_returns_a_payable_standard_checkout(
+    monkeypatch, tmp_path
+):
+    server = zapnute_platby(monkeypatch, tmp_path)
+    vytvor_pouzivatela(server, user_id=999, email="neskoro@uvar.si")
+    naplnit_predplatene_zakladajuce_miesta(server, 50)
+    client = prihlaseny(server)
+
+    changed = client.post("/api/platba/start", json=CONSENT)
+
+    assert changed.status_code == 409
+    body = changed.json()
+    assert body["kod"] == "price_changed"
+    assert "url" not in body
+    assert body["offer"] == {
+        "offer_id": "premium-annual-standard-v1",
+        "founder": False,
+        "amount_cents": 4900,
+        "renewal_amount_cents": 4900,
+        "currency": "EUR",
+        "billing_interval": "year",
+        "auto_renews": True,
+        "title": "Premium",
+        "price_note": "ročne",
+        "summary": (
+            "49 € ročne. Predplatné sa automaticky obnovuje každý rok, "
+            "kým ho nezrušíš."
+        ),
+    }
+    assert server._fake_subscription_checkout_provider.call_count == 0
+    with closing(server.db()) as con:
+        assert con.execute("SELECT COUNT(*) FROM checkout_attempts").fetchone()[0] == 0
+
+    retried = client.post("/api/platba/start", json=STANDARD_CONSENT)
+
+    assert retried.status_code == 200
+    assert retried.json()["amount_cents"] == 4900
+    assert server._fake_subscription_checkout_provider.call_count == 1
+
+
+def test_tampered_expected_price_gets_current_offer_without_checkout(
+    monkeypatch, tmp_path
+):
+    server = zapnute_platby(monkeypatch, tmp_path)
+    vytvor_pouzivatela(server, user_id=7, email="clen@uvar.si")
+
+    response = prihlaseny(server).post(
+        "/api/platba/start",
+        json={**CONSENT, "expected_amount_cents": 1},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["kod"] == "price_changed"
+    assert response.json()["offer"]["amount_cents"] == 3900
+    assert "url" not in response.json()
+    assert server._fake_subscription_checkout_provider.call_count == 0
+    with closing(server.db()) as con:
+        assert con.execute("SELECT COUNT(*) FROM checkout_attempts").fetchone()[0] == 0
+
+
+def test_me_exposes_standard_offer_when_founder_capacity_is_zero(monkeypatch, tmp_path):
+    server = zapnute_platby(monkeypatch, tmp_path)
+    vytvor_pouzivatela(server, user_id=999, email="neskoro@uvar.si")
+    naplnit_predplatene_zakladajuce_miesta(server, 50)
+
+    offer = prihlaseny(server).get("/api/me").json()["checkout_offer"]
+
+    assert offer["offer_id"] == "premium-annual-standard-v1"
+    assert offer["amount_cents"] == 4900
+    assert "39 €" not in offer["summary"]
 
 
 def test_start_je_503_ked_chyba_konfiguracia_rocnej_pokladne(

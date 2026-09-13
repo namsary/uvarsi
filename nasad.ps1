@@ -376,7 +376,7 @@ uvar.si {
 		header Cache-Control "public, max-age=31536000, immutable"
 		reverse_proxy 127.0.0.1:8090
 	}
-	handle /static/subscription-profile.6805efa9d12e.js {
+	handle /static/subscription-profile.19ddd6feb9d0.js {
 		header Cache-Control "public, max-age=31536000, immutable"
 		reverse_proxy 127.0.0.1:8090
 	}

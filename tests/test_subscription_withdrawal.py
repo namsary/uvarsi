@@ -29,6 +29,8 @@ VALID_CONSENT = {
     "request_immediate_activation": True,
     "acknowledge_withdrawal_proration": True,
     "legal_version": LEGAL_VERSION,
+    "expected_offer_id": "premium-annual-founder-first-year-v1",
+    "expected_amount_cents": 3900,
 }
 BRATISLAVA = ZoneInfo("Europe/Bratislava")
 
@@ -971,7 +973,7 @@ def test_flags_off_route_records_statutory_preview_without_provider_or_ai(
     assert "customer_annual_1" not in json.dumps(body)
 
 
-def test_route_selects_the_current_renewal_invoice_when_client_sends_no_id(
+def test_annual_request_requires_the_user_to_select_a_concrete_invoice(
     monkeypatch, tmp_path
 ):
     server = _subscription_server(
@@ -999,15 +1001,10 @@ def test_route_selects_the_current_renewal_invoice_when_client_sends_no_id(
         headers={"Origin": "https://uvar.si"},
     )
 
-    assert response.status_code == 202
-    assert response.json()["invoice_id"] == "inv_renewal"
-    assert response.json()["refund_scope"] == customer_requests.REFUND_CANCEL_AT_PERIOD_END
-    assert response.json()["refund_preview_cents"] == 0
+    assert response.status_code == 422
+    assert response.json()["detail"] == "vyber platbu, ku ktorej podávaš žiadosť"
     with closing(server.db()) as con:
-        row = con.execute(
-            "SELECT invoice_id,period_start,period_end FROM consumer_requests"
-        ).fetchone()
-    assert tuple(row) == ("inv_renewal", P0_END, P1_END)
+        assert con.execute("SELECT COUNT(*) FROM consumer_requests").fetchone()[0] == 0
 
 
 def test_late_change_of_mind_records_action_needed_without_claiming_cancellation(
@@ -1312,6 +1309,95 @@ def test_late_change_of_mind_receipt_says_provider_action_is_still_required(
     assert "ešte nezrušili ani nezmenili" in receipt
     assert "Customer Portal" in receipt
     assert "do konca zaplateného obdobia" in receipt
+
+
+@pytest.mark.parametrize(
+    ("invoice_id", "invoice_kind", "amount_cents", "founder", "expected", "forbidden"),
+    (
+        (
+            "inv_initial",
+            "initial",
+            3_900,
+            1,
+            "Prvý rok: 39,00 €. Ďalšie obnovenie: 49,00 € ročne.",
+            "49,00 € za prvý rok aj každé ďalšie obnovenie",
+        ),
+        (
+            "inv_initial",
+            "initial",
+            4_900,
+            0,
+            "Ročné Premium: 49,00 € za prvý rok aj každé ďalšie obnovenie.",
+            "Prvý rok: 39,00 €",
+        ),
+        (
+            "inv_renewal",
+            "renewal",
+            4_900,
+            1,
+            "Obnovenie ročného Premium: 49,00 € za ďalší rok.",
+            "Prvý rok: 39,00 €",
+        ),
+    ),
+)
+def test_receipt_uses_the_selected_immutable_invoice_offer(
+    monkeypatch,
+    tmp_path,
+    invoice_id,
+    invoice_kind,
+    amount_cents,
+    founder,
+    expected,
+    forbidden,
+):
+    server = _subscription_server(
+        monkeypatch,
+        tmp_path,
+        now=P0_END + DAY if invoice_kind == "renewal" else P0_START + DAY,
+        current_start=P0_END if invoice_kind == "renewal" else P0_START,
+        current_end=P1_END if invoice_kind == "renewal" else P0_END,
+    )
+    with closing(server.db()) as con:
+        if invoice_kind == "renewal":
+            _seed_invoice(con)
+            _seed_invoice(
+                con,
+                invoice_id=invoice_id,
+                invoice_kind="renewal",
+                amount_cents=amount_cents,
+                period_start=P0_END,
+                period_end=P1_END,
+                paid_at=P0_END,
+            )
+        else:
+            _seed_invoice(con, amount_cents=amount_cents)
+        con.execute(
+            "UPDATE subscriptions SET founder=?,initial_amount_cents=? WHERE user_id=1",
+            (founder, amount_cents if invoice_kind == "initial" else 3_900),
+        )
+        con.commit()
+    sent = []
+    monkeypatch.setattr(
+        server,
+        "posli_mail",
+        lambda komu, predmet, telo, html, **kw: sent.append(telo),
+    )
+
+    response = prihlaseny(server).post(
+        "/api/consumer/complaint",
+        json={
+            "invoice_id": invoice_id,
+            "reason": customer_requests.REMEDY_DEFECT,
+            "message": "Prosím o preverenie.",
+        },
+        headers={"Origin": "https://uvar.si"},
+    )
+
+    assert response.status_code == 202
+    assert len(sent) == 1
+    assert f"Faktúra: {invoice_id}" in sent[0]
+    assert expected in sent[0]
+    assert forbidden not in sent[0]
 
 
 @pytest.mark.parametrize(

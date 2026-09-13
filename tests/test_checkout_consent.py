@@ -93,6 +93,8 @@ def test_annual_checkout_persists_the_complete_consent_before_provider_work(con)
         "request_immediate_activation": True,
         "acknowledge_withdrawal_proration": True,
         "legal_version": LEGAL_VERSION,
+        "expected_offer_id": "premium-annual-founder-first-year-v1",
+        "expected_amount_cents": 3900,
     }
 
     attempt = annual_platby.create_subscription_checkout_attempt(
@@ -127,6 +129,8 @@ def test_annual_checkout_rejects_incomplete_or_implicit_consent(con, missing):
         "request_immediate_activation": True,
         "acknowledge_withdrawal_proration": True,
         "legal_version": LEGAL_VERSION,
+        "expected_offer_id": "premium-annual-founder-first-year-v1",
+        "expected_amount_cents": 3900,
     }
     consent[missing] = 1 if missing == "accept_terms" else False
 
