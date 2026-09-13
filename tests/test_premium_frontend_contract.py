@@ -10,6 +10,7 @@ Majiteľ chce tri veci naraz a všetky tri sa dajú overiť zo súboru:
 Testy sú čisto v Pythone (prípadne cez node), aby bežali aj na Linuxe — na
 rozdiel od tests/test_app_html_contract.py, ktorý potrebuje cscript.exe.
 """
+import json
 import re
 import shutil
 import subprocess
@@ -47,7 +48,9 @@ def declaration(html, signature):
 def run_node(tmp_path, name, source):
     script = tmp_path / name
     script.write_text(source, encoding="utf-8")
-    return subprocess.run([NODE, str(script)], capture_output=True, text=True)
+    return subprocess.run(
+        [NODE, str(script)], capture_output=True, text=True, encoding="utf-8"
+    )
 
 
 # ------------------------------------------------------------ zamknutá špajza
@@ -183,6 +186,213 @@ def test_premium_is_taken_from_the_server_answer_and_never_from_the_client():
             "o nároku rozhoduje server"
         )
     assert "localStorage" not in declaration(html, "function vSpajzaZamknuta() ")
+
+
+# ----------------------------------------------------- správa predplatného
+@needs_node
+def test_profile_renders_server_owned_subscription_states_and_one_action(tmp_path):
+    html = app_html()
+    functions = "\n".join(
+        declaration(html, signature)
+        for signature in (
+            "function serviceDate(epoch) ",
+            "function subscriptionAmount(cents) ",
+            "function subscriptionManagementHtml(data, state) ",
+        )
+    )
+    result = run_node(
+        tmp_path,
+        "subscription-status-contract.js",
+        functions
+        + """
+const renewal = 1800000000;
+const end = 1790000000;
+const common = {ma_narok:true,can_manage:true,next_amount_cents:4900,
+  renews_at:renewal,ends_at:end};
+const states = {
+  active:subscriptionManagementHtml({...common,status:'active'}),
+  cancelled:subscriptionManagementHtml({...common,status:'cancelled',renews_at:null,auto_renews:false}),
+  past_due:subscriptionManagementHtml({...common,status:'past_due'}),
+  unpaid:subscriptionManagementHtml({...common,status:'unpaid',ma_narok:false}),
+  expired:subscriptionManagementHtml({...common,status:'expired',ma_narok:false}),
+  manual:subscriptionManagementHtml({ma_narok:true,can_manage:false,status:null}),
+  free:subscriptionManagementHtml({ma_narok:false,can_manage:false,status:null}),
+  missingAmount:subscriptionManagementHtml({...common,status:'active',next_amount_cents:null}),
+  hidden:subscriptionManagementHtml({...common,status:'active',url:'SIGNED_URL_MUST_NOT_RENDER'})
+};
+console.log(JSON.stringify(states));
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    states = json.loads(result.stdout)
+    assert "Aktívne" in states["active"]
+    assert "Ďalšia ročná platba" in states["active"]
+    assert "Dátum obnovy" in states["active"]
+    assert "49 €" in states["active"]
+    assert "Obnovenie je zrušené" in states["cancelled"]
+    assert "Prístup do" in states["cancelled"]
+    assert "Ďalšia ročná platba" not in states["cancelled"]
+    assert "Premium ostáva aktívne" in states["past_due"]
+    assert "pozastavené" in states["unpaid"]
+    assert "skončilo" in states["expired"]
+    assert "nemá predplatné" in states["manual"]
+    assert "Nemáš aktívne predplatné" in states["free"]
+    for name in ("active", "cancelled", "past_due", "unpaid", "expired"):
+        assert states[name].count("Spravovať predplatné") == 1
+        assert "platobn" in states[name].casefold()
+        assert "faktúr" in states[name].casefold()
+    assert "Spravovať predplatné" not in states["manual"]
+    assert "Spravovať predplatné" not in states["free"]
+    assert "0 €" not in states["missingAmount"]
+    assert "SIGNED_URL_MUST_NOT_RENDER" not in states["hidden"]
+
+
+@needs_node
+def test_profile_load_never_posts_and_repeat_click_creates_one_fresh_portal(tmp_path):
+    html = app_html()
+    functions = "\n".join(
+        declaration(html, signature)
+        for signature in (
+            "async function runGuardedAction(button, errorNode, action) ",
+            "function safeCustomerPortalDestination(value) ",
+            "function subscriptionPortalHelp() ",
+            "async function openSubscriptionPortal(button, status) ",
+            "function bindSubscriptionManagement() ",
+            "async function loadSubscriptionManagement() ",
+        )
+    )
+    result = run_node(
+        tmp_path,
+        "subscription-action-contract.js",
+        """
+const apiCalls = [];
+const navigations = [];
+let resolvePortal;
+const root = {innerHTML:''};
+const status = {textContent:'',style:{}};
+const attributes = {};
+const button = {disabled:false,textContent:'Spravovať predplatné',
+  setAttribute:(name,value)=>{attributes[name]=value;},
+  removeAttribute:(name)=>{delete attributes[name];}};
+function $(selector) {
+  if (selector === '#subscription-management') return root;
+  if (selector === '#subscription-manage') return button;
+  if (selector === '#subscription-manage-status') return status;
+  return null;
+}
+function subscriptionManagementHtml(data, state) {
+  if (state && state.loading) return '<p role="status">Načítavam</p>';
+  return '<button id="subscription-manage">Spravovať predplatné</button>';
+}
+async function api(url, options) {
+  apiCalls.push({url:url,method:(options && options.method) || 'GET'});
+  if (url === '/api/platba/stav') return {status:'active',can_manage:true};
+  return new Promise(resolve => { resolvePortal = resolve; });
+}
+const location = {assign:url => navigations.push(url)};
+"""
+        + functions
+        + """
+(async function(){
+  await loadSubscriptionManagement();
+  const afterLoad = apiCalls.slice();
+  const first = button.onclick();
+  const second = button.onclick();
+  const whilePending = {calls:apiCalls.slice(),disabled:button.disabled,
+    busy:attributes['aria-busy'],status:status.textContent};
+  resolvePortal({url:'https://store.lemonsqueezy.com/billing/fresh-value'});
+  await first;
+  await second;
+  console.log(JSON.stringify({afterLoad:afterLoad,whilePending:whilePending,
+    calls:apiCalls,navigations:navigations,busy:attributes['aria-busy'] || null}));
+})().catch(error => { console.error(error); process.exit(1); });
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    state = json.loads(result.stdout)
+    assert state["afterLoad"] == [{"url": "/api/platba/stav", "method": "GET"}]
+    assert state["whilePending"]["calls"] == [
+        {"url": "/api/platba/stav", "method": "GET"},
+        {"url": "/api/platba/portal", "method": "POST"},
+    ]
+    assert state["whilePending"]["disabled"] is True
+    assert state["whilePending"]["busy"] == "true"
+    assert "Otváram" in state["whilePending"]["status"]
+    assert state["calls"] == state["whilePending"]["calls"]
+    assert state["navigations"] == [
+        "https://store.lemonsqueezy.com/billing/fresh-value"
+    ]
+    assert state["busy"] is None
+
+
+@needs_node
+def test_portal_failure_is_actionable_accessible_and_never_echoes_a_signed_url(
+    tmp_path,
+):
+    html = app_html()
+    functions = "\n".join(
+        declaration(html, signature)
+        for signature in (
+            "async function runGuardedAction(button, errorNode, action) ",
+            "function safeCustomerPortalDestination(value) ",
+            "function subscriptionPortalHelp() ",
+            "async function openSubscriptionPortal(button, status) ",
+        )
+    )
+    result = run_node(
+        tmp_path,
+        "subscription-error-contract.js",
+        """
+const status = {textContent:'',style:{}};
+const attributes = {};
+const button = {disabled:false,textContent:'Spravovať predplatné',
+  setAttribute:(name,value)=>{attributes[name]=value;},
+  removeAttribute:(name)=>{delete attributes[name];}};
+async function api() {
+  throw new Error('https://store.lemonsqueezy.com/billing/LEAKED_SIGNED_VALUE');
+}
+const location = {assign:()=>{throw new Error('must not navigate');}};
+"""
+        + functions
+        + """
+(async function(){
+  await openSubscriptionPortal(button,status);
+  console.log(JSON.stringify({text:status.textContent,disabled:button.disabled,
+    label:button.textContent,busy:attributes['aria-busy'] || null,
+    valid:safeCustomerPortalDestination('https://app.lemonsqueezy.com/my-orders/fresh'),
+    attacker:safeCustomerPortalDestination('https://lemonsqueezy.com.attacker.test/x')}));
+})().catch(error => { console.error(error); process.exit(1); });
+""",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    state = json.loads(result.stdout)
+    assert state["disabled"] is False
+    assert state["label"] == "Spravovať predplatné"
+    assert state["busy"] is None
+    assert "+421 917 347 009" in state["text"]
+    assert "pumaragency@gmail.com" in state["text"]
+    assert "zostáva nezmenené" in state["text"]
+    assert "LEAKED_SIGNED_VALUE" not in state["text"]
+    assert state["valid"] is True
+    assert state["attacker"] is False
+
+
+def test_profile_has_accessible_subscription_loading_and_no_hidden_portal_url():
+    html = app_html()
+    profile = declaration(html, "function vNast() ")
+    loader = declaration(html, "async function loadSubscriptionManagement() ")
+
+    assert 'id="subscription-management"' in profile
+    assert "loadSubscriptionManagement()" in profile
+    assert 'role="status"' in profile
+    assert 'aria-live="polite"' in profile
+    assert "/api/platba/stav" in loader
+    assert "/api/platba/portal" not in loader
+    assert "lemonsqueezy.com/billing" not in html
+    assert "signed-secret" not in html
 
 
 # ------------------------------------- odobraty/refundovany narok pocas upravy

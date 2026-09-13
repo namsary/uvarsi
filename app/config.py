@@ -26,6 +26,16 @@ class LemonSubscriptionCheckoutConfig:
     test_mode: bool
 
 
+@dataclass(frozen=True)
+class LemonCustomerPortalConfig:
+    """One mode's server-only identity for existing subscription management."""
+
+    api_key: str = field(repr=False)
+    store_id: str
+    variant_id: str
+    test_mode: bool
+
+
 def lemon_subscription_checkout_config(
     *,
     test_mode: bool,
@@ -45,6 +55,27 @@ def lemon_subscription_checkout_config(
         variant_id=value("SUBSCRIPTION_VARIANT_ID"),
         founder_discount_id=value("FOUNDER_DISCOUNT_ID"),
         founder_discount_code=value("FOUNDER_DISCOUNT_CODE"),
+        test_mode=test_mode,
+    )
+
+
+def lemon_customer_portal_config(
+    *,
+    test_mode: bool,
+    getenv: Callable[[str, str], str | None] | None = None,
+) -> LemonCustomerPortalConfig:
+    """Read only the matching provider identity needed by Customer Portal."""
+    read = getenv or os.environ.get
+    prefix = "LEMON_TEST_" if test_mode else "LEMON_"
+
+    def value(name: str) -> str:
+        raw = read(f"{prefix}{name}", "")
+        return raw.strip() if isinstance(raw, str) else ""
+
+    return LemonCustomerPortalConfig(
+        api_key=value("API_KEY"),
+        store_id=value("STORE_ID"),
+        variant_id=value("SUBSCRIPTION_VARIANT_ID"),
         test_mode=test_mode,
     )
 

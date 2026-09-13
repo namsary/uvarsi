@@ -19,7 +19,7 @@ from decimal import Decimal
 from html import escape
 from pathlib import Path
 import sys
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 from urllib.request import Request as UrlRequest, urlopen
 from zoneinfo import ZoneInfo
 
@@ -62,6 +62,7 @@ from payment_smoke_marker import (
 from config import public_base_url
 from config import (
     admin_emails,
+    lemon_customer_portal_config,
     lemon_subscription_checkout_config,
     legal_version,
     recipe_engine_mode,
@@ -6098,6 +6099,175 @@ def _subscription_checkout_provider(*, test_mode: bool):
     return _LemonSubscriptionCheckoutProvider(settings)
 
 
+def _lemon_subscription_request(api_key: str, subscription_id: str) -> dict:
+    """Read one Lemon subscription without logging credentials or its URLs."""
+    if not isinstance(api_key, str) or not api_key.strip():
+        raise PlatbyNenastavene("chýba API kľúč správy predplatného")
+    if not isinstance(subscription_id, str) or not subscription_id.strip():
+        raise PlatbyNenastavene("chýba identifikátor predplatného")
+    safe_id = quote(subscription_id.strip(), safe="")
+    request = UrlRequest(
+        f"https://api.lemonsqueezy.com/v1/subscriptions/{safe_id}",
+        method="GET",
+        headers={
+            "Accept": "application/vnd.api+json",
+            "Authorization": f"Bearer {api_key.strip()}",
+        },
+    )
+    try:
+        with urlopen(request, timeout=20) as response:
+            body = response.read(1_048_577)
+    except (OSError, ValueError):
+        raise PlatbyNenastavene(
+            "poskytovateľ správy predplatného je nedostupný"
+        ) from None
+    if len(body) > 1_048_576:
+        raise PlatbyNenastavene("poskytovateľ vrátil priveľkú odpoveď")
+    try:
+        decoded = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise PlatbyNenastavene("poskytovateľ vrátil neplatnú odpoveď") from None
+    if not isinstance(decoded, dict):
+        raise PlatbyNenastavene("poskytovateľ vrátil neplatnú odpoveď")
+    return decoded
+
+
+class _LemonSubscriptionPortalProvider:
+    """Server-only portal adapter; its representation contains no API key."""
+
+    def __init__(self, settings):
+        values = {
+            "api_key": settings.api_key,
+            "store_id": settings.store_id,
+            "variant_id": settings.variant_id,
+        }
+        if (
+            any(
+                not isinstance(value, str) or not value.strip()
+                for value in values.values()
+            )
+            or type(settings.test_mode) is not bool
+        ):
+            raise PlatbyNenastavene("chýba konfigurácia správy predplatného")
+        self._api_key = settings.api_key.strip()
+        self.store_id = settings.store_id.strip()
+        self.variant_id = settings.variant_id.strip()
+        self.test_mode = settings.test_mode
+
+    def __repr__(self):
+        return "_LemonSubscriptionPortalProvider(<redacted>)"
+
+    def retrieve_subscription(self, subscription_id):
+        return _lemon_subscription_request(self._api_key, subscription_id)
+
+
+def _subscription_portal_provider(*, test_mode: bool):
+    settings = lemon_customer_portal_config(test_mode=test_mode, getenv=env)
+    return _LemonSubscriptionPortalProvider(settings)
+
+
+def _portal_subscription_is_manageable(subscription) -> bool:
+    return bool(
+        isinstance(subscription, predplatne.SubscriptionSnapshot)
+        and subscription.product == predplatne.ANNUAL_PREMIUM_PRODUCT
+        and subscription.provider == "lemonsqueezy"
+        and isinstance(subscription.provider_customer_id, str)
+        and subscription.provider_customer_id.strip()
+        and isinstance(subscription.provider_subscription_id, str)
+        and subscription.provider_subscription_id.strip()
+        and isinstance(subscription.provider_variant_id, str)
+        and subscription.provider_variant_id.strip()
+        and type(subscription.test_mode) is bool
+    )
+
+
+def _safe_customer_portal_url(value) -> str:
+    if (
+        not isinstance(value, str)
+        or not value
+        or value != value.strip()
+        or len(value) > 4096
+        or any(character.isspace() for character in value)
+    ):
+        raise PlatbyNenastavene("poskytovateľ nevrátil bezpečnú správu predplatného")
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError:
+        raise PlatbyNenastavene(
+            "poskytovateľ nevrátil bezpečnú správu predplatného"
+        ) from None
+    hostname = parsed.hostname.casefold() if isinstance(parsed.hostname, str) else None
+    if (
+        parsed.scheme.casefold() != "https"
+        or hostname is None
+        or not (
+            hostname == "lemonsqueezy.com"
+            or hostname.endswith(".lemonsqueezy.com")
+        )
+        or parsed.username is not None
+        or parsed.password is not None
+        or port is not None
+        or not parsed.path.startswith("/")
+        or parsed.path == "/"
+        or parsed.fragment
+    ):
+        raise PlatbyNenastavene("poskytovateľ nevrátil bezpečnú správu predplatného")
+    return value
+
+
+def fresh_customer_portal_url(subscription, provider) -> str:
+    """Cross-check provider identity and return a URL with no persistence sink."""
+    if not _portal_subscription_is_manageable(subscription):
+        raise PlatbyNenastavene("predplatné sa nedá bezpečne spravovať")
+    if (
+        getattr(provider, "test_mode", None) is not subscription.test_mode
+        or getattr(provider, "variant_id", None) != subscription.provider_variant_id
+        or not isinstance(getattr(provider, "store_id", None), str)
+        or not provider.store_id.strip()
+    ):
+        raise PlatbyNenastavene("konfigurácia nezodpovedá predplatnému")
+    retrieve = getattr(provider, "retrieve_subscription", None)
+    if not callable(retrieve):
+        raise PlatbyNenastavene("poskytovateľ nevie načítať predplatné")
+    response = retrieve(subscription.provider_subscription_id)
+    data = response.get("data") if isinstance(response, dict) else None
+    if (
+        not isinstance(data, dict)
+        or data.get("type") != "subscriptions"
+        or str(data.get("id")) != subscription.provider_subscription_id
+    ):
+        raise PlatbyNenastavene("poskytovateľ vrátil iné predplatné")
+    attributes = data.get("attributes")
+    if not isinstance(attributes, dict):
+        raise PlatbyNenastavene("poskytovateľ vrátil neplatné predplatné")
+    if str(attributes.get("customer_id")) != subscription.provider_customer_id:
+        raise PlatbyNenastavene("poskytovateľ vrátil iného zákazníka")
+    if str(attributes.get("store_id")) != provider.store_id:
+        raise PlatbyNenastavene("poskytovateľ vrátil iný obchod")
+    if (
+        str(attributes.get("variant_id")) != provider.variant_id
+        or str(attributes.get("variant_id")) != subscription.provider_variant_id
+    ):
+        raise PlatbyNenastavene("poskytovateľ vrátil iný variant")
+    if attributes.get("test_mode") is not subscription.test_mode:
+        raise PlatbyNenastavene("poskytovateľ vrátil iný režim")
+    urls = attributes.get("urls")
+    if not isinstance(urls, dict):
+        raise PlatbyNenastavene("poskytovateľ nevrátil správu predplatného")
+    return _safe_customer_portal_url(urls.get("customer_portal"))
+
+
+PORTAL_UNAVAILABLE_MESSAGE = (
+    "Správa predplatného je dočasne nedostupná. Tvoje predplatné a Premium "
+    "prístup zostávajú nezmenené. Skús to znova alebo kontaktuj podporu na "
+    f"{OPERATOR.support_phone}, {OPERATOR.support_email}."
+)
+PORTAL_NOT_MANAGEABLE_MESSAGE = (
+    "K tomuto účtu nemáme predplatné, ktoré sa dá bezpečne spravovať."
+)
+
+
 def platby_su_zapnute() -> bool:
     return platby_zapnute(env("PLATBY_ZAPNUTE"))
 
@@ -6123,6 +6293,34 @@ def platba_stav(req: Request):
             premium=premium,
             subscription=subscription,
         )
+
+
+@app.post("/api/platba/portal")
+async def payment_portal(req: Request):
+    user = require_user(req)
+    with closing(db()) as con:
+        subscription = predplatne.subscription_for_user(con, user["id"])
+    if not _portal_subscription_is_manageable(subscription):
+        return odmietni(
+            404,
+            PORTAL_NOT_MANAGEABLE_MESSAGE,
+            "subscription_not_manageable",
+        )
+    try:
+        provider = _subscription_portal_provider(test_mode=subscription.test_mode)
+        url = await anyio.to_thread.run_sync(
+            functools.partial(
+                fresh_customer_portal_url,
+                subscription,
+                provider,
+            )
+        )
+    except Exception:
+        return odmietni(503, PORTAL_UNAVAILABLE_MESSAGE, "portal_unavailable")
+    return JSONResponse(
+        {"url": url},
+        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+    )
 
 
 @app.post("/api/platba/start")
