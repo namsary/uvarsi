@@ -60,6 +60,7 @@ import plan_jobs
 import predplatne
 import predpocet
 import source_policy
+import subscription_lifecycle_probe
 from payment_smoke_marker import (
     SubscriptionConfig,
     SubscriptionMarkerExpectation,
@@ -660,6 +661,7 @@ def migruj_schemu(con) -> None:
     naklady.migrate_naklady_schema(con)
     plan_jobs.migrate_plan_jobs_schema(con)
     predplatne.migrate_subscription_schema(con)
+    subscription_lifecycle_probe.migrate_probe_schema(con)
     predpocet.migrate_predpocet_schema(con)
     con.commit()
 
@@ -4971,15 +4973,12 @@ def _payment_activation_verified(
     )
 
 
-def _subscription_marker_expectation(
-    release: str,
-) -> SubscriptionMarkerExpectation:
-    """Bind annual evidence to the exact live and test runtime identities."""
+def _annual_subscription_marker_configs() -> tuple[SubscriptionConfig, SubscriptionConfig]:
+    """Read annual identities locally; this performs no provider request."""
     live = lemon_subscription_checkout_config(test_mode=False, getenv=env)
     test = lemon_subscription_checkout_config(test_mode=True, getenv=env)
-    return SubscriptionMarkerExpectation(
-        release=release,
-        live=SubscriptionConfig(
+    return (
+        SubscriptionConfig(
             store_id=live.store_id,
             variant_id=live.variant_id,
             discount_id=live.founder_discount_id,
@@ -4988,7 +4987,7 @@ def _subscription_marker_expectation(
             api_key=live.api_key,
             test_mode=False,
         ),
-        test=SubscriptionConfig(
+        SubscriptionConfig(
             store_id=test.store_id,
             variant_id=test.variant_id,
             discount_id=test.founder_discount_id,
@@ -4997,6 +4996,25 @@ def _subscription_marker_expectation(
             api_key=test.api_key,
             test_mode=True,
         ),
+    )
+
+
+def _subscription_marker_expectation(
+    release: str,
+) -> SubscriptionMarkerExpectation:
+    """Bind annual economics and isolated daily mechanics to this release."""
+    live, test = _annual_subscription_marker_configs()
+    probe = subscription_lifecycle_probe.read_probe_config(
+        env,
+        annual_test_variant_id=test.variant_id,
+        live_webhook_secret=live.webhook_secret,
+        annual_test_webhook_secret=test.webhook_secret,
+    )
+    return SubscriptionMarkerExpectation(
+        release=release,
+        live=live,
+        test=test,
+        probe=probe,
         signing_secret=env("UVARSI_PAYMENT_SMOKE_SIGNING_SECRET", "") or "",
     )
 
@@ -5092,13 +5110,18 @@ def _runtime_payment_readiness(
     )
     recipe_status = recipe_status or recipe_engine_health(con, today=today)
     current_release = release_id()
-    expectation = _subscription_marker_expectation(current_release)
-    payment_evidence = _subscription_evidence_status(
-        expectation,
-        activated=platby_su_zapnute(),
-    )
-    live = expectation.live
-    test = expectation.test
+    try:
+        expectation = _subscription_marker_expectation(current_release)
+    except (ValueError, subscription_lifecycle_probe.ProbeConfigError):
+        live, test = _annual_subscription_marker_configs()
+        payment_evidence = "subscription_probe_invalid"
+    else:
+        payment_evidence = _subscription_evidence_status(
+            expectation,
+            activated=platby_su_zapnute(),
+        )
+        live = expectation.live
+        test = expectation.test
     support_phone = OPERATOR.support_phone.strip()
     operator_errors = validate_operator_profile(OPERATOR)
     facts = PaymentReadinessInput(

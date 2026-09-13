@@ -7,6 +7,7 @@ import json
 import pytest
 
 from app import payment_smoke_marker as marker
+from app import subscription_lifecycle_probe as probe
 
 
 NOW = datetime(2026, 9, 13, 10, 0, tzinfo=timezone.utc)
@@ -32,6 +33,13 @@ def expected():
             webhook_secret="test-webhook-secret",
             api_key="test-api-key",
             test_mode=True,
+        ),
+        probe=probe.LifecycleProbeConfig(
+            api_key="test-api-key",
+            store_id="test-store",
+            variant_id="test-daily-probe",
+            webhook_secret="probe-webhook-secret",
+            price_cents=100,
         ),
         signing_secret="local-marker-secret",
     )
@@ -63,21 +71,50 @@ def provider_evidence(*, test_mode: bool):
     )
 
 
-def lifecycle():
-    return marker.SubscriptionLifecycleEvidence(
-        initial_charge_cents=3_900,
-        renewal_displayed_cents=4_900,
-        activation_verified=True,
-        renewal_invoice_cents=4_900,
-        failed_payment_verified=True,
-        recovery_verified=True,
-        cancellation_verified=True,
-        access_retained_until_period_end=True,
-        expiration_verified=True,
-        refund_verified=True,
+def annual_commercial():
+    return marker.AnnualCommercialEvidence(
+        founder_initial_cents=3_900,
+        standard_and_renewal_cents=4_900,
+        currency="EUR",
+        billing_interval="year",
+        billing_interval_count=1,
+        annual_test_checkout_verified=True,
+        annual_test_initial_payment_verified=True,
+        annual_domain_renewal_verified=True,
+        annual_domain_cancellation_verified=True,
+        annual_domain_refund_verified=True,
         portal_access_verified=True,
-        webhook_signature_verified=True,
         reconciliation_verified=True,
+    )
+
+
+def probe_provider():
+    return marker.DailyProbeProviderEvidence(
+        test_mode=True,
+        price_cents=100,
+        currency="EUR",
+        billing_interval="day",
+        billing_interval_count=1,
+        trial_days=0,
+        discount_applied_cents=0,
+        variant_status="published",
+    )
+
+
+def probe_lifecycle():
+    return marker.DailyProbeLifecycleEvidence(
+        evidence_source="test_mode_daily_probe",
+        initial_payment_webhook_verified=True,
+        genuine_daily_renewal_verified=True,
+        failed_payment_webhook_verified=True,
+        recovered_payment_webhook_verified=True,
+        cancellation_webhook_verified=True,
+        resumed_webhook_verified=True,
+        expiration_webhook_verified=True,
+        refund_webhook_verified=True,
+        webhook_signature_verified=True,
+        identity_isolation_verified=True,
+        event_order_verified=True,
     )
 
 
@@ -86,7 +123,9 @@ def signed_marker(**changes):
         "expectation": expected(),
         "live_provider": provider_evidence(test_mode=False),
         "test_provider": provider_evidence(test_mode=True),
-        "lifecycle": lifecycle(),
+        "annual_commercial": annual_commercial(),
+        "probe_provider": probe_provider(),
+        "probe_lifecycle": probe_lifecycle(),
         "completed_at": "2026-09-13T09:30:00+00:00",
         "expires_at": "2026-09-14T09:30:00+00:00",
         "attestation_id": "a" * 64,
@@ -106,21 +145,22 @@ def test_complete_current_subscription_marker_is_valid():
 @pytest.mark.parametrize(
     "field",
     [
-        "activation_verified",
-        "failed_payment_verified",
-        "recovery_verified",
-        "cancellation_verified",
-        "access_retained_until_period_end",
-        "expiration_verified",
-        "refund_verified",
-        "portal_access_verified",
+        "initial_payment_webhook_verified",
+        "genuine_daily_renewal_verified",
+        "failed_payment_webhook_verified",
+        "recovered_payment_webhook_verified",
+        "cancellation_webhook_verified",
+        "resumed_webhook_verified",
+        "expiration_webhook_verified",
+        "refund_webhook_verified",
         "webhook_signature_verified",
-        "reconciliation_verified",
+        "identity_isolation_verified",
+        "event_order_verified",
     ],
 )
 def test_smoke_requires_every_lifecycle_transition(field):
-    incomplete = replace(lifecycle(), **{field: False})
-    proof = signed_marker(lifecycle=incomplete)
+    incomplete = replace(probe_lifecycle(), **{field: False})
+    proof = signed_marker(probe_lifecycle=incomplete)
 
     assert marker.valid_subscription_marker(proof, expected(), now=NOW) is False
     assert marker.subscription_marker_status(proof, expected(), now=NOW) == (
@@ -152,14 +192,16 @@ def test_provider_evidence_must_match_the_approved_annual_offer(field, value):
     assert marker.valid_subscription_marker(proof, expected(), now=NOW) is False
 
 
-def test_lifecycle_prices_are_exact_and_not_merely_boolean_claims():
+def test_annual_and_probe_prices_are_exact_and_not_conflated():
     assert marker.valid_subscription_marker(
-        signed_marker(lifecycle=replace(lifecycle(), initial_charge_cents=4_900)),
+        signed_marker(
+            annual_commercial=replace(annual_commercial(), founder_initial_cents=4_900)
+        ),
         expected(),
         now=NOW,
     ) is False
     assert marker.valid_subscription_marker(
-        signed_marker(lifecycle=replace(lifecycle(), renewal_invoice_cents=3_900)),
+        signed_marker(probe_provider=replace(probe_provider(), price_cents=4_900)),
         expected(),
         now=NOW,
     ) is False
@@ -184,24 +226,14 @@ def test_marker_is_bound_to_release_mode_and_every_provider_identity():
     assert marker.valid_subscription_marker(proof, wrong_mode, now=NOW) is False
 
 
-def test_provider_discount_code_is_bound_by_hmac_without_entering_marker():
+def test_provider_identity_is_bound_without_entering_marker():
     proof = signed_marker()
 
-    assert proof["test_provider"]["discount_code_fingerprint"] == (
-        marker.discount_code_fingerprint(
-            signing_secret=expected().signing_secret,
-            discount_code=expected().test.discount_code,
-        )
-    )
+    assert proof["annual_test_provider"]["provider_identity_verified"] is True
     assert expected().test.discount_code not in json.dumps(proof)
 
     wrong_provider_code = json.loads(json.dumps(proof))
-    wrong_provider_code["test_provider"]["discount_code_fingerprint"] = (
-        marker.discount_code_fingerprint(
-            signing_secret=expected().signing_secret,
-            discount_code="WRONG-PROVIDER-CODE",
-        )
-    )
+    wrong_provider_code["annual_test_provider"]["provider_identity_verified"] = False
     wrong_provider_code = marker.sign_marker(
         wrong_provider_code, secret=expected().signing_secret
     )
@@ -222,7 +254,7 @@ def test_marker_has_explicit_freshness_and_rejects_old_future_or_partial_proof()
     ) == "subscription_smoke_stale"
 
     partial = signed_marker()
-    partial.pop("lifecycle")
+    partial.pop("test_mode_daily_probe")
     partial = marker.sign_marker(partial, secret=expected().signing_secret)
     assert marker.subscription_marker_status(partial, expected(), now=NOW) == (
         "subscription_smoke_incomplete"
@@ -235,6 +267,8 @@ def test_marker_never_contains_secrets_pii_or_signed_provider_urls():
     for forbidden in (
         "LIVE-FOUNDERS", "TEST-FOUNDERS", "live-webhook-secret",
         "test-webhook-secret", "live-api-key", "test-api-key",
+        "probe-webhook-secret", "test-daily-probe", "live-store",
+        "test-store", "live-annual", "test-annual",
         "martin@example.test", "checkout.lemonsqueezy.com", "customer_portal",
     ):
         assert forbidden not in encoded
@@ -335,7 +369,7 @@ def test_activation_rejects_old_future_and_expired_signed_times(
 
 def test_boolean_lifecycle_claims_and_mode_are_not_truthy_shortcuts():
     proof = signed_marker(
-        lifecycle=replace(lifecycle(), portal_access_verified=1)
+        probe_lifecycle=replace(probe_lifecycle(), event_order_verified=1)
     )
     assert marker.valid_subscription_marker(proof, expected(), now=NOW) is False
 

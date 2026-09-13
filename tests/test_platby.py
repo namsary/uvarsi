@@ -75,6 +75,9 @@ PLATBY_ENV = (
     "LEMON_TEST_SUBSCRIPTION_VARIANT_ID",
     "LEMON_TEST_FOUNDER_DISCOUNT_ID",
     "LEMON_TEST_FOUNDER_DISCOUNT_CODE",
+    "LEMON_TEST_LIFECYCLE_PROBE_VARIANT_ID",
+    "LEMON_TEST_LIFECYCLE_PROBE_WEBHOOK_SECRET",
+    "LEMON_TEST_LIFECYCLE_PROBE_PRICE_CENTS",
     "UVARSI_VERIFIED_SUPPORT_PHONE",
     "UVARSI_PAYMENT_SMOKE_SIGNING_SECRET",
     "UVARSI_PAYMENT_ACTIVATION_MARKER",
@@ -169,6 +172,9 @@ def _annual_payment_environment(**changes):
         "LEMON_TEST_FOUNDER_DISCOUNT_ID": "test-founder",
         "LEMON_TEST_FOUNDER_DISCOUNT_CODE": "TEST-FOUNDERS",
         "LEMON_TEST_API_KEY": "test-api",
+        "LEMON_TEST_LIFECYCLE_PROBE_VARIANT_ID": "test-daily-probe",
+        "LEMON_TEST_LIFECYCLE_PROBE_WEBHOOK_SECRET": "probe-webhook",
+        "LEMON_TEST_LIFECYCLE_PROBE_PRICE_CENTS": "100",
         "UVARSI_PAYMENT_SMOKE_SIGNING_SECRET": TAJOMSTVO,
     }
     values.update(changes)
@@ -206,26 +212,46 @@ def _full_annual_subscription_smoke(server, *, completed_at=None):
             ),
         )
 
-    lifecycle = marker_module.SubscriptionLifecycleEvidence(
-        initial_charge_cents=3_900,
-        renewal_displayed_cents=4_900,
-        activation_verified=True,
-        renewal_invoice_cents=4_900,
-        failed_payment_verified=True,
-        recovery_verified=True,
-        cancellation_verified=True,
-        access_retained_until_period_end=True,
-        expiration_verified=True,
-        refund_verified=True,
+    annual_commercial = marker_module.AnnualCommercialEvidence(
+        founder_initial_cents=3_900,
+        standard_and_renewal_cents=4_900,
+        currency="EUR",
+        billing_interval="year",
+        billing_interval_count=1,
+        annual_test_checkout_verified=True,
+        annual_test_initial_payment_verified=True,
+        annual_domain_renewal_verified=True,
+        annual_domain_cancellation_verified=True,
+        annual_domain_refund_verified=True,
         portal_access_verified=True,
-        webhook_signature_verified=True,
         reconciliation_verified=True,
+    )
+    probe_provider = marker_module.DailyProbeProviderEvidence(
+        test_mode=True, price_cents=100, currency="EUR",
+        billing_interval="day", billing_interval_count=1, trial_days=0,
+        discount_applied_cents=0, variant_status="published",
+    )
+    probe_lifecycle = marker_module.DailyProbeLifecycleEvidence(
+        evidence_source="test_mode_daily_probe",
+        initial_payment_webhook_verified=True,
+        genuine_daily_renewal_verified=True,
+        failed_payment_webhook_verified=True,
+        recovered_payment_webhook_verified=True,
+        cancellation_webhook_verified=True,
+        resumed_webhook_verified=True,
+        expiration_webhook_verified=True,
+        refund_webhook_verified=True,
+        webhook_signature_verified=True,
+        identity_isolation_verified=True,
+        event_order_verified=True,
     )
     unsigned = marker_module.create_subscription_marker(
         expectation=expectation,
         live_provider=provider(expectation.live),
         test_provider=provider(expectation.test),
-        lifecycle=lifecycle,
+        annual_commercial=annual_commercial,
+        probe_provider=probe_provider,
+        probe_lifecycle=probe_lifecycle,
         completed_at=completed_at.isoformat(),
         expires_at=(completed_at + timedelta(hours=24)).isoformat(),
         attestation_id="a" * 64,
@@ -1143,6 +1169,43 @@ def test_runtime_readiness_accepts_the_code_owned_verified_support_phone(
     assert result.blockers == ("receipt_unhealthy",)
 
 
+def test_runtime_readiness_missing_probe_fails_closed_without_provider_call(
+        monkeypatch, tmp_path):
+    server = load_server(
+        monkeypatch,
+        tmp_path,
+        **_annual_payment_environment(
+            LEMON_TEST_LIFECYCLE_PROBE_VARIANT_ID=None,
+        ),
+    )
+
+    def provider_call_forbidden(*_args, **_kwargs):
+        raise AssertionError("readiness nesmie volať poskytovateľa")
+
+    monkeypatch.setattr(
+        server, "_subscription_checkout_provider", provider_call_forbidden
+    )
+    queue = {"worker_alive": True, "blocking_code": None}
+    recipe = {
+        "ready": False,
+        "blockers": ["payments_enabled"],
+        "release_gate": {
+            "active_recipes": server.CURATED_RECIPE_COUNT,
+            "curation_generation": 1,
+            "provenance_complete": True,
+            "library_errors": 0,
+            "workflow_errors": 0,
+        },
+    }
+
+    with closing(server.db()) as con:
+        readiness = server._runtime_payment_readiness(
+            con, queue_status=queue, recipe_status=recipe
+        )
+
+    assert "subscription_probe_invalid" in readiness.blockers
+
+
 def test_zapnuty_flag_bez_podpisanej_aktivacie_neodomkne_checkout(
         monkeypatch, tmp_path):
     server = load_server(
@@ -1230,7 +1293,7 @@ def test_zapnuty_flag_vyzaduje_cerstvy_provider_marker_a_ekonomiku(
         ).ready is True
 
     changed_economics = json.loads(json.dumps(smoke))
-    changed_economics["live_provider"]["annual_price_cents"] = 3_900
+    changed_economics["annual_live_provider"]["annual_price_cents"] = 3_900
     changed_economics = marker_module.sign_marker(
         changed_economics, secret=expectation.signing_secret
     )

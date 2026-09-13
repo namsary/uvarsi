@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import importlib.util
+import inspect
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -51,6 +52,23 @@ def _annual_expectation(marker_module):
             "test-webhook", "test-api", True,
         ),
         signing_secret="marker-secret",
+    )
+
+
+def _schema5_expectation(marker_module, *, release="release-annual-1"):
+    annual = _annual_expectation(marker_module)
+    return marker_module.SubscriptionMarkerExpectation(
+        release=release,
+        live=annual.live,
+        test=annual.test,
+        signing_secret=annual.signing_secret,
+        probe=marker_module.LifecycleProbeConfig(
+            api_key=annual.test.api_key,
+            store_id=annual.test.store_id,
+            variant_id="test-daily-probe",
+            webhook_secret="probe-webhook",
+            price_cents=100,
+        ),
     )
 
 
@@ -507,7 +525,12 @@ def test_server_reads_only_a_local_release_bound_smoke_marker():
     expectation_builder = source.split(
         "def _subscription_marker_expectation", 1
     )[1].split("def _subscription_evidence_status", 1)[0]
-    assert "lemon_subscription_checkout_config" in expectation_builder
+    annual_builder = source.split(
+        "def _annual_subscription_marker_configs", 1
+    )[1].split("def _subscription_marker_expectation", 1)[0]
+    assert "lemon_subscription_checkout_config" in annual_builder
+    assert "read_probe_config" in expectation_builder
+    assert "probe=probe" in expectation_builder
 
 
 def test_legacy_purchase_refund_marker_is_not_annual_subscription_evidence():
@@ -1001,71 +1024,24 @@ def test_production_activation_builder_requires_fresh_signed_smoke_and_stays_val
         )
 
 
-def test_authorize_activation_command_writes_a_verified_marker_without_network(
+def test_old_schema4_annual_marker_cannot_authorize_schema5_activation(
         monkeypatch, tmp_path):
     smoke = _load_smoke_module()
     marker_module = _load_marker_module()
     now = datetime.now(timezone.utc).replace(microsecond=0)
-    values = {
-        "LEMON_API_KEY": "live-api-key",
-        "LEMON_WEBHOOK_SECRET": "live-webhook-secret",
-        "LEMON_STORE_ID": "live-store",
-        "LEMON_SUBSCRIPTION_VARIANT_ID": "live-annual",
-        "LEMON_FOUNDER_DISCOUNT_ID": "live-founder",
-        "LEMON_FOUNDER_DISCOUNT_CODE": "LIVE-CODE",
-        "LEMON_TEST_API_KEY": "test-api-key",
-        "LEMON_TEST_WEBHOOK_SECRET": "test-webhook-secret",
-        "LEMON_TEST_STORE_ID": "test-store",
-        "LEMON_TEST_SUBSCRIPTION_VARIANT_ID": "test-annual",
-        "LEMON_TEST_FOUNDER_DISCOUNT_ID": "test-founder",
-        "LEMON_TEST_FOUNDER_DISCOUNT_CODE": "TEST-CODE",
-        "UVARSI_PAYMENT_SMOKE_SIGNING_SECRET": "marker-secret",
-    }
-    expectation = marker_module.SubscriptionMarkerExpectation(
-        release="release-1",
-        live=marker_module.SubscriptionConfig(
-            values["LEMON_STORE_ID"],
-            values["LEMON_SUBSCRIPTION_VARIANT_ID"],
-            values["LEMON_FOUNDER_DISCOUNT_ID"],
-            values["LEMON_FOUNDER_DISCOUNT_CODE"],
-            values["LEMON_WEBHOOK_SECRET"], values["LEMON_API_KEY"], False,
-        ),
-        test=marker_module.SubscriptionConfig(
-            values["LEMON_TEST_STORE_ID"],
-            values["LEMON_TEST_SUBSCRIPTION_VARIANT_ID"],
-            values["LEMON_TEST_FOUNDER_DISCOUNT_ID"],
-            values["LEMON_TEST_FOUNDER_DISCOUNT_CODE"],
-            values["LEMON_TEST_WEBHOOK_SECRET"],
-            values["LEMON_TEST_API_KEY"], True,
-        ),
-        signing_secret=values["UVARSI_PAYMENT_SMOKE_SIGNING_SECRET"],
-    )
-    live_provider = smoke._verified_annual_provider_evidence(
-        values["LEMON_API_KEY"], config=expectation.live,
-        signing_secret=expectation.signing_secret,
-        request=_annual_provider_request(mode="live", code="LIVE-CODE"),
-        evidence_type=marker_module.AnnualProviderEvidence,
-        fingerprint=marker_module.discount_code_fingerprint,
-    )
-    test_provider = smoke._verified_annual_provider_evidence(
-        values["LEMON_TEST_API_KEY"], config=expectation.test,
-        signing_secret=expectation.signing_secret,
-        request=_annual_provider_request(mode="test", code="TEST-CODE"),
-        evidence_type=marker_module.AnnualProviderEvidence,
-        fingerprint=marker_module.discount_code_fingerprint,
-    )
-    subscription, invoices, events = _complete_local_lifecycle_records()
-    lifecycle = smoke._lifecycle_evidence_from_records(
-        subscription=subscription, invoices=invoices, events=events,
-        portal_access_verified=True, unresolved_cases=0,
-        evidence_type=marker_module.SubscriptionLifecycleEvidence,
-    )
-    signed_smoke = smoke._build_annual_subscription_marker(
-        expectation=expectation, live_provider=live_provider,
-        test_provider=test_provider, lifecycle=lifecycle, completed_at=now,
-        create_marker=marker_module.create_subscription_marker,
-        sign_marker=marker_module.sign_marker,
-    )
+    expectation = _schema5_expectation(marker_module, release="release-1")
+    signed_smoke = marker_module.sign_marker({
+        "schema_version": 4,
+        "attestation_id": "a" * 64,
+        "release": expectation.release,
+        "lifecycle": {
+            "renewal_invoice_cents": 4_900,
+            "webhook_signature_verified": True,
+        },
+        "completed_at": now.isoformat(),
+        "expires_at": (now + timedelta(hours=24)).isoformat(),
+        "unresolved_cases": 0,
+    }, secret=expectation.signing_secret)
     smoke_path = tmp_path / "payment-smoke.json"
     activation_path = tmp_path / "payment-activation.json"
     smoke_path.write_text(json.dumps(signed_smoke), encoding="utf-8")
@@ -1091,7 +1067,7 @@ def test_authorize_activation_command_writes_a_verified_marker_without_network(
         ),
     )
     monkeypatch.setattr(
-        smoke, "_env_value", lambda name, **_kwargs: values.get(name, "")
+        smoke, "_annual_expectation_from_env", lambda **_kwargs: expectation
     )
     monkeypatch.setattr(
         smoke,
@@ -1099,24 +1075,17 @@ def test_authorize_activation_command_writes_a_verified_marker_without_network(
         lambda *_args, **_kwargs: pytest.fail("aktivácia nesmie volať sieť"),
     )
 
-    result = smoke.main([
-        "--authorize-activation",
-        "--marker", str(smoke_path),
-        "--activation-marker", str(activation_path),
-    ])
+    with pytest.raises(smoke.SmokeFailed, match="čerstvý annual smoke dôkaz"):
+        smoke.main([
+            "--authorize-activation",
+            "--marker", str(smoke_path),
+            "--activation-marker", str(activation_path),
+        ])
 
-    assert result == 0
-    activation = json.loads(activation_path.read_text(encoding="utf-8"))
-    assert marker_module.valid_subscription_activation_attestation(
-        activation, expectation, now=now,
-    ) is True
-    serialized = json.dumps(activation)
-    assert values["LEMON_FOUNDER_DISCOUNT_CODE"] not in serialized
-    assert values["LEMON_TEST_FOUNDER_DISCOUNT_CODE"] not in serialized
-    assert values["LEMON_TEST_WEBHOOK_SECRET"] not in serialized
-    assert values["LEMON_TEST_API_KEY"] not in serialized
-    assert values["LEMON_WEBHOOK_SECRET"] not in serialized
-    assert values["LEMON_API_KEY"] not in serialized
+    assert marker_module.subscription_marker_status(
+        signed_smoke, expectation, now=now
+    ) == "subscription_smoke_incomplete"
+    assert activation_path.exists() is False
 
 
 @pytest.mark.parametrize(
@@ -1293,10 +1262,10 @@ def test_annual_tool_rejects_non_integer_unresolved_count(unresolved):
         )
 
 
-def test_annual_tool_output_passes_marker_verifier_and_readiness_gate():
+def test_b2_contract_rejects_old_annual_as_daily_marker_path():
     smoke = _load_smoke_module()
     marker_module = _load_marker_module()
-    expectation = _annual_expectation(marker_module)
+    expectation = _schema5_expectation(marker_module)
     live_provider = smoke._verified_annual_provider_evidence(
         "live-api",
         config=expectation.live,
@@ -1324,55 +1293,32 @@ def test_annual_tool_output_passes_marker_verifier_and_readiness_gate():
     )
     completed = datetime(2026, 9, 13, 10, 0, tzinfo=timezone.utc)
 
-    proof = smoke._build_annual_subscription_marker(
-        expectation=expectation,
-        live_provider=live_provider,
-        test_provider=test_provider,
-        lifecycle=lifecycle,
-        completed_at=completed,
-        create_marker=marker_module.create_subscription_marker,
-        sign_marker=marker_module.sign_marker,
+    with pytest.raises(smoke.SmokeFailed, match="nedá bezpečne podpísať"):
+        smoke._build_annual_subscription_marker(
+            expectation=expectation,
+            live_provider=live_provider,
+            test_provider=test_provider,
+            lifecycle=lifecycle,
+            completed_at=completed,
+            create_marker=marker_module.create_subscription_marker,
+            sign_marker=marker_module.sign_marker,
+        )
+
+    marker_parameters = set(
+        inspect.signature(marker_module.create_subscription_marker).parameters
     )
-    status = marker_module.subscription_marker_status(
-        proof, expectation, now=completed
-    )
-    readiness = assess_payment_readiness(PaymentReadinessInput(
-        operator_errors=(), support_phone_verified=True,
-        legal_version="2026-09-12-v5",
-        founder_promise=(
-            "Prvý rok za 39 €. Potom 49 € ročne. Predplatné sa automaticky "
-            "obnovuje, kým ho nezrušíš. Zrušiť ho môžeš kedykoľvek; Premium "
-            "zostane aktívne do konca zaplateného obdobia."
-        ),
-        release=expectation.release,
-        webhook_secret=expectation.live.webhook_secret,
-        store_id=expectation.live.store_id,
-        variant_id=expectation.live.variant_id,
-        discount_id=expectation.live.discount_id,
-        discount_code=expectation.live.discount_code,
-        api_key=expectation.live.api_key,
-        test_webhook_secret=expectation.test.webhook_secret,
-        test_store_id=expectation.test.store_id,
-        test_variant_id=expectation.test.variant_id,
-        test_discount_id=expectation.test.discount_id,
-        test_discount_code=expectation.test.discount_code,
-        test_api_key=expectation.test.api_key,
-        source_approved=True, receipt_ready=True, private_alerts=True,
-        consumer_workflows=True, subscription_smoke=status,
-        worker_alive=True, recipe_ready=True,
-    ))
-
-    assert readiness.ready is True
-    encoded = json.dumps(proof)
-    assert "LIVE-CODE" not in encoded
-    assert "TEST-CODE" not in encoded
+    assert "lifecycle" not in marker_parameters
+    assert {
+        "annual_commercial", "probe_provider", "probe_lifecycle"
+    } <= marker_parameters
+    assert marker_module.PROBE_EVIDENCE_SOURCE == "test_mode_daily_probe"
 
 
-def test_annual_main_output_passes_verifier_and_readiness_without_network(
+def test_old_annual_main_cannot_write_schema5_marker_without_probe_evidence(
         monkeypatch, tmp_path):
     smoke = _load_smoke_module()
     marker_module = _load_marker_module()
-    expectation = _annual_expectation(marker_module)
+    expectation = _schema5_expectation(marker_module)
     values = {
         "LEMON_API_KEY": expectation.live.api_key,
         "LEMON_STORE_ID": expectation.live.store_id,
@@ -1408,6 +1354,9 @@ def test_annual_main_output_passes_verifier_and_readiness_without_network(
     monkeypatch.setattr(
         smoke, "_env_value", lambda name, **_kwargs: values.get(name, "")
     )
+    monkeypatch.setattr(
+        smoke, "_annual_expectation_from_env", lambda **_kwargs: expectation
+    )
     monkeypatch.setattr(smoke, "_public_preflight", lambda *_a, **_k: {})
     verify_provider = smoke._verified_annual_provider_evidence
 
@@ -1435,41 +1384,7 @@ def test_annual_main_output_passes_verifier_and_readiness_without_network(
     monkeypatch.setattr(smoke, "_verified_test_portal_access", lambda *_a, **_k: True)
     marker_path = tmp_path / "annual-smoke.json"
 
-    assert smoke.main(["--marker", str(marker_path)]) == 0
-    proof = json.loads(marker_path.read_text(encoding="utf-8"))
-    status = marker_module.subscription_marker_status(
-        proof, expectation, now=datetime.now(timezone.utc)
-    )
-    readiness = assess_payment_readiness(PaymentReadinessInput(
-        operator_errors=(), support_phone_verified=True,
-        legal_version="2026-09-12-v5",
-        founder_promise=(
-            "Prvý rok za 39 €. Potom 49 € ročne. Predplatné sa automaticky "
-            "obnovuje, kým ho nezrušíš. Zrušiť ho môžeš kedykoľvek; Premium "
-            "zostane aktívne do konca zaplateného obdobia."
-        ),
-        release=expectation.release,
-        webhook_secret=expectation.live.webhook_secret,
-        store_id=expectation.live.store_id,
-        variant_id=expectation.live.variant_id,
-        discount_id=expectation.live.discount_id,
-        discount_code=expectation.live.discount_code,
-        api_key=expectation.live.api_key,
-        test_webhook_secret=expectation.test.webhook_secret,
-        test_store_id=expectation.test.store_id,
-        test_variant_id=expectation.test.variant_id,
-        test_discount_id=expectation.test.discount_id,
-        test_discount_code=expectation.test.discount_code,
-        test_api_key=expectation.test.api_key,
-        source_approved=True, receipt_ready=True, private_alerts=True,
-        consumer_workflows=True, subscription_smoke=status,
-        worker_alive=True, recipe_ready=True,
-    ))
+    with pytest.raises(smoke.SmokeFailed, match="nedá bezpečne podpísať"):
+        smoke.main(["--marker", str(marker_path)])
 
-    assert readiness.ready is True
-    encoded = json.dumps(proof)
-    for secret in values.values():
-        if secret not in {expectation.live.store_id, expectation.live.variant_id,
-                          expectation.live.discount_id, expectation.test.store_id,
-                          expectation.test.variant_id, expectation.test.discount_id}:
-            assert secret not in encoded
+    assert marker_path.exists() is False

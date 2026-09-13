@@ -106,7 +106,7 @@ if ! (cd "$CIEL/app" && UVARSI_URL=https://uvar.si UVARSI_VERSION_FILE="$CIEL/VE
   exit 1
 fi
 # b) povinné súbory
-for f in app/server.py app/config.py app/auth_data.py app/account_data.py app/customer_requests.py app/operator_profile.py app/legal_pages.py app/platby.py app/predplatne.py app/rekonciliacia.py app/payment_readiness.py app/payment_smoke_marker.py app/source_policy.py app/public_pages.py app/landing_static.py app/plan_jobs.py app/plan_calendar.py app/plan_shortlist.py app/plan_worker.py app/predpocet.py app/deterministic_plan.py app/ingredient_catalog.py app/library_gate.py app/quantity_math.py app/recipe_catalog.py app/recipe_matcher.py app/recipe_provenance.py app/recipe_workflow.py app/regular_purchase.py app/recipe_renderer.py app/static/app.html app/static/subscription-profile.19ddd6feb9d0.js app/catalog/ingredients.json app/catalog/recipe_sources.json app/catalog/slovak_ingredient_forms.json app/catalog/recipes/manifest.json hetzner/uvarsi.service hetzner/uvarsi-plan-worker.service hetzner/uvarsi-deploy-state.sh hetzner/payment-smoke.py hetzner/recipe-engine-rollout.sh hetzner/recipe-engine.target VERSION index.html sw.js; do
+for f in app/server.py app/config.py app/auth_data.py app/account_data.py app/customer_requests.py app/operator_profile.py app/legal_pages.py app/platby.py app/predplatne.py app/rekonciliacia.py app/payment_readiness.py app/payment_smoke_marker.py app/subscription_lifecycle_probe.py app/source_policy.py app/public_pages.py app/landing_static.py app/plan_jobs.py app/plan_calendar.py app/plan_shortlist.py app/plan_worker.py app/predpocet.py app/deterministic_plan.py app/ingredient_catalog.py app/library_gate.py app/quantity_math.py app/recipe_catalog.py app/recipe_matcher.py app/recipe_provenance.py app/recipe_workflow.py app/regular_purchase.py app/recipe_renderer.py app/static/app.html app/static/subscription-profile.19ddd6feb9d0.js app/catalog/ingredients.json app/catalog/recipe_sources.json app/catalog/slovak_ingredient_forms.json app/catalog/recipes/manifest.json hetzner/uvarsi.service hetzner/uvarsi-plan-worker.service hetzner/uvarsi-deploy-state.sh hetzner/payment-smoke.py hetzner/recipe-engine-rollout.sh hetzner/recipe-engine.target VERSION index.html sw.js; do
   [ -f "$CIEL/$f" ] && [ -s "$CIEL/$f" ] || { log "vo vydaní chýba platný $f — NEPREPÍNAM"; \
     notify "Uvar.si: neúplné vydanie" "Chýba $f."; exit 1; }
 done
@@ -167,7 +167,11 @@ for k in LEMON_API_KEY LEMON_WEBHOOK_SECRET LEMON_STORE_ID \
   LEMON_FOUNDER_DISCOUNT_CODE LEMON_TEST_API_KEY \
   LEMON_TEST_WEBHOOK_SECRET LEMON_TEST_STORE_ID \
   LEMON_TEST_SUBSCRIPTION_VARIANT_ID LEMON_TEST_FOUNDER_DISCOUNT_ID \
-  LEMON_TEST_FOUNDER_DISCOUNT_CODE UVARSI_PAYMENT_SMOKE_SIGNING_SECRET; do
+  LEMON_TEST_FOUNDER_DISCOUNT_CODE \
+  LEMON_TEST_LIFECYCLE_PROBE_VARIANT_ID \
+  LEMON_TEST_LIFECYCLE_PROBE_WEBHOOK_SECRET \
+  LEMON_TEST_LIFECYCLE_PROBE_PRICE_CENTS \
+  UVARSI_PAYMENT_SMOKE_SIGNING_SECRET; do
   if ! _uvarsi_env_value "$k" >/dev/null; then
     log "ročné platobné nastavenie chýba: $k"
     ANNUAL_CONFIG_MISSING=1

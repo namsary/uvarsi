@@ -120,6 +120,7 @@ $subory = @(
   @{ l = "$B\app\legal_pages.py";       r = "/opt/uvarsi/app/legal_pages.py" },
   @{ l = "$B\app\payment_readiness.py"; r = "/opt/uvarsi/app/payment_readiness.py" },
   @{ l = "$B\app\payment_smoke_marker.py"; r = "/opt/uvarsi/app/payment_smoke_marker.py" },
+  @{ l = "$B\app\subscription_lifecycle_probe.py"; r = "/opt/uvarsi/app/subscription_lifecycle_probe.py" },
   @{ l = "$B\app\source_policy.py";     r = "/opt/uvarsi/app/source_policy.py" },
   @{ l = "$B\app\weekly_data.py";       r = "/opt/uvarsi/app/weekly_data.py" },
   @{ l = "$B\app\offer_data.py";        r = "/opt/uvarsi/app/offer_data.py" },
@@ -484,7 +485,11 @@ for k in LEMON_API_KEY LEMON_WEBHOOK_SECRET LEMON_STORE_ID \
   LEMON_FOUNDER_DISCOUNT_CODE LEMON_TEST_API_KEY \
   LEMON_TEST_WEBHOOK_SECRET LEMON_TEST_STORE_ID \
   LEMON_TEST_SUBSCRIPTION_VARIANT_ID LEMON_TEST_FOUNDER_DISCOUNT_ID \
-  LEMON_TEST_FOUNDER_DISCOUNT_CODE UVARSI_PAYMENT_SMOKE_SIGNING_SECRET; do
+  LEMON_TEST_FOUNDER_DISCOUNT_CODE \
+  LEMON_TEST_LIFECYCLE_PROBE_VARIANT_ID \
+  LEMON_TEST_LIFECYCLE_PROBE_WEBHOOK_SECRET \
+  LEMON_TEST_LIFECYCLE_PROBE_PRICE_CENTS \
+  UVARSI_PAYMENT_SMOKE_SIGNING_SECRET; do
   if grep -Eq "^[[:space:]]*(export[[:space:]]+)?${k}=[^[:space:]]" "$F"; then
     echo "  $k: pritomny"
   else

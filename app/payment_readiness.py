@@ -71,6 +71,7 @@ _SAFE_SUBSCRIPTION_SMOKE_BLOCKERS = frozenset({
     "subscription_smoke_stale",
     "subscription_smoke_incomplete",
     "subscription_smoke_mismatch",
+    "subscription_probe_invalid",
 })
 
 

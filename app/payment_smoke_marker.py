@@ -11,6 +11,29 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
+try:
+    from .subscription_lifecycle_probe import (
+        LifecycleProbeConfig,
+        PROBE_EVIDENCE_SOURCE,
+        probe_config_fingerprint,
+        validate_probe_config,
+    )
+except ImportError:
+    try:
+        from subscription_lifecycle_probe import (
+            LifecycleProbeConfig,
+            PROBE_EVIDENCE_SOURCE,
+            probe_config_fingerprint,
+            validate_probe_config,
+        )
+    except ImportError:
+        from app.subscription_lifecycle_probe import (
+            LifecycleProbeConfig,
+            PROBE_EVIDENCE_SOURCE,
+            probe_config_fingerprint,
+            validate_probe_config,
+        )
+
 
 SCHEMA_VERSION = 3
 ACTIVATION_SCHEMA_VERSION = 1
@@ -18,8 +41,8 @@ SMOKE_MAX_AGE_SECONDS = 24 * 60 * 60
 SMOKE_FUTURE_SKEW_SECONDS = 5 * 60
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 
-SUBSCRIPTION_SCHEMA_VERSION = 4
-SUBSCRIPTION_ACTIVATION_SCHEMA_VERSION = 2
+SUBSCRIPTION_SCHEMA_VERSION = 5
+SUBSCRIPTION_ACTIVATION_SCHEMA_VERSION = 3
 SUBSCRIPTION_SMOKE_MAX_AGE_SECONDS = 24 * 60 * 60
 SUBSCRIPTION_SMOKE_FUTURE_SKEW_SECONDS = 5 * 60
 SUBSCRIPTION_ACTIVATION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
@@ -44,6 +67,7 @@ class SubscriptionMarkerExpectation:
     live: SubscriptionConfig
     test: SubscriptionConfig
     signing_secret: str = field(repr=False)
+    probe: LifecycleProbeConfig | None = None
 
 
 @dataclass(frozen=True)
@@ -69,6 +93,8 @@ class AnnualProviderEvidence:
 
 @dataclass(frozen=True)
 class SubscriptionLifecycleEvidence:
+    """Legacy Task 9 evidence shape; deliberately not accepted by schema 5."""
+
     initial_charge_cents: int
     renewal_displayed_cents: int
     activation_verified: bool
@@ -82,6 +108,56 @@ class SubscriptionLifecycleEvidence:
     portal_access_verified: bool
     webhook_signature_verified: bool
     reconciliation_verified: bool
+
+
+@dataclass(frozen=True)
+class AnnualCommercialEvidence:
+    """Annual commercial and locally tested annual-domain facts."""
+
+    founder_initial_cents: int
+    standard_and_renewal_cents: int
+    currency: str
+    billing_interval: str
+    billing_interval_count: int
+    annual_test_checkout_verified: bool
+    annual_test_initial_payment_verified: bool
+    annual_domain_renewal_verified: bool
+    annual_domain_cancellation_verified: bool
+    annual_domain_refund_verified: bool
+    portal_access_verified: bool
+    reconciliation_verified: bool
+
+
+@dataclass(frozen=True)
+class DailyProbeProviderEvidence:
+    """Provider metadata for the isolated Test-mode daily product."""
+
+    test_mode: bool
+    price_cents: int
+    currency: str
+    billing_interval: str
+    billing_interval_count: int
+    trial_days: int
+    discount_applied_cents: int
+    variant_status: str
+
+
+@dataclass(frozen=True)
+class DailyProbeLifecycleEvidence:
+    """Observed signed webhook mechanics, never annual billing proof."""
+
+    evidence_source: str
+    initial_payment_webhook_verified: bool
+    genuine_daily_renewal_verified: bool
+    failed_payment_webhook_verified: bool
+    recovered_payment_webhook_verified: bool
+    cancellation_webhook_verified: bool
+    resumed_webhook_verified: bool
+    expiration_webhook_verified: bool
+    refund_webhook_verified: bool
+    webhook_signature_verified: bool
+    identity_isolation_verified: bool
+    event_order_verified: bool
 
 
 def _text(value, *, name: str) -> str:
@@ -261,37 +337,105 @@ def discount_code_fingerprint(*, signing_secret: str, discount_code: str) -> str
 
 def _subscription_config_identity(
     config: SubscriptionConfig, *, signing_secret: str
-) -> dict:
+) -> str:
     if not isinstance(config, SubscriptionConfig) or type(config.test_mode) is not bool:
         raise ValueError("neplatná konfigurácia predplatného")
-    return {
+    values = {
         "store_id": _text(config.store_id, name="obchod"),
         "variant_id": _text(config.variant_id, name="ročný variant"),
         "discount_id": _text(config.discount_id, name="zakladajúca zľava"),
-        "discount_code_fingerprint": _secret_fingerprint(
-            signing_secret, label="discount-code", value=config.discount_code
-        ),
-        "webhook_secret_fingerprint": _secret_fingerprint(
-            signing_secret, label="webhook-secret", value=config.webhook_secret
-        ),
-        "api_key_fingerprint": _secret_fingerprint(
-            signing_secret, label="api-key", value=config.api_key
-        ),
+        "discount_code": _text(config.discount_code, name="kód zľavy"),
+        "webhook_secret": _text(config.webhook_secret, name="webhook tajomstvo"),
+        "api_key": _text(config.api_key, name="API kľúč"),
         "test_mode": config.test_mode,
+    }
+    payload = json.dumps(
+        values, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("utf-8")
+    key = _text(signing_secret, name="podpisové tajomstvo").encode("utf-8")
+    return hmac.new(
+        key, b"uvarsi-annual-subscription-config-v2\0" + payload, hashlib.sha256
+    ).hexdigest()
+
+
+def _valid_expectation(
+    expectation: SubscriptionMarkerExpectation,
+) -> tuple[str, str, str]:
+    if not isinstance(expectation, SubscriptionMarkerExpectation):
+        raise ValueError("chýba očakávaná konfigurácia predplatného")
+    if expectation.live.test_mode is not False or expectation.test.test_mode is not True:
+        raise ValueError("živý a testovací režim nie sú oddelené")
+    if not isinstance(expectation.probe, LifecycleProbeConfig):
+        raise ValueError("chýba konfigurácia denného probe")
+    validated_probe = validate_probe_config(
+        expectation.probe,
+        annual_test_variant_id=expectation.test.variant_id,
+        live_webhook_secret=expectation.live.webhook_secret,
+        annual_test_webhook_secret=expectation.test.webhook_secret,
+    )
+    test_store_id = _text(expectation.test.store_id, name="testovací obchod")
+    test_api_key = _text(expectation.test.api_key, name="testovací API kľúč")
+    if not hmac.compare_digest(validated_probe.store_id, test_store_id):
+        raise ValueError("denný probe musí používať testovací obchod")
+    if not hmac.compare_digest(validated_probe.api_key, test_api_key):
+        raise ValueError("denný probe musí používať testovací API kľúč")
+    live = _subscription_config_identity(
+        expectation.live, signing_secret=expectation.signing_secret
+    )
+    test = _subscription_config_identity(
+        expectation.test, signing_secret=expectation.signing_secret
+    )
+    daily_probe = probe_config_fingerprint(
+        validated_probe, signing_secret=expectation.signing_secret
+    )
+    return live, test, daily_probe
+
+
+def _provider_payload(
+    evidence: AnnualProviderEvidence,
+    config: SubscriptionConfig,
+    *,
+    signing_secret: str,
+) -> dict:
+    if not isinstance(evidence, AnnualProviderEvidence):
+        raise ValueError("chýba dôkaz nastavenia ročného variantu")
+    return {
+        "config_fingerprint": _subscription_config_identity(
+            config, signing_secret=signing_secret
+        ),
+        "provider_identity_verified": _valid_provider_evidence(
+            evidence, config, signing_secret=signing_secret
+        ),
+        "test_mode": evidence.test_mode,
+        "annual_price_cents": evidence.annual_price_cents,
+        "currency": evidence.currency,
+        "billing_interval": evidence.billing_interval,
+        "billing_interval_count": evidence.billing_interval_count,
+        "trial_days": evidence.trial_days,
+        "variant_status": evidence.variant_status,
+        "discount_kind": evidence.discount_kind,
+        "discount_amount_cents": evidence.discount_amount_cents,
+        "discount_duration": evidence.discount_duration,
+        "discount_status": evidence.discount_status,
+        "discount_redemption_limit": evidence.discount_redemption_limit,
     }
 
 
-def _provider_payload(evidence: AnnualProviderEvidence) -> dict:
-    if not isinstance(evidence, AnnualProviderEvidence):
-        raise ValueError("chýba dôkaz nastavenia ročného variantu")
-    payload = asdict(evidence)
-    payload["discount_variant_ids"] = list(evidence.discount_variant_ids)
-    return payload
+def _annual_commercial_payload(evidence: AnnualCommercialEvidence) -> dict:
+    if not isinstance(evidence, AnnualCommercialEvidence):
+        raise ValueError("chýba oddelený ročný obchodný dôkaz")
+    return asdict(evidence)
 
 
-def _lifecycle_payload(evidence: SubscriptionLifecycleEvidence) -> dict:
-    if not isinstance(evidence, SubscriptionLifecycleEvidence):
-        raise ValueError("chýba dôkaz životného cyklu predplatného")
+def _probe_provider_payload(evidence: DailyProbeProviderEvidence) -> dict:
+    if not isinstance(evidence, DailyProbeProviderEvidence):
+        raise ValueError("chýba provider dôkaz denného probe")
+    return asdict(evidence)
+
+
+def _probe_lifecycle_payload(evidence: DailyProbeLifecycleEvidence) -> dict:
+    if not isinstance(evidence, DailyProbeLifecycleEvidence):
+        raise ValueError("chýba lifecycle dôkaz denného probe")
     return asdict(evidence)
 
 
@@ -299,16 +443,15 @@ def create_subscription_marker(
     *, expectation: SubscriptionMarkerExpectation,
     live_provider: AnnualProviderEvidence,
     test_provider: AnnualProviderEvidence,
-    lifecycle: SubscriptionLifecycleEvidence,
+    annual_commercial: AnnualCommercialEvidence,
+    probe_provider: DailyProbeProviderEvidence,
+    probe_lifecycle: DailyProbeLifecycleEvidence,
     completed_at: str,
     expires_at: str,
     attestation_id: str | None = None,
 ) -> dict:
-    """Record observed annual-subscription facts without inventing evidence."""
-    if not isinstance(expectation, SubscriptionMarkerExpectation):
-        raise ValueError("chýba očakávaná konfigurácia predplatného")
-    if expectation.live.test_mode is not False or expectation.test.test_mode is not True:
-        raise ValueError("živý a testovací režim nie sú oddelené")
+    """Record annual facts and daily mechanics without conflating them."""
+    live_config, test_config, daily_probe_config = _valid_expectation(expectation)
     identifier = attestation_id or secrets.token_hex(32)
     if not isinstance(identifier, str) or not _DIGEST_RE.fullmatch(identifier):
         raise ValueError("neplatný identifikátor testu")
@@ -316,15 +459,22 @@ def create_subscription_marker(
         "schema_version": SUBSCRIPTION_SCHEMA_VERSION,
         "attestation_id": identifier,
         "release": _text(expectation.release, name="vydanie"),
-        "live_config": _subscription_config_identity(
-            expectation.live, signing_secret=expectation.signing_secret
+        "annual_live_config_fingerprint": live_config,
+        "annual_test_config_fingerprint": test_config,
+        "probe_config_fingerprint": daily_probe_config,
+        "annual_live_provider": _provider_payload(
+            live_provider, expectation.live,
+            signing_secret=expectation.signing_secret,
         ),
-        "test_config": _subscription_config_identity(
-            expectation.test, signing_secret=expectation.signing_secret
+        "annual_test_provider": _provider_payload(
+            test_provider, expectation.test,
+            signing_secret=expectation.signing_secret,
         ),
-        "live_provider": _provider_payload(live_provider),
-        "test_provider": _provider_payload(test_provider),
-        "lifecycle": _lifecycle_payload(lifecycle),
+        "annual_commercial": _annual_commercial_payload(annual_commercial),
+        "test_mode_daily_probe": {
+            "provider": _probe_provider_payload(probe_provider),
+            "lifecycle": _probe_lifecycle_payload(probe_lifecycle),
+        },
         "completed_at": _text(completed_at, name="čas dokončenia"),
         "expires_at": _text(expires_at, name="koniec platnosti"),
         "unresolved_cases": 0,
@@ -334,6 +484,9 @@ def create_subscription_marker(
 def _valid_provider_evidence(
     value, config: SubscriptionConfig, *, signing_secret: str
 ) -> bool:
+    if isinstance(value, AnnualProviderEvidence):
+        value = asdict(value)
+        value["discount_variant_ids"] = list(value["discount_variant_ids"])
     if not isinstance(value, dict):
         return False
     if type(value.get("test_mode")) is not bool:
@@ -373,19 +526,16 @@ def _valid_provider_evidence(
     }
 
 
-def _valid_lifecycle_evidence(value) -> bool:
+def _valid_annual_commercial_evidence(value) -> bool:
     if not isinstance(value, dict):
         return False
     boolean_fields = (
-        "activation_verified",
-        "failed_payment_verified",
-        "recovery_verified",
-        "cancellation_verified",
-        "access_retained_until_period_end",
-        "expiration_verified",
-        "refund_verified",
+        "annual_test_checkout_verified",
+        "annual_test_initial_payment_verified",
+        "annual_domain_renewal_verified",
+        "annual_domain_cancellation_verified",
+        "annual_domain_refund_verified",
         "portal_access_verified",
-        "webhook_signature_verified",
         "reconciliation_verified",
     )
     if not all(type(value.get(key)) is bool for key in boolean_fields):
@@ -393,27 +543,70 @@ def _valid_lifecycle_evidence(value) -> bool:
     if not all(
         type(value.get(key)) is int
         for key in (
-            "initial_charge_cents",
-            "renewal_displayed_cents",
-            "renewal_invoice_cents",
+            "founder_initial_cents",
+            "standard_and_renewal_cents",
+            "billing_interval_count",
         )
     ):
         return False
     return value == {
-        "initial_charge_cents": 3_900,
-        "renewal_displayed_cents": 4_900,
-        "activation_verified": True,
-        "renewal_invoice_cents": 4_900,
-        "failed_payment_verified": True,
-        "recovery_verified": True,
-        "cancellation_verified": True,
-        "access_retained_until_period_end": True,
-        "expiration_verified": True,
-        "refund_verified": True,
+        "founder_initial_cents": 3_900,
+        "standard_and_renewal_cents": 4_900,
+        "currency": "EUR",
+        "billing_interval": "year",
+        "billing_interval_count": 1,
+        "annual_test_checkout_verified": True,
+        "annual_test_initial_payment_verified": True,
+        "annual_domain_renewal_verified": True,
+        "annual_domain_cancellation_verified": True,
+        "annual_domain_refund_verified": True,
         "portal_access_verified": True,
-        "webhook_signature_verified": True,
         "reconciliation_verified": True,
     }
+
+
+def _valid_probe_provider_evidence(value, config: LifecycleProbeConfig) -> bool:
+    if not isinstance(value, dict):
+        return False
+    integer_fields = (
+        "price_cents", "billing_interval_count", "trial_days",
+        "discount_applied_cents",
+    )
+    if not all(type(value.get(key)) is int for key in integer_fields):
+        return False
+    return value == {
+        "test_mode": True,
+        "price_cents": config.price_cents,
+        "currency": "EUR",
+        "billing_interval": "day",
+        "billing_interval_count": 1,
+        "trial_days": 0,
+        "discount_applied_cents": 0,
+        "variant_status": "published",
+    }
+
+
+def _valid_probe_lifecycle_evidence(value) -> bool:
+    if not isinstance(value, dict):
+        return False
+    expected = {
+        "evidence_source": PROBE_EVIDENCE_SOURCE,
+        "initial_payment_webhook_verified": True,
+        "genuine_daily_renewal_verified": True,
+        "failed_payment_webhook_verified": True,
+        "recovered_payment_webhook_verified": True,
+        "cancellation_webhook_verified": True,
+        "resumed_webhook_verified": True,
+        "expiration_webhook_verified": True,
+        "refund_webhook_verified": True,
+        "webhook_signature_verified": True,
+        "identity_isolation_verified": True,
+        "event_order_verified": True,
+    }
+    return value == expected and all(
+        type(value.get(key)) is bool
+        for key in expected if key != "evidence_source"
+    )
 
 
 def subscription_marker_status(
@@ -444,8 +637,11 @@ def subscription_marker_status(
     if not hmac.compare_digest(signature, expected_signature):
         return "subscription_smoke_invalid"
     required = {
-        "schema_version", "attestation_id", "release", "live_config",
-        "test_config", "live_provider", "test_provider", "lifecycle",
+        "schema_version", "attestation_id", "release",
+        "annual_live_config_fingerprint", "annual_test_config_fingerprint",
+        "probe_config_fingerprint", "annual_live_provider",
+        "annual_test_provider", "annual_commercial",
+        "test_mode_daily_probe",
         "completed_at", "expires_at", "unresolved_cases", "signature",
     }
     if set(marker) != required or marker.get("schema_version") != SUBSCRIPTION_SCHEMA_VERSION:
@@ -453,47 +649,62 @@ def subscription_marker_status(
     if not _DIGEST_RE.fullmatch(str(marker.get("attestation_id", ""))):
         return "subscription_smoke_invalid"
     try:
-        expected_live = _subscription_config_identity(
-            expectation.live, signing_secret=secret
-        )
-        expected_test = _subscription_config_identity(
-            expectation.test, signing_secret=secret
-        )
+        expected_live, expected_test, expected_probe = _valid_expectation(expectation)
     except ValueError:
-        return "subscription_smoke_mismatch"
-    if expectation.live.test_mode is not False or expectation.test.test_mode is not True:
         return "subscription_smoke_mismatch"
     if (
         marker.get("release") != expectation.release
-        or marker.get("live_config") != expected_live
-        or marker.get("test_config") != expected_test
+        or marker.get("annual_live_config_fingerprint") != expected_live
+        or marker.get("annual_test_config_fingerprint") != expected_test
+        or marker.get("probe_config_fingerprint") != expected_probe
     ):
         return "subscription_smoke_mismatch"
-    live_provider = marker.get("live_provider")
-    test_provider = marker.get("test_provider")
-    expected_live_code = discount_code_fingerprint(
-        signing_secret=secret, discount_code=expectation.live.discount_code
-    )
-    expected_test_code = discount_code_fingerprint(
-        signing_secret=secret, discount_code=expectation.test.discount_code
-    )
+    live_provider = marker.get("annual_live_provider")
+    test_provider = marker.get("annual_test_provider")
+    expected_provider_keys = {
+        "config_fingerprint", "provider_identity_verified", "test_mode",
+        "annual_price_cents", "currency",
+        "billing_interval", "billing_interval_count", "trial_days",
+        "variant_status", "discount_kind", "discount_amount_cents",
+        "discount_duration", "discount_status", "discount_redemption_limit",
+    }
+    if not isinstance(live_provider, dict) or set(live_provider) != expected_provider_keys:
+        return "subscription_smoke_incomplete"
+    if not isinstance(test_provider, dict) or set(test_provider) != expected_provider_keys:
+        return "subscription_smoke_incomplete"
     if (
-        isinstance(live_provider, dict)
-        and live_provider.get("discount_code_fingerprint") != expected_live_code
-    ) or (
-        isinstance(test_provider, dict)
-        and test_provider.get("discount_code_fingerprint") != expected_test_code
+        live_provider.get("provider_identity_verified") is not True
+        or test_provider.get("provider_identity_verified") is not True
     ):
         return "subscription_smoke_mismatch"
-    if not _valid_provider_evidence(
-        live_provider, expectation.live, signing_secret=secret
-    ):
+    if live_provider != {
+        "config_fingerprint": expected_live, "provider_identity_verified": True,
+        "test_mode": False,
+        "annual_price_cents": 4_900, "currency": "EUR",
+        "billing_interval": "year", "billing_interval_count": 1,
+        "trial_days": 0, "variant_status": "published",
+        "discount_kind": "fixed", "discount_amount_cents": 1_000,
+        "discount_duration": "once", "discount_status": "published",
+        "discount_redemption_limit": 50,
+    } or test_provider != {
+        "config_fingerprint": expected_test, "provider_identity_verified": True,
+        "test_mode": True,
+        "annual_price_cents": 4_900, "currency": "EUR",
+        "billing_interval": "year", "billing_interval_count": 1,
+        "trial_days": 0, "variant_status": "published",
+        "discount_kind": "fixed", "discount_amount_cents": 1_000,
+        "discount_duration": "once", "discount_status": "published",
+        "discount_redemption_limit": 50,
+    }:
         return "subscription_smoke_incomplete"
-    if not _valid_provider_evidence(
-        test_provider, expectation.test, signing_secret=secret
-    ):
+    if not _valid_annual_commercial_evidence(marker.get("annual_commercial")):
         return "subscription_smoke_incomplete"
-    if not _valid_lifecycle_evidence(marker.get("lifecycle")):
+    daily_probe = marker.get("test_mode_daily_probe")
+    if not isinstance(daily_probe, dict) or set(daily_probe) != {"provider", "lifecycle"}:
+        return "subscription_smoke_incomplete"
+    if not _valid_probe_provider_evidence(daily_probe.get("provider"), expectation.probe):
+        return "subscription_smoke_incomplete"
+    if not _valid_probe_lifecycle_evidence(daily_probe.get("lifecycle")):
         return "subscription_smoke_incomplete"
     if (
         type(marker.get("unresolved_cases")) is not int
@@ -542,8 +753,13 @@ def create_subscription_activation_attestation(
         "schema_version": SUBSCRIPTION_ACTIVATION_SCHEMA_VERSION,
         "release": expectation.release,
         "attestation_id": smoke_marker["attestation_id"],
-        "live_config": smoke_marker["live_config"],
-        "test_config": smoke_marker["test_config"],
+        "annual_live_config_fingerprint": smoke_marker[
+            "annual_live_config_fingerprint"
+        ],
+        "annual_test_config_fingerprint": smoke_marker[
+            "annual_test_config_fingerprint"
+        ],
+        "probe_config_fingerprint": smoke_marker["probe_config_fingerprint"],
         "smoke_evidence_digest": _smoke_evidence_digest(smoke_marker),
         "smoke_completed_at": smoke_marker["completed_at"],
         "smoke_expires_at": smoke_marker["expires_at"],
@@ -580,20 +796,16 @@ def subscription_activation_status(
     if not hmac.compare_digest(signature, expected_signature):
         return "subscription_smoke_invalid"
     required = {
-        "schema_version", "release", "attestation_id", "live_config",
-        "test_config", "smoke_evidence_digest", "smoke_completed_at",
+        "schema_version", "release", "attestation_id",
+        "annual_live_config_fingerprint", "annual_test_config_fingerprint",
+        "probe_config_fingerprint", "smoke_evidence_digest", "smoke_completed_at",
         "smoke_expires_at", "activated_at", "activation_expires_at",
         "signature",
     }
     if set(attestation) != required:
         return "subscription_smoke_incomplete"
     try:
-        live = _subscription_config_identity(
-            expectation.live, signing_secret=secret
-        )
-        test = _subscription_config_identity(
-            expectation.test, signing_secret=secret
-        )
+        live, test, probe = _valid_expectation(expectation)
         completed = _parse_aware_timestamp(attestation.get("smoke_completed_at"))
         expires = _parse_aware_timestamp(attestation.get("smoke_expires_at"))
         activated = _parse_aware_timestamp(attestation.get("activated_at"))
@@ -612,10 +824,9 @@ def subscription_activation_status(
         return "subscription_smoke_incomplete"
     if (
         attestation.get("release") != expectation.release
-        or attestation.get("live_config") != live
-        or attestation.get("test_config") != test
-        or expectation.live.test_mode is not False
-        or expectation.test.test_mode is not True
+        or attestation.get("annual_live_config_fingerprint") != live
+        or attestation.get("annual_test_config_fingerprint") != test
+        or attestation.get("probe_config_fingerprint") != probe
     ):
         return "subscription_smoke_mismatch"
     validity = (expires - completed).total_seconds()

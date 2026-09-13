@@ -90,6 +90,7 @@ def test_all_required_gates_make_checkout_ready():
         ("subscription_smoke", None, "subscription_smoke_missing"),
         ("subscription_smoke", "subscription_smoke_stale", "subscription_smoke_stale"),
         ("subscription_smoke", "subscription_smoke_incomplete", "subscription_smoke_incomplete"),
+        ("subscription_smoke", "subscription_probe_invalid", "subscription_probe_invalid"),
         ("worker_alive", False, "plan_worker_unhealthy"),
         ("recipe_ready", False, "recipe_gate_failed"),
     ],

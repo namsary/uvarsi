@@ -39,6 +39,11 @@ TEST_KEYS = (
     "LEMON_TEST_FOUNDER_DISCOUNT_ID",
     "LEMON_TEST_FOUNDER_DISCOUNT_CODE",
 )
+PROBE_KEYS = (
+    "LEMON_TEST_LIFECYCLE_PROBE_VARIANT_ID",
+    "LEMON_TEST_LIFECYCLE_PROBE_WEBHOOK_SECRET",
+    "LEMON_TEST_LIFECYCLE_PROBE_PRICE_CENTS",
+)
 
 
 def _bash_path(path: Path) -> str:
@@ -200,6 +205,7 @@ def test_both_deploy_paths_require_all_subscription_runtime_artifacts():
         "app/customer_requests.py",
         "app/payment_readiness.py",
         "app/payment_smoke_marker.py",
+        "app/subscription_lifecycle_probe.py",
         "hetzner/payment-smoke.py",
         "app/static/subscription-profile.19ddd6feb9d0.js",
     )
@@ -218,7 +224,8 @@ def test_both_deploy_paths_require_all_subscription_runtime_artifacts():
 def test_deploy_checks_name_every_subscription_setting_without_secret_values():
     for path in (MANUAL_DEPLOY, AUTO_DEPLOY):
         script = path.read_text(encoding="utf-8")
-        for key in (*LIVE_KEYS, *TEST_KEYS, "UVARSI_PAYMENT_SMOKE_SIGNING_SECRET"):
+        for key in (*LIVE_KEYS, *TEST_KEYS, *PROBE_KEYS,
+                    "UVARSI_PAYMENT_SMOKE_SIGNING_SECRET"):
             assert key in script, f"{path} does not check {key}"
         assert "sk_live_" not in script
         assert "sk_test_" not in script
