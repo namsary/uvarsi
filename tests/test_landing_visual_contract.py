@@ -2,13 +2,15 @@
 import re
 from pathlib import Path
 
+from app.legal_pages import legal_text
+
 
 def html():
     return Path("index.html").read_text(encoding="utf-8")
 
 
 def legal_terms():
-    return Path("docs/legal/01_VOP_NAVRH.md").read_text(encoding="utf-8")
+    return legal_text("vop")
 
 
 def pricing_cards(page):
@@ -91,7 +93,7 @@ def test_founding_offer_matches_the_approved_value_story():
     page = html()
 
     assert "39 €" in page
-    assert "jednorazovo" in page.lower()
+    assert "Potom 49 € ročne" in page
     assert "Prvých 50" in page
 
 
@@ -102,20 +104,17 @@ def test_pricing_shows_exactly_free_founding_and_annual_premium():
     free, founding, premium = cards
     assert '<div class="plan-name">Free</div>' in free
     assert '<div class="plan-price">0 €</div>' in free
-    assert '<div class="plan-per">navždy</div>' in free
+    assert '<div class="plan-per">bezplatne</div>' in free
     assert '<div class="plan-name">Zakladajúci</div>' in founding
     assert '<div class="plan-price">39 €</div>' in founding
-    assert (
-        "39 € raz. Premium garantované na 24 mesiacov, potom bez predplatného "
-        "počas ďalšej prevádzky služby Uvar.si."
-    ) in founding
-    assert "cena natrvalo" not in founding.casefold()
-    assert "premium natrvalo" not in founding.casefold()
+    assert "Prvý rok za 39 €. Potom 49 € ročne." in founding
+    assert "automaticky obnovuje" in founding
+    assert "do konca zaplateného obdobia" in founding
     assert "Prvých 50" in founding
     assert '<div class="plan-name">Premium</div>' in premium
     assert '<div class="plan-price">49 €</div>' in premium
-    assert "/ rok" in premium
-    assert "po skončení zakladajúcej ponuky" in premium
+    assert "ročne" in premium
+    assert "od prvého roka" in premium
 
 
 def test_free_and_premium_store_promises_match_the_product_entitlements():
@@ -151,7 +150,7 @@ def test_founding_offer_has_a_progressive_accessible_counter_slot():
     page = html()
 
     assert re.search(
-        r'<div[^>]+id="community-counter"[^>]*>\s*50 zakladajúcich miest za 39 € jednorazovo\s*</div>',
+        r'<div[^>]+id="community-counter"[^>]*>\s*50 zakladajúcich miest · prvý rok za 39 €\s*</div>',
         page,
     )
     assert "renderCommunity(data.community)" in page
@@ -167,7 +166,7 @@ def test_landing_and_legal_draft_share_the_approved_prices_without_stale_offers(
 
     assert "39 €" in page and "39 €" in legal
     assert "49 €" in page and "49 €" in legal
-    assert "39 € jednorazovo" in page and "39 € jednorazovo" in legal
+    assert "prvý rok za 39 €" in page.casefold() and "prvý rok za 39 €" in legal.casefold()
     assert "49 € ročne" in legal
     for stale_price in ("19 €", "29 €"):
         assert stale_price not in page
@@ -182,9 +181,11 @@ def test_interest_email_is_nonbinding_and_only_a_later_purchase_creates_entitlem
     assert "nezáväzný záujem" in page
     assert "nevytvára objednávku" in page
     assert "úspešnej platbe" in page
-    assert "úplné vrátenie do 14 dní" in page
-    assert "Premium sa aktivuje až po potvrdení platby poskytovateľom" in legal
-    assert "úplnú refundáciu bez krátenia" in legal
+    assert "pomernú časť ceny" in page
+    assert "Po 14 dňoch" in page
+    assert "Premium aktivujeme bez zbytočného odkladu po prijatí overeného potvrdenia platby" in legal
+    assert "pri obyčajnej zmene názoru zaplatená cena" in legal
+    assert "duplicitnej ani neoprávnenej platby" in legal
     for live_payment_claim in (
         "Kúpiť Premium teraz",
         "Zaplať teraz",
@@ -199,7 +200,7 @@ def test_founder_counter_reports_only_successful_payments_without_popularity_cla
     legal = legal_terms()
 
     assert "Počítame iba úspešne zaplatené zakladajúce členstvá" in page
-    assert "50 úspešne zaplatených a nerefundovaných členstiev" in legal
+    assert "prvých 50 zákazníkov s úspešne zaplatenou prvou ročnou platbou" in legal
     assert "Počet vytvorených účtov" not in page
     assert "Počet vytvorených účtov" not in legal
     for fake_claim in ("najobľúbenejší", "najpopulárnejší", "najpredávanejší"):
@@ -213,5 +214,5 @@ def test_annual_savings_is_a_model_example_not_a_guarantee():
 
     assert "Modelový príklad" in page
     assert "nie je zárukou úspory" in page
-    assert "Úspora, porcie a kalórie sú odhad" in legal
-    assert "záruka ani zdravotné odporúčanie" in legal
+    assert "Výpočet úspory je modelový" in legal
+    assert "Recepty, množstvá, kalórie a porcie sú praktický odhad" in legal

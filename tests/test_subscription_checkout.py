@@ -450,6 +450,11 @@ def test_subscription_checkout_never_sets_custom_price_and_sends_only_attempt_id
     assert attributes["checkout_options"]["subscription_preview"] is True
     assert attributes["checkout_options"]["skip_trial"] is True
     assert attributes["product_options"]["enabled_variants"] == ["variant-test"]
+    assert attributes["product_options"]["redirect_url"] == "https://uvar.si/app"
+    assert attributes["product_options"]["receipt_button_text"] == "Otvoriť Uvar.si"
+    assert attributes["product_options"]["receipt_thank_you_note"] == (
+        "Platbu sme prijali. Premium sprístupníme po potvrdení platby."
+    )
     assert attributes["checkout_data"] == {
         "email": "a@example.sk",
         "discount_code": "FOUNDERS",

@@ -474,10 +474,7 @@ def test_pending_confirmation_retries_with_same_key_and_never_resends_after_succ
     assert "PUMAR s. r. o." in text and "57 370 591" in text
     assert "pumaragency@gmail.com" in text
     assert server.LEGAL_VERSION in text
-    assert (
-        "39 € raz. Premium garantované na 24 mesiacov, potom bez predplatného "
-        "počas ďalšej prevádzky služby Uvar.si."
-    ) in text
+    assert server.ANNUAL_PREMIUM_PROMISE in text
     assert "Lemon Squeezy" in text and "Merchant of Record" in text
     assert "Pri prijatí žiadosti refundácia ešte nebola vykonaná" in text
     assert "https://uvar.si/pravne/vop.txt" in text
@@ -764,7 +761,10 @@ def test_profile_contains_honest_withdrawal_and_complaint_controls():
     assert "/api/consumer/requests" in html
     assert "/api/consumer/withdrawal" in html
     assert "/api/consumer/complaint" in html
-    assert "Refundácia ešte neprebehla" in html
+    assert "Samotné odoslanie ešte neznamená, že refundácia prebehla" in html
+    assert "invoice_id" in html
+    assert "pomernú časť" in html
+    assert "Po 14 dňoch" in html
     assert "Odoslať žiadosť o odstúpenie" in html
     assert "Odoslať reklamáciu" in html
     assert 'maxlength="4000"' in html

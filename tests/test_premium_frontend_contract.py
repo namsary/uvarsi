@@ -134,17 +134,18 @@ def test_the_locked_pantry_tells_the_truth_when_payments_are_off():
     assert "vCheckout" in zamknuta, "keď platby bežia, tlačidlo musí otvoriť objednávku"
 
 
-def test_checkout_screen_shows_the_complete_one_time_offer_before_redirecting():
+def test_checkout_screen_shows_the_complete_annual_offer_before_redirecting():
     html = app_html()
     checkout = declaration(html, "function vCheckout() ")
 
     for text in (
         "Zakladajúce Premium",
         "39 €",
-        "jednorazová platba",
-        "bez automatickej obnovy",
+        "49 € ročne",
+        "automaticky obnovuje",
+        "do konca zaplateného obdobia",
         "14 dní",
-        "Prejsť k objednávke s povinnosťou platby",
+        "Objednať Premium s povinnosťou platby",
     ):
         assert text.casefold() in checkout.casefold()
     for feature in ("špajz", "obchod", "vegetari", "vegán", "bielkov"):
@@ -155,13 +156,22 @@ def test_checkout_screen_shows_the_complete_one_time_offer_before_redirecting():
     assert 'href="/odstupenie"' in checkout
 
 
-def test_checkout_requires_one_unbundled_legal_checkbox_and_posts_its_version():
+def test_checkout_requires_four_explicit_consents_and_posts_their_version():
     checkout = declaration(app_html(), "function vCheckout() ")
 
-    assert checkout.count('type="checkbox"') == 1
-    assert "checkout-consent" in checkout
+    assert checkout.count('type="checkbox"') == 4
+    for consent in (
+        "checkout-terms", "checkout-renewal", "checkout-immediate",
+        "checkout-proration",
+    ):
+        assert consent in checkout
     assert "disabled" in checkout
-    assert "accept_terms:true" in checkout
+    for consent in (
+        "accept_terms:true", "accept_automatic_renewal:true",
+        "request_immediate_activation:true",
+        "acknowledge_withdrawal_proration:true",
+    ):
+        assert consent in checkout
     assert "legal_version:ME.pravna_verzia" in checkout
     assert "JSON.stringify" in checkout
     assert "/api/platba/start" in checkout

@@ -4,13 +4,15 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.legal_pages import LEGAL_SLUGS, legal_text, render_legal_page
-from app.operator_profile import LEGAL_VERSION
+from app.operator_profile import ANNUAL_PREMIUM_PROMISE, LEGAL_VERSION
 from test_server import load_server
 
 
-FOUNDER_PROMISE = (
-    "39 € raz. Premium garantované na 24 mesiacov, potom bez predplatného "
-    "počas ďalšej prevádzky služby Uvar.si."
+STALE_PREMIUM_PROMISES = (
+    "39 € raz",
+    "24 mesiacov",
+    "bez automatickej obnovy",
+    "navždy",
 )
 
 
@@ -32,33 +34,43 @@ def test_legal_page_is_complete_versioned_and_indexable(slug):
     assert "magic link pri každom prihlásení" not in html.casefold()
 
 
-def test_terms_describe_exact_founder_offer_and_full_refund_policy():
+def test_terms_describe_exact_annual_founder_offer_and_renewal_policy():
     text = legal_text("vop")
 
-    assert FOUNDER_PROMISE in text
-    assert "bez automatickej obnovy" in text.casefold()
+    assert ANNUAL_PREMIUM_PROMISE in text
+    assert "prvých 50" in text.casefold()
+    assert "jednorazová zľava 10 €" in text
+    assert "49 € ročne" in text
     assert "50" in text
     assert "14 dní" in text
-    assert "cena natrvalo" not in text.casefold()
-    assert "premium natrvalo" not in text.casefold()
+    for stale in STALE_PREMIUM_PROMISES:
+        assert stale not in text.casefold()
 
 
-def test_terms_define_service_duration_termination_and_preserve_statutory_remedies():
+def test_terms_define_annual_duration_cancellation_and_preserve_statutory_remedies():
     text = legal_text("vop").casefold()
 
-    assert "24 mesiacov od uzavretia zmluvy" in text
-    assert "počas ďalšej prevádzky služby uvar.si" in text
-    assert "ukončiť prevádzku" in text
-    assert "v primeranom predstihu" in text
+    assert "12 mesiacov" in text
+    assert "automaticky obnovuje" in text
+    assert "49 € ročne" in text
+    assert "profil" in text and "spravovať predplatné" in text
+    assert "do konca zaplateného obdobia" in text
     assert "trvanlivom médiu" in text
-    assert "z vlastného rozhodnutia" in text
-    assert "nevyužitých kalendárnych dní" in text
-    assert "39 € × počet nevyužitých kalendárnych dní" in text
-    assert "počet kalendárnych dní celého 24-mesačného obdobia" in text
-    assert "bez automatickej obnovy" in text
-    assert "bez ďalšieho poplatku" in text
     assert "zákonné práva" in text
-    assert "ukončením prevádzky nezanikajú" in text
+    for stale in STALE_PREMIUM_PROMISES:
+        assert stale not in text
+
+
+def test_withdrawal_terms_distinguish_statutory_proration_and_late_change_of_mind():
+    text = legal_text("vop").casefold()
+
+    assert "výslovne požiadate o okamžitú aktiváciu" in text
+    assert "pomernú časť ceny" in text
+    assert "po 14 dňoch" in text
+    assert "zmene názoru" in text
+    assert "bez refundácie" in text
+    for protected in ("vad", "duplicit", "neoprávnen"):
+        assert protected in text
 
 
 def test_every_legal_document_publishes_verified_support_phone():
@@ -110,6 +122,16 @@ def test_withdrawal_deadline_and_optional_template_are_complete():
         "podpis spotrebiteľa (iba ak",
     ):
         assert field in text
+
+
+def test_withdrawal_page_uses_annual_terms_and_never_promises_an_automatic_full_refund():
+    text = legal_text("odstupenie").casefold()
+
+    assert "ročnom premium" in text
+    assert "výslovne požiadali o okamžitú aktiváciu" in text
+    assert "pomernú časť ceny" in text
+    assert "refundáciu nevykoná automaticky" in text
+    assert "úplné vrátenie jednorazovej platby" not in text
 
 
 def test_complaints_cover_the_service_period_and_written_rejection_reasons():

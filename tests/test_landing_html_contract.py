@@ -256,7 +256,7 @@ def test_premium_is_a_nonbinding_email_interest_action_not_checkout():
         premium,
     )
     assert action
-    assert action.group(1) == "Premium (49 € / rok po spustení)"
+    assert action.group(1) == "Premium (49 € ročne)"
     assert 'type="button"' in action.group(0)
     assert "checkout" not in premium.lower()
     assert 'href=' not in action.group(0)
@@ -296,22 +296,20 @@ def test_founding_and_premium_share_the_same_core_functionality():
         "Celý týždeň, recepty a špajza",
         "Budúce aktualizácie",
     ]
-    assert (
-        "39 € raz. Premium garantované na 24 mesiacov, potom bez predplatného "
-        "počas ďalšej prevádzky služby Uvar.si."
-    ) in founding
-    assert "cena natrvalo" not in founding.casefold()
-    assert "premium natrvalo" not in founding.casefold()
-    assert "/ rok" in premium
+    assert "Prvý rok za 39 €. Potom 49 € ročne." in founding
+    assert "automaticky obnovuje" in founding
+    assert "49 € ročne od prvého roka" in premium
 
 
-def test_founding_duration_and_early_shutdown_refund_are_explained_in_faq():
+def test_annual_renewal_cancellation_and_refund_rules_are_explained_in_faq():
     faq = index_html().split('<div class="shell faq">', 1)[1].split("</section>", 1)[0]
 
-    assert "najmenej 24 mesiacov" in faq
-    assert "bez ďalšieho poplatku" in faq
+    assert "49 € ročne" in faq
+    assert "automaticky obnovuje" in faq
+    assert "Spravovať predplatné" in faq
+    assert "do konca zaplateného obdobia" in faq
     assert "pomernú časť ceny" in faq
-    assert "ukončíme skôr" in faq
+    assert "po 14 dňoch" in faq.casefold()
 
 
 @needs_node
@@ -326,7 +324,7 @@ def test_community_counter_is_truthful_progressive_accessible_and_capped(tmp_pat
         "landing-community-counter.js",
         helpers
         + """
-var fallback = '50 zakladajúcich miest za 39 € jednorazovo';
+var fallback = '50 zakladajúcich miest · prvý rok za 39 €';
 function freshCounter() {
   communityCounter = makeElement('div');
   communityCounter.textContent = fallback;
@@ -384,7 +382,7 @@ def test_failed_landing_fetch_keeps_counter_fallback_and_uses_no_second_request(
         COMMUNITY_DOM_STUB
         + nested(html, "function loadLanding()")
         + """
-var fallback = '50 zakladajúcich miest za 39 € jednorazovo';
+var fallback = '50 zakladajúcich miest · prvý rok za 39 €';
 var communityCounter = makeElement('div');
 communityCounter.textContent = fallback;
 var landing = {hidden: false};

@@ -15,10 +15,11 @@ from app.payment_readiness import (
 )
 
 
-REQUIRED_LEGAL_VERSION = "2026-09-12-v4"
+REQUIRED_LEGAL_VERSION = "2026-09-12-v5"
 REQUIRED_FOUNDER_PROMISE = (
-    "39 € raz. Premium garantované na 24 mesiacov, potom bez predplatného "
-    "počas ďalšej prevádzky služby Uvar.si."
+    "Prvý rok za 39 €. Potom 49 € ročne. Predplatné sa automaticky "
+    "obnovuje, kým ho nezrušíš. Zrušiť ho môžeš kedykoľvek; Premium "
+    "zostane aktívne do konca zaplateného obdobia."
 )
 
 

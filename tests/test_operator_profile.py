@@ -3,6 +3,7 @@ from dataclasses import FrozenInstanceError, replace
 import pytest
 
 from app.operator_profile import (
+    ANNUAL_PREMIUM_PROMISE,
     LEGAL_EFFECTIVE_DATE,
     LEGAL_VERSION,
     OPERATOR,
@@ -22,10 +23,18 @@ def test_operator_profile_has_verified_company_identity_and_public_support_phone
 
 
 def test_legal_version_is_explicit_and_immutable():
-    assert LEGAL_VERSION == "2026-09-12-v4"
+    assert LEGAL_VERSION == "2026-09-12-v5"
     assert LEGAL_EFFECTIVE_DATE.isoformat() == "2026-09-12"
     with pytest.raises(FrozenInstanceError):
         OPERATOR.business_name = "Iná firma"
+
+
+def test_annual_premium_promise_is_one_immutable_customer_contract():
+    assert ANNUAL_PREMIUM_PROMISE == (
+        "Prvý rok za 39 €. Potom 49 € ročne. Predplatné sa automaticky "
+        "obnovuje, kým ho nezrušíš. Zrušiť ho môžeš kedykoľvek; Premium "
+        "zostane aktívne do konca zaplateného obdobia."
+    )
 
 
 def test_public_profile_formats_ico_and_includes_verified_phone_without_inventing_tax_data():

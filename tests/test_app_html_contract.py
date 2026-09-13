@@ -11,9 +11,10 @@ CSCRIPT = Path("C:/Windows/System32/cscript.exe")
 NODE = os.environ.get("UVARSI_NODE") or shutil.which("node")
 needs_node = pytest.mark.skipif(NODE is None, reason="node runtime is not available")
 
-FOUNDER_PROMISE = (
-    "39 € raz. Premium garantované na 24 mesiacov, potom bez predplatného "
-    "počas ďalšej prevádzky služby Uvar.si."
+ANNUAL_PREMIUM_PROMISE = (
+    "Prvý rok za 39 €. Potom 49 € ročne. Predplatné sa automaticky "
+    "obnovuje, kým ho nezrušíš. Zrušiť ho môžeš kedykoľvek; Premium "
+    "zostane aktívne do konca zaplateného obdobia."
 )
 
 
@@ -21,15 +22,48 @@ def app_html():
     return Path("app/static/app.html").read_text(encoding="utf-8")
 
 
-def test_checkout_uses_the_exact_founder_promise_without_perpetual_wording():
+def subscription_profile_source():
+    page = app_html()
+    match = re.search(r"/static/(subscription-profile\.[0-9a-f]{12}\.js)", page)
+    assert match, "app must reference the content-addressed subscription module"
+    return Path("app/static", match.group(1)).read_text(encoding="utf-8")
+
+
+def test_checkout_uses_the_exact_annual_promise_without_stale_wording():
     page = app_html()
     checkout = page.split("function vCheckout()", 1)[1].split(
         "function vSpajzaZamknuta()", 1
     )[0]
 
-    assert FOUNDER_PROMISE in checkout
-    assert "cena natrvalo" not in checkout.casefold()
-    assert "premium natrvalo" not in checkout.casefold()
+    assert ANNUAL_PREMIUM_PROMISE in checkout
+    for stale in ("39 € raz", "24 mesiacov", "bez automatickej obnovy", "navždy"):
+        assert stale not in checkout.casefold()
+
+
+def test_checkout_requires_explicit_terms_renewal_immediate_service_and_proration_consents():
+    page = app_html()
+    checkout = page.split("function vCheckout()", 1)[1].split(
+        "function vSpajzaZamknuta()", 1
+    )[0]
+
+    for consent_id in (
+        "checkout-terms",
+        "checkout-renewal",
+        "checkout-immediate",
+        "checkout-proration",
+    ):
+        assert f'id="{consent_id}"' in checkout
+    assert "Objednať Premium s povinnosťou platby" in checkout
+    assert "okamžitú aktiváciu" in checkout
+    assert "automaticky obnovuje" in checkout
+    assert "Spravovať predplatné" in checkout
+    for field in (
+        "accept_terms:true",
+        "accept_automatic_renewal:true",
+        "request_immediate_activation:true",
+        "acknowledge_withdrawal_proration:true",
+    ):
+        assert field in checkout.replace(" ", "")
 
 
 def test_checkout_names_seller_operator_and_paid_activation_remedy():
@@ -49,7 +83,7 @@ def test_checkout_names_seller_operator_and_paid_activation_remedy():
 
 
 def test_online_withdrawal_form_collects_the_complete_optional_notice():
-    page = app_html()
+    page = subscription_profile_source()
     form = page.split('<form id="withdrawal-form"', 1)[1].split("</form>", 1)[0]
     handler = page.split("if (withdrawal) withdrawal.onsubmit", 1)[1].split(
         "const complaint", 1
@@ -58,9 +92,9 @@ def test_online_withdrawal_form_collects_the_complete_optional_notice():
     assert "Použitie tohto formulára nie je povinné" in form
     assert 'id="withdrawal-name"' in form
     assert 'id="withdrawal-address"' in form
-    assert "Dátum objednávky" in form
-    assert "Číslo objednávky" in form
-    assert "E-mail účtu" in form
+    assert "Dátum objednávky" in handler
+    assert "Číslo platby" in handler
+    assert "E-mail účtu" in handler
     assert "message:" in handler
     assert "withdrawal-name" in handler
     assert "withdrawal-address" in handler

@@ -681,7 +681,15 @@ def create_provider_subscription_checkout(
             "type": "checkouts",
             "attributes": {
                 "test_mode": test_mode,
-                "product_options": {"enabled_variants": [variant_id]},
+                "product_options": {
+                    "enabled_variants": [variant_id],
+                    "redirect_url": "https://uvar.si/app",
+                    "receipt_button_text": "Otvoriť Uvar.si",
+                    "receipt_thank_you_note": (
+                        "Platbu sme prijali. Premium sprístupníme po potvrdení "
+                        "platby."
+                    ),
+                },
                 "checkout_options": {
                     "discount": False,
                     "skip_trial": True,

@@ -39,7 +39,7 @@ TEST_STORE_ID = "test-store"
 TEST_VARIANT_ID = "test-variant"
 TEST_API_KEY = "test-api-key"
 TEST_CONFIG_DIGEST = "c92c6b55bd48b997ddb73fbc7abbaf44074f989d5bedb0ee0f590a9c9e464a7e"
-CURRENT_LEGAL_VERSION = "2026-09-12-v4"
+CURRENT_LEGAL_VERSION = "2026-09-12-v5"
 CONSENT = {
     "accept_terms": True,
     "accept_automatic_renewal": True,
@@ -692,7 +692,9 @@ def test_checkout_vyzaduje_vyslovny_suhlas_s_aktualnou_verziou(
     response = prihlaseny(server).post("/api/platba/start", json=body)
 
     assert response.status_code == 422
-    assert response.json()["detail"] == "Pred platbou potvrď aktuálne VOP a ochranu údajov."
+    assert response.json()["detail"] == (
+        "Pred platbou potvrď podmienky, ročnú obnovu a okamžitú aktiváciu."
+    )
     with closing(server.db()) as con:
         assert con.execute("SELECT COUNT(*) FROM checkout_attempts").fetchone()[0] == 0
 

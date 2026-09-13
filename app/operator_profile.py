@@ -30,8 +30,13 @@ OPERATOR = OperatorProfile(
     support_phone="+421 917 347 009",
 )
 
-LEGAL_VERSION = "2026-09-12-v4"
+LEGAL_VERSION = "2026-09-12-v5"
 LEGAL_EFFECTIVE_DATE = datetime.date(2026, 9, 12)
+ANNUAL_PREMIUM_PROMISE = (
+    "Prvý rok za 39 €. Potom 49 € ročne. Predplatné sa automaticky "
+    "obnovuje, kým ho nezrušíš. Zrušiť ho môžeš kedykoľvek; Premium "
+    "zostane aktívne do konca zaplateného obdobia."
+)
 
 _EMAIL = re.compile(
     r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@"

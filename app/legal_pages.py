@@ -7,6 +7,7 @@ from html import escape
 
 try:
     from .operator_profile import (
+        ANNUAL_PREMIUM_PROMISE,
         LEGAL_EFFECTIVE_DATE,
         LEGAL_VERSION,
         OPERATOR,
@@ -14,6 +15,7 @@ try:
     )
 except ImportError:
     from operator_profile import (
+        ANNUAL_PREMIUM_PROMISE,
         LEGAL_EFFECTIVE_DATE,
         LEGAL_VERSION,
         OPERATOR,
@@ -22,12 +24,6 @@ except ImportError:
 
 
 BASE_URL = "https://uvar.si"
-FOUNDER_PROMISE = (
-    "39 € raz. Premium garantované na 24 mesiacov, potom bez predplatného "
-    "počas ďalšej prevádzky služby Uvar.si."
-)
-
-
 @dataclass(frozen=True)
 class LegalSection:
     heading: str
@@ -58,7 +54,7 @@ _COMMON_OPERATOR = LegalSection(
 _DOCUMENTS: dict[str, LegalDocument] = {
     "vop": LegalDocument(
         "Všeobecné obchodné podmienky Uvar.si",
-        "Pravidlá používania digitálnej služby Uvar.si a jednorazovej ponuky Zakladajúce Premium.",
+        "Pravidlá používania digitálnej služby Uvar.si a ročného Premium predplatného.",
         (
             _COMMON_OPERATOR,
             LegalSection(
@@ -88,17 +84,18 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                 ),
             ),
             LegalSection(
-                "Zakladajúce Premium a uzavretie zmluvy",
+                "Ročné Premium a uzavretie zmluvy",
                 (
-                    FOUNDER_PROMISE,
-                    "Ide o platbu bez automatickej obnovy, nejde o predplatné a "
-                    "nevznikne žiadny ďalší pravidelný poplatok.",
-                    "Ponuka je určená najviac pre prvých 50 úspešne zaplatených "
-                    "a nerefundovaných členstiev. Samotné vytvorenie účtu ani "
-                    "otvorenie checkoutu miesto nerezervuje.",
+                    ANNUAL_PREMIUM_PROMISE,
+                    "Ponuka platí najviac pre prvých 50 zákazníkov s úspešne "
+                    "zaplatenou prvou ročnou platbou. Zakladajúca ponuka je "
+                    "jednorazová zľava 10 € z ročnej ceny 49 €. Zľava platí "
+                    "iba na prvý rok. "
+                    "Vytvorenie účtu ani otvorenie pokladne miesto nerezervuje.",
                     "Pred odoslaním objednávky uvidíte súhrn produktu, konečnú "
-                    "cenu, tieto podmienky a poučenie o odstúpení. Lemon Squeezy "
-                    "vystupuje v checkoute ako Merchant of Record a predávajúci "
+                    "cenu prvého roka, cenu ďalšej obnovy, tieto podmienky a "
+                    "poučenie o odstúpení. Lemon Squeezy vystupuje v pokladni ako "
+                    "Merchant of Record a predávajúci "
                     "pre platobnú transakciu. Zmluva o Zakladajúcom Premium sa "
                     "uzavrie potvrdením objednávky spoločnosťou Lemon Squeezy.",
                     "PUMAR s. r. o. je prevádzkovateľ služby Uvar.si, zabezpečuje "
@@ -113,18 +110,14 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                     "overeného potvrdenia platby. Ak platba prebehne, ale Premium "
                     "sa nesprístupní, po spárovaní objednávky ho ručne aktivujeme "
                     "alebo zabezpečíme úplné vrátenie platby. Nemusíte zaplatiť znova.",
-                    "Zakladajúce Premium poskytujeme najmenej 24 mesiacov od "
-                    "uzavretia zmluvy. Po uplynutí garantovaných 24 mesiacov "
-                    "pokračuje bez automatickej obnovy a bez ďalšieho poplatku "
-                    "počas ďalšej prevádzky služby Uvar.si.",
-                    "Ak sa PUMAR s. r. o. z vlastného rozhodnutia rozhodne "
-                    "ukončiť prevádzku pred uplynutím 24 mesiacov od uzavretia "
-                    "zmluvy, oznámi dátum ukončenia v primeranom predstihu na "
-                    "trvanlivom médiu a vráti pomernú časť jednorazovej ceny za "
-                    "nevyužité kalendárne dni garantovaného obdobia. Vrátená "
-                    "suma sa vypočíta ako 39 € × počet nevyužitých kalendárnych "
-                    "dní / počet kalendárnych dní celého 24-mesačného obdobia.",
-                    "Ukončením prevádzky nezanikajú už vzniknuté zákonné práva "
+                    "Premium sa poskytuje na 12 mesiacov a potom sa automaticky "
+                    "obnovuje na ďalší rok za 49 €. Budúcu obnovu môžete zrušiť "
+                    "kedykoľvek v Profile cez Spravovať predplatné. Po zrušení "
+                    "Premium zostane aktívne do konca zaplateného obdobia.",
+                    "Potvrdenie o objednávke, cene a obnove dostanete na trvanlivom "
+                    "médiu. Lemon Squeezy pošle aj upozornenie pred ďalšou ročnou "
+                    "platbou.",
+                    "Zrušenie budúcej obnovy nemení už vzniknuté zákonné práva "
                     "spotrebiteľa ani nároky, ktoré nemožno zmluvne vylúčiť, "
                     "vrátane práv z vád, reklamácie, odstúpenia, primeranej zľavy, "
                     "vrátenia platby alebo náhrady škody, ak ich priznáva zákon.",
@@ -154,15 +147,22 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                 "Odstúpenie a vrátenie platby",
                 (
                     "Od zmluvy uzavretej na diaľku môžete odstúpiť bez uvedenia "
-                    "dôvodu do 14 dní od jej uzavretia. Pri Zakladajúcom Premium "
-                    "poskytujeme v tejto lehote úplné vrátenie platby bez "
-                    "krátenia aj vtedy, keď ste službu už začali používať.",
+                    "dôvodu do 14 dní od jej uzavretia. Ak výslovne požiadate o "
+                    "okamžitú aktiváciu Premium a dostanete príslušné poučenie, "
+                    "pri odstúpení môže vzniknúť povinnosť uhradiť pomernú časť "
+                    "ceny za službu poskytnutú do doručenia odstúpenia. Bez "
+                    "platnej žiadosti a poučenia túto časť neúčtujeme.",
+                    "Po 14 dňoch sa pri obyčajnej zmene názoru zaplatená cena "
+                    "nevracia. Budúcu obnovu môžete zrušiť bez refundácie a "
+                    "Premium zostane aktívne do konca zaplateného obdobia. Toto "
+                    "pravidlo sa netýka vady alebo neposkytnutej služby, "
+                    "duplicitnej ani neoprávnenej platby.",
                     "Odstúpenie odošlete cez funkciu v účte na stránke Uvar.si "
                     "alebo e-mailom na pumaragency@gmail.com. Prijatie "
                     "elektronického oznámenia potvrdíme na trvanlivom médiu. "
                     "Platbu vrátime rovnakým spôsobom, akým bola prijatá, "
-                    "najneskôr v zákonnej lehote. Po potvrdení úplnej refundácie "
-                    "sa Zakladajúce Premium skončí.",
+                    "najneskôr v zákonnej lehote. Žiadosť posúdi človek; jej "
+                    "odoslanie samo osebe nevykoná refundáciu ani nezmení prístup.",
                 ),
             ),
             LegalSection(
@@ -437,16 +437,18 @@ _DOCUMENTS: dict[str, LegalDocument] = {
     ),
     "odstupenie": LegalDocument(
         "Odstúpenie od zmluvy Uvar.si",
-        "Ako uplatniť právo na odstúpenie od zmluvy a úplné vrátenie jednorazovej platby za Zakladajúce Premium.",
+        "Ako uplatniť právo na odstúpenie od zmluvy o ročnom Premium.",
         (
             _COMMON_OPERATOR,
             LegalSection(
                 "Právo na odstúpenie",
                 (
                     "Od zmluvy uzavretej na diaľku môžete odstúpiť bez uvedenia "
-                    "dôvodu do 14 dní od uzavretia zmluvy. Uvar.si poskytne pri "
-                    "Zakladajúcom Premium úplné vrátenie jednorazovej platby "
-                    "39 € bez krátenia aj po začatí používania služby.",
+                    "dôvodu do 14 dní od uzavretia zmluvy. Ak ste výslovne "
+                    "požiadali o okamžitú aktiváciu Premium a dostali príslušné "
+                    "poučenie, pri odstúpení môžete uhradiť pomernú časť ceny za "
+                    "obdobie do doručenia odstúpenia. Bez platnej žiadosti a "
+                    "poučenia túto časť neúčtujeme.",
                     "Lehota je zachovaná, ak oznámenie o odstúpení odošlete pred "
                     "uplynutím 14-dňovej lehoty. Rozhoduje včasné odoslanie "
                     "oznámenia, nie deň jeho vybavenia ani deň vrátenia platby.",
@@ -471,13 +473,13 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                 "Potvrdenie a refundácia",
                 (
                     "Elektronické odstúpenie bezodkladne potvrdíme e-mailom "
-                    "spolu s dátumom a časom prijatia. Úplnú platbu vrátime "
-                    "rovnakým spôsobom, akým bola prijatá, najneskôr do 14 dní "
-                    "od doručenia oznámenia. Na inom spôsobe vrátenia sa môžeme "
-                    "dohodnúť iba výslovne a bez dodatočných poplatkov pre vás.",
-                    "Po potvrdení refundácie poskytovateľom platby sa Zakladajúce "
-                    "Premium ukončí. Výmaz účtu je samostatný úkon a refundáciu "
-                    "nespustí automaticky.",
+                    "spolu s dátumom a časom prijatia. Sumu na vrátenie posúdime "
+                    "podľa vašej objednávky, času odstúpenia a uloženého súhlasu "
+                    "s okamžitou aktiváciou. Platbu vrátime rovnakým spôsobom, "
+                    "akým bola prijatá, najneskôr do 14 dní od doručenia oznámenia.",
+                    "Odoslanie formulára refundáciu nevykoná automaticky. Po "
+                    "potvrdení výsledku upravíme predplatné a prístup podľa "
+                    "vybavenia. Výmaz účtu je samostatný úkon.",
                 ),
             ),
             LegalSection(

@@ -81,8 +81,13 @@ from landing_data import (
     validate_landing_data,
     validate_publishable_landing_data,
 )
-from legal_pages import FOUNDER_PROMISE, LEGAL_SLUGS, legal_text, render_legal_page
-from operator_profile import LEGAL_VERSION, OPERATOR, validate_operator_profile
+from legal_pages import LEGAL_SLUGS, legal_text, render_legal_page
+from operator_profile import (
+    ANNUAL_PREMIUM_PROMISE,
+    LEGAL_VERSION,
+    OPERATOR,
+    validate_operator_profile,
+)
 from payment_readiness import (
     PaymentReadiness,
     PaymentReadinessBlocked,
@@ -5055,7 +5060,7 @@ def _runtime_payment_readiness(
             bool(support_phone) and "support_phone" not in operator_errors
         ),
         legal_version=legal_version(),
-        founder_promise=FOUNDER_PROMISE,
+        founder_promise=ANNUAL_PREMIUM_PROMISE,
         release=current_release,
         checkout_url=checkout_url,
         webhook_secret=webhook_secret,
@@ -5806,15 +5811,12 @@ def _consumer_request_receipt(delivery: customer_requests.ConfirmationDelivery) 
         amount = delivery.invoice_amount_cents or 0
         amount_label = f"{amount // 100},{amount % 100:02d} €"
         promise = (
-            f"Ročné Premium; toto podanie je viazané na presnú faktúru "
-            f"{delivery.invoice_id} vo výške {amount_label}. Budúca obnova "
-            "stojí 49,00 € ročne, kým ju zákazník nezruší."
+            f"{ANNUAL_PREMIUM_PROMISE} Toto podanie je viazané na presnú "
+            f"faktúru {delivery.invoice_id} vo výške {amount_label}. Pri bežnom "
+            "Premium po skončení zakladajúcej ponuky stojí aj prvý rok 49 €."
         )
     else:
-        promise = (
-            "39 € raz. Premium garantované na 24 mesiacov, potom bez predplatného "
-            "počas ďalšej prevádzky služby Uvar.si."
-        )
+        promise = ANNUAL_PREMIUM_PROMISE
     merchant = (
         "Lemon Squeezy vystupuje pri nákupe ako obchodník a Merchant of Record; "
         "PUMAR s. r. o. prevádzkuje Uvar.si a poskytuje podporu k službe."
@@ -6607,7 +6609,8 @@ async def platba_start(req: Request):
             )
         except ValueError:
             raise HTTPException(
-                422, "Pred platbou potvrď aktuálne VOP a ochranu údajov."
+                422,
+                "Pred platbou potvrď podmienky, ročnú obnovu a okamžitú aktiváciu.",
             )
         checkout_now = AUTH_CLOCK()
         if has_premium(con, user_id=u["id"], now=checkout_now):

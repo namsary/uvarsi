@@ -1,6 +1,5 @@
 (function (global) {
   'use strict';
-
   function serviceDate(epoch) {
     const date = new Date(Number(epoch || 0) * 1000);
     return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('sk-SK', {timeZone:'Europe/Bratislava'});
@@ -143,29 +142,32 @@
 
   function customerServiceHtml(data) {
     const orders = Array.isArray(data && data.orders) ? data.orders : [];
+    const invoices = Array.isArray(data && data.invoices) ? data.invoices : [];
     const requests = Array.isArray(data && data.requests) ? data.requests : [];
-    const order = orders[0];
+    const invoice = invoices.find(item => item && item.invoice_kind === 'initial');
+    const order = invoice || orders[0];
     const rows = requests.length ? `<div class="request-list">${requests.map(item =>
       `<div class="request-row"><span>${item.request_type === 'withdrawal' ? 'Odstúpenie' : 'Reklamácia'}<br><small>${serviceDate(item.created_at)}</small></span><b class="request-status--${esc(item.status)}">${esc(serviceStatus(item.status))}</b></div>`
     ).join('')}</div>` : '<p class="muted" style="margin-top:12px">Zatiaľ tu nemáš žiadnu žiadosť.</p>';
     if (!order) return `<div class="card service-card"><h2>Platba a pomoc</h2><p class="muted">K tomuto účtu neevidujeme zaplatenú objednávku. Ak potrebuješ pomoc, napíš na <a href="mailto:pumaragency@gmail.com">pumaragency@gmail.com</a>.</p>${rows}</div>`;
-    const deadline = serviceDate(order.refund_deadline);
-    const inTime = Date.now() / 1000 <= Number(order.refund_deadline || 0);
+    const annual = !!invoice;
+    const paymentId = annual ? invoice.invoice_id : order.order_id;
+    const amount = subscriptionAmount(order.amount_cents);
+    const deadline = annual ? '14 dní od uzavretia zmluvy' : serviceDate(order.refund_deadline);
     return `<div class="card service-card"><h2>Platba a pomoc</h2>
       <p class="muted">Žiadosť vybaví človek. Samotné odoslanie ešte neznamená, že refundácia prebehla.</p>
-      <div class="service-order"><b>Zakladajúce Premium · 39 €</b><br>Dátum objednávky: ${serviceDate(order.purchased_at)} · 14-dňová lehota do ${deadline}<br>Číslo objednávky: ${esc(order.order_id)} · E-mail účtu: ${esc(ME.email)}</div>
+      <div class="service-order"><b>${annual ? 'Ročné Premium' : 'Zakladajúce Premium'} · ${amount}</b><br>Dátum platby: ${serviceDate(annual ? order.paid_at : order.purchased_at)} · Lehota na odstúpenie: ${deadline}<br>Číslo platby: ${esc(paymentId)} · E-mail účtu: ${esc(ME.email)}</div>
       ${rows}
-      <form id="withdrawal-form" class="service-form" data-order="${esc(order.order_id)}" data-purchased="${esc(order.purchased_at)}">
+      <form id="withdrawal-form" class="service-form" data-payment="${esc(paymentId)}" data-annual="${annual ? '1' : '0'}" data-purchased="${esc(annual ? order.paid_at : order.purchased_at)}">
         <h3>Odstúpenie od zmluvy</h3>
         <p class="muted">Použitie tohto formulára nie je povinné. Odstúpiť môžeš aj akýmkoľvek jednoznačným oznámením na pumaragency@gmail.com.</p>
-        <p class="muted">Dátum objednávky: ${serviceDate(order.purchased_at)} · Číslo objednávky: ${esc(order.order_id)} · E-mail účtu: ${esc(ME.email)}</p>
-        <p class="muted">${inTime ? 'V 14-dňovej lehote ti vrátime celú platbu.' : 'Lehota už uplynula; žiadosť prijmeme na manuálne posúdenie.'} Refundácia ešte neprebehla.</p>
+        <p class="muted">Pri okamžitej aktivácii môže poskytovateľ od vrátenej sumy odpočítať pomernú časť za už poskytnuté obdobie. Po 14 dňoch pri zmene názoru zastavíme iba budúcu obnovu. Reklamácie a chybné platby riešime osobitne.</p>
         <label>Meno a priezvisko<input id="withdrawal-name" maxlength="160" autocomplete="name" required></label>
         <label>Adresa spotrebiteľa<textarea id="withdrawal-address" maxlength="500" autocomplete="street-address" required></textarea></label>
-        <label class="consent-row"><input id="withdrawal-confirm" type="checkbox" required><span>Žiadam o odstúpenie a rozumiem, že po úplnom vrátení platby stratím Premium.</span></label>
+        <label class="consent-row"><input id="withdrawal-confirm" type="checkbox" required><span>Žiadam o odstúpenie od zmluvy a beriem na vedomie, že výsledok závisí od dátumu a podmienok mojej objednávky.</span></label>
         <button class="btn btn--ghost" type="submit">Odoslať žiadosť o odstúpenie</button><p class="muted" id="withdrawal-status" aria-live="polite"></p>
       </form>
-      <form id="complaint-form" class="service-form" data-order="${esc(order.order_id)}">
+      <form id="complaint-form" class="service-form" data-payment="${esc(paymentId)}" data-annual="${annual ? '1' : '0'}">
         <h3>Reklamácia</h3><label>Čo nie je v poriadku?<textarea id="complaint-message" maxlength="4000" required placeholder="Stručne opíš problém. Ak bude treba snímku, doplníš ju odpoveďou na e-mail."></textarea></label>
         <button class="btn btn--ghost" type="submit">Odoslať reklamáciu</button><p class="muted" id="complaint-status" aria-live="polite"></p>
       </form></div>`;
@@ -188,7 +190,7 @@
       event.preventDefault();
       const button = withdrawal.querySelector('button'), status = $('#withdrawal-status');
       if (!$('#withdrawal-confirm').checked) {
-        status.textContent = 'Najprv potvrď, že rozumieš následku úplnej refundácie.';
+        status.textContent = 'Najprv potvrď žiadosť o odstúpenie.';
         return;
       }
       runGuardedAction(button, status, async () => {
@@ -200,11 +202,12 @@
           'Meno a priezvisko spotrebiteľa: ' + name,
           'Adresa spotrebiteľa: ' + address,
           'E-mail účtu: ' + ME.email,
-          'Číslo objednávky: ' + withdrawal.dataset.order,
+          'Číslo platby: ' + withdrawal.dataset.payment,
           'Dátum objednávky: ' + withdrawal.dataset.purchased,
           'Dátum odoslania: ' + sentAt
         ].join('\n');
-        await api('/api/consumer/withdrawal', {method:'POST', body:JSON.stringify({order_id:withdrawal.dataset.order,message:message})});
+        const payment = withdrawal.dataset.annual === '1' ? {invoice_id:withdrawal.dataset.payment} : {order_id:withdrawal.dataset.payment};
+        await api('/api/consumer/withdrawal', {method:'POST', body:JSON.stringify({...payment,message:message})});
         await loadCustomerService();
       });
     };
@@ -213,7 +216,8 @@
       event.preventDefault();
       const button = complaint.querySelector('button'), status = $('#complaint-status');
       runGuardedAction(button, status, async () => {
-        await api('/api/consumer/complaint', {method:'POST', body:JSON.stringify({order_id:complaint.dataset.order,message:$('#complaint-message').value})});
+        const payment = complaint.dataset.annual === '1' ? {invoice_id:complaint.dataset.payment} : {order_id:complaint.dataset.payment};
+        await api('/api/consumer/complaint', {method:'POST', body:JSON.stringify({...payment,message:$('#complaint-message').value})});
         await loadCustomerService();
       });
     };

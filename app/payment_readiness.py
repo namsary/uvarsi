@@ -10,12 +10,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
+try:
+    from .operator_profile import ANNUAL_PREMIUM_PROMISE, LEGAL_VERSION
+except ImportError:
+    from operator_profile import ANNUAL_PREMIUM_PROMISE, LEGAL_VERSION
 
-REQUIRED_LEGAL_VERSION = "2026-09-12-v4"
-REQUIRED_FOUNDER_PROMISE = (
-    "39 € raz. Premium garantované na 24 mesiacov, potom bez predplatného "
-    "počas ďalšej prevádzky služby Uvar.si."
-)
+REQUIRED_LEGAL_VERSION = LEGAL_VERSION
+REQUIRED_FOUNDER_PROMISE = ANNUAL_PREMIUM_PROMISE
 
 
 @dataclass(frozen=True)
