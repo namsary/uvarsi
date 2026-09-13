@@ -31,6 +31,7 @@ STATUS_RESOLVED = "resolved"
 REFUND_FULL = "full"
 REFUND_REVIEW = "review"
 REFUND_STATUTORY_REVIEW = "statutory_review"
+REFUND_MANUAL_LEGAL_REVIEW = "manual_legal_review"
 REFUND_CANCEL_AT_PERIOD_END = "cancel_at_period_end"
 CLASSIFICATION_REMEDY_REVIEW = "remedy_review"
 REMEDY_DEFECT = "defect"
@@ -920,7 +921,12 @@ def _create_subscription_request(
         refund_preview = None
         consumed_preview = None
         if request_type == TYPE_WITHDRAWAL:
-            if statutory_deadline_at is not None and now <= statutory_deadline_at:
+            if (
+                invoice["invoice_kind"] == "initial"
+                and contract_concluded_at is None
+            ):
+                classification = REFUND_MANUAL_LEGAL_REVIEW
+            elif statutory_deadline_at is not None and now <= statutory_deadline_at:
                 classification = REFUND_STATUTORY_REVIEW
                 target_refund = (
                     predplatne.pro_rata_refund_preview(

@@ -499,7 +499,7 @@ def test_initial_invoice_uses_contract_date_instead_of_payment_receipt_time(
     "contract_time",
     (None, float("nan"), P0_START - 120, P0_START + DAY),
 )
-def test_untrusted_initial_contract_time_fails_closed_to_ordinary_cancellation(
+def test_untrusted_initial_contract_time_fails_closed_to_manual_legal_review(
     subscription_db, contract_time
 ):
     _seed_invoice(subscription_db, contract_concluded_at=contract_time)
@@ -512,8 +512,9 @@ def test_untrusted_initial_contract_time_fails_closed_to_ordinary_cancellation(
         now=P0_START + DAY,
     )
 
-    assert request.refund_scope == customer_requests.REFUND_CANCEL_AT_PERIOD_END
-    assert request.refund_preview_cents == 0
+    assert request.refund_scope == "manual_legal_review"
+    assert request.request_classification == "manual_legal_review"
+    assert request.refund_preview_cents is None
     assert request.consumed_charge_preview_cents is None
 
 
@@ -1185,6 +1186,97 @@ def test_route_replay_returns_same_request_without_reapplying_anything(
         assert con.execute(
             "SELECT COUNT(*) FROM subscription_events"
         ).fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("now", (P0_START + DAY, P0_START + 100 * DAY))
+def test_legacy_initial_invoice_uses_manual_legal_review_at_any_possible_age(
+    monkeypatch, tmp_path, now
+):
+    server = _subscription_server(monkeypatch, tmp_path, now=now)
+    with closing(server.db()) as con:
+        _seed_invoice(con, contract_concluded_at=None)
+    sent = []
+    monkeypatch.setattr(
+        server,
+        "posli_mail",
+        lambda komu, predmet, telo, html, **kw: sent.append(telo),
+    )
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("manual legal review must stay local")
+
+    monkeypatch.setattr(server, "_subscription_portal_provider", forbidden)
+    monkeypatch.setattr(server, "_subscription_checkout_provider", forbidden)
+    monkeypatch.setattr(server, "_open_authenticated_lemon_request", forbidden)
+
+    response = prihlaseny(server).post(
+        "/api/consumer/withdrawal",
+        json={"invoice_id": "inv_initial", "message": "Odstupujem."},
+        headers={"Origin": "https://uvar.si"},
+    )
+
+    assert response.status_code == 202
+    body = response.json()
+    assert body["request_classification"] == "manual_legal_review"
+    assert body["refund_scope"] == "manual_legal_review"
+    assert body["refund_preview_cents"] is None
+    assert body["provider_action_required"] is False
+    assert body["refund_executed"] is False
+    assert body["cancellation_state"] == "not_requested"
+    assert len(sent) == 1
+    assert (
+        "dátum uzavretia zmluvy sa nedá automaticky overiť"
+        in sent[0].casefold()
+    )
+    assert "netvrdíme, že 14-dňová lehota uplynula" in sent[0]
+    assert "lehota už uplynula" not in sent[0]
+    assert "Po 14-dňovej lehote" not in sent[0]
+    assert "Zrušenie treba dokončiť" not in sent[0]
+
+
+def test_resolved_remedy_replay_returns_closed_status_without_new_receipt_claim(
+    monkeypatch, tmp_path
+):
+    server = _subscription_server(monkeypatch, tmp_path)
+    with closing(server.db()) as con:
+        _seed_invoice(con)
+        original = customer_requests.create_subscription_remedy(
+            con,
+            user_id=1,
+            invoice_id="inv_initial",
+            remedy_type=customer_requests.REMEDY_DEFECT,
+            message="Pôvodná reklamácia.",
+            now=P0_START + DAY,
+        )
+        con.execute(
+            """UPDATE consumer_requests
+                  SET status=?,confirmation_state='sent',confirmation_sent_at=?
+                WHERE public_id=?""",
+            (customer_requests.STATUS_RESOLVED, P0_START + DAY, original.public_id),
+        )
+        con.commit()
+
+    response = prihlaseny(server).post(
+        "/api/consumer/complaint",
+        json={
+            "invoice_id": "inv_initial",
+            "reason": customer_requests.REMEDY_DEFECT,
+            "message": "Opakované podanie.",
+        },
+        headers={"Origin": "https://uvar.si"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["created"] is False
+    assert body["request_received"] is False
+    assert body["request_status"] == customer_requests.STATUS_RESOLVED
+    assert body["request_id"] == original.public_id
+    assert "už uzavretú žiadosť" in body["message"]
+    assert "žiadosť sme prijali" not in body["message"].casefold()
+    assert "customer_annual_1" not in json.dumps(body)
+    with closing(server.db()) as con:
+        assert con.execute("SELECT COUNT(*) FROM consumer_requests").fetchone()[0] == 1
 
 
 def test_late_change_of_mind_receipt_says_provider_action_is_still_required(

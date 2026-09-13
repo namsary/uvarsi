@@ -5644,6 +5644,10 @@ CONSUMER_REQUEST_RESPONSE = (
     "Ak objednávka patrí k tomuto účtu, žiadosť sme prijali. "
     "Jej stav nájdeš v profile."
 )
+CONSUMER_REQUEST_CLOSED_RESPONSE = (
+    "Našli sme už uzavretú žiadosť. Nové podanie sme nevytvorili; "
+    "vraciame aktuálny stav pôvodnej žiadosti."
+)
 
 
 def _consumer_request_result(created=None) -> dict:
@@ -5667,6 +5671,8 @@ def _consumer_request_result(created=None) -> dict:
     else:
         cancellation_state = "not_requested"
     return {
+        "created": created.created if created is not None else False,
+        "request_status": created.status if created is not None else None,
         "request_type": created.request_type if created is not None else None,
         "request_classification": (
             created.request_classification if created is not None else None
@@ -5720,6 +5726,13 @@ def _consumer_request_receipt(delivery: customer_requests.ConfirmationDelivery) 
                     f"na účtovanie už poskytnutej časti služby, náhľad {preview_label} "
                     "ju neodpočítava. Refundácia ešte nebola vykonaná."
                 )
+        elif delivery.refund_scope == customer_requests.REFUND_MANUAL_LEGAL_REVIEW:
+            detail = (
+                "Dátum uzavretia zmluvy sa nedá automaticky overiť, preto "
+                "netvrdíme, že 14-dňová lehota uplynula, ani podanie "
+                "neklasifikujeme ako oneskorené zrušenie. Žiadosť preverí "
+                "podpora. Refundácia ani zmena predplatného ešte nebola vykonaná."
+            )
         elif delivery.refund_scope == customer_requests.REFUND_CANCEL_AT_PERIOD_END:
             ends_label = (
                 datetime.datetime.fromtimestamp(
@@ -6190,16 +6203,25 @@ async def _create_consumer_request(req: Request, *, request_type: str):
             schedule_consumer_request_confirmation_wake(wake_at)
         except Exception:
             LOG.error("consumer request confirmation wake scheduling failed")
+    closed_replay = (
+        not created.created
+        and created.status
+        in {customer_requests.STATUS_RESOLVED, customer_requests.STATUS_REFUNDED}
+    )
     return JSONResponse(
         {
             "ok": True,
-            "message": CONSUMER_REQUEST_RESPONSE,
-            "request_received": True,
+            "message": (
+                CONSUMER_REQUEST_CLOSED_RESPONSE
+                if closed_replay
+                else CONSUMER_REQUEST_RESPONSE
+            ),
+            "request_received": not closed_replay,
             "request_id": created.public_id,
             "confirmation": confirmation,
             **_consumer_request_result(created),
         },
-        status_code=202,
+        status_code=200 if closed_replay else 202,
     )
 
 

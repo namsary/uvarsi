@@ -10,6 +10,40 @@ Initial Task 6 commit: `dd8103860be93b33c543ac25896eeeeba765e907`
 
 Fix round 1 commit message: `fix: harden subscription withdrawal handling`
 
+Fix round 1 commit: `5771c57e2bc660dc1abf9450751ee88d8ac74b8b`
+
+Fix round 2 commit message: `fix: require legal review for unverifiable withdrawals`
+
+## Fix round 2 outcome
+
+- An initial invoice without a trustworthy `contract_concluded_at` now uses
+  `manual_legal_review`, regardless of whether the submission appears early or
+  late relative to payment. It has no automatic refund preview, consumed-
+  service charge, late-cancellation classification, provider action, or claim
+  that the statutory period expired.
+- The API and durable confirmation explain that the contract date cannot be
+  verified automatically and that support will review the request. Focused
+  tests forbid provider calls in both possible-age cases.
+- A replay of a resolved complaint returns HTTP 200 with `created=false`,
+  `request_received=false`, the original request ID, its current `resolved`
+  status, and text identifying the already closed request. It creates no new
+  record and preserves the existing ownership and privacy boundaries.
+
+Strict TDD evidence: the new focused cases first produced **7 expected
+failures** against fix round 1. After the minimal implementation, the same
+cases passed **7/7**.
+
+Final fix-round-2 verification, with both flags OFF:
+
+- Focused Task 6: **76 passed**.
+- Subscription and payment: **383 passed**.
+- Authentication: **244 passed**.
+- Deployment, payment-smoke, and legal: **111 passed**.
+- Total across these disjoint slices: **814 passed**.
+
+No full suite, push, deployment, live provider call, network call, or AI call
+ran during fix round 2.
+
 ## Fix round 1 outcome
 
 - Renewal invoices no longer start a statutory withdrawal period. Ordinary
@@ -101,9 +135,9 @@ isolated test execution succeeded.
   year-specific tests. The code covers the rules required through the explicit
   2026 exceptions in this review.
 - Provider `created_at` semantics remain an external contract. New initial
-  invoices fail to review if the signed webhook omits or contradicts that
-  timestamp; migrated historical invoices intentionally have no inferred
-  statutory date.
+  invoices go to event review if the signed webhook omits or contradicts that
+  timestamp. Migrated historical invoices receive no inferred statutory date;
+  withdrawal requests for them enter `manual_legal_review`.
 - The workflow never executes provider cancellation or refund. An active late
   cancellation still requires Portal or support action; statutory and remedy
   outcomes require human review.
