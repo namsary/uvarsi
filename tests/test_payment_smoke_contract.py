@@ -189,6 +189,102 @@ def _complete_local_lifecycle_records():
     return subscription, invoices, events
 
 
+def _public_health(*, blockers, ready=False):
+    return {
+        "vydanie": "release-1",
+        "recipe_engine": {"payments_enabled": False},
+        "payment_readiness": {
+            "ready": ready,
+            "blockers": blockers,
+            "legal_version": "2026-09-12-v5",
+            "release": "release-1",
+        },
+    }
+
+
+def _run_public_preflight(monkeypatch, health):
+    smoke = _load_smoke_module()
+    monkeypatch.setattr(smoke, "_json_request", lambda *_a, **_k: health)
+    return smoke, smoke._public_preflight("https://uvar.si", "release-1")
+
+
+def test_public_preflight_allows_first_annual_marker_bootstrap(monkeypatch):
+    health = _public_health(blockers=["subscription_smoke_missing"])
+
+    _smoke, result = _run_public_preflight(monkeypatch, health)
+
+    assert result is health
+
+
+def test_public_preflight_allows_expired_annual_marker_refresh(monkeypatch):
+    health = _public_health(blockers=["subscription_smoke_stale"])
+
+    _smoke, result = _run_public_preflight(monkeypatch, health)
+
+    assert result is health
+
+
+@pytest.mark.parametrize(
+    "blocker",
+    [
+        "subscription_smoke_invalid",
+        "subscription_smoke_incomplete",
+        "subscription_smoke_mismatch",
+    ],
+)
+def test_public_preflight_allows_only_other_repairable_marker_states(
+        monkeypatch, blocker):
+    health = _public_health(blockers=[blocker])
+
+    _smoke, result = _run_public_preflight(monkeypatch, health)
+
+    assert result is health
+
+
+def test_public_preflight_keeps_unrelated_readiness_blockers_fatal(monkeypatch):
+    health = _public_health(blockers=["receipt_unhealthy"])
+    smoke = _load_smoke_module()
+    monkeypatch.setattr(smoke, "_json_request", lambda *_a, **_k: health)
+
+    with pytest.raises(smoke.SmokeFailed, match="iné blokátory"):
+        smoke._public_preflight("https://uvar.si", "release-1")
+
+
+@pytest.mark.parametrize(
+    "readiness",
+    [
+        None,
+        [],
+        {},
+        {"ready": False, "blockers": None,
+         "legal_version": "2026-09-12-v5", "release": "release-1"},
+        {"ready": False, "blockers": ("subscription_smoke_missing",),
+         "legal_version": "2026-09-12-v5", "release": "release-1"},
+        {"ready": False, "blockers": [1],
+         "legal_version": "2026-09-12-v5", "release": "release-1"},
+        {"ready": False, "blockers": [""],
+         "legal_version": "2026-09-12-v5", "release": "release-1"},
+        {"ready": True, "blockers": ["subscription_smoke_missing"],
+         "legal_version": "2026-09-12-v5", "release": "release-1"},
+        {"ready": False, "blockers": [],
+         "legal_version": "2026-09-12-v5", "release": "release-1"},
+        {"ready": False, "blockers": ["subscription_smoke_missing"],
+         "legal_version": 5, "release": "release-1"},
+        {"ready": False, "blockers": ["subscription_smoke_missing"],
+         "legal_version": "2026-09-12-v5", "release": "other-release"},
+    ],
+)
+def test_public_preflight_rejects_missing_or_malformed_readiness(
+        monkeypatch, readiness):
+    health = _public_health(blockers=[])
+    health["payment_readiness"] = readiness
+    smoke = _load_smoke_module()
+    monkeypatch.setattr(smoke, "_json_request", lambda *_a, **_k: health)
+
+    with pytest.raises(smoke.SmokeFailed, match="tvar pripravenosti"):
+        smoke._public_preflight("https://uvar.si", "release-1")
+
+
 def test_deployment_starts_with_payments_off_and_migrates_before_health():
     samopull = SAMOPULL.read_text(encoding="utf-8")
 

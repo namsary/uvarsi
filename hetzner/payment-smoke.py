@@ -18,6 +18,7 @@ import http.cookiejar
 import json
 import math
 import os
+import re
 from contextlib import closing
 from pathlib import Path
 import sys
@@ -33,6 +34,15 @@ DEFAULT_APP_DIR = "/opt/uvarsi/app"
 DEFAULT_ENV_FILE = "/opt/uvarsi/uvarsi.env"
 DEFAULT_MARKER = "/var/lib/uvarsi/payment-smoke.json"
 DEFAULT_ACTIVATION_MARKER = "/var/lib/uvarsi/payment-activation.json"
+
+_REPAIRABLE_SUBSCRIPTION_SMOKE_BLOCKERS = frozenset({
+    "subscription_smoke_missing",
+    "subscription_smoke_invalid",
+    "subscription_smoke_stale",
+    "subscription_smoke_incomplete",
+    "subscription_smoke_mismatch",
+})
+_BLOCKER_CODE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 
 
 class SmokeFailed(RuntimeError):
@@ -580,17 +590,56 @@ def _payment_status(opener, base_url: str) -> dict:
     return result
 
 
+def _validated_public_readiness(health: dict, expected_release: str) -> list[str]:
+    readiness = health.get("payment_readiness")
+    required_fields = {"ready", "blockers", "legal_version", "release"}
+    if not isinstance(readiness, dict) or not required_fields.issubset(readiness):
+        raise SmokeFailed("Verejný stav má neplatný tvar pripravenosti.")
+
+    ready = readiness["ready"]
+    blockers = readiness["blockers"]
+    legal_version = readiness["legal_version"]
+    release = readiness["release"]
+    blockers_valid = (
+        isinstance(blockers, list)
+        and all(
+            type(blocker) is str and _BLOCKER_CODE_PATTERN.fullmatch(blocker)
+            for blocker in blockers
+        )
+        and len(blockers) == len(set(blockers))
+    )
+    readiness_consistent = (
+        (ready is True and not blockers)
+        or (ready is False and bool(blockers))
+    )
+    if (
+        type(ready) is not bool
+        or not blockers_valid
+        or type(legal_version) is not str
+        or not legal_version.strip()
+        or type(release) is not str
+        or release != expected_release
+        or not readiness_consistent
+    ):
+        raise SmokeFailed("Verejný stav má neplatný tvar pripravenosti.")
+    return blockers
+
+
 def _public_preflight(base_url: str, expected_release: str) -> dict:
     opener = urllib.request.build_opener(_NoRedirect())
     health = _json_request(opener, f"{base_url}/api/health")
+    if not isinstance(health, dict):
+        raise SmokeFailed("Verejný stav má neplatný tvar pripravenosti.")
     if health.get("vydanie") != expected_release:
         raise SmokeFailed("Živá aplikácia nemá očakávané vydanie.")
     recipe = health.get("recipe_engine") or {}
     if recipe.get("payments_enabled") is not False:
         raise SmokeFailed("Verejné platby musia počas testu zostať vypnuté.")
-    readiness = health.get("payment_readiness") or {}
-    blockers = set(readiness.get("blockers") or ())
-    if blockers - {"payment_smoke_missing"}:
+    blockers = _validated_public_readiness(health, expected_release)
+    if blockers and (
+        len(blockers) != 1
+        or blockers[0] not in _REPAIRABLE_SUBSCRIPTION_SMOKE_BLOCKERS
+    ):
         raise SmokeFailed("Pred testom ostávajú iné blokátory pripravenosti.")
     return health
 

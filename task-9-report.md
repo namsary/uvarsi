@@ -64,3 +64,32 @@ All fix-round tests use local fakes, temporary files and local databases. No Lem
 - While payments are ON, a provider marker older than 24 hours or an activation older than seven days closes checkout. Operations must refresh the explicit provider smoke and renew activation on schedule.
 - Provider API compatibility is covered with strict local contract fakes but was not exercised against Lemon Squeezy in this no-network fix round.
 - Legacy one-time helper functions remain for Task 1–8 regression compatibility, but the executable `main()` no longer invokes them.
+
+## Fix round 2 — fail-closed public preflight
+
+### RED evidence
+
+- New public-preflight slice against commit `00db0f0`: `16 failed, 1 passed, 38 deselected`. The five current annual marker blockers were rejected, while missing, empty, malformed or internally inconsistent `payment_readiness` values were either accepted or failed with the wrong legacy path.
+- The one passing control proved that an unrelated readiness blocker was already fatal; that behavior was retained and tightened.
+
+### Implemented invariants
+
+- The smoke tool may proceed with no blockers, or with exactly one explicitly repairable blocker: `subscription_smoke_missing`, `subscription_smoke_invalid`, `subscription_smoke_stale`, `subscription_smoke_incomplete` or `subscription_smoke_mismatch`.
+- Legacy `payment_smoke_missing`, mixed blockers, duplicate blockers and every unrelated blocker remain fatal.
+- Public readiness must be an object containing boolean `ready`, a list of unique valid string blocker codes, a non-empty legal version and the expected release. `ready` must agree with whether blockers are present. Missing or malformed data fails closed.
+
+### GREEN evidence
+
+- New public-preflight slice: `17 passed, 38 deselected`.
+- Payment-smoke/readiness/subscription-smoke focused slice: `128 passed in 2.16s`.
+- Deploy-contract slice: `72 passed in 1.78s`.
+- Payment and annual-checkout regression slice: `147 passed, 1 upstream warning in 55.88s`.
+- Final non-overlapping regression total: `347 passed`.
+
+No live provider, AI or network call was made. No push or deployment was performed. Payment and authentication feature flags remain unchanged and OFF.
+
+### Fix-round-2 residual risks
+
+- The real test-mode lifecycle and production provider configuration remain intentionally unverified in this local no-network round.
+- A future change to the public readiness schema must update the smoke tool and its contract tests together; unknown or partial shapes will intentionally stop the tool.
+- The existing Starlette/AnyIO deprecation warning remains upstream-only and did not affect any test result.
