@@ -756,6 +756,10 @@ def test_partial_refund_is_quarantined_without_revoking_entitlement(monkeypatch,
 
 def test_profile_contains_honest_withdrawal_and_complaint_controls():
     html = Path("app/static/app.html").read_text(encoding="utf-8")
+    html += "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in Path("app/static").glob("subscription-profile.*.js")
+    )
 
     assert "/api/consumer/requests" in html
     assert "/api/consumer/withdrawal" in html

@@ -10,6 +10,8 @@ Majiteľ chce tri veci naraz a všetky tri sa dajú overiť zo súboru:
 Testy sú čisto v Pythone (prípadne cez node), aby bežali aj na Linuxe — na
 rozdiel od tests/test_app_html_contract.py, ktorý potrebuje cscript.exe.
 """
+import base64
+import hashlib
 import json
 import re
 import shutil
@@ -20,6 +22,7 @@ import pytest
 
 
 APP = Path("app/static/app.html")
+SW = Path("sw.js")
 NODE = shutil.which("node")
 needs_node = pytest.mark.skipif(NODE is None, reason="node runtime is not available")
 
@@ -36,6 +39,19 @@ NATLAK = (
 
 def app_html():
     return APP.read_text(encoding="utf-8")
+
+
+def subscription_asset():
+    html = app_html()
+    match = re.search(
+        r"url:'(/static/subscription-profile\.([0-9a-f]{12})\.js)'"
+        r",integrity:'(sha384-[A-Za-z0-9+/=]+)'",
+        html,
+    )
+    assert match, "profil musí odkazovať na obsahovo hashovaný modul so SRI"
+    path = Path("app") / match.group(1).lstrip("/")
+    assert path.is_file(), "profilový modul musí byť súčasťou release"
+    return match, path, path.read_text(encoding="utf-8")
 
 
 def declaration(html, signature):
@@ -178,7 +194,8 @@ def test_premium_is_taken_from_the_server_answer_and_never_from_the_client():
 
     remembered = declaration(html, "function rememberProfile(me) ")
     for field in (
-        "premium", "status", "renews_at", "ends_at", "next_amount_cents",
+        "premium", "status", "subscription_has_access", "access_until",
+        "needs_review", "renews_at", "ends_at", "next_amount_cents",
         "auto_renews", "can_manage",
     ):
         assert field not in remembered, (
@@ -191,34 +208,33 @@ def test_premium_is_taken_from_the_server_answer_and_never_from_the_client():
 # ----------------------------------------------------- správa predplatného
 @needs_node
 def test_profile_renders_server_owned_subscription_states_and_one_action(tmp_path):
-    html = app_html()
-    functions = "\n".join(
-        declaration(html, signature)
-        for signature in (
-            "function serviceDate(epoch) ",
-            "function subscriptionAmount(cents) ",
-            "function subscriptionManagementHtml(data, state) ",
-        )
-    )
+    _asset, _path, module = subscription_asset()
     result = run_node(
         tmp_path,
         "subscription-status-contract.js",
-        functions
+        "const window=globalThis;\n"
+        + module
         + """
 const renewal = 1800000000;
 const end = 1790000000;
-const common = {ma_narok:true,can_manage:true,next_amount_cents:4900,
-  renews_at:renewal,ends_at:end};
+const common = {ma_narok:true,subscription_has_access:true,can_manage:true,
+  next_amount_cents:4900,renews_at:renewal,access_until:end,needs_review:false};
 const states = {
-  active:subscriptionManagementHtml({...common,status:'active'}),
-  cancelled:subscriptionManagementHtml({...common,status:'cancelled',renews_at:null,auto_renews:false}),
-  past_due:subscriptionManagementHtml({...common,status:'past_due'}),
-  unpaid:subscriptionManagementHtml({...common,status:'unpaid',ma_narok:false}),
-  expired:subscriptionManagementHtml({...common,status:'expired',ma_narok:false}),
-  manual:subscriptionManagementHtml({ma_narok:true,can_manage:false,status:null}),
-  free:subscriptionManagementHtml({ma_narok:false,can_manage:false,status:null}),
-  missingAmount:subscriptionManagementHtml({...common,status:'active',next_amount_cents:null}),
-  hidden:subscriptionManagementHtml({...common,status:'active',url:'SIGNED_URL_MUST_NOT_RENDER'})
+  active:UvarsiSubscription.render({...common,status:'active'}),
+  cancelledActive:UvarsiSubscription.render({...common,status:'cancelled',renews_at:null}),
+  cancelledEnded:UvarsiSubscription.render({...common,status:'cancelled',renews_at:null,
+    subscription_has_access:false}),
+  past_due:UvarsiSubscription.render({...common,status:'past_due'}),
+  pausedActive:UvarsiSubscription.render({...common,status:'paused',needs_review:true}),
+  pausedEnded:UvarsiSubscription.render({...common,status:'paused',needs_review:true,
+    subscription_has_access:false}),
+  reviewActive:UvarsiSubscription.render({...common,status:'active',needs_review:true}),
+  unpaid:UvarsiSubscription.render({...common,status:'unpaid',subscription_has_access:false}),
+  expired:UvarsiSubscription.render({...common,status:'expired',subscription_has_access:false}),
+  manual:UvarsiSubscription.render({ma_narok:true,can_manage:false,status:null}),
+  free:UvarsiSubscription.render({ma_narok:false,can_manage:false,status:null}),
+  missingAmount:UvarsiSubscription.render({...common,status:'active',next_amount_cents:null}),
+  hidden:UvarsiSubscription.render({...common,status:'active',url:'SIGNED_URL_MUST_NOT_RENDER'})
 };
 console.log(JSON.stringify(states));
 """,
@@ -230,15 +246,30 @@ console.log(JSON.stringify(states));
     assert "Ďalšia ročná platba" in states["active"]
     assert "Dátum obnovy" in states["active"]
     assert "49 €" in states["active"]
-    assert "Obnovenie je zrušené" in states["cancelled"]
-    assert "Prístup do" in states["cancelled"]
-    assert "Ďalšia ročná platba" not in states["cancelled"]
-    assert "Premium ostáva aktívne" in states["past_due"]
+    assert "Obnovenie je zrušené" in states["cancelledActive"]
+    assert "Premium je aktívne do" in states["cancelledActive"]
+    assert "Prístup do" in states["cancelledActive"]
+    assert "Ďalšia ročná platba" not in states["cancelledActive"]
+    assert "skončilo" in states["cancelledEnded"]
+    assert "aktívne" not in states["cancelledEnded"].casefold()
+    assert "platba sa rieši" in states["past_due"].casefold()
+    assert "Pôvodný dátum obnovy" in states["past_due"]
+    assert "pokus" not in states["past_due"].casefold()
+    assert "skúša" not in states["past_due"].casefold()
+    assert "Potvrdený prístup do" in states["pausedActive"]
+    assert "Premium teraz nie je aktívne" in states["pausedEnded"]
+    assert "Premium je aktívne" not in states["pausedEnded"]
+    assert "overujeme" in states["reviewActive"].casefold()
+    assert "Potvrdený prístup do" in states["reviewActive"]
     assert "pozastavené" in states["unpaid"]
     assert "skončilo" in states["expired"]
+    assert "Prístup skončil" in states["expired"]
     assert "nemá predplatné" in states["manual"]
     assert "Nemáš aktívne predplatné" in states["free"]
-    for name in ("active", "cancelled", "past_due", "unpaid", "expired"):
+    for name in (
+        "active", "cancelledActive", "cancelledEnded", "past_due",
+        "pausedActive", "pausedEnded", "reviewActive", "unpaid", "expired",
+    ):
         assert states[name].count("Spravovať predplatné") == 1
         assert "platobn" in states[name].casefold()
         assert "faktúr" in states[name].casefold()
@@ -250,17 +281,9 @@ console.log(JSON.stringify(states));
 
 @needs_node
 def test_profile_load_never_posts_and_repeat_click_creates_one_fresh_portal(tmp_path):
-    html = app_html()
-    functions = "\n".join(
-        declaration(html, signature)
-        for signature in (
-            "async function runGuardedAction(button, errorNode, action) ",
-            "function safeCustomerPortalDestination(value) ",
-            "function subscriptionPortalHelp() ",
-            "async function openSubscriptionPortal(button, status) ",
-            "function bindSubscriptionManagement() ",
-            "async function loadSubscriptionManagement() ",
-        )
+    _asset, _path, module = subscription_asset()
+    guard = declaration(
+        app_html(), "async function runGuardedAction(button, errorNode, action) "
     )
     result = run_node(
         tmp_path,
@@ -268,6 +291,7 @@ def test_profile_load_never_posts_and_repeat_click_creates_one_fresh_portal(tmp_
         """
 const apiCalls = [];
 const navigations = [];
+const window=globalThis;
 let resolvePortal;
 const root = {innerHTML:''};
 const status = {textContent:'',style:{}};
@@ -292,10 +316,12 @@ async function api(url, options) {
 }
 const location = {assign:url => navigations.push(url)};
 """
-        + functions
+        + guard
+        + "\n"
+        + module
         + """
 (async function(){
-  await loadSubscriptionManagement();
+  await UvarsiSubscription.loadSubscription();
   const afterLoad = apiCalls.slice();
   const first = button.onclick();
   const second = button.onclick();
@@ -331,21 +357,16 @@ const location = {assign:url => navigations.push(url)};
 def test_portal_failure_is_actionable_accessible_and_never_echoes_a_signed_url(
     tmp_path,
 ):
-    html = app_html()
-    functions = "\n".join(
-        declaration(html, signature)
-        for signature in (
-            "async function runGuardedAction(button, errorNode, action) ",
-            "function safeCustomerPortalDestination(value) ",
-            "function subscriptionPortalHelp() ",
-            "async function openSubscriptionPortal(button, status) ",
-        )
+    _asset, _path, module = subscription_asset()
+    guard = declaration(
+        app_html(), "async function runGuardedAction(button, errorNode, action) "
     )
     result = run_node(
         tmp_path,
         "subscription-error-contract.js",
         """
 const status = {textContent:'',style:{}};
+const window=globalThis;
 const attributes = {};
 const button = {disabled:false,textContent:'Spravovať predplatné',
   setAttribute:(name,value)=>{attributes[name]=value;},
@@ -355,14 +376,19 @@ async function api() {
 }
 const location = {assign:()=>{throw new Error('must not navigate');}};
 """
-        + functions
+        + guard
+        + "\n"
+        + module
         + """
 (async function(){
-  await openSubscriptionPortal(button,status);
+  await UvarsiSubscription.open(button,status);
   console.log(JSON.stringify({text:status.textContent,disabled:button.disabled,
     label:button.textContent,busy:attributes['aria-busy'] || null,
-    valid:safeCustomerPortalDestination('https://app.lemonsqueezy.com/my-orders/fresh'),
-    attacker:safeCustomerPortalDestination('https://lemonsqueezy.com.attacker.test/x')}));
+    valid:UvarsiSubscription.safeDestination('https://app.lemonsqueezy.com/my-orders/fresh'),
+    attacker:UvarsiSubscription.safeDestination('https://lemonsqueezy.com.attacker.test/x'),
+    controls:['\\u0000','\\u001f','\\u007f'].map(control =>
+      UvarsiSubscription.safeDestination('https://store.lemonsqueezy.com/billing/a'
+        + control + 'b'))}));
 })().catch(error => { console.error(error); process.exit(1); });
 """,
     )
@@ -378,19 +404,70 @@ const location = {assign:()=>{throw new Error('must not navigate');}};
     assert "LEAKED_SIGNED_VALUE" not in state["text"]
     assert state["valid"] is True
     assert state["attacker"] is False
+    assert state["controls"] == [False, False, False]
+
+
+@needs_node
+def test_billing_dates_are_always_slovak_dates_in_bratislava_time(tmp_path):
+    _asset, _path, module = subscription_asset()
+    result = run_node(
+        tmp_path,
+        "subscription-bratislava-date.js",
+        "const window=globalThis;\n"
+        + module
+        + "\nconsole.log(UvarsiSubscription.date(1725143400));\n",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip() == "1. 9. 2024"
+    assert "timeZone:'Europe/Bratislava'" in module.replace(" ", "")
+
+
+def test_profile_module_is_content_addressed_integrity_checked_and_lazy():
+    match, path, source = subscription_asset()
+    payload = path.read_bytes()
+    expected_sri = "sha384-" + base64.b64encode(
+        hashlib.sha384(payload).digest()
+    ).decode("ascii")
+    html = app_html()
+    loader = declaration(html, "async function loadProfilePayments() ")
+
+    assert hashlib.sha256(payload).hexdigest().startswith(match.group(2))
+    assert match.group(3) == expected_sri
+    assert match.group(1).startswith("/static/")
+    assert "eval(" not in source and "new Function" not in source
+    assert "createElement('script')" in loader
+    assert ".integrity=SUBSCRIPTION_ASSET.integrity" in loader.replace(" ", "")
+    assert "crossOrigin='anonymous'" in loader.replace(" ", "")
+    assert f'<script src="{match.group(1)}"' not in html
+    assert f"<link rel=\"preload\" href=\"{match.group(1)}\"" not in html
+    assert match.group(1) not in SW.read_text(encoding="utf-8").split(
+        "const SHELL = [", 1
+    )[1].split("];", 1)[0]
+
+
+def test_lazy_subscription_module_has_a_tight_transfer_budget():
+    import gzip
+
+    _match, path, _source = subscription_asset()
+    compressed = len(gzip.compress(path.read_bytes(), 5))
+
+    assert compressed <= 4_500, (
+        f"profilový modul má {compressed} B gzip; strop je 4500 B"
+    )
 
 
 def test_profile_has_accessible_subscription_loading_and_no_hidden_portal_url():
     html = app_html()
     profile = declaration(html, "function vNast() ")
-    loader = declaration(html, "async function loadSubscriptionManagement() ")
+    loader = declaration(html, "async function loadProfilePayments() ")
 
     assert 'id="subscription-management"' in profile
-    assert "loadSubscriptionManagement()" in profile
+    assert "loadProfilePayments()" in profile
     assert 'role="status"' in profile
     assert 'aria-live="polite"' in profile
-    assert "/api/platba/stav" in loader
-    assert "/api/platba/portal" not in loader
+    assert "module.loadSubscription()" in loader
+    assert "/api/platba/portal" not in html
     assert "lemonsqueezy.com/billing" not in html
     assert "signed-secret" not in html
 

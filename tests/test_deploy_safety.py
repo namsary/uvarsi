@@ -29,6 +29,16 @@ MAPA_SITE = "mapa.89.167.72.159.sslip.io"
 CADDYFILE = "/etc/caddy/Caddyfile"
 
 
+def subscription_profile_asset() -> str:
+    html = Path("app/static/app.html").read_text(encoding="utf-8")
+    match = re.search(
+        r"url:'(/static/subscription-profile\.[0-9a-f]{12}\.js)'",
+        html,
+    )
+    assert match, "app shell musí pomenovať hashovaný profilový modul"
+    return match.group(1)
+
+
 @pytest.fixture(scope="module")
 def script() -> str:
     return DEPLOY.read_text(encoding="utf-8")
@@ -308,12 +318,14 @@ def test_canonical_block_proxies_exact_public_paths_and_keeps_static_root(script
     )
 
 
-def test_canonical_block_keeps_immutable_cache_only_on_hashed_fonts(script):
+def test_canonical_block_keeps_immutable_cache_only_on_hashed_assets(script):
     template = _generated_caddy_template(script)
     assert (
         'header Cache-Control "public, max-age=31536000, immutable"' in template
     ), "hashované fonty musia dostať immutable cache"
     assert "handle /static/fonts/* {" in template
+    asset = subscription_profile_asset()
+    assert f"handle {asset} {{" in template
     static_block = re.search(
         r"handle /static/\* \{\n(.*?)\n\t\}",
         template,
@@ -323,6 +335,18 @@ def test_canonical_block_keeps_immutable_cache_only_on_hashed_fonts(script):
     assert "immutable" not in static_block.group(1), (
         "bežné /static/* nesmú dostať immutable cache, inak zamrznú HTML/manifest súbory"
     )
+
+
+def test_subscription_profile_asset_is_required_by_automatic_and_manual_release():
+    asset = subscription_profile_asset().lstrip("/")
+    automatic = SAMOPULL.read_text(encoding="utf-8")
+    manual = DEPLOY.read_text(encoding="utf-8")
+    required_files = re.search(
+        r"for f in (.*?); do", automatic.split("# b) povinné súbory", 1)[1], re.S
+    )
+
+    assert required_files and asset in required_files.group(1)
+    assert 'scp -q -r "$B\\app\\static\\*"' in manual
 
 
 def test_caddy_validate_runs_on_the_temp_file_as_its_own_command(script):

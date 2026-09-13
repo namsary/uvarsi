@@ -19,8 +19,14 @@ from decimal import Decimal
 from html import escape
 from pathlib import Path
 import sys
+from urllib.error import HTTPError
 from urllib.parse import quote, urlsplit
-from urllib.request import Request as UrlRequest, urlopen
+from urllib.request import (
+    HTTPRedirectHandler,
+    Request as UrlRequest,
+    build_opener,
+    urlopen,
+)
 from zoneinfo import ZoneInfo
 
 import anyio.to_thread
@@ -6035,6 +6041,29 @@ async def consumer_complaint(req: Request):
 # neúčtuje a adresa poskytovateľa sa ani nezostaví.
 
 
+class _RejectLemonRedirects(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _open_authenticated_lemon_request(request, *, timeout: int):
+    """Open one exact Lemon request and reject every redirect response."""
+    opener = build_opener(_RejectLemonRedirects())
+    try:
+        response = opener.open(request, timeout=timeout)
+    except HTTPError as error:
+        if 300 <= error.code < 400:
+            raise PlatbyNenastavene("poskytovateľ presmeroval API požiadavku") from None
+        raise
+    status = getattr(response, "status", None)
+    if status is None:
+        status = response.getcode()
+    if 300 <= status < 400:
+        response.close()
+        raise PlatbyNenastavene("poskytovateľ presmeroval API požiadavku")
+    return response
+
+
 def _lemon_checkout_request(api_key: str, payload: dict) -> dict:
     """Create one Lemon checkout without logging its signed response URL."""
     if not isinstance(api_key, str) or not api_key.strip():
@@ -6051,7 +6080,7 @@ def _lemon_checkout_request(api_key: str, payload: dict) -> dict:
         },
     )
     try:
-        with urlopen(request, timeout=20) as response:
+        with _open_authenticated_lemon_request(request, timeout=20) as response:
             body = response.read(1_048_577)
     except (OSError, ValueError):
         raise PlatbyNenastavene("poskytovateľ pokladne je nedostupný") from None
@@ -6115,7 +6144,7 @@ def _lemon_subscription_request(api_key: str, subscription_id: str) -> dict:
         },
     )
     try:
-        with urlopen(request, timeout=20) as response:
+        with _open_authenticated_lemon_request(request, timeout=20) as response:
             body = response.read(1_048_577)
     except (OSError, ValueError):
         raise PlatbyNenastavene(
@@ -6187,6 +6216,7 @@ def _safe_customer_portal_url(value) -> str:
         or not value
         or value != value.strip()
         or len(value) > 4096
+        or any(ord(character) < 32 or ord(character) == 127 for character in value)
         or any(character.isspace() for character in value)
     ):
         raise PlatbyNenastavene("poskytovateľ nevrátil bezpečnú správu predplatného")
@@ -6286,12 +6316,24 @@ def platba_stav(req: Request):
         premium, subscription = _local_premium_state(
             con, user_id=u["id"], now=now
         )
+        subscription_has_access = predplatne.subscription_access(
+            subscription, now=now
+        )
+        access_until = None
+        if isinstance(subscription, predplatne.SubscriptionSnapshot):
+            access_until = (
+                subscription.ends_at
+                if subscription.status == "cancelled"
+                else subscription.paid_through
+            )
         return stav_platieb(
             con,
             user_id=u["id"],
             zapnute=platby_su_zapnute(),
             premium=premium,
             subscription=subscription,
+            subscription_has_access=subscription_has_access,
+            access_until=access_until,
         )
 
 

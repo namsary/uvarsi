@@ -93,3 +93,94 @@ cannot write the legacy `.pytest_cache` path; neither affects test results.
 
 Pre-existing untracked worktree artifacts were left untouched. No push or
 deployment was performed.
+
+---
+
+## Round 1 fixes — 2026-09-13
+
+Planned commit: `fix: harden subscription portal management`
+
+### Findings addressed
+
+- Authenticated Lemon API reads now use a redirect-rejecting opener shared by
+  checkout and subscription retrieval. Every HTTP 300–399 response is rejected;
+  no same-host or cross-host redirect is followed manually or automatically.
+  A deterministic two-server loopback harness proves that each redirect causes
+  exactly one first-hop request, zero target requests, and no forwarded
+  `Authorization` header. A normal non-redirected request still succeeds.
+- Server and browser portal URL validation now reject every C0 character
+  U+0000–U+001F and DEL U+007F before parsing, in addition to the existing
+  whitespace, user-info, explicit-port, fragment, scheme and Lemon-host rules.
+- `/api/platba/stav` now exposes server-owned `subscription_has_access`,
+  `access_until`, and `needs_review`. `access_until` uses `ends_at` for a
+  cancelled subscription and verified `paid_through` for paused, review and
+  expired states. The browser does not compare clocks or infer entitlement.
+- Profile wording now distinguishes a cancelled subscription before and at its
+  exact cutoff, treats `past_due` as a payment being resolved without claiming
+  a retry date, and renders paused/review/expired states from the authoritative
+  access result and cutoff. A separate legacy/manual Premium grant cannot make
+  an expired subscription look active.
+- Billing dates are rendered with the explicit `Europe/Bratislava` time zone.
+- The management capability flag now requires the same complete local provider
+  identity shape as the portal route, including variant and boolean test/live
+  mode. Active, cancelled, `past_due`, paused, unpaid and expired subscriptions
+  remain manageable when that identity is valid.
+- The enforceable initial app-shell ceiling is restored to 37,600 bytes. Profile
+  payment/support code is loaded only when Profile is rendered from the
+  content-addressed asset `subscription-profile.50f7b3f42981.js`. Its SHA-384
+  integrity metadata is verified by tests, it has a separate 4,500-byte gzip
+  ceiling, the service worker does not pre-cache it, and deployment requires
+  the file and serves its exact hashed path with immutable caching.
+
+The final measurements at deployed gzip level 5 are:
+
+- app shell: **36,728 bytes** (872 bytes below the 37,600-byte ceiling);
+- lazy Profile asset: **4,287 bytes** (213 bytes below its 4,500-byte ceiling).
+
+### Strict TDD evidence
+
+- Redirect RED: the transport test failed because no guarded opener existed.
+  GREEN: direct requests passed and all 100 redirect codes plus a cross-origin
+  redirect were rejected with zero second request.
+- URL RED: server validation accepted NUL and DEL, and browser validation
+  accepted all three sampled C0/DEL inputs. GREEN: all focused server and
+  browser cases passed.
+- Authoritative-state RED: seven route cases failed because the API omitted the
+  subscription access/cutoff fields. GREEN: cancelled boundary, paused,
+  expired, review and manual-entitlement combinations passed. The test was
+  corrected to preserve the existing domain invariant that paused snapshots
+  are review-marked.
+- Capability RED: a snapshot with a missing provider variant was still
+  advertised as manageable. GREEN: all five corrupted-identity cases are now
+  non-manageable, while 12 live/test and status combinations remain manageable.
+- Frontend/performance RED: the profile asset, SRI contract and lazy loading did
+  not exist, and the shell exceeded 37,600 bytes. GREEN: all eight focused
+  profile, URL, timezone, lazy-loading, deployment and shell-budget checks
+  passed.
+- Legacy-network RED: the first redirect patch removed the unrelated
+  unauthenticated preflight-notification opener. GREEN: its focused regression
+  test and the authenticated redirect test both pass; only Lemon requests use
+  the no-redirect transport.
+
+### Verification
+
+No full suite was run. Both rollout flags were forced OFF in the final payment,
+authentication and frontend commands. Provider behavior used fakes; the only
+network traffic was the deterministic local redirect harness. No live Lemon,
+Anthropic or other external request was made.
+
+- Focused payment slice (portal, subscription access, checkout, legacy payment
+  and readiness): **254 passed**.
+- Focused authentication/session slice: **7 passed**.
+- Focused frontend/performance slice: **65 passed**.
+- Deployment-safety slice: **54 passed**.
+- `git diff --check`: passed.
+
+The broader performance diagnostic still has the same two unrelated baseline
+conditions recorded above: the optional Brotli decoder is unavailable for the
+font-inspection test, and unchanged `index.html` is 12,230 bytes against its
+12,100-byte practical-headroom check while remaining under the 12,400-byte hard
+limit. Neither file or limit was changed in Round 1.
+
+Pre-existing untracked worktree artifacts were left untouched. No push,
+deployment, live provider call or full-suite run was performed.

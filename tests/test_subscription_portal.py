@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from contextlib import closing
 from dataclasses import replace
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
+from urllib.request import Request as UrlRequest
 
 import pytest
 from fastapi.testclient import TestClient
@@ -65,6 +68,69 @@ class FakePortalProvider:
             },
         }
         return self.overrides.get("response", {"data": data})
+
+
+class _RedirectHarness:
+    def __init__(self):
+        self.source_requests = []
+        self.cross_requests = []
+        harness = self
+
+        class CrossHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                harness.cross_requests.append(
+                    (self.path, self.headers.get("Authorization"))
+                )
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"cross":true}')
+
+            def log_message(self, *_args):
+                pass
+
+        self.cross = ThreadingHTTPServer(("127.0.0.1", 0), CrossHandler)
+        cross_url = f"http://127.0.0.1:{self.cross.server_port}"
+
+        class SourceHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                harness.source_requests.append(
+                    (self.path, self.headers.get("Authorization"))
+                )
+                if self.path == "/ok":
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(b'{"ok":true}')
+                    return
+                if self.path == "/cross":
+                    status, location = 302, cross_url + "/target"
+                else:
+                    status = int(self.path.removeprefix("/status/"))
+                    location = "/target"
+                self.send_response(status)
+                self.send_header("Location", location)
+                self.end_headers()
+
+            def log_message(self, *_args):
+                pass
+
+        self.source = ThreadingHTTPServer(("127.0.0.1", 0), SourceHandler)
+        self.source_url = f"http://127.0.0.1:{self.source.server_port}"
+        self.threads = [
+            Thread(target=self.cross.serve_forever, daemon=True),
+            Thread(target=self.source.serve_forever, daemon=True),
+        ]
+
+    def __enter__(self):
+        for thread in self.threads:
+            thread.start()
+        return self
+
+    def __exit__(self, *_args):
+        for server in (self.source, self.cross):
+            server.shutdown()
+            server.server_close()
+        for thread in self.threads:
+            thread.join(timeout=2)
 
 
 def _server_with_provider(monkeypatch, tmp_path, provider):
@@ -134,9 +200,13 @@ def test_portal_requires_login_and_an_owned_subscription(monkeypatch, tmp_path):
     response = plan_client(server, 1, wait_for_worker=False).post(
         "/api/platba/portal"
     )
+    local_status = plan_client(server, 1, wait_for_worker=False).get(
+        "/api/platba/stav"
+    )
 
     assert response.status_code == 404
     assert response.json()["kod"] == "subscription_not_manageable"
+    assert local_status.json()["can_manage"] is False
     assert provider.calls == []
 
 
@@ -182,18 +252,19 @@ def test_portal_rejects_unverified_local_provider_identity_before_contact(
         con.execute(f"UPDATE subscriptions SET {field}=? WHERE user_id=1", (value,))
         con.commit()
 
-    response = plan_client(server, 1, wait_for_worker=False).post(
-        "/api/platba/portal"
-    )
+    client = plan_client(server, 1, wait_for_worker=False)
+    local_status = client.get("/api/platba/stav")
+    response = client.post("/api/platba/portal")
 
     assert response.status_code == 404
     assert response.json()["kod"] == "subscription_not_manageable"
+    assert local_status.json()["can_manage"] is False
     assert provider.calls == []
 
 
 @pytest.mark.parametrize("test_mode", (False, True))
 @pytest.mark.parametrize(
-    "status", ("active", "cancelled", "past_due", "unpaid", "expired")
+    "status", ("active", "cancelled", "past_due", "paused", "unpaid", "expired")
 )
 def test_every_provider_managed_subscription_state_can_open_its_own_portal(
     monkeypatch, tmp_path, status, test_mode
@@ -265,11 +336,11 @@ def test_provider_adapter_uses_one_fixed_api_read_without_live_network(
             assert limit == 1_048_577
             return b'{"data":{"type":"subscriptions","id":"subscription/one"}}'
 
-    def fake_urlopen(request, *, timeout):
+    def fake_open(request, *, timeout):
         requests.append((request, timeout))
         return FakeResponse()
 
-    monkeypatch.setattr(server, "urlopen", fake_urlopen)
+    monkeypatch.setattr(server, "_open_authenticated_lemon_request", fake_open)
 
     result = server._lemon_subscription_request(
         "provider-api-secret", "subscription/one"
@@ -284,6 +355,49 @@ def test_provider_adapter_uses_one_fixed_api_read_without_live_network(
     assert request.method == "GET"
     assert request.get_header("Authorization") == "Bearer provider-api-secret"
     assert timeout == 20
+
+
+def test_authenticated_lemon_transport_never_follows_any_redirect(
+    monkeypatch, tmp_path
+):
+    server = premium_user_server(monkeypatch, tmp_path)
+    open_request = getattr(server, "_open_authenticated_lemon_request", None)
+    assert callable(open_request), "authenticated Lemon transport has no redirect guard"
+    secret = "Bearer provider-api-secret"
+
+    with _RedirectHarness() as harness:
+        direct = UrlRequest(
+            harness.source_url + "/ok", headers={"Authorization": secret}
+        )
+        with open_request(direct, timeout=2) as response:
+            assert response.read() == b'{"ok":true}'
+
+        for status in range(300, 400):
+            redirected = UrlRequest(
+                f"{harness.source_url}/status/{status}",
+                headers={"Authorization": secret},
+            )
+            with pytest.raises(server.PlatbyNenastavene):
+                open_request(redirected, timeout=2)
+
+        cross = UrlRequest(
+            harness.source_url + "/cross", headers={"Authorization": secret}
+        )
+        with pytest.raises(server.PlatbyNenastavene):
+            open_request(cross, timeout=2)
+
+    first_hops = [path for path, authorization in harness.source_requests]
+    assert first_hops == [
+        "/ok",
+        *[f"/status/{code}" for code in range(300, 400)],
+        "/cross",
+    ]
+    assert all(
+        authorization == secret
+        for _path, authorization in harness.source_requests
+    )
+    assert "/target" not in first_hops
+    assert harness.cross_requests == []
 
 
 @pytest.mark.parametrize(
@@ -358,6 +472,9 @@ def test_portal_rejects_malformed_provider_response_without_exposing_it(
         "https://store.lemonsqueezy.com:443/billing/signed-secret",
         "https://store.lemonsqueezy.com/billing/signed-secret#fragment",
         "javascript:alert(1)",
+        "https://store.lemonsqueezy.com/billing/signed\x00-secret",
+        "https://store.lemonsqueezy.com/billing/signed\x1f-secret",
+        "https://store.lemonsqueezy.com/billing/signed\x7f-secret",
         "",
         None,
     ),
@@ -499,7 +616,9 @@ def test_missing_portal_configuration_fails_safely_without_network(
         network_calls.append(args)
         raise AssertionError("missing configuration reached the network")
 
-    monkeypatch.setattr(server, "urlopen", forbidden_network)
+    monkeypatch.setattr(
+        server, "_open_authenticated_lemon_request", forbidden_network
+    )
     response = plan_client(server, 1, wait_for_worker=False).post(
         "/api/platba/portal"
     )

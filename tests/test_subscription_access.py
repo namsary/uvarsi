@@ -318,6 +318,79 @@ def test_cancelled_snapshot_stops_authorizing_at_ends_at(monkeypatch, tmp_path):
     assert client.post("/api/plan/zo-spajze").status_code == 403
 
 
+@pytest.mark.parametrize(
+    (
+        "status",
+        "cutoff_offset",
+        "ends_at",
+        "needs_review",
+        "expected_access",
+    ),
+    (
+        ("cancelled", 1, "cutoff", False, True),
+        ("cancelled", 0, "cutoff", False, False),
+        ("paused", 1, None, False, True),
+        ("paused", 0, None, False, False),
+        ("expired", -1, None, False, False),
+        ("active", 1, None, True, True),
+    ),
+)
+def test_payment_status_exposes_authoritative_subscription_access_and_cutoff(
+    monkeypatch,
+    tmp_path,
+    status,
+    cutoff_offset,
+    ends_at,
+    needs_review,
+    expected_access,
+):
+    server = premium_user_server(monkeypatch, tmp_path)
+    now = server.AUTH_CLOCK()
+    cutoff = now + cutoff_offset
+    seed_subscription(
+        server,
+        status=status,
+        now=now,
+        period_end=cutoff,
+        paid_through=cutoff,
+        ends_at=cutoff if ends_at == "cutoff" else None,
+        renews_at=cutoff if status == "active" else None,
+        needs_review=needs_review,
+        review_reason="provider update needs review" if needs_review else None,
+    )
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: now)
+
+    state = plan_client(server, 1, wait_for_worker=False).get(
+        "/api/platba/stav"
+    ).json()
+
+    assert state["subscription_has_access"] is expected_access
+    assert state["access_until"] == cutoff
+    assert state["needs_review"] is (needs_review or status == "paused")
+
+
+def test_expired_subscription_is_not_called_active_when_manual_premium_exists(
+    monkeypatch, tmp_path
+):
+    server = premium_user_server(monkeypatch, tmp_path, premium=True)
+    now = server.AUTH_CLOCK()
+    seed_subscription(
+        server,
+        status="expired",
+        now=now,
+        period_end=now - 10,
+        paid_through=now - 10,
+    )
+
+    state = plan_client(server, 1, wait_for_worker=False).get(
+        "/api/platba/stav"
+    ).json()
+
+    assert state["ma_narok"] is True
+    assert state["subscription_has_access"] is False
+    assert state["access_until"] == now - 10
+
+
 @pytest.mark.parametrize("entitlement", ("manual", "legacy_payment"))
 def test_legacy_entitlements_remain_premium_without_subscription_management(
     monkeypatch, tmp_path, entitlement

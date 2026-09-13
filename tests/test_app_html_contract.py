@@ -1058,7 +1058,7 @@ def test_settings_use_natural_slovak_cooking_frequency_text(tmp_path):
         + "function esc(value){return String(value == null ? '' : value);}\n"
         + "function passwordSetupCard(){return '';} function authV3Enabled(){return false;}\n"
         + "function accountDataHtml(){return '';} function passkeyUiAvailable(){return false;}\n"
-        + "function loadCustomerService(){} function bindAccountDataControls(){}\n"
+        + "function loadProfilePayments(){} function bindAccountDataControls(){}\n"
         + "var AUTH_V3_ENABLED=false; var localStorage={}; function loadAccountSecurity(){};\n"
         + declaration(html, "function householdLabel(profil) ")
         + "\n"

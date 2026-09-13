@@ -1045,9 +1045,16 @@ def platba_bez_protihodnoty(con, user_id: int):
 
 
 def stav_platieb(
-    con, *, user_id: int, zapnute: bool, premium: bool, subscription
+    con,
+    *,
+    user_id: int,
+    zapnute: bool,
+    premium: bool,
+    subscription,
+    subscription_has_access: bool,
+    access_until,
 ) -> dict:
-    if type(premium) is not bool:
+    if type(premium) is not bool or type(subscription_has_access) is not bool:
         raise ValueError("neplatný stav Premium")
     obsadene = pocet_zaplatenych_zakladajucich(con)
     volne = max(0, KAPACITA_ZAKLADAJUCICH - obsadene)
@@ -1080,8 +1087,13 @@ def stav_platieb(
         subscription is not None
         and getattr(subscription, "provider", None) == POSKYTOVATEL
         and getattr(subscription, "product", None) == PRODUKT_PREMIUM_ROCNY
-        and getattr(subscription, "provider_customer_id", None)
-        and getattr(subscription, "provider_subscription_id", None)
+        and isinstance(getattr(subscription, "provider_customer_id", None), str)
+        and getattr(subscription, "provider_customer_id").strip()
+        and isinstance(getattr(subscription, "provider_subscription_id", None), str)
+        and getattr(subscription, "provider_subscription_id").strip()
+        and isinstance(getattr(subscription, "provider_variant_id", None), str)
+        and getattr(subscription, "provider_variant_id").strip()
+        and type(getattr(subscription, "test_mode", None)) is bool
     )
     return {
         "platby_zapnute": zapnute,
@@ -1094,6 +1106,9 @@ def stav_platieb(
         "platba_bez_miesta": bez_protihodnoty == STAV_NAD_KAPACITU and not narok,
         "upozornenie": upozornenie,
         "status": status,
+        "subscription_has_access": subscription_has_access,
+        "access_until": access_until,
+        "needs_review": bool(getattr(subscription, "needs_review", False)),
         "renews_at": renews_at,
         "ends_at": ends_at,
         "next_amount_cents": next_amount_cents,
