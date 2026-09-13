@@ -1,4 +1,12 @@
 
+## 2026-09-13 — Ročné Premium pripravené na testovací lifecycle (vydanie 2026.09.13.1)
+
+- Ponuka má iba ročné Premium: prvých 50 úspešných zákazníkov zaplatí 39 € za prvý rok cez pevnú jednorazovú zľavu 10 €; obnova a neskorší zákazníci platia 49 € ročne. Trial ani mesačný variant nie sú súčasťou ponuky.
+- Prevádzkový postup oddeľuje test/live konfiguráciu, pokrýva celý životný cyklus predplatného, Customer Portal, rekonciliáciu, podpísaný marker, readiness a flag-only rollback. Krátkodobé checkout a portálové URL sa neukladajú ani nelogujú.
+- Automatické aj ručné nasadenie kontrolujú všetky nové predplatné moduly a názvy konfigurácie bez uloženia tajomstiev do Gitu. Produkčné príznaky ostávajú vypnuté až do samostatného schválenia majiteľa.
+- Právne podklady používajú verziu `2026-09-12-v5`, aktuálne údaje PUMAR s. r. o. a pravdivý model automatickej ročnej obnovy so zrušením ku koncu zaplateného obdobia.
+- Landing dostal úplné pravdivé sociálne metadáta a appka zhodný brand token. Zamerané SEO, identitné, gzip, výkonnostné a deploy kontroly prešli: 170 testov za 14,34 s bez uvoľnenia limitov. Finálny úplný lokálny balík prešiel: 4 329 testov, 252 dokumentovaných preskočení za 29 min 20 s.
+
 ## 2026-09-12 — Verejný kontakt a 24-mesačná garancia (vydanie 2026.09.12.22)
 
 - Verejný kontakt PUMAR s. r. o. obsahuje potvrdené telefónne číslo +421 917 347 009.

@@ -50,3 +50,10 @@ def test_normalisation_happens_before_scripts_are_used():
     assert cron == -1 or normalizacia < cron, (
         "CR sa musia odstranit skor, nez sa skripty zaradia do cronu"
     )
+
+
+def test_payment_smoke_tool_is_staged_by_the_manual_deploy():
+    script = DEPLOY.read_text(encoding="utf-8").replace("\\", "/")
+    assert 'app/payment-smoke.py' not in script
+    assert 'hetzner/payment-smoke.py' in script
+    assert '/opt/uvarsi/payment-smoke.py' in script

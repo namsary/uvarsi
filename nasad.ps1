@@ -471,16 +471,20 @@ $cron | ssh jarvis "tr -d '\r' > /tmp/uvarsi_cron_install.sh; bash /tmp/uvarsi_c
 Vyzaduj "bezpecny Uvar.si cron sa nepodarilo nainstalovat"
 Ok "Uvar.si cron pouziva ohraniceny wrapper; ostatne zaznamy ostali zachovane"
 
-# Rekonciliacia bez kluca len ticho nic nerobi - to by sa dalo prehliadnut az do
-# prvej reklamacie. Preto to nasadenie povie nahlas (a hodnoty klucov NEVYPISUJE).
-# Zapnute platby BEZ LEMON_API_KEY su najhorsi mozny stav: zakaznici platia,
-# webhook moze vypadnut a rekonciliacia nema cim dobehnut. Vtedy nasadenie
-# zlyha. Kym su platby vypnute, chybajuce kluce su len poznamka.
+# Živá aj testovacia ročná konfigurácia sa kontrolujú oddelene a bez vypísania
+# hodnôt. Kým sú platby vypnuté, neúplný zoznam je viditeľná poznámka a
+# readiness drží checkout zatvorený. Zapnuté platby s chýbajúcim kľúčom sú
+# neprijateľné.
 $platbyCheck = @'
 set -u
 F=/opt/uvarsi/uvarsi.env
 CHYBAJU=0
-for k in LEMON_API_KEY LEMON_WEBHOOK_SECRET LEMON_VARIANT_ID; do
+for k in LEMON_API_KEY LEMON_WEBHOOK_SECRET LEMON_STORE_ID \
+  LEMON_SUBSCRIPTION_VARIANT_ID LEMON_FOUNDER_DISCOUNT_ID \
+  LEMON_FOUNDER_DISCOUNT_CODE LEMON_TEST_API_KEY \
+  LEMON_TEST_WEBHOOK_SECRET LEMON_TEST_STORE_ID \
+  LEMON_TEST_SUBSCRIPTION_VARIANT_ID LEMON_TEST_FOUNDER_DISCOUNT_ID \
+  LEMON_TEST_FOUNDER_DISCOUNT_CODE UVARSI_PAYMENT_SMOKE_SIGNING_SECRET; do
   if grep -Eq "^[[:space:]]*(export[[:space:]]+)?${k}=[^[:space:]]" "$F"; then
     echo "  $k: pritomny"
   else
@@ -496,7 +500,7 @@ if grep -Eqi "^[[:space:]]*(export[[:space:]]+)?PLATBY_ZAPNUTE=[[:space:]]*[\"']
     exit 1
   fi
 else
-  echo "  PLATBY_ZAPNUTE: vypnute (rekonciliacia zatial nic nerobi)"
+  echo "  PLATBY_ZAPNUTE: vypnute (neuplna konfiguracia checkout neotvori)"
 fi
 exit 0
 '@ -replace "`r`n", "`n"

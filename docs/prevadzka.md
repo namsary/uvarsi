@@ -300,19 +300,28 @@ ready and the controller restarts this runbook at Stage 1.
 - [ ] Explicit statement that no e-mail, password, cookie, token, challenge,
       environment value, database row, or other secret was captured.
 
-## Platobný release — zakladajúci člen 39 €
+## Platobný release — ročné Premium
 
-Táto časť je povinná pred prvou ostrou platbou. Nasadenie samo platby nikdy
-nezapne. Počas deployu musí byť v `/opt/uvarsi/uvarsi.env` práve jeden explicitný
-riadok `PLATBY_ZAPNUTE=0`; chýbajúca, duplicitná alebo nejednoznačná hodnota
+Táto časť je povinná pred prvou ostrou platbou. Platí právna verzia
+`2026-09-12-v5` a iba táto ponuka:
+
+- prvých 50 úspešných prvých platieb: 39 € za prvý rok;
+- ďalšie obdobie aj každý ďalší zákazník: 49 € ročne;
+- ročný variant stojí 49 € a zakladajúca cena vznikne pevnou zľavou 10 € iba
+  na prvej faktúre;
+- žiadny trial ani mesačný plán;
+- zrušenie zastaví obnovu a prístup zostane do konca zaplateného obdobia.
+
+Nasadenie samo platby nikdy nezapne. Počas deployu musí byť v
+`/opt/uvarsi/uvarsi.env` práve jeden explicitný riadok `PLATBY_ZAPNUTE=0` a
+`UVARSI_PAYMENTS_ENABLED=0`; chýbajúca, duplicitná alebo nejednoznačná hodnota
 release zastaví ešte pred zmenou živých súborov.
 
 ### Čo deploy chráni
 
 - Pred prepnutím vytvorí online SQLite zálohu a overí jej integritu.
 - Kandidátsky kód spustí svoje migrácie pred prvou health kontrolou. Každé
-  vydanie, ktoré mení schému, musí osobitne preukázať kompatibilitu rollbacku;
-  tento platobný release novú zmenu schémy nepridáva.
+  vydanie, ktoré mení schému, musí osobitne preukázať kompatibilitu rollbacku.
 - Pri chybe vráti kód, statické súbory a Uvar.si systemd jednotky.
 - Automatický rollback nikdy neobnoví starú databázu cez živú databázu. Nová
   relácia, plán, webhook, nárok ani zákaznícka požiadavka sa tým nestratia.
@@ -322,85 +331,154 @@ release zastaví ešte pred zmenou živých súborov.
 
 ### STOP GATE — konfigurácia a verejná pripravenosť
 
-Testovacie a živé LemonSqueezy prostriedky musia byť oddelené. Bez vypisovania
-hodnôt over prítomnosť `LEMON_TEST_API_KEY`, `LEMON_TEST_WEBHOOK_SECRET`,
-`LEMON_TEST_STORE_ID`, `LEMON_TEST_VARIANT_ID` a samostatne plánovanú živú
-konfiguráciu `LEMON_API_KEY`, `LEMON_WEBHOOK_SECRET`, `LEMON_STORE_ID`,
-`LEMON_VARIANT_ID`, `LEMON_CHECKOUT_URL`. Lokálny marker podpisuje tretie,
-nezávislé tajomstvo `UVARSI_PAYMENT_SMOKE_SIGNING_SECRET`.
+Testovacie a živé Lemon Squeezy prostriedky musia byť oddelené. Hodnoty patria
+iba do serverového `/opt/uvarsi/uvarsi.env`; nevkladajú sa do Gitu, príkazu,
+chatu ani release logu. Bez vypísania hodnôt over presne tieto názvy:
+
+| Živý režim | Testovací režim |
+| --- | --- |
+| `LEMON_API_KEY` | `LEMON_TEST_API_KEY` |
+| `LEMON_WEBHOOK_SECRET` | `LEMON_TEST_WEBHOOK_SECRET` |
+| `LEMON_STORE_ID` | `LEMON_TEST_STORE_ID` |
+| `LEMON_SUBSCRIPTION_VARIANT_ID` | `LEMON_TEST_SUBSCRIPTION_VARIANT_ID` |
+| `LEMON_FOUNDER_DISCOUNT_ID` | `LEMON_TEST_FOUNDER_DISCOUNT_ID` |
+| `LEMON_FOUNDER_DISCOUNT_CODE` | `LEMON_TEST_FOUNDER_DISCOUNT_CODE` |
+
+Lokálny dôkaz podpisuje tretie, od Lemonu nezávislé tajomstvo
+`UVARSI_PAYMENT_SMOKE_SIGNING_SECRET`. Staré `LEMON_VARIANT_ID` a
+`LEMON_CHECKOUT_URL` slúžia iba na kompatibilitu historických jednorazových
+udalostí; nesmú riadiť nový ročný checkout. Krátkodobé checkout a Customer
+Portal URL sa nikdy nezapisujú do env súboru, databázy ani logu.
+
+### Presné nastavenie v Lemon Squeezy
+
+V testovacom aj živom režime nastav samostatné prostriedky s rovnakou
+ekonomikou:
+
+1. jeden zverejnený subscription variant s cenou 49 € a intervalom jeden rok;
+2. bez skúšobného obdobia a bez mesačného variantu;
+3. pevnú zľavu 10 € s `duration=once`, obmedzenú iba na tento ročný variant a
+   najviac 50 uplatnení;
+4. Customer Portal s možnosťou zrušiť a podľa podpory providera obnoviť
+   predplatné, zmeniť platobnú metódu a zobraziť faktúry;
+5. payment recovery a pripomienku sedem dní pred obnovou;
+6. samostatný webhook pre test a live režim s udalosťami `order_created`,
+   `subscription_created`, `subscription_updated`,
+   `subscription_payment_success`, `subscription_payment_failed`,
+   `subscription_payment_recovered`, `subscription_cancelled`,
+   `subscription_resumed`, `subscription_expired`,
+   `subscription_payment_refunded` a `order_refunded`.
+
+Otvor obe pokladne a zaznamenaj iba výsledok kontroly, nie ich podpísané URL.
+Na súhrne musí byť viditeľná ročná periodicita, nulový trial, prvá zakladajúca
+platba 39 € a ďalšia platba 49 €. Konečné daňové zobrazenie treba overiť priamo
+v Lemon checkout pre konkrétnu testovaciu krajinu; dokumentácia nesmie vopred
+tvrdiť, že 49 € daň zahŕňa, ak to pokladňa nepotvrdila.
 
 `/api/health` musí mať správne vydanie, živého worker-a, prejdenú receptovú
 bránu, schválené aktuálne cenové zdroje, funkčné spotrebiteľské workflow a
 nulové nevyriešené platobné prípady. Deploy kontroluje nielen hodnotu v env
 súbore, ale aj skutočný bežiaci proces: `recipe_engine.payments_enabled` musí
-byť `false`. Pred smoke testom smie byť jediný blocker
-`payment_smoke_missing`.
+byť `false`. Pred vytvorením prvého markeru smie zostať iba opraviteľný
+`subscription_smoke_*` blocker. Chýbajúca alebo poškodená readiness sekcia je
+chyba, nie zelený stav.
 
-### Jeden testovací nákup a úplná refundácia
+### Úplný testovací životný cyklus
 
-Na serveri spusti interaktívny nástroj pod účtom, ktorý smie čítať Uvar.si
-konfiguráciu a zapisovať do `/var/lib/uvarsi`:
+Použi čistý Uvar.si účet a Lemon Squeezy Test mode. Produkčné príznaky musia
+počas celého testu zostať `PLATBY_ZAPNUTE=0` a
+`UVARSI_PAYMENTS_ENABLED=0`. Každý bod zaznamenaj pod anonymným interným ID,
+rovnakým commitom a rovnakým vydaním:
+
+1. **Prvá platba:** zakladajúci checkout zobrazí 39 € teraz, 49 € o rok, žiadny
+   trial a automatickú obnovu. Dokonči platbu a over `order_created`,
+   `subscription_created` a prvý `subscription_payment_success`. Vznikne jedno
+   predplatné, jedna prvá faktúra 39 € a jeden Premium prístup.
+2. **Bežná cena:** samostatný ne-zakladajúci pokus zobrazí 49 € od prvej platby
+   a zľavu nepoužije. Ak provider nevie test bezpečne dokončiť bez ďalšieho
+   účtovného artefaktu, stačí providerom overený checkout preview a záznam
+   dôvodu; nefalšuj úspešnú faktúru.
+3. **Zrušenie:** v Customer Portal zruš obnovu. Po
+   `subscription_cancelled` musí zostať Premium do overeného `ends_at` a
+   ďalšia platba sa nesmie plánovať.
+4. **Obnovenie:** ak ho testovací provider podporuje, obnov predplatné pred
+   expiráciou a over `subscription_resumed`, automatickú obnovu a nezmenený
+   zaplatený koniec. Ak provider resumption nepodporuje, zapíš túto
+   environment-dependent výnimku; aplikácia musí aj tak mať lokálny test
+   prechodu.
+5. **Ročná obnova:** simuluj ďalšie obdobie a over samostatný
+   `subscription_payment_success` s novým invoice ID a sumou 49 €. Opakované
+   doručenie udalosti nesmie vytvoriť druhú faktúru ani druhý nárok.
+6. **Neúspešná platba a recovery:** vyvolaj `subscription_payment_failed`,
+   over dočasný stav `past_due`, potom `subscription_payment_recovered` a
+   návrat do aktívneho stavu bez duplicitnej faktúry.
+7. **Expirácia:** over `unpaid` a `subscription_expired`; až overený neplatený
+   alebo expirovaný stav odoberie Premium. Výpadok API ani neznámy stav ho
+   nesmú odobrať.
+8. **Refundácia:** vykonaj úplnú refundáciu a over
+   `subscription_payment_refunded` alebo `order_refunded` na presnej faktúre.
+   Otestuj aj lokálny kontrakt čiastočnej refundácie; iné obdobie musí zostať
+   nedotknuté.
+9. **Výpadok webhooku:** jednu udalosť nechaj mimo spracovania, spusti
+   rekonciliáciu a over, že sa importuje raz, prístup sa nestratí a nevznikne
+   duplicitná faktúra.
+10. **Portál a komunikácia:** vyžiadaj Customer Portal, skontroluj jeho funkcie
+    a over doručenie potvrdenia objednávky a sedemdňovej pripomienky obnovy.
+    Podpísanú URL, e-mail ani provider ID nezapisuj do verejného dôkazu.
+
+Keď databáza obsahuje celý testovací lifecycle, na serveri spusti interaktívny
+nástroj pod účtom, ktorý smie čítať Uvar.si konfiguráciu a zapisovať iba do
+`/var/lib/uvarsi`:
 
 ```bash
 cd /opt/uvarsi
 ./venv/bin/python ./payment-smoke.py
 ```
 
-Použi čistý testovací Uvar.si účet a LemonSqueezy **Test mode**. Nástroj:
+Nástroj overí presný živý aj testovací store, ročný variant 49 €, nulový trial,
+zľavu 10 € s `duration=once`, limit 50 a väzbu na variant. Potom skontroluje
+všetky vyššie uvedené lokálne udalosti, faktúry, stavy, portál, podpis webhooku,
+rekonciliáciu a nulové otvorené prípady. Zapíše podpísaný marker
+`/var/lib/uvarsi/payment-smoke.json` s právami `0600`. Marker neobsahuje e-mail,
+provider ID ani krátkodobú URL; je viazaný na vydanie a odtlačky test/live
+konfigurácie a najneskôr po 24 hodinách sa musí obnoviť.
 
-1. overí verejnú pripravenosť a to, že platby ostali vypnuté;
-2. prihlási testovací účet cez normálny heslový endpoint a cookie drží iba v
-   pamäti;
-3. ešte pred zobrazením odkazu cez API overí variant aj jeho nadradený produkt:
-   oba musia byť v testovacom režime, zverejnené, jednorazový variant musí stáť
-   39 € a produkt musí patriť presnému testovaciemu store;
-4. vytvorí nový testovací checkout cez API poskytovateľa a otvorenie hosťovanej
-   pokladne nechá na človeka — číslo platobnej karty ani bezpečnostný kód nikdy
-   neprijíma;
-5. cez testovacie API a presný podpísaný `order_created` webhook overí
-   objednávku, presne jeden nárok a autentifikovaný `/api/platba/stav`;
-   API rekonciliácia sa za dôkaz webhooku nepočíta;
-6. po doručení testovacieho dokladu musí operátor napísať presne
-   `POTVRDZUJEM`; potom nástroj vyžiada úplnú refundáciu cez dokumentované
-   `POST /v1/orders/:id/refund` bez čiastkovej sumy;
-7. cez presný podpísaný `order_refunded` webhook overí refundáciu, odobratie
-   Premium a nulové otvorené prípady pre túto testovaciu objednávku; nesúvisiace
-   riadky vo fronte nemení;
-8. zapíše súbor `/var/lib/uvarsi/payment-smoke.json` s právami `0600`.
+Pred samostatným schválením produkcie vytvor aktiváciu z čerstvého markeru:
 
-Marker neobsahuje e-mail, ID objednávky ani jeho hash. Obsahuje výsledky celého
-životného cyklu, identifikátory testovacieho store a variantu a HMAC podpis
-viazaný na presné vydanie aj odtlačok živej checkout URL, store a variantu.
-Zmena vydania alebo živej platobnej konfigurácie marker automaticky zneplatní.
-Hodinová produkčná rekonciliácia explicitné test-mode webhooky preskočí, aby ich
-nemohla spotrebovať skôr než tento test s vlastným testovacím tajomstvom.
+```bash
+cd /opt/uvarsi
+./venv/bin/python ./payment-smoke.py --authorize-activation
+```
 
-Zakladajúca ponuka musí byť v LemonSqueezy samostatný zverejnený **živý produkt
-s jediným variantom**. `LEMON_CHECKOUT_URL` musí byť presne `buy_now_url`, ktorú
-pre tento produkt vráti API poskytovateľa; ručne skopírovaný odkaz na iný
-produkt, testovací režim alebo viacvýznamový produkt smoke test odmietne.
-Produkčná rekonciliácia aj webhook prijmú iba udalosti s explicitným
-`test_mode=false`; testovacie alebo neoznačené udalosti nesmú meniť živé nároky.
+Vznikne podpísaný `/var/lib/uvarsi/payment-activation.json`. Tento krok nič
+neúčtuje a nemení ani jeden platobný príznak. Aktivácia expiruje najneskôr po
+siedmich dňoch a pri zmene ekonomiky, identít alebo tajomstiev prestane platiť.
 
 Referencie poskytovateľa: [Test mode](https://docs.lemonsqueezy.com/help/getting-started/test-mode),
 [Testing and going live](https://docs.lemonsqueezy.com/guides/developer-guide/testing-going-live)
+a [Subscription lifecycle](https://docs.lemonsqueezy.com/help/products/subscriptions),
+[Webhook events](https://docs.lemonsqueezy.com/help/webhooks/event-types),
+[Customer Portal](https://docs.lemonsqueezy.com/help/online-store/customer-portal)
 a [Issue a refund](https://docs.lemonsqueezy.com/api/orders/issue-refund).
 
 ### Posledná brána majiteľa
 
-Po smoke teste znovu načítaj `/api/health`. `payment_readiness.ready` musí byť
-`true` a `blockers` musí byť prázdne, pričom `PLATBY_ZAPNUTE` je stále `0`.
-Zaznamenaj iba vydanie, čas a výsledky brán — nikdy kľúče, cookie, e-mail ani
-objednávkový identifikátor.
+Po smoke teste a podpise aktivácie znovu načítaj `/api/health`.
+`payment_readiness.ready` musí byť `true`, `blockers` prázdne a oba príznaky
+stále `0`. Zaznamenaj iba vydanie, čas a výsledky brán — nikdy kľúče, cookie,
+e-mail, provider ID ani podpísanú URL.
 
-`PLATBY_ZAPNUTE=1` sa smie nastaviť až po samostatnom výslovnom schválení
-majiteľa. Po zapnutí okamžite over health, checkout summary a jednu bezpečnú
-požiadavku bez dokončenia platby. Ak readiness nie je zelená, checkout ostane
-serverom zablokovaný aj pri chybne zapnutom flage.
+`PLATBY_ZAPNUTE=1` sa smie nastaviť až po samostatnom výslovnom schválení majiteľa
+po predložení cien, právnej verzie, dôkazu zdrojov, testovacieho
+nákupu, lifecycle markeru, otvorených prípadov a health blokátorov. Po zapnutí
+okamžite over health, checkout summary a jednu bezpečnú požiadavku bez
+dokončenia platby. Ak readiness nie je zelená, checkout ostane serverom
+zablokovaný aj pri chybne zapnutom flage.
 
-Pri platobnom incidente najprv nastav `PLATBY_ZAPNUTE=0` a reštartuj iba Uvar.si.
-Databázu nevracaj. Rekonciliácia musí ďalej spracovať už prijaté podpísané
-webhooky, refundácie a zákaznícke nároky.
+Pri incidente urob flag-only rollback: nastav `PLATBY_ZAPNUTE=0` aj
+`UVARSI_PAYMENTS_ENABLED=0` a reštartuj iba Uvar.si. Databázu ani release
+nevracaj. Zastavia sa nové checkouty, ale webhooky, Customer Portal,
+rekonciliácia, zrušenia, refundácie a existujúce nároky musia ďalej fungovať.
 
 ## Tesco bridge — bezpečné nastavenie a release gate
 

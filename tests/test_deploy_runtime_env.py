@@ -15,6 +15,22 @@ REQUIRED_ENV = {
     "UVARSI_VERSION_FILE": "/opt/uvarsi/VERSION",
 }
 
+SUBSCRIPTION_ENV_NAMES = {
+    "LEMON_API_KEY",
+    "LEMON_WEBHOOK_SECRET",
+    "LEMON_STORE_ID",
+    "LEMON_SUBSCRIPTION_VARIANT_ID",
+    "LEMON_FOUNDER_DISCOUNT_ID",
+    "LEMON_FOUNDER_DISCOUNT_CODE",
+    "LEMON_TEST_API_KEY",
+    "LEMON_TEST_WEBHOOK_SECRET",
+    "LEMON_TEST_STORE_ID",
+    "LEMON_TEST_SUBSCRIPTION_VARIANT_ID",
+    "LEMON_TEST_FOUNDER_DISCOUNT_ID",
+    "LEMON_TEST_FOUNDER_DISCOUNT_CODE",
+    "UVARSI_PAYMENT_SMOKE_SIGNING_SECRET",
+}
+
 
 @pytest.fixture(scope="module")
 def deploy_script() -> str:
@@ -52,3 +68,10 @@ def test_service_health_is_verified_with_retry_not_single_shot(deploy_script):
     assert "for" in deploy_script and "8090" in deploy_script, (
         "kontrola po nasadení musí na službu počkať v cykle, nie skúsiť raz"
     )
+
+
+@pytest.mark.parametrize("path", ("nasad.ps1", "hetzner/samopull.sh"))
+def test_deploy_path_knows_every_annual_subscription_env_name(path):
+    script = Path(path).read_text(encoding="utf-8")
+    missing = sorted(name for name in SUBSCRIPTION_ENV_NAMES if name not in script)
+    assert not missing, f"{path} nepozná ročné platobné nastavenia: {missing}"

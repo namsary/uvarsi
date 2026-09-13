@@ -108,7 +108,18 @@ def bash_executable() -> str:
 
 @pytest.mark.parametrize(
     "missing_required_file",
-    ("app/plan_calendar.py", "app/predplatne.py"),
+    (
+        "app/plan_calendar.py",
+        "app/config.py",
+        "app/customer_requests.py",
+        "app/payment_readiness.py",
+        "app/payment_smoke_marker.py",
+        "app/platby.py",
+        "app/predplatne.py",
+        "app/rekonciliacia.py",
+        "app/static/subscription-profile.19ddd6feb9d0.js",
+        "hetzner/payment-smoke.py",
+    ),
 )
 def test_samopull_missing_required_module_aborts_before_live_mutation(
         tmp_path, bash_executable, missing_required_file):
