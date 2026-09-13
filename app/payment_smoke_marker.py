@@ -6,6 +6,8 @@ import hashlib
 import hmac
 import json
 import re
+import secrets
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
@@ -15,6 +17,69 @@ ACTIVATION_SCHEMA_VERSION = 1
 SMOKE_MAX_AGE_SECONDS = 24 * 60 * 60
 SMOKE_FUTURE_SKEW_SECONDS = 5 * 60
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
+
+SUBSCRIPTION_SCHEMA_VERSION = 4
+SUBSCRIPTION_ACTIVATION_SCHEMA_VERSION = 2
+SUBSCRIPTION_SMOKE_MAX_AGE_SECONDS = 24 * 60 * 60
+SUBSCRIPTION_SMOKE_FUTURE_SKEW_SECONDS = 5 * 60
+
+
+@dataclass(frozen=True)
+class SubscriptionConfig:
+    """One provider mode's identity; secret values never enter a marker."""
+
+    store_id: str
+    variant_id: str
+    discount_id: str
+    discount_code: str = field(repr=False)
+    webhook_secret: str = field(repr=False)
+    api_key: str = field(repr=False)
+    test_mode: bool
+
+
+@dataclass(frozen=True)
+class SubscriptionMarkerExpectation:
+    release: str
+    live: SubscriptionConfig
+    test: SubscriptionConfig
+    signing_secret: str = field(repr=False)
+
+
+@dataclass(frozen=True)
+class AnnualProviderEvidence:
+    store_id: str
+    variant_id: str
+    discount_id: str
+    test_mode: bool
+    annual_price_cents: int
+    currency: str
+    billing_interval: str
+    billing_interval_count: int
+    trial_days: int
+    variant_status: str
+    discount_kind: str
+    discount_amount_cents: int
+    discount_duration: str
+    discount_status: str
+    discount_variant_ids: tuple[str, ...]
+    discount_redemption_limit: int
+
+
+@dataclass(frozen=True)
+class SubscriptionLifecycleEvidence:
+    initial_charge_cents: int
+    renewal_displayed_cents: int
+    activation_verified: bool
+    renewal_invoice_cents: int
+    failed_payment_verified: bool
+    recovery_verified: bool
+    cancellation_verified: bool
+    access_retained_until_period_end: bool
+    expiration_verified: bool
+    refund_verified: bool
+    portal_access_verified: bool
+    webhook_signature_verified: bool
+    reconciliation_verified: bool
 
 
 def _text(value, *, name: str) -> str:
@@ -173,6 +238,357 @@ def verify_marker(
         and marker.get("entitlement_revoked") is True
         and marker.get("unresolved_cases") == 0
     )
+
+
+def _secret_fingerprint(secret: str, *, label: str, value: str) -> str:
+    key = _text(secret, name="podpisové tajomstvo").encode("utf-8")
+    raw = _text(value, name=label).encode("utf-8")
+    return hmac.new(
+        key,
+        b"uvarsi-subscription-secret-v1\0" + label.encode("ascii") + b"\0" + raw,
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _subscription_config_identity(
+    config: SubscriptionConfig, *, signing_secret: str
+) -> dict:
+    if not isinstance(config, SubscriptionConfig) or type(config.test_mode) is not bool:
+        raise ValueError("neplatná konfigurácia predplatného")
+    return {
+        "store_id": _text(config.store_id, name="obchod"),
+        "variant_id": _text(config.variant_id, name="ročný variant"),
+        "discount_id": _text(config.discount_id, name="zakladajúca zľava"),
+        "discount_code_fingerprint": _secret_fingerprint(
+            signing_secret, label="discount-code", value=config.discount_code
+        ),
+        "webhook_secret_fingerprint": _secret_fingerprint(
+            signing_secret, label="webhook-secret", value=config.webhook_secret
+        ),
+        "api_key_fingerprint": _secret_fingerprint(
+            signing_secret, label="api-key", value=config.api_key
+        ),
+        "test_mode": config.test_mode,
+    }
+
+
+def _provider_payload(evidence: AnnualProviderEvidence) -> dict:
+    if not isinstance(evidence, AnnualProviderEvidence):
+        raise ValueError("chýba dôkaz nastavenia ročného variantu")
+    payload = asdict(evidence)
+    payload["discount_variant_ids"] = list(evidence.discount_variant_ids)
+    return payload
+
+
+def _lifecycle_payload(evidence: SubscriptionLifecycleEvidence) -> dict:
+    if not isinstance(evidence, SubscriptionLifecycleEvidence):
+        raise ValueError("chýba dôkaz životného cyklu predplatného")
+    return asdict(evidence)
+
+
+def create_subscription_marker(
+    *, expectation: SubscriptionMarkerExpectation,
+    live_provider: AnnualProviderEvidence,
+    test_provider: AnnualProviderEvidence,
+    lifecycle: SubscriptionLifecycleEvidence,
+    completed_at: str,
+    expires_at: str,
+    attestation_id: str | None = None,
+) -> dict:
+    """Record observed annual-subscription facts without inventing evidence."""
+    if not isinstance(expectation, SubscriptionMarkerExpectation):
+        raise ValueError("chýba očakávaná konfigurácia predplatného")
+    if expectation.live.test_mode is not False or expectation.test.test_mode is not True:
+        raise ValueError("živý a testovací režim nie sú oddelené")
+    identifier = attestation_id or secrets.token_hex(32)
+    if not isinstance(identifier, str) or not _DIGEST_RE.fullmatch(identifier):
+        raise ValueError("neplatný identifikátor testu")
+    return {
+        "schema_version": SUBSCRIPTION_SCHEMA_VERSION,
+        "attestation_id": identifier,
+        "release": _text(expectation.release, name="vydanie"),
+        "live_config": _subscription_config_identity(
+            expectation.live, signing_secret=expectation.signing_secret
+        ),
+        "test_config": _subscription_config_identity(
+            expectation.test, signing_secret=expectation.signing_secret
+        ),
+        "live_provider": _provider_payload(live_provider),
+        "test_provider": _provider_payload(test_provider),
+        "lifecycle": _lifecycle_payload(lifecycle),
+        "completed_at": _text(completed_at, name="čas dokončenia"),
+        "expires_at": _text(expires_at, name="koniec platnosti"),
+        "unresolved_cases": 0,
+    }
+
+
+def _valid_provider_evidence(value, config: SubscriptionConfig) -> bool:
+    if not isinstance(value, dict):
+        return False
+    if type(value.get("test_mode")) is not bool:
+        return False
+    if not all(
+        type(value.get(key)) is int
+        for key in (
+            "annual_price_cents",
+            "billing_interval_count",
+            "trial_days",
+            "discount_amount_cents",
+            "discount_redemption_limit",
+        )
+    ):
+        return False
+    return value == {
+        "store_id": config.store_id,
+        "variant_id": config.variant_id,
+        "discount_id": config.discount_id,
+        "test_mode": config.test_mode,
+        "annual_price_cents": 4_900,
+        "currency": "EUR",
+        "billing_interval": "year",
+        "billing_interval_count": 1,
+        "trial_days": 0,
+        "variant_status": "published",
+        "discount_kind": "fixed",
+        "discount_amount_cents": 1_000,
+        "discount_duration": "once",
+        "discount_status": "published",
+        "discount_variant_ids": [config.variant_id],
+        "discount_redemption_limit": 50,
+    }
+
+
+def _valid_lifecycle_evidence(value) -> bool:
+    if not isinstance(value, dict):
+        return False
+    boolean_fields = (
+        "activation_verified",
+        "failed_payment_verified",
+        "recovery_verified",
+        "cancellation_verified",
+        "access_retained_until_period_end",
+        "expiration_verified",
+        "refund_verified",
+        "portal_access_verified",
+        "webhook_signature_verified",
+        "reconciliation_verified",
+    )
+    if not all(type(value.get(key)) is bool for key in boolean_fields):
+        return False
+    if not all(
+        type(value.get(key)) is int
+        for key in (
+            "initial_charge_cents",
+            "renewal_displayed_cents",
+            "renewal_invoice_cents",
+        )
+    ):
+        return False
+    return value == {
+        "initial_charge_cents": 3_900,
+        "renewal_displayed_cents": 4_900,
+        "activation_verified": True,
+        "renewal_invoice_cents": 4_900,
+        "failed_payment_verified": True,
+        "recovery_verified": True,
+        "cancellation_verified": True,
+        "access_retained_until_period_end": True,
+        "expiration_verified": True,
+        "refund_verified": True,
+        "portal_access_verified": True,
+        "webhook_signature_verified": True,
+        "reconciliation_verified": True,
+    }
+
+
+def subscription_marker_status(
+    marker,
+    expectation: SubscriptionMarkerExpectation,
+    *,
+    now: datetime | None = None,
+) -> str:
+    """Return one stable, non-sensitive fail-closed lifecycle status."""
+    if marker is None:
+        return "subscription_smoke_missing"
+    if not isinstance(marker, dict) or not isinstance(
+        expectation, SubscriptionMarkerExpectation
+    ):
+        return "subscription_smoke_invalid"
+    signature = marker.get("signature")
+    secret = expectation.signing_secret
+    if (
+        not isinstance(secret, str)
+        or not secret
+        or not isinstance(signature, str)
+        or not _DIGEST_RE.fullmatch(signature)
+    ):
+        return "subscription_smoke_invalid"
+    expected_signature = hmac.new(
+        secret.encode("utf-8"), _canonical(marker), hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(signature, expected_signature):
+        return "subscription_smoke_invalid"
+    required = {
+        "schema_version", "attestation_id", "release", "live_config",
+        "test_config", "live_provider", "test_provider", "lifecycle",
+        "completed_at", "expires_at", "unresolved_cases", "signature",
+    }
+    if set(marker) != required or marker.get("schema_version") != SUBSCRIPTION_SCHEMA_VERSION:
+        return "subscription_smoke_incomplete"
+    if not _DIGEST_RE.fullmatch(str(marker.get("attestation_id", ""))):
+        return "subscription_smoke_invalid"
+    try:
+        expected_live = _subscription_config_identity(
+            expectation.live, signing_secret=secret
+        )
+        expected_test = _subscription_config_identity(
+            expectation.test, signing_secret=secret
+        )
+    except ValueError:
+        return "subscription_smoke_mismatch"
+    if expectation.live.test_mode is not False or expectation.test.test_mode is not True:
+        return "subscription_smoke_mismatch"
+    if (
+        marker.get("release") != expectation.release
+        or marker.get("live_config") != expected_live
+        or marker.get("test_config") != expected_test
+    ):
+        return "subscription_smoke_mismatch"
+    if not _valid_provider_evidence(marker.get("live_provider"), expectation.live):
+        return "subscription_smoke_incomplete"
+    if not _valid_provider_evidence(marker.get("test_provider"), expectation.test):
+        return "subscription_smoke_incomplete"
+    if not _valid_lifecycle_evidence(marker.get("lifecycle")):
+        return "subscription_smoke_incomplete"
+    if marker.get("unresolved_cases") != 0:
+        return "subscription_smoke_incomplete"
+    try:
+        completed = _parse_aware_timestamp(marker.get("completed_at"))
+        expires = _parse_aware_timestamp(marker.get("expires_at"))
+    except (TypeError, ValueError):
+        return "subscription_smoke_invalid"
+    validity = (expires - completed).total_seconds()
+    checked = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    age = (checked - completed).total_seconds()
+    if (
+        validity <= 0
+        or validity > SUBSCRIPTION_SMOKE_MAX_AGE_SECONDS
+        or age < -SUBSCRIPTION_SMOKE_FUTURE_SKEW_SECONDS
+        or checked > expires
+    ):
+        return "subscription_smoke_stale"
+    return "verified"
+
+
+def valid_subscription_marker(
+    marker,
+    expectation: SubscriptionMarkerExpectation,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    return subscription_marker_status(marker, expectation, now=now) == "verified"
+
+
+def create_subscription_activation_attestation(
+    smoke_marker: dict,
+    expectation: SubscriptionMarkerExpectation,
+    *,
+    activated_at: str,
+) -> dict:
+    """Authorize this exact release/config only from a fresh full test proof."""
+    activation_time = _parse_aware_timestamp(activated_at)
+    status = subscription_marker_status(
+        smoke_marker, expectation, now=activation_time
+    )
+    if status != "verified":
+        raise ValueError("smoke dôkaz nie je čerstvý a platný pre aktiváciu")
+    unsigned = {
+        "schema_version": SUBSCRIPTION_ACTIVATION_SCHEMA_VERSION,
+        "release": expectation.release,
+        "attestation_id": smoke_marker["attestation_id"],
+        "live_config": smoke_marker["live_config"],
+        "test_config": smoke_marker["test_config"],
+        "smoke_evidence_digest": _smoke_evidence_digest(smoke_marker),
+        "smoke_completed_at": smoke_marker["completed_at"],
+        "smoke_expires_at": smoke_marker["expires_at"],
+        "activated_at": activated_at,
+    }
+    return sign_marker(unsigned, secret=expectation.signing_secret)
+
+
+def subscription_activation_status(
+    attestation, expectation: SubscriptionMarkerExpectation
+) -> str:
+    """Return a safe status for the durable, release-bound activation proof."""
+    if attestation is None:
+        return "subscription_smoke_missing"
+    if not isinstance(attestation, dict) or not isinstance(
+        expectation, SubscriptionMarkerExpectation
+    ):
+        return "subscription_smoke_invalid"
+    signature = attestation.get("signature")
+    if not isinstance(signature, str) or not _DIGEST_RE.fullmatch(signature):
+        return "subscription_smoke_invalid"
+    secret = expectation.signing_secret
+    if not isinstance(secret, str) or not secret:
+        return "subscription_smoke_invalid"
+    expected_signature = hmac.new(
+        secret.encode("utf-8"), _canonical(attestation), hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(signature, expected_signature):
+        return "subscription_smoke_invalid"
+    required = {
+        "schema_version", "release", "attestation_id", "live_config",
+        "test_config", "smoke_evidence_digest", "smoke_completed_at",
+        "smoke_expires_at", "activated_at", "signature",
+    }
+    if set(attestation) != required:
+        return "subscription_smoke_incomplete"
+    try:
+        live = _subscription_config_identity(
+            expectation.live, signing_secret=secret
+        )
+        test = _subscription_config_identity(
+            expectation.test, signing_secret=secret
+        )
+        completed = _parse_aware_timestamp(attestation.get("smoke_completed_at"))
+        expires = _parse_aware_timestamp(attestation.get("smoke_expires_at"))
+        activated = _parse_aware_timestamp(attestation.get("activated_at"))
+    except (TypeError, ValueError):
+        return "subscription_smoke_invalid"
+    if (
+        attestation.get("schema_version") != SUBSCRIPTION_ACTIVATION_SCHEMA_VERSION
+        or not _DIGEST_RE.fullmatch(str(attestation.get("attestation_id", "")))
+        or not _DIGEST_RE.fullmatch(
+            str(attestation.get("smoke_evidence_digest", ""))
+        )
+    ):
+        return "subscription_smoke_incomplete"
+    if (
+        attestation.get("release") != expectation.release
+        or attestation.get("live_config") != live
+        or attestation.get("test_config") != test
+        or expectation.live.test_mode is not False
+        or expectation.test.test_mode is not True
+    ):
+        return "subscription_smoke_mismatch"
+    validity = (expires - completed).total_seconds()
+    activation_age = (activated - completed).total_seconds()
+    if (
+        validity <= 0
+        or validity > SUBSCRIPTION_SMOKE_MAX_AGE_SECONDS
+        or activation_age < -SUBSCRIPTION_SMOKE_FUTURE_SKEW_SECONDS
+        or activated > expires
+    ):
+        return "subscription_smoke_stale"
+    return "verified"
+
+
+def valid_subscription_activation_attestation(
+    attestation, expectation: SubscriptionMarkerExpectation
+) -> bool:
+    """Validate a durable activation bound to one release and both modes."""
+    return subscription_activation_status(attestation, expectation) == "verified"
 
 
 def _parse_aware_timestamp(value) -> datetime:

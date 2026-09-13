@@ -61,6 +61,10 @@ import predplatne
 import predpocet
 import source_policy
 from payment_smoke_marker import (
+    SubscriptionConfig,
+    SubscriptionMarkerExpectation,
+    subscription_activation_status,
+    subscription_marker_status,
     test_config_fingerprint,
     verify_activation_attestation,
     verify_marker,
@@ -4974,6 +4978,62 @@ def _payment_activation_verified(
     )
 
 
+def _subscription_marker_expectation(
+    release: str,
+) -> SubscriptionMarkerExpectation:
+    """Bind annual evidence to the exact live and test runtime identities."""
+    live = lemon_subscription_checkout_config(test_mode=False, getenv=env)
+    test = lemon_subscription_checkout_config(test_mode=True, getenv=env)
+    return SubscriptionMarkerExpectation(
+        release=release,
+        live=SubscriptionConfig(
+            store_id=live.store_id,
+            variant_id=live.variant_id,
+            discount_id=live.founder_discount_id,
+            discount_code=live.founder_discount_code,
+            webhook_secret=env("LEMON_WEBHOOK_SECRET", "") or "",
+            api_key=live.api_key,
+            test_mode=False,
+        ),
+        test=SubscriptionConfig(
+            store_id=test.store_id,
+            variant_id=test.variant_id,
+            discount_id=test.founder_discount_id,
+            discount_code=test.founder_discount_code,
+            webhook_secret=env("LEMON_TEST_WEBHOOK_SECRET", "") or "",
+            api_key=test.api_key,
+            test_mode=True,
+        ),
+        signing_secret=env("UVARSI_PAYMENT_SMOKE_SIGNING_SECRET", "") or "",
+    )
+
+
+def _subscription_evidence_status(
+    expectation: SubscriptionMarkerExpectation,
+    *,
+    activated: bool,
+    now: datetime.datetime | None = None,
+) -> str:
+    """Read one local proof and return only a public, fail-closed code."""
+    marker_path = Path(
+        PAYMENT_ACTIVATION_MARKER if activated else PAYMENT_SMOKE_MARKER
+    )
+    try:
+        marker_stat = marker_path.stat()
+    except FileNotFoundError:
+        return "subscription_smoke_missing"
+    except OSError:
+        return "subscription_smoke_invalid"
+    marker = _read_payment_smoke_marker(
+        str(marker_path), marker_stat.st_mtime_ns, marker_stat.st_size,
+    )
+    if marker is None:
+        return "subscription_smoke_invalid"
+    if activated:
+        return subscription_activation_status(marker, expectation)
+    return subscription_marker_status(marker, expectation, now=now)
+
+
 def _recipe_gate_ready(status: dict) -> bool:
     """The payment switch itself is not a recipe defect."""
     if not isinstance(status, dict) or not {
@@ -5024,37 +5084,13 @@ def _runtime_payment_readiness(
     )
     recipe_status = recipe_status or recipe_engine_health(con, today=today)
     current_release = release_id()
-    checkout_url = env("LEMON_CHECKOUT_URL", "") or ""
-    webhook_secret = env("LEMON_WEBHOOK_SECRET", "") or ""
-    store_id = env("LEMON_STORE_ID", "") or ""
-    variant_id = env("LEMON_VARIANT_ID", "") or ""
-    api_key = env("LEMON_API_KEY", "") or ""
-    test_checkout_url = env("LEMON_TEST_CHECKOUT_URL", "") or ""
-    test_webhook_secret = env("LEMON_TEST_WEBHOOK_SECRET", "") or ""
-    test_store_id = env("LEMON_TEST_STORE_ID", "") or ""
-    test_variant_id = env("LEMON_TEST_VARIANT_ID", "") or ""
-    test_api_key = env("LEMON_TEST_API_KEY", "") or ""
-    payment_identity = {
-        "release": current_release,
-        "checkout_url": checkout_url,
-        "webhook_secret": webhook_secret,
-        "store_id": store_id,
-        "variant_id": variant_id,
-        "api_key": api_key,
-        "test_checkout_url": test_checkout_url,
-        "test_webhook_secret": test_webhook_secret,
-        "test_store_id": test_store_id,
-        "test_variant_id": test_variant_id,
-        "test_api_key": test_api_key,
-    }
-    if platby_su_zapnute():
-        payment_evidence_verified = _payment_activation_verified(
-            **payment_identity
-        )
-    else:
-        payment_evidence_verified = _payment_smoke_verified(
-            **payment_identity
-        )
+    expectation = _subscription_marker_expectation(current_release)
+    payment_evidence = _subscription_evidence_status(
+        expectation,
+        activated=platby_su_zapnute(),
+    )
+    live = expectation.live
+    test = expectation.test
     support_phone = OPERATOR.support_phone.strip()
     operator_errors = validate_operator_profile(OPERATOR)
     facts = PaymentReadinessInput(
@@ -5065,21 +5101,23 @@ def _runtime_payment_readiness(
         legal_version=legal_version(),
         founder_promise=ANNUAL_PREMIUM_PROMISE,
         release=current_release,
-        checkout_url=checkout_url,
-        webhook_secret=webhook_secret,
-        store_id=store_id,
-        variant_id=variant_id,
-        api_key=api_key,
-        test_checkout_url=test_checkout_url,
-        test_webhook_secret=test_webhook_secret,
-        test_store_id=test_store_id,
-        test_variant_id=test_variant_id,
-        test_api_key=test_api_key,
+        webhook_secret=live.webhook_secret,
+        store_id=live.store_id,
+        variant_id=live.variant_id,
+        discount_id=live.discount_id,
+        discount_code=live.discount_code,
+        api_key=live.api_key,
+        test_webhook_secret=test.webhook_secret,
+        test_store_id=test.store_id,
+        test_variant_id=test.variant_id,
+        test_discount_id=test.discount_id,
+        test_discount_code=test.discount_code,
+        test_api_key=test.api_key,
         source_approved=_approved_price_sources_ready(con, today=today),
         receipt_ready=_strict_current_receipt_ready(con, today=today),
         private_alerts=_private_payment_alerts_ready(),
         consumer_workflows=customer_requests.workflow_ready(con),
-        smoke_verified=payment_evidence_verified,
+        subscription_smoke=payment_evidence,
         worker_alive=_plan_worker_gate_ready(queue_status),
         recipe_ready=_recipe_gate_ready(recipe_status),
     )

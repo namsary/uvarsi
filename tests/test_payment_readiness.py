@@ -30,21 +30,23 @@ def valid_input(**changes):
         legal_version=REQUIRED_LEGAL_VERSION,
         founder_promise=REQUIRED_FOUNDER_PROMISE,
         release="2026.09.11.28",
-        checkout_url="https://uvarsi.lemonsqueezy.com/buy/test",
         webhook_secret="webhook-secret",
         store_id="12345",
         variant_id="67890",
+        discount_id="founder-discount",
+        discount_code="FOUNDERS",
         api_key="api-key",
-        test_checkout_url="https://uvarsi.lemonsqueezy.com/checkout/test",
         test_webhook_secret="test-webhook-secret",
         test_store_id="test-store",
         test_variant_id="test-variant",
+        test_discount_id="test-founder-discount",
+        test_discount_code="TEST-FOUNDERS",
         test_api_key="test-api-key",
         source_approved=True,
         receipt_ready=True,
         private_alerts=True,
         consumer_workflows=True,
-        smoke_verified=True,
+        subscription_smoke="verified",
         worker_alive=True,
         recipe_ready=True,
     )
@@ -69,23 +71,25 @@ def test_all_required_gates_make_checkout_ready():
         ("legal_version", "2026-09-07-v1", "legal_version_stale"),
         ("founder_promise", "cena natrvalo", "legal_promise_mismatch"),
         ("release", "", "release_missing"),
-        ("checkout_url", "", "checkout_not_configured"),
-        ("checkout_url", "http://example.test/buy", "checkout_not_configured"),
         ("webhook_secret", "", "webhook_not_configured"),
         ("store_id", "", "merchant_not_configured"),
         ("variant_id", "", "variant_not_configured"),
+        ("discount_id", "", "discount_not_configured"),
+        ("discount_code", "", "discount_code_not_configured"),
         ("api_key", "", "api_not_configured"),
-        ("test_checkout_url", "", "test_checkout_not_configured"),
-        ("test_checkout_url", "http://example.test", "test_checkout_not_configured"),
         ("test_webhook_secret", "", "test_webhook_not_configured"),
         ("test_store_id", "", "test_merchant_not_configured"),
         ("test_variant_id", "", "test_variant_not_configured"),
+        ("test_discount_id", "", "test_discount_not_configured"),
+        ("test_discount_code", "", "test_discount_code_not_configured"),
         ("test_api_key", "", "test_api_not_configured"),
         ("source_approved", False, "price_source_not_approved"),
         ("receipt_ready", False, "receipt_unhealthy"),
         ("private_alerts", False, "alerts_not_private"),
         ("consumer_workflows", False, "consumer_workflow_not_ready"),
-        ("smoke_verified", False, "payment_smoke_missing"),
+        ("subscription_smoke", None, "subscription_smoke_missing"),
+        ("subscription_smoke", "subscription_smoke_stale", "subscription_smoke_stale"),
+        ("subscription_smoke", "subscription_smoke_incomplete", "subscription_smoke_incomplete"),
         ("worker_alive", False, "plan_worker_unhealthy"),
         ("recipe_ready", False, "recipe_gate_failed"),
     ],
@@ -115,6 +119,24 @@ def test_public_status_contains_only_safe_stable_fields():
     assert "top-secret-api-key" not in encoded
 
 
+def test_readiness_facts_repr_does_not_expose_provider_secrets():
+    facts = valid_input(
+        webhook_secret="live-secret-value",
+        discount_code="LIVE-PRIVATE-CODE",
+        api_key="live-private-api",
+        test_webhook_secret="test-secret-value",
+        test_discount_code="TEST-PRIVATE-CODE",
+        test_api_key="test-private-api",
+    )
+
+    rendered = repr(facts)
+    for secret in (
+        "live-secret-value", "LIVE-PRIVATE-CODE", "live-private-api",
+        "test-secret-value", "TEST-PRIVATE-CODE", "test-private-api",
+    ):
+        assert secret not in rendered
+
+
 def test_checkout_guard_raises_with_public_codes_only():
     result = assess_payment_readiness(valid_input(source_approved=False))
 
@@ -129,6 +151,14 @@ def test_checkout_guard_accepts_ready_release():
     result = assess_payment_readiness(valid_input())
 
     assert require_checkout_ready(result) is result
+
+
+def test_unknown_subscription_smoke_state_fails_closed_without_echoing_it():
+    result = assess_payment_readiness(valid_input(subscription_smoke="secret payload"))
+
+    assert result.ready is False
+    assert result.blockers == ("subscription_smoke_invalid",)
+    assert "secret payload" not in json.dumps(public_readiness(result))
 
 
 def test_subscription_checkout_configuration_keeps_live_and_test_ids_separate(

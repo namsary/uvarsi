@@ -21,6 +21,7 @@ def _load_marker_module():
     spec = importlib.util.spec_from_file_location("payment_smoke_marker", MARKER_MODULE)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -245,11 +246,56 @@ def test_server_reads_only_a_local_release_bound_smoke_marker():
     source = (ROOT / "app" / "server.py").read_text(encoding="utf-8")
 
     assert "UVARSI_PAYMENT_SMOKE_MARKER" in source
-    assert "verify_marker" in source
+    assert "subscription_marker_status" in source
+    assert "subscription_activation_status" in source
+    assert "SubscriptionMarkerExpectation" in source
     assert "UVARSI_PAYMENT_SMOKE_SIGNING_SECRET" in source
-    assert "payment_smoke_missing" not in source.split(
-        "def _payment_smoke_verified", 1
-    )[1].split("def _recipe_gate_ready", 1)[0]
+    runtime = source.split("def _runtime_payment_readiness", 1)[1].split(
+        "def _smoke_counts", 1
+    )[0]
+    assert 'env("LEMON_VARIANT_ID"' not in runtime
+    assert 'env("LEMON_TEST_VARIANT_ID"' not in runtime
+    assert "_subscription_marker_expectation" in runtime
+    expectation_builder = source.split(
+        "def _subscription_marker_expectation", 1
+    )[1].split("def _subscription_evidence_status", 1)[0]
+    assert "lemon_subscription_checkout_config" in expectation_builder
+
+
+def test_legacy_purchase_refund_marker_is_not_annual_subscription_evidence():
+    marker_module = _load_marker_module()
+    legacy = marker_module.sign_marker(
+        marker_module.create_marker(
+            release="release-1",
+            live_config_digest="a" * 64,
+            test_config_digest="b" * 64,
+            test_store_id="test-store",
+            test_variant_id="test-variant",
+            completed_at="2026-09-13T09:00:00+00:00",
+            receipt_email_verified=True,
+            test_mode_verified=True,
+        ),
+        secret="marker-secret",
+    )
+
+    expectation = marker_module.SubscriptionMarkerExpectation(
+        release="release-1",
+        live=marker_module.SubscriptionConfig(
+            "live-store", "live-variant", "live-discount", "LIVE-CODE",
+            "live-webhook", "live-api", False,
+        ),
+        test=marker_module.SubscriptionConfig(
+            "test-store", "test-variant", "test-discount", "TEST-CODE",
+            "test-webhook", "test-api", True,
+        ),
+        signing_secret="marker-secret",
+    )
+
+    assert marker_module.valid_subscription_marker(
+        legacy,
+        expectation,
+        now=datetime(2026, 9, 13, 10, 0, tzinfo=timezone.utc),
+    ) is False
 
 
 def test_test_checkout_is_rejected_before_url_is_returned_when_variant_is_live():

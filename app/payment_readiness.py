@@ -7,9 +7,7 @@ into stable, safe blocker codes suitable for a public health response.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from urllib.parse import urlsplit
-
+from dataclasses import dataclass, field
 try:
     from .operator_profile import ANNUAL_PREMIUM_PROMISE, LEGAL_VERSION
 except ImportError:
@@ -26,21 +24,23 @@ class PaymentReadinessInput:
     legal_version: str
     founder_promise: str
     release: str
-    checkout_url: str
-    webhook_secret: str
+    webhook_secret: str = field(repr=False)
     store_id: str
     variant_id: str
-    api_key: str
-    test_checkout_url: str
-    test_webhook_secret: str
+    discount_id: str
+    discount_code: str = field(repr=False)
+    api_key: str = field(repr=False)
+    test_webhook_secret: str = field(repr=False)
     test_store_id: str
     test_variant_id: str
-    test_api_key: str
+    test_discount_id: str
+    test_discount_code: str = field(repr=False)
+    test_api_key: str = field(repr=False)
     source_approved: bool
     receipt_ready: bool
     private_alerts: bool
     consumer_workflows: bool
-    smoke_verified: bool
+    subscription_smoke: str | None
     worker_alive: bool
     recipe_ready: bool
 
@@ -65,14 +65,13 @@ def _present(value: str) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
-def _secure_checkout_url(value: str) -> bool:
-    if not _present(value):
-        return False
-    try:
-        parsed = urlsplit(value.strip())
-    except ValueError:
-        return False
-    return parsed.scheme == "https" and bool(parsed.netloc)
+_SAFE_SUBSCRIPTION_SMOKE_BLOCKERS = frozenset({
+    "subscription_smoke_missing",
+    "subscription_smoke_invalid",
+    "subscription_smoke_stale",
+    "subscription_smoke_incomplete",
+    "subscription_smoke_mismatch",
+})
 
 
 def assess_payment_readiness(facts: PaymentReadinessInput) -> PaymentReadiness:
@@ -90,24 +89,28 @@ def assess_payment_readiness(facts: PaymentReadinessInput) -> PaymentReadiness:
         blockers.append("legal_promise_mismatch")
     if not _present(facts.release):
         blockers.append("release_missing")
-    if not _secure_checkout_url(facts.checkout_url):
-        blockers.append("checkout_not_configured")
     if not _present(facts.webhook_secret):
         blockers.append("webhook_not_configured")
     if not _present(facts.store_id):
         blockers.append("merchant_not_configured")
     if not _present(facts.variant_id):
         blockers.append("variant_not_configured")
+    if not _present(facts.discount_id):
+        blockers.append("discount_not_configured")
+    if not _present(facts.discount_code):
+        blockers.append("discount_code_not_configured")
     if not _present(facts.api_key):
         blockers.append("api_not_configured")
-    if not _secure_checkout_url(facts.test_checkout_url):
-        blockers.append("test_checkout_not_configured")
     if not _present(facts.test_webhook_secret):
         blockers.append("test_webhook_not_configured")
     if not _present(facts.test_store_id):
         blockers.append("test_merchant_not_configured")
     if not _present(facts.test_variant_id):
         blockers.append("test_variant_not_configured")
+    if not _present(facts.test_discount_id):
+        blockers.append("test_discount_not_configured")
+    if not _present(facts.test_discount_code):
+        blockers.append("test_discount_code_not_configured")
     if not _present(facts.test_api_key):
         blockers.append("test_api_not_configured")
     if facts.source_approved is not True:
@@ -118,8 +121,15 @@ def assess_payment_readiness(facts: PaymentReadinessInput) -> PaymentReadiness:
         blockers.append("alerts_not_private")
     if facts.consumer_workflows is not True:
         blockers.append("consumer_workflow_not_ready")
-    if facts.smoke_verified is not True:
-        blockers.append("payment_smoke_missing")
+    if facts.subscription_smoke != "verified":
+        blocker = (
+            facts.subscription_smoke
+            if facts.subscription_smoke in _SAFE_SUBSCRIPTION_SMOKE_BLOCKERS
+            else "subscription_smoke_invalid"
+        )
+        if facts.subscription_smoke is None:
+            blocker = "subscription_smoke_missing"
+        blockers.append(blocker)
     if facts.worker_alive is not True:
         blockers.append("plan_worker_unhealthy")
     if facts.recipe_ready is not True:

@@ -12,7 +12,7 @@ import sys
 import threading
 from contextlib import closing
 from dataclasses import replace
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -152,6 +152,83 @@ def load_server(monkeypatch, tmp_path, **prostredie):
     # ENV_FILE na vývojárskom stroji neexistuje; nech sa nikdy nečíta z /opt.
     monkeypatch.setattr(module, "ENV_FILE", str(tmp_path / "neexistuje.env"))
     return module
+
+
+def _annual_payment_environment(**changes):
+    values = {
+        "LEMON_WEBHOOK_SECRET": "live-webhook",
+        "LEMON_STORE_ID": "live-store",
+        "LEMON_SUBSCRIPTION_VARIANT_ID": "live-annual",
+        "LEMON_FOUNDER_DISCOUNT_ID": "live-founder",
+        "LEMON_FOUNDER_DISCOUNT_CODE": "LIVE-FOUNDERS",
+        "LEMON_API_KEY": "live-api",
+        "LEMON_TEST_WEBHOOK_SECRET": "test-webhook",
+        "LEMON_TEST_STORE_ID": "test-store",
+        "LEMON_TEST_SUBSCRIPTION_VARIANT_ID": "test-annual",
+        "LEMON_TEST_FOUNDER_DISCOUNT_ID": "test-founder",
+        "LEMON_TEST_FOUNDER_DISCOUNT_CODE": "TEST-FOUNDERS",
+        "LEMON_TEST_API_KEY": "test-api",
+        "UVARSI_PAYMENT_SMOKE_SIGNING_SECRET": TAJOMSTVO,
+    }
+    values.update(changes)
+    return values
+
+
+def _full_annual_subscription_smoke(server, *, completed_at=None):
+    marker_module = importlib.import_module("payment_smoke_marker")
+    completed_at = completed_at or datetime.now(timezone.utc).replace(
+        microsecond=0
+    )
+    expectation = server._subscription_marker_expectation(server.release_id())
+
+    def provider(config):
+        return marker_module.AnnualProviderEvidence(
+            store_id=config.store_id,
+            variant_id=config.variant_id,
+            discount_id=config.discount_id,
+            test_mode=config.test_mode,
+            annual_price_cents=4_900,
+            currency="EUR",
+            billing_interval="year",
+            billing_interval_count=1,
+            trial_days=0,
+            variant_status="published",
+            discount_kind="fixed",
+            discount_amount_cents=1_000,
+            discount_duration="once",
+            discount_status="published",
+            discount_variant_ids=(config.variant_id,),
+            discount_redemption_limit=50,
+        )
+
+    lifecycle = marker_module.SubscriptionLifecycleEvidence(
+        initial_charge_cents=3_900,
+        renewal_displayed_cents=4_900,
+        activation_verified=True,
+        renewal_invoice_cents=4_900,
+        failed_payment_verified=True,
+        recovery_verified=True,
+        cancellation_verified=True,
+        access_retained_until_period_end=True,
+        expiration_verified=True,
+        refund_verified=True,
+        portal_access_verified=True,
+        webhook_signature_verified=True,
+        reconciliation_verified=True,
+    )
+    unsigned = marker_module.create_subscription_marker(
+        expectation=expectation,
+        live_provider=provider(expectation.live),
+        test_provider=provider(expectation.test),
+        lifecycle=lifecycle,
+        completed_at=completed_at.isoformat(),
+        expires_at=(completed_at + timedelta(hours=24)).isoformat(),
+        attestation_id="a" * 64,
+    )
+    signed = marker_module.sign_marker(
+        unsigned, secret=expectation.signing_secret
+    )
+    return marker_module, expectation, signed, completed_at
 
 
 def zapnute_platby(monkeypatch, tmp_path, **prostredie):
@@ -987,35 +1064,21 @@ def test_runtime_readiness_accepts_the_code_owned_verified_support_phone(
     server = load_server(
         monkeypatch,
         tmp_path,
-        LEMON_CHECKOUT_URL=CHECKOUT,
-        LEMON_WEBHOOK_SECRET="live-webhook",
-        LEMON_STORE_ID="live-store",
-        LEMON_VARIANT_ID="live-variant",
-        LEMON_API_KEY="live-api",
-        LEMON_TEST_CHECKOUT_URL="https://uvarsi.lemonsqueezy.com/checkout/test",
-        LEMON_TEST_WEBHOOK_SECRET="test-webhook",
-        LEMON_TEST_STORE_ID="test-store",
-        LEMON_TEST_VARIANT_ID="test-variant",
-        LEMON_TEST_API_KEY="test-api",
+        **_annual_payment_environment(),
     )
     assert server.OPERATOR.support_phone == "+421 917 347 009"
     monkeypatch.setattr(server, "legal_version", lambda: server.LEGAL_VERSION)
     monkeypatch.setattr(server, "_approved_price_sources_ready", lambda *_a, **_k: True)
     monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda *_a, **_k: True)
     monkeypatch.setattr(server.customer_requests, "workflow_ready", lambda _con: True)
-    smoke_checks = []
-    activation_checks = []
-
-    def verify_smoke(**facts):
-        smoke_checks.append(facts)
-        return True
-
-    def verify_activation(**facts):
-        activation_checks.append(facts)
-        return True
-
-    monkeypatch.setattr(server, "_payment_smoke_verified", verify_smoke)
-    monkeypatch.setattr(server, "_payment_activation_verified", verify_activation)
+    smoke_path = tmp_path / "annual-payment-smoke.json"
+    activation_path = tmp_path / "annual-payment-activation.json"
+    monkeypatch.setattr(server, "PAYMENT_SMOKE_MARKER", str(smoke_path))
+    monkeypatch.setattr(server, "PAYMENT_ACTIVATION_MARKER", str(activation_path))
+    marker_module, expectation, smoke, completed_at = (
+        _full_annual_subscription_smoke(server)
+    )
+    smoke_path.write_text(json.dumps(smoke), encoding="utf-8")
 
     queue = {"worker_alive": True, "blocking_code": None}
     recipe = {
@@ -1035,41 +1098,21 @@ def test_runtime_readiness_accepts_the_code_owned_verified_support_phone(
         )
 
     assert result.ready is True
-    assert smoke_checks[-1] == {
-        "release": server.release_id(),
-        "checkout_url": CHECKOUT,
-        "webhook_secret": "live-webhook",
-        "store_id": "live-store",
-        "variant_id": "live-variant",
-        "api_key": "live-api",
-        "test_checkout_url": "https://uvarsi.lemonsqueezy.com/checkout/test",
-        "test_webhook_secret": "test-webhook",
-        "test_store_id": "test-store",
-        "test_variant_id": "test-variant",
-        "test_api_key": "test-api",
-    }
-    assert activation_checks == []
+    assert result.blockers == ()
 
+    activation = marker_module.create_subscription_activation_attestation(
+        smoke,
+        expectation,
+        activated_at=completed_at.isoformat(),
+    )
+    activation_path.write_text(json.dumps(activation), encoding="utf-8")
     monkeypatch.setenv("PLATBY_ZAPNUTE", "1")
     with closing(server.db()) as con:
         result = server._runtime_payment_readiness(
             con, queue_status=queue, recipe_status=recipe
         )
     assert result.ready is True
-    assert len(smoke_checks) == 1
-    assert activation_checks[-1] == {
-        "release": server.release_id(),
-        "checkout_url": CHECKOUT,
-        "webhook_secret": "live-webhook",
-        "store_id": "live-store",
-        "variant_id": "live-variant",
-        "api_key": "live-api",
-        "test_checkout_url": "https://uvarsi.lemonsqueezy.com/checkout/test",
-        "test_webhook_secret": "test-webhook",
-        "test_store_id": "test-store",
-        "test_variant_id": "test-variant",
-        "test_api_key": "test-api",
-    }
+    assert result.blockers == ()
 
     monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda *_a, **_k: False)
     with closing(server.db()) as con:
@@ -1085,18 +1128,10 @@ def test_zapnuty_flag_bez_podpisanej_aktivacie_neodomkne_checkout(
     server = load_server(
         monkeypatch,
         tmp_path,
-        PLATBY_ZAPNUTE="1",
-        LEMON_CHECKOUT_URL=CHECKOUT,
-        LEMON_WEBHOOK_SECRET="live-webhook",
-        LEMON_STORE_ID="live-store",
-        LEMON_VARIANT_ID="live-variant",
-        LEMON_API_KEY="live-api",
-        LEMON_TEST_CHECKOUT_URL=TEST_CHECKOUT,
-        LEMON_TEST_WEBHOOK_SECRET=TEST_WEBHOOK_SECRET,
-        LEMON_TEST_STORE_ID=TEST_STORE_ID,
-        LEMON_TEST_VARIANT_ID=TEST_VARIANT_ID,
-        LEMON_TEST_API_KEY=TEST_API_KEY,
-        UVARSI_VERIFIED_SUPPORT_PHONE="+421 900 123 456",
+        **_annual_payment_environment(
+            PLATBY_ZAPNUTE="1",
+            UVARSI_VERIFIED_SUPPORT_PHONE="+421 900 123 456",
+        ),
     )
     monkeypatch.setattr(
         server, "OPERATOR", replace(server.OPERATOR, support_phone="+421 900 123 456")
@@ -1106,8 +1141,8 @@ def test_zapnuty_flag_bez_podpisanej_aktivacie_neodomkne_checkout(
     monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda *_a, **_k: True)
     monkeypatch.setattr(server, "_private_payment_alerts_ready", lambda: True)
     monkeypatch.setattr(server.customer_requests, "workflow_ready", lambda _con: True)
-    monkeypatch.setattr(server, "_payment_smoke_verified", lambda **_facts: True)
-    monkeypatch.setattr(server, "_payment_activation_verified", lambda **_facts: False)
+    activation_path = tmp_path / "missing-annual-payment-activation.json"
+    monkeypatch.setattr(server, "PAYMENT_ACTIVATION_MARKER", str(activation_path))
     queue = {"worker_alive": True, "blocking_code": None}
     recipe = {
         "ready": False,
@@ -1127,7 +1162,7 @@ def test_zapnuty_flag_bez_podpisanej_aktivacie_neodomkne_checkout(
         )
 
     assert result.ready is False
-    assert result.blockers == ("payment_smoke_missing",)
+    assert result.blockers == ("subscription_smoke_missing",)
 
 
 def test_podpisana_aktivacia_neexpiruje_ale_zmena_configu_ju_zablokuje(
@@ -1228,19 +1263,12 @@ def test_zmena_ktorehokolvek_live_secretu_zneplatni_aktivaciu_a_checkout(
     server = load_server(
         monkeypatch,
         tmp_path,
-        PLATBY_ZAPNUTE="1",
-        LEMON_CHECKOUT_URL=CHECKOUT,
-        LEMON_WEBHOOK_SECRET=live_webhook_secret,
-        LEMON_STORE_ID="live-store",
-        LEMON_VARIANT_ID="live-variant",
-        LEMON_API_KEY=live_api_key,
-        LEMON_TEST_CHECKOUT_URL=TEST_CHECKOUT,
-        LEMON_TEST_WEBHOOK_SECRET=TEST_WEBHOOK_SECRET,
-        LEMON_TEST_STORE_ID=TEST_STORE_ID,
-        LEMON_TEST_VARIANT_ID=TEST_VARIANT_ID,
-        LEMON_TEST_API_KEY=TEST_API_KEY,
-        UVARSI_VERIFIED_SUPPORT_PHONE="+421 900 123 456",
-        UVARSI_PAYMENT_SMOKE_SIGNING_SECRET=TAJOMSTVO,
+        **_annual_payment_environment(
+            PLATBY_ZAPNUTE="1",
+            LEMON_WEBHOOK_SECRET=live_webhook_secret,
+            LEMON_API_KEY=live_api_key,
+            UVARSI_VERIFIED_SUPPORT_PHONE="+421 900 123 456",
+        ),
     )
     monkeypatch.setattr(
         server, "OPERATOR", replace(server.OPERATOR, support_phone="+421 900 123 456")
@@ -1252,42 +1280,13 @@ def test_zmena_ktorehokolvek_live_secretu_zneplatni_aktivaciu_a_checkout(
     monkeypatch.setattr(server.customer_requests, "workflow_ready", lambda _con: True)
     activation_path = tmp_path / "payment-activation.json"
     monkeypatch.setattr(server, "PAYMENT_ACTIVATION_MARKER", str(activation_path))
-    release = server.release_id()
-    smoke = sign_marker(
-        create_marker(
-            release=release,
-            live_config_digest=live_config_fingerprint(
-                secret=TAJOMSTVO,
-                checkout_url=CHECKOUT,
-                webhook_secret=live_webhook_secret,
-                store_id="live-store",
-                variant_id="live-variant",
-                api_key=live_api_key,
-            ),
-            test_config_digest=TEST_CONFIG_DIGEST,
-            test_store_id=TEST_STORE_ID,
-            test_variant_id=TEST_VARIANT_ID,
-            completed_at="2026-09-11T11:30:00+00:00",
-            receipt_email_verified=True,
-            test_mode_verified=True,
-        ),
-        secret=TAJOMSTVO,
+    marker_module, expectation, smoke, completed_at = (
+        _full_annual_subscription_smoke(server)
     )
-    activation = create_activation_attestation(
+    activation = marker_module.create_subscription_activation_attestation(
         smoke,
-        secret=TAJOMSTVO,
-        release=release,
-        checkout_url=CHECKOUT,
-        webhook_secret=live_webhook_secret,
-        store_id="live-store",
-        variant_id="live-variant",
-        api_key=live_api_key,
-        test_checkout_url=TEST_CHECKOUT,
-        test_webhook_secret=TEST_WEBHOOK_SECRET,
-        test_store_id=TEST_STORE_ID,
-        test_variant_id=TEST_VARIANT_ID,
-        test_api_key=TEST_API_KEY,
-        activated_at="2026-09-11T12:00:00+00:00",
+        expectation,
+        activated_at=completed_at.isoformat(),
     )
     activation_path.write_text(json.dumps(activation), encoding="utf-8")
     queue = {"worker_alive": True, "blocking_code": None}
@@ -1314,7 +1313,7 @@ def test_zmena_ktorehokolvek_live_secretu_zneplatni_aktivaciu_a_checkout(
         )
 
     assert readiness.ready is False
-    assert readiness.blockers == ("payment_smoke_missing",)
+    assert readiness.blockers == ("subscription_smoke_mismatch",)
 
 
 def test_empty_recipe_or_blocked_plan_worker_never_passes_runtime_readiness(
