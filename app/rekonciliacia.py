@@ -44,6 +44,7 @@ import hashlib
 import json
 import math
 import os
+import sqlite3
 import sys
 import time
 import urllib.error
@@ -65,11 +66,11 @@ SUBSCRIPTIONS_API_URL = "https://api.lemonsqueezy.com/v1/subscriptions"
 SUBSCRIPTION_INVOICES_API_URL = (
     "https://api.lemonsqueezy.com/v1/subscription-invoices"
 )
-# Koľko strán po 100 objednávkach sa najviac prezrie za jeden beh. 5 strán
-# pokrýva 500 najnovších objednávok, teda dvojnásobok celej kapacity — a zároveň
-# to je strop, aby hodinový beh nikdy nebúšil do API donekonečna.
-MAX_STRAN = 5
 STRANA = 100
+# Ochrana pred poškodeným alebo nepriateľským pagination metadata. Na rozdiel
+# od pôvodného päťstranového limitu sa po dosiahnutí tejto hranice nikdy
+# nevráti čiastočný výsledok, ale celý snapshot sa odmietne.
+MAX_PROVIDER_PAGES = 10_000
 CAS_SPOJENIA = 20
 
 
@@ -111,33 +112,136 @@ def stiahni_stranu(
         },
     )
     otvor = otvor or urllib.request.urlopen
-    with otvor(ziadost, timeout=CAS_SPOJENIA) as odpoved:
-        telo = json.loads(odpoved.read().decode("utf-8"))
-    data = telo.get("data") if isinstance(telo, dict) else None
-    if not isinstance(data, list):
-        return [], False
-    dalsia = bool(((telo.get("links") or {}) if isinstance(telo, dict) else {}).get("next"))
-    return data, dalsia
+    try:
+        with otvor(ziadost, timeout=CAS_SPOJENIA) as odpoved:
+            telo = json.loads(odpoved.read().decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise ProviderUnavailable("provider_unavailable") from error
+    return _validated_provider_page(
+        telo, requested_page=strana, api_url=api_url
+    )
 
 
 def stiahni_objednavky(
-    api_key, *, store_id=None, max_stran=MAX_STRAN, otvor=None,
-    api_url=API_URL,
+    api_key, *, store_id=None, otvor=None, api_url=API_URL,
 ):
     objednavky = []
-    for strana in range(1, max_stran + 1):
-        davka, dalsia = stiahni_stranu(
+    expected_pagination = None
+    seen_ids = set()
+    strana = 1
+    while True:
+        davka, pagination = stiahni_stranu(
             api_key, store_id=store_id, strana=strana, otvor=otvor,
             api_url=api_url,
         )
+        identity = (
+            pagination["last_page"],
+            pagination["per_page"],
+            pagination["total"],
+        )
+        if expected_pagination is None:
+            expected_pagination = identity
+        elif identity != expected_pagination:
+            raise ProviderUnavailable("provider_unavailable")
+        for row in davka:
+            identifier = row.get("id") if isinstance(row, dict) else None
+            if (
+                not isinstance(identifier, (str, int))
+                or isinstance(identifier, bool)
+                or str(identifier) in seen_ids
+            ):
+                raise ProviderUnavailable("provider_unavailable")
+            seen_ids.add(str(identifier))
         objednavky.extend(davka)
-        if not dalsia or not davka:
+        if pagination["next_page"] is None:
             break
+        strana = pagination["next_page"]
     return objednavky
 
 
 class ProviderUnavailable(RuntimeError):
     """The provider snapshot was not obtained; local access stays unchanged."""
+
+
+def _page_integer(value, *, minimum=0):
+    if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
+        raise ProviderUnavailable("provider_unavailable")
+    return value
+
+
+def _linked_page(url, *, api_url):
+    if not isinstance(url, str) or not url:
+        raise ProviderUnavailable("provider_unavailable")
+    parsed = urllib.parse.urlparse(url)
+    expected = urllib.parse.urlparse(api_url)
+    if (
+        parsed.scheme != expected.scheme
+        or parsed.netloc != expected.netloc
+        or parsed.path != expected.path
+    ):
+        raise ProviderUnavailable("provider_unavailable")
+    values = urllib.parse.parse_qs(parsed.query).get("page[number]")
+    if not isinstance(values, list) or len(values) != 1:
+        raise ProviderUnavailable("provider_unavailable")
+    try:
+        return int(values[0])
+    except (TypeError, ValueError) as error:
+        raise ProviderUnavailable("provider_unavailable") from error
+
+
+def _validated_provider_page(body, *, requested_page, api_url):
+    """Validate Lemon's documented JSON:API page contract completely."""
+    if not isinstance(body, dict):
+        raise ProviderUnavailable("provider_unavailable")
+    data = body.get("data")
+    links = body.get("links")
+    meta = body.get("meta")
+    page = meta.get("page") if isinstance(meta, dict) else None
+    if not isinstance(data, list) or not isinstance(links, dict) or not isinstance(page, dict):
+        raise ProviderUnavailable("provider_unavailable")
+
+    current = _page_integer(page.get("currentPage"), minimum=1)
+    last = _page_integer(page.get("lastPage"), minimum=1)
+    per_page = _page_integer(page.get("perPage"), minimum=1)
+    total = _page_integer(page.get("total"), minimum=0)
+    if (
+        current != requested_page
+        or current > last
+        or per_page != STRANA
+        or last > MAX_PROVIDER_PAGES
+        or last != max(1, math.ceil(total / per_page))
+    ):
+        raise ProviderUnavailable("provider_unavailable")
+
+    expected_count = min(per_page, max(0, total - (current - 1) * per_page))
+    expected_from = None if total == 0 else (current - 1) * per_page + 1
+    expected_to = None if total == 0 else expected_from + expected_count - 1
+    if (
+        len(data) != expected_count
+        or page.get("from") != expected_from
+        or page.get("to") != expected_to
+    ):
+        raise ProviderUnavailable("provider_unavailable")
+
+    if _linked_page(links.get("first"), api_url=api_url) != 1:
+        raise ProviderUnavailable("provider_unavailable")
+    if _linked_page(links.get("last"), api_url=api_url) != last:
+        raise ProviderUnavailable("provider_unavailable")
+    next_url = links.get("next")
+    if current < last:
+        next_page = _linked_page(next_url, api_url=api_url)
+        if next_page != current + 1:
+            raise ProviderUnavailable("provider_unavailable")
+    else:
+        if next_url is not None:
+            raise ProviderUnavailable("provider_unavailable")
+        next_page = None
+    return data, {
+        "last_page": last,
+        "per_page": per_page,
+        "total": total,
+        "next_page": next_page,
+    }
 
 
 def _row_attributes(row):
@@ -385,7 +489,7 @@ def _subscription_event_name(status, snapshot):
     return "subscription_updated"
 
 
-def reconcile_subscriptions(
+def _reconcile_subscriptions_batch(
     con, *, provider_rows, invoice_rows, now, expected
 ) -> dict:
     """Reconcile provider snapshots through the webhook transition engine."""
@@ -423,6 +527,10 @@ def reconcile_subscriptions(
     # Payment evidence is applied first. A later generic active snapshot may
     # then confirm, but can never revive unpaid/expired access by itself.
     for row in invoice_rows:
+        if not isinstance(row, dict) or row.get("type") != "subscription-invoices":
+            summary["error_codes"].add("invalid_invoice_row")
+            summary["_current_drift"] += 1
+            continue
         attributes = _row_attributes(row)
         invoice_id = row.get("id") if isinstance(row, dict) else None
         subscription_id = (
@@ -487,6 +595,10 @@ def reconcile_subscriptions(
                 summary["recovered_payments"] += 1
 
     for row in provider_rows:
+        if not isinstance(row, dict) or row.get("type") != "subscriptions":
+            summary["error_codes"].add("invalid_subscription_row")
+            summary["_current_drift"] += 1
+            continue
         attributes = _row_attributes(row)
         subscription_id = (
             _row_subscription_id(row, attributes) if attributes is not None else None
@@ -524,12 +636,59 @@ def reconcile_subscriptions(
         )
 
     current_drift = summary.pop("_current_drift")
-    summary.update(predplatne.subscription_health_counters(con))
+    summary.update(predplatne.subscription_health_counters(
+        con, test_mode=predplatne._expected_value(expected, "test_mode")
+    ))
     summary["subscription_drift"] = max(
         summary["subscription_drift"], current_drift
     )
     summary["error_codes"] = sorted(summary["error_codes"])
     return summary
+
+
+def reconcile_subscriptions(
+    con, *, provider_rows, invoice_rows, now, expected
+) -> dict:
+    """Apply one complete provider snapshot atomically and fail closed."""
+    if provider_rows is None or invoice_rows is None:
+        raise ProviderUnavailable("provider_unavailable")
+    if not isinstance(provider_rows, (list, tuple)) or not isinstance(
+        invoice_rows, (list, tuple)
+    ):
+        raise ProviderUnavailable("provider_unavailable")
+
+    savepoint = "annual_subscription_reconciliation_batch"
+    con.execute(f"SAVEPOINT {savepoint}")
+    try:
+        result = _reconcile_subscriptions_batch(
+            con,
+            provider_rows=provider_rows,
+            invoice_rows=invoice_rows,
+            now=now,
+            expected=expected,
+        )
+        con.execute(f"RELEASE SAVEPOINT {savepoint}")
+        return result
+    except Exception:
+        try:
+            con.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+            con.execute(f"RELEASE SAVEPOINT {savepoint}")
+        except sqlite3.OperationalError:
+            pass
+        return {
+            "seen_subscriptions": len(provider_rows),
+            "seen_invoices": len(invoice_rows),
+            "recovered_invoices": 0,
+            "recovered_payments": 0,
+            "applied_transitions": 0,
+            "duplicates": 0,
+            "subscription_drift": 1,
+            "past_due": 0,
+            "unpaid": 0,
+            "expired": 0,
+            "queued_webhooks": 0,
+            "error_codes": ["reconciliation_batch_failed"],
+        }
 
 
 def reconcile_subscriptions_from_api(

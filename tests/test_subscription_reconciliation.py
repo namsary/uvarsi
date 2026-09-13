@@ -8,6 +8,7 @@ import json
 import sqlite3
 import sys
 import urllib.error
+from dataclasses import replace
 
 import pytest
 
@@ -186,6 +187,67 @@ def test_reconciliation_recovers_missed_renewal_exactly_once(db):
         P0_END,
         P1_END,
     )
+
+
+def test_reconciliation_rolls_back_the_whole_batch_on_mid_batch_failure(
+    db, monkeypatch
+):
+    reconciliation = reconciliation_module()
+    before_snapshot = predplatne.subscription_for_user(db, 1)
+    before_invoices = db.execute(
+        "SELECT COUNT(*) FROM subscription_invoices"
+    ).fetchone()[0]
+    before_events = db.execute(
+        "SELECT COUNT(*) FROM subscription_events"
+    ).fetchone()[0]
+    real_process = predplatne.process_subscription_event
+    calls = 0
+
+    def fail_on_second_event(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise sqlite3.OperationalError("private@example.sk token=secret")
+        return real_process(*args, **kwargs)
+
+    monkeypatch.setattr(
+        reconciliation.predplatne,
+        "process_subscription_event",
+        fail_on_second_event,
+    )
+
+    result = reconciliation.reconcile_subscriptions(
+        db,
+        provider_rows=[
+            provider_subscription(
+                period_start=P0_END,
+                period_end=P1_END,
+                renews_at=P2_END,
+                updated_at="2027-09-12T00:00:03Z",
+            )
+        ],
+        invoice_rows=[provider_invoice(invoice_id="inv_atomic")],
+        now=P0_END + 10.0,
+        expected=EXPECTED,
+    )
+
+    assert predplatne.subscription_for_user(db, 1) == before_snapshot
+    assert db.execute(
+        "SELECT COUNT(*) FROM subscription_invoices"
+    ).fetchone()[0] == before_invoices
+    assert db.execute(
+        "SELECT COUNT(*) FROM subscription_events"
+    ).fetchone()[0] == before_events
+    assert result["subscription_drift"] == 1
+    assert result["error_codes"] == ["reconciliation_batch_failed"]
+    public = json.dumps(
+        platby.priprav_subscription_reconciliation_alert(
+            result, den="2026-09-13"
+        ),
+        ensure_ascii=False,
+    )
+    assert "private@example.sk" not in public
+    assert "token=secret" not in public
 
 
 def test_official_api_shape_recovers_renewal_without_invented_invoice_fields(db):
@@ -450,6 +512,52 @@ def test_invalid_provider_row_is_reported_as_drift_not_healthy(db):
     assert has_access(db) is True
 
 
+def test_invoice_row_with_conflicting_resource_type_is_quarantined(db):
+    reconciliation = reconciliation_module()
+    before = db.execute(
+        "SELECT COUNT(*) FROM subscription_invoices"
+    ).fetchone()[0]
+    row = provider_invoice(invoice_id="sub_1")
+    row["type"] = "subscriptions"
+
+    result = reconciliation.reconcile_subscriptions(
+        db,
+        provider_rows=[provider_subscription()],
+        invoice_rows=[row],
+        now=P0_END + 10.0,
+        expected=EXPECTED,
+    )
+
+    assert db.execute(
+        "SELECT COUNT(*) FROM subscription_invoices"
+    ).fetchone()[0] == before
+    assert result["subscription_drift"] == 1
+    assert result["error_codes"] == ["invalid_invoice_row"]
+
+
+def test_subscription_row_with_conflicting_resource_type_cannot_suspend(db):
+    reconciliation = reconciliation_module()
+    row = provider_subscription(
+        status="unpaid",
+        renews_at=None,
+        updated_at="2026-09-12T00:04:00Z",
+    )
+    row["type"] = "subscription-invoices"
+    row["attributes"]["subscription_id"] = "sub_1"
+
+    result = reconciliation.reconcile_subscriptions(
+        db,
+        provider_rows=[row],
+        invoice_rows=[],
+        now=P0_START + 500.0,
+        expected=EXPECTED,
+    )
+
+    assert predplatne.subscription_for_user(db, 1).status == "active"
+    assert result["subscription_drift"] == 1
+    assert result["error_codes"] == ["invalid_subscription_row"]
+
+
 def test_dunning_past_due_keeps_access_and_health_reports_aggregate_counts(db):
     reconciliation = reconciliation_module()
 
@@ -479,8 +587,63 @@ def test_dunning_past_due_keeps_access_and_health_reports_aggregate_counts(db):
     assert has_access(db) is True
     assert result["past_due"] == 1
     health = platby.stav_dozoru(db)
+    test_health = predplatne.subscription_health_counters(db, test_mode=True)
     assert set(("subscription_drift", "past_due", "unpaid", "expired", "queued_webhooks")) <= set(health)
-    assert health["past_due"] == 1
+    assert health["past_due"] == 0
+    assert test_health["past_due"] == 1
+
+
+def test_subscription_health_separates_live_and_test_mode(db):
+    db.execute(
+        "INSERT INTO pouzivatelia (id,email) VALUES (2,'test@example.sk')"
+    )
+    test_snapshot = predplatne.subscription_for_user(db, 1)
+    live_snapshot = replace(
+        test_snapshot,
+        user_id=2,
+        provider_customer_id="cus_live",
+        provider_order_id="ord_live",
+        provider_subscription_id="sub_live",
+        test_mode=False,
+        status="unpaid",
+        renews_at=None,
+        provider_updated_at=test_snapshot.provider_updated_at + 10.0,
+    )
+    assert predplatne.upsert_snapshot(
+        db, live_snapshot, now=P0_START + 500.0
+    ) is True
+    db.execute(
+        """INSERT INTO subscription_events
+           (event_key,provider,test_mode,provider_subscription_id,event_type,
+            source,payload_json,processing_status,needs_review,review_reason,
+            received_at,processed_at,updated_at)
+           VALUES ('live-queued','lemonsqueezy',0,'sub_live',
+                   'subscription_updated','webhook','{}','requires_review',
+                   1,'safe',?,NULL,?)""",
+        (P0_START + 510.0, P0_START + 510.0),
+    )
+
+    live = predplatne.subscription_health_counters(db, test_mode=False)
+    test = predplatne.subscription_health_counters(db, test_mode=True)
+    result = reconciliation_module().reconcile_subscriptions(
+        db,
+        provider_rows=[],
+        invoice_rows=[],
+        now=P0_START + 520.0,
+        expected=EXPECTED,
+    )
+
+    assert live["unpaid"] == 1
+    assert live["queued_webhooks"] == 1
+    assert test == {
+        "subscription_drift": 0,
+        "past_due": 0,
+        "unpaid": 0,
+        "expired": 0,
+        "queued_webhooks": 0,
+    }
+    assert result["unpaid"] == 0
+    assert result["queued_webhooks"] == 0
 
 
 def test_quarantined_and_raw_webhooks_are_visible_only_as_aggregate(db):
@@ -500,11 +663,58 @@ def test_quarantined_and_raw_webhooks_are_visible_only_as_aggregate(db):
     )
 
     health = platby.stav_dozoru(db)
+    test_health = predplatne.subscription_health_counters(db, test_mode=True)
     encoded = json.dumps(health, ensure_ascii=False)
 
-    assert health["queued_webhooks"] == 2
+    assert health["queued_webhooks"] == 0
+    assert health["cakajucich_tiel"] == 1
+    assert test_health["queued_webhooks"] == 1
     for forbidden in ("private@example.sk", "secret", "sub_1", "cus_1", "ord_1"):
         assert forbidden not in encoded
+
+
+def test_missing_subscription_tables_are_an_explicit_health_blocker():
+    connection = sqlite3.connect(":memory:")
+    connection.executescript(
+        """
+        CREATE TABLE pouzivatelia (
+          id INTEGER PRIMARY KEY,
+          email TEXT,
+          platiaci INTEGER NOT NULL DEFAULT 0
+        );
+        """
+    )
+    platby.migrate_platby_schema(connection)
+    try:
+        health = platby.stav_dozoru(connection)
+    finally:
+        connection.close()
+
+    assert health["subscription_health_available"] is False
+    assert health["subscription_drift"] == 1
+    assert health["subscription_health_error_codes"] == [
+        "subscription_health_schema_unavailable"
+    ]
+
+
+def test_unexpected_subscription_health_db_error_is_safe_and_not_healthy(
+    db, monkeypatch
+):
+    def fail_health(*args, **kwargs):
+        raise sqlite3.OperationalError("private@example.sk token=secret")
+
+    monkeypatch.setattr(predplatne, "subscription_health_counters", fail_health)
+
+    health = platby.stav_dozoru(db)
+    encoded = json.dumps(health, ensure_ascii=False)
+
+    assert health["subscription_health_available"] is False
+    assert health["subscription_drift"] == 1
+    assert health["subscription_health_error_codes"] == [
+        "subscription_health_db_error"
+    ]
+    assert "private@example.sk" not in encoded
+    assert "token=secret" not in encoded
 
 
 def test_reconciliation_result_event_storage_and_alerts_never_expose_provider_payload(db):

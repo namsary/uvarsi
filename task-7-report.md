@@ -52,6 +52,7 @@ Overený verejný tvar API:
 - `app/rekonciliacia.py`
 - `app/predplatne.py`
 - `app/platby.py`
+- `tests/test_platby_rekonciliacia.py`
 - `tests/test_subscription_reconciliation.py`
 - `task-7-report.md`
 
@@ -63,4 +64,49 @@ Overený verejný tvar API:
 - Ak provider nevráti zodpovedajúci subscription snapshot alebo dôveryhodný renewal boundary, obnova sa fail-closed odloží na kontrolu a nárok sa automaticky nezmení.
 - Ntfy odoslanie je best-effort. Autoritatívny stav zostáva v lokálnych health počítadlách a review udalostiach.
 - Testy hlásia jednu existujúcu Starlette/AnyIO deprecation warning; nejde o Task 7 regresiu.
+- Full suite nebola spustená podľa zadania.
+
+## Fix round 1 — 2026-09-13
+
+### Uzavreté pripomienky review
+
+1. Celý reconcile je atómový cez vlastný SQLite savepoint. Chyba uprostred dávky vráti všetky predchádzajúce zmeny a navonok vytvorí iba bezpečný agregovaný blocker `reconciliation_batch_failed` bez obsahu výnimky a bez PII.
+2. Neplatná prvá alebo neskoršia stránka, neúplná stránka, chýbajúce či nekonzistentné pagination metadata a slučka stránok končia ako `ProviderUnavailable`. Pred úspešným stiahnutím celej dávky nevznikne žiadna databázová mutácia ani zdravá nula.
+3. Pred normalizáciou sa vyžaduje presný typ `subscriptions`, respektíve `subscription-invoices`. Konfliktný typ je fail-closed a nemení nárok.
+4. Health a drift počítadlá sú oddelené podľa `expected.test_mode`; produkčný health nepočíta testovacie subscription dáta.
+5. Iba presne chýbajúce migračné tabuľky majú schema fallback. Iná SQLite `OperationalError` nastaví `subscription_health_available=false`, bezpečný kód `subscription_health_db_error` a blocker bez textu databázovej chyby.
+6. Päťstranový/500-záznamový limit bol odstránený. Downloader používa dokumentovanú Lemon stránkovú navigáciu `page[number]`/`page[size]`, overí úplnosť a konzistenciu každej stránky a pokračuje až po deklarovanú poslednú stranu. Ochranný limit 10 000 strán nikdy nevráti skrátený úspech — pri jeho prekročení zlyhá uzavreto.
+
+Lemon dokumentuje stránkovanie, odkazy `first`/`last`/`next`/`prev` a `meta.page`; nedokumentuje bezpečný updated cursor pre tieto list endpointy, preto implementácia nevymýšľa neexistujúci kontrakt:
+
+- https://docs.lemonsqueezy.com/api/getting-started/requests
+- https://docs.lemonsqueezy.com/api/subscriptions/list-all-subscriptions
+- https://docs.lemonsqueezy.com/api/subscription-invoices/list-all-subscription-invoices
+
+### RED dôkazy fix round 1
+
+- Atómový rollback: `1 failed` — druhá mutácia vyhodila chybu a prvá zostala zapísaná.
+- Pagination hardening a pokrytie nad 500 záznamov: `7 failed` — pôvodný limit skracoval výsledok a neplatné stránky neboli odmietnuté.
+- Presné provider resource typy: `2 failed` — konfliktné riadky sa pred opravou dali pretypovať.
+- Oddelenie test/live health: `1 failed` — health nemal parameter režimu.
+- Nedostupný subscription health: `3 failed` — databázová chyba sa mohla tváriť ako zdravé nulové počítadlá.
+
+### GREEN dôkazy fix round 1
+
+- Focused reconciliation, pagination a notification privacy: `86 passed`.
+- Payment/subscription regresný rez: `396 passed`.
+- Auth/deploy/privacy regresný rez: `333 passed`.
+- Python syntax kontrola relevantných modulov a testov: PASS.
+- `git diff --check`: PASS; iba informatívne LF/CRLF upozornenia na Windows.
+- `PLATBY_ZAPNUTE`: UNSET; `UVARSI_SUBSCRIPTION_CHECKOUTS`: UNSET.
+
+Finálne bolo vykonaných `815` úspešných testov. Privacy test je zámerne v dvoch rezoch, takže ide o počet vykonaní, nie unikátnych testov.
+
+### Zvyšné riziká po fix round 1
+
+- Bez živých Lemon volaní podľa zadania; reálny provider kontrakt je overený lokálnymi fixtures podľa oficiálnej dokumentácie.
+- Úplný provider scan má cenu úmernú počtu záznamov. Nekonzistentná alebo extrémna pagination zlyhá uzavreto a zachová posledný overený nárok.
+- Surovú odloženú webhook požiadavku nemožno pred overením podpisu bezpečne zaradiť do test/live režimu. Zostáva preto iba v samostatnom agregáte `cakajucich_tiel`, nie v režimovom `queued_webhooks`.
+- Ntfy ostáva best-effort; autoritatívny blocker je lokálny health stav.
+- Jedna existujúca Starlette/AnyIO deprecation warning nie je regresia Task 7.
 - Full suite nebola spustená podľa zadania.

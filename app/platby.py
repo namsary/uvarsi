@@ -1607,18 +1607,34 @@ def stav_dozoru(con) -> dict:
             from . import predplatne as subscription_domain
         except ImportError:
             import predplatne as subscription_domain
-        subscription_health = subscription_domain.subscription_health_counters(con)
-    except sqlite3.OperationalError:
-        # During an additive migration health stays available, but it never
-        # invents a positive subscription state.
+        subscription_health = subscription_domain.subscription_health_counters(
+            con, test_mode=False
+        )
+        subscription_health.update({
+            "subscription_health_available": True,
+            "subscription_health_error_codes": [],
+        })
+    except sqlite3.OperationalError as error:
+        # Only the exact additive-migration gap gets the schema code. Every
+        # other database error is a separate blocker; raw error text is never
+        # returned because it may contain private data.
+        error_code = (
+            "subscription_health_schema_unavailable"
+            if str(error) in {
+                "no such table: subscriptions",
+                "no such table: subscription_events",
+            }
+            else "subscription_health_db_error"
+        )
         subscription_health = {
-            "subscription_drift": 0,
+            "subscription_drift": 1,
             "past_due": 0,
             "unpaid": 0,
             "expired": 0,
             "queued_webhooks": 0,
+            "subscription_health_available": False,
+            "subscription_health_error_codes": [error_code],
         }
-    subscription_health["queued_webhooks"] += pocet_cakajucich(con)
     return {
         "obsadene": pocet_zaplatenych_zakladajucich(con),
         "kapacita": KAPACITA_ZAKLADAJUCICH,
@@ -1635,6 +1651,7 @@ SAFE_SUBSCRIPTION_RECONCILIATION_ERROR_CODES = frozenset(
         "invalid_invoice_row",
         "invalid_subscription_row",
         "provider_unavailable",
+        "reconciliation_batch_failed",
     }
 )
 

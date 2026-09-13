@@ -587,12 +587,17 @@ def subscription_for_provider(
     return _snapshot_for_subscription(con, safe_id, test_mode=test_mode)
 
 
-def subscription_health_counters(con) -> dict:
+def subscription_health_counters(con, *, test_mode: bool = False) -> dict:
     """Return privacy-safe aggregate lifecycle and reconciliation counters."""
+    if type(test_mode) is not bool:
+        raise ValueError("invalid subscription health mode")
+    mode = int(test_mode)
     statuses = {"past_due": 0, "unpaid": 0, "expired": 0}
     for status, count in con.execute(
         "SELECT status,COUNT(*) FROM subscriptions "
-        "WHERE status IN ('past_due','unpaid','expired') GROUP BY status"
+        "WHERE test_mode=? AND status IN ('past_due','unpaid','expired') "
+        "GROUP BY status",
+        (mode,),
     ):
         statuses[str(status)] = int(count)
 
@@ -601,6 +606,7 @@ def subscription_health_counters(con) -> dict:
     drift = con.execute(
         """SELECT COUNT(*) FROM subscription_events AS current
              WHERE current.source IN ('reconciliation','rekonciliacia')
+               AND current.test_mode=?
                AND current.provider_subscription_id IS NOT NULL
                AND current.id=(
                  SELECT MAX(newer.id) FROM subscription_events AS newer
@@ -611,15 +617,17 @@ def subscription_health_counters(con) -> dict:
                         current.provider_subscription_id
                )
                AND current.processing_status='requires_review'"""
-    ).fetchone()[0]
+    , (mode,)).fetchone()[0]
     snapshot_reviews = con.execute(
-        "SELECT COUNT(*) FROM subscriptions WHERE needs_review=1"
+        "SELECT COUNT(*) FROM subscriptions WHERE test_mode=? AND needs_review=1",
+        (mode,),
     ).fetchone()[0]
     queued = con.execute(
         """SELECT COUNT(*) FROM subscription_events
              WHERE source IN ('webhook','odlozene')
+               AND test_mode=?
                AND processing_status!='processed'"""
-    ).fetchone()[0]
+    , (mode,)).fetchone()[0]
     return {
         "subscription_drift": int(drift) + int(snapshot_reviews),
         **statuses,

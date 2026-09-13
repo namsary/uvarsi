@@ -365,6 +365,41 @@ class _Odpoved(io.BytesIO):
         return False
 
 
+def _provider_page(page, last_page, total, data, *, next_page=None):
+    base = "https://api.lemonsqueezy.com/v1/orders"
+    links = {
+        "first": f"{base}?page%5Bnumber%5D=1&page%5Bsize%5D=100",
+        "last": f"{base}?page%5Bnumber%5D={last_page}&page%5Bsize%5D=100",
+    }
+    wanted_next = page + 1 if page < last_page else None
+    if next_page is not None:
+        wanted_next = next_page
+    if wanted_next is not None:
+        links["next"] = (
+            f"{base}?page%5Bnumber%5D={wanted_next}&page%5Bsize%5D=100"
+        )
+    if page > 1:
+        links["prev"] = (
+            f"{base}?page%5Bnumber%5D={page - 1}&page%5Bsize%5D=100"
+        )
+    start = None if total == 0 else (page - 1) * 100 + 1
+    end = None if total == 0 else start + len(data) - 1
+    return {
+        "data": data,
+        "links": links,
+        "meta": {
+            "page": {
+                "currentPage": page,
+                "from": start,
+                "lastPage": last_page,
+                "perPage": 100,
+                "to": end,
+                "total": total,
+            }
+        },
+    }
+
+
 def test_stahovanie_prejde_strankovanie_a_filtruje_obchod(monkeypatch, tmp_path):
     rek = rekonciliacia_modul()
     adresy, hlavicky = [], []
@@ -373,33 +408,111 @@ def test_stahovanie_prejde_strankovanie_a_filtruje_obchod(monkeypatch, tmp_path)
         adresy.append(ziadost.full_url)
         hlavicky.append(dict(ziadost.headers))
         strana = len(adresy)
-        return _Odpoved(json.dumps({
-            "data": [{"type": "orders", "id": str(strana), "attributes": {}}],
-            "links": {"next": strana < 3},
-        }).encode())
+        start = (strana - 1) * 100
+        size = 100 if strana < 3 else 1
+        return _Odpoved(json.dumps(_provider_page(
+            strana,
+            3,
+            201,
+            [
+                {"type": "orders", "id": str(index), "attributes": {}}
+                for index in range(start + 1, start + size + 1)
+            ],
+        )).encode())
 
     objednavky = rek.stiahni_objednavky("TAJNY-KLUC", store_id="42", otvor=otvor)
 
-    assert [o["id"] for o in objednavky] == ["1", "2", "3"]
+    assert len(objednavky) == 201
+    assert objednavky[0]["id"] == "1"
+    assert objednavky[-1]["id"] == "201"
     assert "filter%5Bstore_id%5D=42" in adresy[0]
     assert hlavicky[0]["Authorization"] == "Bearer TAJNY-KLUC"
 
 
-def test_stahovanie_ma_strop_poctu_stran(monkeypatch, tmp_path):
-    """Hodinový beh nesmie donekonečna búchať do API poskytovateľa."""
+def test_stahovanie_bez_straty_prejde_viac_ako_patsto_zaznamov(
+    monkeypatch, tmp_path
+):
     rek = rekonciliacia_modul()
     strany = []
 
     def otvor(ziadost, timeout=None):
         strany.append(ziadost.full_url)
-        return _Odpoved(json.dumps({
-            "data": [{"type": "orders", "id": str(len(strany)), "attributes": {}}],
-            "links": {"next": True},
-        }).encode())
+        page = len(strany)
+        start = (page - 1) * 100
+        size = 100 if page < 6 else 50
+        data = [
+            {"type": "orders", "id": str(index), "attributes": {}}
+            for index in range(start + 1, start + size + 1)
+        ]
+        return _Odpoved(
+            json.dumps(_provider_page(page, 6, 550, data)).encode()
+        )
 
-    rek.stiahni_objednavky("KLUC", otvor=otvor)
+    rows = rek.stiahni_objednavky("KLUC", otvor=otvor)
 
-    assert len(strany) == rek.MAX_STRAN
+    assert len(strany) == 6
+    assert len(rows) == 550
+    assert rows[-1]["id"] == "550"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"data": {}},
+        {"data": [], "links": {}},
+        {"data": [], "links": {"first": "x", "last": "x"}, "meta": {}},
+    ],
+)
+def test_stahovanie_odmietne_malformed_prvu_stranu(payload):
+    rek = rekonciliacia_modul()
+
+    def otvor(_ziadost, timeout=None):
+        return _Odpoved(json.dumps(payload).encode())
+
+    with pytest.raises(rek.ProviderUnavailable) as error:
+        rek.stiahni_objednavky("KLUC", otvor=otvor)
+
+    assert str(error.value) == "provider_unavailable"
+
+
+def test_stahovanie_odmietne_neuplnu_neskorsiu_stranu_bez_partial_result():
+    rek = rekonciliacia_modul()
+    calls = 0
+
+    def otvor(_ziadost, timeout=None):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            data = [
+                {"type": "orders", "id": str(index), "attributes": {}}
+                for index in range(1, 101)
+            ]
+            payload = _provider_page(1, 2, 101, data)
+        else:
+            payload = _provider_page(2, 2, 101, [])
+        return _Odpoved(json.dumps(payload).encode())
+
+    with pytest.raises(rek.ProviderUnavailable):
+        rek.stiahni_objednavky("KLUC", otvor=otvor)
+
+    assert calls == 2
+
+
+def test_stahovanie_odmietne_pagination_loop():
+    rek = rekonciliacia_modul()
+    data = [
+        {"type": "orders", "id": str(index), "attributes": {}}
+        for index in range(1, 101)
+    ]
+
+    def otvor(_ziadost, timeout=None):
+        return _Odpoved(
+            json.dumps(_provider_page(1, 2, 101, data, next_page=1)).encode()
+        )
+
+    with pytest.raises(rek.ProviderUnavailable):
+        rek.stiahni_objednavky("KLUC", otvor=otvor)
 
 
 def test_bez_klucov_rekonciliacia_nic_neurobi(monkeypatch, tmp_path):
