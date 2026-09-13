@@ -109,6 +109,7 @@ CREATE TABLE IF NOT EXISTS subscription_invoices (
   period_start REAL NOT NULL,
   period_end REAL NOT NULL,
   paid_at REAL,
+  contract_concluded_at REAL,
   refunded_amount_cents INTEGER NOT NULL DEFAULT 0
     CHECK(refunded_amount_cents >= 0),
   created_at REAL NOT NULL,
@@ -186,6 +187,14 @@ def migrate_subscription_schema(con) -> None:
     if "provider_updated_at" not in columns:
         con.execute(
             "ALTER TABLE subscriptions ADD COLUMN provider_updated_at REAL"
+        )
+    invoice_columns = {
+        row[1] for row in con.execute("PRAGMA table_info(subscription_invoices)")
+    }
+    if "contract_concluded_at" not in invoice_columns:
+        con.execute(
+            "ALTER TABLE subscription_invoices "
+            "ADD COLUMN contract_concluded_at REAL"
         )
 
 
@@ -811,6 +820,19 @@ def _period(payload) -> tuple[float, float]:
     return start, end
 
 
+def _verified_contract_conclusion(payload, attempt: dict, *, revision: float) -> float:
+    concluded_at = _timestamp(_payload_attributes(payload).get("created_at"))
+    accepted_at = attempt.get("accepted_at")
+    if (
+        concluded_at is None
+        or not _valid_time(accepted_at)
+        or concluded_at < float(accepted_at)
+        or concluded_at > revision
+    ):
+        raise _ReviewRequired("faktúre chýba dôveryhodný čas uzavretia zmluvy")
+    return concluded_at
+
+
 def _row_dict(con, query: str, parameters=()) -> dict | None:
     cursor = con.execute(query, parameters)
     row = cursor.fetchone()
@@ -1185,12 +1207,18 @@ def _process_payment_success(con, payload, expected: dict, *, now: float) -> dic
         renews_at = _timestamp(_payload_attributes(payload).get("renews_at"))
         if renews_at is None or renews_at < period_end:
             raise _ReviewRequired("obnove chýba ďalší dátum obnovy")
+    contract_concluded_at = (
+        None
+        if renewal
+        else _verified_contract_conclusion(payload, attempt, revision=revision)
+    )
     con.execute(
         """INSERT INTO subscription_invoices
            (provider,test_mode,provider_invoice_id,provider_subscription_id,
             provider_order_id,invoice_kind,status,amount_cents,currency,
-            period_start,period_end,paid_at,refunded_amount_cents,created_at,updated_at)
-           VALUES ('lemonsqueezy',?,?,?,?,?,'paid',?,?,?,?,?,0,?,?)""",
+            period_start,period_end,paid_at,contract_concluded_at,
+            refunded_amount_cents,created_at,updated_at)
+           VALUES ('lemonsqueezy',?,?,?,?,?,'paid',?,?,?,?,?,?,0,?,?)""",
         (
             int(expected["test_mode"]),
             invoice_id,
@@ -1202,6 +1230,7 @@ def _process_payment_success(con, payload, expected: dict, *, now: float) -> dic
             period_start,
             period_end,
             now,
+            contract_concluded_at,
             now,
             now,
         ),

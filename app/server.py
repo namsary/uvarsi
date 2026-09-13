@@ -5656,6 +5656,16 @@ def _consumer_request_result(created=None) -> dict:
         and created.refund_scope
         == customer_requests.REFUND_CANCEL_AT_PERIOD_END
     )
+    subscription_status = created.subscription_status if annual else None
+    subscription_ends_at = created.subscription_ends_at if annual else None
+    if late_cancellation and subscription_status == "cancelled":
+        cancellation_state = "already_cancelled"
+    elif late_cancellation and subscription_status == "expired":
+        cancellation_state = "already_expired"
+    elif late_cancellation:
+        cancellation_state = "action_required"
+    else:
+        cancellation_state = "not_requested"
     return {
         "request_type": created.request_type if created is not None else None,
         "request_classification": (
@@ -5667,12 +5677,12 @@ def _consumer_request_result(created=None) -> dict:
             created.refund_preview_cents if created is not None else None
         ),
         "invoice_id": created.invoice_id if created is not None else None,
-        "provider_action_required": annual,
+        "subscription_status": subscription_status,
+        "subscription_ends_at": subscription_ends_at,
+        "provider_action_required": cancellation_state == "action_required",
         "refund_executed": False,
         "subscription_changed": False,
-        "cancellation_state": (
-            "action_required" if late_cancellation else "not_requested"
-        ),
+        "cancellation_state": cancellation_state,
     }
 
 
@@ -5711,13 +5721,39 @@ def _consumer_request_receipt(delivery: customer_requests.ConfirmationDelivery) 
                     "ju neodpočítava. Refundácia ešte nebola vykonaná."
                 )
         elif delivery.refund_scope == customer_requests.REFUND_CANCEL_AT_PERIOD_END:
-            detail = (
-                "Pri obyčajnej zmene názoru po 14-dňovej lehote nevzniká "
-                "náhľad refundácie. Zaznamenali sme tvoj zámer zastaviť budúcu "
-                "obnovu, ale predplatné sme ešte nezrušili ani nezmenili. "
-                "Zrušenie treba dokončiť cez Customer Portal alebo s podporou; "
-                "prístup potom zostane do konca zaplateného obdobia."
+            ends_label = (
+                datetime.datetime.fromtimestamp(
+                    delivery.subscription_ends_at, datetime.timezone.utc
+                )
+                .astimezone(ZoneInfo("Europe/Bratislava"))
+                .strftime("%d. %m. %Y")
+                if delivery.subscription_ends_at is not None
+                else None
             )
+            if delivery.subscription_status == "cancelled":
+                detail = (
+                    "Pri obyčajnej zmene názoru po 14-dňovej lehote nevzniká "
+                    "náhľad refundácie. Predplatné už bolo zrušené a budúca "
+                    "obnova nie je naplánovaná."
+                )
+                if ends_label:
+                    detail += f" Evidovaný koniec zaplateného obdobia je {ends_label}."
+            elif delivery.subscription_status == "expired":
+                detail = (
+                    "Pri obyčajnej zmene názoru po 14-dňovej lehote nevzniká "
+                    "náhľad refundácie. Predplatné už skončilo a budúca obnova "
+                    "nie je naplánovaná."
+                )
+                if ends_label:
+                    detail += f" Evidovaný koniec zaplateného obdobia bol {ends_label}."
+            else:
+                detail = (
+                    "Pri obyčajnej zmene názoru po 14-dňovej lehote nevzniká "
+                    "náhľad refundácie. Zaznamenali sme tvoj zámer zastaviť budúcu "
+                    "obnovu, ale predplatné sme ešte nezrušili ani nezmenili. "
+                    "Zrušenie treba dokončiť cez Customer Portal alebo s podporou; "
+                    "prístup potom zostane do konca zaplateného obdobia."
+                )
         else:
             detail = (
                 "Žiadosť sme prijali na manuálne posúdenie, pretože bola "
@@ -6013,6 +6049,7 @@ async def _create_consumer_request(req: Request, *, request_type: str):
     now = AUTH_CLOCK()
     _consumer_request_rate_limit(user["id"], operation=request_type, now=now)
     data = await auth_json(req)
+    annual_invoice_selected = data.get("invoice_id") is not None
     try:
         with closing(db()) as con:
             invoice_id = data.get("invoice_id")
@@ -6024,8 +6061,11 @@ async def _create_consumer_request(req: Request, *, request_type: str):
                     invoice_id = customer_requests.current_subscription_invoice_id(
                         con, user_id=user["id"], now=now
                     )
+                    annual_invoice_selected = True
                 except customer_requests.RequestNotAllowed:
                     invoice_id = None
+            if invoice_id is None and order_id is None:
+                raise ValueError("vyber platbu, ku ktorej podávaš žiadosť")
             if invoice_id is not None:
                 reason = data.get("reason")
                 if request_type == customer_requests.TYPE_WITHDRAWAL:
@@ -6080,7 +6120,25 @@ async def _create_consumer_request(req: Request, *, request_type: str):
                 except Exception:
                     LOG.error("consumer request owner notification failed after persistence")
     except customer_requests.RequestNotAllowed:
-        # Same response for an absent and a foreign order: no enumeration.
+        if annual_invoice_selected:
+            # Same response for an absent and a foreign invoice: no enumeration,
+            # and never claim that an unstored request was received.
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "message": "Žiadosť sa pre zvolenú platbu nepodarilo uložiť.",
+                    "request_received": False,
+                    "request_id": None,
+                    "confirmation": {
+                        "state": "not_disclosed",
+                        "sent": False,
+                        "pending": False,
+                    },
+                    **_consumer_request_result(),
+                },
+                status_code=404,
+            )
+        # Preserve the legacy order response while masking absence and ownership.
         return JSONResponse(
             {
                 "ok": True,
@@ -6152,6 +6210,9 @@ def consumer_request_list(req: Request):
         return {
             "requests": customer_requests.requests_for_user(con, user_id=user["id"]),
             "orders": customer_requests.orders_for_user(con, user_id=user["id"]),
+            "invoices": customer_requests.subscription_invoices_for_user(
+                con, user_id=user["id"]
+            ),
         }
 
 

@@ -9,6 +9,7 @@ import inspect
 import json
 import sqlite3
 import sys
+import datetime
 from contextlib import closing
 from pathlib import Path
 from types import SimpleNamespace
@@ -155,6 +156,7 @@ def event(
     user_id=None,
     billing_reason=None,
     customer_id="cus_1",
+    created_at="2026-09-12T00:01:35Z",
     updated_at="2026-09-12T00:01:40Z",
 ):
     custom = {"attempt_id": attempt_id} if attempt_id is not None else {}
@@ -175,6 +177,7 @@ def event(
         "updated_at": updated_at,
         "total": total,
         "discount_id": discount_id,
+        "created_at": created_at,
     }
     if event_name == "order_created":
         attributes = {
@@ -374,6 +377,58 @@ def test_initial_payment_advances_revision_past_delayed_unpaid_update(db):
     assert db.execute(
         "SELECT COUNT(*) FROM subscription_invoices"
     ).fetchone()[0] == 1
+
+
+def test_initial_invoice_stores_verified_contract_conclusion_time(db):
+    process(db, event("order_created"))
+    process(db, event("subscription_created"))
+
+    result = process(
+        db,
+        event(
+            "subscription_payment_success",
+            billing_reason="initial",
+            created_at="2026-09-12T00:01:35Z",
+        ),
+    )
+
+    concluded_at = db.execute(
+        "SELECT contract_concluded_at FROM subscription_invoices "
+        "WHERE provider_invoice_id='inv_0'"
+    ).fetchone()[0]
+    expected = datetime.datetime(
+        2026, 9, 12, 0, 1, 35, tzinfo=datetime.timezone.utc
+    ).timestamp()
+    assert result["review_required"] is False
+    assert concluded_at == expected
+
+
+@pytest.mark.parametrize(
+    "created_at",
+    (
+        None,
+        "not-a-time",
+        "2026-09-12T00:01:20Z",
+        "2026-09-12T00:01:41Z",
+    ),
+)
+def test_initial_invoice_without_trustworthy_contract_time_is_reviewed(
+    db, created_at
+):
+    process(db, event("order_created"))
+    process(db, event("subscription_created"))
+
+    result = process(
+        db,
+        event(
+            "subscription_payment_success",
+            billing_reason="initial",
+            created_at=created_at,
+        ),
+    )
+
+    assert result["review_required"] is True
+    assert db.execute("SELECT COUNT(*) FROM subscription_invoices").fetchone()[0] == 0
 
 
 def test_second_valid_attempt_cannot_replace_verified_provider_identity(db):

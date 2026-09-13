@@ -8,6 +8,7 @@ import json
 import sqlite3
 import threading
 from contextlib import closing
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
@@ -21,6 +22,7 @@ DAY = 24 * 60 * 60
 P0_START = datetime.datetime(2026, 9, 12, tzinfo=datetime.timezone.utc).timestamp()
 P0_END = datetime.datetime(2027, 9, 12, tzinfo=datetime.timezone.utc).timestamp()
 P1_END = datetime.datetime(2028, 9, 12, tzinfo=datetime.timezone.utc).timestamp()
+_DEFAULT_CONTRACT_TIME = object()
 VALID_CONSENT = {
     "accept_terms": True,
     "accept_automatic_renewal": True,
@@ -28,6 +30,77 @@ VALID_CONSENT = {
     "acknowledge_withdrawal_proration": True,
     "legal_version": LEGAL_VERSION,
 }
+BRATISLAVA = ZoneInfo("Europe/Bratislava")
+
+
+def _local_timestamp(year, month, day, hour=0, minute=0, second=0, microsecond=0):
+    return datetime.datetime(
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second,
+        microsecond,
+        tzinfo=BRATISLAVA,
+    ).timestamp()
+
+
+def test_statutory_deadline_uses_local_calendar_and_dst_weekend_extension():
+    concluded = _local_timestamp(2026, 3, 15, 23, 30)
+
+    deadline = customer_requests.statutory_withdrawal_deadline(concluded)
+
+    assert deadline == _local_timestamp(2026, 3, 30, 23, 59, 59, 999_999)
+
+
+def test_statutory_deadline_includes_the_whole_last_local_day():
+    concluded = _local_timestamp(2026, 4, 16, 0, 1)
+
+    deadline = customer_requests.statutory_withdrawal_deadline(concluded)
+
+    assert deadline == _local_timestamp(2026, 4, 30, 23, 59, 59, 999_999)
+
+
+def test_statutory_deadline_moves_past_christmas_and_weekend():
+    concluded = _local_timestamp(2026, 12, 10, 12)
+
+    deadline = customer_requests.statutory_withdrawal_deadline(concluded)
+
+    assert deadline == _local_timestamp(2026, 12, 28, 23, 59, 59, 999_999)
+
+
+def test_statutory_deadline_moves_past_good_friday_and_easter_monday():
+    concluded = _local_timestamp(2026, 3, 20, 12)
+
+    deadline = customer_requests.statutory_withdrawal_deadline(concluded)
+
+    assert deadline == _local_timestamp(2026, 4, 7, 23, 59, 59, 999_999)
+
+
+@pytest.mark.parametrize(
+    ("concluded", "expected"),
+    (
+        (
+            _local_timestamp(2026, 4, 24, 12),
+            _local_timestamp(2026, 5, 8, 23, 59, 59, 999_999),
+        ),
+        (
+            _local_timestamp(2026, 9, 1, 12),
+            _local_timestamp(2026, 9, 15, 23, 59, 59, 999_999),
+        ),
+    ),
+)
+def test_2026_may_and_september_exceptions_remain_working_days(
+    concluded, expected
+):
+    assert customer_requests.statutory_withdrawal_deadline(concluded) == expected
+
+
+@pytest.mark.parametrize("value", (None, True, -1, float("inf"), "2026-01-01"))
+def test_statutory_deadline_fails_closed_for_untrusted_contract_time(value):
+    with pytest.raises(ValueError):
+        customer_requests.statutory_withdrawal_deadline(value)
 
 
 @pytest.mark.parametrize(
@@ -216,13 +289,17 @@ def _seed_invoice(
     paid_at=P0_START,
     refunded_amount_cents=0,
     status="paid",
+    contract_concluded_at=_DEFAULT_CONTRACT_TIME,
 ):
+    if contract_concluded_at is _DEFAULT_CONTRACT_TIME:
+        contract_concluded_at = P0_START if invoice_kind == "initial" else None
     con.execute(
         """INSERT INTO subscription_invoices
            (provider,test_mode,provider_invoice_id,provider_subscription_id,
             provider_order_id,invoice_kind,status,amount_cents,currency,
-            period_start,period_end,paid_at,refunded_amount_cents,created_at,updated_at)
-           VALUES ('lemonsqueezy',1,?,'sub_annual_1','ord_annual_1',?,?,?,'EUR',?,?,?,?,?,?)""",
+            period_start,period_end,paid_at,contract_concluded_at,
+            refunded_amount_cents,created_at,updated_at)
+           VALUES ('lemonsqueezy',1,?,'sub_annual_1','ord_annual_1',?,?,?,'EUR',?,?,?,?,?,?,?)""",
         (
             invoice_id,
             invoice_kind,
@@ -231,6 +308,7 @@ def _seed_invoice(
             period_start,
             period_end,
             paid_at,
+            contract_concluded_at,
             refunded_amount_cents,
             paid_at,
             paid_at,
@@ -245,7 +323,9 @@ def test_subscription_withdrawal_interface_matches_the_approved_plan():
     )
 
 
-def test_exact_fourteen_day_boundary_is_statutory_review(subscription_db):
+def test_initial_weekend_extended_deadline_is_statutory_through_end_of_day(
+    subscription_db,
+):
     _seed_invoice(subscription_db)
 
     request = customer_requests.create_subscription_withdrawal(
@@ -253,17 +333,24 @@ def test_exact_fourteen_day_boundary_is_statutory_review(subscription_db):
         user_id=1,
         invoice_id="inv_initial",
         message="Odstupujem od zmluvy.",
-        now=P0_START + 14 * DAY,
+        now=_local_timestamp(2026, 9, 28, 23, 59, 59),
     )
 
     assert request.refund_scope == customer_requests.REFUND_STATUTORY_REVIEW
     assert request.status == customer_requests.STATUS_REQUIRES_REVIEW
-    assert request.refund_preview_cents == 3_750
-    assert request.consumed_charge_preview_cents == 150
+    assert request.refund_preview_cents == 3_719
+    assert request.consumed_charge_preview_cents == 181
     assert request.consent_valid_for_proration is True
+    assert request.invoice_kind == "initial"
+    assert request.contract_concluded_at == P0_START
+    assert request.statutory_deadline_at == _local_timestamp(
+        2026, 9, 28, 23, 59, 59, 999_999
+    )
 
 
-def test_after_fourteen_days_is_unexecuted_period_end_cancellation(subscription_db):
+def test_after_initial_calendar_deadline_is_unexecuted_period_end_cancellation(
+    subscription_db,
+):
     _seed_invoice(subscription_db)
 
     request = customer_requests.create_subscription_withdrawal(
@@ -271,7 +358,7 @@ def test_after_fourteen_days_is_unexecuted_period_end_cancellation(subscription_
         user_id=1,
         invoice_id="inv_initial",
         message="Končím.",
-        now=P0_START + 14 * DAY + 0.001,
+        now=_local_timestamp(2026, 9, 29),
     )
 
     assert request.refund_scope == customer_requests.REFUND_CANCEL_AT_PERIOD_END
@@ -318,7 +405,7 @@ def test_missing_or_invalid_consent_never_charges_consumed_service(consent):
     con.close()
 
 
-def test_renewal_request_is_bound_to_its_exact_49_euro_period(subscription_db):
+def test_renewal_change_of_mind_never_opens_a_new_statutory_window(subscription_db):
     subscription_db.execute(
         """UPDATE subscriptions
               SET period_start=?,period_end=?,renews_at=?,paid_through=?
@@ -348,7 +435,86 @@ def test_renewal_request_is_bound_to_its_exact_49_euro_period(subscription_db):
     assert request.invoice_amount_cents == 4_900
     assert request.period_start == P0_END
     assert request.period_end == P1_END
-    assert request.refund_preview_cents == 4_806
+    assert request.refund_scope == customer_requests.REFUND_CANCEL_AT_PERIOD_END
+    assert request.refund_preview_cents == 0
+    assert request.consumed_charge_preview_cents is None
+
+
+def test_renewal_defect_remains_a_separate_remedy_review(subscription_db):
+    subscription_db.execute(
+        "UPDATE subscriptions SET period_start=?,period_end=?,renews_at=?,paid_through=?",
+        (P0_END, P1_END, P1_END, P1_END),
+    )
+    _seed_invoice(
+        subscription_db,
+        invoice_id="inv_renewal",
+        invoice_kind="renewal",
+        amount_cents=4_900,
+        period_start=P0_END,
+        period_end=P1_END,
+        paid_at=P0_END,
+    )
+
+    request = customer_requests.create_subscription_remedy(
+        subscription_db,
+        user_id=1,
+        invoice_id="inv_renewal",
+        remedy_type=customer_requests.REMEDY_DEFECT,
+        message="Obnovená služba má vadu.",
+        now=P0_END + 30 * DAY,
+    )
+
+    assert request.request_classification == customer_requests.CLASSIFICATION_REMEDY_REVIEW
+    assert request.refund_scope is None
+    assert request.refund_preview_cents is None
+
+
+def test_initial_invoice_uses_contract_date_instead_of_payment_receipt_time(
+    subscription_db,
+):
+    contract_time = _local_timestamp(2026, 9, 1, 12)
+    paid_at = _local_timestamp(2026, 9, 10, 12)
+    subscription_db.execute(
+        "UPDATE checkout_attempts SET accepted_at=?", (contract_time - 60,)
+    )
+    _seed_invoice(
+        subscription_db,
+        paid_at=paid_at,
+        contract_concluded_at=contract_time,
+    )
+
+    request = customer_requests.create_subscription_withdrawal(
+        subscription_db,
+        user_id=1,
+        invoice_id="inv_initial",
+        message="",
+        now=_local_timestamp(2026, 9, 16),
+    )
+
+    assert request.refund_scope == customer_requests.REFUND_CANCEL_AT_PERIOD_END
+    assert request.refund_preview_cents == 0
+
+
+@pytest.mark.parametrize(
+    "contract_time",
+    (None, float("nan"), P0_START - 120, P0_START + DAY),
+)
+def test_untrusted_initial_contract_time_fails_closed_to_ordinary_cancellation(
+    subscription_db, contract_time
+):
+    _seed_invoice(subscription_db, contract_concluded_at=contract_time)
+
+    request = customer_requests.create_subscription_withdrawal(
+        subscription_db,
+        user_id=1,
+        invoice_id="inv_initial",
+        message="",
+        now=P0_START + DAY,
+    )
+
+    assert request.refund_scope == customer_requests.REFUND_CANCEL_AT_PERIOD_END
+    assert request.refund_preview_cents == 0
+    assert request.consumed_charge_preview_cents is None
 
 
 def test_prior_partial_refund_is_subtracted_from_the_exact_invoice_preview(
@@ -501,6 +667,107 @@ def test_repeat_submission_returns_the_original_immutable_request(subscription_d
     ).fetchone()[0] == 1
 
 
+def test_resolved_remedy_replay_returns_the_original_closed_request(subscription_db):
+    _seed_invoice(subscription_db)
+    first = customer_requests.create_subscription_remedy(
+        subscription_db,
+        user_id=1,
+        invoice_id="inv_initial",
+        remedy_type=customer_requests.REMEDY_DEFECT,
+        message="Pôvodná vada.",
+        now=P0_START + DAY,
+    )
+    subscription_db.execute(
+        "UPDATE consumer_requests SET status=? WHERE public_id=?",
+        (customer_requests.STATUS_RESOLVED, first.public_id),
+    )
+    subscription_db.commit()
+
+    replay = customer_requests.create_subscription_remedy(
+        subscription_db,
+        user_id=1,
+        invoice_id="inv_initial",
+        remedy_type=customer_requests.REMEDY_DEFECT,
+        message="Opakované podanie.",
+        now=P0_START + 2 * DAY,
+    )
+
+    assert replay.public_id == first.public_id
+    assert replay.status == customer_requests.STATUS_RESOLVED
+    assert replay.message == "Pôvodná vada."
+    assert replay.created is False
+    assert subscription_db.execute(
+        "SELECT COUNT(*) FROM consumer_requests"
+    ).fetchone()[0] == 1
+
+
+def test_concurrent_replays_after_resolved_return_one_closed_request(tmp_path):
+    database_path = tmp_path / "resolved-subscription-request.db"
+    with closing(sqlite3.connect(database_path)) as con:
+        con.row_factory = sqlite3.Row
+        con.executescript(
+            "CREATE TABLE pouzivatelia (id INTEGER PRIMARY KEY,email TEXT);"
+            "INSERT INTO pouzivatelia VALUES (1,'one@example.test');"
+        )
+        platby.migrate_platby_schema(con)
+        predplatne.migrate_subscription_schema(con)
+        customer_requests.migrate_customer_requests_schema(con)
+        _seed_subscription(con)
+        _seed_invoice(con)
+        first = customer_requests.create_subscription_remedy(
+            con,
+            user_id=1,
+            invoice_id="inv_initial",
+            remedy_type=customer_requests.REMEDY_DEFECT,
+            message="Pôvodná vada.",
+            now=P0_START + DAY,
+        )
+        con.execute(
+            "UPDATE consumer_requests SET status=? WHERE public_id=?",
+            (customer_requests.STATUS_RESOLVED, first.public_id),
+        )
+        con.commit()
+
+    barrier = threading.Barrier(2)
+    results = []
+    errors = []
+
+    def replay():
+        try:
+            with closing(sqlite3.connect(database_path, timeout=5)) as con:
+                con.row_factory = sqlite3.Row
+                barrier.wait(timeout=5)
+                results.append(
+                    customer_requests.create_subscription_remedy(
+                        con,
+                        user_id=1,
+                        invoice_id="inv_initial",
+                        remedy_type=customer_requests.REMEDY_DEFECT,
+                        message="Opakované podanie.",
+                        now=P0_START + 2 * DAY,
+                    )
+                )
+        except BaseException as error:
+            errors.append(error)
+
+    workers = [threading.Thread(target=replay) for _ in range(2)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=10)
+
+    assert errors == []
+    assert all(not worker.is_alive() for worker in workers)
+    assert len(results) == 2
+    assert {request.public_id for request in results} == {first.public_id}
+    assert {request.status for request in results} == {
+        customer_requests.STATUS_RESOLVED
+    }
+    assert all(request.created is False for request in results)
+    with closing(sqlite3.connect(database_path)) as con:
+        assert con.execute("SELECT COUNT(*) FROM consumer_requests").fetchone()[0] == 1
+
+
 @pytest.mark.parametrize(
     "remedy_type",
     (
@@ -582,6 +849,42 @@ def test_concurrent_replays_create_one_exact_invoice_request(tmp_path):
         assert con.execute("SELECT COUNT(*) FROM consumer_requests").fetchone()[0] == 1
 
 
+def test_owner_can_list_historical_annual_invoices_after_subscription_expiry(
+    subscription_db,
+):
+    _seed_invoice(subscription_db)
+    subscription_db.execute(
+        "UPDATE subscriptions SET status='expired',renews_at=NULL,ends_at=?",
+        (P0_END,),
+    )
+    subscription_db.commit()
+
+    invoices = customer_requests.subscription_invoices_for_user(
+        subscription_db, user_id=1
+    )
+
+    assert invoices == [
+        {
+            "invoice_id": "inv_initial",
+            "invoice_kind": "initial",
+            "status": "paid",
+            "amount_cents": 3_900,
+            "refunded_amount_cents": 0,
+            "currency": "EUR",
+            "period_start": P0_START,
+            "period_end": P0_END,
+            "paid_at": P0_START,
+        }
+    ]
+    assert customer_requests.subscription_invoices_for_user(
+        subscription_db, user_id=2
+    ) == []
+    encoded = json.dumps(invoices)
+    assert "sub_annual_1" not in encoded
+    assert "ord_annual_1" not in encoded
+    assert "customer_annual_1" not in encoded
+
+
 def _subscription_server(
     monkeypatch,
     tmp_path,
@@ -661,7 +964,7 @@ def test_flags_off_route_records_statutory_preview_without_provider_or_ai(
     assert body["refund_preview_cents"] == 3_825
     assert body["refund_executed"] is False
     assert body["subscription_changed"] is False
-    assert body["provider_action_required"] is True
+    assert body["provider_action_required"] is False
     assert body["invoice_id"] == "inv_initial"
     assert "consent" not in json.dumps(body).casefold()
     assert "customer_annual_1" not in json.dumps(body)
@@ -697,7 +1000,8 @@ def test_route_selects_the_current_renewal_invoice_when_client_sends_no_id(
 
     assert response.status_code == 202
     assert response.json()["invoice_id"] == "inv_renewal"
-    assert response.json()["refund_preview_cents"] == 4_806
+    assert response.json()["refund_scope"] == customer_requests.REFUND_CANCEL_AT_PERIOD_END
+    assert response.json()["refund_preview_cents"] == 0
     with closing(server.db()) as con:
         row = con.execute(
             "SELECT invoice_id,period_start,period_end FROM consumer_requests"
@@ -708,7 +1012,7 @@ def test_route_selects_the_current_renewal_invoice_when_client_sends_no_id(
 def test_late_change_of_mind_records_action_needed_without_claiming_cancellation(
     monkeypatch, tmp_path
 ):
-    server = _subscription_server(monkeypatch, tmp_path, now=P0_START + 15 * DAY)
+    server = _subscription_server(monkeypatch, tmp_path, now=P0_START + 17 * DAY)
     with closing(server.db()) as con:
         _seed_invoice(con)
         before = tuple(con.execute("SELECT * FROM subscriptions").fetchone())
@@ -797,13 +1101,65 @@ def test_foreign_invoice_route_is_generic_and_creates_nothing(monkeypatch, tmp_p
         headers={"Origin": "https://uvar.si"},
     )
 
-    assert response.status_code == 202
+    assert response.status_code == 404
     body = response.json()
-    assert body["request_received"] is None
+    assert body["ok"] is False
+    assert body["request_received"] is False
     assert body["invoice_id"] is None
     assert "inv_foreign" not in json.dumps(body)
     with closing(server.db()) as con:
         assert con.execute("SELECT COUNT(*) FROM consumer_requests").fetchone()[0] == 0
+
+
+def test_unselected_payment_never_returns_false_accepted_response(monkeypatch, tmp_path):
+    server = _subscription_server(monkeypatch, tmp_path)
+
+    response = prihlaseny(server).post(
+        "/api/consumer/withdrawal",
+        json={"message": "Končím."},
+        headers={"Origin": "https://uvar.si"},
+    )
+
+    assert response.status_code == 422
+    assert "vyber" in response.json()["detail"].casefold()
+    with closing(server.db()) as con:
+        assert con.execute("SELECT COUNT(*) FROM consumer_requests").fetchone()[0] == 0
+
+
+def test_expired_owner_lists_and_submits_remedy_for_historical_invoice(
+    monkeypatch, tmp_path
+):
+    server = _subscription_server(monkeypatch, tmp_path, now=P0_END + 30 * DAY)
+    with closing(server.db()) as con:
+        _seed_invoice(con)
+        con.execute(
+            "UPDATE subscriptions SET status='expired',renews_at=NULL,ends_at=?",
+            (P0_END,),
+        )
+        con.commit()
+    client = prihlaseny(server)
+
+    listing = client.get("/api/consumer/requests")
+    response = client.post(
+        "/api/consumer/complaint",
+        json={
+            "invoice_id": "inv_initial",
+            "reason": "unavailable_service",
+            "message": "Služba bola počas zaplateného obdobia nedostupná.",
+        },
+        headers={"Origin": "https://uvar.si"},
+    )
+
+    assert listing.status_code == 200
+    assert listing.json()["invoices"][0]["invoice_id"] == "inv_initial"
+    assert response.status_code == 202
+    assert response.json()["request_received"] is True
+    assert response.json()["remedy_type"] == "unavailable_service"
+    with closing(server.db()) as con:
+        stored = con.execute(
+            "SELECT invoice_id,remedy_type FROM consumer_requests"
+        ).fetchone()
+    assert tuple(stored) == ("inv_initial", "unavailable_service")
 
 
 def test_route_replay_returns_same_request_without_reapplying_anything(
@@ -834,7 +1190,7 @@ def test_route_replay_returns_same_request_without_reapplying_anything(
 def test_late_change_of_mind_receipt_says_provider_action_is_still_required(
     monkeypatch, tmp_path
 ):
-    server = _subscription_server(monkeypatch, tmp_path, now=P0_START + 15 * DAY)
+    server = _subscription_server(monkeypatch, tmp_path, now=P0_START + 17 * DAY)
     with closing(server.db()) as con:
         _seed_invoice(con)
     sent = []
@@ -864,6 +1220,97 @@ def test_late_change_of_mind_receipt_says_provider_action_is_still_required(
     assert "ešte nezrušili ani nezmenili" in receipt
     assert "Customer Portal" in receipt
     assert "do konca zaplateného obdobia" in receipt
+
+
+@pytest.mark.parametrize(
+    ("status", "now", "expected_state", "expected_text"),
+    (
+        (
+            "cancelled",
+            P0_START + 17 * DAY,
+            "already_cancelled",
+            "Predplatné už bolo zrušené",
+        ),
+        (
+            "expired",
+            P0_END + 30 * DAY,
+            "already_expired",
+            "Predplatné už skončilo",
+        ),
+    ),
+)
+def test_late_request_uses_verified_terminal_subscription_state_and_end_date(
+    monkeypatch, tmp_path, status, now, expected_state, expected_text
+):
+    server = _subscription_server(monkeypatch, tmp_path, now=now)
+    with closing(server.db()) as con:
+        _seed_invoice(con)
+        con.execute(
+            "UPDATE subscriptions SET status=?,renews_at=NULL,ends_at=?",
+            (status, P0_END),
+        )
+        con.commit()
+    sent = []
+    monkeypatch.setattr(
+        server,
+        "posli_mail",
+        lambda komu, predmet, telo, html, **kw: sent.append(telo),
+    )
+
+    response = prihlaseny(server).post(
+        "/api/consumer/withdrawal",
+        json={"invoice_id": "inv_initial", "message": "Končím."},
+        headers={"Origin": "https://uvar.si"},
+    )
+
+    assert response.status_code == 202
+    body = response.json()
+    assert body["refund_scope"] == customer_requests.REFUND_CANCEL_AT_PERIOD_END
+    assert body["cancellation_state"] == expected_state
+    assert body["provider_action_required"] is False
+    assert body["subscription_status"] == status
+    assert body["subscription_ends_at"] == P0_END
+    assert len(sent) == 1
+    assert expected_text in sent[0]
+    assert "12. 09. 2027" in sent[0]
+    assert "ešte nezrušili ani nezmenili" not in sent[0]
+    assert "Zrušenie treba dokončiť" not in sent[0]
+
+
+def test_subscription_status_snapshot_is_immutable_and_pii_minimal(subscription_db):
+    _seed_invoice(subscription_db)
+    subscription_db.execute(
+        "UPDATE subscriptions SET status='cancelled',renews_at=NULL,ends_at=?",
+        (P0_END,),
+    )
+    subscription_db.commit()
+
+    first = customer_requests.create_subscription_withdrawal(
+        subscription_db,
+        user_id=1,
+        invoice_id="inv_initial",
+        message="Končím.",
+        now=P0_START + 17 * DAY,
+    )
+    subscription_db.execute(
+        "UPDATE subscriptions SET status='active',renews_at=?,ends_at=NULL",
+        (P1_END,),
+    )
+    subscription_db.commit()
+    replay = customer_requests.create_subscription_withdrawal(
+        subscription_db,
+        user_id=1,
+        invoice_id="inv_initial",
+        message="Iný text.",
+        now=P0_START + 16 * DAY,
+    )
+    listing = customer_requests.requests_for_user(subscription_db, user_id=1)
+
+    assert first.subscription_status == replay.subscription_status == "cancelled"
+    assert first.subscription_ends_at == replay.subscription_ends_at == P0_END
+    assert listing[0]["subscription_status"] == "cancelled"
+    assert listing[0]["subscription_ends_at"] == P0_END
+    assert "customer_annual_1" not in json.dumps(listing)
 
 
 def test_missing_consent_receipt_does_not_deduct_consumed_service(

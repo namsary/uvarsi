@@ -9,6 +9,7 @@ import re
 import secrets
 import sqlite3
 from dataclasses import dataclass
+from zoneinfo import ZoneInfo
 
 try:
     from . import predplatne
@@ -74,6 +75,25 @@ _SAFE_FAILURE_CODES = {
 _ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 _HTML_RE = re.compile(r"<\s*/?\s*[A-Za-z!][^>]*>")
 _OPEN_STATUSES = (STATUS_RECEIVED, STATUS_PROCESSING, STATUS_REQUIRES_REVIEW)
+_BRATISLAVA = ZoneInfo("Europe/Bratislava")
+_SLOVAK_FIXED_REST_DAYS = frozenset(
+    {
+        (1, 1),
+        (1, 6),
+        (5, 1),
+        (5, 8),
+        (7, 5),
+        (8, 29),
+        (9, 15),
+        (11, 1),
+        (12, 24),
+        (12, 25),
+        (12, 26),
+    }
+)
+_SLOVAK_YEARLY_REST_DAY_REMOVALS = {
+    2026: frozenset({(5, 8), (9, 15)}),
+}
 
 
 SCHEMA = """
@@ -101,7 +121,12 @@ CREATE TABLE IF NOT EXISTS consumer_requests (
   confirmation_lease_expires_at REAL,
   confirmation_idempotency_key TEXT NOT NULL,
   invoice_id TEXT,
+  invoice_kind TEXT,
+  contract_concluded_at REAL,
+  statutory_deadline_at REAL,
   subscription_id TEXT,
+  subscription_status TEXT,
+  subscription_ends_at REAL,
   invoice_amount_cents INTEGER,
   invoice_refunded_amount_cents INTEGER,
   invoice_currency TEXT,
@@ -156,7 +181,12 @@ class ConsumerRequest:
     confirmation_failure_code: str | None
     confirmation_idempotency_key: str
     invoice_id: str | None
+    invoice_kind: str | None
+    contract_concluded_at: float | None
+    statutory_deadline_at: float | None
     subscription_id: str | None
+    subscription_status: str | None
+    subscription_ends_at: float | None
     invoice_amount_cents: int | None
     invoice_refunded_amount_cents: int | None
     invoice_currency: str | None
@@ -189,6 +219,8 @@ class ConfirmationDelivery:
     attempt: int
     idempotency_key: str
     invoice_id: str | None
+    subscription_status: str | None
+    subscription_ends_at: float | None
     invoice_amount_cents: int | None
     invoice_currency: str | None
     period_start: float | None
@@ -216,7 +248,12 @@ def migrate_customer_requests_schema(con) -> None:
         ("confirmation_lease_expires_at", "REAL"),
         ("confirmation_idempotency_key", "TEXT"),
         ("invoice_id", "TEXT"),
+        ("invoice_kind", "TEXT"),
+        ("contract_concluded_at", "REAL"),
+        ("statutory_deadline_at", "REAL"),
         ("subscription_id", "TEXT"),
+        ("subscription_status", "TEXT"),
+        ("subscription_ends_at", "REAL"),
         ("invoice_amount_cents", "INTEGER"),
         ("invoice_refunded_amount_cents", "INTEGER"),
         ("invoice_currency", "TEXT"),
@@ -293,7 +330,9 @@ def workflow_ready(con) -> bool:
         "confirmation_sent_at", "confirmation_failure_code",
         "confirmation_lease_owner", "confirmation_lease_expires_at",
         "confirmation_idempotency_key",
-        "invoice_id", "subscription_id", "invoice_amount_cents",
+        "invoice_id", "invoice_kind", "contract_concluded_at",
+        "statutory_deadline_at", "subscription_id", "subscription_status",
+        "subscription_ends_at", "invoice_amount_cents",
         "invoice_refunded_amount_cents", "invoice_currency", "period_start",
         "period_end", "consent_accepted_at", "consent_snapshot",
         "consent_valid_for_proration", "refund_preview_cents",
@@ -326,6 +365,59 @@ def _time(value) -> float:
     if value < 0 or not math.isfinite(value):
         raise ValueError("neplatný čas")
     return value
+
+
+def _gregorian_easter_sunday(year: int) -> datetime.date:
+    """Return Gregorian Easter Sunday without locale or network data."""
+    a = year % 19
+    b = year // 100
+    c = year % 100
+    d = b // 4
+    e = b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i = c // 4
+    k = c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    day = (h + l - 7 * m + 114) % 31 + 1
+    return datetime.date(year, month, day)
+
+
+def _slovak_day_of_rest(day: datetime.date) -> bool:
+    if day.weekday() >= 5:
+        return True
+    fixed = set(_SLOVAK_FIXED_REST_DAYS)
+    # These state holidays ceased to be days of rest under the time-effective
+    # Act No. 241/1993 Coll.; they remain here only for earlier contracts.
+    if day.year <= 2023:
+        fixed.add((9, 1))
+    if day.year <= 2024:
+        fixed.add((11, 17))
+    fixed.difference_update(_SLOVAK_YEARLY_REST_DAY_REMOVALS.get(day.year, ()))
+    if (day.month, day.day) in fixed:
+        return True
+    easter = _gregorian_easter_sunday(day.year)
+    return day in (
+        easter - datetime.timedelta(days=2),
+        easter + datetime.timedelta(days=1),
+    )
+
+
+def statutory_withdrawal_deadline(contract_concluded_at) -> float:
+    """Return the inclusive statutory deadline in Europe/Bratislava."""
+    concluded_at = _time(contract_concluded_at)
+    concluded_day = datetime.datetime.fromtimestamp(
+        concluded_at, datetime.timezone.utc
+    ).astimezone(_BRATISLAVA).date()
+    deadline_day = concluded_day + datetime.timedelta(days=14)
+    while _slovak_day_of_rest(deadline_day):
+        deadline_day += datetime.timedelta(days=1)
+    return datetime.datetime.combine(
+        deadline_day, datetime.time.max, tzinfo=_BRATISLAVA
+    ).timestamp()
 
 
 def _message(value, *, required: bool) -> str:
@@ -409,7 +501,21 @@ def _from_row(row, *, created=False) -> ConsumerRequest:
         confirmation_failure_code=row["confirmation_failure_code"],
         confirmation_idempotency_key=str(row["confirmation_idempotency_key"]),
         invoice_id=row["invoice_id"],
+        invoice_kind=row["invoice_kind"],
+        contract_concluded_at=(
+            None if row["contract_concluded_at"] is None
+            else float(row["contract_concluded_at"])
+        ),
+        statutory_deadline_at=(
+            None if row["statutory_deadline_at"] is None
+            else float(row["statutory_deadline_at"])
+        ),
         subscription_id=row["subscription_id"],
+        subscription_status=row["subscription_status"],
+        subscription_ends_at=(
+            None if row["subscription_ends_at"] is None
+            else float(row["subscription_ends_at"])
+        ),
         invoice_amount_cents=(
             None if row["invoice_amount_cents"] is None
             else int(row["invoice_amount_cents"])
@@ -561,6 +667,9 @@ def _subscription_invoice_context(con, *, user_id: int, invoice_id: str) -> dict
                   i.invoice_kind,i.status AS invoice_status,
                   i.amount_cents,i.refunded_amount_cents,
                   i.currency,i.period_start,i.period_end,i.paid_at,
+                  i.contract_concluded_at,
+                  s.status AS subscription_status,
+                  s.ends_at AS subscription_ends_at,
                   s.initial_amount_cents,s.renewal_amount_cents,
                   a.public_id AS consent_attempt_id,
                   a.status AS consent_attempt_status,
@@ -596,6 +705,11 @@ def _subscription_invoice_context(con, *, user_id: int, invoice_id: str) -> dict
         paid_at = _time(context["paid_at"])
         period_start = _time(context["period_start"])
         period_end = _time(context["period_end"])
+        subscription_ends_at = (
+            None
+            if context["subscription_ends_at"] is None
+            else _time(context["subscription_ends_at"])
+        )
     except (TypeError, ValueError, OverflowError):
         raise RequestNotAllowed("faktúra sa nedá použiť") from None
     invoice_kind = context["invoice_kind"]
@@ -617,6 +731,7 @@ def _subscription_invoice_context(con, *, user_id: int, invoice_id: str) -> dict
         or period_start >= period_end
         or not _ID_RE.fullmatch(str(context["provider_order_id"] or ""))
         or not _ID_RE.fullmatch(str(context["subscription_id"] or ""))
+        or context["subscription_status"] not in predplatne.KNOWN_STATUSES
     ):
         raise RequestNotAllowed("faktúra sa nedá použiť")
     context.update(
@@ -625,6 +740,7 @@ def _subscription_invoice_context(con, *, user_id: int, invoice_id: str) -> dict
         paid_at=paid_at,
         period_start=period_start,
         period_end=period_end,
+        subscription_ends_at=subscription_ends_at,
     )
     return context
 
@@ -716,18 +832,32 @@ def _consent_proof(context: dict) -> tuple[str, float | None, bool]:
     return snapshot, accepted_at, valid
 
 
+def _trusted_contract_conclusion(
+    context: dict, *, consent_accepted_at: float | None
+) -> float | None:
+    value = context.get("contract_concluded_at")
+    if (
+        context.get("invoice_kind") != "initial"
+        or consent_accepted_at is None
+        or isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(float(value))
+    ):
+        return None
+    concluded_at = float(value)
+    if not (consent_accepted_at <= concluded_at <= context["paid_at"]):
+        return None
+    return concluded_at
+
+
 def _existing_subscription_request(
     con, *, user_id: int, invoice_id: str, request_type: str, remedy_type: str | None
 ):
-    status_filter = ""
     parameters = [user_id, invoice_id, request_type, remedy_type or ""]
-    if request_type == TYPE_COMPLAINT:
-        status_filter = " AND status IN ('received','processing','requires_review')"
     return con.execute(
         """SELECT * FROM consumer_requests
             WHERE user_id=? AND invoice_id=? AND request_type=?
               AND COALESCE(remedy_type,'')=?"""
-        + status_filter
         + " ORDER BY id DESC LIMIT 1",
         parameters,
     ).fetchone()
@@ -779,10 +909,18 @@ def _create_subscription_request(
         consent_snapshot, consent_accepted_at, consent_valid = _consent_proof(
             invoice
         )
+        contract_concluded_at = _trusted_contract_conclusion(
+            invoice, consent_accepted_at=consent_accepted_at
+        )
+        statutory_deadline_at = (
+            statutory_withdrawal_deadline(contract_concluded_at)
+            if contract_concluded_at is not None
+            else None
+        )
         refund_preview = None
         consumed_preview = None
         if request_type == TYPE_WITHDRAWAL:
-            if now <= invoice["paid_at"] + WITHDRAWAL_SECONDS:
+            if statutory_deadline_at is not None and now <= statutory_deadline_at:
                 classification = REFUND_STATUTORY_REVIEW
                 target_refund = (
                     predplatne.pro_rata_refund_preview(
@@ -812,14 +950,16 @@ def _create_subscription_request(
                 """INSERT OR IGNORE INTO consumer_requests
                    (public_id,user_id,order_id,request_type,message,status,
                     refund_scope,purchased_at,created_at,updated_at,legal_version,
-                    legal_snapshot,confirmation_state,confirmation_attempts,
-                    confirmation_next_attempt_at,confirmation_idempotency_key,
-                    invoice_id,subscription_id,invoice_amount_cents,
-                    invoice_refunded_amount_cents,invoice_currency,
-                    period_start,period_end,consent_accepted_at,consent_snapshot,
-                    consent_valid_for_proration,refund_preview_cents,
-                    consumed_charge_preview_cents,request_classification,remedy_type)
-                   VALUES (?,?,?,?,?, ?,NULL,?,?,?,?,?, ?,0,?,?, ?,?,?,?,?,?,?,?, ?,?,?,?,?,?)""",
+                     legal_snapshot,confirmation_state,confirmation_attempts,
+                     confirmation_next_attempt_at,confirmation_idempotency_key,
+                     invoice_id,invoice_kind,contract_concluded_at,
+                     statutory_deadline_at,subscription_id,subscription_status,
+                     subscription_ends_at,invoice_amount_cents,
+                     invoice_refunded_amount_cents,invoice_currency,
+                     period_start,period_end,consent_accepted_at,consent_snapshot,
+                     consent_valid_for_proration,refund_preview_cents,
+                     consumed_charge_preview_cents,request_classification,remedy_type)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     candidate,
                     user_id,
@@ -827,16 +967,23 @@ def _create_subscription_request(
                     request_type,
                     message,
                     STATUS_REQUIRES_REVIEW,
+                    None,
                     invoice["paid_at"],
                     now,
                     now,
                     LEGAL_VERSION,
                     legal_snapshot,
                     CONFIRMATION_PENDING,
+                    0,
                     now,
                     f"consumer-request/{candidate}",
                     invoice_id,
+                    invoice["invoice_kind"],
+                    contract_concluded_at,
+                    statutory_deadline_at,
                     invoice["subscription_id"],
+                    invoice["subscription_status"],
+                    invoice["subscription_ends_at"],
                     invoice["amount_cents"],
                     invoice["refunded_amount_cents"],
                     invoice["currency"],
@@ -915,7 +1062,9 @@ def requests_for_user(con, *, user_id) -> list[dict]:
                   confirmation_state,confirmation_attempts,
                   confirmation_last_attempt_at,confirmation_next_attempt_at,
                   confirmation_sent_at,confirmation_failure_code,
-                  invoice_id,subscription_id,invoice_amount_cents,
+                  invoice_id,invoice_kind,contract_concluded_at,
+                  statutory_deadline_at,subscription_id,invoice_amount_cents,
+                  subscription_status,subscription_ends_at,
                   invoice_refunded_amount_cents,invoice_currency,
                   period_start,period_end,consent_accepted_at,
                   consent_valid_for_proration,refund_preview_cents,
@@ -1053,6 +1202,11 @@ def claim_confirmation_delivery(
             attempt=attempt,
             idempotency_key=str(row["confirmation_idempotency_key"]),
             invoice_id=row["invoice_id"],
+            subscription_status=row["subscription_status"],
+            subscription_ends_at=(
+                None if row["subscription_ends_at"] is None
+                else float(row["subscription_ends_at"])
+            ),
             invoice_amount_cents=(
                 None if row["invoice_amount_cents"] is None
                 else int(row["invoice_amount_cents"])
@@ -1202,6 +1356,30 @@ def orders_for_user(con, *, user_id) -> list[dict]:
         item["refund_deadline"] = float(item["purchased_at"]) + WITHDRAWAL_SECONDS
         result.append(item)
     return result
+
+
+def subscription_invoices_for_user(con, *, user_id) -> list[dict]:
+    """Return only the safe annual-invoice facts owned by the authenticated user."""
+    user_id = _user_id(user_id)
+    rows = con.execute(
+        """SELECT i.provider_invoice_id AS invoice_id,
+                  i.invoice_kind,i.status,i.amount_cents,
+                  i.refunded_amount_cents,i.currency,
+                  i.period_start,i.period_end,i.paid_at
+             FROM subscriptions s
+             JOIN subscription_invoices i
+               ON i.provider=s.provider
+              AND i.test_mode=s.test_mode
+              AND i.provider_subscription_id=s.provider_subscription_id
+              AND i.provider_order_id=s.provider_order_id
+              AND i.currency=s.currency
+            WHERE s.user_id=? AND s.product=?
+              AND s.initial_payment_verified=1
+              AND i.status IN ('paid','partial_refund','refunded')
+            ORDER BY i.paid_at DESC,i.id DESC""",
+        (user_id, SUBSCRIPTION_PRODUCT),
+    ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def close_requests_for_refund(con, *, order_id, now) -> int:
