@@ -5,7 +5,11 @@ paths.  A release may contain correct billing code and still be unusable when
 the server is missing one module or one mode-specific setting.
 """
 
+import os
+import subprocess
 from pathlib import Path
+
+import pytest
 
 
 RUNBOOK = Path("docs/prevadzka.md")
@@ -16,6 +20,8 @@ LEGAL_FILES = (
 )
 MANUAL_DEPLOY = Path("nasad.ps1")
 AUTO_DEPLOY = Path("hetzner/samopull.sh")
+DEPLOY_STATE = Path("hetzner/uvarsi-deploy-state.sh")
+BASH = Path("C:/Program Files/Git/bin/bash.exe")
 
 LIVE_KEYS = (
     "LEMON_API_KEY",
@@ -33,6 +39,84 @@ TEST_KEYS = (
     "LEMON_TEST_FOUNDER_DISCOUNT_ID",
     "LEMON_TEST_FOUNDER_DISCOUNT_CODE",
 )
+
+
+def _bash_path(path: Path) -> str:
+    return "/c" + path.resolve().as_posix()[2:]
+
+
+def _run_payments_off_gate(tmp_path: Path, env_text: str):
+    env_file = tmp_path / "uvarsi.env"
+    mutation_marker = tmp_path / "live-mutation"
+    env_file.write_text(env_text, encoding="utf-8", newline="\n")
+    command = (
+        f'. "{_bash_path(DEPLOY_STATE)}"\n'
+        "uvarsi_require_payments_off || exit 42\n"
+        ': > "$UVARSI_TEST_MUTATION_MARKER"\n'
+    )
+    result = subprocess.run(
+        [str(BASH), "-c", command],
+        cwd=Path.cwd(),
+        env=os.environ
+        | {
+            "UVARSI_ENV_FILE": _bash_path(env_file),
+            "UVARSI_TEST_MUTATION_MARKER": _bash_path(mutation_marker),
+        },
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+    return result, mutation_marker
+
+
+@pytest.mark.parametrize("false_value", ("0", "false", "OFF"))
+def test_payment_off_gate_accepts_one_explicit_false_for_both_flags(
+    tmp_path, false_value
+):
+    result, mutation_marker = _run_payments_off_gate(
+        tmp_path,
+        f"PLATBY_ZAPNUTE={false_value}\n"
+        f"UVARSI_PAYMENTS_ENABLED={false_value}\n",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert mutation_marker.is_file()
+
+
+@pytest.mark.parametrize(
+    "env_text",
+    (
+        "UVARSI_PAYMENTS_ENABLED=0\n",
+        "PLATBY_ZAPNUTE=0\n",
+        "PLATBY_ZAPNUTE=0\nPLATBY_ZAPNUTE=off\nUVARSI_PAYMENTS_ENABLED=0\n",
+        "PLATBY_ZAPNUTE=0\nUVARSI_PAYMENTS_ENABLED=0\nUVARSI_PAYMENTS_ENABLED=off\n",
+        "PLATBY_ZAPNUTE=1\nUVARSI_PAYMENTS_ENABLED=0\n",
+        "PLATBY_ZAPNUTE=0\nUVARSI_PAYMENTS_ENABLED=true\n",
+        "PLATBY_ZAPNUTE=0\nUVARSI_PAYMENTS_ENABLED=\n",
+        "PLATBY_ZAPNUTE=0\nUVARSI_PAYMENTS_ENABLED=no\n",
+        "PLATBY_ZAPNUTE=0\nUVARSI_PAYMENTS_ENABLED off\n",
+    ),
+    ids=(
+        "primary-missing",
+        "secondary-missing",
+        "primary-duplicate",
+        "secondary-duplicate",
+        "primary-true",
+        "secondary-true",
+        "secondary-empty",
+        "secondary-noncontract-false",
+        "secondary-malformed",
+    ),
+)
+def test_payment_off_gate_stops_before_mutation_for_unsafe_flag_file(
+    tmp_path, env_text
+):
+    result, mutation_marker = _run_payments_off_gate(tmp_path, env_text)
+
+    assert result.returncode == 42
+    assert not mutation_marker.exists()
 
 
 def test_release_requires_separate_live_and_test_subscription_configuration():

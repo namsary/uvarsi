@@ -38,10 +38,13 @@ def deployment(tmp_path):
     proc.joinpath("4242").mkdir(parents=True)
     proc.joinpath("4242", "environ").write_bytes(
         b"TZ=Europe/Bratislava\0PLATBY_ZAPNUTE=0\0"
+        b"UVARSI_PAYMENTS_ENABLED=0\0"
     )
     (app / "marker.txt").write_text("old-app", encoding="utf-8")
     (live / "VERSION").write_text("old-version", encoding="utf-8")
-    (live / "uvarsi.env").write_text("PLATBY_ZAPNUTE=0\n", encoding="utf-8")
+    (live / "uvarsi.env").write_text(
+        "PLATBY_ZAPNUTE=0\nUVARSI_PAYMENTS_ENABLED=0\n", encoding="utf-8"
+    )
     with sqlite3.connect(live / "uvarsi.db") as con:
         con.execute(
             "CREATE TABLE plan_worker_state (singleton INTEGER PRIMARY KEY, heartbeat_at TEXT)"

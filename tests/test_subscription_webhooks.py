@@ -1197,6 +1197,45 @@ def test_real_live_endpoint_verifies_hmac_then_digest_and_processes_annual_lifec
     assert tuple(invoice) == ("inv_0", 3_900)
 
 
+def test_signed_annual_webhook_reads_expected_identity_only_from_env_file(
+    monkeypatch, tmp_path
+):
+    """A systemd EnvironmentFile-only setup must not quarantine a paid event."""
+    server = _load_server(monkeypatch, tmp_path)
+    file_secret = "test-file-only-webhook-secret"
+    env_file = tmp_path / "uvarsi.env"
+    env_file.write_text(
+        "PLATBY_ZAPNUTE=1\n"
+        f"LEMON_WEBHOOK_SECRET={file_secret}\n"
+        f"LEMON_STORE_ID={STORE_ID}\n"
+        f"LEMON_SUBSCRIPTION_VARIANT_ID={VARIANT_ID}\n"
+        f"LEMON_FOUNDER_DISCOUNT_ID={FOUNDER_DISCOUNT_ID}\n"
+        "LEMON_FOUNDER_DISCOUNT_CODE=FOUNDERS\n",
+        encoding="utf-8",
+    )
+    for key in (
+        "PLATBY_ZAPNUTE",
+        "LEMON_WEBHOOK_SECRET",
+        "LEMON_STORE_ID",
+        "LEMON_SUBSCRIPTION_VARIANT_ID",
+        "LEMON_FOUNDER_DISCOUNT_ID",
+        "LEMON_FOUNDER_DISCOUNT_CODE",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(server, "ENV_FILE", str(env_file))
+
+    client = TestClient(server.app, raise_server_exceptions=False)
+    response, _body = _signed_post(
+        client,
+        event("subscription_created", test_mode=False),
+        secret=file_secret,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["akcia"] == "activated"
+    assert file_secret not in response.text
+
+
 def test_deferred_live_annual_order_subscription_and_payment_use_real_processor(
     monkeypatch, tmp_path
 ):

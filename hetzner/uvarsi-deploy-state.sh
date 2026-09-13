@@ -1402,13 +1402,27 @@ _uvarsi_snapshot_database() {
   fi
 }
 
-uvarsi_require_payments_off() {
-  # Never source or print the env file.  Exactly one explicit false value is
-  # required before a release may mutate live Uvar.si files.
-  [ -f "$UVARSI_ENV_FILE" ] || return 1
-  count=$(grep -Eic '^[[:space:]]*(export[[:space:]]+)?PLATBY_ZAPNUTE[[:space:]]*=' "$UVARSI_ENV_FILE")
+_uvarsi_require_one_explicit_false() {
+  key=$1
+  case "$key" in
+    PLATBY_ZAPNUTE|UVARSI_PAYMENTS_ENABLED) ;;
+    *) return 1 ;;
+  esac
+  count=0
+  grep_status=0
+  count=$(grep -Eic "^[[:space:]]*(export[[:space:]]+)?${key}[[:space:]]*=" "$UVARSI_ENV_FILE") || grep_status=$?
+  [ "$grep_status" -le 1 ] || return 1
   [ "$count" -eq 1 ] || return 1
-  grep -Eqi "^[[:space:]]*(export[[:space:]]+)?PLATBY_ZAPNUTE[[:space:]]*=[[:space:]]*['\"]?(0|false|off)['\"]?[[:space:]]*$" "$UVARSI_ENV_FILE"
+  grep -Eqi "^[[:space:]]*(export[[:space:]]+)?${key}[[:space:]]*=[[:space:]]*((0|false|off)|'(0|false|off)'|\"(0|false|off)\")[[:space:]]*$" "$UVARSI_ENV_FILE"
+}
+
+uvarsi_require_payments_off() {
+  # Never source or print the env file. Exactly one explicit false assignment
+  # for BOTH payment flags is required before either deploy path may mutate
+  # live Uvar.si files.
+  [ -f "$UVARSI_ENV_FILE" ] || return 1
+  _uvarsi_require_one_explicit_false PLATBY_ZAPNUTE || return 1
+  _uvarsi_require_one_explicit_false UVARSI_PAYMENTS_ENABLED
 }
 
 uvarsi_require_runtime_payments_off() {

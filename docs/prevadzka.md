@@ -537,6 +537,7 @@ UVARSI_TESCO_BRIDGE_RELEASE=<release-sha>
 UVARSI_TESCO_BRIDGE_VERSION_ID=<nemenné-Cloudflare-Worker-version-ID>
 UVARSI_TESCO_BRIDGE_SECRET=<rovnaký-BRIDGE_SECRET-ako-vo-Workeri>
 PLATBY_ZAPNUTE=0
+UVARSI_PAYMENTS_ENABLED=0
 ```
 
 URL musí byť iba HTTPS origin bez cesty, portu, query, fragmentu alebo

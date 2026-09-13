@@ -6918,7 +6918,10 @@ async def platba_webhook(req: Request):
         with closing(db()) as con:
             try:
                 if predplatne.is_subscription_event(con, payload):
-                    config = lemon_subscription_checkout_config(test_mode=False)
+                    config = lemon_subscription_checkout_config(
+                        test_mode=False,
+                        getenv=env,
+                    )
                     vysledok_predplatne = predplatne.process_subscription_event(
                         con,
                         payload=payload,

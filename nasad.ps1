@@ -270,8 +270,8 @@ uvarsi_require_payments_off
 uvarsi_require_runtime_payments_off
 '@ -replace "`r`n", "`n"
 $paymentOffGate | ssh jarvis "tr -d '\r' > /tmp/uvarsi_payment_off_gate.sh; bash /tmp/uvarsi_payment_off_gate.sh"
-Vyzaduj "platby nie su vypnute v env subore aj v skutocne beziacom procese"
-Ok "platby su pred zmenou zivej appky vypnute"
+Vyzaduj "oba platobne priznaky nie su explicitne vypnute v env subore alebo bezia v skutocnom procese"
+Ok "oba platobne priznaky su pred zmenou zivej appky explicitne vypnute"
 
 $bridgePreflight = @'
 set -eu

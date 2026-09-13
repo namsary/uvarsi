@@ -153,8 +153,8 @@ rm -f "$PREFLIGHT_SMOKE" "$TMP/recipe-smoke.err"
 . "$CIEL/hetzner/uvarsi-deploy-state.sh" || {
   log "bezpečnostný deploy modul sa nedá načítať — NEPREPÍNAM"; exit 1; }
 uvarsi_require_payments_off || {
-  log "platby nie sú jednoznačne vypnuté — NEPREPÍNAM"
-  notify "Uvar.si: vydanie odmietnuté" "Pred nasadením musia byť platby vypnuté."
+  log "oba platobné príznaky nie sú jednoznačne vypnuté — NEPREPÍNAM"
+  notify "Uvar.si: vydanie odmietnuté" "Pred nasadením musia byť oba platobné príznaky explicitne vypnuté."
   exit 1
 }
 

@@ -257,6 +257,7 @@ def deployment(tmp_path):
     env_file.write_text(
         "UVARSI_ENV=production\n"
         "PLATBY_ZAPNUTE=0\n"
+        "UVARSI_PAYMENTS_ENABLED=0\n"
         f"UVARSI_TESCO_BRIDGE_URL={BRIDGE_URL}\n"
         f"UVARSI_TESCO_BRIDGE_WORKER_HOST={BRIDGE_HOST}\n"
         f"UVARSI_TESCO_BRIDGE_RELEASE={BRIDGE_RELEASE}\n"
