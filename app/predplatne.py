@@ -577,6 +577,56 @@ def subscription_for_user(con, user_id: int) -> SubscriptionSnapshot | None:
     return SubscriptionSnapshot(**values)
 
 
+def subscription_for_provider(
+    con, *, provider_subscription_id: str, test_mode: bool
+) -> SubscriptionSnapshot | None:
+    """Return a verified local row for one provider subscription identity."""
+    safe_id = _safe_id(provider_subscription_id)
+    if safe_id is None or type(test_mode) is not bool:
+        return None
+    return _snapshot_for_subscription(con, safe_id, test_mode=test_mode)
+
+
+def subscription_health_counters(con) -> dict:
+    """Return privacy-safe aggregate lifecycle and reconciliation counters."""
+    statuses = {"past_due": 0, "unpaid": 0, "expired": 0}
+    for status, count in con.execute(
+        "SELECT status,COUNT(*) FROM subscriptions "
+        "WHERE status IN ('past_due','unpaid','expired') GROUP BY status"
+    ):
+        statuses[str(status)] = int(count)
+
+    # A corrected later snapshot closes an earlier drift in public health. The
+    # immutable review event remains available to the protected operator flow.
+    drift = con.execute(
+        """SELECT COUNT(*) FROM subscription_events AS current
+             WHERE current.source IN ('reconciliation','rekonciliacia')
+               AND current.provider_subscription_id IS NOT NULL
+               AND current.id=(
+                 SELECT MAX(newer.id) FROM subscription_events AS newer
+                  WHERE newer.source IN ('reconciliation','rekonciliacia')
+                    AND newer.provider=current.provider
+                    AND newer.test_mode IS current.test_mode
+                    AND newer.provider_subscription_id=
+                        current.provider_subscription_id
+               )
+               AND current.processing_status='requires_review'"""
+    ).fetchone()[0]
+    snapshot_reviews = con.execute(
+        "SELECT COUNT(*) FROM subscriptions WHERE needs_review=1"
+    ).fetchone()[0]
+    queued = con.execute(
+        """SELECT COUNT(*) FROM subscription_events
+             WHERE source IN ('webhook','odlozene')
+               AND processing_status!='processed'"""
+    ).fetchone()[0]
+    return {
+        "subscription_drift": int(drift) + int(snapshot_reviews),
+        **statuses,
+        "queued_webhooks": int(queued),
+    }
+
+
 class SubscriptionEventRejected(RuntimeError):
     """A delivery lacks the trusted identity required for safe processing."""
 

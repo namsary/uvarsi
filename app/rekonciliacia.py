@@ -40,7 +40,9 @@ Beh (cron, každú hodinu — riadok inštaluje nasad.ps1):
     5 * * * * cd /opt/uvarsi/app && /opt/uvarsi/venv/bin/python rekonciliacia.py \
               >> /var/log/uvarsi-platby.log 2>&1
 """
+import hashlib
 import json
+import math
 import os
 import sys
 import time
@@ -59,6 +61,10 @@ import predplatne  # noqa: E402
 DB = os.environ.get("UVARSI_DB", "/opt/uvarsi/uvarsi.db")
 ENV_FILE = os.environ.get("UVARSI_ENV_FILE", "/opt/uvarsi/uvarsi.env")
 API_URL = "https://api.lemonsqueezy.com/v1/orders"
+SUBSCRIPTIONS_API_URL = "https://api.lemonsqueezy.com/v1/subscriptions"
+SUBSCRIPTION_INVOICES_API_URL = (
+    "https://api.lemonsqueezy.com/v1/subscription-invoices"
+)
 # Koľko strán po 100 objednávkach sa najviac prezrie za jeden beh. 5 strán
 # pokrýva 500 najnovších objednávok, teda dvojnásobok celej kapacity — a zároveň
 # to je strop, aby hodinový beh nikdy nebúšil do API donekonečna.
@@ -88,12 +94,14 @@ def env(kluc, default=None):
 
 
 # ---------------------------------------------------------------- API
-def stiahni_stranu(api_key, *, store_id=None, strana=1, otvor=None):
+def stiahni_stranu(
+    api_key, *, store_id=None, strana=1, otvor=None, api_url=API_URL
+):
     """Jedna strana objednávok z API poskytovateľa. Vracia (zoznam, je_dalsia)."""
     parametre = {"page[size]": STRANA, "page[number]": strana, "sort": "-createdAt"}
     if store_id:
         parametre["filter[store_id]"] = str(store_id)
-    adresa = API_URL + "?" + urllib.parse.urlencode(parametre)
+    adresa = api_url + "?" + urllib.parse.urlencode(parametre)
     ziadost = urllib.request.Request(
         adresa,
         headers={
@@ -112,16 +120,444 @@ def stiahni_stranu(api_key, *, store_id=None, strana=1, otvor=None):
     return data, dalsia
 
 
-def stiahni_objednavky(api_key, *, store_id=None, max_stran=MAX_STRAN, otvor=None):
+def stiahni_objednavky(
+    api_key, *, store_id=None, max_stran=MAX_STRAN, otvor=None,
+    api_url=API_URL,
+):
     objednavky = []
     for strana in range(1, max_stran + 1):
         davka, dalsia = stiahni_stranu(
-            api_key, store_id=store_id, strana=strana, otvor=otvor
+            api_key, store_id=store_id, strana=strana, otvor=otvor,
+            api_url=api_url,
         )
         objednavky.extend(davka)
         if not dalsia or not davka:
             break
     return objednavky
+
+
+class ProviderUnavailable(RuntimeError):
+    """The provider snapshot was not obtained; local access stays unchanged."""
+
+
+def _row_attributes(row):
+    if not isinstance(row, dict):
+        return None
+    attributes = row.get("attributes")
+    return attributes if isinstance(attributes, dict) else None
+
+
+def _row_subscription_id(row, attributes):
+    candidate = row.get("id") if row.get("type") == "subscriptions" else None
+    if candidate is None:
+        candidate = attributes.get("subscription_id")
+    return candidate
+
+
+def _event_payload(
+    row, *, event_name, expected, snapshot=None, invoice=False,
+    subscription_row=None,
+):
+    """Project one provider row into the signed-webhook domain contract."""
+    attributes = _row_attributes(row)
+    if attributes is None:
+        return None
+    subscription_attributes = _row_attributes(subscription_row) or {}
+    subscription_id = _row_subscription_id(row, attributes)
+    if subscription_id is None:
+        return None
+
+    def value(name, *, fallback=None):
+        current = attributes.get(name)
+        if current is not None:
+            return current
+        current = subscription_attributes.get(name)
+        if current is not None:
+            return current
+        return fallback
+
+    projected = {
+        "store_id": value("store_id"),
+        "variant_id": value("variant_id"),
+        "currency": value(
+            "currency", fallback=(snapshot.currency if snapshot is not None else None)
+        ),
+        "test_mode": value("test_mode"),
+        "order_id": value("order_id"),
+        "customer_id": value("customer_id"),
+        "subscription_id": subscription_id,
+        "status": value("status"),
+        "subscription_status": value("subscription_status"),
+        "billing_reason": value("billing_reason"),
+        "billing_period_start": value(
+            "billing_period_start",
+            fallback=(snapshot.period_start if snapshot is not None else None),
+        ),
+        "billing_period_end": value(
+            "billing_period_end",
+            fallback=(snapshot.period_end if snapshot is not None else None),
+        ),
+        "renews_at": value("renews_at"),
+        "ends_at": value("ends_at"),
+        "updated_at": value("updated_at"),
+        "created_at": value("created_at"),
+        "total": value("total"),
+        "discount_id": value("discount_id"),
+        "refunded_amount": value("refunded_amount", fallback=0),
+    }
+    resource_id = row.get("id")
+    if resource_id is None:
+        return None
+    return {
+        "meta": {"event_name": event_name, "custom_data": {}},
+        "data": {
+            "type": "subscription-invoices" if invoice else "subscriptions",
+            "id": resource_id,
+            "attributes": projected,
+        },
+    }
+
+
+def _delivery_key(kind, payload):
+    # Only the already-redacted event projection contributes to durable keys.
+    projection = predplatne._event_payload_json(payload)
+    digest = hashlib.sha256(
+        f"{kind}\0{projection}".encode("utf-8")
+    ).hexdigest()
+    return f"{kind}:{digest}"
+
+
+def _subscription_row_by_id(rows):
+    result = {}
+    for row in rows:
+        attributes = _row_attributes(row)
+        if attributes is None or row.get("type") != "subscriptions":
+            continue
+        identifier = row.get("id")
+        if isinstance(identifier, (str, int)) and not isinstance(identifier, bool):
+            result[str(identifier)] = row
+    return result
+
+
+def _normalized_invoice_row(row, *, snapshot, subscription_row):
+    """Fill only facts provable from the invoice, subscription, and local state.
+
+    Lemon subscription invoices do not repeat the subscription's order,
+    customer, variant, or current billing boundary.  Reconciliation may join
+    those authenticated resources, but it must not invent a paid period.
+    """
+    attributes = _row_attributes(row)
+    subscription_attributes = _row_attributes(subscription_row) or {}
+    if attributes is None or snapshot is None:
+        return row
+
+    normalized = dict(attributes)
+    for name in (
+        "store_id",
+        "variant_id",
+        "order_id",
+        "customer_id",
+        "test_mode",
+        "subscription_status",
+        "renews_at",
+    ):
+        if normalized.get(name) is None:
+            source_name = "status" if name == "subscription_status" else name
+            if subscription_attributes.get(source_name) is not None:
+                normalized[name] = subscription_attributes[source_name]
+
+    status = normalized.get("status")
+    status = status.strip().casefold() if isinstance(status, str) else ""
+    subscription_status = normalized.get("subscription_status")
+    subscription_status = (
+        subscription_status.strip().casefold()
+        if isinstance(subscription_status, str)
+        else ""
+    )
+    billing_reason = normalized.get("billing_reason")
+    billing_reason = (
+        billing_reason.strip().casefold()
+        if isinstance(billing_reason, str)
+        else ""
+    )
+
+    # A pending renewal plus a confirmed past-due subscription is the
+    # provider's dunning state.  Project it into the same strict event contract
+    # used by the webhook transition engine.
+    if status == "pending" and subscription_status == "past_due":
+        normalized["status"] = "failed"
+        status = "failed"
+
+    period_start = predplatne._timestamp(normalized.get("billing_period_start"))
+    period_end = predplatne._timestamp(normalized.get("billing_period_end"))
+    if period_start is None or period_end is None:
+        if status == "paid" and billing_reason == "renewal":
+            candidate_start = snapshot.paid_through
+            candidate_end = predplatne._timestamp(
+                subscription_attributes.get("renews_at")
+            )
+        else:
+            candidate_start = snapshot.period_start
+            candidate_end = snapshot.period_end
+        if (
+            candidate_start is not None
+            and candidate_end is not None
+            and candidate_start < candidate_end
+        ):
+            normalized["billing_period_start"] = candidate_start
+            normalized["billing_period_end"] = candidate_end
+
+    return {
+        "type": row.get("type"),
+        "id": row.get("id"),
+        "attributes": normalized,
+    }
+
+
+def _apply_reconciliation_event(
+    con, *, payload, now, expected, kind, summary, review_code
+):
+    try:
+        result = predplatne.process_subscription_event(
+            con,
+            payload=payload,
+            now=now,
+            expected=expected,
+            source="reconciliation",
+            delivery_key=_delivery_key(kind, payload),
+        )
+    except (predplatne.SubscriptionEventRejected, ValueError, TypeError):
+        summary["error_codes"].add(
+            "invalid_invoice_row" if kind == "invoice" else "invalid_subscription_row"
+        )
+        summary["_current_drift"] += 1
+        return None
+    if result["duplicate"]:
+        summary["duplicates"] += 1
+    elif result["review_required"]:
+        summary["error_codes"].add(review_code)
+        summary["_current_drift"] += 1
+    else:
+        summary["applied_transitions"] += 1
+    return result
+
+
+def _invoice_event_name(attributes, snapshot, con, invoice_id):
+    status = attributes.get("status")
+    status = status.strip().casefold() if isinstance(status, str) else ""
+    if status in {"refunded", "partial_refund"}:
+        return "subscription_payment_refunded"
+    if status in {"failed", "past_due"}:
+        return "subscription_payment_failed"
+    if status != "paid":
+        return None
+
+    period_start = predplatne._timestamp(attributes.get("billing_period_start"))
+    period_end = predplatne._timestamp(attributes.get("billing_period_end"))
+    explicitly_recovered = attributes.get("recovered") is True
+    same_period_recovery = (
+        snapshot is not None
+        and snapshot.status in {"past_due", "unpaid", "expired"}
+        and period_start == snapshot.period_start
+        and period_end == snapshot.period_end
+    )
+    if explicitly_recovered or same_period_recovery:
+        return "subscription_payment_recovered"
+
+    existing = con.execute(
+        "SELECT 1 FROM subscription_invoices "
+        "WHERE provider='lemonsqueezy' AND test_mode=? "
+        "AND provider_invoice_id=?",
+        (int(snapshot.test_mode) if snapshot is not None else -1, str(invoice_id)),
+    ).fetchone()
+    return "duplicate" if existing is not None else "subscription_payment_success"
+
+
+def _subscription_event_name(status, snapshot):
+    if status == "expired":
+        return "subscription_expired"
+    if status == "cancelled":
+        return "subscription_cancelled"
+    if status == "paused":
+        return "subscription_paused"
+    if status == "active" and snapshot is not None and snapshot.status == "cancelled":
+        return "subscription_resumed"
+    return "subscription_updated"
+
+
+def reconcile_subscriptions(
+    con, *, provider_rows, invoice_rows, now, expected
+) -> dict:
+    """Reconcile provider snapshots through the webhook transition engine."""
+    if provider_rows is None or invoice_rows is None:
+        raise ProviderUnavailable("provider_unavailable")
+    if not isinstance(provider_rows, (list, tuple)) or not isinstance(
+        invoice_rows, (list, tuple)
+    ):
+        raise ProviderUnavailable("provider_unavailable")
+    if (
+        isinstance(now, bool)
+        or not isinstance(now, (int, float))
+        or not math.isfinite(float(now))
+        or float(now) < 0
+    ):
+        raise ValueError("invalid reconciliation time")
+    now = float(now)
+    summary = {
+        "seen_subscriptions": len(provider_rows),
+        "seen_invoices": len(invoice_rows),
+        "recovered_invoices": 0,
+        "recovered_payments": 0,
+        "applied_transitions": 0,
+        "duplicates": 0,
+        "subscription_drift": 0,
+        "past_due": 0,
+        "unpaid": 0,
+        "expired": 0,
+        "queued_webhooks": 0,
+        "error_codes": set(),
+        "_current_drift": 0,
+    }
+    subscription_rows = _subscription_row_by_id(provider_rows)
+
+    # Payment evidence is applied first. A later generic active snapshot may
+    # then confirm, but can never revive unpaid/expired access by itself.
+    for row in invoice_rows:
+        attributes = _row_attributes(row)
+        invoice_id = row.get("id") if isinstance(row, dict) else None
+        subscription_id = (
+            _row_subscription_id(row, attributes) if attributes is not None else None
+        )
+        test_mode = attributes.get("test_mode") if attributes is not None else None
+        snapshot = (
+            predplatne.subscription_for_provider(
+                con,
+                provider_subscription_id=subscription_id,
+                test_mode=test_mode,
+            )
+            if subscription_id is not None and type(test_mode) is bool
+            else None
+        )
+        normalized_row = _normalized_invoice_row(
+            row,
+            snapshot=snapshot,
+            subscription_row=subscription_rows.get(str(subscription_id)),
+        )
+        attributes = _row_attributes(normalized_row)
+        event_name = (
+            _invoice_event_name(attributes, snapshot, con, invoice_id)
+            if attributes is not None and invoice_id is not None
+            else None
+        )
+        if event_name == "duplicate":
+            summary["duplicates"] += 1
+            continue
+        if event_name is None:
+            summary["error_codes"].add("invalid_invoice_row")
+            summary["_current_drift"] += 1
+            continue
+        payload = _event_payload(
+            normalized_row,
+            event_name=event_name,
+            expected=expected,
+            snapshot=snapshot,
+            invoice=True,
+            subscription_row=subscription_rows.get(str(subscription_id)),
+        )
+        if payload is None:
+            summary["error_codes"].add("invalid_invoice_row")
+            summary["_current_drift"] += 1
+            continue
+        previous_status = snapshot.status if snapshot is not None else None
+        result = _apply_reconciliation_event(
+            con,
+            payload=payload,
+            now=now,
+            expected=expected,
+            kind="invoice",
+            summary=summary,
+            review_code="invoice_requires_review",
+        )
+        if result is not None and not result["review_required"] and not result["duplicate"]:
+            if result["action"] == "invoice_recorded":
+                summary["recovered_invoices"] += 1
+                if previous_status in {"past_due", "unpaid", "expired"}:
+                    summary["recovered_payments"] += 1
+            elif result["action"] == "payment_recovered":
+                summary["recovered_payments"] += 1
+
+    for row in provider_rows:
+        attributes = _row_attributes(row)
+        subscription_id = (
+            _row_subscription_id(row, attributes) if attributes is not None else None
+        )
+        test_mode = attributes.get("test_mode") if attributes is not None else None
+        snapshot = (
+            predplatne.subscription_for_provider(
+                con,
+                provider_subscription_id=subscription_id,
+                test_mode=test_mode,
+            )
+            if subscription_id is not None and type(test_mode) is bool
+            else None
+        )
+        status = attributes.get("status") if attributes is not None else None
+        status = status.strip().casefold() if isinstance(status, str) else ""
+        payload = _event_payload(
+            row,
+            event_name=_subscription_event_name(status, snapshot),
+            expected=expected,
+            snapshot=snapshot,
+        )
+        if payload is None:
+            summary["error_codes"].add("invalid_subscription_row")
+            summary["_current_drift"] += 1
+            continue
+        _apply_reconciliation_event(
+            con,
+            payload=payload,
+            now=now,
+            expected=expected,
+            kind="subscription",
+            summary=summary,
+            review_code="subscription_requires_review",
+        )
+
+    current_drift = summary.pop("_current_drift")
+    summary.update(predplatne.subscription_health_counters(con))
+    summary["subscription_drift"] = max(
+        summary["subscription_drift"], current_drift
+    )
+    summary["error_codes"] = sorted(summary["error_codes"])
+    return summary
+
+
+def reconcile_subscriptions_from_api(
+    con, *, api_key, store_id, now, expected, fetch=stiahni_objednavky
+) -> dict:
+    """Fetch both provider datasets before applying either one."""
+    try:
+        provider_rows = fetch(
+            api_key, store_id=store_id, api_url=SUBSCRIPTIONS_API_URL
+        )
+        invoice_rows = fetch(
+            api_key, store_id=store_id, api_url=SUBSCRIPTION_INVOICES_API_URL
+        )
+    except (
+        urllib.error.URLError,
+        urllib.error.HTTPError,
+        OSError,
+        ValueError,
+        json.JSONDecodeError,
+    ) as error:
+        raise ProviderUnavailable("provider_unavailable") from error
+    return reconcile_subscriptions(
+        con,
+        provider_rows=provider_rows,
+        invoice_rows=invoice_rows,
+        now=now,
+        expected=expected,
+    )
 
 
 # ---------------------------------------------------------------- porovnanie
@@ -408,6 +844,59 @@ def main() -> int:
             print("REKONCILIACIA: objednávok " + ", ".join(
                 f"{kluc} {hodnota}" for kluc, hodnota in sorted(suhrn.items())
             ))
+            if all((store_id, subscription_variant, founder_discount)):
+                try:
+                    annual = reconcile_subscriptions_from_api(
+                        con,
+                        api_key=api_key,
+                        store_id=store_id,
+                        now=now,
+                        expected={
+                            "store_id": store_id,
+                            "variant_id": subscription_variant,
+                            "founder_discount_id": founder_discount,
+                            "currency": "EUR",
+                            "test_mode": False,
+                        },
+                    )
+                except ProviderUnavailable:
+                    print(
+                        "REKONCILIACIA: ročné predplatné sa neoverilo "
+                        "(provider_unavailable); lokálny prístup ostal nezmenený."
+                    )
+                    return 1
+                print(
+                    "REKONCILIACIA: ročné predplatné — "
+                    + ", ".join(
+                        f"{key} {value}"
+                        for key, value in sorted(annual.items())
+                    )
+                )
+                if any(
+                    annual[name]
+                    for name in (
+                        "subscription_drift",
+                        "past_due",
+                        "unpaid",
+                        "expired",
+                        "queued_webhooks",
+                    )
+                ) or annual["error_codes"]:
+                    alert = platby.priprav_subscription_reconciliation_alert(
+                        annual, den=time.strftime("%Y-%m-%d", time.gmtime(now))
+                    )
+                    if platby.zaznamenaj_upozornenie(
+                        con, kluc=alert["kluc"], now=now
+                    ):
+                        try:
+                            naklady.posli_ntfy(alert)
+                        except Exception:
+                            pass
+            else:
+                print(
+                    "REKONCILIACIA: ročné predplatné preskočené "
+                    "(subscription_config_incomplete)."
+                )
         else:
             print("REKONCILIACIA: bez LEMON_API_KEY sa objednávky nedajú overiť "
                   "— dopĺňam len odložené telá.")

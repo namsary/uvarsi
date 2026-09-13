@@ -1602,11 +1602,85 @@ def stav_dozoru(con) -> dict:
         "SELECT COUNT(*) FROM naroky WHERE stav IN (?, ?)",
         (STAV_NAD_KAPACITU, STAV_DUPLICITNY),
     ).fetchone()[0]
+    try:
+        try:
+            from . import predplatne as subscription_domain
+        except ImportError:
+            import predplatne as subscription_domain
+        subscription_health = subscription_domain.subscription_health_counters(con)
+    except sqlite3.OperationalError:
+        # During an additive migration health stays available, but it never
+        # invents a positive subscription state.
+        subscription_health = {
+            "subscription_drift": 0,
+            "past_due": 0,
+            "unpaid": 0,
+            "expired": 0,
+            "queued_webhooks": 0,
+        }
+    subscription_health["queued_webhooks"] += pocet_cakajucich(con)
     return {
         "obsadene": pocet_zaplatenych_zakladajucich(con),
         "kapacita": KAPACITA_ZAKLADAJUCICH,
         "cakajucich_tiel": pocet_cakajucich(con),
         "nevybavene_vratky": int(nevybavene),
+        **subscription_health,
+    }
+
+
+SAFE_SUBSCRIPTION_RECONCILIATION_ERROR_CODES = frozenset(
+    {
+        "invoice_requires_review",
+        "subscription_requires_review",
+        "invalid_invoice_row",
+        "invalid_subscription_row",
+        "provider_unavailable",
+    }
+)
+
+
+def priprav_subscription_reconciliation_alert(summary, *, den: str) -> dict:
+    """Build one aggregate-only alert safe for a public notification topic."""
+    if not isinstance(summary, Mapping):
+        raise ValueError("neplatný súhrn rekonciliácie")
+
+    def count(name):
+        return _pocet(summary.get(name))
+
+    codes = summary.get("error_codes")
+    if not isinstance(codes, (list, tuple, set, frozenset)):
+        codes = ()
+    safe_codes = sorted(
+        code
+        for code in set(codes)
+        if code in SAFE_SUBSCRIPTION_RECONCILIATION_ERROR_CODES
+    )
+    try:
+        parsed_day = datetime.date.fromisoformat(den) if isinstance(den, str) else None
+    except ValueError:
+        parsed_day = None
+    day = den if parsed_day is not None and parsed_day.isoformat() == den else "?"
+    facts = {
+        "subscription_drift": count("subscription_drift"),
+        "past_due": count("past_due"),
+        "unpaid": count("unpaid"),
+        "expired": count("expired"),
+        "queued_webhooks": count("queued_webhooks"),
+    }
+    code_text = ", ".join(safe_codes) if safe_codes else "none"
+    key_facts = ":".join(str(value) for value in facts.values())
+    return {
+        "kluc": f"subscription-reconciliation:{day}:{key_facts}:{code_text}",
+        "titul": "Uvar.si: kontrola ročných predplatných vyžaduje pozornosť",
+        "sprava": (
+            "Súhrn bez osobných údajov — "
+            f"nezhody {facts['subscription_drift']}, "
+            f"po splatnosti {facts['past_due']}, "
+            f"nezaplatené {facts['unpaid']}, "
+            f"ukončené {facts['expired']}, "
+            f"čakajúce webhooky {facts['queued_webhooks']}. "
+            f"Bezpečné kódy: {code_text}."
+        ),
     }
 
 
