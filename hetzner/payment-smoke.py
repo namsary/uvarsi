@@ -515,6 +515,40 @@ def _build_annual_subscription_marker(
         raise SmokeFailed("Annual smoke dôkaz sa nedá bezpečne podpísať.") from None
 
 
+def _build_schema5_subscription_marker(
+    *, expectation, live_provider, test_provider, annual_commercial,
+    probe_facts, completed_at, marker_module,
+):
+    """Sign annual commerce plus daily webhook mechanics without conflating them."""
+    if not isinstance(completed_at, dt.datetime) or completed_at.utcoffset() is None:
+        raise SmokeFailed("Čas schema-5 smoke dôkazu nie je dôveryhodný.")
+    if not isinstance(probe_facts, dict):
+        raise SmokeFailed("Denný probe neposkytol bezpečné schema-5 fakty.")
+    try:
+        provider = marker_module.DailyProbeProviderEvidence(
+            **probe_facts["provider"]
+        )
+        lifecycle = marker_module.DailyProbeLifecycleEvidence(
+            **probe_facts["lifecycle"]
+        )
+        completed = completed_at.astimezone(dt.timezone.utc).replace(microsecond=0)
+        unsigned = marker_module.create_subscription_marker(
+            expectation=expectation,
+            live_provider=live_provider,
+            test_provider=test_provider,
+            annual_commercial=annual_commercial,
+            probe_provider=provider,
+            probe_lifecycle=lifecycle,
+            completed_at=completed.isoformat(),
+            expires_at=(completed + dt.timedelta(hours=24)).isoformat(),
+        )
+        return marker_module.sign_marker(
+            unsigned, secret=expectation.signing_secret
+        )
+    except (KeyError, TypeError, ValueError):
+        raise SmokeFailed("Schema-5 smoke dôkaz sa nedá bezpečne podpísať.") from None
+
+
 def _create_verified_test_checkout(
     api_key, *, store_id, variant_id, user_id, attempt_id, email,
     request=_provider_request,
@@ -671,6 +705,44 @@ def _load_runtime(app_dir: str):
     )
 
 
+def _load_schema5_runtime(app_dir: str):
+    if app_dir not in sys.path:
+        sys.path.insert(0, app_dir)
+    try:
+        from app import payment_smoke_marker as marker_module
+        from app import subscription_lifecycle_probe as lifecycle_module
+    except ImportError:
+        import payment_smoke_marker as marker_module
+        import subscription_lifecycle_probe as lifecycle_module
+    return marker_module, lifecycle_module
+
+
+def _with_probe_expectation(
+    expectation, *, env_file, expectation_type, lifecycle_module,
+):
+    """Attach the isolated daily Test-mode probe to the annual expectation."""
+    if getattr(expectation, "probe", None) is not None:
+        return expectation
+    try:
+        probe = lifecycle_module.read_probe_config(
+            lambda name, default="": _env_value(
+                name, env_file=env_file, default=default
+            ),
+            annual_test_variant_id=expectation.test.variant_id,
+            live_webhook_secret=expectation.live.webhook_secret,
+            annual_test_webhook_secret=expectation.test.webhook_secret,
+        )
+    except lifecycle_module.ProbeConfigError as error:
+        raise SmokeFailed(str(error)) from None
+    return expectation_type(
+        release=expectation.release,
+        live=expectation.live,
+        test=expectation.test,
+        signing_secret=expectation.signing_secret,
+        probe=probe,
+    )
+
+
 def _annual_expectation_from_env(
     *, release, env_file, config_type, expectation_type,
 ):
@@ -736,6 +808,18 @@ def _load_annual_lifecycle_records(server, *, email, test_config):
         subscription_id = subscription.get("provider_subscription_id")
         if not isinstance(subscription_id, str) or not subscription_id:
             raise SmokeFailed("Testovacie predplatné nemá bezpečný identifikátor.")
+        checkout = con.execute(
+            """SELECT 1 FROM checkout_attempts
+                 WHERE user_id=? AND test_mode=1 AND status='paid'
+                   AND provider_checkout_id IS NOT NULL
+                   AND provider_order_id=?
+                   AND amount_cents=3900 AND renewal_amount_cents=4900
+                   AND currency='EUR' AND billing_interval='year'
+                   AND auto_renews=1 AND founder=1
+                 LIMIT 1""",
+            (user_id, subscription.get("provider_order_id")),
+        ).fetchone()
+        subscription["_smoke_checkout_verified"] = checkout is not None
         invoices = [
             dict(item) for item in con.execute(
                 """SELECT * FROM subscription_invoices
@@ -762,6 +846,114 @@ def _load_annual_lifecycle_records(server, *, email, test_config):
             or event.get("needs_review") != 0
         )
     return subscription, invoices, events, open_cases + unsafe_events, subscription_id
+
+
+def _annual_commercial_evidence_from_records(
+    *, subscription, invoices, events, portal_access_verified,
+    unresolved_cases, config, evidence_type,
+):
+    """Prove annual commerce without pretending that a year already elapsed."""
+    if type(unresolved_cases) is not int or unresolved_cases != 0:
+        raise SmokeFailed("Po teste ostal nevyriešený platobný prípad.")
+    if not isinstance(subscription, dict) or not isinstance(invoices, (list, tuple)):
+        raise SmokeFailed("Ročný testovací nákup nie je úplný.")
+    if not isinstance(events, (list, tuple)):
+        raise SmokeFailed("Ročný testovací nákup nie je úplný.")
+    if not (
+        subscription.get("_smoke_checkout_verified") is True
+        and subscription.get("test_mode") == 1
+        and subscription.get("founder") == 1
+        and subscription.get("initial_amount_cents") == 3_900
+        and subscription.get("renewal_amount_cents") == 4_900
+        and subscription.get("currency") == "EUR"
+        and subscription.get("provider_variant_id") == config.variant_id
+        and subscription.get("discount_id") == config.discount_id
+        and subscription.get("initial_payment_verified") == 1
+        and subscription.get("needs_review") == 0
+        and portal_access_verified is True
+    ):
+        raise SmokeFailed("Ročný testovací nákup nezodpovedá ponuke 39/49 EUR.")
+    initial = next(
+        (
+            invoice for invoice in invoices
+            if isinstance(invoice, dict)
+            and invoice.get("invoice_kind") == "initial"
+            and invoice.get("amount_cents") == 3_900
+            and invoice.get("currency") == "EUR"
+            and invoice.get("status") == "refunded"
+            and invoice.get("refunded_amount_cents") == 3_900
+        ),
+        None,
+    )
+    clean_events = {
+        event.get("event_type")
+        for event in events
+        if isinstance(event, dict)
+        and event.get("processing_status") == "processed"
+        and event.get("needs_review") == 0
+        and event.get("source") in {"webhook", "odlozene", "reconciliation", "rekonciliacia"}
+    }
+    required = {
+        "subscription_created",
+        "subscription_payment_success",
+        "subscription_cancelled",
+        "subscription_resumed",
+    }
+    refund_verified = bool(
+        initial is not None
+        and {"subscription_payment_refunded", "order_refunded"} & clean_events
+    )
+    reconciliation_verified = any(
+        isinstance(event, dict)
+        and event.get("processing_status") == "processed"
+        and event.get("needs_review") == 0
+        and event.get("source") in {"reconciliation", "rekonciliacia"}
+        for event in events
+    )
+    if not (
+        required <= clean_events
+        and refund_verified
+        and reconciliation_verified
+    ):
+        raise SmokeFailed("Ročný testovací lifecycle nie je úplný.")
+    return evidence_type(
+        founder_initial_cents=3_900,
+        standard_and_renewal_cents=4_900,
+        currency="EUR",
+        billing_interval="year",
+        billing_interval_count=1,
+        annual_test_checkout_verified=True,
+        annual_test_initial_payment_verified=True,
+        annual_domain_renewal_verified=True,
+        annual_domain_cancellation_verified=True,
+        annual_domain_refund_verified=True,
+        portal_access_verified=True,
+        reconciliation_verified=True,
+    )
+
+
+def _load_daily_probe_facts(server, *, expectation, lifecycle_module):
+    if getattr(expectation, "probe", None) is None:
+        raise SmokeFailed("Chýba oddelený denný lifecycle probe.")
+    try:
+        with closing(server.db()) as con:
+            digest = lifecycle_module.matching_probe_run_digest(
+                con,
+                config=expectation.probe,
+                signing_secret=expectation.signing_secret,
+                states=("ready",),
+            )
+            return lifecycle_module.probe_marker_facts_by_digest(
+                con,
+                token_digest=digest,
+                config=expectation.probe,
+                signing_secret=expectation.signing_secret,
+            )
+    except (
+        lifecycle_module.ProbeConfigError,
+        lifecycle_module.ProbeEventRejected,
+    ) as error:
+        raise SmokeFailed(str(error)) from None
 
 
 def _verified_test_portal_access(
@@ -1062,11 +1254,18 @@ def main(argv=None) -> int:
         sign_marker,
     ) = _load_runtime(args.app_dir)
     release = server.release_id()
+    marker_module, lifecycle_module = _load_schema5_runtime(args.app_dir)
     expectation = _annual_expectation_from_env(
         release=release,
         env_file=args.env_file,
         config_type=subscription_config_type,
         expectation_type=subscription_marker_expectation_type,
+    )
+    expectation = _with_probe_expectation(
+        expectation,
+        env_file=args.env_file,
+        expectation_type=subscription_marker_expectation_type,
+        lifecycle_module=lifecycle_module,
     )
     if args.authorize_activation:
         try:
@@ -1113,22 +1312,26 @@ def main(argv=None) -> int:
         subscription_id=subscription_id,
         variant_id=expectation.test.variant_id,
     )
-    lifecycle = _lifecycle_evidence_from_records(
+    annual_commercial = _annual_commercial_evidence_from_records(
         subscription=subscription,
         invoices=invoices,
         events=events,
         portal_access_verified=portal_access_verified,
         unresolved_cases=unresolved,
-        evidence_type=subscription_lifecycle_evidence_type,
+        config=expectation.test,
+        evidence_type=marker_module.AnnualCommercialEvidence,
     )
-    marker = _build_annual_subscription_marker(
+    probe_facts = _load_daily_probe_facts(
+        server, expectation=expectation, lifecycle_module=lifecycle_module
+    )
+    marker = _build_schema5_subscription_marker(
         expectation=expectation,
         live_provider=live_provider,
         test_provider=test_provider,
-        lifecycle=lifecycle,
+        annual_commercial=annual_commercial,
+        probe_facts=probe_facts,
         completed_at=dt.datetime.now(dt.timezone.utc),
-        create_marker=create_subscription_marker,
-        sign_marker=sign_marker,
+        marker_module=marker_module,
     )
     _write_marker(args.marker, marker)
     print("OK: annual provider nastavenie a celý testovací lifecycle prešli.")

@@ -119,6 +119,7 @@ def bash_executable() -> str:
         "app/rekonciliacia.py",
         "app/static/subscription-profile.19ddd6feb9d0.js",
         "hetzner/payment-smoke.py",
+        "hetzner/payment-lifecycle-probe.py",
     ),
 )
 def test_samopull_missing_required_module_aborts_before_live_mutation(

@@ -1630,7 +1630,7 @@ uvarsi_snapshot() {
   fi
   _uvarsi_snapshot_file "$UVARSI_WEB_DIR/index.html" "$snapshot" index.html || return 1
   _uvarsi_snapshot_file "$UVARSI_WEB_DIR/sw.js" "$snapshot" sw.js || return 1
-  for name in refresh_blocek.py recepty.py dozorca.sh zaloha.sh payment-smoke.py uvarsi-deploy-state.sh recipe-engine-rollout.sh recipe-engine.target; do
+  for name in refresh_blocek.py recepty.py dozorca.sh zaloha.sh payment-smoke.py payment-lifecycle-probe.py uvarsi-deploy-state.sh recipe-engine-rollout.sh recipe-engine.target; do
     _uvarsi_snapshot_file "$UVARSI_DIR/$name" "$snapshot" "$name" || return 1
   done
   if [ -f "$UVARSI_WORKER_UNIT" ]; then
@@ -1695,7 +1695,7 @@ uvarsi_restore() {
   fi
   _uvarsi_restore_file "$UVARSI_WEB_DIR/index.html" "$snapshot" index.html || ok=0
   _uvarsi_restore_file "$UVARSI_WEB_DIR/sw.js" "$snapshot" sw.js || ok=0
-  for name in refresh_blocek.py recepty.py dozorca.sh zaloha.sh payment-smoke.py uvarsi-deploy-state.sh recipe-engine-rollout.sh recipe-engine.target; do
+  for name in refresh_blocek.py recepty.py dozorca.sh zaloha.sh payment-smoke.py payment-lifecycle-probe.py uvarsi-deploy-state.sh recipe-engine-rollout.sh recipe-engine.target; do
     _uvarsi_restore_file "$UVARSI_DIR/$name" "$snapshot" "$name" || ok=0
   done
 
@@ -1827,16 +1827,16 @@ _uvarsi_apply_manual_targets() {
   [ -f "$release/index.html" ] || return 1
   [ -f "$release/sw.js" ] || return 1
   [ -f "$release/hetzner/uvarsi.service" ] || return 1
-  for name in refresh_blocek.py recepty.py dozorca.sh zaloha.sh payment-smoke.py uvarsi-deploy-state.sh recipe-engine-rollout.sh recipe-engine.target; do
+  for name in refresh_blocek.py recepty.py dozorca.sh zaloha.sh payment-smoke.py payment-lifecycle-probe.py uvarsi-deploy-state.sh recipe-engine-rollout.sh recipe-engine.target; do
     [ -f "$release/hetzner/$name" ] || return 1
   done
   "$UVARSI_CP" -a "$release/index.html" "$UVARSI_WEB_DIR/index.html" || return 1
   "$UVARSI_CP" -a "$release/sw.js" "$UVARSI_WEB_DIR/sw.js" || return 1
-  for name in refresh_blocek.py recepty.py dozorca.sh zaloha.sh payment-smoke.py uvarsi-deploy-state.sh recipe-engine-rollout.sh recipe-engine.target; do
+  for name in refresh_blocek.py recepty.py dozorca.sh zaloha.sh payment-smoke.py payment-lifecycle-probe.py uvarsi-deploy-state.sh recipe-engine-rollout.sh recipe-engine.target; do
     "$UVARSI_CP" -a "$release/hetzner/$name" "$UVARSI_DIR/$name" || return 1
   done
   chmod +x "$UVARSI_DIR/dozorca.sh" "$UVARSI_DIR/zaloha.sh" \
-    "$UVARSI_DIR/payment-smoke.py" "$UVARSI_DIR/uvarsi-deploy-state.sh" \
+    "$UVARSI_DIR/payment-smoke.py" "$UVARSI_DIR/payment-lifecycle-probe.py" "$UVARSI_DIR/uvarsi-deploy-state.sh" \
     "$UVARSI_DIR/recipe-engine-rollout.sh" || return 1
   "$UVARSI_CP" -a "$release/hetzner/uvarsi.service" "$UVARSI_APP_UNIT" || return 1
   "$UVARSI_SYSTEMCTL" daemon-reload || return 1

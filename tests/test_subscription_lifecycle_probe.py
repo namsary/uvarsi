@@ -462,8 +462,15 @@ def test_complete_probe_exports_only_truthful_safe_marker_contract(db):
     facts = probe.probe_marker_facts(
         db, token=TOKEN, config=config(), signing_secret=SECRET,
     )
+    digest_facts = probe.probe_marker_facts_by_digest(
+        db,
+        token_digest=hashlib.sha256(TOKEN.encode()).hexdigest(),
+        config=config(),
+        signing_secret=SECRET,
+    )
     rendered = json.dumps(facts, sort_keys=True)
 
+    assert digest_facts == facts
     assert facts["provider"]["price_cents"] == 100
     assert facts["provider"]["billing_interval"] == "day"
     assert facts["lifecycle"]["evidence_source"] == "test_mode_daily_probe"

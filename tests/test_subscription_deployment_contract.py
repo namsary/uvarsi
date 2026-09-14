@@ -207,6 +207,7 @@ def test_both_deploy_paths_require_all_subscription_runtime_artifacts():
         "app/payment_smoke_marker.py",
         "app/subscription_lifecycle_probe.py",
         "hetzner/payment-smoke.py",
+        "hetzner/payment-lifecycle-probe.py",
         "app/static/subscription-profile.19ddd6feb9d0.js",
     )
     for deploy_name, script in scripts.items():

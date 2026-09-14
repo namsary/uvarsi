@@ -387,48 +387,52 @@ chyba, nie zelený stav.
 
 Použi čistý Uvar.si účet a Lemon Squeezy Test mode. Produkčné príznaky musia
 počas celého testu zostať `PLATBY_ZAPNUTE=0` a
-`UVARSI_PAYMENTS_ENABLED=0`. Každý bod zaznamenaj pod anonymným interným ID,
-rovnakým commitom a rovnakým vydaním:
+`UVARSI_PAYMENTS_ENABLED=0`. Ročný obchodný test a zrýchlený test budúcich
+webhookov sú dve oddelené veci; denný test sa nikdy nesmie označiť za ročnú
+obnovu.
 
-1. **Prvá platba:** zakladajúci checkout zobrazí 39 € teraz, 49 € o rok, žiadny
-   trial a automatickú obnovu. Dokonči platbu a over `order_created`,
-   `subscription_created` a prvý `subscription_payment_success`. Vznikne jedno
-   predplatné, jedna prvá faktúra 39 € a jeden Premium prístup.
-2. **Bežná cena:** samostatný ne-zakladajúci pokus zobrazí 49 € od prvej platby
-   a zľavu nepoužije. Ak provider nevie test bezpečne dokončiť bez ďalšieho
-   účtovného artefaktu, stačí providerom overený checkout preview a záznam
-   dôvodu; nefalšuj úspešnú faktúru.
-3. **Zrušenie:** v Customer Portal zruš obnovu. Po
-   `subscription_cancelled` musí zostať Premium do overeného `ends_at` a
-   ďalšia platba sa nesmie plánovať.
-4. **Obnovenie:** ak ho testovací provider podporuje, obnov predplatné pred
-   expiráciou a over `subscription_resumed`, automatickú obnovu a nezmenený
-   zaplatený koniec. Ak provider resumption nepodporuje, zapíš túto
-   environment-dependent výnimku; aplikácia musí aj tak mať lokálny test
-   prechodu.
-5. **Ročná obnova:** simuluj ďalšie obdobie a over samostatný
-   `subscription_payment_success` s novým invoice ID a sumou 49 €. Opakované
-   doručenie udalosti nesmie vytvoriť druhú faktúru ani druhý nárok.
-6. **Neúspešná platba a recovery:** vyvolaj `subscription_payment_failed`,
-   over dočasný stav `past_due`, potom `subscription_payment_recovered` a
-   návrat do aktívneho stavu bez duplicitnej faktúry.
-7. **Expirácia:** over `unpaid` a `subscription_expired`; až overený neplatený
-   alebo expirovaný stav odoberie Premium. Výpadok API ani neznámy stav ho
-   nesmú odobrať.
-8. **Refundácia:** vykonaj úplnú refundáciu a over
-   `subscription_payment_refunded` alebo `order_refunded` na presnej faktúre.
-   Otestuj aj lokálny kontrakt čiastočnej refundácie; iné obdobie musí zostať
-   nedotknuté.
-9. **Výpadok webhooku:** jednu udalosť nechaj mimo spracovania, spusti
-   rekonciliáciu a over, že sa importuje raz, prístup sa nestratí a nevznikne
-   duplicitná faktúra.
-10. **Portál a komunikácia:** vyžiadaj Customer Portal, skontroluj jeho funkcie
-    a over doručenie potvrdenia objednávky a sedemdňovej pripomienky obnovy.
-    Podpísanú URL, e-mail ani provider ID nezapisuj do verejného dôkazu.
+Okrem ročného testovacieho variantu vytvor samostatný zverejnený Test-mode
+subscription variant za presne 1 € denne, bez trialu a bez zľavy. Použi preň
+samostatné webhook tajomstvo a nastav iba na serveri:
 
-Keď databáza obsahuje celý testovací lifecycle, na serveri spusti interaktívny
-nástroj pod účtom, ktorý smie čítať Uvar.si konfiguráciu a zapisovať iba do
-`/var/lib/uvarsi`:
+```text
+LEMON_TEST_LIFECYCLE_PROBE_VARIANT_ID=<denný-testovací-variant>
+LEMON_TEST_LIFECYCLE_PROBE_WEBHOOK_SECRET=<samostatné-tajomstvo>
+LEMON_TEST_LIFECYCLE_PROBE_PRICE_CENTS=100
+```
+
+Variant musí patriť do rovnakého testovacieho store ako ročný variant, ale jeho
+ID aj webhook tajomstvo musia byť odlišné od ročných aj živých hodnôt.
+
+1. Spusti `payment-lifecycle-probe.py annual-prepare`. Nástroj si e-mail vypýta
+   skryto, overí čistý účet a presnú ročnú ekonomiku a iba v interaktívnom
+   termináli zobrazí krátkodobú Test-mode URL. V pokladni musí byť 39 € teraz,
+   49 € o rok, automatická obnova a žiadny trial. Dokonči testovací nákup.
+2. Po príchode webhookov spusti `annual-process`. Nástroj spracuje iba udalosti
+   presného testovacieho účtu a pokusu. `annual-status` vypíše iba bezpečné
+   súhrnné fakty, nie e-mail, URL ani provider ID.
+3. V Customer Portal zruš a znovu obnov ročné testovacie predplatné; po každom
+   kroku spusti `annual-process`. Potom vykonaj úplnú Test-mode refundáciu a
+   znovu spracuj frontu. Over aj rekonciliáciu a nulový počet otvorených
+   prípadov. Tým sa overí reálny nákup za 39 €, ďalšia zmluvná cena 49 €,
+   zrušenie, obnovenie, refundácia, portál a ročná doménová logika. Netvrdí sa,
+   že už prebehla skutočná ročná obnova.
+4. Spusti `payment-lifecycle-probe.py prepare`, otvor zobrazenú dennú Test-mode
+   pokladňu a dokonči nákup. Nástroj uloží iba jednosmerný odtlačok náhodného
+   behu; krátkodobú URL ani surový token neuloží.
+5. Spusti `payment-lifecycle-probe.py process` a potom `status`. Počiatočná
+   platba sama nestačí. Počkaj na prvú skutočnú dennú obnovu vytvorenú Lemonom
+   nasledujúci deň a znovu spusti `process`. Obnova sa overí aj cez Lemon API a
+   musí patriť presne tomuto dennému variantu a behu.
+6. Až po skutočnej dennej obnove použi v Lemon Test-mode Dashboard funkciu
+   `Simulate event` pre neúspešnú platbu, recovery, zrušenie, obnovenie,
+   expiráciu a refundáciu. Po každej skupine udalostí spusti `process` a
+   `status`. Simulované udalosti dokazujú spracovanie webhookov, nie ročnú
+   fakturáciu. Bez skutočnej dennej obnovy zostáva brána červená.
+7. Keď `status` oznámi úplný denný lifecycle a ročný účet obsahuje všetky
+   vyššie uvedené dôkazy, spusti interaktívny `payment-smoke.py`. Ten načíta
+   iba bezpečné súhrny, ešte raz overí živý aj testovací ročný variant a vytvorí
+   schema-5 marker viazaný na aktuálne vydanie:
 
 ```bash
 cd /opt/uvarsi
@@ -441,7 +445,9 @@ všetky vyššie uvedené lokálne udalosti, faktúry, stavy, portál, podpis we
 rekonciliáciu a nulové otvorené prípady. Zapíše podpísaný marker
 `/var/lib/uvarsi/payment-smoke.json` s právami `0600`. Marker neobsahuje e-mail,
 provider ID ani krátkodobú URL; je viazaný na vydanie a odtlačky test/live
-konfigurácie a najneskôr po 24 hodinách sa musí obnoviť.
+konfigurácie a najneskôr po 24 hodinách sa musí obnoviť. Potom spusti
+`payment-lifecycle-probe.py cleanup`; musí dostať presnú potvrzovaciu vetu a
+platný schema-5 marker a odstráni iba daný denný testovací beh.
 
 Pred samostatným schválením produkcie vytvor aktiváciu z čerstvého markeru:
 
@@ -455,7 +461,7 @@ neúčtuje a nemení ani jeden platobný príznak. Aktivácia expiruje najneskô
 siedmich dňoch a pri zmene ekonomiky, identít alebo tajomstiev prestane platiť.
 
 Referencie poskytovateľa: [Test mode](https://docs.lemonsqueezy.com/help/getting-started/test-mode),
-[Testing and going live](https://docs.lemonsqueezy.com/guides/developer-guide/testing-going-live)
+[testovanie webhookov](https://docs.lemonsqueezy.com/guides/developer-guide/webhooks)
 a [Subscription lifecycle](https://docs.lemonsqueezy.com/help/products/subscriptions),
 [Webhook events](https://docs.lemonsqueezy.com/help/webhooks/event-types),
 [Customer Portal](https://docs.lemonsqueezy.com/help/online-store/customer-portal)

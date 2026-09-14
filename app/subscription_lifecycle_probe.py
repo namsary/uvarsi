@@ -283,6 +283,12 @@ def _token_digest(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def _validated_token_digest(value: str) -> str:
+    if not isinstance(value, str) or not _DIGEST_RE.fullmatch(value):
+        raise ProbeEventRejected("neplatný odtlačok probe behu")
+    return value
+
+
 def _valid_time(value) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError("neplatný čas probe")
@@ -697,6 +703,7 @@ def record_genuine_daily_renewal(
 
 
 def _safe_status(con, digest: str) -> dict:
+    digest = _validated_token_digest(digest)
     row = con.execute(
         "SELECT state,provider_verified,genuine_renewal_verified FROM subscription_lifecycle_probe_runs WHERE token_digest=?",
         (digest,),
@@ -704,8 +711,9 @@ def _safe_status(con, digest: str) -> dict:
     if row is None:
         raise ProbeEventRejected("neznámy probe beh")
     events = con.execute(
-        """SELECT event_type,billing_reason,source_queue_id
-             FROM subscription_lifecycle_probe_events WHERE token_digest=?""",
+        """SELECT event_type,billing_reason,source_queue_id,received_at
+             FROM subscription_lifecycle_probe_events WHERE token_digest=?
+             ORDER BY received_at,id""",
         (digest,),
     ).fetchall()
     event_types = {item[0] for item in events}
@@ -740,6 +748,10 @@ def _safe_status(con, digest: str) -> dict:
         "genuine_daily_renewal_verified": row["genuine_renewal_verified"] == 1,
         "signed_queue_only": queue_bound,
         "event_count": len(events),
+        "events": [
+            {"name": item[0], "received_at": float(item[3])}
+            for item in events
+        ],
         "complete": complete,
         "evidence_source": PROBE_EVIDENCE_SOURCE,
     }
@@ -750,12 +762,56 @@ def probe_status(con, *, token: str) -> dict:
     return _safe_status(con, _token_digest(token))
 
 
-def probe_marker_facts(
-    con, *, token: str, config: LifecycleProbeConfig, signing_secret: str
-) -> dict:
-    """Return only the exact, non-identifying facts consumed by marker B1."""
+def probe_status_by_digest(con, *, token_digest: str) -> dict:
+    """Server-CLI variant that never needs the raw opaque checkout token."""
+    return _safe_status(con, _validated_token_digest(token_digest))
+
+
+def matching_probe_run_digest(
+    con,
+    *,
+    config: LifecycleProbeConfig,
+    signing_secret: str,
+    states=("collecting", "ready", "evidenced"),
+) -> str:
+    """Select exactly one run for this configuration without exposing its token."""
     config = _basic_config(config)
-    digest, _row = _run_for_update(con, token, config, signing_secret)
+    if (
+        not isinstance(states, tuple)
+        or not states
+        or any(state not in {"collecting", "ready", "evidenced"} for state in states)
+    ):
+        raise ProbeEventRejected("neplatný výber stavu probe")
+    fingerprint = probe_config_fingerprint(config, signing_secret=signing_secret)
+    placeholders = ",".join("?" for _ in states)
+    rows = con.execute(
+        "SELECT token_digest FROM subscription_lifecycle_probe_runs "
+        f"WHERE config_fingerprint=? AND state IN ({placeholders}) "
+        "ORDER BY created_at DESC",
+        (fingerprint, *states),
+    ).fetchall()
+    if len(rows) != 1:
+        raise ProbeEventRejected(
+            "probe konfigurácia musí mať práve jeden izolovaný aktívny beh"
+        )
+    return _validated_token_digest(rows[0][0])
+
+
+def _probe_marker_facts_for_digest(
+    con, *, digest: str, config: LifecycleProbeConfig, signing_secret: str
+) -> dict:
+    config = _basic_config(config)
+    digest = _validated_token_digest(digest)
+    row = con.execute(
+        "SELECT config_fingerprint FROM subscription_lifecycle_probe_runs "
+        "WHERE token_digest=?",
+        (digest,),
+    ).fetchone()
+    if row is None:
+        raise ProbeEventRejected("neznámy probe beh")
+    current = probe_config_fingerprint(config, signing_secret=signing_secret)
+    if not hmac.compare_digest(str(row[0]), current):
+        raise ProbeEventRejected("probe konfigurácia sa od vytvorenia zmenila")
     status = _safe_status(con, digest)
     if status["complete"] is not True:
         raise ProbeEventRejected("probe ešte nemá úplný lifecycle dôkaz")
@@ -785,6 +841,29 @@ def probe_marker_facts(
             "event_order_verified": True,
         },
     }
+
+
+def probe_marker_facts(
+    con, *, token: str, config: LifecycleProbeConfig, signing_secret: str
+) -> dict:
+    """Return only the exact, non-identifying facts consumed by marker B1."""
+    config = _basic_config(config)
+    digest, _row = _run_for_update(con, token, config, signing_secret)
+    return _probe_marker_facts_for_digest(
+        con, digest=digest, config=config, signing_secret=signing_secret
+    )
+
+
+def probe_marker_facts_by_digest(
+    con, *, token_digest: str, config: LifecycleProbeConfig, signing_secret: str
+) -> dict:
+    """Server-only marker facts without recovering the discarded raw token."""
+    return _probe_marker_facts_for_digest(
+        con,
+        digest=token_digest,
+        config=config,
+        signing_secret=signing_secret,
+    )
 
 
 def process_queued_probe_events(
@@ -905,16 +984,88 @@ def mark_probe_evidenced(
     con.commit()
 
 
-def cleanup_confirmation(token: str) -> str:
-    digest = _token_digest(token)
+def mark_probe_digest_evidenced(
+    con,
+    *,
+    token_digest: str,
+    config,
+    signing_secret,
+    signed_marker,
+    now,
+) -> None:
+    """Mark the one digest-selected run after full marker validation by the CLI."""
+    digest = _validated_token_digest(token_digest)
+    row = con.execute(
+        "SELECT config_fingerprint FROM subscription_lifecycle_probe_runs "
+        "WHERE token_digest=?",
+        (digest,),
+    ).fetchone()
+    if row is None:
+        raise ProbeEventRejected("neznámy probe beh")
+    current = probe_config_fingerprint(config, signing_secret=signing_secret)
+    if not hmac.compare_digest(row[0], current):
+        raise ProbeEventRejected("probe konfigurácia sa od vytvorenia zmenila")
+    if not isinstance(signed_marker, dict):
+        raise ProbeEventRejected("chýba podpísaný marker probe")
+    signature = signed_marker.get("signature")
+    unsigned = {key: value for key, value in signed_marker.items() if key != "signature"}
+    if not isinstance(signature, str) or not _DIGEST_RE.fullmatch(signature):
+        raise ProbeEventRejected("marker probe nemá platný podpis")
+    expected_signature = hmac.new(
+        _required_text(signing_secret, "podpisové tajomstvo").encode(),
+        json.dumps(
+            unsigned, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        ).encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    daily = signed_marker.get("test_mode_daily_probe")
+    lifecycle = daily.get("lifecycle") if isinstance(daily, dict) else None
+    if not (
+        hmac.compare_digest(signature, expected_signature)
+        and signed_marker.get("schema_version") == PROBE_MARKER_SCHEMA_VERSION
+        and _DIGEST_RE.fullmatch(str(signed_marker.get("attestation_id", "")))
+        and hmac.compare_digest(
+            str(signed_marker.get("probe_config_fingerprint", "")), current
+        )
+        and isinstance(lifecycle, dict)
+        and lifecycle.get("evidence_source") == PROBE_EVIDENCE_SOURCE
+        and _safe_status(con, digest)["complete"] is True
+    ):
+        raise ProbeEventRejected("marker nie je viazaný na tento denný probe")
+    now = _valid_time(now)
+    con.execute(
+        "UPDATE subscription_lifecycle_probe_runs SET state='evidenced',"
+        "marker_attestation_id=?,evidenced_at=?,updated_at=? WHERE token_digest=?",
+        (signed_marker["attestation_id"], now, now, digest),
+    )
+    con.commit()
+
+
+def cleanup_confirmation(token: str | None = None, *, token_digest: str | None = None) -> str:
+    if (token is None) == (token_digest is None):
+        raise ProbeCleanupRejected("cleanup vyžaduje práve jeden probe beh")
+    digest = (
+        _token_digest(token) if token is not None
+        else _validated_token_digest(token_digest)
+    )
     return f"DELETE TEST PROBE {digest[:12]}"
 
 
 def cleanup_probe_run(con, *, token: str, confirmation: str) -> dict:
     """Delete exactly one evidenced probe run and none of the app's other data."""
     digest = _token_digest(token)
+    return cleanup_probe_run_by_digest(
+        con, token_digest=digest, confirmation=confirmation
+    )
+
+
+def cleanup_probe_run_by_digest(
+    con, *, token_digest: str, confirmation: str
+) -> dict:
+    """Digest-only server CLI entry point; scope is identical to B1 cleanup."""
+    digest = _validated_token_digest(token_digest)
     if not isinstance(confirmation, str) or not hmac.compare_digest(
-        confirmation, cleanup_confirmation(token)
+        confirmation, cleanup_confirmation(token_digest=digest)
     ):
         raise ProbeCleanupRejected("potvrdenie cleanupu nesedí")
     row = con.execute(

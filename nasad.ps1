@@ -157,6 +157,7 @@ $subory = @(
   @{ l = "$B\hetzner\dozorca.sh";       r = "/opt/uvarsi/dozorca.sh" },
   @{ l = "$B\hetzner\zaloha.sh";        r = "/opt/uvarsi/zaloha.sh" },
   @{ l = "$B\hetzner\payment-smoke.py"; r = "/opt/uvarsi/payment-smoke.py" },
+  @{ l = "$B\hetzner\payment-lifecycle-probe.py"; r = "/opt/uvarsi/payment-lifecycle-probe.py" },
   @{ l = "$B\hetzner\uvarsi-deploy-state.sh"; r = "/opt/uvarsi/uvarsi-deploy-state.sh" },
   @{ l = "$B\hetzner\recipe-engine-rollout.sh"; r = "/opt/uvarsi/recipe-engine-rollout.sh" },
   @{ l = "$B\hetzner\recipe-engine.target"; r = "/opt/uvarsi/recipe-engine.target" },

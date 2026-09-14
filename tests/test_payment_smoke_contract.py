@@ -72,6 +72,19 @@ def _schema5_expectation(marker_module, *, release="release-annual-1"):
     )
 
 
+def _provider_evidence(marker_module, config):
+    mode = "test" if config.test_mode else "live"
+    smoke = _load_smoke_module()
+    return smoke._verified_annual_provider_evidence(
+        config.api_key,
+        config=config,
+        signing_secret="marker-secret",
+        request=_annual_provider_request(mode=mode, code=config.discount_code),
+        evidence_type=marker_module.AnnualProviderEvidence,
+        fingerprint=marker_module.discount_code_fingerprint,
+    )
+
+
 def _annual_provider_request(*, mode, code, changes=None):
     store_id = f"{mode}-store"
     variant_id = f"{mode}-annual"
@@ -807,8 +820,9 @@ def test_smoke_tool_main_is_annual_and_never_falls_back_to_one_time_flow():
     assert 'f"{prefix}FOUNDER_DISCOUNT_CODE"' in source
     assert "_annual_expectation_from_env" in main_source
     assert "_verified_annual_provider_evidence" in main_source
-    assert "_lifecycle_evidence_from_records" in main_source
-    assert "_build_annual_subscription_marker" in main_source
+    assert "_annual_commercial_evidence_from_records" in main_source
+    assert "_load_daily_probe_facts" in main_source
+    assert "_build_schema5_subscription_marker" in main_source
     assert "LEMON_CHECKOUT_URL" not in main_source
     assert '"LEMON_VARIANT_ID"' not in main_source
     assert "_refund_test_order(" not in main_source
@@ -1382,9 +1396,239 @@ def test_old_annual_main_cannot_write_schema5_marker_without_probe_evidence(
         lambda *_a, **_k: (subscription, invoices, events, 0, "sub-1"),
     )
     monkeypatch.setattr(smoke, "_verified_test_portal_access", lambda *_a, **_k: True)
+    monkeypatch.setattr(
+        smoke,
+        "_annual_commercial_evidence_from_records",
+        lambda **_kwargs: marker_module.AnnualCommercialEvidence(
+            founder_initial_cents=3900,
+            standard_and_renewal_cents=4900,
+            currency="EUR",
+            billing_interval="year",
+            billing_interval_count=1,
+            annual_test_checkout_verified=True,
+            annual_test_initial_payment_verified=True,
+            annual_domain_renewal_verified=True,
+            annual_domain_cancellation_verified=True,
+            annual_domain_refund_verified=True,
+            portal_access_verified=True,
+            reconciliation_verified=True,
+        ),
+    )
+    monkeypatch.setattr(
+        smoke,
+        "_load_daily_probe_facts",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            smoke.SmokeFailed("probe ešte nemá úplný lifecycle dôkaz")
+        ),
+    )
     marker_path = tmp_path / "annual-smoke.json"
 
-    with pytest.raises(smoke.SmokeFailed, match="nedá bezpečne podpísať"):
+    with pytest.raises(smoke.SmokeFailed, match="probe"):
         smoke.main(["--marker", str(marker_path)])
 
     assert marker_path.exists() is False
+
+
+def test_b2_schema5_builder_keeps_annual_account_and_daily_probe_truth_separate():
+    smoke = _load_smoke_module()
+    marker_module = _load_marker_module()
+    expectation = _schema5_expectation(marker_module)
+    completed = datetime(2026, 9, 13, 10, 0, tzinfo=timezone.utc)
+    annual = marker_module.AnnualCommercialEvidence(
+        founder_initial_cents=3900,
+        standard_and_renewal_cents=4900,
+        currency="EUR", billing_interval="year", billing_interval_count=1,
+        annual_test_checkout_verified=True,
+        annual_test_initial_payment_verified=True,
+        annual_domain_renewal_verified=True,
+        annual_domain_cancellation_verified=True,
+        annual_domain_refund_verified=True,
+        portal_access_verified=True,
+        reconciliation_verified=True,
+    )
+    probe_facts = {
+        "provider": {
+            "test_mode": True, "price_cents": 100, "currency": "EUR",
+            "billing_interval": "day", "billing_interval_count": 1,
+            "trial_days": 0, "discount_applied_cents": 0,
+            "variant_status": "published",
+        },
+        "lifecycle": {
+            "evidence_source": "test_mode_daily_probe",
+            "initial_payment_webhook_verified": True,
+            "genuine_daily_renewal_verified": True,
+            "failed_payment_webhook_verified": True,
+            "recovered_payment_webhook_verified": True,
+            "cancellation_webhook_verified": True,
+            "resumed_webhook_verified": True,
+            "expiration_webhook_verified": True,
+            "refund_webhook_verified": True,
+            "webhook_signature_verified": True,
+            "identity_isolation_verified": True,
+            "event_order_verified": True,
+        },
+    }
+
+    proof = smoke._build_schema5_subscription_marker(
+        expectation=expectation,
+        live_provider=_provider_evidence(marker_module, expectation.live),
+        test_provider=_provider_evidence(marker_module, expectation.test),
+        annual_commercial=annual,
+        probe_facts=probe_facts,
+        completed_at=completed,
+        marker_module=marker_module,
+    )
+
+    assert marker_module.subscription_marker_status(
+        proof, expectation, now=completed
+    ) == "verified"
+    assert proof["annual_commercial"]["standard_and_renewal_cents"] == 4900
+    assert proof["test_mode_daily_probe"]["provider"]["billing_interval"] == "day"
+    assert "annual_renewal_invoice" not in json.dumps(proof)
+
+
+def test_b2_annual_commerce_requires_real_checkout_initial_payment_and_refund():
+    smoke = _load_smoke_module()
+    marker_module = _load_marker_module()
+    expectation = _schema5_expectation(marker_module)
+    subscription, invoices, events = _complete_local_lifecycle_records()
+    subscription.update({
+        "_smoke_checkout_verified": True,
+        "currency": "EUR",
+        "provider_variant_id": expectation.test.variant_id,
+        "discount_id": expectation.test.discount_id,
+    })
+    invoices[0]["currency"] = "EUR"
+    events.append({
+        "event_type": "subscription_resumed",
+        "source": "webhook",
+        "processing_status": "processed",
+        "needs_review": 0,
+        "processed_at": 2_600.0,
+    })
+
+    evidence = smoke._annual_commercial_evidence_from_records(
+        subscription=subscription,
+        invoices=invoices,
+        events=events,
+        portal_access_verified=True,
+        unresolved_cases=0,
+        config=expectation.test,
+        evidence_type=marker_module.AnnualCommercialEvidence,
+    )
+
+    assert evidence.founder_initial_cents == 3900
+    assert evidence.standard_and_renewal_cents == 4900
+    without_checkout = dict(subscription, _smoke_checkout_verified=False)
+    with pytest.raises(smoke.SmokeFailed, match="39/49"):
+        smoke._annual_commercial_evidence_from_records(
+            subscription=without_checkout,
+            invoices=invoices,
+            events=events,
+            portal_access_verified=True,
+            unresolved_cases=0,
+            config=expectation.test,
+            evidence_type=marker_module.AnnualCommercialEvidence,
+        )
+
+
+def test_b2_main_writes_schema5_only_from_annual_and_daily_evidence(
+        monkeypatch, tmp_path):
+    smoke = _load_smoke_module()
+    marker_module = _load_marker_module()
+    expectation = _schema5_expectation(marker_module)
+
+    class Server:
+        @staticmethod
+        def release_id():
+            return expectation.release
+
+    monkeypatch.setattr(smoke, "_load_runtime", lambda _app_dir: (
+        Server,
+        marker_module.AnnualProviderEvidence,
+        marker_module.SubscriptionConfig,
+        marker_module.SubscriptionLifecycleEvidence,
+        marker_module.SubscriptionMarkerExpectation,
+        marker_module.create_subscription_activation_attestation,
+        marker_module.create_subscription_marker,
+        marker_module.discount_code_fingerprint,
+        marker_module.sign_marker,
+    ))
+    monkeypatch.setattr(
+        smoke,
+        "_load_schema5_runtime",
+        lambda _app_dir: (marker_module, __import__(
+            "app.subscription_lifecycle_probe", fromlist=["x"]
+        )),
+    )
+    monkeypatch.setattr(
+        smoke, "_annual_expectation_from_env", lambda **_kwargs: expectation
+    )
+    monkeypatch.setattr(smoke, "_public_preflight", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(
+        smoke,
+        "_verified_annual_provider_evidence",
+        lambda _api_key, *, config, **_kwargs: _provider_evidence(
+            marker_module, config
+        ),
+    )
+    monkeypatch.setattr("builtins.input", lambda _prompt: "annual@example.test")
+    monkeypatch.setattr(smoke.getpass, "getpass", lambda _prompt: "password")
+    monkeypatch.setattr(smoke, "_authenticated_opener", lambda *_args: object())
+    monkeypatch.setattr(smoke, "_payment_status", lambda *_args: {"ma_narok": False})
+    subscription, invoices, events = _complete_local_lifecycle_records()
+    monkeypatch.setattr(
+        smoke,
+        "_load_annual_lifecycle_records",
+        lambda *_args, **_kwargs: (subscription, invoices, events, 0, "sub-1"),
+    )
+    monkeypatch.setattr(smoke, "_verified_test_portal_access", lambda *_a, **_k: True)
+    annual = marker_module.AnnualCommercialEvidence(
+        founder_initial_cents=3900,
+        standard_and_renewal_cents=4900,
+        currency="EUR",
+        billing_interval="year",
+        billing_interval_count=1,
+        annual_test_checkout_verified=True,
+        annual_test_initial_payment_verified=True,
+        annual_domain_renewal_verified=True,
+        annual_domain_cancellation_verified=True,
+        annual_domain_refund_verified=True,
+        portal_access_verified=True,
+        reconciliation_verified=True,
+    )
+    monkeypatch.setattr(
+        smoke, "_annual_commercial_evidence_from_records", lambda **_kwargs: annual
+    )
+    probe_facts = {
+        "provider": {
+            "test_mode": True, "price_cents": 100, "currency": "EUR",
+            "billing_interval": "day", "billing_interval_count": 1,
+            "trial_days": 0, "discount_applied_cents": 0,
+            "variant_status": "published",
+        },
+        "lifecycle": {
+            "evidence_source": "test_mode_daily_probe",
+            "initial_payment_webhook_verified": True,
+            "genuine_daily_renewal_verified": True,
+            "failed_payment_webhook_verified": True,
+            "recovered_payment_webhook_verified": True,
+            "cancellation_webhook_verified": True,
+            "resumed_webhook_verified": True,
+            "expiration_webhook_verified": True,
+            "refund_webhook_verified": True,
+            "webhook_signature_verified": True,
+            "identity_isolation_verified": True,
+            "event_order_verified": True,
+        },
+    }
+    monkeypatch.setattr(
+        smoke, "_load_daily_probe_facts", lambda *_args, **_kwargs: probe_facts
+    )
+    marker_path = tmp_path / "schema5.json"
+
+    assert smoke.main(["--marker", str(marker_path)]) == 0
+    signed = json.loads(marker_path.read_text(encoding="utf-8"))
+    assert marker_module.valid_subscription_marker(signed, expectation) is True
+    assert signed["annual_commercial"]["standard_and_renewal_cents"] == 4900
+    assert signed["test_mode_daily_probe"]["provider"]["billing_interval"] == "day"
