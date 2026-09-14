@@ -59,6 +59,7 @@ SMOKE_NOW = datetime(2026, 9, 11, 12, 0, tzinfo=timezone.utc)
 
 PLATBY_ENV = (
     "PLATBY_ZAPNUTE",
+    "UVARSI_PAYMENTS_ENABLED",
     "LEMON_WEBHOOK_SECRET",
     "LEMON_CHECKOUT_URL",
     "LEMON_STORE_ID",
@@ -220,7 +221,7 @@ def _full_annual_subscription_smoke(server, *, completed_at=None):
         billing_interval_count=1,
         annual_test_checkout_verified=True,
         annual_test_initial_payment_verified=True,
-        annual_domain_renewal_verified=True,
+        annual_renewal_terms_verified=True,
         annual_domain_cancellation_verified=True,
         annual_domain_refund_verified=True,
         portal_access_verified=True,
@@ -264,6 +265,7 @@ def _full_annual_subscription_smoke(server, *, completed_at=None):
 
 def zapnute_platby(monkeypatch, tmp_path, **prostredie):
     prostredie.setdefault("PLATBY_ZAPNUTE", "1")
+    prostredie.setdefault("UVARSI_PAYMENTS_ENABLED", "1")
     prostredie.setdefault("LEMON_WEBHOOK_SECRET", TAJOMSTVO)
     prostredie.setdefault("LEMON_CHECKOUT_URL", CHECKOUT)
     server = load_server(monkeypatch, tmp_path, **prostredie)
@@ -359,6 +361,23 @@ def aktivne(server):
 def test_platby_su_v_predvolenom_stave_vypnute(monkeypatch, tmp_path):
     server = load_server(monkeypatch, tmp_path)
     assert server.platby_zapnute(server.env("PLATBY_ZAPNUTE")) is False
+
+
+@pytest.mark.parametrize(
+    "prostredie,ocakavane",
+    [
+        ({"PLATBY_ZAPNUTE": "1", "UVARSI_PAYMENTS_ENABLED": "1"}, True),
+        ({"PLATBY_ZAPNUTE": "1", "UVARSI_PAYMENTS_ENABLED": "0"}, False),
+        ({"PLATBY_ZAPNUTE": "0", "UVARSI_PAYMENTS_ENABLED": "1"}, False),
+        ({"PLATBY_ZAPNUTE": "1"}, False),
+        ({"UVARSI_PAYMENTS_ENABLED": "1"}, False),
+    ],
+)
+def test_aplikacny_platobny_gate_vyzaduje_obidva_vypinace(
+    monkeypatch, tmp_path, prostredie, ocakavane
+):
+    server = load_server(monkeypatch, tmp_path, **prostredie)
+    assert server.platby_su_zapnute() is ocakavane
 
 
 def test_payment_smoke_marker_musi_sediet_s_vydanim_obchodom_a_variantom(

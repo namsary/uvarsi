@@ -64,6 +64,16 @@ def _lifecycle_runtime(app_dir=DEFAULT_APP_DIR):
     return lifecycle
 
 
+def _reconciliation_runtime(app_dir=DEFAULT_APP_DIR):
+    if app_dir not in sys.path:
+        sys.path.insert(0, app_dir)
+    try:
+        from app import rekonciliacia
+    except ImportError:
+        import rekonciliacia
+    return rekonciliacia
+
+
 def _env_value(name, *, env_file=DEFAULT_ENV_FILE, environ=None):
     environ = os.environ if environ is None else environ
     value = environ.get(name, "")
@@ -105,6 +115,13 @@ def _require_tty(*, stdin, stdout, stderr):
         )
 
 
+class _NoProviderRedirects(urllib.request.HTTPRedirectHandler):
+    """Never forward the Lemon bearer token to a redirected destination."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 def _provider_request(api_key, path, *, method="GET", payload=None):
     if not isinstance(api_key, str) or not api_key.strip():
         raise ProbeToolFailed("Chýba testovací Lemon API kľúč.")
@@ -122,7 +139,8 @@ def _provider_request(api_key, path, *, method="GET", payload=None):
         },
     )
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:
+        opener = urllib.request.build_opener(_NoProviderRedirects())
+        with opener.open(request, timeout=20) as response:
             body = response.read(MAX_PROVIDER_BODY + 1)
     except (OSError, ValueError, urllib.error.HTTPError):
         raise ProbeToolFailed("Lemon Test mode je nedostupný.") from None
@@ -371,63 +389,74 @@ def process_probe(
 ):
     """Process only dedicated signed probe rows; verify a real renewal by API."""
     lifecycle = lifecycle_module or _lifecycle_runtime()
-    candidates = []
-    rows = con.execute(
-        "SELECT telo,podpis FROM platobne_odlozene WHERE spracovane_o IS NULL ORDER BY id"
-    ).fetchall()
-    for row in rows:
-        body, signature = bytes(row[0]), row[1]
-        if not isinstance(signature, str) or len(body) > MAX_QUEUE_BODY:
-            continue
-        expected = hmac.new(config.webhook_secret.encode(), body, hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(signature, expected):
-            continue
-        try:
-            payload = json.loads(body)
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            continue
-        meta = payload.get("meta") if isinstance(payload, dict) else None
-        attrs = payload.get("data", {}).get("attributes", {}) if isinstance(payload, dict) else {}
-        custom = meta.get("custom_data") if isinstance(meta, dict) else None
-        token = custom.get(lifecycle.PROBE_TOKEN_FIELD) if isinstance(custom, dict) else None
-        if meta.get("event_name") == "subscription_payment_success" and attrs.get("billing_reason") == "renewal" and isinstance(token, str):
-            candidates.append((token, dict(attrs)))
-    result = lifecycle.process_queued_probe_events(
+    first = lifecycle.process_queued_probe_events(
         con, config=config, signing_secret=signing_secret, now=now
     )
-    for token, attrs in candidates:
-        subscription_id = attrs.get("subscription_id")
-        invoice_id = attrs.get("invoice_id")
-        subscription_response = request(
-            config.api_key, f"/v1/subscriptions/{urllib.parse.quote(str(subscription_id), safe='')}"
-        )
-        _sub, sub_attrs = _resource(
-            subscription_response, kind="subscriptions", identity=subscription_id
-        )
-        invoice_response = request(
-            config.api_key,
-            f"/v1/subscription-invoices/{urllib.parse.quote(str(invoice_id), safe='')}",
-        )
-        _invoice, invoice_attrs = _resource(
-            invoice_response, kind="subscription-invoices", identity=invoice_id
-        )
-        lifecycle.record_genuine_daily_renewal(
-            con,
-            token=token,
-            config=config,
-            signing_secret=signing_secret,
-            provider_subscription_id=subscription_id,
-            provider_invoice_id=invoice_id,
-            amount_cents=invoice_attrs.get("total"),
-            currency=str(invoice_attrs.get("currency", "")).upper(),
-            interval=sub_attrs.get("billing_anchor_interval", sub_attrs.get("interval")),
-            interval_count=sub_attrs.get("billing_anchor_interval_count", sub_attrs.get("interval_count")),
-            period_start=invoice_attrs.get("billing_period_start"),
-            period_end=invoice_attrs.get("billing_period_end"),
-            now=now,
-        )
-        del token
-    return result
+    candidates = lifecycle.pending_daily_renewal_candidates(
+        con, config=config, signing_secret=signing_secret
+    )
+    for candidate in candidates:
+        subscription_id = candidate["provider_subscription_id"]
+        invoice_id = candidate["provider_invoice_id"]
+        try:
+            subscription_response = request(
+                config.api_key,
+                f"/v1/subscriptions/{urllib.parse.quote(subscription_id, safe='')}",
+            )
+            _sub, sub_attrs = _resource(
+                subscription_response, kind="subscriptions", identity=subscription_id
+            )
+            invoice_response = request(
+                config.api_key,
+                f"/v1/subscription-invoices/{urllib.parse.quote(invoice_id, safe='')}",
+            )
+            _invoice, invoice_attrs = _resource(
+                invoice_response, kind="subscription-invoices", identity=invoice_id
+            )
+        except Exception as error:
+            raise ProbeToolFailed(
+                "Lemon overenie dennej obnovy je dočasne nedostupné; beh možno zopakovať."
+            ) from error
+        try:
+            lifecycle.record_genuine_daily_renewal_by_digest(
+                con,
+                token_digest=candidate["token_digest"],
+                config=config,
+                signing_secret=signing_secret,
+                provider_subscription_id=subscription_id,
+                provider_invoice_id=invoice_id,
+                amount_cents=invoice_attrs.get("total"),
+                currency=str(invoice_attrs.get("currency", "")).upper(),
+                subscription_test_mode=sub_attrs.get("test_mode"),
+                subscription_store_id=sub_attrs.get("store_id"),
+                subscription_variant_id=sub_attrs.get("variant_id"),
+                subscription_status=sub_attrs.get("status"),
+                invoice_test_mode=invoice_attrs.get("test_mode"),
+                invoice_store_id=invoice_attrs.get("store_id"),
+                invoice_billing_reason=invoice_attrs.get("billing_reason"),
+                invoice_status=invoice_attrs.get("status"),
+                invoice_created_at=invoice_attrs.get("created_at"),
+                now=now,
+            )
+        except lifecycle.ProbeEventRejected:
+            # A signed candidate can later be refunded or otherwise fail the
+            # immutable provider checks.  It must not starve a newer valid one.
+            continue
+        except Exception as error:
+            raise ProbeToolFailed(
+                "Overenie dennej obnovy sa nepodarilo bezpečne uložiť; beh možno zopakovať."
+            ) from error
+        break
+
+    second = lifecycle.process_queued_probe_events(
+        con, config=config, signing_secret=signing_secret, now=now
+    )
+    return {
+        "processed": first["processed"] + second["processed"],
+        "left_unrelated": max(first["left_unrelated"], second["left_unrelated"]),
+        "rejected": first["rejected"] + second["rejected"],
+        "deferred": second.get("deferred", 0),
+    }
 
 
 def cleanup_probe(
@@ -733,6 +762,13 @@ def annual_commercial_status(
         and initial.get("refunded_amount_cents") == 3_900
         and {"subscription_payment_refunded", "order_refunded"} & event_names
     )
+    reconciliation_verified = any(
+        event.get("processing_status") == "processed"
+        and event.get("needs_review") in {0, False}
+        and event.get("source") in {"reconciliation", "rekonciliacia"}
+        for event in events
+        if isinstance(event, dict)
+    )
     complete = bool(
         isinstance(attempt, dict)
         and attempt.get("status") == "paid"
@@ -761,6 +797,7 @@ def annual_commercial_status(
         and portal_verified is True
         and type(unresolved_cases) is int
         and unresolved_cases == 0
+        and reconciliation_verified
         and annual_domain_contract_verified is True
     )
     return {
@@ -776,7 +813,7 @@ def annual_commercial_status(
         "cancellation_verified": "subscription_cancelled" in event_names,
         "resume_verified": "subscription_resumed" in event_names,
         "refund_verified": refund_verified,
-        "reconciliation_verified": type(unresolved_cases) is int and unresolved_cases == 0,
+        "reconciliation_verified": reconciliation_verified,
         "annual_domain_contract_verified": annual_domain_contract_verified is True,
         "events": [
             {"name": event.get("event_type"), "processed_at": event.get("processed_at")}
@@ -878,6 +915,148 @@ def _annual_safe_status(con, *, server, email, config):
     )
 
 
+def reconcile_annual_account(
+    con,
+    *,
+    server,
+    email,
+    config,
+    release,
+    signing_secret,
+    now,
+    reconciliation_module=None,
+    marker_module=None,
+):
+    """Reconcile only the selected annual Test-mode subscription."""
+    if getattr(config, "test_mode", None) is not True:
+        raise ProbeToolFailed("Ročná rekonciliácia musí zostať v Test mode.")
+    if not isinstance(getattr(config, "api_key", None), str) or not config.api_key:
+        raise ProbeToolFailed("Chýba ročný Test-mode API kľúč.")
+    _user_id, _attempt, subscription, _invoices, _events, _unresolved = (
+        _annual_account(con, server=server, email=email, config=config)
+    )
+    subscription_id = (
+        subscription.get("provider_subscription_id")
+        if isinstance(subscription, dict) else None
+    )
+    if not isinstance(subscription_id, str) or not subscription_id:
+        raise ProbeToolFailed("Ročný Test-mode účet nemá jednoznačné predplatné.")
+
+    reconciliation = reconciliation_module or _reconciliation_runtime()
+    if marker_module is None:
+        _server, _platby, _predplatne, _lifecycle, marker_module = _runtime()
+    try:
+        provider_rows = reconciliation.stiahni_objednavky(
+            config.api_key,
+            store_id=config.store_id,
+            api_url=reconciliation.SUBSCRIPTIONS_API_URL,
+        )
+        invoice_rows = reconciliation.stiahni_objednavky(
+            config.api_key,
+            store_id=config.store_id,
+            api_url=reconciliation.SUBSCRIPTION_INVOICES_API_URL,
+        )
+    except Exception as error:
+        raise ProbeToolFailed("Lemon Test-mode rekonciliácia je nedostupná.") from error
+
+    matching_subscriptions = []
+    conflicting_subscription = False
+    for row in provider_rows:
+        if not isinstance(row, dict) or row.get("type") != "subscriptions":
+            continue
+        if str(row.get("id")) != subscription_id:
+            continue
+        attrs = row.get("attributes")
+        if not isinstance(attrs, dict) or not (
+            attrs.get("test_mode") is True
+            and str(attrs.get("store_id")) == config.store_id
+            and str(attrs.get("variant_id")) == config.variant_id
+        ):
+            conflicting_subscription = True
+            continue
+        matching_subscriptions.append(row)
+    if conflicting_subscription or len(matching_subscriptions) != 1:
+        raise ProbeToolFailed(
+            "Lemon nepotvrdil presné ročné Test-mode predplatné."
+        )
+
+    matching_invoices = []
+    conflicting_invoice = False
+    for row in invoice_rows:
+        if not isinstance(row, dict) or row.get("type") != "subscription-invoices":
+            continue
+        attrs = row.get("attributes")
+        if not isinstance(attrs, dict) or str(attrs.get("subscription_id")) != subscription_id:
+            continue
+        if not (
+            attrs.get("test_mode") is True
+            and str(attrs.get("store_id")) == config.store_id
+            and str(attrs.get("currency", "")).upper() == "EUR"
+        ):
+            conflicting_invoice = True
+            continue
+        matching_invoices.append(row)
+    if conflicting_invoice or not matching_invoices:
+        raise ProbeToolFailed("Lemon nepotvrdil presnú ročnú Test-mode faktúru.")
+
+    expected = {
+        "store_id": config.store_id,
+        "variant_id": config.variant_id,
+        "founder_discount_id": config.discount_id,
+        "currency": "EUR",
+        "test_mode": True,
+    }
+    try:
+        summary = reconciliation.reconcile_subscriptions(
+            con,
+            provider_rows=matching_subscriptions,
+            invoice_rows=matching_invoices,
+            now=now,
+            expected=expected,
+        )
+    except Exception as error:
+        raise ProbeToolFailed("Ročná Test-mode rekonciliácia zlyhala.") from error
+    if not isinstance(summary, dict) or summary.get("error_codes") or any(
+        summary.get(name) != 0
+        for name in (
+            "subscription_drift", "past_due", "unpaid", "expired",
+            "queued_webhooks",
+        )
+    ):
+        raise ProbeToolFailed("Ročná Test-mode rekonciliácia našla nesúlad.")
+
+    try:
+        evidence_key = marker_module.annual_reconciliation_event_key(
+            signing_secret=signing_secret,
+            release=release,
+            config=config,
+            provider_subscription_id=subscription_id,
+        )
+        con.execute(
+            """INSERT INTO subscription_events
+               (event_key,provider,test_mode,provider_subscription_id,event_type,
+                source,payload_json,processing_status,needs_review,review_reason,
+                received_at,processed_at,updated_at)
+               VALUES (?,'lemonsqueezy',1,?,'annual_reconciliation_verified',
+                       'reconciliation_probe',NULL,'processed',0,NULL,?,?,?)
+               ON CONFLICT(event_key) DO UPDATE SET
+                 payload_json=NULL,processing_status='processed',needs_review=0,
+                 review_reason=NULL,received_at=excluded.received_at,
+                 processed_at=excluded.processed_at,updated_at=excluded.updated_at""",
+            (evidence_key, subscription_id, now, now, now),
+        )
+    except (ValueError, sqlite3.Error) as error:
+        raise ProbeToolFailed("Ročná Test-mode rekonciliácia nevytvorila dôkaz.") from error
+    reconciliation_events = 1
+    con.commit()
+    return {
+        "complete": True,
+        "seen_subscriptions": len(matching_subscriptions),
+        "seen_invoices": len(matching_invoices),
+        "reconciliation_events": reconciliation_events,
+    }
+
+
 def _probe_config_from_env(lifecycle, *, env_file):
     annual_variant = _env_value(
         "LEMON_TEST_SUBSCRIPTION_VARIANT_ID", env_file=env_file
@@ -921,7 +1100,7 @@ def main(argv=None):
     parser.add_argument(
         "command",
         choices=(
-            "annual-prepare", "annual-process", "annual-status",
+            "annual-prepare", "annual-process", "annual-reconcile", "annual-status",
             "prepare", "process", "status", "cleanup",
         ),
     )
@@ -966,6 +1145,18 @@ def main(argv=None):
                 attempt_id=attempt_id,
                 config=annual_config,
                 now=time.time(),
+            ), sort_keys=True))
+        elif args.command == "annual-reconcile":
+            email = getpass.getpass("E-mail ročného Test-mode účtu: ").strip()
+            print(json.dumps(reconcile_annual_account(
+                con,
+                server=server,
+                email=email,
+                config=annual_config,
+                release=expectation.release,
+                signing_secret=signing_secret,
+                now=time.time(),
+                marker_module=marker_module,
             ), sort_keys=True))
         elif args.command == "annual-status":
             email = getpass.getpass("E-mail ročného Test-mode účtu: ").strip()

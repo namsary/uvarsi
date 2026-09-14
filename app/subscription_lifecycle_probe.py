@@ -35,7 +35,6 @@ _SUPPORTED_EVENTS = frozenset({
     "subscription_resumed",
     "subscription_expired",
     "subscription_payment_refunded",
-    "order_refunded",
 })
 _FUTURE_EVENTS = frozenset({
     "subscription_payment_failed",
@@ -44,7 +43,6 @@ _FUTURE_EVENTS = frozenset({
     "subscription_resumed",
     "subscription_expired",
     "subscription_payment_refunded",
-    "order_refunded",
 })
 
 PROBE_SCHEMA = """
@@ -77,6 +75,7 @@ CREATE TABLE IF NOT EXISTS subscription_lifecycle_probe_events (
   currency TEXT,
   period_start REAL,
   period_end REAL,
+  provider_event_at REAL,
   source_queue_id INTEGER,
   received_at REAL NOT NULL,
   UNIQUE(token_digest, event_key),
@@ -94,6 +93,10 @@ class ProbeConfigError(ValueError):
 
 class ProbeEventRejected(ValueError):
     """A signed body cannot safely count as evidence for the isolated probe."""
+
+
+class ProbeEventDeferred(ProbeEventRejected):
+    """A valid signed event must wait for an earlier lifecycle transition."""
 
 
 class ProbeCleanupRejected(ValueError):
@@ -275,6 +278,11 @@ def migrate_probe_schema(con) -> None:
             "ALTER TABLE subscription_lifecycle_probe_events "
             "ADD COLUMN source_queue_id INTEGER"
         )
+    if "provider_event_at" not in event_columns:
+        con.execute(
+            "ALTER TABLE subscription_lifecycle_probe_events "
+            "ADD COLUMN provider_event_at REAL"
+        )
 
 
 def _token_digest(token: str) -> str:
@@ -438,6 +446,11 @@ def ingest_signed_probe_event(
         raise ProbeEventRejected("probe webhook nie je platný JSON") from None
     meta, data, attributes = _payload_parts(payload)
     event_type = _event_name(meta)
+    data_type = str(data.get("type") or "").replace("_", "-").casefold()
+    payment_event = event_type.startswith("subscription_payment_")
+    expected_type = "subscription-invoices" if payment_event else "subscriptions"
+    if data_type != expected_type:
+        raise ProbeEventRejected("probe udalosť má nesprávny typ objektu")
     custom = meta.get("custom_data")
     token = custom.get(PROBE_TOKEN_FIELD) if isinstance(custom, dict) else None
     token_digest = _token_digest(token)
@@ -454,13 +467,17 @@ def ingest_signed_probe_event(
         raise ProbeEventRejected("probe udalosť nie je v Test mode")
     if _safe_id(attributes.get("store_id")) != config.store_id:
         raise ProbeEventRejected("probe udalosť patrí inému obchodu")
-    variant = _safe_id(attributes.get("variant_id"))
-    if variant is None:
-        first_item = attributes.get("first_order_item")
-        variant = _safe_id(first_item.get("variant_id")) if isinstance(first_item, dict) else None
-    if variant != config.variant_id:
-        raise ProbeEventRejected("probe udalosť patrí inému variantu")
-    if _currency(attributes) != "EUR":
+    if data_type != "subscription-invoices":
+        variant = _safe_id(attributes.get("variant_id"))
+        if variant is None:
+            first_item = attributes.get("first_order_item")
+            variant = (
+                _safe_id(first_item.get("variant_id"))
+                if isinstance(first_item, dict) else None
+            )
+        if variant != config.variant_id:
+            raise ProbeEventRejected("probe udalosť patrí inému variantu")
+    if payment_event and _currency(attributes) != "EUR":
         raise ProbeEventRejected("probe udalosť má inú menu")
 
     subscription_id = _id_from(
@@ -474,7 +491,11 @@ def ingest_signed_probe_event(
         raise ProbeEventRejected("probe udalosti chýba predplatné")
     if row["provider_subscription_id"] not in (None, subscription_id):
         raise ProbeEventRejected("probe udalosť patrí inému predplatnému")
-    if row["provider_order_id"] is not None and order_id != row["provider_order_id"]:
+    if (
+        row["provider_order_id"] is not None
+        and order_id is not None
+        and order_id != row["provider_order_id"]
+    ):
         raise ProbeEventRejected("probe udalosť patrí inej objednávke")
 
     billing_reason = attributes.get("billing_reason")
@@ -482,42 +503,74 @@ def ingest_signed_probe_event(
         billing_reason.strip().casefold() if isinstance(billing_reason, str) else None
     )
     amount = _amount(attributes)
-    payment_event = event_type.startswith("subscription_payment_") or event_type == "order_refunded"
+    status = _safe_id(attributes.get("status"))
     if payment_event and amount != config.price_cents:
         raise ProbeEventRejected("suma probe udalosti nesedí")
     if event_type == "subscription_payment_success":
-        if billing_reason not in {"initial", "subscription_created", "renewal"}:
+        if billing_reason not in {"initial", "renewal"}:
             raise ProbeEventRejected("dôvod probe platby nie je dôveryhodný")
-        if billing_reason in {"initial", "subscription_created"} and not _event_exists(
+        if status != "paid":
+            raise ProbeEventRejected("úspešná probe platba nemá stav paid")
+        if billing_reason == "initial" and not _event_exists(
             con, token_digest, "subscription_created"
         ):
-            raise ProbeEventRejected("prvá probe platba prišla pred vytvorením predplatného")
+            raise ProbeEventDeferred("prvá probe platba čaká na vytvorenie predplatného")
         if billing_reason == "renewal" and not _event_exists(
             con, token_digest, "subscription_payment_success", reason="initial"
-        ) and not _event_exists(
-            con, token_digest, "subscription_payment_success", reason="subscription_created"
         ):
-            raise ProbeEventRejected("obnova prišla pred prvou probe platbou")
+            raise ProbeEventDeferred("obnova čaká na prvú probe platbu")
     if event_type in _FUTURE_EVENTS and row["genuine_renewal_verified"] != 1:
-        raise ProbeEventRejected("budúca udalosť čaká na overenú dennú obnovu")
+        raise ProbeEventDeferred("budúca udalosť čaká na overenú dennú obnovu")
     if event_type == "subscription_payment_recovered" and not _event_exists(
         con, token_digest, "subscription_payment_failed"
     ):
-        raise ProbeEventRejected("zotavenie prišlo pred zlyhaním platby")
+        raise ProbeEventDeferred("zotavenie čaká na zlyhanie platby")
     if event_type == "subscription_resumed" and not _event_exists(
         con, token_digest, "subscription_cancelled"
     ):
-        raise ProbeEventRejected("obnovenie prišlo pred zrušením")
+        raise ProbeEventDeferred("obnovenie čaká na zrušenie")
     if event_type == "subscription_expired" and not _event_exists(
         con, token_digest, "subscription_cancelled"
     ):
-        raise ProbeEventRejected("ukončenie prišlo bez predchádzajúceho zrušenia")
-    if event_type in {"subscription_payment_refunded", "order_refunded"} and _amount(
+        raise ProbeEventDeferred("ukončenie čaká na predchádzajúce zrušenie")
+    expected_statuses = {
+        "subscription_created": {"active"},
+        "subscription_payment_success": {"paid"},
+        "subscription_payment_failed": {"pending"},
+        "subscription_payment_recovered": {"paid"},
+        "subscription_cancelled": {"cancelled"},
+        "subscription_resumed": {"active"},
+        "subscription_expired": {"expired"},
+        "subscription_payment_refunded": {"refunded"},
+    }
+    if status not in expected_statuses[event_type]:
+        raise ProbeEventRejected("probe udalosť má neočakávaný stav")
+    if event_type == "subscription_expired":
+        latest_cancel = con.execute(
+            """SELECT MAX(provider_event_at) FROM subscription_lifecycle_probe_events
+                 WHERE token_digest=? AND event_type='subscription_cancelled'""",
+            (token_digest,),
+        ).fetchone()[0]
+        latest_resume = con.execute(
+            """SELECT MAX(provider_event_at) FROM subscription_lifecycle_probe_events
+                 WHERE token_digest=? AND event_type='subscription_resumed'""",
+            (token_digest,),
+        ).fetchone()[0]
+        if latest_resume is not None and (
+            latest_cancel is None or float(latest_cancel) <= float(latest_resume)
+        ):
+            raise ProbeEventDeferred("ukončenie je bez nového zrušenia po obnovení")
+    if event_type == "subscription_payment_refunded" and _amount(
         attributes, "refunded_amount"
     ) != config.price_cents:
         raise ProbeEventRejected("probe refundácia nie je úplná")
 
-    identity = invoice_id if payment_event else subscription_id
+    provider_event_at = _timestamp(
+        attributes.get("created_at") if payment_event else attributes.get("updated_at")
+    )
+    if provider_event_at is None:
+        raise ProbeEventRejected("probe udalosti chýba čas poskytovateľa")
+    identity = invoice_id if payment_event else f"{subscription_id}:{provider_event_at:.6f}"
     if identity is None:
         raise ProbeEventRejected("probe udalosti chýba identifikátor")
     event_key = _event_fingerprint(
@@ -533,16 +586,15 @@ def ingest_signed_probe_event(
 
     period_start = _timestamp(attributes.get("billing_period_start"))
     period_end = _timestamp(attributes.get("billing_period_end"))
-    status = _safe_id(attributes.get("status"))
     con.execute("SAVEPOINT lifecycle_probe_event")
     try:
         con.execute(
             """INSERT INTO subscription_lifecycle_probe_events
                (token_digest,event_key,body_digest,event_type,billing_reason,
                 provider_subscription_id,provider_order_id,provider_invoice_id,
-                status,amount_cents,currency,period_start,period_end,
-                source_queue_id,received_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                 status,amount_cents,currency,period_start,period_end,
+                 provider_event_at,source_queue_id,received_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 token_digest,
                 event_key,
@@ -557,6 +609,7 @@ def ingest_signed_probe_event(
                 _currency(attributes),
                 period_start,
                 period_end,
+                provider_event_at,
                 source_queue_id,
                 now,
             ),
@@ -579,6 +632,20 @@ def ingest_signed_probe_event(
 
 def _run_for_update(con, token: str, config, signing_secret):
     digest = _token_digest(token)
+    row = con.execute(
+        "SELECT * FROM subscription_lifecycle_probe_runs WHERE token_digest=?",
+        (digest,),
+    ).fetchone()
+    if row is None:
+        raise ProbeEventRejected("neznámy probe beh")
+    current = probe_config_fingerprint(config, signing_secret=signing_secret)
+    if not hmac.compare_digest(row["config_fingerprint"], current):
+        raise ProbeEventRejected("probe konfigurácia sa od vytvorenia zmenila")
+    return digest, row
+
+
+def _run_for_digest(con, digest: str, config, signing_secret):
+    digest = _validated_token_digest(digest)
     row = con.execute(
         "SELECT * FROM subscription_lifecycle_probe_runs WHERE token_digest=?",
         (digest,),
@@ -647,51 +714,156 @@ def record_genuine_daily_renewal(
     provider_invoice_id,
     amount_cents,
     currency,
-    interval,
-    interval_count,
-    period_start,
-    period_end,
+    subscription_test_mode,
+    subscription_store_id,
+    subscription_variant_id,
+    subscription_status,
+    invoice_test_mode,
+    invoice_store_id,
+    invoice_billing_reason,
+    invoice_status,
+    invoice_created_at,
     now,
 ) -> None:
     """Pair provider-query facts with an already received signed renewal webhook."""
     config = _basic_config(config)
-    digest, row = _run_for_update(con, token, config, signing_secret)
+    digest, _row = _run_for_update(con, token, config, signing_secret)
+    return record_genuine_daily_renewal_by_digest(
+        con,
+        token_digest=digest,
+        config=config,
+        signing_secret=signing_secret,
+        provider_subscription_id=provider_subscription_id,
+        provider_invoice_id=provider_invoice_id,
+        amount_cents=amount_cents,
+        currency=currency,
+        subscription_test_mode=subscription_test_mode,
+        subscription_store_id=subscription_store_id,
+        subscription_variant_id=subscription_variant_id,
+        subscription_status=subscription_status,
+        invoice_test_mode=invoice_test_mode,
+        invoice_store_id=invoice_store_id,
+        invoice_billing_reason=invoice_billing_reason,
+        invoice_status=invoice_status,
+        invoice_created_at=invoice_created_at,
+        now=now,
+    )
+
+
+def pending_daily_renewal_candidates(
+    con, *, config: LifecycleProbeConfig, signing_secret: str
+) -> list[dict]:
+    """Return retryable provider identities already retained in the private probe DB."""
+    config = _basic_config(config)
+    digest = matching_probe_run_digest(
+        con,
+        config=config,
+        signing_secret=signing_secret,
+        states=("collecting", "ready"),
+    )
+    _digest, run = _run_for_digest(con, digest, config, signing_secret)
+    if run["provider_verified"] != 1 or run["genuine_renewal_verified"] == 1:
+        return []
+    rows = con.execute(
+        """SELECT provider_subscription_id,provider_invoice_id
+             FROM subscription_lifecycle_probe_events
+            WHERE token_digest=? AND event_type='subscription_payment_success'
+              AND billing_reason='renewal' AND amount_cents=?
+              AND currency='EUR' AND status='paid'
+              AND provider_subscription_id IS NOT NULL
+              AND provider_invoice_id IS NOT NULL
+            ORDER BY provider_event_at,id""",
+        (digest, config.price_cents),
+    ).fetchall()
+    return [
+        {
+            "token_digest": digest,
+            "provider_subscription_id": str(row[0]),
+            "provider_invoice_id": str(row[1]),
+        }
+        for row in rows
+    ]
+
+
+def record_genuine_daily_renewal_by_digest(
+    con,
+    *,
+    token_digest,
+    config,
+    signing_secret,
+    provider_subscription_id,
+    provider_invoice_id,
+    amount_cents,
+    currency,
+    subscription_test_mode,
+    subscription_store_id,
+    subscription_variant_id,
+    subscription_status,
+    invoice_test_mode,
+    invoice_store_id,
+    invoice_billing_reason,
+    invoice_status,
+    invoice_created_at,
+    now,
+) -> None:
+    """Verify a retained renewal without recovering the discarded raw token."""
+    config = _basic_config(config)
+    digest, row = _run_for_digest(con, token_digest, config, signing_secret)
     subscription_id = _safe_id(provider_subscription_id)
     invoice_id = _safe_id(provider_invoice_id)
-    start = _timestamp(period_start)
-    end = _timestamp(period_end)
+    renewal_created_at = _timestamp(invoice_created_at)
     if not (
-        subscription_id is not None
+        row["provider_verified"] == 1
+        and subscription_id is not None
         and subscription_id == row["provider_subscription_id"]
         and invoice_id is not None
         and type(amount_cents) is int
         and amount_cents == config.price_cents
         and currency == "EUR"
-        and interval == "day"
-        and type(interval_count) is int
-        and interval_count == 1
-        and start is not None
-        and end is not None
-        and 20 * 3600 <= end - start <= 28 * 3600
+        and subscription_test_mode is True
+        and _safe_id(subscription_store_id) == config.store_id
+        and _safe_id(subscription_variant_id) == config.variant_id
+        and _safe_id(subscription_status) in {"active", "cancelled"}
+        and invoice_test_mode is True
+        and _safe_id(invoice_store_id) == config.store_id
+        and _safe_id(invoice_billing_reason) == "renewal"
+        and _safe_id(invoice_status) == "paid"
+        and renewal_created_at is not None
     ):
         raise ProbeEventRejected("provider nepotvrdil skutočnú dennú obnovu")
     renewal = con.execute(
-        """SELECT 1 FROM subscription_lifecycle_probe_events
+        """SELECT provider_event_at FROM subscription_lifecycle_probe_events
              WHERE token_digest=? AND event_type='subscription_payment_success'
-               AND billing_reason='renewal' AND provider_subscription_id=?
-               AND provider_invoice_id=? AND amount_cents=?
-               AND period_start=? AND period_end=?""",
+                AND billing_reason='renewal' AND provider_subscription_id=?
+                AND provider_invoice_id=? AND amount_cents=?
+                AND currency='EUR' AND status='paid'
+                AND provider_event_at=?""",
         (
             digest,
             subscription_id,
             invoice_id,
             config.price_cents,
-            start,
-            end,
+            renewal_created_at,
         ),
     ).fetchone()
     if renewal is None:
         raise ProbeEventRejected("obnova nemá zhodný podpísaný webhook")
+    initial = con.execute(
+        """SELECT provider_invoice_id,provider_event_at
+             FROM subscription_lifecycle_probe_events
+            WHERE token_digest=? AND event_type='subscription_payment_success'
+              AND billing_reason='initial' AND provider_subscription_id=?
+              AND amount_cents=? AND currency='EUR' AND status='paid'
+              AND provider_event_at IS NOT NULL
+            ORDER BY provider_event_at,id LIMIT 1""",
+        (digest, subscription_id, config.price_cents),
+    ).fetchone()
+    if (
+        initial is None
+        or initial[0] == invoice_id
+        or not (20 * 3600 <= renewal_created_at - float(initial[1]) <= 72 * 3600)
+    ):
+        raise ProbeEventRejected("obnova nie je neskoršia samostatná denná faktúra")
     now = _valid_time(now)
     con.execute(
         """UPDATE subscription_lifecycle_probe_runs
@@ -711,25 +883,55 @@ def _safe_status(con, digest: str) -> dict:
     if row is None:
         raise ProbeEventRejected("neznámy probe beh")
     events = con.execute(
-        """SELECT event_type,billing_reason,source_queue_id,received_at
+        """SELECT event_type,billing_reason,source_queue_id,received_at,
+                  provider_event_at,status,id
              FROM subscription_lifecycle_probe_events WHERE token_digest=?
-             ORDER BY received_at,id""",
+             ORDER BY provider_event_at,id""",
         (digest,),
     ).fetchall()
     event_types = {item[0] for item in events}
     payment_reasons = {
         item[1] for item in events if item[0] == "subscription_payment_success"
     }
-    refund_verified = bool(
-        {"subscription_payment_refunded", "order_refunded"} & event_types
-    )
+    refund_verified = "subscription_payment_refunded" in event_types
     queue_bound = bool(events) and all(item[2] is not None for item in events)
+    ordered_names = [(item[0], item[1]) for item in events]
+
+    def first_index(name, reason=None):
+        for index, pair in enumerate(ordered_names):
+            if pair[0] == name and (reason is None or pair[1] == reason):
+                return index
+        return None
+
+    created_i = first_index("subscription_created")
+    initial_i = first_index("subscription_payment_success", "initial")
+    renewal_i = first_index("subscription_payment_success", "renewal")
+    failed_i = first_index("subscription_payment_failed")
+    recovered_i = first_index("subscription_payment_recovered")
+    resumed_i = first_index("subscription_resumed")
+    expired_i = first_index("subscription_expired")
+    refund_i = first_index("subscription_payment_refunded")
+    cancel_indexes = [
+        index for index, pair in enumerate(ordered_names)
+        if pair[0] == "subscription_cancelled"
+    ]
+    event_order_verified = bool(
+        None not in {
+            created_i, initial_i, renewal_i, failed_i, recovered_i,
+            resumed_i, expired_i, refund_i,
+        }
+        and created_i < initial_i < renewal_i
+        and failed_i < recovered_i
+        and any(index < resumed_i for index in cancel_indexes)
+        and any(resumed_i < index < expired_i for index in cancel_indexes)
+        and initial_i < refund_i
+    )
     complete = bool(
         row["provider_verified"] == 1
         and row["genuine_renewal_verified"] == 1
         and queue_bound
         and "subscription_created" in event_types
-        and bool({"initial", "subscription_created"} & payment_reasons)
+        and "initial" in payment_reasons
         and "renewal" in payment_reasons
         and {
             "subscription_payment_failed",
@@ -739,6 +941,7 @@ def _safe_status(con, digest: str) -> dict:
             "subscription_expired",
         } <= event_types
         and refund_verified
+        and event_order_verified
     )
     return {
         "state": "evidenced" if row["state"] == "evidenced" else (
@@ -753,6 +956,7 @@ def _safe_status(con, digest: str) -> dict:
             for item in events
         ],
         "complete": complete,
+        "event_order_verified": event_order_verified,
         "evidence_source": PROBE_EVIDENCE_SOURCE,
     }
 
@@ -838,7 +1042,7 @@ def _probe_marker_facts_for_digest(
             "refund_webhook_verified": True,
             "webhook_signature_verified": True,
             "identity_isolation_verified": True,
-            "event_order_verified": True,
+            "event_order_verified": status["event_order_verified"],
         },
     }
 
@@ -884,48 +1088,98 @@ def process_queued_probe_events(
     now = _valid_time(now)
     if type(limit) is not int or limit < 1 or limit > 200:
         raise ValueError("limit probe fronty musí byť od 1 do 200")
-    rows = con.execute(
-        """SELECT id,telo,podpis FROM platobne_odlozene
-             WHERE spracovane_o IS NULL ORDER BY id LIMIT ?""",
-        (limit,),
-    ).fetchall()
-    result = {"processed": 0, "left_unrelated": 0, "rejected": 0}
-    for row in rows:
-        body = bytes(row[1])
-        signature = row[2]
-        if not isinstance(signature, str) or not _DIGEST_RE.fullmatch(
-            signature.strip()
-        ):
-            result["left_unrelated"] += 1
-            continue
-        expected = hmac.new(
-            config.webhook_secret.encode(), body, hashlib.sha256
-        ).hexdigest()
-        if not hmac.compare_digest(signature.strip(), expected):
-            result["left_unrelated"] += 1
-            continue
-        try:
-            ingested = ingest_signed_probe_event(
-                con,
-                body=body,
-                signature=signature,
-                config=config,
-                signing_secret=signing_secret,
-                now=now,
-                source_queue_id=row[0],
+    result = {"processed": 0, "left_unrelated": 0, "rejected": 0, "deferred": 0}
+    # Page to the actual end of the queue. ``limit`` bounds consumed probe
+    # events, not inspected unrelated rows, so an old backlog cannot starve a
+    # valid signed probe event.
+    last_id = 0
+    handled = 0
+    while handled < limit:
+        batch = con.execute(
+            """SELECT id,telo,podpis FROM platobne_odlozene
+                 WHERE spracovane_o IS NULL AND id>? ORDER BY id LIMIT ?""",
+            (last_id, 200),
+        ).fetchall()
+        if not batch:
+            break
+        for row in batch:
+            last_id = int(row[0])
+            body = bytes(row[1])
+            signature = row[2]
+            if not isinstance(signature, str) or not _DIGEST_RE.fullmatch(
+                signature.strip()
+            ):
+                result["left_unrelated"] += 1
+                continue
+            expected = hmac.new(
+                config.webhook_secret.encode(), body, hashlib.sha256
+            ).hexdigest()
+            if not hmac.compare_digest(signature.strip(), expected):
+                result["left_unrelated"] += 1
+                continue
+            try:
+                ingested = ingest_signed_probe_event(
+                    con,
+                    body=body,
+                    signature=signature,
+                    config=config,
+                    signing_secret=signing_secret,
+                    now=now,
+                    source_queue_id=row[0],
+                )
+            except ProbeEventDeferred:
+                # This event is authentic and structurally valid. Keep its
+                # signed body until an earlier lifecycle transition arrives.
+                result["deferred"] += 1
+                continue
+            except ProbeEventRejected:
+                # This body is authenticated by the dedicated probe secret, so
+                # no other processor owns it.  Retaining it would preserve any
+                # customer fields forever and repeated retries could never fix
+                # a structurally rejected event.
+                con.execute(
+                    """UPDATE platobne_odlozene
+                          SET telo=?,podpis=NULL,spracovane_o=?,vysledok=?
+                        WHERE id=? AND spracovane_o IS NULL""",
+                    (b"", now, "lifecycle_probe_rejected", row[0]),
+                )
+                con.commit()
+                result["rejected"] += 1
+                handled += 1
+                continue
+            queue_result = "lifecycle_probe:" + ingested["event_type"]
+            updated = con.execute(
+                """UPDATE platobne_odlozene
+                      SET telo=?,podpis=NULL,spracovane_o=?,vysledok=?
+                    WHERE id=? AND spracovane_o IS NULL""",
+                (b"", now, queue_result, row[0]),
+            ).rowcount
+            con.commit()
+            result["processed"] += int(updated == 1)
+            handled += int(updated == 1)
+            if handled >= limit:
+                break
+
+    # Marker vyhľadáva iba trvalo uložený stav ``ready``. Nestačí ho vypočítať
+    # pri čítaní statusu: po poslednom platnom podpísanom webhooku musí byť stav
+    # atomicky povýšený aj v databáze.
+    fingerprint = probe_config_fingerprint(config, signing_secret=signing_secret)
+    promoted = False
+    for run in con.execute(
+        "SELECT token_digest FROM subscription_lifecycle_probe_runs "
+        "WHERE state='collecting' AND config_fingerprint=?",
+        (fingerprint,),
+    ).fetchall():
+        digest = str(run[0])
+        if _safe_status(con, digest)["complete"]:
+            con.execute(
+                "UPDATE subscription_lifecycle_probe_runs SET state='ready',updated_at=? "
+                "WHERE token_digest=? AND state='collecting'",
+                (now, digest),
             )
-        except ProbeEventRejected:
-            result["rejected"] += 1
-            continue
-        queue_result = "lifecycle_probe:" + ingested["event_type"]
-        updated = con.execute(
-            """UPDATE platobne_odlozene
-                  SET telo=?,podpis=NULL,spracovane_o=?,vysledok=?
-                WHERE id=? AND spracovane_o IS NULL""",
-            (b"", now, queue_result, row[0]),
-        ).rowcount
+            promoted = True
+    if promoted:
         con.commit()
-        result["processed"] += int(updated == 1)
     return result
 
 

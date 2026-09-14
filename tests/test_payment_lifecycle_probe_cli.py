@@ -111,6 +111,95 @@ def provider_request(calls, *, checkout_url=None, variant_changes=None):
     return request
 
 
+def real_probe_event(event_type, *, invoice_id=None, billing_reason=None, created_at):
+    is_invoice = event_type.startswith("subscription_payment_")
+    attributes = {
+        "test_mode": True,
+        "store_id": "test-store",
+        "created_at": created_at,
+        "updated_at": created_at,
+    }
+    if is_invoice:
+        attributes.update({
+            "subscription_id": "sub-probe-1",
+            "billing_reason": billing_reason,
+            "currency": "EUR",
+            "total": 100,
+            "refunded_amount": 0,
+            "status": "paid",
+        })
+        data_type = "subscription-invoices"
+        data_id = invoice_id
+    else:
+        attributes.update({
+            "variant_id": "daily-variant",
+            "order_id": "order-probe-1",
+            "status": "active",
+        })
+        data_type = "subscriptions"
+        data_id = "sub-probe-1"
+    return {
+        "meta": {
+            "event_name": event_type,
+            "custom_data": {probe.PROBE_TOKEN_FIELD: TOKEN},
+        },
+        "data": {"type": data_type, "id": data_id, "attributes": attributes},
+    }
+
+
+def queue_probe_event(con, event):
+    body = json.dumps(event, sort_keys=True, separators=(",", ":")).encode()
+    signature = hmac.new(
+        config().webhook_secret.encode(), body, hashlib.sha256
+    ).hexdigest()
+    platby.odloz_webhook(
+        con, telo=body, podpis=signature, now=NOW, dovod="payments_off"
+    )
+
+
+def test_provider_request_refuses_redirects_before_authorization_can_leave_lemon(
+    monkeypatch,
+):
+    tool = load_tool()
+    opened = []
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self, _limit):
+            return b'{"data": {"type": "variants", "id": "1", "attributes": {}}}'
+
+    class Opener:
+        def open(self, request, *, timeout):
+            opened.append((request.full_url, request.get_header("Authorization"), timeout))
+            return Response()
+
+    def build_opener(handler):
+        assert isinstance(handler, tool.urllib.request.HTTPRedirectHandler)
+        assert handler.redirect_request(None, None, 302, "Found", {}, "https://evil.test") is None
+        return Opener()
+
+    monkeypatch.setattr(tool.urllib.request, "build_opener", build_opener)
+    monkeypatch.setattr(
+        tool.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("globálny urlopen nesmie automaticky nasledovať presmerovanie")
+        ),
+    )
+
+    result = tool._provider_request("secret-api", "/v1/variants/1")
+
+    assert result["data"]["id"] == "1"
+    assert opened == [
+        ("https://api.lemonsqueezy.com/v1/variants/1", "Bearer secret-api", 20)
+    ]
+
+
 def test_prepare_builds_exact_test_daily_checkout_and_persists_no_url_or_token(db):
     tool = load_tool()
     calls = []
@@ -222,10 +311,10 @@ def test_safe_status_lists_only_event_names_counts_and_timestamps(db):
         }},
         "data": {"type": "subscriptions", "id": "sub-private", "attributes": {
             "test_mode": True, "store_id": "test-store", "variant_id": "daily-variant",
-            "currency": "EUR", "total": 100, "subscription_id": "sub-private",
-            "order_id": "order-private", "invoice_id": "invoice-private",
+            "order_id": "order-private",
             "billing_period_start": "2026-09-13T00:00:00Z",
             "billing_period_end": "2026-09-14T00:00:00Z", "status": "active",
+            "updated_at": "2026-09-13T12:00:00Z",
         }},
     }, separators=(",", ":")).encode()
     sig = hmac.new(config().webhook_secret.encode(), body, hashlib.sha256).hexdigest()
@@ -242,6 +331,252 @@ def test_safe_status_lists_only_event_names_counts_and_timestamps(db):
     for forbidden in (TOKEN, "sub-private", "order-private", "invoice-private",
                       "test-store", "daily-variant", "test-api", "dedicated-probe-hook"):
         assert forbidden not in rendered
+
+
+def test_process_probe_verifies_renewal_from_real_subscription_and_invoice_fields(db):
+    tool = load_tool()
+    probe.create_probe_run(
+        db, config=config(), signing_secret=SIGNING_SECRET, now=NOW, token=TOKEN,
+    )
+    probe.record_probe_provider_verified(
+        db,
+        token=TOKEN,
+        config=config(),
+        signing_secret=SIGNING_SECRET,
+        test_mode=True,
+        store_id="test-store",
+        variant_id="daily-variant",
+        price_cents=100,
+        currency="EUR",
+        interval="day",
+        interval_count=1,
+        trial_days=0,
+        discount_applied_cents=0,
+        variant_status="published",
+        now=NOW + 1,
+    )
+    queue_probe_event(
+        db,
+        real_probe_event(
+            "subscription_created", created_at="2026-09-13T12:00:00Z"
+        ),
+    )
+    queue_probe_event(
+        db,
+        real_probe_event(
+            "subscription_payment_success",
+            invoice_id="invoice-initial-real",
+            billing_reason="initial",
+            created_at="2026-09-13T12:00:00Z",
+        ),
+    )
+    queue_probe_event(
+        db,
+        real_probe_event(
+            "subscription_payment_success",
+            invoice_id="invoice-renewal-real",
+            billing_reason="renewal",
+            created_at="2026-09-14T12:00:00Z",
+        ),
+    )
+    calls = []
+
+    def request(api_key, path, *, method="GET", payload=None):
+        calls.append((api_key, path, method, payload))
+        if path == "/v1/subscriptions/sub-probe-1":
+            return {"data": {"type": "subscriptions", "id": "sub-probe-1", "attributes": {
+                "test_mode": True,
+                "store_id": "test-store",
+                "variant_id": "daily-variant",
+                "status": "active",
+            }}}
+        if path == "/v1/subscription-invoices/invoice-renewal-real":
+            return {"data": {"type": "subscription-invoices", "id": "invoice-renewal-real", "attributes": {
+                "test_mode": True,
+                "store_id": "test-store",
+                "subscription_id": "sub-probe-1",
+                "billing_reason": "renewal",
+                "currency": "EUR",
+                "total": 100,
+                "status": "paid",
+                "created_at": "2026-09-14T12:00:00Z",
+            }}}
+        raise AssertionError(path)
+
+    result = tool.process_probe(
+        db,
+        config=config(),
+        signing_secret=SIGNING_SECRET,
+        now=NOW + 20,
+        request=request,
+        lifecycle_module=probe,
+    )
+
+    assert result["processed"] == 3
+    assert probe.probe_status(db, token=TOKEN)[
+        "genuine_daily_renewal_verified"
+    ] is True
+    assert [path for _key, path, _method, _payload in calls] == [
+        "/v1/subscriptions/sub-probe-1",
+        "/v1/subscription-invoices/invoice-renewal-real",
+    ]
+
+
+def test_process_probe_can_retry_provider_verification_after_queue_was_scrubbed(db):
+    tool = load_tool()
+    probe.create_probe_run(
+        db, config=config(), signing_secret=SIGNING_SECRET, now=NOW, token=TOKEN,
+    )
+    probe.record_probe_provider_verified(
+        db,
+        token=TOKEN,
+        config=config(),
+        signing_secret=SIGNING_SECRET,
+        test_mode=True,
+        store_id="test-store",
+        variant_id="daily-variant",
+        price_cents=100,
+        currency="EUR",
+        interval="day",
+        interval_count=1,
+        trial_days=0,
+        discount_applied_cents=0,
+        variant_status="published",
+        now=NOW + 1,
+    )
+    for event in (
+        real_probe_event("subscription_created", created_at="2026-09-13T12:00:00Z"),
+        real_probe_event(
+            "subscription_payment_success", invoice_id="invoice-initial-real",
+            billing_reason="initial", created_at="2026-09-13T12:00:00Z",
+        ),
+        real_probe_event(
+            "subscription_payment_success", invoice_id="invoice-renewal-real",
+            billing_reason="renewal", created_at="2026-09-14T12:00:00Z",
+        ),
+    ):
+        queue_probe_event(db, event)
+
+    def unavailable(*_args, **_kwargs):
+        raise OSError("provider unavailable")
+
+    with pytest.raises(tool.ProbeToolFailed, match="nedostupné"):
+        tool.process_probe(
+            db, config=config(), signing_secret=SIGNING_SECRET, now=NOW + 20,
+            request=unavailable, lifecycle_module=probe,
+        )
+    assert db.execute(
+        "SELECT COUNT(*) FROM platobne_odlozene WHERE spracovane_o IS NULL"
+    ).fetchone()[0] == 0
+
+    def available(_api_key, path, *, method="GET", payload=None):
+        if path == "/v1/subscriptions/sub-probe-1":
+            return {"data": {"type": "subscriptions", "id": "sub-probe-1", "attributes": {
+                "test_mode": True, "store_id": "test-store",
+                "variant_id": "daily-variant", "status": "active",
+            }}}
+        if path == "/v1/subscription-invoices/invoice-renewal-real":
+            return {"data": {"type": "subscription-invoices", "id": "invoice-renewal-real", "attributes": {
+                "test_mode": True, "store_id": "test-store",
+                "subscription_id": "sub-probe-1", "billing_reason": "renewal",
+                "currency": "EUR", "total": 100, "status": "paid",
+                "created_at": "2026-09-14T12:00:00Z",
+            }}}
+        raise AssertionError(path)
+
+    tool.process_probe(
+        db, config=config(), signing_secret=SIGNING_SECRET, now=NOW + 30,
+        request=available, lifecycle_module=probe,
+    )
+    assert probe.probe_status(db, token=TOKEN)[
+        "genuine_daily_renewal_verified"
+    ] is True
+
+
+def test_process_probe_skips_refunded_older_candidate_and_verifies_newer_paid_one(db):
+    tool = load_tool()
+    probe.create_probe_run(
+        db, config=config(), signing_secret=SIGNING_SECRET, now=NOW, token=TOKEN,
+    )
+    probe.record_probe_provider_verified(
+        db,
+        token=TOKEN,
+        config=config(),
+        signing_secret=SIGNING_SECRET,
+        test_mode=True,
+        store_id="test-store",
+        variant_id="daily-variant",
+        price_cents=100,
+        currency="EUR",
+        interval="day",
+        interval_count=1,
+        trial_days=0,
+        discount_applied_cents=0,
+        variant_status="published",
+        now=NOW + 1,
+    )
+    for event in (
+        real_probe_event("subscription_created", created_at="2026-09-13T12:00:00Z"),
+        real_probe_event(
+            "subscription_payment_success", invoice_id="invoice-initial-real",
+            billing_reason="initial", created_at="2026-09-13T12:00:00Z",
+        ),
+        real_probe_event(
+            "subscription_payment_success", invoice_id="invoice-refunded-renewal",
+            billing_reason="renewal", created_at="2026-09-14T12:00:00Z",
+        ),
+        real_probe_event(
+            "subscription_payment_success", invoice_id="invoice-paid-renewal",
+            billing_reason="renewal", created_at="2026-09-15T12:00:00Z",
+        ),
+    ):
+        queue_probe_event(db, event)
+
+    calls = []
+
+    def request(_api_key, path, *, method="GET", payload=None):
+        calls.append(path)
+        if path == "/v1/subscriptions/sub-probe-1":
+            return {"data": {"type": "subscriptions", "id": "sub-probe-1", "attributes": {
+                "test_mode": True, "store_id": "test-store",
+                "variant_id": "daily-variant", "status": "active",
+            }}}
+        invoice_id = path.rsplit("/", 1)[-1]
+        if invoice_id in {"invoice-refunded-renewal", "invoice-paid-renewal"}:
+            return {"data": {"type": "subscription-invoices", "id": invoice_id, "attributes": {
+                "test_mode": True, "store_id": "test-store",
+                "subscription_id": "sub-probe-1", "billing_reason": "renewal",
+                "currency": "EUR", "total": 100,
+                "status": "refunded" if invoice_id == "invoice-refunded-renewal" else "paid",
+                "created_at": (
+                    "2026-09-14T12:00:00Z"
+                    if invoice_id == "invoice-refunded-renewal"
+                    else "2026-09-15T12:00:00Z"
+                ),
+            }}}
+        raise AssertionError(path)
+
+    tool.process_probe(
+        db,
+        config=config(),
+        signing_secret=SIGNING_SECRET,
+        now=NOW + 20,
+        request=request,
+        lifecycle_module=probe,
+    )
+
+    assert probe.probe_status(db, token=TOKEN)[
+        "genuine_daily_renewal_verified"
+    ] is True
+    assert db.execute(
+        "SELECT provider_renewal_invoice_id FROM subscription_lifecycle_probe_runs"
+    ).fetchone()[0] == "invoice-paid-renewal"
+    assert calls == [
+        "/v1/subscriptions/sub-probe-1",
+        "/v1/subscription-invoices/invoice-refunded-renewal",
+        "/v1/subscriptions/sub-probe-1",
+        "/v1/subscription-invoices/invoice-paid-renewal",
+    ]
 
 
 def test_cleanup_requires_valid_schema5_marker_and_exact_b1_confirmation(db):
@@ -284,6 +619,7 @@ def test_source_has_no_probe_user_env_key_or_public_endpoint():
     [
         ("annual-prepare", "prepare_annual_checkout"),
         ("annual-process", "process_annual_queue"),
+        ("annual-reconcile", "reconcile_annual_account"),
         ("annual-status", "_annual_safe_status"),
     ],
 )

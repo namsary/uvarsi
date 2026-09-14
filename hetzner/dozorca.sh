@@ -65,6 +65,24 @@ log(){ echo "[$(TZ=Europe/Bratislava "$DATE" '+%F %T')] DOZORCA: $*"; }
 notify(){ "$CURL" -fsS --max-time 15 -H "Title: $1" -d "$2" "https://ntfy.sh/${NTFY_TOPIC}" >/dev/null 2>&1; }
 nacitaj_health(){ "$CURL" -sS --max-time 1 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true; }
 
+publish_static_receipt() {
+  # Toto nič nevolá na Anthropic. Ešte pred ktorýmkoľvek neskorším stop-gate
+  # zosúladí prvé HTML vykreslenie s uloženým JSON-om. Po zmene týždňa tak
+  # starý bloček okamžite prestane tvrdiť, že ceny sú aktuálne, aj keď zber
+  # čaká na kredit alebo skončí štrukturálnou chybou.
+  (cd "$DIR" && "$PY" -c '
+from datetime import date
+import json, sys
+from app.landing_data import load_landing_data
+from app.landing_static import publish_landing_html
+try:
+    payload = load_landing_data(sys.argv[1])
+except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
+    payload = None
+publish_landing_html(sys.argv[2], payload, today=date.fromisoformat(sys.argv[3]))
+' "$LANDING_DATA" "$PUBLIC_INDEX" "$TODAY")
+}
+
 # Git uchováva tento shell modul ako bežný súbor (100644), no bezpečný
 # cron ho spúšťa ako vstupný bod. Prvý dozor po prechodovom vydaní
 # preto jednorazovo napraví iba jeho execute bit; obsah ani cudzí cron nemení.
@@ -139,6 +157,10 @@ case "$NOW_EPOCH" in
     ;;
 esac
 case "$CREDIT_RETRY_SECONDS" in ''|*[!0-9]*|0) log "CHYBA — interval kontroly kreditu má neplatný formát"; exit 1 ;; esac
+
+# Pravdivosť verejného bločka má prednosť pred dohľadom fronty, receptov aj
+# zberača. Zlyhanie zápisu sa zaznamená, ale autonómny beh pokračuje.
+publish_static_receipt || log "statický bloček sa nepodarilo zosúladiť — pokračujem v obnove dát"
 
 skontroluj_frontu_planov() {
   # Health odpoveď je jediný zdroj pravdy: dozorca nesmie z počtu procesov
@@ -492,22 +514,6 @@ landing_data_is_current() {
   (cd "$DIR" && "$PY" -c 'from datetime import date; from refresh_blocek import landing_data_is_verified_current as landing_data_is_current; import sys; raise SystemExit(0 if landing_data_is_current(sys.argv[1], sys.argv[2], date.fromisoformat(sys.argv[3])) else 1)' "$LANDING_DATA" "$DIR/uvarsi.db" "$TODAY")
 }
 
-publish_static_receipt() {
-  # Rovnaký overený JSON musí byť viditeľný aj bez JavaScriptu. Pri zmene
-  # týždňa sa starý bloček označí ako ukážka a úspora sa prestane tvrdiť.
-  (cd "$DIR" && "$PY" -c '
-from datetime import date
-import json, sys
-from app.landing_data import load_landing_data
-from app.landing_static import publish_landing_html
-try:
-    payload = load_landing_data(sys.argv[1])
-except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
-    payload = None
-publish_landing_html(sys.argv[2], payload, today=date.fromisoformat(sys.argv[3]))
-' "$LANDING_DATA" "$PUBLIC_INDEX" "$TODAY")
-}
-
 zahrej_plany() {
   # Predpočet iba zaradí idempotentné low-priority úlohy do trvalej fronty;
   # Anthropic volá až samostatný worker. Beží preto pri každom hodinovom
@@ -789,9 +795,6 @@ ZBER_REV=$(sqlite3 "$DIR/uvarsi.db" \
   2>/dev/null || echo 0)
 DATOVY_STAV="${STAGED_POCET:-0}:${STAGED_CHYBA:-3}:${ZBER_REV:-0}"
 ZDROJOVY_ODTLACOK=$(overeny_odtlacok zber_staging_stav)
-# Toto nič nevolá na Anthropic. Iba atomicky zosúladí prvé HTML vykreslenie
-# s už uloženým JSON-om; zlyhanie nesmie zastaviť obnovu dát.
-publish_static_receipt || log "statický bloček sa nepodarilo zosúladiť — pokračujem v obnove dát"
 # --- 1. Už je aktuálny landing JSON pripravený? ---
 if landing_data_is_current; then
   if [ "${POCET:-0}" -ge "$MIN_TOTAL_OFFERS" ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]; then

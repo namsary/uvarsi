@@ -121,7 +121,7 @@ class AnnualCommercialEvidence:
     billing_interval_count: int
     annual_test_checkout_verified: bool
     annual_test_initial_payment_verified: bool
-    annual_domain_renewal_verified: bool
+    annual_renewal_terms_verified: bool
     annual_domain_cancellation_verified: bool
     annual_domain_refund_verified: bool
     portal_access_verified: bool
@@ -335,6 +335,48 @@ def discount_code_fingerprint(*, signing_secret: str, discount_code: str) -> str
     )
 
 
+def annual_reconciliation_event_key(
+    *, signing_secret: str, release: str, config: SubscriptionConfig,
+    provider_subscription_id: str,
+) -> str:
+    """Bind one private reconciliation proof to release, config and subscription."""
+    key = _text(signing_secret, name="podpisové tajomstvo").encode("utf-8")
+    if type(getattr(config, "test_mode", None)) is not bool:
+        raise ValueError("neplatná konfigurácia predplatného")
+    config_values = {
+        "store_id": _text(getattr(config, "store_id", None), name="obchod"),
+        "variant_id": _text(getattr(config, "variant_id", None), name="ročný variant"),
+        "discount_id": _text(getattr(config, "discount_id", None), name="zakladajúca zľava"),
+        "discount_code": _text(getattr(config, "discount_code", None), name="kód zľavy"),
+        "webhook_secret": _text(getattr(config, "webhook_secret", None), name="webhook tajomstvo"),
+        "api_key": _text(getattr(config, "api_key", None), name="API kľúč"),
+        "test_mode": config.test_mode,
+    }
+    config_payload = json.dumps(
+        config_values, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("utf-8")
+    config_identity = hmac.new(
+        key,
+        b"uvarsi-annual-subscription-config-v2\0" + config_payload,
+        hashlib.sha256,
+    ).hexdigest()
+    payload = json.dumps(
+        {
+            "release": _text(release, name="vydanie"),
+            "config": config_identity,
+            "subscription": _text(
+                provider_subscription_id, name="predplatné"
+            ),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("utf-8")
+    return "annual-reconcile:" + hmac.new(
+        key, b"uvarsi-annual-reconciliation-v1\0" + payload, hashlib.sha256
+    ).hexdigest()
+
+
 def _subscription_config_identity(
     config: SubscriptionConfig, *, signing_secret: str
 ) -> str:
@@ -532,7 +574,7 @@ def _valid_annual_commercial_evidence(value) -> bool:
     boolean_fields = (
         "annual_test_checkout_verified",
         "annual_test_initial_payment_verified",
-        "annual_domain_renewal_verified",
+        "annual_renewal_terms_verified",
         "annual_domain_cancellation_verified",
         "annual_domain_refund_verified",
         "portal_access_verified",
@@ -557,7 +599,7 @@ def _valid_annual_commercial_evidence(value) -> bool:
         "billing_interval_count": 1,
         "annual_test_checkout_verified": True,
         "annual_test_initial_payment_verified": True,
-        "annual_domain_renewal_verified": True,
+        "annual_renewal_terms_verified": True,
         "annual_domain_cancellation_verified": True,
         "annual_domain_refund_verified": True,
         "portal_access_verified": True,

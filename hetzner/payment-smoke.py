@@ -850,7 +850,7 @@ def _load_annual_lifecycle_records(server, *, email, test_config):
 
 def _annual_commercial_evidence_from_records(
     *, subscription, invoices, events, portal_access_verified,
-    unresolved_cases, config, evidence_type,
+    unresolved_cases, config, evidence_type, reconciliation_event_key, now,
 ):
     """Prove annual commerce without pretending that a year already elapsed."""
     if type(unresolved_cases) is not int or unresolved_cases != 0:
@@ -903,11 +903,18 @@ def _annual_commercial_evidence_from_records(
         initial is not None
         and {"subscription_payment_refunded", "order_refunded"} & clean_events
     )
+    if isinstance(now, bool) or not isinstance(now, (int, float)) or not math.isfinite(float(now)):
+        raise SmokeFailed("Ročný testovací lifecycle nemá platný čas kontroly.")
+    now = float(now)
     reconciliation_verified = any(
         isinstance(event, dict)
+        and event.get("event_key") == reconciliation_event_key
+        and event.get("event_type") == "annual_reconciliation_verified"
         and event.get("processing_status") == "processed"
         and event.get("needs_review") == 0
-        and event.get("source") in {"reconciliation", "rekonciliacia"}
+        and event.get("source") == "reconciliation_probe"
+        and type(event.get("processed_at")) in {int, float}
+        and now - 24 * 60 * 60 <= float(event["processed_at"]) <= now + 5 * 60
         for event in events
     )
     if not (
@@ -924,7 +931,7 @@ def _annual_commercial_evidence_from_records(
         billing_interval_count=1,
         annual_test_checkout_verified=True,
         annual_test_initial_payment_verified=True,
-        annual_domain_renewal_verified=True,
+        annual_renewal_terms_verified=True,
         annual_domain_cancellation_verified=True,
         annual_domain_refund_verified=True,
         portal_access_verified=True,
@@ -985,6 +992,39 @@ def _verified_test_portal_access(
         or not parsed.path
     ):
         raise SmokeFailed("Provider nepotvrdil bezpečný testovací portál.")
+    return True
+
+
+def _verified_app_portal_access(opener, base_url: str) -> bool:
+    """Exercise the authenticated Uvar.si portal endpoint without leaking its URL."""
+    result = _json_request(
+        opener,
+        f"{base_url.rstrip('/')}/api/platba/portal",
+        method="POST",
+        headers={"Origin": base_url.rstrip("/")},
+    )
+    portal_url = result.get("url") if isinstance(result, dict) else None
+    try:
+        parsed = urllib.parse.urlsplit(portal_url)
+        port = parsed.port
+    except (TypeError, ValueError):
+        raise SmokeFailed("Aplikácia nevrátila bezpečný testovací portál.") from None
+    valid_host = isinstance(parsed.hostname, str) and (
+        parsed.hostname == "lemonsqueezy.com"
+        or parsed.hostname.endswith(".lemonsqueezy.com")
+    )
+    valid = bool(
+        parsed.scheme == "https"
+        and valid_host
+        and parsed.username is None
+        and parsed.password is None
+        and port is None
+        and parsed.path
+        and parsed.fragment == ""
+    )
+    del portal_url
+    if not valid:
+        raise SmokeFailed("Aplikácia nevrátila bezpečný testovací portál.")
     return True
 
 
@@ -1307,10 +1347,20 @@ def main(argv=None) -> int:
             server, email=email, test_config=expectation.test
         )
     )
-    portal_access_verified = _verified_test_portal_access(
+    provider_portal_verified = _verified_test_portal_access(
         expectation.test.api_key,
         subscription_id=subscription_id,
         variant_id=expectation.test.variant_id,
+    )
+    app_portal_verified = _verified_app_portal_access(
+        opener, args.base_url.rstrip("/")
+    )
+    portal_access_verified = provider_portal_verified and app_portal_verified
+    reconciliation_event_key = marker_module.annual_reconciliation_event_key(
+        signing_secret=expectation.signing_secret,
+        release=expectation.release,
+        config=expectation.test,
+        provider_subscription_id=subscription_id,
     )
     annual_commercial = _annual_commercial_evidence_from_records(
         subscription=subscription,
@@ -1320,6 +1370,8 @@ def main(argv=None) -> int:
         unresolved_cases=unresolved,
         config=expectation.test,
         evidence_type=marker_module.AnnualCommercialEvidence,
+        reconciliation_event_key=reconciliation_event_key,
+        now=time.time(),
     )
     probe_facts = _load_daily_probe_facts(
         server, expectation=expectation, lifecycle_module=lifecycle_module

@@ -74,6 +74,13 @@ MAX_PROVIDER_PAGES = 10_000
 CAS_SPOJENIA = 20
 
 
+class _NoProviderRedirects(urllib.request.HTTPRedirectHandler):
+    """Never forward the Lemon bearer token to a redirected destination."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 def env(kluc, default=None):
     """Tajomstvá výhradne z prostredia alebo env súboru servera — nikdy z kódu."""
     if os.environ.get(kluc):
@@ -111,7 +118,8 @@ def stiahni_stranu(
             "Authorization": f"Bearer {api_key}",
         },
     )
-    otvor = otvor or urllib.request.urlopen
+    if otvor is None:
+        otvor = urllib.request.build_opener(_NoProviderRedirects()).open
     try:
         with otvor(ziadost, timeout=CAS_SPOJENIA) as odpoved:
             telo = json.loads(odpoved.read().decode("utf-8"))

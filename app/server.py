@@ -15,6 +15,7 @@ import logging
 import os, re, json, sqlite3, datetime, threading, time, hashlib, hmac, math, tempfile
 from concurrent.futures import Future
 from contextlib import asynccontextmanager, closing
+from contextvars import ContextVar
 from decimal import Decimal
 from html import escape
 from pathlib import Path
@@ -448,8 +449,11 @@ def env(key, default=None):
     return default
 
 
+_BUSINESS_DAY_OVERRIDE = ContextVar("uvarsi_business_day_override", default=None)
+
+
 def monday(d=None):
-    d = d or bratislava_day()
+    d = d or _BUSINESS_DAY_OVERRIDE.get() or bratislava_day()
     return (d - datetime.timedelta(days=d.weekday())).isoformat()
 
 
@@ -3045,7 +3049,7 @@ def akcie_pre(obchody):
     if not obchody:
         return []
 
-    today = bratislava_day()
+    today = _BUSINESS_DAY_OVERRIDE.get() or bratislava_day()
     with closing(db()) as con:
         if stores_missing_this_week(con, obchody, today):
             return []
@@ -4773,7 +4777,10 @@ def recipe_engine_health(con, *, today=None):
     ):
         blockers.append("p95_too_slow")
 
-    payments_enabled = platby_su_zapnute()
+    # Receptový rollout je bezpečnostná brána pred platbami. Musí sa zastaviť
+    # už pri zapnutí ktoréhokoľvek z dvoch prepínačov, aj keď checkout správne
+    # ostáva vypnutý, kým nie sú zapnuté oba.
+    payments_enabled = akykolvek_platobny_preinac_zapnuty()
     if payments_enabled:
         blockers.append("payments_enabled")
     if mode == "on":
@@ -5350,10 +5357,14 @@ def _authenticated_isolated_recipe_smoke(rows, *, now):
         )
         client.cookies.set(COOKIE, raw_session)
         route_started = time.perf_counter()
-        responses = [
-            client.post("/api/plan/generuj"),
-            client.post("/api/plan/generuj"),
-        ]
+        business_day_token = _BUSINESS_DAY_OVERRIDE.set(bratislava_day(now))
+        try:
+            responses = [
+                client.post("/api/plan/generuj"),
+                client.post("/api/plan/generuj"),
+            ]
+        finally:
+            _BUSINESS_DAY_OVERRIDE.reset(business_day_token)
         route_latency_ms = round(
             max(0.0, (time.perf_counter() - route_started) * 1000), 3
         )
@@ -5437,7 +5448,7 @@ def run_recipe_engine_synthetic_smoke(
     isolated_jobs_delta = 0
     isolated_costs_delta = 0
     route_latency_ms = None
-    payments_enabled = platby_su_zapnute()
+    payments_enabled = akykolvek_platobny_preinac_zapnuty()
     try:
         offer_database = (
             _legacy_offer_schema_snapshot()
@@ -6597,8 +6608,22 @@ PORTAL_NOT_MANAGEABLE_MESSAGE = (
 )
 
 
+def akykolvek_platobny_preinac_zapnuty() -> bool:
+    """True when a partial or complete payment activation is in progress."""
+    return (
+        platby_zapnute(env("PLATBY_ZAPNUTE"))
+        or platby_zapnute(env("UVARSI_PAYMENTS_ENABLED"))
+    )
+
+
 def platby_su_zapnute() -> bool:
-    return platby_zapnute(env("PLATBY_ZAPNUTE"))
+    # Peniaze sa smú pohnúť iba po dvoch samostatných, jednoznačných súhlasoch.
+    # Chýbajúca, neplatná alebo vypnutá hodnota ktoréhokoľvek príznaku drží
+    # checkout fail-closed.
+    return (
+        platby_zapnute(env("PLATBY_ZAPNUTE"))
+        and platby_zapnute(env("UVARSI_PAYMENTS_ENABLED"))
+    )
 
 
 def vyzaduj_zapnute_platby():

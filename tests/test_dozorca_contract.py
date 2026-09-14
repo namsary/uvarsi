@@ -9,6 +9,7 @@ import pytest
 
 from app.landing_data import write_landing_data_atomic
 from app.landing_data import landing_data_is_current
+from app.landing_static import publish_landing_html
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -413,6 +414,76 @@ def test_dozorca_zachyti_nulovy_kredit_uz_v_zberaci_a_nepusti_refresh(tmp_path):
         "2026-08-18", "0", "KREDIT", "1000000"
     ]
     assert "KREDIT" in first.stdout
+
+
+def test_dozorca_marks_last_weeks_static_receipt_historical_before_credit_cooldown_exit(tmp_path):
+    """Starý bloček nesmie zostať označený ako aktuálny, ani keď zber čaká na kredit."""
+    landing_data, _, _ = _credit_exhausted_environment(tmp_path)
+    old_payload = payload("2026-09-07")
+    old_payload.update({
+        "offer_data_version": 2,
+        "generated_at": "2026-09-12T12:20:43+02:00",
+        "week_label": "7.–13. 9. 2026",
+        "sources": [{
+            "store": "Lidl",
+            "url": "https://example.test/lidl",
+            "valid_from": "2026-09-07",
+            "valid_to": "2026-09-13",
+        }],
+    })
+    old_payload["receipt"]["meals"][0]["items"] = [{
+        "offer_key": "offer-1",
+        "name": "Paradajky",
+        "store": "Lidl",
+        "unit": "1 kg",
+        "quantity": 1,
+        "price": "1,00",
+        "original_price": "1,50",
+        "savings": "0,50",
+        "off": "-33 %",
+    }]
+    write_landing_data_atomic(landing_data, old_payload)
+
+    public_index = tmp_path / "index.html"
+    public_index.write_text(
+        '<div class="rcpt-wrap" id="landing-data" aria-live="polite" hidden>'
+        '<!-- RCPT:START --><!-- RCPT:END --></div>'
+        '<p class="rcpt-proof" id="landing-status" aria-live="polite">'
+        'Aktuálne ceny práve obnovujeme.</p>',
+        encoding="utf-8",
+    )
+    publish_landing_html(public_index, old_payload, today=date(2026, 9, 12))
+    assert "Aktuálne letáky" in public_index.read_text(encoding="utf-8")
+
+    release = "a" * 40
+    (tmp_path / ".nasadene_sha").write_text(release + "\n", encoding="utf-8")
+    (tmp_path / ".dozorca_state").write_text(
+        f"2026-09-14 0 KREDIT 1000000 {release}\n", encoding="utf-8"
+    )
+    actual_python = bash_path(Path(sys.executable))
+    (tmp_path / "python").write_text(
+        "#!/bin/sh\n"
+        f'if [ "$1" = "-c" ]; then exec "{actual_python}" "$@"; fi\n'
+        "echo 'KREDIT_VYCERPANY: na účte došiel kredit' >&2\n"
+        "exit 3\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    (tmp_path / "python").chmod(0o755)
+
+    result = run_dozorca(
+        tmp_path,
+        landing_data,
+        UVARSI_TODAY="2026-09-14",
+        UVARSI_NOW_EPOCH=1_000_001,
+        UVARSI_PUBLIC_INDEX=bash_path(public_index),
+        PYTHONPATH=str(ROOT),
+    )
+    html = public_index.read_text(encoding="utf-8")
+
+    assert result.returncode == 3
+    assert "Ukážka z minulého týždňa" in html
+    assert "Aktuálne letáky" not in html
 
 
 def test_dozorca_po_kredite_skusa_najviac_raz_za_hodinu(tmp_path):

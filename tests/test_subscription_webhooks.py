@@ -1108,6 +1108,9 @@ def _load_server(monkeypatch, tmp_path, *, payments_enabled=True):
     monkeypatch.setenv("UVARSI_VERSION_FILE", str(ROOT / "VERSION"))
     monkeypatch.setenv("UVARSI_STATIC", str(tmp_path / "static"))
     monkeypatch.setenv("PLATBY_ZAPNUTE", "1" if payments_enabled else "0")
+    monkeypatch.setenv(
+        "UVARSI_PAYMENTS_ENABLED", "1" if payments_enabled else "0"
+    )
     monkeypatch.setenv("LEMON_WEBHOOK_SECRET", WEBHOOK_SECRET)
     monkeypatch.setenv("LEMON_STORE_ID", STORE_ID)
     monkeypatch.setenv("LEMON_SUBSCRIPTION_VARIANT_ID", VARIANT_ID)
@@ -1206,6 +1209,7 @@ def test_signed_annual_webhook_reads_expected_identity_only_from_env_file(
     env_file = tmp_path / "uvarsi.env"
     env_file.write_text(
         "PLATBY_ZAPNUTE=1\n"
+        "UVARSI_PAYMENTS_ENABLED=1\n"
         f"LEMON_WEBHOOK_SECRET={file_secret}\n"
         f"LEMON_STORE_ID={STORE_ID}\n"
         f"LEMON_SUBSCRIPTION_VARIANT_ID={VARIANT_ID}\n"
@@ -1215,6 +1219,7 @@ def test_signed_annual_webhook_reads_expected_identity_only_from_env_file(
     )
     for key in (
         "PLATBY_ZAPNUTE",
+        "UVARSI_PAYMENTS_ENABLED",
         "LEMON_WEBHOOK_SECRET",
         "LEMON_STORE_ID",
         "LEMON_SUBSCRIPTION_VARIANT_ID",

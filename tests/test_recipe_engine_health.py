@@ -136,6 +136,9 @@ def _install_curated_release_evidence(
     monkeypatch.setattr(server, "load_recipe_provenance", load_provenance, raising=False)
     monkeypatch.setattr(server, "platby_su_zapnute", lambda: payments_enabled)
     monkeypatch.setattr(
+        server, "akykolvek_platobny_preinac_zapnuty", lambda: payments_enabled
+    )
+    monkeypatch.setattr(
         server,
         "recipe_engine_shadow_status",
         lambda _con, today=None: {

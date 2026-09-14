@@ -1,6 +1,6 @@
 # Uvar.si — checklist pred zapnutím platieb
 
-Stav k 13. septembru 2026. Právna verzia `2026-09-12-v5`. Produkčné platby
+Stav k 14. septembru 2026. Právna verzia `2026-09-12-v5`. Produkčné platby
 možno zapnúť až po uzavretí každého bodu označeného **BLOKÁTOR**. Zaškrtnutie
 znamená konkrétny technický alebo dokumentačný dôkaz, nie externé právne
 stanovisko.
@@ -18,8 +18,10 @@ stanovisko.
 - [x] Prevádzkovateľ v kóde: PUMAR s. r. o., IČO 57 370 591, Alexandra Dubčeka
   4318/33, 075 01 Trebišov, Mestský súd Košice, oddiel Sro, vložka č. 64515/V,
   pumaragency@gmail.com, +421 917 347 009.
-- [ ] **BLOKÁTOR:** overiť aktuálnosť firemných údajov v registri a DIČ/IČ DPH
-  doplniť iba podľa overeného stavu a zákonnej povinnosti.
+- [x] Firemné údaje PUMAR s. r. o., IČO 57 370 591, sídlo a vložka 64515/V
+  zodpovedajú zápisu zverejnenému v Obchodnom vestníku 250/2025.
+- [ ] **BLOKÁTOR:** DIČ/IČ DPH doplniť iba podľa overeného aktuálneho stavu a
+  zákonnej povinnosti.
 - [ ] Overiť postavenie mikropodniku pre prípadnú výnimku zo zákona o
   prístupnosti.
 
@@ -79,8 +81,9 @@ stanovisko.
 
 - [ ] **BLOKÁTOR:** testovacia prvá platba 39 € vytvorila presne jedno
   predplatné a jednu prvú faktúru; pravidelná prvá platba 49 € bola overená.
-- [ ] **BLOKÁTOR:** úspešná obnova vytvorila samostatnú faktúru 49 € bez
-  duplicitného nároku.
+- [ ] **BLOKÁTOR:** ročný variant a obnova za 49 € boli overené z provider
+  konfigurácie; skutočný mechanizmus obnovy vytvoril v oddelenom dennom
+  Test-mode probe samostatnú faktúru bez duplicitného nároku.
 - [ ] **BLOKÁTOR:** zrušenie ponechalo prístup do `ends_at` a obnovenie pred
   expiráciou vrátilo automatické platenie, ak ho provider podporil.
 - [ ] **BLOKÁTOR:** neúspešná platba, recovery, `unpaid` a expirácia mali presné

@@ -70,7 +70,7 @@ def annual_commercial():
         billing_interval_count=1,
         annual_test_checkout_verified=True,
         annual_test_initial_payment_verified=True,
-        annual_domain_renewal_verified=True,
+        annual_renewal_terms_verified=True,
         annual_domain_cancellation_verified=True,
         annual_domain_refund_verified=True,
         portal_access_verified=True,

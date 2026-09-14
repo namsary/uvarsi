@@ -1186,6 +1186,39 @@ def test_test_portal_proof_is_provider_bound_and_never_returns_signed_url():
         )
 
 
+def test_portal_proof_calls_authenticated_app_endpoint_without_returning_signed_url():
+    smoke = _load_smoke_module()
+    calls = []
+    signed_url = (
+        "https://store.lemonsqueezy.com/billing?expires=1&signature=private"
+    )
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return json.dumps({"url": signed_url}).encode()
+
+    class Opener:
+        def open(self, request, timeout):
+            calls.append((request, timeout))
+            return Response()
+
+    assert smoke._verified_app_portal_access(
+        Opener(), "https://uvar.si"
+    ) is True
+    request, timeout = calls[0]
+    assert request.full_url == "https://uvar.si/api/platba/portal"
+    assert request.method == "POST"
+    assert request.get_header("Origin") == "https://uvar.si"
+    assert timeout == 20
+    assert signed_url not in repr(calls)
+
+
 def test_local_records_must_prove_the_complete_annual_lifecycle():
     smoke = _load_smoke_module()
     marker_module = _load_marker_module()
@@ -1396,6 +1429,7 @@ def test_old_annual_main_cannot_write_schema5_marker_without_probe_evidence(
         lambda *_a, **_k: (subscription, invoices, events, 0, "sub-1"),
     )
     monkeypatch.setattr(smoke, "_verified_test_portal_access", lambda *_a, **_k: True)
+    monkeypatch.setattr(smoke, "_verified_app_portal_access", lambda *_a, **_k: True)
     monkeypatch.setattr(
         smoke,
         "_annual_commercial_evidence_from_records",
@@ -1407,7 +1441,7 @@ def test_old_annual_main_cannot_write_schema5_marker_without_probe_evidence(
             billing_interval_count=1,
             annual_test_checkout_verified=True,
             annual_test_initial_payment_verified=True,
-            annual_domain_renewal_verified=True,
+            annual_renewal_terms_verified=True,
             annual_domain_cancellation_verified=True,
             annual_domain_refund_verified=True,
             portal_access_verified=True,
@@ -1440,7 +1474,7 @@ def test_b2_schema5_builder_keeps_annual_account_and_daily_probe_truth_separate(
         currency="EUR", billing_interval="year", billing_interval_count=1,
         annual_test_checkout_verified=True,
         annual_test_initial_payment_verified=True,
-        annual_domain_renewal_verified=True,
+        annual_renewal_terms_verified=True,
         annual_domain_cancellation_verified=True,
         annual_domain_refund_verified=True,
         portal_access_verified=True,
@@ -1506,6 +1540,18 @@ def test_b2_annual_commerce_requires_real_checkout_initial_payment_and_refund():
         "needs_review": 0,
         "processed_at": 2_600.0,
     })
+    reconciliation_key = marker_module.annual_reconciliation_event_key(
+        signing_secret=expectation.signing_secret,
+        release=expectation.release,
+        config=expectation.test,
+        provider_subscription_id="sub-1",
+    )
+    events[-2].update({
+        "event_key": reconciliation_key,
+        "event_type": "annual_reconciliation_verified",
+        "source": "reconciliation_probe",
+        "processed_at": 3_250.0,
+    })
 
     evidence = smoke._annual_commercial_evidence_from_records(
         subscription=subscription,
@@ -1515,6 +1561,8 @@ def test_b2_annual_commerce_requires_real_checkout_initial_payment_and_refund():
         unresolved_cases=0,
         config=expectation.test,
         evidence_type=marker_module.AnnualCommercialEvidence,
+        reconciliation_event_key=reconciliation_key,
+        now=3_300.0,
     )
 
     assert evidence.founder_initial_cents == 3900
@@ -1529,6 +1577,37 @@ def test_b2_annual_commerce_requires_real_checkout_initial_payment_and_refund():
             unresolved_cases=0,
             config=expectation.test,
             evidence_type=marker_module.AnnualCommercialEvidence,
+            reconciliation_event_key=reconciliation_key,
+            now=3_300.0,
+        )
+
+    stale_events = [dict(event) for event in events]
+    stale_events[-2]["processed_at"] = 3_300.0 - 86_401
+    with pytest.raises(smoke.SmokeFailed, match="lifecycle"):
+        smoke._annual_commercial_evidence_from_records(
+            subscription=subscription, invoices=invoices, events=stale_events,
+            portal_access_verified=True, unresolved_cases=0,
+            config=expectation.test,
+            evidence_type=marker_module.AnnualCommercialEvidence,
+            reconciliation_event_key=reconciliation_key,
+            now=3_300.0,
+        )
+
+    wrong_release_key = marker_module.annual_reconciliation_event_key(
+        signing_secret=expectation.signing_secret,
+        release="release-old",
+        config=expectation.test,
+        provider_subscription_id="sub-1",
+    )
+    wrong_release_events = [dict(event) for event in events]
+    wrong_release_events[-2]["event_key"] = wrong_release_key
+    with pytest.raises(smoke.SmokeFailed, match="lifecycle"):
+        smoke._annual_commercial_evidence_from_records(
+            subscription=subscription, invoices=invoices,
+            events=wrong_release_events, portal_access_verified=True,
+            unresolved_cases=0, config=expectation.test,
+            evidence_type=marker_module.AnnualCommercialEvidence,
+            reconciliation_event_key=reconciliation_key, now=3_300.0,
         )
 
 
@@ -1583,6 +1662,7 @@ def test_b2_main_writes_schema5_only_from_annual_and_daily_evidence(
         lambda *_args, **_kwargs: (subscription, invoices, events, 0, "sub-1"),
     )
     monkeypatch.setattr(smoke, "_verified_test_portal_access", lambda *_a, **_k: True)
+    monkeypatch.setattr(smoke, "_verified_app_portal_access", lambda *_a, **_k: True)
     annual = marker_module.AnnualCommercialEvidence(
         founder_initial_cents=3900,
         standard_and_renewal_cents=4900,
@@ -1591,7 +1671,7 @@ def test_b2_main_writes_schema5_only_from_annual_and_daily_evidence(
         billing_interval_count=1,
         annual_test_checkout_verified=True,
         annual_test_initial_payment_verified=True,
-        annual_domain_renewal_verified=True,
+        annual_renewal_terms_verified=True,
         annual_domain_cancellation_verified=True,
         annual_domain_refund_verified=True,
         portal_access_verified=True,

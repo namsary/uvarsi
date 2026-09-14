@@ -1,10 +1,10 @@
-"""Platobná vrstva Uvar.si — jednorazové Zakladajúce členstvo cez LemonSqueezy.
+"""Platobná vrstva Uvar.si — ročné Premium cez Lemon Squeezy.
 
 Tri pravidlá, ktoré tento modul drží:
 
-1. Vypínač. `PLATBY_ZAPNUTE` je v predvolenom stave vypnutý. Kým ho majiteľ
-   vedome nezapne, žiadna platba nevznikne a žiadna adresa poskytovateľa sa ani
-   nezostaví.
+1. Dvojitý vypínač. Kým majiteľ vedome nezapne `PLATBY_ZAPNUTE` aj
+   `UVARSI_PAYMENTS_ENABLED`, žiadna platba nevznikne a žiadna adresa
+   poskytovateľa sa ani nezostaví.
 2. Historický jednorazový alebo ručný nárok je riadok v tabuľke `naroky`.
    Ročné Premium drží posledný overený lokálny snapshot v `subscriptions`.
    Obe cesty vznikajú iba serverovým spracovaním alebo ručným zásahom majiteľa;

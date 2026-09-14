@@ -429,6 +429,35 @@ def test_stahovanie_prejde_strankovanie_a_filtruje_obchod(monkeypatch, tmp_path)
     assert hlavicky[0]["Authorization"] == "Bearer TAJNY-KLUC"
 
 
+def test_default_provider_client_neposle_api_kluc_cez_presmerovanie(monkeypatch, tmp_path):
+    rek = rekonciliacia_modul()
+    handlers = []
+
+    class Opener:
+        def open(self, request, timeout=None):
+            return _Odpoved(json.dumps(_provider_page(
+                1, 1, 1,
+                [{"type": "orders", "id": "1", "attributes": {}}],
+            )).encode())
+
+    def build_opener(handler):
+        handlers.append(handler)
+        return Opener()
+
+    monkeypatch.setattr(rek.urllib.request, "build_opener", build_opener)
+    monkeypatch.setattr(
+        rek.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: pytest.fail("nesmie sa použiť redirectujúci urlopen"),
+    )
+
+    rows = rek.stiahni_objednavky("TAJNY-KLUC")
+
+    assert len(rows) == 1
+    assert len(handlers) == 1
+    assert isinstance(handlers[0], rek._NoProviderRedirects)
+
+
 def test_stahovanie_bez_straty_prejde_viac_ako_patsto_zaznamov(
     monkeypatch, tmp_path
 ):
