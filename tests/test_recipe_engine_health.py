@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import closing
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 import hashlib
 import json
 import os
@@ -354,6 +354,41 @@ def test_health_and_smoke_still_fail_closed_below_safe_offer_minimum(
     assert "incomplete_offers" in engine["blockers"]
     assert smoke["ok"] is False
     assert smoke["blockers"] == ["incomplete_offers"]
+
+
+def test_release_preflight_uses_latest_complete_historical_real_offers(
+    monkeypatch, tmp_path
+):
+    historical_day = date.today() - timedelta(days=14)
+    server, state = _load(
+        monkeypatch, tmp_path, rows=_offer_rows(historical_day)
+    )
+
+    ordinary_smoke = server.run_recipe_engine_synthetic_smoke(state_path=state)
+    preflight = server.run_recipe_engine_synthetic_smoke(
+        state_path=state, allow_legacy_offer_schema=True
+    )
+    health = TestClient(server.app).get("/api/health").json()["recipe_engine"]
+
+    assert ordinary_smoke["ok"] is False
+    assert ordinary_smoke["blockers"] == ["incomplete_offers"]
+    assert preflight["ok"] is True, json.dumps(preflight, sort_keys=True)
+    assert preflight["blockers"] == []
+    assert preflight["plan_engine"] == "deterministic"
+    assert health["ready"] is False
+    assert "incomplete_offers" in health["blockers"]
+
+
+def test_release_preflight_rejects_stale_historical_offers(monkeypatch, tmp_path):
+    stale_day = date.today() - timedelta(days=70)
+    server, state = _load(monkeypatch, tmp_path, rows=_offer_rows(stale_day))
+
+    result = server.run_recipe_engine_synthetic_smoke(
+        state_path=state, allow_legacy_offer_schema=True
+    )
+
+    assert result["ok"] is False
+    assert result["blockers"] == ["incomplete_offers"]
 
 
 def test_shadow_health_requires_fresh_activation_evidence_but_not_on_smoke(

@@ -4684,6 +4684,41 @@ def _complete_recipe_offers(con, today):
         return (), False
 
 
+def _latest_complete_historical_recipe_offers(con, today, *, max_age_days=56):
+    """Return the newest complete real offer set for release preflight only.
+
+    A collector repair must be deployable while today's collection is broken.
+    The public health check and user plans still require currently valid offers;
+    this fallback only proves that the candidate recipe engine can build a plan
+    from a recent, previously collected set without AI or production writes.
+    """
+    cutoff = (today - datetime.timedelta(days=max_age_days)).isoformat()
+    today_stamp = today.isoformat()
+    try:
+        candidates = con.execute(
+            """SELECT DISTINCT valid_to FROM akcie
+               WHERE valid_to IS NOT NULL
+                 AND valid_to < ? AND valid_to >= ?
+               ORDER BY valid_to DESC
+               LIMIT 32""",
+            (today_stamp, cutoff),
+        ).fetchall()
+        for candidate in candidates:
+            stamp = candidate[0]
+            if not isinstance(stamp, str):
+                continue
+            try:
+                candidate_day = datetime.date.fromisoformat(stamp)
+            except ValueError:
+                continue
+            rows, complete = _complete_recipe_offers(con, candidate_day)
+            if complete:
+                return rows, candidate_day
+    except (sqlite3.Error, OSError, TypeError, ValueError):
+        pass
+    return (), None
+
+
 @functools.lru_cache(maxsize=8)
 def _recipe_catalog_health_snapshot_cached(
     catalog_loader, library_auditor, provenance_loader,
@@ -5265,7 +5300,7 @@ def _notify_preflight_smoke_failure(path, payload):
         pass
 
 
-def _authenticated_isolated_recipe_smoke(rows, *, now):
+def _authenticated_isolated_recipe_smoke(rows, *, now, business_day=None):
     """Exercise the real authenticated plan route without touching live data."""
     global DB
 
@@ -5370,7 +5405,9 @@ def _authenticated_isolated_recipe_smoke(rows, *, now):
         )
         client.cookies.set(COOKIE, raw_session)
         route_started = time.perf_counter()
-        business_day_token = _BUSINESS_DAY_OVERRIDE.set(bratislava_day(now))
+        business_day_token = _BUSINESS_DAY_OVERRIDE.set(
+            business_day or bratislava_day(now)
+        )
         try:
             responses = [
                 client.post("/api/plan/generuj"),
@@ -5462,6 +5499,7 @@ def run_recipe_engine_synthetic_smoke(
     isolated_costs_delta = 0
     route_latency_ms = None
     payments_enabled = akykolvek_platobny_preinac_zapnuty()
+    smoke_business_day = business_day
     try:
         offer_database = (
             _legacy_offer_schema_snapshot()
@@ -5470,6 +5508,13 @@ def run_recipe_engine_synthetic_smoke(
         with closing(offer_database) as con:
             production_before = _smoke_counts(con)
             rows, complete = _complete_recipe_offers(con, business_day)
+            if not complete and allow_legacy_offer_schema:
+                rows, historical_day = _latest_complete_historical_recipe_offers(
+                    con, business_day
+                )
+                if historical_day is not None:
+                    complete = True
+                    smoke_business_day = historical_day
         if payments_enabled:
             blockers.append("payments_enabled")
         elif recipe_engine_mode() != "on":
@@ -5484,7 +5529,9 @@ def run_recipe_engine_synthetic_smoke(
             ):
                 blockers.append("library_gate_failed")
             else:
-                result = _authenticated_isolated_recipe_smoke(rows, now=now)
+                result = _authenticated_isolated_recipe_smoke(
+                    rows, now=now, business_day=smoke_business_day
+                )
                 plan_engine = result["plan_engine"]
                 isolated_jobs_delta = result["jobs_delta"]
                 isolated_costs_delta = result["costs_delta"]
