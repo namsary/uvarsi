@@ -23,6 +23,7 @@ UVARSI_BASH="${UVARSI_BASH:-/bin/bash}"
 UVARSI_CRONTAB="${UVARSI_CRONTAB:-crontab}"
 UVARSI_FLOCK="${UVARSI_FLOCK:-flock}"
 UVARSI_CRON_LOCK="${UVARSI_CRON_LOCK:-$UVARSI_DIR/.crontab.lock}"
+UVARSI_CRON_UNIT="${UVARSI_CRON_UNIT:-cron}"
 UVARSI_SUPERVISOR="${UVARSI_SUPERVISOR:-$UVARSI_DIR/dozorca.sh}"
 UVARSI_COLLECTOR="${UVARSI_COLLECTOR:-$UVARSI_APP_DIR/zbierac_akcii.py}"
 UVARSI_RECEIPT_REFRESH="${UVARSI_RECEIPT_REFRESH:-$UVARSI_DIR/refresh_blocek.py}"
@@ -888,6 +889,7 @@ raise SystemExit(0 if targets == [canonical] else 1)
     return 1
   fi
   rm -f "$current"
+  _uvarsi_require_cron_service
 }
 
 _uvarsi_supervisor_schedule_matches() (
@@ -917,6 +919,19 @@ raise SystemExit(0 if targets(current_path) == targets(expected_path) else 1)
   fi
   rm -f "$uvarsi_verify_current"
 )
+
+_uvarsi_require_cron_service() {
+  "$UVARSI_SYSTEMCTL" is-active --quiet "$UVARSI_CRON_UNIT" || return 1
+  "$UVARSI_SYSTEMCTL" is-enabled --quiet "$UVARSI_CRON_UNIT"
+}
+
+_uvarsi_ensure_cron_service() {
+  if _uvarsi_require_cron_service; then
+    return 0
+  fi
+  "$UVARSI_SYSTEMCTL" enable --now "$UVARSI_CRON_UNIT" >/dev/null 2>&1 || return 1
+  _uvarsi_require_cron_service
+}
 
 _uvarsi_apply_supervisor_schedule() (
   uvarsi_replacement=$1
@@ -987,6 +1002,10 @@ _uvarsi_apply_supervisor_schedule() (
 )
 
 uvarsi_install_supervisor_schedule() {
+  if ! _uvarsi_ensure_cron_service; then
+    _uvarsi_release_trace schedule_failed
+    return 1
+  fi
   if uvarsi_require_supervisor_schedule; then
     _uvarsi_release_trace schedule_ok
     return 0
@@ -1206,6 +1225,14 @@ _uvarsi_supervisor_cycle() {
   local reused_active_offers=0
   [ "${UVARSI_BOUNDED_CYCLE:-0}" = 1 ] || return 1
   uvarsi_require_payments_off || return 1
+  # Bežný hodinový dohľad musí vždy vojsť do dozorca.sh. Tam žije bezplatná
+  # obnova Kauflandu, účtovanie pokusov aj ntfy diagnostika zlyhania bridge.
+  # Predtým wrapper skončil ešte pred dozorcom, takže štyri dni nevznikol ani
+  # zber, ani upozornenie. Prísny bootstrap nižšie ostáva iba pre nasadenie.
+  if [ "${UVARSI_OPERATIONAL_RUN:-0}" = 1 ]; then
+    "$UVARSI_SUPERVISOR"
+    return $?
+  fi
   if ! _uvarsi_require_collection_readiness; then
     if "$UVARSI_HEALTH_PY" -u "$UVARSI_RECEIPT_REFRESH" \
         --active-current-verified "$UVARSI_LANDING_DATA"; then
@@ -1897,6 +1924,9 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
       # Prechodové vydanie nás môže zavolať cez `bash subor` ešte
       # predtým, než nový samopull nastaví execute bit pre priamy cron.
       chmod +x "$UVARSI_DEPLOY_STATE_SCRIPT" || exit 1
+      if [ "${UVARSI_CODE_DEPLOY:-0}" != 1 ]; then
+        export UVARSI_OPERATIONAL_RUN=1
+      fi
       uvarsi_run_supervisor_bounded
       ;;
     internal-supervisor-cycle) _uvarsi_supervisor_cycle ;;

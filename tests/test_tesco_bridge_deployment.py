@@ -298,7 +298,14 @@ def deployment(tmp_path):
         "esac\n",
     )
     systemctl = tmp_path / "systemctl"
-    write_executable(systemctl, "#!/bin/sh\n[ \"$1\" = is-active ]\n")
+    write_executable(
+        systemctl,
+        "#!/bin/sh\n"
+        "case \"${1:-}\" in\n"
+        "  is-active|is-enabled) exit 0 ;;\n"
+        "  *) exit 1 ;;\n"
+        "esac\n",
+    )
     crontab = tmp_path / "crontab"
     write_executable(
         crontab,
@@ -705,6 +712,7 @@ def test_lock_busy_supervisor_does_not_record_false_success(deployment):
     )
     write_executable(deployment["live"] / "dozorca.sh", "#!/bin/sh\nexit 75\n")
     deployment["env"].update(
+        UVARSI_OPERATIONAL_RUN="1",
         UVARSI_TIMEOUT_RESULT="0",
         UVARSI_TIMEOUT_RUN_COMMAND="1",
     )
@@ -817,6 +825,7 @@ def test_bounded_supervisor_rebuilds_stale_receipt_from_current_offers_without_b
         newline="\n",
     )
     deployment["env"].update({
+        "UVARSI_CODE_DEPLOY": "1",
         "UVARSI_TIMEOUT_RESULT": "0",
         "UVARSI_TIMEOUT_RUN_COMMAND": "1",
         "UVARSI_READY_LANDING": bash_path(ready_landing),
@@ -918,6 +927,7 @@ def test_bounded_supervisor_rebuilds_receipt_that_references_monthly_campaign(
         newline="\n",
     )
     deployment["env"].update({
+        "UVARSI_CODE_DEPLOY": "1",
         "UVARSI_TIMEOUT_RESULT": "0",
         "UVARSI_TIMEOUT_RUN_COMMAND": "1",
         "UVARSI_READY_LANDING": bash_path(ready_landing),
@@ -940,11 +950,38 @@ def test_bounded_supervisor_checks_bridge_inside_cycle_before_collecting_missing
         )
     payload = bridge_payload(release="f" * 12)
     deployment["bridge"].write_text(json.dumps(payload), encoding="utf-8")
+    deployment["env"]["UVARSI_CODE_DEPLOY"] = "1"
 
     result = run_library(deployment, "uvarsi_run_supervisor_bounded")
 
     assert result.returncode != 0
     assert deployment["state"].joinpath("timeout-args").exists()
+
+
+def test_hourly_supervisor_reaches_watcher_so_bridge_failure_is_not_silent(deployment):
+    with sqlite3.connect(deployment["database"]) as con:
+        con.execute(
+            "UPDATE zber_stav SET collector_kind='kupino-aggregator' "
+            "WHERE obchod='Tesco'"
+        )
+    payload = bridge_payload(release="f" * 12)
+    deployment["bridge"].write_text(json.dumps(payload), encoding="utf-8")
+    write_executable(
+        deployment["live"] / "dozorca.sh",
+        "#!/bin/sh\n"
+        "touch \"$UVARSI_FAKE_STATE/hourly-watcher-reached\"\n"
+        "exit 7\n",
+    )
+    deployment["env"].update(
+        UVARSI_OPERATIONAL_RUN="1",
+        UVARSI_TIMEOUT_RESULT="0",
+        UVARSI_TIMEOUT_RUN_COMMAND="1",
+    )
+
+    result = run_library(deployment, "uvarsi_run_supervisor_bounded")
+
+    assert deployment["state"].joinpath("hourly-watcher-reached").exists()
+    assert result.returncode == 7
 
 
 def test_production_readiness_accepts_multiple_auditable_sources_per_store(deployment):
@@ -1336,6 +1373,71 @@ def test_supervisor_schedule_install_migrates_only_uvarsi_row_and_preserves_cron
     assert old_supervisor in restored_lines
     assert SUPERVISOR_CRON not in restored_lines
     assert deployment["state"].joinpath("crontab-written").exists()
+
+
+def _install_controllable_cron_service(deployment, *, active, enabled=None):
+    enabled = active if enabled is None else enabled
+    marker = deployment["state"] / "cron-active"
+    enabled_marker = deployment["state"] / "cron-enabled"
+    if active:
+        marker.touch()
+    elif marker.exists():
+        marker.unlink()
+    if enabled:
+        enabled_marker.touch()
+    elif enabled_marker.exists():
+        enabled_marker.unlink()
+    systemctl = deployment["state"] / "systemctl-cron"
+    write_executable(
+        systemctl,
+        "#!/bin/sh\n"
+        "set -u\n"
+        "if [ \"${1:-}\" = is-active ] && [ \"${2:-}\" = --quiet ]; then\n"
+        "  [ \"${3:-}\" != cron ] || [ -f \"$UVARSI_FAKE_STATE/cron-active\" ]\n"
+        "  exit $?\n"
+        "fi\n"
+        "if [ \"${1:-}\" = is-enabled ] && [ \"${2:-}\" = --quiet ]; then\n"
+        "  [ \"${3:-}\" != cron ] || [ -f \"$UVARSI_FAKE_STATE/cron-enabled\" ]\n"
+        "  exit $?\n"
+        "fi\n"
+        "if [ \"${1:-}\" = enable ] && [ \"${2:-}\" = --now ] && "
+        "[ \"${3:-}\" = cron ]; then\n"
+        "  touch \"$UVARSI_FAKE_STATE/cron-active\"\n"
+        "  touch \"$UVARSI_FAKE_STATE/cron-enabled\"\n"
+        "  exit 0\n"
+        "fi\n"
+        "exit 1\n",
+    )
+    deployment["env"]["UVARSI_SYSTEMCTL"] = bash_path(systemctl)
+    deployment["env"]["UVARSI_CRON_UNIT"] = "cron"
+
+
+def test_supervisor_schedule_is_not_healthy_when_cron_daemon_is_down(deployment):
+    _install_controllable_cron_service(deployment, active=False)
+
+    result = run_library(deployment, "uvarsi_require_supervisor_schedule")
+
+    assert result.returncode != 0
+
+
+def test_supervisor_schedule_install_starts_cron_daemon_before_succeeding(deployment):
+    _install_controllable_cron_service(deployment, active=False)
+    crontab_before = deployment["cron"].read_text(encoding="utf-8")
+
+    result = run_library(deployment, "uvarsi_install_supervisor_schedule")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert deployment["state"].joinpath("cron-active").exists()
+    assert deployment["cron"].read_text(encoding="utf-8") == crontab_before
+
+
+def test_supervisor_schedule_install_enables_active_cron_for_future_reboots(deployment):
+    _install_controllable_cron_service(deployment, active=True, enabled=False)
+
+    result = run_library(deployment, "uvarsi_install_supervisor_schedule")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert deployment["state"].joinpath("cron-enabled").exists()
 
 
 def test_crontab_rollback_restores_only_supervisor_and_preserves_concurrent_changes(

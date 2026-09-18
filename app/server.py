@@ -290,6 +290,19 @@ PAYMENT_ACTIVATION_MARKER = os.environ.get(
     "UVARSI_PAYMENT_ACTIVATION_MARKER",
     "/var/lib/uvarsi/payment-activation.json",
 )
+SUPERVISOR_SUCCESS_STATE = os.environ.get(
+    "UVARSI_SUPERVISOR_SUCCESS_STATE",
+    "/opt/uvarsi/.supervisor_success_state",
+)
+try:
+    SUPERVISOR_SUCCESS_MAX_AGE_SECONDS = int(
+        os.environ.get("UVARSI_SUPERVISOR_SUCCESS_MAX_AGE_SECONDS", "18000")
+    )
+except ValueError:
+    SUPERVISOR_SUCCESS_MAX_AGE_SECONDS = 18000
+SUPERVISOR_FIRST_SCHEDULED_HOUR = 5
+SUPERVISOR_MORNING_GRACE_HOUR = SUPERVISOR_FIRST_SCHEDULED_HOUR + 1
+SUPERVISOR_OVERNIGHT_MAX_AGE_SECONDS = 10 * 60 * 60
 PAYMENT_SMOKE_MAX_AGE_SECONDS = 24 * 60 * 60
 PAYMENT_SMOKE_FUTURE_SKEW_SECONDS = 5 * 60
 RECIPE_SMOKE_ALERT_URL = os.environ.get(
@@ -5537,6 +5550,48 @@ def run_recipe_engine_synthetic_smoke(
     return payload
 
 
+def _supervisor_health(now_epoch: int | None = None) -> dict:
+    """Expose only the supervisor timestamp, never paths or log contents."""
+    unavailable = {"last_success_at": None, "age_seconds": None, "fresh": False}
+    try:
+        parts = Path(SUPERVISOR_SUCCESS_STATE).read_text(encoding="utf-8").split()
+        if len(parts) != 2:
+            return unavailable
+        recorded_day, raw_epoch = parts
+        success_epoch = int(raw_epoch)
+        now_epoch = int(time.time()) if now_epoch is None else int(now_epoch)
+        if success_epoch < 0 or success_epoch > now_epoch:
+            return unavailable
+        success_at = datetime.datetime.fromtimestamp(
+            success_epoch, datetime.timezone.utc
+        )
+        age_seconds = now_epoch - success_epoch
+        zone = ZoneInfo("Europe/Bratislava")
+        success_local = success_at.astimezone(zone)
+        now_local = datetime.datetime.fromtimestamp(
+            now_epoch, datetime.timezone.utc
+        ).astimezone(zone)
+        if recorded_day != success_local.date().isoformat():
+            return unavailable
+        same_day_fresh = (
+            success_local.date() == now_local.date()
+            and age_seconds <= SUPERVISOR_SUCCESS_MAX_AGE_SECONDS
+        )
+        overnight_fresh = (
+            now_local.hour < SUPERVISOR_MORNING_GRACE_HOUR
+            and success_local.date() == now_local.date() - datetime.timedelta(days=1)
+            and success_local.hour >= 20
+            and age_seconds <= SUPERVISOR_OVERNIGHT_MAX_AGE_SECONDS
+        )
+        return {
+            "last_success_at": success_at.isoformat(timespec="seconds"),
+            "age_seconds": age_seconds,
+            "fresh": same_day_fresh or overnight_fresh,
+        }
+    except (OSError, UnicodeDecodeError, ValueError, OverflowError):
+        return unavailable
+
+
 @app.get("/api/health")
 def health():
     """Čo naozaj beží: vydanie, týždeň a počet akcií.
@@ -5581,7 +5636,8 @@ def health():
             "ponuky_podla_obchodu": offers_by_store,
             "naklady": utrata, "predpocet": zahrievanie, "platby": platby_stav,
             "plan_queue": fronta_planov, "recipe_engine": recipe_status,
-            "payment_readiness": public_readiness(payment_status)}
+            "payment_readiness": public_readiness(payment_status),
+            "dozorca": _supervisor_health()}
 
 
 @app.get("/api/naklady")
