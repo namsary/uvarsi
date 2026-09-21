@@ -19,6 +19,9 @@ from typing import Callable, Mapping
 
 ACCOUNT_ID = "0510a19c8c69e8354378d3198e10302f"
 SCRIPT_NAME = "uvarsi-tesco-bridge"
+WORKERS_DEV_SUBDOMAIN = "pumaragency"
+WORKER_HOST = f"{SCRIPT_NAME}.{WORKERS_DEV_SUBDOMAIN}.workers.dev"
+WORKER_URL = f"https://{WORKER_HOST}"
 API_ORIGIN = "https://api.cloudflare.com/client/v4"
 COMPATIBILITY_DATE = "2026-09-11"
 REQUEST_TIMEOUT_SECONDS = 30

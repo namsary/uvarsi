@@ -6,7 +6,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from hetzner.uvarsi_cloudflare_worker import CloudflareApiError, VersionInfo
+from hetzner.uvarsi_cloudflare_worker import (
+    CloudflareApiError,
+    VersionInfo,
+    WORKER_HOST,
+    WORKER_URL,
+)
 from hetzner.uvarsi_tesco_bridge_repair import (
     RepairError,
     RepairPaths,
@@ -153,6 +158,39 @@ def test_begin_writes_only_redacted_transaction_and_exact_worker(repair_fixture)
     assert env.count("PLATBY_ZAPNUTE=0") == 1
     assert env.count("UVARSI_PAYMENTS_ENABLED=0") == 1
     assert repair_fixture.client.deploy_forces == [True]
+
+
+def test_begin_restores_missing_production_bridge_address(repair_fixture):
+    repair_fixture.paths.env.write_text(
+        "".join(
+            line
+            for line in repair_fixture.original_env.splitlines(keepends=True)
+            if not line.startswith(
+                (
+                    "UVARSI_ENV=",
+                    "UVARSI_TESCO_BRIDGE_URL=",
+                    "UVARSI_TESCO_BRIDGE_WORKER_HOST=",
+                )
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    begin_repair(repair_fixture.paths, repair_fixture.client, RELEASE)
+
+    env = repair_fixture.env_text()
+    assert env.count("UVARSI_ENV=production") == 1
+    assert env.count(f"UVARSI_TESCO_BRIDGE_URL={WORKER_URL}") == 1
+    assert env.count(f"UVARSI_TESCO_BRIDGE_WORKER_HOST={WORKER_HOST}") == 1
+
+
+def test_begin_replaces_stale_bridge_address_without_duplicates(repair_fixture):
+    begin_repair(repair_fixture.paths, repair_fixture.client, RELEASE)
+
+    env = repair_fixture.env_text()
+    assert "example.workers.dev" not in env
+    assert env.count(f"UVARSI_TESCO_BRIDGE_URL={WORKER_URL}") == 1
+    assert env.count(f"UVARSI_TESCO_BRIDGE_WORKER_HOST={WORKER_HOST}") == 1
 
 
 def test_recover_restores_version_and_env_after_interrupted_begin(repair_fixture):

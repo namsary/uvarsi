@@ -19,11 +19,15 @@ try:
     from .uvarsi_cloudflare_worker import (
         CloudflareApiError,
         CloudflareWorkerClient,
+        WORKER_HOST,
+        WORKER_URL,
     )
 except ImportError:  # pragma: no cover - used by the installed standalone script
     from uvarsi_cloudflare_worker import (  # type: ignore[no-redef]
         CloudflareApiError,
         CloudflareWorkerClient,
+        WORKER_HOST,
+        WORKER_URL,
     )
 
 
@@ -43,6 +47,9 @@ _VERSION = re.compile(r"[A-Za-z0-9._-]{8,128}\Z")
 _ASSIGNMENT = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=")
 _FALSE_VALUES = {"", "0", "false", "off", "no", "nie"}
 _MANAGED_ENV = {
+    "UVARSI_ENV",
+    "UVARSI_TESCO_BRIDGE_URL",
+    "UVARSI_TESCO_BRIDGE_WORKER_HOST",
     "UVARSI_TESCO_BRIDGE_RELEASE",
     "UVARSI_TESCO_BRIDGE_VERSION_ID",
     "UVARSI_TESCO_BRIDGE_SECRET",
@@ -230,6 +237,9 @@ def _updated_env(
     kept.extend(
         [
             "",
+            "UVARSI_ENV=production",
+            f"UVARSI_TESCO_BRIDGE_URL={WORKER_URL}",
+            f"UVARSI_TESCO_BRIDGE_WORKER_HOST={WORKER_HOST}",
             f"UVARSI_TESCO_BRIDGE_RELEASE={release}",
             f"UVARSI_TESCO_BRIDGE_VERSION_ID={version_id}",
             f"UVARSI_TESCO_BRIDGE_SECRET={bridge_secret}",
