@@ -136,6 +136,66 @@ function Test-BridgeStateRepairable {
     return $State -in @('config_invalid', 'auth_mismatch', 'identity_mismatch')
 }
 
+function Invoke-NativeReadOnlyCommand {
+    param([Parameter(Mandatory = $true)][scriptblock]$Operation)
+
+    # Windows PowerShell 5.1 can promote stderr from a native process to a
+    # terminating NativeCommandError when the caller uses Stop. Capture that
+    # stream under Continue so the retry layer can inspect the real exit code.
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = & $Operation 2>&1 | Out-String
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    return [pscustomobject]@{
+        ExitCode = $exitCode
+        Output = $output
+    }
+}
+
+function Invoke-RetryingReadOnlyCommand {
+    param(
+        [Parameter(Mandatory = $true)][scriptblock]$Operation,
+        [ValidateRange(1, 10)][int]$Attempts = 3,
+        [ValidateRange(0, 60000)][int]$DelayMilliseconds = 3000,
+        [switch]$Quiet
+    )
+
+    $lastResult = $null
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        $lastResult = & $Operation
+        if ($null -eq $lastResult -or
+            $null -eq $lastResult.PSObject.Properties['ExitCode']) {
+            throw 'Interna chyba read-only kontroly Cloudflare.'
+        }
+        if ([int]$lastResult.ExitCode -eq 0) {
+            return $lastResult
+        }
+        if ($attempt -lt $Attempts -and -not $Quiet) {
+            Write-Host "Cloudflare kontrola docasne zlyhala; opakujem ($attempt/$Attempts)." `
+                -ForegroundColor DarkGray
+        }
+        if ($attempt -lt $Attempts -and $DelayMilliseconds -gt 0) {
+            Start-Sleep -Milliseconds $DelayMilliseconds
+        }
+    }
+    return $lastResult
+}
+
+function Test-ExpectedCloudflareAccount {
+    param(
+        [Parameter(Mandatory = $true)][string]$Output,
+        [Parameter(Mandatory = $true)][string]$AccountId
+    )
+
+    $escapedAccountId = [Regex]::Escape($AccountId)
+    return [bool]($Output -match "(?i)(?<![0-9a-f])$escapedAccountId(?![0-9a-f])")
+}
+
 function Get-CreatedWorkerVersionFromOutput {
     param([Parameter(Mandatory = $true)][string]$Output)
 
@@ -214,9 +274,55 @@ function Invoke-OfflineSelfTest {
         throw 'Self-test neodhalil najnovsi Cloudflare draft zaklad.'
     }
 
+    $retryCounter = [pscustomobject]@{ Count = 0 }
+    $retryResult = Invoke-RetryingReadOnlyCommand `
+        -Attempts 3 -DelayMilliseconds 0 -Quiet -Operation {
+        $retryCounter.Count++
+        [pscustomobject]@{
+            ExitCode = if ($retryCounter.Count -lt 3) { 7 } else { 0 }
+            Output = 'PUMAR account 0510a19c8c69e8354378d3198e10302f'
+        }
+    }
+    if ($retryCounter.Count -ne 3 -or [int]$retryResult.ExitCode -ne 0 -or
+        -not (Test-ExpectedCloudflareAccount `
+            -Output ([string]$retryResult.Output) `
+            -AccountId '0510a19c8c69e8354378d3198e10302f') -or
+        (Test-ExpectedCloudflareAccount `
+            -Output 'Other account aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' `
+            -AccountId '0510a19c8c69e8354378d3198e10302f')) {
+        throw 'Self-test read-only Cloudflare kontroly zlyhal.'
+    }
+
+    $selfTestPowerShell = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+    if (-not (Test-Path -LiteralPath $selfTestPowerShell -PathType Leaf)) {
+        throw 'Self-test nevie overit cestu aktualneho PowerShell procesu.'
+    }
+    $nativeRetryCounter = [pscustomobject]@{ Count = 0 }
+    $nativeRetryResult = Invoke-RetryingReadOnlyCommand `
+        -Attempts 3 -DelayMilliseconds 0 -Quiet -Operation {
+        $nativeRetryCounter.Count++
+        if ($nativeRetryCounter.Count -lt 3) {
+            Invoke-NativeReadOnlyCommand -Operation {
+                & $selfTestPowerShell -NoLogo -NoProfile -NonInteractive `
+                    -Command '[Console]::Error.WriteLine("transient-native-error"); exit 7'
+            }
+        }
+        else {
+            Invoke-NativeReadOnlyCommand -Operation {
+                & $selfTestPowerShell -NoLogo -NoProfile -NonInteractive `
+                    -Command 'exit 0'
+            }
+        }
+    }
+    if ($nativeRetryCounter.Count -ne 3 -or [int]$nativeRetryResult.ExitCode -ne 0) {
+        throw 'Self-test natívneho stderr retry zlyhal.'
+    }
+
     $sampleSecret = $null
     Write-Output 'RECOVERY_STATES_OK'
     Write-Output 'VERSION_BASE_OK'
+    Write-Output 'WHOAMI_RETRY_OK'
+    Write-Output 'NATIVE_STDERR_RETRY_OK'
     Write-Output 'SELFTEST_OK'
 }
 
@@ -463,12 +569,21 @@ if ($LocalPreflight) {
     exit 0
 }
 
-$whoamiOutput = & $script:VerifiedNodeExecutable $script:VerifiedWranglerEntry `
-    whoami 2>&1 | Out-String
-if ($LASTEXITCODE -ne 0 -or
-    $whoamiOutput -notmatch "(?i)(?<![0-9a-f])$ExpectedCloudflareAccountId(?![0-9a-f])") {
+$whoamiResult = Invoke-RetryingReadOnlyCommand -Operation {
+    Invoke-NativeReadOnlyCommand -Operation {
+        & $script:VerifiedNodeExecutable $script:VerifiedWranglerEntry whoami
+    }
+}
+if ([int]$whoamiResult.ExitCode -ne 0) {
+    throw "Cloudflare prihlasenie sa nedalo overit ani po troch pokusoch " +
+        "(kod $([int]$whoamiResult.ExitCode)). Nic sa nezmenilo."
+}
+if (-not (Test-ExpectedCloudflareAccount `
+    -Output ([string]$whoamiResult.Output) `
+    -AccountId $ExpectedCloudflareAccountId)) {
     throw 'Cloudflare konto nie je presne schvalene PUMAR konto. Nic sa nezmenilo.'
 }
+$whoamiResult = $null
 Write-Host 'Cloudflare konto PUMAR je overene.' -ForegroundColor DarkGray
 
 $serverPreflight = @'
