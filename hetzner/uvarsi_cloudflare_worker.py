@@ -247,10 +247,11 @@ class CloudflareWorkerClient:
             "GET",
             self._script_path + "/versions?deployable=true&per_page=2",
         )
-        if not isinstance(result, list) or not result or len(result) > 2:
+        versions = result.get("items") if isinstance(result, dict) else result
+        if not isinstance(versions, list) or not versions:
             raise CloudflareApiError("invalid_response")
         version_ids: list[str] = []
-        for version in result:
+        for version in versions[:2]:
             if not isinstance(version, dict):
                 raise CloudflareApiError("invalid_response")
             version_id = version.get("id")

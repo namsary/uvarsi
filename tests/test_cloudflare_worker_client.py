@@ -59,17 +59,20 @@ def versions_payload(*version_ids):
         "success": True,
         "errors": [],
         "messages": [],
-        "result": [
-            {
-                "id": version_id,
-                "metadata": {
-                    "created_on": "2026-09-21T10:00:00Z",
-                    "source": "api",
-                },
-                "number": len(version_ids) - index,
-            }
-            for index, version_id in enumerate(version_ids)
-        ],
+        "result": {
+            "items": [
+                {
+                    "id": version_id,
+                    "annotations": {},
+                    "metadata": {
+                        "created_on": "2026-09-21T10:00:00Z",
+                        "source": "api",
+                    },
+                    "number": len(version_ids) - index,
+                }
+                for index, version_id in enumerate(version_ids)
+            ]
+        },
         "result_info": {
             "page": 1,
             "per_page": 2,
