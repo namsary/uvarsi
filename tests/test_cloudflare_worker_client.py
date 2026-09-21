@@ -195,7 +195,7 @@ def test_upload_pins_source_and_inherits_only_token_secret():
     assert latest_method == "GET"
     assert latest_url.endswith(
         f"/accounts/{ACCOUNT_ID}/workers/scripts/{SCRIPT_NAME}/versions"
-        "?deployable=true&per_page=2"
+        "?deployable=true&per_page=10"
     )
     assert latest_body is None
 
@@ -297,6 +297,36 @@ def test_upload_refuses_foreign_undeployed_version_even_when_source_is_api():
         )
 
 
+def test_upload_can_continue_after_two_owned_undeployed_repair_versions():
+    fourth_version = "44444444-4444-4444-8444-444444444444"
+    before = versions_payload(OTHER_VERSION, fourth_version, BASE_VERSION)
+    before["result"]["items"][0]["annotations"] = {
+        "workers/message": "repair-20260921T190000Z"
+    }
+    before["result"]["items"][1]["annotations"] = {
+        "workers/message": "repair-20260921T180000Z"
+    }
+    after = versions_payload(
+        NEW_VERSION, OTHER_VERSION, fourth_version, BASE_VERSION
+    )
+    transport = ScriptedTransport(
+        response(200, before),
+        response(200, created_version_payload(number=4)),
+        response(200, after),
+    )
+    client = CloudflareWorkerClient("unit-secret", transport=transport)
+
+    result = client.upload_version(
+        WORKER_SOURCE,
+        RELEASE,
+        BRIDGE_SECRET,
+        BASE_VERSION,
+        "repair-20260921T200000Z",
+    )
+
+    assert result.id == NEW_VERSION
+
+
 def test_upload_refuses_candidate_when_a_version_races_the_inheritance():
     transport = ScriptedTransport(
         response(200, versions_payload(BASE_VERSION)),
@@ -333,7 +363,6 @@ def test_deploy_posts_exact_new_version_after_rechecking_active_version():
         "versions": [{"version_id": NEW_VERSION, "percentage": 100}],
         "annotations": {
             "workers/message": "Activate exact Uvar.si Tesco bridge repair version",
-            "workers/triggered_by": "uvarsi-server-repair",
         },
     }
 

@@ -23,6 +23,7 @@ API_ORIGIN = "https://api.cloudflare.com/client/v4"
 COMPATIBILITY_DATE = "2026-09-11"
 REQUEST_TIMEOUT_SECONDS = 30
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+MAX_RECOVERABLE_REPAIR_VERSIONS = 3
 
 _VERSION_ID = re.compile(r"[A-Za-z0-9._-]{8,128}\Z")
 _RELEASE = re.compile(r"[0-9a-f]{12,64}\Z")
@@ -198,14 +199,24 @@ class CloudflareWorkerClient:
         )
         latest_before = self._latest_deployable_versions()
         inheritance_parent = latest_before[0]
-        if inheritance_parent.id != base_version_id:
+        base_positions = [
+            index
+            for index, version in enumerate(latest_before)
+            if version.id == base_version_id
+        ]
+        if (
+            len(base_positions) != 1
+            or base_positions[0] > MAX_RECOVERABLE_REPAIR_VERSIONS
+        ):
+            raise CloudflareApiError("concurrent_version")
+        for index in range(base_positions[0]):
+            repair_version = latest_before[index]
+            predecessor = latest_before[index + 1]
             if (
-                len(latest_before) < 2
-                or latest_before[1].id != base_version_id
-                or inheritance_parent.number != latest_before[1].number + 1
-                or inheritance_parent.source != "api"
-                or inheritance_parent.message is None
-                or _REPAIR_TAG.fullmatch(inheritance_parent.message) is None
+                repair_version.number != predecessor.number + 1
+                or repair_version.source != "api"
+                or repair_version.message is None
+                or _REPAIR_TAG.fullmatch(repair_version.message) is None
             ):
                 raise CloudflareApiError("concurrent_version")
         metadata = {
@@ -265,13 +276,13 @@ class CloudflareWorkerClient:
     def _latest_deployable_versions(self) -> list[DeployableVersion]:
         result = self._request(
             "GET",
-            self._script_path + "/versions?deployable=true&per_page=2",
+            self._script_path + "/versions?deployable=true&per_page=10",
         )
         versions = result.get("items") if isinstance(result, dict) else result
         if not isinstance(versions, list) or not versions:
             raise CloudflareApiError("invalid_response")
         parsed: list[DeployableVersion] = []
-        for version in versions[:3]:
+        for version in versions[: MAX_RECOVERABLE_REPAIR_VERSIONS + 1]:
             if not isinstance(version, dict):
                 raise CloudflareApiError("invalid_response")
             version_id = version.get("id")
@@ -321,7 +332,6 @@ class CloudflareWorkerClient:
             "versions": [{"version_id": version_id, "percentage": 100}],
             "annotations": {
                 "workers/message": "Activate exact Uvar.si Tesco bridge repair version",
-                "workers/triggered_by": "uvarsi-server-repair",
             },
         }
         suffix = self._script_path + "/deployments"
