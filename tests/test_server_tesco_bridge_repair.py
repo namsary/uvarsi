@@ -152,6 +152,7 @@ def test_begin_writes_only_redacted_transaction_and_exact_worker(repair_fixture)
     assert repair_fixture.client.uploads[0]["bridge_secret"] in env
     assert env.count("PLATBY_ZAPNUTE=0") == 1
     assert env.count("UVARSI_PAYMENTS_ENABLED=0") == 1
+    assert repair_fixture.client.deploy_forces == [True]
 
 
 def test_recover_restores_version_and_env_after_interrupted_begin(repair_fixture):

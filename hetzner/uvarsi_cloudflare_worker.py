@@ -28,6 +28,7 @@ _VERSION_ID = re.compile(r"[A-Za-z0-9._-]{8,128}\Z")
 _RELEASE = re.compile(r"[0-9a-f]{12,64}\Z")
 _BRIDGE_SECRET = re.compile(r"[A-Za-z0-9._~-]+\Z")
 _TAG = re.compile(r"[A-Za-z0-9._:-]{1,128}\Z")
+_REPAIR_TAG = re.compile(r"repair-[0-9]{8}T[0-9]{6}Z\Z")
 
 Transport = Callable[
     [str, str, Mapping[str, str], bytes | None], tuple[int, bytes]
@@ -38,6 +39,14 @@ Transport = Callable[
 class VersionInfo:
     id: str
     number: int
+
+
+@dataclass(frozen=True)
+class DeployableVersion:
+    id: str
+    number: int
+    source: str | None
+    message: str | None
 
 
 class CloudflareApiError(RuntimeError):
@@ -187,9 +196,18 @@ class CloudflareWorkerClient:
         self._validate_upload_inputs(
             worker_source, release, bridge_secret, base_version_id, tag
         )
-        latest_before = self._latest_deployable_version_ids()
-        if latest_before[0] != base_version_id:
-            raise CloudflareApiError("concurrent_version")
+        latest_before = self._latest_deployable_versions()
+        inheritance_parent = latest_before[0]
+        if inheritance_parent.id != base_version_id:
+            if (
+                len(latest_before) < 2
+                or latest_before[1].id != base_version_id
+                or inheritance_parent.number != latest_before[1].number + 1
+                or inheritance_parent.source != "api"
+                or inheritance_parent.message is None
+                or _REPAIR_TAG.fullmatch(inheritance_parent.message) is None
+            ):
+                raise CloudflareApiError("concurrent_version")
         metadata = {
             "main_module": "worker.js",
             "compatibility_date": COMPATIBILITY_DATE,
@@ -233,16 +251,18 @@ class CloudflareWorkerClient:
             or number < 1
         ):
             raise CloudflareApiError("invalid_response")
-        latest_after = self._latest_deployable_version_ids()
+        latest_after = self._latest_deployable_versions()
         if (
             len(latest_after) < 2
-            or latest_after[0] != version_id
-            or latest_after[1] != base_version_id
+            or latest_after[0].id != version_id
+            or latest_after[0].number != number
+            or latest_after[1].id != inheritance_parent.id
+            or latest_after[0].number != latest_after[1].number + 1
         ):
             raise CloudflareApiError("concurrent_version")
         return VersionInfo(version_id, number)
 
-    def _latest_deployable_version_ids(self) -> list[str]:
+    def _latest_deployable_versions(self) -> list[DeployableVersion]:
         result = self._request(
             "GET",
             self._script_path + "/versions?deployable=true&per_page=2",
@@ -250,19 +270,33 @@ class CloudflareWorkerClient:
         versions = result.get("items") if isinstance(result, dict) else result
         if not isinstance(versions, list) or not versions:
             raise CloudflareApiError("invalid_response")
-        version_ids: list[str] = []
-        for version in versions[:2]:
+        parsed: list[DeployableVersion] = []
+        for version in versions[:3]:
             if not isinstance(version, dict):
                 raise CloudflareApiError("invalid_response")
             version_id = version.get("id")
+            number = version.get("number")
+            metadata = version.get("metadata", {})
+            annotations = version.get("annotations", {})
             if (
                 not isinstance(version_id, str)
                 or _VERSION_ID.fullmatch(version_id) is None
-                or version_id in version_ids
+                or any(item.id == version_id for item in parsed)
+                or not isinstance(number, int)
+                or isinstance(number, bool)
+                or number < 1
+                or not isinstance(metadata, dict)
+                or not isinstance(annotations, dict)
             ):
                 raise CloudflareApiError("invalid_response")
-            version_ids.append(version_id)
-        return version_ids
+            source = metadata.get("source")
+            message = annotations.get("workers/message")
+            if (source is not None and not isinstance(source, str)) or (
+                message is not None and not isinstance(message, str)
+            ):
+                raise CloudflareApiError("invalid_response")
+            parsed.append(DeployableVersion(version_id, number, source, message))
+        return parsed
 
     def deploy_version(
         self,

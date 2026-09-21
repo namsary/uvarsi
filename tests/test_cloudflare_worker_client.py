@@ -242,6 +242,61 @@ def test_upload_refuses_to_inherit_when_latest_version_is_not_active():
     assert len(transport.calls) == 1
 
 
+def test_upload_can_continue_after_one_owned_undeployed_repair_version():
+    before = versions_payload(OTHER_VERSION, BASE_VERSION)
+    before["result"]["items"][0]["annotations"] = {
+        "workers/message": "repair-20260921T180000Z"
+    }
+    after = versions_payload(NEW_VERSION, OTHER_VERSION, BASE_VERSION)
+    after["result"]["items"][0]["annotations"] = {
+        "workers/message": "repair-20260921T190000Z"
+    }
+    after["result"]["items"][1]["annotations"] = {
+        "workers/message": "repair-20260921T180000Z"
+    }
+    transport = ScriptedTransport(
+        response(200, before),
+        response(200, created_version_payload(number=3)),
+        response(200, after),
+    )
+    client = CloudflareWorkerClient("unit-secret", transport=transport)
+
+    result = client.upload_version(
+        WORKER_SOURCE,
+        RELEASE,
+        BRIDGE_SECRET,
+        BASE_VERSION,
+        "repair-20260921T190000Z",
+    )
+
+    assert result.id == NEW_VERSION
+    metadata, _ = decode_multipart(transport.calls[1])
+    assert metadata["bindings"][2] == {
+        "name": "TOKEN_SECRET",
+        "type": "inherit",
+        "version_id": "latest",
+    }
+
+
+def test_upload_refuses_foreign_undeployed_version_even_when_source_is_api():
+    before = versions_payload(OTHER_VERSION, BASE_VERSION)
+    before["result"]["items"][0]["annotations"] = {
+        "workers/message": "unrelated API upload"
+    }
+    client = CloudflareWorkerClient(
+        "unit-secret", transport=ScriptedTransport(response(200, before))
+    )
+
+    with pytest.raises(CloudflareApiError, match="concurrent_version"):
+        client.upload_version(
+            WORKER_SOURCE,
+            RELEASE,
+            BRIDGE_SECRET,
+            BASE_VERSION,
+            "repair-20260921T190000Z",
+        )
+
+
 def test_upload_refuses_candidate_when_a_version_races_the_inheritance():
     transport = ScriptedTransport(
         response(200, versions_payload(BASE_VERSION)),

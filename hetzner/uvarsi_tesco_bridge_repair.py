@@ -385,7 +385,13 @@ def begin_repair(
         transaction = replace(transaction, candidate_version_id=uploaded.id)
         _write_transaction(paths.transaction, transaction)
         try:
-            client.deploy_version(uploaded.id, expected_active_version=base_version)
+            # New BRIDGE_SECRET and WORKER_RELEASE bindings require Cloudflare's
+            # explicit force gate even though this is a forward deployment.
+            client.deploy_version(
+                uploaded.id,
+                expected_active_version=base_version,
+                force=True,
+            )
         except CloudflareApiError as error:
             raise RepairError(error.reason) from None
 
