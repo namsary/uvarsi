@@ -465,7 +465,17 @@ def commit_repair(paths: RepairPaths) -> None:
 
 
 def _default_paths() -> RepairPaths:
-    return RepairPaths()
+    return RepairPaths(
+        token=Path(os.environ.get("UVARSI_CLOUDFLARE_TOKEN_FILE", DEFAULT_TOKEN_PATH)),
+        env=Path(os.environ.get("UVARSI_ENV_FILE", DEFAULT_ENV_PATH)),
+        backup_dir=Path(os.environ.get("UVARSI_REPAIR_BACKUP_DIR", DEFAULT_BACKUP_DIR)),
+        transaction=Path(
+            os.environ.get("UVARSI_REPAIR_TRANSACTION", DEFAULT_TRANSACTION_PATH)
+        ),
+        worker_source=Path(
+            os.environ.get("UVARSI_REPAIR_WORKER_SOURCE", DEFAULT_WORKER_SOURCE)
+        ),
+    )
 
 
 def _client_from_token(paths: RepairPaths) -> CloudflareWorkerClient:

@@ -35,6 +35,13 @@ UVARSI_COLLECTION_FAILURE_STATE="${UVARSI_COLLECTION_FAILURE_STATE:-$UVARSI_DIR/
 UVARSI_TAKTIK_URL="${UVARSI_TAKTIK_URL:-https://mapa.89.167.72.159.sslip.io/}"
 UVARSI_MAX_COLLECTION_SECONDS="${UVARSI_MAX_COLLECTION_SECONDS:-14400}"
 UVARSI_TERMINATION_GRACE_SECONDS="${UVARSI_TERMINATION_GRACE_SECONDS:-300}"
+UVARSI_CLOUDFLARE_TOKEN_FILE="${UVARSI_CLOUDFLARE_TOKEN_FILE:-/etc/uvarsi/secrets/cloudflare-worker-token}"
+UVARSI_REPAIR_PY="${UVARSI_REPAIR_PY:-$UVARSI_DIR/uvarsi_tesco_bridge_repair.py}"
+UVARSI_REPAIR_LOCK="${UVARSI_REPAIR_LOCK:-/run/lock/uvarsi-tesco-bridge-repair.lock}"
+UVARSI_REPAIR_TRANSACTION="${UVARSI_REPAIR_TRANSACTION:-$UVARSI_DIR/.tesco-bridge-repair.json}"
+UVARSI_REPAIR_WORKER_SOURCE="${UVARSI_REPAIR_WORKER_SOURCE:-$UVARSI_DIR/tesco-bridge-worker.js}"
+UVARSI_REPAIR_BACKUP_DIR="${UVARSI_REPAIR_BACKUP_DIR:-$UVARSI_DIR/backups}"
+UVARSI_REPAIR_WORKER_RELEASE="${UVARSI_REPAIR_WORKER_RELEASE:-f320e6b58243b9f06ef5f368907ffd12750533df}"
 UVARSI_WORKER_UNIT="$UVARSI_SYSTEMD_DIR/uvarsi-plan-worker.service"
 UVARSI_APP_UNIT="$UVARSI_SYSTEMD_DIR/uvarsi.service"
 UVARSI_PROC_ROOT="${UVARSI_PROC_ROOT:-/proc}"
@@ -318,6 +325,91 @@ for expected, page in enumerate(pages, start=1):
   export UVARSI_TESCO_BRIDGE_URL UVARSI_TESCO_BRIDGE_SECRET UVARSI_ENV
   UVARSI_BRIDGE_FAILURE_REASON="ok"
 }
+
+_uvarsi_bridge_state_repairable() {
+  case "$1" in
+    auth_mismatch|identity_mismatch|config_invalid) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+_uvarsi_diagnose_tesco_bridge() (
+  # Exactly one stable enum is written to stdout. Runtime URLs, response bodies
+  # and both bearer values remain in memory or root-only temporary files.
+  set +x
+  if _uvarsi_require_tesco_bridge_transport; then
+    printf '%s\n' OK
+    return 0
+  fi
+  original_reason=$UVARSI_BRIDGE_FAILURE_REASON
+  case "$original_reason" in
+    config_invalid)
+      printf '%s\n' config_invalid
+      return 0
+      ;;
+    request_failed|response_invalid) ;;
+    *)
+      printf '%s\n' external_failure
+      return 0
+      ;;
+  esac
+
+  bridge_url=$(_uvarsi_env_value UVARSI_TESCO_BRIDGE_URL) || {
+    printf '%s\n' config_invalid; return 0; }
+  bridge_release=$(_uvarsi_env_value UVARSI_TESCO_BRIDGE_RELEASE) || {
+    printf '%s\n' config_invalid; return 0; }
+  bridge_version=$(_uvarsi_env_value UVARSI_TESCO_BRIDGE_VERSION_ID) || {
+    printf '%s\n' config_invalid; return 0; }
+  bridge_secret=$(_uvarsi_env_value UVARSI_TESCO_BRIDGE_SECRET) || {
+    printf '%s\n' config_invalid; return 0; }
+  today=$(_uvarsi_today) || { printf '%s\n' external_failure; return 0; }
+  response=$(mktemp "${TMPDIR:-/tmp}/uvarsi-bridge-diagnose.XXXXXX") || {
+    printf '%s\n' external_failure; return 0; }
+  trap 'rm -f "$response"' EXIT HUP INT TERM
+  chmod 600 "$response" || { printf '%s\n' external_failure; return 0; }
+  request=$(printf '{"date":"%s","format":"HM"}' "$today")
+  curl_exit=0
+  http_code=$({
+    printf 'header = "Accept: application/json"\n'
+    printf 'header = "Content-Type: application/json"\n'
+    printf 'header = "Authorization: Bearer %s"\n' "$bridge_secret"
+  } | "$UVARSI_CURL" --disable --config - --silent --show-error \
+      --max-time 30 --request POST --data-binary "$request" \
+      --output "$response" --write-out '%{http_code}' \
+      "$bridge_url/v1/tesco/leaflets" 2>/dev/null) || curl_exit=$?
+  unset bridge_secret
+  if [ "$curl_exit" -ne 0 ]; then
+    printf '%s\n' external_failure
+  elif [ "$http_code" = 401 ] || [ "$http_code" = 403 ]; then
+    printf '%s\n' auth_mismatch
+  elif [ "$http_code" = 200 ]; then
+    if "$UVARSI_HEALTH_PY" -c '
+import json, sys
+try:
+    with open(sys.argv[1], encoding="utf-8") as handle:
+        payload = json.load(handle)
+    bridge = payload["bridge"]
+except (OSError, ValueError, KeyError, TypeError):
+    raise SystemExit(1)
+valid = (
+    isinstance(bridge, dict)
+    and set(bridge) == {"release", "version_id", "attestation"}
+    and all(isinstance(bridge.get(key), str) and bridge[key]
+            for key in ("release", "version_id", "attestation"))
+)
+if not valid:
+    raise SystemExit(1)
+mismatch = bridge["release"] != sys.argv[2] or bridge["version_id"] != sys.argv[3]
+raise SystemExit(0 if mismatch else 1)
+' "$response" "$bridge_release" "$bridge_version" >/dev/null 2>&1; then
+      printf '%s\n' identity_mismatch
+    else
+      printf '%s\n' external_failure
+    fi
+  else
+    printf '%s\n' external_failure
+  fi
+)
 
 _uvarsi_require_collection_readiness() {
   readiness_scope=${1:-full}
@@ -1486,6 +1578,108 @@ raise SystemExit(2 if enabled is True else 1)
   return 1
 }
 
+uvarsi_verify_cloudflare_token() {
+  set +x
+  UVARSI_CLOUDFLARE_TOKEN_FILE=$UVARSI_CLOUDFLARE_TOKEN_FILE \
+    UVARSI_ENV_FILE=$UVARSI_ENV_FILE \
+    UVARSI_REPAIR_BACKUP_DIR=$UVARSI_REPAIR_BACKUP_DIR \
+    UVARSI_REPAIR_TRANSACTION=$UVARSI_REPAIR_TRANSACTION \
+    UVARSI_REPAIR_WORKER_SOURCE=$UVARSI_REPAIR_WORKER_SOURCE \
+    "$UVARSI_HEALTH_PY" "$UVARSI_REPAIR_PY" verify-token
+}
+
+uvarsi_install_cloudflare_token() (
+  set +x
+  set -Eeu
+  [ "$(id -u)" -eq 0 ] || return 1
+  [ -t 0 ] || return 1
+  [ -r /dev/tty ] && [ -w /dev/tty ] || return 1
+  umask 077
+  token_dir=${UVARSI_CLOUDFLARE_TOKEN_FILE%/*}
+  [ -n "$token_dir" ] || return 1
+  mkdir -p "$token_dir"
+  [ -d "$token_dir" ] && [ ! -L "$token_dir" ] || return 1
+  chmod 700 "$token_dir"
+  candidate=$(mktemp "$token_dir/.cloudflare-worker-token.XXXXXX")
+  echo_disabled=0
+  cleanup_cloudflare_token_install() {
+    if [ "$echo_disabled" -eq 1 ]; then
+      stty echo < /dev/tty >/dev/null 2>&1 || true
+    fi
+    rm -f "$candidate"
+  }
+  trap cleanup_cloudflare_token_install EXIT HUP INT TERM
+  printf '%s' 'Cloudflare Worker API token: ' > /dev/tty
+  stty -echo < /dev/tty
+  echo_disabled=1
+  IFS= read -r token < /dev/tty
+  stty echo < /dev/tty
+  echo_disabled=0
+  printf '\n' > /dev/tty
+  printf '%s\n' "$token" > "$candidate"
+  unset token
+  chmod 600 "$candidate"
+  if ! UVARSI_CLOUDFLARE_TOKEN_FILE=$candidate \
+      "$UVARSI_BASH" "$UVARSI_DEPLOY_STATE_SCRIPT" verify-cloudflare-token \
+      >/dev/null; then
+    return 1
+  fi
+  "$UVARSI_MV" "$candidate" "$UVARSI_CLOUDFLARE_TOKEN_FILE"
+  chmod 600 "$UVARSI_CLOUDFLARE_TOKEN_FILE"
+  trap - EXIT HUP INT TERM
+  printf '%s\n' cloudflare_token_installed
+)
+
+_uvarsi_repair_cli() {
+  UVARSI_CLOUDFLARE_TOKEN_FILE=$UVARSI_CLOUDFLARE_TOKEN_FILE \
+    UVARSI_ENV_FILE=$UVARSI_ENV_FILE \
+    UVARSI_REPAIR_BACKUP_DIR=$UVARSI_REPAIR_BACKUP_DIR \
+    UVARSI_REPAIR_TRANSACTION=$UVARSI_REPAIR_TRANSACTION \
+    UVARSI_REPAIR_WORKER_SOURCE=$UVARSI_REPAIR_WORKER_SOURCE \
+    "$UVARSI_HEALTH_PY" "$UVARSI_REPAIR_PY" "$@"
+}
+
+uvarsi_repair_tesco_bridge() (
+  set +x
+  set -Eeu
+  exec 9>"$UVARSI_REPAIR_LOCK"
+  "$UVARSI_FLOCK" -n 9 || return 75
+  uvarsi_require_payments_off
+  uvarsi_require_runtime_payments_off
+
+  if [ -e "$UVARSI_REPAIR_TRANSACTION" ]; then
+    _uvarsi_repair_cli recover >/dev/null || return 2
+  fi
+  state=$(_uvarsi_diagnose_tesco_bridge)
+  if [ "$state" = OK ]; then
+    "$UVARSI_BASH" "$UVARSI_DEPLOY_STATE_SCRIPT" run-supervisor
+    uvarsi_require_production_readiness
+    return
+  fi
+  _uvarsi_bridge_state_repairable "$state" || return 1
+  uvarsi_verify_cloudflare_token >/dev/null
+  if ! candidate=$(_uvarsi_repair_cli begin "$UVARSI_REPAIR_WORKER_RELEASE"); then
+    if [ -e "$UVARSI_REPAIR_TRANSACTION" ]; then
+      _uvarsi_repair_cli rollback >/dev/null || return 2
+    fi
+    return 1
+  fi
+  case "$candidate" in
+    ''|*[!A-Za-z0-9._-]*)
+      _uvarsi_repair_cli rollback >/dev/null || return 2
+      return 1
+      ;;
+  esac
+  if _uvarsi_require_tesco_bridge_transport && \
+      "$UVARSI_BASH" "$UVARSI_DEPLOY_STATE_SCRIPT" run-supervisor && \
+      uvarsi_require_production_readiness; then
+    _uvarsi_repair_cli commit >/dev/null
+    return 0
+  fi
+  _uvarsi_repair_cli rollback >/dev/null || return 2
+  return 1
+)
+
 uvarsi_migrate_release() {
   # Candidate migrations run before any health check. A release that changes
   # schema must prove old-code compatibility separately; automated rollback
@@ -1920,6 +2114,9 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   case "${1:-}" in
     check-bridge) _uvarsi_require_tesco_bridge_transport ;;
     check-readiness) uvarsi_require_production_readiness ;;
+    verify-cloudflare-token) uvarsi_verify_cloudflare_token ;;
+    install-cloudflare-token) uvarsi_install_cloudflare_token ;;
+    repair-tesco-bridge) uvarsi_repair_tesco_bridge ;;
     run-supervisor)
       # Prechodové vydanie nás môže zavolať cez `bash subor` ešte
       # predtým, než nový samopull nastaví execute bit pre priamy cron.

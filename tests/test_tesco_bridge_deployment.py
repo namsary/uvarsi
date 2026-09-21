@@ -22,6 +22,7 @@ NOW_EPOCH = "2000000000"
 BRIDGE_HOST = "uvarsi-tesco-bridge.account.workers.dev"
 BRIDGE_URL = f"https://{BRIDGE_HOST}"
 BRIDGE_RELEASE = "a1b2c3d4e5f6"
+REPAIR_RELEASE = "f320e6b58243b9f06ef5f368907ffd12750533df"
 BRIDGE_VERSION_ID = "11aa22bb-33cc-44dd-88ee-99ff00112233"
 BRIDGE_SECRET = f"{BRIDGE_RELEASE}.unit-bridge-secret-0123456789abcdef"
 SUPERVISOR_CRON = (
@@ -247,12 +248,14 @@ def deployment(tmp_path):
     landing = live / "landing_data.json"
     env_file = live / "uvarsi.env"
     bridge = state / "bridge.json"
+    good_bridge = state / "good-bridge.json"
     health = state / "health.json"
     cron_state = state / "crontab"
     supervisor_success = live / ".supervisor_success_state"
     seed_collection_database(database)
     landing.write_text(json.dumps(landing_payload()), encoding="utf-8")
     bridge.write_text(json.dumps(bridge_payload()), encoding="utf-8")
+    good_bridge.write_text(json.dumps(bridge_payload()), encoding="utf-8")
     health.write_text(json.dumps(health_payload()), encoding="utf-8")
     env_file.write_text(
         "UVARSI_ENV=production\n"
@@ -279,11 +282,16 @@ def deployment(tmp_path):
         "cat > \"$UVARSI_FAKE_STATE/curl-config\"\n"
         "output=/dev/stdout\n"
         "previous=\n"
+        "write_out=0\n"
+        "fail_on_http=0\n"
         "url=\n"
         "for argument in \"$@\"; do\n"
         "  if [ \"$previous\" = output ]; then output=$argument; previous=; continue; fi\n"
+        "  if [ \"$previous\" = write_out ]; then write_out=1; previous=; continue; fi\n"
         "  case \"$argument\" in\n"
         "    --output|-o) previous=output ;;\n"
+        "    --write-out|-w) previous=write_out ;;\n"
+        "    --fail|-f|-fsS) fail_on_http=1 ;;\n"
         "    http://*|https://*) url=$argument ;;\n"
         "  esac\n"
         "done\n"
@@ -291,11 +299,15 @@ def deployment(tmp_path):
         "  echo \"Bearer $UVARSI_TEST_SECRET provider-response-body\" >&2\n"
         "  exit 22\n"
         "fi\n"
+        "code=200\n"
         "case \"$url\" in\n"
-        "  */v1/tesco/leaflets) cp \"$UVARSI_BRIDGE_PAYLOAD\" \"$output\" ;;\n"
+        "  */v1/tesco/leaflets) cp \"$UVARSI_BRIDGE_PAYLOAD\" \"$output\"; "
+        "if [ -f \"$UVARSI_FAKE_STATE/http-code\" ]; then code=$(cat \"$UVARSI_FAKE_STATE/http-code\"); fi ;;\n"
         "  */api/health) cp \"$UVARSI_HEALTH_FILE\" \"$output\" ;;\n"
         "  *) : > \"$output\" ;;\n"
-        "esac\n",
+        "esac\n"
+        "if [ \"$write_out\" -eq 1 ]; then printf %s \"$code\"; fi\n"
+        "if [ \"$fail_on_http\" -eq 1 ] && [ \"$code\" -ge 400 ]; then exit 22; fi\n",
     )
     systemctl = tmp_path / "systemctl"
     write_executable(
@@ -325,8 +337,9 @@ def deployment(tmp_path):
     write_executable(
         flock,
         "#!/bin/sh\n"
-        "[ \"${1:-}\" = -x ] || exit 2\n"
+        "case \"${1:-}\" in -x|-n) ;; *) exit 2 ;; esac\n"
         "[ \"${2:-}\" = 9 ] || exit 2\n"
+        "if [ \"${1:-}\" = -n ] && [ -f \"$UVARSI_FAKE_STATE/fail-repair-lock\" ]; then exit 1; fi\n"
         "touch \"$UVARSI_FAKE_STATE/cron-lock-acquired\"\n",
     )
     timeout = tmp_path / "timeout"
@@ -344,6 +357,30 @@ def deployment(tmp_path):
     )
     supervisor = live / "dozorca.sh"
     write_executable(supervisor, "#!/bin/sh\nexit 0\n")
+    repair_cli = tmp_path / "repair_cli.py"
+    repair_cli.write_text(
+        "import os, sys\n"
+        "from pathlib import Path\n"
+        f"state = Path({str(state)!r})\n"
+        f"bridge = Path({str(bridge)!r})\n"
+        f"good_bridge = Path({str(good_bridge)!r})\n"
+        "command = sys.argv[1]\n"
+        "with (state / 'repair-calls').open('a', encoding='utf-8') as handle:\n"
+        "    handle.write(' '.join(sys.argv[1:]) + '\\n')\n"
+        "if (state / ('repair-fail-' + command)).exists():\n"
+        "    raise SystemExit(1)\n"
+        "if command == 'begin':\n"
+        "    if not (state / 'repair-do-not-heal').exists():\n"
+        "        (state / 'http-code').unlink(missing_ok=True)\n"
+        "        bridge.write_bytes(good_bridge.read_bytes())\n"
+        "    print('22bb33cc-44dd-45ee-99ff-001122334455')\n"
+        "elif command == 'verify-token':\n"
+        "    print('cloudflare_token_ok')\n"
+        "elif command in {'commit', 'rollback', 'recover'}:\n"
+        "    print('repair_' + command)\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 
     env = os.environ | {
         "UVARSI_DIR": bash_path(live),
@@ -356,6 +393,10 @@ def deployment(tmp_path):
         "UVARSI_CRONTAB": bash_path(crontab),
         "UVARSI_FLOCK": bash_path(flock),
         "UVARSI_CRON_LOCK": bash_path(state / "crontab.lock"),
+        "UVARSI_REPAIR_LOCK": bash_path(state / "repair.lock"),
+        "UVARSI_REPAIR_TRANSACTION": bash_path(state / "repair.json"),
+        "UVARSI_REPAIR_PY": bash_path(repair_cli),
+        "UVARSI_CLOUDFLARE_TOKEN_FILE": bash_path(state / "cloudflare-token"),
         "UVARSI_TIMEOUT": bash_path(timeout),
         "UVARSI_SUPERVISOR": bash_path(supervisor),
         "UVARSI_SUPERVISOR_SUCCESS_STATE": bash_path(supervisor_success),
@@ -393,6 +434,120 @@ def run_library(deployment, command):
         capture_output=True,
         check=False,
     )
+
+
+def run_deploy_state(deployment, command):
+    return subprocess.run(
+        [str(BASH), bash_path(LIBRARY), command],
+        cwd=ROOT,
+        env=deployment["env"],
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+
+
+def repair_cli_calls(deployment):
+    path = deployment["state"] / "repair-calls"
+    return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+
+
+def test_bridge_repair_requires_file_payment_gate_before_any_repair_call(deployment):
+    deployment["env_file"].write_text(
+        deployment["env_file"].read_text(encoding="utf-8").replace(
+            "PLATBY_ZAPNUTE=0", "PLATBY_ZAPNUTE=1"
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_deploy_state(deployment, "repair-tesco-bridge")
+
+    assert result.returncode != 0
+    assert repair_cli_calls(deployment) == []
+
+
+def test_bridge_repair_requires_runtime_payment_gate_before_any_repair_call(deployment):
+    payload = health_payload()
+    payload["recipe_engine"]["payments_enabled"] = True
+    deployment["health"].write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_deploy_state(deployment, "repair-tesco-bridge")
+
+    assert result.returncode != 0
+    assert repair_cli_calls(deployment) == []
+
+
+def test_bridge_repair_mutates_only_repairable_states(deployment):
+    deployment["state"].joinpath("fail-curl").touch()
+
+    result = run_deploy_state(deployment, "repair-tesco-bridge")
+
+    assert result.returncode != 0
+    assert repair_cli_calls(deployment) == []
+    output = result.stdout + result.stderr
+    assert BRIDGE_SECRET not in output
+    assert "provider-response-body" not in output
+
+
+def test_bridge_repair_rolls_back_when_supervisor_or_readiness_fails(deployment):
+    deployment["state"].joinpath("http-code").write_text("401", encoding="ascii")
+
+    result = run_deploy_state(deployment, "repair-tesco-bridge")
+
+    assert result.returncode != 0
+    assert repair_cli_calls(deployment) == [
+        "verify-token",
+        f"begin {REPAIR_RELEASE}",
+        "rollback",
+    ]
+
+
+def test_missing_fresh_data_with_healthy_bridge_never_rotates_credentials(deployment):
+    with sqlite3.connect(deployment["database"]) as connection:
+        for table in ("zber_stav", "zber_staging_stav"):
+            connection.execute(
+                f"UPDATE {table} SET stav = 'failed' WHERE obchod = 'Lidl'"
+            )
+    result = run_deploy_state(deployment, "repair-tesco-bridge")
+
+    assert result.returncode != 0
+    assert "begin" not in "\n".join(repair_cli_calls(deployment))
+
+
+def test_bridge_repair_preserves_lock_busy_exit_code(deployment):
+    deployment["state"].joinpath("fail-repair-lock").touch()
+
+    result = run_deploy_state(deployment, "repair-tesco-bridge")
+
+    assert result.returncode == 75
+    assert repair_cli_calls(deployment) == []
+
+
+def test_bridge_repair_returns_two_when_rollback_fails(deployment):
+    deployment["state"].joinpath("http-code").write_text("401", encoding="ascii")
+    deployment["state"].joinpath("repair-fail-rollback").touch()
+
+    result = run_deploy_state(deployment, "repair-tesco-bridge")
+
+    assert result.returncode == 2
+    assert repair_cli_calls(deployment)[-1] == "rollback"
+
+
+def test_bridge_repair_commits_only_after_bridge_supervisor_and_readiness(deployment):
+    deployment["state"].joinpath("http-code").write_text("401", encoding="ascii")
+    deployment["env"]["UVARSI_TIMEOUT_RESULT"] = "0"
+    deployment["env"]["UVARSI_TIMEOUT_RUN_COMMAND"] = "1"
+
+    result = run_deploy_state(deployment, "repair-tesco-bridge")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert repair_cli_calls(deployment) == [
+        "verify-token",
+        f"begin {REPAIR_RELEASE}",
+        "commit",
+    ]
 
 
 @pytest.mark.parametrize(

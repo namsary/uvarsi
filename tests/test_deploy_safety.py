@@ -556,6 +556,48 @@ def _dozorca_threshold() -> str:
     return match.group(1)
 
 
+def _shell_function_body(source: str, name: str) -> str:
+    match = re.search(
+        rf"^{re.escape(name)}\(\)\s*(?:\(|\{{)(.*?)(?:^\)|^\}})$",
+        source,
+        flags=re.M | re.S,
+    )
+    assert match, f"chýba shell funkcia {name}"
+    return match.group(1)
+
+
+def test_bridge_repair_requires_both_payment_gates_before_mutation():
+    state = DEPLOY_STATE.read_text(encoding="utf-8")
+    body = _shell_function_body(state, "uvarsi_repair_tesco_bridge")
+    file_gate = body.index("uvarsi_require_payments_off")
+    runtime_gate = body.index("uvarsi_require_runtime_payments_off")
+    mutation = body.index("_uvarsi_repair_cli begin")
+    assert file_gate < mutation
+    assert runtime_gate < mutation
+
+
+def test_bridge_repair_bootstrap_never_echoes_or_replaces_before_verification():
+    state = DEPLOY_STATE.read_text(encoding="utf-8")
+    body = _shell_function_body(state, "uvarsi_install_cloudflare_token")
+    assert "/dev/tty" in body
+    assert "stty -echo" in body
+    assert "umask 077" in body
+    assert "trap" in body
+    assert "verify-cloudflare-token" in body
+    assert body.index("verify-cloudflare-token") < body.index('"$UVARSI_MV"')
+    assert "echo $token" not in body and "echo \"$token\"" not in body
+
+
+def test_cloudflare_token_is_scoped_to_repair_commands_not_runtime_services():
+    state = DEPLOY_STATE.read_text(encoding="utf-8")
+    assert "/etc/uvarsi/secrets/cloudflare-worker-token" in state
+    assert "verify-cloudflare-token)" in state
+    assert "install-cloudflare-token)" in state
+    assert "repair-tesco-bridge)" in state
+    for unit in ("hetzner/uvarsi.service", "hetzner/uvarsi-plan-worker.service"):
+        assert "cloudflare-worker-token" not in Path(unit).read_text(encoding="utf-8")
+
+
 def test_postdeploy_check_fails_on_any_non_200(script):
     bloky = [blok for blok in _heredoc_blocks(script.splitlines()) if "http_code" in blok]
     assert bloky, "očakávam kontrolný bash blok s curl -w %{http_code}"
