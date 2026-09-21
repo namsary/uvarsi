@@ -187,6 +187,9 @@ class CloudflareWorkerClient:
         self._validate_upload_inputs(
             worker_source, release, bridge_secret, base_version_id, tag
         )
+        latest_before = self._latest_deployable_version_ids()
+        if latest_before[0] != base_version_id:
+            raise CloudflareApiError("concurrent_version")
         metadata = {
             "main_module": "worker.js",
             "compatibility_date": COMPATIBILITY_DATE,
@@ -205,7 +208,7 @@ class CloudflareWorkerClient:
                 {
                     "name": "TOKEN_SECRET",
                     "type": "inherit",
-                    "version_id": base_version_id,
+                    "version_id": "latest",
                 },
                 {"name": "CF_VERSION_METADATA", "type": "version_metadata"},
             ],
@@ -230,7 +233,35 @@ class CloudflareWorkerClient:
             or number < 1
         ):
             raise CloudflareApiError("invalid_response")
+        latest_after = self._latest_deployable_version_ids()
+        if (
+            len(latest_after) < 2
+            or latest_after[0] != version_id
+            or latest_after[1] != base_version_id
+        ):
+            raise CloudflareApiError("concurrent_version")
         return VersionInfo(version_id, number)
+
+    def _latest_deployable_version_ids(self) -> list[str]:
+        result = self._request(
+            "GET",
+            self._script_path + "/versions?deployable=true&per_page=2",
+        )
+        if not isinstance(result, list) or not result or len(result) > 2:
+            raise CloudflareApiError("invalid_response")
+        version_ids: list[str] = []
+        for version in result:
+            if not isinstance(version, dict):
+                raise CloudflareApiError("invalid_response")
+            version_id = version.get("id")
+            if (
+                not isinstance(version_id, str)
+                or _VERSION_ID.fullmatch(version_id) is None
+                or version_id in version_ids
+            ):
+                raise CloudflareApiError("invalid_response")
+            version_ids.append(version_id)
+        return version_ids
 
     def deploy_version(
         self,

@@ -52,6 +52,33 @@ def created_version_payload(version_id=NEW_VERSION, number=2):
     }
 
 
+def versions_payload(*version_ids):
+    if not version_ids:
+        version_ids = (BASE_VERSION,)
+    return {
+        "success": True,
+        "errors": [],
+        "messages": [],
+        "result": [
+            {
+                "id": version_id,
+                "metadata": {
+                    "created_on": "2026-09-21T10:00:00Z",
+                    "source": "api",
+                },
+                "number": len(version_ids) - index,
+            }
+            for index, version_id in enumerate(version_ids)
+        ],
+        "result_info": {
+            "page": 1,
+            "per_page": 2,
+            "count": len(version_ids),
+            "total_count": len(version_ids),
+        },
+    }
+
+
 def deployment_payload(version_id=NEW_VERSION):
     return {
         "success": True,
@@ -149,14 +176,27 @@ def test_client_maps_transport_timeout_without_leaking_token():
 
 
 def test_upload_pins_source_and_inherits_only_token_secret():
-    transport = ScriptedTransport(response(200, created_version_payload()))
+    transport = ScriptedTransport(
+        response(200, versions_payload(BASE_VERSION)),
+        response(200, created_version_payload()),
+        response(200, versions_payload(NEW_VERSION, BASE_VERSION)),
+    )
     client = CloudflareWorkerClient("unit-secret", transport=transport)
 
     result = client.upload_version(
         WORKER_SOURCE, RELEASE, BRIDGE_SECRET, BASE_VERSION, "repair-20260921"
     )
 
-    method, url, headers, body = transport.calls[0]
+    assert len(transport.calls) == 3
+    latest_method, latest_url, _, latest_body = transport.calls[0]
+    assert latest_method == "GET"
+    assert latest_url.endswith(
+        f"/accounts/{ACCOUNT_ID}/workers/scripts/{SCRIPT_NAME}/versions"
+        "?deployable=true&per_page=2"
+    )
+    assert latest_body is None
+
+    method, url, headers, body = transport.calls[1]
     assert method == "POST"
     assert url.endswith(
         f"/accounts/{ACCOUNT_ID}/workers/scripts/{SCRIPT_NAME}/versions"
@@ -164,7 +204,7 @@ def test_upload_pins_source_and_inherits_only_token_secret():
     )
     assert headers["Authorization"] == "Bearer unit-secret"
     assert b"unit-secret" not in body
-    metadata, modules = decode_multipart(transport.calls[0])
+    metadata, modules = decode_multipart(transport.calls[1])
     assert modules == {"worker.js": WORKER_SOURCE}
     assert metadata == {
         "main_module": "worker.js",
@@ -173,12 +213,46 @@ def test_upload_pins_source_and_inherits_only_token_secret():
         "bindings": [
             {"name": "BRIDGE_SECRET", "type": "secret_text", "text": BRIDGE_SECRET},
             {"name": "WORKER_RELEASE", "type": "secret_text", "text": RELEASE},
-            {"name": "TOKEN_SECRET", "type": "inherit", "version_id": BASE_VERSION},
+            {"name": "TOKEN_SECRET", "type": "inherit", "version_id": "latest"},
             {"name": "CF_VERSION_METADATA", "type": "version_metadata"},
         ],
     }
     assert result.id == NEW_VERSION
     assert result.number == 2
+    confirmed_method, confirmed_url, _, confirmed_body = transport.calls[2]
+    assert confirmed_method == "GET"
+    assert confirmed_url == latest_url
+    assert confirmed_body is None
+
+
+def test_upload_refuses_to_inherit_when_latest_version_is_not_active():
+    transport = ScriptedTransport(
+        response(200, versions_payload(OTHER_VERSION, BASE_VERSION))
+    )
+    client = CloudflareWorkerClient("unit-secret", transport=transport)
+
+    with pytest.raises(CloudflareApiError, match="concurrent_version"):
+        client.upload_version(
+            WORKER_SOURCE, RELEASE, BRIDGE_SECRET, BASE_VERSION, "repair-20260921"
+        )
+
+    assert len(transport.calls) == 1
+
+
+def test_upload_refuses_candidate_when_a_version_races_the_inheritance():
+    transport = ScriptedTransport(
+        response(200, versions_payload(BASE_VERSION)),
+        response(200, created_version_payload()),
+        response(200, versions_payload(NEW_VERSION, OTHER_VERSION)),
+    )
+    client = CloudflareWorkerClient("unit-secret", transport=transport)
+
+    with pytest.raises(CloudflareApiError, match="concurrent_version"):
+        client.upload_version(
+            WORKER_SOURCE, RELEASE, BRIDGE_SECRET, BASE_VERSION, "repair-20260921"
+        )
+
+    assert len(transport.calls) == 3
 
 
 def test_deploy_posts_exact_new_version_after_rechecking_active_version():
