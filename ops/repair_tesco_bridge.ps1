@@ -21,6 +21,7 @@ $ExpectedWranglerFiles = [ordered]@{
 $ExpectedNodeVersion = 'v24.19.0'
 $ExpectedNodeHash = '3602F2BB1A10F2CBAB4C36886218A33C1AB3DB87290E73B033C46C77147D0237'
 $ExpectedCloudflareAccountId = '0510a19c8c69e8354378d3198e10302f'
+$ExpectedCloudflareEmail = 'pumaragency@gmail.com'
 
 function Get-Sha256Hex {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -186,14 +187,37 @@ function Invoke-RetryingReadOnlyCommand {
     return $lastResult
 }
 
-function Test-ExpectedCloudflareAccount {
+function Test-ExpectedCloudflareIdentityJson {
     param(
-        [Parameter(Mandatory = $true)][string]$Output,
-        [Parameter(Mandatory = $true)][string]$AccountId
+        [Parameter(Mandatory = $true)][string]$Json,
+        [Parameter(Mandatory = $true)][string]$AccountId,
+        [Parameter(Mandatory = $true)][string]$Email
     )
 
-    $escapedAccountId = [Regex]::Escape($AccountId)
-    return [bool]($Output -match "(?i)(?<![0-9a-f])$escapedAccountId(?![0-9a-f])")
+    try {
+        $identity = ConvertFrom-Json -InputObject $Json
+        if ($null -eq $identity -or $identity -isnot [pscustomobject] -or
+            $null -eq $identity.PSObject.Properties['loggedIn'] -or
+            $identity.loggedIn -isnot [bool] -or -not $identity.loggedIn -or
+            $null -eq $identity.PSObject.Properties['email'] -or
+            $identity.email -isnot [string] -or
+            [string]$identity.email -cne $Email -or
+            $null -eq $identity.PSObject.Properties['accounts'] -or
+            $identity.accounts -isnot [System.Array]) {
+            return $false
+        }
+        $accounts = @($identity.accounts)
+        if ($accounts.Count -ne 1 -or $null -eq $accounts[0] -or
+            $accounts[0] -isnot [pscustomobject] -or
+            $null -eq $accounts[0].PSObject.Properties['id'] -or
+            $accounts[0].id -isnot [string]) {
+            return $false
+        }
+        return ([string]$accounts[0].id -ceq $AccountId)
+    }
+    catch {
+        return $false
+    }
 }
 
 function Get-CreatedWorkerVersionFromOutput {
@@ -274,22 +298,35 @@ function Invoke-OfflineSelfTest {
         throw 'Self-test neodhalil najnovsi Cloudflare draft zaklad.'
     }
 
+    $sampleIdentityJson = @'
+{"loggedIn":true,"authType":"OAuth Token","email":"pumaragency@gmail.com","accounts":[{"name":"PUMAR","id":"0510a19c8c69e8354378d3198e10302f"}],"tokenPermissions":[]}
+'@
     $retryCounter = [pscustomobject]@{ Count = 0 }
     $retryResult = Invoke-RetryingReadOnlyCommand `
         -Attempts 3 -DelayMilliseconds 0 -Quiet -Operation {
         $retryCounter.Count++
         [pscustomobject]@{
             ExitCode = if ($retryCounter.Count -lt 3) { 7 } else { 0 }
-            Output = 'PUMAR account 0510a19c8c69e8354378d3198e10302f'
+            Output = $sampleIdentityJson
         }
     }
     if ($retryCounter.Count -ne 3 -or [int]$retryResult.ExitCode -ne 0 -or
-        -not (Test-ExpectedCloudflareAccount `
-            -Output ([string]$retryResult.Output) `
-            -AccountId '0510a19c8c69e8354378d3198e10302f') -or
-        (Test-ExpectedCloudflareAccount `
-            -Output 'Other account aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' `
-            -AccountId '0510a19c8c69e8354378d3198e10302f')) {
+        -not (Test-ExpectedCloudflareIdentityJson `
+            -Json ([string]$retryResult.Output) `
+            -AccountId '0510a19c8c69e8354378d3198e10302f' `
+            -Email 'pumaragency@gmail.com') -or
+        (Test-ExpectedCloudflareIdentityJson `
+            -Json '{"loggedIn":true,"email":"other@example.com","accounts":[{"id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}' `
+            -AccountId '0510a19c8c69e8354378d3198e10302f' `
+            -Email 'pumaragency@gmail.com') -or
+        (Test-ExpectedCloudflareIdentityJson `
+            -Json 'not-json' `
+            -AccountId '0510a19c8c69e8354378d3198e10302f' `
+            -Email 'pumaragency@gmail.com') -or
+        (Test-ExpectedCloudflareIdentityJson `
+            -Json '{"loggedIn":1,"email":"pumaragency@gmail.com","accounts":{"id":"0510a19c8c69e8354378d3198e10302f"}}' `
+            -AccountId '0510a19c8c69e8354378d3198e10302f' `
+            -Email 'pumaragency@gmail.com')) {
         throw 'Self-test read-only Cloudflare kontroly zlyhal.'
     }
 
@@ -322,6 +359,8 @@ function Invoke-OfflineSelfTest {
     Write-Output 'RECOVERY_STATES_OK'
     Write-Output 'VERSION_BASE_OK'
     Write-Output 'WHOAMI_RETRY_OK'
+    Write-Output 'WHOAMI_JSON_OK'
+    Write-Output 'WHOAMI_SCHEMA_OK'
     Write-Output 'NATIVE_STDERR_RETRY_OK'
     Write-Output 'SELFTEST_OK'
 }
@@ -571,16 +610,18 @@ if ($LocalPreflight) {
 
 $whoamiResult = Invoke-RetryingReadOnlyCommand -Operation {
     Invoke-NativeReadOnlyCommand -Operation {
-        & $script:VerifiedNodeExecutable $script:VerifiedWranglerEntry whoami
+        & $script:VerifiedNodeExecutable $script:VerifiedWranglerEntry `
+            whoami --account $ExpectedCloudflareAccountId --json
     }
 }
 if ([int]$whoamiResult.ExitCode -ne 0) {
     throw "Cloudflare prihlasenie sa nedalo overit ani po troch pokusoch " +
         "(kod $([int]$whoamiResult.ExitCode)). Nic sa nezmenilo."
 }
-if (-not (Test-ExpectedCloudflareAccount `
-    -Output ([string]$whoamiResult.Output) `
-    -AccountId $ExpectedCloudflareAccountId)) {
+if (-not (Test-ExpectedCloudflareIdentityJson `
+    -Json ([string]$whoamiResult.Output) `
+    -AccountId $ExpectedCloudflareAccountId `
+    -Email $ExpectedCloudflareEmail)) {
     throw 'Cloudflare konto nie je presne schvalene PUMAR konto. Nic sa nezmenilo.'
 }
 $whoamiResult = $null

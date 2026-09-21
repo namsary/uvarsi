@@ -40,6 +40,8 @@ def test_operator_bridge_repair_self_test_is_offline_and_safe() -> None:
     assert "RECOVERY_STATES_OK" in combined
     assert "VERSION_BASE_OK" in combined
     assert "WHOAMI_RETRY_OK" in combined
+    assert "WHOAMI_JSON_OK" in combined
+    assert "WHOAMI_SCHEMA_OK" in combined
     assert "NATIVE_STDERR_RETRY_OK" in combined
     assert "Cloudflare kontrola docasne zlyhala" not in combined
     assert "unit-secret-material" not in combined
