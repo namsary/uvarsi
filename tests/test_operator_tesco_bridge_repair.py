@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import json
 import os
-import re
 import subprocess
-import sys
 from pathlib import Path
 
 
@@ -12,7 +9,15 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "ops" / "repair_tesco_bridge.ps1"
 
 
-def test_operator_bridge_repair_self_test_is_offline_and_safe() -> None:
+def _run_wrapper(tmp_path: Path, exit_code: int) -> tuple[subprocess.CompletedProcess[str], str]:
+    args_file = tmp_path / "ssh-args.txt"
+    fake_ssh = tmp_path / "ssh.cmd"
+    fake_ssh.write_text(
+        "@echo off\r\n"
+        'echo %* > "%UVARSI_SSH_ARGS_FILE%"\r\n'
+        "exit /b %UVARSI_SSH_EXIT%\r\n",
+        encoding="ascii",
+    )
     result = subprocess.run(
         [
             "powershell.exe",
@@ -21,123 +26,63 @@ def test_operator_bridge_repair_self_test_is_offline_and_safe() -> None:
             "Bypass",
             "-File",
             str(SCRIPT),
-            "-SelfTest",
         ],
         cwd=ROOT,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
         timeout=30,
         check=False,
         env={
             **os.environ,
-            "ComSpec": r"Z:\definitely-missing-uvarsi-cmd.exe",
+            "PATH": str(tmp_path) + os.pathsep + os.environ.get("PATH", ""),
+            "UVARSI_SSH_ARGS_FILE": str(args_file),
+            "UVARSI_SSH_EXIT": str(exit_code),
         },
     )
-
-    combined = result.stdout + result.stderr
-    assert result.returncode == 0, combined
-    assert "SELFTEST_OK" in combined
-    assert "RECOVERY_STATES_OK" in combined
-    assert "VERSION_BASE_OK" in combined
-    assert "WHOAMI_RETRY_OK" in combined
-    assert "WHOAMI_JSON_OK" in combined
-    assert "WHOAMI_SCHEMA_OK" in combined
-    assert "NATIVE_STDERR_RETRY_OK" in combined
-    assert "Cloudflare kontrola docasne zlyhala" not in combined
-    assert "unit-secret-material" not in combined
+    args = args_file.read_text(encoding="utf-8").strip() if args_file.exists() else ""
+    return result, args
 
 
-def test_operator_bridge_repair_local_preflight_uses_verified_toolchain() -> None:
-    result = subprocess.run(
-        [
-            "powershell.exe",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(SCRIPT),
-            "-LocalPreflight",
-        ],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        timeout=30,
-        check=False,
-        env={
-            **os.environ,
-            "NODE_OPTIONS": r"--require Z:\definitely-missing-uvarsi-hook.js",
-            "NODE_PATH": r"Z:\definitely-missing-uvarsi-modules",
-        },
-    )
-
-    combined = result.stdout + result.stderr
-    assert result.returncode == 0, combined
-    assert "LOCAL_PREFLIGHT_OK" in combined
-    assert "jarvis" not in combined.lower()
-
-
-def test_embedded_server_updater_preserves_env_and_locks_payments(tmp_path: Path) -> None:
+def test_operator_bridge_repair_is_an_ssh_only_wrapper() -> None:
     source = SCRIPT.read_text(encoding="utf-8")
-    match = re.search(r"<<'PY'\r?\n(?P<body>.*?)\r?\nPY", source, re.DOTALL)
-    assert match is not None
+    lowered = source.casefold()
 
-    release = "0123456789abcdef0123456789abcdef01234567"
-    secret = release + ".unit-secret-material-0123456789abcdef"
-    env_file = tmp_path / "uvarsi.env"
-    env_file.write_text(
-        "UNRELATED=value\n"
-        "UVARSI_ENV=staging\n"
-        "UVARSI_TESCO_BRIDGE_SECRET=old-secret\n"
-        "UVARSI_TESCO_BRIDGE_SECRET=duplicate-old-secret\n"
-        "PLATBY_ZAPNUTE=1\n"
-        "UVARSI_PAYMENTS_ENABLED=1\n",
-        encoding="utf-8",
-    )
-    payload_file = tmp_path / "payload.json"
-    payload_file.write_text(
-        json.dumps(
-            {
-                "environment": "production",
-                "url": "https://uvarsi-tesco-bridge.example.workers.dev",
-                "host_name": "uvarsi-tesco-bridge.example.workers.dev",
-                "release": release,
-                "version_id": "22222222-2222-4222-8222-222222222222",
-                "secret": secret,
-            }
-        ),
-        encoding="utf-8",
-    )
-    backup_dir = tmp_path / "backups"
+    assert "& ssh jarvis 'sudo /opt/uvarsi/uvarsi-deploy-state.sh repair-tesco-bridge'" in source
+    for forbidden in (
+        "wrangler",
+        "whoami",
+        "cloudflare_api_token",
+        "cf_api_token",
+        "node.exe",
+        "versions secret bulk",
+        "versions deploy",
+        "selftest",
+        "localpreflight",
+    ):
+        assert forbidden not in lowered
 
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            match.group("body"),
-            str(env_file),
-            str(payload_file),
-            str(backup_dir),
-        ],
-        text=True,
-        capture_output=True,
-        timeout=30,
-        check=False,
-    )
 
+def test_operator_bridge_repair_calls_only_the_server_command(tmp_path: Path) -> None:
+    result, args = _run_wrapper(tmp_path, exit_code=0)
     combined = result.stdout + result.stderr
+
     assert result.returncode == 0, combined
-    assert "SERVER_ENV_SYNCED" in combined
-    assert secret not in combined
-    updated = env_file.read_text(encoding="utf-8")
-    assert "UNRELATED=value" in updated
-    assert updated.count("UVARSI_TESCO_BRIDGE_SECRET=") == 1
-    assert f"UVARSI_TESCO_BRIDGE_SECRET={secret}" in updated
-    assert updated.count("PLATBY_ZAPNUTE=0") == 1
-    assert updated.count("UVARSI_PAYMENTS_ENABLED=0") == 1
-    assert "PLATBY_ZAPNUTE=1" not in updated
-    assert "UVARSI_PAYMENTS_ENABLED=1" not in updated
-    if os.name != "nt":
-        assert os.stat(env_file).st_mode & 0o777 == 0o600
-    backups = list(backup_dir.iterdir())
-    assert len(backups) == 1
-    assert "duplicate-old-secret" in backups[0].read_text(encoding="utf-8")
+    assert args.replace('"', "") == (
+        "jarvis sudo /opt/uvarsi/uvarsi-deploy-state.sh repair-tesco-bridge"
+    )
+    assert "server" in combined.casefold()
+
+
+def test_operator_bridge_repair_propagates_failure_and_keeps_payments_off(
+    tmp_path: Path,
+) -> None:
+    result, args = _run_wrapper(tmp_path, exit_code=75)
+    combined = result.stdout + result.stderr
+
+    assert result.returncode != 0
+    assert args.replace('"', "") == (
+        "jarvis sudo /opt/uvarsi/uvarsi-deploy-state.sh repair-tesco-bridge"
+    )
+    assert "platby zostali vypnute" in combined.casefold()

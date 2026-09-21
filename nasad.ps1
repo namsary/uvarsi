@@ -56,7 +56,7 @@ trap {
 }
 
 Krok "1/8  Priecinky na serveri a upload staging"
-ssh jarvis "set -eu; rm -rf /opt/uvarsi/releases/manual-stage; mkdir -p /opt/uvarsi/releases/manual-stage/app/static /opt/uvarsi/releases/manual-stage/hetzner /var/www/uvarsi /var/lib/uvarsi"
+ssh jarvis "set -eu; rm -rf /opt/uvarsi/releases/manual-stage; mkdir -p /opt/uvarsi/releases/manual-stage/app/static /opt/uvarsi/releases/manual-stage/hetzner /opt/uvarsi/releases/manual-stage/cloudflare/tesco-bridge/src /var/www/uvarsi /var/lib/uvarsi"
 Vyzaduj "priecinky na serveri sa nepodarilo vytvorit"
 Ok "pripravene"
 
@@ -159,6 +159,9 @@ $subory = @(
   @{ l = "$B\hetzner\payment-smoke.py"; r = "/opt/uvarsi/payment-smoke.py" },
   @{ l = "$B\hetzner\payment-lifecycle-probe.py"; r = "/opt/uvarsi/payment-lifecycle-probe.py" },
   @{ l = "$B\hetzner\uvarsi-deploy-state.sh"; r = "/opt/uvarsi/uvarsi-deploy-state.sh" },
+  @{ l = "$B\hetzner\uvarsi_cloudflare_worker.py"; r = "/opt/uvarsi/uvarsi_cloudflare_worker.py" },
+  @{ l = "$B\hetzner\uvarsi_tesco_bridge_repair.py"; r = "/opt/uvarsi/uvarsi_tesco_bridge_repair.py" },
+  @{ l = "$B\cloudflare\tesco-bridge\src\worker.js"; r = "/opt/uvarsi/tesco-bridge-worker.js" },
   @{ l = "$B\hetzner\recipe-engine-rollout.sh"; r = "/opt/uvarsi/recipe-engine-rollout.sh" },
   @{ l = "$B\hetzner\recipe-engine.target"; r = "/opt/uvarsi/recipe-engine.target" },
   @{ l = "$B\hetzner\uvarsi-plan-worker.service"; r = "/etc/systemd/system/uvarsi-plan-worker.service" },
@@ -175,6 +178,7 @@ foreach ($s in $subory) {
   elseif ($s.r -eq "/opt/uvarsi/VERSION") { $ciel = "/opt/uvarsi/releases/manual-stage/VERSION" }
   elseif ($s.r -eq "/var/www/uvarsi/index.html") { $ciel = "/opt/uvarsi/releases/manual-stage/index.html" }
   elseif ($s.r -eq "/var/www/uvarsi/sw.js") { $ciel = "/opt/uvarsi/releases/manual-stage/sw.js" }
+  elseif ($s.r -eq "/opt/uvarsi/tesco-bridge-worker.js") { $ciel = "/opt/uvarsi/releases/manual-stage/cloudflare/tesco-bridge/src/worker.js" }
   else { $ciel = "/opt/uvarsi/releases/manual-stage/hetzner/$nazov" }
   scp -q $s.l "jarvis:$ciel"
   Vyzaduj "prenos zlyhal: $($s.l)"

@@ -83,6 +83,31 @@ def test_samopull_preflight_rejects_incomplete_release_without_public_pages():
     )
 
 
+def test_samopull_installs_and_rolls_back_server_cloudflare_repair_assets():
+    script = SAMOPULL.read_text(encoding="utf-8")
+
+    for release_path in (
+        "hetzner/uvarsi_cloudflare_worker.py",
+        "hetzner/uvarsi_tesco_bridge_repair.py",
+        "cloudflare/tesco-bridge/src/worker.js",
+    ):
+        assert release_path in script
+
+    for installed_name in (
+        "uvarsi_cloudflare_worker.py",
+        "uvarsi_tesco_bridge_repair.py",
+        "tesco-bridge-worker.js",
+    ):
+        assert script.count(installed_name) >= 4, (
+            f"{installed_name} musí byť v manifeste, inštalácii, zálohe aj rollbacku"
+        )
+
+    assert 'chmod 0755 "$DIR/uvarsi_cloudflare_worker.py"' in script
+    assert 'chmod 0755 "$DIR/uvarsi_tesco_bridge_repair.py"' in script
+    assert 'chmod 0644 "$DIR/tesco-bridge-worker.js"' in script
+    assert "/etc/uvarsi/secrets/cloudflare-worker-token" not in script
+
+
 def _discover_bash() -> str | None:
     for name in ("bash", "bash.exe"):
         executable = shutil.which(name)
