@@ -94,6 +94,15 @@ def deployment_payload(version_id=NEW_VERSION):
     }
 
 
+def deployment_id_only_payload():
+    return {
+        "success": True,
+        "errors": [],
+        "messages": [],
+        "result": {"id": "deployment-2"},
+    }
+
+
 class ScriptedTransport:
     def __init__(self, *responses):
         self.responses = list(responses)
@@ -347,6 +356,7 @@ def test_deploy_posts_exact_new_version_after_rechecking_active_version():
     transport = ScriptedTransport(
         response(200, deployments_payload(BASE_VERSION)),
         response(200, deployment_payload(NEW_VERSION)),
+        response(200, deployments_payload(NEW_VERSION)),
     )
     client = CloudflareWorkerClient("unit-secret", transport=transport)
 
@@ -371,6 +381,7 @@ def test_forced_rollback_uses_force_query_after_rechecking_active_version():
     transport = ScriptedTransport(
         response(200, deployments_payload(NEW_VERSION)),
         response(200, deployment_payload(BASE_VERSION)),
+        response(200, deployments_payload(BASE_VERSION)),
     )
     client = CloudflareWorkerClient("unit-secret", transport=transport)
 
@@ -388,6 +399,23 @@ def test_forced_rollback_uses_force_query_after_rechecking_active_version():
     assert json.loads(body)["versions"] == [
         {"version_id": BASE_VERSION, "percentage": 100}
     ]
+
+
+def test_deploy_accepts_live_id_only_response_after_active_version_postcheck():
+    transport = ScriptedTransport(
+        response(200, deployments_payload(BASE_VERSION)),
+        response(200, deployment_id_only_payload()),
+        response(200, deployments_payload(NEW_VERSION)),
+    )
+    client = CloudflareWorkerClient("unit-secret", transport=transport)
+
+    client.deploy_version(
+        NEW_VERSION,
+        expected_active_version=BASE_VERSION,
+        force=True,
+    )
+
+    assert len(transport.calls) == 3
 
 
 def test_deploy_refuses_changed_active_version_without_posting():

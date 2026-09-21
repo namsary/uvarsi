@@ -340,15 +340,24 @@ class CloudflareWorkerClient:
         result = self._request("POST", suffix, payload)
         if not isinstance(result, dict):
             raise CloudflareApiError("invalid_response")
-        versions = result.get("versions")
+        deployment_id = result.get("id")
         if (
-            not isinstance(versions, list)
-            or len(versions) != 1
-            or not isinstance(versions[0], dict)
-            or versions[0].get("version_id") != version_id
-            or versions[0].get("percentage") != 100
+            not isinstance(deployment_id, str)
+            or _VERSION_ID.fullmatch(deployment_id) is None
         ):
             raise CloudflareApiError("invalid_response")
+        versions = result.get("versions")
+        if versions is not None:
+            if (
+                not isinstance(versions, list)
+                or len(versions) != 1
+                or not isinstance(versions[0], dict)
+                or versions[0].get("version_id") != version_id
+                or versions[0].get("percentage") != 100
+            ):
+                raise CloudflareApiError("invalid_response")
+        if self.get_active_version_id() != version_id:
+            raise CloudflareApiError("concurrent_deploy")
 
     @staticmethod
     def _validate_upload_inputs(
