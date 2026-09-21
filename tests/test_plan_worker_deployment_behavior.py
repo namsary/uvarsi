@@ -519,10 +519,15 @@ def test_successful_manual_release_installs_rollout_controller_and_target(deploy
         "payment-smoke.py",
         "payment-lifecycle-probe.py",
         "uvarsi-deploy-state.sh",
+        "uvarsi_cloudflare_worker.py",
+        "uvarsi_tesco_bridge_repair.py",
         "recipe-engine-rollout.sh",
         "recipe-engine.target",
     ):
         (release / "hetzner" / name).write_bytes(f"new-{name}\n".encode())
+    worker = release / "cloudflare" / "tesco-bridge" / "src" / "worker.js"
+    worker.parent.mkdir(parents=True)
+    worker.write_bytes(b"new-tesco-bridge-worker\n")
 
     result = run_library(
         deployment,
@@ -539,6 +544,15 @@ def test_successful_manual_release_installs_rollout_controller_and_target(deploy
     )
     assert (deployment["live"] / "payment-lifecycle-probe.py").read_bytes() == (
         b"new-payment-lifecycle-probe.py\n"
+    )
+    assert (deployment["live"] / "uvarsi_cloudflare_worker.py").read_bytes() == (
+        b"new-uvarsi_cloudflare_worker.py\n"
+    )
+    assert (deployment["live"] / "uvarsi_tesco_bridge_repair.py").read_bytes() == (
+        b"new-uvarsi_tesco_bridge_repair.py\n"
+    )
+    assert (deployment["live"] / "tesco-bridge-worker.js").read_bytes() == (
+        b"new-tesco-bridge-worker\n"
     )
 
 
@@ -585,9 +599,13 @@ def test_manual_failure_restores_every_mutated_file_and_app_service_state(
     )
     for name in ("refresh_blocek.py", "recepty.py", "dozorca.sh", "zaloha.sh",
                  "payment-smoke.py", "payment-lifecycle-probe.py",
-                 "uvarsi-deploy-state.sh", "recipe-engine-rollout.sh",
+                 "uvarsi-deploy-state.sh", "uvarsi_cloudflare_worker.py",
+                 "uvarsi_tesco_bridge_repair.py", "recipe-engine-rollout.sh",
                  "recipe-engine.target"):
         (release / "hetzner" / name).write_bytes(f"new-{name}".encode())
+    worker = release / "cloudflare" / "tesco-bridge" / "src" / "worker.js"
+    worker.parent.mkdir(parents=True)
+    worker.write_bytes(b"new-tesco-bridge-worker")
 
     assert run_library(
         deployment, 'uvarsi_snapshot "$UVARSI_TEST_SNAPSHOT"'
@@ -607,6 +625,9 @@ def test_manual_failure_restores_every_mutated_file_and_app_service_state(
     for path, expected in expected_files.items():
         assert path.read_bytes() == expected
     assert not (deployment["live"] / "recepty.py").exists()
+    assert not (deployment["live"] / "uvarsi_cloudflare_worker.py").exists()
+    assert not (deployment["live"] / "uvarsi_tesco_bridge_repair.py").exists()
+    assert not (deployment["live"] / "tesco-bridge-worker.js").exists()
     assert deployment["app_unit"].exists() is unit_exists
     if unit_exists:
         assert deployment["app_unit"].read_text(encoding="utf-8") == "old-app-unit"
