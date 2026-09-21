@@ -31,13 +31,15 @@ def deployments_payload(version_id=BASE_VERSION):
         "success": True,
         "errors": [],
         "messages": [],
-        "result": [
-            {
-                "id": "deployment-1",
-                "created_on": "2026-09-21T10:00:00Z",
-                "versions": [{"version_id": version_id, "percentage": 100}],
-            }
-        ],
+        "result": {
+            "deployments": [
+                {
+                    "id": "deployment-1",
+                    "created_on": "2026-09-21T10:00:00Z",
+                    "versions": [{"version_id": version_id, "percentage": 100}],
+                }
+            ]
+        },
     }
 
 
@@ -202,6 +204,29 @@ def test_deploy_posts_exact_new_version_after_rechecking_active_version():
             "workers/triggered_by": "uvarsi-server-repair",
         },
     }
+
+
+def test_forced_rollback_uses_force_query_after_rechecking_active_version():
+    transport = ScriptedTransport(
+        response(200, deployments_payload(NEW_VERSION)),
+        response(200, deployment_payload(BASE_VERSION)),
+    )
+    client = CloudflareWorkerClient("unit-secret", transport=transport)
+
+    client.deploy_version(
+        BASE_VERSION,
+        expected_active_version=NEW_VERSION,
+        force=True,
+    )
+
+    method, url, _, body = transport.calls[1]
+    assert method == "POST"
+    assert url.endswith(
+        f"/accounts/{ACCOUNT_ID}/workers/scripts/{SCRIPT_NAME}/deployments?force=true"
+    )
+    assert json.loads(body)["versions"] == [
+        {"version_id": BASE_VERSION, "percentage": 100}
+    ]
 
 
 def test_deploy_refuses_changed_active_version_without_posting():

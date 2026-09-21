@@ -442,6 +442,7 @@ def rollback_repair(paths: RepairPaths, client: CloudflareWorkerClient) -> None:
                 client.deploy_version(
                     transaction.base_version_id,
                     expected_active_version=candidate,
+                    force=True,
                 )
             elif active != transaction.base_version_id:
                 raise RepairError("concurrent_deploy")

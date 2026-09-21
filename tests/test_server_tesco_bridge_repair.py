@@ -35,6 +35,7 @@ class FakeCloudflareClient:
         self.mutation_started = False
         self.uploads = []
         self.deployed_versions = []
+        self.deploy_forces = []
 
     def get_active_version_id(self):
         self.active_reads += 1
@@ -57,7 +58,7 @@ class FakeCloudflareClient:
         )
         return VersionInfo(NEW_VERSION, 2)
 
-    def deploy_version(self, version_id, expected_active_version):
+    def deploy_version(self, version_id, expected_active_version, force=False):
         if self.fail_at == "predeploy_recheck":
             raise CloudflareApiError("concurrent_deploy")
         if self.active_version != expected_active_version:
@@ -66,6 +67,7 @@ class FakeCloudflareClient:
             raise CloudflareApiError("http_503")
         self.active_version = version_id
         self.deployed_versions.append(version_id)
+        self.deploy_forces.append(force)
 
 
 class RepairFixture:
@@ -160,6 +162,7 @@ def test_recover_restores_version_and_env_after_interrupted_begin(repair_fixture
     recover_repair(repair_fixture.paths, repair_fixture.client)
 
     assert repair_fixture.client.deployed_versions[-1] == BASE_VERSION
+    assert repair_fixture.client.deploy_forces[-1] is True
     assert repair_fixture.env_text() == repair_fixture.original_env
     assert not repair_fixture.paths.transaction.exists()
     assert not list(repair_fixture.paths.backup_dir.glob("*"))

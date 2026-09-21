@@ -138,11 +138,14 @@ class CloudflareWorkerClient:
 
     def get_active_version_id(self) -> str:
         result = self._request("GET", self._script_path + "/deployments")
-        if not isinstance(result, list) or not result:
+        if not isinstance(result, dict):
+            raise CloudflareApiError("invalid_response")
+        deployments = result.get("deployments")
+        if not isinstance(deployments, list) or not deployments:
             raise CloudflareApiError("invalid_response")
 
         parsed: list[tuple[datetime, dict[str, object]]] = []
-        for deployment in result:
+        for deployment in deployments:
             if not isinstance(deployment, dict):
                 raise CloudflareApiError("invalid_response")
             created_on = deployment.get("created_on")
@@ -229,7 +232,13 @@ class CloudflareWorkerClient:
             raise CloudflareApiError("invalid_response")
         return VersionInfo(version_id, number)
 
-    def deploy_version(self, version_id: str, expected_active_version: str) -> None:
+    def deploy_version(
+        self,
+        version_id: str,
+        expected_active_version: str,
+        *,
+        force: bool = False,
+    ) -> None:
         if (
             not isinstance(version_id, str)
             or _VERSION_ID.fullmatch(version_id) is None
@@ -237,6 +246,8 @@ class CloudflareWorkerClient:
             or _VERSION_ID.fullmatch(expected_active_version) is None
         ):
             raise CloudflareApiError("invalid_version")
+        if not isinstance(force, bool):
+            raise CloudflareApiError("invalid_force")
         if self.get_active_version_id() != expected_active_version:
             raise CloudflareApiError("concurrent_deploy")
         payload = {
@@ -247,9 +258,10 @@ class CloudflareWorkerClient:
                 "workers/triggered_by": "uvarsi-server-repair",
             },
         }
-        result = self._request(
-            "POST", self._script_path + "/deployments", payload
-        )
+        suffix = self._script_path + "/deployments"
+        if force:
+            suffix += "?force=true"
+        result = self._request("POST", suffix, payload)
         if not isinstance(result, dict):
             raise CloudflareApiError("invalid_response")
         versions = result.get("versions")
