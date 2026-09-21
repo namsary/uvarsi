@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "ops" / "repair_tesco_bridge.ps1"
+RUNBOOK = ROOT / "docs" / "prevadzka.md"
 
 
 def _run_wrapper(tmp_path: Path, exit_code: int) -> tuple[subprocess.CompletedProcess[str], str]:
@@ -62,6 +63,20 @@ def test_operator_bridge_repair_is_an_ssh_only_wrapper() -> None:
         "localpreflight",
     ):
         assert forbidden not in lowered
+
+
+def test_runbook_uses_scoped_server_token_not_wrangler_oauth() -> None:
+    runbook = RUNBOOK.read_text(encoding="utf-8")
+    section = runbook.split("## Tesco bridge", 1)[1]
+
+    assert "uvarsi-tesco-bridge" in section
+    assert "Editor" in section
+    assert "/etc/uvarsi/secrets/cloudflare-worker-token" in section
+    assert "install-cloudflare-token" in section
+    assert "verify-cloudflare-token" in section
+    assert "repair-tesco-bridge" in section
+    assert "wrangler login" not in section.casefold()
+    assert "npx wrangler secret put" not in section.casefold()
 
 
 def test_operator_bridge_repair_calls_only_the_server_command(tmp_path: Path) -> None:

@@ -488,87 +488,73 @@ rekonciliácia, zrušenia, refundácie a existujúce nároky musia ďalej fungov
 
 ## Tesco bridge — bezpečné nastavenie a release gate
 
-Tesco bridge má dve rozdielne tajomstvá. `BRIDGE_SECRET` autentifikuje Hetzner
-voči Workeru; rovnakú hodnotu server pozná ako
-`UVARSI_TESCO_BRIDGE_SECRET`. `TOKEN_SECRET` podpisuje 24-hodinové media tokeny
-a zostáva iba v Cloudflare. `WORKER_RELEASE` je 12- až 64-znakový malý
-hexadecimálny commit SHA presne skontrolovaného Workeru. Cloudflare zároveň
-pridá nemenné ID nasadenej verzie cez `CF_VERSION_METADATA`. V správcovi hesiel
-vytvor `BRIDGE_SECRET` v tvare `<release-sha>.<náhodný-base64url-reťazec>`;
-náhodná časť musí mať aspoň 32 znakov. `TOKEN_SECRET` vytvor ako samostatný
-náhodný base64url reťazec s najmenej 32 znakmi. Bridge secret rotuj pri každom
-Worker release. Tajomstvá nevkladaj do príkazu, commitu, ticketu, chatu ani
-release reportu.
+Tesco bridge má dva oddelené typy tajomstiev. Dlhodobý Cloudflare API token
+umožňuje serveru spravovať iba existujúci Worker `uvarsi-tesco-bridge`.
+Krátkodobé runtime tajomstvá `BRIDGE_SECRET` a `WORKER_RELEASE` vytvára a mení
+výhradne serverová opravná transakcia; `TOKEN_SECRET` zdedí nová Worker verzia
+bez čítania jeho hodnoty. Žiadna z týchto hodnôt nesmie byť v príkaze, commite,
+tickete, chate, release reporte ani na notebooku operátora.
 
-### 1. Cloudflare Worker
+### 1. Jednorazový scoped Cloudflare API token
 
-V lokálnom adresári `cloudflare/tesco-bridge` spusti nasledujúce príkazy po
-jednom. Wrangler si hodnotu vypýta interaktívne; vlož ju až do jeho promptu,
-takže sa neobjaví v histórii shellu:
+V Cloudflare Dashboard otvor **Account API tokens → Create token** a vytvor
+account-owned token s touto jedinou politikou:
 
-```text
-npx wrangler secret put BRIDGE_SECRET
-npx wrangler secret put TOKEN_SECRET
-npx wrangler secret put WORKER_RELEASE
-```
+- účet: presný účet **PUMAR**,
+- produkt/resource: **Individual Worker** `uvarsi-tesco-bridge`,
+- rola: **Editor**.
 
-Do promptu `WORKER_RELEASE` vlož presný výstup `git rev-parse HEAD`. Potom nasaď
-z toho istého čistého checkoutu presne skontrolovaný Worker. Neutajovaný release SHA si môžeš overiť cez
-`git rev-parse HEAD`; musí sa zhodovať s prefixom uloženého `BRIDGE_SECRET`:
+Tokenu nepridávaj DNS, Workers Routes, Admin, KV, R2, D1, billing ani
+token-management oprávnenia. Worker už existuje a oprava nemení Routes ani
+Custom Domains, preto širší product-level alebo account-level prístup nie je
+potrebný. Referenčný model rolí je v oficiálnej dokumentácii
+`https://developers.cloudflare.com/workers/authorization/workers/`.
+
+Token vlož iba priamo na Hetzneri do skrytého TTY promptu:
 
 ```text
-npm run deploy
+ssh -t jarvis 'sudo /opt/uvarsi/uvarsi-deploy-state.sh install-cloudflare-token'
 ```
 
-Z úspešného deploy výstupu prevezmi nemenné Cloudflare Worker version ID. Do
-evidencie zapíš iba názov projektu `uvarsi-tesco-bridge`, release SHA, version
-ID, presný pridelený `*.workers.dev` host, čas a pass/fail — nie výstup
-autentifikovanej odpovede ani hodnotu tajomstva.
+Skript pred uložením token online overí a atomicky ho uloží do
+`/etc/uvarsi/secrets/cloudflare-worker-token`. Adresár má práva `0700`, súbor
+`0600`, vlastníkom je root. Token nevkladaj do argumentu, environmentu ani
+súboru na PC a nevypisuj ho cez `cat`. Nasadenie, záloha ani rollback tento
+súbor nikdy nekopírujú.
 
-### 2. Hetzner bez vypísania hodnôt
-
-Na serveri otvor konfiguráciu priamo v editore:
+Overenie bez zobrazenia hodnoty:
 
 ```text
-sudoedit /opt/uvarsi/uvarsi.env
+ssh jarvis 'sudo /opt/uvarsi/uvarsi-deploy-state.sh verify-cloudflare-token'
 ```
 
-V editore nastav práve jeden riadok pre každý z týchto kľúčov:
+Úspešný výstup je iba stabilný stav `cloudflare_token_ok`. Pri rotácii najprv
+vytvor, nainštaluj a over nový token. Starý token odvolaj v Cloudflare až po
+úspešnom overení nového.
+
+### 2. Kontrolovaná serverová oprava
+
+Pred opravou musia byť `PLATBY_ZAPNUTE=0` aj
+`UVARSI_PAYMENTS_ENABLED=0` v súbore aj v bežiacom procese. Potom spusti:
 
 ```text
-UVARSI_ENV=production
-UVARSI_TESCO_BRIDGE_URL=https://uvarsi-tesco-bridge.<účet>.workers.dev
-UVARSI_TESCO_BRIDGE_WORKER_HOST=uvarsi-tesco-bridge.<účet>.workers.dev
-UVARSI_TESCO_BRIDGE_RELEASE=<release-sha>
-UVARSI_TESCO_BRIDGE_VERSION_ID=<nemenné-Cloudflare-Worker-version-ID>
-UVARSI_TESCO_BRIDGE_SECRET=<rovnaký-BRIDGE_SECRET-ako-vo-Workeri>
-PLATBY_ZAPNUTE=0
-UVARSI_PAYMENTS_ENABLED=0
+ssh jarvis 'sudo /opt/uvarsi/uvarsi-deploy-state.sh repair-tesco-bridge'
 ```
 
-URL musí byť iba HTTPS origin bez cesty, portu, query, fragmentu alebo
-prihlasovacích údajov. Jeho host sa musí presne zhodovať so zamknutým
-`UVARSI_TESCO_BRIDGE_WORKER_HOST`, začínať `uvarsi-tesco-bridge.` a končiť
-`.workers.dev`. `UVARSI_TESCO_BRIDGE_RELEASE` sa musí presne zhodovať s prefixom
-release-bound bridge secretu aj s release claimom odpovede.
-`UVARSI_TESCO_BRIDGE_VERSION_ID` sa musí zhodovať s Cloudflare verziou
-nasadeného kódu. Súbor nečítaj cez `cat`, nekopíruj ho z PC a
-nepridávaj ho do Gitu. Po uložení nastav práva a spusti tichý autentifikovaný
-preflight:
+Rovnaký serverový príkaz volá aj lokálny wrapper
+`ops/repair_tesco_bridge.ps1`; na notebooku už nie je OAuth ani lokálny
+Cloudflare deploy. Oprava pod jedným `flock` zámkom najprv diagnostikuje stav.
+Zdravý bridge nerotuje. Opraviteľný nesúlad vytvorí presne jednu novú Worker
+verziu z nasadeného súboru `/opt/uvarsi/tesco-bridge-worker.js`, zdedí iba
+`TOKEN_SECRET`, vytvorí nový release-bound `BRIDGE_SECRET`, nasadí presné
+version ID a atomicky zosúladí `/opt/uvarsi/uvarsi.env`. Pri chybe obnoví
+predošlú Worker verziu aj serverovú konfiguráciu; databázu ani posledný platný
+bloček nevracia.
 
-```text
-sudo chmod 600 /opt/uvarsi/uvarsi.env
-sudo /opt/uvarsi/uvarsi-deploy-state.sh check-bridge
-```
-
-Preflight hneď vypne prípadný zdedený shell `xtrace`, potom nič nevypíše pri
-úspechu. Pri chybe vráti nenulový kód bez tela odpovede, bearer hlavičky alebo
-hodnoty kľúča. Worker HMAC-om nad `BRIDGE_SECRET` podpisuje release SHA,
-Cloudflare version ID, parametre požiadavky aj celý manifest; preflight podpis
-prepočíta a porovná v konštantnom čase. Okrem tohto zámku vyžaduje presný oficiálny Tesco
-hypermarket `source_url`, slug zhodný s `valid_from`, aktuálnu platnosť a media
-URL iba z toho istého Worker originu. Chybu rieš podľa všeobecného stavu
-Workeru a DNS; do logu nekopíruj autentifikovanú odpoveď.
+Po oprave musí prejsť autentifikovaný bridge check, ohraničený supervisor a
+`check-readiness`. Reportuj iba čas, Worker, release/version ID a stabilný
+výsledok. Nikdy nereportuj token, bridge secret, HTTP response body ani obsah
+env súboru. Automatickú samoopravu dozorcom nezapínaj.
 
 ### 3. Štvorhodinová poistka dozorcu
 
