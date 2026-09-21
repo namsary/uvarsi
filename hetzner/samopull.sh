@@ -28,6 +28,29 @@ LOCK=/var/lock/uvarsi-samopull.lock
 log(){ echo "[$(date '+%F %T')] SAMOPULL: $*"; }
 notify(){ curl -s --max-time 15 -H "Title: $1" -d "$2" "https://ntfy.sh/$NTFY" >/dev/null 2>&1 || true; }
 
+uvarsi_runtime_assets_current() {
+  while IFS='|' read -r source_path installed_name; do
+    [ -n "$source_path" ] || continue
+    [ -f "$ZDROJ/$source_path" ] || return 1
+    [ -f "$DIR/$installed_name" ] || return 1
+    cmp -s "$ZDROJ/$source_path" "$DIR/$installed_name" || return 1
+  done <<'EOF'
+hetzner/refresh_blocek.py|refresh_blocek.py
+hetzner/recepty.py|recepty.py
+hetzner/dozorca.sh|dozorca.sh
+hetzner/zaloha.sh|zaloha.sh
+hetzner/payment-smoke.py|payment-smoke.py
+hetzner/payment-lifecycle-probe.py|payment-lifecycle-probe.py
+hetzner/uvarsi-deploy-state.sh|uvarsi-deploy-state.sh
+hetzner/uvarsi_cloudflare_worker.py|uvarsi_cloudflare_worker.py
+hetzner/uvarsi_tesco_bridge_repair.py|uvarsi_tesco_bridge_repair.py
+cloudflare/tesco-bridge/src/worker.js|tesco-bridge-worker.js
+hetzner/recipe-engine-rollout.sh|recipe-engine-rollout.sh
+hetzner/recipe-engine.target|recipe-engine.target
+hetzner/samopull.sh|samopull.sh
+EOF
+}
+
 # jeden beh naraz (sťahovanie + testy môžu trvať)
 exec 9>"$LOCK" || exit 0
 flock -n 9 || exit 0
@@ -58,7 +81,10 @@ else
 fi
 
 SHA=$(git -C "$ZDROJ" rev-parse HEAD)
-[ -f "$STAV" ] && [ "$(cat "$STAV")" = "$SHA" ] && exit 0   # nič nové, ticho končí
+if [ -f "$STAV" ] && [ "$(cat "$STAV")" = "$SHA" ]; then
+  uvarsi_runtime_assets_current && exit 0
+  log "rovnaké vydanie nemá úplné runtime súbory — opravujem ho"
+fi
 
 log "nová verzia ${SHA:0:8} — pripravujem"
 CIEL="$REL/${SHA:0:12}"

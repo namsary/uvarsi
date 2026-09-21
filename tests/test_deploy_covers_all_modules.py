@@ -108,6 +108,73 @@ def test_samopull_installs_and_rolls_back_server_cloudflare_repair_assets():
     assert "/etc/uvarsi/secrets/cloudflare-worker-token" not in script
 
 
+def test_same_sha_is_not_skipped_when_server_repair_asset_is_missing(
+        tmp_path, bash_executable):
+    """A self-updated deployer must heal assets its previous version skipped."""
+    script = SAMOPULL.read_text(encoding="utf-8")
+    function_match = re.search(
+        r"(?ms)^uvarsi_runtime_assets_current\(\) \{\n.*?^\}\n",
+        script,
+    )
+    assert function_match is not None, (
+        "samopull potrebuje kontrolu živých root assetov pred tichým ukončením "
+        "pri rovnakom SHA"
+    )
+
+    source = tmp_path / "source"
+    live = tmp_path / "live"
+    source.joinpath("hetzner").mkdir(parents=True)
+    source.joinpath("cloudflare/tesco-bridge/src").mkdir(parents=True)
+    live.mkdir()
+    asset_map = {
+        "hetzner/refresh_blocek.py": "refresh_blocek.py",
+        "hetzner/recepty.py": "recepty.py",
+        "hetzner/dozorca.sh": "dozorca.sh",
+        "hetzner/zaloha.sh": "zaloha.sh",
+        "hetzner/payment-smoke.py": "payment-smoke.py",
+        "hetzner/payment-lifecycle-probe.py": "payment-lifecycle-probe.py",
+        "hetzner/uvarsi-deploy-state.sh": "uvarsi-deploy-state.sh",
+        "hetzner/uvarsi_cloudflare_worker.py": "uvarsi_cloudflare_worker.py",
+        "hetzner/uvarsi_tesco_bridge_repair.py": "uvarsi_tesco_bridge_repair.py",
+        "cloudflare/tesco-bridge/src/worker.js": "tesco-bridge-worker.js",
+        "hetzner/recipe-engine-rollout.sh": "recipe-engine-rollout.sh",
+        "hetzner/recipe-engine.target": "recipe-engine.target",
+        "hetzner/samopull.sh": "samopull.sh",
+    }
+    for relative, installed_name in asset_map.items():
+        source_path = source / relative
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_text(relative, encoding="utf-8")
+        (live / installed_name).write_text(relative, encoding="utf-8")
+
+    command = (
+        function_match.group(0)
+        + f'ZDROJ="{source.as_posix()}"\n'
+        + f'DIR="{live.as_posix()}"\n'
+        + "uvarsi_runtime_assets_current\n"
+    )
+    complete = subprocess.run(
+        [bash_executable, "-c", command],
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+    assert complete.returncode == 0, complete.stdout + complete.stderr
+
+    (live / "uvarsi_tesco_bridge_repair.py").unlink()
+    missing = subprocess.run(
+        [bash_executable, "-c", command],
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+    assert missing.returncode != 0
+
+
 def _discover_bash() -> str | None:
     for name in ("bash", "bash.exe"):
         executable = shutil.which(name)
