@@ -336,6 +336,37 @@ def test_upload_can_continue_after_two_owned_undeployed_repair_versions():
     assert result.id == NEW_VERSION
 
 
+def test_upload_can_continue_after_four_owned_undeployed_repair_versions():
+    repair_ids = [
+        OTHER_VERSION,
+        "44444444-4444-4444-8444-444444444444",
+        "55555555-5555-4555-8555-555555555555",
+        "66666666-6666-4666-8666-666666666666",
+    ]
+    before = versions_payload(*repair_ids, BASE_VERSION)
+    for index in range(4):
+        before["result"]["items"][index]["annotations"] = {
+            "workers/message": f"repair-20260921T1{9 - index}0000Z"
+        }
+    after = versions_payload(NEW_VERSION, *repair_ids, BASE_VERSION)
+    transport = ScriptedTransport(
+        response(200, before),
+        response(200, created_version_payload(number=6)),
+        response(200, after),
+    )
+    client = CloudflareWorkerClient("unit-secret", transport=transport)
+
+    result = client.upload_version(
+        WORKER_SOURCE,
+        RELEASE,
+        BRIDGE_SECRET,
+        BASE_VERSION,
+        "repair-20260921T200000Z",
+    )
+
+    assert result.id == NEW_VERSION
+
+
 def test_upload_refuses_candidate_when_a_version_races_the_inheritance():
     transport = ScriptedTransport(
         response(200, versions_payload(BASE_VERSION)),

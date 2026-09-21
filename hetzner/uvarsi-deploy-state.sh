@@ -1670,12 +1670,24 @@ uvarsi_repair_tesco_bridge() (
       return 1
       ;;
   esac
-  if _uvarsi_require_tesco_bridge_transport && \
-      "$UVARSI_BASH" "$UVARSI_DEPLOY_STATE_SCRIPT" run-supervisor && \
-      uvarsi_require_production_readiness; then
-    _uvarsi_repair_cli commit >/dev/null
-    return 0
+  repair_postcheck=bridge_failed
+  if _uvarsi_require_tesco_bridge_transport; then
+    repair_postcheck=supervisor_failed
+    if "$UVARSI_BASH" "$UVARSI_DEPLOY_STATE_SCRIPT" run-supervisor; then
+      repair_postcheck=readiness_failed
+      if uvarsi_require_production_readiness; then
+        _uvarsi_repair_cli commit >/dev/null
+        return 0
+      fi
+    fi
+  else
+    repair_postcheck=$UVARSI_BRIDGE_FAILURE_REASON
   fi
+  case "$repair_postcheck" in
+    config_invalid|request_failed|response_invalid|local_error|supervisor_failed|readiness_failed) ;;
+    *) repair_postcheck=bridge_failed ;;
+  esac
+  printf 'repair_postcheck=%s\n' "$repair_postcheck" >&2
   _uvarsi_repair_cli rollback >/dev/null || return 2
   return 1
 )

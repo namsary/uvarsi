@@ -502,6 +502,7 @@ def test_bridge_repair_rolls_back_when_supervisor_or_readiness_fails(deployment)
         f"begin {REPAIR_RELEASE}",
         "rollback",
     ]
+    assert "repair_postcheck=" in result.stderr
 
 
 def test_missing_fresh_data_with_healthy_bridge_never_rotates_credentials(deployment):
