@@ -63,6 +63,12 @@ def test_dozorca_reads_health_json_even_when_readiness_http_status_is_503():
     assert '"$CURL" -fsS --max-time 1 "$PLAN_QUEUE_HEALTH_URL"' not in source
 
 
+def test_dozorca_never_accepts_a_store_with_any_expired_staged_offer():
+    source = (ROOT / "hetzner" / "dozorca.sh").read_text(encoding="utf-8")
+
+    assert source.count("OR EXISTS (SELECT 1 FROM akcie_staging invalid") == 4
+
+
 @pytest.fixture(autouse=True)
 def offline_queue_health(monkeypatch, tmp_path):
     """Existing Dozorca cases do not need a real local FastAPI service."""

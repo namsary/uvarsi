@@ -307,7 +307,10 @@ def deployment(tmp_path):
         "sed '1d' \"$UVARSI_FAKE_STATE/http-codes\" > \"$UVARSI_FAKE_STATE/http-codes.next\"; "
         "mv \"$UVARSI_FAKE_STATE/http-codes.next\" \"$UVARSI_FAKE_STATE/http-codes\"; "
         "elif [ -f \"$UVARSI_FAKE_STATE/http-code\" ]; then code=$(cat \"$UVARSI_FAKE_STATE/http-code\"); fi ;;\n"
-        "  */api/health) cp \"$UVARSI_HEALTH_FILE\" \"$output\" ;;\n"
+        "  */api/health) "
+        "if [ -f \"$UVARSI_FAKE_STATE/fail-next-health\" ]; then "
+        "rm -f \"$UVARSI_FAKE_STATE/fail-next-health\"; exit 7; fi; "
+        "cp \"$UVARSI_HEALTH_FILE\" \"$output\" ;;\n"
         "  *) : > \"$output\" ;;\n"
         "esac\n"
         "if [ \"$write_out\" -eq 1 ]; then printf %s \"$code\"; fi\n"
@@ -377,6 +380,8 @@ def deployment(tmp_path):
         "    if not (state / 'repair-do-not-heal').exists():\n"
         "        (state / 'http-code').unlink(missing_ok=True)\n"
         "        bridge.write_bytes(good_bridge.read_bytes())\n"
+        "    if (state / 'repair-make-health-transient').exists():\n"
+        "        (state / 'fail-next-health').touch()\n"
         "    print('22bb33cc-44dd-45ee-99ff-001122334455')\n"
         "elif command == 'verify-token':\n"
         "    print('cloudflare_token_ok')\n"
@@ -559,6 +564,23 @@ def test_bridge_repair_waits_for_cloudflare_candidate_propagation(deployment):
     deployment["state"].joinpath("http-codes").write_text(
         "401\n403\n503\n200\n", encoding="ascii"
     )
+    deployment["env"]["UVARSI_SLEEP"] = "true"
+    deployment["env"]["UVARSI_TIMEOUT_RESULT"] = "0"
+    deployment["env"]["UVARSI_TIMEOUT_RUN_COMMAND"] = "1"
+
+    result = run_deploy_state(deployment, "repair-tesco-bridge")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert repair_cli_calls(deployment) == [
+        "verify-token",
+        f"begin {REPAIR_RELEASE}",
+        "commit",
+    ]
+
+
+def test_bridge_repair_waits_for_runtime_after_env_replacement(deployment):
+    deployment["state"].joinpath("http-code").write_text("401", encoding="ascii")
+    deployment["state"].joinpath("repair-make-health-transient").touch()
     deployment["env"]["UVARSI_SLEEP"] = "true"
     deployment["env"]["UVARSI_TIMEOUT_RESULT"] = "0"
     deployment["env"]["UVARSI_TIMEOUT_RUN_COMMAND"] = "1"

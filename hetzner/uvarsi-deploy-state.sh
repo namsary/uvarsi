@@ -14,6 +14,8 @@ UVARSI_ATOMIC_EXCHANGE="${UVARSI_ATOMIC_EXCHANGE:-}"
 UVARSI_HEARTBEAT_ATTEMPTS="${UVARSI_HEARTBEAT_ATTEMPTS:-30}"
 UVARSI_BRIDGE_POSTCHECK_ATTEMPTS="${UVARSI_BRIDGE_POSTCHECK_ATTEMPTS:-6}"
 UVARSI_BRIDGE_POSTCHECK_DELAY_SECONDS="${UVARSI_BRIDGE_POSTCHECK_DELAY_SECONDS:-5}"
+UVARSI_RUNTIME_POSTCHECK_ATTEMPTS="${UVARSI_RUNTIME_POSTCHECK_ATTEMPTS:-6}"
+UVARSI_RUNTIME_POSTCHECK_DELAY_SECONDS="${UVARSI_RUNTIME_POSTCHECK_DELAY_SECONDS:-5}"
 UVARSI_HEALTH_URL="${UVARSI_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
 UVARSI_DB="${UVARSI_DB:-$UVARSI_DIR/uvarsi.db}"
 UVARSI_ENV_FILE="${UVARSI_ENV_FILE:-$UVARSI_DIR/uvarsi.env}"
@@ -1605,6 +1607,26 @@ raise SystemExit(2 if enabled is True else 1)
   return 1
 }
 
+_uvarsi_wait_runtime_payments_off() {
+  attempts=$UVARSI_RUNTIME_POSTCHECK_ATTEMPTS
+  delay=$UVARSI_RUNTIME_POSTCHECK_DELAY_SECONDS
+  case "$attempts" in ''|*[!0-9]*) attempts=6 ;; esac
+  case "$delay" in ''|*[!0-9]*) delay=5 ;; esac
+  [ "$attempts" -ge 1 ] && [ "$attempts" -le 12 ] || attempts=6
+  [ "$delay" -le 30 ] || delay=5
+
+  attempt=1
+  while [ "$attempt" -le "$attempts" ]; do
+    if uvarsi_require_runtime_payments_off; then
+      return 0
+    fi
+    [ "$attempt" -lt "$attempts" ] || return 1
+    "$UVARSI_SLEEP" "$delay"
+    attempt=$((attempt + 1))
+  done
+  return 1
+}
+
 uvarsi_verify_cloudflare_token() {
   set +x
   UVARSI_CLOUDFLARE_TOKEN_FILE=$UVARSI_CLOUDFLARE_TOKEN_FILE \
@@ -1699,19 +1721,22 @@ uvarsi_repair_tesco_bridge() (
   esac
   repair_postcheck=bridge_failed
   if _uvarsi_wait_tesco_bridge_transport; then
-    repair_postcheck=supervisor_failed
-    if "$UVARSI_BASH" "$UVARSI_DEPLOY_STATE_SCRIPT" run-supervisor; then
-      repair_postcheck=readiness_failed
-      if uvarsi_require_production_readiness; then
-        _uvarsi_repair_cli commit >/dev/null
-        return 0
+    repair_postcheck=runtime_failed
+    if _uvarsi_wait_runtime_payments_off; then
+      repair_postcheck=supervisor_failed
+      if "$UVARSI_BASH" "$UVARSI_DEPLOY_STATE_SCRIPT" run-supervisor; then
+        repair_postcheck=readiness_failed
+        if uvarsi_require_production_readiness; then
+          _uvarsi_repair_cli commit >/dev/null
+          return 0
+        fi
       fi
     fi
   else
     repair_postcheck=$UVARSI_BRIDGE_FAILURE_REASON
   fi
   case "$repair_postcheck" in
-    config_invalid|request_failed|response_invalid|local_error|supervisor_failed|readiness_failed) ;;
+    config_invalid|request_failed|response_invalid|local_error|runtime_failed|supervisor_failed|readiness_failed) ;;
     *) repair_postcheck=bridge_failed ;;
   esac
   printf 'repair_postcheck=%s\n' "$repair_postcheck" >&2

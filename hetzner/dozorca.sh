@@ -577,7 +577,14 @@ STAGED_CHYBA=$(sqlite3 "$DIR/uvarsi.db" \
           WHERE a.tyzden='$MON_ISO' AND a.obchod=v.o
             AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
             AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to
-            AND (julianday(a.valid_to)-julianday(a.valid_from)+1) <= 21) < $MIN_OFFERS_PER_STORE" \
+            AND (julianday(a.valid_to)-julianday(a.valid_from)+1) <= 21) < $MIN_OFFERS_PER_STORE
+      OR EXISTS (SELECT 1 FROM akcie_staging invalid
+                 WHERE invalid.tyzden='$MON_ISO' AND invalid.obchod=v.o
+                   AND (invalid.valid_from IS NULL OR invalid.valid_to IS NULL
+                     OR julianday(invalid.valid_from) IS NULL
+                     OR julianday(invalid.valid_to) IS NULL
+                     OR invalid.valid_from > '$TODAY' OR invalid.valid_to < '$TODAY'
+                     OR (julianday(invalid.valid_to)-julianday(invalid.valid_from)+1) > 21))" \
   2>/dev/null || echo 3)
 
 # Staging je iba rozpracovaný kandidát. Ak atomicky publikovaná aktívna trojica
@@ -609,7 +616,14 @@ if { [ "${POCET:-0}" -lt "$MIN_TOTAL_OFFERS" ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; 
             WHERE a.tyzden='$MON_ISO' AND a.obchod=v.o
               AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
              AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to
-             AND (julianday(a.valid_to)-julianday(a.valid_from)+1) <= 21) < $MIN_OFFERS_PER_STORE" \
+             AND (julianday(a.valid_to)-julianday(a.valid_from)+1) <= 21) < $MIN_OFFERS_PER_STORE
+        OR EXISTS (SELECT 1 FROM akcie_staging invalid
+                   WHERE invalid.tyzden='$MON_ISO' AND invalid.obchod=v.o
+                     AND (invalid.valid_from IS NULL OR invalid.valid_to IS NULL
+                       OR julianday(invalid.valid_from) IS NULL
+                       OR julianday(invalid.valid_to) IS NULL
+                       OR invalid.valid_from > '$TODAY' OR invalid.valid_to < '$TODAY'
+                       OR (julianday(invalid.valid_to)-julianday(invalid.valid_from)+1) > 21))" \
     2>/dev/null || true)
 
   # Kaufland má verejný oficiálny prehľad so strojovo čitateľnými cenami.
@@ -642,7 +656,14 @@ if { [ "${POCET:-0}" -lt "$MIN_TOTAL_OFFERS" ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; 
                   WHERE a.tyzden='$MON_ISO' AND a.obchod=v.o
                     AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
                     AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to
-                    AND (julianday(a.valid_to)-julianday(a.valid_from)+1) <= 21) < $MIN_OFFERS_PER_STORE" \
+                    AND (julianday(a.valid_to)-julianday(a.valid_from)+1) <= 21) < $MIN_OFFERS_PER_STORE
+              OR EXISTS (SELECT 1 FROM akcie_staging invalid
+                         WHERE invalid.tyzden='$MON_ISO' AND invalid.obchod=v.o
+                           AND (invalid.valid_from IS NULL OR invalid.valid_to IS NULL
+                             OR julianday(invalid.valid_from) IS NULL
+                             OR julianday(invalid.valid_to) IS NULL
+                             OR invalid.valid_from > '$TODAY' OR invalid.valid_to < '$TODAY'
+                             OR (julianday(invalid.valid_to)-julianday(invalid.valid_from)+1) > 21))" \
           2>/dev/null || true)
       else
         log "oficiálny Kaufland zdroj zlyhal — ponechávam ohraničený Vision fallback"
@@ -781,7 +802,14 @@ STAGED_CHYBA=$(sqlite3 "$DIR/uvarsi.db" \
           WHERE a.tyzden='$MON_ISO' AND a.obchod=v.o
             AND a.valid_from IS NOT NULL AND a.valid_to IS NOT NULL
             AND a.valid_from <= '$TODAY' AND '$TODAY' <= a.valid_to
-            AND (julianday(a.valid_to)-julianday(a.valid_from)+1) <= 21) < $MIN_OFFERS_PER_STORE" \
+            AND (julianday(a.valid_to)-julianday(a.valid_from)+1) <= 21) < $MIN_OFFERS_PER_STORE
+      OR EXISTS (SELECT 1 FROM akcie_staging invalid
+                 WHERE invalid.tyzden='$MON_ISO' AND invalid.obchod=v.o
+                   AND (invalid.valid_from IS NULL OR invalid.valid_to IS NULL
+                     OR julianday(invalid.valid_from) IS NULL
+                     OR julianday(invalid.valid_to) IS NULL
+                     OR invalid.valid_from > '$TODAY' OR invalid.valid_to < '$TODAY'
+                     OR (julianday(invalid.valid_to)-julianday(invalid.valid_from)+1) > 21))" \
   2>/dev/null || echo 3)
 ZBER_REV=$(sqlite3 "$DIR/uvarsi.db" \
   "SELECT COALESCE(MAX(strftime('%s', updated)), '0')
