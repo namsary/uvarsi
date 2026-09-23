@@ -153,7 +153,7 @@ function jsonUpstream(payload, init = {}) {
 
 function authorizedHeaders(extra = {}) {
   return {
-    Authorization: `Bearer ${BRIDGE_SECRET}`,
+    "X-Uvarsi-Bridge-Token": BRIDGE_SECRET,
     ...extra,
   };
 }
@@ -247,7 +247,7 @@ test("exports a Cloudflare module Worker handler", () => {
   assert.equal(typeof worker.fetch, "function");
 });
 
-test("requires the bearer secret on both locked routes", async () => {
+test("requires the private bridge header on both locked routes", async () => {
   const unexpectedFetch = async () => assert.fail("upstream fetch must not run");
   const bridge = subject(unexpectedFetch);
   const requests = [
@@ -258,15 +258,23 @@ test("requires the bearer secret on both locked routes", async () => {
     }),
     new Request(`${WORKER_ORIGIN}/v1/tesco/leaflets`, {
       method: "POST",
+      headers: {
+        Authorization: `Bearer ${BRIDGE_SECRET}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ date: "2026-09-11", format: "HM" }),
+    }),
+    new Request(`${WORKER_ORIGIN}/v1/tesco/leaflets`, {
+      method: "POST",
       headers: authorizedHeaders({
-        Authorization: "Bearer wrong-secret",
+        "X-Uvarsi-Bridge-Token": "wrong-secret",
         "Content-Type": "application/json",
       }),
       body: JSON.stringify({ date: "2026-09-11", format: "HM" }),
     }),
     new Request(`${WORKER_ORIGIN}/v1/tesco/media/not-a-token`),
     new Request(`${WORKER_ORIGIN}/v1/tesco/media/not-a-token`, {
-      headers: { Authorization: "Bearer wrong-secret" },
+      headers: { "X-Uvarsi-Bridge-Token": "wrong-secret" },
     }),
   ];
 
@@ -381,7 +389,7 @@ test("uses one server-owned Tesco query and returns a normalized HM leaflet", as
   );
   assert.equal(JSON.stringify(payload).includes("digitalcontent.api.tesco.com"), false);
   assert.equal(response.headers.get("Cache-Control"), "private, max-age=30");
-  assert.equal(response.headers.get("Vary"), "Authorization");
+  assert.equal(response.headers.get("Vary"), "X-Uvarsi-Bridge-Token");
 });
 
 test("binds the authenticated manifest to release and Cloudflare version", async () => {

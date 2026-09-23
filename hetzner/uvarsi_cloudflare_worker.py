@@ -26,7 +26,7 @@ API_ORIGIN = "https://api.cloudflare.com/client/v4"
 COMPATIBILITY_DATE = "2026-09-11"
 REQUEST_TIMEOUT_SECONDS = 30
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
-MAX_RECOVERABLE_REPAIR_VERSIONS = 8
+MAX_RECOVERABLE_REPAIR_VERSIONS = 16
 
 _VERSION_ID = re.compile(r"[A-Za-z0-9._-]{8,128}\Z")
 _RELEASE = re.compile(r"[0-9a-f]{12,64}\Z")
@@ -279,7 +279,7 @@ class CloudflareWorkerClient:
     def _latest_deployable_versions(self) -> list[DeployableVersion]:
         result = self._request(
             "GET",
-            self._script_path + "/versions?deployable=true&per_page=10",
+            self._script_path + "/versions?deployable=true&per_page=20",
         )
         versions = result.get("items") if isinstance(result, dict) else result
         if not isinstance(versions, list) or not versions:

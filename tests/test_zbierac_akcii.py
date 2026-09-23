@@ -288,7 +288,7 @@ def test_official_tesco_uses_authenticated_bridge_contract_without_leaking_secre
         {
             "headers": {
                 "Accept": "application/json",
-                "Authorization": f"Bearer {secret}",
+                "X-Uvarsi-Bridge-Token": secret,
                 "Content-Type": "application/json",
             },
             "json": {"date": "2026-08-20", "format": "HM"},
@@ -480,7 +480,7 @@ def test_official_tesco_downloads_each_bridge_page_once_and_resizes_locally(
     assert staged_names == [f"tesco-page-{page:03d}.jpeg" for page in range(1, 9)]
     assert list(tmp_path.iterdir()) == []
     assert all(
-        call["headers"]["Authorization"] == f"Bearer {secret}"
+        call["headers"]["X-Uvarsi-Bridge-Token"] == secret
         for _url, call in downloads
     )
 

@@ -202,6 +202,7 @@ SPRAVA_KREDIT_NTFY = (
 
 _TAJNE_PREMENNE = ("ANTHROPIC_API_KEY", "UVARSI_TESCO_BRIDGE_SECRET")
 _BEARER = re.compile(r"(?i)(?:authorization\s*:\s*)?bearer\s+[^\s;,]+")
+_BRIDGE_HEADER = re.compile(r"(?i)x-uvarsi-bridge-token\s*:\s*[^\s;,]+")
 _ANTHROPIC_KEY = re.compile(r"(?i)sk-ant-[a-z0-9_-]+")
 _TELO_POSKYTOVATELA = re.compile(
     r"(?is)(?:provider|upstream|anthropic).{0,40}(?:response|odpoveď).{0,20}(?:body|telo)"
@@ -230,6 +231,7 @@ def bezpecny_detail(detail):
     ):
         return "externý detail odstránený"
     text = _BEARER.sub("citlivý údaj odstránený", text)
+    text = _BRIDGE_HEADER.sub("citlivý údaj odstránený", text)
     text = _ANTHROPIC_KEY.sub("citlivý údaj odstránený", text)
     for name in _TAJNE_PREMENNE:
         secret = os.environ.get(name)

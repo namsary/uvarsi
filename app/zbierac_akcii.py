@@ -872,7 +872,7 @@ def _bridge_tesco_candidates(today, leaflet_format, bridge_url, secret):
             f"{bridge_url}/v1/tesco/leaflets",
             headers={
                 "Accept": "application/json",
-                "Authorization": f"Bearer {secret}",
+                "X-Uvarsi-Bridge-Token": secret,
                 "Content-Type": "application/json",
             },
             json={"date": today.isoformat(), "format": leaflet_format},
@@ -1699,7 +1699,7 @@ def _download_official_tesco_page(url):
             headers={
                 **H,
                 "Accept": "image/jpeg",
-                "Authorization": f"Bearer {config[1]}",
+                "X-Uvarsi-Bridge-Token": config[1],
             },
             allow_redirects=False,
         )

@@ -204,7 +204,7 @@ def test_upload_pins_source_and_inherits_only_token_secret():
     assert latest_method == "GET"
     assert latest_url.endswith(
         f"/accounts/{ACCOUNT_ID}/workers/scripts/{SCRIPT_NAME}/versions"
-        "?deployable=true&per_page=10"
+        "?deployable=true&per_page=20"
     )
     assert latest_body is None
 
@@ -352,6 +352,35 @@ def test_upload_can_continue_after_four_owned_undeployed_repair_versions():
     transport = ScriptedTransport(
         response(200, before),
         response(200, created_version_payload(number=6)),
+        response(200, after),
+    )
+    client = CloudflareWorkerClient("unit-secret", transport=transport)
+
+    result = client.upload_version(
+        WORKER_SOURCE,
+        RELEASE,
+        BRIDGE_SECRET,
+        BASE_VERSION,
+        "repair-20260921T200000Z",
+    )
+
+    assert result.id == NEW_VERSION
+
+
+def test_upload_can_continue_after_nine_owned_undeployed_repair_versions():
+    repair_ids = [
+        f"{digit * 8}-{digit * 4}-4{digit * 3}-8{digit * 3}-{digit * 12}"
+        for digit in "3456789ab"
+    ]
+    before = versions_payload(*repair_ids, BASE_VERSION)
+    for index in range(9):
+        before["result"]["items"][index]["annotations"] = {
+            "workers/message": f"repair-20260921T19{9 - index:02d}00Z"
+        }
+    after = versions_payload(NEW_VERSION, *repair_ids, BASE_VERSION)
+    transport = ScriptedTransport(
+        response(200, before),
+        response(200, created_version_payload(number=11)),
         response(200, after),
     )
     client = CloudflareWorkerClient("unit-secret", transport=transport)

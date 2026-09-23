@@ -643,7 +643,10 @@ def test_bridge_preflight_uses_stdin_auth_and_never_exposes_failure_body(deploym
     assert "Bearer" not in output
     assert "provider-response-body" not in output
     assert BRIDGE_SECRET not in deployment["state"].joinpath("curl-args").read_text()
-    assert BRIDGE_SECRET in deployment["state"].joinpath("curl-config").read_text()
+    curl_config = deployment["state"].joinpath("curl-config").read_text()
+    assert BRIDGE_SECRET in curl_config
+    assert "X-Uvarsi-Bridge-Token" in curl_config
+    assert "Authorization:" not in curl_config
 
 
 def test_bridge_preflight_disables_inherited_xtrace_before_reading_secrets(deployment):
@@ -1879,7 +1882,7 @@ def test_cost_details_redact_bridge_anthropic_and_bearer_secrets(monkeypatch, tm
         "claude-sonnet-5",
         None,
         detail=(
-            f"Authorization: Bearer {BRIDGE_SECRET}; sk-ant-unit-secret; "
+            f"X-Uvarsi-Bridge-Token: {BRIDGE_SECRET}; sk-ant-unit-secret; "
             "provider response body"
         ),
         notifikuj=lambda _message: None,
@@ -1889,7 +1892,7 @@ def test_cost_details_redact_bridge_anthropic_and_bearer_secrets(monkeypatch, tm
     con.close()
     assert BRIDGE_SECRET not in stored
     assert "sk-ant-unit-secret" not in stored
-    assert "Bearer" not in stored
+    assert "X-Uvarsi-Bridge-Token" not in stored
     assert "provider response body" not in stored
     typical_error = (
         "BadRequestError: Error code: 400 - "

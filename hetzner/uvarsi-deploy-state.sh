@@ -229,7 +229,7 @@ raise SystemExit(0 if valid else 1)
   if ! {
     printf 'header = "Accept: application/json"\n'
     printf 'header = "Content-Type: application/json"\n'
-    printf 'header = "Authorization: Bearer %s"\n' "$bridge_secret"
+    printf 'header = "X-Uvarsi-Bridge-Token: %s"\n' "$bridge_secret"
   } | "$UVARSI_CURL" --disable --config - --silent --show-error --fail \
       --max-time 30 --request POST --data-binary "$request" \
       --output "$response" "$bridge_url/v1/tesco/leaflets" \
@@ -372,7 +372,7 @@ _uvarsi_diagnose_tesco_bridge() (
   http_code=$({
     printf 'header = "Accept: application/json"\n'
     printf 'header = "Content-Type: application/json"\n'
-    printf 'header = "Authorization: Bearer %s"\n' "$bridge_secret"
+    printf 'header = "X-Uvarsi-Bridge-Token: %s"\n' "$bridge_secret"
   } | "$UVARSI_CURL" --disable --config - --silent --show-error \
       --max-time 30 --request POST --data-binary "$request" \
       --output "$response" --write-out '%{http_code}' \

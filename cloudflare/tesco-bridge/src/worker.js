@@ -11,6 +11,7 @@ const MEDIA_TOKEN_SECONDS = 86_400;
 const MAX_DATE_DISTANCE_DAYS = 14;
 const MAX_REQUEST_BYTES = 1_024;
 const MAX_TOKEN_LENGTH = 4_096;
+const BRIDGE_AUTH_HEADER = "X-Uvarsi-Bridge-Token";
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 
@@ -33,7 +34,7 @@ function isAuthorized(request, env) {
   return (
     typeof env?.BRIDGE_SECRET === "string" &&
     env.BRIDGE_SECRET.length > 0 &&
-    request.headers.get("Authorization") === `Bearer ${env.BRIDGE_SECRET}`
+    request.headers.get(BRIDGE_AUTH_HEADER) === env.BRIDGE_SECRET
   );
 }
 
@@ -545,7 +546,7 @@ async function handleManifest(
       200,
       {
         "Cache-Control": `private, max-age=${CLIENT_MANIFEST_CACHE_SECONDS}`,
-        Vary: "Authorization",
+        Vary: BRIDGE_AUTH_HEADER,
       },
     );
   } catch {
@@ -564,7 +565,7 @@ function mediaClientResponse(body, expiresAt, now) {
       "Content-Type": "image/jpeg",
       "Cache-Control": `private, max-age=${remaining}, immutable`,
       "X-Content-Type-Options": "nosniff",
-      Vary: "Authorization",
+      Vary: BRIDGE_AUTH_HEADER,
     },
   });
 }

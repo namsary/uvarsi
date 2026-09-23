@@ -32,7 +32,7 @@ except ImportError:  # pragma: no cover - used by the installed standalone scrip
 
 
 EXPECTED_WORKER_SHA256 = (
-    "de485d6776e311877b8e7602ec6c4a0aa0dd962175b75fd64424b2cc37472f4d"
+    "64398c53e9615cd13c8a26f63f6fa4e4dd4de648c2d267ff9da48cef1be1c470"
 )
 DEFAULT_TOKEN_PATH = Path("/etc/uvarsi/secrets/cloudflare-worker-token")
 DEFAULT_ENV_PATH = Path("/opt/uvarsi/uvarsi.env")
