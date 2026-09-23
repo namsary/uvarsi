@@ -377,7 +377,7 @@ skontroluj_recipe_engine() {
   esac
 
   case "$BLOCKERS" in
-    smoke_missing|smoke_stale|smoke_failed) ;;
+    smoke_missing|smoke_stale|smoke_failed|smoke_invalid) ;;
     *) recipe_engine_alert "readiness blokuje: ${BLOCKERS:-unknown}"; return 1 ;;
   esac
 
@@ -402,6 +402,7 @@ skontroluj_recipe_engine() {
     UVARSI_VERSION_FILE="$DIR/VERSION" \
     UVARSI_DB="$DIR/uvarsi.db" \
     UVARSI_RECIPE_SMOKE_STATE="$RECIPE_SMOKE_STATE" \
+    UVARSI_RECIPE_ENGINE="$MODE" \
       "$PY" -m server --recipe-engine-smoke --state "$RECIPE_SMOKE_STATE"
   ) >/dev/null 2>&1; then
     recipe_engine_alert "lokálny syntetický smoke zlyhal"

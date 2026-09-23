@@ -741,6 +741,80 @@ def test_dozorca_revalidates_on_engine_after_offer_fingerprint_changes(
     assert "revalid" in result.stdout.lower()
 
 
+def test_dozorca_recovers_invalid_smoke_with_live_on_mode(monkeypatch, tmp_path):
+    """Hodinový smoke nesmie prepísať zapnutý engine implicitným režimom off."""
+    (tmp_path / "app").mkdir()
+    landing_data = tmp_path / "landing_data.json"
+    write_landing_data_atomic(landing_data, payload("2026-08-17"))
+    smoke_ran = tmp_path / "recipe-smoke-ran"
+    captured_mode = tmp_path / "recipe-smoke-mode"
+
+    fake_python = tmp_path / "python"
+    fake_python.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"-c\" ]; then exit 0; fi\n"
+        "case \"$*\" in\n"
+        "  *--recipe-engine-smoke*)\n"
+        f"    printf '%s' \"${{UVARSI_RECIPE_ENGINE:-unset}}\" > '{bash_path(captured_mode)}'\n"
+        f"    printf ran > '{bash_path(smoke_ran)}'\n"
+        "    exit 0 ;;\n"
+        "esac\n"
+        "exit 0\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_python.chmod(0o755)
+
+    fake_sqlite = tmp_path / "sqlite3"
+    fake_sqlite.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        "  *MAX*) echo 123 ;;\n"
+        "  *zber_stav*) echo 0 ;;\n"
+        "  *) echo 60 ;;\n"
+        "esac\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_sqlite.chmod(0o755)
+
+    invalid = json.loads(health_json())
+    invalid["recipe_engine"].update(
+        mode="on", ready=False, blockers=["smoke_invalid"],
+    )
+    healthy = json.loads(health_json())
+    healthy["recipe_engine"].update(mode="on", ready=True, blockers=[])
+    fake_curl = tmp_path / "curl"
+    fake_curl.write_text(
+        "#!/bin/sh\n"
+        "case \"$*\" in\n"
+        "  *api/health*)\n"
+        f"    if [ -f '{bash_path(smoke_ran)}' ]; then printf '%s\\n' '{json.dumps(healthy, separators=(',', ':'))}'; "
+        f"else printf '%s\\n' '{json.dumps(invalid, separators=(',', ':'))}'; fi ;;\n"
+        "esac\n"
+        "exit 0\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fake_curl.chmod(0o755)
+    monkeypatch.setenv("UVARSI_CURL", bash_path(fake_curl))
+
+    result = run_dozorca(
+        tmp_path,
+        landing_data,
+        UVARSI_RECIPE_ENGINE="off",
+        UVARSI_RECIPE_SMOKE_STATE=bash_path(tmp_path / "recipe-smoke.json"),
+        UVARSI_RECIPE_SMOKE_MIN_INTERVAL_SECONDS="1",
+        UVARSI_NOW_EPOCH="1000000",
+        UVARSI_PUBLIC_INDEX=bash_path(tmp_path / "index.html"),
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert smoke_ran.is_file(), result.stdout + result.stderr
+    assert captured_mode.read_text(encoding="utf-8") == "on"
+    assert "syntetický smoke OK" in result.stdout
+
+
 def test_dozorca_queue_handoff_failure_does_not_break_hourly_recovery(tmp_path):
     (tmp_path / "app").mkdir()
     landing_data = tmp_path / "landing_data.json"
