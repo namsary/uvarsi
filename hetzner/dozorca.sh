@@ -72,7 +72,7 @@ nacitaj_health(){
   [ "$attempts" -ge 1 ] && [ "$attempts" -le 12 ] || attempts=6
   [ "$delay" -le 30 ] || delay=1
   while [ "$attempt" -le "$attempts" ]; do
-    body=$("$CURL" -sS --max-time 1 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true)
+    body=$("$CURL" -sS --max-time 5 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true)
     if [ -n "$body" ]; then
       printf '%s' "$body"
       return 0

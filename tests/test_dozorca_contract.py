@@ -59,8 +59,8 @@ def test_dozorca_reads_health_json_even_when_readiness_http_status_is_503():
     """503 znamená nepripravenosť produktu, nie nedostupné diagnostické JSON."""
     source = (ROOT / "hetzner" / "dozorca.sh").read_text(encoding="utf-8")
     assert "nacitaj_health()" in source
-    assert '"$CURL" -sS --max-time 1 "$PLAN_QUEUE_HEALTH_URL"' in source
-    assert '"$CURL" -fsS --max-time 1 "$PLAN_QUEUE_HEALTH_URL"' not in source
+    assert '"$CURL" -sS --max-time 5 "$PLAN_QUEUE_HEALTH_URL"' in source
+    assert '"$CURL" -fsS --max-time 5 "$PLAN_QUEUE_HEALTH_URL"' not in source
 
 
 def test_dozorca_never_accepts_a_store_with_any_expired_staged_offer():
