@@ -1376,6 +1376,23 @@ def test_production_readiness_accepts_exact_weighted_line_totals(deployment):
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_production_readiness_normalizes_missing_printed_loyalty_discount(
+        deployment):
+    payload = weighted_receipt_payload(deployment)
+    payload["receipt"]["meals"][1]["items"][0]["loyalty_discount"] = None
+    deployment["landing"].write_text(json.dumps(payload), encoding="utf-8")
+    with sqlite3.connect(deployment["database"]) as con:
+        for table in ("akcie", "akcie_staging"):
+            con.execute(
+                f"""UPDATE {table} SET zlava_s_kartou=''
+                    WHERE obchod='Tesco' AND offer_key='tesco-offer-1'"""
+            )
+
+    result = run_library(deployment, "uvarsi_require_production_readiness")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_production_readiness_rejects_wrong_weighted_subtotal(deployment):
     payload = weighted_receipt_payload(deployment)
     chicken = payload["receipt"]["meals"][1]["items"][0]

@@ -563,6 +563,8 @@ with sqlite3.connect("file:" + database + "?mode=ro", uri=True) as con:
                     loyalty_discount, loyalty_program, minimum_raw,
                     loyalty_condition,
                 ) = row
+                if loyalty_discount == "":
+                    loyalty_discount = None
                 try:
                     offer_start = dt.date.fromisoformat(start_raw)
                     offer_end = dt.date.fromisoformat(end_raw)
