@@ -602,7 +602,6 @@ STAGED_CHYBA=$(sqlite3 "$DIR/uvarsi.db" \
                    AND (invalid.valid_from IS NULL OR invalid.valid_to IS NULL
                      OR julianday(invalid.valid_from) IS NULL
                      OR julianday(invalid.valid_to) IS NULL
-                     OR invalid.valid_from > '$TODAY' OR invalid.valid_to < '$TODAY'
                      OR (julianday(invalid.valid_to)-julianday(invalid.valid_from)+1) > 21))" \
   2>/dev/null || echo 3)
 
@@ -641,7 +640,6 @@ if { [ "${POCET:-0}" -lt "$MIN_TOTAL_OFFERS" ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; 
                      AND (invalid.valid_from IS NULL OR invalid.valid_to IS NULL
                        OR julianday(invalid.valid_from) IS NULL
                        OR julianday(invalid.valid_to) IS NULL
-                       OR invalid.valid_from > '$TODAY' OR invalid.valid_to < '$TODAY'
                        OR (julianday(invalid.valid_to)-julianday(invalid.valid_from)+1) > 21))" \
     2>/dev/null || true)
 
@@ -681,7 +679,6 @@ if { [ "${POCET:-0}" -lt "$MIN_TOTAL_OFFERS" ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; 
                            AND (invalid.valid_from IS NULL OR invalid.valid_to IS NULL
                              OR julianday(invalid.valid_from) IS NULL
                              OR julianday(invalid.valid_to) IS NULL
-                             OR invalid.valid_from > '$TODAY' OR invalid.valid_to < '$TODAY'
                              OR (julianday(invalid.valid_to)-julianday(invalid.valid_from)+1) > 21))" \
           2>/dev/null || true)
       else
@@ -827,7 +824,6 @@ STAGED_CHYBA=$(sqlite3 "$DIR/uvarsi.db" \
                    AND (invalid.valid_from IS NULL OR invalid.valid_to IS NULL
                      OR julianday(invalid.valid_from) IS NULL
                      OR julianday(invalid.valid_to) IS NULL
-                     OR invalid.valid_from > '$TODAY' OR invalid.valid_to < '$TODAY'
                      OR (julianday(invalid.valid_to)-julianday(invalid.valid_from)+1) > 21))" \
   2>/dev/null || echo 3)
 ZBER_REV=$(sqlite3 "$DIR/uvarsi.db" \
