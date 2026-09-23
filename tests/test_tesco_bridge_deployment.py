@@ -302,7 +302,11 @@ def deployment(tmp_path):
         "code=200\n"
         "case \"$url\" in\n"
         "  */v1/tesco/leaflets) cp \"$UVARSI_BRIDGE_PAYLOAD\" \"$output\"; "
-        "if [ -f \"$UVARSI_FAKE_STATE/http-code\" ]; then code=$(cat \"$UVARSI_FAKE_STATE/http-code\"); fi ;;\n"
+        "if [ -s \"$UVARSI_FAKE_STATE/http-codes\" ]; then "
+        "code=$(sed -n '1p' \"$UVARSI_FAKE_STATE/http-codes\"); "
+        "sed '1d' \"$UVARSI_FAKE_STATE/http-codes\" > \"$UVARSI_FAKE_STATE/http-codes.next\"; "
+        "mv \"$UVARSI_FAKE_STATE/http-codes.next\" \"$UVARSI_FAKE_STATE/http-codes\"; "
+        "elif [ -f \"$UVARSI_FAKE_STATE/http-code\" ]; then code=$(cat \"$UVARSI_FAKE_STATE/http-code\"); fi ;;\n"
         "  */api/health) cp \"$UVARSI_HEALTH_FILE\" \"$output\" ;;\n"
         "  *) : > \"$output\" ;;\n"
         "esac\n"
@@ -538,6 +542,24 @@ def test_bridge_repair_returns_two_when_rollback_fails(deployment):
 
 def test_bridge_repair_commits_only_after_bridge_supervisor_and_readiness(deployment):
     deployment["state"].joinpath("http-code").write_text("401", encoding="ascii")
+    deployment["env"]["UVARSI_TIMEOUT_RESULT"] = "0"
+    deployment["env"]["UVARSI_TIMEOUT_RUN_COMMAND"] = "1"
+
+    result = run_deploy_state(deployment, "repair-tesco-bridge")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert repair_cli_calls(deployment) == [
+        "verify-token",
+        f"begin {REPAIR_RELEASE}",
+        "commit",
+    ]
+
+
+def test_bridge_repair_waits_for_cloudflare_candidate_propagation(deployment):
+    deployment["state"].joinpath("http-codes").write_text(
+        "401\n403\n503\n200\n", encoding="ascii"
+    )
+    deployment["env"]["UVARSI_SLEEP"] = "true"
     deployment["env"]["UVARSI_TIMEOUT_RESULT"] = "0"
     deployment["env"]["UVARSI_TIMEOUT_RUN_COMMAND"] = "1"
 

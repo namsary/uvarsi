@@ -12,6 +12,8 @@ UVARSI_CP="${UVARSI_CP:-cp}"
 UVARSI_MV="${UVARSI_MV:-mv}"
 UVARSI_ATOMIC_EXCHANGE="${UVARSI_ATOMIC_EXCHANGE:-}"
 UVARSI_HEARTBEAT_ATTEMPTS="${UVARSI_HEARTBEAT_ATTEMPTS:-30}"
+UVARSI_BRIDGE_POSTCHECK_ATTEMPTS="${UVARSI_BRIDGE_POSTCHECK_ATTEMPTS:-6}"
+UVARSI_BRIDGE_POSTCHECK_DELAY_SECONDS="${UVARSI_BRIDGE_POSTCHECK_DELAY_SECONDS:-5}"
 UVARSI_HEALTH_URL="${UVARSI_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
 UVARSI_DB="${UVARSI_DB:-$UVARSI_DIR/uvarsi.db}"
 UVARSI_ENV_FILE="${UVARSI_ENV_FILE:-$UVARSI_DIR/uvarsi.env}"
@@ -273,6 +275,7 @@ statement = {
     "request_format": "HM",
     "leaflet": leaflet,
 }
+
 expected_attestation = base64.urlsafe_b64encode(hmac.new(
     secret.encode(),
     json.dumps(statement, ensure_ascii=False, separators=(",", ":")).encode(),
@@ -324,6 +327,30 @@ for expected, page in enumerate(pages, start=1):
   UVARSI_ENV=production
   export UVARSI_TESCO_BRIDGE_URL UVARSI_TESCO_BRIDGE_SECRET UVARSI_ENV
   UVARSI_BRIDGE_FAILURE_REASON="ok"
+}
+
+_uvarsi_wait_tesco_bridge_transport() {
+  attempts=$UVARSI_BRIDGE_POSTCHECK_ATTEMPTS
+  delay=$UVARSI_BRIDGE_POSTCHECK_DELAY_SECONDS
+  case "$attempts" in ''|*[!0-9]*) attempts=6 ;; esac
+  case "$delay" in ''|*[!0-9]*) delay=5 ;; esac
+  [ "$attempts" -ge 1 ] && [ "$attempts" -le 12 ] || attempts=6
+  [ "$delay" -le 30 ] || delay=5
+
+  attempt=1
+  while [ "$attempt" -le "$attempts" ]; do
+    if _uvarsi_require_tesco_bridge_transport; then
+      return 0
+    fi
+    case "$UVARSI_BRIDGE_FAILURE_REASON" in
+      request_failed|response_invalid) ;;
+      *) return 1 ;;
+    esac
+    [ "$attempt" -lt "$attempts" ] || return 1
+    "$UVARSI_SLEEP" "$delay"
+    attempt=$((attempt + 1))
+  done
+  return 1
 }
 
 _uvarsi_bridge_state_repairable() {
@@ -1671,7 +1698,7 @@ uvarsi_repair_tesco_bridge() (
       ;;
   esac
   repair_postcheck=bridge_failed
-  if _uvarsi_require_tesco_bridge_transport; then
+  if _uvarsi_wait_tesco_bridge_transport; then
     repair_postcheck=supervisor_failed
     if "$UVARSI_BASH" "$UVARSI_DEPLOY_STATE_SCRIPT" run-supervisor; then
       repair_postcheck=readiness_failed
