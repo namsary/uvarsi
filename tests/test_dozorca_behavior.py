@@ -104,7 +104,12 @@ def supervisor_environment(tmp_path):
     fake_curl.write_text(
         "#!/bin/sh\n"
         "case \"$*\" in\n"
-        "  *api/health*) printf '%s\\n' \"$UVARSI_TEST_HEALTH\" ;;\n"
+        "  *api/health*)\n"
+        "    if [ -n \"${UVARSI_TEST_HEALTH_FAIL_ONCE:-}\" ] && "
+        "[ -f \"$UVARSI_TEST_HEALTH_FAIL_ONCE\" ]; then\n"
+        "      rm -f \"$UVARSI_TEST_HEALTH_FAIL_ONCE\"; exit 7\n"
+        "    fi\n"
+        "    printf '%s\\n' \"$UVARSI_TEST_HEALTH\" ;;\n"
         "esac\n"
         "exit 0\n",
         encoding="utf-8",
@@ -158,6 +163,21 @@ def refresh_call_count(context):
     return context["calls"].read_text(encoding="utf-8").count(
         "refresh_blocek.py"
     )
+
+
+def test_transient_health_gap_is_retried_before_supervisor_gates(
+        supervisor_environment):
+    marker = supervisor_environment["tmp_path"] / "fail-health-once"
+    marker.touch()
+
+    result = run_supervisor(
+        supervisor_environment,
+        UVARSI_TEST_HEALTH_FAIL_ONCE=bash_path(marker),
+        UVARSI_HEALTH_RETRY_DELAY_SECONDS=0,
+    )
+
+    assert "UNKNOWN — frontu plánov" not in result.stdout
+    assert "health nie je dostupný" not in result.stdout
 
 
 def test_collection_stops_before_collector_when_last_moment_bridge_check_fails(

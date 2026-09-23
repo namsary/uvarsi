@@ -44,6 +44,8 @@ COLLECTION_DIAGNOSTIC_STATE="$DIR/.collection_diagnostic_state"
 COLLECTION_FAILURE_STATE="$DIR/.collection_failure_state"
 RECIPE_SMOKE_STATE="${UVARSI_RECIPE_SMOKE_STATE:-/var/lib/uvarsi/recipe_engine_smoke.json}"
 PLAN_QUEUE_HEALTH_URL="${UVARSI_PLAN_QUEUE_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
+HEALTH_ATTEMPTS="${UVARSI_HEALTH_ATTEMPTS:-6}"
+HEALTH_RETRY_DELAY_SECONDS="${UVARSI_HEALTH_RETRY_DELAY_SECONDS:-1}"
 RECIPE_SMOKE_MIN_INTERVAL_SECONDS="${UVARSI_RECIPE_SMOKE_MIN_INTERVAL_SECONDS:-900}"
 CREDIT_RETRY_SECONDS="${UVARSI_CREDIT_RETRY_SECONDS:-3600}"
 MAX_TRIES=6                          # max pokusov za jeden deň
@@ -63,7 +65,23 @@ export TZ=Europe/Bratislava
 
 log(){ echo "[$(TZ=Europe/Bratislava "$DATE" '+%F %T')] DOZORCA: $*"; }
 notify(){ "$CURL" -fsS --max-time 15 -H "Title: $1" -d "$2" "https://ntfy.sh/${NTFY_TOPIC}" >/dev/null 2>&1; }
-nacitaj_health(){ "$CURL" -sS --max-time 1 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true; }
+nacitaj_health(){
+  local attempts="$HEALTH_ATTEMPTS" delay="$HEALTH_RETRY_DELAY_SECONDS" attempt=1 body=""
+  case "$attempts" in ''|*[!0-9]*) attempts=6 ;; esac
+  case "$delay" in ''|*[!0-9]*) delay=1 ;; esac
+  [ "$attempts" -ge 1 ] && [ "$attempts" -le 12 ] || attempts=6
+  [ "$delay" -le 30 ] || delay=1
+  while [ "$attempt" -le "$attempts" ]; do
+    body=$("$CURL" -sS --max-time 1 "$PLAN_QUEUE_HEALTH_URL" 2>/dev/null || true)
+    if [ -n "$body" ]; then
+      printf '%s' "$body"
+      return 0
+    fi
+    [ "$attempt" -lt "$attempts" ] || return 0
+    sleep "$delay"
+    attempt=$((attempt + 1))
+  done
+}
 
 publish_static_receipt() {
   # Toto nič nevolá na Anthropic. Ešte pred ktorýmkoľvek neskorším stop-gate
