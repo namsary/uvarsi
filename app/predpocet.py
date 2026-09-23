@@ -1155,7 +1155,9 @@ def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
     return result
 
 
-def shadow_activation_status(con, *, server, today=None) -> dict:
+def shadow_activation_status(
+    con, *, server, today=None, library_status=None
+) -> dict:
     """Fail-closed activation evidence for the current complete flyer week."""
     today = today or datetime.date.today()
     week = server.monday(today)
@@ -1193,14 +1195,20 @@ def shadow_activation_status(con, *, server, today=None) -> dict:
 
     try:
         rows = _shadow_offer_rows(con, server, today)
-        _, recipes, current_audit = _shadow_catalogs()
+        if library_status is None:
+            _, recipes, current_audit = _shadow_catalogs()
+            library_version = recipes.version
+            library_errors = current_audit.errors
+        else:
+            library_version = library_status["library_version"]
+            library_errors = library_status["audit_errors"]
         stale = (
             row["tyzden"] != week
             or row["offer_fingerprint"] != _shadow_offer_fingerprint(rows)
             or result["algo_version"] != server.PLAN_ALGO_VERSION
-            or result["library_version"] != recipes.version
+            or result["library_version"] != library_version
         )
-        if current_audit.errors:
+        if library_errors:
             reasons.append("library_gate_failed")
     except Exception:
         stale = True

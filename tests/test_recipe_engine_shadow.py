@@ -349,6 +349,24 @@ def test_activation_is_eligible_only_for_fresh_complete_metrics_that_meet_every_
     assert status["p95_ms"] == 100.0
 
 
+def test_activation_reuses_the_release_catalog_audit(monkeypatch, tmp_path):
+    server = _server(monkeypatch, tmp_path)
+    predpocet = server.predpocet
+    monkeypatch.setattr(predpocet.time, "perf_counter", _clock())
+    predpocet.run_recipe_engine_shadow(server=server)
+
+    def unexpected_catalog_reload():
+        raise AssertionError("health reloaded the immutable recipe catalog")
+
+    monkeypatch.setattr(predpocet, "_shadow_catalogs", unexpected_catalog_reload)
+
+    with closing(server.db()) as con:
+        status = server.recipe_engine_shadow_status(con, today=date.today())
+
+    assert status["eligible"] is True
+    assert status["reasons"] == []
+
+
 def test_activation_accepts_the_observed_sub_two_second_curated_runtime(
     monkeypatch, tmp_path
 ):
