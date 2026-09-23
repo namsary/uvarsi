@@ -166,6 +166,24 @@ def _week_label(today):
     return f"{monday.day}.–{sunday.day}. {sunday.month}. {sunday.year}"
 
 
+def _receipt_source(row):
+    return {
+        "store": row["obchod"],
+        "url": row["source_url"],
+        "source_page": row["source_page"],
+        "valid_from": row["valid_from"],
+        "valid_to": row["valid_to"],
+    }
+
+
+def _source_sort_key(row):
+    """Pick the same auditable leaflet page regardless of database row order."""
+    return tuple(
+        str(row[field])
+        for field in ("source_url", "source_page", "valid_from", "valid_to", "offer_key")
+    )
+
+
 def build_public_receipt(
     con,
     model_output,
@@ -276,13 +294,7 @@ def build_public_receipt(
             elif line_total is not None and line_total["loyalty_price"] is not None:
                 raise ValueError("Overený súčet tvrdí neexistujúcu vernostnú cenu.")
             items.append(item)
-            source = {
-                "store": row["obchod"],
-                "url": row["source_url"],
-                "source_page": row["source_page"],
-                "valid_from": row["valid_from"],
-                "valid_to": row["valid_to"],
-            }
+            source = _receipt_source(row)
             source_key = tuple(source.values())
             if source_key not in source_keys:
                 source_keys.add(source_key)
@@ -293,6 +305,20 @@ def build_public_receipt(
             "instructions": [instruction.strip() for instruction in meal["instructions"]],
             "items": items,
         })
+
+    # Náhodný bloček nemusí použiť výrobok z každého obchodu. Interný audit
+    # však potrebuje dôkaz, že aktuálne dáta existujú pre všetky obchody, z
+    # ktorých sa plán skladal. Zdroje sa do verejného JSON/HTML neposielajú.
+    represented_stores = {source["store"] for source in sources}
+    for store in sorted(ALLOWED_STORES - represented_stores):
+        candidates = [row for row in offers if row["obchod"] == store]
+        if not candidates:
+            continue
+        source = _receipt_source(min(candidates, key=_source_sort_key))
+        source_key = tuple(source.values())
+        if source_key not in source_keys:
+            source_keys.add(source_key)
+            sources.append(source)
 
     generated_at = generated_at or datetime.now(timezone.utc).astimezone().isoformat()
     return {

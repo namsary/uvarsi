@@ -162,6 +162,27 @@ def test_reconstructs_every_item_total_and_exact_deduped_sources_from_db():
     ]
 
 
+def test_internal_sources_cover_every_store_even_when_receipt_uses_one_store():
+    rows = verified_rows() + [
+        (4, "2026-08-17", "Kaufland", "Ryža", "trvanlive", 1.5, 2.0, "-25 %", "1 kg",
+         "https://source.test/kaufland", 7, "2026-08-17", "2026-08-23"),
+    ]
+    con = connection(rows)
+    kaufland_key = key_of(rows[-1])
+
+    payload = build_public_receipt(
+        con,
+        selection([{"offer_key": kaufland_key, "quantity": 1}]),
+        today=TODAY,
+        generated_at="2026-08-18T06:00:00+00:00",
+    )
+
+    assert [source["store"] for source in payload["sources"]] == [
+        "Kaufland", "Lidl", "Tesco",
+    ]
+    assert public_receipt_matches_verified_offers(con, payload, today=TODAY) is True
+
+
 def test_trusted_weighted_total_uses_the_exact_plan_cost_without_model_fields():
     rows = verified_rows()
     rows[0] = (*rows[0][:8], "kg", *rows[0][9:])
