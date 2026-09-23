@@ -176,6 +176,35 @@ def test_on_health_exposes_typed_recipe_engine_readiness(monkeypatch, tmp_path):
     assert payload["blockers"] == []
 
 
+def test_on_health_reads_shadow_evidence_once(monkeypatch, tmp_path):
+    server, state = _load(monkeypatch, tmp_path)
+    _write(state, _passing_smoke(server))
+    calls = []
+
+    def counted_shadow_status(_con, today=None):
+        calls.append(today)
+        return {
+            "complete": True,
+            "eligible": True,
+            "week": server.monday(today),
+            "success_rate": 0.75,
+            "valid_outcome_rate": 1.0,
+            "p95_ms": 120.0,
+            "dietary_violations": 0,
+            "negative_quantities": 0,
+            "invalid_package_counts": 0,
+            "available_modes": list(MODES),
+        }
+
+    monkeypatch.setattr(server, "recipe_engine_shadow_status", counted_shadow_status)
+
+    payload = TestClient(server.app).get("/api/health").json()["recipe_engine"]
+
+    assert payload["ready"] is True
+    assert payload["available_modes"] == list(MODES)
+    assert len(calls) == 1
+
+
 def test_on_health_exposes_complete_generation_one_release_evidence(
     monkeypatch, tmp_path
 ):

@@ -4407,11 +4407,15 @@ def recipe_engine_shadow_status(con, today=None):
         }
 
 
-def recipe_engine_available_modes(con, today=None):
+def recipe_engine_available_modes(con, today=None, *, shadow_status=None):
     """Modes currently proven by the anonymous weekly matrix."""
     if recipe_engine_mode() != "on":
         return ("standard",)
-    status = recipe_engine_shadow_status(con, today=today)
+    status = (
+        shadow_status
+        if shadow_status is not None
+        else recipe_engine_shadow_status(con, today=today)
+    )
     if status.get("eligible") is not True:
         return ("standard",)
     reported = status.get("available_modes")
@@ -4842,7 +4846,11 @@ def recipe_engine_health(con, *, today=None):
         "library_version": library_version,
         "active_templates": active_templates,
         "coverage": {value: int(coverage[value]) for value in ALLOWED_DIET_MODES},
-        "available_modes": list(recipe_engine_available_modes(con, today=today)),
+        "available_modes": list(
+            recipe_engine_available_modes(
+                con, today=today, shadow_status=last_shadow
+            )
+        ),
         "last_shadow": last_shadow if last_shadow.get("complete") is not None else None,
         "p95_ms": p95_ms,
         "release_gate": release_gate,
