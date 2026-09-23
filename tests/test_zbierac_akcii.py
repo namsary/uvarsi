@@ -1617,6 +1617,50 @@ def test_sonnet_batch_missing_a_selected_food_page_is_reread_by_opus(monkeypatch
     assert {offer["source_page"] for offer in offers} == {1, 2}
 
 
+def test_page_without_verified_offer_does_not_discard_the_whole_store(monkeypatch):
+    pages, manifest = flyer_fixture(2)
+    monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))
+    monkeypatch.setattr(collector, "get_b64", lambda url, max_px: url)
+    models = []
+
+    verified = {
+        "source_page": 1,
+        "nazov": "Ryža",
+        "kategoria": "trvanlive",
+        "cena": 1.49,
+        "povodna": 1.99,
+        "zlava": "-25 %",
+        "jednotka": "kg",
+        "cena_s_kartou": None,
+        "zlava_s_kartou": None,
+        "vernostny_program": None,
+        "minimalny_nakup": None,
+        "podmienka_s_kartou": None,
+    }
+
+    def fake_claude_json(client, model, content, max_tokens, effort=None):
+        models.append(model)
+        if model == collector.MODEL_SCAN:
+            return [1, 2]
+        return [verified]
+
+    monkeypatch.setattr(collector, "claude_json", fake_claude_json)
+
+    offers = collector.zbieraj(object(), "lidl")
+
+    assert offers == [verified | {
+        "obchod": "Lidl",
+        "source_url": manifest["source_url"],
+        "valid_from": manifest["valid_from"],
+        "valid_to": manifest["valid_to"],
+    }]
+    assert models == [
+        collector.MODEL_SCAN,
+        collector.MODEL_READ,
+        collector.MODEL_READ_FALLBACK,
+    ]
+
+
 def test_collection_rejects_instead_of_silently_truncating_a_loyalty_condition(monkeypatch):
     pages, manifest = flyer_fixture(1)
     monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))

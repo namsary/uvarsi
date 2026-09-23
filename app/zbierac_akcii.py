@@ -2086,9 +2086,13 @@ def _offers_from_extraction(items, *, store, manifest, batch_pages):
     return offers
 
 
-def _require_every_page(offers, batch_pages):
+def _missing_offer_pages(offers, batch_pages):
     represented = {offer["source_page"] for offer in offers}
-    missing = set(batch_pages) - represented
+    return set(batch_pages) - represented
+
+
+def _require_every_page(offers, batch_pages):
+    missing = _missing_offer_pages(offers, batch_pages)
     if missing:
         raise ValueError(
             "bez overenej položky zo strán " + ", ".join(map(str, sorted(missing)))
@@ -2099,6 +2103,7 @@ def _require_every_page(offers, batch_pages):
 def _read_offer_batch(client, *, store, manifest, batch_pages, content):
     """Sonnet first; Opus only when the whole batch cannot be trusted."""
     fallback_reason = None
+    sonnet_offers = []
     try:
         items = claude_json(
             client, MODEL_READ, content, READ_TOKENS, effort=READ_EFFORT
@@ -2124,15 +2129,39 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content):
             READ_TOKENS,
             effort=READ_FALLBACK_EFFORT,
         )
-        return _require_every_page(
-            _offers_from_extraction(
-                items, store=store, manifest=manifest, batch_pages=batch_pages
-            ),
-            batch_pages,
+        opus_offers = _offers_from_extraction(
+            items, store=store, manifest=manifest, batch_pages=batch_pages
         )
+        opus_pages = {offer["source_page"] for offer in opus_offers}
+        # Opus is authoritative for every page it managed to read. Keep an
+        # already validated Sonnet result only for a page Opus omitted.
+        verified = list(opus_offers)
+        verified.extend(
+            offer for offer in sonnet_offers
+            if offer["source_page"] not in opus_pages
+        )
+        missing = _missing_offer_pages(verified, batch_pages)
+        if missing:
+            # The cheap page classifier deliberately errs on the inclusive
+            # side. A transition, advert or contents page can therefore be
+            # selected even though two independent readers find no usable
+            # offer. Skip only that page; the store-level minimum still blocks
+            # incomplete or empty flyers before staging.
+            log(
+                f"[WARN] {store}: po dvojitom čítaní preskakujem strany "
+                f"bez overenej akcie: {sorted(missing)}"
+            )
+        return verified
     except naklady.KreditVycerpany:
         raise
     except Exception as exc:
+        if sonnet_offers:
+            log(
+                f"[WARN] {store}: Opus dávku nepotvrdil "
+                f"({type(exc).__name__}: {exc}); ponechávam iba už overené "
+                "položky zo Sonnetu"
+            )
+            return sonnet_offers
         raise ValueError(
             f"{store}: extrakcia strán zlyhala aj po overení Opusom "
             f"({type(exc).__name__}: {exc})"
