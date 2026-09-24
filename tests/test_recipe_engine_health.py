@@ -36,7 +36,7 @@ def _load(monkeypatch, tmp_path, *, mode="on", rows=None):
         monkeypatch.setattr(
             server,
             "recipe_engine_shadow_status",
-            lambda _con, today=None: {
+            lambda _con, today=None, **_kwargs: {
                 "complete": True,
                 "eligible": True,
                 "week": server.monday(today),
@@ -141,7 +141,7 @@ def _install_curated_release_evidence(
     monkeypatch.setattr(
         server,
         "recipe_engine_shadow_status",
-        lambda _con, today=None: {
+        lambda _con, today=None, **_kwargs: {
             "complete": True,
             "eligible": True,
             "week": server.monday(today),
@@ -181,7 +181,7 @@ def test_on_health_reads_shadow_evidence_once(monkeypatch, tmp_path):
     _write(state, _passing_smoke(server))
     calls = []
 
-    def counted_shadow_status(_con, today=None):
+    def counted_shadow_status(_con, today=None, **_kwargs):
         calls.append(today)
         return {
             "complete": True,
@@ -440,7 +440,7 @@ def test_on_health_fails_closed_when_shadow_evidence_is_no_longer_eligible(
     monkeypatch.setattr(
         server,
         "recipe_engine_shadow_status",
-        lambda _con, today=None: {
+        lambda _con, today=None, **_kwargs: {
             "complete": True,
             "eligible": False,
             "available_modes": ["standard", "vegetarian"],

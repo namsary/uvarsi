@@ -1212,8 +1212,10 @@ PLAN_VARIANT_HINTS = (
 #      už automaticky nerozdeľuje medzi viac hrncov.
 # 27 = Tesco HM/SM sa odvodzuje iba z overenej oficiálnej URL a staré cache
 #      bez tohto zobrazovacieho pravidla sa nesmú znovu použiť.
+# 29 = posledné dva týždne ovplyvňujú výber a nedeľné varenie má prednosť
+#      na časovo náročnejší recept; staré spoločné aj osobné plány zneplatni.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 28
+PLAN_ALGO_VERSION = 29
 
 
 def plan_variant_for(user_id, variants):

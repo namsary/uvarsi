@@ -364,6 +364,44 @@ def test_plan_covers_exactly_seven_days(frequency, days, coverage):
     assert sum(meal["pokryva_dni"] for meal in plan["jedla"]) == 7
 
 
+def test_recent_recipe_is_avoided_when_three_other_methods_are_available():
+    recipes = RecipeCatalog(
+        7,
+        (
+            *_rice_recipes().all(),
+            _template("rice-one-pot", method="one_pot"),
+        ),
+    )
+
+    plan = _build(
+        recipe_catalog=recipes,
+        recent_template_ids=("rice-pot",),
+    )
+
+    assert "rice-pot" not in {
+        meal["recept"]["template_id"] for meal in plan["jedla"]
+    }
+
+
+def test_three_day_schedule_keeps_the_longer_oven_meal_for_sunday():
+    recipes = RecipeCatalog(
+        7,
+        (
+            replace(_template("quick-pot", method="pot"), minutes=20),
+            replace(_template("middle-pan", method="pan"), minutes=40),
+            replace(_template("slow-oven", method="oven"), minutes=90),
+        ),
+    )
+
+    plan = _build(recipe_catalog=recipes)
+
+    assert [(meal["den"], meal["recept"]["template_id"]) for meal in plan["jedla"]] == [
+        ("PO", "quick-pot"),
+        ("ŠT", "middle-pan"),
+        ("NE", "slow-oven"),
+    ]
+
+
 def test_public_plan_is_deterministic_and_prices_whole_packages():
     first = _build()
     second = _build()
@@ -990,12 +1028,13 @@ def test_high_protein_claim_is_added_only_after_the_legal_energy_gate():
         recipe_catalog=recipes,
     )
     high_fat_ingredients, high_fat_recipes = _protein_setup(fat="100")
-    estimated_only = _build(
-        rows=(_offer("Pevné tofu", offer_key="offer_tofu"),),
-        mode="high_protein",
-        ingredient_catalog=high_fat_ingredients,
-        recipe_catalog=high_fat_recipes,
-    )
+    with pytest.raises(NoCompatiblePlan) as captured:
+        _build(
+            rows=(_offer("Pevné tofu", offer_key="offer_tofu"),),
+            mode="high_protein",
+            ingredient_catalog=high_fat_ingredients,
+            recipe_catalog=high_fat_recipes,
+        )
 
     assert all(
         Decimal(meal["recept"]["nutrition"]["serving"]["protein_g"])
@@ -1003,10 +1042,7 @@ def test_high_protein_claim_is_added_only_after_the_legal_energy_gate():
         for meal in claimed["jedla"]
     )
     assert all(meal["recept"]["high_protein_claim"] is True for meal in claimed["jedla"])
-    assert all(
-        "high_protein_claim" not in meal["recept"]
-        for meal in estimated_only["jedla"]
-    )
+    assert captured.value.code == "diet_too_strict"
 
 
 def test_recipe_payload_exposes_catalog_allergens_for_honest_ui_warning():

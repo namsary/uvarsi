@@ -316,6 +316,21 @@ def test_current_public_receipt_is_unchanged_apart_from_machine_readable_state()
     assert public == {**data, "state": "current"}
 
 
+def test_internal_recipe_history_is_not_exposed_in_public_landing_data():
+    data = receipt_with(
+        [item()], nakup_spolu="1,00", bezne="1,50", usetris="0,50",
+        polozky=1, polozky_s_beznou_cenou=1,
+    )
+    data["_recipe_history"] = [
+        {"week": "2026-08-17", "template_ids": ["classic_lecho_egg"]}
+    ]
+
+    public = landing_data.public_landing_payload(data, date(2026, 8, 18))
+
+    assert "_recipe_history" not in public
+    assert public["receipt"] == data["receipt"]
+
+
 @pytest.mark.parametrize("public_day", [date(2026, 8, 18), date(2026, 8, 25)])
 @pytest.mark.parametrize("missing", ["source_valid_from", "item_unit"])
 def test_public_receipt_rejects_data_that_the_seo_page_cannot_publish(public_day, missing):

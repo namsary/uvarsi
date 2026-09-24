@@ -57,6 +57,19 @@ def test_unmapped_product_is_not_guessed(catalog):
     assert match_offers([offer(nazov="Rodinná dobrota")], catalog) == ()
 
 
+def test_instant_pasta_is_not_a_substitute_for_dry_pasta(catalog):
+    assert match_offers(
+        [offer(nazov="Maggi Instantné cestoviny 140 - 153 g", jednotka="153 g")],
+        catalog,
+    ) == ()
+    regular = match_offers(
+        [offer(nazov="Pšeničné cestoviny 500 g", jednotka="500 g")],
+        catalog,
+    )
+    assert len(regular) == 1
+    assert regular[0].ingredient.id == "pasta"
+
+
 @pytest.mark.parametrize(
     "row",
     (

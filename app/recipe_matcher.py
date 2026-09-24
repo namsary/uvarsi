@@ -11,7 +11,7 @@ from hashlib import sha256
 from typing import Iterable, Literal, Mapping, Sequence
 
 from .ingredient_catalog import DietTag, Ingredient, IngredientCatalog
-from .nutrition import estimate_recipe_nutrition
+from .nutrition import estimate_recipe_nutrition, qualifies_high_protein
 from .offer_matcher import MatchedOffer
 from .quantity_math import PackageSize, PantryEntry, Quantity, purchase_requirement
 from .recipe_catalog import IngredientSlot, RecipeTemplate
@@ -24,6 +24,7 @@ SCORE_STORE_PREFERENCE = 8
 PENALTY_PACKAGE_LEFTOVER = 6
 PENALTY_RECENT_FAMILY = 18
 PENALTY_RECENT_METHOD = 12
+PENALTY_RECENT_TEMPLATE = 100
 
 _ZERO = Decimal("0")
 _ONE = Decimal("1")
@@ -480,7 +481,7 @@ def _candidate_score(selections: Sequence[SlotSelection], slot_count: int) -> De
     )
 
 
-def _protein_per_adult(selections: Sequence[SlotSelection]) -> Decimal | None:
+def _nutrition_per_adult(selections: Sequence[SlotSelection]):
     lines = []
     for selection in selections:
         quantity = Quantity(
@@ -493,7 +494,7 @@ def _protein_per_adult(selections: Sequence[SlotSelection]) -> Decimal | None:
         lines.append((selection.ingredient, edible_grams))
     return estimate_recipe_nutrition(
         lines, adult_servings=_ONE
-    ).serving.protein_g
+    )
 
 
 def _candidate_key(
@@ -519,6 +520,7 @@ def rank_candidates(
     ingredient_catalog: IngredientCatalog | Mapping[str, Ingredient] | None = None,
     recent_families: Iterable[str] = (),
     recent_methods: Iterable[str] = (),
+    recent_template_ids: Iterable[str] = (),
     curated_ids: Iterable[str] = (),
 ) -> Sequence[RecipeCandidate]:
     """Return compatible candidates ordered by score, curation and stable key."""
@@ -530,6 +532,7 @@ def rank_candidates(
     ingredients = _ingredient_index(offer_rows, ingredient_catalog)
     family_history = frozenset(recent_families)
     method_history = frozenset(recent_methods)
+    template_history = frozenset(recent_template_ids)
     curated = frozenset(curated_ids)
     candidates = []
 
@@ -582,14 +585,20 @@ def rank_candidates(
         ):
             continue
         if mode == "high_protein":
-            protein_g = _protein_per_adult(selection_rows)
-            if protein_g is None or protein_g < _MINIMUM_HIGH_PROTEIN_G:
+            nutrition = _nutrition_per_adult(selection_rows)
+            if (
+                nutrition is None
+                or nutrition.serving.protein_g < _MINIMUM_HIGH_PROTEIN_G
+                or not qualifies_high_protein(nutrition)
+            ):
                 continue
         score = _candidate_score(selection_rows, len(recipe.slots))
         if recipe.family in family_history:
             score -= PENALTY_RECENT_FAMILY
         if recipe.method in method_history:
             score -= PENALTY_RECENT_METHOD
+        if recipe.id in template_history:
+            score -= PENALTY_RECENT_TEMPLATE
         candidates.append(
             RecipeCandidate(
                 template=recipe,

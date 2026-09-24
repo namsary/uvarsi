@@ -3236,9 +3236,15 @@ def _previous_plan_template_ids(user_id, week):
         ).fetchone()
     if row is None:
         return frozenset()
+    return _template_ids_from_plan_json(row["json"])
+
+
+def _template_ids_from_plan_json(raw):
     try:
-        plan = json.loads(row["json"])
+        plan = json.loads(raw)
     except (TypeError, json.JSONDecodeError):
+        return frozenset()
+    if not isinstance(plan, dict) or not isinstance(plan.get("jedla"), list):
         return frozenset()
     return frozenset(
         meal.get("recept", {}).get("template_id")
@@ -3249,9 +3255,25 @@ def _previous_plan_template_ids(user_id, week):
     )
 
 
+def _recent_plan_template_ids(user_id, week):
+    monday_date = datetime.date.fromisoformat(week)
+    previous_weeks = tuple(
+        (monday_date - datetime.timedelta(weeks=age)).isoformat()
+        for age in (1, 2)
+    )
+    with closing(db()) as con:
+        rows = con.execute(
+            "SELECT json FROM plany WHERE user_id=? AND tyzden IN (?,?)",
+            (user_id, *previous_weeks),
+        ).fetchall()
+    return frozenset().union(
+        *(_template_ids_from_plan_json(row["json"]) for row in rows)
+    )
+
+
 def _serve_deterministic_plan(
     u, tyz, obchody, rows, spajza, podpis, variant, premium, diet_mode, *,
-    zo_spajze=False, force=False,
+    zo_spajze=False, force=False, system_upgrade=False,
 ):
     """Fail fast under load and leave capacity for auth and ordinary reads."""
     if not PLAN_MIESTA.acquire(blocking=False):
@@ -3262,7 +3284,7 @@ def _serve_deterministic_plan(
     try:
         return _serve_deterministic_plan_with_slot(
             u, tyz, obchody, rows, spajza, podpis, variant, premium, diet_mode,
-            zo_spajze=zo_spajze, force=force,
+            zo_spajze=zo_spajze, force=force, system_upgrade=system_upgrade,
         )
     finally:
         PLAN_MIESTA.release()
@@ -3270,13 +3292,16 @@ def _serve_deterministic_plan(
 
 def _serve_deterministic_plan_with_slot(
     u, tyz, obchody, rows, spajza, podpis, variant, premium, diet_mode, *,
-    zo_spajze=False, force=False,
+    zo_spajze=False, force=False, system_upgrade=False,
 ):
     """Build and persist a ready plan without queue, model or paid-cost paths."""
     den = dnesok()
     strop = limit_prepoctov(premium)
-    zostava = rezervuj_prepocet(u["id"], strop, den)
-    if zostava is None:
+    # A new release invalidated the user's existing plan, not their choice to
+    # ask for another one. Rebuild that one plan without spending today's cap.
+    quota_reserved = not (system_upgrade and not force and not zo_spajze)
+    zostava = rezervuj_prepocet(u["id"], strop, den) if quota_reserved else 0
+    if quota_reserved and zostava is None:
         return odmietni(
             429, sprava_o_limite(strop, premium), KOD_LIMIT_PREPOCTOV,
             premium=premium, limit_prepoctov=strop, zostava_prepoctov=0,
@@ -3292,6 +3317,7 @@ def _serve_deterministic_plan_with_slot(
 
     try:
         catalog, recipe_catalog = _deterministic_catalogs()
+        recent_templates = _recent_plan_template_ids(u["id"], tyz)
         if force:
             previous_templates = _previous_plan_template_ids(u["id"], tyz)
             if previous_templates:
@@ -3315,6 +3341,7 @@ def _serve_deterministic_plan_with_slot(
             pantry_driven=zo_spajze,
             mode=diet_mode,
             seed=f"{tyz}:{podpis}:{selected_variant}",
+            recent_template_ids=tuple(sorted(recent_templates)),
             ingredient_catalog=catalog,
             recipe_catalog=recipe_catalog,
         )
@@ -3325,7 +3352,7 @@ def _serve_deterministic_plan_with_slot(
         with closing(db()) as con:
             con.execute("BEGIN IMMEDIATE")
             try:
-                if not zo_spajze:
+                if not zo_spajze and not recent_templates:
                     uloz_zdielany_plan(
                         con, podpis, selected_variant, tyz, stored,
                     )
@@ -3339,10 +3366,12 @@ def _serve_deterministic_plan_with_slot(
                     con.rollback()
                 raise
     except NoCompatiblePlan as error:
-        vrat_prepocet(u["id"], den)
+        if quota_reserved:
+            vrat_prepocet(u["id"], den)
         return _deterministic_error_response(error)
     except Exception:
-        vrat_prepocet(u["id"], den)
+        if quota_reserved:
+            vrat_prepocet(u["id"], den)
         LOG.exception("deterministický plán zlyhal")
         return odmietni(500, SPRAVA_PLAN_INTERNAL_ERROR, KOD_PLAN_INTERNAL_ERROR)
 
@@ -3378,6 +3407,13 @@ def osobna_cache_ma_platne_meta(plan, spajza):
     if meta.get("pantry_driven") is True:
         return meta.get("pantry_signature") == podpis_spajze(spajza)
     return meta.get("pantry_driven") is False
+
+
+def osobna_cache_caka_na_upgrade(plan):
+    """Only a stamped older algorithm may receive a free system rebuild."""
+    meta = plan.get(PLAN_META_KEY) if isinstance(plan, dict) else None
+    version = meta.get("algo_version") if isinstance(meta, dict) else None
+    return type(version) is int and 0 < version < PLAN_ALGO_VERSION
 
 
 def osobna_cache_plati(plan, spajza, *, podpis):
@@ -3462,6 +3498,8 @@ def zahrej_plan_pre_pouzivatela(user_id):
     ticho sa nestane nič a používateľ si ho vyžiada sám.
     """
     tyzden = monday()
+    if _recent_plan_template_ids(user_id, tyzden):
+        return None
     with closing(db()) as con:
         profil = con.execute(
             "SELECT osoby, dospeli, deti, frekvencia, obchody, stravovanie "
@@ -3681,7 +3719,9 @@ def _generuj_plan_sync(req: Request, force: int = 0):
     u = require_user(req)
     adults, children = zlozenie_domacnosti(u)
     tyz = monday()
+    recent_templates = _recent_plan_template_ids(u["id"], tyz)
     force_baseline_json = None
+    system_upgrade = False
     with closing(db()) as con:
         premium = has_premium(con, user_id=u["id"], now=AUTH_CLOCK())
         obchody = efektivne_obchody(u, premium)
@@ -3717,14 +3757,16 @@ def _generuj_plan_sync(req: Request, force: int = 0):
                     cached = json.loads(r["json"])
                 except json.JSONDecodeError:
                     cached = None
+                system_upgrade = osobna_cache_caka_na_upgrade(cached)
                 cached_offers_current = cached_plan_is_current(cached, rows)
                 if (
                     osobna_cache_plati(cached, sp, podpis=podpis)
                     and cached_offers_current
                 ):
                     return so_spajzou(cached, sp)
-                con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], tyz))
-                con.commit()
+                if not system_upgrade:
+                    con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], tyz))
+                    con.commit()
                 if (
                     cached
                     and osobna_cache_ma_platne_meta(cached, sp)
@@ -3766,7 +3808,7 @@ def _generuj_plan_sync(req: Request, force: int = 0):
             con, tyz, obchody, dospeli=adults, deti=children,
             frekvencia=u["frekvencia"], variant=variant,
         )
-        if not force:
+        if not force and not recent_templates:
             zdielany = nacitaj_zdielany_plan(con, podpis, variant)
             if zdielany is not None:
                 if cached_plan_is_current(zdielany, rows):
@@ -3784,7 +3826,7 @@ def _generuj_plan_sync(req: Request, force: int = 0):
 
     return _serve_deterministic_plan(
         u, tyz, obchody, rows, sp, podpis, variant, premium, diet_mode,
-        force=bool(force),
+        force=bool(force), system_upgrade=system_upgrade,
     )
 
 
@@ -4253,6 +4295,7 @@ def poskladaj_novy_plan(u, tyz, obchody, rows, sp, podpis, variant, zo_spajze=Fa
 def daj_plan(req: Request):
     u = require_user(req)
     tyz = monday()
+    recent_templates = _recent_plan_template_ids(u["id"], tyz)
     adults, children = zlozenie_domacnosti(u)
     with closing(db()) as con:
         premium = has_premium(con, user_id=u["id"], now=AUTH_CLOCK())
@@ -4322,7 +4365,7 @@ def daj_plan(req: Request):
             # iný rovnaký profil alebo nočný predpočet, platný výsledok má
             # prednosť pred starou chybovou stenou. Force a špajzový job sú
             # osobné požiadavky, preto pri nich starý výsledok nikdy nemaskuj.
-            if status.kind == "regular" and not status.is_force:
+            if status.kind == "regular" and not status.is_force and not recent_templates:
                 recovered = nacitaj_zdielany_plan(con, podpis, variant)
                 if recovered is not None and cached_plan_is_current(recovered, rows):
                     predpocet.zapocitaj_zasah(con, podpis, variant, tyz)
@@ -4350,13 +4393,16 @@ def daj_plan(req: Request):
                 and osobna_cache_ma_platne_meta(cached, sp)
                 and not cached_plan_is_current(cached, rows)
             )
-            con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], tyz))
-            con.commit()
+            if not osobna_cache_caka_na_upgrade(cached):
+                con.execute("DELETE FROM plany WHERE user_id=? AND tyzden=?", (u["id"], tyz))
+                con.commit()
 
         # A ready force/regular job published a new shared row in the same
         # transaction as its ready state. Adopt it before returning an older
         # personal cache; otherwise GET polling would stop on the old plan.
-        zdielany = nacitaj_zdielany_plan(con, podpis, variant)
+        zdielany = (
+            None if recent_templates else nacitaj_zdielany_plan(con, podpis, variant)
+        )
         if zdielany is not None:
             if cached_plan_is_current(zdielany, rows):
                 predpocet.zapocitaj_zasah(con, podpis, variant, tyz)

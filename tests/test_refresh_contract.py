@@ -254,6 +254,74 @@ def test_curated_receipt_composer_uses_stable_week_seed_and_real_plan_meals(
     assert calls[0]["recipe_catalog"] == ("recipes", "ingredients")
 
 
+def test_public_receipt_history_uses_only_the_previous_two_weeks(monkeypatch, tmp_path):
+    output = tmp_path / "landing_data.json"
+    output.write_text(
+        json.dumps({
+            "week": "2026-08-17",
+            "_recipe_history": [
+                {"week": "2026-08-17", "template_ids": ["lecho"]},
+                {"week": "2026-08-10", "template_ids": ["pork"]},
+                {"week": "2026-08-03", "template_ids": ["soup"]},
+                {"week": "2026-07-27", "template_ids": ["too_old"]},
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    history = refresh_blocek._read_recipe_history(output, TODAY)
+
+    assert {item["week"] for item in history} == {
+        "2026-08-17", "2026-08-10", "2026-08-03"
+    }
+    assert refresh_blocek._recent_template_ids(history, TODAY) == {
+        "pork", "soup"
+    }
+
+
+def test_public_composer_sends_recent_templates_to_the_planner(monkeypatch):
+    offers = [
+        {"offer_key": "a", "obchod": "Lidl"},
+        {"offer_key": "b", "obchod": "Tesco"},
+        {"offer_key": "c", "obchod": "Kaufland"},
+    ]
+    captured = []
+
+    def fake_builder(**kwargs):
+        captured.append(kwargs)
+        return {
+            "jedla": [
+                {
+                    "den": day,
+                    "nazov": name,
+                    "recept": {"template_id": recipe_id, "kroky": ["Priprav.", "Uvar.", "Podávaj."]},
+                    "suroviny": [{"offer_key": key, "mnozstvo": 1}],
+                }
+                for day, name, recipe_id, key in (
+                    ("PO", "Polievka", "soup", "a"),
+                    ("ŠT", "Cestoviny", "pasta", "b"),
+                    ("NE", "Pečienka", "roast", "c"),
+                )
+            ],
+            "nakupny_zoznam": [{"obchod": "Lidl", "polozky": [
+                {"offer_key": key, "mnozstvo": 1} for key in ("a", "b", "c")
+            ]}],
+        }
+
+    monkeypatch.setattr(refresh_blocek, "build_deterministic_plan", fake_builder)
+    monkeypatch.setattr(refresh_blocek, "load_ingredient_catalog", lambda: "ingredients")
+    monkeypatch.setattr(refresh_blocek, "load_recipe_catalog", lambda ingredients: "recipes")
+
+    selection, totals, ids = refresh_blocek.compose_curated_receipt(
+        offers, TODAY, include_verified_totals=True,
+        include_template_ids=True, recent_template_ids={"lecho", "pork"},
+    )
+
+    assert captured[0]["recent_template_ids"] == ("lecho", "pork")
+    assert ids == ("soup", "pasta", "roast")
+    assert [meal["day"] for meal in selection["meals"]] == ["PO", "ŠT", "NE"]
+
+
 def test_curated_receipt_composer_builds_three_practical_meals_from_real_catalog():
     ingredients = load_ingredient_catalog()
     offers = []
@@ -275,7 +343,18 @@ def test_curated_receipt_composer_builds_three_practical_meals_from_real_catalog
             "source_page": page,
         })
 
-    selection = refresh_blocek.compose_curated_receipt(offers, TODAY)
+    selection, _totals, recipe_ids = refresh_blocek.compose_curated_receipt(
+        offers, TODAY, include_verified_totals=True, include_template_ids=True
+    )
+
+    recipes = {recipe.id: recipe for recipe in refresh_blocek.load_recipe_catalog(ingredients).all()}
+    assert (
+        recipes[recipe_ids[-1]].minutes >= 45
+        and recipes[recipe_ids[-1]].method not in {"soup", "salad"}
+    ), [
+        (meal["day"], recipe_id, recipes[recipe_id].method)
+        for meal, recipe_id in zip(selection["meals"], recipe_ids)
+    ]
 
     assert len(selection["meals"]) == 3
     assert len({meal["name"] for meal in selection["meals"]}) == 3
@@ -559,6 +638,9 @@ def test_refresh_publishes_a_complete_curated_receipt_without_a_composer(tmp_pat
     assert payload["offer_data_version"] == 2
     assert payload["week"] == "2026-08-17"
     assert len(payload["receipt"]["meals"]) == 3
+    assert len(payload["_recipe_history"]) == 1
+    assert payload["_recipe_history"][0]["week"] == "2026-08-17"
+    assert len(payload["_recipe_history"][0]["template_ids"]) == 3
     assert payload["receipt"]["polozky"] >= 3
     assert payload["receipt"]["nakup_spolu"] != "0,00"
 

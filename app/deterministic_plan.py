@@ -231,6 +231,7 @@ def _rank_for_day(
     required_reserve: Mapping[str, Fraction],
     recent_families,
     recent_methods,
+    recent_template_ids=frozenset(),
 ) -> tuple[RecipeCandidate, ...]:
     if not pantry_driven:
         return tuple(
@@ -243,6 +244,7 @@ def _rank_for_day(
                 ingredient_catalog=ingredient_catalog,
                 recent_families=recent_families,
                 recent_methods=recent_methods,
+                recent_template_ids=recent_template_ids,
             )
         )
 
@@ -266,6 +268,7 @@ def _rank_for_day(
                 ingredient_catalog=ingredient_catalog,
                 recent_families=recent_families,
                 recent_methods=recent_methods,
+                recent_template_ids=recent_template_ids,
             )
         )
     return tuple(sorted(candidates, key=lambda item: (-item.score, item.key)))
@@ -344,10 +347,11 @@ def _ranked_renderable_for_day(
     ingredient_catalog: IngredientCatalog,
     recent_families: Sequence[str],
     recent_methods: Sequence[str],
+    recent_template_ids: frozenset[str] = frozenset(),
     required_reserve: Mapping[str, Fraction],
     pantry_driven: bool = True,
 ) -> _PantryDayRanking:
-    bounded = _rank_for_day(
+    ranked = _rank_for_day(
         templates=templates,
         offers=offers,
         balances=balances,
@@ -361,7 +365,31 @@ def _ranked_renderable_for_day(
         required_reserve=required_reserve,
         recent_families=recent_families,
         recent_methods=recent_methods,
-    )[:_MAX_CANDIDATES_PER_DAY]
+        recent_template_ids=recent_template_ids,
+    )
+    bounded = ranked[:_MAX_CANDIDATES_PER_DAY]
+    if day == "NE":
+        # A longer roast or stew fits Sunday better than a quick egg dish.
+        # Soups and salads remain fallbacks when no main dish is possible.
+        priority = lambda item: (
+            item.template.method != "oven" or item.template.minutes < 60,
+            item.template.method not in {"pot", "one_pot"} or item.template.minutes < 60,
+            item.template.method != "oven" or item.template.minutes < 45,
+            item.template.method not in {"pot", "one_pot"} or item.template.minutes < 45,
+            item.template.method in {"soup", "salad"},
+            -item.score,
+            -item.template.minutes,
+            item.key,
+        )
+    else:
+        priority = lambda item: (
+            item.template.minutes >= 45,
+            item.template.method == "oven",
+            -item.score,
+            item.template.minutes,
+            item.key,
+        )
+    bounded = tuple(sorted(bounded, key=priority))
     candidates = []
     for candidate in bounded:
         try:
@@ -380,7 +408,10 @@ def _ranked_renderable_for_day(
             continue
         if (
             mode == "high_protein"
-            and adult_nutrition.serving.protein_g < _MINIMUM_HIGH_PROTEIN_G
+            and (
+                adult_nutrition.serving.protein_g < _MINIMUM_HIGH_PROTEIN_G
+                or not qualifies_high_protein(adult_nutrition)
+            )
         ):
             continue
 
@@ -481,6 +512,7 @@ def _stabilized_pantry_state(
     ingredient_catalog: IngredientCatalog,
     recent_families: Sequence[str],
     recent_methods: Sequence[str],
+    recent_template_ids: frozenset[str] = frozenset(),
 ) -> _StabilizedPantryState:
     reserve: dict[str, Fraction] = {}
     previous_identity = None
@@ -507,6 +539,7 @@ def _stabilized_pantry_state(
                 ingredient_catalog=ingredient_catalog,
                 recent_families=recent_families,
                 recent_methods=recent_methods,
+                recent_template_ids=recent_template_ids,
                 required_reserve=reserve,
             )
             for day in days
@@ -594,6 +627,7 @@ def _select_week(
     adults: int,
     children: int,
     ingredient_catalog: IngredientCatalog,
+    recent_template_ids: frozenset[str] = frozenset(),
 ) -> tuple[_SelectedMeal, ...] | None:
     initial_balances = (
         _pantry_balances(pantry, ingredient_catalog) if pantry_driven else {}
@@ -618,6 +652,7 @@ def _select_week(
                 ingredient_catalog=ingredient_catalog,
                 recent_families=(),
                 recent_methods=(),
+                recent_template_ids=recent_template_ids,
             )
             if pantry_driven
             else None
@@ -639,6 +674,7 @@ def _select_week(
                 children=children,
                 recent_families=(),
                 recent_methods=(),
+                recent_template_ids=recent_template_ids,
                 required_reserve={},
                 pantry_driven=False,
             ).candidates
@@ -690,6 +726,7 @@ def _select_week(
                 ingredient_catalog=ingredient_catalog,
                 recent_families=family_history,
                 recent_methods=method_history,
+                recent_template_ids=recent_template_ids,
             )
             if pantry_driven
             else None
@@ -711,6 +748,7 @@ def _select_week(
                 ingredient_catalog=ingredient_catalog,
                 recent_families=family_history,
                 recent_methods=method_history,
+                recent_template_ids=recent_template_ids,
                 required_reserve={},
                 pantry_driven=False,
             ).candidates
@@ -734,7 +772,10 @@ def _select_week(
             adult_nutrition = ranked.adult_nutrition
             if (
                 mode == "high_protein"
-                and adult_nutrition.serving.protein_g < _MINIMUM_HIGH_PROTEIN_G
+                and (
+                    adult_nutrition.serving.protein_g < _MINIMUM_HIGH_PROTEIN_G
+                    or not qualifies_high_protein(adult_nutrition)
+                )
             ):
                 continue
 
@@ -994,6 +1035,7 @@ def build_deterministic_plan(
     pantry_driven: bool,
     mode: str,
     seed: str,
+    recent_template_ids: Sequence[str] = (),
     ingredient_catalog: IngredientCatalog | None = None,
     recipe_catalog: RecipeCatalog | None = None,
 ) -> dict:
@@ -1043,6 +1085,7 @@ def build_deterministic_plan(
         adults=adults,
         children=children,
         ingredient_catalog=ingredients,
+        recent_template_ids=frozenset(recent_template_ids),
     )
     if selected is None:
         _raise_no_plan(

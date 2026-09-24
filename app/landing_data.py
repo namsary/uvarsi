@@ -311,7 +311,10 @@ def public_landing_payload(
         payload, today, required_offer_data_version
     )
     if state == CURRENT_LANDING_STATE:
-        return {**payload, "state": CURRENT_LANDING_STATE}
+        return {
+            **{key: value for key, value in payload.items() if key != "_recipe_history"},
+            "state": CURRENT_LANDING_STATE,
+        }
 
     receipt = deepcopy(payload["receipt"])
     receipt.pop("bezne", None)

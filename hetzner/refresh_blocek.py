@@ -7,7 +7,7 @@ import re
 import sqlite3
 import sys
 from contextlib import contextmanager
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -74,6 +74,79 @@ def _landing_seed(today):
     week = current_monday(today)
     digest = hashlib.sha256(f"uvarsi-landing-v1:{week}".encode("utf-8")).hexdigest()
     return f"landing:{week}:{digest[:12]}"
+
+
+def _read_recipe_history(path, today):
+    """Keep two completed weeks in the same atomic file as the receipt."""
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ()
+    if not isinstance(payload, dict):
+        return ()
+    raw = payload.get("_recipe_history")
+    if not isinstance(raw, list):
+        # Seed the first release from the existing public receipt where its
+        # exact title is an unambiguous curated template title.
+        raw = []
+        receipt = payload.get("receipt")
+        meals = receipt.get("meals", []) if isinstance(receipt, dict) else []
+        if isinstance(meals, list):
+            recipes = load_recipe_catalog(load_ingredient_catalog()).all()
+            names = {}
+            for recipe in recipes:
+                names.setdefault(recipe.name_template, set()).add(recipe.id)
+            ids = sorted({
+                next(iter(names[meal["name"]]))
+                for meal in meals
+                if isinstance(meal, dict)
+                and isinstance(meal.get("name"), str)
+                and len(names.get(meal["name"], ())) == 1
+            })
+            if ids:
+                raw = [{"week": payload.get("week"), "template_ids": ids}]
+    current = date.fromisoformat(current_monday(today))
+    history = {}
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        week = item.get("week")
+        ids = item.get("template_ids")
+        try:
+            week_date = date.fromisoformat(week)
+        except (TypeError, ValueError):
+            continue
+        age = (current - week_date).days
+        if age not in (0, 7, 14) or not isinstance(ids, list):
+            continue
+        valid_ids = sorted({value for value in ids if isinstance(value, str) and value})
+        if valid_ids:
+            history[week] = {"week": week, "template_ids": valid_ids}
+    return tuple(history[week] for week in sorted(history))
+
+
+def _recent_template_ids(history, today):
+    current = date.fromisoformat(current_monday(today))
+    previous = {
+        (current - timedelta(weeks=age)).isoformat() for age in (1, 2)
+    }
+    return frozenset(
+        recipe_id
+        for record in history
+        if record["week"] in previous
+        for recipe_id in record["template_ids"]
+    )
+
+
+def _history_with_current(history, today, recipe_ids):
+    current_week = current_monday(today)
+    records = {item["week"]: item for item in history}
+    if recipe_ids:
+        records[current_week] = {
+            "week": current_week,
+            "template_ids": sorted(set(recipe_ids)),
+        }
+    return [records[week] for week in sorted(records)]
 
 
 def _line_amount(value, field):
@@ -223,7 +296,10 @@ def _receipt_selection(plan, offered_keys, *, include_verified_totals=False):
     return (selection, verified_totals) if include_verified_totals else selection
 
 
-def compose_curated_receipt(offers, today, *, include_verified_totals=False):
+def compose_curated_receipt(
+    offers, today, *, include_verified_totals=False,
+    include_template_ids=False, recent_template_ids=(),
+):
     """Choose one stable weekly showcase plan without network or model calls."""
     ingredients = load_ingredient_catalog()
     recipes = load_recipe_catalog(ingredients)
@@ -247,6 +323,7 @@ def compose_curated_receipt(offers, today, *, include_verified_totals=False):
                 pantry_driven=False,
                 mode="standard",
                 seed=seed,
+                recent_template_ids=tuple(sorted(recent_template_ids)),
                 ingredient_catalog=ingredients,
                 recipe_catalog=recipes,
             )
@@ -256,6 +333,14 @@ def compose_curated_receipt(offers, today, *, include_verified_totals=False):
             plan, offered_keys, include_verified_totals=True
         )
         if len(selection["meals"]) == LANDING_FREQUENCY:
+            if include_template_ids:
+                ids = tuple(
+                    meal.get("recept", {}).get("template_id")
+                    for meal in plan["jedla"]
+                )
+                return selection, verified_totals, tuple(
+                    recipe_id for recipe_id in ids if isinstance(recipe_id, str)
+                )
             return (
                 (selection, verified_totals)
                 if include_verified_totals
@@ -351,11 +436,14 @@ def _active_offer_view(con, today):
     yield offers
 
 
-def _candidate_from_offers(con, offers, compose, today):
+def _candidate_from_offers(con, offers, compose, today, history=()):
     try:
+        recipe_ids = ()
         if compose is None:
-            selection, verified_totals = compose_curated_receipt(
-                offers, today, include_verified_totals=True
+            selection, verified_totals, recipe_ids = compose_curated_receipt(
+                offers, today, include_verified_totals=True,
+                include_template_ids=True,
+                recent_template_ids=_recent_template_ids(history, today),
             )
         else:
             selection = compose(offers, today)
@@ -367,6 +455,10 @@ def _candidate_from_offers(con, offers, compose, today):
             verified_line_totals=verified_totals,
         )
         payload["offer_data_version"] = CURRENT_COLLECTION_DATA_VERSION
+        if recipe_ids:
+            payload["_recipe_history"] = _history_with_current(
+                history, today, recipe_ids
+            )
         return _validated_candidate(payload, today)
     except StructuralFailure:
         raise
@@ -378,10 +470,11 @@ def refresh_from_db(path, database, compose=None, today=None):
     """Validate staged data and receipt, promote, then atomically publish JSON."""
     today = today or date.today()
     week = current_monday(today)
+    history = _read_recipe_history(path, today) if compose is None else ()
     with sqlite3.connect(database) as con:
         con.row_factory = sqlite3.Row
         with _staged_offer_view(con, week, today) as offers:
-            candidate = _candidate_from_offers(con, offers, compose, today)
+            candidate = _candidate_from_offers(con, offers, compose, today, history)
 
         if not promote_staged_week(con, week, today=today):
             raise StructuralFailure(
@@ -398,6 +491,7 @@ def refresh_from_active_db(
     today = today or date.today()
     if not Path(database).is_file():
         raise StructuralFailure("Databáza aktívnych ponúk neexistuje.")
+    history = _read_recipe_history(path, today) if compose is None else ()
     with sqlite3.connect(database) as con:
         con.row_factory = sqlite3.Row
         con.execute("BEGIN")
@@ -408,7 +502,7 @@ def refresh_from_active_db(
                 raise StructuralFailure(
                     "Aktívne ponuky sa nezhodujú s registrovaným stavom zberu."
                 )
-            candidate = _candidate_from_offers(con, offers, compose, today)
+            candidate = _candidate_from_offers(con, offers, compose, today, history)
     write_landing_data_atomic(path, candidate)
     return candidate
 

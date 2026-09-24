@@ -97,6 +97,16 @@ INGREDIENT_AMBIGUOUS_OFFER_FORMS = MappingProxyType(
 )
 INGREDIENT_FORBIDDEN_OFFER_QUALIFIERS = MappingProxyType(
     {
+        "pasta": frozenset(
+            (
+                ("instantné",),
+                ("instantne",),
+                ("instantná",),
+                ("instantna",),
+                ("instantných",),
+                ("instantnych",),
+            )
+        ),
         "apple_cider_vinegar": frozenset(
             (("vínny",), ("vinny",), ("liehový",), ("liehovy",))
         ),

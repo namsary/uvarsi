@@ -151,6 +151,92 @@ def test_on_returns_a_ready_regular_plan_without_jobs_or_model_costs(monkeypatch
     assert after["shared"] == after["personal"] == 1
 
 
+def test_last_two_weeks_change_personal_selection_without_poisoning_shared_cache(
+    monkeypatch, tmp_path
+):
+    server = _server(monkeypatch, tmp_path)
+    week = date.fromisoformat(server.monday())
+    with server.db() as con:
+        for age, recipe_id in ((1, "classic_lecho_egg"), (2, "classic_roast_pork_root_veg"), (3, "older_recipe")):
+            con.execute(
+                "INSERT INTO plany (user_id,tyzden,json) VALUES (?,?,?)",
+                (
+                    1,
+                    (week - timedelta(weeks=age)).isoformat(),
+                    json.dumps({"jedla": [{"recept": {"template_id": recipe_id}}]}),
+                ),
+            )
+        con.commit()
+    captured = []
+    real_builder = server.build_deterministic_plan
+
+    def recording_builder(**kwargs):
+        captured.append(kwargs)
+        return real_builder(**kwargs)
+
+    monkeypatch.setattr(server, "build_deterministic_plan", recording_builder)
+    client = plan_client(server, 1, wait_for_worker=False)
+
+    response = client.post("/api/plan/generuj")
+
+    assert response.status_code == 200
+    assert len(captured) == 1
+    assert set(captured[0]["recent_template_ids"]) == {
+        "classic_lecho_egg", "classic_roast_pork_root_veg"
+    }
+    assert _counts(server)["shared"] == 0
+    assert client.get("/api/plan").status_code == 200
+
+
+def test_algorithm_upgrade_rebuilds_an_existing_plan_without_using_todays_quota(
+    monkeypatch, tmp_path
+):
+    server = _server(monkeypatch, tmp_path, premium=False, offer_store="Lidl")
+    client = plan_client(server, 1, wait_for_worker=False)
+    assert client.post("/api/plan/generuj").status_code == 200
+
+    with server.db() as con:
+        row = con.execute(
+            "SELECT json FROM plany WHERE user_id=1 AND tyzden=?",
+            (server.monday(),),
+        ).fetchone()
+        plan = json.loads(row["json"])
+        plan[server.PLAN_META_KEY]["algo_version"] = server.PLAN_ALGO_VERSION - 1
+        con.execute(
+            "UPDATE plany SET json=? WHERE user_id=1 AND tyzden=?",
+            (json.dumps(plan, ensure_ascii=False), server.monday()),
+        )
+        con.execute(
+            "INSERT INTO plany (user_id,tyzden,json) VALUES (?,?,?)",
+            (
+                1,
+                (date.fromisoformat(server.monday()) - timedelta(weeks=1)).isoformat(),
+                json.dumps({"jedla": [{"recept": {"template_id": "classic_lecho_egg"}}]}),
+            ),
+        )
+        con.commit()
+
+    stale = client.get("/api/plan")
+    assert stale.status_code == 200
+    assert stale.json()["vyzaduje_akciu"] is True
+    with server.db() as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM plany WHERE user_id=1 AND tyzden=?",
+            (server.monday(),),
+        ).fetchone()[0] == 1
+
+    rebuilt = client.post("/api/plan/generuj")
+    assert rebuilt.status_code == 200, rebuilt.text
+    assert client.post("/api/plan/generuj?force=1").status_code == 429
+    with server.db() as con:
+        assert con.execute("SELECT SUM(pocet) FROM prepocty").fetchone()[0] == 1
+        saved = json.loads(con.execute(
+            "SELECT json FROM plany WHERE user_id=1 AND tyzden=?",
+            (server.monday(),),
+        ).fetchone()["json"])
+    assert saved[server.PLAN_META_KEY]["algo_version"] == server.PLAN_ALGO_VERSION
+
+
 def test_on_uses_exact_seed_and_known_pantry_without_sharing_pantry_plan(
     monkeypatch, tmp_path
 ):
