@@ -3,12 +3,17 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from types import SimpleNamespace
 from dataclasses import replace
 from decimal import Decimal
 
 import pytest
 
-from app.deterministic_plan import NoCompatiblePlan, build_deterministic_plan
+from app.deterministic_plan import (
+    NoCompatiblePlan,
+    _weekday_variety_order,
+    build_deterministic_plan,
+)
 from app.ingredient_catalog import IngredientCatalog, load_ingredient_catalog
 from app.quantity_math import PantryEntry, Quantity
 from app.recipe_catalog import (
@@ -17,7 +22,9 @@ from app.recipe_catalog import (
     RecipeCatalog,
     RecipeTemplate,
     StorageRule,
+    load_recipe_catalog,
 )
+from tests.test_recipe_mode_matrix import VERIFIED_WEEKLY_OFFERS
 
 
 WEEK = "2026-08-31"
@@ -400,6 +407,60 @@ def test_three_day_schedule_keeps_the_longer_oven_meal_for_sunday():
         ("ŠT", "middle-pan"),
         ("NE", "slow-oven"),
     ]
+
+
+def test_weekday_variety_does_not_take_the_only_sunday_roast():
+    ingredients = load_ingredient_catalog()
+    catalog = load_recipe_catalog(ingredients)
+    recipe_ids = {
+        "plant_tofu_tomato_pasta",
+        "protein_cottage_tomato_pasta",
+        "classic_lecho_egg",
+        "classic_roast_pork_root_veg",
+        "plant_chickpea_curry",
+    }
+    recipes = RecipeCatalog(
+        catalog.version, tuple(recipe for recipe in catalog.all() if recipe.id in recipe_ids)
+    )
+    rows = tuple(
+        _offer(
+            ingredients.by_id(ingredient_id).name,
+            offer_key=f"fixture-{ingredient_id}", package=package,
+            sale=sale, original=ordinary, store=store,
+        )
+        for ingredient_id, store, package, sale, ordinary in VERIFIED_WEEKLY_OFFERS
+    )
+
+    plan = _build(rows=rows, recipe_catalog=recipes)
+
+    assert plan["jedla"][-1]["recept"]["template_id"] == "classic_roast_pork_root_veg", [
+        (meal["den"], meal["recept"]["template_id"]) for meal in plan["jedla"]
+    ]
+
+
+def test_weekday_variety_prefers_a_different_staple_before_repeated_pasta_or_sunday_roast():
+    def ranked(starch, method, minutes):
+        selection = SimpleNamespace(
+            slot=SimpleNamespace(required=True, role="starch", use="main"),
+            ingredient=SimpleNamespace(id=starch),
+        )
+        candidate = SimpleNamespace(
+            template=SimpleNamespace(method=method, minutes=minutes),
+            selections=(selection,),
+        )
+        return SimpleNamespace(candidate=candidate)
+
+    long_roast = ranked("potato", "oven", 120)
+    quick_pasta = ranked("pasta", "pot", 30)
+    moderate_stew = ranked("lentils", "one_pot", 45)
+    quick_soup = ranked("cauliflower", "soup", 35)
+
+    ordered = _weekday_variety_order(
+        (long_roast, quick_pasta, quick_soup, moderate_stew),
+        frozenset({"pasta"}),
+    )
+
+    assert ordered == (moderate_stew, quick_pasta, quick_soup, long_roast)
 
 
 def test_public_plan_is_deterministic_and_prices_whole_packages():
@@ -954,10 +1015,52 @@ def test_search_never_considers_candidate_thirteen(monkeypatch):
 
     with pytest.raises(NoCompatiblePlan):
         _build(
-            frequency=3,
+            frequency=2,
             ingredient_catalog=ingredients,
             recipe_catalog=RecipeCatalog(1, (*first_twelve, thirteenth)),
         )
+
+
+def test_three_day_ranking_reaches_a_viable_recipe_after_the_first_twelve(monkeypatch):
+    from app import deterministic_plan, recipe_matcher
+
+    ingredients = load_ingredient_catalog()
+    offers = deterministic_plan.match_offers((_offer(),), ingredients)
+    first_twelve = tuple(_template(f"decoy-{index}") for index in range(12))
+    thirteenth = _template("different-weekday-meal", method="one_pot")
+    ranked = recipe_matcher.rank_candidates(
+        (*first_twelve, thirteenth), offers, (), "standard", "fixed",
+        ingredient_catalog=ingredients,
+    )
+    by_id = {candidate.template.id: candidate for candidate in ranked}
+    forced_order = tuple(by_id[item.id] for item in first_twelve) + (
+        by_id[thirteenth.id],
+    )
+    monkeypatch.setattr(
+        deterministic_plan, "rank_candidates", lambda *args, **kwargs: forced_order
+    )
+
+    ranking = deterministic_plan._ranked_renderable_for_day(
+        day="ŠT",
+        coverage=3,
+        templates=(*first_twelve, thirteenth),
+        offers=offers,
+        balances={},
+        mode="standard",
+        seed="fixture-seed",
+        week=WEEK,
+        adults=1,
+        children=0,
+        ingredient_catalog=ingredients,
+        recent_families=(),
+        recent_methods=(),
+        required_reserve={},
+        pantry_driven=False,
+    )
+
+    assert thirteenth.id in {
+        item.candidate.template.id for item in ranking.candidates
+    }
 
 
 @pytest.mark.parametrize(

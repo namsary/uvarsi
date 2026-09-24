@@ -1216,8 +1216,10 @@ PLAN_VARIANT_HINTS = (
 #      na časovo náročnejší recept; staré spoločné aj osobné plány zneplatni.
 # 30 = v rámci týždňa uprednostni inú hlavnú prílohu namiesto dvoch
 #      podobných cestovinových jedál po sebe.
+# 31 = pre trojdňové várky prehľadaj viac kandidátov, nechaj dlhé varenie
+#      na nedeľu a cez týždeň uprednostni iné hlavné jedlo pred polievkou.
 # Zvýš aj túto verziu pri každej ďalšej zmene formátu alebo výpočtu plánu.
-PLAN_ALGO_VERSION = 30
+PLAN_ALGO_VERSION = 31
 
 
 def plan_variant_for(user_id, variants):

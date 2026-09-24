@@ -29,6 +29,7 @@ from .recipe_renderer import RenderedMeal, build_shopping_list, render_meal
 
 
 _MAX_CANDIDATES_PER_DAY = 12
+_MAX_THREE_DAY_CANDIDATES = 32
 _MINIMUM_HIGH_PROTEIN_G = Decimal("30")
 _ERROR_SUGGESTIONS = {
     "insufficient_offers": ("add_store", "wait_for_complete_flyer_refresh"),
@@ -367,7 +368,12 @@ def _ranked_renderable_for_day(
         recent_methods=recent_methods,
         recent_template_ids=recent_template_ids,
     )
-    bounded = ranked[:_MAX_CANDIDATES_PER_DAY]
+    # A three-day batch is harder to render. Do not let a dozen unrenderable
+    # top-ranked matches hide the first genuinely different weekday meal.
+    candidate_limit = (
+        _MAX_THREE_DAY_CANDIDATES if coverage == 3 else _MAX_CANDIDATES_PER_DAY
+    )
+    bounded = ranked[:candidate_limit]
     if day == "NE":
         # A longer roast or stew fits Sunday better than a quick egg dish.
         # Soups and salads remain fallbacks when no main dish is possible.
@@ -625,6 +631,32 @@ def _prefer_an_unused_starch(
     return (*fresh, *repeated)
 
 
+def _weekday_variety_order(
+    ranked_candidates: Sequence[_RankedRenderableMeal],
+    used_starches: frozenset[str],
+) -> tuple[_RankedRenderableMeal, ...]:
+    """Vary the weekday staple without spending the festive meal before Sunday."""
+    main_dishes = tuple(
+        item for item in ranked_candidates
+        if item.candidate.template.minutes < 60
+        and item.candidate.template.method not in {"soup", "salad"}
+    )
+    light_dishes = tuple(
+        item for item in ranked_candidates
+        if item.candidate.template.minutes < 60
+        and item.candidate.template.method in {"soup", "salad"}
+    )
+    long_cooking = tuple(
+        item for item in ranked_candidates
+        if item.candidate.template.minutes >= 60
+    )
+    return (
+        *_prefer_an_unused_starch(main_dishes, used_starches),
+        *_prefer_an_unused_starch(light_dishes, used_starches),
+        *_prefer_an_unused_starch(long_cooking, used_starches),
+    )
+
+
 def _prefer_a_different_primary_protein(
     ranked_candidates: Sequence[_RankedRenderableMeal],
     previous_protein: str | None,
@@ -794,10 +826,10 @@ def _select_week(
         protein_order = _prefer_a_different_primary_protein(
             ranked_candidates, previous_protein
         )
-        variety_order = (
-            protein_order if day == "NE"
-            else _prefer_an_unused_starch(protein_order, used_starches)
-        )
+        if day == "NE":
+            variety_order = protein_order
+        else:
+            variety_order = _weekday_variety_order(protein_order, used_starches)
         for ranked in variety_order:
             candidate = ranked.candidate
             if selected:

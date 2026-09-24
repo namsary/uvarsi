@@ -3,6 +3,8 @@ from __future__ import annotations
 import math
 from time import perf_counter_ns
 
+import pytest
+
 from app.deterministic_plan import build_deterministic_plan
 from app.ingredient_catalog import load_ingredient_catalog
 from app.offer_matcher import match_offers
@@ -14,7 +16,8 @@ P95_LIMIT_MS = 500.0
 BUILD_SEEDS = tuple(f"production-sized-performance-{index:02d}" for index in range(BUILD_COUNT))
 
 
-def test_production_sized_fixture_builds_under_p95_budget():
+@pytest.mark.parametrize("frequency", (2, 3))
+def test_production_sized_fixture_builds_under_p95_budget(frequency):
     fixture = make_fixture(offer_count=850, template_count=60)
     ingredients = load_ingredient_catalog()
     matched_offers = tuple(match_offers(fixture.rows, ingredients))
@@ -24,7 +27,7 @@ def test_production_sized_fixture_builds_under_p95_budget():
         "stores": STORES,
         "adults": 2,
         "children": 2,
-        "frequency": 2,
+        "frequency": frequency,
         "pantry": (),
         "pantry_driven": False,
         "mode": "standard",
@@ -48,7 +51,8 @@ def test_production_sized_fixture_builds_under_p95_budget():
     p95_ms = ordered[p95_index]
     print(
         "deterministic_plan_benchmark "
-        f"offers={len(fixture.rows)} templates={len(fixture.recipes.all())} "
+        f"frequency={frequency} offers={len(fixture.rows)} "
+        f"templates={len(fixture.recipes.all())} "
         f"builds={len(samples_ms)} p95_ms={p95_ms:.3f} "
         f"min_ms={ordered[0]:.3f} max_ms={ordered[-1]:.3f}"
     )
