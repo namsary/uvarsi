@@ -367,6 +367,27 @@ def test_activation_reuses_the_release_catalog_audit(monkeypatch, tmp_path):
     assert status["reasons"] == []
 
 
+def test_recipe_health_filters_current_offers_once(monkeypatch, tmp_path):
+    server = _server(monkeypatch, tmp_path)
+    predpocet = server.predpocet
+    monkeypatch.setattr(predpocet.time, "perf_counter", _clock())
+    predpocet.run_recipe_engine_shadow(server=server)
+    original = server.offers_for_current_week
+    calls = []
+
+    def counted_offers(*args, **kwargs):
+        calls.append((args, kwargs))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(server, "offers_for_current_week", counted_offers)
+
+    with closing(server.db()) as con:
+        status = server.recipe_engine_health(con, today=date.today())
+
+    assert status["ready"] is True
+    assert len(calls) == 1
+
+
 def test_activation_accepts_the_observed_sub_two_second_curated_runtime(
     monkeypatch, tmp_path
 ):

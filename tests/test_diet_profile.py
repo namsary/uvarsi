@@ -139,7 +139,7 @@ def test_partial_shadow_success_does_not_hide_a_mode_the_profile_can_build(
     monkeypatch.setattr(
         server,
         "recipe_engine_shadow_status",
-        lambda _con, today=None: {
+        lambda _con, today=None, **_kwargs: {
             "eligible": True,
             "available_modes": ["standard"],
         },

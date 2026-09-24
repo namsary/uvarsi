@@ -4392,7 +4392,7 @@ def pocet_akcii():
     return {"tyzden": monday(today), "pocet": len(rows)}
 
 
-def recipe_engine_shadow_status(con, today=None):
+def recipe_engine_shadow_status(con, today=None, *, offer_rows=None):
     """Aggregate-only rollout evidence; fail closed without leaking details."""
     try:
         return predpocet.shadow_activation_status(
@@ -4400,6 +4400,7 @@ def recipe_engine_shadow_status(con, today=None):
             server=sys.modules[__name__],
             today=today,
             library_status=_recipe_catalog_health_snapshot(),
+            offer_rows=offer_rows,
         )
     except Exception:
         LOG.warning("shadow rollout status is unavailable")
@@ -4815,11 +4816,13 @@ def recipe_engine_health(con, *, today=None):
     except Exception:
         blockers.append("catalog_load_failed")
 
-    _rows, complete_offers = _complete_recipe_offers(con, today)
+    current_offer_rows, complete_offers = _complete_recipe_offers(con, today)
     if not complete_offers:
         blockers.append("incomplete_offers")
 
-    last_shadow = recipe_engine_shadow_status(con, today=today)
+    last_shadow = recipe_engine_shadow_status(
+        con, today=today, offer_rows=current_offer_rows
+    )
     if mode in ("shadow", "on") and not last_shadow.get("eligible", False):
         blockers.append("shadow_not_ready")
 

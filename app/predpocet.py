@@ -1156,14 +1156,22 @@ def run_recipe_engine_shadow(*, server=None, now=None) -> dict:
 
 
 def shadow_activation_status(
-    con, *, server, today=None, library_status=None
+    con, *, server, today=None, library_status=None, offer_rows=None
 ) -> dict:
     """Fail-closed activation evidence for the current complete flyer week."""
     today = today or datetime.date.today()
     week = server.monday(today)
     reasons = []
     migrate_predpocet_schema(con)
-    complete_flyers = _ma_kompletny_povinny_zber(con, server, today)
+    prepared_rows = None if offer_rows is None else tuple(offer_rows)
+    if prepared_rows is None:
+        complete_flyers = _ma_kompletny_povinny_zber(con, server, today)
+    else:
+        represented = {row["obchod"] for row in prepared_rows}
+        complete_flyers = (
+            len(prepared_rows) >= server.MIN_OFFERS_FOR_PLAN
+            and bool(set(VSETKY_OBCHODY).intersection(represented))
+        )
     if not complete_flyers:
         reasons.append("incomplete_flyer_week")
     row = con.execute(
@@ -1194,7 +1202,11 @@ def shadow_activation_status(
         reasons.append("incomplete_metrics")
 
     try:
-        rows = _shadow_offer_rows(con, server, today)
+        rows = (
+            prepared_rows
+            if prepared_rows is not None
+            else _shadow_offer_rows(con, server, today)
+        )
         if library_status is None:
             _, recipes, current_audit = _shadow_catalogs()
             library_version = recipes.version
