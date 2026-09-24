@@ -348,6 +348,17 @@ def test_curated_receipt_composer_builds_three_practical_meals_from_real_catalog
     )
 
     recipes = {recipe.id: recipe for recipe in refresh_blocek.load_recipe_catalog(ingredients).all()}
+    weekday_starches = [
+        next(
+            (slot.candidates[0] for slot in recipes[recipe_id].slots
+             if slot.required and slot.role == "starch" and slot.use == "main"),
+            None,
+        )
+        for recipe_id in recipe_ids[:2]
+    ]
+    assert weekday_starches[0] is None or weekday_starches[1] is None or (
+        weekday_starches[0] != weekday_starches[1]
+    ), [(meal["name"], starch) for meal, starch in zip(selection["meals"], weekday_starches)]
     assert (
         recipes[recipe_ids[-1]].minutes >= 45
         and recipes[recipe_ids[-1]].method not in {"soup", "salad"}

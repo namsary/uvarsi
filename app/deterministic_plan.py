@@ -594,6 +594,37 @@ def _primary_protein_id(candidate: RecipeCandidate) -> str | None:
     return (main_rows or protein_rows)[0].ingredient.id
 
 
+def _primary_starch_id(candidate: RecipeCandidate) -> str | None:
+    starch_rows = tuple(
+        selection
+        for selection in candidate.selections
+        if selection.slot.required and selection.slot.role == "starch"
+    )
+    if not starch_rows:
+        return None
+    main_rows = tuple(
+        selection for selection in starch_rows if selection.slot.use == "main"
+    )
+    return (main_rows or starch_rows)[0].ingredient.id
+
+
+def _prefer_an_unused_starch(
+    ranked_candidates: Sequence[_RankedRenderableMeal],
+    used_starches: frozenset[str],
+) -> tuple[_RankedRenderableMeal, ...]:
+    if not used_starches:
+        return tuple(ranked_candidates)
+    fresh = tuple(
+        item for item in ranked_candidates
+        if _primary_starch_id(item.candidate) not in used_starches
+    )
+    repeated = tuple(
+        item for item in ranked_candidates
+        if _primary_starch_id(item.candidate) in used_starches
+    )
+    return (*fresh, *repeated)
+
+
 def _prefer_a_different_primary_protein(
     ranked_candidates: Sequence[_RankedRenderableMeal],
     previous_protein: str | None,
@@ -756,9 +787,18 @@ def _select_week(
         previous_protein = (
             _primary_protein_id(selected[-1].candidate) if selected else None
         )
-        for ranked in _prefer_a_different_primary_protein(
+        used_starches = frozenset(
+            starch for item in selected
+            if (starch := _primary_starch_id(item.candidate)) is not None
+        )
+        protein_order = _prefer_a_different_primary_protein(
             ranked_candidates, previous_protein
-        ):
+        )
+        variety_order = (
+            protein_order if day == "NE"
+            else _prefer_an_unused_starch(protein_order, used_starches)
+        )
+        for ranked in variety_order:
             candidate = ranked.candidate
             if selected:
                 previous = selected[-1].candidate.template
