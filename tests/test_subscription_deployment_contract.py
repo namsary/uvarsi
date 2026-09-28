@@ -5,6 +5,7 @@ paths.  A release may contain correct billing code and still be unusable when
 the server is missing one module or one mode-specific setting.
 """
 
+import shutil
 import os
 import subprocess
 from pathlib import Path
@@ -21,7 +22,7 @@ LEGAL_FILES = (
 MANUAL_DEPLOY = Path("nasad.ps1")
 AUTO_DEPLOY = Path("hetzner/samopull.sh")
 DEPLOY_STATE = Path("hetzner/uvarsi-deploy-state.sh")
-BASH = Path("C:/Program Files/Git/bin/bash.exe")
+BASH = Path(os.environ.get("UVARSI_TEST_BASH") or shutil.which("bash") or "C:/Program Files/Git/bin/bash.exe")
 
 LIVE_KEYS = (
     "LEMON_API_KEY",

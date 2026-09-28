@@ -10,12 +10,15 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BASH = Path("C:/Program Files/Git/bin/bash.exe")
+BASH = Path(os.environ.get("UVARSI_TEST_BASH") or shutil.which("bash") or "C:/Program Files/Git/bin/bash.exe")
 LIBRARY = ROOT / "hetzner" / "uvarsi-deploy-state.sh"
 
 
 def bash_path(path):
-    return "/c" + Path(path).as_posix()[2:]
+    posix = Path(path).as_posix()
+    if os.name != "nt":
+        return posix
+    return "/c" + posix[2:]
 
 
 def write_executable(path, text):

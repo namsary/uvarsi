@@ -1,4 +1,5 @@
 import json
+import shutil
 import os
 import subprocess
 import sys
@@ -13,7 +14,7 @@ from app.landing_static import publish_landing_html
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BASH = Path("C:/Program Files/Git/bin/bash.exe")
+BASH = Path(os.environ.get("UVARSI_TEST_BASH") or shutil.which("bash") or "C:/Program Files/Git/bin/bash.exe")
 STRUCTURAL_SOURCE_IDENTITY = ":".join(["a" * 64] * 3)
 
 
@@ -90,7 +91,10 @@ def offline_queue_health(monkeypatch, tmp_path):
 
 
 def bash_path(path):
-    return "/c" + path.as_posix()[2:]
+    posix = path.as_posix()
+    if os.name != "nt":
+        return posix
+    return "/c" + posix[2:]
 
 
 def payload(week):
@@ -188,6 +192,7 @@ def test_dozorca_uses_bratislava_day_after_local_midnight_on_utc_server(tmp_path
     fake_date.write_text(
         "#!/bin/sh\n"
         "case \"$1\" in\n"
+        "  +%s) echo 1788741000 ;;\n"
         "  +%F) [ \"$TZ\" = \"Europe/Bratislava\" ] && echo 2026-09-07 || echo 2026-09-06 ;;\n"
         "  *) echo '2026-09-07 00:30:00' ;;\n"
         "esac\n",
@@ -200,6 +205,7 @@ def test_dozorca_uses_bratislava_day_after_local_midnight_on_utc_server(tmp_path
     fake_python.write_text(
         "#!/bin/sh\n"
         "if [ \"$1\" = \"-c\" ]; then\n"
+        "  case \"$2\" in *refresh_blocek*) exit 1 ;; esac\n"
         "  case \"$2\" in *'from datetime import date'*) echo 2026-09-07; exit 0 ;; esac\n"
         "  exit 1\n"
         "fi\n"

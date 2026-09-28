@@ -3647,37 +3647,6 @@ def _enqueue_live_plan(u, tyz, obchody, podpis, variant, premium, *,
     return JSONResponse(status_code=202, content=pending_payload(result.job))
 
 
-def _current_job_status(con, user_id, tyz, podpis, pantry_podpis, variant):
-    statuses = [
-        plan_jobs.latest_user_request(
-            con,
-            user_id=user_id,
-            signature=podpis,
-            variant=variant,
-            kind="regular",
-            week=tyz,
-            is_force=True,
-        ),
-        plan_jobs.latest_user_request(
-            con,
-            user_id=user_id,
-            signature=pantry_podpis,
-            variant=variant,
-            kind="pantry",
-            week=tyz,
-            is_force=False,
-        ),
-        plan_jobs.latest_shared_regular_request(
-            con,
-            signature=podpis,
-            variant=variant,
-            week=tyz,
-        ),
-    ]
-    return max((status for status in statuses if status is not None), key=lambda item: item.id,
-               default=None)
-
-
 def _job_is_at_least_as_new_as_cache(status, cached_created):
     if status is None or not cached_created:
         return status is not None
@@ -4334,12 +4303,11 @@ def daj_plan(req: Request):
             adults=adults, children=children, zo_spajze=True,
             stravovanie=effective_diet,
         )
-        status = _current_job_status(
-            con, u["id"], tyz, podpis, pantry_podpis, variant
-        )
         # Model-written recipe jobs were retired permanently. An old queued
         # row must never obscure a newer synchronous deterministic result,
-        # including while a release flag is in off or shadow mode.
+        # including while a release flag is in off or shadow mode. The
+        # dedicated job queue therefore stays out of this synchronous read
+        # path and status remains None by design.
         status = None
         if status is not None and status.state in ("queued", "running"):
             return JSONResponse(status_code=202, content=pending_payload(status))

@@ -1,6 +1,9 @@
 pytest==8.3.5
 httpx==0.28.1
 fastapi==0.115.12
+# Zber akcií aj jeho testy komunikujú po HTTP cez `requests`; bez tohto pinu sa
+# štyri testovacie súbory nedajú ani načítať (ModuleNotFoundError: requests).
+requests==2.32.5
 # Kontrola self-hostovaných písiem: bez nich sa test diakritiky preskočí a
 # chýbajúce ľ/š/č by sa ukázalo až návštevníkovi.
 fonttools==4.63.0

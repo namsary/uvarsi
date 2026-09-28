@@ -22,7 +22,7 @@ CFG="$DIR/samopull.env"
 REL="$DIR/releases"
 STAV="$DIR/.nasadene_sha"
 PY="${UVARSI_PY:-$DIR/venv/bin/python}"
-NTFY="uvarsi-jarvis-8f3a2c"
+NTFY="${UVARSI_NTFY_TOPIC:-uvarsi-jarvis-8f3a2c}"
 LOCK=/var/lock/uvarsi-samopull.lock
 
 log(){ echo "[$(date '+%F %T')] SAMOPULL: $*"; }
@@ -67,7 +67,16 @@ trap 'rm -rf "$TMP"' EXIT
 
 # --- 1. stiahni najnovší kód (git) ---
 ZDROJ="$DIR/zdroj"
-VETVA="${RELEASE_BRANCH:-main}"
+# Vetva sa dá zmeniť na serveri v samopull.env (RELEASE_BRANCH=...) alebo
+# dočasne v prostredí cronu, bez editácie tohto skriptu.
+CFG_BRANCH=$(sed -n 's/^[[:space:]]*RELEASE_BRANCH=//p' "$CFG" | head -1)
+# Volitelne uvodzovky v samopull.env sa odstrania bez vnoreneho sed kvokovania.
+CFG_BRANCH=${CFG_BRANCH%\"}
+CFG_BRANCH=${CFG_BRANCH#\"}
+CFG_BRANCH=${CFG_BRANCH%\'}
+CFG_BRANCH=${CFG_BRANCH#\'}
+VETVA="${RELEASE_BRANCH:-$CFG_BRANCH}"
+VETVA="${VETVA:-main}"
 if [ ! -d "$ZDROJ/.git" ]; then
   log "prvé stiahnutie z $RELEASE_URL"
   rm -rf "$ZDROJ"

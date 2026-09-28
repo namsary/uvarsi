@@ -1,4 +1,5 @@
 import json
+import shutil
 import os
 import subprocess
 import sys
@@ -8,12 +9,15 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BASH = Path("C:/Program Files/Git/bin/bash.exe")
+BASH = Path(os.environ.get("UVARSI_TEST_BASH") or shutil.which("bash") or "C:/Program Files/Git/bin/bash.exe")
 CONTROLLER = ROOT / "hetzner" / "recipe-engine-rollout.sh"
 
 
 def bash_path(path: Path) -> str:
-    return "/c" + path.resolve().as_posix()[2:]
+    posix = path.resolve().as_posix()
+    if os.name != "nt":
+        return posix
+    return "/c" + posix[2:]
 
 
 def executable(path: Path, text: str) -> None:

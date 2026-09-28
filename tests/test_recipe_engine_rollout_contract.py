@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+import shutil
 import json
 import os
 from pathlib import Path
@@ -15,7 +16,7 @@ from app.landing_data import write_landing_data_atomic
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BASH = Path("C:/Program Files/Git/bin/bash.exe")
+BASH = Path(os.environ.get("UVARSI_TEST_BASH") or shutil.which("bash") or "C:/Program Files/Git/bin/bash.exe")
 
 
 def _bash(path):

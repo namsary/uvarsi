@@ -54,7 +54,9 @@ EXIT_STRUCTURAL=3                    # kód, ktorým refresh_blocek hlási "neop
 EXIT_LOCK_BUSY=75                    # dočasne obsadený zámok nie je úspešný beh
 MIN_TOTAL_OFFERS=30                  # zdieľaný prah dozorcu a post-deploy kontroly
 MIN_OFFERS_PER_STORE=20              # malá vložka sa nesmie tváriť ako celý leták
-NTFY_TOPIC="uvarsi-jarvis-8f3a2c"    # notifikácie: ntfy.sh/<topic>
+# Téma je verejná (kto ju pozná, môže čítať aj posielať). Preto ju je možné
+# na serveri prepísať cez /opt/uvarsi/dozorca.env bez zmeny kódu.
+NTFY_TOPIC="${UVARSI_NTFY_TOPIC:-uvarsi-jarvis-8f3a2c}"    # notifikácie: ntfy.sh/<topic>
 DEPLOY_STATE_SCRIPT="${UVARSI_DEPLOY_STATE_SCRIPT:-$DIR/uvarsi-deploy-state.sh}"
 
 # Cron aj ručne spustený samopull môžu dediť UTC z hostiteľa. Všetky Python
@@ -178,7 +180,11 @@ case "$CREDIT_RETRY_SECONDS" in ''|*[!0-9]*|0) log "CHYBA — interval kontroly 
 
 # Pravdivosť verejného bločka má prednosť pred dohľadom fronty, receptov aj
 # zberača. Zlyhanie zápisu sa zaznamená, ale autonómny beh pokračuje.
-publish_static_receipt || log "statický bloček sa nepodarilo zosúladiť — pokračujem v obnove dát"
+RECEIPT_HTML_STALE=0
+if ! publish_static_receipt; then
+  RECEIPT_HTML_STALE=1
+  log "statický bloček sa nepodarilo zosúladiť — pokračujem v obnove dát"
+fi
 
 skontroluj_frontu_planov() {
   # Health odpoveď je jediný zdroj pravdy: dozorca nesmie z počtu procesov
@@ -840,6 +846,17 @@ DATOVY_STAV="${STAGED_POCET:-0}:${STAGED_CHYBA:-3}:${ZBER_REV:-0}"
 ZDROJOVY_ODTLACOK=$(overeny_odtlacok zber_staging_stav)
 # --- 1. Už je aktuálny landing JSON pripravený? ---
 if landing_data_is_current; then
+  # Samotný JSON môže byť aktuálny, aj keď predchádzajúci pokus zlyhal až pri
+  # zápise statického HTML (plný disk, práva). Bez tohto druhého pokusu by
+  # web zobrazoval starý bloček, hoci dáta sú hotové. Necháme si to v logu,
+  # aby sa dalo spätne zistiť, že ho dobehnú tento beh.
+  if [ "$RECEIPT_HTML_STALE" -eq 1 ]; then
+    if publish_static_receipt; then
+      log "HTML bloček dobehnutý dodatočne — dáta boli aktuálne, zlyhalo len predchádzajúce publikovanie."
+    else
+      log "CHYBA — ani druhý pokus nepublikoval HTML bloček."
+    fi
+  fi
   if [ "${POCET:-0}" -ge "$MIN_TOTAL_OFFERS" ] && [ "${CHYBA_ZBER:-3}" -eq 0 ]; then
     zahrej_plany
   fi
@@ -892,6 +909,13 @@ esac
 
 if [ "$RC" -eq 0 ] && landing_data_is_current; then
   log "OK — landing JSON obnovený na týždeň $MON_ISO."
+  if [ "$RECEIPT_HTML_STALE" -eq 1 ]; then
+    if publish_static_receipt; then
+      log "HTML bloček dobehnutý dodatočne po úspešnej obnove dát."
+    else
+      log "CHYBA — ani dodatočný pokus nepublikoval HTML bloček."
+    fi
+  fi
   if [ "$FAILS" -gt 0 ]; then
     notify "Uvar.si opravené" "Landing JSON sa obnovil na týždeň $MON_ISO (po $FAILS neúspešných pokusoch)."
   fi

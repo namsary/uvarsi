@@ -1,4 +1,5 @@
 import json
+import shutil
 import os
 import subprocess
 import sys
@@ -8,13 +9,16 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BASH = Path("C:/Program Files/Git/bin/bash.exe")
+BASH = Path(os.environ.get("UVARSI_TEST_BASH") or shutil.which("bash") or "C:/Program Files/Git/bin/bash.exe")
 TODAY = "2026-08-18"
 WEEK = "2026-08-17"
 
 
 def bash_path(path):
-    return "/c" + Path(path).as_posix()[2:]
+    posix = Path(path).as_posix()
+    if os.name != "nt":
+        return posix
+    return "/c" + posix[2:]
 
 
 def health_json():

@@ -1,0 +1,31 @@
+name: Testy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  testy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Inštalácia testovacích závislostí
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      # Kontraktové testy spúšťajú hetzner/*.sh cez bash; niekoľko ich navyše
+      # potrebuje sqlite3 CLI aj curl, ktoré sú na runneri vopred nainštalované.
+      - name: Spusti testy
+        env:
+          UVARSI_TEST_BASH: /usr/bin/bash
+        run: python -m pytest tests -q

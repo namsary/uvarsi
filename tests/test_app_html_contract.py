@@ -7,7 +7,9 @@ from pathlib import Path
 import pytest
 
 
-CSCRIPT = Path("C:/Windows/System32/cscript.exe")
+CSCRIPT = Path(
+    os.environ.get("UVARSI_CSCRIPT") or "C:/Windows/System32/cscript.exe"
+)
 NODE = os.environ.get("UVARSI_NODE") or shutil.which("node")
 needs_node = pytest.mark.skipif(NODE is None, reason="node runtime is not available")
 
@@ -129,13 +131,30 @@ def run_node(tmp_path, name, source):
 
 
 def run_cscript(script):
-    result = subprocess.run(
-        [str(CSCRIPT), "//nologo", str(script)], capture_output=True, text=True
+    # The contract snippets are plain JavaScript with a single WScript.Quit()
+    # exit contract. Windows runs them in cscript; everywhere else a tiny Node
+    # shim provides the same Quit() semantics so the suite runs on Linux CI
+    # and on any other dev machine without Windows Script Host.
+    if CSCRIPT.is_file():
+        result = subprocess.run(
+            [str(CSCRIPT), "//nologo", str(script)], capture_output=True, text=True
+        )
+        output = (result.stdout or "") + (result.stderr or "")
+        if result.returncode and "Access is denied" in output:
+            pytest.skip("Windows Script Host is blocked by the execution environment")
+        return result
+    if NODE is None:
+        pytest.skip(
+            "neither Windows Script Host nor a Node runtime is available"
+        )
+    shim = script.with_name(script.stem + "-wsh-shim.js")
+    shim.write_text(
+        "var WScript={Quit:function(code){process.exit(code || 0);}};\n"
+        + script.read_text(encoding="utf-8")
+        + "\n",
+        encoding="utf-8",
     )
-    output = (result.stdout or "") + (result.stderr or "")
-    if result.returncode and "Access is denied" in output:
-        pytest.skip("Windows Script Host is blocked by the execution environment")
-    return result
+    return subprocess.run([NODE, str(shim)], capture_output=True, text=True)
 
 
 @needs_node
