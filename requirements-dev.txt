@@ -4,6 +4,9 @@ fastapi==0.115.12
 # Zber akcií aj jeho testy komunikujú po HTTP cez `requests`; bez tohto pinu sa
 # štyri testovacie súbory nedajú ani načítať (ModuleNotFoundError: requests).
 requests==2.32.5
+# Tesco letáky sa po stiahnutí zmenšujú lokálne cez Pillow; bez neho padajú
+# tri testy zbierača na ModuleNotFoundError: PIL.
+Pillow==12.3.0
 # Kontrola self-hostovaných písiem: bez nich sa test diakritiky preskočí a
 # chýbajúce ľ/š/č by sa ukázalo až návštevníkovi.
 fonttools==4.63.0

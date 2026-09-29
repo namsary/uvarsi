@@ -48,7 +48,10 @@ PROBE_KEYS = (
 
 
 def _bash_path(path: Path) -> str:
-    return "/c" + path.resolve().as_posix()[2:]
+    posix = path.resolve().as_posix()
+    if os.name != "nt":
+        return posix
+    return "/c" + posix[2:]
 
 
 def _run_payments_off_gate(tmp_path: Path, env_text: str):

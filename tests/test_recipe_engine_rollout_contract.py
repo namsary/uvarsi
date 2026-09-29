@@ -20,7 +20,10 @@ BASH = Path(os.environ.get("UVARSI_TEST_BASH") or shutil.which("bash") or "C:/Pr
 
 
 def _bash(path):
-    return "/c" + Path(path).as_posix()[2:]
+    posix = Path(path).as_posix()
+    if os.name != "nt":
+        return posix
+    return "/c" + posix[2:]
 
 
 def _landing(path):
