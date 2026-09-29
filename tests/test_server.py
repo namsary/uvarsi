@@ -2170,8 +2170,10 @@ def test_tesco_display_change_invalidates_cached_plan_from_algorithm_26(
 
     assert response.status_code == 200
     assert response.json()["dovod"] == "plan_zastaral"
+    # Starší algoritmus (26 < PLAN_ALGO_VERSION) čeká na bezplatný systémový
+    # rebuild — cache sa teda nesmaže, aby sa priebeh prepočtu nezahodil.
     with server.db() as con:
-        assert con.execute("SELECT COUNT(*) FROM plany WHERE user_id=1").fetchone()[0] == 0
+        assert con.execute("SELECT COUNT(*) FROM plany WHERE user_id=1").fetchone()[0] == 1
 
 
 def test_portion_standard_bump_requires_get_then_allows_explicit_post_regeneration(

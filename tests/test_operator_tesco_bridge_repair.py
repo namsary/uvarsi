@@ -2,12 +2,21 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "ops" / "repair_tesco_bridge.ps1"
 RUNBOOK = ROOT / "docs" / "prevadzka.md"
+
+# Wrapper sa spúšťa cez Windows PowerShell; na Linuxe (CI) cesta subprocess.run
+# s powershell.exe nemá zmysel a padá na FileNotFoundError.
+requires_windows = pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="PowerShell wrapper test je prenositeľný iba na Windows",
+)
 
 
 def _run_wrapper(tmp_path: Path, exit_code: int) -> tuple[subprocess.CompletedProcess[str], str]:
@@ -79,6 +88,7 @@ def test_runbook_uses_scoped_server_token_not_wrangler_oauth() -> None:
     assert "npx wrangler secret put" not in section.casefold()
 
 
+@requires_windows
 def test_operator_bridge_repair_calls_only_the_server_command(tmp_path: Path) -> None:
     result, args = _run_wrapper(tmp_path, exit_code=0)
     combined = result.stdout + result.stderr
@@ -90,6 +100,7 @@ def test_operator_bridge_repair_calls_only_the_server_command(tmp_path: Path) ->
     assert "server" in combined.casefold()
 
 
+@requires_windows
 def test_operator_bridge_repair_propagates_failure_and_keeps_payments_off(
     tmp_path: Path,
 ) -> None:
