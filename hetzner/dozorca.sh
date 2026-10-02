@@ -732,11 +732,30 @@ if { [ "${POCET:-0}" -lt "$MIN_TOTAL_OFFERS" ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; 
     exit "$EXIT_STRUCTURAL"
   fi
 
-  if ! tesco_bridge_preflight; then
+  # Bridge potrebuje iba Tesco. Jeho výpadok preto nesmie zablokovať zber
+  # Lidla ani Kauflandu: Tesco z behu vynecháme, ostatné obchody dozbierame
+  # a dozorca aj tak skončí neúspechom, aby sa Tesco skúsilo znova.
+  TESCO_VYNECHANE=0
+  ZBER_CHCE_TESCO=0
+  ZBER_BEZ_TESCA=()
+  for ((i = 0; i < ${#ZBER_ARGS[@]}; i += 2)); do
+    if [ "${ZBER_ARGS[i+1]}" = "tesco" ]; then
+      ZBER_CHCE_TESCO=1
+    else
+      ZBER_BEZ_TESCA+=("${ZBER_ARGS[i]}" "${ZBER_ARGS[i+1]}")
+    fi
+  done
+  if [ "$ZBER_CHCE_TESCO" -eq 1 ] && ! tesco_bridge_preflight; then
     BRIDGE_REASON=${UVARSI_BRIDGE_FAILURE_REASON:-unknown}
-    log "Tesco bridge neprešiel kontrolou priamo pred zberom ($BRIDGE_REASON) — aktuálne dáta nemením."
-    notify "Uvar.si: zber odložený" "Tesco bridge neprešiel bezpečnostnou kontrolou ($BRIDGE_REASON)."
-    exit 1
+    if [ "${#ZBER_BEZ_TESCA[@]}" -eq 0 ]; then
+      log "Tesco bridge neprešiel kontrolou priamo pred zberom ($BRIDGE_REASON) — aktuálne dáta nemením."
+      notify "Uvar.si: zber odložený" "Tesco bridge neprešiel bezpečnostnou kontrolou ($BRIDGE_REASON)."
+      exit 1
+    fi
+    log "Tesco bridge neprešiel kontrolou priamo pred zberom ($BRIDGE_REASON) — Tesco vynechávam, ostatné obchody zbieram."
+    notify "Uvar.si: Tesco odložené" "Tesco bridge neprešiel bezpečnostnou kontrolou ($BRIDGE_REASON); ostatné obchody zbieram."
+    ZBER_ARGS=("${ZBER_BEZ_TESCA[@]}")
+    TESCO_VYNECHANE=1
   fi
 
   ZBER_VYSTUP=$(cd "$DIR/app" && UVARSI_DEPLOY_CREDIT_PROBE="$RELEASE_CHANGED" \
@@ -775,6 +794,10 @@ if { [ "${POCET:-0}" -lt "$MIN_TOTAL_OFFERS" ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; 
     log "zbierač OK"
   else
     log "zbierač zlyhal — appka zatiaľ nemá aktuálne dáta"
+  fi
+  if [ "$TESCO_VYNECHANE" -eq 1 ]; then
+    log "Tesco čaká na funkčný bridge — týždeň zatiaľ nie je kompletný."
+    exit 1
   fi
   fi
 fi

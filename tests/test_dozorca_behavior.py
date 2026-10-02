@@ -186,7 +186,7 @@ def test_transient_health_gap_is_retried_before_supervisor_gates(
 
 def test_collection_stops_before_collector_when_last_moment_bridge_check_fails(
         supervisor_environment):
-    configure_structural_collection(supervisor_environment)
+    configure_structural_collection(supervisor_environment, stores="tesco")
 
     result = run_supervisor(
         supervisor_environment,
@@ -196,6 +196,39 @@ def test_collection_stops_before_collector_when_last_moment_bridge_check_fails(
     assert result.returncode != 0
     assert not supervisor_environment["calls"].exists()
     assert "priamo pred zberom" in result.stdout
+
+
+def test_bridge_check_is_skipped_when_tesco_is_not_collected(
+        supervisor_environment):
+    configure_structural_collection(supervisor_environment, stores="lidl")
+
+    result = run_supervisor(
+        supervisor_environment,
+        UVARSI_TEST_BRIDGE_PREFLIGHT="/usr/bin/false",
+    )
+
+    calls = supervisor_environment["calls"].read_text(encoding="utf-8")
+    assert "zbierac_akcii.py --store lidl" in calls
+    assert "priamo pred zberom" not in result.stdout
+
+
+def test_failed_bridge_drops_only_tesco_and_still_fails_the_run(
+        supervisor_environment):
+    configure_structural_collection(
+        supervisor_environment, stores="tesco\nlidl", collector_rc=0
+    )
+
+    result = run_supervisor(
+        supervisor_environment,
+        UVARSI_TEST_BRIDGE_PREFLIGHT="/usr/bin/false",
+    )
+
+    calls = supervisor_environment["calls"].read_text(encoding="utf-8")
+    assert "zbierac_akcii.py --store lidl" in calls
+    assert "tesco" not in calls
+    assert "Tesco vynechávam" in result.stdout
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert refresh_call_count(supervisor_environment) == 0
 
 
 def test_current_active_offers_rebuild_receipt_without_touching_failed_staging(
@@ -250,7 +283,7 @@ def test_current_active_offers_rebuild_receipt_without_touching_failed_staging(
     assert "zbierac_akcii.py" not in calls
 
 
-def configure_structural_collection(context):
+def configure_structural_collection(context, stores="lidl", collector_rc=None):
     calls = context["calls"]
     fingerprint = context["staged_fingerprint"]
     (context["tmp_path"] / "app").mkdir(exist_ok=True)
@@ -266,8 +299,12 @@ def configure_structural_collection(context):
         "fi\n"
         f"printf '%s\\n' \"$*\" >> '{bash_path(calls)}'\n"
         "case \"$*\" in\n"
-        "  *zbierac_akcii.py*) echo 'ZBER_STRUKTURALNY: malformed source'; exit 1 ;;\n"
-        "  *refresh_blocek.py*) exit 99 ;;\n"
+        + (
+            "  *zbierac_akcii.py*) echo 'ZBER_STRUKTURALNY: malformed source'; exit 1 ;;\n"
+            if collector_rc is None
+            else f"  *zbierac_akcii.py*) exit {collector_rc} ;;\n"
+        )
+        + "  *refresh_blocek.py*) exit 99 ;;\n"
         "esac\n"
         "exit 0\n",
         encoding="utf-8",
@@ -280,7 +317,7 @@ def configure_structural_collection(context):
         "#!/bin/sh\n"
         "case \"$*\" in\n"
         f"  *source_fingerprint*) cat '{bash_path(fingerprint)}' ;;\n"
-        "  *'SELECT lower(v.o)'*) echo lidl ;;\n"
+        f"  *'SELECT lower(v.o)'*) printf '{stores}\\n' ;;\n"
         "  *'SELECT COUNT(*) FROM ('*) echo 1 ;;\n"
         "  *MAX*) echo 1000 ;;\n"
         "  *) echo 40 ;;\n"

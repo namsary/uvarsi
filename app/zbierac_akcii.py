@@ -175,6 +175,62 @@ class ManifestPreparationError(ValueError):
         self.attempted_provenance = attempted_provenance
 
 
+class TransientCollectionError(Exception):
+    """Dočasný výpadok (API, sieť, rozpočet, zámok) — nie chyba letáku.
+
+    Zámerne NIE JE ValueError: `main()` ho zapíše ako dočasné zlyhanie, takže
+    ďalší beh obchod znova skúsi namiesto toho, aby ho do konca týždňa potlačil.
+    """
+
+
+class CollectionLeaseLost(RuntimeError):
+    """Iný beh prevzal zámok obchodu — tento beh musí skončiť bez zápisu."""
+
+
+def _is_transient_error(exc):
+    """Pravda pre chyby, ktoré sa opravia samé: opakovanie ich môže prekonať."""
+    if isinstance(exc, naklady.KreditVycerpany):
+        return False
+    if isinstance(exc, (
+            TransientCollectionError,
+            CollectionLeaseLost,
+            naklady.RozpocetVycerpany,
+            requests.RequestException,
+            TimeoutError,
+            ConnectionError,
+    )):
+        return True
+    try:
+        import anthropic
+    except ImportError:
+        return False
+
+    def api_types(*names):
+        found = (getattr(anthropic, name, None) for name in names)
+        return tuple(kind for kind in found if isinstance(kind, type))
+
+    transient = api_types(
+        "APIConnectionError", "RateLimitError", "InternalServerError"
+    )
+    if transient and isinstance(exc, transient):
+        return True
+    status_error = api_types("APIStatusError")
+    status = getattr(exc, "status_code", None)
+    return (
+        bool(status_error)
+        and isinstance(exc, status_error)
+        and isinstance(status, int)
+        and (status in (408, 409, 429) or status >= 500)
+    )
+
+
+def _raise_if_transient(exc, message):
+    if _is_transient_error(exc):
+        raise TransientCollectionError(
+            f"{message} ({type(exc).__name__}: {exc})"
+        ) from exc
+
+
 def log(*a):
     print(*a, flush=True)
 
@@ -1901,6 +1957,14 @@ def claude_json(client, model, content, max_tokens, effort=None):
     return _parse_json_response(txt)
 
 
+def _run_spent(con, cost_marker, purpose):
+    """Či tento beh zaúčtoval aspoň jedno platené volanie."""
+    return bool(con.execute(
+        "SELECT EXISTS(SELECT 1 FROM naklady WHERE id>? AND ucel=?)",
+        (int(cost_marker or 0), purpose),
+    ).fetchone()[0])
+
+
 def guarded_client(con, client, purpose="zber_letakov"):
     """Guard collector calls without consuming capacity reserved by queued plans."""
     return naklady.strazeny_klient(
@@ -1918,10 +1982,10 @@ class _LeaseRenewingMessages:
 
     def create(self, **kwargs):
         if not self._renew():
-            raise RuntimeError("collection lease was lost before model request")
+            raise CollectionLeaseLost("collection lease was lost before model request")
         response = self._messages.create(**kwargs)
         if not self._renew():
-            raise RuntimeError("collection lease was lost after model request")
+            raise CollectionLeaseLost("collection lease was lost after model request")
         return response
 
 
@@ -2115,6 +2179,9 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content):
     except naklady.KreditVycerpany:
         raise
     except Exception as exc:
+        # Výpadok API nie je neistota čítania: drahší Opus by pri ňom len
+        # zbytočne míňal kredit. Beh skončí dočasnou chybou a zopakuje sa.
+        _raise_if_transient(exc, f"{store}: čítanie strán dočasne zlyhalo")
         fallback_reason = f"{type(exc).__name__}: {exc}"
 
     log(
@@ -2155,6 +2222,7 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content):
     except naklady.KreditVycerpany:
         raise
     except Exception as exc:
+        _raise_if_transient(exc, f"{store}: overenie Opusom dočasne zlyhalo")
         if sonnet_offers:
             log(
                 f"[WARN] {store}: Opus dávku nepotvrdil "
@@ -2185,6 +2253,7 @@ def _collect_validated_flyer(
             else:
                 encoded = get_b64(page["thumbnail_url"] or page["image_url"], SCAN_PX)
         except Exception as exc:
+            _raise_if_transient(exc, f"{store}: náhľad strany {source_page} sa dočasne nepodarilo načítať")
             raise ValueError(f"{store}: náhľad strany {source_page} sa nepodarilo načítať") from exc
         if not encoded:
             raise ValueError(f"{store}: náhľad strany {source_page} sa nepodarilo načítať")
@@ -2206,6 +2275,7 @@ def _collect_validated_flyer(
             # zopakovali to isté odmietnutie. Preto ide von nezabalené.
             raise
         except Exception as exc:
+            _raise_if_transient(exc, f"{store}: sken strán dočasne zlyhal")
             raise ValueError(
                 f"{store}: sken strán zlyhal ({type(exc).__name__}: {exc})"
             ) from exc
@@ -2235,6 +2305,7 @@ def _collect_validated_flyer(
                 else:
                     encoded = get_b64(page_manifest[source_page]["image_url"], READ_PX)
             except Exception as exc:
+                _raise_if_transient(exc, f"{store}: strana {source_page} sa dočasne nepodarilo načítať")
                 raise ValueError(f"{store}: strana {source_page} sa nepodarilo načítať") from exc
             if not encoded:
                 raise ValueError(f"{store}: strana {source_page} sa nepodarilo načítať")
@@ -3330,12 +3401,9 @@ def main(stores=None):
                 # token, takže zabraté miesto v týždennom počte behov patrí
                 # späť. Inak by zbierač po dobití kreditu ostal zablokovaný do
                 # konca týždňa za behy, ktoré nikdy nebežali (incident 24. 8.).
-                spent_in_this_run = con.execute(
-                    "SELECT EXISTS(SELECT 1 FROM naklady WHERE id>? AND ucel=?)",
-                    (int(run_cost_marker or 0), budget_purpose),
-                ).fetchone()[0]
-                if not spent_in_this_run:
+                if not _run_spent(con, run_cost_marker, budget_purpose):
                     naklady.uvolni_beh(con, budget_purpose)
+                    run_reserved = False
                 log(f"[ERROR] {store}: {odmietnutie}")
                 raise SystemExit(
                     f"Zber zastavený — KREDIT_VYCERPANY: {odmietnutie}"
@@ -3376,6 +3444,19 @@ def main(stores=None):
                     held_claims.remove(store)
             total += len(akcie)
             collected.append(store)
+        if (
+            run_reserved
+            and failures
+            and not structural_failures
+            and not _run_spent(con, run_cost_marker, budget_purpose)
+        ):
+            # Všetky zlyhania boli dočasné a beh nezaplatil ani jedno volanie
+            # (napr. API bolo celý čas preťažené). Miesto v týždennom strope
+            # patrí späť, inak by tri dočasné výpadky v jedno ráno zablokovali
+            # zber až do pondelka.
+            naklady.uvolni_beh(con, budget_purpose)
+            run_reserved = False
+            log("[INFO] beh nič nestál — miesto v týždennom strope vraciam")
         n = con.execute("SELECT COUNT(*) c FROM akcie WHERE tyzden=?", (tyz,)).fetchone()["c"]
         staged_ok = [
             row[0].lower()

@@ -3579,3 +3579,111 @@ def test_bootstrapped_active_store_is_reused_by_main_without_anthropic(
     con = sqlite3.connect(database)
     assert con.execute("SELECT COUNT(*) FROM akcie_staging").fetchone()[0] == 20
     con.close()
+
+
+class _FakeAPIStatusError(Exception):
+    def __init__(self, status_code):
+        super().__init__(f"HTTP {status_code}")
+        self.status_code = status_code
+
+
+@pytest.fixture
+def fake_anthropic_errors(monkeypatch):
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        types.SimpleNamespace(APIStatusError=_FakeAPIStatusError),
+    )
+
+
+def _overloaded_api_error():
+    return _FakeAPIStatusError(529)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(_overloaded_api_error, id="api-529"),
+        pytest.param(
+            lambda: collector.naklady.RozpocetVycerpany("denný strop", kod="den"),
+            id="budget-cap",
+        ),
+        pytest.param(
+            lambda: collector.CollectionLeaseLost("lease lost"), id="lease-lost"
+        ),
+    ],
+)
+def test_transient_scan_failure_is_not_a_structural_flyer_error(
+    monkeypatch, fake_anthropic_errors, error,
+):
+    install_pipeline_fakes(monkeypatch, page_count=2, food_pages={1})
+
+    def failing_scan(*_args, **_kwargs):
+        raise error()
+
+    monkeypatch.setattr(collector, "claude_json", failing_scan)
+
+    with pytest.raises(collector.TransientCollectionError):
+        collector.zbieraj(object(), "lidl")
+
+
+def test_transient_sonnet_failure_does_not_escalate_to_opus(
+    monkeypatch, fake_anthropic_errors,
+):
+    install_pipeline_fakes(monkeypatch, page_count=2, food_pages={1})
+    models = []
+
+    def overloaded_reader(client, model, content, max_tokens, effort=None):
+        models.append(model)
+        if model == collector.MODEL_SCAN:
+            return [1]
+        raise _overloaded_api_error()
+
+    monkeypatch.setattr(collector, "claude_json", overloaded_reader)
+
+    with pytest.raises(collector.TransientCollectionError):
+        collector.zbieraj(object(), "lidl")
+
+    assert collector.MODEL_READ_FALLBACK not in models
+
+
+def test_invalid_model_output_stays_a_structural_failure(
+    monkeypatch, fake_anthropic_errors,
+):
+    install_pipeline_fakes(monkeypatch, page_count=2, food_pages={1})
+    monkeypatch.setattr(
+        collector, "claude_json", lambda *_args, **_kwargs: {"not": "a list"}
+    )
+
+    with pytest.raises(ValueError) as raised:
+        collector.zbieraj(object(), "lidl")
+
+    assert not isinstance(raised.value, collector.TransientCollectionError)
+
+
+def test_main_records_transient_failure_retries_and_returns_unspent_run(
+    monkeypatch, tmp_path, capsys,
+):
+    database = run_main_over_stores(monkeypatch, tmp_path, {"lidl": True})
+    attempts = []
+
+    def overloaded(_client, store, prepared=None):
+        attempts.append(store)
+        raise collector.TransientCollectionError("lidl: API preťažené")
+
+    monkeypatch.setattr(collector, "zbieraj", overloaded)
+
+    for _ in range(2):
+        with pytest.raises(SystemExit, match="lidl"):
+            collector.main(["lidl"])
+
+    assert attempts == ["lidl", "lidl"]
+    assert "ZBER_STRUKTURALNY" not in capsys.readouterr().out
+    con = sqlite3.connect(database)
+    assert con.execute(
+        "SELECT failure_kind FROM zber_staging_stav WHERE obchod='Lidl'"
+    ).fetchone()[0] != "structural"
+    assert con.execute(
+        "SELECT COALESCE(SUM(pocet), 0) FROM naklady_behy"
+    ).fetchone()[0] == 0
+    con.close()
