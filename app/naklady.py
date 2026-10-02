@@ -785,7 +785,8 @@ def uvolni_beh(con, ucel, *, teraz=None):
     """Vráť miesto v týždennom počte behov — beh sa NEUSKUTOČNIL.
 
     Volá sa jedine vtedy, keď je preukázané, že sa nespotreboval ani token
-    (API odmietlo volanie pre nulový kredit). Strop tým neslabne: miesto sa
+    (API odmietlo volanie pre nulový kredit alebo bolo celý beh nedostupné
+    a beh nezaúčtoval ani jedno platené volanie). Strop tým neslabne: miesto sa
     vracia len za prácu, ktorá sa nikdy nezačala. Nikdy nejde pod nulu, takže
     dvojité zavolanie počítadlo nerozbije — oprava smie bežať opakovane.
     """
