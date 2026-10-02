@@ -500,7 +500,8 @@ def test_tesco_bridge_fingerprints_actual_page_bytes_before_paid_ai(monkeypatch)
     def get(url, **_kwargs):
         page = url.rsplit("-", 1)[-1].encode("ascii")
         return types.SimpleNamespace(
-            status_code=200, content=content["revision"] + b":" + page
+            status_code=200,
+            content=b"\xff\xd8\xff" + content["revision"] + b":" + page,
         )
 
     monkeypatch.setattr(collector.requests, "get", get)
@@ -3123,7 +3124,7 @@ def test_official_source_identity_cannot_hide_changed_page_bytes(monkeypatch):
     monkeypatch.setattr(
         collector,
         "get_image_bytes",
-        lambda url: revision["value"] + b":" + url.encode("ascii"),
+        lambda url, **_kwargs: revision["value"] + b":" + url.encode("ascii"),
     )
 
     first = collector.prepare_store_collection("lidl")
@@ -3146,7 +3147,7 @@ def test_content_fingerprint_failure_keeps_safe_partial_official_identity(monkey
     )
     calls = {"count": 0}
 
-    def fail_second_page(_url):
+    def fail_second_page(_url, **_kwargs):
         calls["count"] += 1
         return b"first-page" if calls["count"] == 1 else None
 
@@ -3177,7 +3178,7 @@ def test_lidl_reuses_disk_spooled_source_pages_during_paid_read(monkeypatch):
         ),
     )
 
-    def download(url):
+    def download(url, **_kwargs):
         downloads.append(url)
         return image.getvalue()
 
@@ -3541,7 +3542,10 @@ def test_unchanged_structural_manifest_skips_another_paid_read(monkeypatch, tmp_
         lambda: pytest.fail("nezmenený štrukturálny vstup nesmie míňať API"),
     )
 
-    collector.main(["lidl"])
+    # Potlačený obchod je stále chýbajúci obchod: beh nesmie skončiť ako
+    # úspech, inak by dozorca hlásil „zbierač OK“ a týždeň ostal neúplný.
+    with pytest.raises(SystemExit, match="lidl"):
+        collector.main(["lidl"])
 
 
 def test_bootstrapped_active_store_is_reused_by_main_without_anthropic(
@@ -3687,3 +3691,149 @@ def test_main_records_transient_failure_retries_and_returns_unspent_run(
         "SELECT COALESCE(SUM(pocet), 0) FROM naklady_behy"
     ).fetchone()[0] == 0
     con.close()
+
+
+def _http_response(status, content=b""):
+    return types.SimpleNamespace(status_code=status, content=content)
+
+
+@pytest.mark.parametrize("status", [429, 502, 503, 529])
+def test_strict_page_download_reports_overloaded_source_as_transient(
+    monkeypatch, status,
+):
+    monkeypatch.setattr(
+        collector.requests, "get", lambda *_a, **_k: _http_response(status)
+    )
+
+    with pytest.raises(collector.TransientCollectionError):
+        collector.get_image_bytes("https://images.example/1.jpg", strict=True)
+    assert collector.get_image_bytes("https://images.example/1.jpg") is None
+
+
+def test_strict_page_download_rejects_non_image_body(monkeypatch):
+    monkeypatch.setattr(
+        collector.requests,
+        "get",
+        lambda *_a, **_k: _http_response(200, b"<html>maintenance</html>"),
+    )
+
+    with pytest.raises(collector.TransientCollectionError, match="obrázok"):
+        collector.get_image_bytes("https://images.example/1.jpg", strict=True)
+
+
+def test_strict_page_download_keeps_missing_page_as_missing(monkeypatch):
+    monkeypatch.setattr(
+        collector.requests, "get", lambda *_a, **_k: _http_response(404)
+    )
+
+    assert collector.get_image_bytes(
+        "https://images.example/1.jpg", strict=True
+    ) is None
+
+
+def test_unavailable_page_source_is_transient_not_structural(monkeypatch):
+    fixture = prepared_collection("lidl")
+    monkeypatch.setattr(
+        collector,
+        "store_pages",
+        lambda _store: (fixture.pages, json.loads(json.dumps(fixture.manifest))),
+    )
+    monkeypatch.setattr(
+        collector.requests, "get", lambda *_a, **_k: _http_response(503)
+    )
+
+    with pytest.raises(collector.TransientCollectionError):
+        collector.prepare_store_collection("lidl")
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [(502, "TransientCollectionError"), (401, "ValueError")],
+)
+def test_tesco_bridge_outage_is_transient_but_auth_failure_is_not(
+    monkeypatch, status, expected,
+):
+    monkeypatch.setattr(
+        collector.requests,
+        "post",
+        lambda *_a, **_k: types.SimpleNamespace(
+            status_code=status, json=lambda: {}
+        ),
+    )
+
+    with pytest.raises(Exception) as raised:
+        collector._bridge_tesco_candidates(
+            TODAY, "HM", "https://tesco-bridge.example", "secret"
+        )
+
+    assert type(raised.value).__name__ == expected
+    assert "secret" not in str(raised.value)
+
+
+def test_production_lidl_does_not_fall_back_to_unapproved_aggregators(
+    monkeypatch,
+):
+    monkeypatch.setenv("UVARSI_ENV", "production")
+
+    def no_current_flyer(today=None):
+        raise ValueError("dnes neplatí žiadny leták")
+
+    monkeypatch.setattr(collector, "official_lidl_pages", no_current_flyer)
+    monkeypatch.setattr(
+        collector,
+        "kupino_meta",
+        lambda _store: pytest.fail("produkcia nesmie prehľadávať agregátor"),
+    )
+
+    assert collector.store_pages("lidl", today=TODAY) == ([], None)
+
+
+def test_production_lidl_network_outage_is_transient(monkeypatch):
+    monkeypatch.setenv("UVARSI_ENV", "production")
+
+    def offline(today=None):
+        raise collector.requests.ConnectionError("down")
+
+    monkeypatch.setattr(collector, "official_lidl_pages", offline)
+
+    with pytest.raises(collector.TransientCollectionError):
+        collector.store_pages("lidl", today=TODAY)
+
+
+def test_main_records_unavailable_source_as_transient_failure(
+    monkeypatch, tmp_path, capsys,
+):
+    database = run_main_over_stores(monkeypatch, tmp_path, {"lidl": True})
+
+    def unavailable(store):
+        raise collector.TransientCollectionError(f"{store}: HTTP 503")
+
+    monkeypatch.setattr(collector, "prepare_store_collection", unavailable)
+
+    with pytest.raises(SystemExit, match="lidl"):
+        collector.main(["lidl"])
+
+    assert "ZBER_STRUKTURALNY" not in capsys.readouterr().out
+    con = sqlite3.connect(database)
+    assert con.execute(
+        "SELECT failure_kind FROM zber_staging_stav WHERE obchod='Lidl'"
+    ).fetchone()[0] != "structural"
+    con.close()
+
+
+def test_main_marks_exhausted_weekly_run_cap_for_supervisor(
+    monkeypatch, tmp_path, capsys,
+):
+    run_main_over_stores(monkeypatch, tmp_path, {"lidl": True})
+
+    def cap_reached(_con, purpose, **_kwargs):
+        raise collector.naklady.RozpocetVycerpany(
+            "strop 3×", kod=collector.naklady.KOD_BEHY, ucel=purpose
+        )
+
+    monkeypatch.setattr(collector.naklady, "rezervuj_beh", cap_reached)
+
+    with pytest.raises(SystemExit, match="nespúšťam"):
+        collector.main(["lidl"])
+
+    assert "ZBER_BEHY_VYCERPANE" in capsys.readouterr().out

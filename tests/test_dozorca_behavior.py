@@ -104,10 +104,12 @@ def supervisor_environment(tmp_path):
     )
     fake_sqlite.chmod(0o755)
 
+    notifications = tmp_path / "notifications.txt"
     fake_curl = tmp_path / "curl"
     fake_curl.write_text(
         "#!/bin/sh\n"
         "case \"$*\" in\n"
+        f"  *ntfy.sh*) printf '%s\\n' \"$*\" >> '{bash_path(notifications)}' ;;\n"
         "  *api/health*)\n"
         "    if [ -n \"${UVARSI_TEST_HEALTH_FAIL_ONCE:-}\" ] && "
         "[ -f \"$UVARSI_TEST_HEALTH_FAIL_ONCE\" ]; then\n"
@@ -140,6 +142,7 @@ def supervisor_environment(tmp_path):
         "landing_data": landing_data,
         "original": original,
         "calls": calls,
+        "notifications": notifications,
         "active_fingerprint": active_fingerprint,
         "staged_fingerprint": staged_fingerprint,
         "release": release,
@@ -229,6 +232,57 @@ def test_failed_bridge_drops_only_tesco_and_still_fails_the_run(
     assert "Tesco vynechávam" in result.stdout
     assert result.returncode == 1, result.stdout + result.stderr
     assert refresh_call_count(supervisor_environment) == 0
+
+
+def notification_text(context):
+    if not context["notifications"].exists():
+        return ""
+    return context["notifications"].read_text(encoding="utf-8")
+
+
+def test_bridge_outage_alerts_once_per_day_and_reports_recovery(
+        supervisor_environment):
+    configure_structural_collection(supervisor_environment, stores="tesco")
+
+    first = run_supervisor(
+        supervisor_environment, UVARSI_TEST_BRIDGE_PREFLIGHT="/usr/bin/false"
+    )
+    second = run_supervisor(
+        supervisor_environment, UVARSI_TEST_BRIDGE_PREFLIGHT="/usr/bin/false"
+    )
+
+    assert (first.returncode, second.returncode) == (1, 1)
+    assert notification_text(supervisor_environment).count("zber odložený") == 1
+
+    run_supervisor(
+        supervisor_environment, UVARSI_TEST_BRIDGE_PREFLIGHT="/usr/bin/true"
+    )
+
+    assert "bridge opravený" in notification_text(supervisor_environment)
+    assert not (supervisor_environment["tmp_path"] / ".bridge_alert_state").exists()
+
+
+def test_exhausted_run_cap_alerts_once_and_pauses_collection_until_monday(
+        supervisor_environment):
+    configure_structural_collection(supervisor_environment, stores="lidl")
+    fake_python = supervisor_environment["tmp_path"] / "python"
+    fake_python.write_text(
+        fake_python.read_text(encoding="utf-8").replace(
+            "echo 'ZBER_STRUKTURALNY: malformed source'; exit 1",
+            "echo 'ZBER_BEHY_VYCERPANE: strop 3x'; exit 1",
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    first = run_supervisor(supervisor_environment)
+    second = run_supervisor(supervisor_environment)
+
+    assert (first.returncode, second.returncode) == (3, 3)
+    calls = supervisor_environment["calls"].read_text(encoding="utf-8")
+    assert calls.count("zbierac_akcii.py") == 1
+    assert notification_text(supervisor_environment).count("stojí do pondelka") == 1
+    assert "pondelok" in second.stdout
 
 
 def test_current_active_offers_rebuild_receipt_without_touching_failed_staging(
