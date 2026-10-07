@@ -138,12 +138,15 @@ def _offer_package(
         package = _recovered_package(_package_amount(unit, product_name))
         if package is None:
             return None
-        # Olej sa nekupuje po mililitroch. Zberač pri letákoch historicky
-        # ukladal údaj „1 l fľaša" iba ako holé `l`; keby sme ho považovali
-        # za predaj podľa objemu, 45 ml do receptu by sa tvárilo ako nákup za
-        # pár centov. Pri kuchynskom oleji preto holé `l` znamená jednu
-        # overenú litrovú fľašu. Holé `kg` pri mäse a zelenine ostáva váha.
-        basis = "package" if bare == "l" and ingredient.id == "oil" else "weight"
+        # Tekutiny sa nekupujú po mililitroch. Zberač pri letákoch ukladá údaj
+        # „1 l fľaša" často iba ako holé `l`; keby sme ho považovali za predaj
+        # podľa objemu, 200 ml mlieka do receptu by sa tvárilo ako nákup za
+        # pár centov a bloček by navyše niesol hmotnostný násobok, ktorý
+        # validátor (správne) pripúšťa iba pri predaji na váhu v `kg`
+        # (7. 10.: Tesco ponuka v `l` zablokovala celý týždenný bloček).
+        # Holé `l` preto vždy znamená jednu overenú litrovú fľašu; iba holé
+        # `kg` pri mäse a zelenine ostáva predaj na váhu.
+        basis = "weight" if bare == "kg" else "package"
         return package, basis
     try:
         parsed = PackageSize(parse_quantity(unit))
