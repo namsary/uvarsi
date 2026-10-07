@@ -100,7 +100,12 @@ SKIP_SLUG = ("nova-predajna", "brozura", "back-to-school", "special",
 PAGE_GAP_TOLERANCE = 3      # koľko po sebe chýbajúcich strán ešte preklenieme
 MIN_PLAUSIBLE_PAGES = 8     # menej strán je podozrivé — zdroj je asi neúplný
 MAX_PAGES = 200             # poistka proti nekonečnému prechádzaniu
-MAX_MANIFEST_PAGES = 120    # žiadny deklarovaný leták nejde nad tento strop do AI
+LIDL_MAX_CANDIDATE_FLYERS = 5  # koľko letákov z prehľadu najviac skúsime
+# Bežný Lidl leták má okolo 100 strán (101 v týždni od 5. 10. 2026), sviatočné
+# vydania aj viac. Strop 120 by sviatočný týždeň zablokoval pre všetky obchody.
+MAX_MANIFEST_PAGES = 200    # žiadny deklarovaný leták nejde nad tento strop do AI
+# Tesco bridge (Cloudflare worker aj kontrola nasadenia) pripúšťa 8..120 strán.
+TESCO_MAX_MANIFEST_PAGES = 120
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 H = {"User-Agent": UA}
@@ -173,6 +178,62 @@ class ManifestPreparationError(ValueError):
     def __init__(self, message, attempted_provenance=None):
         super().__init__(message)
         self.attempted_provenance = attempted_provenance
+
+
+class TransientCollectionError(Exception):
+    """Dočasný výpadok (API, sieť, rozpočet, zámok) — nie chyba letáku.
+
+    Zámerne NIE JE ValueError: `main()` ho zapíše ako dočasné zlyhanie, takže
+    ďalší beh obchod znova skúsi namiesto toho, aby ho do konca týždňa potlačil.
+    """
+
+
+class CollectionLeaseLost(RuntimeError):
+    """Iný beh prevzal zámok obchodu — tento beh musí skončiť bez zápisu."""
+
+
+def _is_transient_error(exc):
+    """Pravda pre chyby, ktoré sa opravia samé: opakovanie ich môže prekonať."""
+    if isinstance(exc, naklady.KreditVycerpany):
+        return False
+    if isinstance(exc, (
+            TransientCollectionError,
+            CollectionLeaseLost,
+            naklady.RozpocetVycerpany,
+            requests.RequestException,
+            TimeoutError,
+            ConnectionError,
+    )):
+        return True
+    try:
+        import anthropic
+    except ImportError:
+        return False
+
+    def api_types(*names):
+        found = (getattr(anthropic, name, None) for name in names)
+        return tuple(kind for kind in found if isinstance(kind, type))
+
+    transient = api_types(
+        "APIConnectionError", "RateLimitError", "InternalServerError"
+    )
+    if transient and isinstance(exc, transient):
+        return True
+    status_error = api_types("APIStatusError")
+    status = getattr(exc, "status_code", None)
+    return (
+        bool(status_error)
+        and isinstance(exc, status_error)
+        and isinstance(status, int)
+        and (status in (408, 409, 429) or status >= 500)
+    )
+
+
+def _raise_if_transient(exc, message):
+    if _is_transient_error(exc):
+        raise TransientCollectionError(
+            f"{message} ({type(exc).__name__}: {exc})"
+        ) from exc
 
 
 def log(*a):
@@ -651,10 +712,30 @@ def official_lidl_pages(today=None):
         overview,
         flags=re.I,
     )
-    slug = next(iter(dict.fromkeys(slugs)), None)
-    if not slug:
+    candidates = list(dict.fromkeys(slugs))[:LIDL_MAX_CANDIDATE_FLYERS]
+    if not candidates:
         raise ValueError("oficiálna stránka neuvádza aktuálny týždenný leták")
+    # Lidl zverejňuje leták na ďalší týždeň ešte pred koncom aktuálneho a môže
+    # ho uviesť ako prvý. Neplatný dnes nie je chyba letáku — skúsime ďalší.
+    first_not_current = None
+    for slug in candidates:
+        try:
+            return _official_lidl_pages_for_slug(slug, today)
+        except (_LidlFlyerNotActive, _LidlFlyerOutsideWindow) as exc:
+            if first_not_current is None:
+                first_not_current = exc
+    raise first_not_current
 
+
+class _LidlFlyerNotActive(ManifestPreparationError):
+    """Lidl označil leták ako neaktívny (napr. leták na budúci týždeň)."""
+
+
+class _LidlFlyerOutsideWindow(ValueError):
+    """Platnosť ponuky letáku dnešný deň nezahŕňa."""
+
+
+def _official_lidl_pages_for_slug(slug, today):
     endpoint = f"{LIDL_API_URL}?flyer_identifier={quote(slug, safe='')}"
     payload = requests.get(endpoint, headers=H, timeout=30).json()
     flyer = payload.get("flyer") if isinstance(payload, dict) and payload.get("success") is True else None
@@ -670,7 +751,7 @@ def official_lidl_pages(today=None):
             "oficiálny endpoint vrátil leták pre inú krajinu", attempted
         )
     if flyer.get("isActive") is not True or flyer.get("status") != "current":
-        raise ManifestPreparationError(
+        raise _LidlFlyerNotActive(
             "oficiálny endpoint neoznačil leták ako aktuálny", attempted
         )
     flyer_id = flyer.get("id")
@@ -693,7 +774,9 @@ def official_lidl_pages(today=None):
     except ValueError as exc:
         raise ManifestPreparationError(str(exc), attempted) from exc
     if not flyer_is_current(valid_from, valid_to, today):
-        raise ValueError(f"oficiálny leták dnes neplatí ({valid_from} – {valid_to})")
+        raise _LidlFlyerOutsideWindow(
+            f"oficiálny leták dnes neplatí ({valid_from} – {valid_to})"
+        )
 
     raw_pages = flyer.get("pages")
     if not isinstance(raw_pages, list):
@@ -867,6 +950,7 @@ def _direct_tesco_candidates(today, leaflet_format):
 
 
 def _bridge_tesco_candidates(today, leaflet_format, bridge_url, secret):
+    status = None
     try:
         response = requests.post(
             f"{bridge_url}/v1/tesco/leaflets",
@@ -878,14 +962,23 @@ def _bridge_tesco_candidates(today, leaflet_format, bridge_url, secret):
             json={"date": today.isoformat(), "format": leaflet_format},
             timeout=30,
         )
-        if getattr(response, "status_code", 200) != 200:
+        status = getattr(response, "status_code", 200)
+        if status != 200:
             raise ValueError("status")
         payload = response.json()
         leaflet = payload.get("leaflet") if isinstance(payload, dict) else None
         if not isinstance(leaflet, dict):
             raise ValueError("payload")
-    except Exception:
+    except requests.RequestException as exc:
         # Nikdy neprebaľujeme text cudzej výnimky: mohol by obsahovať hlavičky.
+        raise TransientCollectionError(
+            f"Tesco bridge je dočasne nedostupný ({type(exc).__name__})"
+        ) from None
+    except Exception:
+        if status in _TRANSIENT_HTTP_STATUSES:
+            raise TransientCollectionError(
+                f"Tesco bridge je dočasne nedostupný (HTTP {status})"
+            ) from None
         raise ValueError("Tesco bridge nevrátil platný manifest") from None
     return [leaflet], bridge_url
 
@@ -977,7 +1070,7 @@ def _canonical_tesco_candidate(value, leaflet_format, bridge_url=None):
         isinstance(declared_pages, bool)
         or not isinstance(declared_pages, int)
         or declared_pages != len(pages)
-        or not MIN_PLAUSIBLE_PAGES <= len(pages) <= MAX_MANIFEST_PAGES
+        or not MIN_PLAUSIBLE_PAGES <= len(pages) <= TESCO_MAX_MANIFEST_PAGES
     ):
         raise ValueError("Tesco kandidát má neplatný počet strán")
     pages.sort(key=lambda row: row[0] if isinstance(row[0], int) else -1)
@@ -1606,18 +1699,33 @@ def store_pages(store, today=None):
             pages, manifest = official_lidl_pages(today=today)
             log(f"[INFO] {store}: oficiálny leták má {len(pages)} strán")
             return pages, manifest
-        except ManifestPreparationError:
+        except (ManifestPreparationError, TransientCollectionError):
             raise
         except Exception as e:
+            if _production_environment() and _is_transient_error(e):
+                raise TransientCollectionError(
+                    f"{store}: oficiálny leták je dočasne nedostupný "
+                    f"({type(e).__name__})"
+                ) from None
             log(f"[WARN] {store}: oficiálny leták odmietnutý ({e})")
+        if _production_environment():
+            # Agregátor nie je pre Lidl schválený zdroj, takže by bol aj tak
+            # odmietnutý — len by zakryl skutočnú príčinu zlyhania.
+            log("[WARN] lidl: produkcia nepoužije agregátor namiesto oficiálneho letáku")
+            return [], None
     if store == "tesco":
         try:
             pages, manifest = official_tesco_pages(today=today, leaflet_format="HM")
             log(f"[INFO] {store}: oficiálny leták má {len(pages)} strán")
             return pages, manifest
-        except ManifestPreparationError:
+        except (ManifestPreparationError, TransientCollectionError):
             raise
         except Exception as e:
+            if _production_environment() and _is_transient_error(e):
+                raise TransientCollectionError(
+                    f"{store}: oficiálny leták je dočasne nedostupný "
+                    f"({type(e).__name__})"
+                ) from None
             log(f"[WARN] {store}: oficiálny leták odmietnutý ({e})")
         if _production_environment():
             log("[WARN] tesco: produkcia nepoužije agregátor namiesto oficiálneho bridge")
@@ -1661,15 +1769,47 @@ def store_pages(store, today=None):
     return [], None
 
 
-def get_image_bytes(url, *, headers=None, allow_redirects=True):
-    response = requests.get(
-        url,
-        headers=headers or H,
-        timeout=45,
-        allow_redirects=allow_redirects,
-    )
+_IMAGE_SIGNATURES = (b"\xff\xd8\xff", b"\x89PNG\r\n\x1a\n", b"GIF87a", b"GIF89a")
+_TRANSIENT_HTTP_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524, 529})
+
+
+def _looks_like_image(content):
+    if not content:
+        return False
+    if content.startswith(_IMAGE_SIGNATURES):
+        return True
+    return content[:4] == b"RIFF" and content[8:12] == b"WEBP"
+
+
+def get_image_bytes(url, *, headers=None, allow_redirects=True, strict=False):
+    """Stiahni obrázok; `strict` odlíši dočasný výpadok od chýbajúcej strany.
+
+    Bez `strict` sa každá chyba javí ako chýbajúca strana (None) — to potrebuje
+    sondovanie počtu strán. So `strict` sieťová chyba, 429/5xx alebo odpoveď,
+    ktorá nie je obrázok, vyhodí TransientCollectionError: zdroj je dočasne
+    pokazený, nie leták.
+    """
+    try:
+        response = requests.get(
+            url,
+            headers=headers or H,
+            timeout=45,
+            allow_redirects=allow_redirects,
+        )
+    except requests.RequestException as exc:
+        if strict:
+            raise TransientCollectionError(
+                f"zdroj strany je dočasne nedostupný ({type(exc).__name__})"
+            ) from None
+        raise
+    if strict and response.status_code in _TRANSIENT_HTTP_STATUSES:
+        raise TransientCollectionError(
+            f"zdroj strany je dočasne nedostupný (HTTP {response.status_code})"
+        )
     if response.status_code != 200:
         return None
+    if strict and not _looks_like_image(response.content):
+        raise TransientCollectionError("zdroj strany nevrátil obrázok")
     return response.content
 
 
@@ -1691,7 +1831,7 @@ def get_b64(url, max_px):
     return image_bytes_b64(get_image_bytes(url), max_px)
 
 
-def _download_official_tesco_page(url):
+def _download_official_tesco_page(url, *, strict=False):
     config = _tesco_bridge_config()
     if config and _safe_tesco_bridge_media_url(url, config[0]):
         return get_image_bytes(
@@ -1702,8 +1842,9 @@ def _download_official_tesco_page(url):
                 "X-Uvarsi-Bridge-Token": config[1],
             },
             allow_redirects=False,
+            strict=strict,
         )
-    return get_image_bytes(url)
+    return get_image_bytes(url, strict=strict)
 
 
 def img_block(b):
@@ -1747,11 +1888,11 @@ def validate_flyer_manifest(pages, manifest, *, store):
             isinstance(declared_pages, bool)
             or not isinstance(declared_pages, int)
             or declared_pages < MIN_PLAUSIBLE_PAGES
-            or declared_pages > MAX_MANIFEST_PAGES
+            or declared_pages > TESCO_MAX_MANIFEST_PAGES
         ):
             raise ValueError(
                 "oficiálny Tesco manifest musí mať deklarovaný počet "
-                f"{MIN_PLAUSIBLE_PAGES}..{MAX_MANIFEST_PAGES} strán"
+                f"{MIN_PLAUSIBLE_PAGES}..{TESCO_MAX_MANIFEST_PAGES} strán"
             )
         leaflet_format = manifest.get("leaflet_format")
         expected = {
@@ -1901,6 +2042,14 @@ def claude_json(client, model, content, max_tokens, effort=None):
     return _parse_json_response(txt)
 
 
+def _run_spent(con, cost_marker, purpose):
+    """Či tento beh zaúčtoval aspoň jedno platené volanie."""
+    return bool(con.execute(
+        "SELECT EXISTS(SELECT 1 FROM naklady WHERE id>? AND ucel=?)",
+        (int(cost_marker or 0), purpose),
+    ).fetchone()[0])
+
+
 def guarded_client(con, client, purpose="zber_letakov"):
     """Guard collector calls without consuming capacity reserved by queued plans."""
     return naklady.strazeny_klient(
@@ -1918,10 +2067,10 @@ class _LeaseRenewingMessages:
 
     def create(self, **kwargs):
         if not self._renew():
-            raise RuntimeError("collection lease was lost before model request")
+            raise CollectionLeaseLost("collection lease was lost before model request")
         response = self._messages.create(**kwargs)
         if not self._renew():
-            raise RuntimeError("collection lease was lost after model request")
+            raise CollectionLeaseLost("collection lease was lost after model request")
         return response
 
 
@@ -2115,6 +2264,9 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content):
     except naklady.KreditVycerpany:
         raise
     except Exception as exc:
+        # Výpadok API nie je neistota čítania: drahší Opus by pri ňom len
+        # zbytočne míňal kredit. Beh skončí dočasnou chybou a zopakuje sa.
+        _raise_if_transient(exc, f"{store}: čítanie strán dočasne zlyhalo")
         fallback_reason = f"{type(exc).__name__}: {exc}"
 
     log(
@@ -2155,6 +2307,7 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content):
     except naklady.KreditVycerpany:
         raise
     except Exception as exc:
+        _raise_if_transient(exc, f"{store}: overenie Opusom dočasne zlyhalo")
         if sonnet_offers:
             log(
                 f"[WARN] {store}: Opus dávku nepotvrdil "
@@ -2185,6 +2338,7 @@ def _collect_validated_flyer(
             else:
                 encoded = get_b64(page["thumbnail_url"] or page["image_url"], SCAN_PX)
         except Exception as exc:
+            _raise_if_transient(exc, f"{store}: náhľad strany {source_page} sa dočasne nepodarilo načítať")
             raise ValueError(f"{store}: náhľad strany {source_page} sa nepodarilo načítať") from exc
         if not encoded:
             raise ValueError(f"{store}: náhľad strany {source_page} sa nepodarilo načítať")
@@ -2206,6 +2360,7 @@ def _collect_validated_flyer(
             # zopakovali to isté odmietnutie. Preto ide von nezabalené.
             raise
         except Exception as exc:
+            _raise_if_transient(exc, f"{store}: sken strán dočasne zlyhal")
             raise ValueError(
                 f"{store}: sken strán zlyhal ({type(exc).__name__}: {exc})"
             ) from exc
@@ -2235,6 +2390,7 @@ def _collect_validated_flyer(
                 else:
                     encoded = get_b64(page_manifest[source_page]["image_url"], READ_PX)
             except Exception as exc:
+                _raise_if_transient(exc, f"{store}: strana {source_page} sa dočasne nepodarilo načítať")
                 raise ValueError(f"{store}: strana {source_page} sa nepodarilo načítať") from exc
             if not encoded:
                 raise ValueError(f"{store}: strana {source_page} sa nepodarilo načítať")
@@ -2309,9 +2465,16 @@ def _attach_exact_content_identity(store, manifest, page_manifest):
     for source_page, page in page_manifest.items():
         try:
             if store == "tesco":
-                content = _download_official_tesco_page(page["image_url"])
+                content = _download_official_tesco_page(
+                    page["image_url"], strict=True
+                )
             else:
-                content = get_image_bytes(page["image_url"])
+                content = get_image_bytes(page["image_url"], strict=True)
+        except TransientCollectionError as exc:
+            page_bytes.cleanup()
+            raise TransientCollectionError(
+                f"{store}: strana {source_page} — {exc}"
+            ) from None
         except Exception:
             content = None
         if not content:
@@ -3039,6 +3202,14 @@ def main(stores=None):
     tyz = monday()
     con = db()
     today = business_day()
+    # Týždeň a deň sa čítajú v dvoch volaniach (medzi nimi bežia migrácie DB).
+    # Tesne po polnoci z nedele na pondelok by tak mohli patriť do rôznych
+    # týždňov a beh by platene zbieral do starého týždňa. Týždeň preto vždy
+    # odvodíme od toho istého dňa, s ktorým beh ďalej pracuje.
+    week_of_today = (today - datetime.timedelta(days=today.weekday())).isoformat()
+    if week_of_today != tyz:
+        log(f"[WARN] týždeň {tyz} nesedí s dňom {today} — používam {week_of_today}")
+        tyz = week_of_today
     reusable_stores, failures, structural_failures = [], [], []
     free_collected, free_total = [], 0
     suppressed, busy = [], []
@@ -3083,6 +3254,19 @@ def main(stores=None):
         guard_known_credit_before_source_download(con)
         try:
             prepared = prepare_store_collection(store)
+        except TransientCollectionError as exc:
+            # Zdroj je dočasne nedostupný: nič sa nezaplatilo a leták nie je
+            # chybný. Zapíšeme dočasné zlyhanie, aby ďalší beh skúsil znova.
+            failures.append(store)
+            record_stage_failure(
+                con,
+                tyz,
+                display_store,
+                str(exc)[:300],
+                structural=False,
+            )
+            log(f"[ERROR] {store}: zdroj letáku je dočasne nedostupný ({exc})")
+            continue
         except ValueError as exc:
             attempted = getattr(exc, "attempted_provenance", None)
             failure_identity = (
@@ -3208,8 +3392,7 @@ def main(stores=None):
             f"[WAIT] Týždeň {tyz}: staging je zachovaný; aktívne dáta "
             "sa nemenili a čakajú na overený bloček."
         )
-        if failures:
-            raise SystemExit(f"Zber zlyhal pre obchody: {', '.join(failures)}")
+        _exit_on_incomplete_collection(failures, structural_failures, suppressed)
         return
 
     budget_purpose = collection_budget_purpose(con, tyz, stores_to_collect)
@@ -3289,6 +3472,10 @@ def main(stores=None):
                 except naklady.RozpocetVycerpany as odmietnutie:
                     release_store_claim(con, tyz, store.capitalize(), run_owner)
                     held_claims.remove(store)
+                    if getattr(odmietnutie, "kod", None) == naklady.KOD_BEHY:
+                        # Stabilná značka pre dozorcu: do pondelka nič
+                        # neuspeje, hodinové pokusy by len klamali v notifikácii.
+                        log(f"ZBER_BEHY_VYCERPANE: {odmietnutie}")
                     raise SystemExit(f"Zber nespúšťam — {odmietnutie}")
                 run_reserved = True
             try:
@@ -3330,12 +3517,9 @@ def main(stores=None):
                 # token, takže zabraté miesto v týždennom počte behov patrí
                 # späť. Inak by zbierač po dobití kreditu ostal zablokovaný do
                 # konca týždňa za behy, ktoré nikdy nebežali (incident 24. 8.).
-                spent_in_this_run = con.execute(
-                    "SELECT EXISTS(SELECT 1 FROM naklady WHERE id>? AND ucel=?)",
-                    (int(run_cost_marker or 0), budget_purpose),
-                ).fetchone()[0]
-                if not spent_in_this_run:
+                if not _run_spent(con, run_cost_marker, budget_purpose):
                     naklady.uvolni_beh(con, budget_purpose)
+                    run_reserved = False
                 log(f"[ERROR] {store}: {odmietnutie}")
                 raise SystemExit(
                     f"Zber zastavený — KREDIT_VYCERPANY: {odmietnutie}"
@@ -3376,6 +3560,19 @@ def main(stores=None):
                     held_claims.remove(store)
             total += len(akcie)
             collected.append(store)
+        if (
+            run_reserved
+            and failures
+            and not structural_failures
+            and not _run_spent(con, run_cost_marker, budget_purpose)
+        ):
+            # Všetky zlyhania boli dočasné a beh nezaplatil ani jedno volanie
+            # (napr. API bolo celý čas preťažené). Miesto v týždennom strope
+            # patrí späť, inak by tri dočasné výpadky v jedno ráno zablokovali
+            # zber až do pondelka.
+            naklady.uvolni_beh(con, budget_purpose)
+            run_reserved = False
+            log("[INFO] beh nič nestál — miesto v týždennom strope vraciam")
         n = con.execute("SELECT COUNT(*) c FROM akcie WHERE tyzden=?", (tyz,)).fetchone()["c"]
         staged_ok = [
             row[0].lower()
@@ -3405,15 +3602,28 @@ def main(stores=None):
             "active_akcie": n,
         },
         ensure_ascii=False, sort_keys=True))
-    if failures:
-        if len(structural_failures) == len(failures):
-            log("ZBER_STRUKTURALNY: všetky neúspešné obchody zlyhali "
-                "na rovnakej validácii vstupu alebo extrakcie")
-        raise SystemExit(f"Zber zlyhal pre obchody: {', '.join(failures)}")
+    _exit_on_incomplete_collection(failures, structural_failures, suppressed)
     log(
         f"[WAIT] Týždeň {tyz}: {total} akcií je v stagingu; aktívne "
         "dáta sa nemenili a čakajú na overený bloček."
     )
+
+
+def _exit_on_incomplete_collection(failures, structural_failures, suppressed):
+    """Neúplný týždeň nikdy nesmie skončiť ako úspech.
+
+    Potlačený obchod (nezmenená štrukturálna chyba) je stále chýbajúci obchod:
+    dozorca ho musí vidieť ako štrukturálne zlyhanie s upozornením, nie ako
+    „zbierač OK“, inak by týždeň potichu ostal bez jedného reťazca.
+    """
+    incomplete = list(failures) + [s for s in suppressed if s not in failures]
+    if not incomplete:
+        return
+    transient = [s for s in failures if s not in structural_failures]
+    if not transient:
+        log("ZBER_STRUKTURALNY: všetky neúspešné obchody zlyhali "
+            "na rovnakej validácii vstupu alebo extrakcie")
+    raise SystemExit(f"Zber zlyhal pre obchody: {', '.join(incomplete)}")
 
 
 def cli(argv=None):

@@ -104,10 +104,12 @@ def supervisor_environment(tmp_path):
     )
     fake_sqlite.chmod(0o755)
 
+    notifications = tmp_path / "notifications.txt"
     fake_curl = tmp_path / "curl"
     fake_curl.write_text(
         "#!/bin/sh\n"
         "case \"$*\" in\n"
+        f"  *ntfy.sh*) printf '%s\\n' \"$*\" >> '{bash_path(notifications)}' ;;\n"
         "  *api/health*)\n"
         "    if [ -n \"${UVARSI_TEST_HEALTH_FAIL_ONCE:-}\" ] && "
         "[ -f \"$UVARSI_TEST_HEALTH_FAIL_ONCE\" ]; then\n"
@@ -140,6 +142,7 @@ def supervisor_environment(tmp_path):
         "landing_data": landing_data,
         "original": original,
         "calls": calls,
+        "notifications": notifications,
         "active_fingerprint": active_fingerprint,
         "staged_fingerprint": staged_fingerprint,
         "release": release,
@@ -186,7 +189,7 @@ def test_transient_health_gap_is_retried_before_supervisor_gates(
 
 def test_collection_stops_before_collector_when_last_moment_bridge_check_fails(
         supervisor_environment):
-    configure_structural_collection(supervisor_environment)
+    configure_structural_collection(supervisor_environment, stores="tesco")
 
     result = run_supervisor(
         supervisor_environment,
@@ -196,6 +199,90 @@ def test_collection_stops_before_collector_when_last_moment_bridge_check_fails(
     assert result.returncode != 0
     assert not supervisor_environment["calls"].exists()
     assert "priamo pred zberom" in result.stdout
+
+
+def test_bridge_check_is_skipped_when_tesco_is_not_collected(
+        supervisor_environment):
+    configure_structural_collection(supervisor_environment, stores="lidl")
+
+    result = run_supervisor(
+        supervisor_environment,
+        UVARSI_TEST_BRIDGE_PREFLIGHT="/usr/bin/false",
+    )
+
+    calls = supervisor_environment["calls"].read_text(encoding="utf-8")
+    assert "zbierac_akcii.py --store lidl" in calls
+    assert "priamo pred zberom" not in result.stdout
+
+
+def test_failed_bridge_drops_only_tesco_and_still_fails_the_run(
+        supervisor_environment):
+    configure_structural_collection(
+        supervisor_environment, stores="tesco\nlidl", collector_rc=0
+    )
+
+    result = run_supervisor(
+        supervisor_environment,
+        UVARSI_TEST_BRIDGE_PREFLIGHT="/usr/bin/false",
+    )
+
+    calls = supervisor_environment["calls"].read_text(encoding="utf-8")
+    assert "zbierac_akcii.py --store lidl" in calls
+    assert "tesco" not in calls
+    assert "Tesco vynechávam" in result.stdout
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert refresh_call_count(supervisor_environment) == 0
+
+
+def notification_text(context):
+    if not context["notifications"].exists():
+        return ""
+    return context["notifications"].read_text(encoding="utf-8")
+
+
+def test_bridge_outage_alerts_once_per_day_and_reports_recovery(
+        supervisor_environment):
+    configure_structural_collection(supervisor_environment, stores="tesco")
+
+    first = run_supervisor(
+        supervisor_environment, UVARSI_TEST_BRIDGE_PREFLIGHT="/usr/bin/false"
+    )
+    second = run_supervisor(
+        supervisor_environment, UVARSI_TEST_BRIDGE_PREFLIGHT="/usr/bin/false"
+    )
+
+    assert (first.returncode, second.returncode) == (1, 1)
+    assert notification_text(supervisor_environment).count("zber odložený") == 1
+
+    run_supervisor(
+        supervisor_environment, UVARSI_TEST_BRIDGE_PREFLIGHT="/usr/bin/true"
+    )
+
+    assert "bridge opravený" in notification_text(supervisor_environment)
+    assert not (supervisor_environment["tmp_path"] / ".bridge_alert_state").exists()
+
+
+def test_exhausted_run_cap_alerts_once_and_pauses_collection_until_monday(
+        supervisor_environment):
+    configure_structural_collection(supervisor_environment, stores="lidl")
+    fake_python = supervisor_environment["tmp_path"] / "python"
+    fake_python.write_text(
+        fake_python.read_text(encoding="utf-8").replace(
+            "echo 'ZBER_STRUKTURALNY: malformed source'; exit 1",
+            "echo 'ZBER_BEHY_VYCERPANE: strop 3x'; exit 1",
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    first = run_supervisor(supervisor_environment)
+    second = run_supervisor(supervisor_environment)
+
+    assert (first.returncode, second.returncode) == (3, 3)
+    calls = supervisor_environment["calls"].read_text(encoding="utf-8")
+    assert calls.count("zbierac_akcii.py") == 1
+    assert notification_text(supervisor_environment).count("stojí do pondelka") == 1
+    assert "pondelok" in second.stdout
 
 
 def test_current_active_offers_rebuild_receipt_without_touching_failed_staging(
@@ -250,7 +337,7 @@ def test_current_active_offers_rebuild_receipt_without_touching_failed_staging(
     assert "zbierac_akcii.py" not in calls
 
 
-def configure_structural_collection(context):
+def configure_structural_collection(context, stores="lidl", collector_rc=None):
     calls = context["calls"]
     fingerprint = context["staged_fingerprint"]
     (context["tmp_path"] / "app").mkdir(exist_ok=True)
@@ -266,8 +353,12 @@ def configure_structural_collection(context):
         "fi\n"
         f"printf '%s\\n' \"$*\" >> '{bash_path(calls)}'\n"
         "case \"$*\" in\n"
-        "  *zbierac_akcii.py*) echo 'ZBER_STRUKTURALNY: malformed source'; exit 1 ;;\n"
-        "  *refresh_blocek.py*) exit 99 ;;\n"
+        + (
+            "  *zbierac_akcii.py*) echo 'ZBER_STRUKTURALNY: malformed source'; exit 1 ;;\n"
+            if collector_rc is None
+            else f"  *zbierac_akcii.py*) exit {collector_rc} ;;\n"
+        )
+        + "  *refresh_blocek.py*) exit 99 ;;\n"
         "esac\n"
         "exit 0\n",
         encoding="utf-8",
@@ -280,7 +371,7 @@ def configure_structural_collection(context):
         "#!/bin/sh\n"
         "case \"$*\" in\n"
         f"  *source_fingerprint*) cat '{bash_path(fingerprint)}' ;;\n"
-        "  *'SELECT lower(v.o)'*) echo lidl ;;\n"
+        f"  *'SELECT lower(v.o)'*) printf '{stores}\\n' ;;\n"
         "  *'SELECT COUNT(*) FROM ('*) echo 1 ;;\n"
         "  *MAX*) echo 1000 ;;\n"
         "  *) echo 40 ;;\n"
@@ -427,3 +518,87 @@ def test_complete_verified_stage_skips_collector_and_goes_directly_to_receipt(
     calls = context["calls"].read_text(encoding="utf-8")
     assert "zbierac_akcii.py" not in calls
     assert calls.count("refresh_blocek.py") == 1
+
+
+def fake_deploy_state(context, body):
+    script = context["tmp_path"] / "fake-deploy-state.sh"
+    script.write_text(body, encoding="utf-8", newline="\n")
+    script.chmod(0o755)
+    return bash_path(script)
+
+
+def test_bridge_alert_tells_operator_what_to_do(supervisor_environment):
+    configure_structural_collection(supervisor_environment, stores="tesco")
+    script = fake_deploy_state(
+        supervisor_environment,
+        "_uvarsi_require_tesco_bridge_transport() {\n"
+        "  UVARSI_BRIDGE_FAILURE_REASON=request_failed\n"
+        "  UVARSI_BRIDGE_FAILURE_DETAIL=auth_rejected\n"
+        "  return 1\n"
+        "}\n",
+    )
+
+    result = run_supervisor(
+        supervisor_environment,
+        UVARSI_TEST_BRIDGE_PREFLIGHT="",
+        UVARSI_DEPLOY_STATE_SCRIPT=script,
+    )
+
+    assert result.returncode == 1
+    text = notification_text(supervisor_environment)
+    assert "auth_rejected" in text
+    assert "repair-tesco-bridge" in text
+
+
+def test_bridge_secret_reaches_only_the_collector(supervisor_environment):
+    context = supervisor_environment
+    configure_structural_collection(context, stores="tesco", collector_rc=0)
+    env_log = context["tmp_path"] / "env-log.txt"
+    fake_python = context["tmp_path"] / "python"
+    fake_python.write_text(
+        fake_python.read_text(encoding="utf-8").replace(
+            f"printf '%s\\n' \"$*\" >> '{bash_path(context['calls'])}'\n",
+            f"printf '%s\\n' \"$*\" >> '{bash_path(context['calls'])}'\n"
+            f"printf '%s secret=%s\\n' \"$2\" \"${{UVARSI_TESCO_BRIDGE_SECRET:-none}}\""
+            f" >> '{bash_path(env_log)}'\n",
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    script = fake_deploy_state(
+        context,
+        "_uvarsi_require_tesco_bridge_transport() {\n"
+        "  UVARSI_TESCO_BRIDGE_URL=https://bridge.example\n"
+        "  UVARSI_TESCO_BRIDGE_SECRET=top-secret-value\n"
+        "  export UVARSI_TESCO_BRIDGE_URL UVARSI_TESCO_BRIDGE_SECRET\n"
+        "  return 0\n"
+        "}\n",
+    )
+
+    run_supervisor(
+        context,
+        UVARSI_TEST_BRIDGE_PREFLIGHT="",
+        UVARSI_DEPLOY_STATE_SCRIPT=script,
+    )
+
+    lines = env_log.read_text(encoding="utf-8").splitlines()
+    collector_lines = [line for line in lines if "zbierac_akcii.py" in line]
+    other_lines = [line for line in lines if "zbierac_akcii.py" not in line]
+    assert collector_lines
+    assert all(
+        line.endswith("secret=top-secret-value") for line in collector_lines
+    )
+    assert other_lines, "refresh should run after a successful collection"
+    assert all(line.endswith("secret=none") for line in other_lines)
+
+
+def test_corrupt_failure_counter_does_not_disable_daily_limit(
+        supervisor_environment):
+    state = supervisor_environment["tmp_path"] / ".dozorca_state"
+    state.write_text(f"{TODAY} not-a-number -\n", encoding="utf-8")
+
+    result = run_supervisor(supervisor_environment, UVARSI_TEST_REFRESH_RC=1)
+
+    assert "poškodený" in result.stdout
+    fails = state.read_text(encoding="utf-8").split()[1]
+    assert fails.isdigit()

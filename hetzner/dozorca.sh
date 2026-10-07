@@ -42,6 +42,8 @@ RECIPE_ENGINE_ALERT_STATE="$DIR/.recipe_engine_alert_state"
 RECIPE_SMOKE_ATTEMPT_STATE="$DIR/.recipe_engine_smoke_attempt"
 COLLECTION_DIAGNOSTIC_STATE="$DIR/.collection_diagnostic_state"
 COLLECTION_FAILURE_STATE="$DIR/.collection_failure_state"
+RUN_CAP_STATE="$DIR/.zber_behy_vycerpane"       # "týždeň release" po vyčerpaní stropu behov
+BRIDGE_ALERT_STATE="$DIR/.bridge_alert_state"   # "deň:dôvod" posledného upozornenia na bridge
 RECIPE_SMOKE_STATE="${UVARSI_RECIPE_SMOKE_STATE:-/var/lib/uvarsi/recipe_engine_smoke.json}"
 PLAN_QUEUE_HEALTH_URL="${UVARSI_PLAN_QUEUE_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
 HEALTH_ATTEMPTS="${UVARSI_HEALTH_ATTEMPTS:-6}"
@@ -113,17 +115,50 @@ if [ -f "$DEPLOY_STATE_SCRIPT" ] && [ ! -x "$DEPLOY_STATE_SCRIPT" ]; then
   fi
 fi
 
+# Stav sa zapisuje atómovo: plný disk alebo pád uprostred zápisu nesmie nechať
+# prázdny súbor, ktorý by vynuloval denný počet neúspechov.
+zapis_stav() {
+  printf '%s\n' "$1" > "$STATE.tmp.$$" && mv -f "$STATE.tmp.$$" "$STATE" || {
+    rm -f "$STATE.tmp.$$"
+    log "stav dozorcu sa nepodarilo zapísať"
+    return 1
+  }
+}
+
 tesco_bridge_preflight() {
   if [ -n "${UVARSI_TEST_BRIDGE_PREFLIGHT:-}" ]; then
     "$UVARSI_TEST_BRIDGE_PREFLIGHT"
     return
   fi
+  UVARSI_BRIDGE_FAILURE_REASON=script_missing
+  UVARSI_BRIDGE_FAILURE_DETAIL=script_missing
   [ -r "$DEPLOY_STATE_SCRIPT" ] || return 1
-  # Sourcing keeps the verified bridge URL and secret exported in this exact
-  # process, so the collector immediately below uses the same authenticated
-  # transport that passed the preflight.
+  # Sourcing keeps the verified bridge URL and secret in this exact process,
+  # so the collector immediately below uses the same authenticated transport
+  # that passed the preflight.
   . "$DEPLOY_STATE_SCRIPT" || return 1
-  _uvarsi_require_tesco_bridge_transport
+  _uvarsi_require_tesco_bridge_transport || return 1
+  # Tajný kľúč dostane iba príkaz zberača, nie každý ďalší podproces dozorcu
+  # (refresh, rollout, predpočet, smoke).
+  BRIDGE_URL_PRE_ZBER=${UVARSI_TESCO_BRIDGE_URL:-}
+  BRIDGE_SECRET_PRE_ZBER=${UVARSI_TESCO_BRIDGE_SECRET:-}
+  export -n UVARSI_TESCO_BRIDGE_URL UVARSI_TESCO_BRIDGE_SECRET 2>/dev/null
+  unset bridge_secret UVARSI_TESCO_BRIDGE_SECRET
+  return 0
+}
+
+# Ľudsky čitateľná rada pre operátora podľa bezpečného enumu z preflightu.
+rada_k_bridge() {
+  case "$1" in
+    auth_rejected) printf '%s' "Bridge odmietol prístup — spusti na serveri: uvarsi-deploy-state.sh repair-tesco-bridge" ;;
+    upstream_http_5*) printf '%s' "Tesco alebo Cloudflare worker je dočasne nedostupný — stačí počkať, skúšam každú hodinu" ;;
+    rate_limited) printf '%s' "Bridge obmedzil počet požiadaviek — stačí počkať" ;;
+    timeout|connect_failed|dns_failed|tls_failed) printf '%s' "Server sa k bridge nedostal ($1) — over sieť servera alebo stav workera" ;;
+    response_invalid) printf '%s' "Bridge vrátil neplatný alebo neaktuálny leták — over verziu workera (repair-tesco-bridge)" ;;
+    config_invalid) printf '%s' "Chybná konfigurácia bridge v uvarsi.env — spusti repair-tesco-bridge" ;;
+    script_missing) printf '%s' "Chýba uvarsi-deploy-state.sh — nasadenie je neúplné, spusti nasad.ps1" ;;
+    *) printf '%s' "Skúšam každú hodinu" ;;
+  esac
 }
 
 upozorni_detail_zberu() {
@@ -455,6 +490,14 @@ if [ -f "$STATE" ]; then
   read -r SDATE SFAILS SBLOK SPROBE SRELEASE < "$STATE" || true
   if [ "${SDATE:-}" = "$TODAY" ]; then
     FAILS=${SFAILS:-0}
+    # Poškodený stav nesmie vypnúť denný limit pokusov: nečíselná hodnota
+    # by zhodila aritmetiku ešte pred prepísaním stavu a slučka by bežala ďalej.
+    case "$FAILS" in
+      ''|*[!0-9]*)
+        log "stav dozorcu je poškodený (neúspechy='$FAILS') — počítam od nuly"
+        FAILS=0
+        ;;
+    esac
     BLOKNUTE_NA=${SBLOK:--}
     LAST_CREDIT_PROBE=${SPROBE:-0}
     LAST_CREDIT_RELEASE=${SRELEASE:--}
@@ -507,9 +550,9 @@ overeny_odtlacok() {
 
 zapis_kreditovy_blok() {
   if [ "$CURRENT_RELEASE" = "-" ]; then
-    echo "$TODAY $FAILS KREDIT $NOW_EPOCH" > "$STATE"
+    zapis_stav "$TODAY $FAILS KREDIT $NOW_EPOCH"
   else
-    echo "$TODAY $FAILS KREDIT $NOW_EPOCH $CURRENT_RELEASE" > "$STATE"
+    zapis_stav "$TODAY $FAILS KREDIT $NOW_EPOCH $CURRENT_RELEASE"
   fi
 }
 
@@ -732,18 +775,83 @@ if { [ "${POCET:-0}" -lt "$MIN_TOTAL_OFFERS" ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; 
     exit "$EXIT_STRUCTURAL"
   fi
 
-  if ! tesco_bridge_preflight; then
-    BRIDGE_REASON=${UVARSI_BRIDGE_FAILURE_REASON:-unknown}
-    log "Tesco bridge neprešiel kontrolou priamo pred zberom ($BRIDGE_REASON) — aktuálne dáta nemením."
-    notify "Uvar.si: zber odložený" "Tesco bridge neprešiel bezpečnostnou kontrolou ($BRIDGE_REASON)."
-    exit 1
+  # Týždenný strop platených behov sa obnoví až v pondelok. Kým platí, zberač
+  # by každú hodinu len znova sťahoval letáky a skončil odmietnutím.
+  RUN_CAP_KEY="${MON_ISO} ${CURRENT_RELEASE}"
+  LAST_RUN_CAP_KEY=""
+  if [ -f "$RUN_CAP_STATE" ]; then
+    read -r LAST_RUN_CAP_KEY < "$RUN_CAP_STATE" || LAST_RUN_CAP_KEY=""
+  fi
+  if [ "$LAST_RUN_CAP_KEY" = "$RUN_CAP_KEY" ]; then
+    log "týždenný strop platených behov je vyčerpaný — zber sa obnoví v pondelok."
+    exit "$EXIT_STRUCTURAL"
   fi
 
-  ZBER_VYSTUP=$(cd "$DIR/app" && UVARSI_DEPLOY_CREDIT_PROBE="$RELEASE_CHANGED" \
+  # Bridge potrebuje iba Tesco. Jeho výpadok preto nesmie zablokovať zber
+  # Lidla ani Kauflandu: Tesco z behu vynecháme, ostatné obchody dozbierame
+  # a dozorca aj tak skončí neúspechom, aby sa Tesco skúsilo znova.
+  TESCO_VYNECHANE=0
+  ZBER_CHCE_TESCO=0
+  ZBER_BEZ_TESCA=()
+  for ((i = 0; i < ${#ZBER_ARGS[@]}; i += 2)); do
+    if [ "${ZBER_ARGS[i+1]}" = "tesco" ]; then
+      ZBER_CHCE_TESCO=1
+    else
+      ZBER_BEZ_TESCA+=("${ZBER_ARGS[i]}" "${ZBER_ARGS[i+1]}")
+    fi
+  done
+  if [ "$ZBER_CHCE_TESCO" -eq 1 ]; then
+    if tesco_bridge_preflight; then
+      if [ -f "$BRIDGE_ALERT_STATE" ]; then
+        rm -f "$BRIDGE_ALERT_STATE"
+        log "Tesco bridge opäť prešiel kontrolou."
+        notify "Uvar.si: Tesco bridge opravený" "Tesco bridge opäť funguje, zber Tesca pokračuje."
+      fi
+    else
+      BRIDGE_REASON=${UVARSI_BRIDGE_FAILURE_DETAIL:-${UVARSI_BRIDGE_FAILURE_REASON:-unknown}}
+      BRIDGE_RADA=$(rada_k_bridge "$BRIDGE_REASON")
+      # Jedno upozornenie za deň a dôvod — nie každú hodinu.
+      BRIDGE_ALERT_KEY="${TODAY}:${BRIDGE_REASON}"
+      LAST_BRIDGE_ALERT_KEY=""
+      if [ -f "$BRIDGE_ALERT_STATE" ]; then
+        read -r LAST_BRIDGE_ALERT_KEY < "$BRIDGE_ALERT_STATE" || LAST_BRIDGE_ALERT_KEY=""
+      fi
+      BRIDGE_NOTIFY=0
+      if [ "$LAST_BRIDGE_ALERT_KEY" != "$BRIDGE_ALERT_KEY" ]; then
+        printf '%s\n' "$BRIDGE_ALERT_KEY" > "$BRIDGE_ALERT_STATE"
+        BRIDGE_NOTIFY=1
+      fi
+      if [ "${#ZBER_BEZ_TESCA[@]}" -eq 0 ]; then
+        log "Tesco bridge neprešiel kontrolou priamo pred zberom ($BRIDGE_REASON) — aktuálne dáta nemením."
+        [ "$BRIDGE_NOTIFY" -eq 1 ] && \
+          notify "Uvar.si: zber odložený" "Tesco bridge neprešiel kontrolou ($BRIDGE_REASON). $BRIDGE_RADA. Ďalšie upozornenie pri zmene dôvodu alebo zajtra."
+        exit 1
+      fi
+      log "Tesco bridge neprešiel kontrolou priamo pred zberom ($BRIDGE_REASON) — Tesco vynechávam, ostatné obchody zbieram."
+      [ "$BRIDGE_NOTIFY" -eq 1 ] && \
+        notify "Uvar.si: Tesco odložené" "Tesco bridge neprešiel kontrolou ($BRIDGE_REASON); ostatné obchody zbieram. $BRIDGE_RADA. Ďalšie upozornenie pri zmene dôvodu alebo zajtra."
+      ZBER_ARGS=("${ZBER_BEZ_TESCA[@]}")
+      TESCO_VYNECHANE=1
+    fi
+  fi
+
+  ZBER_ENV=(UVARSI_DEPLOY_CREDIT_PROBE="$RELEASE_CHANGED")
+  if [ -n "${BRIDGE_SECRET_PRE_ZBER:-}" ] && [ "$TESCO_VYNECHANE" -eq 0 ]; then
+    ZBER_ENV+=(UVARSI_TESCO_BRIDGE_URL="$BRIDGE_URL_PRE_ZBER"
+               UVARSI_TESCO_BRIDGE_SECRET="$BRIDGE_SECRET_PRE_ZBER")
+  fi
+  ZBER_VYSTUP=$(cd "$DIR/app" && env "${ZBER_ENV[@]}" \
     "$PY" -u zbierac_akcii.py "${ZBER_ARGS[@]}" 2>&1)
+  unset ZBER_ENV BRIDGE_SECRET_PRE_ZBER
   ZBER_RC=$?
   [ -n "$ZBER_VYSTUP" ] && printf '%s\n' "$ZBER_VYSTUP"
   case "$ZBER_VYSTUP" in
+    *ZBER_BEHY_VYCERPANE*)
+      printf '%s\n' "$RUN_CAP_KEY" > "$RUN_CAP_STATE"
+      log "týždenný strop platených behov je vyčerpaný — zber sa obnoví v pondelok."
+      notify "Uvar.si: zber stojí do pondelka" "Týždenný strop platených behov zberu je vyčerpaný ($MON_ISO). Dáta, ktoré chýbajú, sa doplnia v pondelok alebo po ručnom zásahu."
+      exit "$EXIT_STRUCTURAL"
+      ;;
     *KREDIT_VYCERPANY*)
       zapis_kreditovy_blok
       log "KREDIT VYČERPANÝ — zberač bol odmietnutý ešte pred čítaním; o hodinu automaticky overím dobitie."
@@ -765,7 +873,7 @@ if { [ "${POCET:-0}" -lt "$MIN_TOTAL_OFFERS" ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; 
         exit "$EXIT_STRUCTURAL"
       fi
       FAILS=$((FAILS+1))
-      echo "$TODAY $FAILS -" > "$STATE"
+      zapis_stav "$TODAY $FAILS -"
       log "ŠTRUKTURÁLNY zber nemá úplnú identitu vstupu — ďalší pokus ostáva povolený iba v dennom limite."
       exit 1
       ;;
@@ -775,6 +883,10 @@ if { [ "${POCET:-0}" -lt "$MIN_TOTAL_OFFERS" ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; 
     log "zbierač OK"
   else
     log "zbierač zlyhal — appka zatiaľ nemá aktuálne dáta"
+  fi
+  if [ "$TESCO_VYNECHANE" -eq 1 ]; then
+    log "Tesco čaká na funkčný bridge — týždeň zatiaľ nie je kompletný."
+    exit 1
   fi
   fi
 fi
@@ -934,7 +1046,7 @@ fi
 # --- 4a. Štrukturálny pád: opakovanie nepomôže, kým sa dáta nezmenia ---
 if [ "$RC" -eq "$EXIT_STRUCTURAL" ]; then
   if [ "$ZDROJOVY_ODTLACOK" != "-" ] && [ "$CURRENT_RELEASE" != "-" ]; then
-    echo "$TODAY $FAILS $DATOVY_STAV $ZDROJOVY_ODTLACOK $CURRENT_RELEASE" > "$STATE"
+    zapis_stav "$TODAY $FAILS $DATOVY_STAV $ZDROJOVY_ODTLACOK $CURRENT_RELEASE"
     log "ŠTRUKTURÁLNA chyba (kód $RC) — blok platí iba pre tento odtlačok vstupu a vydanie."
     TAIL=$(tail -12 /var/log/uvarsi.log 2>/dev/null | tr '\n' ' ' | tail -c 400)
     notify "Uvar.si: bloček sa nedá zostaviť" \
@@ -947,7 +1059,7 @@ fi
 
 # --- 4b. Dočasný neúspech: zapíš, upozorni ak treba, o hodinu skúsi znova ---
 FAILS=$((FAILS+1))
-echo "$TODAY $FAILS -" > "$STATE"
+zapis_stav "$TODAY $FAILS -"
 log "pokus $FAILS zlyhal (kód $RC) — skúsim znova o hodinu."
 
 if [ "$FAILS" -eq "$NOTIFY_AT" ]; then

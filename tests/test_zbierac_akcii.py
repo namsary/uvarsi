@@ -500,7 +500,8 @@ def test_tesco_bridge_fingerprints_actual_page_bytes_before_paid_ai(monkeypatch)
     def get(url, **_kwargs):
         page = url.rsplit("-", 1)[-1].encode("ascii")
         return types.SimpleNamespace(
-            status_code=200, content=content["revision"] + b":" + page
+            status_code=200,
+            content=b"\xff\xd8\xff" + content["revision"] + b":" + page,
         )
 
     monkeypatch.setattr(collector.requests, "get", get)
@@ -551,12 +552,21 @@ def test_official_tesco_cleans_staged_pages_when_scan_fails(monkeypatch, tmp_pat
     assert list(tmp_path.iterdir()) == []
 
 
-def test_every_declared_manifest_is_rejected_above_120_pages_before_ai_work():
-    pages, manifest = flyer_fixture(121)
-    manifest["declared_pages"] = 121
+def test_every_declared_manifest_is_rejected_above_200_pages_before_ai_work():
+    pages, manifest = flyer_fixture(201)
+    manifest["declared_pages"] = 201
 
-    with pytest.raises(ValueError, match="120"):
+    with pytest.raises(ValueError, match="200"):
         collector.validate_flyer_manifest(pages, manifest, store="lidl")
+
+
+def test_holiday_sized_lidl_flyer_above_120_pages_is_accepted():
+    pages, manifest = flyer_fixture(150)
+    manifest["declared_pages"] = 150
+
+    page_manifest = collector.validate_flyer_manifest(pages, manifest, store="lidl")
+
+    assert len(page_manifest) == 150
 
 
 @pytest.mark.parametrize(
@@ -3123,7 +3133,7 @@ def test_official_source_identity_cannot_hide_changed_page_bytes(monkeypatch):
     monkeypatch.setattr(
         collector,
         "get_image_bytes",
-        lambda url: revision["value"] + b":" + url.encode("ascii"),
+        lambda url, **_kwargs: revision["value"] + b":" + url.encode("ascii"),
     )
 
     first = collector.prepare_store_collection("lidl")
@@ -3146,7 +3156,7 @@ def test_content_fingerprint_failure_keeps_safe_partial_official_identity(monkey
     )
     calls = {"count": 0}
 
-    def fail_second_page(_url):
+    def fail_second_page(_url, **_kwargs):
         calls["count"] += 1
         return b"first-page" if calls["count"] == 1 else None
 
@@ -3177,7 +3187,7 @@ def test_lidl_reuses_disk_spooled_source_pages_during_paid_read(monkeypatch):
         ),
     )
 
-    def download(url):
+    def download(url, **_kwargs):
         downloads.append(url)
         return image.getvalue()
 
@@ -3541,7 +3551,10 @@ def test_unchanged_structural_manifest_skips_another_paid_read(monkeypatch, tmp_
         lambda: pytest.fail("nezmenený štrukturálny vstup nesmie míňať API"),
     )
 
-    collector.main(["lidl"])
+    # Potlačený obchod je stále chýbajúci obchod: beh nesmie skončiť ako
+    # úspech, inak by dozorca hlásil „zbierač OK“ a týždeň ostal neúplný.
+    with pytest.raises(SystemExit, match="lidl"):
+        collector.main(["lidl"])
 
 
 def test_bootstrapped_active_store_is_reused_by_main_without_anthropic(
@@ -3579,3 +3592,325 @@ def test_bootstrapped_active_store_is_reused_by_main_without_anthropic(
     con = sqlite3.connect(database)
     assert con.execute("SELECT COUNT(*) FROM akcie_staging").fetchone()[0] == 20
     con.close()
+
+
+class _FakeAPIStatusError(Exception):
+    def __init__(self, status_code):
+        super().__init__(f"HTTP {status_code}")
+        self.status_code = status_code
+
+
+@pytest.fixture
+def fake_anthropic_errors(monkeypatch):
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        types.SimpleNamespace(APIStatusError=_FakeAPIStatusError),
+    )
+
+
+def _overloaded_api_error():
+    return _FakeAPIStatusError(529)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(_overloaded_api_error, id="api-529"),
+        pytest.param(
+            lambda: collector.naklady.RozpocetVycerpany("denný strop", kod="den"),
+            id="budget-cap",
+        ),
+        pytest.param(
+            lambda: collector.CollectionLeaseLost("lease lost"), id="lease-lost"
+        ),
+    ],
+)
+def test_transient_scan_failure_is_not_a_structural_flyer_error(
+    monkeypatch, fake_anthropic_errors, error,
+):
+    install_pipeline_fakes(monkeypatch, page_count=2, food_pages={1})
+
+    def failing_scan(*_args, **_kwargs):
+        raise error()
+
+    monkeypatch.setattr(collector, "claude_json", failing_scan)
+
+    with pytest.raises(collector.TransientCollectionError):
+        collector.zbieraj(object(), "lidl")
+
+
+def test_transient_sonnet_failure_does_not_escalate_to_opus(
+    monkeypatch, fake_anthropic_errors,
+):
+    install_pipeline_fakes(monkeypatch, page_count=2, food_pages={1})
+    models = []
+
+    def overloaded_reader(client, model, content, max_tokens, effort=None):
+        models.append(model)
+        if model == collector.MODEL_SCAN:
+            return [1]
+        raise _overloaded_api_error()
+
+    monkeypatch.setattr(collector, "claude_json", overloaded_reader)
+
+    with pytest.raises(collector.TransientCollectionError):
+        collector.zbieraj(object(), "lidl")
+
+    assert collector.MODEL_READ_FALLBACK not in models
+
+
+def test_invalid_model_output_stays_a_structural_failure(
+    monkeypatch, fake_anthropic_errors,
+):
+    install_pipeline_fakes(monkeypatch, page_count=2, food_pages={1})
+    monkeypatch.setattr(
+        collector, "claude_json", lambda *_args, **_kwargs: {"not": "a list"}
+    )
+
+    with pytest.raises(ValueError) as raised:
+        collector.zbieraj(object(), "lidl")
+
+    assert not isinstance(raised.value, collector.TransientCollectionError)
+
+
+def test_main_records_transient_failure_retries_and_returns_unspent_run(
+    monkeypatch, tmp_path, capsys,
+):
+    database = run_main_over_stores(monkeypatch, tmp_path, {"lidl": True})
+    attempts = []
+
+    def overloaded(_client, store, prepared=None):
+        attempts.append(store)
+        raise collector.TransientCollectionError("lidl: API preťažené")
+
+    monkeypatch.setattr(collector, "zbieraj", overloaded)
+
+    for _ in range(2):
+        with pytest.raises(SystemExit, match="lidl"):
+            collector.main(["lidl"])
+
+    assert attempts == ["lidl", "lidl"]
+    assert "ZBER_STRUKTURALNY" not in capsys.readouterr().out
+    con = sqlite3.connect(database)
+    assert con.execute(
+        "SELECT failure_kind FROM zber_staging_stav WHERE obchod='Lidl'"
+    ).fetchone()[0] != "structural"
+    assert con.execute(
+        "SELECT COALESCE(SUM(pocet), 0) FROM naklady_behy"
+    ).fetchone()[0] == 0
+    con.close()
+
+
+def _http_response(status, content=b""):
+    return types.SimpleNamespace(status_code=status, content=content)
+
+
+@pytest.mark.parametrize("status", [429, 502, 503, 529])
+def test_strict_page_download_reports_overloaded_source_as_transient(
+    monkeypatch, status,
+):
+    monkeypatch.setattr(
+        collector.requests, "get", lambda *_a, **_k: _http_response(status)
+    )
+
+    with pytest.raises(collector.TransientCollectionError):
+        collector.get_image_bytes("https://images.example/1.jpg", strict=True)
+    assert collector.get_image_bytes("https://images.example/1.jpg") is None
+
+
+def test_strict_page_download_rejects_non_image_body(monkeypatch):
+    monkeypatch.setattr(
+        collector.requests,
+        "get",
+        lambda *_a, **_k: _http_response(200, b"<html>maintenance</html>"),
+    )
+
+    with pytest.raises(collector.TransientCollectionError, match="obrázok"):
+        collector.get_image_bytes("https://images.example/1.jpg", strict=True)
+
+
+def test_strict_page_download_keeps_missing_page_as_missing(monkeypatch):
+    monkeypatch.setattr(
+        collector.requests, "get", lambda *_a, **_k: _http_response(404)
+    )
+
+    assert collector.get_image_bytes(
+        "https://images.example/1.jpg", strict=True
+    ) is None
+
+
+def test_unavailable_page_source_is_transient_not_structural(monkeypatch):
+    fixture = prepared_collection("lidl")
+    monkeypatch.setattr(
+        collector,
+        "store_pages",
+        lambda _store: (fixture.pages, json.loads(json.dumps(fixture.manifest))),
+    )
+    monkeypatch.setattr(
+        collector.requests, "get", lambda *_a, **_k: _http_response(503)
+    )
+
+    with pytest.raises(collector.TransientCollectionError):
+        collector.prepare_store_collection("lidl")
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [(502, "TransientCollectionError"), (401, "ValueError")],
+)
+def test_tesco_bridge_outage_is_transient_but_auth_failure_is_not(
+    monkeypatch, status, expected,
+):
+    monkeypatch.setattr(
+        collector.requests,
+        "post",
+        lambda *_a, **_k: types.SimpleNamespace(
+            status_code=status, json=lambda: {}
+        ),
+    )
+
+    with pytest.raises(Exception) as raised:
+        collector._bridge_tesco_candidates(
+            TODAY, "HM", "https://tesco-bridge.example", "secret"
+        )
+
+    assert type(raised.value).__name__ == expected
+    assert "secret" not in str(raised.value)
+
+
+def test_production_lidl_does_not_fall_back_to_unapproved_aggregators(
+    monkeypatch,
+):
+    monkeypatch.setenv("UVARSI_ENV", "production")
+
+    def no_current_flyer(today=None):
+        raise ValueError("dnes neplatí žiadny leták")
+
+    monkeypatch.setattr(collector, "official_lidl_pages", no_current_flyer)
+    monkeypatch.setattr(
+        collector,
+        "kupino_meta",
+        lambda _store: pytest.fail("produkcia nesmie prehľadávať agregátor"),
+    )
+
+    assert collector.store_pages("lidl", today=TODAY) == ([], None)
+
+
+def test_production_lidl_network_outage_is_transient(monkeypatch):
+    monkeypatch.setenv("UVARSI_ENV", "production")
+
+    def offline(today=None):
+        raise collector.requests.ConnectionError("down")
+
+    monkeypatch.setattr(collector, "official_lidl_pages", offline)
+
+    with pytest.raises(collector.TransientCollectionError):
+        collector.store_pages("lidl", today=TODAY)
+
+
+def test_main_records_unavailable_source_as_transient_failure(
+    monkeypatch, tmp_path, capsys,
+):
+    database = run_main_over_stores(monkeypatch, tmp_path, {"lidl": True})
+
+    def unavailable(store):
+        raise collector.TransientCollectionError(f"{store}: HTTP 503")
+
+    monkeypatch.setattr(collector, "prepare_store_collection", unavailable)
+
+    with pytest.raises(SystemExit, match="lidl"):
+        collector.main(["lidl"])
+
+    assert "ZBER_STRUKTURALNY" not in capsys.readouterr().out
+    con = sqlite3.connect(database)
+    assert con.execute(
+        "SELECT failure_kind FROM zber_staging_stav WHERE obchod='Lidl'"
+    ).fetchone()[0] != "structural"
+    con.close()
+
+
+def test_main_marks_exhausted_weekly_run_cap_for_supervisor(
+    monkeypatch, tmp_path, capsys,
+):
+    run_main_over_stores(monkeypatch, tmp_path, {"lidl": True})
+
+    def cap_reached(_con, purpose, **_kwargs):
+        raise collector.naklady.RozpocetVycerpany(
+            "strop 3×", kod=collector.naklady.KOD_BEHY, ucel=purpose
+        )
+
+    monkeypatch.setattr(collector.naklady, "rezervuj_beh", cap_reached)
+
+    with pytest.raises(SystemExit, match="nespúšťam"):
+        collector.main(["lidl"])
+
+    assert "ZBER_BEHY_VYCERPANE" in capsys.readouterr().out
+
+
+def test_official_lidl_skips_next_weeks_flyer_listed_first(monkeypatch):
+    overview = (
+        '<a href="/l/sk/letak/online-letak-platny-od-24-08-2026/ar/1">Budúci</a>'
+        '<a href="/l/sk/letak/online-letak-platny-od-17-08-2026/ar/1">Aktuálny</a>'
+    )
+    next_week = _official_lidl_payload(
+        valid_from="2026-08-24", valid_to="2026-08-30"
+    )
+    next_week["flyer"]["status"] = "upcoming"
+    next_week["flyer"]["isActive"] = False
+
+    def get(url, **_kwargs):
+        if url == collector.LIDL_OVERVIEW_URL:
+            return types.SimpleNamespace(text=overview)
+        if "24-08-2026" in url:
+            return _json_response(next_week)
+        return _json_response(_official_lidl_payload())
+
+    monkeypatch.setattr(collector.requests, "get", get)
+
+    pages, manifest = collector.official_lidl_pages(today=TODAY)
+
+    assert len(pages) == 105
+    assert manifest["valid_from"] == "2026-08-17"
+
+
+def test_official_lidl_without_any_current_flyer_reports_first_reason(
+    monkeypatch,
+):
+    overview = (
+        '<a href="/l/sk/letak/online-letak-platny-od-24-08-2026/ar/1">Budúci</a>'
+    )
+
+    def get(url, **_kwargs):
+        if url == collector.LIDL_OVERVIEW_URL:
+            return types.SimpleNamespace(text=overview)
+        return _json_response(
+            _official_lidl_payload(valid_from="2026-08-24", valid_to="2026-08-30")
+        )
+
+    monkeypatch.setattr(collector.requests, "get", get)
+
+    with pytest.raises(ValueError, match="dnes neplatí"):
+        collector.official_lidl_pages(today=TODAY)
+
+
+def test_main_derives_week_from_the_same_day_across_midnight(
+    monkeypatch, tmp_path,
+):
+    database = run_main_over_stores(monkeypatch, tmp_path, {"lidl": True})
+    # monday() sa vyhodnotil ešte v nedeľu, business_day() už v pondelok.
+    monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    monkeypatch.setattr(collector, "business_day", lambda: date(2026, 8, 24))
+
+    try:
+        collector.main(["lidl"])
+    except SystemExit:
+        pass
+
+    con = sqlite3.connect(database)
+    weeks = {
+        row[0]
+        for row in con.execute("SELECT DISTINCT tyzden FROM zber_staging_stav")
+    }
+    con.close()
+    assert "2026-08-17" not in weeks

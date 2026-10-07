@@ -667,7 +667,7 @@ def test_zbieraj_neschova_odmietnutie_za_zlyhanie_jedneho_obchodu(con, collector
     }
     monkeypatch.setattr(collector, "store_pages", lambda store: (strany, manifest))
     monkeypatch.setattr(collector, "get_b64", lambda url, px: "AAAA")
-    monkeypatch.setattr(collector, "get_image_bytes", lambda url: b"verified-page")
+    monkeypatch.setattr(collector, "get_image_bytes", lambda url, **_kwargs: b"verified-page")
     monkeypatch.setattr(collector, "image_bytes_b64", lambda content, px: "AAAA")
 
     class Klient:
