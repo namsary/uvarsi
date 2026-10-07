@@ -147,7 +147,7 @@ def test_structural_block_is_released_when_collection_revision_changes(skript):
     assert "ZBER_REV" in skript
     assert "DATOVY_STAV=\"${STAGED_POCET:-0}:${STAGED_CHYBA:-3}:${ZBER_REV:-0}\"" in skript
     assert '[ "$BLOKNUTE_NA" = "$DATOVY_STAV" ]' in skript
-    assert re.search(r'echo "\$TODAY \$FAILS \$DATOVY_STAV[^\"]*" > "\$STATE"', skript)
+    assert re.search(r'zapis_stav "\$TODAY \$FAILS \$DATOVY_STAV[^\"]*"', skript)
 
 
 

@@ -518,3 +518,87 @@ def test_complete_verified_stage_skips_collector_and_goes_directly_to_receipt(
     calls = context["calls"].read_text(encoding="utf-8")
     assert "zbierac_akcii.py" not in calls
     assert calls.count("refresh_blocek.py") == 1
+
+
+def fake_deploy_state(context, body):
+    script = context["tmp_path"] / "fake-deploy-state.sh"
+    script.write_text(body, encoding="utf-8", newline="\n")
+    script.chmod(0o755)
+    return bash_path(script)
+
+
+def test_bridge_alert_tells_operator_what_to_do(supervisor_environment):
+    configure_structural_collection(supervisor_environment, stores="tesco")
+    script = fake_deploy_state(
+        supervisor_environment,
+        "_uvarsi_require_tesco_bridge_transport() {\n"
+        "  UVARSI_BRIDGE_FAILURE_REASON=request_failed\n"
+        "  UVARSI_BRIDGE_FAILURE_DETAIL=auth_rejected\n"
+        "  return 1\n"
+        "}\n",
+    )
+
+    result = run_supervisor(
+        supervisor_environment,
+        UVARSI_TEST_BRIDGE_PREFLIGHT="",
+        UVARSI_DEPLOY_STATE_SCRIPT=script,
+    )
+
+    assert result.returncode == 1
+    text = notification_text(supervisor_environment)
+    assert "auth_rejected" in text
+    assert "repair-tesco-bridge" in text
+
+
+def test_bridge_secret_reaches_only_the_collector(supervisor_environment):
+    context = supervisor_environment
+    configure_structural_collection(context, stores="tesco", collector_rc=0)
+    env_log = context["tmp_path"] / "env-log.txt"
+    fake_python = context["tmp_path"] / "python"
+    fake_python.write_text(
+        fake_python.read_text(encoding="utf-8").replace(
+            f"printf '%s\\n' \"$*\" >> '{bash_path(context['calls'])}'\n",
+            f"printf '%s\\n' \"$*\" >> '{bash_path(context['calls'])}'\n"
+            f"printf '%s secret=%s\\n' \"$2\" \"${{UVARSI_TESCO_BRIDGE_SECRET:-none}}\""
+            f" >> '{bash_path(env_log)}'\n",
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    script = fake_deploy_state(
+        context,
+        "_uvarsi_require_tesco_bridge_transport() {\n"
+        "  UVARSI_TESCO_BRIDGE_URL=https://bridge.example\n"
+        "  UVARSI_TESCO_BRIDGE_SECRET=top-secret-value\n"
+        "  export UVARSI_TESCO_BRIDGE_URL UVARSI_TESCO_BRIDGE_SECRET\n"
+        "  return 0\n"
+        "}\n",
+    )
+
+    run_supervisor(
+        context,
+        UVARSI_TEST_BRIDGE_PREFLIGHT="",
+        UVARSI_DEPLOY_STATE_SCRIPT=script,
+    )
+
+    lines = env_log.read_text(encoding="utf-8").splitlines()
+    collector_lines = [line for line in lines if "zbierac_akcii.py" in line]
+    other_lines = [line for line in lines if "zbierac_akcii.py" not in line]
+    assert collector_lines
+    assert all(
+        line.endswith("secret=top-secret-value") for line in collector_lines
+    )
+    assert other_lines, "refresh should run after a successful collection"
+    assert all(line.endswith("secret=none") for line in other_lines)
+
+
+def test_corrupt_failure_counter_does_not_disable_daily_limit(
+        supervisor_environment):
+    state = supervisor_environment["tmp_path"] / ".dozorca_state"
+    state.write_text(f"{TODAY} not-a-number -\n", encoding="utf-8")
+
+    result = run_supervisor(supervisor_environment, UVARSI_TEST_REFRESH_RC=1)
+
+    assert "poškodený" in result.stdout
+    fails = state.read_text(encoding="utf-8").split()[1]
+    assert fails.isdigit()

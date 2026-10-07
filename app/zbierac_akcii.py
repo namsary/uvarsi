@@ -100,7 +100,12 @@ SKIP_SLUG = ("nova-predajna", "brozura", "back-to-school", "special",
 PAGE_GAP_TOLERANCE = 3      # koľko po sebe chýbajúcich strán ešte preklenieme
 MIN_PLAUSIBLE_PAGES = 8     # menej strán je podozrivé — zdroj je asi neúplný
 MAX_PAGES = 200             # poistka proti nekonečnému prechádzaniu
-MAX_MANIFEST_PAGES = 120    # žiadny deklarovaný leták nejde nad tento strop do AI
+LIDL_MAX_CANDIDATE_FLYERS = 5  # koľko letákov z prehľadu najviac skúsime
+# Bežný Lidl leták má okolo 100 strán (101 v týždni od 5. 10. 2026), sviatočné
+# vydania aj viac. Strop 120 by sviatočný týždeň zablokoval pre všetky obchody.
+MAX_MANIFEST_PAGES = 200    # žiadny deklarovaný leták nejde nad tento strop do AI
+# Tesco bridge (Cloudflare worker aj kontrola nasadenia) pripúšťa 8..120 strán.
+TESCO_MAX_MANIFEST_PAGES = 120
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 H = {"User-Agent": UA}
@@ -707,10 +712,30 @@ def official_lidl_pages(today=None):
         overview,
         flags=re.I,
     )
-    slug = next(iter(dict.fromkeys(slugs)), None)
-    if not slug:
+    candidates = list(dict.fromkeys(slugs))[:LIDL_MAX_CANDIDATE_FLYERS]
+    if not candidates:
         raise ValueError("oficiálna stránka neuvádza aktuálny týždenný leták")
+    # Lidl zverejňuje leták na ďalší týždeň ešte pred koncom aktuálneho a môže
+    # ho uviesť ako prvý. Neplatný dnes nie je chyba letáku — skúsime ďalší.
+    first_not_current = None
+    for slug in candidates:
+        try:
+            return _official_lidl_pages_for_slug(slug, today)
+        except (_LidlFlyerNotActive, _LidlFlyerOutsideWindow) as exc:
+            if first_not_current is None:
+                first_not_current = exc
+    raise first_not_current
 
+
+class _LidlFlyerNotActive(ManifestPreparationError):
+    """Lidl označil leták ako neaktívny (napr. leták na budúci týždeň)."""
+
+
+class _LidlFlyerOutsideWindow(ValueError):
+    """Platnosť ponuky letáku dnešný deň nezahŕňa."""
+
+
+def _official_lidl_pages_for_slug(slug, today):
     endpoint = f"{LIDL_API_URL}?flyer_identifier={quote(slug, safe='')}"
     payload = requests.get(endpoint, headers=H, timeout=30).json()
     flyer = payload.get("flyer") if isinstance(payload, dict) and payload.get("success") is True else None
@@ -726,7 +751,7 @@ def official_lidl_pages(today=None):
             "oficiálny endpoint vrátil leták pre inú krajinu", attempted
         )
     if flyer.get("isActive") is not True or flyer.get("status") != "current":
-        raise ManifestPreparationError(
+        raise _LidlFlyerNotActive(
             "oficiálny endpoint neoznačil leták ako aktuálny", attempted
         )
     flyer_id = flyer.get("id")
@@ -749,7 +774,9 @@ def official_lidl_pages(today=None):
     except ValueError as exc:
         raise ManifestPreparationError(str(exc), attempted) from exc
     if not flyer_is_current(valid_from, valid_to, today):
-        raise ValueError(f"oficiálny leták dnes neplatí ({valid_from} – {valid_to})")
+        raise _LidlFlyerOutsideWindow(
+            f"oficiálny leták dnes neplatí ({valid_from} – {valid_to})"
+        )
 
     raw_pages = flyer.get("pages")
     if not isinstance(raw_pages, list):
@@ -1043,7 +1070,7 @@ def _canonical_tesco_candidate(value, leaflet_format, bridge_url=None):
         isinstance(declared_pages, bool)
         or not isinstance(declared_pages, int)
         or declared_pages != len(pages)
-        or not MIN_PLAUSIBLE_PAGES <= len(pages) <= MAX_MANIFEST_PAGES
+        or not MIN_PLAUSIBLE_PAGES <= len(pages) <= TESCO_MAX_MANIFEST_PAGES
     ):
         raise ValueError("Tesco kandidát má neplatný počet strán")
     pages.sort(key=lambda row: row[0] if isinstance(row[0], int) else -1)
@@ -1861,11 +1888,11 @@ def validate_flyer_manifest(pages, manifest, *, store):
             isinstance(declared_pages, bool)
             or not isinstance(declared_pages, int)
             or declared_pages < MIN_PLAUSIBLE_PAGES
-            or declared_pages > MAX_MANIFEST_PAGES
+            or declared_pages > TESCO_MAX_MANIFEST_PAGES
         ):
             raise ValueError(
                 "oficiálny Tesco manifest musí mať deklarovaný počet "
-                f"{MIN_PLAUSIBLE_PAGES}..{MAX_MANIFEST_PAGES} strán"
+                f"{MIN_PLAUSIBLE_PAGES}..{TESCO_MAX_MANIFEST_PAGES} strán"
             )
         leaflet_format = manifest.get("leaflet_format")
         expected = {
@@ -3175,6 +3202,14 @@ def main(stores=None):
     tyz = monday()
     con = db()
     today = business_day()
+    # Týždeň a deň sa čítajú v dvoch volaniach (medzi nimi bežia migrácie DB).
+    # Tesne po polnoci z nedele na pondelok by tak mohli patriť do rôznych
+    # týždňov a beh by platene zbieral do starého týždňa. Týždeň preto vždy
+    # odvodíme od toho istého dňa, s ktorým beh ďalej pracuje.
+    week_of_today = (today - datetime.timedelta(days=today.weekday())).isoformat()
+    if week_of_today != tyz:
+        log(f"[WARN] týždeň {tyz} nesedí s dňom {today} — používam {week_of_today}")
+        tyz = week_of_today
     reusable_stores, failures, structural_failures = [], [], []
     free_collected, free_total = [], 0
     suppressed, busy = [], []

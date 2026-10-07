@@ -552,12 +552,21 @@ def test_official_tesco_cleans_staged_pages_when_scan_fails(monkeypatch, tmp_pat
     assert list(tmp_path.iterdir()) == []
 
 
-def test_every_declared_manifest_is_rejected_above_120_pages_before_ai_work():
-    pages, manifest = flyer_fixture(121)
-    manifest["declared_pages"] = 121
+def test_every_declared_manifest_is_rejected_above_200_pages_before_ai_work():
+    pages, manifest = flyer_fixture(201)
+    manifest["declared_pages"] = 201
 
-    with pytest.raises(ValueError, match="120"):
+    with pytest.raises(ValueError, match="200"):
         collector.validate_flyer_manifest(pages, manifest, store="lidl")
+
+
+def test_holiday_sized_lidl_flyer_above_120_pages_is_accepted():
+    pages, manifest = flyer_fixture(150)
+    manifest["declared_pages"] = 150
+
+    page_manifest = collector.validate_flyer_manifest(pages, manifest, store="lidl")
+
+    assert len(page_manifest) == 150
 
 
 @pytest.mark.parametrize(
@@ -3837,3 +3846,71 @@ def test_main_marks_exhausted_weekly_run_cap_for_supervisor(
         collector.main(["lidl"])
 
     assert "ZBER_BEHY_VYCERPANE" in capsys.readouterr().out
+
+
+def test_official_lidl_skips_next_weeks_flyer_listed_first(monkeypatch):
+    overview = (
+        '<a href="/l/sk/letak/online-letak-platny-od-24-08-2026/ar/1">Budúci</a>'
+        '<a href="/l/sk/letak/online-letak-platny-od-17-08-2026/ar/1">Aktuálny</a>'
+    )
+    next_week = _official_lidl_payload(
+        valid_from="2026-08-24", valid_to="2026-08-30"
+    )
+    next_week["flyer"]["status"] = "upcoming"
+    next_week["flyer"]["isActive"] = False
+
+    def get(url, **_kwargs):
+        if url == collector.LIDL_OVERVIEW_URL:
+            return types.SimpleNamespace(text=overview)
+        if "24-08-2026" in url:
+            return _json_response(next_week)
+        return _json_response(_official_lidl_payload())
+
+    monkeypatch.setattr(collector.requests, "get", get)
+
+    pages, manifest = collector.official_lidl_pages(today=TODAY)
+
+    assert len(pages) == 105
+    assert manifest["valid_from"] == "2026-08-17"
+
+
+def test_official_lidl_without_any_current_flyer_reports_first_reason(
+    monkeypatch,
+):
+    overview = (
+        '<a href="/l/sk/letak/online-letak-platny-od-24-08-2026/ar/1">Budúci</a>'
+    )
+
+    def get(url, **_kwargs):
+        if url == collector.LIDL_OVERVIEW_URL:
+            return types.SimpleNamespace(text=overview)
+        return _json_response(
+            _official_lidl_payload(valid_from="2026-08-24", valid_to="2026-08-30")
+        )
+
+    monkeypatch.setattr(collector.requests, "get", get)
+
+    with pytest.raises(ValueError, match="dnes neplatí"):
+        collector.official_lidl_pages(today=TODAY)
+
+
+def test_main_derives_week_from_the_same_day_across_midnight(
+    monkeypatch, tmp_path,
+):
+    database = run_main_over_stores(monkeypatch, tmp_path, {"lidl": True})
+    # monday() sa vyhodnotil ešte v nedeľu, business_day() už v pondelok.
+    monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    monkeypatch.setattr(collector, "business_day", lambda: date(2026, 8, 24))
+
+    try:
+        collector.main(["lidl"])
+    except SystemExit:
+        pass
+
+    con = sqlite3.connect(database)
+    weeks = {
+        row[0]
+        for row in con.execute("SELECT DISTINCT tyzden FROM zber_staging_stav")
+    }
+    con.close()
+    assert "2026-08-17" not in weeks

@@ -1963,3 +1963,23 @@ def test_cost_details_redact_bridge_anthropic_and_bearer_secrets(monkeypatch, tm
         "{'error': {'message': 'provider-detail-should-not-leak'}}"
     )
     assert "provider-detail-should-not-leak" not in naklady.bezpecny_detail(typical_error)
+
+
+@pytest.mark.parametrize(
+    ("http_code", "detail"),
+    [("401", "auth_rejected"), ("502", "upstream_http_502"), ("429", "rate_limited")],
+)
+def test_bridge_failure_detail_names_the_http_cause_without_secrets(
+        deployment, http_code, detail):
+    deployment["state"].joinpath("http-code").write_text(http_code)
+
+    result = run_library(
+        deployment,
+        "_uvarsi_require_tesco_bridge_transport || "
+        "printf '%s %s' \"$UVARSI_BRIDGE_FAILURE_REASON\" "
+        "\"$UVARSI_BRIDGE_FAILURE_DETAIL\"",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == f"request_failed {detail}"
+    assert BRIDGE_SECRET not in result.stdout + result.stderr

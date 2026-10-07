@@ -61,6 +61,29 @@ _uvarsi_bridge_fail() {
   return 1
 }
 
+_uvarsi_bridge_request_detail() {
+  # Map curl's exit code and the HTTP status to a secret-free enum that tells
+  # the operator what to do. Only digits from curl reach this function.
+  curl_rc=$1
+  http_code=$2
+  case "$http_code" in *[!0-9]*|'') http_code=000 ;; esac
+  case "$http_code" in
+    401|403) printf '%s' auth_rejected; return ;;
+    429) printf '%s' rate_limited; return ;;
+    5[0-9][0-9]) printf 'upstream_http_%s' "$http_code"; return ;;
+    000) ;;
+    *) printf 'http_%s' "$http_code"; return ;;
+  esac
+  case "$curl_rc" in
+    6) printf '%s' dns_failed ;;
+    7) printf '%s' connect_failed ;;
+    28) printf '%s' timeout ;;
+    35|51|58|60) printf '%s' tls_failed ;;
+    *[!0-9]*|'') printf '%s' curl_failed ;;
+    *) printf 'curl_%s' "$curl_rc" ;;
+  esac
+}
+
 _uvarsi_release_trace() {
   # Temporary-safe deployment breadcrumb for an installed legacy samopull.
   # Only fixed enum values may leave the host; no runtime value is interpolated.
@@ -183,6 +206,7 @@ _uvarsi_require_tesco_bridge_transport() {
   # Values are read without sourcing or printing the env file. The bearer
   # header reaches curl over stdin config, so it is absent from argv and logs.
   UVARSI_BRIDGE_FAILURE_REASON="config_invalid"
+  UVARSI_BRIDGE_FAILURE_DETAIL="config_invalid"
   environment=$(_uvarsi_env_value UVARSI_ENV) || return 1
   [ "$environment" = production ] || return 1
   bridge_url=$(_uvarsi_env_value UVARSI_TESCO_BRIDGE_URL) || return 1
@@ -230,15 +254,21 @@ raise SystemExit(0 if valid else 1)
   chmod 600 "$response" || {
     rm -f "$response"; _uvarsi_bridge_fail local_error; return 1; }
   request=$(printf '{"date":"%s","format":"HM"}' "$today")
-  if ! {
+  bridge_http_code=$({
     printf 'header = "Accept: application/json"\n'
     printf 'header = "Content-Type: application/json"\n'
     printf 'header = "X-Uvarsi-Bridge-Token: %s"\n' "$bridge_secret"
   } | "$UVARSI_CURL" --disable --config - --silent --show-error --fail \
       --max-time 30 --request POST --data-binary "$request" \
+      --write-out '%{http_code}' \
       --output "$response" "$bridge_url/v1/tesco/leaflets" \
-      >/dev/null 2>&1; then
+      2>/dev/null)
+  bridge_curl_rc=$?
+  if [ "$bridge_curl_rc" -ne 0 ]; then
     rm -f "$response"
+    UVARSI_BRIDGE_FAILURE_DETAIL=$(
+      _uvarsi_bridge_request_detail "$bridge_curl_rc" "$bridge_http_code"
+    )
     _uvarsi_bridge_fail request_failed
     return 1
   fi
@@ -320,6 +350,7 @@ for expected, page in enumerate(pages, start=1):
             raise SystemExit(1)
   ' "$response" "$today" "$bridge_url" "$bridge_release" "$bridge_version_id" >/dev/null 2>&1; then
     rm -f "$response"
+    UVARSI_BRIDGE_FAILURE_DETAIL=response_invalid
     _uvarsi_bridge_fail response_invalid
     return 1
   fi
@@ -329,6 +360,7 @@ for expected, page in enumerate(pages, start=1):
   UVARSI_ENV=production
   export UVARSI_TESCO_BRIDGE_URL UVARSI_TESCO_BRIDGE_SECRET UVARSI_ENV
   UVARSI_BRIDGE_FAILURE_REASON="ok"
+  UVARSI_BRIDGE_FAILURE_DETAIL="ok"
 }
 
 _uvarsi_wait_tesco_bridge_transport() {
