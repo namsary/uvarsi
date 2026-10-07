@@ -839,3 +839,16 @@ def test_autonomous_release_and_hourly_guardian_publish_a_no_js_receipt_snapshot
     assert "/var/www/uvarsi/index.html" in automatic
     assert "publish_static_receipt" in guardian
     assert "publish_landing_html" in guardian
+
+
+def test_samopull_does_not_roll_back_code_for_data_that_was_already_incomplete():
+    """Oprava zaseknutých dát sa nesmie vracať len preto, že dáta ešte chýbajú."""
+    script = SAMOPULL.read_text(encoding="utf-8")
+
+    pre_check = script.index("PRED_DATA_READY=0")
+    pre_ready = script.index("_uvarsi_require_collection_readiness", pre_check)
+    live_switch = script.index('log "prepínam na', pre_check)
+    gate = script.index('[ "$PRED_DATA_READY" -eq 0 ]')
+    success = script.index('log "OK — nasadené vydanie')
+
+    assert pre_check < pre_ready < live_switch < gate < success
