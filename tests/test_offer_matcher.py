@@ -269,6 +269,23 @@ def test_bare_litre_cooking_oil_is_a_one_litre_bottle_not_fractional_volume(cata
     assert matched[0].pricing_basis == "package"
 
 
+def test_bare_litre_milk_is_a_one_litre_package_not_weight_pricing(catalog):
+    """Regresia 7. 10.: Tesco mlieko v holom `l` dostalo hmotnostný násobok.
+
+    Validátor bločka ho (správne) pripúšťa iba pri predaji na váhu v `kg`,
+    takže jedna taká ponuka zablokovala celý týždenný bloček.
+    """
+    matched = match_offers(
+        [offer(obchod="Tesco", nazov="Plnotučné mlieko", jednotka="l", cena=0.99)],
+        catalog,
+    )
+
+    assert len(matched) == 1
+    assert matched[0].ingredient.id == "milk"
+    assert matched[0].package == PackageSize(Quantity(Decimal("1000"), "ml"))
+    assert matched[0].pricing_basis == "package"
+
+
 @pytest.mark.parametrize("unit", ["ks", "1 ks", "1 piece"])
 def test_single_piece_without_verified_pack_count_still_fails_closed(catalog, unit):
     assert match_offers([offer(nazov="Vajcia M", jednotka=unit)], catalog) == ()
