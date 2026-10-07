@@ -3914,3 +3914,37 @@ def test_main_derives_week_from_the_same_day_across_midnight(
     }
     con.close()
     assert "2026-08-17" not in weeks
+
+
+def test_reused_valid_stage_clears_a_stale_failure_flag(monkeypatch, tmp_path):
+    """7. 10.: platný Tesco staging mal prilepené failure_kind=structural.
+
+    Zberač ho správne použil znova, ale dozorca ho kvôli príznaku počítal ako
+    chýbajúci a zverejnenie sa zaseklo na celý týždeň.
+    """
+    database = run_main_over_stores(monkeypatch, tmp_path, {"tesco": True})
+    collector.main(["tesco"])
+    con = collector.db()
+    collector.record_stage_failure(
+        con,
+        "2026-08-17",
+        "Tesco",
+        "tesco: obsah strany 16 sa nepodarilo overiť",
+        attempted_provenance=prepared_collection("tesco").provenance,
+        structural=True,
+    )
+    con.close()
+    monkeypatch.setattr(
+        collector,
+        "zbieraj",
+        lambda *_args, **_kwargs: pytest.fail("platný staging sa nemá znova platiť"),
+    )
+
+    collector.main(["tesco"])
+
+    con = sqlite3.connect(database)
+    row = con.execute(
+        "SELECT stav, failure_kind FROM zber_staging_stav WHERE obchod='Tesco'"
+    ).fetchone()
+    con.close()
+    assert row == ("ok", None)

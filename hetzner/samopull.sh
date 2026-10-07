@@ -298,6 +298,14 @@ uvarsi_require_runtime_payments_off || {
   exit 1
 }
 
+# Boli dáta kompletné ešte PRED prepnutím? Ak nie, nové vydanie ich nemohlo
+# pokaziť — vrátenie by len zablokovalo práve tú opravu, ktorá ich má dať do
+# poriadku (7. 10.: oprava zaseknutého Tesca sa vracala znova a znova).
+PRED_DATA_READY=0
+if _uvarsi_require_collection_readiness >/dev/null 2>&1; then
+  PRED_DATA_READY=1
+fi
+
 log "prepínam na $SHA"
 LIVE_MUTATION=0
 if nasad_z "$CIEL" && uvarsi_migrate_release "$CIEL" && \
@@ -319,7 +327,8 @@ if [ "$LIVE_MUTATION" -eq 1 ] && zdravie && \
     DATA_READY=1
   fi
   if uvarsi_require_code_deploy_readiness && {
-      [ "$DATA_READY" -eq 1 ] || [ "$COLLECTION_DEFERRED" -eq 1 ]
+      [ "$DATA_READY" -eq 1 ] || [ "$COLLECTION_DEFERRED" -eq 1 ] || \
+        [ "$PRED_DATA_READY" -eq 0 ]
     }; then
     echo "$SHA" > "$STAV"
     # samopull sa aktualizuje až po úspechu, aby sa nezmenil pod vlastnými nohami

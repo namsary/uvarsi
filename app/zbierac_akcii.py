@@ -2873,6 +2873,31 @@ def record_stage_failure(
         return True
 
 
+def clear_stale_stage_failure(con, week, store):
+    """Zmaž príznak zlyhania z platného stagingu, ktorý sa práve znova použil.
+
+    Neskorší neúspešný pokus (napr. jedna strana sa dočasne nestiahla) zapíše
+    failure_kind aj na riadok, ktorého staging je stále zdravý. Zberač taký
+    obchod správne použije znova, ale dozorca ho podľa failure_kind počíta ako
+    chýbajúci — zverejnenie by sa zaseklo na celý týždeň (Tesco 28. 9. a 5. 10.).
+    """
+    if con.in_transaction:
+        con.commit()
+    with con:
+        cursor = con.execute(
+            """UPDATE zber_staging_stav SET
+                 failure_kind=NULL,failure_identity=NULL,
+                 attempted_collector_kind=NULL,attempted_fingerprint=NULL,
+                 attempted_valid_from=NULL,attempted_valid_to=NULL
+               WHERE tyzden=? AND obchod=? AND stav='ok'
+                 AND failure_kind IS NOT NULL""",
+            (week, store),
+        )
+    if cursor.rowcount:
+        log(f"[INFO] {store.lower()}: staging je platný — mažem starý príznak zlyhania")
+    return bool(cursor.rowcount)
+
+
 def unchanged_structural_failure(
     con, week, store, source_fingerprint, *, failure_identity=None,
 ):
@@ -3223,6 +3248,7 @@ def main(stores=None):
                 con, tyz, display_store, today=today
             )
             if problem is None:
+                clear_stale_stage_failure(con, tyz, display_store)
                 reusable_stores.append(store)
                 continue
             if bootstrap_active_store_stage(
@@ -3346,6 +3372,7 @@ def main(stores=None):
                 expected_fingerprint=provenance.source_fingerprint,
             )
             if problem is None:
+                clear_stale_stage_failure(con, tyz, display_store)
                 reusable_stores.append(store)
                 continue
             if unchanged_structural_failure(
@@ -3459,6 +3486,7 @@ def main(stores=None):
                 today=today,
                 expected_fingerprint=prepared.provenance.source_fingerprint,
             ) is None:
+                clear_stale_stage_failure(con, tyz, store.capitalize())
                 reusable_stores.append(store)
                 release_store_claim(con, tyz, store.capitalize(), run_owner)
                 held_claims.remove(store)
