@@ -5707,7 +5707,16 @@ def health():
         payment_status = _runtime_payment_readiness(
             con, queue_status=fronta_planov, recipe_status=recipe_status
         )
-    return {"vydanie": release_id(), "tyzden": monday(today), "pocet": len(rows),
+    problemy = []
+    if fronta_planov.get("worker_alive") is not True:
+        problemy.append("worker_nebezi")
+    elif fronta_planov.get("blocking_code"):
+        problemy.append("fronta_zaseknuta")
+    if not rows:
+        problemy.append("chybaju_data_tyzdna")
+    # Stavový kód ostáva 200: nasadzovacie skripty berú nie-200 ako zlyhanie.
+    return {"stav": "degradovane" if problemy else "ok", "problemy": problemy,
+            "vydanie": release_id(), "tyzden": monday(today), "pocet": len(rows),
             "ponuky_podla_obchodu": offers_by_store,
             "naklady": utrata, "predpocet": zahrievanie, "platby": platby_stav,
             "plan_queue": fronta_planov, "recipe_engine": recipe_status,
