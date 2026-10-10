@@ -646,6 +646,7 @@ def render_legal_page(slug: str) -> str:
     .meta p{{margin:4px 0}} h2{{font-size:1.25rem;margin:0 0 10px}} p{{margin:0 0 12px}} p:last-child{{margin-bottom:0}} li{{margin:7px 0}}
     .actions{{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0}} .actions a{{display:inline-flex;min-height:44px;align-items:center;padding:10px 14px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-weight:700;text-decoration:none}}
     footer{{margin-top:30px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:.9rem}}
+    footer a,.meta a,.brand{{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px}} footer a{{padding:0 6px}}
   </style>
 </head>
 <body><main>
