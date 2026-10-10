@@ -558,6 +558,58 @@ def test_tesco_too_many_denied_pages_still_fail_the_store(monkeypatch):
         collector.prepare_store_collection("tesco")
 
 
+def test_tesco_page_unavailable_after_retries_is_skipped_not_fatal(monkeypatch):
+    """10. 10.: strana 28 striedala HTTP 502 a ne-obrázok aj po opakovaní."""
+    _tesco_with_denied_pages(monkeypatch, set())
+    attempts = []
+
+    def get(url, **_kwargs):
+        page = int(url.rsplit("-", 1)[-1])
+        if page == 4:
+            attempts.append(page)
+            return types.SimpleNamespace(status_code=502, content=b"")
+        return types.SimpleNamespace(status_code=200, content=b"\xff\xd8\xffpage:%d" % page)
+
+    monkeypatch.setattr(collector.requests, "get", get)
+
+    prepared = collector.prepare_store_collection("tesco")
+
+    assert len(attempts) == 3
+    assert 4 not in prepared.page_manifest
+    assert prepared.manifest["unavailable_pages"] == [4]
+
+
+def test_tesco_page_recovering_on_retry_is_kept(monkeypatch):
+    _tesco_with_denied_pages(monkeypatch, set())
+    attempts = []
+
+    def get(url, **_kwargs):
+        page = int(url.rsplit("-", 1)[-1])
+        if page == 4 and not attempts:
+            attempts.append(page)
+            return types.SimpleNamespace(status_code=502, content=b"")
+        return types.SimpleNamespace(status_code=200, content=b"\xff\xd8\xffpage:%d" % page)
+
+    monkeypatch.setattr(collector.requests, "get", get)
+
+    prepared = collector.prepare_store_collection("tesco")
+
+    assert 4 in prepared.page_manifest
+    assert "unavailable_pages" not in prepared.manifest
+
+
+def test_tesco_bridge_outage_on_many_pages_stays_transient(monkeypatch):
+    _tesco_with_denied_pages(monkeypatch, set())
+    monkeypatch.setattr(
+        collector.requests,
+        "get",
+        lambda *_a, **_k: types.SimpleNamespace(status_code=502, content=b""),
+    )
+
+    with pytest.raises(collector.TransientCollectionError):
+        collector.prepare_store_collection("tesco")
+
+
 def test_non_image_without_access_denied_stays_transient(monkeypatch):
     monkeypatch.setattr(
         collector.requests,
