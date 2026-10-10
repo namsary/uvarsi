@@ -78,7 +78,7 @@ ENV_FILE = "/opt/uvarsi/uvarsi.env"
 
 MODEL_READ = "claude-haiku-5-5"              # bežné presné čítanie potravinových strán
 READ_EFFORT = "medium"
-MODEL_READ_FALLBACK = "claude-opus-5"        # iba neistá alebo chybná dávka
+MODEL_READ_FALLBACK = "claude-sonnet-5-5"    # detailné overenie iba neistej alebo chybnej dávky
 READ_FALLBACK_EFFORT = "high"
 READ_TOKENS = 16000
 MODEL_SCAN = "claude-haiku-5-5"              # lacné triedenie strán
@@ -2265,7 +2265,7 @@ def _require_every_page(offers, batch_pages):
 
 
 def _read_offer_batch(client, *, store, manifest, batch_pages, content):
-    """Haiku first; Opus only when the whole batch cannot be trusted."""
+    """Haiku first; Sonnet 5.5 only when the whole batch cannot be trusted."""
     fallback_reason = None
     haiku_offers = []
     try:
@@ -2279,14 +2279,14 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content):
     except naklady.KreditVycerpany:
         raise
     except Exception as exc:
-        # Výpadok API nie je neistota čítania: drahší Opus by pri ňom len
+        # Výpadok API nie je neistota čítania: drahší Sonnet by pri ňom len
         # zbytočne míňal kredit. Beh skončí dočasnou chybou a zopakuje sa.
         _raise_if_transient(exc, f"{store}: čítanie strán dočasne zlyhalo")
         fallback_reason = f"{type(exc).__name__}: {exc}"
 
     log(
         f"[WARN] {store}: Haiku dávka {list(batch_pages)} je neistá "
-        f"({fallback_reason}) — overujem Opusom"
+        f"({fallback_reason}) — overujem Sonnetom 5.5"
     )
     try:
         items = claude_json(
@@ -2296,16 +2296,16 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content):
             READ_TOKENS,
             effort=READ_FALLBACK_EFFORT,
         )
-        opus_offers = _offers_from_extraction(
+        detail_offers = _offers_from_extraction(
             items, store=store, manifest=manifest, batch_pages=batch_pages
         )
-        opus_pages = {offer["source_page"] for offer in opus_offers}
-        # Opus is authoritative for every page it managed to read. Keep an
-        # already validated Haiku result only for a page Opus omitted.
-        verified = list(opus_offers)
+        detail_pages = {offer["source_page"] for offer in detail_offers}
+        # Sonnet 5.5 is authoritative for every page it managed to read. Keep an
+        # already validated Haiku result only for a page Sonnet 5.5 omitted.
+        verified = list(detail_offers)
         verified.extend(
             offer for offer in haiku_offers
-            if offer["source_page"] not in opus_pages
+            if offer["source_page"] not in detail_pages
         )
         missing = _missing_offer_pages(verified, batch_pages)
         if missing:
@@ -2322,16 +2322,16 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content):
     except naklady.KreditVycerpany:
         raise
     except Exception as exc:
-        _raise_if_transient(exc, f"{store}: overenie Opusom dočasne zlyhalo")
+        _raise_if_transient(exc, f"{store}: overenie Sonnetom 5.5 dočasne zlyhalo")
         if haiku_offers:
             log(
-                f"[WARN] {store}: Opus dávku nepotvrdil "
+                f"[WARN] {store}: Sonnet 5.5 dávku nepotvrdil "
                 f"({type(exc).__name__}: {exc}); ponechávam iba už overené "
                 "položky z Haiku"
             )
             return haiku_offers
         raise ValueError(
-            f"{store}: extrakcia strán zlyhala aj po overení Opusom "
+            f"{store}: extrakcia strán zlyhala aj po overení Sonnetom 5.5 "
             f"({type(exc).__name__}: {exc})"
         ) from exc
 
@@ -2393,7 +2393,7 @@ def _collect_validated_flyer(
         raise ValueError(f"{store}: v letáku neboli potvrdené potravinové strany")
     log(f"[INFO] {store}: potravinové strany {food} — čítam…")
 
-    # 2) presné čítanie cien: Haiku 5.5, pri neistote iba daná dávka Opusom 5
+    # 2) presné čítanie cien: Haiku 5.5, pri neistote iba daná dávka Sonnetom 5.5
     out = []
     for batch_pages in batches(food, READ_BATCH_SIZE):
         content = []

@@ -1518,7 +1518,7 @@ def test_collection_derives_loyalty_program_from_the_known_store(monkeypatch):
 
 
 def test_one_invalid_price_is_quarantined_without_rereading_a_healthy_page(monkeypatch):
-    """Jedna zle prečítaná cenovka nesmie zahodiť ostatné ceny ani platiť Opus."""
+    """Jedna zle prečítaná cenovka nesmie zahodiť ostatné ceny ani platiť detailné overenie."""
     pages, manifest = flyer_fixture(1)
     monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))
     monkeypatch.setattr(collector, "get_b64", lambda url, max_px: url)
@@ -1602,7 +1602,7 @@ def test_flyer_pages_use_sonnet_first_and_opus_only_for_suspicious_prices(monkey
     assert models == [
         collector.MODEL_SCAN,
         collector.MODEL_READ,
-        "claude-opus-5",
+        "claude-sonnet-5-5",
     ]
     assert offers[0]["cena"] == 1.69
     assert offers[0]["cena_s_kartou"] == 1.55
@@ -1678,7 +1678,7 @@ def test_sonnet_batch_missing_a_selected_food_page_is_reread_by_opus(monkeypatch
     assert models == [
         collector.MODEL_SCAN,
         collector.MODEL_READ,
-        "claude-opus-5",
+        "claude-sonnet-5-5",
     ]
     assert {offer["source_page"] for offer in offers} == {1, 2}
 

@@ -60,6 +60,7 @@ CENNIK_USD = {
     "claude-opus-5":   Tarifa(vstup=5.0, vystup=25.0, cache_read=0.50, cache_write=6.25),
     "claude-sonnet-5": Tarifa(vstup=2.0, vystup=10.0, cache_read=0.20, cache_write=2.50),
     "claude-haiku-4-5": Tarifa(vstup=1.0, vystup=5.0, cache_read=0.10, cache_write=1.25),
+    "claude-sonnet-5-5": Tarifa(vstup=2.0, vystup=10.0, cache_read=0.20, cache_write=2.50),
     "claude-haiku-5-5": Tarifa(vstup=0.10, vystup=0.50, cache_read=0.01, cache_write=0.125),
 }
 # Haiku 5.5 má druhú, päťnásobnú sadzbu pre prompt dlhší ako 100k tokenov
@@ -115,7 +116,8 @@ MAX_TRVANIE_ZBERU_SEKUND = 4 * 60 * 60
 #   • fáza 2 pôvodne (Opus 5, 1500 px): ~27 volaní × 0,093 € ≈ 2,51 €
 #
 # Od 7. 9. 2026 číta bežné potravinové dávky Sonnet 5, od 10. 10. 2026
-# Haiku 5.5 (triedi aj strany). Opus 5 sa zavolá iba
+# Haiku 5.5 (triedi aj strany). Detailné overenie robí Sonnet 5.5 (predtým
+# Opus 5) a zavolá sa iba
 # pri nezhode ceny so zľavou, neplatnom výstupe alebo vynechanej vybranej
 # strane. Tvrdé stropy nechávame na pôvodnej najhoršej cene: aj keby každá
 # dávka skončila v Opus fallbacku, zber sa nesmie rozbehnúť bez hranice.
