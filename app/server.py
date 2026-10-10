@@ -2876,6 +2876,9 @@ def me(req: Request):
         stored_diet, effective_diet, available_diets = diet_context_for_week(
             con, u, premium
         )
+        available_diets_reason = dovod_prazdnych_rezimov(
+            con, u, premium, available_diets
+        )
         sp = spajza_pouzivatela(con, u["id"], premium)
         ulozenych = pocet_ulozenej_spajze(con, u["id"])
         limit = limit_prepoctov(premium)
@@ -2905,6 +2908,7 @@ def me(req: Request):
               "stravovanie_ulozene": stored_diet,
               "stravovanie_moznosti": list(ALLOWED_DIET_MODES),
               "stravovanie_dostupne": list(available_diets),
+              "stravovanie_dostupne_dovod": available_diets_reason,
               "spajza": sp, "spajza_premium": premium, "spajza_dostupna": premium,
               "spajza_ulozenych": ulozenych, "spajza_uspana": uspana,
               "spajza_sprava": sprava_o_uspanej_spajze(ulozenych) if uspana else None,
@@ -4609,6 +4613,30 @@ def diet_context_for_week(
         if check_availability else ()
     )
     return stored, effective, available
+
+
+def dovod_prazdnych_rezimov(con, profile, premium, available):
+    """Prečo je zoznam dostupných režimov prázdny; `None`, ak nie je.
+
+    Klient podľa toho vyberie pravdivú radu: chýbajúce letákové dáta sa
+    nelíšia od málo ponúk vo vybraných obchodoch ani od neuskutočniteľného režimu.
+    """
+    if available or recipe_engine_mode() != "on":
+        return None
+    day = bratislava_day()
+    try:
+        if not measurable_offers(
+            offers_for_current_week(con, list(ALLOWED_STORES), day)
+        ):
+            return "chybaju_data_tyzdna"
+        selected = measurable_offers(
+            offers_for_current_week(con, efektivne_obchody(profile, premium), day)
+        )
+    except (sqlite3.Error, OSError, TypeError, ValueError):
+        return None
+    if len(selected) < MIN_OFFERS_FOR_PLAN:
+        return "malo_ponuk_vybrane_obchody"
+    return "rezim_neuskutocnitelny"
 
 
 _SMOKE_KEYS = {

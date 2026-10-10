@@ -937,8 +937,9 @@ function dietModeAvailable(mode, me) {
 }
 
 function spravaNedostupnyRezim(me) {
-  const weekly = me && Array.isArray(me.stravovanie_dostupne) ? me.stravovanie_dostupne : [];
-  if (!weekly.length) return 'Nastavenia sú uložené. Letákové dáta na tento týždeň sa práve obnovujú, jedálniček poskladáme, keď budú k dispozícii. Skús to o chvíľu.';
+  const d = me && me.stravovanie_dostupne_dovod;
+  if (d === 'chybaju_data_tyzdna') return 'Nastavenia sú uložené. Letákové dáta na tento týždeň sa obnovujú, jedálniček poskladáme, keď budú. Skús to neskôr.';
+  if (d === 'malo_ponuk_vybrane_obchody') return 'Vo zvolených obchodoch je málo akcií. Pridaj obchod alebo skús neskôr.';
   return 'Z týchto akcií zvolený jedálniček neposkladáme. Pridaj obchod alebo vyber iný režim.';
 }
 

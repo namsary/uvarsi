@@ -1,7 +1,8 @@
 """E1: uloženie nastavení bez aktuálnych dát nesmie klamať o príčine.
 
-Keď na tento týždeň nie je žiadny režim (`stravovanie_dostupne` je prázdne),
-problém nie je v obchodoch ani v režime, ale v chýbajúcich letákových dátach.
+Keď server hlási dôvod `chybaju_data_tyzdna`, problém nie je v obchodoch ani
+v režime, ale v chýbajúcich letákových dátach. Prázdny zoznam sám o sebe dôvod
+nie je (pozri test_onboarding_dovod_prazdnych_rezimov.py).
 Rada „Pridaj obchod alebo vyber iný režim“ by v tom prípade nepomohla.
 """
 import os
@@ -33,7 +34,7 @@ def _run(tmp_path, body):
 @needs_node
 def test_bez_dat_tyzdna_sprava_nesluby_pridanie_obchodu(tmp_path):
     r = _run(tmp_path, """
-for (const me of [{stravovanie_dostupne: []}, {}, null]) {
+for (const me of [{stravovanie_dostupne: [], stravovanie_dostupne_dovod: 'chybaju_data_tyzdna'}]) {
   const m = spravaNedostupnyRezim(me);
   if (m.includes('Pridaj obchod') || m.includes('iný režim')) process.exit(1);
   if (!m.includes('Letákové dáta') || !m.includes('uložené')) process.exit(2);
