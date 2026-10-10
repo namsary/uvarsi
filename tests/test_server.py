@@ -476,7 +476,9 @@ def test_akcie_pre_delegates_selection_to_current_week_helper(monkeypatch, tmp_p
     server.akcie_pre(["Lidl"])
 
     assert calls[0][1] == ["Lidl"]
-    assert calls[0][2] == date.today()
+    # Obchodný deň je bratislavský; medzi 22:00 a 24:00 UTC je už o deň ďalej
+    # ako date.today() na runneri v UTC.
+    assert calls[0][2] == server.bratislava_day()
 
 
 def test_plan_is_503_when_only_previous_week_exists(monkeypatch, tmp_path):
