@@ -2341,10 +2341,18 @@ def _scan_food_pages(client, store, content, batch_pages):
     return set(batch_pages)
 
 
-def _read_offer_batch(client, *, store, manifest, batch_pages, content):
-    """Haiku first; Sonnet 5.5 only when the whole batch cannot be trusted."""
+def _read_offer_batch(client, *, store, manifest, batch_pages, content,
+                      content_for=None):
+    """Haiku first; Sonnet 5.5 only for what Haiku cannot confirm.
+
+    Strana bez položky (najčastejšie strana bez potravín, ktorú sken zaradil
+    radšej navyše) sa najprv prečíta Haiku samostatne. Sonnet 5.5 potom
+    overuje iba strany, ktoré ani tak nemajú overenú položku — nie celú dávku.
+    """
     fallback_reason = None
     haiku_offers = []
+    fallback_pages = list(batch_pages)
+    fallback_content = content
     try:
         items = claude_json(
             client, MODEL_READ, content, READ_TOKENS, effort=READ_EFFORT
@@ -2352,7 +2360,30 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content):
         offers = _offers_from_extraction(
             items, store=store, manifest=manifest, batch_pages=batch_pages
         )
-        return _require_every_page(offers, batch_pages)
+        missing = _missing_offer_pages(offers, batch_pages)
+        if not missing:
+            return offers
+        haiku_offers = list(offers)
+        if content_for is not None:
+            retry_pages = sorted(missing)
+            try:
+                items = claude_json(
+                    client, MODEL_READ, content_for(retry_pages), READ_TOKENS,
+                    effort=READ_EFFORT,
+                )
+                haiku_offers.extend(_offers_from_extraction(
+                    items, store=store, manifest=manifest, batch_pages=retry_pages
+                ))
+            except naklady.KreditVycerpany:
+                raise
+            except Exception as exc:
+                _raise_if_transient(exc, f"{store}: čítanie strán dočasne zlyhalo")
+            missing = _missing_offer_pages(haiku_offers, batch_pages)
+            if not missing:
+                return haiku_offers
+            fallback_pages = sorted(missing)
+            fallback_content = content_for(fallback_pages)
+        _require_every_page(haiku_offers, batch_pages)
     except naklady.KreditVycerpany:
         raise
     except Exception as exc:
@@ -2362,19 +2393,19 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content):
         fallback_reason = f"{type(exc).__name__}: {exc}"
 
     log(
-        f"[WARN] {store}: Haiku dávka {list(batch_pages)} je neistá "
+        f"[WARN] {store}: Haiku nepotvrdil strany {list(fallback_pages)} "
         f"({fallback_reason}) — overujem Sonnetom 5.5"
     )
     try:
         items = claude_json(
             client,
             MODEL_READ_FALLBACK,
-            content,
+            fallback_content,
             READ_TOKENS,
             effort=READ_FALLBACK_EFFORT,
         )
         detail_offers = _offers_from_extraction(
-            items, store=store, manifest=manifest, batch_pages=batch_pages
+            items, store=store, manifest=manifest, batch_pages=fallback_pages
         )
         detail_pages = {offer["source_page"] for offer in detail_offers}
         # Sonnet 5.5 is authoritative for every page it managed to read. Keep an
@@ -2476,8 +2507,9 @@ def _collect_validated_flyer(
     # 2) presné čítanie cien: Haiku 5.5, pri neistote iba daná dávka Sonnetom 5.5
     out = []
     for batch_pages in batches(food, READ_BATCH_SIZE):
-        content = []
+        page_blocks = {}
         for source_page in batch_pages:
+            content = page_blocks.setdefault(source_page, [])
             try:
                 if source_page in tesco_page_paths:
                     encoded = image_bytes_b64(
@@ -2499,16 +2531,22 @@ def _collect_validated_flyer(
                     "type": "text",
                     "text": f"Podklady od obchodu k strane {source_page}:\n{page_hints[source_page]}",
                 })
-        if any(page_hints.get(source_page) for source_page in batch_pages):
-            content.append({"type": "text", "text": HINTS_PROMPT})
-        content.append({"type": "text", "text": EXTRACT_PROMPT.format(store=store.upper())})
+
+        def content_for(pages, page_blocks=page_blocks):
+            blocks = [block for page in pages for block in page_blocks[page]]
+            if any(page_hints.get(page) for page in pages):
+                blocks.append({"type": "text", "text": HINTS_PROMPT})
+            blocks.append({"type": "text", "text": EXTRACT_PROMPT.format(store=store.upper())})
+            return blocks
+
         out.extend(
             _read_offer_batch(
                 client,
                 store=store,
                 manifest=manifest,
                 batch_pages=batch_pages,
-                content=content,
+                content=content_for(batch_pages),
+                content_for=content_for,
             )
         )
     if not out:
