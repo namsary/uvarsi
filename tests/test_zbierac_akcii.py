@@ -1588,6 +1588,46 @@ def test_repeatedly_invalid_scan_reads_the_whole_batch(monkeypatch):
     assert sorted(offer["source_page"] for offer in offers) == [1, 2]
 
 
+def test_source_hints_reach_scan_and_read_prompts(monkeypatch):
+    install_pipeline_fakes(monkeypatch, page_count=2, food_pages={1})
+    monkeypatch.setattr(
+        collector,
+        "_source_page_hints",
+        lambda store, manifest: {
+            1: "Popis strany od Lidla: Syry a pečivo.\nText z oficiálneho PDF tejto strany:\n1.29 Gouda",
+        },
+    )
+    seen = {}
+
+    def recording(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
+        seen[task] = [block.get("text") for block in content if block.get("type") == "text"]
+        if task == "scan":
+            return [1]
+        return [_ryza(1)]
+
+    monkeypatch.setattr(collector, "claude_json", recording)
+    collector.zbieraj(object(), "lidl")
+
+    assert "Strana 1: (Popis strany od Lidla: Syry a pečivo.)" in seen["scan"]
+    assert any("1.29 Gouda" in (text or "") for text in seen["read"])
+    assert collector.HINTS_PROMPT in seen["read"]
+
+
+def test_collection_without_source_hints_is_unchanged(monkeypatch):
+    install_pipeline_fakes(monkeypatch, page_count=2, food_pages={1})
+    seen = {}
+
+    def recording(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
+        seen[task] = [block.get("text") for block in content if block.get("type") == "text"]
+        return [1] if task == "scan" else [_ryza(1)]
+
+    monkeypatch.setattr(collector, "claude_json", recording)
+    collector.zbieraj(object(), "lidl")
+
+    assert "Strana 1:" in seen["scan"]
+    assert collector.HINTS_PROMPT not in seen["read"]
+
+
 def test_flyer_extraction_contract_keeps_public_and_loyalty_prices_separate():
     item = collector.EXTRACT_OUTPUT_SCHEMA["items"]
     assert item["required"] == list(item["properties"])

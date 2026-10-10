@@ -152,6 +152,7 @@ $subory = @(
   @{ l = "$B\app\premium_cli.py";       r = "/opt/uvarsi/app/premium_cli.py" },
   @{ l = "$B\app\rekonciliacia.py";     r = "/opt/uvarsi/app/rekonciliacia.py" },
   @{ l = "$B\app\zbierac_akcii.py";     r = "/opt/uvarsi/app/zbierac_akcii.py" },
+  @{ l = "$B\app\zdrojove_podklady.py";  r = "/opt/uvarsi/app/zdrojove_podklady.py" },
   @{ l = "$B\hetzner\refresh_blocek.py"; r = "/opt/uvarsi/refresh_blocek.py" },
   @{ l = "$B\hetzner\recepty.py";       r = "/opt/uvarsi/recepty.py" },
   @{ l = "$B\hetzner\dozorca.sh";       r = "/opt/uvarsi/dozorca.sh" },
