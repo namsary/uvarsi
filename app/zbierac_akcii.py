@@ -110,6 +110,9 @@ LIDL_MAX_CANDIDATE_FLYERS = 5  # koľko letákov z prehľadu najviac skúsime
 # Bežný Lidl leták má okolo 100 strán (101 v týždni od 5. 10. 2026), sviatočné
 # vydania aj viac. Strop 120 by sviatočný týždeň zablokoval pre všetky obchody.
 MAX_MANIFEST_PAGES = 200    # žiadny deklarovaný leták nejde nad tento strop do AI
+# Na každých 20 strán letáku smie zdroj trvalo odmietnuť najviac jednu stranu
+# (vždy aspoň jednu). Viac odmietnutých strán už je pokazený zdroj, nie výnimka.
+DENIED_PAGES_PER_ALLOWED = 20
 # Tesco bridge (Cloudflare worker aj kontrola nasadenia) pripúšťa 8..120 strán.
 TESCO_MAX_MANIFEST_PAGES = 120
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1779,6 +1782,15 @@ _IMAGE_SIGNATURES = (b"\xff\xd8\xff", b"\x89PNG\r\n\x1a\n", b"GIF87a", b"GIF89a"
 _TRANSIENT_HTTP_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524, 529})
 
 
+class SourcePageDenied(Exception):
+    """Zdroj jednu stranu trvalo odmieta (CDN vráti „Access Denied“)."""
+
+
+def _looks_like_access_denied(content):
+    head = (content or b"")[:4096]
+    return b"<TITLE>Access Denied</TITLE>" in head or b"<H1>Access Denied</H1>" in head
+
+
 def _looks_like_image(content):
     if not content:
         return False
@@ -1815,6 +1827,10 @@ def get_image_bytes(url, *, headers=None, allow_redirects=True, strict=False):
     if response.status_code != 200:
         return None
     if strict and not _looks_like_image(response.content):
+        if _looks_like_access_denied(response.content):
+            # 10. 10.: Tesco CDN odmietal jedinú stranu letáku opakovane a
+            # rovnako. To nie je výpadok, ktorý prejde ďalším pokusom.
+            raise SourcePageDenied("zdroj stranu odmietol (Access Denied)")
         raise TransientCollectionError("zdroj strany nevrátil obrázok")
     return response.content
 
@@ -2512,6 +2528,7 @@ def _attach_exact_content_identity(store, manifest, page_manifest):
     rows = {row["source_page"]: row for row in enriched["pages"]}
     page_bytes = PageByteSpool()
     content_hashes = []
+    denied = []
     for source_page, page in page_manifest.items():
         try:
             if store == "tesco":
@@ -2525,6 +2542,10 @@ def _attach_exact_content_identity(store, manifest, page_manifest):
             raise TransientCollectionError(
                 f"{store}: strana {source_page} — {exc}"
             ) from None
+        except SourcePageDenied:
+            denied.append(source_page)
+            content_hashes.append([source_page, "access-denied"])
+            continue
         except Exception:
             content = None
         if not content:
@@ -2545,6 +2566,29 @@ def _attach_exact_content_identity(store, manifest, page_manifest):
         rows[source_page]["content_hash"] = digest
         content_hashes.append([source_page, digest])
         page_bytes.put(source_page, content)
+    if denied:
+        allowed = max(1, len(page_manifest) // DENIED_PAGES_PER_ALLOWED)
+        if len(denied) > allowed:
+            attempted = _safe_attempted_provenance(
+                enriched,
+                attempt_state={
+                    "content_hashes": content_hashes,
+                    "failed_page": denied[0],
+                    "result": "unavailable",
+                },
+            )
+            page_bytes.cleanup()
+            raise ManifestPreparationError(
+                f"{store}: zdroj odmietol {len(denied)} strán {denied[:10]} "
+                f"(povolených najviac {allowed})",
+                attempted,
+            )
+        # Jedna strana, ktorú zdroj trvalo odmieta, nesmie zastaviť celý
+        # obchod. Vynecháme ju viditeľne: zostane v manifeste aj v logu.
+        log(f"[WARN] {store}: zdroj odmieta strany {denied} — čítam leták bez nich")
+        enriched["denied_pages"] = denied
+        for source_page in denied:
+            rows.pop(source_page, None)
     exact = hashlib.sha256(json.dumps(
         content_hashes, separators=(",", ":")
     ).encode("ascii")).hexdigest()

@@ -514,6 +514,63 @@ def test_tesco_bridge_fingerprints_actual_page_bytes_before_paid_ai(monkeypatch)
     assert first.provenance.source_fingerprint != second.provenance.source_fingerprint
 
 
+_ACCESS_DENIED = (
+    b'<HTML><HEAD>\n<TITLE>Access Denied</TITLE>\n</HEAD><BODY>\n'
+    b'<H1>Access Denied</H1>\n You don\'t have permission to access ...'
+)
+
+
+def _tesco_with_denied_pages(monkeypatch, denied):
+    monkeypatch.setenv("UVARSI_TESCO_BRIDGE_URL", "https://tesco-bridge.example")
+    monkeypatch.setenv("UVARSI_TESCO_BRIDGE_SECRET", "media-bridge-secret")
+    monkeypatch.setattr(collector, "business_day", lambda: TODAY)
+    leaflet = _bridge_tesco_leaflet(page_count=8)
+    monkeypatch.setattr(
+        collector.requests,
+        "post",
+        lambda _url, **_kwargs: _json_response({"leaflet": leaflet}),
+    )
+
+    def get(url, **_kwargs):
+        page = int(url.rsplit("-", 1)[-1])
+        body = _ACCESS_DENIED if page in denied else b"\xff\xd8\xffpage:%d" % page
+        return types.SimpleNamespace(status_code=200, content=body)
+
+    monkeypatch.setattr(collector.requests, "get", get)
+
+
+def test_tesco_page_permanently_denied_by_cdn_is_skipped_not_fatal(monkeypatch):
+    """10. 10.: Tesco CDN vracal na stranu 28 vždy „Access Denied“ a celé
+    Tesco sa pre jednu stranu nedalo zozbierať."""
+    _tesco_with_denied_pages(monkeypatch, {3})
+
+    prepared = collector.prepare_store_collection("tesco")
+
+    assert 3 not in prepared.page_manifest
+    assert len(prepared.page_manifest) == 7
+    assert prepared.manifest["denied_pages"] == [3]
+
+
+def test_tesco_too_many_denied_pages_still_fail_the_store(monkeypatch):
+    _tesco_with_denied_pages(monkeypatch, {3, 5})
+
+    with pytest.raises(collector.ManifestPreparationError, match="odmietol 2 strán"):
+        collector.prepare_store_collection("tesco")
+
+
+def test_non_image_without_access_denied_stays_transient(monkeypatch):
+    monkeypatch.setattr(
+        collector.requests,
+        "get",
+        lambda _url, **_kwargs: types.SimpleNamespace(
+            status_code=200, content=b"<html>chvilkova chyba</html>"
+        ),
+    )
+
+    with pytest.raises(collector.TransientCollectionError):
+        collector.get_image_bytes("https://example.test/p", strict=True)
+
+
 def test_official_tesco_cleans_staged_pages_when_scan_fails(monkeypatch, tmp_path):
     from PIL import Image
 
