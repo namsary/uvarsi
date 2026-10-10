@@ -60,6 +60,13 @@ CENNIK_USD = {
     "claude-opus-5":   Tarifa(vstup=5.0, vystup=25.0, cache_read=0.50, cache_write=6.25),
     "claude-sonnet-5": Tarifa(vstup=2.0, vystup=10.0, cache_read=0.20, cache_write=2.50),
     "claude-haiku-4-5": Tarifa(vstup=1.0, vystup=5.0, cache_read=0.10, cache_write=1.25),
+    "claude-haiku-5-5": Tarifa(vstup=0.10, vystup=0.50, cache_read=0.01, cache_write=0.125),
+}
+# Haiku 5.5 má druhú, päťnásobnú sadzbu pre prompt dlhší ako 100k tokenov
+# (vstup vrátane cache). Celé volanie sa vtedy účtuje drahšou sadzbou.
+DLHY_PROMPT_TOKENOV = 100_000
+CENNIK_DLHY_PROMPT_USD = {
+    "claude-haiku-5-5": Tarifa(vstup=0.50, vystup=2.50, cache_read=0.05, cache_write=0.625),
 }
 # Neznámy model sa účtuje najdrahšou sadzbou. Premenovaný model nesmie
 # spôsobiť, že sa jeho spotreba ticho zaeviduje ako lacnejšia, než naozaj je.
@@ -107,7 +114,8 @@ MAX_TRVANIE_ZBERU_SEKUND = 4 * 60 * 60
 #   • fáza 1 (Haiku, náhľady 320 px): 19 volaní ≈ 0,03 €
 #   • fáza 2 pôvodne (Opus 5, 1500 px): ~27 volaní × 0,093 € ≈ 2,51 €
 #
-# Od 7. 9. 2026 číta bežné potravinové dávky Sonnet 5. Opus 5 sa zavolá iba
+# Od 7. 9. 2026 číta bežné potravinové dávky Sonnet 5, od 10. 10. 2026
+# Haiku 5.5 (triedi aj strany). Opus 5 sa zavolá iba
 # pri nezhode ceny so zľavou, neplatnom výstupe alebo vynechanej vybranej
 # strane. Tvrdé stropy nechávame na pôvodnej najhoršej cene: aj keby každá
 # dávka skončila v Opus fallbacku, zber sa nesmie rozbehnúť bez hranice.
@@ -355,6 +363,9 @@ def tarifa_pre(model) -> Tarifa:
 def cena_eur(model, vstup=0, vystup=0, cache_write=0, cache_read=0) -> float:
     """Cena jedného volania v eurách podľa skutočne spotrebovaných tokenov."""
     t = tarifa_pre(model)
+    prompt = int(vstup or 0) + int(cache_write or 0) + int(cache_read or 0)
+    if prompt > DLHY_PROMPT_TOKENOV:
+        t = CENNIK_DLHY_PROMPT_USD.get(normalizuj_model(model), t)
     usd = (
         int(vstup or 0) * t.vstup
         + int(vystup or 0) * t.vystup

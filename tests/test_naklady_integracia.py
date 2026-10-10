@@ -187,7 +187,7 @@ def test_zbierac_stale_zapise_skutocnu_spotrebu_modelu(monkeypatch, tmp_path, co
                FROM naklady ORDER BY id DESC LIMIT 1"""
         ).fetchone()
 
-    assert row[:5] == ("zber_letakov", "claude-sonnet-5", 8_000, 900, 2_000)
+    assert row[:5] == ("zber_letakov", "claude-haiku-5-5", 8_000, 900, 2_000)
     assert row[5] > 0
     assert row[6] == 0
 
