@@ -2161,6 +2161,13 @@ Sú to najdôležitejšie suroviny na varenie.
 - Ceny musia presne sedieť s letákom. Radšej položku vynechaj, než uhádni cenu."""
 
 
+HINTS_PROMPT = """Pri niektorých stranách sú aj podklady priamo od obchodu (popis \
+strany, text z oficiálneho PDF letáku alebo zoznam produktov). Použi ich na presné \
+názvy, gramáže a na kontrolu cien. Rozhoduje však to, čo vidíš na obrázku strany: \
+nevypisuj produkt, ktorý na obrázku nie je, a ak sa cena v podkladoch a na obrázku \
+líši, použi cenu z obrázka."""
+
+
 _PERCENT_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*%")
 _DISCOUNT_TOLERANCE_PERCENTAGE_POINTS = 2.0
 
@@ -2406,11 +2413,30 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content):
         ) from exc
 
 
+def _source_page_hints(store, manifest):
+    """Presné podklady od obchodu k stranám; chyba = žiadne podklady."""
+    try:
+        try:
+            import zdrojove_podklady
+        except ImportError:
+            from app import zdrojove_podklady
+        return zdrojove_podklady.page_hints(store, manifest, log=log) or {}
+    except Exception as exc:
+        log(f"[WARN] {store}: podklady od obchodu preskakujem ({type(exc).__name__})")
+        return {}
+
+
+def _scan_hint(hint):
+    first = str(hint or "").split("\n", 1)[0].strip()
+    return f" ({first[:300]})" if first else ""
+
+
 def _collect_validated_flyer(
         client, store, manifest, page_manifest, *, tesco_page_scans=None,
-        tesco_page_paths=None, page_cache=None):
+        tesco_page_paths=None, page_cache=None, page_hints=None):
     tesco_page_scans = tesco_page_scans or {}
     tesco_page_paths = tesco_page_paths or {}
+    page_hints = page_hints or {}
 
     # 1) lacný sken náhľadov → ktoré strany sú potravinové
     thumbs = []
@@ -2435,7 +2461,10 @@ def _collect_validated_flyer(
         content = []
         batch_pages = {source_page for source_page, _ in batch}
         for source_page, encoded in batch:
-            content.append({"type": "text", "text": f"Strana {source_page}:"})
+            content.append({
+                "type": "text",
+                "text": f"Strana {source_page}:{_scan_hint(page_hints.get(source_page))}",
+            })
             content.append(img_block(encoded))
         content.append({"type": "text", "text": SCAN_PROMPT})
         food.update(_scan_food_pages(client, store, content, batch_pages))
@@ -2465,6 +2494,13 @@ def _collect_validated_flyer(
                 raise ValueError(f"{store}: strana {source_page} sa nepodarilo načítať")
             content.append({"type": "text", "text": f"Zdrojová strana {source_page}:"})
             content.append(img_block(encoded))
+            if page_hints.get(source_page):
+                content.append({
+                    "type": "text",
+                    "text": f"Podklady od obchodu k strane {source_page}:\n{page_hints[source_page]}",
+                })
+        if any(page_hints.get(source_page) for source_page in batch_pages):
+            content.append({"type": "text", "text": HINTS_PROMPT})
         content.append({"type": "text", "text": EXTRACT_PROMPT.format(store=store.upper())})
         out.extend(
             _read_offer_batch(
@@ -2663,6 +2699,7 @@ def zbieraj(client, store, prepared=None):
     pages = prepared.pages
     manifest = prepared.manifest
     page_manifest = prepared.page_manifest
+    hints = _source_page_hints(store, manifest)
 
     try:
         if store == "tesco" and manifest.get("collector_kind") == "official-tesco-viewer":
@@ -2679,6 +2716,7 @@ def zbieraj(client, store, prepared=None):
                     page_manifest,
                     tesco_page_scans=scans,
                     tesco_page_paths=paths,
+                    page_hints=hints,
                 )
 
         return _collect_validated_flyer(
@@ -2687,6 +2725,7 @@ def zbieraj(client, store, prepared=None):
             manifest,
             page_manifest,
             page_cache=prepared.page_bytes,
+            page_hints=hints,
         )
     finally:
         cleanup = getattr(prepared.page_bytes, "cleanup", None)
