@@ -1659,7 +1659,10 @@ async function addLeftoverToPantry(button, item) {
 }
 
 function vZoznam() {
-  if (!PLAN || !PLAN.nakupny_zoznam) { M.innerHTML = '<p class="muted">Najprv si vygeneruj plán.</p>'; return; }
+  if (!PLAN || !PLAN.nakupny_zoznam) {
+    M.innerHTML = `<div class="card center"><p style="margin:8px 0 14px">Zoznam vznikne, keď bude hotový jedálniček.</p><button class="btn" onclick="TAB='plan';render()">Na jedálniček →</button></div>`;
+    return;
+  }
   const doma = pantryOwnedCount(PLAN, PANTRY_OVERRIDE);
   const zaplatis = remainingTotal(PLAN, PANTRY_OVERRIDE);
   let h = `<div style="margin:18px 0 6px"><span class="eyebrow">Nákupný zoznam</span><h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo kúpiť a kde</h1><p id="shop-error" class="shop-error" aria-live="polite"></p></div>`;
