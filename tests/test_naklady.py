@@ -74,6 +74,21 @@ def test_vsetky_sadzby_sedia_s_cennikom(model, vstup, vystup, cache_read, cache_
         assert naklady.cena_eur(model, **{pole: 1_000_000}) == pytest.approx(sadzba * 0.92)
 
 
+def test_haiku_5_5_kratky_prompt_ma_lacnu_sadzbu():
+    assert naklady.cena_eur(
+        "claude-haiku-5-5", vstup=100_000, vystup=1_000_000
+    ) == pytest.approx((100_000 * 0.10 / 1_000_000 + 0.50) * 0.92)
+
+
+def test_haiku_5_5_dlhy_prompt_sa_uctuje_vyssou_sadzbou():
+    """Nad 100k tokenov promptu (vrátane cache) platí celé volanie 0,50/2,50."""
+    assert naklady.cena_eur(
+        "claude-haiku-5-5", vstup=90_000, cache_read=20_000, vystup=1_000_000
+    ) == pytest.approx(
+        (90_000 * 0.50 + 20_000 * 0.05) / 1_000_000 * 0.92 + 2.50 * 0.92
+    )
+
+
 def test_model_s_datumovou_priponou_sa_ocenuje_rovnako():
     """Zbierač volá 'claude-haiku-4-5-20251001' — to je ten istý cenník."""
     assert naklady.cena_eur("claude-haiku-4-5-20251001", vstup=1_000_000) == pytest.approx(

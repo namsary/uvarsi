@@ -76,12 +76,18 @@ except ImportError:
 DB = os.environ.get("UVARSI_DB", "/opt/uvarsi/uvarsi.db")
 ENV_FILE = "/opt/uvarsi/uvarsi.env"
 
-MODEL_READ = "claude-sonnet-5"               # bežné presné čítanie potravinových strán
-READ_EFFORT = "low"
+MODEL_READ = "claude-haiku-5-5"              # bežné presné čítanie potravinových strán
+READ_EFFORT = "medium"
 MODEL_READ_FALLBACK = "claude-opus-5"        # iba neistá alebo chybná dávka
 READ_FALLBACK_EFFORT = "high"
 READ_TOKENS = 16000
-MODEL_SCAN = "claude-haiku-4-5-20251001"     # lacné triedenie strán
+MODEL_SCAN = "claude-haiku-5-5"              # lacné triedenie strán
+SCAN_EFFORT = "low"
+# Haiku 5.5 má adaptívne myslenie zapnuté predvolene. Triedenie strán vracia
+# iba krátky zoznam čísel, takže myslenie vypíname (povolené pri effort <= high),
+# aby ho 500-tokenový strop neodsekol.
+SCAN_THINKING = {"type": "disabled"}
+SCAN_TOKENS = 500
 
 STORES = ["kaufland", "tesco", "lidl"]
 MIN_VERIFIED_OFFERS_PER_STORE = 20
@@ -1988,8 +1994,9 @@ EXTRACT_OUTPUT_SCHEMA = {
 }
 
 
-def _schema_pre_model(model):
-    return SCAN_OUTPUT_SCHEMA if model == MODEL_SCAN else EXTRACT_OUTPUT_SCHEMA
+def _schema_pre_ulohu(task):
+    # Sken aj čítanie môžu bežať tým istým modelom, schéma preto patrí úlohe.
+    return SCAN_OUTPUT_SCHEMA if task == "scan" else EXTRACT_OUTPUT_SCHEMA
 
 
 def _parse_json_response(text):
@@ -2016,26 +2023,34 @@ def _parse_json_response(text):
         raise original
 
 
-def claude_json(client, model, content, max_tokens, effort=None):
+def claude_json(client, model, content, max_tokens, effort=None, *,
+                task="read", thinking=None):
     output_config = {
         "format": {
             "type": "json_schema",
-            "schema": _schema_pre_model(model),
+            "schema": _schema_pre_ulohu(task),
         }
     }
     if effort:
         output_config["effort"] = effort
+    extra = {"thinking": thinking} if thinking else {}
     try:
         msg = client.messages.create(model=model, max_tokens=max_tokens,
                                      messages=[{"role": "user", "content": content}],
-                                     output_config=output_config)
+                                     output_config=output_config, **extra)
     except TypeError:
         # Starší SDK nepozná `output_config`. Nezastavíme celý týždenný zber;
         # odpoveď ešte prísne parsujeme a ďalej kontrolujeme proti letáku.
         msg = client.messages.create(model=model, max_tokens=max_tokens,
-                                     messages=[{"role": "user", "content": content}])
-    if getattr(msg, "stop_reason", None) == "max_tokens":
+                                     messages=[{"role": "user", "content": content}],
+                                     **extra)
+    stop_reason = getattr(msg, "stop_reason", None)
+    if stop_reason == "max_tokens":
         raise ValueError("odseknuté na max_tokens")
+    if stop_reason == "refusal":
+        # Haiku 5.5 nemá serverový fallback pri odmietnutí; dávku berieme ako
+        # neistú, takže čítanie ju overí záložným modelom.
+        raise ValueError("model odpoveď odmietol")
     txt = "".join(b.text for b in msg.content
                   if getattr(b, "type", None) == "text").strip()
     txt = re.sub(r"^```(?:json)?|```$", "", txt, flags=re.M).strip()
@@ -2250,9 +2265,9 @@ def _require_every_page(offers, batch_pages):
 
 
 def _read_offer_batch(client, *, store, manifest, batch_pages, content):
-    """Sonnet first; Opus only when the whole batch cannot be trusted."""
+    """Haiku first; Opus only when the whole batch cannot be trusted."""
     fallback_reason = None
-    sonnet_offers = []
+    haiku_offers = []
     try:
         items = claude_json(
             client, MODEL_READ, content, READ_TOKENS, effort=READ_EFFORT
@@ -2270,7 +2285,7 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content):
         fallback_reason = f"{type(exc).__name__}: {exc}"
 
     log(
-        f"[WARN] {store}: Sonnet dávka {list(batch_pages)} je neistá "
+        f"[WARN] {store}: Haiku dávka {list(batch_pages)} je neistá "
         f"({fallback_reason}) — overujem Opusom"
     )
     try:
@@ -2286,10 +2301,10 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content):
         )
         opus_pages = {offer["source_page"] for offer in opus_offers}
         # Opus is authoritative for every page it managed to read. Keep an
-        # already validated Sonnet result only for a page Opus omitted.
+        # already validated Haiku result only for a page Opus omitted.
         verified = list(opus_offers)
         verified.extend(
-            offer for offer in sonnet_offers
+            offer for offer in haiku_offers
             if offer["source_page"] not in opus_pages
         )
         missing = _missing_offer_pages(verified, batch_pages)
@@ -2308,13 +2323,13 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content):
         raise
     except Exception as exc:
         _raise_if_transient(exc, f"{store}: overenie Opusom dočasne zlyhalo")
-        if sonnet_offers:
+        if haiku_offers:
             log(
                 f"[WARN] {store}: Opus dávku nepotvrdil "
                 f"({type(exc).__name__}: {exc}); ponechávam iba už overené "
-                "položky zo Sonnetu"
+                "položky z Haiku"
             )
-            return sonnet_offers
+            return haiku_offers
         raise ValueError(
             f"{store}: extrakcia strán zlyhala aj po overení Opusom "
             f"({type(exc).__name__}: {exc})"
@@ -2354,7 +2369,10 @@ def _collect_validated_flyer(
             content.append(img_block(encoded))
         content.append({"type": "text", "text": SCAN_PROMPT})
         try:
-            selected = claude_json(client, MODEL_SCAN, content, 500)
+            selected = claude_json(
+                client, MODEL_SCAN, content, SCAN_TOKENS, effort=SCAN_EFFORT,
+                task="scan", thinking=SCAN_THINKING,
+            )
         except naklady.KreditVycerpany:
             # Nie je to chyba OBCHODU, ale celého účtu: ďalšie obchody by len
             # zopakovali to isté odmietnutie. Preto ide von nezabalené.
@@ -2375,7 +2393,7 @@ def _collect_validated_flyer(
         raise ValueError(f"{store}: v letáku neboli potvrdené potravinové strany")
     log(f"[INFO] {store}: potravinové strany {food} — čítam…")
 
-    # 2) presné čítanie cien: Sonnet 5, pri neistote iba daná dávka Opusom 5
+    # 2) presné čítanie cien: Haiku 5.5, pri neistote iba daná dávka Opusom 5
     out = []
     for batch_pages in batches(food, READ_BATCH_SIZE):
         content = []
