@@ -449,7 +449,7 @@ def test_official_tesco_downloads_each_bridge_page_once_and_resizes_locally(
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
     staged_names = []
 
-    def claude_json(_client, model, _content, _max_tokens, effort=None, task="read", thinking=None):
+    def claude_json(_client, model, _content, _max_tokens, effort=None, task="read", thinking=None, schema=None):
         if task == "scan":
             staged_names[:] = sorted(path.name for path in tmp_path.rglob("*.jpeg"))
             return [1]
@@ -1310,7 +1310,7 @@ def install_pipeline_fakes(monkeypatch, page_count, food_pages, extracted_pages=
                     labels.append(int(match.group(1)))
         return labels
 
-    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None):
+    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
         batch_pages = labeled_pages(content)
         if task == "scan":
             scan_batches.append(batch_pages)
@@ -1400,7 +1400,7 @@ def test_flyer_scan_runs_haiku_without_thinking(monkeypatch):
     install_pipeline_fakes(monkeypatch, page_count=2, food_pages={1})
     calls = []
 
-    def recording(client, model, content, max_tokens, effort=None, task="read", thinking=None):
+    def recording(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
         calls.append((task, model, max_tokens, effort, thinking))
         if task == "scan":
             return [1]
@@ -1416,6 +1416,67 @@ def test_flyer_scan_runs_haiku_without_thinking(monkeypatch):
         "scan", "claude-haiku-5-5", collector.SCAN_TOKENS, "low", {"type": "disabled"}
     )
     assert calls[1][:2] == ("read", "claude-haiku-5-5")
+
+
+def _ryza(page):
+    return {
+        "source_page": page, "nazov": f"Ryža {page}", "kategoria": "trvanlive",
+        "cena": 1.0 + page / 100, "povodna": None, "zlava": None, "jednotka": "kg",
+    }
+
+
+def test_flyer_scan_schema_limits_answers_to_pages_in_the_batch(monkeypatch):
+    install_pipeline_fakes(monkeypatch, page_count=2, food_pages={1})
+    schemas = []
+
+    def recording(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
+        if task == "scan":
+            schemas.append(schema)
+            return [1]
+        return [_ryza(1)]
+
+    monkeypatch.setattr(collector, "claude_json", recording)
+    collector.zbieraj(object(), "lidl")
+
+    assert schemas == [{"type": "array", "items": {"type": "integer", "enum": [1, 2]}}]
+
+
+def test_unknown_scan_page_is_retried_instead_of_failing_the_store(monkeypatch):
+    install_pipeline_fakes(monkeypatch, page_count=2, food_pages={1})
+    scans = []
+
+    def flaky_scan(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
+        if task == "scan":
+            scans.append(1)
+            return [99] if len(scans) == 1 else [1]
+        return [_ryza(1)]
+
+    monkeypatch.setattr(collector, "claude_json", flaky_scan)
+    offers = collector.zbieraj(object(), "lidl")
+
+    assert len(scans) == 2
+    assert [offer["source_page"] for offer in offers] == [1]
+
+
+def test_repeatedly_invalid_scan_reads_the_whole_batch(monkeypatch):
+    install_pipeline_fakes(monkeypatch, page_count=2, food_pages={1})
+    read_pages = []
+
+    def broken_scan(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
+        if task == "scan":
+            return [1, 99]
+        pages = sorted({
+            int(m) for block in content if block.get("type") == "text"
+            for m in re.findall(r"Zdrojová strana (\d+)", block["text"])
+        })
+        read_pages.append(pages)
+        return [_ryza(page) for page in pages]
+
+    monkeypatch.setattr(collector, "claude_json", broken_scan)
+    offers = collector.zbieraj(object(), "lidl")
+
+    assert read_pages == [[1, 2]]
+    assert sorted(offer["source_page"] for offer in offers) == [1, 2]
 
 
 def test_flyer_extraction_contract_keeps_public_and_loyalty_prices_separate():
@@ -1440,7 +1501,7 @@ def test_collection_keeps_unconditional_price_primary_and_card_price_conditional
     monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))
     monkeypatch.setattr(collector, "get_b64", lambda url, max_px: url)
 
-    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None):
+    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
         if task == "scan":
             return [1]
         return [{
@@ -1489,7 +1550,7 @@ def test_collection_derives_loyalty_program_from_the_known_store(monkeypatch):
     monkeypatch.setattr(collector, "get_b64", lambda url, max_px: url)
     models = []
 
-    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None):
+    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
         models.append(model)
         if task == "scan":
             return [1]
@@ -1540,7 +1601,7 @@ def test_one_invalid_price_is_quarantined_without_rereading_a_healthy_page(monke
             "podmienka_s_kartou": None,
         }
 
-    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None):
+    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
         models.append(model)
         if task == "scan":
             return [1]
@@ -1579,7 +1640,7 @@ def test_flyer_pages_use_sonnet_first_and_opus_only_for_suspicious_prices(monkey
             "podmienka_s_kartou": None,
         }
 
-    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None):
+    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
         models.append(model)
         if task == "scan":
             return [1]
@@ -1614,7 +1675,7 @@ def test_clean_sonnet_flyer_batch_does_not_call_opus(monkeypatch):
     monkeypatch.setattr(collector, "get_b64", lambda url, max_px: url)
     models = []
 
-    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None):
+    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
         models.append(model)
         if task == "scan":
             return [1]
@@ -1663,7 +1724,7 @@ def test_sonnet_batch_missing_a_selected_food_page_is_reread_by_opus(monkeypatch
             "podmienka_s_kartou": None,
         }
 
-    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None):
+    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
         models.append(model)
         if task == "scan":
             return [1, 2]
@@ -1704,7 +1765,7 @@ def test_page_without_verified_offer_does_not_discard_the_whole_store(monkeypatc
         "podmienka_s_kartou": None,
     }
 
-    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None):
+    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
         models.append(model)
         if task == "scan":
             return [1, 2]
@@ -1732,7 +1793,7 @@ def test_collection_rejects_instead_of_silently_truncating_a_loyalty_condition(m
     monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))
     monkeypatch.setattr(collector, "get_b64", lambda url, max_px: url)
 
-    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None):
+    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
         if task == "scan":
             return [1]
         return [{
@@ -1756,7 +1817,7 @@ def test_collection_skips_ambiguous_loyalty_item_without_losing_verified_prices(
     monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))
     monkeypatch.setattr(collector, "get_b64", lambda url, max_px: url)
 
-    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None):
+    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
         if task == "scan":
             return [1]
         return [
@@ -3257,7 +3318,7 @@ def test_lidl_reuses_disk_spooled_source_pages_during_paid_read(monkeypatch):
         ),
     )
 
-    def claude_json(_client, model, _content, _max_tokens, effort=None, task="read", thinking=None):
+    def claude_json(_client, model, _content, _max_tokens, effort=None, task="read", thinking=None, schema=None):
         if task == "scan":
             return [1] if any(
                 block.get("text") == "Strana 1:"
@@ -3702,7 +3763,7 @@ def test_transient_sonnet_failure_does_not_escalate_to_opus(
     install_pipeline_fakes(monkeypatch, page_count=2, food_pages={1})
     models = []
 
-    def overloaded_reader(client, model, content, max_tokens, effort=None, task="read", thinking=None):
+    def overloaded_reader(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
         models.append(model)
         if task == "scan":
             return [1]

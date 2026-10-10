@@ -2024,11 +2024,11 @@ def _parse_json_response(text):
 
 
 def claude_json(client, model, content, max_tokens, effort=None, *,
-                task="read", thinking=None):
+                task="read", thinking=None, schema=None):
     output_config = {
         "format": {
             "type": "json_schema",
-            "schema": _schema_pre_ulohu(task),
+            "schema": schema or _schema_pre_ulohu(task),
         }
     }
     if effort:
@@ -2264,6 +2264,57 @@ def _require_every_page(offers, batch_pages):
     return offers
 
 
+def _scan_schema(batch_pages):
+    # Enum obmedzí odpoveď iba na čísla strán, ktoré dávka naozaj obsahuje.
+    return {
+        "type": "array",
+        "items": {"type": "integer", "enum": sorted(batch_pages)},
+    }
+
+
+def _scan_food_pages(client, store, content, batch_pages):
+    """Vyber potravinové strany jednej dávky náhľadov.
+
+    Haiku občas vráti číslo strany, ktorá v dávke nie je. Jeden taký omyl
+    nesmie zhodiť celý obchod: dávku raz zopakujeme a keď je odpoveď stále
+    neplatná, zaradíme radšej celú dávku. Čítanie strán bez potravín samo
+    preskočí, takže chyba skenu stojí najviac pár volaní navyše.
+    """
+    problem = None
+    for _attempt in range(2):
+        try:
+            selected = claude_json(
+                client, MODEL_SCAN, content, SCAN_TOKENS, effort=SCAN_EFFORT,
+                task="scan", thinking=SCAN_THINKING,
+                schema=_scan_schema(batch_pages),
+            )
+        except naklady.KreditVycerpany:
+            # Nie je to chyba OBCHODU, ale celého účtu: ďalšie obchody by len
+            # zopakovali to isté odmietnutie. Preto ide von nezabalené.
+            raise
+        except Exception as exc:
+            _raise_if_transient(exc, f"{store}: sken strán dočasne zlyhal")
+            raise ValueError(
+                f"{store}: sken strán zlyhal ({type(exc).__name__}: {exc})"
+            ) from exc
+        if not isinstance(selected, list):
+            raise ValueError(f"{store}: sken nevrátil zoznam strán")
+        unknown = [
+            page for page in selected
+            if isinstance(page, bool) or not isinstance(page, int)
+            or page not in batch_pages
+        ]
+        if not unknown:
+            return set(selected)
+        problem = unknown
+        log(f"[WARN] {store}: sken vrátil neznáme strany {unknown[:5]} — opakujem dávku")
+    log(
+        f"[WARN] {store}: sken dávky {sorted(batch_pages)} je stále neplatný "
+        f"({problem[:5]}) — čítam celú dávku"
+    )
+    return set(batch_pages)
+
+
 def _read_offer_batch(client, *, store, manifest, batch_pages, content):
     """Haiku first; Sonnet 5.5 only when the whole batch cannot be trusted."""
     fallback_reason = None
@@ -2368,26 +2419,7 @@ def _collect_validated_flyer(
             content.append({"type": "text", "text": f"Strana {source_page}:"})
             content.append(img_block(encoded))
         content.append({"type": "text", "text": SCAN_PROMPT})
-        try:
-            selected = claude_json(
-                client, MODEL_SCAN, content, SCAN_TOKENS, effort=SCAN_EFFORT,
-                task="scan", thinking=SCAN_THINKING,
-            )
-        except naklady.KreditVycerpany:
-            # Nie je to chyba OBCHODU, ale celého účtu: ďalšie obchody by len
-            # zopakovali to isté odmietnutie. Preto ide von nezabalené.
-            raise
-        except Exception as exc:
-            _raise_if_transient(exc, f"{store}: sken strán dočasne zlyhal")
-            raise ValueError(
-                f"{store}: sken strán zlyhal ({type(exc).__name__}: {exc})"
-            ) from exc
-        if not isinstance(selected, list):
-            raise ValueError(f"{store}: sken nevrátil zoznam strán")
-        for source_page in selected:
-            if isinstance(source_page, bool) or not isinstance(source_page, int) or source_page not in batch_pages:
-                raise ValueError(f"{store}: sken vrátil neznámu stranu")
-            food.add(source_page)
+        food.update(_scan_food_pages(client, store, content, batch_pages))
     food = sorted(food)
     if not food:
         raise ValueError(f"{store}: v letáku neboli potvrdené potravinové strany")
