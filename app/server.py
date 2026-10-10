@@ -2876,6 +2876,9 @@ def me(req: Request):
         stored_diet, effective_diet, available_diets = diet_context_for_week(
             con, u, premium
         )
+        available_diets_reason = dovod_prazdnych_rezimov(
+            con, u, premium, available_diets
+        )
         sp = spajza_pouzivatela(con, u["id"], premium)
         ulozenych = pocet_ulozenej_spajze(con, u["id"])
         limit = limit_prepoctov(premium)
@@ -2905,6 +2908,7 @@ def me(req: Request):
               "stravovanie_ulozene": stored_diet,
               "stravovanie_moznosti": list(ALLOWED_DIET_MODES),
               "stravovanie_dostupne": list(available_diets),
+              "stravovanie_dostupne_dovod": available_diets_reason,
               "spajza": sp, "spajza_premium": premium, "spajza_dostupna": premium,
               "spajza_ulozenych": ulozenych, "spajza_uspana": uspana,
               "spajza_sprava": sprava_o_uspanej_spajze(ulozenych) if uspana else None,
@@ -4611,6 +4615,30 @@ def diet_context_for_week(
     return stored, effective, available
 
 
+def dovod_prazdnych_rezimov(con, profile, premium, available):
+    """Prečo je zoznam dostupných režimov prázdny; `None`, ak nie je.
+
+    Klient podľa toho vyberie pravdivú radu: chýbajúce letákové dáta sa
+    nelíšia od málo ponúk vo vybraných obchodoch ani od neuskutočniteľného režimu.
+    """
+    if available or recipe_engine_mode() != "on":
+        return None
+    day = bratislava_day()
+    try:
+        if not measurable_offers(
+            offers_for_current_week(con, list(ALLOWED_STORES), day)
+        ):
+            return "chybaju_data_tyzdna"
+        selected = measurable_offers(
+            offers_for_current_week(con, efektivne_obchody(profile, premium), day)
+        )
+    except (sqlite3.Error, OSError, TypeError, ValueError):
+        return None
+    if len(selected) < MIN_OFFERS_FOR_PLAN:
+        return "malo_ponuk_vybrane_obchody"
+    return "rezim_neuskutocnitelny"
+
+
 _SMOKE_KEYS = {
     "schema_version", "checked_at", "week", "release", "engine_mode",
     "ok", "http_status", "latency_ms", "jobs_delta", "ai_costs_delta",
@@ -5707,7 +5735,16 @@ def health():
         payment_status = _runtime_payment_readiness(
             con, queue_status=fronta_planov, recipe_status=recipe_status
         )
-    return {"vydanie": release_id(), "tyzden": monday(today), "pocet": len(rows),
+    problemy = []
+    if fronta_planov.get("worker_alive") is not True:
+        problemy.append("worker_nebezi")
+    elif fronta_planov.get("blocking_code"):
+        problemy.append("fronta_zaseknuta")
+    if not rows:
+        problemy.append("chybaju_data_tyzdna")
+    # Stavový kód ostáva 200: nasadzovacie skripty berú nie-200 ako zlyhanie.
+    return {"stav": "degradovane" if problemy else "ok", "problemy": problemy,
+            "vydanie": release_id(), "tyzden": monday(today), "pocet": len(rows),
             "ponuky_podla_obchodu": offers_by_store,
             "naklady": utrata, "predpocet": zahrievanie, "platby": platby_stav,
             "plan_queue": fronta_planov, "recipe_engine": recipe_status,

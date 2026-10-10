@@ -155,16 +155,16 @@ async function fetchWithTimeout(url, options) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    return await fetch(url, Object.assign({}, options, {signal:controller.signal}));
+  return await fetch(url, Object.assign({}, options, {signal:controller.signal}));
   } catch (error) {
-    if (controller.signal.aborted) {
-      const timeout = new Error('Server neodpovedal včas. Skús to znova.');
-      timeout.timeout = true;
-      throw timeout;
-    }
-    throw error;
+  if (controller.signal.aborted) {
+  const timeout = new Error('Server neodpovedal včas. Skús to znova.');
+  timeout.timeout = true;
+  throw timeout;
+  }
+  throw error;
   } finally {
-    clearTimeout(timer);
+  clearTimeout(timer);
   }
 }
 
@@ -176,7 +176,7 @@ let STARTUP = null, PLAN_PREFETCH = null;
 
 function beginStartup() {
   STARTUP = startupRequests(url =>
-    fetchWithTimeout(url, {headers: {'Content-Type': 'application/json'}}));
+  fetchWithTimeout(url, {headers: {'Content-Type': 'application/json'}}));
   STARTUP.me.catch(() => {});
   STARTUP.plan.catch(() => {});
   PLAN_PREFETCH = STARTUP.plan;
@@ -194,7 +194,7 @@ const PROFILE_KEY = 'uvarsi_profil';
 
 function rememberProfile(me) {
   try {
-    localStorage.setItem(PROFILE_KEY, JSON.stringify({onboarding: !!me.onboarding}));
+  localStorage.setItem(PROFILE_KEY, JSON.stringify({onboarding: !!me.onboarding}));
   } catch (e) {}
 }
 
@@ -204,15 +204,15 @@ function forgetProfile() {
 
 function cachedProfile() {
   try {
-    const raw = localStorage.getItem(PROFILE_KEY);
-    if (raw === null) return null;
-    const known = JSON.parse(raw);
-    const onboarding = !!(known && known.onboarding);
-    localStorage.setItem(PROFILE_KEY, JSON.stringify({onboarding}));
-    return onboarding ? {onboarding: true} : null;
+  const raw = localStorage.getItem(PROFILE_KEY);
+  if (raw === null) return null;
+  const known = JSON.parse(raw);
+  const onboarding = !!(known && known.onboarding);
+  localStorage.setItem(PROFILE_KEY, JSON.stringify({onboarding}));
+  return onboarding ? {onboarding: true} : null;
   } catch (e) {
-    try { localStorage.removeItem(PROFILE_KEY); } catch (_error) {}
-    return null;
+  try { localStorage.removeItem(PROFILE_KEY); } catch (_error) {}
+  return null;
   }
 }
 
@@ -231,23 +231,23 @@ function checkedStateKey(user, plan) {
   var parts = [String(week || 'unknown')];
   var groups = (plan && plan.nakupny_zoznam) || [];
   for (var g = 0; g < groups.length; g++) {
-    var group = groups[g] || {};
-    parts.push(String(group.obchod || ''));
-    var items = group.polozky || [];
-    for (var i = 0; i < items.length; i++) {
-      var item = items[i] || {};
-      parts.push(String(item.offer_key || item.nazov || ''));
-    }
+  var group = groups[g] || {};
+  parts.push(String(group.obchod || ''));
+  var items = group.polozky || [];
+  for (var i = 0; i < items.length; i++) {
+  var item = items[i] || {};
+  parts.push(String(item.offer_key || item.nazov || ''));
+  }
   }
   var signature = parts.join('|');
   var fingerprint = 2166136261;
   for (var c = 0; c < signature.length; c++) {
-    fingerprint = (fingerprint ^ signature.charCodeAt(c)) >>> 0;
-    fingerprint = (fingerprint + ((fingerprint << 1) + (fingerprint << 4) +
-      (fingerprint << 7) + (fingerprint << 8) + (fingerprint << 24))) >>> 0;
+  fingerprint = (fingerprint ^ signature.charCodeAt(c)) >>> 0;
+  fingerprint = (fingerprint + ((fingerprint << 1) + (fingerprint << 4) +
+  (fingerprint << 7) + (fingerprint << 8) + (fingerprint << 24))) >>> 0;
   }
   return 'uvarsi_done:' + encodeURIComponent(String(identity || 'unknown')) + ':' +
-    encodeURIComponent(String(week || 'unknown')) + ':' + fingerprint.toString(36);
+  encodeURIComponent(String(week || 'unknown')) + ':' + fingerprint.toString(36);
 }
 
 function loadCheckedState(user, plan) {
@@ -258,9 +258,9 @@ function loadCheckedState(user, plan) {
 function setPlan(plan) {
   PLAN = plan;
   if (plan && plan.jedla) {
-    PLAN_NEEDS_REGEN = false;
-    PLAN_RESUME_ENDPOINT = '';
-    PLAN_EMPTY_REASON = '';
+  PLAN_NEEDS_REGEN = false;
+  PLAN_RESUME_ENDPOINT = '';
+  PLAN_EMPTY_REASON = '';
   }
   DONE = loadCheckedState(ME, PLAN);
   PANTRY_OVERRIDE = loadPantryOverride(ME, PLAN);
@@ -297,8 +297,8 @@ function moneyText(amount) {
 function planTotals(plan) {
   plan = plan || {};
   var nakup = moneyValue(plan.nakup_spolu),
-    bezna = plan.bezna_cena != null ? plan.bezna_cena : plan.bezne,
-    usetris = plan.usetrene != null ? plan.usetrene : plan.usetris;
+  bezna = plan.bezna_cena != null ? plan.bezna_cena : plan.bezne,
+  usetris = plan.usetrene != null ? plan.usetrene : plan.usetris;
   if (bezna == null) bezna = nakup + moneyValue(usetris);
   if (usetris == null) usetris = Math.max(0, moneyValue(bezna) - nakup);
   return {nakup:moneyText(nakup), bezna:moneyText(moneyValue(bezna)), usetris:moneyText(moneyValue(usetris))};
@@ -308,23 +308,23 @@ function shoppingItems(plan) {
   var groups = (plan && plan.nakupny_zoznam) || [];
   var out = [];
   for (var g = 0; g < groups.length; g++) {
-    out = out.concat((groups[g] || {}).polozky || []);
+  out = out.concat((groups[g] || {}).polozky || []);
   }
   return out;
 }
 
 function remainingTotal(plan, overrides) {
   return moneyText(shoppingItems(plan).reduce(function(sum, item) {
-    var id = String(item && (item.offer_key || item.nazov) || '');
-    if ((overrides || {})[id]) return sum + moneyValue(item.cena);
-    if (item && item.cena_po_spajzi != null) return sum + moneyValue(item.cena_po_spajzi);
-    return pantryOwned(item, overrides) ? sum : sum + moneyValue(item.cena);
+  var id = String(item && (item.offer_key || item.nazov) || '');
+  if ((overrides || {})[id]) return sum + moneyValue(item.cena);
+  if (item && item.cena_po_spajzi != null) return sum + moneyValue(item.cena_po_spajzi);
+  return pantryOwned(item, overrides) ? sum : sum + moneyValue(item.cena);
   }, 0));
 }
 
 function pantryOwnedCount(plan, overrides) {
   return shoppingItems(plan).filter(function(item) {
-    return pantryOwned(item, overrides) || pantryPartial(item, overrides);
+  return pantryOwned(item, overrides) || pantryPartial(item, overrides);
   }).length;
 }
 
@@ -336,15 +336,15 @@ function shoppingQuantityLabel(item) {
   var o = typeof PANTRY_OVERRIDE === 'undefined' ? {} : PANTRY_OVERRIDE;
   var x = !!o[item && (item.offer_key || item.nazov) || ''];
   if (item && item.predaj_na_vahu) {
-    if (!x && item.mas_doma) return '';
-    var r = !x && item.kupit_po_spajzi != null && item.zostava;
-    var w = r || item.kupit || item.potrebne;
-    return w && item.potrebna_jednotka
-      ? w + (r ? '' : ' ' + item.potrebna_jednotka) + ' · na váhu'
-      : '';
+  if (!x && item.mas_doma) return '';
+  var r = !x && item.kupit_po_spajzi != null && item.zostava;
+  var w = r || item.kupit || item.potrebne;
+  return w && item.potrebna_jednotka
+  ? w + (r ? '' : ' ' + item.potrebna_jednotka) + ' · na váhu'
+  : '';
   }
   var q = !x && item && item.mnozstvo_po_spajzi != null
-    ? item.mnozstvo_po_spajzi : item && item.mnozstvo;
+  ? item.mnozstvo_po_spajzi : item && item.mnozstvo;
   var u = item && item.jednotka;
   return q && u ? q + ' × ' + u : '';
 }
@@ -366,19 +366,19 @@ function handleApiUnauthorized(response) {
 function apiErrorMessage(status, payload) {
   var detail = payload && payload.detail;
   if (Object.prototype.toString.call(detail) === '[object Array]') {
-    var reasons = [];
-    for (var i = 0; i < detail.length; i++) {
-      var entry = detail[i];
-      var reason = typeof entry === 'string' ? entry : (entry && (entry.msg || entry.message)) || '';
-      if (reason) reasons.push(String(reason));
-    }
-    detail = reasons.join(' · ');
+  var reasons = [];
+  for (var i = 0; i < detail.length; i++) {
+  var entry = detail[i];
+  var reason = typeof entry === 'string' ? entry : (entry && (entry.msg || entry.message)) || '';
+  if (reason) reasons.push(String(reason));
+  }
+  detail = reasons.join(' · ');
   } else if (detail && typeof detail === 'object') {
-    detail = detail.msg || detail.message || '';
+  detail = detail.msg || detail.message || '';
   }
   if (typeof detail === 'string' && detail.replace(/\s/g, '')) {
-    detail = detail.trim();
-    return /[.!?…]$/.test(detail) ? detail : detail + '.';
+  detail = detail.trim();
+  return /[.!?…]$/.test(detail) ? detail : detail + '.';
   }
   if (status === 422 || status === 400) return 'Zadané údaje nesedia. Skontroluj ich a skús to znova.';
   if (status === 404) return 'Toto sa nenašlo. Skús to znova alebo napíš na pomoc@uvar.si.';
@@ -389,35 +389,35 @@ function apiErrorMessage(status, payload) {
 
 function networkErrorMessage(online) {
   return online === false
-    ? 'Vyzerá to, že si offline. Zapni internet a skús to znova.'
-    : 'Nepodarilo sa spojiť so serverom. Skontroluj pripojenie a skús to znova.';
+  ? 'Vyzerá to, že si offline. Zapni internet a skús to znova.'
+  : 'Nepodarilo sa spojiť so serverom. Skontroluj pripojenie a skús to znova.';
 }
 
 function offlineError() {
   const failure = new Error(networkErrorMessage(
-    typeof navigator === 'undefined' ? true : navigator.onLine));
+  typeof navigator === 'undefined' ? true : navigator.onLine));
   failure.offline = true;
   return failure;
 }
 
 async function readApiResponse(r) {
   if (handleApiUnauthorized(r)) {
-    const authError = new Error('Prihlásenie vypršalo. Prihlás sa znova.');
-    authError.authRequired = true;
-    throw authError;
+  const authError = new Error('Prihlásenie vypršalo. Prihlás sa znova.');
+  authError.authRequired = true;
+  throw authError;
   }
   if (!r.ok) {
-    const payload = await r.json().catch(()=>null);
-    const failure = new Error(apiErrorMessage(r.status, payload));
-    failure.status = r.status;
-    const serverCode = payload && (payload.kod || payload.code);
-    failure.code = typeof serverCode === 'string' ? serverCode.slice(0,100) : '';
-    if (failure.code === 'price_changed' && payload && payload.offer &&
-        typeof payload.offer === 'object') failure.offer = payload.offer;
-    failure.suggestions = (Array.isArray(payload?.navrhy) ? payload.navrhy : []).map(item => item.text);
-    if (payload && typeof payload.retry_allowed === 'boolean')
-      failure.retry_allowed = payload.retry_allowed;
-    throw failure;
+  const payload = await r.json().catch(()=>null);
+  const failure = new Error(apiErrorMessage(r.status, payload));
+  failure.status = r.status;
+  const serverCode = payload && (payload.kod || payload.code);
+  failure.code = typeof serverCode === 'string' ? serverCode.slice(0,100) : '';
+  if (failure.code === 'price_changed' && payload && payload.offer &&
+  typeof payload.offer === 'object') failure.offer = payload.offer;
+  failure.suggestions = (Array.isArray(payload?.navrhy) ? payload.navrhy : []).map(item => item.text);
+  if (payload && typeof payload.retry_allowed === 'boolean')
+  failure.retry_allowed = payload.retry_allowed;
+  throw failure;
   }
   return r.json();
 }
@@ -426,8 +426,8 @@ async function readStartupResponse(pending) {
   let r;
   try { r = await pending; }
   catch (networkFailure) {
-    if (networkFailure && networkFailure.timeout) throw networkFailure;
-    throw offlineError();
+  if (networkFailure && networkFailure.timeout) throw networkFailure;
+  throw offlineError();
   }
   return readApiResponse(r);
 }
@@ -436,10 +436,10 @@ async function api(url, opts) {
   const options = Object.assign({headers:{'Content-Type':'application/json'}}, opts||{});
   let r;
   try {
-    r = await fetchWithTimeout(url, options);
+  r = await fetchWithTimeout(url, options);
   } catch (networkError) {
-    if (networkError && networkError.timeout) throw networkError;
-    throw offlineError();
+  if (networkError && networkError.timeout) throw networkError;
+  throw offlineError();
   }
   return readApiResponse(r);
 }
@@ -451,15 +451,15 @@ async function runGuardedAction(button, errorNode, action) {
   button.disabled = true;
   button.textContent = 'Pracujem…';
   try {
-    await action();
-    return true;
+  await action();
+  return true;
   } catch (error) {
-    button.disabled = false;
-    button.textContent = label;
-    if (error && error.authRequired) return false;
-    const message = (error && error.message) || 'Nepodarilo sa to uložiť. Skús to prosím znova.';
-    if (errorNode) errorNode.textContent = message; else alert(message);
-    return false;
+  button.disabled = false;
+  button.textContent = label;
+  if (error && error.authRequired) return false;
+  const message = (error && error.message) || 'Nepodarilo sa to uložiť. Skús to prosím znova.';
+  if (errorNode) errorNode.textContent = message; else alert(message);
+  return false;
   }
 }
 
@@ -478,9 +478,9 @@ function pantryName(value) {
 function pantryDiffers(planPantry, currentPantry) {
   if (Object.prototype.toString.call(planPantry) !== '[object Array]') return false;
   var pantryFact = function(value) {
-    var name = pantryName(value);
-    if (!name) return null;
-    if (!value || typeof value !== 'object') {
+  var name = pantryName(value);
+  if (!name) return null;
+  if (!value || typeof value !== 'object') {
       return {name:name, amount:'~', unit:'~', legacy:true};
     }
     var amount = value.mnozstvo;
@@ -621,7 +621,7 @@ function viewLegacyLogin(sent, previousEmail) {
   clearAuthenticatedState();
   forgetProfile();
   $('#nav').classList.add('hidden');
-  M.innerHTML = sent ? ` <div class="card center" style="margin-top:40px"><svg class="state-icon" aria-hidden="true"><use href="#i-mail"></use></svg><h2 class="display" style="font-size:1.5rem;margin:10px 0">Žiadosť je prijatá</h2><p class="muted">Poskytovateľ prijal žiadosť o prihlasovací e-mail. Odkaz platí 60 minút.</p><button class="btn btn--ghost" id="again">Poslať znova o 60 sekúnd</button></div>` : ` <div style="margin-top:36px"><span class="eyebrow">Vitaj</span><h1 class="display" style="font-size:2.1rem;margin:8px 0 14px">Z letáka<br>rovno na tanier.</h1><p class="muted" style="margin-bottom:22px">Zadaj e-mail. Prihlasovací odkaz platí 60 minút.</p><div class="card"><label>E-mail</label><input id="em" type="email" placeholder="tvoj@email.sk" autocomplete="email"><div style="height:12px"></div><button class="btn" id="go">Poslať odkaz →</button><p id="err" class="muted" style="color:var(--accent);margin-top:10px"></p></div></div>`;
+  M.innerHTML = sent ? ` <div class="card center" style="margin-top:40px"><svg class="state-icon" aria-hidden="true"><use href="#i-mail"></use></svg><h2 class="display" style="font-size:1.5rem;margin:10px 0">Skontroluj e-mail</h2><p class="muted">Poskytovateľ prijal žiadosť o prihlasovací e-mail, ak k adrese existuje účet. Odkaz platí 60 minút. Nový účet tu zatiaľ nevznikne, napíš cez Kontakt.</p><button class="btn btn--ghost" id="again">Poslať znova o 60 sekúnd</button></div>` : ` <div style="margin-top:36px"><span class="eyebrow">Vitaj</span><h1 class="display" style="font-size:2.1rem;margin:8px 0 14px">Z letáka<br>rovno na tanier.</h1><p class="muted" style="margin-bottom:22px">Zadaj e-mail. Prihlasovací odkaz platí 60 minút.</p><div class="card"><label>E-mail</label><input id="em" type="email" placeholder="tvoj@email.sk" autocomplete="email"><div style="height:12px"></div><button class="btn" id="go">Poslať odkaz →</button><p id="err" class="muted" style="color:var(--accent);margin-top:10px"></p></div></div>`;
   if (sent) {
     const resend = $('#again');
     armAuthResend(resend);
@@ -936,6 +936,13 @@ function dietModeAvailable(mode, me) {
   return weekly.includes(mode) && (mode === 'standard' || !!me.premium);
 }
 
+function spravaNedostupnyRezim(me) {
+  const d = me && me.stravovanie_dostupne_dovod;
+  if (d === 'chybaju_data_tyzdna') return 'Nastavenia sú uložené. Letákové dáta na tento týždeň sa obnovujú, jedálniček poskladáme, keď budú. Skús to neskôr.';
+  if (d === 'malo_ponuk_vybrane_obchody') return 'Vo zvolených obchodoch je málo akcií. Pridaj obchod alebo skús neskôr.';
+  return 'Z týchto akcií zvolený jedálniček neposkladáme. Pridaj obchod alebo vyber iný režim.';
+}
+
 function dietOptionsHtml(selected, premium, recipeEngine, availableModes) {
   var choices = [
     ['standard', 'Bez obmedzenia'], ['high_protein', 'Viac bielkovín'],
@@ -1060,7 +1067,7 @@ function viewOnboarding() {
     if (!dietModeAvailable(ME.stravovanie, ME)) {
       viewOnboarding();
       const message = $('#ob-err');
-      if (message) message.textContent = 'Z týchto akcií zvolený jedálniček neposkladáme. Pridaj obchod alebo vyber iný režim.';
+      if (message) message.textContent = spravaNedostupnyRezim(ME);
       return;
     }
     await refreshPlanAfterProfileSave();
@@ -1652,7 +1659,10 @@ async function addLeftoverToPantry(button, item) {
 }
 
 function vZoznam() {
-  if (!PLAN || !PLAN.nakupny_zoznam) { M.innerHTML = '<p class="muted">Najprv si vygeneruj plán.</p>'; return; }
+  if (!PLAN || !PLAN.nakupny_zoznam) {
+    M.innerHTML = `<div class="card center"><p style="margin:8px 0 14px">Zoznam vznikne, keď bude hotový jedálniček.</p><button class="btn" onclick="TAB='plan';render()">Na jedálniček →</button></div>`;
+    return;
+  }
   const doma = pantryOwnedCount(PLAN, PANTRY_OVERRIDE);
   const zaplatis = remainingTotal(PLAN, PANTRY_OVERRIDE);
   let h = `<div style="margin:18px 0 6px"><span class="eyebrow">Nákupný zoznam</span><h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo kúpiť a kde</h1><p id="shop-error" class="shop-error" aria-live="polite"></p></div>`;
