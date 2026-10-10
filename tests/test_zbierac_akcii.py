@@ -1873,24 +1873,64 @@ def test_sonnet_batch_missing_a_selected_food_page_is_reread_by_opus(monkeypatch
             "podmienka_s_kartou": None,
         }
 
+    detail_pages = []
+
+    def pages_in(content):
+        return sorted({
+            int(m) for block in content if block.get("type") == "text"
+            for m in re.findall(r"Zdrojová strana (\d+)", block["text"])
+        })
+
     def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
         models.append(model)
         if task == "scan":
             return [1, 2]
-        if task == "read" and model == collector.MODEL_READ:
-            return [extracted(1)]
-        return [extracted(1), extracted(2)]
+        pages = pages_in(content)
+        if model == collector.MODEL_READ:
+            return [extracted(page) for page in pages if page == 1]
+        detail_pages.append(pages)
+        return [extracted(page) for page in pages]
 
     monkeypatch.setattr(collector, "claude_json", fake_claude_json)
 
     offers = collector.zbieraj(object(), "lidl")
 
+    # Haiku najprv stranu 2 skúsi znova sám; Sonnet 5.5 overí iba ju, nie celú dávku.
     assert models == [
         collector.MODEL_SCAN,
         collector.MODEL_READ,
+        collector.MODEL_READ,
         "claude-sonnet-5-5",
     ]
+    assert detail_pages == [[2]]
     assert {offer["source_page"] for offer in offers} == {1, 2}
+
+
+def test_haiku_reread_recovers_a_missed_page_without_sonnet(monkeypatch):
+    pages, manifest = flyer_fixture(2)
+    monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))
+    monkeypatch.setattr(collector, "get_b64", lambda url, max_px: url)
+    models = []
+    reads = []
+
+    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
+        models.append(model)
+        if task == "scan":
+            return [1, 2]
+        pages_read = sorted({
+            int(m) for block in content if block.get("type") == "text"
+            for m in re.findall(r"Zdrojová strana (\d+)", block["text"])
+        })
+        reads.append(pages_read)
+        return [_ryza(page) for page in pages_read if len(reads) > 1 or page == 1]
+
+    monkeypatch.setattr(collector, "claude_json", fake_claude_json)
+
+    offers = collector.zbieraj(object(), "lidl")
+
+    assert models == [collector.MODEL_SCAN, collector.MODEL_READ, collector.MODEL_READ]
+    assert reads == [[1, 2], [2]]
+    assert sorted(offer["source_page"] for offer in offers) == [1, 2]
 
 
 def test_page_without_verified_offer_does_not_discard_the_whole_store(monkeypatch):
@@ -1932,6 +1972,7 @@ def test_page_without_verified_offer_does_not_discard_the_whole_store(monkeypatc
     }]
     assert models == [
         collector.MODEL_SCAN,
+        collector.MODEL_READ,
         collector.MODEL_READ,
         collector.MODEL_READ_FALLBACK,
     ]
