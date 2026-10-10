@@ -16,6 +16,8 @@ def ziadne_notifikacie_von(monkeypatch):
     pípal telefón a test by čakal na sieť.
     """
     monkeypatch.syspath_prepend(str(ROOT / "app"))
+    # Opakované sťahovanie strany letáku v testoch nečaká.
+    monkeypatch.setenv("UVARSI_PAGE_RETRY_DELAYS", "0,0")
     try:
         import naklady
     except Exception:  # naklady sa nedá importovať — potom niet čo umlčať

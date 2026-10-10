@@ -11,7 +11,7 @@ Zdroje strán letákov: oficiálne zdroje obchodov; agregátory iba ako núdzov�
 Beh:  /opt/uvarsi/venv/bin/python -u zbierac_akcii.py
 Opravný beh jedného zdroja:  ... zbierac_akcii.py --store lidl
 """
-import os, re, json, base64, datetime, hashlib, secrets, sqlite3, tempfile, requests
+import os, re, json, base64, datetime, hashlib, secrets, sqlite3, tempfile, time, requests
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -113,6 +113,9 @@ MAX_MANIFEST_PAGES = 200    # žiadny deklarovaný leták nejde nad tento strop 
 # Na každých 20 strán letáku smie zdroj trvalo odmietnuť najviac jednu stranu
 # (vždy aspoň jednu). Viac odmietnutých strán už je pokazený zdroj, nie výnimka.
 DENIED_PAGES_PER_ALLOWED = 20
+# Jednotlivú stranu skúsime pri overovaní obsahu stiahnuť viackrát. Testy
+# pauzy vypínajú cez UVARSI_PAGE_RETRY_DELAYS="0,0".
+PAGE_RETRY_DELAYS = (2.0, 5.0)
 # Tesco bridge (Cloudflare worker aj kontrola nasadenia) pripúšťa 8..120 strán.
 TESCO_MAX_MANIFEST_PAGES = 120
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -2519,6 +2522,30 @@ def _safe_attempted_provenance(manifest, *, attempt_state=None):
         return None
 
 
+def _page_retry_delays():
+    raw = os.environ.get("UVARSI_PAGE_RETRY_DELAYS")
+    if raw is None:
+        return PAGE_RETRY_DELAYS
+    try:
+        return tuple(max(0.0, float(part)) for part in raw.split(",") if part.strip())
+    except ValueError:
+        return PAGE_RETRY_DELAYS
+
+
+def _download_identity_page(store, url):
+    """Stiahni stranu na overenie obsahu; dočasné zlyhanie skús znova."""
+    delays = _page_retry_delays()
+    for attempt in range(len(delays) + 1):
+        try:
+            if store == "tesco":
+                return _download_official_tesco_page(url, strict=True)
+            return get_image_bytes(url, strict=True)
+        except TransientCollectionError:
+            if attempt >= len(delays):
+                raise
+            time.sleep(delays[attempt])
+
+
 def _attach_exact_content_identity(store, manifest, page_manifest):
     """Hash every official source page before AI, regardless of its opaque ID."""
     if manifest.get("collector_kind") != OFFICIAL_COLLECTOR_BY_STORE.get(store.capitalize()):
@@ -2529,19 +2556,23 @@ def _attach_exact_content_identity(store, manifest, page_manifest):
     page_bytes = PageByteSpool()
     content_hashes = []
     denied = []
+    unavailable = []
+    allowed = max(1, len(page_manifest) // DENIED_PAGES_PER_ALLOWED)
     for source_page, page in page_manifest.items():
         try:
-            if store == "tesco":
-                content = _download_official_tesco_page(
-                    page["image_url"], strict=True
-                )
-            else:
-                content = get_image_bytes(page["image_url"], strict=True)
+            content = _download_identity_page(store, page["image_url"])
         except TransientCollectionError as exc:
-            page_bytes.cleanup()
-            raise TransientCollectionError(
-                f"{store}: strana {source_page} — {exc}"
-            ) from None
+            # 10. 10.: Tesco strana 28 striedala HTTP 502 a ne-obrázok aj po
+            # opakovaní. Jedna takto nedostupná strana nesmie zastaviť obchod;
+            # keď ich je viac, ide o výpadok zdroja a beh sa zopakuje neskôr.
+            unavailable.append(source_page)
+            content_hashes.append([source_page, "unavailable"])
+            if len(denied) + len(unavailable) > allowed:
+                page_bytes.cleanup()
+                raise TransientCollectionError(
+                    f"{store}: strana {source_page} — {exc}"
+                ) from None
+            continue
         except SourcePageDenied:
             denied.append(source_page)
             content_hashes.append([source_page, "access-denied"])
@@ -2566,9 +2597,9 @@ def _attach_exact_content_identity(store, manifest, page_manifest):
         rows[source_page]["content_hash"] = digest
         content_hashes.append([source_page, digest])
         page_bytes.put(source_page, content)
-    if denied:
-        allowed = max(1, len(page_manifest) // DENIED_PAGES_PER_ALLOWED)
-        if len(denied) > allowed:
+    skipped = sorted(denied + unavailable)
+    if skipped:
+        if len(skipped) > allowed:
             attempted = _safe_attempted_provenance(
                 enriched,
                 attempt_state={
@@ -2579,15 +2610,18 @@ def _attach_exact_content_identity(store, manifest, page_manifest):
             )
             page_bytes.cleanup()
             raise ManifestPreparationError(
-                f"{store}: zdroj odmietol {len(denied)} strán {denied[:10]} "
+                f"{store}: zdroj odmietol {len(skipped)} strán {skipped[:10]} "
                 f"(povolených najviac {allowed})",
                 attempted,
             )
-        # Jedna strana, ktorú zdroj trvalo odmieta, nesmie zastaviť celý
-        # obchod. Vynecháme ju viditeľne: zostane v manifeste aj v logu.
-        log(f"[WARN] {store}: zdroj odmieta strany {denied} — čítam leták bez nich")
-        enriched["denied_pages"] = denied
-        for source_page in denied:
+        # Jedna strana, ktorú zdroj trvalo odmieta alebo nevydá, nesmie
+        # zastaviť celý obchod. Vynecháme ju viditeľne: v manifeste aj v logu.
+        log(f"[WARN] {store}: zdroj nevydal strany {skipped} — čítam leták bez nich")
+        if denied:
+            enriched["denied_pages"] = denied
+        if unavailable:
+            enriched["unavailable_pages"] = unavailable
+        for source_page in skipped:
             rows.pop(source_page, None)
     exact = hashlib.sha256(json.dumps(
         content_hashes, separators=(",", ":")
