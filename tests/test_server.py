@@ -2850,3 +2850,16 @@ def test_the_pantry_endpoint_reads_the_entitlement_on_every_single_request(monke
         con.commit()
 
     assert client.post("/api/spajza", json={"polozky": ["ryža", "vajcia"]}).status_code == 403
+
+
+def test_every_response_carries_browser_security_headers(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [])
+    client = TestClient(server.app, base_url="https://uvar.si")
+
+    for path in ("/api/me", "/api/plan", "/api/akcie/pocet"):
+        headers = client.get(path).headers
+        assert headers["x-frame-options"] == "DENY"
+        assert headers["content-security-policy"] == "frame-ancestors 'none'"
+        assert headers["x-content-type-options"] == "nosniff"
+        assert headers["strict-transport-security"].startswith("max-age=")
+        assert headers["referrer-policy"] == "strict-origin-when-cross-origin"

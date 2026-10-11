@@ -849,6 +849,17 @@ def set_setup_cookie(response: Response, raw_session: str) -> None:
     )
 
 
+# Prehliadač nesmie stránku vložiť do cudzieho rámu (podvrhnuté kliknutia na
+# prihlásení či platbe), hádať typ súborov ani posielať celé adresy inam.
+SECURITY_HEADERS = {
+    "Strict-Transport-Security": "max-age=31536000",
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "frame-ancestors 'none'",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+}
+
+
 @app.middleware("http")
 async def private_ui_noindex(request: Request, call_next):
     response = await call_next(request)
@@ -860,6 +871,8 @@ async def private_ui_noindex(request: Request, call_next):
     ):
         response.headers["Cache-Control"] = PRIVATE_CACHE_CONTROL
         response.headers["X-Robots-Tag"] = NOINDEX_HEADER
+    for name, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
     return response
 
 

@@ -55,6 +55,38 @@ def test_lidl_hints_use_pdf_text_only_when_it_matches_the_same_page(monkeypatch)
     assert hints[2] == "Popis strany od Lidla: Posteľná bielizeň."
 
 
+def test_lidl_hints_export_full_verified_page_text(monkeypatch):
+    monkeypatch.setattr(podklady.requests, "get", lambda *_a, **_k: _json(_lidl_flyer()))
+    monkeypatch.setattr(podklady, "_download_pdf", lambda _url, directory: f"{directory}/l.pdf")
+    long_text = "Eidam Gouda Leerdammer Plátky Bryndza 1.29\n" + "x" * 5000 + "\n9.99"
+    monkeypatch.setattr(podklady, "pdf_page_texts", lambda _path: [long_text, "Obliečky"])
+    verified = {}
+
+    podklady.lidl_page_hints(LIDL_MANIFEST, log=lambda *_: None, verified_texts=verified)
+
+    assert list(verified) == [1]
+    assert verified[1].endswith("9.99")  # celý text, nie skrátený podklad pre model
+
+
+def test_failed_hints_leave_no_verified_text(monkeypatch):
+    def broken(manifest, log, verified_texts):
+        verified_texts[1] = "1.29"
+        raise RuntimeError("PDF sa pokazilo")
+
+    monkeypatch.setattr(podklady, "lidl_page_hints", broken)
+    verified = {}
+
+    assert podklady.page_hints("lidl", LIDL_MANIFEST, log=lambda *_: None, verified_texts=verified) == {}
+    assert verified == {}
+
+
+def test_source_prices_read_every_lidl_price_format():
+    text = "-20﹪ 1.19 Eidam 0.95 (100 g = 0,63) 1.⁹⁹ 12.49 2.- 3,– 10.99** -17.﹪ 42/2026"
+    assert podklady.source_prices(text) == {
+        "1.19", "0.95", "0.63", "1.99", "12.49", "2.00", "3.00", "10.99",
+    }
+
+
 def test_lidl_hints_refuse_a_different_flyer(monkeypatch):
     monkeypatch.setattr(podklady.requests, "get", lambda *_a, **_k: _json(_lidl_flyer("iny")))
     monkeypatch.setattr(podklady, "_download_pdf", lambda *_a: pytest.fail("PDF iného letáku"))
