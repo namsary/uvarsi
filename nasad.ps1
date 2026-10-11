@@ -615,7 +615,7 @@ skontroluj_presmerovanie https://uvarsi.sk/co-varit-tento-tyzden "uvarsi.sk redi
 skontroluj_presmerovanie https://www.uvarsi.sk/co-varit-tento-tyzden "www.uvarsi.sk redirect"
 skontroluj_presmerovanie https://uvarsi.89.167.72.159.sslip.io/co-varit-tento-tyzden "sslip redirect"
 
-HEALTH=$(curl -s https://uvar.si/api/health || true)
+HEALTH=$(curl -s localhost:8090/api/health || true)
 
 . /opt/uvarsi/uvarsi-deploy-state.sh || zle "bezpecnostny deploy modul sa neda nacitat"
 uvarsi_require_payments_off || zle "platby nie su po nasadeni vypnute v env subore"

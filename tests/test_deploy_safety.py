@@ -680,8 +680,9 @@ def test_postdeploy_reads_headers_with_get_instead_of_unsupported_head(script):
 def test_postdeploy_parses_top_level_health_json_without_greedy_sed(script):
     bloky = [
         blok for blok in _heredoc_blocks(script.splitlines())
-        if 'HEALTH=$(curl -s https://uvar.si/api/health' in blok
+        if 'HEALTH=$(curl -s localhost:8090/api/health' in blok
     ]
+    # Verejný health skrýva plan_queue — post-deploy ho číta priamo na serveri.
     assert bloky
     blok = "\n".join(bloky)
     assert "json.load(sys.stdin)" in blok

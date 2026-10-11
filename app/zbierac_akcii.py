@@ -2444,17 +2444,75 @@ def _read_offer_batch(client, *, store, manifest, batch_pages, content,
         ) from exc
 
 
-def _source_page_hints(store, manifest):
+def _zdrojove_podklady():
+    try:
+        import zdrojove_podklady
+    except ImportError:
+        from app import zdrojove_podklady
+    return zdrojove_podklady
+
+
+def _source_page_hints(store, manifest, verified_texts=None):
     """Presné podklady od obchodu k stranám; chyba = žiadne podklady."""
     try:
-        try:
-            import zdrojove_podklady
-        except ImportError:
-            from app import zdrojove_podklady
-        return zdrojove_podklady.page_hints(store, manifest, log=log) or {}
+        return _zdrojove_podklady().page_hints(
+            store, manifest, log=log, verified_texts=verified_texts
+        ) or {}
     except Exception as exc:
+        if verified_texts is not None:
+            verified_texts.clear()
         log(f"[WARN] {store}: podklady od obchodu preskakujem ({type(exc).__name__})")
         return {}
+
+
+# Keď nesedí viac než štvrtina cien, chyba je skôr v texte PDF (iný formát,
+# iné rozloženie) než v čítaní — vtedy sa nevyraďuje nič, len sa to zaloguje.
+SOURCE_PRICE_MAX_MISMATCH = 0.25
+
+
+def _verify_prices_against_source(store, offers, verified_texts):
+    """Vyradí akcie, ktorých cena nie je v oficiálnom texte tej istej strany.
+
+    Kontrola je bezplatná a nezávislá od modelu: text PDF pochádza priamo od
+    obchodu a pre stranu sa použije len vtedy, keď sedí s jej kľúčovými slovami.
+    Strany bez overeného textu ostávajú bez zmeny.
+    """
+    if not verified_texts:
+        return offers
+    source_prices = _zdrojove_podklady().source_prices
+    prices_by_page = {}
+    kept, rejected, checked = [], [], 0
+    for offer in offers:
+        page = offer.get("source_page")
+        text = verified_texts.get(page)
+        if not text:
+            kept.append(offer)
+            continue
+        if page not in prices_by_page:
+            prices_by_page[page] = source_prices(text)
+        checked += 1
+        if f"{float(offer['cena']):.2f}" in prices_by_page[page]:
+            kept.append(offer)
+        else:
+            rejected.append(offer)
+    if not checked:
+        return offers
+    if len(rejected) > checked * SOURCE_PRICE_MAX_MISMATCH:
+        log(
+            f"[WARN] {store}: kontrola cien voči PDF nesedí pri {len(rejected)}/{checked} "
+            "akciách — pravdepodobne zmena formátu PDF, akcie ponechávam"
+        )
+        return offers
+    log(
+        f"[INFO] {store}: kontrola cien voči PDF: {checked - len(rejected)}/{checked} "
+        f"overených, vyradené {len(rejected)}"
+    )
+    for offer in rejected:
+        log(
+            f"[INFO] {store}: vyradená s.{offer.get('source_page')} "
+            f"{float(offer['cena']):.2f} EUR {ascii(offer.get('nazov'))} — cena nie je v PDF"
+        )
+    return kept
 
 
 def _scan_hint(hint):
@@ -2737,7 +2795,8 @@ def zbieraj(client, store, prepared=None):
     pages = prepared.pages
     manifest = prepared.manifest
     page_manifest = prepared.page_manifest
-    hints = _source_page_hints(store, manifest)
+    verified_texts = {}
+    hints = _source_page_hints(store, manifest, verified_texts=verified_texts)
 
     try:
         if store == "tesco" and manifest.get("collector_kind") == "official-tesco-viewer":
@@ -2757,7 +2816,7 @@ def zbieraj(client, store, prepared=None):
                     page_hints=hints,
                 )
 
-        return _collect_validated_flyer(
+        offers = _collect_validated_flyer(
             client,
             store,
             manifest,
@@ -2765,6 +2824,7 @@ def zbieraj(client, store, prepared=None):
             page_cache=prepared.page_bytes,
             page_hints=hints,
         )
+        return _verify_prices_against_source(store, offers, verified_texts)
     finally:
         cleanup = getattr(prepared.page_bytes, "cleanup", None)
         if cleanup is not None:

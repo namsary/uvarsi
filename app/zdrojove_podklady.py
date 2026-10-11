@@ -118,8 +118,12 @@ def _download_pdf(url, directory):
     return path
 
 
-def lidl_page_hints(manifest, log=print):
-    """{strana: text} z popisu strany a overeného textu PDF tej istej strany."""
+def lidl_page_hints(manifest, log=print, verified_texts=None):
+    """{strana: text} z popisu strany a overeného textu PDF tej istej strany.
+
+    Ak je zadané ``verified_texts``, doplní sa doň celý overený text PDF každej
+    strany — zber podľa neho nezávisle skontroluje prečítané ceny.
+    """
     slug = _lidl_slug(manifest.get("source_url"))
     if not slug:
         return {}
@@ -159,6 +163,8 @@ def lidl_page_hints(manifest, log=print):
             if text and keyword_overlap(page.get("keyWords"), text) >= MIN_KEYWORD_OVERLAP:
                 parts.append("Text z oficiálneho PDF tejto strany:\n" + text)
                 verified += 1
+                if verified_texts is not None:
+                    verified_texts[number] = text
         if parts:
             hints[number] = "\n".join(parts)[:MAX_HINT_CHARS]
     log(f"[INFO] lidl: podklady pre {len(hints)} strán, overený text PDF pre {verified}")
@@ -227,15 +233,31 @@ def tesco_page_hints(manifest, log=print):
     return hints
 
 
-def page_hints(store, manifest, log=print):
+def page_hints(store, manifest, log=print, verified_texts=None):
     """Podklady pre zber; akákoľvek chyba = žiadne podklady, nie zlyhanie zberu."""
     if not zapnute() or not isinstance(manifest, dict):
         return {}
     try:
         if store == "lidl" and manifest.get("collector_kind") == "official-lidl-viewer":
-            return lidl_page_hints(manifest, log=log)
+            return lidl_page_hints(manifest, log=log, verified_texts=verified_texts)
         if store == "tesco" and manifest.get("collector_kind") == "official-tesco-viewer":
             return tesco_page_hints(manifest, log=log)
     except Exception as exc:  # podklady sú len pomoc, nikdy nie podmienka
+        if verified_texts is not None:
+            verified_texts.clear()
         log(f"[WARN] {store}: podklady od obchodu nie sú dostupné ({type(exc).__name__})")
     return {}
+
+
+_SUPERSCRIPT_DIGITS = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹", "0123456789")
+
+
+def source_prices(text):
+    """Všetky ceny z textu letáku ako reťazce "1.29" (aj 1,29 · 1.²⁹ · 2.-)."""
+    plain = str(text or "").translate(_SUPERSCRIPT_DIGITS)
+    prices = set()
+    for whole, cents in re.findall(r"(?<![\d.,])(\d{1,4})[.,](\d{2})(?!\d)", plain):
+        prices.add(f"{int(whole)}.{cents}")
+    for whole in re.findall(r"(?<![\d.,])(\d{1,4})[.,][-–—](?!\d)", plain):
+        prices.add(f"{int(whole)}.00")
+    return prices

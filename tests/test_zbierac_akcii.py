@@ -1593,7 +1593,7 @@ def test_source_hints_reach_scan_and_read_prompts(monkeypatch):
     monkeypatch.setattr(
         collector,
         "_source_page_hints",
-        lambda store, manifest: {
+        lambda store, manifest, **_: {
             1: "Popis strany od Lidla: Syry a pečivo.\nText z oficiálneho PDF tejto strany:\n1.29 Gouda",
         },
     )
@@ -1611,6 +1611,46 @@ def test_source_hints_reach_scan_and_read_prompts(monkeypatch):
     assert "Strana 1: (Popis strany od Lidla: Syry a pečivo.)" in seen["scan"]
     assert any("1.29 Gouda" in (text or "") for text in seen["read"])
     assert collector.HINTS_PROMPT in seen["read"]
+
+
+def _fake_verified_pdf(monkeypatch, texts):
+    def fake_hints(store, manifest, verified_texts=None):
+        verified_texts.update(texts)
+        return {}  # podklady pre model tu nie sú podstatné, len overený text
+
+    monkeypatch.setattr(collector, "_source_page_hints", fake_hints)
+
+
+def test_price_missing_from_official_pdf_text_is_rejected(monkeypatch):
+    install_pipeline_fakes(monkeypatch, page_count=8, food_pages=set(range(1, 9)))
+    texts = {page: f"-20﹪ 1.{page + 50:02d} Potravina {page} 1.{page:02d}" for page in range(1, 9)}
+    texts[3] = "-20﹪ 1.99 Potravina 3 1.39"  # Haiku prečítal 1.03, PDF hovorí inak
+    _fake_verified_pdf(monkeypatch, texts)
+
+    offers = collector.zbieraj(object(), "lidl")
+
+    assert sorted(offer["source_page"] for offer in offers) == [1, 2, 4, 5, 6, 7, 8]
+
+
+def test_pages_without_verified_pdf_text_are_kept(monkeypatch):
+    install_pipeline_fakes(monkeypatch, page_count=4, food_pages={1, 2, 3, 4})
+    _fake_verified_pdf(monkeypatch, {1: "1.01", 2: "1.02", 3: "1.03"})
+
+    offers = collector.zbieraj(object(), "lidl")
+
+    assert sorted(offer["source_page"] for offer in offers) == [1, 2, 3, 4]
+
+
+def test_many_pdf_mismatches_mean_format_change_and_keep_offers(monkeypatch):
+    install_pipeline_fakes(monkeypatch, page_count=8, food_pages=set(range(1, 9)))
+    texts = {page: f"1.{page:02d}" for page in range(1, 9)}
+    for page in (2, 4, 6):
+        texts[page] = "cena bez desatinnej bodky 1 0" + str(page)
+    _fake_verified_pdf(monkeypatch, texts)
+
+    offers = collector.zbieraj(object(), "lidl")
+
+    assert len(offers) == 8
 
 
 def test_collection_without_source_hints_is_unchanged(monkeypatch):
