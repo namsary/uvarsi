@@ -146,7 +146,7 @@ Vyplnené a zhodné vo všetkých zdrojoch: PUMAR s. r. o., IČO 57 370 591, sí
 ## 6. Zverejnené obmedzenia
 
 - **Gzip rezerva je 0 B** (`app.html` 37 600/37 600 B, úvodná stránka 12 100/12 100 B). Každá ďalšia zmena týchto súborov musí nájsť úsporu.
-- **Dátum v teste:** `tests/test_server.py:479` (`test_akcie_pre_delegates_selection_to_current_week_helper`) porovnáva s `date.today()` hostiteľa, kým kód používa `bratislava_day()`. Test padá medzi 22:00 a 24:00 UTC, kým platí CEST. Test som nemenil; všetky celé behy sady začali aj skončili mimo tohto okna.
+- **Dátum v teste:** `test_akcie_pre_delegates_selection_to_current_week_helper` padal medzi 22:00 a 24:00 UTC (porovnával `date.today()` s `bratislava_day()`); opravené v namsary/uvarsi#12.
 - **Dev shimy pri lokálnych behoch** (`grading.md`): pošta zapisovaná do súboru namiesto odoslania, prepis hlavičky Origin na `https://uvar.si` (obchádza skutočnú kontrolu Origin), `/` a `/sw.js` z kópie adresára (náhrada nginx), `env -i` bez `.env`, dummy `RESEND_API_KEY` len pre worker obnovy hesla, Premium pridelené cez `platby.udel_narok_rucne` na dočasnej databáze, scenáre zastaraných dát prepísaním riadkov dočasnej DB. Tvrdenie „žiadny LLM nebol zavolaný“ vychádza zo špiónov, ktorých spustenie zvnútra bežiaceho servera sa nedokázalo; chýbajúci súbor je dôkaz, nie preukázaná skutočnosť.
 - **E2 a V0 sa overili len testom**, nie v prehliadači.
 - **`stav` v `/api/health`** nepokrýva čerstvosť supervízora, pole `platby.nevybavene_vratky` ani blokátory recept-enginu.
