@@ -711,7 +711,7 @@ Ktorý z týchto upozornení reálne prichádza majiteľovi a kto ho sleduje
 (príjemca ntfy, dosah mimo pracovného času): `[DOPLNIŤ]`.
 
 Služby bežia pod systemd s `Restart=always` (`hetzner/uvarsi.service:13`,
-`hetzner/uvarsi-plan-worker.service:28`), aplikácia na `127.0.0.1:8090`
+`hetzner/uvarsi-plan-worker.service:12`), aplikácia na `127.0.0.1:8090`
 (`hetzner/uvarsi.service:12`).
 
 ## Postup obnovy

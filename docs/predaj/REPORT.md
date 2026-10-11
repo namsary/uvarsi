@@ -28,6 +28,8 @@ Zdroje faktov: git commity (hash), pracovné záznamy z rôznych kôl v scratchp
 | `e6a4944` | Snímky po oprave `fa5a1e5` |
 | `c25525e` | Landing: kontakt na podporu v chybovom stave formulára (C3) |
 | `8f6a362` | `docs/prevadzka.md`: zálohy, monitoring a postup obnovy (C5) |
+| `71afe09` | Tento report |
+| (nasledujúci commit) | Oprava reportu: úplný zoznam `[DOPLNIŤ]` z `docs/prevadzka.md`, upresnenie citácií; oprava čísla riadku v `docs/prevadzka.md` |
 
 Právne stránky (C1) a ukladanie v prehliadači (C2) neviedli k zmene kódu (pozri časť 2). Pred a po screenshoty sú v `docs/predaj/screenshots/before/` a `docs/predaj/screenshots/after/` (s `README.md`).
 
@@ -35,7 +37,7 @@ Sada testov na konci: `4577 passed, 290 skipped` (log `scratchpad/c5/suite.log` 
 
 ## 2. Nájdené chyby, opravy a regresné testy
 
-Každá oprava mala test, ktorý pred opravou padal (logy `*_before.log` v scratchpade), a po oprave prešla celá sada pred commitom.
+Ku každej oprave patrí regresný test, ktorý pred opravou padal (potvrdili to kontroly v jednotlivých kolách; samostatný `*_before.log` v scratchpade existuje len pri niektorých opravách), a po oprave prešla celá sada pred commitom.
 
 | ID | Chyba | Oprava | Regresný test |
 |---|---|---|---|
@@ -110,7 +112,12 @@ Verdikty podľa `agents/uvarsi-release-gatekeeper/SKILL.md`. Používajú sa len
 **Z prevádzky (`docs/prevadzka.md`, `8f6a362`):**
 - príjemca upozornení ntfy a postup mimo pracovnej doby,
 - obnova nárokov (entitlements) vytvorených po poslednej zálohe,
-- RPO a RTO (cieľové hodnoty nie sú nikde určené).
+- RPO a RTO (cieľové hodnoty nie sú nikde určené) – `docs/prevadzka.md:773`,
+- kópia zálohy mimo servera: kam, ako často, šifrovanie – `docs/prevadzka.md:765`, `:657`,
+- doložený test obnovy zo zálohy a jeho frekvencia – `docs/prevadzka.md:766`, `:657-658`,
+- zálohovanie `landing_data.json`, súborov prostredia a konfigurácie Caddy – `docs/prevadzka.md:767`, `:742`,
+- či pri obnove treba zastaviť aj `uvarsi-plan-worker` – `docs/prevadzka.md:768`, `:728`,
+- externý monitor `/api/health` (čítanie `stav`/`problemy`), jeho nástroj a interval – `docs/prevadzka.md:769-770`, `:696`.
 
 **Konfigurácia:**
 - Produkčná hodnota `UVARSI_AUTH_V3` (kód predvolene `0`; pri inom ako `1` nový zákazník nemá spôsob registrácie).
@@ -124,7 +131,7 @@ Vyplnené a zhodné vo všetkých zdrojoch: PUMAR s. r. o., IČO 57 370 591, sí
    - Počas skúšania (`waitlist.js`, dvakrát) sa mohli odoslať falošné adresy `@example.com` do živého formulára MailerLite; z prostredia sa to nedalo overiť. Treba skontrolovať zoznam a vyčistiť ich.
    - Uviesť MailerLite ako sprostredkovateľa v dokumentoch o ochrane osobných údajov (zmluva o spracúvaní a postavenie sú neoverené) a skontrolovať double opt-in.
    - Oprava `72a8c7c` vracia pôvodný formát požiadavky, ale prijatie živým MailerLite nikto neskúšal (zakázané), a pri `no-cors` klient nevie, či žiadosť prijal.
-3. **Rozhodnutie N3:** landing ukazuje ročný odhad „weekly úspora × 52“ (`index.html:147,154`). Je označený ako príklad, ale je to extrapolácia; rozhodnúť, či je prijateľný pri pravidle „bez vymyslených čísel úspor“.
+3. **Rozhodnutie N3:** landing ukazuje ročný odhad „weekly úspora × 52“ (`be2b1d5:index.html:147,154`). Je označený ako príklad, ale je to extrapolácia; rozhodnúť, či je prijateľný pri pravidle „bez vymyslených čísel úspor“.
 4. **Právna kontrola** (advokát):
    - `uvarsi.password-setup-dismissed.v1` chýba v tabuľkách úložiska,
    - či `uvarsi_profil` (cache na rýchlejšie vykreslenie, hodnota `{onboarding: bool}`) patrí medzi nevyhnutné,
@@ -138,7 +145,7 @@ Vyplnené a zhodné vo všetkých zdrojoch: PUMAR s. r. o., IČO 57 370 591, sí
 
 ## 6. Zverejnené obmedzenia
 
-- **Gzip rezerva je 0 B** (`app.html` 37 600/37 600 B, úvodná stránka 12 100/12 100 B). Každá ďalšia zmena týchto súborov musí nájsť úsporu; úspory z oprav boli zväčša odstránené medzery alebo nepoužité kusy.
+- **Gzip rezerva je 0 B** (`app.html` 37 600/37 600 B, úvodná stránka 12 100/12 100 B). Každá ďalšia zmena týchto súborov musí nájsť úsporu.
 - **Dátum v teste:** `tests/test_server.py:479` (`test_akcie_pre_delegates_selection_to_current_week_helper`) porovnáva s `date.today()` hostiteľa, kým kód používa `bratislava_day()`. Test padá medzi 22:00 a 24:00 UTC, kým platí CEST. Test som nemenil; všetky celé behy sady začali aj skončili mimo tohto okna.
 - **Dev shimy pri lokálnych behoch** (`grading.md`): pošta zapisovaná do súboru namiesto odoslania, prepis hlavičky Origin na `https://uvar.si` (obchádza skutočnú kontrolu Origin), `/` a `/sw.js` z kópie adresára (náhrada nginx), `env -i` bez `.env`, dummy `RESEND_API_KEY` len pre worker obnovy hesla, Premium pridelené cez `platby.udel_narok_rucne` na dočasnej databáze, scenáre zastaraných dát prepísaním riadkov dočasnej DB. Tvrdenie „žiadny LLM nebol zavolaný“ vychádza zo špiónov, ktorých spustenie zvnútra bežiaceho servera sa nedokázalo; chýbajúci súbor je dôkaz, nie preukázaná skutočnosť.
 - **E2 a V0 sa overili len testom**, nie v prehliadači.
