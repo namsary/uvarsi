@@ -5708,8 +5708,28 @@ def _supervisor_health(now_epoch: int | None = None) -> dict:
         return unavailable
 
 
+# Čo z /api/health smie vidieť ktokoľvek z internetu: či appka beží a má
+# akcie. Útrata, platby a stav front sú interné čísla — vidí ich dozorca
+# a samopull priamo na serveri (bez proxy) a prihlásený majiteľ.
+PUBLIC_HEALTH_FIELDS = (
+    "stav", "problemy", "vydanie", "tyzden", "pocet", "ponuky_podla_obchodu", "dozorca",
+)
+
+
+def _health_details_allowed(req: Request) -> bool:
+    # Caddy pridá X-Forwarded-For každej požiadavke zvonku; priame volanie
+    # na 127.0.0.1:8090 (dozorca, samopull) ho nemá.
+    if "x-forwarded-for" not in req.headers:
+        return True
+    try:
+        require_owner(req)
+    except HTTPException:
+        return False
+    return True
+
+
 @app.get("/api/health")
-def health():
+def health(req: Request):
     """Čo naozaj beží: vydanie, týždeň a počet akcií.
 
     Nasadenie porovná `vydanie` s lokálnym súborom VERSION — tým odhalí
@@ -5756,13 +5776,16 @@ def health():
     if not rows:
         problemy.append("chybaju_data_tyzdna")
     # Stavový kód ostáva 200: nasadzovacie skripty berú nie-200 ako zlyhanie.
-    return {"stav": "degradovane" if problemy else "ok", "problemy": problemy,
-            "vydanie": release_id(), "tyzden": monday(today), "pocet": len(rows),
-            "ponuky_podla_obchodu": offers_by_store,
-            "naklady": utrata, "predpocet": zahrievanie, "platby": platby_stav,
-            "plan_queue": fronta_planov, "recipe_engine": recipe_status,
-            "payment_readiness": public_readiness(payment_status),
-            "dozorca": _supervisor_health()}
+    payload = {"stav": "degradovane" if problemy else "ok", "problemy": problemy,
+               "vydanie": release_id(), "tyzden": monday(today), "pocet": len(rows),
+               "ponuky_podla_obchodu": offers_by_store,
+               "naklady": utrata, "predpocet": zahrievanie, "platby": platby_stav,
+               "plan_queue": fronta_planov, "recipe_engine": recipe_status,
+               "payment_readiness": public_readiness(payment_status),
+               "dozorca": _supervisor_health()}
+    if _health_details_allowed(req):
+        return payload
+    return {key: payload[key] for key in PUBLIC_HEALTH_FIELDS}
 
 
 @app.get("/api/naklady")

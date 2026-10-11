@@ -2863,3 +2863,16 @@ def test_every_response_carries_browser_security_headers(monkeypatch, tmp_path):
         assert headers["x-content-type-options"] == "nosniff"
         assert headers["strict-transport-security"].startswith("max-age=")
         assert headers["referrer-policy"] == "strict-origin-when-cross-origin"
+
+
+def test_public_health_hides_internal_numbers_but_local_supervisor_sees_all(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [])
+    client = TestClient(server.app, base_url="https://uvar.si")
+
+    public = client.get("/api/health", headers={"X-Forwarded-For": "203.0.113.7"}).json()
+    local = client.get("/api/health").json()
+
+    assert set(public) == set(server.PUBLIC_HEALTH_FIELDS)
+    assert "naklady" not in public and "platby" not in public
+    assert {"naklady", "platby", "plan_queue", "recipe_engine"} <= set(local)
+    assert public["ponuky_podla_obchodu"] == local["ponuky_podla_obchodu"]
