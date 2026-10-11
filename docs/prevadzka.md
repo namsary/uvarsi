@@ -617,3 +617,157 @@ riadky Uvar.si zo snímky crontabu. Aktuálne nesúvisiace riadky zachová. Nevr
 `landing_data.json` ani žiadne používateľské dáta a nedotýka sa Caddy ani
 Taktik-mapa. Ak zber alebo prísna brána zlyhá, release sa neoznačí za úspešný a
 platby ostanú vypnuté.
+
+---
+
+# Prevádzka: zálohy, monitoring a obnova
+
+Táto časť je iba dokumentácia. Vychádza zo zdrojov v repozitári (odkazy
+`súbor:riadok`); nič z toho sa pri jej písaní nespúšťalo a na server sa
+nepristupovalo. Čo repozitár neukazuje, je označené `[DOPLNIŤ]` a zhrnuté v
+zozname na konci.
+
+## Zálohy
+
+**Čo sa zálohuje.** Iba SQLite databáza `uvarsi.db` (východzia cesta
+`/opt/uvarsi/uvarsi.db`, `app/server.py:270`; `hetzner/zaloha.sh:33-34`).
+Skript to zdôvodňuje tým, že tabuľka `naroky` je jediný záznam o zaplatených
+nárokoch (`hetzner/zaloha.sh:5-7`). Zálohový skript nezálohuje
+`landing_data.json`, súbory prostredia ani konfiguráciu Caddy; repozitár o ich
+zálohe nič nehovorí (pozri `[DOPLNIŤ]`).
+
+**Ako.** `hetzner/zaloha.sh` robí snímok cez `VACUUM INTO` (nie obyčajnú
+kópiu súboru; `hetzner/zaloha.sh:9-13`, `:61-71`). Kópia sa hneď otvorí,
+prejde `PRAGMA integrity_check` a prečíta sa z nej `naroky`
+(`hetzner/zaloha.sh:80-99`). Až potom sa premenuje na finálny názov
+`uvarsi-RRRR-MM-DD.db` (`hetzner/zaloha.sh:56`, `:107`). Pri chybe sa kópia
+zahodí a pošle sa upozornenie cez ntfy (`hetzner/zaloha.sh:73-76`, `:101-104`).
+
+**Kedy a kam.** Cron `30 3 * * *` (`hetzner/uvarsi-deploy-state.sh:900-902`),
+log `/var/log/uvarsi-zaloha.log` (`hetzner/zaloha.sh:30`). Cieľový adresár
+je `/var/backups/uvarsi` (`hetzner/zaloha.sh:35`); `nasad.ps1:472` ho vytvára.
+Prvá záloha sa spúšťa hneď pri nasadení (`nasad.ps1:521-525`).
+
+**Retencia.** Predvolene 14 nočných záloh (`UVARSI_DRZAT`,
+`hetzner/zaloha.sh:37`); staršie sa mažú iba podľa vzoru `uvarsi-*.db` vo
+vlastnom adresári (`hetzner/zaloha.sh:110-117`).
+
+**Čo repozitár neukazuje.** Záloha leží na tom istom serveri
+(`/var/backups/uvarsi`). Kópia mimo servera, jej umiestnenie a šifrovanie
+v repozitári nie sú: `[DOPLNIŤ]`. Test obnovy zo zálohy podľa
+harmonogramu tiež nie je v repozitári doložený: `[DOPLNIŤ]`.
+
+**Ručná záloha pred rizikovým zásahom** je popísaná vyššie v Stage 3
+(`docs/prevadzka.md`, sekcia „SQLite online backup“).
+
+## Monitoring
+
+### `/api/health`
+
+Endpoint `GET /api/health` (`app/server.py:5698-5752`) vracia okrem
+pôvodných kľúčov (`vydanie`, `tyzden`, `pocet`, `ponuky_podla_obchodu`,
+`naklady`, `predpocet`, `platby`, `plan_queue`, `recipe_engine`,
+`payment_readiness`, `dozorca`) aj súhrn:
+
+- `stav`: `ok` alebo `degradovane`,
+- `problemy`: zoznam dôvodov, ktorý môže obsahovať:
+  - `worker_nebezi` – worker plánov nie je živý (`app/server.py:5739-5740`),
+  - `fronta_zaseknuta` – fronta má blokujúci kód (`app/server.py:5741-5742`),
+  - `chybaju_data_tyzdna` – pre aktuálny týždeň nie sú žiadne ponuky
+    (`app/server.py:5743-5744`).
+
+**HTTP stav ostáva 200 aj pri `degradovane`**, lebo nasadzovacie skripty
+berú iný kód ako zlyhanie (`app/server.py:5745`; `hetzner/samopull.sh:273`
+používa `curl -f`). Monitor preto musí čítať telo odpovede, nie iba kód.
+
+**Čo `stav` nepokrýva** (hodnoty sú v odpovedi, ale do `problemy` sa nepremietajú):
+
+- čerstvosť dozorcu: `dozorca.fresh` (`app/server.py:5752`, výpočet
+  `_supervisor_health`, `app/server.py:5656-5695`),
+- nevybavené vrátenia platieb: `platby.nevybavene_vratky` (kľúč `platby`, `app/server.py:5749`; `app/platby.py:1704`),
+- blokujúce stavy receptového enginu: `recipe_engine` (`app/server.py:5750`).
+
+**Žiadny monitor `stav` zatiaľ nečíta.** V `hetzner/dozorca.sh`,
+`hetzner/samopull.sh`, `hetzner/uvarsi-deploy-state.sh` ani `nasad.ps1` sa
+nenachádza čítanie kľúča `stav` ani `problemy` z `/api/health` (nález
+z prehľadania zdrojov); `samopull.sh` kontroluje iba to, že endpoint odpovie
+(`hetzner/samopull.sh:271-276`). Externý monitor dostupnosti (napr. pravidelné
+volanie `https://uvar.si/api/health` zvonka) a príjemca upozornení naň:
+`[DOPLNIŤ]`.
+
+### Čo už monitoring v repozitári robí
+
+| Mechanizmus | Čo robí | Zdroj |
+|---|---|---|
+| Dozorca (cron `0 5-21 * * *` cez `uvarsi-deploy-state.sh run-supervisor`) | Kontroluje, či bloček sedí na aktuálny týždeň; opakuje zber, max. 6 pokusov za deň, upozorní po 2 neúspechoch | `hetzner/dozorca.sh:2-12`, `:28-29`, `:63-64`; `hetzner/uvarsi-deploy-state.sh:896-898` |
+| Dozorca číta `plan_queue` a `recipe_engine` z `/api/health` (`127.0.0.1:8090`) | Upozornenia na zaseknutú frontu plánov a receptový engine | `hetzner/dozorca.sh:48`, `:227-267`, `:298-340` |
+| Upozornenia cez ntfy.sh | Chyba zálohy, zálohy bez overenia, výpadky zberu | `hetzner/zaloha.sh:41-44`, `hetzner/dozorca.sh:71`; téma sa dá prepísať v `/opt/uvarsi/dozorca.env` (`hetzner/dozorca.sh:58-61`) |
+| Samopull (cron každých 10 min) | Po novom vydaní overí health, pri nezhode vráti predošlú verziu a upozorní | `hetzner/samopull.sh:2-9`, `:271-276`, `:355-368` |
+| Rekonciliácia platieb (cron `5 * * * *`) | Hodinová kontrola platieb, log `/var/log/uvarsi-platby.log` | `hetzner/uvarsi-deploy-state.sh:904-906` |
+| `check-readiness` | Brána pripravenosti po nasadení (platby OFF, appka, worker, cron, čerstvé dáta) | `hetzner/uvarsi-deploy-state.sh:2218`; opis v časti „Povinný smoke a rollback“ vyššie |
+| Platobné smoke skripty | `payment-smoke.py`, `payment-lifecycle-probe.py` (platby ostávajú vypnuté, `PLATBY_ZAPNUTE=0`) | `hetzner/payment-smoke.py`, `hetzner/payment-lifecycle-probe.py` |
+
+Ktorý z týchto upozornení reálne prichádza majiteľovi a kto ho sleduje
+(príjemca ntfy, dosah mimo pracovného času): `[DOPLNIŤ]`.
+
+Služby bežia pod systemd s `Restart=always` (`hetzner/uvarsi.service:13`,
+`hetzner/uvarsi-plan-worker.service:28`), aplikácia na `127.0.0.1:8090`
+(`hetzner/uvarsi.service:12`).
+
+## Postup obnovy
+
+Postup vychádza z návodu v hlavičke skriptu (`hetzner/zaloha.sh:23-27`).
+Vykonáva ho človek na serveri; tento dokument ho nespúšťa.
+
+1. Rozhodni, ktorú zálohu použiť: súbory `/var/backups/uvarsi/uvarsi-RRRR-MM-DD.db`
+   (`hetzner/zaloha.sh:35`, `:56`). Tieto súbory prešli `integrity_check`
+   ešte pri vzniku (`hetzner/zaloha.sh:80-99`).
+2. Zastav appku: `systemctl stop uvarsi` (`hetzner/zaloha.sh:24`). Worker
+   plánov je samostatná služba `uvarsi-plan-worker`
+   (`hetzner/uvarsi-plan-worker.service`); či ho treba zastaviť tiež, je
+   `[DOPLNIŤ]` (skript to nespomína).
+3. Pred prepísaním si ulož aktuálnu (poškodenú) databázu bokom; repozitár to
+   neprikazuje, je to opatrnosť navyše.
+4. Skopíruj zálohu na `/opt/uvarsi/uvarsi.db` (`hetzner/zaloha.sh:25`).
+5. Zmaž `uvarsi.db-wal` a `uvarsi.db-shm` (`hetzner/zaloha.sh:26`), aby sa
+   nepoužili zvyšky starého žurnálu.
+6. Spusti appku: `systemctl start uvarsi` (`hetzner/zaloha.sh:27`).
+
+Pri neúspešnom nasadení kódu sa databáza **nevracia**: automatický rollback
+vracia iba kód, statické súbory, jednotky a cron (časť „Povinný smoke a
+rollback“ vyššie; `hetzner/samopull.sh:355-368`). Obnova databázy je vždy
+ručné rozhodnutie.
+
+Dáta, ktoré záloha neobsahuje (`landing_data.json`, `/opt/uvarsi/*.env`,
+konfigurácia Caddy), sa týmto postupom neobnovia: `[DOPLNIŤ]`.
+
+## Overenie po obnove
+
+1. `systemctl is-active uvarsi` a `uvarsi-plan-worker`
+   (`hetzner/samopull.sh:280` používa rovnakú kontrolu pre worker).
+2. `curl -fsS localhost:8090/api/health` (`hetzner/samopull.sh:273`) a v
+   odpovedi skontroluj `stav` = `ok`, prázdne `problemy`, `vydanie` zhodné
+   s nasadeným súborom `VERSION` (`app/server.py:5747`).
+3. Skontroluj `platby` (`nevybavene_vratky` má byť 0, podobne `cakajucich_tiel`; docstring `app/server.py:5714-5717`; `app/platby.py:1702-1705`) a `dozorca.fresh`.
+4. Over, že tabuľka `naroky` obsahuje očakávaný počet riadkov. Odporúčaná
+   kontrola je taká istá ako pri zálohe (`hetzner/zaloha.sh:88-92`).
+5. Spusti `uvarsi-deploy-state.sh check-readiness`
+   (`hetzner/uvarsi-deploy-state.sh:2218`; popis brány vyššie). Platby musia
+   ostať vypnuté (`PLATBY_ZAPNUTE=0`).
+6. Prihlás sa testovacím účtom cez magic link a over, že sa načíta profil a
+   plán (zákaznícke cesty podľa `agents/uvarsi-release-gatekeeper/SKILL.md`).
+7. Ak sa po obnove stratili zákazníkom zaplatené nároky vzniknuté po čase zálohy
+   (maximálne ~24 hodín podľa nočného rozvrhu), postup ich dohľadania
+   z platobného poskytovateľa je `[DOPLNIŤ]`.
+
+## Zoznam `[DOPLNIŤ]` (prevádzka)
+
+- Kópia zálohy mimo servera: kam, ako často, šifrovanie.
+- Doložený test obnovy zo zálohy a jeho frekvencia.
+- Zálohovanie `landing_data.json`, súborov prostredia a konfigurácie Caddy.
+- Či pri obnove treba zastaviť aj `uvarsi-plan-worker`.
+- Externý monitor `/api/health` (čítanie `stav`/`problemy`), jeho nástroj a
+  interval.
+- Príjemca a dosah upozornení z ntfy a postup mimo pracovného času.
+- Postup dohľadania nárokov vzniknutých po poslednej zálohe.
+- RPO/RTO (prijateľná strata dát a čas obnovy): v repozitári nie sú definované.
