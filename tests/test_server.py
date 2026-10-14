@@ -2876,3 +2876,17 @@ def test_public_health_hides_internal_numbers_but_local_supervisor_sees_all(monk
     assert "naklady" not in public and "platby" not in public
     assert {"naklady", "platby", "plan_queue", "recipe_engine"} <= set(local)
     assert public["ponuky_podla_obchodu"] == local["ponuky_podla_obchodu"]
+
+
+def test_health_reports_a_store_without_current_offers(monkeypatch, tmp_path):
+    today = date.today()
+    week = current_monday(today)
+    row = (week, "Ryža", "Lidl", 1.29, None, None, "kg", "trvanlive",
+           "https://www.lidl.sk/l/sk/letak/x/view/flyer/page/1", 1,
+           today.isoformat(), today.isoformat())
+    server = load_server(monkeypatch, tmp_path, [row])
+
+    payload = TestClient(server.app).get("/api/health").json()
+
+    assert payload["stav"] == "degradovane"
+    assert "chyba_obchod" in payload["problemy"]

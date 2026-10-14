@@ -3124,6 +3124,36 @@ def test_twenty_duplicate_rows_do_not_satisfy_the_verified_minimum():
     assert con.execute("SELECT COUNT(*) FROM akcie_staging").fetchone()[0] == 0
 
 
+def _stage_with_short_offers(short_count):
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(collector.SCHEMA)
+    collector.migrate_offer_staging_schema(con)
+    offers = [valid_offer("kaufland", index) for index in range(1, 26)]
+    for offer in offers[:short_count]:
+        offer["valid_to"] = "2026-08-18"  # víkendová akcia skončila v pondelok
+    collector.stage_store_collection(con, "2026-08-17", "Kaufland", offers)
+    return con
+
+
+def test_offer_that_ended_midweek_does_not_invalidate_the_whole_store():
+    # Incident 14. 10.: jedna Kaufland akcia platná do pondelka zablokovala
+    # v stredu zverejnenie nového letáku Tesca.
+    con = _stage_with_short_offers(1)
+
+    assert collector.staged_store_problem(
+        con, "2026-08-17", "Kaufland", today=date(2026, 8, 19)
+    ) is None
+
+
+def test_store_with_too_few_offers_valid_today_is_not_current():
+    con = _stage_with_short_offers(10)
+
+    assert collector.staged_store_problem(
+        con, "2026-08-17", "Kaufland", today=date(2026, 8, 19)
+    ) == "not_current"
+
+
 def test_reuse_rejects_even_allowlisted_aggregator_stage(monkeypatch):
     monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
     con = sqlite3.connect(":memory:")

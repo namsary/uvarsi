@@ -5775,6 +5775,9 @@ def health(req: Request):
         problemy.append("fronta_zaseknuta")
     if not rows:
         problemy.append("chybaju_data_tyzdna")
+    elif not all(offers_by_store.values()):
+        # Jeden obchod bez akcií je pre zákazníka chyba, nie „ok“ (14. 10.).
+        problemy.append("chyba_obchod")
     # Stavový kód ostáva 200: nasadzovacie skripty berú nie-200 ako zlyhanie.
     payload = {"stav": "degradovane" if problemy else "ok", "problemy": problemy,
                "vydanie": release_id(), "tyzden": monday(today), "pocet": len(rows),

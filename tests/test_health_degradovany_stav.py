@@ -20,6 +20,7 @@ ZIVA_FRONTA = {
     "failed": 0, "blocking_code": None,
 }
 PONUKA = {"obchod": "Kaufland"}
+VSETKY_OBCHODY = [{"obchod": obchod} for obchod in ("Kaufland", "Tesco", "Lidl")]
 
 
 @pytest.fixture
@@ -45,9 +46,16 @@ def _health(server, monkeypatch, *, fronta, ponuky):
 
 
 def test_health_je_ok_ked_worker_zije_a_su_data(server, monkeypatch):
-    data = _health(server, monkeypatch, fronta=ZIVA_FRONTA, ponuky=[PONUKA])
+    data = _health(server, monkeypatch, fronta=ZIVA_FRONTA, ponuky=VSETKY_OBCHODY)
     assert data["stav"] == "ok"
     assert data["problemy"] == []
+
+
+def test_health_nehlasi_ok_ked_jeden_obchod_nema_akcie(server, monkeypatch):
+    # Incident 14. 10.: Tesco malo 0 akcií a health hlásil "ok".
+    data = _health(server, monkeypatch, fronta=ZIVA_FRONTA, ponuky=[PONUKA])
+    assert data["stav"] == "degradovane"
+    assert "chyba_obchod" in data["problemy"]
 
 
 def test_health_nehlasi_ok_ked_worker_nebezi(server, monkeypatch):
