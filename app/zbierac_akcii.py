@@ -3258,6 +3258,12 @@ def staged_store_problem(
     if not _source_url_matches_collector(store, collector_kind, source_url):
         return "invalid_provenance"
 
+    # Leták môže mať akcie s kratšou platnosťou (napr. len do pondelka).
+    # Ich skončenie počas týždňa nesmie zneplatniť celý obchod — inak by sa
+    # v stredu nedal zverejniť nový leták iného obchodu (incident 14. 10.).
+    # Neplatné dnes sú len neaktívne riadky; zobrazovanie ich filtruje podľa
+    # dátumu. Obchod musí mať stále dosť dnes platných akcií.
+    current = set()
     for offer in staged:
         try:
             offer_from = datetime.date.fromisoformat(offer["valid_from"])
@@ -3265,10 +3271,16 @@ def staged_store_problem(
         except (TypeError, ValueError):
             return "invalid_offer_rows"
         if (
-            not offer_from <= today <= offer_to
+            offer_from > offer_to
+            or offer_from < status_from
+            or offer_to > status_to
             or not offer_key_matches(offer.get("offer_key"), week, offer)
         ):
             return "invalid_offer_rows"
+        if offer_from <= today <= offer_to:
+            current.add(canonical_offer_key(offer.get("offer_key")))
+    if len(current) < MIN_VERIFIED_OFFERS_PER_STORE:
+        return "not_current"
     return None
 
 
