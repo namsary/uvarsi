@@ -23,6 +23,10 @@ FOUNDER_DISCOUNT_AMOUNT_CENTS = 1_000
 FOUNDER_INITIAL_AMOUNT_CENTS = (
     ANNUAL_RENEWAL_AMOUNT_CENTS - FOUNDER_DISCOUNT_AMOUNT_CENTS
 )
+# Pokus objednávky vyprší po hodine, ale webhook môže prísť neskôr. Objednávka
+# vytvorená najneskôr toľko po vypršaní sa ešte spáruje (platby.py má rovnakú
+# hodnotu v CHECKOUT_PAYMENT_GRACE_SECONDS).
+CHECKOUT_PAYMENT_GRACE_SECONDS = 24 * 60 * 60
 PAYMENT_EVENT_TYPES = frozenset(
     {
         "subscription_payment_success",
@@ -989,9 +993,20 @@ def _validate_attempt(attempt: dict, payload, expected: dict) -> None:
         or attempt.get("renewal_amount_cents") != ANNUAL_RENEWAL_AMOUNT_CENTS
         or attempt.get("discount_id") != expected_discount
         or attempt.get("test_mode") != int(expected["test_mode"])
-        or attempt.get("status") not in {"pending", "paid"}
+        or attempt.get("status") not in {"pending", "paid", "expired"}
     ):
         raise _ReviewRequired("pokus nezodpovedá ročnej ponuke")
+    if attempt.get("status") == "expired":
+        # Vypršaný pokus (napr. iný checkout ho uprace) sa ešte spáruje, keď
+        # objednávka vznikla do konca lehoty; neskoršia platba ide na kontrolu.
+        created_at = _timestamp(_payload_attributes(payload).get("created_at"))
+        expires_at = attempt.get("expires_at")
+        if (
+            created_at is None
+            or not _valid_time(expires_at)
+            or created_at > float(expires_at) + CHECKOUT_PAYMENT_GRACE_SECONDS
+        ):
+            raise _ReviewRequired("pokus objednávky vypršal pred platbou")
     user_id = attempt.get("user_id")
     if (
         not isinstance(user_id, int)
@@ -1043,10 +1058,10 @@ def _pair_attempt(con, attempt: dict, payload, *, require_paid_status: bool) -> 
     stored_order = _safe_id(attempt.get("provider_order_id"))
     if stored_order is not None and stored_order != order_id:
         raise _ReviewRequired("pokus je spárovaný s inou objednávkou")
-    if attempt.get("status") == "pending":
+    if attempt.get("status") in {"pending", "expired"}:
         cursor = con.execute(
             "UPDATE checkout_attempts SET status='paid',provider_order_id=? "
-            "WHERE public_id=? AND status='pending'",
+            "WHERE public_id=? AND status IN ('pending','expired')",
             (order_id, attempt["public_id"]),
         )
         if cursor.rowcount != 1:

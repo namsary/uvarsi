@@ -63,8 +63,9 @@ INTERVAL_ROK = "year"
 FOUNDER_OFFER_ID = "premium-annual-founder-first-year-v1"
 STANDARD_OFFER_ID = "premium-annual-standard-v1"
 CHECKOUT_ATTEMPT_TTL_SECONDS = 60 * 60
-# Ako dlho po vypršaní pokusu ešte smie prísť jeho zaplatená objednávka
-# (oneskorený webhook, rekonciliácia stratenej udalosti).
+# Ako dlho po vypršaní pokusu ešte smie vzniknúť jeho zaplatená objednávka
+# (oneskorený webhook, rekonciliácia stratenej udalosti). Rovnaká hodnota je
+# v predplatne.CHECKOUT_PAYMENT_GRACE_SECONDS.
 CHECKOUT_PAYMENT_GRACE_SECONDS = 24 * 60 * 60
 ANNUAL_CONSENT_FIELDS = (
     "accept_terms",
@@ -483,13 +484,25 @@ def founder_places_used(con, *, test_mode: bool = False) -> int:
 
 
 def _pending_founder_places(con, *, now: float, test_mode: bool) -> int:
+    # Rezervované = neuplynulý pokus. Zaplatený pokus (spárovaný cez
+    # order_created, aj oneskorene po vypršaní) drží miesto, kým ho
+    # nezačne počítať overené predplatné — zaplatené miesto sa neuvoľní.
     row = con.execute(
-        """SELECT COUNT(*) FROM checkout_attempts
-           WHERE founder=1 AND status='pending'
-             AND test_mode=?
-             AND founder_reserved_until IS NOT NULL
-             AND founder_reserved_until>?""",
-        (int(test_mode), now),
+        """SELECT COUNT(*) FROM checkout_attempts AS a
+           WHERE a.founder=1 AND a.test_mode=?
+             AND (
+               (a.status='pending'
+                AND a.founder_reserved_until IS NOT NULL
+                AND a.founder_reserved_until>?)
+               OR (a.status='paid'
+                   AND a.product=?
+                   AND NOT EXISTS (
+                     SELECT 1 FROM subscriptions AS s
+                      WHERE s.provider_order_id=a.provider_order_id
+                        AND s.test_mode=a.test_mode
+                        AND s.initial_payment_verified=1))
+             )""",
+        (int(test_mode), now, PRODUKT_PREMIUM_ROCNY),
     ).fetchone()
     return int(row[0]) if row else 0
 

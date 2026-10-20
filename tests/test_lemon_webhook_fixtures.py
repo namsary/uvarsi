@@ -768,3 +768,56 @@ def test_nejednoznacny_pokus_sa_neháda(con):
         invoice_rows=[lemon_invoice()["data"]],
     )
     assert predplatne.subscription_for_user(con, 1) is None
+
+
+# ------------------------------------- webhook po vypršaní pokusu
+def test_lehota_po_vyprsani_je_rovnaka_v_oboch_moduloch():
+    assert predplatne.CHECKOUT_PAYMENT_GRACE_SECONDS == (
+        platby.CHECKOUT_PAYMENT_GRACE_SECONDS
+    )
+
+
+def test_oneskoreny_webhook_sa_sparuje_s_vyprsanym_pokusom(con):
+    # Iný checkout medzitým upratal pokus ako vypršaný.
+    con.execute(
+        "UPDATE checkout_attempts SET status='expired',founder_reserved_until=NULL "
+        "WHERE public_id=?",
+        (ATTEMPT_ID,),
+    )
+    con.commit()
+    late = NOW + 6 * 3_600
+    assert_processed(deliver(con, lemon_order(), now=late), "paired")
+    assert_processed(deliver(con, lemon_subscription(), now=late), "activated")
+    snapshot = predplatne.subscription_for_user(con, 1)
+    assert snapshot.founder is True
+    assert con.execute(
+        "SELECT status FROM checkout_attempts WHERE public_id=?", (ATTEMPT_ID,)
+    ).fetchone()[0] == "paid"
+
+
+def test_objednavka_po_lehote_sa_nesparuje(con):
+    con.execute(
+        "UPDATE checkout_attempts SET status='expired' WHERE public_id=?",
+        (ATTEMPT_ID,),
+    )
+    con.commit()
+    order = lemon_order()
+    # expires_at = P0_START + 1 h; objednávka vznikla o 1 h + 24 h + 1 s.
+    order["data"]["attributes"]["created_at"] = "2026-09-13T01:00:01.000000Z"
+    result = deliver(con, order, now=NOW + 2 * 86_400)
+    assert result["review_required"] is True
+    assert con.execute(
+        "SELECT status FROM checkout_attempts WHERE public_id=?", (ATTEMPT_ID,)
+    ).fetchone()[0] == "expired"
+
+
+def test_zaplateny_pokus_drzi_zakladajuce_miesto_kym_ho_nezapocita_predplatne(con):
+    after_ttl = P0_START + 2 * 3_600
+    assert platby.volne_miesta(con, test_mode=True, now=after_ttl) == 50
+    assert_processed(deliver(con, lemon_order()), "paired")
+    # Pokus je zaplatený, predplatné ešte nevzniklo: miesto sa neuvoľní ani
+    # po uplynutí pôvodnej rezervácie.
+    assert platby.volne_miesta(con, test_mode=True, now=after_ttl) == 49
+    assert_processed(deliver(con, lemon_subscription()), "activated")
+    assert platby.founder_places_used(con, test_mode=True) == 1
+    assert platby.volne_miesta(con, test_mode=True, now=after_ttl) == 49
