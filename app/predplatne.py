@@ -54,7 +54,11 @@ _SAFE_ID_CHARS = frozenset(
 _HEX_CHARS = frozenset("0123456789abcdefABCDEF")
 
 
-SUBSCRIPTION_SCHEMA = """
+# Jeden používateľ smie mať naraz najviac jedno neukončené predplatné daného
+# produktu (čiastočný unikátny index nižšie). Skončené (expired) predplatné
+# novému nebráni — zákazník sa môže vrátiť. Pôvodné UNIQUE(user_id, product)
+# na tabuľke odstraňuje migrate_subscription_schema prestavbou tabuľky.
+SUBSCRIPTIONS_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS subscriptions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
@@ -85,11 +89,15 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   last_verified_event_at REAL NOT NULL,
   provider_updated_at REAL,
   created_at REAL NOT NULL,
-  updated_at REAL NOT NULL,
-  UNIQUE(user_id, product)
+  updated_at REAL NOT NULL
 );
+"""
+
+SUBSCRIPTION_SCHEMA = SUBSCRIPTIONS_TABLE_SQL + """
 CREATE INDEX IF NOT EXISTS subscriptions_user_idx
   ON subscriptions(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS subscriptions_user_live_idx
+  ON subscriptions(user_id, product) WHERE status != 'expired';
 CREATE INDEX IF NOT EXISTS subscriptions_status_idx
   ON subscriptions(status);
 CREATE INDEX IF NOT EXISTS subscriptions_renewal_idx
@@ -182,8 +190,83 @@ class SubscriptionSnapshot:
     updated_at: float | None = None
 
 
+def _legacy_user_product_unique(con) -> bool:
+    for row in con.execute("PRAGMA index_list(subscriptions)").fetchall():
+        name, unique, origin = row[1], row[2], row[3]
+        if not unique or origin != "u":
+            continue
+        columns = [
+            info[2]
+            for info in con.execute(
+                "SELECT * FROM pragma_index_info(?)", (name,)
+            ).fetchall()
+        ]
+        if columns == ["user_id", "product"]:
+            return True
+    return False
+
+
+def _rebuild_subscriptions_without_legacy_unique(con) -> None:
+    """Odstráň UNIQUE(user_id, product) bez straty jediného riadku.
+
+    SQLite obmedzenie tabuľky nevie zrušiť, preto sa tabuľka v jednej
+    transakcii premenuje, vytvorí nanovo, dáta sa skopírujú podľa názvov
+    stĺpcov a stará sa zmaže. Indexy potom vytvorí SUBSCRIPTION_SCHEMA.
+    """
+    if con.in_transaction:
+        con.commit()
+    columns = [
+        row[1] for row in con.execute("PRAGMA table_info(subscriptions)")
+    ]
+    names = ",".join(f'"{name}"' for name in columns)
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        con.execute(
+            "ALTER TABLE subscriptions RENAME TO subscriptions_legacy_unique"
+        )
+        for statement in (
+            "DROP INDEX IF EXISTS subscriptions_user_idx",
+            "DROP INDEX IF EXISTS subscriptions_status_idx",
+            "DROP INDEX IF EXISTS subscriptions_renewal_idx",
+            "DROP INDEX IF EXISTS subscriptions_provider_order_idx",
+            "DROP INDEX IF EXISTS subscriptions_provider_subscription_idx",
+        ):
+            con.execute(statement)
+        con.execute(SUBSCRIPTIONS_TABLE_SQL)
+        new_columns = {
+            row[1] for row in con.execute("PRAGMA table_info(subscriptions)")
+        }
+        missing = [name for name in columns if name not in new_columns]
+        if missing:
+            raise sqlite3.OperationalError(
+                "neznáme stĺpce predplatného: " + ",".join(missing)
+            )
+        con.execute(
+            f"INSERT INTO subscriptions ({names}) "
+            f"SELECT {names} FROM subscriptions_legacy_unique"
+        )
+        con.execute("DROP TABLE subscriptions_legacy_unique")
+        con.commit()
+    except Exception:
+        con.rollback()
+        raise
+
+
 def migrate_subscription_schema(con) -> None:
     """Create subscription storage without changing existing application data."""
+    exists = con.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='subscriptions'"
+    ).fetchone()
+    if exists is not None:
+        columns = {
+            row[1] for row in con.execute("PRAGMA table_info(subscriptions)")
+        }
+        if "provider_updated_at" not in columns:
+            con.execute(
+                "ALTER TABLE subscriptions ADD COLUMN provider_updated_at REAL"
+            )
+        if _legacy_user_product_unique(con):
+            _rebuild_subscriptions_without_legacy_unique(con)
     con.executescript(SUBSCRIPTION_SCHEMA)
     columns = {
         row[1] for row in con.execute("PRAGMA table_info(subscriptions)")
@@ -243,6 +326,19 @@ def subscription_access(snapshot, *, now: float) -> bool:
     if snapshot.status == "paused":
         return snapshot.paid_through is not None and now < snapshot.paid_through
     return snapshot.status in ACCESS_STATUSES
+
+
+def subscription_has_ended(snapshot, *, now: float) -> bool:
+    """Skončené predplatné: expired, alebo zrušené s uplynutým koncom prístupu."""
+    if not isinstance(snapshot, SubscriptionSnapshot):
+        return False
+    if snapshot.status == "expired":
+        return True
+    return (
+        snapshot.status == "cancelled"
+        and snapshot.ends_at is not None
+        and float(snapshot.ends_at) <= float(now)
+    )
 
 
 def pro_rata_refund_preview(
@@ -396,9 +492,24 @@ def upsert_snapshot(con, snapshot: SubscriptionSnapshot, *, now: float) -> bool:
     existing = con.execute(
         "SELECT provider,provider_customer_id,provider_order_id,"
         "provider_subscription_id,provider_variant_id,currency,test_mode,"
-        "provider_updated_at FROM subscriptions WHERE user_id=? AND product=?",
-        (snapshot.user_id, snapshot.product),
+        "provider_updated_at,user_id,product FROM subscriptions "
+        "WHERE provider=? AND test_mode=? AND provider_subscription_id=?",
+        (
+            snapshot.provider,
+            int(snapshot.test_mode),
+            snapshot.provider_subscription_id,
+        ),
     ).fetchone()
+    if existing is not None and (
+        existing[8] != snapshot.user_id or existing[9] != snapshot.product
+    ):
+        _queue_review(
+            con,
+            snapshot,
+            reason="provider identity conflicts with verified subscription",
+            now=now,
+        )
+        return False
     if existing is not None:
         incoming_identity = (
             snapshot.provider,
@@ -441,8 +552,13 @@ def upsert_snapshot(con, snapshot: SubscriptionSnapshot, *, now: float) -> bool:
         review_reason = "paused subscription requires reconciliation"
     if snapshot.status == "paused" and con.execute(
         "SELECT 1 FROM subscriptions "
-        "WHERE user_id=? AND product=? AND initial_payment_verified=1",
-        (snapshot.user_id, snapshot.product),
+        "WHERE provider=? AND test_mode=? AND provider_subscription_id=? "
+        "AND initial_payment_verified=1",
+        (
+            snapshot.provider,
+            int(snapshot.test_mode),
+            snapshot.provider_subscription_id,
+        ),
     ).fetchone() is not None:
         _queue_review(
             con,
@@ -497,7 +613,8 @@ def upsert_snapshot(con, snapshot: SubscriptionSnapshot, *, now: float) -> bool:
                 initial_payment_verified,needs_review,review_reason,
                 last_verified_event_at,provider_updated_at,created_at,updated_at)
                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-               ON CONFLICT(user_id,product) DO UPDATE SET
+               ON CONFLICT(provider,test_mode,provider_subscription_id)
+               DO UPDATE SET
                  provider=excluded.provider,
                  provider_customer_id=excluded.provider_customer_id,
                  provider_order_id=excluded.provider_order_id,
@@ -567,9 +684,11 @@ _SNAPSHOT_COLUMNS = (
 def subscription_for_user(con, user_id: int) -> SubscriptionSnapshot | None:
     if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
         raise ValueError("invalid user id")
+    # Neukončené predplatné má prednosť pred skončeným (návrat zákazníka).
     cursor = con.execute(
         f"SELECT {','.join(_SNAPSHOT_COLUMNS)} FROM subscriptions "
-        "WHERE user_id=? ORDER BY updated_at DESC,id DESC LIMIT 1",
+        "WHERE user_id=? ORDER BY (status='expired'),updated_at DESC,id DESC "
+        "LIMIT 1",
         (user_id,),
     )
     row = cursor.fetchone()
@@ -1177,6 +1296,17 @@ def _process_subscription_created(con, payload, expected: dict, *, now: float) -
         raise _ReviewRequired("chýba identita predplatného")
     revision = _provider_revision(payload)
     existing = subscription_for_user(con, attempt["user_id"])
+    if (
+        existing is not None
+        and existing.provider_subscription_id != subscription_id
+        and subscription_has_ended(existing, now=now)
+    ):
+        # Návrat po skončenom predplatnom: staré ostáva v histórii ako expired.
+        if existing.status != "expired":
+            _replace_verified_snapshot(
+                con, existing, now=now, status="expired", renews_at=None
+            )
+        existing = None
     if existing is not None:
         _validate_existing_provider_identity(
             existing,

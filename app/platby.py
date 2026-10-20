@@ -545,11 +545,16 @@ def create_subscription_checkout_attempt(
             "SELECT 1 FROM pouzivatelia WHERE id=?", (user_id,)
         ).fetchone() is None:
             raise ValueError("neznámy používateľ")
+        # Skončené predplatné (expired, alebo zrušené po konci prístupu)
+        # novému nebráni; bežiace, neuhradené či zrušené s prístupom áno.
         subscription = con.execute(
             """SELECT status FROM subscriptions
                WHERE user_id=? AND product=? AND test_mode=?
+                 AND status!='expired'
+                 AND NOT (status='cancelled' AND ends_at IS NOT NULL
+                          AND ends_at<=?)
                LIMIT 1""",
-            (user_id, PRODUKT_PREMIUM_ROCNY, int(test_mode)),
+            (user_id, PRODUKT_PREMIUM_ROCNY, int(test_mode), accepted_at),
         ).fetchone()
         if subscription is not None:
             raise SubscriptionAlreadyExists(status=str(subscription[0]))

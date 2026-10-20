@@ -263,3 +263,77 @@ def test_unknown_transition_without_verified_snapshot_grants_no_access(db):
     assert accepted is False
     assert predplatne.subscription_for_user(db, 1) is None
     assert predplatne.subscription_access(None, now=1_001.0) is False
+
+
+# --------------------------------------------- návrat po skončení (migrácia)
+def _legacy_subscriptions_db(path):
+    legacy_table = predplatne.SUBSCRIPTIONS_TABLE_SQL.replace(
+        "  updated_at REAL NOT NULL\n);",
+        "  updated_at REAL NOT NULL,\n  UNIQUE(user_id, product)\n);",
+    )
+    assert "UNIQUE(user_id, product)" in legacy_table
+    con = sqlite3.connect(path)
+    con.executescript(legacy_table.replace(
+        "  provider_updated_at REAL,\n", ""
+    ))
+    con.executescript(
+        """CREATE INDEX subscriptions_user_idx ON subscriptions(user_id);
+           CREATE UNIQUE INDEX subscriptions_provider_subscription_idx
+             ON subscriptions(provider, test_mode, provider_subscription_id);"""
+    )
+    con.execute(
+        """INSERT INTO subscriptions
+           (user_id,product,provider,provider_customer_id,provider_order_id,
+            provider_subscription_id,provider_variant_id,currency,test_mode,
+            status,period_start,period_end,renews_at,ends_at,paid_through,
+            initial_amount_cents,renewal_amount_cents,discount_id,founder,
+            initial_payment_verified,needs_review,review_reason,
+            last_verified_event_at,created_at,updated_at)
+           VALUES (1,'premium_annual','lemonsqueezy','cus_old','ord_old',
+                   'sub_old','variant','EUR',0,'expired',10,20,NULL,20,20,
+                   3900,4900,'disc',1,1,0,NULL,20,10,20)"""
+    )
+    con.commit()
+    return con
+
+
+def test_migracia_odstrani_unique_pouzivatel_produkt_bez_straty_dat(tmp_path):
+    con = _legacy_subscriptions_db(tmp_path / "legacy.db")
+    predplatne.migrate_subscription_schema(con)
+    predplatne.migrate_subscription_schema(con)  # idempotentná
+
+    assert predplatne._legacy_user_product_unique(con) is False
+    row = con.execute(
+        "SELECT provider_subscription_id,status,provider_updated_at "
+        "FROM subscriptions"
+    ).fetchone()
+    assert tuple(row) == ("sub_old", "expired", None)
+    indexes = {r[1] for r in con.execute("PRAGMA index_list(subscriptions)")}
+    assert {
+        "subscriptions_user_live_idx",
+        "subscriptions_provider_subscription_idx",
+        "subscriptions_user_idx",
+    } <= indexes
+    assert con.execute(
+        "SELECT name FROM sqlite_master WHERE name='subscriptions_legacy_unique'"
+    ).fetchone() is None
+
+    def insert(subscription_id, status, order_id):
+        con.execute(
+            """INSERT INTO subscriptions
+               (user_id,product,provider,provider_customer_id,provider_order_id,
+                provider_subscription_id,provider_variant_id,currency,test_mode,
+                status,period_start,period_end,renews_at,ends_at,paid_through,
+                initial_amount_cents,renewal_amount_cents,discount_id,founder,
+                initial_payment_verified,needs_review,last_verified_event_at,
+                created_at,updated_at)
+               VALUES (1,'premium_annual','lemonsqueezy','cus',?,?,'variant',
+                       'EUR',0,?,30,40,40,NULL,40,4900,4900,NULL,0,1,0,30,30,30)""",
+            (order_id, subscription_id, status),
+        )
+
+    # Po skončenom predplatnom smie vzniknúť nové, ale nie dve bežiace.
+    insert("sub_new", "active", "ord_new")
+    with pytest.raises(sqlite3.IntegrityError):
+        insert("sub_third", "active", "ord_third")
+    con.close()

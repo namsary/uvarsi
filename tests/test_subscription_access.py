@@ -606,7 +606,70 @@ def test_existing_subscription_blocks_checkout_before_provider_contact(
     assert response.status_code == 409
 
 
-@pytest.mark.parametrize("status", ("expired", "unpaid", "cancelled"))
+@pytest.mark.parametrize("status", ("expired", "cancelled"))
+def test_ended_subscription_allows_new_checkout_to_reach_provider(
+    monkeypatch, tmp_path, status
+):
+    # Skončené predplatné nesmie zákazníkovi natrvalo zablokovať návrat.
+    server = premium_user_server(monkeypatch, tmp_path)
+    now = server.AUTH_CLOCK()
+    seed_subscription(
+        server,
+        status=status,
+        now=now,
+        period_start=now - YEAR,
+        period_end=now - 1,
+        paid_through=now - 1,
+        ends_at=now - 1 if status == "cancelled" else None,
+    )
+    ready = server.PaymentReadiness(
+        ready=True,
+        blockers=(),
+        legal_version=server.LEGAL_VERSION,
+        release=server.release_id(),
+    )
+    monkeypatch.setattr(server, "vyzaduj_zapnute_platby", lambda: None)
+    monkeypatch.setattr(server, "_runtime_payment_readiness", lambda _con: ready)
+    reached = []
+
+    def provider_checkout(payload):
+        reached.append(payload)
+        raise server.PlatbyNenastavene("testovací poskytovateľ")
+
+    provider = SimpleNamespace(
+        store_id="store-test",
+        variant_id="variant-test",
+        founder_discount_id="discount-test",
+        founder_discount_code="FOUNDERS",
+        create_checkout=provider_checkout,
+    )
+    monkeypatch.setattr(
+        server,
+        "_subscription_checkout_provider",
+        lambda *, test_mode: provider,
+    )
+    with closing(server.db()) as con:
+        offer = server.annual_checkout_offer(
+            founder=server.volne_miesta(con, test_mode=False, now=now) > 0
+        )
+    response = plan_client(server, 1, wait_for_worker=False).post(
+        "/api/platba/start",
+        json={
+            "accept_terms": True,
+            "accept_automatic_renewal": True,
+            "request_immediate_activation": True,
+            "acknowledge_withdrawal_proration": True,
+            "legal_version": server.LEGAL_VERSION,
+            "expected_offer_id": offer["offer_id"],
+            "expected_amount_cents": offer["amount_cents"],
+        },
+    )
+
+    assert response.json().get("kod") != "subscription_exists"
+    assert len(reached) == 1
+
+
+@pytest.mark.parametrize("status", ("unpaid",))
 def test_ended_subscription_checkout_returns_state_conflict_without_provider_call(
     monkeypatch, tmp_path, status
 ):

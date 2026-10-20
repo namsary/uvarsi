@@ -862,3 +862,89 @@ def test_jednorazove_clenstvo_bez_dph_v_cene_prejde():
     assert platby._suma_cennika(payload) == 3_900
     payload["data"]["attributes"]["tax_inclusive"] = True
     assert platby._suma_cennika(payload) == 4_797
+
+
+# ------------------------------------- návrat po skončenom predplatnom
+def _second_attempt(con, public_id):
+    con.execute(
+        """INSERT INTO checkout_attempts
+           (public_id,user_id,product,amount_cents,renewal_amount_cents,
+            currency,billing_interval,auto_renews,founder,discount_id,
+            discount_code,legal_version,privacy_version,consent_json,
+            accepted_at,expires_at,founder_reserved_until,test_mode,status)
+           VALUES (?,1,'premium_annual',4900,4900,'EUR','year',1,0,NULL,NULL,
+                   ?,?,'{}',?,?,NULL,1,'pending')""",
+        (
+            public_id, platby.LEGAL_VERSION, platby.LEGAL_VERSION,
+            _ts("2028-10-01T00:00:00Z"), _ts("2028-10-01T01:00:00Z"),
+        ),
+    )
+    con.commit()
+
+
+@pytest.mark.parametrize("ended_by", ["expired", "cancelled"])
+def test_skoncene_predplatne_umozni_nove(con, ended_by):
+    lookup = FakeLookup()
+    activate(con, lookup)
+    if ended_by == "expired":
+        final = lemon_subscription(
+            "subscription_expired", status="expired", ends_at=RENEWS_1,
+            cancelled=True, updated_at="2027-09-12T00:00:05.000000Z",
+        )
+    else:
+        final = lemon_subscription(
+            "subscription_cancelled", status="cancelled", ends_at=RENEWS_1,
+            cancelled=True, updated_at="2026-10-01T00:00:00.000000Z",
+        )
+    assert deliver(con, final, lookup=lookup)["review_required"] is False
+
+    new_attempt = "attempt_" + "n" * 43
+    _second_attempt(con, new_attempt)
+    later = _ts("2028-10-01T00:10:00Z")
+
+    def renewed(payload, **ids):
+        payload = copy.deepcopy(payload)
+        payload["meta"]["custom_data"]["attempt_id"] = new_attempt
+        data = payload["data"]
+        attributes = data["attributes"]
+        attributes.update(ids)
+        if data["type"] == "orders":
+            data["id"] = "9002"
+        elif data["type"] == "subscriptions":
+            data["id"] = "4322"
+        return payload
+
+    order = renewed(
+        lemon_order(discount_total=0, subtotal=4_900, tax=916, total=4_900,
+                    updated_at="2028-10-01T00:05:01.000000Z"),
+        created_at="2028-10-01T00:05:00.000000Z",
+    )
+    order["data"]["attributes"]["first_order_item"]["order_id"] = 9002
+    assert_processed(deliver(con, order, now=later), "paired")
+    subscription = renewed(
+        lemon_subscription(
+            renews_at="2029-10-01T00:05:00.000000Z",
+            updated_at="2028-10-01T00:05:03.000000Z",
+        ),
+        order_id=9002,
+        created_at="2028-10-01T00:05:02.000000Z",
+    )
+    assert_processed(deliver(con, subscription, now=later), "activated")
+
+    current = predplatne.subscription_for_user(con, 1)
+    assert current.provider_subscription_id == "4322"
+    assert current.status == "active"
+    assert current.founder is False
+    statuses = dict(con.execute(
+        "SELECT provider_subscription_id,status FROM subscriptions"
+    ).fetchall())
+    assert statuses == {SUBSCRIPTION: "expired", "4322": "active"}
+
+
+def test_bezace_predplatne_druhe_nepripusti(con):
+    lookup = FakeLookup()
+    activate(con, lookup)
+    other = lemon_subscription(updated_at="2026-09-12T00:05:00.000000Z")
+    other["data"]["id"] = "4999"
+    assert deliver(con, other, lookup=lookup)["review_required"] is True
+    assert con.execute("SELECT COUNT(*) FROM subscriptions").fetchone()[0] == 1
