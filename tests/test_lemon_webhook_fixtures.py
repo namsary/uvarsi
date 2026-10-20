@@ -821,3 +821,44 @@ def test_zaplateny_pokus_drzi_zakladajuce_miesto_kym_ho_nezapocita_predplatne(co
     assert_processed(deliver(con, lemon_subscription()), "activated")
     assert platby.founder_places_used(con, test_mode=True) == 1
     assert platby.volne_miesta(con, test_mode=True, now=after_ttl) == 49
+
+
+# ------------------------------------- cena vs. DPH
+def test_obchod_bez_dph_v_cene_porovnava_sumu_pred_danou(con):
+    # 39 € po zľave + 23 % DPH = 47,97 €; cenník porovnáva sumu bez dane.
+    lookup = FakeLookup()
+    lookup.order_row = lemon_order(
+        tax=897, total=4_797, tax_inclusive=False
+    )["data"]
+    order = lemon_order(tax=897, total=4_797, tax_inclusive=False)
+    assert_processed(deliver(con, order, lookup=lookup), "paired")
+    assert_processed(
+        deliver(con, lemon_subscription(), lookup=lookup), "activated"
+    )
+
+
+def test_ina_cena_bez_dph_neprejde(con):
+    order = lemon_order(
+        subtotal=5_900, discount_total=1_000, tax=1_127, total=6_027,
+        tax_inclusive=False,
+    )
+    assert deliver(con, order)["review_required"] is True
+
+
+def test_bez_subtotal_sa_porovnava_total(con):
+    order = lemon_order()
+    for name in ("subtotal", "tax_inclusive"):
+        order["data"]["attributes"].pop(name)
+    assert_processed(deliver(con, order), "paired")
+
+
+def test_jednorazove_clenstvo_bez_dph_v_cene_prejde():
+    payload = {
+        "data": {"attributes": {
+            "subtotal": 3_900, "discount_total": 0, "tax": 897,
+            "total": 4_797, "tax_inclusive": False, "currency": "EUR",
+        }},
+    }
+    assert platby._suma_cennika(payload) == 3_900
+    payload["data"]["attributes"]["tax_inclusive"] = True
+    assert platby._suma_cennika(payload) == 4_797

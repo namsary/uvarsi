@@ -356,6 +356,10 @@ def _event_payload(
         "updated_at": value("updated_at"),
         "created_at": value("created_at"),
         "total": value("total"),
+        "subtotal": value("subtotal"),
+        "discount_total": value("discount_total"),
+        "tax": value("tax"),
+        "tax_inclusive": value("tax_inclusive"),
         "discount_id": value("discount_id"),
         "refunded_amount": value("refunded_amount", fallback=0),
     }
@@ -588,7 +592,10 @@ def _lost_subscription_created_payload(con, row, invoice_rows, *, expected):
     if attempt_id is None:
         return None
     projected = dict(attributes)
-    for name in ("currency", "total", "subtotal", "tax", "tax_inclusive"):
+    for name in (
+        "currency", "total", "subtotal", "discount_total", "tax",
+        "tax_inclusive",
+    ):
         if projected.get(name) is None and invoice.get(name) is not None:
             projected[name] = invoice[name]
     if "discount_id" not in projected:

@@ -1299,6 +1299,31 @@ def _suma(payload):
     return suma, mena
 
 
+def _suma_cennika(payload):
+    """Suma bez DPH na porovnanie s cenníkom; predpoklad je v predplatne._offer_amount.
+
+    Lemon: subtotal = cena pred zľavou a daňou, discount_total = zľava,
+    total = zaplatené vrátane dane. Pri tax_inclusive=true je cenníková suma
+    priamo total; bez subtotal sa porovnáva total.
+    """
+    atributy = _atributy(payload)
+    suma, _mena = _suma(payload)
+    if atributy.get("tax_inclusive") is True:
+        return suma
+
+    def cislo(nazov):
+        hodnota = atributy.get(nazov)
+        if isinstance(hodnota, int) and not isinstance(hodnota, bool) and 0 <= hodnota <= 10 ** 9:
+            return hodnota
+        return None
+
+    subtotal = cislo("subtotal")
+    if subtotal is None:
+        return suma
+    zlava = cislo("discount_total") or 0
+    return subtotal - zlava if subtotal >= zlava else None
+
+
 def refund_kind(payload) -> str:
     """Classify LemonSqueezy's shared full/partial `order_refunded` event."""
     attributes = _atributy(payload)
@@ -1443,7 +1468,10 @@ def _udel(con, payload, now, ocakavany_variant):
         attempt_id = custom_checkout_attempt(payload)
         if attempt_id is None:
             raise UdalostNepouzitelna("chýba pokus objednávky")
-        if suma != CENA_ZAKLADAJUCI_CENTY or mena != MENA_ZAKLADAJUCI:
+        if (
+            _suma_cennika(payload) != CENA_ZAKLADAJUCI_CENTY
+            or mena != MENA_ZAKLADAJUCI
+        ):
             raise UdalostNepouzitelna("platba nezodpovedá odsúhlasenej cene")
         status = _atributy(payload).get("status")
         if not isinstance(status, str) or status.strip().casefold() != "paid":
@@ -2297,6 +2325,9 @@ def payload_z_objednavky(objednavka, *, user_id=None, typ=UDALOST_UDELUJUCA):
         "status": atributy.get("status"),
         "test_mode": atributy.get("test_mode"),
     }
+    for field in ("subtotal", "discount_total", "tax", "tax_inclusive"):
+        if field in atributy:
+            prepis[field] = atributy.get(field)
     for field in ("refunded", "refunded_amount", "refunded_at"):
         if field in atributy:
             prepis[field] = atributy.get(field)

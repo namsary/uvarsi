@@ -824,6 +824,27 @@ def _amount(payload, name="total") -> int | None:
     return value
 
 
+def _offer_amount(payload) -> int | None:
+    """Suma na porovnanie s cenníkom (3 900 / 4 900 centov), bez DPH.
+
+    Predpoklad podľa dokumentácie Lemon Squeezy: ``subtotal`` je cena pred
+    zľavou a pred daňou, ``discount_total`` je zľava a ``total`` je to, čo
+    zákazník zaplatil vrátane dane. Pri obchode s cenami bez DPH
+    (tax_inclusive=false) sa preto porovnáva ``subtotal - discount_total``;
+    pri cenách s DPH (tax_inclusive=true) je nakonfigurovaná cena priamo
+    ``total``. Bez ``subtotal`` (staršie či neúplné telo) sa porovnáva
+    ``total``. Uložená suma faktúry ostáva skutočne zaplatený ``total``.
+    """
+    attributes = _payload_attributes(payload)
+    if attributes.get("tax_inclusive") is True:
+        return _amount(payload)
+    subtotal = _amount(payload, "subtotal")
+    if subtotal is None:
+        return _amount(payload)
+    discount = _amount(payload, "discount_total") or 0
+    return subtotal - discount if subtotal >= discount else None
+
+
 def _discount_id(payload) -> str | None:
     value = _payload_attributes(payload).get("discount_id")
     return None if value is None else _safe_id(value)
@@ -1041,7 +1062,7 @@ def _validate_offer(payload, attempt: dict, expected: dict, *, renewal: bool) ->
         else FOUNDER_INITIAL_AMOUNT_CENTS
     )
     wanted_discount = expected["founder_discount_id"] if founder and not renewal else None
-    if _amount(payload) != wanted_amount:
+    if _offer_amount(payload) != wanted_amount:
         raise _ReviewRequired("fakturovaná suma nezodpovedá obdobiu")
     if _discount_id(payload) != wanted_discount:
         raise _ReviewRequired("zľava nezodpovedá obdobiu")
@@ -1851,7 +1872,10 @@ def enrich_provider_payload(con, payload, *, expected, lookup=None) -> dict:
             attempt = _local_attempt_for(con, payload, order_id)
             if order:
                 fill("currency", order.get("currency"))
-                for name in ("total", "subtotal", "tax", "tax_inclusive"):
+                for name in (
+                    "total", "subtotal", "discount_total", "tax",
+                    "tax_inclusive",
+                ):
                     fill(name, order.get(name))
                 if "discount_id" not in attributes:
                     known, discount = _discount_from_total(order, expected)
