@@ -6635,18 +6635,23 @@ def _subscription_checkout_provider(*, test_mode: bool):
     return _LemonSubscriptionCheckoutProvider(settings)
 
 
-def _lemon_subscription_request(api_key: str, subscription_id: str) -> dict:
-    """Read one Lemon subscription without logging credentials or its URLs."""
+def _lemon_resource_request(
+    api_key: str, resource: str, identifier: str, *, method: str = "GET"
+) -> dict:
+    """One exact Lemon API call without logging credentials or its URLs."""
     if not isinstance(api_key, str) or not api_key.strip():
         raise PlatbyNenastavene("chýba API kľúč správy predplatného")
-    if not isinstance(subscription_id, str) or not subscription_id.strip():
+    if resource not in {"subscriptions", "orders"}:
+        raise PlatbyNenastavene("nepodporovaný zdroj poskytovateľa")
+    if not isinstance(identifier, str) or not identifier.strip():
         raise PlatbyNenastavene("chýba identifikátor predplatného")
-    safe_id = quote(subscription_id.strip(), safe="")
+    safe_id = quote(identifier.strip(), safe="")
     request = UrlRequest(
-        f"https://api.lemonsqueezy.com/v1/subscriptions/{safe_id}",
-        method="GET",
+        f"https://api.lemonsqueezy.com/v1/{resource}/{safe_id}",
+        method=method,
         headers={
             "Accept": "application/vnd.api+json",
+            "Content-Type": "application/vnd.api+json",
             "Authorization": f"Bearer {api_key.strip()}",
         },
     )
@@ -6666,6 +6671,42 @@ def _lemon_subscription_request(api_key: str, subscription_id: str) -> dict:
     if not isinstance(decoded, dict):
         raise PlatbyNenastavene("poskytovateľ vrátil neplatnú odpoveď")
     return decoded
+
+
+def _lemon_subscription_request(api_key: str, subscription_id: str) -> dict:
+    """Read one Lemon subscription without logging credentials or its URLs."""
+    return _lemon_resource_request(api_key, "subscriptions", subscription_id)
+
+
+class _LemonWebhookLookup:
+    """Čítanie objektov podľa ID pre doplnenie webhooku; repr bez kľúča."""
+
+    def __init__(self, api_key: str):
+        self._api_key = api_key
+
+    def __repr__(self):
+        return "_LemonWebhookLookup(<redacted>)"
+
+    def subscription(self, subscription_id):
+        return _lemon_resource_request(
+            self._api_key, "subscriptions", str(subscription_id)
+        )
+
+    def order(self, order_id):
+        return _lemon_resource_request(self._api_key, "orders", str(order_id))
+
+
+def _webhook_lookup(*, test_mode: bool):
+    """Klient API pre webhook; bez kľúča sa dopĺňa iba z lokálneho stavu."""
+    try:
+        api_key = lemon_subscription_checkout_config(
+            test_mode=test_mode, getenv=env
+        ).api_key
+    except (PlatbyNenastavene, ValueError, TypeError):
+        return None
+    if not isinstance(api_key, str) or not api_key.strip():
+        return None
+    return _LemonWebhookLookup(api_key.strip())
 
 
 class _LemonSubscriptionPortalProvider:
@@ -7180,6 +7221,7 @@ async def platba_webhook(req: Request):
                         },
                         source="webhook",
                         delivery_key=verified_body_digest,
+                        lookup=_webhook_lookup(test_mode=False),
                     )
                     return {
                         "ok": True,

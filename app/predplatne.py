@@ -1604,8 +1604,262 @@ def _mark_delivery(
     )
 
 
+# ---------------------------------------------------------------- doplnenie
+# Skutočné webhooky Lemon Squeezy nenesú všetky polia, ktoré doménová
+# kontrola vyžaduje: objekt predplatného nemá menu, sumu, zľavu ani obdobie,
+# faktúra nemá objednávku, variant ani obdobie a objednávka nemá id zľavy ani
+# faktúry. Rekonciliácia ich už dopĺňa z API a lokálneho stavu; webhook ide
+# rovnakou cestou. Dopĺňa sa iba chýbajúce pole, nikdy sa neprepíše hodnota,
+# ktorú poskytovateľ v podpísanom tele poslal, a všetko ďalej prechádza
+# rovnakými prísnymi kontrolami (suma, zľava, obdobie, identita).
+
+
+def _clean_status(value) -> str:
+    return value.strip().casefold() if isinstance(value, str) else ""
+
+
+def normalize_invoice_attributes(
+    attributes: dict, *, snapshot, subscription_attributes=None
+) -> dict:
+    """Doplň faktúre iba fakty dokázateľné z predplatného a lokálneho stavu.
+
+    Faktúry Lemon neopakujú objednávku, zákazníka, variant ani hranice
+    obdobia predplatného. Spoločné pre webhook aj rekonciliáciu; zaplatené
+    obdobie sa nevymýšľa, iba sa preberie z overeného lokálneho stavu.
+    """
+    subscription_attributes = subscription_attributes or {}
+    normalized = dict(attributes)
+    if snapshot is None:
+        return normalized
+    for name in (
+        "store_id",
+        "variant_id",
+        "order_id",
+        "customer_id",
+        "test_mode",
+        "subscription_status",
+        "renews_at",
+    ):
+        if normalized.get(name) is None:
+            source_name = "status" if name == "subscription_status" else name
+            if subscription_attributes.get(source_name) is not None:
+                normalized[name] = subscription_attributes[source_name]
+
+    status = _clean_status(normalized.get("status"))
+    subscription_status = _clean_status(normalized.get("subscription_status"))
+    billing_reason = _clean_status(normalized.get("billing_reason"))
+
+    # A pending renewal plus a confirmed past-due subscription is the
+    # provider's dunning state.  Project it into the same strict event contract
+    # used by the webhook transition engine.
+    if status == "pending" and subscription_status == "past_due":
+        normalized["status"] = "failed"
+        status = "failed"
+
+    period_start = _timestamp(normalized.get("billing_period_start"))
+    period_end = _timestamp(normalized.get("billing_period_end"))
+    if period_start is None or period_end is None:
+        if status == "paid" and billing_reason == "renewal":
+            candidate_start = snapshot.paid_through
+            candidate_end = _timestamp(subscription_attributes.get("renews_at"))
+        else:
+            candidate_start = snapshot.period_start
+            candidate_end = snapshot.period_end
+        if (
+            candidate_start is not None
+            and candidate_end is not None
+            and candidate_start < candidate_end
+        ):
+            normalized["billing_period_start"] = candidate_start
+            normalized["billing_period_end"] = candidate_end
+    return normalized
+
+
+def _discount_from_total(attributes: dict, expected: dict):
+    """Lemon posiela pri objednávke a faktúre discount_total, nie id zľavy.
+
+    Nula znamená bez zľavy, presne zakladajúca zľava znamená nakonfigurovanú
+    zakladajúcu zľavu. Iná suma dostane zámerne nezhodný identifikátor, aby
+    ju kontrola ponuky poslala na ručné preverenie.
+    """
+    total = attributes.get("discount_total")
+    if not isinstance(total, int) or isinstance(total, bool):
+        return False, None
+    if total == 0:
+        return True, None
+    if total == FOUNDER_DISCOUNT_AMOUNT_CENTS:
+        return True, expected["founder_discount_id"]
+    return True, "neovereny-discount"
+
+
+def _provider_resource(lookup, kind: str, identifier, wanted_type: str) -> dict:
+    """Načítaj jeden zdroj poskytovateľa podľa ID; zlyhanie je len chýbajúci fakt."""
+    if lookup is None or identifier is None:
+        return {}
+    fetch = getattr(lookup, kind, None)
+    if not callable(fetch):
+        return {}
+    try:
+        response = fetch(identifier)
+    except Exception:
+        return {}
+    data = response.get("data") if isinstance(response, dict) else None
+    if (
+        not isinstance(data, dict)
+        or data.get("type") != wanted_type
+        or str(data.get("id")) != str(identifier)
+    ):
+        return {}
+    attributes = data.get("attributes")
+    return attributes if isinstance(attributes, dict) else {}
+
+
+def _local_attempt_for(con, payload, order_id) -> dict | None:
+    public_id = _attempt_id(payload)
+    if public_id is not None:
+        row = _row_dict(
+            con, "SELECT * FROM checkout_attempts WHERE public_id=?", (public_id,)
+        )
+        if row is not None:
+            return row
+    if order_id is None:
+        return None
+    return _row_dict(
+        con,
+        "SELECT * FROM checkout_attempts WHERE provider_order_id=? "
+        "AND product=?",
+        (order_id, ANNUAL_PREMIUM_PRODUCT),
+    )
+
+
+def enrich_provider_payload(con, payload, *, expected, lookup=None) -> dict:
+    """Vráť kópiu webhooku doplnenú o fakty, ktoré Lemon v objekte neposiela.
+
+    ``lookup`` je voliteľný klient API poskytovateľa s metódami
+    ``subscription(id)`` a ``order(id)``; bez neho sa dopĺňa len z lokálneho
+    stavu (snapshot predplatného, pokus objednávky, uložená faktúra).
+    """
+    if not isinstance(payload, dict):
+        return payload
+    expected = _validated_expected(expected)
+    data = _payload_data(payload)
+    attributes = dict(_payload_attributes(payload))
+    resource_type = _resource_type(payload)
+    event_name = _event_name(payload)
+    meta_mode = _payload_meta(payload).get("test_mode")
+    if type(attributes.get("test_mode")) is not bool and type(meta_mode) is bool:
+        attributes["test_mode"] = meta_mode
+    test_mode = attributes.get("test_mode")
+    if type(test_mode) is not bool:
+        return payload
+
+    def fill(name, value):
+        if attributes.get(name) is None and value is not None:
+            attributes[name] = value
+
+    subscription_id = None
+    if resource_type == "subscriptions":
+        subscription_id = _safe_id(data.get("id"))
+    elif resource_type == "subscription-invoices":
+        subscription_id = _safe_id(attributes.get("subscription_id"))
+    order_id = _safe_id(attributes.get("order_id"))
+    if order_id is None and resource_type == "orders":
+        order_id = _safe_id(data.get("id"))
+
+    snapshot = None
+    if subscription_id is not None:
+        snapshot = _snapshot_for_subscription(
+            con, subscription_id, test_mode=test_mode
+        )
+    elif order_id is not None:
+        row = con.execute(
+            "SELECT provider_subscription_id FROM subscriptions "
+            "WHERE provider='lemonsqueezy' AND provider_order_id=? "
+            "AND test_mode=?",
+            (order_id, int(test_mode)),
+        ).fetchone()
+        if row is not None:
+            subscription_id = row[0]
+            snapshot = _snapshot_for_subscription(
+                con, subscription_id, test_mode=test_mode
+            )
+
+    if resource_type == "subscriptions":
+        if snapshot is not None:
+            fill("currency", snapshot.currency)
+            fill("billing_period_start", snapshot.period_start)
+            fill("billing_period_end", snapshot.period_end)
+        else:
+            # Prvé obdobie ročného predplatného: od vzniku po prvú obnovu.
+            fill("billing_period_start", attributes.get("created_at"))
+            fill("billing_period_end", attributes.get("renews_at"))
+        if event_name == "subscription_created":
+            order = _provider_resource(lookup, "order", order_id, "orders")
+            attempt = _local_attempt_for(con, payload, order_id)
+            if order:
+                fill("currency", order.get("currency"))
+                for name in ("total", "subtotal", "tax", "tax_inclusive"):
+                    fill(name, order.get(name))
+                if "discount_id" not in attributes:
+                    known, discount = _discount_from_total(order, expected)
+                    if known:
+                        attributes["discount_id"] = discount
+            elif (
+                attempt is not None
+                and attempt.get("status") == "paid"
+                and order_id is not None
+                and _safe_id(attempt.get("provider_order_id")) == order_id
+            ):
+                # Objednávku už overil order_created (suma aj zľava) a
+                # spároval ju s týmto pokusom; jej overené údaje platia.
+                fill("currency", attempt.get("currency"))
+                fill("total", attempt.get("amount_cents"))
+                if "discount_id" not in attributes:
+                    attributes["discount_id"] = attempt.get("discount_id")
+    elif resource_type == "subscription-invoices":
+        provider_subscription = _provider_resource(
+            lookup, "subscription", subscription_id, "subscriptions"
+        )
+        attributes = normalize_invoice_attributes(
+            attributes,
+            snapshot=snapshot,
+            subscription_attributes=provider_subscription,
+        )
+        if snapshot is not None:
+            fill("order_id", snapshot.provider_order_id)
+            fill("customer_id", snapshot.provider_customer_id)
+            fill("variant_id", snapshot.provider_variant_id)
+        if "discount_id" not in attributes:
+            known, discount = _discount_from_total(attributes, expected)
+            if known:
+                attributes["discount_id"] = discount
+    elif resource_type == "orders":
+        if "discount_id" not in attributes:
+            known, discount = _discount_from_total(attributes, expected)
+            if known:
+                attributes["discount_id"] = discount
+        if event_name == "order_refunded" and snapshot is not None:
+            invoice = _row_dict(
+                con,
+                "SELECT provider_invoice_id,period_start,period_end "
+                "FROM subscription_invoices WHERE provider='lemonsqueezy' "
+                "AND test_mode=? AND provider_subscription_id=? "
+                "AND provider_order_id=? AND invoice_kind='initial'",
+                (int(test_mode), snapshot.provider_subscription_id, order_id),
+            )
+            fill("subscription_id", snapshot.provider_subscription_id)
+            if invoice is not None:
+                fill("invoice_id", invoice["provider_invoice_id"])
+                fill("billing_period_start", invoice["period_start"])
+                fill("billing_period_end", invoice["period_end"])
+
+    enriched = dict(payload)
+    enriched["data"] = {**data, "attributes": attributes}
+    return enriched
+
+
 def process_subscription_event(
-    con, *, payload, now, expected, source, delivery_key
+    con, *, payload, now, expected, source, delivery_key, lookup=None
 ) -> dict:
     """Validate and apply one annual lifecycle event in one idempotent transaction."""
     if not isinstance(payload, dict):
@@ -1615,6 +1869,11 @@ def process_subscription_event(
     now = float(now)
     expected = _validated_expected(expected)
     if source in {"webhook", "odlozene"}:
+        # Podpis platí pre pôvodné telo; doplnené polia pochádzajú iba
+        # z overeného lokálneho stavu alebo z API poskytovateľa.
+        payload = enrich_provider_payload(
+            con, payload, expected=expected, lookup=lookup
+        )
         event_key = subscription_event_key(
             payload, verified_body_digest=delivery_key
         )
@@ -1757,4 +2016,18 @@ def is_subscription_event(con, payload) -> bool:
         return True
     if event_name == "order_refunded" and _provider_invoice_id(payload) is not None:
         return True
+    # Skutočné order_refunded nemá id faktúry; ročnú objednávku spoznáme
+    # podľa uloženého predplatného alebo spárovaného ročného pokusu.
+    order_id = _provider_order_id(payload)
+    if resource_type == "orders" and order_id is not None:
+        if con.execute(
+            "SELECT 1 FROM subscriptions WHERE provider='lemonsqueezy' "
+            "AND provider_order_id=?",
+            (order_id,),
+        ).fetchone() is not None or con.execute(
+            "SELECT 1 FROM checkout_attempts WHERE provider_order_id=? "
+            "AND product=?",
+            (order_id, ANNUAL_PREMIUM_PRODUCT),
+        ).fetchone() is not None:
+            return True
     return False

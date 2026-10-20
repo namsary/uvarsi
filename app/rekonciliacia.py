@@ -167,6 +167,46 @@ def stiahni_objednavky(
     return objednavky
 
 
+def stiahni_zdroj(api_key, resource, identifier, *, otvor=None):
+    """Jeden objekt poskytovateľa podľa ID (GET /v1/{resource}/{id})."""
+    if resource not in {"subscriptions", "orders"}:
+        raise ValueError("nepodporovaný zdroj")
+    adresa = (
+        f"https://api.lemonsqueezy.com/v1/{resource}/"
+        + urllib.parse.quote(str(identifier), safe="")
+    )
+    ziadost = urllib.request.Request(
+        adresa,
+        headers={
+            "Accept": "application/vnd.api+json",
+            "Authorization": f"Bearer {api_key}",
+        },
+    )
+    if otvor is None:
+        otvor = urllib.request.build_opener(_NoProviderRedirects()).open
+    with otvor(ziadost, timeout=CAS_SPOJENIA) as odpoved:
+        return json.loads(odpoved.read(1_048_576).decode("utf-8"))
+
+
+class LemonLookup:
+    """Doplnenie odložených webhookov z API; repr neobsahuje kľúč."""
+
+    def __init__(self, api_key, *, otvor=None):
+        self._api_key = api_key
+        self._otvor = otvor
+
+    def __repr__(self):
+        return "LemonLookup(<redacted>)"
+
+    def subscription(self, identifier):
+        return stiahni_zdroj(
+            self._api_key, "subscriptions", identifier, otvor=self._otvor
+        )
+
+    def order(self, identifier):
+        return stiahni_zdroj(self._api_key, "orders", identifier, otvor=self._otvor)
+
+
 class ProviderUnavailable(RuntimeError):
     """The provider snapshot was not obtained; local access stays unchanged."""
 
@@ -357,72 +397,19 @@ def _normalized_invoice_row(row, *, snapshot, subscription_row):
     Lemon subscription invoices do not repeat the subscription's order,
     customer, variant, or current billing boundary.  Reconciliation may join
     those authenticated resources, but it must not invent a paid period.
+    Rovnaké doplnenie používa aj webhook (predplatne.enrich_provider_payload).
     """
     attributes = _row_attributes(row)
-    subscription_attributes = _row_attributes(subscription_row) or {}
     if attributes is None or snapshot is None:
         return row
-
-    normalized = dict(attributes)
-    for name in (
-        "store_id",
-        "variant_id",
-        "order_id",
-        "customer_id",
-        "test_mode",
-        "subscription_status",
-        "renews_at",
-    ):
-        if normalized.get(name) is None:
-            source_name = "status" if name == "subscription_status" else name
-            if subscription_attributes.get(source_name) is not None:
-                normalized[name] = subscription_attributes[source_name]
-
-    status = normalized.get("status")
-    status = status.strip().casefold() if isinstance(status, str) else ""
-    subscription_status = normalized.get("subscription_status")
-    subscription_status = (
-        subscription_status.strip().casefold()
-        if isinstance(subscription_status, str)
-        else ""
-    )
-    billing_reason = normalized.get("billing_reason")
-    billing_reason = (
-        billing_reason.strip().casefold()
-        if isinstance(billing_reason, str)
-        else ""
-    )
-
-    # A pending renewal plus a confirmed past-due subscription is the
-    # provider's dunning state.  Project it into the same strict event contract
-    # used by the webhook transition engine.
-    if status == "pending" and subscription_status == "past_due":
-        normalized["status"] = "failed"
-        status = "failed"
-
-    period_start = predplatne._timestamp(normalized.get("billing_period_start"))
-    period_end = predplatne._timestamp(normalized.get("billing_period_end"))
-    if period_start is None or period_end is None:
-        if status == "paid" and billing_reason == "renewal":
-            candidate_start = snapshot.paid_through
-            candidate_end = predplatne._timestamp(
-                subscription_attributes.get("renews_at")
-            )
-        else:
-            candidate_start = snapshot.period_start
-            candidate_end = snapshot.period_end
-        if (
-            candidate_start is not None
-            and candidate_end is not None
-            and candidate_start < candidate_end
-        ):
-            normalized["billing_period_start"] = candidate_start
-            normalized["billing_period_end"] = candidate_end
-
     return {
         "type": row.get("type"),
         "id": row.get("id"),
-        "attributes": normalized,
+        "attributes": predplatne.normalize_invoice_attributes(
+            attributes,
+            snapshot=snapshot,
+            subscription_attributes=_row_attributes(subscription_row) or {},
+        ),
     }
 
 
@@ -985,6 +972,7 @@ def main() -> int:
                     "currency": "EUR",
                     "test_mode": False,
                 },
+                subscription_lookup=LemonLookup(api_key) if api_key else None,
             )
             if odlozene["spracovane"]:
                 print("REKONCILIACIA: odložené telá — spracovaných "

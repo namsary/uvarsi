@@ -1767,6 +1767,7 @@ def spracuj_odlozene(
     con, *, tajomstvo, now, variant_id=None, limit=MAX_ODLOZENYCH,
     expected_test_mode=None, test_tajomstvo=None,
     subscription_expected=None, test_subscription_expected=None,
+    subscription_lookup=None,
 ) -> dict:
     """Dobehni telá, ktoré čakali. Každé prejde overením podpisu, ako by prišlo teraz.
 
@@ -1844,6 +1845,7 @@ def spracuj_odlozene(
                     expected=annual_expected,
                     source=ZDROJ_ODLOZENE,
                     delivery_key=verified_body_digest,
+                    lookup=None if verified_mode else subscription_lookup,
                 )
                 udalost = {
                     "akcia": annual_result["action"],
