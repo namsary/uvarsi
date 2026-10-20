@@ -212,7 +212,7 @@ def test_both_deploy_paths_require_all_subscription_runtime_artifacts():
         "app/subscription_lifecycle_probe.py",
         "hetzner/payment-smoke.py",
         "hetzner/payment-lifecycle-probe.py",
-        "app/static/subscription-profile.19ddd6feb9d0.js",
+        "app/static/subscription-profile.fab2da6e4641.js",
     )
     for deploy_name, script in scripts.items():
         normalized = script.replace("\\", "/")

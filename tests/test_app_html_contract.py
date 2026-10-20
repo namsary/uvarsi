@@ -120,6 +120,15 @@ def test_online_withdrawal_form_collects_the_complete_optional_notice():
     assert "withdrawal-name" in handler
     assert "withdrawal-address" in handler
     assert "Dátum odoslania" in handler
+    # Smernica (EÚ) 2023/2673: iba meno, identifikácia zmluvy a kanál
+    # potvrdenia. Adresa je nepovinná a nič ďalšie odstúpenie nepodmieňuje.
+    address = form.split('id="withdrawal-address"', 1)[1].split(">", 1)[0]
+    assert "required" not in address
+    assert "Adresa (nepovinné)" in form
+    assert "withdrawal-confirm" not in page and 'type="checkbox"' not in form
+    assert '<button class="btn" type="submit">Odstúpiť od zmluvy</button>' in form
+    assert "Potvrdenie o prijatí pošleme na e-mail účtu" in form
+    assert "...(address?['Adresa spotrebiteľa: '+address]:[])" in handler
 
 
 def test_app_footer_links_every_customer_document_and_contact():

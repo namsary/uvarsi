@@ -1517,3 +1517,29 @@ def test_missing_consent_receipt_does_not_deduct_consumed_service(
     assert len(sent) == 1
     assert "neodpočítava" in sent[0]
     assert "Refundácia ešte nebola vykonaná" in sent[0]
+
+
+def test_withdrawal_without_consumer_address_is_accepted(monkeypatch, tmp_path):
+    """Smernica (EÚ) 2023/2673: funkcia odstúpenia pýta len meno, zmluvu a
+    kanál potvrdenia. Adresa spotrebiteľa je nepovinná."""
+    server = _subscription_server(monkeypatch, tmp_path, now=P0_START + 7 * DAY)
+    with closing(server.db()) as con:
+        _seed_invoice(con)
+    message = "\n".join((
+        "Oznamujem, že odstupujem od zmluvy o digitálnej službe Uvar.si.",
+        "Meno a priezvisko spotrebiteľa: Jana Nováková",
+        "E-mail účtu: annual@example.test",
+        "Číslo platby: inv_initial",
+    ))
+
+    response = prihlaseny(server).post(
+        "/api/consumer/withdrawal",
+        json={"invoice_id": "inv_initial", "message": message},
+        headers={"Origin": "https://uvar.si"},
+    )
+
+    assert response.status_code == 202, response.text
+    assert response.json()["request_type"] == customer_requests.TYPE_WITHDRAWAL
+    with closing(server.db()) as con:
+        stored = con.execute("SELECT message FROM consumer_requests").fetchone()[0]
+    assert "Adresa" not in stored
