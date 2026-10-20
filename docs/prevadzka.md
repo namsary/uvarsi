@@ -457,8 +457,15 @@ cd /opt/uvarsi
 ```
 
 Vznikne podpísaný `/var/lib/uvarsi/payment-activation.json`. Tento krok nič
-neúčtuje a nemení ani jeden platobný príznak. Aktivácia expiruje najneskôr po
-siedmich dňoch a pri zmene ekonomiky, identít alebo tajomstiev prestane platiť.
+neúčtuje a nemení ani jeden platobný príznak. Kým sú platby vypnuté, aktivácia
+platí iba pre toto vydanie a expiruje najneskôr po siedmich dňoch.
+
+Po zapnutí oboch príznakov (`PLATBY_ZAPNUTE=1`, `UVARSI_PAYMENTS_ENABLED=1`)
+smoke ani lifecycle sonda bežať nesmú, preto checkout už nevyžaduje čerstvý
+smoke marker: rozhoduje jednorazová aktivácia (podpis a odtlačky live/test
+konfigurácie) a živé readiness kontroly. Nové vydanie ani vek aktivácie
+checkout nezavrú. Zmena ekonomiky, identít alebo tajomstiev aktiváciu stále
+zneplatní — vtedy treba platby vypnúť, zopakovať smoke a aktiváciu.
 
 Referencie poskytovateľa: [Test mode](https://docs.lemonsqueezy.com/help/getting-started/test-mode),
 [testovanie webhookov](https://docs.lemonsqueezy.com/guides/developer-guide/webhooks)
