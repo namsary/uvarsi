@@ -45,6 +45,10 @@ COLLECTION_FAILURE_STATE="$DIR/.collection_failure_state"
 RUN_CAP_STATE="$DIR/.zber_behy_vycerpane"       # "týždeň release" po vyčerpaní stropu behov
 BRIDGE_ALERT_STATE="$DIR/.bridge_alert_state"   # "deň:dôvod" posledného upozornenia na bridge
 DENNA_KONTROLA_STATE="$DIR/.denna_kontrola_zdrojov"  # deň poslednej dennej kontroly letákov
+STRUKTURALNY_ALERT_STATE="$DIR/.strukturalny_alert"  # epoch posledného opakovaného upozornenia
+DISK_ALERT_STATE="$DIR/.disk_alert"                  # deň posledného upozornenia na plný disk
+STRUKTURALNY_ALERT_INTERVAL="${UVARSI_STRUKTURALNY_ALERT_INTERVAL:-14400}"
+DISK_ALERT_PERCENT="${UVARSI_DISK_ALERT_PERCENT:-90}"
 DENNA_KONTROLA_OD="${UVARSI_DENNA_KONTROLA_OD:-6}"   # od ktorej hodiny ráno sa kontroluje
 RECIPE_SMOKE_STATE="${UVARSI_RECIPE_SMOKE_STATE:-/var/lib/uvarsi/recipe_engine_smoke.json}"
 PLAN_QUEUE_HEALTH_URL="${UVARSI_PLAN_QUEUE_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
@@ -60,7 +64,10 @@ MIN_TOTAL_OFFERS=30                  # zdieľaný prah dozorcu a post-deploy kon
 MIN_OFFERS_PER_STORE=20              # malá vložka sa nesmie tváriť ako celý leták
 # Téma je verejná (kto ju pozná, môže čítať aj posielať). Preto ju je možné
 # na serveri prepísať cez /opt/uvarsi/dozorca.env bez zmeny kódu.
-NTFY_TOPIC="${UVARSI_NTFY_TOPIC:-uvarsi-jarvis-8f3a2c}"    # notifikácie: ntfy.sh/<topic>
+# Súkromná téma upozornení žije iba na serveri v súbore ntfy_topic (jeden
+# riadok, nie v gite). Verejná predvolená téma je len núdzová záloha.
+NTFY_TOPIC_SUBOR=$( [ -r "$DIR/ntfy_topic" ] && head -n1 "$DIR/ntfy_topic" | tr -cd 'A-Za-z0-9_-' )
+NTFY_TOPIC="${UVARSI_NTFY_TOPIC:-${NTFY_TOPIC_SUBOR:-uvarsi-jarvis-8f3a2c}}"    # notifikácie: ntfy.sh/<topic>
 DEPLOY_STATE_SCRIPT="${UVARSI_DEPLOY_STATE_SCRIPT:-$DIR/uvarsi-deploy-state.sh}"
 
 # Cron aj ručne spustený samopull môžu dediť UTC z hostiteľa. Všetky Python
@@ -665,6 +672,23 @@ zahrej_plany() {
   ) || log "predpočet sa nepodarilo zaradiť — ďalší hodinový beh to skúsi znova"
 }
 
+# --- Disk: plný disk zhodí SQLite zápisy (prihlásenie, plány, platby) ---
+DISK_PERCENT=$(df -P "$DIR" 2>/dev/null | awk 'NR==2 {gsub("%", "", $5); print $5}')
+case "$DISK_PERCENT" in
+  ''|*[!0-9]*) ;;
+  *)
+    if [ "$DISK_PERCENT" -ge "$DISK_ALERT_PERCENT" ]; then
+      LAST_DISK_ALERT=""
+      [ -f "$DISK_ALERT_STATE" ] && read -r LAST_DISK_ALERT < "$DISK_ALERT_STATE"
+      log "disk je zaplnený na $DISK_PERCENT %"
+      if [ "$LAST_DISK_ALERT" != "$TODAY" ]; then
+        notify "Uvar.si: plný disk" "Disk servera je zaplnený na $DISK_PERCENT %. Pri 100 % prestane fungovať prihlásenie, plány aj platby." && \
+          printf '%s\n' "$TODAY" > "$DISK_ALERT_STATE"
+      fi
+    fi
+    ;;
+esac
+
 # --- 0. Databáza akcií pre appku: má aktuálny týždeň? ---
 # (appka skladá osobné plány z tejto DB; bez nej ľuďom nič nevygeneruje)
 POCET=$(sqlite3 "$DIR/uvarsi.db" \
@@ -911,8 +935,10 @@ if { [ "${POCET:-0}" -lt "$MIN_TOTAL_OFFERS" ] || [ "${CHYBA_ZBER:-3}" -gt 0 ]; 
   fi
   ZBER_VYSTUP=$(cd "$DIR/app" && env "${ZBER_ENV[@]}" \
     "$PY" -u zbierac_akcii.py "${ZBER_ARGS[@]}" 2>&1)
-  unset ZBER_ENV BRIDGE_SECRET_PRE_ZBER
+  # Kód zberača treba zachytiť hneď; po `unset` by $? bol vždy 0 a zlyhaný
+  # zber by sa zapísal ako "zbierač OK".
   ZBER_RC=$?
+  unset ZBER_ENV BRIDGE_SECRET_PRE_ZBER
   [ -n "$ZBER_VYSTUP" ] && printf '%s\n' "$ZBER_VYSTUP"
   case "$ZBER_VYSTUP" in
     *ZBER_BEHY_VYCERPANE*)
@@ -1062,6 +1088,16 @@ if [ "$BLOKNUTE_NA" != "-" ] && [ "$BLOKNUTE_NA" = "$DATOVY_STAV" ] && \
    [ "$LAST_CREDIT_RELEASE" = "$CURRENT_RELEASE" ]; then
   upozorni_detail_zberu "$DATOVY_STAV" "$MON_ISO"
   log "ŠTRUKTURÁLNA chyba, odtlačok vstupu aj vydanie sa nezmenili — nespúšťam ďalší pokus (šetrím kredit)."
+  # Jedno upozornenie sa ľahko prehliadne a zákazníci medzitým nemajú dáta
+  # (incident 14. 10.). Kým blok trvá, pripomenieme ho každé 4 hodiny.
+  LAST_STRUCT_ALERT=0
+  [ -f "$STRUKTURALNY_ALERT_STATE" ] && read -r LAST_STRUCT_ALERT < "$STRUKTURALNY_ALERT_STATE"
+  case "$LAST_STRUCT_ALERT" in ''|*[!0-9]*) LAST_STRUCT_ALERT=0 ;; esac
+  if [ $((NOW_EPOCH - LAST_STRUCT_ALERT)) -ge "$STRUKTURALNY_ALERT_INTERVAL" ]; then
+    notify "Uvar.si: týždeň stále nie je zverejnený" \
+      "Týždeň $MON_ISO je zablokovaný štrukturálnou chybou a dozorca ho sám neopraví. Zákazníci môžu vidieť chýbajúci obchod. Treba zásah." && \
+      printf '%s\n' "$NOW_EPOCH" > "$STRUKTURALNY_ALERT_STATE"
+  fi
   exit "$EXIT_STRUCTURAL"
 fi
 

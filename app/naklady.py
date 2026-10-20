@@ -94,8 +94,23 @@ ODHAD_EUR = {
     "predpocet": 0.12,        # to isté volanie ako „plan", len v noci
 }
 
-# Ten istý kanál, ktorý už sleduje dozorca (hetzner/dozorca.sh).
-NTFY_TOPIC = "uvarsi-jarvis-8f3a2c"
+# Ten istý kanál, ktorý už sleduje dozorca (hetzner/dozorca.sh). Súkromná
+# téma žije iba na serveri (UVARSI_NTFY_TOPIC alebo súbor ntfy_topic), nie v
+# gite; verejná predvolená téma je len núdzová záloha.
+def _ntfy_topic() -> str:
+    tema = os.environ.get("UVARSI_NTFY_TOPIC", "").strip()
+    if not tema:
+        subor = os.environ.get("UVARSI_NTFY_TOPIC_FILE", "/opt/uvarsi/ntfy_topic")
+        try:
+            with open(subor, encoding="utf-8") as handle:
+                tema = handle.readline().strip()
+        except OSError:
+            tema = ""
+    tema = "".join(znak for znak in tema if znak.isalnum() or znak in "-_")
+    return tema or "uvarsi-jarvis-8f3a2c"
+
+
+NTFY_TOPIC = _ntfy_topic()
 PRAHY_UPOZORNENIA = (50, 80)
 # Po odmietnutí pre nulový kredit dovolíme najviac jeden lacný overovací pokus
 # za hodinu. Keď majiteľ dobije účet, systém sa tak rozbehne sám; dovtedy sa
@@ -149,11 +164,14 @@ VYCHODZI_TYZDENNY_STROP_MIGRACIA_EUR = 7.00
 # Tri varianty najžiadanejšieho profilu × najviac dva pokusy × 0,12 €.
 # Zaokrúhlených 0,80 € necháva malú rezervu, no drží predpočet pod ~3,20 €/mesiac.
 VYCHODZI_TYZDENNY_STROP_PREDPOCET_EUR = 0.80
-# Zber má jeden tretí pokus na zotavenie po dvoch zlyhaniach (napríklad po
-# dobití kreditu). Migrácia potrebuje rovnakú poslednú poistku: prvý prechod,
-# opravu schémy a jeden cielený dobeh chýbajúcich obchodov. Predpočet môže
-# skúsiť až šesťkrát. Cenu všetkých operácií stále strážia eurové stropy.
-VYCHODZI_LIMIT_BEHOV = {"zber_letakov": 3, "zber_migracia": 3, "predpocet": 6}
+# Zber: platené čítanie potrebujú Lidl (pondelok) a Tesco (streda), denná
+# kontrola letákov občas jeden obchod prečíta znova a každý výpadok zdroja
+# (bridge, sieť) spotrebuje pokus. Tri behy nenechávali rezervu — jeden
+# neúspešný pokus vyradil ďalší obchod až do pondelka. Šesť behov je
+# dvojnásobok bežného týždňa; cenu reálne stráži týždenný eurový strop.
+# Migrácia potrebuje prvý prechod, opravu schémy a jeden cielený dobeh
+# chýbajúcich obchodov. Predpočet môže skúsiť až šesťkrát.
+VYCHODZI_LIMIT_BEHOV = {"zber_letakov": 6, "zber_migracia": 3, "predpocet": 6}
 
 # Ktorý účel si strop počtu behov berie z ktorej premennej prostredia.
 PREMENNA_BEHOV = {

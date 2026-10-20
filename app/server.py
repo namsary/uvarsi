@@ -307,7 +307,7 @@ PAYMENT_SMOKE_MAX_AGE_SECONDS = 24 * 60 * 60
 PAYMENT_SMOKE_FUTURE_SKEW_SECONDS = 5 * 60
 RECIPE_SMOKE_ALERT_URL = os.environ.get(
     "UVARSI_RECIPE_SMOKE_ALERT_URL",
-    "https://ntfy.sh/uvarsi-jarvis-8f3a2c",
+    f"https://ntfy.sh/{naklady.NTFY_TOPIC}",
 )
 RECIPE_SMOKE_MAX_AGE_SECONDS = 2 * 60 * 60
 # Syntetický smoke zahŕňa prípravu izolovanej DB, autentizáciu a dva celé
@@ -3552,12 +3552,14 @@ def zahrej_plan_pre_pouzivatela(user_id):
     return plan
 
 
-def sprava_o_chybajucich_akciach() -> str:
+def sprava_o_chybajucich_akciach(chybajuce=()) -> str:
     """Prečo appka nemá z čoho skladať — a to pravdivo.
 
     „Obnovujú sa, skús to o chvíľu“ platí len vtedy, keď sa naozaj obnovujú.
     Keď API odmieta pre nulový kredit, zber letákov nemá ako dobehnúť a ten
     sľub je klamstvo — človek by čakal na niečo, čo samo od seba nepríde.
+    Keď chýba len niektorý obchod (nový leták sa ešte nenačítal), povieme
+    ktorý a čo s tým môže človek urobiť hneď, namiesto „skús o chvíľu“.
     """
     try:
         with closing(db()) as con:
@@ -3565,6 +3567,14 @@ def sprava_o_chybajucich_akciach() -> str:
                 return naklady.SPRAVA_KREDIT_AKCIE
     except Exception:                      # diagnostika nesmie zhodiť odpoveď
         pass
+    chybajuce = [str(obchod) for obchod in chybajuce if obchod]
+    if chybajuce:
+        nazvy = ", ".join(chybajuce)
+        return (
+            f"Aktuálny leták {nazvy} ešte nemáme načítaný. Dopĺňame ho "
+            "automaticky, zvyčajne do niekoľkých hodín. Medzitým si v nastaveniach "
+            "môžeš zvoliť iné obchody."
+        )
     return "Aktuálne letákové dáta sa obnovujú. Skús to o chvíľu."
 
 
@@ -4286,8 +4296,9 @@ def daj_plan(req: Request):
     with closing(db()) as con:
         premium = has_premium(con, user_id=u["id"], now=AUTH_CLOCK())
         obchody = efektivne_obchody(u, premium)
-        if stores_missing_this_week(con, obchody, bratislava_day()):
-            raise HTTPException(503, sprava_o_chybajucich_akciach())
+        chybajuce = stores_missing_this_week(con, obchody, bratislava_day())
+        if chybajuce:
+            raise HTTPException(503, sprava_o_chybajucich_akciach(chybajuce))
         r = con.execute("SELECT json, vytvoreny FROM plany WHERE user_id=? AND tyzden=?",
                         (u["id"], tyz)).fetchone()
         cached = None

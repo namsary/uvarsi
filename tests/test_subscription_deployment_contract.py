@@ -54,8 +54,11 @@ def _bash_path(path: Path) -> str:
     return "/c" + posix[2:]
 
 
-def _run_payments_off_gate(tmp_path: Path, env_text: str):
+def _run_payments_off_gate(tmp_path: Path, env_text: str, *, live_marker=False):
     env_file = tmp_path / "uvarsi.env"
+    marker = tmp_path / ".platby_ostra_prevadzka"
+    if live_marker:
+        marker.write_text("schvalene majitelom\n", encoding="utf-8")
     mutation_marker = tmp_path / "live-mutation"
     env_file.write_text(env_text, encoding="utf-8", newline="\n")
     command = (
@@ -70,6 +73,7 @@ def _run_payments_off_gate(tmp_path: Path, env_text: str):
         | {
             "UVARSI_ENV_FILE": _bash_path(env_file),
             "UVARSI_TEST_MUTATION_MARKER": _bash_path(mutation_marker),
+            "UVARSI_LIVE_PAYMENTS_MARKER": _bash_path(marker),
         },
         text=True,
         encoding="utf-8",
@@ -241,3 +245,36 @@ def test_release_runbook_keeps_production_payments_off_until_owner_approval():
     assert "PLATBY_ZAPNUTE=0" in runbook
     assert "UVARSI_PAYMENTS_ENABLED=0" in runbook
     assert "samostatnom výslovnom schválení majiteľa" in runbook
+
+
+def test_owner_confirmed_live_payments_keep_operations_and_deploys_running(tmp_path):
+    # Po zapnutí platieb musí zber, dozorca aj samopull ďalej bežať — inak by
+    # sa do týždňa minuli akcie a plány by prestali fungovať.
+    result, mutation_marker = _run_payments_off_gate(
+        tmp_path,
+        "PLATBY_ZAPNUTE=1\nUVARSI_PAYMENTS_ENABLED=1\n",
+        live_marker=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert mutation_marker.is_file()
+
+
+@pytest.mark.parametrize(
+    ("env_text", "live_marker"),
+    (
+        ("PLATBY_ZAPNUTE=1\nUVARSI_PAYMENTS_ENABLED=1\n", False),
+        ("PLATBY_ZAPNUTE=1\nUVARSI_PAYMENTS_ENABLED=0\n", True),
+        ("PLATBY_ZAPNUTE=1\nPLATBY_ZAPNUTE=1\nUVARSI_PAYMENTS_ENABLED=1\n", True),
+    ),
+    ids=("on-without-owner-confirmation", "mixed-flags", "duplicate-flag"),
+)
+def test_unconfirmed_or_mixed_payment_state_stays_fail_closed(
+    tmp_path, env_text, live_marker
+):
+    result, mutation_marker = _run_payments_off_gate(
+        tmp_path, env_text, live_marker=live_marker
+    )
+
+    assert result.returncode == 42
+    assert not mutation_marker.exists()

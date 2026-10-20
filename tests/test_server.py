@@ -2103,7 +2103,9 @@ def test_plan_reads_and_generation_fail_closed_during_offer_schema_recollection(
 
     assert read.status_code == 503
     assert regenerate.status_code == 503
-    assert "obnovuj" in read.json()["detail"].casefold()
+    # Čítanie povie konkrétne, ktorý obchod chýba a že sa dopĺňa automaticky.
+    assert "lidl" in read.json()["detail"].casefold()
+    assert "dopĺňame" in read.json()["detail"].casefold()
 
 
 def test_get_invalidates_legacy_personal_plan_without_portion_version_for_free(
@@ -2890,3 +2892,13 @@ def test_health_reports_a_store_without_current_offers(monkeypatch, tmp_path):
 
     assert payload["stav"] == "degradovane"
     assert "chyba_obchod" in payload["problemy"]
+
+
+def test_missing_store_message_names_the_store_and_offers_a_way_out(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [])
+
+    sprava = server.sprava_o_chybajucich_akciach(["Tesco"])
+
+    assert "Tesco" in sprava
+    assert "Skús to o chvíľu" not in sprava
+    assert "iné obchody" in sprava

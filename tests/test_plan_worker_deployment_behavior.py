@@ -336,6 +336,46 @@ def test_runtime_payment_gate_accepts_explicit_false_from_live_health(deployment
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def _enable_live_payments(deployment, *, confirmed=True):
+    deployment["live"].joinpath("uvarsi.env").write_text(
+        "PLATBY_ZAPNUTE=1\nUVARSI_PAYMENTS_ENABLED=1\n", encoding="utf-8"
+    )
+    if confirmed:
+        deployment["live"].joinpath(".platby_ostra_prevadzka").write_text(
+            "schvalene\n", encoding="utf-8"
+        )
+    payload = json.loads(deployment["health"].read_text(encoding="utf-8"))
+    payload["recipe_engine"]["payments_enabled"] = True
+    deployment["health"].write_text(json.dumps(payload), encoding="utf-8")
+
+
+def test_runtime_payment_gate_accepts_running_process_in_confirmed_live_mode(deployment):
+    _enable_live_payments(deployment)
+
+    result = run_library(deployment, "uvarsi_require_runtime_payments_off")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_runtime_payment_gate_rejects_payments_on_without_owner_confirmation(deployment):
+    _enable_live_payments(deployment, confirmed=False)
+
+    result = run_library(deployment, "uvarsi_require_runtime_payments_off")
+
+    assert result.returncode != 0
+
+
+def test_runtime_payment_gate_rejects_process_off_while_live_mode_expected(deployment):
+    _enable_live_payments(deployment)
+    payload = json.loads(deployment["health"].read_text(encoding="utf-8"))
+    payload["recipe_engine"]["payments_enabled"] = False
+    deployment["health"].write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_library(deployment, "uvarsi_require_runtime_payments_off")
+
+    assert result.returncode != 0
+
+
 def test_legacy_samopull_can_verify_payments_off_from_running_process_when_health_hangs(
         deployment):
     deployment["state"].joinpath("fail-health").touch()

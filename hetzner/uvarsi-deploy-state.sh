@@ -19,6 +19,10 @@ UVARSI_RUNTIME_POSTCHECK_DELAY_SECONDS="${UVARSI_RUNTIME_POSTCHECK_DELAY_SECONDS
 UVARSI_HEALTH_URL="${UVARSI_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
 UVARSI_DB="${UVARSI_DB:-$UVARSI_DIR/uvarsi.db}"
 UVARSI_ENV_FILE="${UVARSI_ENV_FILE:-$UVARSI_DIR/uvarsi.env}"
+# Ostré platby: majiteľ po schválenom spustení vytvorí tento súbor ručne
+# (docs/prevadzka.md). Bez neho sa zapnuté platby berú ako chybný stav a
+# prevádzka aj nasadenie ostávajú zablokované (fail-closed).
+UVARSI_LIVE_PAYMENTS_MARKER="${UVARSI_LIVE_PAYMENTS_MARKER:-$UVARSI_DIR/.platby_ostra_prevadzka}"
 UVARSI_WEB_DIR="${UVARSI_WEB_DIR:-/var/www/uvarsi}"
 UVARSI_APP_DIR="${UVARSI_APP_DIR:-$UVARSI_DIR/app}"
 UVARSI_LANDING_DATA="${UVARSI_LANDING_DATA:-/var/lib/uvarsi/landing_data.json}"
@@ -128,6 +132,9 @@ import sys
 
 path = sys.argv[1]
 allowed_false = {"", "0", "false", "off", "no", "nie"}
+if sys.argv[2:] == ["live"]:
+    # Ostrá prevádzka: bežiaci proces musí mať platby zapnuté, nie vypnuté.
+    allowed_false = {"1", "true", "on"}
 watched = {"PLATBY_ZAPNUTE", "UVARSI_PAYMENTS_ENABLED"}
 seen = {}
 with open(path, "rb") as handle:
@@ -151,7 +158,9 @@ for entry in entries:
     if value not in allowed_false:
         raise SystemExit(1)
     seen[key] = value
-' "$process_environment" >/dev/null 2>&1
+if sys.argv[2:] == ["live"] and set(seen) != watched:
+    raise SystemExit(1)
+' "$process_environment" "$(uvarsi_payments_live && printf live || printf off)" >/dev/null 2>&1
 }
 
 _uvarsi_today() {
@@ -1598,13 +1607,43 @@ _uvarsi_require_one_explicit_false() {
   grep -Eqi "^[[:space:]]*(export[[:space:]]+)?${key}[[:space:]]*=[[:space:]]*((0|false|off)|'(0|false|off)'|\"(0|false|off)\")[[:space:]]*$" "$UVARSI_ENV_FILE"
 }
 
-uvarsi_require_payments_off() {
-  # Never source or print the env file. Exactly one explicit false assignment
-  # for BOTH payment flags is required before either deploy path may mutate
-  # live Uvar.si files.
+_uvarsi_require_one_explicit_true() {
+  key=$1
+  case "$key" in
+    PLATBY_ZAPNUTE|UVARSI_PAYMENTS_ENABLED) ;;
+    *) return 1 ;;
+  esac
+  count=0
+  grep_status=0
+  count=$(grep -Eic "^[[:space:]]*(export[[:space:]]+)?${key}[[:space:]]*=" "$UVARSI_ENV_FILE") || grep_status=$?
+  [ "$grep_status" -le 1 ] || return 1
+  [ "$count" -eq 1 ] || return 1
+  grep -Eqi "^[[:space:]]*(export[[:space:]]+)?${key}[[:space:]]*=[[:space:]]*((1|true|on)|'(1|true|on)'|\"(1|true|on)\")[[:space:]]*$" "$UVARSI_ENV_FILE"
+}
+
+uvarsi_payments_live() {
+  # Ostrá prevádzka platieb: OBA príznaky výslovne zapnuté a majiteľ ju
+  # potvrdil súborom UVARSI_LIVE_PAYMENTS_MARKER. Polovičné nastavenie
+  # (jeden príznak, chýbajúce potvrdenie) nie je ostrá prevádzka.
   [ -f "$UVARSI_ENV_FILE" ] || return 1
-  _uvarsi_require_one_explicit_false PLATBY_ZAPNUTE || return 1
-  _uvarsi_require_one_explicit_false UVARSI_PAYMENTS_ENABLED
+  [ -f "$UVARSI_LIVE_PAYMENTS_MARKER" ] || return 1
+  _uvarsi_require_one_explicit_true PLATBY_ZAPNUTE || return 1
+  _uvarsi_require_one_explicit_true UVARSI_PAYMENTS_ENABLED
+}
+
+uvarsi_require_payments_off() {
+  # Never source or print the env file. Exactly one explicit assignment for
+  # BOTH payment flags is required before either deploy path may mutate live
+  # Uvar.si files: both false (pre-launch), or both true in owner-confirmed
+  # live payment operation (uvarsi_payments_live). Any mixed, duplicated or
+  # unconfirmed state stays fail-closed. The historical name is kept because
+  # every gate and its tests use it.
+  [ -f "$UVARSI_ENV_FILE" ] || return 1
+  if _uvarsi_require_one_explicit_false PLATBY_ZAPNUTE && \
+     _uvarsi_require_one_explicit_false UVARSI_PAYMENTS_ENABLED; then
+    return 0
+  fi
+  uvarsi_payments_live
 }
 
 uvarsi_require_runtime_payments_off() {
@@ -1620,10 +1659,11 @@ try:
     enabled = payload["recipe_engine"]["payments_enabled"]
 except (KeyError, TypeError, ValueError, json.JSONDecodeError):
     raise SystemExit(1)
-if enabled is False:
+expected = sys.argv[1] == "live"
+if enabled is expected:
     raise SystemExit(0)
 raise SystemExit(2 if enabled is True else 1)
-'
+' "$(uvarsi_payments_live && printf live || printf off)"
     health_status=$?
     if [ "$health_status" -eq 0 ]; then
       _uvarsi_release_trace runtime_payments_ok

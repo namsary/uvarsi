@@ -604,3 +604,17 @@ def test_corrupt_failure_counter_does_not_disable_daily_limit(
     assert "poškodený" in result.stdout
     fails = state.read_text(encoding="utf-8").split()[1]
     assert fails.isdigit()
+
+
+def test_failed_collector_without_marker_is_not_logged_as_success(
+        supervisor_environment):
+    # Regresia: $? sa čítal až po `unset`, takže zlyhaný zber vyzeral ako OK
+    # a uvoľnil ďalší platený pokus.
+    configure_structural_collection(
+        supervisor_environment, stores="lidl", collector_rc=1
+    )
+
+    result = run_supervisor(supervisor_environment)
+
+    assert "zbierač zlyhal" in result.stdout
+    assert "zbierač OK" not in result.stdout

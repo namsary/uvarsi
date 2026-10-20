@@ -481,6 +481,18 @@ okamžite over health, checkout summary a jednu bezpečnú požiadavku bez
 dokončenia platby. Ak readiness nie je zelená, checkout ostane serverom
 zablokovaný aj pri chybne zapnutom flage.
 
+Ostrú prevádzku platieb potvrď na serveri jedným súborom — bez neho sa
+zapnuté príznaky berú ako chybný stav a dozorca, zber aj samopull ostanú
+zablokované (fail-closed):
+
+```bash
+echo "schválené majiteľom $(date -I)" > /opt/uvarsi/.platby_ostra_prevadzka
+```
+
+Platí iba spolu s `PLATBY_ZAPNUTE=1` **a** `UVARSI_PAYMENTS_ENABLED=1` (každý
+práve raz) a bežiacim procesom, ktorý platby naozaj hlási ako zapnuté.
+Polovičné nastavenie zostáva zablokované.
+
 Pri incidente urob flag-only rollback: nastav `PLATBY_ZAPNUTE=0` aj
 `UVARSI_PAYMENTS_ENABLED=0` a reštartuj iba Uvar.si. Databázu ani release
 nevracaj. Zastavia sa nové checkouty, ale webhooky, Customer Portal,
@@ -771,3 +783,37 @@ konfigurácia Caddy), sa týmto postupom neobnovia: `[DOPLNIŤ]`.
 - Príjemca a dosah upozornení z ntfy a postup mimo pracovného času.
 - Postup dohľadania nárokov vzniknutých po poslednej zálohe.
 - RPO/RTO (prijateľná strata dát a čas obnovy): v repozitári nie sú definované.
+
+
+## Súkromný kanál upozornení a záloha mimo servera
+
+**Upozornenia (ntfy).** Predvolená téma je v kóde, teda verejná. Na serveri
+nastav vlastnú, náhodnú tému — kód ju prečíta sám (dozorca, samopull, záloha
+aj appka po reštarte):
+
+```bash
+openssl rand -hex 16 | sed 's/^/uvarsi-/' > /opt/uvarsi/ntfy_topic
+cat /opt/uvarsi/ntfy_topic   # túto tému si odober v aplikácii ntfy
+systemctl restart uvarsi
+```
+
+**Záloha mimo servera.** `zaloha.sh` po nočnej overenej zálohe pošle kópiu cez
+rsync/ssh, keď existuje `/opt/uvarsi/zaloha.env`:
+
+```bash
+ZALOHA_VZDIALENA=u123456@u123456.your-storagebox.de:uvarsi/
+ZALOHA_SSH_PORT=23
+ZALOHA_SSH_KLUC=/root/.ssh/uvarsi_zaloha
+```
+
+Kým nie je nastavená, príde každú nedeľu pripomienka. Obnova: stiahni súbor
+`uvarsi-RRRR-MM-DD.db` z cieľa a postupuj podľa hlavičky `hetzner/zaloha.sh`.
+
+**Odmietnuté vydanie.** Keď nové vydanie neprejde a samopull ho vráti, zapíše
+jeho SHA do `/opt/uvarsi/.odmietnute_sha` a ten istý commit už neskúša znova.
+Ďalší pokus príde s ďalším commitom (oprava). Samopull drží 10 najnovších
+vydaní v `/opt/uvarsi/releases`; staršie maže.
+
+**Disk a zablokovaný týždeň.** Dozorca upozorní raz denne, keď je disk
+zaplnený na 90 % a viac, a každé 4 hodiny pripomína týždeň zablokovaný
+štrukturálnou chybou, kým trvá.
