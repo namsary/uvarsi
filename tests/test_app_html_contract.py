@@ -1771,21 +1771,33 @@ process.exit(0);
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_the_plan_screen_drops_the_regeneration_button_once_the_limit_is_spent():
-    """Vyčerpaný strop nesmie byť tlačidlo, ktoré vedie do chyby."""
-    plan_view = declaration(app_html(), "function vPlan() ")
+def test_the_spent_limit_note_appears_only_after_asking_for_another_plan():
+    """Hláška o dennom strope nesmie visieť pod prvým plánom ako chyba.
+
+    Kým človek nepožiada o iný plán, vidí iba tlačidlo. Až po kliknutí sa
+    ukáže pozitívne podaná výhoda Premium — nikdy mŕtve tlačidlo „Chcem iný
+    plán" a nikdy nákup, keď platby nie sú pripravené.
+    """
+    html = app_html()
+    plan_view = declaration(html, "function vPlan() ")
     branches = re.search(
-        r"if \(zostava === 0\) \{(.*?)\n *\} else \{(.*?)\n *\}", plan_view, re.S
+        r"if \(zostava === 0 && REGEN_LIMIT_ASKED\) \{(.*?)\n *\} else \{(.*?)\n *\}",
+        plan_view, re.S,
     )
 
-    assert branches, "the plan screen has to branch on the remaining daily attempts"
+    assert branches, "the note waits until the person asks for another plan"
     vycerpane, zostava = branches.group(1), branches.group(2)
-    assert "<button" not in vycerpane, "a spent limit shows a sentence, never a dead button"
     assert "Chcem iný plán" not in vycerpane
     assert "regenerationBlockedNote(" in vycerpane, "it must say when it resets"
+    assert "Výhoda Premium" in vycerpane
+    assert "dnes už nejde" not in plan_view and "eyebrow--danger" not in vycerpane
+    assert "kupitPremium ?" in vycerpane
+    assert "ME.platby_zapnute && ME.platby_pripravene" in plan_view
     assert "Chcem iný plán" in zostava and "novyPlan()" in zostava
+    assert "zostava === 0 ? ''" in zostava, "no '0 z 1' counter under the first plan"
     assert "regenerationNote(ME)" in zostava, "before the click, say honestly how many are left"
     assert "regenerationsLeft(ME)" in plan_view
+    assert "REGEN_LIMIT_ASKED = false;" in declaration(html, "function setPlan(plan) ")
 
 
 def test_a_spent_daily_limit_never_reaches_the_paid_endpoint():
@@ -1796,5 +1808,5 @@ def test_a_spent_daily_limit_never_reaches_the_paid_endpoint():
 
     assert guard != -1, "the click has to be stopped before it costs anything"
     assert work != -1 and guard < work, "the guard belongs before the paid call"
-    assert "regenerationBlockedNote(" in novy, "the refusal explains itself in Slovak"
+    assert "REGEN_LIMIT_ASKED = true;" in novy[guard:work], "the refusal explains itself in Slovak"
     assert "PLAN = null" not in novy, "the plan on screen survives a refused recompute"

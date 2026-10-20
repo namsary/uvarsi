@@ -146,6 +146,7 @@ let PLAN_NOTE = '';
 let PLAN_NEEDS_REGEN = false;
 let PLAN_RESUME_ENDPOINT = '';
 let PLAN_EMPTY_REASON = '';
+let REGEN_LIMIT_ASKED = false;
 const SPAJZA_UKAZKA = ['ryža', 'vajcia', 'cibuľa'];
 const SPAJZA_UKAZKA_CENY = {'ryža': '1,29', 'vajcia': '2,49', 'cibuľa': '0,89'};
 const PLAN_PREPARATION_MESSAGE = 'Plán pripravujeme. Pokojne pokračuj inde.';
@@ -258,6 +259,7 @@ function loadCheckedState(user, plan) {
 function setPlan(plan) {
   PLAN = plan;
   if (plan && plan.jedla) {
+  REGEN_LIMIT_ASKED = false;
   PLAN_NEEDS_REGEN = false;
   PLAN_RESUME_ENDPOINT = '';
   PLAN_EMPTY_REASON = '';
@@ -1233,15 +1235,13 @@ function nextDayLabel(today) {
 
 function regenerationBlockedNote(me, today) {
   var limit = Math.round(Number(me && me.limit_prepoctov));
-  var kolko = isFinite(limit) && limit > 0
-    ? (limit === 1 ? 'raz za deň' : limit + '× za deň') : '';
-  var text = kolko
-    ? 'Nový jedálniček ide ' + kolko + ' a dnešok už máš vyčerpaný.'
-    : 'Nový jedálniček dnes už nejde.';
-  text += ' Ďalší si vyžiadaj ' + nextDayLabel(today) +
+  var known = isFinite(limit) && limit > 0;
+  var text = me && me.premium
+    ? 'Na dnes máš využité všetky nové jedálničky' + (known ? ' (' + limit + ' z ' + limit + ').' : '.')
+    : 'Vo Free dostaneš ' + (!known || limit === 1 ? 'jeden nový jedálniček' : limit + ' nové jedálničky') +
+      ' denne, s Premium až 5.';
+  return text + ' Ďalší si vyžiadaš ' + nextDayLabel(today) +
     ' po polnoci — ten, ktorý máš teraz, ti zostáva.';
-  if (!(me && me.premium)) text += ' S Premium je to 5× denne.';
-  return text;
 }
 
 function regenerationNote(me) {
@@ -1334,8 +1334,11 @@ function recipeFactsHtml(recept) {
 async function novyPlan() {
   if (!PLAN || !PLAN.jedla) return nacitajPlan(true);
   if (regenerationsLeft(ME) === 0) {
-    PLAN_NOTE = regenerationBlockedNote(ME, todayIso());
-    return render();
+    REGEN_LIMIT_ASKED = true;
+    render();
+    const note = $('#rg-strop');
+    if (note) note.focus();
+    return;
   }
   const version = PLAN_CONTEXT_VERSION;
   try {
@@ -1525,12 +1528,14 @@ function vPlan() {
   });
   h += `<div class="save"><span class="mono" style="font-size:.8rem;font-weight:600">NA AKCIOVÝCH POLOŽKÁCH UŠETRÍŠ</span><b>${esc(totals.usetris)} €</b></div><p class="muted center mono" style="font-size:.74rem">Akciové položky ${esc(totals.nakup)} € · bez akcie ${esc(totals.bezna)} €${bezCeny ? ` · ${bezCeny === 1 ? '1 bežná položka nie je v sume' : bezCeny + ' bežných položiek nie je v sume'}` : ''}</p><div style="height:14px"></div>`;
   const zostava = regenerationsLeft(ME);
-  if (zostava === 0) {
-    h += `<div class="hint" id="rg-strop"><span class="eyebrow">Nový jedálniček dnes už nejde</span><p style="margin:6px 0 0">${esc(regenerationBlockedNote(ME, dnes))}</p></div>`;
+  const kupitPremium = !!(ME && !ME.premium && ME.platby_zapnute && ME.platby_pripravene);
+  if (zostava === 0 && REGEN_LIMIT_ASKED) {
+    h += `<div class="hint" id="rg-strop" tabindex="-1" role="status"><span class="eyebrow">${ME && ME.premium ? 'Na dnes hotovo' : 'Výhoda Premium'}</span><p style="margin:6px 0 0">${esc(regenerationBlockedNote(ME, dnes))}</p>${kupitPremium ? '<div style="height:12px"></div><button class="btn" id="rg-premium">Pozrieť Premium →</button>' : ''}</div>`;
   } else {
-    h += `<button class="btn btn--ghost" onclick="novyPlan()">Chcem iný plán ↻</button><p class="muted center mono" style="font-size:.7rem;margin-top:8px">${esc(regenerationNote(ME))}</p>`;
+    h += `<button class="btn btn--ghost" onclick="novyPlan()">Chcem iný plán ↻</button>${zostava === 0 ? '' : `<p class="muted center mono" style="font-size:.7rem;margin-top:8px">${esc(regenerationNote(ME))}</p>`}`;
   }
   M.innerHTML = h;
+  if ($('#rg-premium')) $('#rg-premium').onclick = vCheckout;
   if (spajzaSaZmenila) {
     $('#sp-hint-go').onclick = () => navrhniZoSpajze();
     $('#sp-hint-off').onclick = () => { PANTRY_HINT_HIDDEN = true; render(); };
