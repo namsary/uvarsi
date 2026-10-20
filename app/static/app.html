@@ -63,10 +63,11 @@ nav button.on{color:var(--accent)}nav button.on::before{content:"";position:abso
 .state-icon{width:34px;height:34px;stroke:var(--accent);fill:none;stroke-width:1.7;margin-bottom:4px}
 .auth-shell{width:100%;max-width:460px;margin:30px auto 0}.auth-intro{margin-bottom:18px}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.auth-switcher{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px;padding:4px;min-width:0;background:var(--highlight);border:1px solid #D5B118;border-radius:12px;margin:0 0 16px}
+.auth-switcher{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px;padding:4px;min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:0 0 16px}
 .auth-switch{min-width:0;min-height:44px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:var(--ink);font:800 .88rem "Manrope",sans-serif;cursor:pointer}
-.auth-switch.on{background:var(--surface);box-shadow:0 2px 7px rgba(24,50,41,.12)}
-.auth-title:focus{outline:3px solid var(--accent);outline-offset:4px}
+.auth-switch.on{background:var(--green-deep);color:#fff;box-shadow:0 2px 7px rgba(24,50,41,.12)}
+[tabindex="-1"]:focus{outline:none}[tabindex="-1"]:focus-visible{outline:2px solid #12392e40;outline-offset:4px;border-radius:6px}
+.field-error{color:var(--accent)!important;font-weight:700}input[aria-invalid="true"]{border-color:var(--accent)}
 .auth-field{margin-bottom:14px}.password-field{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}
 .password-field input{min-width:0}
 .password-toggle{min-height:48px;padding:0 13px;border:1px solid var(--border);border-radius:var(--radius-control);background:var(--surface-soft);color:var(--ink);font:800 .78rem "Manrope",sans-serif;cursor:pointer}
@@ -80,7 +81,6 @@ nav button.on{color:var(--accent)}nav button.on::before{content:"";position:abso
 .security-meta{display:block;margin-top:2px;color:var(--muted);font-size:.75rem}
 .security-row .btn{width:auto;padding:9px 12px;font-size:.78rem;box-shadow:none}
 .security-current{display:inline-block;margin-left:6px;padding:2px 6px;border-radius:6px;background:#FFF5BE;border:1px solid #E4CB48;font:600 .65rem "IBM Plex Mono",monospace}
-.security-title:focus{outline:3px solid var(--accent);outline-offset:4px}
 .security-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.security-actions .btn{width:auto;flex:1}
 .checkout-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.checkout-price{font-size:2.15rem;font-weight:800;line-height:1;white-space:nowrap}.checkout-price small{display:block;margin-top:7px;color:var(--muted);font:600 .68rem "IBM Plex Mono",monospace;text-align:right}.checkout-list{display:grid;gap:9px;list-style:none;margin:18px 0}.checkout-list li{position:relative;padding-left:26px;font-size:.9rem}.checkout-list li::before{content:"✓";position:absolute;left:0;top:0;color:var(--success);font-weight:800}.checkout-assurance{padding:14px;border-radius:12px;background:var(--surface-soft);font-size:.86rem}.consent-row{display:grid;grid-template-columns:22px minmax(0,1fr);gap:11px;align-items:start;margin:18px 0;color:var(--ink);font-size:.83rem;font-weight:600;line-height:1.55}.consent-row input{width:20px;min-height:20px;height:20px;margin-top:2px}.consent-row a{color:var(--ink);text-underline-offset:3px}.checkout-back{margin-top:10px}
 .service-card h2{margin-bottom:7px}.service-card a{display:inline-block;line-height:44px}.service-order{margin:14px 0;padding:12px 14px;border-radius:10px;background:var(--surface-soft);font-size:.82rem}.service-form{margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}.service-form textarea{min-height:112px;resize:vertical}.service-form .consent-row{margin:13px 0}.request-list{display:grid;gap:8px;margin-top:14px}.request-row{display:flex;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:.78rem}.request-row b{font-family:"IBM Plex Mono",monospace;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em}.request-status--refunded,.request-status--resolved{color:var(--success)}.request-status--requires_review{color:var(--accent)}
@@ -615,7 +615,7 @@ function armAuthResend(button, schedule) {
   button.textContent = 'Poslať znova o 60 sekúnd';
   (schedule || setTimeout)(function() {
     button.disabled = false;
-    button.textContent = 'Poslať odkaz znova';
+    button.textContent = arguments[2] || 'Poslať odkaz znova';
   }, 60000);
 }
 
@@ -798,9 +798,9 @@ function authScreenHtml(mode, passkeyReady) {
       : 'Prihlás sa e-mailom a heslom.';
   const action = isRegister ? 'Vytvoriť účet' : isForgot ? 'Poslať odkaz na obnovu' : 'Prihlásiť sa';
   return `<div class="auth-shell"><div class="auth-intro"><span class="eyebrow">Tvoj účet</span><h1 class="display auth-title" id="auth-title" tabindex="-1" style="font-size:2rem;margin:8px 0 10px">${title}</h1><p class="muted">${note}</p></div><fieldset class="auth-switcher"><legend class="sr-only">Vyber spôsob prístupu k účtu</legend><button class="auth-switch${switchMode === 'login' ? ' on' : ''}" id="auth-login-mode" type="button"${switchMode === 'login' ? ' aria-current="page"' : ''}>Prihlásiť sa</button><button class="auth-switch${switchMode === 'register' ? ' on' : ''}" id="auth-register-mode" type="button"${switchMode === 'register' ? ' aria-current="page"' : ''}>Vytvoriť účet</button></fieldset><form class="card" id="auth-form" novalidate><div class="auth-field"><label for="auth-email">E-mail</label><input id="auth-email" name="email" type="email" inputmode="email" autocomplete="email" required placeholder="tvoj@email.sk"></div> ${isForgot ? '' : `<div class="auth-field"><label for="auth-password">Heslo</label>
-        <div class="password-field"><input id="auth-password" name="password" type="password" autocomplete="${isRegister ? 'new-password' : 'current-password'}" minlength="10" maxlength="128" required>
+        <div class="password-field"><input id="auth-password" name="password" type="password" autocomplete="${isRegister ? 'new-password' : 'current-password'}" minlength="10" maxlength="128" required aria-describedby="auth-password-note">
           <button class="password-toggle" id="auth-password-toggle" type="button" aria-pressed="false">Zobraziť heslo</button></div>
-        ${isRegister ? '<p class="muted" style="margin-top:6px">Použi 10 až 128 znakov.</p>' : ''}</div>`} ${active === 'login' ? '<button class="auth-link" id="auth-forgot" type="button">Zabudol som heslo</button><div style="height:8px"></div>' : ''} ${active === 'login' ? '<button class="auth-link" id="auth-legacy-setup" type="button">Mám starý účet – nastaviť heslo</button>' : ''} ${isForgot ? '<button class="auth-link" id="auth-back" type="button">Späť na prihlásenie</button><div style="height:8px"></div>' : ''} <button class="btn" id="auth-submit" type="submit">${action}</button> ${active === 'login' && passkeyReady ? `<div class="auth-divider"><span>alebo</span></div>
+        <p class="muted" id="auth-password-note" style="margin-top:6px">${isRegister ? 'Použi 10 až 128 znakov.' : ''}</p></div>`} ${active === 'login' ? '<button class="auth-link" id="auth-forgot" type="button">Zabudol som heslo</button><div style="height:8px"></div>' : ''} ${active === 'login' ? '<button class="auth-link" id="auth-legacy-setup" type="button" hidden>Mám starý účet – nastaviť heslo</button>' : ''} ${isForgot ? '<button class="auth-link" id="auth-back" type="button">Späť na prihlásenie</button><div style="height:8px"></div>' : ''} <button class="btn" id="auth-submit" type="submit">${action}</button> ${active === 'login' && passkeyReady ? `<div class="auth-divider"><span>alebo</span></div>
         <button class="btn btn--ghost" id="auth-passkey" type="button">Prihlásiť biometriou</button>` : ''} <p class="muted auth-status" id="auth-status" role="status" aria-live="polite"></p></form></div>`;
 }
 
@@ -890,28 +890,60 @@ function viewAccountAuth(mode, previousEmail) {
     location.replace(result.redirect || '/app');
   });
   $('#auth-title').focus();
+  const note = $('#auth-password-note'), noteText = note ? note.textContent : '';
+  const passwordError = message => {
+    password.setAttribute('aria-invalid', message ? 'true' : 'false');
+    note.textContent = message || noteText;
+    note.classList.toggle('field-error', !!message);
+  };
+  if (password && note) password.oninput = () => passwordError('');
   $('#auth-form').onsubmit = event => {
     event.preventDefault();
     const button = $('#auth-submit');
     const email = $('#auth-email').value.trim();
     const secret = password ? password.value : '';
+    if (password && note) passwordError('');
+    if (active !== 'forgot' && email && (secret.length < 10 || secret.length > 128)) {
+      status.textContent = '';
+      passwordError('Heslo musí mať 10 až 128 znakov.');
+      password.focus();
+      return;
+    }
+    status.style.color = 'var(--accent)';
     runGuardedAction(button, status, async () => {
       if (!email) throw new Error('Zadaj e-mailovú adresu.');
-      if (active !== 'forgot' && (secret.length < 10 || secret.length > 128))
-        throw new Error('Heslo musí mať 10 až 128 znakov.');
       const request = authRequest(active, email, secret);
-      const result = await accountApi(request);
+      let result;
+      try { result = await accountApi(request); }
+      catch (error) {
+        if (legacySetup) legacySetup.hidden = false;
+        throw error;
+      }
       if (active === 'login') {
         location.replace(result.redirect || '/app');
         return;
       }
+      if (active === 'register') return viewRegistrationSent(email, secret);
       status.style.color = 'var(--success)';
-      status.textContent = active === 'register'
-        ? 'Žiadosť je prijatá. V e-maile výslovne potvrď vytvorenie účtu.'
-        : 'Ak účet existuje, odkaz na obnovu hesla je na ceste.';
-      button.textContent = active === 'register' ? 'Skontroluj e-mail' : 'E-mail je na ceste';
+      status.textContent = 'Ak účet existuje, odkaz na obnovu hesla je na ceste.';
+      button.textContent = 'E-mail je na ceste';
     });
   };
+}
+
+function viewRegistrationSent(email, secret) {
+  M.innerHTML = `<div class="auth-shell"><div class="card center"><svg class="state-icon" aria-hidden="true"><use href="#i-mail"></use></svg><h1 class="display auth-title" id="auth-title" tabindex="-1" style="font-size:1.6rem;margin:8px 0 10px">Skontroluj e-mail</h1><p class="muted">Ak je možné adresu <b>${esc(email)}</b> použiť, poslali sme na ňu odkaz na potvrdenie účtu. Platí 24 hodín. Ak ho nevidíš, pozri aj spam.</p><div style="height:14px"></div><button class="btn btn--ghost" id="auth-resend" type="button">Poslať e-mail znova</button><button class="auth-link" id="auth-wrong-email" type="button">Zlá adresa? Zmeniť e-mail</button><p class="muted auth-status" id="auth-status" role="status" aria-live="polite"></p></div></div>`;
+  const resend = $('#auth-resend'), status = $('#auth-status');
+  armAuthResend(resend, null, 'Poslať e-mail znova');
+  resend.onclick = () => runGuardedAction(resend, status, async () => {
+    status.style.color = 'var(--accent)';
+    await accountApi(authRequest('register', email, secret));
+    status.style.color = 'var(--success)';
+    status.textContent = 'E-mail sme poslali znova.';
+    armAuthResend(resend, null, 'Poslať e-mail znova');
+  });
+  $('#auth-wrong-email').onclick = () => viewAccountAuth('register', email);
+  $('#auth-title').focus();
 }
 
 function viewLogin(sent, previousEmail) {
@@ -2298,7 +2330,9 @@ async function start() {
     return viewServiceProblem(e && e.message);
   }
   AUTH_V3_ENABLED = authV3Enabled(ME);
-  if (!ME.prihlaseny) return viewLogin();
+  // Landing posiela nových návštevníkov na /app?registracia rovno do registrácie.
+  if (!ME.prihlaseny) return viewLogin(AUTH_V3_ENABLED &&
+    /[?&]registracia(&|=|$)/.test(location.search) ? 'register' : undefined);
   setNavigationReady(true);
   $('#hdr').textContent = ME.email.split('@')[0];
   rememberProfile(ME);

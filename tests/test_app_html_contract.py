@@ -376,7 +376,7 @@ def test_startup_timeout_and_server_failure_never_masquerade_as_logout():
     assert "viewServiceProblem" in startup
     catch_block = startup.split("catch(e)", 1)[1].split("AUTH_V3_ENABLED", 1)[0]
     assert "viewLogin()" not in catch_block
-    assert "if (!ME.prihlaseny) return viewLogin()" in startup
+    assert "if (!ME.prihlaseny) return viewLogin(" in startup
     assert "Skúsiť znova" in service and "beginStartup()" in service
 
 

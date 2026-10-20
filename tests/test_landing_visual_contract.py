@@ -25,7 +25,11 @@ def pricing_cards(page):
 def test_primary_action_opens_the_working_app_and_old_waitlist_story_is_gone():
     page = html()
 
-    assert re.search(r'<a[^>]+class="[^"]*btn-primary[^"]*"[^>]+href="/app"', page)
+    # Nový návštevník ide rovno do registrácie; appka ostáva tá istá.
+    assert re.search(
+        r'<a[^>]+class="[^"]*btn-primary[^"]*"[^>]+href="/app\?registracia"', page
+    )
+    assert '<a class="btn" href="/app?registracia">Vyskúšať zdarma</a>' in page
     for stale in ("Ešte nie sme live", "Spúšťame po mestách", "Ktorý plán by si si vybral?"):
         assert stale not in page
     assert "Bez karty" in page

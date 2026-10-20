@@ -741,6 +741,7 @@ def test_the_landing_ships_no_second_copy_of_the_receipt():
 APP_GZIP_CAP_NOTES = {
     "denný strop až po žiadosti o iný plán, podaný ako výhoda Premium": 200,
     "onboarding: režimy pre práve zvolené obchody, rovno do plánu": 550,
+    "registrácia: deep link, chyba pri poli, poslať znova, zlá adresa": 570,
 }
 
 
@@ -852,7 +853,7 @@ def test_every_local_render_blocking_stylesheet_is_shipped(page):
         assert path.is_file(), f"{page} odkazuje na chýbajúci render-critical {url}"
 
 
-LANDING_GZIP_CAP = 12_450
+LANDING_GZIP_CAP = 12_500
 
 
 def test_landing_stays_within_its_transfer_budget_at_deployed_gzip_level():
@@ -861,7 +862,8 @@ def test_landing_stays_within_its_transfer_budget_at_deployed_gzip_level():
     20. 10. 2026: globálne `[hidden]{display:none!important}` (17 B gzip)
     opravilo stavový riadok, ktorý `display:flex` ukazoval aj pri aktuálnych
     cenách. Landing mal predtým presne 12 100 B, teda nulovú rezervu, a tak
-    sa strop vedome a s číslom dvíha o 50 B na 12 450 B.
+    sa strop vedome a s číslom dvíha o 50 B na 12 450 B. Deep link
+    /app?registracia pre nové návštevy pridal ďalších 9 B: strop 12 500 B.
     """
     compressed = len(gzip.compress(LANDING.read_bytes(), 5))
     assert compressed <= LANDING_GZIP_CAP, (
