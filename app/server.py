@@ -158,7 +158,11 @@ from platby import (
     DRUH_NAD_KAPACITU,
     DRUH_NEPOUZITELNA,
     DRUH_ODLOZENE,
+    DRUH_ZRUSIT_PREDPLATNE,
     MAIL_PREDMET_DUPLICITA,
+    MAIL_PREDMET_REFUNDACIA_PREDPLATNEHO,
+    SPRAVA_REFUNDACIA_PREDPLATNEHO,
+    dokonci_refundaciu_predplatneho,
     MAIL_PREDMET_NAD_KAPACITU,
     CENA_ZAKLADAJUCI_CENTY,
     MENA_ZAKLADAJUCI,
@@ -7167,6 +7171,68 @@ def _doriesit_udalost(con, vysledok: dict, now: float) -> None:
         )
 
 
+def _zrus_predplatne_u_poskytovatela(*, test_mode: bool):
+    """DELETE /v1/subscriptions/{id}: Lemon zastaví ďalšie účtovanie."""
+    try:
+        api_key = lemon_subscription_checkout_config(
+            test_mode=test_mode, getenv=env
+        ).api_key
+    except (PlatbyNenastavene, ValueError, TypeError):
+        return None
+    if not isinstance(api_key, str) or not api_key.strip():
+        return None
+
+    def zrus(subscription_id):
+        _lemon_resource_request(
+            api_key, "subscriptions", subscription_id, method="DELETE"
+        )
+
+    return zrus
+
+
+def _doriesit_predplatne(con, vysledok: dict, now: float) -> None:
+    """Plná refundácia ročného predplatného: obnova, žiadosť aj e-mail.
+
+    Rovnaký záver ako pri jednorazovom členstve (_doriesit_udalost): žiadosť
+    o odstúpenie sa uzavrie a zákazník dostane e-mail. Navyše sa predplatné
+    zruší u poskytovateľa; keď to nejde, majiteľ dostane upozornenie a
+    prípad ostane v chránenej evidencii — nikdy sa nepokračuje potichu.
+    """
+    if not vysledok.get("access_ended"):
+        return
+    try:
+        customer_requests.close_requests_for_refund(
+            con, order_id=vysledok.get("provider_order_id"), now=now
+        )
+        con.commit()
+    except (sqlite3.Error, TypeError, ValueError):
+        pass
+    try:
+        zrusene = dokonci_refundaciu_predplatneho(
+            con,
+            vysledok,
+            now=now,
+            zrus=_zrus_predplatne_u_poskytovatela(
+                test_mode=vysledok.get("test_mode") is True
+            ),
+        )
+    except (sqlite3.Error, OSError, TypeError, ValueError):
+        zrusene = False
+    if not zrusene:
+        _ohlas_majitelovi(
+            con, DRUH_ZRUSIT_PREDPLATNE, now=now,
+            pocet=_zaznamenaj_platobny_pripad(
+                con, DRUH_ZRUSIT_PREDPLATNE, now=now
+            ),
+        )
+    _napis_zakaznikovi(
+        con,
+        vysledok.get("user_id"),
+        MAIL_PREDMET_REFUNDACIA_PREDPLATNEHO,
+        SPRAVA_REFUNDACIA_PREDPLATNEHO,
+    )
+
+
 @app.post("/api/platba/webhook")
 async def platba_webhook(req: Request):
     """Jediný vstup, ktorý smie udeliť nárok — a to len s platným podpisom.
@@ -7223,6 +7289,7 @@ async def platba_webhook(req: Request):
                         delivery_key=verified_body_digest,
                         lookup=_webhook_lookup(test_mode=False),
                     )
+                    _doriesit_predplatne(con, vysledok_predplatne, now)
                     return {
                         "ok": True,
                         "akcia": vysledok_predplatne["action"],

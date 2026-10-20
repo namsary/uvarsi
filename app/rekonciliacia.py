@@ -167,8 +167,8 @@ def stiahni_objednavky(
     return objednavky
 
 
-def stiahni_zdroj(api_key, resource, identifier, *, otvor=None):
-    """Jeden objekt poskytovateľa podľa ID (GET /v1/{resource}/{id})."""
+def stiahni_zdroj(api_key, resource, identifier, *, otvor=None, metoda="GET"):
+    """Jeden objekt poskytovateľa podľa ID (GET/DELETE /v1/{resource}/{id})."""
     if resource not in {"subscriptions", "orders"}:
         raise ValueError("nepodporovaný zdroj")
     adresa = (
@@ -177,8 +177,10 @@ def stiahni_zdroj(api_key, resource, identifier, *, otvor=None):
     )
     ziadost = urllib.request.Request(
         adresa,
+        method=metoda,
         headers={
             "Accept": "application/vnd.api+json",
+            "Content-Type": "application/vnd.api+json",
             "Authorization": f"Bearer {api_key}",
         },
     )
@@ -414,7 +416,8 @@ def _normalized_invoice_row(row, *, snapshot, subscription_row):
 
 
 def _apply_reconciliation_event(
-    con, *, payload, now, expected, kind, summary, review_code
+    con, *, payload, now, expected, kind, summary, review_code,
+    ended_refunds=None,
 ):
     try:
         result = predplatne.process_subscription_event(
@@ -438,6 +441,8 @@ def _apply_reconciliation_event(
         summary["_current_drift"] += 1
     else:
         summary["applied_transitions"] += 1
+        if result.get("access_ended") and ended_refunds is not None:
+            ended_refunds.append(result)
     return result
 
 
@@ -485,7 +490,7 @@ def _subscription_event_name(status, snapshot):
 
 
 def _reconcile_subscriptions_batch(
-    con, *, provider_rows, invoice_rows, now, expected
+    con, *, provider_rows, invoice_rows, now, expected, ended_refunds=None
 ) -> dict:
     """Reconcile provider snapshots through the webhook transition engine."""
     if provider_rows is None or invoice_rows is None:
@@ -580,6 +585,7 @@ def _reconcile_subscriptions_batch(
             kind="invoice",
             summary=summary,
             review_code="invoice_requires_review",
+            ended_refunds=ended_refunds,
         )
         if result is not None and not result["review_required"] and not result["duplicate"]:
             if result["action"] == "invoice_recorded":
@@ -642,7 +648,7 @@ def _reconcile_subscriptions_batch(
 
 
 def reconcile_subscriptions(
-    con, *, provider_rows, invoice_rows, now, expected
+    con, *, provider_rows, invoice_rows, now, expected, ended_refunds=None
 ) -> dict:
     """Apply one complete provider snapshot atomically and fail closed."""
     if provider_rows is None or invoice_rows is None:
@@ -653,6 +659,7 @@ def reconcile_subscriptions(
         raise ProviderUnavailable("provider_unavailable")
 
     savepoint = "annual_subscription_reconciliation_batch"
+    batch_refunds = []
     con.execute(f"SAVEPOINT {savepoint}")
     try:
         result = _reconcile_subscriptions_batch(
@@ -661,8 +668,11 @@ def reconcile_subscriptions(
             invoice_rows=invoice_rows,
             now=now,
             expected=expected,
+            ended_refunds=batch_refunds,
         )
         con.execute(f"RELEASE SAVEPOINT {savepoint}")
+        if ended_refunds is not None:
+            ended_refunds.extend(batch_refunds)
         return result
     except Exception:
         try:
@@ -687,7 +697,8 @@ def reconcile_subscriptions(
 
 
 def reconcile_subscriptions_from_api(
-    con, *, api_key, store_id, now, expected, fetch=stiahni_objednavky
+    con, *, api_key, store_id, now, expected, fetch=stiahni_objednavky,
+    ended_refunds=None,
 ) -> dict:
     """Fetch both provider datasets before applying either one."""
     try:
@@ -711,7 +722,62 @@ def reconcile_subscriptions_from_api(
         invoice_rows=invoice_rows,
         now=now,
         expected=expected,
+        ended_refunds=ended_refunds,
     )
+
+
+def dokonci_refundacie_predplatneho(
+    con, vysledky, *, now, api_key=None, notifikuj=None, mailuj=None,
+    zrus=None,
+) -> int:
+    """Plne vrátené predplatné: zrušiť u poskytovateľa, uzavrieť žiadosť, napísať.
+
+    Rovnaký záver ako webhook (server._doriesit_predplatne). Zlyhané alebo
+    nemožné zrušenie ostane ako chránený prípad a majiteľ dostane ntfy.
+    """
+    if zrus is None and api_key:
+        def zrus(subscription_id):
+            stiahni_zdroj(api_key, "subscriptions", subscription_id, metoda="DELETE")
+    posli = naklady.posli_ntfy if notifikuj is None else notifikuj
+    napis = _posli_mail if mailuj is None else mailuj
+    hotovo = 0
+    for vysledok in vysledky or ():
+        if not isinstance(vysledok, dict) or not vysledok.get("access_ended"):
+            continue
+        try:
+            customer_requests.close_requests_for_refund(
+                con, order_id=vysledok.get("provider_order_id"), now=now
+            )
+            con.commit()
+        except (sqlite3.Error, TypeError, ValueError):
+            pass
+        zrusene = platby.dokonci_refundaciu_predplatneho(
+            con, vysledok, now=now, zrus=zrus
+        )
+        if not zrusene:
+            sprava = platby.upozornenie_raz(
+                con, platby.DRUH_ZRUSIT_PREDPLATNE, now=now,
+                pocet=platby.count_open_payment_cases(
+                    con, platby.DRUH_ZRUSIT_PREDPLATNE
+                ),
+            )
+            if sprava is not None:
+                try:
+                    posli(sprava)
+                except Exception:
+                    pass
+        komu = platby.email_uctu(con, vysledok.get("user_id"))
+        if komu:
+            try:
+                napis(
+                    komu,
+                    platby.MAIL_PREDMET_REFUNDACIA_PREDPLATNEHO,
+                    platby.SPRAVA_REFUNDACIA_PREDPLATNEHO,
+                )
+            except Exception:
+                pass
+        hotovo += 1
+    return hotovo
 
 
 # ---------------------------------------------------------------- porovnanie
@@ -974,6 +1040,15 @@ def main() -> int:
                 },
                 subscription_lookup=LemonLookup(api_key) if api_key else None,
             )
+            dokonci_refundacie_predplatneho(
+                con,
+                [
+                    udalost.get("predplatne")
+                    for udalost in odlozene["udalosti"]
+                ],
+                now=now,
+                api_key=api_key,
+            )
             if odlozene["spracovane"]:
                 print("REKONCILIACIA: odložené telá — spracovaných "
                       f"{odlozene['spracovane']}, udelených {odlozene['udelene']}, "
@@ -1000,12 +1075,14 @@ def main() -> int:
                 f"{kluc} {hodnota}" for kluc, hodnota in sorted(suhrn.items())
             ))
             if all((store_id, subscription_variant, founder_discount)):
+                ukoncene = []
                 try:
                     annual = reconcile_subscriptions_from_api(
                         con,
                         api_key=api_key,
                         store_id=store_id,
                         now=now,
+                        ended_refunds=ukoncene,
                         expected={
                             "store_id": store_id,
                             "variant_id": subscription_variant,
@@ -1020,6 +1097,9 @@ def main() -> int:
                         "(provider_unavailable); lokálny prístup ostal nezmenený."
                     )
                     return 1
+                dokonci_refundacie_predplatneho(
+                    con, ukoncene, now=now, api_key=api_key
+                )
                 print(
                     "REKONCILIACIA: ročné predplatné — "
                     + ", ".join(

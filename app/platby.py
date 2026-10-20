@@ -1852,6 +1852,7 @@ def spracuj_odlozene(
                     "typ": annual_result["event_type"],
                     "user_id": annual_result.get("user_id"),
                     "zdroj": ZDROJ_ODLOZENE,
+                    "predplatne": annual_result,
                 }
             else:
                 udalost = spracuj_udalost(
@@ -1982,9 +1983,16 @@ DRUH_NEPOUZITELNA = "nepouzitelna"
 DRUH_ODLOZENE = "odlozene"
 DRUH_REKONCILIACIA = "rekonciliacia"
 DRUH_BEZ_UCTU = "bez_uctu"
+DRUH_ZRUSIT_PREDPLATNE = "zrusit_predplatne"
 DRUHY_UPOZORNENI = (
     DRUH_NAD_KAPACITU, DRUH_DUPLICITA, DRUH_IGNOROVANE, DRUH_NEPOUZITELNA,
-    DRUH_ODLOZENE, DRUH_REKONCILIACIA, DRUH_BEZ_UCTU,
+    DRUH_ODLOZENE, DRUH_REKONCILIACIA, DRUH_BEZ_UCTU, DRUH_ZRUSIT_PREDPLATNE,
+)
+MAIL_PREDMET_REFUNDACIA_PREDPLATNEHO = "Uvar.si: platbu za predplatné sme ti vrátili"
+SPRAVA_REFUNDACIA_PREDPLATNEHO = (
+    "Platbu za ročné Premium sme vrátili na pôvodný spôsob platby a tvoju "
+    "žiadosť sme označili ako vybavenú. Premium už nie je aktívne a "
+    "predplatné sa ďalej nebude obnovovať ani účtovať."
 )
 
 
@@ -2080,7 +2088,50 @@ def priprav_upozornenie(druh, *, den=None, objednavka=None, typ=None, pocet=None
                 "(adresa https://uvar.si/api/platba/webhook a jeho históriu)."
             ),
         }
+    if druh == DRUH_ZRUSIT_PREDPLATNE:
+        return {
+            "kluc": f"{DRUH_ZRUSIT_PREDPLATNE}:{den}:{pocet}",
+            "titul": "Uvar.si: vrátené predplatné treba zrušiť ručne",
+            "sprava": (
+                f"Počet plne vrátených predplatných, ktoré sa nepodarilo "
+                f"zrušiť cez API: {pocet}. Prístup v appke je ukončený, ale "
+                "Lemon Squeezy by ich o rok znova účtoval. Zruš ich v Lemon "
+                "Squeezy (Subscriptions → Cancel); konkrétne objednávky sú "
+                "v chránenej evidencii platieb."
+            ),
+        }
     raise ValueError("neznámy druh upozornenia")
+
+
+def dokonci_refundaciu_predplatneho(con, vysledok, *, now, zrus=None) -> bool:
+    """Po plnej refundácii ročného predplatného zastav jeho obnovu.
+
+    ``zrus(subscription_id)`` zruší predplatné cez API poskytovateľa. Keď
+    klient chýba alebo zlyhá, nikdy sa nepokračuje potichu: vznikne chránený
+    prípad DRUH_ZRUSIT_PREDPLATNE a volajúci pošle majiteľovi upozornenie.
+    Žiadosť o odstúpenie uzatvára a zákazníkovi píše volajúci.
+    Vracia True, keď poskytovateľ zrušenie prijal.
+    """
+    if not isinstance(vysledok, dict) or not vysledok.get("access_ended"):
+        return False
+    objednavka = _bezpecne_id(vysledok.get("provider_order_id"))
+    predplatne_id = _bezpecne_id(vysledok.get("provider_subscription_id"))
+    zrusene = False
+    if zrus is not None and predplatne_id is not None:
+        try:
+            zrus(predplatne_id)
+            zrusene = True
+        except Exception:
+            zrusene = False
+    if not zrusene:
+        create_payment_case(
+            con,
+            case_type=DRUH_ZRUSIT_PREDPLATNE,
+            provider_order_id=objednavka,
+            user_id=vysledok.get("user_id"),
+            now=now,
+        )
+    return zrusene
 
 
 def zaznamenaj_upozornenie(con, *, kluc, now) -> bool:

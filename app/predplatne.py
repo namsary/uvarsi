@@ -1390,7 +1390,34 @@ def _process_refund(con, payload, expected: dict, *, now: float) -> dict:
         "WHERE id=?",
         (wanted_status, refunded, now, invoice["id"]),
     )
-    return {"action": wanted_status, "user_id": snapshot.user_id}
+    # Plne vrátená platba za posledné zaplatené obdobie končí prístup hneď.
+    # Zastavenie obnovy u poskytovateľa, uzavretie žiadosti a e-mail
+    # zákazníkovi robí volajúci podľa access_ended (mimo tejto transakcie).
+    access_ended = False
+    if (
+        wanted_status == "refunded"
+        and invoice["period_end"] >= snapshot.paid_through
+        and snapshot.status != "expired"
+    ):
+        ended_at = min(now, float(snapshot.paid_through))
+        _replace_verified_snapshot(
+            con,
+            snapshot,
+            now=now,
+            status="expired",
+            renews_at=None,
+            ends_at=ended_at,
+            paid_through=ended_at,
+        )
+        access_ended = True
+    return {
+        "action": wanted_status,
+        "user_id": snapshot.user_id,
+        "access_ended": access_ended,
+        "provider_order_id": snapshot.provider_order_id,
+        "provider_subscription_id": snapshot.provider_subscription_id,
+        "test_mode": snapshot.test_mode,
+    }
 
 
 def _process_subscription_transition(
@@ -1408,6 +1435,13 @@ def _process_subscription_transition(
         raise _ReviewRequired("neznámy alebo neúplný stav predplatného")
 
     changes = {}
+    if (
+        (event_name == "subscription_cancelled" or status == "cancelled")
+        and snapshot.status == "expired"
+    ):
+        # Po plnej refundácii je prístup už ukončený; zrušenie u poskytovateľa
+        # (aj to, ktoré sme si vyžiadali sami) ho iba potvrdzuje.
+        return {"action": "cancelled", "user_id": snapshot.user_id}
     if event_name == "subscription_cancelled" or status == "cancelled":
         if snapshot.status not in {"active", "past_due", "cancelled"}:
             raise _ReviewRequired("stav predplatného neumožňuje zrušenie")

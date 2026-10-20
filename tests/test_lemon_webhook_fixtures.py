@@ -23,6 +23,7 @@ import copy
 import hashlib
 import json
 import sqlite3
+from contextlib import closing
 
 import pytest
 
@@ -465,3 +466,201 @@ def test_doplnenie_neprepise_hodnotu_z_podpisaneho_tela(con):
     assert enriched["data"]["attributes"]["currency"] == "USD"
     assert payload["data"]["attributes"].get("billing_period_start") is None
     assert deliver(con, payload, lookup=lookup)["review_required"] is True
+
+
+# ---------------------------------------------------------------- refundácia
+def test_plna_refundacia_konci_pristup_a_zrusenie_ho_iba_potvrdi(con):
+    lookup = FakeLookup()
+    activate(con, lookup)
+    refund_at = NOW + 86_400
+    result = deliver(
+        con,
+        lemon_invoice(
+            "subscription_payment_refunded", status="refunded",
+            refunded_amount=3_900, updated_at="2026-09-13T00:01:43.000000Z",
+        ),
+        lookup=lookup,
+        now=refund_at,
+    )
+    assert result["review_required"] is False, result
+    assert result["action"] == "refunded"
+    assert result["access_ended"] is True
+    assert result["provider_subscription_id"] == SUBSCRIPTION
+    assert result["provider_order_id"] == str(ORDER)
+    snapshot = predplatne.subscription_for_user(con, 1)
+    assert snapshot.status == "expired"
+    assert snapshot.renews_at is None
+    assert predplatne.subscription_access(snapshot, now=refund_at + 1) is False
+
+    # Lemon po našom DELETE pošle subscription_cancelled/updated so stavom
+    # cancelled; to nesmie vrátiť prístup ani založiť falošnú kontrolu.
+    for name in ("subscription_updated", "subscription_cancelled"):
+        confirmation = deliver(
+            con,
+            lemon_subscription(
+                name, status="cancelled", ends_at=RENEWS_1, cancelled=True,
+                updated_at=f"2026-09-13T00:0{2 if name.endswith('d') else 3}:00.000000Z",
+            ),
+            lookup=lookup,
+            now=refund_at + 60,
+        )
+        assert confirmation["review_required"] is False, confirmation
+    assert predplatne.subscription_for_user(con, 1).status == "expired"
+
+
+def test_ciastocna_refundacia_pristup_nekonci(con):
+    lookup = FakeLookup()
+    activate(con, lookup)
+    result = deliver(
+        con,
+        lemon_invoice(
+            "subscription_payment_refunded", status="partial_refund",
+            refunded_amount=1_000, updated_at="2026-09-13T00:01:43.000000Z",
+        ),
+        lookup=lookup,
+    )
+    assert result["action"] == "partial_refund"
+    assert result["access_ended"] is False
+    assert predplatne.subscription_for_user(con, 1).status == "active"
+
+
+@pytest.mark.parametrize("zrus", [None, "zlyha"])
+def test_bez_zrusenia_u_poskytovatela_vznikne_pozadovana_akcia(con, zrus):
+    def zlyha(_subscription_id):
+        raise OSError("api down")
+
+    vysledok = {
+        "access_ended": True,
+        "user_id": 1,
+        "provider_order_id": str(ORDER),
+        "provider_subscription_id": SUBSCRIPTION,
+    }
+    assert platby.dokonci_refundaciu_predplatneho(
+        con, vysledok, now=NOW, zrus=zlyha if zrus else None
+    ) is False
+    row = con.execute(
+        "SELECT case_type,provider_order_id,status FROM payment_cases"
+    ).fetchone()
+    assert tuple(row) == (platby.DRUH_ZRUSIT_PREDPLATNE, str(ORDER), "open")
+    alert = platby.priprav_upozornenie(
+        platby.DRUH_ZRUSIT_PREDPLATNE, den="2026-09-12", pocet=1
+    )
+    assert str(ORDER) not in json.dumps(alert, ensure_ascii=False)
+
+
+def test_uspesne_zrusenie_nezaklada_pripad(con):
+    zrusene = []
+    assert platby.dokonci_refundaciu_predplatneho(
+        con,
+        {
+            "access_ended": True,
+            "user_id": 1,
+            "provider_order_id": str(ORDER),
+            "provider_subscription_id": SUBSCRIPTION,
+        },
+        now=NOW,
+        zrus=zrusene.append,
+    ) is True
+    assert zrusene == [SUBSCRIPTION]
+    assert con.execute("SELECT COUNT(*) FROM payment_cases").fetchone()[0] == 0
+
+
+def _live(payload):
+    payload = copy.deepcopy(payload)
+    payload["meta"]["test_mode"] = False
+    attributes = payload["data"]["attributes"]
+    attributes["test_mode"] = False
+    if isinstance(attributes.get("first_order_item"), dict):
+        attributes["first_order_item"]["test_mode"] = False
+    return payload
+
+
+def test_webhook_plnej_refundacie_zrusi_predplatne_uzavrie_ziadost_a_napise(
+        monkeypatch, tmp_path):
+    from test_platby import load_server, posli_webhook, vytvor_pouzivatela
+    from fastapi.testclient import TestClient
+
+    secret = "fixture-live-webhook-secret"
+    server = load_server(
+        monkeypatch,
+        tmp_path,
+        PLATBY_ZAPNUTE="1",
+        UVARSI_PAYMENTS_ENABLED="1",
+        LEMON_WEBHOOK_SECRET=secret,
+        LEMON_API_KEY="live-api-key",
+        LEMON_STORE_ID=str(STORE),
+        LEMON_SUBSCRIPTION_VARIANT_ID=str(VARIANT),
+        LEMON_FOUNDER_DISCOUNT_ID=FOUNDER_DISCOUNT_ID,
+        LEMON_FOUNDER_DISCOUNT_CODE="FOUNDERS",
+    )
+    monkeypatch.setattr(server, "AUTH_CLOCK", lambda: NOW + 600)
+    vytvor_pouzivatela(server, email="jana@example.test", session=None)
+    with closing(server.db()) as db:
+        db.execute(
+            """INSERT INTO checkout_attempts
+               (public_id,user_id,product,amount_cents,renewal_amount_cents,
+                currency,billing_interval,auto_renews,founder,discount_id,
+                discount_code,legal_version,privacy_version,consent_json,
+                accepted_at,expires_at,founder_reserved_until,test_mode,status,
+                provider_checkout_id,provider_order_id)
+               VALUES (?,1,'premium_annual',3900,4900,'EUR','year',1,1,?,
+                       'FOUNDERS',?,?,'{}',?,?,?,0,'pending','checkout_1',NULL)""",
+            (
+                ATTEMPT_ID, FOUNDER_DISCOUNT_ID, platby.LEGAL_VERSION,
+                platby.LEGAL_VERSION, P0_START + 90.0, P0_START + 3_600.0,
+                P0_START + 3_600.0,
+            ),
+        )
+        db.commit()
+
+    api_calls = []
+    lookup = FakeLookup()
+
+    def fake_lemon(api_key, resource, identifier, *, method="GET"):
+        api_calls.append((method, resource, identifier))
+        if method == "DELETE":
+            return {"data": {"type": resource, "id": identifier}}
+        row = lookup.subscription_row if resource == "subscriptions" else lookup.order_row
+        return {"data": _live({"meta": {}, "data": row})["data"]}
+
+    mails = []
+    alerts = []
+    monkeypatch.setattr(server, "_lemon_resource_request", fake_lemon)
+    monkeypatch.setattr(
+        server, "posli_mail", lambda komu, predmet, *_a, **_k: mails.append((komu, predmet))
+    )
+    monkeypatch.setattr(server, "posli_upozornenie_majitelovi", alerts.append)
+    client = TestClient(server.app, raise_server_exceptions=False)
+    for payload in (lemon_order(), lemon_subscription(), lemon_invoice()):
+        response = posli_webhook(client, _live(payload), tajomstvo=secret)
+        assert response.status_code == 200, response.text
+
+    with closing(server.db()) as db:
+        request = server.customer_requests.create_subscription_withdrawal(
+            db, user_id=1, invoice_id=INVOICE_INITIAL, message="", now=NOW + 700,
+        )
+    refund = _live(lemon_order(
+        "order_refunded", status="refunded", refunded_amount=3_900,
+        updated_at="2026-09-12T02:00:00.000000Z",
+    ))
+    response = posli_webhook(client, refund, tajomstvo=secret)
+    assert response.status_code == 200, response.text
+    assert response.json()["akcia"] == "refunded"
+
+    assert ("DELETE", "subscriptions", SUBSCRIPTION) in api_calls
+    with closing(server.db()) as db:
+        status = db.execute(
+            "SELECT status FROM consumer_requests WHERE public_id=?",
+            (request.public_id,),
+        ).fetchone()[0]
+        subscription = db.execute(
+            "SELECT status FROM subscriptions WHERE user_id=1"
+        ).fetchone()[0]
+        cases = db.execute("SELECT COUNT(*) FROM payment_cases").fetchone()[0]
+    assert status == "refunded"
+    assert subscription == "expired"
+    assert cases == 0
+    assert mails == [
+        ("jana@example.test", platby.MAIL_PREDMET_REFUNDACIA_PREDPLATNEHO)
+    ]
+    assert alerts == []
