@@ -613,3 +613,67 @@ def test_legacy_personal_plan_without_signature_fails_closed_for_only_its_owner(
             "SELECT json FROM plany WHERE user_id=2"
         ).fetchone()[0] == '{"unrelated":true}'
         assert con.execute("SELECT COUNT(*) FROM sessions_v2").fetchone()[0] == 2
+
+
+def test_onboarding_availability_uses_the_selection_on_screen_not_the_saved_profile(
+    monkeypatch, tmp_path
+):
+    """Nový účet nesmie vidieť „nedostupné" vypočítané z uloženého profilu."""
+    monkeypatch.setenv("UVARSI_RECIPE_ENGINE", "on")
+    server = load_server(monkeypatch, tmp_path, [])
+    server.recipe_engine_mode.cache_clear()
+    seen = []
+
+    def available(_con, profile, premium, today=None, rows=None):
+        seen.append((dict(profile), premium))
+        return ("standard",) if profile["obchody"] == "Kaufland" else ()
+
+    monkeypatch.setattr(server, "recipe_engine_profile_available_modes", available)
+    client = authenticated_client(server)
+    with server.db() as con:
+        before = con.execute(
+            "SELECT osoby, obchody, onboarding FROM pouzivatelia WHERE id=1"
+        ).fetchone()
+
+    response = client.post(
+        "/api/stravovanie/dostupne",
+        json={"adults": 2, "children": 1, "frekvencia": 3,
+              "obchody": ["Kaufland", "Bazár"]},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "stravovanie_dostupne": ["standard"],
+        "stravovanie_dostupne_dovod": None,
+    }
+    profile, premium = seen[-1]
+    assert premium is False
+    assert profile["obchody"] == "Kaufland"
+    assert (profile["dospeli"], profile["deti"], profile["frekvencia"]) == (2, 1, 3)
+    with server.db() as con:
+        after = con.execute(
+            "SELECT osoby, obchody, onboarding FROM pouzivatelia WHERE id=1"
+        ).fetchone()
+    assert tuple(after) == tuple(before), "kontrola dostupnosti nič neukladá"
+
+
+@pytest.mark.parametrize("payload", [
+    {"adults": 2, "children": 0, "frekvencia": 2, "obchody": []},
+    {"adults": 2, "children": 0, "frekvencia": 2, "obchody": "Lidl"},
+    {"adults": 2, "children": 0, "frekvencia": 9, "obchody": ["Lidl"]},
+    {"adults": 0, "children": 0, "frekvencia": 2, "obchody": ["Lidl"]},
+])
+def test_onboarding_availability_rejects_invalid_selection(monkeypatch, tmp_path, payload):
+    server = load_server(monkeypatch, tmp_path, [])
+    client = authenticated_client(server)
+
+    assert client.post("/api/stravovanie/dostupne", json=payload).status_code == 422
+
+
+def test_onboarding_availability_requires_login(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path, [])
+    response = TestClient(server.app).post(
+        "/api/stravovanie/dostupne",
+        json={"adults": 2, "children": 0, "frekvencia": 2, "obchody": ["Lidl"]},
+    )
+    assert response.status_code == 401

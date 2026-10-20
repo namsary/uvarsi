@@ -25,11 +25,20 @@ def pricing_cards(page):
 def test_primary_action_opens_the_working_app_and_old_waitlist_story_is_gone():
     page = html()
 
-    assert re.search(r'<a[^>]+class="[^"]*btn-primary[^"]*"[^>]+href="/app"', page)
+    # Nový návštevník ide rovno do registrácie; appka ostáva tá istá.
+    assert re.search(
+        r'<a[^>]+class="[^"]*btn-primary[^"]*"[^>]+href="/app\?registracia"', page
+    )
+    assert '<a class="btn" href="/app?registracia">Vyskúšať zdarma</a>' in page
     for stale in ("Ešte nie sme live", "Spúšťame po mestách", "Ktorý plán by si si vybral?"):
         assert stale not in page
     assert "Bez karty" in page
-    assert "Premium platby sú zatiaľ vypnuté" in page
+    # Statický landing nevie, či sú platby práve zapnuté: text musí byť
+    # pravdivý v oboch stavoch, netvrdiť vypnuté platby a nepredávať.
+    for stale in ("platby sú zatiaľ vypnuté", "Platby sú vypnuté",
+                  "Premium čoskoro", "o spustení</button>"):
+        assert stale not in page
+    assert "Dostupnosť Premium uvidíš v appke." in page
 
 
 def test_receipt_is_the_single_signature_animation_and_respects_reduced_motion():
@@ -177,7 +186,6 @@ def test_interest_email_is_nonbinding_and_only_a_later_purchase_creates_entitlem
     page = html()
     legal = legal_terms()
 
-    assert "Platby sú vypnuté" in page
     assert "nezáväzný záujem" in page
     assert "nevytvára objednávku" in page
     assert "úspešnej platbe" in page

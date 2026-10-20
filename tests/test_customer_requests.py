@@ -765,7 +765,8 @@ def test_profile_contains_honest_withdrawal_and_complaint_controls():
     assert "invoice_id" in html
     assert "pomernú časť" in html
     assert "Po 14 dňoch" in html
-    assert "Odoslať žiadosť o odstúpenie" in html
+    assert "Odstúpiť od zmluvy" in html
+    assert "žiadosť o odstúpenie" not in html.casefold()
     assert "Odoslať reklamáciu" in html
     assert 'maxlength="4000"' in html
     assert 'type="file"' not in html

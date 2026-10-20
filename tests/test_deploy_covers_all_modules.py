@@ -209,7 +209,7 @@ def bash_executable() -> str:
         "app/platby.py",
         "app/predplatne.py",
         "app/rekonciliacia.py",
-        "app/static/subscription-profile.19ddd6feb9d0.js",
+        "app/static/subscription-profile.633662012b2f.js",
         "hetzner/payment-smoke.py",
         "hetzner/payment-lifecycle-probe.py",
     ),

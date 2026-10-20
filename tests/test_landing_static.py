@@ -114,3 +114,23 @@ def test_invalid_payload_hides_any_old_static_prices(tmp_path):
     assert '<!-- RCPT:START --><!-- RCPT:END -->' in html
     assert 'id="landing-data" aria-live="polite" hidden>' in html
     assert 'id="landing-status" aria-live="polite">' in html
+
+
+def test_hidden_status_line_really_disappears_on_the_published_landing(tmp_path):
+    """`.rcpt-proof{display:flex}` prebíjal atribút `hidden`.
+
+    Pri aktuálnych cenách potom pod bločkom ostalo „Aktuálne ceny práve
+    obnovujeme." Globálne pravidlo pre `[hidden]` musí prežiť aj publikovanie
+    statickej kópie, ktoré prepína iba atribúty.
+    """
+    source = Path("index.html").read_text(encoding="utf-8")
+    assert "[hidden]{display:none!important}" in source
+    css = source.split("<style>", 1)[1].split("</style>", 1)[0]
+    assert css.index("[hidden]{display:none!important}") < css.index(".rcpt-proof{")
+
+    index = tmp_path / "index.html"
+    index.write_text(source, encoding="utf-8")
+    assert publish_landing_html(index, current_payload(), today=TODAY) == "current"
+    rendered = index.read_text(encoding="utf-8")
+    assert "[hidden]{display:none!important}" in rendered
+    assert '<p class="rcpt-proof" id="landing-status" aria-live="polite" hidden>' in rendered

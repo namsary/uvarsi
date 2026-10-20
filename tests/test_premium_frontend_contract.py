@@ -340,6 +340,7 @@ def test_customer_service_shows_all_invoices_and_requires_explicit_selection(tmp
         "invoice-selection.js",
         """
 var ME={email:'owner@example.test'};
+var SUPPORT_EMAIL='pumaragency@gmail.com';
 function esc(value){return String(value);}
 """
         + functions
@@ -478,6 +479,8 @@ console.log(JSON.stringify(states));
     assert "Prístup skončil" in states["expired"]
     assert "nemá predplatné" in states["manual"]
     assert "Nemáš aktívne predplatné" in states["free"]
+    assert "Používaš bezplatnú verziu Free." in states["free"]
+    assert "neevidujeme" not in states["free"] and "spravované" not in states["free"]
     for name in (
         "active", "cancelledActive", "cancelledEnded", "past_due",
         "pausedActive", "pausedEnded", "reviewActive", "unpaid", "expired",
@@ -578,6 +581,7 @@ def test_portal_failure_is_actionable_accessible_and_never_echoes_a_signed_url(
         "subscription-error-contract.js",
         """
 const status = {textContent:'',style:{}};
+const SUPPORT_EMAIL='pumaragency@gmail.com';
 const window=globalThis;
 const attributes = {};
 const button = {disabled:false,textContent:'Spravovať predplatné',

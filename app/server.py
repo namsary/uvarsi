@@ -868,9 +868,6 @@ SECURITY_HEADERS = {
 @app.middleware("http")
 async def private_ui_noindex(request: Request, call_next):
     response = await call_next(request)
-    renewal = getattr(request.state, "renew_session_cookie", None)
-    if renewal:
-        set_session_cookie(response, renewal)
     if request.url.path == "/app" or request.url.path.startswith(
         ("/prihlasenie", "/potvrdenie", "/heslo", "/api/auth/pages/")
     ):
@@ -902,11 +899,9 @@ def user_from_request(req: Request):
     if not tok:
         return None
     with closing(db()) as con:
-        changes_before = con.total_changes
-        user = user_for_session(con, raw_session=tok, now=AUTH_CLOCK())
-        if user is not None and con.total_changes > changes_before:
-            req.state.renew_session_cookie = tok
-        return user
+        # Relácia má pevný strop 90 dní od prihlásenia, takže cookie z
+        # prihlásenia (Max-Age 90 dní) sa pri používaní nepredlžuje.
+        return user_for_session(con, raw_session=tok, now=AUTH_CLOCK())
 
 
 def require_user(req: Request):
@@ -1378,6 +1373,39 @@ def auth_account_rate_limit(*, account: str, operation: str, now: float) -> None
         raise HTTPException(429, "Priveľa pokusov. Skús to znova o 10 minút.")
 
 
+_UA_PREHLIADACE = (
+    ("Edg/", "Edge"), ("EdgiOS", "Edge"), ("EdgA/", "Edge"),
+    ("OPR/", "Opera"), ("SamsungBrowser", "Samsung Internet"),
+    ("FxiOS", "Firefox"), ("Firefox/", "Firefox"),
+    ("CriOS", "Chrome"), ("Chrome/", "Chrome"),
+    ("Version/", "Safari"),
+)
+_UA_SYSTEMY = (
+    ("iPhone", "iPhone"), ("iPad", "iPad"), ("Android", "Android"),
+    ("Windows", "Windows"), ("CrOS", "ChromeOS"), ("Macintosh", "Mac"),
+    ("Mac OS X", "Mac"), ("Linux", "Linux"),
+)
+
+
+def citatelne_zariadenie(name: str) -> str:
+    """Z user-agenta urob „Chrome · Windows"; vlastný názov nechaj tak.
+
+    Staršie relácie majú uložený surový user-agent orezaný na 80 znakov,
+    preto sa prehliadač hľadá aj v neúplnom texte a pri neúspechu ostane
+    aspoň systém („Prehliadač · Windows").
+    """
+    text = str(name or "")
+    if not text.startswith("Mozilla/") and "AppleWebKit" not in text:
+        return text
+    browser = next((label for token, label in _UA_PREHLIADACE if token in text), "")
+    system = next((label for token, label in _UA_SYSTEMY if token in text), "")
+    if not browser and system in ("iPhone", "iPad") and "AppleWebKit" in text:
+        browser = "Safari"
+    if not browser and not system:
+        return "Prehliadač"
+    return f"{browser or 'Prehliadač'} · {system}" if system else browser
+
+
 def auth_device_name(req: Request, data: dict, fallback: str) -> str:
     supplied = data.get("device_name")
     if isinstance(supplied, str):
@@ -1387,7 +1415,7 @@ def auth_device_name(req: Request, data: dict, fallback: str) -> str:
         if supplied:
             return supplied[:80]
     user_agent = " ".join(req.headers.get("user-agent", "").split())
-    return user_agent[:80] or fallback
+    return citatelne_zariadenie(user_agent)[:80] or fallback
 
 
 def require_passkey_feature() -> None:
@@ -2214,6 +2242,8 @@ def auth_sessions(req: Request):
         active = list_sessions(
             con, user_id=user["id"], current_token=current, now=AUTH_CLOCK()
         )
+    for item in active:
+        item["device_name"] = citatelne_zariadenie(item["device_name"])
     return {"sessions": active}
 
 
@@ -2244,7 +2274,6 @@ def auth_session_delete(management_id: str, req: Request):
             raise HTTPException(404, "Relácia sa nenašla.")
     response = JSONResponse({"ok": True})
     if current_management_id == management_id:
-        req.state.renew_session_cookie = None
         response.delete_cookie(COOKIE, httponly=True, samesite="lax", secure=True)
     return response
 
@@ -2680,7 +2709,6 @@ async def account_delete(req: Request):
         except Exception:
             con.rollback()
             raise
-    req.state.renew_session_cookie = None
     response = JSONResponse(result)
     response.delete_cookie(COOKIE, httponly=True, samesite="lax", secure=True)
     return response
@@ -3026,6 +3054,42 @@ async def uloz_profil(req: Request):
         except Exception:
             LOG.info("zahriatie plánu preskočené", exc_info=True)
     return {"ok": True}
+
+
+@app.post("/api/stravovanie/dostupne")
+async def dostupne_rezimy_pre_vyber(req: Request):
+    """Dostupné režimy pre výber, ktorý je práve na obrazovke nastavení.
+
+    `/api/me` počíta dostupnosť z uloženého profilu. Nový používateľ však ešte
+    nič neuložil a pri zmene obchodov by appka ukazovala stav cudzieho výberu.
+    Nič sa neukladá a neplatí sa za to žiadny model — je to tá istá lokálna
+    kontrola ako v `/api/me`, iba nad práve zvolenými hodnotami.
+    """
+    u = require_user(req)
+    try:
+        d = await req.json()
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        raise HTTPException(422, "Pošli platný JSON s výberom.")
+    if not isinstance(d, dict):
+        raise HTTPException(422, "Pošli platný JSON s výberom.")
+    adults, children = validuj_zlozenie_domacnosti(d)
+    frek = d.get("frekvencia", 2)
+    if type(frek) is not int or frek not in (1, 2, 3):
+        raise HTTPException(422, "Neplatná frekvencia varenia.")
+    requested = d.get("obchody")
+    if not isinstance(requested, list):
+        raise HTTPException(422, "Vyber si aspoň jeden podporovaný obchod.")
+    obchody = [s for s in dict.fromkeys(requested) if s in ALLOWED_STORES]
+    if not obchody:
+        raise HTTPException(422, "Vyber si aspoň jeden podporovaný obchod.")
+    profile = {"osoby": adults + children, "dospeli": adults, "deti": children,
+               "frekvencia": frek, "obchody": ",".join(obchody)}
+    with closing(db()) as con:
+        premium = has_premium(con, user_id=u["id"], now=AUTH_CLOCK())
+        available = recipe_engine_profile_available_modes(con, profile, premium)
+        reason = dovod_prazdnych_rezimov(con, profile, premium, available)
+    return {"stravovanie_dostupne": list(available),
+            "stravovanie_dostupne_dovod": reason}
 
 
 @app.post("/api/spajza")
