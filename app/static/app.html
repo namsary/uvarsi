@@ -152,6 +152,9 @@ const SPAJZA_UKAZKA = ['ryža', 'vajcia', 'cibuľa'];
 const SPAJZA_UKAZKA_CENY = {'ryža': '1,29', 'vajcia': '2,49', 'cibuľa': '0,89'};
 const PLAN_PREPARATION_MESSAGE = 'Plán pripravujeme. Pokojne pokračuj inde.';
 const REQUEST_TIMEOUT_MS = 12000;
+// Jediný zdroj kontaktu na podporu v appke (aj v profilovom module); musí sa
+// zhodovať s OPERATOR.support_email v app/operator_profile.py (stráži test).
+const SUPPORT_EMAIL = 'pumaragency@gmail.com';
 
 async function fetchWithTimeout(url, options) {
   const controller = new AbortController();
@@ -384,7 +387,7 @@ function apiErrorMessage(status, payload) {
   return /[.!?…]$/.test(detail) ? detail : detail + '.';
   }
   if (status === 422 || status === 400) return 'Zadané údaje nesedia. Skontroluj ich a skús to znova.';
-  if (status === 404) return 'Toto sa nenašlo. Skús to znova alebo napíš na pomoc@uvar.si.';
+  if (status === 404) return 'Toto sa nenašlo. Skús to znova alebo napíš na ' + SUPPORT_EMAIL + '.';
   if (status === 429) return 'Priveľa pokusov za sebou. Skús to prosím o minútu.';
   if (status >= 500) return 'Server má krátkodobý problém. Skús to prosím o chvíľu znova.';
   return 'Niečo sa pokazilo. Skús to prosím znova.';
@@ -2133,7 +2136,7 @@ async function loadAccountSecurity(notice, focusTarget) {
   return true;
 }
 
-const SUBSCRIPTION_ASSET=Object.freeze({url:'/static/subscription-profile.d30930c8c9d7.js',integrity:'sha384-/ajaVr61OenGDAvNysfNgtqEsnCxO+nnxA7FNtU2nDRhKQHzEjGn9p4NkNBRAGL5'});
+const SUBSCRIPTION_ASSET=Object.freeze({url:'/static/subscription-profile.633662012b2f.js',integrity:'sha384-t/VywE/ALYTuuSgNLabvIfhzlLpXwk52BpR/bvg+IhrJNk3wTXGsNg1lSNjuKFfD'});
 let SUBSCRIPTION_MODULE_PROMISE;
 async function loadProfilePayments() {
   const subscription = $('#subscription-management');
@@ -2153,8 +2156,8 @@ async function loadProfilePayments() {
     return await Promise.all([module.loadSubscription(), module.loadCustomerService()]);
   } catch (_error) {
     SUBSCRIPTION_MODULE_PROMISE = null;
-    if ($('#subscription-management') === subscription) subscription.innerHTML = '<section class="card subscription-card"><span class="eyebrow eyebrow--danger">Premium · predplatné</span><h2>Stav sa nepodarilo načítať</h2><p class="muted" role="status" aria-live="polite">Skús to znova alebo zavolaj na +421 917 347 009, prípadne napíš na pumaragency@gmail.com.</p></section>';
-    if ($('#customer-service') === service) service.innerHTML = '<div class="card service-card"><h2>Platba a pomoc</h2><p class="muted">Prehľad sa nepodarilo načítať. Napíš na <a href="mailto:pumaragency@gmail.com">pumaragency@gmail.com</a>.</p></div>';
+    if ($('#subscription-management') === subscription) subscription.innerHTML = `<section class="card subscription-card"><span class="eyebrow eyebrow--danger">Premium · predplatné</span><h2>Stav sa nepodarilo načítať</h2><p class="muted" role="status" aria-live="polite">Skús to znova alebo zavolaj na +421 917 347 009, prípadne napíš na ${SUPPORT_EMAIL}.</p></section>`;
+    if ($('#customer-service') === service) service.innerHTML = `<div class="card service-card"><h2>Platba a pomoc</h2><p class="muted">Prehľad sa nepodarilo načítať. Napíš na <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.</p></div>`;
     return false;
   }
 }

@@ -744,6 +744,7 @@ APP_GZIP_CAP_NOTES = {
     "registrácia: deep link, chyba pri poli, poslať znova, zlá adresa": 570,
     "profil: predplatné a nastavenia navrchu, zabezpečenie zbalené": 110,
     "prístupnosť: frekvencia ako rádiová skupina so šípkami, kontrast": 250,
+    "kontakt na podporu z jednej konštanty SUPPORT_EMAIL": 120,
 }
 
 
