@@ -237,7 +237,10 @@ def test_rekonciliacia_respektuje_variant_a_cudzi_produkt_neudeli(monkeypatch, t
         )
 
     assert naroky(server) == []
-    assert suhrn["ignorovane"] == 1
+    # Cudzí variant (napr. ročné predplatné v tom istom obchode) sa preskočí
+    # bez falošného prípadu; rieši ho rekonciliácia predplatného.
+    assert suhrn["ignorovane"] == 0
+    assert suhrn["ine_produkty"] == 1
 
 
 def test_rekonciliacia_dobehne_aj_zameskane_vratenie(monkeypatch, tmp_path):
@@ -1098,3 +1101,81 @@ def test_premium_cli_neposiela_datetime_do_realoveho_stlpca():
     assert "datetime.datetime.now()" not in zdroj, (
         "do REAL stĺpca patrí epocha, nie datetime cez zastaraný adaptér"
     )
+
+
+# ------------------------------------------- ročné objednávky v /v1/orders
+def _pripady(server):
+    with closing(server.db()) as con:
+        return [
+            tuple(row) for row in con.execute(
+                "SELECT case_type,provider_order_id FROM payment_cases"
+            )
+        ]
+
+
+@pytest.mark.parametrize("jednorazovy_variant", [None, "var-zakladajuci"])
+def test_rocna_objednavka_neudeli_dozivotny_narok_ani_falosny_pripad(
+        monkeypatch, tmp_path, jednorazovy_variant):
+    server = zapnute_platby(monkeypatch, tmp_path)
+    rek = rekonciliacia_modul()
+    vytvor_pouzivatela(server, user_id=5, email="clen@uvar.si")
+    rocna = objednavka_z_api(
+        order_id="ord-rocne", email="clen@uvar.si", variant_id="var-rocne"
+    )
+
+    with closing(server.db()) as con:
+        suhrn = rek.rekonciluj(
+            con, objednavky=[rocna], now=server.AUTH_CLOCK(),
+            variant_id=jednorazovy_variant, annual_variant_id="var-rocne",
+        )
+
+    assert suhrn["udelene"] == 0
+    assert suhrn["ignorovane"] == 0
+    assert suhrn["ine_produkty"] == 1
+    assert naroky(server) == []
+    assert _pripady(server) == []
+
+
+def test_objednavka_s_pokusom_rocneho_toku_sa_preskoci(monkeypatch, tmp_path):
+    server = zapnute_platby(monkeypatch, tmp_path)
+    rek = rekonciliacia_modul()
+    vytvor_pouzivatela(server, user_id=5, email="clen@uvar.si")
+    s_pokusom = objednavka_z_api(
+        order_id="ord-pokus", email="clen@uvar.si",
+        custom={"attempt_id": "attempt_" + "x" * 43, "user_id": "5"},
+    )
+    sparovana = objednavka_z_api(order_id="ord-sparovana", email="clen@uvar.si")
+    with closing(server.db()) as con:
+        con.execute(
+            """INSERT INTO checkout_attempts
+               (public_id,user_id,product,amount_cents,currency,legal_version,
+                privacy_version,accepted_at,expires_at,status,provider_order_id)
+               VALUES (?,5,'premium_annual',3900,'EUR','v1','v1',1,2,'paid',
+                       'ord-sparovana')""",
+            ("attempt_" + "y" * 43,),
+        )
+        con.commit()
+        suhrn = rek.rekonciluj(
+            con, objednavky=[s_pokusom, sparovana], now=server.AUTH_CLOCK(),
+        )
+
+    assert suhrn["ine_produkty"] == 2
+    assert naroky(server) == []
+    assert _pripady(server) == []
+
+
+def test_jednorazova_objednavka_sa_stale_dobehne_aj_s_rocnym_variantom(
+        monkeypatch, tmp_path):
+    server = zapnute_platby(monkeypatch, tmp_path)
+    rek = rekonciliacia_modul()
+    vytvor_pouzivatela(server, user_id=5, email="clen@uvar.si")
+    jednorazova = objednavka_z_api(
+        order_id="ord-jednorazova", email="clen@uvar.si", variant_id="var-z"
+    )
+    with closing(server.db()) as con:
+        suhrn = rek.rekonciluj(
+            con, objednavky=[jednorazova], now=server.AUTH_CLOCK(),
+            annual_variant_id="var-rocne",
+        )
+    assert suhrn["udelene"] == 1
+    assert suhrn["ine_produkty"] == 0

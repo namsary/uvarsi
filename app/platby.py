@@ -2200,6 +2200,60 @@ def checkout_attempt_z_objednavky(objednavka):
     return None
 
 
+def _annual_attempt_z_objednavky(objednavka):
+    """Pokus ročnej pokladne nesie kľúč attempt_id (jednorazový checkout_attempt)."""
+    atributy = _atributy_objednavky(objednavka)
+    kandidati = [atributy.get("custom_data")]
+    polozka = atributy.get("first_order_item")
+    if isinstance(polozka, dict):
+        kandidati.append(polozka.get("custom_data"))
+    for custom in kandidati:
+        if isinstance(custom, dict) and custom.get("attempt_id") is not None:
+            return _bezpecne_id(custom.get("attempt_id")) or "neplatny"
+    return None
+
+
+def je_jednorazova_zakladajuca(
+    con, objednavka, *, variant_id=None, annual_variant_id=None
+) -> bool:
+    """Patrí objednávka z API jednorazovému zakladajúcemu členstvu?
+
+    /v1/orders vracia aj objednávky ročného predplatného. Tie rieši výhradne
+    rekonciliácia predplatného; keby prešli touto cestou, mohli by udeliť
+    doživotný zakladajúci nárok (bez LEMON_VARIANT_ID) alebo založiť falošný
+    prípad „ignorované“. Preskočí sa preto všetko, čo nie je presne
+    jednorazový variant alebo čo patrí ročnému toku.
+    """
+    polozka = _atributy_objednavky(objednavka).get("first_order_item")
+    variant = (
+        _bezpecne_id(polozka.get("variant_id"))
+        if isinstance(polozka, dict) else None
+    )
+    rocny = _bezpecne_id(annual_variant_id)
+    if rocny is not None and variant == rocny:
+        return False
+    jednorazovy = _bezpecne_id(variant_id)
+    if jednorazovy is not None and variant != jednorazovy:
+        return False
+    if _annual_attempt_z_objednavky(objednavka) is not None:
+        return False
+    ref = _bezpecne_id(objednavka.get("id") if isinstance(objednavka, dict) else None)
+    if ref is not None:
+        if con.execute(
+            "SELECT 1 FROM checkout_attempts WHERE provider_order_id=? AND product=?",
+            (ref, PRODUKT_PREMIUM_ROCNY),
+        ).fetchone() is not None:
+            return False
+        try:
+            if con.execute(
+                "SELECT 1 FROM subscriptions WHERE provider_order_id=?", (ref,)
+            ).fetchone() is not None:
+                return False
+        except sqlite3.OperationalError:
+            pass
+    return True
+
+
 def stav_objednavky(objednavka) -> str:
     atributy = _atributy_objednavky(objednavka)
     if atributy.get("refunded") is True:

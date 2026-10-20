@@ -782,12 +782,12 @@ def dokonci_refundacie_predplatneho(
 
 # ---------------------------------------------------------------- porovnanie
 def rekonciluj(con, *, objednavky, now, variant_id=None, notifikuj=None,
-               mailuj=None) -> dict:
+               mailuj=None, annual_variant_id=None) -> dict:
     """Doplň, čo webhook nepriniesol. Nič neobchádza — všetko ide cez spracuj_udalost."""
     suhrn = {
         "videne": 0, "udelene": 0, "uz_spracovane": 0, "vratene": 0,
         "bez_uctu": 0, "ignorovane": 0, "nad_kapacitu": 0, "duplicitne": 0,
-        "nepouzitelne": 0, "nespravny_rezim": 0,
+        "nepouzitelne": 0, "nespravny_rezim": 0, "ine_produkty": 0,
     }
     # Platby, za ktoré zákazník nič nedostal. Keď ich objaví rekonciliácia (a nie
     # webhook), musí povedať to isté, čo by povedal webhook: majiteľovi na ntfy,
@@ -797,6 +797,13 @@ def rekonciluj(con, *, objednavky, now, variant_id=None, notifikuj=None,
         suhrn["videne"] += 1
         if platby._atributy_objednavky(objednavka).get("test_mode") is not False:
             suhrn["nespravny_rezim"] += 1
+            continue
+        if not platby.je_jednorazova_zakladajuca(
+            con, objednavka, variant_id=variant_id,
+            annual_variant_id=annual_variant_id,
+        ):
+            # Ročné predplatné (a iné produkty) rieši rekonciliácia predplatného.
+            suhrn["ine_produkty"] += 1
             continue
         ref = platby._bezpecne_id(
             objednavka.get("id") if isinstance(objednavka, dict) else None
@@ -1069,7 +1076,8 @@ def main() -> int:
                       f"({type(chyba).__name__}) — skúsim o hodinu.")
                 return 1
             suhrn = rekonciluj(
-                con, objednavky=objednavky, now=now, variant_id=variant
+                con, objednavky=objednavky, now=now, variant_id=variant,
+                annual_variant_id=subscription_variant,
             )
             print("REKONCILIACIA: objednávok " + ", ".join(
                 f"{kluc} {hodnota}" for kluc, hodnota in sorted(suhrn.items())
