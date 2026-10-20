@@ -1373,6 +1373,39 @@ def auth_account_rate_limit(*, account: str, operation: str, now: float) -> None
         raise HTTPException(429, "Priveľa pokusov. Skús to znova o 10 minút.")
 
 
+_UA_PREHLIADACE = (
+    ("Edg/", "Edge"), ("EdgiOS", "Edge"), ("EdgA/", "Edge"),
+    ("OPR/", "Opera"), ("SamsungBrowser", "Samsung Internet"),
+    ("FxiOS", "Firefox"), ("Firefox/", "Firefox"),
+    ("CriOS", "Chrome"), ("Chrome/", "Chrome"),
+    ("Version/", "Safari"),
+)
+_UA_SYSTEMY = (
+    ("iPhone", "iPhone"), ("iPad", "iPad"), ("Android", "Android"),
+    ("Windows", "Windows"), ("CrOS", "ChromeOS"), ("Macintosh", "Mac"),
+    ("Mac OS X", "Mac"), ("Linux", "Linux"),
+)
+
+
+def citatelne_zariadenie(name: str) -> str:
+    """Z user-agenta urob „Chrome · Windows"; vlastný názov nechaj tak.
+
+    Staršie relácie majú uložený surový user-agent orezaný na 80 znakov,
+    preto sa prehliadač hľadá aj v neúplnom texte a pri neúspechu ostane
+    aspoň systém („Prehliadač · Windows").
+    """
+    text = str(name or "")
+    if not text.startswith("Mozilla/") and "AppleWebKit" not in text:
+        return text
+    browser = next((label for token, label in _UA_PREHLIADACE if token in text), "")
+    system = next((label for token, label in _UA_SYSTEMY if token in text), "")
+    if not browser and system in ("iPhone", "iPad") and "AppleWebKit" in text:
+        browser = "Safari"
+    if not browser and not system:
+        return "Prehliadač"
+    return f"{browser or 'Prehliadač'} · {system}" if system else browser
+
+
 def auth_device_name(req: Request, data: dict, fallback: str) -> str:
     supplied = data.get("device_name")
     if isinstance(supplied, str):
@@ -1382,7 +1415,7 @@ def auth_device_name(req: Request, data: dict, fallback: str) -> str:
         if supplied:
             return supplied[:80]
     user_agent = " ".join(req.headers.get("user-agent", "").split())
-    return user_agent[:80] or fallback
+    return citatelne_zariadenie(user_agent)[:80] or fallback
 
 
 def require_passkey_feature() -> None:
@@ -2209,6 +2242,8 @@ def auth_sessions(req: Request):
         active = list_sessions(
             con, user_id=user["id"], current_token=current, now=AUTH_CLOCK()
         )
+    for item in active:
+        item["device_name"] = citatelne_zariadenie(item["device_name"])
     return {"sessions": active}
 
 

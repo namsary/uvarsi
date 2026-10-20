@@ -742,6 +742,7 @@ APP_GZIP_CAP_NOTES = {
     "denný strop až po žiadosti o iný plán, podaný ako výhoda Premium": 200,
     "onboarding: režimy pre práve zvolené obchody, rovno do plánu": 550,
     "registrácia: deep link, chyba pri poli, poslať znova, zlá adresa": 570,
+    "profil: predplatné a nastavenia navrchu, zabezpečenie zbalené": 110,
 }
 
 

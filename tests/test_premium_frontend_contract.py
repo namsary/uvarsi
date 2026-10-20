@@ -478,6 +478,8 @@ console.log(JSON.stringify(states));
     assert "Prístup skončil" in states["expired"]
     assert "nemá predplatné" in states["manual"]
     assert "Nemáš aktívne predplatné" in states["free"]
+    assert "Používaš bezplatnú verziu Free." in states["free"]
+    assert "neevidujeme" not in states["free"] and "spravované" not in states["free"]
     for name in (
         "active", "cancelledActive", "cancelledEnded", "past_due",
         "pausedActive", "pausedEnded", "reviewActive", "unpaid", "expired",

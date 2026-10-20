@@ -1228,3 +1228,23 @@ def test_signup_is_clear_for_new_visitors_and_errors_belong_to_the_field():
     assert "authRequest('register', email, secret)" in sent
     assert "armAuthResend(resend, null, 'Poslať e-mail znova')" in sent
     assert "viewAccountAuth('register', email)" in sent
+
+
+def test_profile_leads_with_subscription_and_settings_and_tucks_security_away():
+    profile = function_source(app_html(), "vNast")
+
+    order = [
+        profile.index('id="subscription-management"'),
+        profile.index('<span>E-mail</span>'),
+        profile.index('id="zmen"'),
+        profile.index('class="card security-details"'),
+        profile.index('id="customer-service"'),
+        profile.index('id="odhl"'),
+    ]
+    assert order == sorted(order)
+    security = profile.split('<details class="card security-details">', 1)[1].split(
+        "</details>", 1
+    )[0]
+    assert "<summary>Prihlásenie a zabezpečenie</summary>" in security
+    for part in ('id="pw"', 'id="account-security"', "securityStatusHtml()"):
+        assert part in security
