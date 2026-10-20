@@ -135,6 +135,8 @@ def supervisor_environment(tmp_path):
         "UVARSI_NOW_EPOCH": "1000000",
         "UVARSI_DOZORCA_LOCKED": "1",
         "UVARSI_TEST_BRIDGE_PREFLIGHT": "/usr/bin/true",
+        # Dennú kontrolu letákov testujú vlastné testy nižšie.
+        "UVARSI_DENNA_KONTROLA": "0",
         "PATH": f"{bash_path(tmp_path)}:/usr/bin",
     }
     return {
