@@ -818,8 +818,18 @@ def subscription_activation_status(
     attestation, expectation: SubscriptionMarkerExpectation,
     *,
     now: datetime | None = None,
+    payments_live: bool = False,
 ) -> str:
-    """Return a safe status for the durable, release-bound activation proof."""
+    """Return a safe status for the durable, release-bound activation proof.
+
+    Pred spustením (payments_live=False) musí aktivácia patriť presne tomuto
+    vydaniu a byť použitá do SUBSCRIPTION_ACTIVATION_MAX_AGE_SECONDS. Po
+    zapnutí platieb už smoke ani lifecycle sonda bežať nesmú (vyžadujú oba
+    príznaky OFF), preto by čas ani nové vydanie nesmeli checkout zavrieť:
+    živý režim overuje podpis, tvar a totožnosť live/test/sondy konfigurácie
+    a zvyšok strážia živé readiness kontroly (worker, recepty, účtenka...).
+    Zmena kľúčov, variantu či webhook secretu aktiváciu stále zneplatní.
+    """
     if attestation is None:
         return "subscription_smoke_missing"
     if not isinstance(attestation, dict) or not isinstance(
@@ -865,7 +875,7 @@ def subscription_activation_status(
     ):
         return "subscription_smoke_incomplete"
     if (
-        attestation.get("release") != expectation.release
+        (not payments_live and attestation.get("release") != expectation.release)
         or attestation.get("annual_live_config_fingerprint") != live
         or attestation.get("annual_test_config_fingerprint") != test
         or attestation.get("probe_config_fingerprint") != probe
@@ -884,7 +894,8 @@ def subscription_activation_status(
         or activation_validity <= 0
         or activation_validity > SUBSCRIPTION_ACTIVATION_MAX_AGE_SECONDS
         or current_activation_age < -SUBSCRIPTION_SMOKE_FUTURE_SKEW_SECONDS
-        or checked > activation_expires
+        # Po spustení platieb aktivácia vekom neexpiruje (pozri docstring).
+        or (not payments_live and checked > activation_expires)
     ):
         return "subscription_smoke_stale"
     return "verified"

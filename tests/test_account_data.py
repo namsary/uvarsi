@@ -196,3 +196,86 @@ def test_delete_rolls_back_everything_on_database_failure(database):
     assert database.execute("SELECT email FROM pouzivatelia WHERE id=7").fetchone()[0] == "seven@example.test"
     assert database.execute("SELECT COUNT(*) FROM spajza WHERE user_id=7").fetchone()[0] == 1
     assert database.execute("SELECT COUNT(*) FROM plany WHERE user_id=7").fetchone()[0] == 1
+
+
+def _seed_subscription(con, *, status, renews_at, ends_at=None, user_id=7):
+    from app import predplatne
+
+    predplatne.migrate_subscription_schema(con)
+    con.execute(
+        """INSERT INTO subscriptions
+           (user_id,product,provider,provider_customer_id,provider_order_id,
+            provider_subscription_id,provider_variant_id,currency,test_mode,
+            status,period_start,period_end,renews_at,ends_at,paid_through,
+            initial_amount_cents,renewal_amount_cents,discount_id,founder,
+            initial_payment_verified,needs_review,review_reason,
+            last_verified_event_at,provider_updated_at,created_at,updated_at)
+           VALUES (?,'premium_annual','lemonsqueezy','cus-7','order-sub-7',
+                   'sub-7','variant',?,0,?,1000,5000,?,?,5000,3900,4900,
+                   'disc',1,1,1,'interná poznámka kontroly',1000,1000,1000,1000)""",
+        (user_id, "EUR", status, renews_at, ends_at),
+    )
+    con.execute(
+        """INSERT INTO subscription_invoices
+           (provider,test_mode,provider_invoice_id,provider_subscription_id,
+            provider_order_id,invoice_kind,status,amount_cents,currency,
+            period_start,period_end,paid_at,contract_concluded_at,
+            refunded_amount_cents,created_at,updated_at)
+           VALUES ('lemonsqueezy',0,'inv-7','sub-7','order-sub-7','initial',
+                   'paid',3900,'EUR',1000,5000,1001,1000,0,1001,1001)"""
+    )
+    con.commit()
+
+
+@pytest.mark.parametrize(
+    "status,renews_at",
+    [("active", 5000.0), ("past_due", 1500.0)],
+)
+def test_beziace_predplatne_blokuje_zmazanie_uctu(database, status, renews_at):
+    _seed_subscription(database, status=status, renews_at=renews_at)
+
+    with pytest.raises(account_data.AccountDeletionBlocked) as error:
+        account_data.delete_user_account(database, user_id=7, now=2000)
+
+    assert "Spravovať predplatné" in str(error.value)
+    assert database.execute(
+        "SELECT email FROM pouzivatelia WHERE id=7"
+    ).fetchone()[0] == "seven@example.test"
+    assert database.execute(
+        "SELECT COUNT(*) FROM spajza WHERE user_id=7"
+    ).fetchone()[0] == 1
+
+
+@pytest.mark.parametrize(
+    "status,renews_at,ends_at",
+    [("cancelled", None, 5000.0), ("expired", None, 1500.0)],
+)
+def test_zrusene_alebo_skoncene_predplatne_zmazanie_nebrani(
+        database, status, renews_at, ends_at):
+    _seed_subscription(
+        database, status=status, renews_at=renews_at, ends_at=ends_at
+    )
+
+    assert account_data.delete_user_account(
+        database, user_id=7, now=2000
+    )["deleted"] is True
+
+
+def test_export_obsahuje_vlastne_predplatne_a_faktury_bez_internych_poznamok(
+        database):
+    _seed_subscription(database, status="active", renews_at=5000.0)
+
+    exported = account_data.export_user_data(database, user_id=7)
+    payments = exported["payments"]
+    encoded = json.dumps(exported, ensure_ascii=False)
+
+    assert payments["subscriptions"][0]["provider_subscription_id"] == "sub-7"
+    assert payments["subscriptions"][0]["status"] == "active"
+    assert payments["subscription_invoices"][0]["invoice_id"] == "inv-7"
+    assert payments["subscription_invoices"][0]["amount_cents"] == 3900
+    assert "interná poznámka kontroly" not in encoded
+    assert "review_reason" not in encoded
+
+    other = account_data.export_user_data(database, user_id=8)["payments"]
+    assert other["subscriptions"] == []
+    assert other["subscription_invoices"] == []

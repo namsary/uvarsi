@@ -5195,3 +5195,57 @@ def test_auth_v3_flag_stages_primary_auth_without_breaking_session_or_setup_brid
     enabled.cookies.set(server.COOKIE, password_login.cookies.get(server.COOKIE))
     assert enabled.get("/api/auth/sessions").status_code == 200
     assert enabled.get("/api/auth/passkeys").status_code == 200
+
+
+def test_account_delete_with_renewing_subscription_returns_409(
+    monkeypatch, tmp_path
+):
+    server, database = load_auth_server(monkeypatch, tmp_path)
+    auth_data = sys.modules["auth_data"]
+    password = "silné heslo s predplatným"
+    user_id = seed_password_account(
+        server, auth_data, "predplatitel@example.com", password
+    )
+    client = auth_v3_client(server)
+    assert client.post(
+        "/api/auth/login",
+        headers=AUTH_V3_ORIGIN,
+        json={"email": "predplatitel@example.com", "password": password},
+    ).status_code == 200
+    renews_at = server.AUTH_CLOCK() + 300 * 24 * 60 * 60
+    with server.db() as con:
+        con.execute(
+            """INSERT INTO subscriptions
+               (user_id,product,provider,provider_customer_id,provider_order_id,
+                provider_subscription_id,provider_variant_id,currency,test_mode,
+                status,period_start,period_end,renews_at,ends_at,paid_through,
+                initial_amount_cents,renewal_amount_cents,discount_id,founder,
+                initial_payment_verified,last_verified_event_at,created_at,
+                updated_at)
+               VALUES (?,'premium_annual','lemonsqueezy','cus','ord','sub',
+                       'var','EUR',0,'active',1,?,?,NULL,?,3900,4900,'d',1,1,
+                       1,1,1)""",
+            (user_id, renews_at, renews_at, renews_at),
+        )
+        con.commit()
+
+    verified = client.post(
+        "/api/account/reauth/password",
+        headers=AUTH_V3_ORIGIN,
+        json={"password": password},
+    )
+    assert verified.status_code == 200
+    blocked = client.post(
+        "/api/account/delete",
+        headers=AUTH_V3_ORIGIN,
+        json={"reauth_token": verified.json()["reauth_token"]},
+    )
+
+    assert blocked.status_code == 409
+    assert "Spravovať predplatné" in blocked.json()["detail"]
+    exported = client.get("/api/account/export").json()
+    assert exported["payments"]["subscriptions"][0]["status"] == "active"
+    with sqlite3.connect(database) as con:
+        assert con.execute(
+            "SELECT email FROM pouzivatelia WHERE id=?", (user_id,)
+        ).fetchone()[0] == "predplatitel@example.com"

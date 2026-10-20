@@ -134,7 +134,8 @@ def test_public_reconciliation_interface_is_exact():
     reconciliation = reconciliation_module()
 
     assert str(inspect.signature(reconciliation.reconcile_subscriptions)) == (
-        "(con, *, provider_rows, invoice_rows, now, expected) -> dict"
+        "(con, *, provider_rows, invoice_rows, now, expected, "
+        "ended_refunds=None) -> dict"
     )
 
 

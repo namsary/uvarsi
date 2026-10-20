@@ -158,7 +158,12 @@ from platby import (
     DRUH_NAD_KAPACITU,
     DRUH_NEPOUZITELNA,
     DRUH_ODLOZENE,
+    DRUH_ZRUSIT_PREDPLATNE,
+    DRUH_FRONTA_PLNA,
     MAIL_PREDMET_DUPLICITA,
+    MAIL_PREDMET_REFUNDACIA_PREDPLATNEHO,
+    SPRAVA_REFUNDACIA_PREDPLATNEHO,
+    dokonci_refundaciu_predplatneho,
     MAIL_PREDMET_NAD_KAPACITU,
     CENA_ZAKLADAJUCI_CENTY,
     MENA_ZAKLADAJUCI,
@@ -5174,23 +5179,13 @@ def _subscription_evidence_status(
     if marker is None:
         return "subscription_smoke_invalid"
     if activated:
-        activation_status = subscription_activation_status(
-            marker, expectation, now=now
-        )
-        if activation_status != "verified":
-            return activation_status
-        current_path = Path(PAYMENT_SMOKE_MARKER)
-        try:
-            current_path.stat()
-        except FileNotFoundError:
-            return "subscription_smoke_missing"
-        except OSError:
-            return "subscription_smoke_invalid"
-        current_marker = _read_payment_smoke_marker(str(current_path))
-        if current_marker is None:
-            return "subscription_smoke_invalid"
-        return subscription_marker_status(
-            current_marker, expectation, now=now
+        # Živé platby: rozhoduje jednorazová podpísaná aktivácia viazaná na
+        # live/test konfiguráciu a živé readiness kontroly. Čerstvý smoke
+        # sa tu nevyžaduje, lebo smoke aj lifecycle sonda pri zapnutých
+        # platbách bežať odmietnu; inak by sa checkout zavrel do 24 h
+        # od zapnutia a po každom vydaní.
+        return subscription_activation_status(
+            marker, expectation, now=now, payments_live=True
         )
     return subscription_marker_status(marker, expectation, now=now)
 
@@ -6656,18 +6651,23 @@ def _subscription_checkout_provider(*, test_mode: bool):
     return _LemonSubscriptionCheckoutProvider(settings)
 
 
-def _lemon_subscription_request(api_key: str, subscription_id: str) -> dict:
-    """Read one Lemon subscription without logging credentials or its URLs."""
+def _lemon_resource_request(
+    api_key: str, resource: str, identifier: str, *, method: str = "GET"
+) -> dict:
+    """One exact Lemon API call without logging credentials or its URLs."""
     if not isinstance(api_key, str) or not api_key.strip():
         raise PlatbyNenastavene("chýba API kľúč správy predplatného")
-    if not isinstance(subscription_id, str) or not subscription_id.strip():
+    if resource not in {"subscriptions", "orders"}:
+        raise PlatbyNenastavene("nepodporovaný zdroj poskytovateľa")
+    if not isinstance(identifier, str) or not identifier.strip():
         raise PlatbyNenastavene("chýba identifikátor predplatného")
-    safe_id = quote(subscription_id.strip(), safe="")
+    safe_id = quote(identifier.strip(), safe="")
     request = UrlRequest(
-        f"https://api.lemonsqueezy.com/v1/subscriptions/{safe_id}",
-        method="GET",
+        f"https://api.lemonsqueezy.com/v1/{resource}/{safe_id}",
+        method=method,
         headers={
             "Accept": "application/vnd.api+json",
+            "Content-Type": "application/vnd.api+json",
             "Authorization": f"Bearer {api_key.strip()}",
         },
     )
@@ -6687,6 +6687,42 @@ def _lemon_subscription_request(api_key: str, subscription_id: str) -> dict:
     if not isinstance(decoded, dict):
         raise PlatbyNenastavene("poskytovateľ vrátil neplatnú odpoveď")
     return decoded
+
+
+def _lemon_subscription_request(api_key: str, subscription_id: str) -> dict:
+    """Read one Lemon subscription without logging credentials or its URLs."""
+    return _lemon_resource_request(api_key, "subscriptions", subscription_id)
+
+
+class _LemonWebhookLookup:
+    """Čítanie objektov podľa ID pre doplnenie webhooku; repr bez kľúča."""
+
+    def __init__(self, api_key: str):
+        self._api_key = api_key
+
+    def __repr__(self):
+        return "_LemonWebhookLookup(<redacted>)"
+
+    def subscription(self, subscription_id):
+        return _lemon_resource_request(
+            self._api_key, "subscriptions", str(subscription_id)
+        )
+
+    def order(self, order_id):
+        return _lemon_resource_request(self._api_key, "orders", str(order_id))
+
+
+def _webhook_lookup(*, test_mode: bool):
+    """Klient API pre webhook; bez kľúča sa dopĺňa iba z lokálneho stavu."""
+    try:
+        api_key = lemon_subscription_checkout_config(
+            test_mode=test_mode, getenv=env
+        ).api_key
+    except (PlatbyNenastavene, ValueError, TypeError):
+        return None
+    if not isinstance(api_key, str) or not api_key.strip():
+        return None
+    return _LemonWebhookLookup(api_key.strip())
 
 
 class _LemonSubscriptionPortalProvider:
@@ -7147,6 +7183,68 @@ def _doriesit_udalost(con, vysledok: dict, now: float) -> None:
         )
 
 
+def _zrus_predplatne_u_poskytovatela(*, test_mode: bool):
+    """DELETE /v1/subscriptions/{id}: Lemon zastaví ďalšie účtovanie."""
+    try:
+        api_key = lemon_subscription_checkout_config(
+            test_mode=test_mode, getenv=env
+        ).api_key
+    except (PlatbyNenastavene, ValueError, TypeError):
+        return None
+    if not isinstance(api_key, str) or not api_key.strip():
+        return None
+
+    def zrus(subscription_id):
+        _lemon_resource_request(
+            api_key, "subscriptions", subscription_id, method="DELETE"
+        )
+
+    return zrus
+
+
+def _doriesit_predplatne(con, vysledok: dict, now: float) -> None:
+    """Plná refundácia ročného predplatného: obnova, žiadosť aj e-mail.
+
+    Rovnaký záver ako pri jednorazovom členstve (_doriesit_udalost): žiadosť
+    o odstúpenie sa uzavrie a zákazník dostane e-mail. Navyše sa predplatné
+    zruší u poskytovateľa; keď to nejde, majiteľ dostane upozornenie a
+    prípad ostane v chránenej evidencii — nikdy sa nepokračuje potichu.
+    """
+    if not vysledok.get("access_ended"):
+        return
+    try:
+        customer_requests.close_requests_for_refund(
+            con, order_id=vysledok.get("provider_order_id"), now=now
+        )
+        con.commit()
+    except (sqlite3.Error, TypeError, ValueError):
+        pass
+    try:
+        zrusene = dokonci_refundaciu_predplatneho(
+            con,
+            vysledok,
+            now=now,
+            zrus=_zrus_predplatne_u_poskytovatela(
+                test_mode=vysledok.get("test_mode") is True
+            ),
+        )
+    except (sqlite3.Error, OSError, TypeError, ValueError):
+        zrusene = False
+    if not zrusene:
+        _ohlas_majitelovi(
+            con, DRUH_ZRUSIT_PREDPLATNE, now=now,
+            pocet=_zaznamenaj_platobny_pripad(
+                con, DRUH_ZRUSIT_PREDPLATNE, now=now
+            ),
+        )
+    _napis_zakaznikovi(
+        con,
+        vysledok.get("user_id"),
+        MAIL_PREDMET_REFUNDACIA_PREDPLATNEHO,
+        SPRAVA_REFUNDACIA_PREDPLATNEHO,
+    )
+
+
 @app.post("/api/platba/webhook")
 async def platba_webhook(req: Request):
     """Jediný vstup, ktorý smie udeliť nárok — a to len s platným podpisom.
@@ -7201,7 +7299,9 @@ async def platba_webhook(req: Request):
                         },
                         source="webhook",
                         delivery_key=verified_body_digest,
+                        lookup=_webhook_lookup(test_mode=False),
                     )
+                    _doriesit_predplatne(con, vysledok_predplatne, now)
                     return {
                         "ok": True,
                         "akcia": vysledok_predplatne["action"],
@@ -7214,8 +7314,12 @@ async def platba_webhook(req: Request):
                 # Podpis sedel, teda peniaze sú skutočné — len ich nemáme komu
                 # priradiť. Telo si odložíme, aby sa dalo dohľadať, a majiteľ
                 # sa to musí dozvedieť; inak tá platba mlčky zmizne.
-                odloz_webhook(con, telo=bytes(telo), podpis=podpis, now=now,
-                              dovod="nepouzitelna")
+                _ohlas_plnu_frontu(
+                    con,
+                    odloz_webhook(con, telo=bytes(telo), podpis=podpis,
+                                  now=now, dovod="nepouzitelna"),
+                    now=now,
+                )
                 pocet = _zaznamenaj_platobny_pripad(
                     con,
                     DRUH_NEPOUZITELNA,
@@ -7236,10 +7340,23 @@ async def platba_webhook(req: Request):
         raise HTTPException(400, SPRAVA_NEPRIRADITELNA)
 
 
+def _ohlas_plnu_frontu(con, stav: dict, *, now: float) -> bool:
+    """Plná fronta nesmie zahodiť platbu potichu: majiteľ sa to dozvie."""
+    if stav.get("dovod") != "plno":
+        return False
+    _ohlas_majitelovi(
+        con, DRUH_FRONTA_PLNA, now=now, pocet=stav.get("cakajucich")
+    )
+    return True
+
+
 def _odloz_na_neskor(telo: bytes, podpis) -> dict:
     now = AUTH_CLOCK()
     with closing(db()) as con:
         stav = odloz_webhook(con, telo=telo, podpis=podpis, now=now)
+        if _ohlas_plnu_frontu(con, stav, now=now):
+            # 503 namiesto „ok“: poskytovateľ doručenie zopakuje neskôr.
+            raise HTTPException(503, SPRAVA_VYPNUTE)
         if stav["nove"]:
             _ohlas_majitelovi(con, DRUH_ODLOZENE, now=now,
                               pocet=pocet_cakajucich(con))
