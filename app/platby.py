@@ -63,6 +63,9 @@ INTERVAL_ROK = "year"
 FOUNDER_OFFER_ID = "premium-annual-founder-first-year-v1"
 STANDARD_OFFER_ID = "premium-annual-standard-v1"
 CHECKOUT_ATTEMPT_TTL_SECONDS = 60 * 60
+# Ako dlho po vypršaní pokusu ešte smie prísť jeho zaplatená objednávka
+# (oneskorený webhook, rekonciliácia stratenej udalosti).
+CHECKOUT_PAYMENT_GRACE_SECONDS = 24 * 60 * 60
 ANNUAL_CONSENT_FIELDS = (
     "accept_terms",
     "accept_automatic_renewal",

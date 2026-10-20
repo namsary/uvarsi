@@ -393,7 +393,7 @@ def _subscription_row_by_id(rows):
     return result
 
 
-def _normalized_invoice_row(row, *, snapshot, subscription_row):
+def _normalized_invoice_row(row, *, snapshot, subscription_row, expected=None):
     """Fill only facts provable from the invoice, subscription, and local state.
 
     Lemon subscription invoices do not repeat the subscription's order,
@@ -411,6 +411,10 @@ def _normalized_invoice_row(row, *, snapshot, subscription_row):
             attributes,
             snapshot=snapshot,
             subscription_attributes=_row_attributes(subscription_row) or {},
+            expected=(
+                predplatne._validated_expected(expected)
+                if expected is not None else None
+            ),
         ),
     }
 
@@ -489,6 +493,125 @@ def _subscription_event_name(status, snapshot):
     return "subscription_updated"
 
 
+def _unchanged_older_snapshot(attributes, status, snapshot) -> bool:
+    if snapshot is None or attributes is None or status != snapshot.status:
+        return False
+    revision = predplatne._timestamp(attributes.get("updated_at"))
+    if (
+        revision is None
+        or snapshot.provider_updated_at is None
+        or revision >= snapshot.provider_updated_at
+    ):
+        return False
+    return (
+        predplatne._timestamp(attributes.get("renews_at")) == snapshot.renews_at
+        and predplatne._timestamp(attributes.get("ends_at")) == snapshot.ends_at
+    )
+
+
+def _initial_paid_invoice(invoice_rows, subscription_id):
+    for row in invoice_rows:
+        attributes = _row_attributes(row)
+        if (
+            attributes is None
+            or row.get("type") != "subscription-invoices"
+            or str(attributes.get("subscription_id")) != str(subscription_id)
+        ):
+            continue
+        reason = attributes.get("billing_reason")
+        status = attributes.get("status")
+        if (
+            isinstance(reason, str) and reason.strip().casefold() == "initial"
+            and isinstance(status, str) and status.strip().casefold() == "paid"
+        ):
+            return attributes
+    return None
+
+
+def _attempt_for_lost_subscription(con, attributes, *, test_mode):
+    """Lokálny pokus k predplatnému, ktorého subscription_created sa stratil.
+
+    1. pokus už spárovaný s pôvodnou objednávkou (order_created prišiel),
+    2. inak práve jeden ročný pokus jediného účtu s e-mailom z predplatného,
+       ktorého okno platby obsahuje vznik predplatného. Nejednoznačnosť sa
+       nikdy nerieši hádaním — vtedy ostáva prípad na kontrolu.
+    """
+    order_id = predplatne._safe_id(attributes.get("order_id"))
+    if order_id is not None:
+        rows = con.execute(
+            "SELECT public_id FROM checkout_attempts "
+            "WHERE provider_order_id=? AND product=? AND test_mode=? LIMIT 2",
+            (order_id, predplatne.ANNUAL_PREMIUM_PRODUCT, int(test_mode)),
+        ).fetchall()
+        if len(rows) == 1:
+            return str(rows[0][0])
+        if rows:
+            return None
+    created_at = predplatne._timestamp(attributes.get("created_at"))
+    user_id = platby.ucet_podla_emailu(con, attributes.get("user_email"))
+    if created_at is None or user_id is None:
+        return None
+    rows = con.execute(
+        "SELECT public_id FROM checkout_attempts "
+        "WHERE user_id=? AND product=? AND test_mode=? "
+        "AND provider_order_id IS NULL AND status IN ('pending','expired') "
+        "AND accepted_at<=? AND ?<=expires_at+? LIMIT 2",
+        (
+            user_id, predplatne.ANNUAL_PREMIUM_PRODUCT, int(test_mode),
+            created_at, created_at, platby.CHECKOUT_PAYMENT_GRACE_SECONDS,
+        ),
+    ).fetchall()
+    return str(rows[0][0]) if len(rows) == 1 else None
+
+
+def _lost_subscription_created_payload(con, row, invoice_rows, *, expected):
+    """Zostav subscription_created pre aktívne predplatné bez lokálneho stavu.
+
+    Dôkazom platby je zaplatená prvá faktúra z API; suma a zľava z nej prejdú
+    rovnakou kontrolou ponuky ako pri webhooku.
+    """
+    attributes = _row_attributes(row)
+    if attributes is None:
+        return None
+    status = attributes.get("status")
+    if not isinstance(status, str) or status.strip().casefold() != "active":
+        return None
+    test_mode = attributes.get("test_mode")
+    if type(test_mode) is not bool:
+        return None
+    invoice = _initial_paid_invoice(invoice_rows, row.get("id"))
+    if invoice is None:
+        return None
+    attempt_id = _attempt_for_lost_subscription(
+        con, attributes, test_mode=test_mode
+    )
+    if attempt_id is None:
+        return None
+    projected = dict(attributes)
+    for name in ("currency", "total", "subtotal", "tax", "tax_inclusive"):
+        if projected.get(name) is None and invoice.get(name) is not None:
+            projected[name] = invoice[name]
+    if "discount_id" not in projected:
+        known, discount = predplatne._discount_from_total(
+            invoice, predplatne._validated_expected(expected)
+        )
+        if known:
+            projected["discount_id"] = discount
+    projected.setdefault("billing_period_start", attributes.get("created_at"))
+    projected.setdefault("billing_period_end", attributes.get("renews_at"))
+    return {
+        "meta": {
+            "event_name": "subscription_created",
+            "custom_data": {"attempt_id": attempt_id},
+        },
+        "data": {
+            "type": "subscriptions",
+            "id": row.get("id"),
+            "attributes": projected,
+        },
+    }
+
+
 def _reconcile_subscriptions_batch(
     con, *, provider_rows, invoice_rows, now, expected, ended_refunds=None
 ) -> dict:
@@ -524,6 +647,36 @@ def _reconcile_subscriptions_batch(
     }
     subscription_rows = _subscription_row_by_id(provider_rows)
 
+    # Stratený subscription_created: aktívne predplatné u poskytovateľa,
+    # ktoré lokálne neexistuje, sa aktivuje, keď ho vieme spárovať s
+    # uloženým pokusom objednávky a zaplatenou prvou faktúrou.
+    for row in provider_rows:
+        if not isinstance(row, dict) or row.get("type") != "subscriptions":
+            continue
+        attributes = _row_attributes(row)
+        if attributes is None or type(attributes.get("test_mode")) is not bool:
+            continue
+        if predplatne.subscription_for_provider(
+            con,
+            provider_subscription_id=_row_subscription_id(row, attributes),
+            test_mode=attributes["test_mode"],
+        ) is not None:
+            continue
+        payload = _lost_subscription_created_payload(
+            con, row, invoice_rows, expected=expected
+        )
+        if payload is None:
+            continue
+        _apply_reconciliation_event(
+            con,
+            payload=payload,
+            now=now,
+            expected=expected,
+            kind="subscription_created",
+            summary=summary,
+            review_code="subscription_requires_review",
+        )
+
     # Payment evidence is applied first. A later generic active snapshot may
     # then confirm, but can never revive unpaid/expired access by itself.
     for row in invoice_rows:
@@ -550,6 +703,7 @@ def _reconcile_subscriptions_batch(
             row,
             snapshot=snapshot,
             subscription_row=subscription_rows.get(str(subscription_id)),
+            expected=expected,
         )
         attributes = _row_attributes(normalized_row)
         event_name = (
@@ -616,6 +770,11 @@ def _reconcile_subscriptions_batch(
         )
         status = attributes.get("status") if attributes is not None else None
         status = status.strip().casefold() if isinstance(status, str) else ""
+        if _unchanged_older_snapshot(attributes, status, snapshot):
+            # Faktúra posunula overenú revíziu za updated_at predplatného;
+            # rovnaký stav bez zmeny nie je odchýlka.
+            summary["duplicates"] += 1
+            continue
         payload = _event_payload(
             row,
             event_name=_subscription_event_name(status, snapshot),

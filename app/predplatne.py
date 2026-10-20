@@ -1653,7 +1653,7 @@ def _clean_status(value) -> str:
 
 
 def normalize_invoice_attributes(
-    attributes: dict, *, snapshot, subscription_attributes=None
+    attributes: dict, *, snapshot, subscription_attributes=None, expected=None
 ) -> dict:
     """Doplň faktúre iba fakty dokázateľné z predplatného a lokálneho stavu.
 
@@ -1706,6 +1706,10 @@ def normalize_invoice_attributes(
         ):
             normalized["billing_period_start"] = candidate_start
             normalized["billing_period_end"] = candidate_end
+    if expected is not None and "discount_id" not in normalized:
+        known, discount = _discount_from_total(normalized, expected)
+        if known:
+            normalized["discount_id"] = discount
     return normalized
 
 
@@ -1858,15 +1862,12 @@ def enrich_provider_payload(con, payload, *, expected, lookup=None) -> dict:
             attributes,
             snapshot=snapshot,
             subscription_attributes=provider_subscription,
+            expected=expected,
         )
         if snapshot is not None:
             fill("order_id", snapshot.provider_order_id)
             fill("customer_id", snapshot.provider_customer_id)
             fill("variant_id", snapshot.provider_variant_id)
-        if "discount_id" not in attributes:
-            known, discount = _discount_from_total(attributes, expected)
-            if known:
-                attributes["discount_id"] = discount
     elif resource_type == "orders":
         if "discount_id" not in attributes:
             known, discount = _discount_from_total(attributes, expected)

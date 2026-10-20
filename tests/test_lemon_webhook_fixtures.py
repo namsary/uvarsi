@@ -664,3 +664,107 @@ def test_webhook_plnej_refundacie_zrusi_predplatne_uzavrie_ziadost_a_napise(
         ("jana@example.test", platby.MAIL_PREDMET_REFUNDACIA_PREDPLATNEHO)
     ]
     assert alerts == []
+
+
+# ------------------------------------- stratený subscription_created
+def _reconciliation():
+    import importlib
+    import sys
+
+    sys.modules.pop("rekonciliacia", None)
+    return importlib.import_module("rekonciliacia")
+
+
+def _reconcile(con, *, provider_rows, invoice_rows, now=NOW + 3_600):
+    return _reconciliation().reconcile_subscriptions(
+        con,
+        provider_rows=provider_rows,
+        invoice_rows=invoice_rows,
+        now=now,
+        expected=EXPECTED,
+    )
+
+
+def test_rekonciliacia_aktivuje_predplatne_po_stratenom_subscription_created(con):
+    # order_created prišiel a spároval pokus, subscription_created sa stratil.
+    assert_processed(deliver(con, lemon_order()), "paired")
+    assert predplatne.subscription_for_user(con, 1) is None
+
+    summary = _reconcile(
+        con,
+        provider_rows=[lemon_subscription()["data"]],
+        invoice_rows=[lemon_invoice()["data"]],
+    )
+
+    snapshot = predplatne.subscription_for_user(con, 1)
+    assert snapshot is not None, summary
+    assert snapshot.status == "active"
+    assert snapshot.provider_subscription_id == SUBSCRIPTION
+    assert snapshot.founder is True
+    assert snapshot.initial_amount_cents == 3_900
+    assert predplatne.subscription_access(snapshot, now=NOW + 7_200) is True
+    assert con.execute(
+        "SELECT invoice_kind FROM subscription_invoices WHERE provider_invoice_id=?",
+        (INVOICE_INITIAL,),
+    ).fetchone()[0] == "initial"
+    assert summary["error_codes"] == [], summary
+
+    # Druhý beh nič nezdvojí.
+    again = _reconcile(
+        con,
+        provider_rows=[lemon_subscription()["data"]],
+        invoice_rows=[lemon_invoice()["data"]],
+    )
+    assert again["error_codes"] == []
+    assert con.execute("SELECT COUNT(*) FROM subscriptions").fetchone()[0] == 1
+
+
+def test_rekonciliacia_sparuje_aj_bez_order_created_podla_emailu_a_okna(con):
+    _reconcile(
+        con,
+        provider_rows=[lemon_subscription()["data"]],
+        invoice_rows=[lemon_invoice()["data"]],
+    )
+    snapshot = predplatne.subscription_for_user(con, 1)
+    assert snapshot is not None
+    assert snapshot.provider_order_id == str(ORDER)
+    attempt = con.execute(
+        "SELECT status,provider_order_id FROM checkout_attempts WHERE public_id=?",
+        (ATTEMPT_ID,),
+    ).fetchone()
+    assert tuple(attempt) == ("paid", str(ORDER))
+
+
+def test_bez_zaplatenej_prvej_faktury_sa_nic_neaktivuje(con):
+    assert_processed(deliver(con, lemon_order()), "paired")
+    summary = _reconcile(
+        con,
+        provider_rows=[lemon_subscription()["data"]],
+        invoice_rows=[],
+    )
+    assert predplatne.subscription_for_user(con, 1) is None
+    assert summary["subscription_drift"] >= 1
+
+
+def test_nejednoznacny_pokus_sa_neháda(con):
+    con.execute(
+        """INSERT INTO checkout_attempts
+           (public_id,user_id,product,amount_cents,renewal_amount_cents,
+            currency,billing_interval,auto_renews,founder,discount_id,
+            discount_code,legal_version,privacy_version,consent_json,
+            accepted_at,expires_at,founder_reserved_until,test_mode,status)
+           VALUES (?,1,'premium_annual',3900,4900,'EUR','year',1,1,?,
+                   'FOUNDERS',?,?,'{}',?,?,?,1,'pending')""",
+        (
+            "attempt_" + "d" * 43, FOUNDER_DISCOUNT_ID, platby.LEGAL_VERSION,
+            platby.LEGAL_VERSION, P0_START + 95.0, P0_START + 3_600.0,
+            P0_START + 3_600.0,
+        ),
+    )
+    con.commit()
+    _reconcile(
+        con,
+        provider_rows=[lemon_subscription()["data"]],
+        invoice_rows=[lemon_invoice()["data"]],
+    )
+    assert predplatne.subscription_for_user(con, 1) is None
