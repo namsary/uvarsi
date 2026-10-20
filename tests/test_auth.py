@@ -2159,7 +2159,7 @@ def test_two_password_logins_create_two_valid_sessions(monkeypatch, tmp_path):
     }
 
 
-def test_active_session_slides_to_90_days_at_most_once_per_24_hours(
+def test_active_session_is_touched_at_most_once_per_24_hours_within_its_90_day_cap(
     monkeypatch, tmp_path
 ):
     server, _ = load_auth_server(monkeypatch, tmp_path)
@@ -2194,9 +2194,11 @@ def test_active_session_slides_to_90_days_at_most_once_per_24_hours(
                 "SELECT last_seen_at, expires_at FROM sessions_v2"
             ).fetchone()
         )
+        # Použitie zaznamená aktivitu, ale reláciu nepredĺži za 90 dní
+        # od prihlásenia (sľub na právnych stránkach).
         assert touched == (
             first_touch,
-            first_touch + auth_data.SESSION_TTL_SECONDS,
+            now + auth_data.SESSION_TTL_SECONDS,
         )
 
         assert auth_data.user_for_session(
@@ -2237,7 +2239,7 @@ def test_session_cookie_is_not_renewed_before_the_24_hour_touch(
     assert response.headers.get("set-cookie") is None
 
 
-def test_session_touch_renews_the_secure_90_day_cookie_only_on_that_response(
+def test_session_touch_never_extends_the_90_day_login_cookie(
     monkeypatch, tmp_path
 ):
     server, _ = load_auth_server(monkeypatch, tmp_path)
@@ -2260,13 +2262,9 @@ def test_session_touch_renews_the_secure_90_day_cookie_only_on_that_response(
     now[0] += 1
     immediate_repeat = client.get("/api/me")
 
-    cookie = touched.headers["set-cookie"]
-    assert f"uvarsi_session={raw_session}" in cookie
-    assert "Max-Age=7776000" in cookie
-    assert "HttpOnly" in cookie
-    assert "Secure" in cookie
-    assert "SameSite=lax" in cookie
-    assert "Domain=" not in cookie
+    assert touched.status_code == 200
+    assert touched.json()["prihlaseny"] is True
+    assert touched.headers.get("set-cookie") is None
     assert immediate_repeat.headers.get("set-cookie") is None
 
 
@@ -2301,7 +2299,55 @@ def test_legacy_hashed_session_with_null_metadata_remains_valid_and_is_touched(
             con.execute(
                 "SELECT last_seen_at, expires_at FROM sessions_v2"
             ).fetchone()
-        ) == (now, now + auth_data.SESSION_TTL_SECONDS)
+        ) == (now, now - 1_000 + auth_data.SESSION_TTL_SECONDS)
+
+
+def test_session_used_every_day_still_ends_90_days_after_login(monkeypatch, tmp_path):
+    """Absolútny strop: denné používanie reláciu neposúva za 90 dní."""
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    login = 1_800_000_000.0
+    day = 24 * 60 * 60
+    with server.db() as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('daily@example.com')"
+        ).lastrowid
+        raw_session = auth_data.create_session(
+            con, user_id=user_id, now=login, device_name="Denne"
+        )
+        for elapsed in range(1, 90):
+            assert auth_data.user_for_session(
+                con, raw_session=raw_session, now=login + elapsed * day
+            )["id"] == user_id
+        expires_at = con.execute("SELECT expires_at FROM sessions_v2").fetchone()[0]
+        assert expires_at == login + auth_data.SESSION_TTL_SECONDS
+
+        assert auth_data.user_for_session(
+            con, raw_session=raw_session,
+            now=login + auth_data.SESSION_TTL_SECONDS,
+        ) is None
+        assert con.execute("SELECT COUNT(*) FROM sessions_v2").fetchone()[0] == 0
+
+
+def test_session_already_slid_past_the_cap_is_rejected(monkeypatch, tmp_path):
+    """Relácie predĺžené starým kódom sa ukončia podľa dátumu prihlásenia."""
+    server, _ = load_auth_server(monkeypatch, tmp_path)
+    auth_data = importlib.import_module("auth_data")
+    now = 1_800_000_000.0
+    raw_session = "slid-session"
+    with server.db() as con:
+        user_id = con.execute(
+            "INSERT INTO pouzivatelia (email) VALUES ('slid@example.com')"
+        ).lastrowid
+        con.execute(
+            """INSERT INTO sessions_v2 (token_hash, user_id, expires_at, created_at)
+               VALUES (?, ?, ?, ?)""",
+            (hashlib.sha256(raw_session.encode()).hexdigest(), user_id,
+             now + 30 * 24 * 60 * 60, now - auth_data.SESSION_TTL_SECONDS),
+        )
+        con.commit()
+
+        assert auth_data.user_for_session(con, raw_session=raw_session, now=now) is None
 
 
 def test_revoke_other_sessions_preserves_only_the_current_raw_session(
@@ -2660,7 +2706,7 @@ def test_session_touch_persists_when_it_owns_the_transaction(monkeypatch, tmp_pa
         assert con.execute(
             "SELECT last_seen_at, expires_at FROM sessions_v2 WHERE user_id=?",
             (user_id,),
-        ).fetchone() == (1_800_086_400.0, 1_807_862_400.0)
+        ).fetchone() == (1_800_086_400.0, 1_807_776_000.0)  # strop 90 dní od prihlásenia
 
 
 def test_session_touch_leaves_a_caller_transaction_open_for_rollback(
@@ -2687,7 +2733,7 @@ def test_session_touch_leaves_a_caller_transaction_open_for_rollback(
                 "SELECT last_seen_at, expires_at FROM sessions_v2 WHERE user_id=?",
                 (user_id,),
             ).fetchone()
-        ) == (1_800_086_400.0, 1_807_862_400.0)
+        ) == (1_800_086_400.0, 1_807_776_000.0)  # strop 90 dní od prihlásenia
         con.rollback()
 
     with sqlite3.connect(database) as con:

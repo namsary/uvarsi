@@ -863,9 +863,6 @@ SECURITY_HEADERS = {
 @app.middleware("http")
 async def private_ui_noindex(request: Request, call_next):
     response = await call_next(request)
-    renewal = getattr(request.state, "renew_session_cookie", None)
-    if renewal:
-        set_session_cookie(response, renewal)
     if request.url.path == "/app" or request.url.path.startswith(
         ("/prihlasenie", "/potvrdenie", "/heslo", "/api/auth/pages/")
     ):
@@ -897,11 +894,9 @@ def user_from_request(req: Request):
     if not tok:
         return None
     with closing(db()) as con:
-        changes_before = con.total_changes
-        user = user_for_session(con, raw_session=tok, now=AUTH_CLOCK())
-        if user is not None and con.total_changes > changes_before:
-            req.state.renew_session_cookie = tok
-        return user
+        # Relácia má pevný strop 90 dní od prihlásenia, takže cookie z
+        # prihlásenia (Max-Age 90 dní) sa pri používaní nepredlžuje.
+        return user_for_session(con, raw_session=tok, now=AUTH_CLOCK())
 
 
 def require_user(req: Request):
@@ -2274,7 +2269,6 @@ def auth_session_delete(management_id: str, req: Request):
             raise HTTPException(404, "Relácia sa nenašla.")
     response = JSONResponse({"ok": True})
     if current_management_id == management_id:
-        req.state.renew_session_cookie = None
         response.delete_cookie(COOKIE, httponly=True, samesite="lax", secure=True)
     return response
 
@@ -2710,7 +2704,6 @@ async def account_delete(req: Request):
         except Exception:
             con.rollback()
             raise
-    req.state.renew_session_cookie = None
     response = JSONResponse(result)
     response.delete_cookie(COOKIE, httponly=True, samesite="lax", secure=True)
     return response

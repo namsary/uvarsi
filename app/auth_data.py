@@ -1474,6 +1474,7 @@ def user_for_session(
     row = con.execute(
         """SELECT p.*,
                   s.expires_at AS session_expires_at,
+                  s.created_at AS session_created_at,
                   s.last_seen_at AS session_last_seen_at,
                   s.revoked_at AS session_revoked_at
            FROM sessions_v2 s JOIN pouzivatelia p ON p.id=s.user_id
@@ -1484,7 +1485,11 @@ def user_for_session(
         return None
     if row["session_revoked_at"] is not None:
         return None
-    if float(row["session_expires_at"]) <= now:
+    # Právne stránky sľubujú reláciu najviac na 90 dní. Používanie ju preto
+    # nesmie predĺžiť za 90 dní od prihlásenia — ani pri starších reláciách,
+    # ktoré sa predtým posúvali s každým použitím.
+    if (float(row["session_expires_at"]) <= now
+            or float(row["session_created_at"]) + SESSION_TTL_SECONDS <= now):
         with _session_mutation(con, "session_expire"):
             con.execute("DELETE FROM sessions_v2 WHERE token_hash=?", (digest,))
         return None
@@ -1496,18 +1501,20 @@ def user_for_session(
         with _session_mutation(con, "session_touch"):
             con.execute(
                 """UPDATE sessions_v2
-                   SET last_seen_at=?, expires_at=?
+                   SET last_seen_at=?, expires_at=MIN(?, created_at + ?)
                    WHERE token_hash=? AND revoked_at IS NULL
                      AND (last_seen_at IS NULL OR last_seen_at <= ?)""",
                 (
                     now,
                     now + SESSION_TTL_SECONDS,
+                    SESSION_TTL_SECONDS,
                     digest,
                     now - SESSION_TOUCH_SECONDS,
                 ),
             )
     session_fields = {
         "session_expires_at",
+        "session_created_at",
         "session_last_seen_at",
         "session_revoked_at",
     }
