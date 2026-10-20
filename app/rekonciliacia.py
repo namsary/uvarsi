@@ -1212,6 +1212,15 @@ def main() -> int:
                     "test_mode": False,
                 },
                 subscription_lookup=LemonLookup(api_key) if api_key else None,
+                # Telá s cudzím podpisom sa mažú; testovacie (smoke, sonda)
+                # ostávajú pre ich vlastný nástroj.
+                zmaz_neplatne=True,
+                ponechaj_tajomstva=tuple(
+                    secret for secret in (
+                        env("LEMON_TEST_WEBHOOK_SECRET"),
+                        env("LEMON_TEST_LIFECYCLE_PROBE_WEBHOOK_SECRET"),
+                    ) if secret
+                ),
             )
             dokonci_refundacie_predplatneho(
                 con,
@@ -1225,7 +1234,8 @@ def main() -> int:
             if odlozene["spracovane"]:
                 print("REKONCILIACIA: odložené telá — spracovaných "
                       f"{odlozene['spracovane']}, udelených {odlozene['udelene']}, "
-                      f"neplatný podpis {odlozene['neplatny_podpis']}, "
+                      f"neplatný podpis {odlozene['neplatny_podpis']} "
+                      f"(zmazaných {odlozene.get('zmazane_neplatne', 0)}), "
                       f"nepoužiteľných {odlozene['nepouzitelne']}")
         else:
             print("REKONCILIACIA: bez LEMON_WEBHOOK_SECRET nevieme overiť podpisy "

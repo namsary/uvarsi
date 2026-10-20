@@ -1816,7 +1816,7 @@ def spracuj_odlozene(
     con, *, tajomstvo, now, variant_id=None, limit=MAX_ODLOZENYCH,
     expected_test_mode=None, test_tajomstvo=None,
     subscription_expected=None, test_subscription_expected=None,
-    subscription_lookup=None,
+    subscription_lookup=None, zmaz_neplatne=False, ponechaj_tajomstva=(),
 ) -> dict:
     """Dobehni telá, ktoré čakali. Každé prejde overením podpisu, ako by prišlo teraz.
 
@@ -1827,6 +1827,12 @@ def spracuj_odlozene(
     Produkčný job posiela ``expected_test_mode=False``. Testovacie aj neoznačené
     udalosti tak nechá nedotknuté pre samostatný payment smoke alebo ručnú
     kontrolu. Nejasný režim nesmie meniť produkčné nároky.
+
+    ``zmaz_neplatne=True`` (produkčný job) zmaže telo, ktorého podpis nesedí
+    so žiadnym známym tajomstvom (spracúvané aj ``ponechaj_tajomstva`` pre
+    smoke/sondu). Inak by smeti s hex „podpisom“ navždy obsadili frontu a po
+    dosiahnutí MAX_ODLOZENYCH by sa zahadzovali skutočné platby. Poistkou
+    pri zle nastavenom tajomstve je hodinová rekonciliácia z API.
     """
     if expected_test_mode not in (None, True, False):
         raise ValueError("expected_test_mode musí byť bool alebo None")
@@ -1861,6 +1867,19 @@ def spracuj_odlozene(
         ]
         if len(matching_modes) != 1:
             suhrn["neplatny_podpis"] += 1
+            if not matching_modes and zmaz_neplatne and not any(
+                secret and overit_podpis(
+                    tajomstvo=secret, telo=telo, podpis=riadok[2]
+                )
+                for secret in ponechaj_tajomstva
+            ):
+                con.execute(
+                    "DELETE FROM platobne_odlozene WHERE id=? "
+                    "AND spracovane_o IS NULL",
+                    (riadok[0],),
+                )
+                con.commit()
+                suhrn["zmazane_neplatne"] = suhrn.get("zmazane_neplatne", 0) + 1
             continue
         verified_mode = matching_modes[0]
         verified_body_digest = hashlib.sha256(telo).hexdigest()
@@ -2033,9 +2052,11 @@ DRUH_ODLOZENE = "odlozene"
 DRUH_REKONCILIACIA = "rekonciliacia"
 DRUH_BEZ_UCTU = "bez_uctu"
 DRUH_ZRUSIT_PREDPLATNE = "zrusit_predplatne"
+DRUH_FRONTA_PLNA = "fronta_plna"
 DRUHY_UPOZORNENI = (
     DRUH_NAD_KAPACITU, DRUH_DUPLICITA, DRUH_IGNOROVANE, DRUH_NEPOUZITELNA,
     DRUH_ODLOZENE, DRUH_REKONCILIACIA, DRUH_BEZ_UCTU, DRUH_ZRUSIT_PREDPLATNE,
+    DRUH_FRONTA_PLNA,
 )
 MAIL_PREDMET_REFUNDACIA_PREDPLATNEHO = "Uvar.si: platbu za predplatné sme ti vrátili"
 SPRAVA_REFUNDACIA_PREDPLATNEHO = (
@@ -2135,6 +2156,18 @@ def priprav_upozornenie(druh, *, den=None, objednavka=None, typ=None, pocet=None
                 "webhook nie — appka by sa o nej sama nedozvedela. Ak sa to "
                 "opakuje, skontroluj v LemonSqueezy nastavenie webhooku "
                 "(adresa https://uvar.si/api/platba/webhook a jeho históriu)."
+            ),
+        }
+    if druh == DRUH_FRONTA_PLNA:
+        return {
+            "kluc": f"{DRUH_FRONTA_PLNA}:{den}",
+            "titul": "Uvar.si: fronta odložených platieb je plná",
+            "sprava": (
+                f"Čakajúcich odložených webhookov je {pocet} (strop "
+                f"{MAX_ODLOZENYCH}). Nové doručenia appka odmieta s 503, "
+                "poskytovateľ ich ešte zopakuje. Spusti rekonciliáciu "
+                "(rekonciliacia.py), skontroluj PLATBY_ZAPNUTE a "
+                "LEMON_WEBHOOK_SECRET v /opt/uvarsi/uvarsi.env."
             ),
         }
     if druh == DRUH_ZRUSIT_PREDPLATNE:

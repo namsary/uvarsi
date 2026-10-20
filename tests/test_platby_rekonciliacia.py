@@ -1179,3 +1179,56 @@ def test_jednorazova_objednavka_sa_stale_dobehne_aj_s_rocnym_variantom(
         )
     assert suhrn["udelene"] == 1
     assert suhrn["ine_produkty"] == 0
+
+
+# ------------------------------------------- fronta odložených webhookov
+def test_produkcny_job_zmaze_telo_s_cudzim_podpisom_a_necha_testovacie(
+        monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path)
+    platby = platby_modul()
+    vytvor_pouzivatela(server)
+    client = TestClient(server.app, raise_server_exceptions=False)
+    test_secret = "samostatne-testovacie-tajomstvo"
+    posli_webhook(client, objednavka(order_id="ord-falosna"), tajomstvo="cudzi-kluc")
+    posli_webhook(
+        client, objednavka(order_id="smoke-objednavka", test_mode=True),
+        tajomstvo=test_secret,
+    )
+    posli_webhook(client, objednavka(order_id="ord-prava"))
+
+    with closing(server.db()) as con:
+        suhrn = platby.spracuj_odlozene(
+            con, tajomstvo=TAJOMSTVO, now=server.AUTH_CLOCK(),
+            expected_test_mode=False, zmaz_neplatne=True,
+            ponechaj_tajomstva=(test_secret,),
+        )
+        zostalo = con.execute(
+            "SELECT COUNT(*) FROM platobne_odlozene WHERE spracovane_o IS NULL"
+        ).fetchone()[0]
+
+    assert suhrn["spracovane"] == 1
+    assert suhrn["zmazane_neplatne"] == 1
+    assert zostalo == 1  # testovacie telo čaká na smoke
+    assert [row["objednavka_id"] for row in aktivne(server)] == ["ord-prava"]
+
+
+def test_plna_fronta_odmietne_503_a_upozorni_majitela(monkeypatch, tmp_path):
+    server = load_server(monkeypatch, tmp_path)
+    platby = platby_modul()
+    poslane = []
+    monkeypatch.setattr(server, "posli_upozornenie_majitelovi", poslane.append)
+    with closing(server.db()) as con:
+        for index in range(platby.MAX_ODLOZENYCH):
+            platby.odloz_webhook(con, telo=f'{{"n":{index}}}'.encode(),
+                                 podpis="a" * 64, now=1.0)
+    client = TestClient(server.app, raise_server_exceptions=False)
+
+    response = posli_webhook(client, objednavka(order_id="ord-navyse"))
+
+    assert response.status_code == 503
+    assert response.json().get("akcia") is None
+    druhy = [sprava["kluc"].split(":")[0] for sprava in poslane]
+    assert druhy == ["fronta_plna"]
+    text = " ".join(f"{s['titul']} {s['sprava']}" for s in poslane)
+    assert "ord-navyse" not in text
+    assert str(platby.MAX_ODLOZENYCH) in text

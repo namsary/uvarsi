@@ -159,6 +159,7 @@ from platby import (
     DRUH_NEPOUZITELNA,
     DRUH_ODLOZENE,
     DRUH_ZRUSIT_PREDPLATNE,
+    DRUH_FRONTA_PLNA,
     MAIL_PREDMET_DUPLICITA,
     MAIL_PREDMET_REFUNDACIA_PREDPLATNEHO,
     SPRAVA_REFUNDACIA_PREDPLATNEHO,
@@ -7302,8 +7303,12 @@ async def platba_webhook(req: Request):
                 # Podpis sedel, teda peniaze sú skutočné — len ich nemáme komu
                 # priradiť. Telo si odložíme, aby sa dalo dohľadať, a majiteľ
                 # sa to musí dozvedieť; inak tá platba mlčky zmizne.
-                odloz_webhook(con, telo=bytes(telo), podpis=podpis, now=now,
-                              dovod="nepouzitelna")
+                _ohlas_plnu_frontu(
+                    con,
+                    odloz_webhook(con, telo=bytes(telo), podpis=podpis,
+                                  now=now, dovod="nepouzitelna"),
+                    now=now,
+                )
                 pocet = _zaznamenaj_platobny_pripad(
                     con,
                     DRUH_NEPOUZITELNA,
@@ -7324,10 +7329,23 @@ async def platba_webhook(req: Request):
         raise HTTPException(400, SPRAVA_NEPRIRADITELNA)
 
 
+def _ohlas_plnu_frontu(con, stav: dict, *, now: float) -> bool:
+    """Plná fronta nesmie zahodiť platbu potichu: majiteľ sa to dozvie."""
+    if stav.get("dovod") != "plno":
+        return False
+    _ohlas_majitelovi(
+        con, DRUH_FRONTA_PLNA, now=now, pocet=stav.get("cakajucich")
+    )
+    return True
+
+
 def _odloz_na_neskor(telo: bytes, podpis) -> dict:
     now = AUTH_CLOCK()
     with closing(db()) as con:
         stav = odloz_webhook(con, telo=telo, podpis=podpis, now=now)
+        if _ohlas_plnu_frontu(con, stav, now=now):
+            # 503 namiesto „ok“: poskytovateľ doručenie zopakuje neskôr.
+            raise HTTPException(503, SPRAVA_VYPNUTE)
         if stav["nove"]:
             _ohlas_majitelovi(con, DRUH_ODLOZENE, now=now,
                               pocet=pocet_cakajucich(con))
