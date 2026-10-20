@@ -23,6 +23,11 @@ FOUNDER_DISCOUNT_AMOUNT_CENTS = 1_000
 FOUNDER_INITIAL_AMOUNT_CENTS = (
     ANNUAL_RENEWAL_AMOUNT_CENTS - FOUNDER_DISCOUNT_AMOUNT_CENTS
 )
+# Neúspešná obnova (past_due): Lemon ešte niekoľkokrát skúša platbu. Prístup
+# trvá najviac toľko po konci zaplateného obdobia (paid_through = pôvodný
+# renews_at). Potom rozhodne až potvrdená platba (subscription_payment_recovered
+# z webhooku alebo z hodinovej rekonciliácie), ktorá stav vráti na active.
+PAST_DUE_GRACE_SECONDS = 14 * 24 * 60 * 60
 # Pokus objednávky vyprší po hodine, ale webhook môže prísť neskôr. Objednávka
 # vytvorená najneskôr toľko po vypršaní sa ešte spáruje (platby.py má rovnakú
 # hodnotu v CHECKOUT_PAYMENT_GRACE_SECONDS).
@@ -325,6 +330,11 @@ def subscription_access(snapshot, *, now: float) -> bool:
         return snapshot.ends_at is not None and now < snapshot.ends_at
     if snapshot.status == "paused":
         return snapshot.paid_through is not None and now < snapshot.paid_through
+    if snapshot.status == "past_due":
+        return (
+            snapshot.paid_through is not None
+            and now < float(snapshot.paid_through) + PAST_DUE_GRACE_SECONDS
+        )
     return snapshot.status in ACCESS_STATUSES
 
 

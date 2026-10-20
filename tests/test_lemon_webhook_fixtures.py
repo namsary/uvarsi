@@ -948,3 +948,64 @@ def test_bezace_predplatne_druhe_nepripusti(con):
     other["data"]["id"] = "4999"
     assert deliver(con, other, lookup=lookup)["review_required"] is True
     assert con.execute("SELECT COUNT(*) FROM subscriptions").fetchone()[0] == 1
+
+
+# ------------------------------------- past_due má obmedzenú lehotu
+def test_past_due_dava_pristup_len_cez_lehotu_po_konci_obdobia(con):
+    lookup = FakeLookup()
+    activate(con, lookup)
+    lookup.subscription_row = lemon_subscription(
+        "subscription_updated", status="past_due",
+        updated_at="2027-09-12T00:10:00.000000Z",
+    )["data"]
+    failed = lemon_invoice(
+        "subscription_payment_failed", invoice_id="7003",
+        billing_reason="renewal", status="pending", discount_total=0,
+        total=4_900, created_at="2027-09-12T00:09:00.000000Z",
+        updated_at="2027-09-12T00:10:00.000000Z",
+    )
+    result = deliver(con, failed, lookup=lookup, now=_ts(RENEWS_1) + 600)
+    assert result["review_required"] is False, result
+    assert result["action"] == "payment_failed"
+
+    snapshot = predplatne.subscription_for_user(con, 1)
+    assert snapshot.status == "past_due"
+    end = _ts(RENEWS_1)
+    grace = predplatne.PAST_DUE_GRACE_SECONDS
+    assert grace == 14 * 24 * 60 * 60
+    assert predplatne.subscription_access(snapshot, now=end + 3_600) is True
+    assert predplatne.subscription_access(snapshot, now=end + grace - 1) is True
+    assert predplatne.subscription_access(snapshot, now=end + grace) is False
+    assert predplatne.subscription_access(snapshot, now=end + 90 * 86_400) is False
+
+
+def test_potvrdena_zachrana_platby_vrati_pristup(con):
+    lookup = FakeLookup()
+    activate(con, lookup)
+    con.execute(
+        "UPDATE subscriptions SET status='past_due' WHERE user_id=1"
+    )
+    con.commit()
+    end = _ts(RENEWS_1)
+    late = end + 20 * 86_400
+    assert predplatne.subscription_access(
+        predplatne.subscription_for_user(con, 1), now=late
+    ) is False
+    lookup.subscription_row = lemon_subscription(
+        "subscription_updated", updated_at="2027-10-02T00:00:00.000000Z",
+    )["data"]
+    recovered = lemon_invoice(
+        "subscription_payment_recovered", invoice_id="7004",
+        billing_reason="renewal", status="paid", discount_total=0,
+        total=4_900, created_at="2027-10-01T23:59:00.000000Z",
+        updated_at="2027-10-02T00:00:00.000000Z",
+    )
+    # Obdobie faktúry záchrany je pôvodné obdobie snapshotu.
+    recovered["data"]["attributes"]["billing_period_start"] = CREATED
+    recovered["data"]["attributes"]["billing_period_end"] = RENEWS_1
+    recovered["data"]["attributes"]["subscription_status"] = "active"
+    result = deliver(con, recovered, lookup=lookup, now=late)
+    assert result["review_required"] is False, result
+    assert predplatne.subscription_access(
+        predplatne.subscription_for_user(con, 1), now=late
+    ) is True
