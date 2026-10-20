@@ -1811,11 +1811,12 @@ function vCheckout() {
       <li>Vegetariánske, vegánske a bielkovinové zameranie</li>
     </ul>
     <div class="checkout-assurance"><b>Odstúpenie do 14 dní.</b> Pri okamžitej aktivácii môže poskytovateľ od vrátenej sumy odpočítať pomernú časť za už poskytnuté obdobie. Podrobnosti sú v <a href="/odstupenie" target="_blank" rel="noopener">poučení o odstúpení</a>.</div>
-    <p class="muted" style="margin-top:14px">Lemon Squeezy je v pokladni Merchant of Record a predávajúci pre platobnú transakciu. PUMAR s. r. o. je prevádzkovateľ Uvar.si a kontakt pre podporu produktu.</p>
-    <p class="muted" style="margin-top:8px">Ak platba prebehne, ale Premium sa nesprístupní, po spárovaní objednávky ho ručne aktivujeme alebo zabezpečíme úplné vrátenie platby. Nemusíš zaplatiť znova.</p>
-    ${founder ? `<p class="muted" style="margin-top:14px">Voľných je ${zostava} z 50 zakladajúcich miest.</p>` : ''}
-    <p class="muted" style="margin-top:14px">Premium aktivujeme, keď nám Lemon Squeezy potvrdí platbu.</p>
+    ${founder && zostava < 45 ? `<p class="muted" style="margin-top:14px">Voľných je ${zostava} z 50 zakladajúcich miest.</p>` : ''}
     <p class="muted" style="margin-top:14px">Obnovu zrušíš v Profile cez <b>Spravovať predplatné</b>. Ďalšia platba potom nevznikne.</p>
+    <details class="muted" style="margin-top:12px;font-size:.86rem"><summary style="min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:700">Podrobnosti</summary>
+      <p>Lemon Squeezy je v pokladni Merchant of Record a predávajúci pre platobnú transakciu. PUMAR s. r. o. je prevádzkovateľ Uvar.si a kontakt pre podporu produktu.</p>
+      <p style="margin-top:8px">Premium aktivujeme, keď nám Lemon Squeezy potvrdí platbu.</p>
+    </details>
     <label class="consent-row" for="checkout-terms"><input id="checkout-terms" data-checkout-consent type="checkbox"><span>Súhlasím s <a href="/vop" target="_blank" rel="noopener">VOP</a> a oboznámil/a som sa s <a href="/ochrana-osobnych-udajov" target="_blank" rel="noopener">ochranou osobných údajov</a>.</span></label>
     <label class="consent-row" for="checkout-renewal"><input id="checkout-renewal" data-checkout-consent type="checkbox"><span>Súhlasím, že ${founder ? 'po prvom roku sa predplatné' : 'predplatné sa'} automaticky obnovuje za 49 € ročne, kým ho nezruším.</span></label>
     <label class="consent-row" for="checkout-immediate"><input id="checkout-immediate" data-checkout-consent type="checkbox"><span>Výslovne žiadam o okamžitú aktiváciu Premium po potvrdení platby, teda ešte pred uplynutím 14 dní.</span></label>

@@ -83,9 +83,24 @@ def test_checkout_names_seller_operator_and_paid_activation_remedy():
     assert "predávajúci" in checkout
     assert "pumar s. r. o." in checkout
     assert "prevádzkovateľ" in checkout
-    assert "platba prebehne" in checkout
-    assert "ručne aktivujeme" in checkout
-    assert "úplné vrátenie platby" in checkout
+    # Okrajové informácie o predávajúcom sú zbalené, súhlasy ostávajú viditeľné.
+    details = checkout.split("<details", 1)[1].split("</details>", 1)[0]
+    assert "<summary" in details and "podrobnosti</summary>" in details
+    assert "merchant of record" in details and "keď nám lemon squeezy potvrdí" in details
+    for consent in ("checkout-terms", "checkout-renewal", "checkout-immediate",
+                    "checkout-proration"):
+        assert consent not in details
+    # Strašiak o neúspešnej aktivácii do súhrnu objednávky nepatrí.
+    assert "platba prebehne" not in checkout
+    assert "ručne aktivujeme" not in checkout
+
+
+def test_checkout_shows_founder_seats_only_when_they_start_running_out():
+    checkout = app_html().split("function vCheckout()", 1)[1].split(
+        "function vSpajzaZamknuta()", 1
+    )[0]
+    assert "founder && zostava < 45 ?" in checkout
+    assert "Voľných je ${zostava} z 50" in checkout
 
 
 def test_online_withdrawal_form_collects_the_complete_optional_notice():
