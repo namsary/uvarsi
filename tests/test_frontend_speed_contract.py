@@ -740,6 +740,7 @@ def test_the_landing_ships_no_second_copy_of_the_receipt():
 # Vedomé navýšenia stropu appky od 37 600 B (B pri gzip level 5).
 APP_GZIP_CAP_NOTES = {
     "denný strop až po žiadosti o iný plán, podaný ako výhoda Premium": 200,
+    "onboarding: režimy pre práve zvolené obchody, rovno do plánu": 550,
 }
 
 

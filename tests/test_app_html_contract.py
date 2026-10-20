@@ -233,7 +233,14 @@ def test_saving_profile_never_generates_a_plan_implicitly():
     html = app_html()
     onboarding = declaration(html, "function viewOnboarding() ")
 
-    assert "nacitajPlan(true)" not in onboarding
+    # Jediná výnimka: prvé nastavenie s tlačidlom „Hotovo, ukáž mi plán".
+    first_setup = onboarding.split("if (!uzMaProfil) {\n      // Prvé nastavenie", 1)
+    assert len(first_setup) == 2
+    assert "nacitajPlan(true)" not in first_setup[0]
+    assert first_setup[1].count("nacitajPlan(true)") == 1
+    assert first_setup[1].index("nacitajPlan(true)") < first_setup[1].index(
+        "await refreshPlanAfterProfileSave();"
+    )
     assert "/api/plan/generuj" not in onboarding
     assert "refreshPlanAfterProfileSave" in onboarding
 

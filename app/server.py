@@ -3023,6 +3023,42 @@ async def uloz_profil(req: Request):
     return {"ok": True}
 
 
+@app.post("/api/stravovanie/dostupne")
+async def dostupne_rezimy_pre_vyber(req: Request):
+    """Dostupné režimy pre výber, ktorý je práve na obrazovke nastavení.
+
+    `/api/me` počíta dostupnosť z uloženého profilu. Nový používateľ však ešte
+    nič neuložil a pri zmene obchodov by appka ukazovala stav cudzieho výberu.
+    Nič sa neukladá a neplatí sa za to žiadny model — je to tá istá lokálna
+    kontrola ako v `/api/me`, iba nad práve zvolenými hodnotami.
+    """
+    u = require_user(req)
+    try:
+        d = await req.json()
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        raise HTTPException(422, "Pošli platný JSON s výberom.")
+    if not isinstance(d, dict):
+        raise HTTPException(422, "Pošli platný JSON s výberom.")
+    adults, children = validuj_zlozenie_domacnosti(d)
+    frek = d.get("frekvencia", 2)
+    if type(frek) is not int or frek not in (1, 2, 3):
+        raise HTTPException(422, "Neplatná frekvencia varenia.")
+    requested = d.get("obchody")
+    if not isinstance(requested, list):
+        raise HTTPException(422, "Vyber si aspoň jeden podporovaný obchod.")
+    obchody = [s for s in dict.fromkeys(requested) if s in ALLOWED_STORES]
+    if not obchody:
+        raise HTTPException(422, "Vyber si aspoň jeden podporovaný obchod.")
+    profile = {"osoby": adults + children, "dospeli": adults, "deti": children,
+               "frekvencia": frek, "obchody": ",".join(obchody)}
+    with closing(db()) as con:
+        premium = has_premium(con, user_id=u["id"], now=AUTH_CLOCK())
+        available = recipe_engine_profile_available_modes(con, profile, premium)
+        reason = dovod_prazdnych_rezimov(con, profile, premium, available)
+    return {"stravovanie_dostupne": list(available),
+            "stravovanie_dostupne_dovod": reason}
+
+
 @app.post("/api/spajza")
 async def uloz_spajzu(req: Request):
     u = require_user(req)
