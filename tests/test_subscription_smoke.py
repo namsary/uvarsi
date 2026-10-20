@@ -1,7 +1,7 @@
 """Fail-closed evidence for the complete annual subscription lifecycle."""
 
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 
 import pytest
@@ -387,3 +387,35 @@ def test_unresolved_cases_requires_exact_integer_zero(unresolved):
     assert marker.subscription_marker_status(
         proof, expected(), now=NOW
     ) == "subscription_smoke_incomplete"
+
+
+def test_live_activation_survives_release_and_time_but_not_config_change(
+        monkeypatch):
+    monkeypatch.setattr(marker, "_trusted_utcnow", lambda: NOW)
+    activation = marker.create_subscription_activation_attestation(
+        signed_marker(), expected()
+    )
+    later = NOW + timedelta(days=90)
+
+    # Pred spustením platí pôvodná brána: nové vydanie aj vek ju zavrú.
+    assert marker.subscription_activation_status(
+        activation, replace(expected(), release="another-release"), now=NOW
+    ) == "subscription_smoke_mismatch"
+    assert marker.subscription_activation_status(
+        activation, expected(), now=later
+    ) == "subscription_smoke_stale"
+    # Po spustení platieb smoke bežať nemôže; aktivácia ostáva platná.
+    assert marker.subscription_activation_status(
+        activation, replace(expected(), release="another-release"),
+        now=later, payments_live=True,
+    ) == "verified"
+    rotated = replace(
+        expected(), live=replace(expected().live, api_key="rotated-live-key")
+    )
+    assert marker.subscription_activation_status(
+        activation, rotated, now=later, payments_live=True
+    ) == "subscription_smoke_mismatch"
+    tampered = dict(activation, activated_at="2026-09-13T10:01:00+00:00")
+    assert marker.subscription_activation_status(
+        tampered, expected(), now=later, payments_live=True
+    ) == "subscription_smoke_invalid"

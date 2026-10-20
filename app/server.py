@@ -5163,23 +5163,13 @@ def _subscription_evidence_status(
     if marker is None:
         return "subscription_smoke_invalid"
     if activated:
-        activation_status = subscription_activation_status(
-            marker, expectation, now=now
-        )
-        if activation_status != "verified":
-            return activation_status
-        current_path = Path(PAYMENT_SMOKE_MARKER)
-        try:
-            current_path.stat()
-        except FileNotFoundError:
-            return "subscription_smoke_missing"
-        except OSError:
-            return "subscription_smoke_invalid"
-        current_marker = _read_payment_smoke_marker(str(current_path))
-        if current_marker is None:
-            return "subscription_smoke_invalid"
-        return subscription_marker_status(
-            current_marker, expectation, now=now
+        # Živé platby: rozhoduje jednorazová podpísaná aktivácia viazaná na
+        # live/test konfiguráciu a živé readiness kontroly. Čerstvý smoke
+        # sa tu nevyžaduje, lebo smoke aj lifecycle sonda pri zapnutých
+        # platbách bežať odmietnu; inak by sa checkout zavrel do 24 h
+        # od zapnutia a po každom vydaní.
+        return subscription_activation_status(
+            marker, expectation, now=now, payments_live=True
         )
     return subscription_marker_status(marker, expectation, now=now)
 

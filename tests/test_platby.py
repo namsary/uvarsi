@@ -2232,3 +2232,76 @@ def test_do_appky_nevedie_ziadna_cesta_k_rucnemu_naroku(monkeypatch, tmp_path):
     assert "zrus_narok_rucne" not in zdroj
     cesty = {getattr(route, "path", "") for route in server.app.routes}
     assert not any("narok" in cesta or "admin" in cesta or "premium" in cesta for cesta in cesty)
+
+
+def test_zive_platby_neuzavrie_checkout_po_vydani_ani_po_24h(
+        monkeypatch, tmp_path):
+    # Smoke aj lifecycle sonda pri zapnutých platbách bežať odmietnu, preto
+    # živý checkout nesmie závisieť od čerstvého smoke súboru ani od vydania.
+    server = load_server(
+        monkeypatch,
+        tmp_path,
+        **_annual_payment_environment(
+            PLATBY_ZAPNUTE="1", UVARSI_PAYMENTS_ENABLED="1",
+        ),
+    )
+    assert server.platby_su_zapnute() is True
+    monkeypatch.setattr(server, "legal_version", lambda: server.LEGAL_VERSION)
+    monkeypatch.setattr(server, "_approved_price_sources_ready", lambda *_a, **_k: True)
+    monkeypatch.setattr(server, "_strict_current_receipt_ready", lambda *_a, **_k: True)
+    monkeypatch.setattr(server.customer_requests, "workflow_ready", lambda _con: True)
+    smoke_path = tmp_path / "annual-payment-smoke.json"
+    activation_path = tmp_path / "annual-payment-activation.json"
+    monkeypatch.setattr(server, "PAYMENT_SMOKE_MARKER", str(smoke_path))
+    monkeypatch.setattr(server, "PAYMENT_ACTIVATION_MARKER", str(activation_path))
+    marker_module, expectation, smoke, completed_at = (
+        _full_annual_subscription_smoke(server)
+    )
+    queue = {"worker_alive": True, "blocking_code": None}
+    recipe = {
+        "ready": False,
+        "blockers": ["payments_enabled"],
+        "release_gate": {
+            "active_recipes": server.CURATED_RECIPE_COUNT,
+            "curation_generation": 1,
+            "provenance_complete": True,
+            "library_errors": 0,
+            "workflow_errors": 0,
+        },
+    }
+
+    def readiness(**changes):
+        with closing(server.db()) as con:
+            return server._runtime_payment_readiness(
+                con, queue_status=changes.get("queue", queue),
+                recipe_status=recipe,
+            )
+
+    # Bez podpísanej aktivácie ostáva checkout zavretý.
+    assert readiness().blockers == ("subscription_smoke_missing",)
+
+    monkeypatch.setattr(marker_module, "_trusted_utcnow", lambda: completed_at)
+    activation = marker_module.create_subscription_activation_attestation(
+        smoke, expectation
+    )
+    activation_path.write_text(json.dumps(activation), encoding="utf-8")
+    # Smoke súbor po spustení nie je (ani nemôže byť) čerstvý.
+    assert not smoke_path.exists()
+    assert readiness().ready is True
+
+    monkeypatch.setattr(
+        marker_module, "_trusted_utcnow",
+        lambda: completed_at + timedelta(days=40),
+    )
+    monkeypatch.setattr(server, "release_id", lambda: "dalsie-vydanie")
+    result = readiness()
+    assert result.ready is True
+    assert result.blockers == ()
+
+    # Živé readiness kontroly platia ďalej.
+    assert readiness(
+        queue={"worker_alive": False, "blocking_code": None}
+    ).ready is False
+    # Zmena live kľúča aktiváciu zneplatní.
+    monkeypatch.setenv("LEMON_API_KEY", "rotated-live-api")
+    assert readiness().blockers == ("subscription_smoke_mismatch",)
