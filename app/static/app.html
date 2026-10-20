@@ -14,7 +14,7 @@
 @font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:400;font-display:swap;src:url("/static/fonts/ibmplexmono-400.c55d055f.woff2") format("woff2")}
 @font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:600;font-display:swap;src:url("/static/fonts/ibmplexmono-600.f4faf2fe.woff2") format("woff2")}
 @font-face{font-family:"Manrope";font-style:normal;font-weight:400 800;font-display:swap;src:url("/static/fonts/manrope-400-800.7101939e.woff2") format("woff2")}
-:root{--paper:#F4F7F2;--paper-2:#EAF3EC;--surface:#fff;--ink:#12392E;--ink-soft:#586B64;--yellow:#F7D64A;--red:#A52F25;--green:#1C8B5C;--green-deep:#103C31;--line:#12392e24;--radius-sm:14px;--radius-lg:28px;--shadow-soft:0 22px 70px #12392e21;--shadow-card:0 10px 34px #12392e14;--canvas:var(--paper);--surface-soft:var(--paper-2);--muted:var(--ink-soft);--accent:var(--red);--highlight:var(--yellow);--success:var(--green);--border:var(--line);--radius-card:var(--radius-sm);--radius-control:var(--radius-sm);}
+:root{--paper:#F4F7F2;--paper-2:#EAF3EC;--surface:#fff;--ink:#12392E;--ink-soft:#586B64;--yellow:#F7D64A;--red:#A52F25;--green:#16784F;--green-deep:#103C31;--line:#12392e24;--radius-sm:14px;--radius-lg:28px;--shadow-soft:0 22px 70px #12392e21;--shadow-card:0 10px 34px #12392e14;--canvas:var(--paper);--surface-soft:var(--paper-2);--muted:var(--ink-soft);--accent:var(--red);--highlight:var(--yellow);--success:var(--green);--border:var(--line);--radius-card:var(--radius-sm);--radius-control:var(--radius-sm);}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 button,input,select{touch-action:manipulation}
 :focus-visible{outline:3px solid var(--accent);outline-offset:3px}
@@ -50,9 +50,9 @@ label{font-size:.78rem;font-weight:800;color:var(--muted);display:block;margin-b
 .meal-d{font-family:"Anton",sans-serif;font-size:1.05rem;min-width:42px;height:42px;border-radius:10px;background:var(--green-deep);color:#fff;display:grid;place-items:center}.meal-n{font-weight:800;font-size:1rem;line-height:1.3;flex:1}.meal-b{border-top:1px solid var(--line);padding:16px;display:none;background:#F8FBF8}.meal.open .meal-b{display:block}
 .ing{display:flex;justify-content:space-between;gap:12px;font-size:.85rem;padding:9px 0;border-bottom:1px solid var(--border)}.ing .r{white-space:nowrap;font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:.8rem}.ing .off{color:var(--accent);margin-left:7px}.ing-b{border-bottom:1px solid var(--border)}.ing-b .ing{border-bottom:0;padding-bottom:3px}.prov{font:600 .75rem/1.45 "IBM Plex Mono",monospace;color:var(--muted);padding-bottom:9px}.prov .vld--dnes,.prov .vld--zajtra,.prov .vld--neplatna{color:var(--accent)}.ing--neplatna .r{color:var(--muted);text-decoration:line-through}
 .steps{list-style:none;counter-reset:s;margin-top:12px}.steps li{counter-increment:s;position:relative;padding-left:34px;margin-bottom:13px;font-size:.94rem}.steps li::before{content:counter(s);position:absolute;left:0;top:0;width:23px;height:23px;border-radius:50%;display:grid;place-items:center;background:var(--ink);color:#fff;font:600 .7rem "IBM Plex Mono",monospace}.rest{color:var(--muted);font-size:.86rem;padding:10px 14px;border:1px dashed var(--border);border-radius:10px;margin-bottom:12px;background:rgba(255,255,255,.45)}.rest--volno{border-style:dotted}.hint{background:var(--surface-soft);border:1px solid var(--border);border-radius:var(--radius-card);padding:16px;margin-bottom:14px}
-.save{position:relative;display:flex;justify-content:space-between;align-items:center;background:var(--yellow);padding:16px 20px 16px 16px;margin:18px 0;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%)}.save::after{content:"";position:absolute;right:5px;top:5px;width:8px;height:8px;border-radius:50%;background:var(--paper)}.save b{font-family:"Anton",sans-serif;font-weight:400;font-size:1.9rem}.shop-h{font-size:.82rem;font-weight:800;background:var(--green-deep);color:#fff;padding:11px 14px;margin-top:16px;border-radius:12px 12px 0 0;letter-spacing:.04em}
+.save{position:relative;display:flex;justify-content:space-between;align-items:center;background:var(--yellow);padding:16px 20px 16px 16px;margin:18px 0;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%)}.save::after{content:"";position:absolute;right:5px;top:5px;width:8px;height:8px;border-radius:50%;background:var(--paper)}.save{gap:12px}.save b{font-family:"Anton",sans-serif;font-weight:400;font-size:1.9rem;white-space:nowrap}.shop-h{font-size:.82rem;font-weight:800;background:var(--green-deep);color:#fff;padding:11px 14px;margin-top:16px;border-radius:12px 12px 0 0;letter-spacing:.04em}
 .item{display:flex;align-items:center;gap:11px;padding:13px 14px;border:1px solid var(--border);border-top:0;background:var(--surface);cursor:pointer;min-height:54px}.item:last-child{border-radius:0 0 12px 12px}.item.done{opacity:.5;text-decoration:line-through}.box{width:23px;height:23px;border:1.5px solid var(--border);border-radius:6px;flex-shrink:0;display:grid;place-items:center;font-weight:800;font-size:.82rem}.item.done .box{background:var(--success);border-color:var(--success);color:#fff}.item .nm{flex:1;font-size:.92rem;min-width:0}.item .pr{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:.8rem;white-space:nowrap;text-align:right}.item .pr>span{display:inline-block;max-width:min(15rem,42vw);white-space:normal;overflow-wrap:anywhere;line-height:1.35}.item--doma{background:#F1F7F3;cursor:default}.item--doma .nm,.item--doma .pr{color:var(--muted)}.undo{display:block;font-family:"Manrope",sans-serif;font-size:.72rem;font-weight:800;text-decoration:underline;text-underline-offset:2px;cursor:pointer;color:var(--ink)}.item .doma-note,.item .buy-note{display:block;color:var(--muted);font-size:.72rem;line-height:1.4;margin-top:3px}.davky{margin:8px 0 2px;color:var(--muted)}.davky .d{padding:3px 0}.recipe-label{font-size:.76rem;font-weight:800;color:var(--ink);margin:18px 0 6px}.home-basics{display:flex;flex-wrap:wrap;gap:6px;margin:5px 0 12px}.home-basics span{font-size:.75rem;background:var(--surface-soft);border:1px solid var(--border);border-radius:7px;padding:5px 8px}.storage-note{margin:14px 0 4px;padding:11px 12px;background:#EFF7F1;border-left:3px solid var(--success);border-radius:0 9px 9px 0;color:var(--ink);font-size:.84rem}.item--partial{background:#FFFBEB}.item--partial .doma-note{color:var(--success)}
-.diet-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.diet-choice{position:relative;min-height:58px;padding:10px 11px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--ink);font:800 .8rem "Manrope",sans-serif;text-align:left;cursor:pointer}.diet-choice:hover{border-color:var(--ink)}.diet-choice[aria-pressed="true"]{background:#FFF5BE;border-color:#D9B600;box-shadow:inset 4px 0 0 var(--ink)}.diet-premium{display:block;margin-top:2px;color:var(--accent);font:600 .72rem "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.06em}
+.diet-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.diet-choice{position:relative;min-height:58px;padding:10px 11px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--ink);font:800 .8rem "Manrope",sans-serif;text-align:left;cursor:pointer}.diet-choice:hover{border-color:var(--ink)}.diet-choice[aria-pressed="true"]{background:#FFF5BE;border-color:#D9B600;box-shadow:inset 4px 0 0 var(--ink)}.diet-premium{display:block;margin-top:2px;color:var(--accent);font:600 .72rem "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.06em}.diet-premium.diet-off{color:var(--muted)}
 .recipe-facts{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:12px 0 2px;padding:8px 10px;border-block:1px solid var(--border);font:600 .7rem "IBM Plex Mono",monospace}.protein-claim{padding:3px 6px;border-radius:5px;background:#EAF4ED;color:var(--success)}.allergen-note{margin:8px 0 2px;color:var(--muted);font-size:.75rem}.allergen-note b{color:var(--ink)}
 .pantry-compose{display:grid;grid-template-columns:minmax(0,1fr) 86px 70px;gap:8px}.pantry-compose .btn{grid-column:1/-1}.pf{min-width:0}.pantry-list{display:grid;gap:9px}.pantry-shelf{position:relative;border:1px solid var(--border);border-radius:10px;background:var(--surface);overflow:hidden}.pantry-shelf::after{content:"";display:block;height:3px;background:repeating-linear-gradient(90deg,var(--ink) 0 1px,transparent 1px 9px);opacity:.28}.pantry-row-main{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 10px;align-items:center;padding:12px}.pantry-name{font-weight:800;overflow-wrap:anywhere}.pantry-measure{font:600 .76rem "IBM Plex Mono",monospace;color:var(--muted);white-space:nowrap}.pantry-actions{display:flex;grid-column:1/-1;gap:5px}.quiet-action,.leftover-btn{min-height:44px;padding:7px 10px;border:0;background:transparent;color:var(--muted);font:800 .72rem "Manrope",sans-serif;text-decoration:underline;text-underline-offset:3px;cursor:pointer}.quiet-action:hover,.leftover-btn:hover{color:var(--ink)}.quiet-action--danger{color:var(--accent)}.pantry-row-editor{display:grid;grid-template-columns:minmax(0,1fr) 82px 68px;gap:7px;padding:0 12px 12px}.pantry-row-editor[hidden]{display:none}.leftover-btn{display:block;margin-top:6px;padding-inline:0;color:var(--success)}.leftover-btn:disabled{color:var(--muted);cursor:wait}.shop-error{margin:10px 0;color:var(--accent);font-size:.82rem}
 nav{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.98);border-top:1px solid var(--line);display:flex;z-index:30;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -10px 34px #12392e14}
@@ -63,10 +63,11 @@ nav button.on{color:var(--accent)}nav button.on::before{content:"";position:abso
 .state-icon{width:34px;height:34px;stroke:var(--accent);fill:none;stroke-width:1.7;margin-bottom:4px}
 .auth-shell{width:100%;max-width:460px;margin:30px auto 0}.auth-intro{margin-bottom:18px}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.auth-switcher{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px;padding:4px;min-width:0;background:var(--highlight);border:1px solid #D5B118;border-radius:12px;margin:0 0 16px}
+.auth-switcher{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px;padding:4px;min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:0 0 16px}
 .auth-switch{min-width:0;min-height:44px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:var(--ink);font:800 .88rem "Manrope",sans-serif;cursor:pointer}
-.auth-switch.on{background:var(--surface);box-shadow:0 2px 7px rgba(24,50,41,.12)}
-.auth-title:focus{outline:3px solid var(--accent);outline-offset:4px}
+.auth-switch.on{background:var(--green-deep);color:#fff;box-shadow:0 2px 7px rgba(24,50,41,.12)}
+[tabindex="-1"]:focus{outline:none}[tabindex="-1"]:focus-visible{outline:2px solid #12392e40;outline-offset:4px;border-radius:6px}
+.field-error{color:var(--accent)!important;font-weight:700}input[aria-invalid="true"]{border-color:var(--accent)}
 .auth-field{margin-bottom:14px}.password-field{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}
 .password-field input{min-width:0}
 .password-toggle{min-height:48px;padding:0 13px;border:1px solid var(--border);border-radius:var(--radius-control);background:var(--surface-soft);color:var(--ink);font:800 .78rem "Manrope",sans-serif;cursor:pointer}
@@ -80,8 +81,8 @@ nav button.on{color:var(--accent)}nav button.on::before{content:"";position:abso
 .security-meta{display:block;margin-top:2px;color:var(--muted);font-size:.75rem}
 .security-row .btn{width:auto;padding:9px 12px;font-size:.78rem;box-shadow:none}
 .security-current{display:inline-block;margin-left:6px;padding:2px 6px;border-radius:6px;background:#FFF5BE;border:1px solid #E4CB48;font:600 .65rem "IBM Plex Mono",monospace}
-.security-title:focus{outline:3px solid var(--accent);outline-offset:4px}
 .security-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.security-actions .btn{width:auto;flex:1}
+.security-details>summary{min-height:44px;display:flex;align-items:center;font-weight:800;cursor:pointer}.security-details .card{box-shadow:none}
 .checkout-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.checkout-price{font-size:2.15rem;font-weight:800;line-height:1;white-space:nowrap}.checkout-price small{display:block;margin-top:7px;color:var(--muted);font:600 .68rem "IBM Plex Mono",monospace;text-align:right}.checkout-list{display:grid;gap:9px;list-style:none;margin:18px 0}.checkout-list li{position:relative;padding-left:26px;font-size:.9rem}.checkout-list li::before{content:"✓";position:absolute;left:0;top:0;color:var(--success);font-weight:800}.checkout-assurance{padding:14px;border-radius:12px;background:var(--surface-soft);font-size:.86rem}.consent-row{display:grid;grid-template-columns:22px minmax(0,1fr);gap:11px;align-items:start;margin:18px 0;color:var(--ink);font-size:.83rem;font-weight:600;line-height:1.55}.consent-row input{width:20px;min-height:20px;height:20px;margin-top:2px}.consent-row a{color:var(--ink);text-underline-offset:3px}.checkout-back{margin-top:10px}
 .service-card h2{margin-bottom:7px}.service-card a{display:inline-block;line-height:44px}.service-order{margin:14px 0;padding:12px 14px;border-radius:10px;background:var(--surface-soft);font-size:.82rem}.service-form{margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}.service-form textarea{min-height:112px;resize:vertical}.service-form .consent-row{margin:13px 0}.request-list{display:grid;gap:8px;margin-top:14px}.request-row{display:flex;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:.78rem}.request-row b{font-family:"IBM Plex Mono",monospace;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em}.request-status--refunded,.request-status--resolved{color:var(--success)}.request-status--requires_review{color:var(--accent)}
 .subscription-card{border-left:4px solid var(--success)}.subscription-facts{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 14px;margin:16px 0;padding:13px 14px;border-radius:10px;background:var(--surface-soft);font-size:.82rem}.subscription-facts div{display:contents}.subscription-facts dt{color:var(--muted)}.subscription-facts dd{font-family:"IBM Plex Mono",monospace;font-weight:600;text-align:right}.subscription-help{margin:11px 0 0;min-height:1.5em}.subscription-card .btn{margin-top:16px}
@@ -146,10 +147,14 @@ let PLAN_NOTE = '';
 let PLAN_NEEDS_REGEN = false;
 let PLAN_RESUME_ENDPOINT = '';
 let PLAN_EMPTY_REASON = '';
+let REGEN_LIMIT_ASKED = false;
 const SPAJZA_UKAZKA = ['ryža', 'vajcia', 'cibuľa'];
 const SPAJZA_UKAZKA_CENY = {'ryža': '1,29', 'vajcia': '2,49', 'cibuľa': '0,89'};
 const PLAN_PREPARATION_MESSAGE = 'Plán pripravujeme. Pokojne pokračuj inde.';
 const REQUEST_TIMEOUT_MS = 12000;
+// Jediný zdroj kontaktu na podporu v appke (aj v profilovom module); musí sa
+// zhodovať s OPERATOR.support_email v app/operator_profile.py (stráži test).
+const SUPPORT_EMAIL = 'pumaragency@gmail.com';
 
 async function fetchWithTimeout(url, options) {
   const controller = new AbortController();
@@ -258,6 +263,7 @@ function loadCheckedState(user, plan) {
 function setPlan(plan) {
   PLAN = plan;
   if (plan && plan.jedla) {
+  REGEN_LIMIT_ASKED = false;
   PLAN_NEEDS_REGEN = false;
   PLAN_RESUME_ENDPOINT = '';
   PLAN_EMPTY_REASON = '';
@@ -381,7 +387,7 @@ function apiErrorMessage(status, payload) {
   return /[.!?…]$/.test(detail) ? detail : detail + '.';
   }
   if (status === 422 || status === 400) return 'Zadané údaje nesedia. Skontroluj ich a skús to znova.';
-  if (status === 404) return 'Toto sa nenašlo. Skús to znova alebo napíš na pomoc@uvar.si.';
+  if (status === 404) return 'Toto sa nenašlo. Skús to znova alebo napíš na ' + SUPPORT_EMAIL + '.';
   if (status === 429) return 'Priveľa pokusov za sebou. Skús to prosím o minútu.';
   if (status >= 500) return 'Server má krátkodobý problém. Skús to prosím o chvíľu znova.';
   return 'Niečo sa pokazilo. Skús to prosím znova.';
@@ -613,7 +619,7 @@ function armAuthResend(button, schedule) {
   button.textContent = 'Poslať znova o 60 sekúnd';
   (schedule || setTimeout)(function() {
     button.disabled = false;
-    button.textContent = 'Poslať odkaz znova';
+    button.textContent = arguments[2] || 'Poslať odkaz znova';
   }, 60000);
 }
 
@@ -796,9 +802,9 @@ function authScreenHtml(mode, passkeyReady) {
       : 'Prihlás sa e-mailom a heslom.';
   const action = isRegister ? 'Vytvoriť účet' : isForgot ? 'Poslať odkaz na obnovu' : 'Prihlásiť sa';
   return `<div class="auth-shell"><div class="auth-intro"><span class="eyebrow">Tvoj účet</span><h1 class="display auth-title" id="auth-title" tabindex="-1" style="font-size:2rem;margin:8px 0 10px">${title}</h1><p class="muted">${note}</p></div><fieldset class="auth-switcher"><legend class="sr-only">Vyber spôsob prístupu k účtu</legend><button class="auth-switch${switchMode === 'login' ? ' on' : ''}" id="auth-login-mode" type="button"${switchMode === 'login' ? ' aria-current="page"' : ''}>Prihlásiť sa</button><button class="auth-switch${switchMode === 'register' ? ' on' : ''}" id="auth-register-mode" type="button"${switchMode === 'register' ? ' aria-current="page"' : ''}>Vytvoriť účet</button></fieldset><form class="card" id="auth-form" novalidate><div class="auth-field"><label for="auth-email">E-mail</label><input id="auth-email" name="email" type="email" inputmode="email" autocomplete="email" required placeholder="tvoj@email.sk"></div> ${isForgot ? '' : `<div class="auth-field"><label for="auth-password">Heslo</label>
-        <div class="password-field"><input id="auth-password" name="password" type="password" autocomplete="${isRegister ? 'new-password' : 'current-password'}" minlength="10" maxlength="128" required>
+        <div class="password-field"><input id="auth-password" name="password" type="password" autocomplete="${isRegister ? 'new-password' : 'current-password'}" minlength="10" maxlength="128" required aria-describedby="auth-password-note">
           <button class="password-toggle" id="auth-password-toggle" type="button" aria-pressed="false">Zobraziť heslo</button></div>
-        ${isRegister ? '<p class="muted" style="margin-top:6px">Použi 10 až 128 znakov.</p>' : ''}</div>`} ${active === 'login' ? '<button class="auth-link" id="auth-forgot" type="button">Zabudol som heslo</button><div style="height:8px"></div>' : ''} ${active === 'login' ? '<button class="auth-link" id="auth-legacy-setup" type="button">Mám starý účet – nastaviť heslo</button>' : ''} ${isForgot ? '<button class="auth-link" id="auth-back" type="button">Späť na prihlásenie</button><div style="height:8px"></div>' : ''} <button class="btn" id="auth-submit" type="submit">${action}</button> ${active === 'login' && passkeyReady ? `<div class="auth-divider"><span>alebo</span></div>
+        <p class="muted" id="auth-password-note" style="margin-top:6px">${isRegister ? 'Použi 10 až 128 znakov.' : ''}</p></div>`} ${active === 'login' ? '<button class="auth-link" id="auth-forgot" type="button">Zabudol som heslo</button><div style="height:8px"></div>' : ''} ${active === 'login' ? '<button class="auth-link" id="auth-legacy-setup" type="button" hidden>Mám starý účet – nastaviť heslo</button>' : ''} ${isForgot ? '<button class="auth-link" id="auth-back" type="button">Späť na prihlásenie</button><div style="height:8px"></div>' : ''} <button class="btn" id="auth-submit" type="submit">${action}</button> ${active === 'login' && passkeyReady ? `<div class="auth-divider"><span>alebo</span></div>
         <button class="btn btn--ghost" id="auth-passkey" type="button">Prihlásiť biometriou</button>` : ''} <p class="muted auth-status" id="auth-status" role="status" aria-live="polite"></p></form></div>`;
 }
 
@@ -888,28 +894,60 @@ function viewAccountAuth(mode, previousEmail) {
     location.replace(result.redirect || '/app');
   });
   $('#auth-title').focus();
+  const note = $('#auth-password-note'), noteText = note ? note.textContent : '';
+  const passwordError = message => {
+    password.setAttribute('aria-invalid', message ? 'true' : 'false');
+    note.textContent = message || noteText;
+    note.classList.toggle('field-error', !!message);
+  };
+  if (password && note) password.oninput = () => passwordError('');
   $('#auth-form').onsubmit = event => {
     event.preventDefault();
     const button = $('#auth-submit');
     const email = $('#auth-email').value.trim();
     const secret = password ? password.value : '';
+    if (password && note) passwordError('');
+    if (active !== 'forgot' && email && (secret.length < 10 || secret.length > 128)) {
+      status.textContent = '';
+      passwordError('Heslo musí mať 10 až 128 znakov.');
+      password.focus();
+      return;
+    }
+    status.style.color = 'var(--accent)';
     runGuardedAction(button, status, async () => {
       if (!email) throw new Error('Zadaj e-mailovú adresu.');
-      if (active !== 'forgot' && (secret.length < 10 || secret.length > 128))
-        throw new Error('Heslo musí mať 10 až 128 znakov.');
       const request = authRequest(active, email, secret);
-      const result = await accountApi(request);
+      let result;
+      try { result = await accountApi(request); }
+      catch (error) {
+        if (legacySetup) legacySetup.hidden = false;
+        throw error;
+      }
       if (active === 'login') {
         location.replace(result.redirect || '/app');
         return;
       }
+      if (active === 'register') return viewRegistrationSent(email, secret);
       status.style.color = 'var(--success)';
-      status.textContent = active === 'register'
-        ? 'Žiadosť je prijatá. V e-maile výslovne potvrď vytvorenie účtu.'
-        : 'Ak účet existuje, odkaz na obnovu hesla je na ceste.';
-      button.textContent = active === 'register' ? 'Skontroluj e-mail' : 'E-mail je na ceste';
+      status.textContent = 'Ak účet existuje, odkaz na obnovu hesla je na ceste.';
+      button.textContent = 'E-mail je na ceste';
     });
   };
+}
+
+function viewRegistrationSent(email, secret) {
+  M.innerHTML = `<div class="auth-shell"><div class="card center"><svg class="state-icon" aria-hidden="true"><use href="#i-mail"></use></svg><h1 class="display auth-title" id="auth-title" tabindex="-1" style="font-size:1.6rem;margin:8px 0 10px">Skontroluj e-mail</h1><p class="muted">Ak je možné adresu <b>${esc(email)}</b> použiť, poslali sme na ňu odkaz na potvrdenie účtu. Platí 24 hodín. Ak ho nevidíš, pozri aj spam.</p><div style="height:14px"></div><button class="btn btn--ghost" id="auth-resend" type="button">Poslať e-mail znova</button><button class="auth-link" id="auth-wrong-email" type="button">Zlá adresa? Zmeniť e-mail</button><p class="muted auth-status" id="auth-status" role="status" aria-live="polite"></p></div></div>`;
+  const resend = $('#auth-resend'), status = $('#auth-status');
+  armAuthResend(resend, null, 'Poslať e-mail znova');
+  resend.onclick = () => runGuardedAction(resend, status, async () => {
+    status.style.color = 'var(--accent)';
+    await accountApi(authRequest('register', email, secret));
+    status.style.color = 'var(--success)';
+    status.textContent = 'E-mail sme poslali znova.';
+    armAuthResend(resend, null, 'Poslať e-mail znova');
+  });
+  $('#auth-wrong-email').onclick = () => viewAccountAuth('register', email);
+  $('#auth-title').focus();
 }
 
 function viewLogin(sent, previousEmail) {
@@ -959,9 +997,9 @@ function dietOptionsHtml(selected, premium, recipeEngine, availableModes) {
     var locked = choice[0] !== 'standard' && !premium;
     var unavailable = !availableModes.includes(choice[0]), disabled = locked || unavailable;
     var tag = locked ? '<span class="diet-premium">Premium</span>'
-      : unavailable ? '<span class="diet-premium">Tento týždeň nedostupné</span>' : '';
+      : unavailable ? '<span class="diet-premium diet-off">Tento týždeň nedostupné</span>' : '';
     return `<button class="diet-choice${active ? ' on' : ''}" type="button" data-mode="${choice[0]}" aria-pressed="${active ? 'true' : 'false'}"${disabled ? ' aria-disabled="true" disabled' : ''}>${esc(choice[1])}${tag}</button>`;
-  }).join('')}</div><p class="muted" style="margin-top:10px">${selectedUnavailable ? 'Tvoj uložený režim zostáva zachovaný. Pridaj obchod alebo vyber iný režim.' : 'Režimy podľa akcií v obchodoch.'}</p>`;
+  }).join('')}</div><p class="muted" style="margin-top:10px">${selectedUnavailable ? arguments[4] || 'Tvoj uložený režim zostáva zachovaný. Pridaj obchod alebo vyber iný režim.' : 'Režimy podľa akcií v obchodoch.'}</p>`;
 }
 
 function selectDietMode(root, mode) {
@@ -996,19 +1034,40 @@ function nextStoreSelection(selected, clicked, premium) {
 function viewOnboarding() {
   $('#nav').classList.add('hidden');
   const profil = ME || {};
+  const uzMaProfil = !!profil.onboarding;
   const legacyOsoby = profil.osoby || 4;
-  const adults = profil.adults == null ? legacyOsoby : profil.adults;
-  const children = profil.children == null ? 0 : profil.children;
+  // Nový účet má v databáze predvolené 4 osoby; bežnejšia domácnosť sú dvaja.
+  const adults = !uzMaProfil ? 2 : profil.adults == null ? legacyOsoby : profil.adults;
+  const children = !uzMaProfil || profil.children == null ? 0 : profil.children;
   const frekvencia = profil.frekvencia || 2;
   const stravovanie = profil.stravovanie || 'standard';
   const obchody = (profil.obchody && profil.obchody.length) ? profil.obchody : ['Kaufland','Tesco','Lidl'];
-  const uzMaProfil = !!profil.onboarding;
-  M.innerHTML = ` <div style="margin-top:26px"><span class="eyebrow">Nastavenie · 30 sekúnd</span><h1 class="display" style="font-size:1.8rem;margin:8px 0 18px">${uzMaProfil?'Uprav si nastavenie.':'Povedz mi štyri veci.'}</h1> ${uzMaProfil?`<p class="muted" style="margin:-8px 0 18px">Máš tu svoje doterajšie nastavenie. Zmeň, čo potrebuješ.</p>`:''} <div class="card"><label>Pre koho varíš?</label><label id="lbl-dospeli">Dospelí</label><div class="chips" id="c-dospeli" role="group" aria-labelledby="lbl-dospeli"><button class="chip" type="button" data-step="-1" aria-label="Odobrať dospelého">−</button><output class="chip on" data-v="${adults}" aria-live="polite">${adults}</output><button class="chip" type="button" data-step="1" aria-label="Pridať dospelého">+</button></div><label id="lbl-deti" style="margin-top:12px">Deti</label><div class="chips" id="c-deti" role="group" aria-labelledby="lbl-deti"><button class="chip" type="button" data-step="-1" aria-label="Odobrať dieťa">−</button><output class="chip on" data-v="${children}" aria-live="polite">${children}</output><button class="chip" type="button" data-step="1" aria-label="Pridať dieťa">+</button></div><p class="muted" style="margin-top:12px">Dieťa: 3–12 rokov, menšia kuchárska porcia. Porciu tínedžera rátame ako dospelú. Deti do 3 rokov neplánujeme.</p></div><div class="card"><label>Ako často chceš variť?</label><div class="chips" id="c-frek"> ${[[1,'Každý deň'],[2,'Raz za 2 dni'],[3,'Raz za 3 dni']].map(([v,t])=> `<div class="chip${v===frekvencia?' on':''}" data-v="${v}">${t}</div>`).join('')} </div></div><div class="card"><label id="lbl-diet">Ako sa chceš stravovať?</label>${dietOptionsHtml(stravovanie, !!profil.premium, profil.recipe_engine)}</div><div class="card"><label id="lbl-stores">Kde nakupuješ?</label><div class="chips" id="c-obch" role="group" aria-labelledby="lbl-stores"> ${['Kaufland','Tesco','Lidl'].map(o=> `<button type="button" class="chip${obchody.indexOf(o)>=0?' on':''}" data-v="${o}" aria-pressed="${obchody.indexOf(o)>=0?'true':'false'}">${o}</button>`).join('')} </div><p class="muted" style="margin-top:10px">${profil.premium?'Vyber si jeden alebo viac obchodov.':'Vo Free si vyberieš jeden obchod. Premium porovná všetky podporované obchody.'}</p></div><button class="btn" id="save">${uzMaProfil?'Uložiť nastavenia →':'Hotovo, ukáž mi plán →'}</button><p id="ob-err" class="muted" style="color:var(--accent);margin-top:10px" aria-live="polite"></p> ${uzMaProfil?`<div style="height:8px"></div>
+  const allModes = ['standard','high_protein','vegetarian','vegan'];
+  const freshNote = profil.premium
+    ? 'Pri zvolených obchodoch tento režim tento týždeň neposkladáme. Pridaj obchod alebo vyber iný režim.'
+    : 'Vo zvolenom obchode je tento týždeň málo akcií. Skús iný obchod.';
+  M.innerHTML = ` <div style="margin-top:26px"><span class="eyebrow">Nastavenie · 30 sekúnd</span><h1 class="display" style="font-size:1.8rem;margin:8px 0 18px">${uzMaProfil?'Uprav si nastavenie.':'Povedz mi štyri veci.'}</h1> ${uzMaProfil?`<p class="muted" style="margin:-8px 0 18px">Máš tu svoje doterajšie nastavenie. Zmeň, čo potrebuješ.</p>`:''} <div class="card"><label>Pre koho varíš?</label><label id="lbl-dospeli">Dospelí</label><div class="chips" id="c-dospeli" role="group" aria-labelledby="lbl-dospeli"><button class="chip" type="button" data-step="-1" aria-label="Odobrať dospelého">−</button><output class="chip on" data-v="${adults}" aria-live="polite">${adults}</output><button class="chip" type="button" data-step="1" aria-label="Pridať dospelého">+</button></div><label id="lbl-deti" style="margin-top:12px">Deti</label><div class="chips" id="c-deti" role="group" aria-labelledby="lbl-deti"><button class="chip" type="button" data-step="-1" aria-label="Odobrať dieťa">−</button><output class="chip on" data-v="${children}" aria-live="polite">${children}</output><button class="chip" type="button" data-step="1" aria-label="Pridať dieťa">+</button></div><p class="muted" style="margin-top:12px">Dieťa: 3–12 rokov, menšia kuchárska porcia. Porciu tínedžera rátame ako dospelú. Deti do 3 rokov neplánujeme.</p></div><div class="card"><label id="lbl-frek">Ako často chceš variť?</label><div class="chips" id="c-frek" role="radiogroup" aria-labelledby="lbl-frek"> ${[[1,'Každý deň'],[2,'Raz za 2 dni'],[3,'Raz za 3 dni']].map(([v,t])=> `<button type="button" role="radio" class="chip${v===frekvencia?' on':''}" data-v="${v}" aria-checked="${v===frekvencia}" tabindex="${v===frekvencia?0:-1}">${t}</button>`).join('')} </div></div><div class="card"><label id="lbl-diet">Ako sa chceš stravovať?</label><div id="diet-box">${dietOptionsHtml(stravovanie, !!profil.premium, profil.recipe_engine, uzMaProfil ? undefined : allModes)}</div></div><div class="card"><label id="lbl-stores">Kde nakupuješ?</label><div class="chips" id="c-obch" role="group" aria-labelledby="lbl-stores"> ${['Kaufland','Tesco','Lidl'].map(o=> `<button type="button" class="chip${obchody.indexOf(o)>=0?' on':''}" data-v="${o}" aria-pressed="${obchody.indexOf(o)>=0?'true':'false'}">${o}</button>`).join('')} </div><p class="muted" style="margin-top:10px">${profil.premium?'Vyber si jeden alebo viac obchodov.':'Vo Free si vyberieš jeden obchod. Premium porovná všetky podporované obchody.'}</p></div><button class="btn" id="save">${uzMaProfil?'Uložiť nastavenia →':'Hotovo, ukáž mi plán →'}</button><p id="ob-err" class="muted" style="color:var(--accent);margin-top:10px" aria-live="polite"></p> ${uzMaProfil?`<div style="height:8px"></div>
       <button class="btn btn--ghost" id="spat">Späť bez zmeny</button>`:''} </div>`;
-  const single = id => $(id).onclick = e => {
-    if (!e.target.dataset.v) return;
-    [...$(id).children].forEach(c=>c.classList.remove('on'));
-    e.target.classList.add('on');
+  // Frekvencia je skupina rádiových tlačidiel: klik, Enter/medzerník aj šípky.
+  const single = id => {
+    const pick = chip => {
+      [...$(id).children].forEach(c => {
+        const on = c === chip;
+        c.classList.toggle('on', on);
+        c.setAttribute('aria-checked', on ? 'true' : 'false');
+        c.tabIndex = on ? 0 : -1;
+      });
+      chip.focus();
+    };
+    $(id).onclick = e => { const chip = e.target.closest('[data-v]'); if (chip) pick(chip); };
+    $(id).onkeydown = e => {
+      const step = {ArrowRight:1, ArrowDown:1, ArrowLeft:-1, ArrowUp:-1}[e.key];
+      if (!step) return;
+      e.preventDefault();
+      const chips = [...$(id).children], at = chips.indexOf(e.target.closest('[data-v]'));
+      pick(chips[(at + step + chips.length) % chips.length]);
+      refreshModes();
+    };
   };
   const counter = id => {
     const root = $(id), output = root.querySelector('output');
@@ -1021,10 +1080,35 @@ function viewOnboarding() {
     };
   };
   counter('#c-dospeli'); counter('#c-deti'); single('#c-frek');
-  $('#c-diet').onclick = e => {
+  $('#diet-box').onclick = e => {
     const button = e.target.closest('button[data-mode]');
     if (button) selectDietMode($('#c-diet'), button.dataset.mode);
   };
+  // Dostupnosť režimov sa ráta pre práve vybrané obchody a domácnosť;
+  // nový účet ešte nemá nič uložené.
+  let modesTimer = null, modesSeq = 0;
+  const refreshModes = () => {
+    if (profil.recipe_engine !== 'on') return;
+    clearTimeout(modesTimer);
+    modesTimer = setTimeout(async () => {
+      const seq = ++modesSeq;
+      const stores = [...$('#c-obch').querySelectorAll('.on')].map(c => c.dataset.v);
+      if (!stores.length) return;
+      const pick = id => +$(id).querySelector('.on').dataset.v;
+      try {
+        const r = await api('/api/stravovanie/dostupne', {method:'POST', body:JSON.stringify(
+          profilePayload(pick('#c-dospeli'), pick('#c-deti'), pick('#c-frek'), stores))});
+        const box = $('#diet-box');
+        if (seq !== modesSeq || !box) return;
+        const chosen = box.querySelector('[aria-pressed="true"]')?.dataset.mode || stravovanie;
+        box.innerHTML = dietOptionsHtml(chosen, !!profil.premium, 'on',
+          r.stravovanie_dostupne, freshNote);
+      } catch (ignored) {}
+    }, 250);
+  };
+  ['#c-dospeli', '#c-deti', '#c-frek', '#c-obch'].forEach(id =>
+    $(id).addEventListener('click', refreshModes));
+  if (!uzMaProfil) refreshModes();
   $('#c-obch').onclick = e => {
     const button = e.target.closest('button[data-v]');
     if (!button) return;
@@ -1069,6 +1153,14 @@ function viewOnboarding() {
       const message = $('#ob-err');
       if (message) message.textContent = spravaNedostupnyRezim(ME);
       return;
+    }
+    if (!uzMaProfil) {
+      // Prvé nastavenie: tlačidlo sľubuje plán, tak ho rovno skladáme.
+      invalidatePlanState();
+      TAB = 'plan';
+      showNav();
+      M.innerHTML = loadingSkeletonHtml('Skladám tvoj prvý jedálniček…');
+      return nacitajPlan(true);
     }
     await refreshPlanAfterProfileSave();
     });
@@ -1233,15 +1325,13 @@ function nextDayLabel(today) {
 
 function regenerationBlockedNote(me, today) {
   var limit = Math.round(Number(me && me.limit_prepoctov));
-  var kolko = isFinite(limit) && limit > 0
-    ? (limit === 1 ? 'raz za deň' : limit + '× za deň') : '';
-  var text = kolko
-    ? 'Nový jedálniček ide ' + kolko + ' a dnešok už máš vyčerpaný.'
-    : 'Nový jedálniček dnes už nejde.';
-  text += ' Ďalší si vyžiadaj ' + nextDayLabel(today) +
+  var known = isFinite(limit) && limit > 0;
+  var text = me && me.premium
+    ? 'Na dnes máš využité všetky nové jedálničky' + (known ? ' (' + limit + ' z ' + limit + ').' : '.')
+    : 'Vo Free dostaneš ' + (!known || limit === 1 ? 'jeden nový jedálniček' : limit + ' nové jedálničky') +
+      ' denne, s Premium až 5.';
+  return text + ' Ďalší si vyžiadaš ' + nextDayLabel(today) +
     ' po polnoci — ten, ktorý máš teraz, ti zostáva.';
-  if (!(me && me.premium)) text += ' S Premium je to 5× denne.';
-  return text;
 }
 
 function regenerationNote(me) {
@@ -1334,8 +1424,11 @@ function recipeFactsHtml(recept) {
 async function novyPlan() {
   if (!PLAN || !PLAN.jedla) return nacitajPlan(true);
   if (regenerationsLeft(ME) === 0) {
-    PLAN_NOTE = regenerationBlockedNote(ME, todayIso());
-    return render();
+    REGEN_LIMIT_ASKED = true;
+    render();
+    const note = $('#rg-strop');
+    if (note) note.focus();
+    return;
   }
   const version = PLAN_CONTEXT_VERSION;
   try {
@@ -1525,12 +1618,14 @@ function vPlan() {
   });
   h += `<div class="save"><span class="mono" style="font-size:.8rem;font-weight:600">NA AKCIOVÝCH POLOŽKÁCH UŠETRÍŠ</span><b>${esc(totals.usetris)} €</b></div><p class="muted center mono" style="font-size:.74rem">Akciové položky ${esc(totals.nakup)} € · bez akcie ${esc(totals.bezna)} €${bezCeny ? ` · ${bezCeny === 1 ? '1 bežná položka nie je v sume' : bezCeny + ' bežných položiek nie je v sume'}` : ''}</p><div style="height:14px"></div>`;
   const zostava = regenerationsLeft(ME);
-  if (zostava === 0) {
-    h += `<div class="hint" id="rg-strop"><span class="eyebrow">Nový jedálniček dnes už nejde</span><p style="margin:6px 0 0">${esc(regenerationBlockedNote(ME, dnes))}</p></div>`;
+  const kupitPremium = !!(ME && !ME.premium && ME.platby_zapnute && ME.platby_pripravene);
+  if (zostava === 0 && REGEN_LIMIT_ASKED) {
+    h += `<div class="hint" id="rg-strop" tabindex="-1" role="status"><span class="eyebrow">${ME && ME.premium ? 'Na dnes hotovo' : 'Výhoda Premium'}</span><p style="margin:6px 0 0">${esc(regenerationBlockedNote(ME, dnes))}</p>${kupitPremium ? '<div style="height:12px"></div><button class="btn" id="rg-premium">Pozrieť Premium →</button>' : ''}</div>`;
   } else {
-    h += `<button class="btn btn--ghost" onclick="novyPlan()">Chcem iný plán ↻</button><p class="muted center mono" style="font-size:.7rem;margin-top:8px">${esc(regenerationNote(ME))}</p>`;
+    h += `<button class="btn btn--ghost" onclick="novyPlan()">Chcem iný plán ↻</button>${zostava === 0 ? '' : `<p class="muted center mono" style="font-size:.7rem;margin-top:8px">${esc(regenerationNote(ME))}</p>`}`;
   }
   M.innerHTML = h;
+  if ($('#rg-premium')) $('#rg-premium').onclick = vCheckout;
   if (spajzaSaZmenila) {
     $('#sp-hint-go').onclick = () => navrhniZoSpajze();
     $('#sp-hint-off').onclick = () => { PANTRY_HINT_HIDDEN = true; render(); };
@@ -1736,11 +1831,12 @@ function vCheckout() {
       <li>Vegetariánske, vegánske a bielkovinové zameranie</li>
     </ul>
     <div class="checkout-assurance"><b>Odstúpenie do 14 dní.</b> Pri okamžitej aktivácii môže poskytovateľ od vrátenej sumy odpočítať pomernú časť za už poskytnuté obdobie. Podrobnosti sú v <a href="/odstupenie" target="_blank" rel="noopener">poučení o odstúpení</a>.</div>
-    <p class="muted" style="margin-top:14px">Lemon Squeezy je v pokladni Merchant of Record a predávajúci pre platobnú transakciu. PUMAR s. r. o. je prevádzkovateľ Uvar.si a kontakt pre podporu produktu.</p>
-    <p class="muted" style="margin-top:8px">Ak platba prebehne, ale Premium sa nesprístupní, po spárovaní objednávky ho ručne aktivujeme alebo zabezpečíme úplné vrátenie platby. Nemusíš zaplatiť znova.</p>
-    ${founder ? `<p class="muted" style="margin-top:14px">Voľných je ${zostava} z 50 zakladajúcich miest.</p>` : ''}
-    <p class="muted" style="margin-top:14px">Premium aktivujeme, keď nám Lemon Squeezy potvrdí platbu.</p>
+    ${founder && zostava < 45 ? `<p class="muted" style="margin-top:14px">Voľných je ${zostava} z 50 zakladajúcich miest.</p>` : ''}
     <p class="muted" style="margin-top:14px">Obnovu zrušíš v Profile cez <b>Spravovať predplatné</b>. Ďalšia platba potom nevznikne.</p>
+    <details class="muted" style="margin-top:12px;font-size:.86rem"><summary style="min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:700">Podrobnosti</summary>
+      <p>Lemon Squeezy je v pokladni Merchant of Record a predávajúci pre platobnú transakciu. PUMAR s. r. o. je prevádzkovateľ Uvar.si a kontakt pre podporu produktu.</p>
+      <p style="margin-top:8px">Premium aktivujeme, keď nám Lemon Squeezy potvrdí platbu.</p>
+    </details>
     <label class="consent-row" for="checkout-terms"><input id="checkout-terms" data-checkout-consent type="checkbox"><span>Súhlasím s <a href="/vop" target="_blank" rel="noopener">VOP</a> a oboznámil/a som sa s <a href="/ochrana-osobnych-udajov" target="_blank" rel="noopener">ochranou osobných údajov</a>.</span></label>
     <label class="consent-row" for="checkout-renewal"><input id="checkout-renewal" data-checkout-consent type="checkbox"><span>Súhlasím, že ${founder ? 'po prvom roku sa predplatné' : 'predplatné sa'} automaticky obnovuje za 49 € ročne, kým ho nezruším.</span></label>
     <label class="consent-row" for="checkout-immediate"><input id="checkout-immediate" data-checkout-consent type="checkbox"><span>Výslovne žiadam o okamžitú aktiváciu Premium po potvrdení platby, teda ešte pred uplynutím 14 dní.</span></label>
@@ -2040,7 +2136,7 @@ async function loadAccountSecurity(notice, focusTarget) {
   return true;
 }
 
-const SUBSCRIPTION_ASSET=Object.freeze({url:'/static/subscription-profile.19ddd6feb9d0.js',integrity:'sha384-DSgloEnJ5TtADKx65+HpPDanSeDa0yy5ZfEbk1jHD5i7eMnFr54ytHjqPkSno6Lt'});
+const SUBSCRIPTION_ASSET=Object.freeze({url:'/static/subscription-profile.633662012b2f.js',integrity:'sha384-t/VywE/ALYTuuSgNLabvIfhzlLpXwk52BpR/bvg+IhrJNk3wTXGsNg1lSNjuKFfD'});
 let SUBSCRIPTION_MODULE_PROMISE;
 async function loadProfilePayments() {
   const subscription = $('#subscription-management');
@@ -2060,8 +2156,8 @@ async function loadProfilePayments() {
     return await Promise.all([module.loadSubscription(), module.loadCustomerService()]);
   } catch (_error) {
     SUBSCRIPTION_MODULE_PROMISE = null;
-    if ($('#subscription-management') === subscription) subscription.innerHTML = '<section class="card subscription-card"><span class="eyebrow eyebrow--danger">Premium · predplatné</span><h2>Stav sa nepodarilo načítať</h2><p class="muted" role="status" aria-live="polite">Skús to znova alebo zavolaj na +421 917 347 009, prípadne napíš na pumaragency@gmail.com.</p></section>';
-    if ($('#customer-service') === service) service.innerHTML = '<div class="card service-card"><h2>Platba a pomoc</h2><p class="muted">Prehľad sa nepodarilo načítať. Napíš na <a href="mailto:pumaragency@gmail.com">pumaragency@gmail.com</a>.</p></div>';
+    if ($('#subscription-management') === subscription) subscription.innerHTML = `<section class="card subscription-card"><span class="eyebrow eyebrow--danger">Premium · predplatné</span><h2>Stav sa nepodarilo načítať</h2><p class="muted" role="status" aria-live="polite">Skús to znova alebo zavolaj na +421 917 347 009, prípadne napíš na ${SUPPORT_EMAIL}.</p></section>`;
+    if ($('#customer-service') === service) service.innerHTML = `<div class="card service-card"><h2>Platba a pomoc</h2><p class="muted">Prehľad sa nepodarilo načítať. Napíš na <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.</p></div>`;
     return false;
   }
 }
@@ -2189,15 +2285,16 @@ function bindAccountDataControls() {
 function vNast() {
   const varenie = ME.frekvencia === 1 ? 'Varím každý deň' :
     'Varím raz za ' + ME.frekvencia + ' dni';
-  M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Nastavenia</span><h1 class="display" style="font-size:1.5rem;margin-top:4px">Tvoj profil</h1></div><div class="card"><div class="ing"><span>E-mail</span><span class="r">${esc(ME.email)}</span></div><div class="ing"><span>Varím pre</span><span class="r">${esc(householdLabel(ME))}</span></div><div class="ing"><span>Varenie</span><span class="r">${varenie}</span></div><div class="ing" style="border:0"><span>Obchody</span><span class="r">${ME.obchody.join(' · ')}</span></div></div> <div id="subscription-management"><section class="card subscription-card" aria-labelledby="subscription-title"><span class="eyebrow">Premium · predplatné</span><h2 id="subscription-title">Tvoje predplatné</h2><p class="muted" role="status" aria-live="polite">Načítavam aktuálny stav…</p></section></div> ${passwordSetupCard(ME, localStorage)} ${authV3Enabled(ME) && ME.password_configured ? `<div class="card">
+  // Najprv predplatné a nastavenia; heslo, Passkey a zariadenia sú zbalené nižšie.
+  M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Nastavenia</span><h1 class="display" style="font-size:1.5rem;margin-top:4px">Tvoj profil</h1></div><div id="subscription-management"><section class="card subscription-card" aria-labelledby="subscription-title"><span class="eyebrow">Premium · predplatné</span><h2 id="subscription-title">Tvoje predplatné</h2><p class="muted" role="status" aria-live="polite">Načítavam aktuálny stav…</p></section></div><div class="card"><div class="ing"><span>E-mail</span><span class="r">${esc(ME.email)}</span></div><div class="ing"><span>Varím pre</span><span class="r">${esc(householdLabel(ME))}</span></div><div class="ing"><span>Varenie</span><span class="r">${varenie}</span></div><div class="ing" style="border:0"><span>Obchody</span><span class="r">${ME.obchody.join(' · ')}</span></div><div style="height:12px"></div><button class="btn btn--ghost" id="zmen">Zmeniť nastavenie</button></div> ${passwordSetupCard(ME, localStorage)} ${authV3Enabled(ME) ? `<details class="card security-details"><summary>Prihlásenie a zabezpečenie</summary><p class="muted" style="margin:8px 0 14px">Heslo, biometria (Passkey) a prihlásené zariadenia.</p>${ME.password_configured ? `<div class="card">
       <h2>Zmeniť heslo</h2><form id="pw">
         <label>Aktuálne heslo<input id="po" type="password" autocomplete="current-password"></label>
         <label>Nové heslo<input id="pn" type="password" autocomplete="new-password"></label>
         <button class="btn btn--ghost" id="pb">Zmeniť heslo</button><p id="pm"></p>
-      </form></div>` : ''} ${authV3Enabled(ME) ? `<div id="account-security">
+      </form></div>` : ''}<div id="account-security">
       <div id="account-security-content">${securityPanelHtml(
         false, [], [], {loading: true})}</div>
-      ${securityStatusHtml()}</div>` : ''} <div id="customer-service"><div class="card service-card"><h2>Platba a pomoc</h2><p class="muted">Načítavam tvoje objednávky a žiadosti…</p></div></div>${accountDataHtml(passkeyUiAvailable(AUTH_V3_ENABLED, typeof window === 'undefined' ? null : window), !!ME.password_configured)}<p class="muted" style="margin:-4px 0 16px">Porcie sú kuchársky odhad na plánovanie nákupu, nie individuálne výživové odporúčanie.</p><button class="btn btn--ghost" id="zmen">Zmeniť nastavenie</button><div style="height:10px"></div><button class="btn btn--ghost" id="odhl" style="color:var(--accent)">Odhlásiť sa</button><p id="nast-err" class="muted" style="color:var(--accent);margin-top:10px"></p>`;
+      ${securityStatusHtml()}</div></details>` : ''} <div id="customer-service"><div class="card service-card"><h2>Platba a pomoc</h2><p class="muted">Načítavam tvoje objednávky a žiadosti…</p></div></div>${accountDataHtml(passkeyUiAvailable(AUTH_V3_ENABLED, typeof window === 'undefined' ? null : window), !!ME.password_configured)}<p class="muted" style="margin:-4px 0 16px">Porcie sú kuchársky odhad na plánovanie nákupu, nie individuálne výživové odporúčanie.</p><button class="btn btn--ghost" id="odhl" style="color:var(--accent)">Odhlásiť sa</button><p id="nast-err" class="muted" style="color:var(--accent);margin-top:10px"></p>`;
   const skipPasswordSetup = $('#skip-password-setup');
   if (skipPasswordSetup) skipPasswordSetup.onclick = () => {
     dismissPasswordSetup(ME, localStorage);
@@ -2255,7 +2352,9 @@ async function start() {
     return viewServiceProblem(e && e.message);
   }
   AUTH_V3_ENABLED = authV3Enabled(ME);
-  if (!ME.prihlaseny) return viewLogin();
+  // Landing posiela nových návštevníkov na /app?registracia rovno do registrácie.
+  if (!ME.prihlaseny) return viewLogin(AUTH_V3_ENABLED &&
+    /[?&]registracia(&|=|$)/.test(location.search) ? 'register' : undefined);
   setNavigationReady(true);
   $('#hdr').textContent = ME.email.split('@')[0];
   rememberProfile(ME);

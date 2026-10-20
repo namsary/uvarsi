@@ -1194,3 +1194,57 @@ process.stdout.write(JSON.stringify({disabled,before,dismissed,otherUser,configu
     profile_source = function_source(html, "vNast")
     assert "passwordSetupCard(ME, localStorage)" in profile_source
     assert "dismissPasswordSetup(ME, localStorage)" in profile_source
+
+
+def test_signup_is_clear_for_new_visitors_and_errors_belong_to_the_field():
+    html = app_html()
+    screen = function_source(html, "authScreenHtml")
+    view = function_source(html, "viewAccountAuth")
+    sent = function_source(html, "viewRegistrationSent")
+    start = function_source(html, "start")
+
+    # Landing CTA otvorí registráciu; bez auth v3 by „register" znamenal
+    # obrazovku „Skontroluj e-mail", preto je deep link iba pre v3.
+    assert "/[?&]registracia(&|=|$)/.test(location.search) ? 'register'" in start
+    assert "AUTH_V3_ENABLED &&" in start
+    # Starý účet sa ponúkne až po neúspešnom prihlásení.
+    assert 'id="auth-legacy-setup" type="button" hidden>' in screen
+    assert "legacySetup.hidden = false" in view
+    # Vybraná záložka je vizuálne vybraná (tmavá), nie biela na žltom.
+    assert ".auth-switch.on{background:var(--green-deep);color:#fff" in html
+    assert "background:var(--highlight)" not in html.split(".auth-switcher{", 1)[1].split("}", 1)[0]
+    # Chyba hesla je červená a previazaná s poľom.
+    assert 'aria-describedby="auth-password-note"' in screen
+    assert 'id="auth-password-note"' in screen
+    assert "setAttribute('aria-invalid'" in view and "'field-error'" in view
+    assert ".field-error{color:var(--accent)" in html
+    assert "status.style.color = 'var(--accent)'" in view
+    # Programové zameranie nadpisu nemá červený rámik ako chyba.
+    assert ".auth-title:focus{outline:3px solid var(--accent)" not in html
+    assert '[tabindex="-1"]:focus{outline:none}' in html
+    # Po registrácii: poslať znova (ten istý register endpoint) a oprava adresy.
+    assert "viewRegistrationSent(email, secret)" in view
+    assert "Poslať e-mail znova" in sent and "Zlá adresa?" in sent
+    assert "authRequest('register', email, secret)" in sent
+    assert "armAuthResend(resend, null, 'Poslať e-mail znova')" in sent
+    assert "viewAccountAuth('register', email)" in sent
+
+
+def test_profile_leads_with_subscription_and_settings_and_tucks_security_away():
+    profile = function_source(app_html(), "vNast")
+
+    order = [
+        profile.index('id="subscription-management"'),
+        profile.index('<span>E-mail</span>'),
+        profile.index('id="zmen"'),
+        profile.index('class="card security-details"'),
+        profile.index('id="customer-service"'),
+        profile.index('id="odhl"'),
+    ]
+    assert order == sorted(order)
+    security = profile.split('<details class="card security-details">', 1)[1].split(
+        "</details>", 1
+    )[0]
+    assert "<summary>Prihlásenie a zabezpečenie</summary>" in security
+    for part in ('id="pw"', 'id="account-security"', "securityStatusHtml()"):
+        assert part in security

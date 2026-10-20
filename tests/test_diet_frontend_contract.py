@@ -212,3 +212,46 @@ process.exit(0);
 """,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@needs_node
+def test_new_user_unavailability_note_never_mentions_a_saved_mode(tmp_path):
+    html = app_html()
+    result = run_node(
+        tmp_path,
+        "diet-fresh-note.js",
+        "function esc(value){return String(value == null ? '' : value);}\n"
+        + function_source(html, "dietOptionsHtml")
+        + """
+var fresh=dietOptionsHtml('standard', false, 'on', [], 'Vo zvolenom obchode je málo akcií.');
+if (fresh.includes('uložený')) process.exit(1);
+if (!fresh.includes('Vo zvolenom obchode je málo akcií.')) process.exit(2);
+if (!fresh.includes('diet-premium diet-off">Tento týždeň nedostupné')) process.exit(3);
+var unknown=dietOptionsHtml('standard', false, 'on', ['standard','high_protein','vegetarian','vegan']);
+if (unknown.includes('nedostupné')) process.exit(4);
+process.exit(0);
+""",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_new_user_onboarding_recomputes_modes_and_goes_straight_to_the_plan():
+    html = app_html()
+    onboarding = function_source(html, "viewOnboarding")
+
+    # Dostupnosť pre práve zvolené obchody, nie z uloženého profilu.
+    assert "'/api/stravovanie/dostupne'" in onboarding
+    assert "uzMaProfil ? undefined : allModes" in onboarding
+    assert "if (!uzMaProfil) refreshModes();" in onboarding
+    assert "freshNote" in onboarding and "uložený" not in onboarding
+    for chip_group in ("'#c-dospeli'", "'#c-deti'", "'#c-frek'", "'#c-obch'"):
+        assert chip_group in onboarding.split("forEach(id =>", 1)[0].rsplit("[", 1)[1]
+    # Bežnejšia predvolená domácnosť pre nový účet sú dvaja dospelí.
+    assert "const adults = !uzMaProfil ? 2" in onboarding
+    # „Hotovo, ukáž mi plán" rovno skladá plán so skeletonom.
+    first = onboarding.index("if (!uzMaProfil) {\n      // Prvé nastavenie")
+    assert "Nastavenia sa zmenili" not in onboarding
+    assert onboarding.index("loadingSkeletonHtml(", first) < onboarding.index(
+        "return nacitajPlan(true);", first
+    ) < onboarding.index("await refreshPlanAfterProfileSave();")
+    assert ".diet-premium.diet-off{color:var(--muted)}" in html

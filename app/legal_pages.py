@@ -24,6 +24,8 @@ except ImportError:
 
 
 BASE_URL = "https://uvar.si"
+# Kontakt na podporu má jediný zdroj: OPERATOR v operator_profile.py.
+SUPPORT_EMAIL = OPERATOR.support_email
 @dataclass(frozen=True)
 class LegalSection:
     heading: str
@@ -45,7 +47,7 @@ _COMMON_OPERATOR = LegalSection(
         "4318/33, 075 01 Trebišov, IČO 57 370 591, zapísaná v Obchodnom "
         "registri Mestského súdu Košice, oddiel Sro, vložka č. 64515/V.",
         "Kontaktný e-mail pre podporu, ochranu osobných údajov, odstúpenie "
-        "aj reklamácie je pumaragency@gmail.com. Telefonický kontakt je "
+        f"aj reklamácie je {SUPPORT_EMAIL}. Telefonický kontakt je "
         "+421 917 347 009.",
     ),
 )
@@ -158,7 +160,7 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                     "pravidlo sa netýka vady alebo neposkytnutej služby, "
                     "duplicitnej ani neoprávnenej platby.",
                     "Odstúpenie odošlete cez funkciu v účte na stránke Uvar.si "
-                    "alebo e-mailom na pumaragency@gmail.com. Prijatie "
+                    f"alebo e-mailom na {SUPPORT_EMAIL}. Prijatie "
                     "elektronického oznámenia potvrdíme na trvanlivom médiu. "
                     "Platbu vrátime rovnakým spôsobom, akým bola prijatá, "
                     "najneskôr v zákonnej lehote. Žiadosť posúdi človek; jej "
@@ -199,7 +201,7 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                     "PUMAR s. r. o. zodpovedá za vady digitálnej služby, ktoré "
                     "sa prejavia počas celej dohodnutej doby poskytovania služby.",
                     "Vadu služby môžete vytknúť cez funkciu v účte alebo na "
-                    "pumaragency@gmail.com. Prijatie reklamácie písomne potvrdíme "
+                    f"{SUPPORT_EMAIL}. Prijatie reklamácie písomne potvrdíme "
                     "a vybavíme ju bezplatne v primeranej lehote; ak zákon "
                     "neurčuje inak, oznámená lehota neprekročí 30 dní bez "
                     "objektívneho dôvodu, ktorý nevieme ovplyvniť.",
@@ -227,7 +229,7 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                 "Alternatívne riešenie sporov a rozhodné právo",
                 (
                     "Ak nie ste spokojný s vybavením žiadosti, pošlite žiadosť "
-                    "o nápravu na pumaragency@gmail.com. Ak ju zamietneme alebo "
+                    f"o nápravu na {SUPPORT_EMAIL}. Ak ju zamietneme alebo "
                     "na ňu neodpovieme do 30 dní, môžete podať návrh na "
                     "alternatívne riešenie sporu príslušnému subjektu, najmä "
                     "Slovenskej obchodnej inšpekcii; pravidlá sú na soi.sk.",
@@ -357,7 +359,7 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                     "zakladajúcej ponuky. Nie je to súhlas na neobmedzený marketing.",
                     "Z každej správy sa môžete odhlásiť odkazom na odhlásenie "
                     "alebo môžete odvolať súhlas e-mailom na "
-                    "pumaragency@gmail.com. Odvolanie nemá vplyv na zákonnosť "
+                    f"{SUPPORT_EMAIL}. Odvolanie nemá vplyv na zákonnosť "
                     "spracúvania pred jeho doručením.",
                 ),
             ),
@@ -368,7 +370,7 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                     "prenosnosť, námietku a odvolanie súhlasu podľa podmienok "
                     "GDPR. Údaje z účtu môžete exportovať a účet vymazať cez "
                     "profil po čerstvom overení totožnosti alebo môžete napísať "
-                    "na pumaragency@gmail.com. Odpovieme bez zbytočného odkladu, "
+                    f"na {SUPPORT_EMAIL}. Odpovieme bez zbytočného odkladu, "
                     "spravidla do jedného mesiaca.",
                     "Ak máte podozrenie na porušenie práv, môžete podať návrh na "
                     "začatie konania Úradu na ochranu osobných údajov Slovenskej "
@@ -460,7 +462,7 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                     "Prihláste sa do Uvar.si, otvorte Profil a použite funkciu "
                     "Odstúpiť od zmluvy. Počas 14-dňovej lehoty je dostupná "
                     "nepretržite. Oznámenie môžete poslať aj na "
-                    "pumaragency@gmail.com.",
+                    f"{SUPPORT_EMAIL}.",
                 ),
                 (
                     "Uveďte e-mail svojho účtu.",
@@ -489,7 +491,7 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                     "vyhlásenie, z ktorého vyplýva, že odstupujete od zmluvy.",
                 ),
                 (
-                    "Adresát: PUMAR s. r. o., Alexandra Dubčeka 4318/33, 075 01 Trebišov, pumaragency@gmail.com.",
+                    f"Adresát: PUMAR s. r. o., Alexandra Dubčeka 4318/33, 075 01 Trebišov, {SUPPORT_EMAIL}.",
                     "Oznamujem, že odstupujem od zmluvy o digitálnej službe Uvar.si.",
                     "Meno a priezvisko spotrebiteľa.",
                     "Adresa spotrebiteľa.",
@@ -510,7 +512,7 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                 "Ako oznámiť problém",
                 (
                     "Reklamáciu odošlite cez funkciu v Profile alebo na "
-                    "pumaragency@gmail.com. Napíšte, čo nefunguje, kedy sa chyba "
+                    f"{SUPPORT_EMAIL}. Napíšte, čo nefunguje, kedy sa chyba "
                     "prejavila a aký výsledok ste očakávali. Heslo, passkey ani "
                     "prihlasovací token neposielajte.",
                     "Online formulár prijíma iba text. Ak je snímka obrazovky "
@@ -547,7 +549,7 @@ _DOCUMENTS: dict[str, LegalDocument] = {
                 "Žiadosť o nápravu a ARS",
                 (
                     "Ak nie ste spokojný s vybavením, pošlite žiadosť o nápravu "
-                    "na pumaragency@gmail.com. Po zamietavej odpovedi alebo ak "
+                    f"na {SUPPORT_EMAIL}. Po zamietavej odpovedi alebo ak "
                     "neodpovieme do 30 dní môžete podať návrh na alternatívne "
                     "riešenie sporu príslušnému subjektu, najmä Slovenskej "
                     "obchodnej inšpekcii. Pravidlá sú na soi.sk. Právo obrátiť "

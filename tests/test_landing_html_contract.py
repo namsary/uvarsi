@@ -252,7 +252,7 @@ def test_premium_is_a_nonbinding_email_interest_action_not_checkout():
 
     action = re.search(
         r'<button[^>]+class="[^"]*js-plan[^"]*"[^>]+data-plan="([^"]+)"[^>]*>'
-        r'Chcem vedieť o spustení</button>',
+        r'Chcem novinky o Premium</button>',
         premium,
     )
     assert action
