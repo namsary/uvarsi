@@ -295,7 +295,7 @@ def test_retry_keeps_provider_backed_attempt_intact_until_its_true_expiry(db):
 
 @pytest.mark.parametrize(
     ("status", "ends_at"),
-    (("expired", None), ("unpaid", None), ("cancelled", 90.0)),
+    (("unpaid", None), ("cancelled", 190.0), ("past_due", None)),
 )
 def test_existing_same_mode_annual_subscription_blocks_new_checkout_attempt(
     db, status, ends_at
@@ -718,3 +718,26 @@ def test_checkout_migration_preserves_existing_account_plan_pantry_and_attempt_d
     ).fetchone()
     assert legacy == ("legacy-attempt", "legacy-order")
     con.close()
+
+
+@pytest.mark.parametrize(
+    ("status", "ends_at"),
+    (("expired", None), ("cancelled", 90.0)),
+)
+def test_ended_subscription_allows_a_new_checkout_attempt(db, status, ends_at):
+    # Skončené predplatné (aj zrušené po konci prístupu) nesmie zákazníkovi
+    # natrvalo zablokovať nové predplatné.
+    _insert_verified_founders(db, 1, first_user_id=60)
+    db.execute(
+        "UPDATE subscriptions SET status=?,renews_at=NULL,ends_at=?,"
+        "period_end=90,paid_through=90 WHERE user_id=60",
+        (status, ends_at),
+    )
+    db.commit()
+
+    attempt = _create_attempt(db, user_id=60, now=100.0)
+
+    assert attempt.public_id
+    assert db.execute(
+        "SELECT COUNT(*) FROM checkout_attempts WHERE user_id=60"
+    ).fetchone()[0] == 1

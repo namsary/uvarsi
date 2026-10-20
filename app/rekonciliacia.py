@@ -167,6 +167,48 @@ def stiahni_objednavky(
     return objednavky
 
 
+def stiahni_zdroj(api_key, resource, identifier, *, otvor=None, metoda="GET"):
+    """Jeden objekt poskytovateľa podľa ID (GET/DELETE /v1/{resource}/{id})."""
+    if resource not in {"subscriptions", "orders"}:
+        raise ValueError("nepodporovaný zdroj")
+    adresa = (
+        f"https://api.lemonsqueezy.com/v1/{resource}/"
+        + urllib.parse.quote(str(identifier), safe="")
+    )
+    ziadost = urllib.request.Request(
+        adresa,
+        method=metoda,
+        headers={
+            "Accept": "application/vnd.api+json",
+            "Content-Type": "application/vnd.api+json",
+            "Authorization": f"Bearer {api_key}",
+        },
+    )
+    if otvor is None:
+        otvor = urllib.request.build_opener(_NoProviderRedirects()).open
+    with otvor(ziadost, timeout=CAS_SPOJENIA) as odpoved:
+        return json.loads(odpoved.read(1_048_576).decode("utf-8"))
+
+
+class LemonLookup:
+    """Doplnenie odložených webhookov z API; repr neobsahuje kľúč."""
+
+    def __init__(self, api_key, *, otvor=None):
+        self._api_key = api_key
+        self._otvor = otvor
+
+    def __repr__(self):
+        return "LemonLookup(<redacted>)"
+
+    def subscription(self, identifier):
+        return stiahni_zdroj(
+            self._api_key, "subscriptions", identifier, otvor=self._otvor
+        )
+
+    def order(self, identifier):
+        return stiahni_zdroj(self._api_key, "orders", identifier, otvor=self._otvor)
+
+
 class ProviderUnavailable(RuntimeError):
     """The provider snapshot was not obtained; local access stays unchanged."""
 
@@ -314,6 +356,10 @@ def _event_payload(
         "updated_at": value("updated_at"),
         "created_at": value("created_at"),
         "total": value("total"),
+        "subtotal": value("subtotal"),
+        "discount_total": value("discount_total"),
+        "tax": value("tax"),
+        "tax_inclusive": value("tax_inclusive"),
         "discount_id": value("discount_id"),
         "refunded_amount": value("refunded_amount", fallback=0),
     }
@@ -351,83 +397,35 @@ def _subscription_row_by_id(rows):
     return result
 
 
-def _normalized_invoice_row(row, *, snapshot, subscription_row):
+def _normalized_invoice_row(row, *, snapshot, subscription_row, expected=None):
     """Fill only facts provable from the invoice, subscription, and local state.
 
     Lemon subscription invoices do not repeat the subscription's order,
     customer, variant, or current billing boundary.  Reconciliation may join
     those authenticated resources, but it must not invent a paid period.
+    Rovnaké doplnenie používa aj webhook (predplatne.enrich_provider_payload).
     """
     attributes = _row_attributes(row)
-    subscription_attributes = _row_attributes(subscription_row) or {}
     if attributes is None or snapshot is None:
         return row
-
-    normalized = dict(attributes)
-    for name in (
-        "store_id",
-        "variant_id",
-        "order_id",
-        "customer_id",
-        "test_mode",
-        "subscription_status",
-        "renews_at",
-    ):
-        if normalized.get(name) is None:
-            source_name = "status" if name == "subscription_status" else name
-            if subscription_attributes.get(source_name) is not None:
-                normalized[name] = subscription_attributes[source_name]
-
-    status = normalized.get("status")
-    status = status.strip().casefold() if isinstance(status, str) else ""
-    subscription_status = normalized.get("subscription_status")
-    subscription_status = (
-        subscription_status.strip().casefold()
-        if isinstance(subscription_status, str)
-        else ""
-    )
-    billing_reason = normalized.get("billing_reason")
-    billing_reason = (
-        billing_reason.strip().casefold()
-        if isinstance(billing_reason, str)
-        else ""
-    )
-
-    # A pending renewal plus a confirmed past-due subscription is the
-    # provider's dunning state.  Project it into the same strict event contract
-    # used by the webhook transition engine.
-    if status == "pending" and subscription_status == "past_due":
-        normalized["status"] = "failed"
-        status = "failed"
-
-    period_start = predplatne._timestamp(normalized.get("billing_period_start"))
-    period_end = predplatne._timestamp(normalized.get("billing_period_end"))
-    if period_start is None or period_end is None:
-        if status == "paid" and billing_reason == "renewal":
-            candidate_start = snapshot.paid_through
-            candidate_end = predplatne._timestamp(
-                subscription_attributes.get("renews_at")
-            )
-        else:
-            candidate_start = snapshot.period_start
-            candidate_end = snapshot.period_end
-        if (
-            candidate_start is not None
-            and candidate_end is not None
-            and candidate_start < candidate_end
-        ):
-            normalized["billing_period_start"] = candidate_start
-            normalized["billing_period_end"] = candidate_end
-
     return {
         "type": row.get("type"),
         "id": row.get("id"),
-        "attributes": normalized,
+        "attributes": predplatne.normalize_invoice_attributes(
+            attributes,
+            snapshot=snapshot,
+            subscription_attributes=_row_attributes(subscription_row) or {},
+            expected=(
+                predplatne._validated_expected(expected)
+                if expected is not None else None
+            ),
+        ),
     }
 
 
 def _apply_reconciliation_event(
-    con, *, payload, now, expected, kind, summary, review_code
+    con, *, payload, now, expected, kind, summary, review_code,
+    ended_refunds=None,
 ):
     try:
         result = predplatne.process_subscription_event(
@@ -451,6 +449,8 @@ def _apply_reconciliation_event(
         summary["_current_drift"] += 1
     else:
         summary["applied_transitions"] += 1
+        if result.get("access_ended") and ended_refunds is not None:
+            ended_refunds.append(result)
     return result
 
 
@@ -497,8 +497,130 @@ def _subscription_event_name(status, snapshot):
     return "subscription_updated"
 
 
+def _unchanged_older_snapshot(attributes, status, snapshot) -> bool:
+    if snapshot is None or attributes is None or status != snapshot.status:
+        return False
+    revision = predplatne._timestamp(attributes.get("updated_at"))
+    if (
+        revision is None
+        or snapshot.provider_updated_at is None
+        or revision >= snapshot.provider_updated_at
+    ):
+        return False
+    return (
+        predplatne._timestamp(attributes.get("renews_at")) == snapshot.renews_at
+        and predplatne._timestamp(attributes.get("ends_at")) == snapshot.ends_at
+    )
+
+
+def _initial_paid_invoice(invoice_rows, subscription_id):
+    for row in invoice_rows:
+        attributes = _row_attributes(row)
+        if (
+            attributes is None
+            or row.get("type") != "subscription-invoices"
+            or str(attributes.get("subscription_id")) != str(subscription_id)
+        ):
+            continue
+        reason = attributes.get("billing_reason")
+        status = attributes.get("status")
+        if (
+            isinstance(reason, str) and reason.strip().casefold() == "initial"
+            and isinstance(status, str) and status.strip().casefold() == "paid"
+        ):
+            return attributes
+    return None
+
+
+def _attempt_for_lost_subscription(con, attributes, *, test_mode):
+    """Lokálny pokus k predplatnému, ktorého subscription_created sa stratil.
+
+    1. pokus už spárovaný s pôvodnou objednávkou (order_created prišiel),
+    2. inak práve jeden ročný pokus jediného účtu s e-mailom z predplatného,
+       ktorého okno platby obsahuje vznik predplatného. Nejednoznačnosť sa
+       nikdy nerieši hádaním — vtedy ostáva prípad na kontrolu.
+    """
+    order_id = predplatne._safe_id(attributes.get("order_id"))
+    if order_id is not None:
+        rows = con.execute(
+            "SELECT public_id FROM checkout_attempts "
+            "WHERE provider_order_id=? AND product=? AND test_mode=? LIMIT 2",
+            (order_id, predplatne.ANNUAL_PREMIUM_PRODUCT, int(test_mode)),
+        ).fetchall()
+        if len(rows) == 1:
+            return str(rows[0][0])
+        if rows:
+            return None
+    created_at = predplatne._timestamp(attributes.get("created_at"))
+    user_id = platby.ucet_podla_emailu(con, attributes.get("user_email"))
+    if created_at is None or user_id is None:
+        return None
+    rows = con.execute(
+        "SELECT public_id FROM checkout_attempts "
+        "WHERE user_id=? AND product=? AND test_mode=? "
+        "AND provider_order_id IS NULL AND status IN ('pending','expired') "
+        "AND accepted_at<=? AND ?<=expires_at+? LIMIT 2",
+        (
+            user_id, predplatne.ANNUAL_PREMIUM_PRODUCT, int(test_mode),
+            created_at, created_at, platby.CHECKOUT_PAYMENT_GRACE_SECONDS,
+        ),
+    ).fetchall()
+    return str(rows[0][0]) if len(rows) == 1 else None
+
+
+def _lost_subscription_created_payload(con, row, invoice_rows, *, expected):
+    """Zostav subscription_created pre aktívne predplatné bez lokálneho stavu.
+
+    Dôkazom platby je zaplatená prvá faktúra z API; suma a zľava z nej prejdú
+    rovnakou kontrolou ponuky ako pri webhooku.
+    """
+    attributes = _row_attributes(row)
+    if attributes is None:
+        return None
+    status = attributes.get("status")
+    if not isinstance(status, str) or status.strip().casefold() != "active":
+        return None
+    test_mode = attributes.get("test_mode")
+    if type(test_mode) is not bool:
+        return None
+    invoice = _initial_paid_invoice(invoice_rows, row.get("id"))
+    if invoice is None:
+        return None
+    attempt_id = _attempt_for_lost_subscription(
+        con, attributes, test_mode=test_mode
+    )
+    if attempt_id is None:
+        return None
+    projected = dict(attributes)
+    for name in (
+        "currency", "total", "subtotal", "discount_total", "tax",
+        "tax_inclusive",
+    ):
+        if projected.get(name) is None and invoice.get(name) is not None:
+            projected[name] = invoice[name]
+    if "discount_id" not in projected:
+        known, discount = predplatne._discount_from_total(
+            invoice, predplatne._validated_expected(expected)
+        )
+        if known:
+            projected["discount_id"] = discount
+    projected.setdefault("billing_period_start", attributes.get("created_at"))
+    projected.setdefault("billing_period_end", attributes.get("renews_at"))
+    return {
+        "meta": {
+            "event_name": "subscription_created",
+            "custom_data": {"attempt_id": attempt_id},
+        },
+        "data": {
+            "type": "subscriptions",
+            "id": row.get("id"),
+            "attributes": projected,
+        },
+    }
+
+
 def _reconcile_subscriptions_batch(
-    con, *, provider_rows, invoice_rows, now, expected
+    con, *, provider_rows, invoice_rows, now, expected, ended_refunds=None
 ) -> dict:
     """Reconcile provider snapshots through the webhook transition engine."""
     if provider_rows is None or invoice_rows is None:
@@ -532,6 +654,36 @@ def _reconcile_subscriptions_batch(
     }
     subscription_rows = _subscription_row_by_id(provider_rows)
 
+    # Stratený subscription_created: aktívne predplatné u poskytovateľa,
+    # ktoré lokálne neexistuje, sa aktivuje, keď ho vieme spárovať s
+    # uloženým pokusom objednávky a zaplatenou prvou faktúrou.
+    for row in provider_rows:
+        if not isinstance(row, dict) or row.get("type") != "subscriptions":
+            continue
+        attributes = _row_attributes(row)
+        if attributes is None or type(attributes.get("test_mode")) is not bool:
+            continue
+        if predplatne.subscription_for_provider(
+            con,
+            provider_subscription_id=_row_subscription_id(row, attributes),
+            test_mode=attributes["test_mode"],
+        ) is not None:
+            continue
+        payload = _lost_subscription_created_payload(
+            con, row, invoice_rows, expected=expected
+        )
+        if payload is None:
+            continue
+        _apply_reconciliation_event(
+            con,
+            payload=payload,
+            now=now,
+            expected=expected,
+            kind="subscription_created",
+            summary=summary,
+            review_code="subscription_requires_review",
+        )
+
     # Payment evidence is applied first. A later generic active snapshot may
     # then confirm, but can never revive unpaid/expired access by itself.
     for row in invoice_rows:
@@ -558,6 +710,7 @@ def _reconcile_subscriptions_batch(
             row,
             snapshot=snapshot,
             subscription_row=subscription_rows.get(str(subscription_id)),
+            expected=expected,
         )
         attributes = _row_attributes(normalized_row)
         event_name = (
@@ -593,6 +746,7 @@ def _reconcile_subscriptions_batch(
             kind="invoice",
             summary=summary,
             review_code="invoice_requires_review",
+            ended_refunds=ended_refunds,
         )
         if result is not None and not result["review_required"] and not result["duplicate"]:
             if result["action"] == "invoice_recorded":
@@ -623,6 +777,11 @@ def _reconcile_subscriptions_batch(
         )
         status = attributes.get("status") if attributes is not None else None
         status = status.strip().casefold() if isinstance(status, str) else ""
+        if _unchanged_older_snapshot(attributes, status, snapshot):
+            # Faktúra posunula overenú revíziu za updated_at predplatného;
+            # rovnaký stav bez zmeny nie je odchýlka.
+            summary["duplicates"] += 1
+            continue
         payload = _event_payload(
             row,
             event_name=_subscription_event_name(status, snapshot),
@@ -655,7 +814,7 @@ def _reconcile_subscriptions_batch(
 
 
 def reconcile_subscriptions(
-    con, *, provider_rows, invoice_rows, now, expected
+    con, *, provider_rows, invoice_rows, now, expected, ended_refunds=None
 ) -> dict:
     """Apply one complete provider snapshot atomically and fail closed."""
     if provider_rows is None or invoice_rows is None:
@@ -666,6 +825,7 @@ def reconcile_subscriptions(
         raise ProviderUnavailable("provider_unavailable")
 
     savepoint = "annual_subscription_reconciliation_batch"
+    batch_refunds = []
     con.execute(f"SAVEPOINT {savepoint}")
     try:
         result = _reconcile_subscriptions_batch(
@@ -674,8 +834,11 @@ def reconcile_subscriptions(
             invoice_rows=invoice_rows,
             now=now,
             expected=expected,
+            ended_refunds=batch_refunds,
         )
         con.execute(f"RELEASE SAVEPOINT {savepoint}")
+        if ended_refunds is not None:
+            ended_refunds.extend(batch_refunds)
         return result
     except Exception:
         try:
@@ -700,7 +863,8 @@ def reconcile_subscriptions(
 
 
 def reconcile_subscriptions_from_api(
-    con, *, api_key, store_id, now, expected, fetch=stiahni_objednavky
+    con, *, api_key, store_id, now, expected, fetch=stiahni_objednavky,
+    ended_refunds=None,
 ) -> dict:
     """Fetch both provider datasets before applying either one."""
     try:
@@ -724,17 +888,72 @@ def reconcile_subscriptions_from_api(
         invoice_rows=invoice_rows,
         now=now,
         expected=expected,
+        ended_refunds=ended_refunds,
     )
+
+
+def dokonci_refundacie_predplatneho(
+    con, vysledky, *, now, api_key=None, notifikuj=None, mailuj=None,
+    zrus=None,
+) -> int:
+    """Plne vrátené predplatné: zrušiť u poskytovateľa, uzavrieť žiadosť, napísať.
+
+    Rovnaký záver ako webhook (server._doriesit_predplatne). Zlyhané alebo
+    nemožné zrušenie ostane ako chránený prípad a majiteľ dostane ntfy.
+    """
+    if zrus is None and api_key:
+        def zrus(subscription_id):
+            stiahni_zdroj(api_key, "subscriptions", subscription_id, metoda="DELETE")
+    posli = naklady.posli_ntfy if notifikuj is None else notifikuj
+    napis = _posli_mail if mailuj is None else mailuj
+    hotovo = 0
+    for vysledok in vysledky or ():
+        if not isinstance(vysledok, dict) or not vysledok.get("access_ended"):
+            continue
+        try:
+            customer_requests.close_requests_for_refund(
+                con, order_id=vysledok.get("provider_order_id"), now=now
+            )
+            con.commit()
+        except (sqlite3.Error, TypeError, ValueError):
+            pass
+        zrusene = platby.dokonci_refundaciu_predplatneho(
+            con, vysledok, now=now, zrus=zrus
+        )
+        if not zrusene:
+            sprava = platby.upozornenie_raz(
+                con, platby.DRUH_ZRUSIT_PREDPLATNE, now=now,
+                pocet=platby.count_open_payment_cases(
+                    con, platby.DRUH_ZRUSIT_PREDPLATNE
+                ),
+            )
+            if sprava is not None:
+                try:
+                    posli(sprava)
+                except Exception:
+                    pass
+        komu = platby.email_uctu(con, vysledok.get("user_id"))
+        if komu:
+            try:
+                napis(
+                    komu,
+                    platby.MAIL_PREDMET_REFUNDACIA_PREDPLATNEHO,
+                    platby.SPRAVA_REFUNDACIA_PREDPLATNEHO,
+                )
+            except Exception:
+                pass
+        hotovo += 1
+    return hotovo
 
 
 # ---------------------------------------------------------------- porovnanie
 def rekonciluj(con, *, objednavky, now, variant_id=None, notifikuj=None,
-               mailuj=None) -> dict:
+               mailuj=None, annual_variant_id=None) -> dict:
     """Doplň, čo webhook nepriniesol. Nič neobchádza — všetko ide cez spracuj_udalost."""
     suhrn = {
         "videne": 0, "udelene": 0, "uz_spracovane": 0, "vratene": 0,
         "bez_uctu": 0, "ignorovane": 0, "nad_kapacitu": 0, "duplicitne": 0,
-        "nepouzitelne": 0, "nespravny_rezim": 0,
+        "nepouzitelne": 0, "nespravny_rezim": 0, "ine_produkty": 0,
     }
     # Platby, za ktoré zákazník nič nedostal. Keď ich objaví rekonciliácia (a nie
     # webhook), musí povedať to isté, čo by povedal webhook: majiteľovi na ntfy,
@@ -744,6 +963,13 @@ def rekonciluj(con, *, objednavky, now, variant_id=None, notifikuj=None,
         suhrn["videne"] += 1
         if platby._atributy_objednavky(objednavka).get("test_mode") is not False:
             suhrn["nespravny_rezim"] += 1
+            continue
+        if not platby.je_jednorazova_zakladajuca(
+            con, objednavka, variant_id=variant_id,
+            annual_variant_id=annual_variant_id,
+        ):
+            # Ročné predplatné (a iné produkty) rieši rekonciliácia predplatného.
+            suhrn["ine_produkty"] += 1
             continue
         ref = platby._bezpecne_id(
             objednavka.get("id") if isinstance(objednavka, dict) else None
@@ -985,11 +1211,31 @@ def main() -> int:
                     "currency": "EUR",
                     "test_mode": False,
                 },
+                subscription_lookup=LemonLookup(api_key) if api_key else None,
+                # Telá s cudzím podpisom sa mažú; testovacie (smoke, sonda)
+                # ostávajú pre ich vlastný nástroj.
+                zmaz_neplatne=True,
+                ponechaj_tajomstva=tuple(
+                    secret for secret in (
+                        env("LEMON_TEST_WEBHOOK_SECRET"),
+                        env("LEMON_TEST_LIFECYCLE_PROBE_WEBHOOK_SECRET"),
+                    ) if secret
+                ),
+            )
+            dokonci_refundacie_predplatneho(
+                con,
+                [
+                    udalost.get("predplatne")
+                    for udalost in odlozene["udalosti"]
+                ],
+                now=now,
+                api_key=api_key,
             )
             if odlozene["spracovane"]:
                 print("REKONCILIACIA: odložené telá — spracovaných "
                       f"{odlozene['spracovane']}, udelených {odlozene['udelene']}, "
-                      f"neplatný podpis {odlozene['neplatny_podpis']}, "
+                      f"neplatný podpis {odlozene['neplatny_podpis']} "
+                      f"(zmazaných {odlozene.get('zmazane_neplatne', 0)}), "
                       f"nepoužiteľných {odlozene['nepouzitelne']}")
         else:
             print("REKONCILIACIA: bez LEMON_WEBHOOK_SECRET nevieme overiť podpisy "
@@ -1006,18 +1252,21 @@ def main() -> int:
                       f"({type(chyba).__name__}) — skúsim o hodinu.")
                 return 1
             suhrn = rekonciluj(
-                con, objednavky=objednavky, now=now, variant_id=variant
+                con, objednavky=objednavky, now=now, variant_id=variant,
+                annual_variant_id=subscription_variant,
             )
             print("REKONCILIACIA: objednávok " + ", ".join(
                 f"{kluc} {hodnota}" for kluc, hodnota in sorted(suhrn.items())
             ))
             if all((store_id, subscription_variant, founder_discount)):
+                ukoncene = []
                 try:
                     annual = reconcile_subscriptions_from_api(
                         con,
                         api_key=api_key,
                         store_id=store_id,
                         now=now,
+                        ended_refunds=ukoncene,
                         expected={
                             "store_id": store_id,
                             "variant_id": subscription_variant,
@@ -1032,6 +1281,9 @@ def main() -> int:
                         "(provider_unavailable); lokálny prístup ostal nezmenený."
                     )
                     return 1
+                dokonci_refundacie_predplatneho(
+                    con, ukoncene, now=now, api_key=api_key
+                )
                 print(
                     "REKONCILIACIA: ročné predplatné — "
                     + ", ".join(

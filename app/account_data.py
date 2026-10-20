@@ -11,6 +11,10 @@ import secrets
 REAUTH_TTL_SECONDS = 5 * 60
 DELETED_EMAIL_SUFFIX = "@deleted.invalid"
 OPEN_REQUEST_STATUSES = ("received", "processing", "requires_review")
+SUBSCRIPTION_DELETION_BLOCKED = (
+    "Máš ročné predplatné, ktoré sa bude ďalej obnovovať a účtovať. Najprv ho "
+    "zruš v Profile cez „Spravovať predplatné“ a potom môžeš účet zmazať."
+)
 
 
 SCHEMA = """
@@ -220,6 +224,38 @@ def export_user_data(con, user_id: int) -> dict:
            FROM consumer_requests WHERE user_id=? ORDER BY created_at""",
         (user_id,),
     ) if _table_exists(con, "consumer_requests") else []
+    # Vlastné ročné predplatné a jeho faktúry; interné poznámky kontroly
+    # (needs_review, review_reason) do exportu nepatria.
+    subscriptions = _rows(
+        con,
+        """SELECT product,provider,provider_customer_id,provider_order_id,
+                  provider_subscription_id,currency,test_mode,status,
+                  period_start,period_end,renews_at,ends_at,paid_through,
+                  initial_amount_cents,renewal_amount_cents,founder,
+                  created_at,updated_at
+           FROM subscriptions WHERE user_id=? ORDER BY created_at,id""",
+        (user_id,),
+    ) if _table_exists(con, "subscriptions") else []
+    subscription_invoices = _rows(
+        con,
+        """SELECT i.provider_invoice_id AS invoice_id,
+                  i.provider_subscription_id,i.provider_order_id,
+                  i.invoice_kind,i.status,i.amount_cents,
+                  i.refunded_amount_cents,i.currency,i.period_start,
+                  i.period_end,i.paid_at,i.created_at,i.updated_at
+           FROM subscription_invoices i
+           WHERE EXISTS (
+             SELECT 1 FROM subscriptions s
+              WHERE s.user_id=? AND s.provider=i.provider
+                AND s.test_mode=i.test_mode
+                AND s.provider_subscription_id=i.provider_subscription_id
+           )
+           ORDER BY i.period_start,i.id""",
+        (user_id,),
+    ) if (
+        _table_exists(con, "subscriptions")
+        and _table_exists(con, "subscription_invoices")
+    ) else []
 
     return {
         "format": "uvarsi-account-export-v1",
@@ -236,6 +272,8 @@ def export_user_data(con, user_id: int) -> dict:
             "entitlements": entitlements,
             "checkout_consents": consents,
             "requests": requests,
+            "subscriptions": subscriptions,
+            "subscription_invoices": subscription_invoices,
         },
     }
 
@@ -263,6 +301,19 @@ def delete_user_account(con, user_id: int, now: float) -> dict:
                 raise AccountDeletionBlocked(
                     "Najprv musíme dokončiť tvoju otvorenú reklamáciu alebo odstúpenie."
                 )
+
+        # Zmazaný účet by Lemon Squeezy ďalej účtoval bez prístupu k Premium.
+        # Bežiace predplatné s budúcou obnovou (alebo past_due, kde poskytovateľ
+        # ešte skúša platbu stiahnuť) musí zákazník najprv zrušiť.
+        if _table_exists(con, "subscriptions") and con.execute(
+            """SELECT 1 FROM subscriptions
+                WHERE user_id=?
+                  AND ((status='active' AND renews_at IS NOT NULL AND renews_at>?)
+                       OR status='past_due')
+                LIMIT 1""",
+            (user_id, float(now)),
+        ).fetchone() is not None:
+            raise AccountDeletionBlocked(SUBSCRIPTION_DELETION_BLOCKED)
 
         for table in (
             "spajza", "plany", "prepocty", "profilove_opravy", "plan_jobs",

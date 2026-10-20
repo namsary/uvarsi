@@ -63,6 +63,10 @@ INTERVAL_ROK = "year"
 FOUNDER_OFFER_ID = "premium-annual-founder-first-year-v1"
 STANDARD_OFFER_ID = "premium-annual-standard-v1"
 CHECKOUT_ATTEMPT_TTL_SECONDS = 60 * 60
+# Ako dlho po vypršaní pokusu ešte smie vzniknúť jeho zaplatená objednávka
+# (oneskorený webhook, rekonciliácia stratenej udalosti). Rovnaká hodnota je
+# v predplatne.CHECKOUT_PAYMENT_GRACE_SECONDS.
+CHECKOUT_PAYMENT_GRACE_SECONDS = 24 * 60 * 60
 ANNUAL_CONSENT_FIELDS = (
     "accept_terms",
     "accept_automatic_renewal",
@@ -480,13 +484,25 @@ def founder_places_used(con, *, test_mode: bool = False) -> int:
 
 
 def _pending_founder_places(con, *, now: float, test_mode: bool) -> int:
+    # Rezervované = neuplynulý pokus. Zaplatený pokus (spárovaný cez
+    # order_created, aj oneskorene po vypršaní) drží miesto, kým ho
+    # nezačne počítať overené predplatné — zaplatené miesto sa neuvoľní.
     row = con.execute(
-        """SELECT COUNT(*) FROM checkout_attempts
-           WHERE founder=1 AND status='pending'
-             AND test_mode=?
-             AND founder_reserved_until IS NOT NULL
-             AND founder_reserved_until>?""",
-        (int(test_mode), now),
+        """SELECT COUNT(*) FROM checkout_attempts AS a
+           WHERE a.founder=1 AND a.test_mode=?
+             AND (
+               (a.status='pending'
+                AND a.founder_reserved_until IS NOT NULL
+                AND a.founder_reserved_until>?)
+               OR (a.status='paid'
+                   AND a.product=?
+                   AND NOT EXISTS (
+                     SELECT 1 FROM subscriptions AS s
+                      WHERE s.provider_order_id=a.provider_order_id
+                        AND s.test_mode=a.test_mode
+                        AND s.initial_payment_verified=1))
+             )""",
+        (int(test_mode), now, PRODUKT_PREMIUM_ROCNY),
     ).fetchone()
     return int(row[0]) if row else 0
 
@@ -529,11 +545,16 @@ def create_subscription_checkout_attempt(
             "SELECT 1 FROM pouzivatelia WHERE id=?", (user_id,)
         ).fetchone() is None:
             raise ValueError("neznámy používateľ")
+        # Skončené predplatné (expired, alebo zrušené po konci prístupu)
+        # novému nebráni; bežiace, neuhradené či zrušené s prístupom áno.
         subscription = con.execute(
             """SELECT status FROM subscriptions
                WHERE user_id=? AND product=? AND test_mode=?
+                 AND status!='expired'
+                 AND NOT (status='cancelled' AND ends_at IS NOT NULL
+                          AND ends_at<=?)
                LIMIT 1""",
-            (user_id, PRODUKT_PREMIUM_ROCNY, int(test_mode)),
+            (user_id, PRODUKT_PREMIUM_ROCNY, int(test_mode), accepted_at),
         ).fetchone()
         if subscription is not None:
             raise SubscriptionAlreadyExists(status=str(subscription[0]))
@@ -1283,6 +1304,31 @@ def _suma(payload):
     return suma, mena
 
 
+def _suma_cennika(payload):
+    """Suma bez DPH na porovnanie s cenníkom; predpoklad je v predplatne._offer_amount.
+
+    Lemon: subtotal = cena pred zľavou a daňou, discount_total = zľava,
+    total = zaplatené vrátane dane. Pri tax_inclusive=true je cenníková suma
+    priamo total; bez subtotal sa porovnáva total.
+    """
+    atributy = _atributy(payload)
+    suma, _mena = _suma(payload)
+    if atributy.get("tax_inclusive") is True:
+        return suma
+
+    def cislo(nazov):
+        hodnota = atributy.get(nazov)
+        if isinstance(hodnota, int) and not isinstance(hodnota, bool) and 0 <= hodnota <= 10 ** 9:
+            return hodnota
+        return None
+
+    subtotal = cislo("subtotal")
+    if subtotal is None:
+        return suma
+    zlava = cislo("discount_total") or 0
+    return subtotal - zlava if subtotal >= zlava else None
+
+
 def refund_kind(payload) -> str:
     """Classify LemonSqueezy's shared full/partial `order_refunded` event."""
     attributes = _atributy(payload)
@@ -1427,7 +1473,10 @@ def _udel(con, payload, now, ocakavany_variant):
         attempt_id = custom_checkout_attempt(payload)
         if attempt_id is None:
             raise UdalostNepouzitelna("chýba pokus objednávky")
-        if suma != CENA_ZAKLADAJUCI_CENTY or mena != MENA_ZAKLADAJUCI:
+        if (
+            _suma_cennika(payload) != CENA_ZAKLADAJUCI_CENTY
+            or mena != MENA_ZAKLADAJUCI
+        ):
             raise UdalostNepouzitelna("platba nezodpovedá odsúhlasenej cene")
         status = _atributy(payload).get("status")
         if not isinstance(status, str) or status.strip().casefold() != "paid":
@@ -1767,6 +1816,7 @@ def spracuj_odlozene(
     con, *, tajomstvo, now, variant_id=None, limit=MAX_ODLOZENYCH,
     expected_test_mode=None, test_tajomstvo=None,
     subscription_expected=None, test_subscription_expected=None,
+    subscription_lookup=None, zmaz_neplatne=False, ponechaj_tajomstva=(),
 ) -> dict:
     """Dobehni telá, ktoré čakali. Každé prejde overením podpisu, ako by prišlo teraz.
 
@@ -1777,6 +1827,12 @@ def spracuj_odlozene(
     Produkčný job posiela ``expected_test_mode=False``. Testovacie aj neoznačené
     udalosti tak nechá nedotknuté pre samostatný payment smoke alebo ručnú
     kontrolu. Nejasný režim nesmie meniť produkčné nároky.
+
+    ``zmaz_neplatne=True`` (produkčný job) zmaže telo, ktorého podpis nesedí
+    so žiadnym známym tajomstvom (spracúvané aj ``ponechaj_tajomstva`` pre
+    smoke/sondu). Inak by smeti s hex „podpisom“ navždy obsadili frontu a po
+    dosiahnutí MAX_ODLOZENYCH by sa zahadzovali skutočné platby. Poistkou
+    pri zle nastavenom tajomstve je hodinová rekonciliácia z API.
     """
     if expected_test_mode not in (None, True, False):
         raise ValueError("expected_test_mode musí byť bool alebo None")
@@ -1811,6 +1867,19 @@ def spracuj_odlozene(
         ]
         if len(matching_modes) != 1:
             suhrn["neplatny_podpis"] += 1
+            if not matching_modes and zmaz_neplatne and not any(
+                secret and overit_podpis(
+                    tajomstvo=secret, telo=telo, podpis=riadok[2]
+                )
+                for secret in ponechaj_tajomstva
+            ):
+                con.execute(
+                    "DELETE FROM platobne_odlozene WHERE id=? "
+                    "AND spracovane_o IS NULL",
+                    (riadok[0],),
+                )
+                con.commit()
+                suhrn["zmazane_neplatne"] = suhrn.get("zmazane_neplatne", 0) + 1
             continue
         verified_mode = matching_modes[0]
         verified_body_digest = hashlib.sha256(telo).hexdigest()
@@ -1844,12 +1913,14 @@ def spracuj_odlozene(
                     expected=annual_expected,
                     source=ZDROJ_ODLOZENE,
                     delivery_key=verified_body_digest,
+                    lookup=None if verified_mode else subscription_lookup,
                 )
                 udalost = {
                     "akcia": annual_result["action"],
                     "typ": annual_result["event_type"],
                     "user_id": annual_result.get("user_id"),
                     "zdroj": ZDROJ_ODLOZENE,
+                    "predplatne": annual_result,
                 }
             else:
                 udalost = spracuj_udalost(
@@ -1980,9 +2051,18 @@ DRUH_NEPOUZITELNA = "nepouzitelna"
 DRUH_ODLOZENE = "odlozene"
 DRUH_REKONCILIACIA = "rekonciliacia"
 DRUH_BEZ_UCTU = "bez_uctu"
+DRUH_ZRUSIT_PREDPLATNE = "zrusit_predplatne"
+DRUH_FRONTA_PLNA = "fronta_plna"
 DRUHY_UPOZORNENI = (
     DRUH_NAD_KAPACITU, DRUH_DUPLICITA, DRUH_IGNOROVANE, DRUH_NEPOUZITELNA,
-    DRUH_ODLOZENE, DRUH_REKONCILIACIA, DRUH_BEZ_UCTU,
+    DRUH_ODLOZENE, DRUH_REKONCILIACIA, DRUH_BEZ_UCTU, DRUH_ZRUSIT_PREDPLATNE,
+    DRUH_FRONTA_PLNA,
+)
+MAIL_PREDMET_REFUNDACIA_PREDPLATNEHO = "Uvar.si: platbu za predplatné sme ti vrátili"
+SPRAVA_REFUNDACIA_PREDPLATNEHO = (
+    "Platbu za ročné Premium sme vrátili na pôvodný spôsob platby a tvoju "
+    "žiadosť sme označili ako vybavenú. Premium už nie je aktívne a "
+    "predplatné sa ďalej nebude obnovovať ani účtovať."
 )
 
 
@@ -2078,7 +2158,62 @@ def priprav_upozornenie(druh, *, den=None, objednavka=None, typ=None, pocet=None
                 "(adresa https://uvar.si/api/platba/webhook a jeho históriu)."
             ),
         }
+    if druh == DRUH_FRONTA_PLNA:
+        return {
+            "kluc": f"{DRUH_FRONTA_PLNA}:{den}",
+            "titul": "Uvar.si: fronta odložených platieb je plná",
+            "sprava": (
+                f"Čakajúcich odložených webhookov je {pocet} (strop "
+                f"{MAX_ODLOZENYCH}). Nové doručenia appka odmieta s 503, "
+                "poskytovateľ ich ešte zopakuje. Spusti rekonciliáciu "
+                "(rekonciliacia.py), skontroluj PLATBY_ZAPNUTE a "
+                "LEMON_WEBHOOK_SECRET v /opt/uvarsi/uvarsi.env."
+            ),
+        }
+    if druh == DRUH_ZRUSIT_PREDPLATNE:
+        return {
+            "kluc": f"{DRUH_ZRUSIT_PREDPLATNE}:{den}:{pocet}",
+            "titul": "Uvar.si: vrátené predplatné treba zrušiť ručne",
+            "sprava": (
+                f"Počet plne vrátených predplatných, ktoré sa nepodarilo "
+                f"zrušiť cez API: {pocet}. Prístup v appke je ukončený, ale "
+                "Lemon Squeezy by ich o rok znova účtoval. Zruš ich v Lemon "
+                "Squeezy (Subscriptions → Cancel); konkrétne objednávky sú "
+                "v chránenej evidencii platieb."
+            ),
+        }
     raise ValueError("neznámy druh upozornenia")
+
+
+def dokonci_refundaciu_predplatneho(con, vysledok, *, now, zrus=None) -> bool:
+    """Po plnej refundácii ročného predplatného zastav jeho obnovu.
+
+    ``zrus(subscription_id)`` zruší predplatné cez API poskytovateľa. Keď
+    klient chýba alebo zlyhá, nikdy sa nepokračuje potichu: vznikne chránený
+    prípad DRUH_ZRUSIT_PREDPLATNE a volajúci pošle majiteľovi upozornenie.
+    Žiadosť o odstúpenie uzatvára a zákazníkovi píše volajúci.
+    Vracia True, keď poskytovateľ zrušenie prijal.
+    """
+    if not isinstance(vysledok, dict) or not vysledok.get("access_ended"):
+        return False
+    objednavka = _bezpecne_id(vysledok.get("provider_order_id"))
+    predplatne_id = _bezpecne_id(vysledok.get("provider_subscription_id"))
+    zrusene = False
+    if zrus is not None and predplatne_id is not None:
+        try:
+            zrus(predplatne_id)
+            zrusene = True
+        except Exception:
+            zrusene = False
+    if not zrusene:
+        create_payment_case(
+            con,
+            case_type=DRUH_ZRUSIT_PREDPLATNE,
+            provider_order_id=objednavka,
+            user_id=vysledok.get("user_id"),
+            now=now,
+        )
+    return zrusene
 
 
 def zaznamenaj_upozornenie(con, *, kluc, now) -> bool:
@@ -2147,6 +2282,60 @@ def checkout_attempt_z_objednavky(objednavka):
     return None
 
 
+def _annual_attempt_z_objednavky(objednavka):
+    """Pokus ročnej pokladne nesie kľúč attempt_id (jednorazový checkout_attempt)."""
+    atributy = _atributy_objednavky(objednavka)
+    kandidati = [atributy.get("custom_data")]
+    polozka = atributy.get("first_order_item")
+    if isinstance(polozka, dict):
+        kandidati.append(polozka.get("custom_data"))
+    for custom in kandidati:
+        if isinstance(custom, dict) and custom.get("attempt_id") is not None:
+            return _bezpecne_id(custom.get("attempt_id")) or "neplatny"
+    return None
+
+
+def je_jednorazova_zakladajuca(
+    con, objednavka, *, variant_id=None, annual_variant_id=None
+) -> bool:
+    """Patrí objednávka z API jednorazovému zakladajúcemu členstvu?
+
+    /v1/orders vracia aj objednávky ročného predplatného. Tie rieši výhradne
+    rekonciliácia predplatného; keby prešli touto cestou, mohli by udeliť
+    doživotný zakladajúci nárok (bez LEMON_VARIANT_ID) alebo založiť falošný
+    prípad „ignorované“. Preskočí sa preto všetko, čo nie je presne
+    jednorazový variant alebo čo patrí ročnému toku.
+    """
+    polozka = _atributy_objednavky(objednavka).get("first_order_item")
+    variant = (
+        _bezpecne_id(polozka.get("variant_id"))
+        if isinstance(polozka, dict) else None
+    )
+    rocny = _bezpecne_id(annual_variant_id)
+    if rocny is not None and variant == rocny:
+        return False
+    jednorazovy = _bezpecne_id(variant_id)
+    if jednorazovy is not None and variant != jednorazovy:
+        return False
+    if _annual_attempt_z_objednavky(objednavka) is not None:
+        return False
+    ref = _bezpecne_id(objednavka.get("id") if isinstance(objednavka, dict) else None)
+    if ref is not None:
+        if con.execute(
+            "SELECT 1 FROM checkout_attempts WHERE provider_order_id=? AND product=?",
+            (ref, PRODUKT_PREMIUM_ROCNY),
+        ).fetchone() is not None:
+            return False
+        try:
+            if con.execute(
+                "SELECT 1 FROM subscriptions WHERE provider_order_id=?", (ref,)
+            ).fetchone() is not None:
+                return False
+        except sqlite3.OperationalError:
+            pass
+    return True
+
+
 def stav_objednavky(objednavka) -> str:
     atributy = _atributy_objednavky(objednavka)
     if atributy.get("refunded") is True:
@@ -2174,6 +2363,9 @@ def payload_z_objednavky(objednavka, *, user_id=None, typ=UDALOST_UDELUJUCA):
         "status": atributy.get("status"),
         "test_mode": atributy.get("test_mode"),
     }
+    for field in ("subtotal", "discount_total", "tax", "tax_inclusive"):
+        if field in atributy:
+            prepis[field] = atributy.get(field)
     for field in ("refunded", "refunded_amount", "refunded_at"):
         if field in atributy:
             prepis[field] = atributy.get(field)

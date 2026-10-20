@@ -247,7 +247,8 @@ def test_task_3_public_interfaces_have_the_approved_signatures():
     key_hints = get_type_hints(predplatne.subscription_event_key)
 
     assert str(inspect.signature(predplatne.process_subscription_event)) == (
-        "(con, *, payload, now, expected, source, delivery_key) -> 'dict'"
+        "(con, *, payload, now, expected, source, delivery_key, lookup=None) "
+        "-> 'dict'"
     )
     assert str(inspect.signature(predplatne.subscription_event_key)) == (
         "(payload, *, verified_body_digest=None, reconciliation_key=None) -> 'str'"
