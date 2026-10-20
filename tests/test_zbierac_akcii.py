@@ -4325,3 +4325,113 @@ def test_reused_valid_stage_clears_a_stale_failure_flag(monkeypatch, tmp_path):
     ).fetchone()
     con.close()
     assert row == ("ok", None)
+
+
+def _published_week(monkeypatch, tmp_path):
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setattr(collector, "DB", str(database))
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    con = collector.db()
+    for store in ("Kaufland", "Tesco", "Lidl"):
+        seed_stage(con, "2026-08-17", store)
+    assert collector.promote_staged_week(con, "2026-08-17", today=date(2026, 8, 19))
+    con.close()
+    return database
+
+
+def _same_leaflets(monkeypatch, *, kaufland=None, tesco_from="2026-08-17"):
+    monkeypatch.setattr(
+        collector, "official_kaufland_offers",
+        lambda today=None: kaufland or [valid_offer("kaufland", i) for i in range(1, 21)],
+    )
+
+    def store_pages(store, today=None):
+        manifest = dict(prepared_collection(store).manifest)
+        if store == "tesco":
+            manifest["valid_from"] = tesco_from
+        return [], manifest
+
+    monkeypatch.setattr(collector, "store_pages", store_pages)
+
+
+def test_daily_check_is_quiet_when_no_leaflet_changed(monkeypatch, tmp_path):
+    _published_week(monkeypatch, tmp_path)
+    _same_leaflets(monkeypatch)
+
+    result = collector.check_source_changes(today=date(2026, 8, 19))
+
+    assert result == {
+        "changed": [], "restaged": [], "unchanged": ["kaufland", "tesco", "lidl"],
+        "unknown": [],
+    }
+
+
+def test_daily_check_finds_changed_leaflet_dates(monkeypatch, tmp_path):
+    _published_week(monkeypatch, tmp_path)
+    _same_leaflets(monkeypatch, tesco_from="2026-08-18")
+
+    result = collector.check_source_changes(today=date(2026, 8, 19))
+
+    assert result["changed"] == ["tesco"]
+    assert result["unchanged"] == ["kaufland", "lidl"]
+
+
+def test_daily_check_restages_corrected_kaufland_prices_for_free(monkeypatch, tmp_path):
+    database = _published_week(monkeypatch, tmp_path)
+    corrected = [valid_offer("kaufland", i) for i in range(1, 21)]
+    corrected[0]["cena"] = 0.79  # Kaufland opravil cenu počas týždňa
+    _same_leaflets(monkeypatch, kaufland=corrected)
+
+    result = collector.check_source_changes(today=date(2026, 8, 19))
+
+    assert result["restaged"] == ["kaufland"]
+    con = sqlite3.connect(database)
+    staged = con.execute(
+        "SELECT cena FROM akcie_staging WHERE obchod='Kaufland' AND nazov='Položka 1'"
+    ).fetchone()[0]
+    live = con.execute(
+        "SELECT cena FROM akcie WHERE obchod='Kaufland' AND nazov='Položka 1'"
+    ).fetchone()[0]
+    assert (staged, live) == (0.79, 1.01)  # zverejní sa až cez overený bloček
+
+
+def test_daily_check_keeps_published_data_when_source_is_unreachable(monkeypatch, tmp_path):
+    _published_week(monkeypatch, tmp_path)
+    _same_leaflets(monkeypatch)
+
+    def offline(store, today=None):
+        raise collector.TransientCollectionError(f"{store}: sieť")
+
+    monkeypatch.setattr(collector, "store_pages", offline)
+
+    result = collector.check_source_changes(today=date(2026, 8, 19))
+
+    assert result["unknown"] == ["tesco", "lidl"]
+    assert result["changed"] == []
+
+
+def test_check_sources_cli_prints_lines_for_the_supervisor(monkeypatch, capsys):
+    monkeypatch.setattr(
+        collector, "check_source_changes",
+        lambda today=None: {"changed": ["tesco"], "restaged": ["kaufland"],
+                            "unchanged": ["lidl"], "unknown": []},
+    )
+
+    assert collector.cli(["--check-sources"]) == 0
+
+    out = capsys.readouterr().out
+    assert "ZMENENE_ZDROJE=tesco\n" in out
+    assert "PRIPRAVENE_ZDROJE=kaufland\n" in out
+
+
+def test_daily_check_leaves_kaufland_alone_when_feed_shows_next_leaflet(monkeypatch, tmp_path):
+    _published_week(monkeypatch, tmp_path)
+    upcoming = [valid_offer("kaufland", i) for i in range(1, 21)]
+    for offer in upcoming:
+        offer["valid_from"], offer["valid_to"] = "2026-08-20", "2026-08-26"
+    _same_leaflets(monkeypatch, kaufland=upcoming)
+
+    result = collector.check_source_changes(today=date(2026, 8, 19))
+
+    assert "kaufland" in result["unchanged"]
+    assert result["restaged"] == []

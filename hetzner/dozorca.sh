@@ -44,6 +44,8 @@ COLLECTION_DIAGNOSTIC_STATE="$DIR/.collection_diagnostic_state"
 COLLECTION_FAILURE_STATE="$DIR/.collection_failure_state"
 RUN_CAP_STATE="$DIR/.zber_behy_vycerpane"       # "týždeň release" po vyčerpaní stropu behov
 BRIDGE_ALERT_STATE="$DIR/.bridge_alert_state"   # "deň:dôvod" posledného upozornenia na bridge
+DENNA_KONTROLA_STATE="$DIR/.denna_kontrola_zdrojov"  # deň poslednej dennej kontroly letákov
+DENNA_KONTROLA_OD="${UVARSI_DENNA_KONTROLA_OD:-6}"   # od ktorej hodiny ráno sa kontroluje
 RECIPE_SMOKE_STATE="${UVARSI_RECIPE_SMOKE_STATE:-/var/lib/uvarsi/recipe_engine_smoke.json}"
 PLAN_QUEUE_HEALTH_URL="${UVARSI_PLAN_QUEUE_HEALTH_URL:-http://127.0.0.1:8090/api/health}"
 HEALTH_ATTEMPTS="${UVARSI_HEALTH_ATTEMPTS:-6}"
@@ -582,6 +584,73 @@ landing_data_is_current() {
   (cd "$DIR" && "$PY" -c 'from datetime import date; from refresh_blocek import landing_data_is_verified_current as landing_data_is_current; import sys; raise SystemExit(0 if landing_data_is_current(sys.argv[1], sys.argv[2], date.fromisoformat(sys.argv[3])) else 1)' "$LANDING_DATA" "$DIR/uvarsi.db" "$TODAY")
 }
 
+# Denná kontrola letákov (raz za deň, od 6:00): obchod mohol počas týždňa
+# vymeniť leták, zmeniť dátumy platnosti alebo opraviť ceny. Samotná kontrola
+# je zadarmo (oficiálny popis letáku, žiadne AI). Platené čítanie beží iba pre
+# obchod, ktorého leták sa naozaj zmenil. Zverejnené akcie sa nemenia, kým nový
+# leták neprejde rovnakým overením ako pondelkový zber.
+denna_kontrola_na_rade() {
+  [ "${UVARSI_DENNA_KONTROLA:-1}" = "1" ] || return 1
+  local hodina posledna=""
+  hodina=$(TZ=Europe/Bratislava "$DATE" +%H 2>/dev/null) || return 1
+  case "$hodina" in ''|*[!0-9]*) return 1 ;; esac
+  [ "$((10#$hodina))" -ge "$DENNA_KONTROLA_OD" ] || return 1
+  if [ -f "$DENNA_KONTROLA_STATE" ]; then
+    read -r posledna < "$DENNA_KONTROLA_STATE" || posledna=""
+  fi
+  [ "$posledna" != "$TODAY" ]
+}
+
+denna_kontrola_zdrojov() {
+  local env_kontrola=() vystup rc zmenene pripravene args=() obchod
+  if tesco_bridge_preflight; then
+    env_kontrola=(UVARSI_TESCO_BRIDGE_URL="${BRIDGE_URL_PRE_ZBER:-}"
+                  UVARSI_TESCO_BRIDGE_SECRET="${BRIDGE_SECRET_PRE_ZBER:-}")
+  fi
+  unset BRIDGE_SECRET_PRE_ZBER
+  vystup=$(cd "$DIR/app" && env ${env_kontrola[@]+"${env_kontrola[@]}"} \
+    "$PY" -u zbierac_akcii.py --check-sources 2>&1)
+  rc=$?
+  [ -n "$vystup" ] && printf '%s\n' "$vystup"
+  if [ "$rc" -ne 0 ]; then
+    log "denná kontrola letákov zlyhala (kód $rc) — skúsim o hodinu."
+    return 0
+  fi
+  printf '%s\n' "$TODAY" > "$DENNA_KONTROLA_STATE"
+  zmenene=$(printf '%s\n' "$vystup" | sed -n 's/^ZMENENE_ZDROJE=//p' | tail -1)
+  pripravene=$(printf '%s\n' "$vystup" | sed -n 's/^PRIPRAVENE_ZDROJE=//p' | tail -1)
+  if [ -z "$zmenene" ] && [ -z "$pripravene" ]; then
+    log "denná kontrola: letáky sa nezmenili."
+    return 0
+  fi
+  log "denná kontrola: obchod zmenil leták${zmenene:+ — znova čítam: $zmenene}${pripravene:+ — nové údaje: $pripravene}"
+  for obchod in $zmenene; do
+    case "$obchod" in tesco|lidl) args+=(--store "$obchod") ;; esac
+  done
+  if [ "${#args[@]}" -gt 0 ]; then
+    vystup=$(cd "$DIR/app" && env ${env_kontrola[@]+"${env_kontrola[@]}"} \
+      "$PY" -u zbierac_akcii.py "${args[@]}" 2>&1)
+    rc=$?
+    [ -n "$vystup" ] && printf '%s\n' "$vystup"
+    if [ "$rc" -ne 0 ]; then
+      log "denná kontrola: nový leták sa nepodarilo prečítať (kód $rc) — zverejnené akcie ostávajú, zajtra skúsim znova."
+      notify "Uvar.si: zmena letáku" "Obchod zmenil leták ($zmenene), nový sa nepodarilo prečítať. Zverejnené akcie ostávajú, zajtra ráno to skúsim znova."
+      return 0
+    fi
+  fi
+  unset env_kontrola
+  vystup=$(cd "$DIR" && "$PY" -u refresh_blocek.py "$LANDING_DATA" 2>&1)
+  rc=$?
+  [ -n "$vystup" ] && printf '%s\n' "$vystup"
+  if [ "$rc" -eq 0 ]; then
+    log "denná kontrola: zmenený leták je overený a zverejnený."
+    publish_static_receipt || log "CHYBA — HTML bloček po dennej kontrole sa nepodarilo publikovať."
+  else
+    log "denná kontrola: zmenu sa nepodarilo zverejniť (kód $rc) — zverejnené akcie ostávajú."
+    notify "Uvar.si: zmena letáku" "Obchod zmenil leták, ale nové údaje neprešli overením (kód $rc). Zverejnené akcie ostávajú."
+  fi
+}
+
 zahrej_plany() {
   # Predpočet iba zaradí idempotentné low-priority úlohy do trvalej fronty;
   # Anthropic volá až samostatný worker. Beží preto pri každom hodinovom
@@ -958,6 +1027,13 @@ DATOVY_STAV="${STAGED_POCET:-0}:${STAGED_CHYBA:-3}:${ZBER_REV:-0}"
 ZDROJOVY_ODTLACOK=$(overeny_odtlacok zber_staging_stav)
 # --- 1. Už je aktuálny landing JSON pripravený? ---
 if landing_data_is_current; then
+  # Denná kontrola zmien letákov (zadarmo, raz za deň) beží iba v ustálenom
+  # stave: kompletné zverejnené dáta aj aktuálny bloček. Chýbajúci obchod
+  # alebo zastaraný bloček rieši zvyšok dozorcu.
+  if [ "${POCET:-0}" -ge "$MIN_TOTAL_OFFERS" ] && [ "${CHYBA_ZBER:-3}" -eq 0 ] && \
+     denna_kontrola_na_rade; then
+    denna_kontrola_zdrojov
+  fi
   # Samotný JSON môže byť aktuálny, aj keď predchádzajúci pokus zlyhal až pri
   # zápise statického HTML (plný disk, práva). Bez tohto druhého pokusu by
   # web zobrazoval starý bloček, hoci dáta sú hotové. Necháme si to v logu,

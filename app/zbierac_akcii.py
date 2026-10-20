@@ -3931,6 +3931,116 @@ def _exit_on_incomplete_collection(failures, structural_failures, suppressed):
     raise SystemExit(f"Zber zlyhal pre obchody: {', '.join(incomplete)}")
 
 
+# ---------------------------------------------------------------- denná kontrola
+# Dozorca ráno overí, či obchod počas týždňa nezmenil leták (nový leták skôr,
+# iné dátumy platnosti, opravené ceny Kauflandu). Kontrola je bezplatná: číta
+# iba oficiálny popis letáku, nie obrázky cez AI. Pri zhode sa nič nedeje.
+
+
+def _current_facts(offers, today):
+    day = today.isoformat()
+    facts = set()
+    for offer in offers:
+        valid_from = str(offer.get("valid_from") or "")
+        valid_to = str(offer.get("valid_to") or "")
+        if valid_from <= day <= valid_to:
+            facts.add((
+                str(offer.get("nazov") or "").strip().casefold(),
+                round(float(offer.get("cena") or 0), 2),
+                valid_from,
+                valid_to,
+            ))
+    return facts
+
+
+def _active_leaflet(con, week, display_store):
+    """(source_url, valid_from, valid_to) zverejneného letáku obchodu."""
+    status = con.execute(
+        "SELECT valid_from, valid_to FROM zber_stav "
+        "WHERE tyzden=? AND obchod=? AND stav='ok'",
+        (week, display_store),
+    ).fetchone()
+    urls = {
+        row[0] for row in con.execute(
+            "SELECT DISTINCT source_url FROM akcie WHERE tyzden=? AND obchod=?",
+            (week, display_store),
+        ).fetchall()
+    }
+    if status is None or len(urls) != 1:
+        return None
+    return (urls.pop(), status[0], status[1])
+
+
+def check_source_changes(today=None):
+    """Porovnaj zverejnené letáky s aktuálnym oficiálnym zdrojom.
+
+    Vráti {"changed": [...], "restaged": [...], "unchanged": [...], "unknown": [...]}.
+    ``changed`` treba znova prečítať (Tesco, Lidl); ``restaged`` už má nové
+    dáta v stagingu (Kaufland je zadarmo). ``unknown`` = zdroj sa nedal overiť,
+    zverejnené dáta ostávajú.
+    """
+    today = today or business_day()
+    week = (today - datetime.timedelta(days=today.weekday())).isoformat()
+    result = {"changed": [], "restaged": [], "unchanged": [], "unknown": []}
+    con = db()
+    try:
+        try:
+            offers = official_kaufland_offers(today=today)
+            active = [
+                dict(row) for row in con.execute(
+                    "SELECT * FROM akcie WHERE tyzden=? AND obchod='Kaufland'",
+                    (week,),
+                ).fetchall()
+            ]
+            current = _current_facts(offers, today)
+            if current == _current_facts(active, today):
+                result["unchanged"].append("kaufland")
+            elif len(current) < MIN_VERIFIED_OFFERS_PER_STORE:
+                # Prehľad už ukazuje najmä budúci leták — dnešné akcie ostávajú,
+                # nový leták prevezme bežný zber v deň jeho platnosti.
+                result["unchanged"].append("kaufland")
+            else:
+                stage_store_collection(
+                    con, week, "Kaufland", offers,
+                    provenance=_collection_provenance(offers),
+                )
+                result["restaged"].append("kaufland")
+        except Exception as exc:  # zverejnené dáta ostávajú, skúsi sa zajtra
+            log(f"[WARN] kaufland: dennú kontrolu sa nepodarilo urobiť ({type(exc).__name__})")
+            result["unknown"].append("kaufland")
+
+        for store in ("tesco", "lidl"):
+            try:
+                _pages, manifest = store_pages(store, today=today)
+                if not manifest:
+                    raise ValueError("oficiálny leták nie je dostupný")
+                current = (
+                    manifest["source_url"], manifest["valid_from"], manifest["valid_to"]
+                )
+                if _active_leaflet(con, week, store.capitalize()) == current:
+                    result["unchanged"].append(store)
+                else:
+                    log(
+                        f"[INFO] {store}: leták sa zmenil — {current[0]} "
+                        f"({current[1]} – {current[2]})"
+                    )
+                    result["changed"].append(store)
+            except Exception as exc:
+                log(f"[WARN] {store}: dennú kontrolu sa nepodarilo urobiť ({type(exc).__name__})")
+                result["unknown"].append(store)
+    finally:
+        con.close()
+    return result
+
+
+def check_sources_main():
+    result = check_source_changes()
+    log("[ZDROJE] " + json.dumps(result, ensure_ascii=False, sort_keys=True))
+    # Riadky pre dozorcu (bash): čo treba znova prečítať a čo je už pripravené.
+    print("ZMENENE_ZDROJE=" + " ".join(result["changed"]), flush=True)
+    print("PRIPRAVENE_ZDROJE=" + " ".join(result["restaged"]), flush=True)
+
+
 def cli(argv=None):
     import argparse
 
@@ -3946,7 +4056,17 @@ def cli(argv=None):
         action="store_true",
         help="bezplatný cielený zber z oficiálneho Kaufland prehľadu",
     )
+    parser.add_argument(
+        "--check-sources",
+        action="store_true",
+        help="bezplatná denná kontrola, či obchod nezmenil leták",
+    )
     args = parser.parse_args(argv)
+    if args.check_sources:
+        if args.stores or args.official_kaufland_only:
+            parser.error("--check-sources sa nekombinuje s inými režimami")
+        check_sources_main()
+        return 0
     if args.official_kaufland_only:
         if args.stores:
             parser.error("--official-kaufland-only nemožno kombinovať s --store")
