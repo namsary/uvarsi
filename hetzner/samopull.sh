@@ -21,8 +21,15 @@ DIR=/opt/uvarsi
 CFG="$DIR/samopull.env"
 REL="$DIR/releases"
 STAV="$DIR/.nasadene_sha"
+# Vydanie, ktoré neprešlo a bolo vrátené. Rovnaký commit sa už neskúša znova
+# každých 10 minút (reštart appky, migrácie a dozorca pri každom pokuse);
+# ďalší pokus príde až s novým commitom.
+ODMIETNUTE="$DIR/.odmietnute_sha"
 PY="${UVARSI_PY:-$DIR/venv/bin/python}"
-NTFY="${UVARSI_NTFY_TOPIC:-uvarsi-jarvis-8f3a2c}"
+# Súkromná téma upozornení žije iba na serveri v súbore ntfy_topic (jeden
+# riadok, nie v gite). Verejná predvolená téma je len núdzová záloha.
+NTFY_TOPIC_SUBOR=$( [ -r "$DIR/ntfy_topic" ] && head -n1 "$DIR/ntfy_topic" | tr -cd 'A-Za-z0-9_-' )
+NTFY="${UVARSI_NTFY_TOPIC:-${NTFY_TOPIC_SUBOR:-uvarsi-jarvis-8f3a2c}}"
 LOCK=/var/lock/uvarsi-samopull.lock
 
 log(){ echo "[$(date '+%F %T')] SAMOPULL: $*"; }
@@ -90,6 +97,9 @@ else
 fi
 
 SHA=$(git -C "$ZDROJ" rev-parse HEAD)
+if [ -f "$ODMIETNUTE" ] && [ "$(cat "$ODMIETNUTE")" = "$SHA" ]; then
+  exit 0
+fi
 if [ -f "$STAV" ] && [ "$(cat "$STAV")" = "$SHA" ]; then
   uvarsi_runtime_assets_current && exit 0
   log "rovnaké vydanie nemá úplné runtime súbory — opravujem ho"
@@ -289,12 +299,12 @@ if ! _uvarsi_require_official_offer_data; then
   _uvarsi_require_tesco_bridge_transport || {
     BRIDGE_REASON=${UVARSI_BRIDGE_FAILURE_REASON:-unknown}
     COLLECTION_DEFERRED=1
-    log "zber je dočasne odložený ($BRIDGE_REASON) — aplikačný kód môžem nasadiť s vypnutými platbami"
+    log "zber je dočasne odložený ($BRIDGE_REASON) — aplikačný kód môžem nasadiť"
   }
 fi
 uvarsi_require_runtime_payments_off || {
-  log "bežiaca appka nemá platby jednoznačne vypnuté — NEPREPÍNAM"
-  notify "Uvar.si: vydanie odmietnuté" "Živý proces musí mať pred nasadením platby vypnuté."
+  log "bežiaca appka nemá jednoznačný stav platieb — NEPREPÍNAM"
+  notify "Uvar.si: vydanie odmietnuté" "Živý proces musí mať platby jednoznačne vypnuté, alebo potvrdenú ostrú prevádzku platieb."
   exit 1
 }
 
@@ -331,6 +341,17 @@ if [ "$LIVE_MUTATION" -eq 1 ] && zdravie && \
         [ "$PRED_DATA_READY" -eq 0 ]
     }; then
     echo "$SHA" > "$STAV"
+    rm -f "$ODMIETNUTE"
+    # Staré vydania (adresáre s 12-znakovým SHA) inak plnia disk donekonečna.
+    # Necháme 10 najnovších; aktuálne vydanie a zálohy návratu sa nemažú.
+    ls -1dt "$REL"/*/ 2>/dev/null | while IFS= read -r stare; do
+      stare=${stare%/}
+      case "${stare##*/}" in
+        [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) printf '%s\n' "$stare" ;;
+      esac
+    done | grep -vxF "$CIEL" | tail -n +10 | while IFS= read -r stare; do
+      rm -rf -- "$stare" && log "staré vydanie zmazané: ${stare##*/}"
+    done
     # samopull sa aktualizuje až po úspechu, aby sa nezmenil pod vlastnými nohami
     [ -f "$DIR/samopull.sh.novy" ] && mv "$DIR/samopull.sh.novy" "$DIR/samopull.sh" && chmod +x "$DIR/samopull.sh"
     VER=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
@@ -342,7 +363,7 @@ if [ "$LIVE_MUTATION" -eq 1 ] && zdravie && \
       notify "Uvar.si nasadené" "Vydanie $VER je živé. Appka aj aktuálny bloček odpovedajú."
     else
       log "kód je nasadený, obnova bločka pokračuje"
-      notify "Uvar.si kód nasadený" "Vydanie $VER je živé; obnova bločka pokračuje autonómne. Platby ostávajú vypnuté."
+      notify "Uvar.si kód nasadený" "Vydanie $VER je živé; obnova bločka pokračuje autonómne."
     fi
     exit 0
   fi
@@ -368,9 +389,10 @@ for f in refresh_blocek.py recepty.py dozorca.sh zaloha.sh payment-smoke.py paym
     log "rollback značka pre $f chýba"; NAVRAT_OK=0
   fi
 done
+echo "$SHA" > "$ODMIETNUTE" || log "značku odmietnutého vydania sa nepodarilo zapísať"
 if [ "$NAVRAT_OK" -eq 1 ] && zdravie; then
   log "predošlá verzia beží"
-  notify "Uvar.si: vydanie vrátené" "Nové vydanie neprešlo, beží predošlá verzia. Appka je v poriadku."
+  notify "Uvar.si: vydanie vrátené" "Nové vydanie ${SHA:0:8} neprešlo, beží predošlá verzia. Appka je v poriadku; rovnaký commit už neskúšam, čakám na opravu."
 else
   log "ani predošlá verzia nenabehla — potrebný zásah"
   notify "Uvar.si: POTREBUJEM ŤA" "Appka nebeží ani po návrate na predošlú verziu. Treba zásah."

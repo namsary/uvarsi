@@ -239,7 +239,7 @@ def test_neznamy_ucel_sa_odmietne(con):
 # ------------------------------------------------------------------ pod-limit účelu
 def test_vision_beh_ma_tyzdenny_strop_poctu_behov(con):
     limit = naklady.limit_behov("zber_letakov")
-    assert limit <= 3, "vision beh sa má spúšťať len párkrát do týždňa"
+    assert limit <= 6, "vision beh sa má spúšťať len párkrát do týždňa"
 
     for _ in range(limit):
         naklady.rezervuj_beh(con, "zber_letakov", teraz=PONDELOK)
@@ -358,12 +358,14 @@ def test_rozbehnuta_slucka_narazi_najprv_na_tyzdenny_limit_behov(con, monkeypatc
             continue
         behy += 1
 
-    assert behy == naklady.limit_behov("zber_letakov") <= 3
+    assert behy == naklady.limit_behov("zber_letakov") <= 6
 
 
-def test_zber_ma_jeden_bezpecny_pokus_na_obnovu_po_dvoch_zlyhaniach(monkeypatch):
+def test_zber_ma_rezervu_na_obnovu_bez_vyradenia_obchodu_do_pondelka(monkeypatch):
+    # Lidl + Tesco + denná kontrola letákov; jeden výpadok nesmie vyradiť
+    # ďalší obchod až do pondelka. Cenu stráži týždenný eurový strop.
     monkeypatch.delenv("UVARSI_TYZDENNE_BEHY_ZBER", raising=False)
-    assert naklady.limit_behov("zber_letakov") == 3
+    assert naklady.limit_behov("zber_letakov") == 6
 
 
 def test_schema_migration_has_two_bounded_recovery_runs_after_first_failure(con, monkeypatch):

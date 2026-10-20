@@ -35,7 +35,10 @@ DB="${UVARSI_DB:-$DIR/uvarsi.db}"
 KAM="${UVARSI_ZALOHY:-/var/backups/uvarsi}"
 PY="${UVARSI_PY:-$DIR/venv/bin/python}"
 DRZAT="${UVARSI_DRZAT:-14}"          # koľko nočných záloh si necháme
-NTFY_TOPIC="uvarsi-jarvis-8f3a2c"    # notifikácie: ntfy.sh/<topic>
+# Súkromná téma upozornení žije iba na serveri v súbore ntfy_topic (jeden
+# riadok, nie v gite). Verejná predvolená téma je len núdzová záloha.
+NTFY_TOPIC_SUBOR=$( [ -r "$DIR/ntfy_topic" ] && head -n1 "$DIR/ntfy_topic" | tr -cd 'A-Za-z0-9_-' )
+NTFY_TOPIC="${UVARSI_NTFY_TOPIC:-${NTFY_TOPIC_SUBOR:-uvarsi-jarvis-8f3a2c}}"    # notifikácie: ntfy.sh/<topic>
 
 log(){ echo "[$(date '+%F %T')] ZALOHA: $*"; }
 notify(){
@@ -119,3 +122,37 @@ fi
 POCET=$(ls -1 "$KAM"/uvarsi-*.db 2>/dev/null | wc -l)
 log "v adresári $KAM je $POCET záloh (držíme $DRZAT)"
 exit 0
+
+# --- 4. kópia mimo servera ---
+# Záloha na tom istom disku nechráni pred stratou servera. Cieľ (napr. Hetzner
+# Storage Box) žije iba na serveri v súbore zaloha.env, nie v gite:
+#   ZALOHA_VZDIALENA=u123456@u123456.your-storagebox.de:uvarsi/
+#   ZALOHA_SSH_PORT=23
+#   ZALOHA_SSH_KLUC=/root/.ssh/uvarsi_zaloha
+# Kým nie je nastavený, raz týždenne (v nedeľu) príde pripomienka.
+ZALOHA_ENV="${UVARSI_ZALOHA_ENV:-$DIR/zaloha.env}"
+ZALOHA_VZDIALENA=""
+ZALOHA_SSH_PORT="22"
+ZALOHA_SSH_KLUC=""
+if [ -r "$ZALOHA_ENV" ]; then
+  ZALOHA_VZDIALENA=$(sed -n 's/^[[:space:]]*ZALOHA_VZDIALENA=//p' "$ZALOHA_ENV" | head -1 | tr -d '"'"'"'')
+  ZALOHA_SSH_PORT=$(sed -n 's/^[[:space:]]*ZALOHA_SSH_PORT=//p' "$ZALOHA_ENV" | head -1 | tr -cd '0-9')
+  ZALOHA_SSH_KLUC=$(sed -n 's/^[[:space:]]*ZALOHA_SSH_KLUC=//p' "$ZALOHA_ENV" | head -1 | tr -d '"'"'"'')
+  ZALOHA_SSH_PORT=${ZALOHA_SSH_PORT:-22}
+fi
+if [ -z "$ZALOHA_VZDIALENA" ]; then
+  log "kópia mimo servera nie je nastavená ($ZALOHA_ENV)"
+  if [ "$(date +%u)" = "7" ]; then
+    notify "Uvar.si: záloha iba na serveri" "Záloha databázy je len na tom istom disku. Nastav kópiu mimo servera (zaloha.env)."
+  fi
+  exit 0
+fi
+SSH_PRIKAZ="ssh -p $ZALOHA_SSH_PORT -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
+[ -n "$ZALOHA_SSH_KLUC" ] && SSH_PRIKAZ="$SSH_PRIKAZ -i $ZALOHA_SSH_KLUC"
+if rsync -a --timeout=300 -e "$SSH_PRIKAZ" "$CIEL" "$ZALOHA_VZDIALENA"; then
+  log "kópia mimo servera: hotovo ($ZALOHA_VZDIALENA)"
+else
+  log "kópia mimo servera ZLYHALA"
+  notify "Uvar.si: záloha mimo servera zlyhala" "Nočná záloha je na serveri, ale kópiu mimo servera sa nepodarilo odoslať. Skúsim zajtra."
+  exit 1
+fi
