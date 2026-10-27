@@ -47,6 +47,10 @@ BRIDGE_ALERT_STATE="$DIR/.bridge_alert_state"   # "deň:dôvod" posledného upoz
 DENNA_KONTROLA_STATE="$DIR/.denna_kontrola_zdrojov"  # deň poslednej dennej kontroly letákov
 STRUKTURALNY_ALERT_STATE="$DIR/.strukturalny_alert"  # epoch posledného opakovaného upozornenia
 DISK_ALERT_STATE="$DIR/.disk_alert"                  # deň posledného upozornenia na plný disk
+PREDCITANIE_STATE="$DIR/.predcitanie_letakov"        # epoch posledného predčítania letákov
+PREDCITANIE_ALERT_STATE="$DIR/.predcitanie_alert"    # deň posledného upozornenia na zajtrajší leták
+PREDCITANIE_INTERVAL="${UVARSI_PREDCITANIE_INTERVAL:-14400}"  # ako často hľadať ohlásené letáky
+PREDCITANIE_ALERT_OD="${UVARSI_PREDCITANIE_ALERT_OD:-18}"     # od ktorej hodiny upozorniť na zajtrajšok
 STRUKTURALNY_ALERT_INTERVAL="${UVARSI_STRUKTURALNY_ALERT_INTERVAL:-14400}"
 DISK_ALERT_PERCENT="${UVARSI_DISK_ALERT_PERCENT:-90}"
 DENNA_KONTROLA_OD="${UVARSI_DENNA_KONTROLA_OD:-6}"   # od ktorej hodiny ráno sa kontroluje
@@ -658,6 +662,60 @@ denna_kontrola_zdrojov() {
   fi
 }
 
+# Predčítanie letákov: obchody zverejňujú nový leták pár dní pred začiatkom
+# platnosti (Lidl v piatok na pondelok). Prečítame ho vopred, zapíšeme jeho
+# dátumy do kalendára a v deň platnosti ho zberač iba zverejní — bez čakania
+# na platené čítanie (incident 26. 10.: Lidl chýbal celý pondelok). Dátumy
+# berieme z letáku, takže sviatky a posuny sa riešia samé.
+predcitanie_na_rade() {
+  [ "${UVARSI_PREDCITANIE:-1}" = "1" ] || return 1
+  local posledne=0
+  [ -f "$PREDCITANIE_STATE" ] && { read -r posledne < "$PREDCITANIE_STATE" || posledne=0; }
+  case "$posledne" in ''|*[!0-9]*) posledne=0 ;; esac
+  [ $((NOW_EPOCH - posledne)) -ge "$PREDCITANIE_INTERVAL" ]
+}
+
+predcitaj_letaky() {
+  local env_kontrola=() vystup rc precitane nepripravene hodina posledny="" polozka obchod dovod sprava=""
+  if tesco_bridge_preflight; then
+    env_kontrola=(UVARSI_TESCO_BRIDGE_URL="${BRIDGE_URL_PRE_ZBER:-}"
+                  UVARSI_TESCO_BRIDGE_SECRET="${BRIDGE_SECRET_PRE_ZBER:-}")
+  fi
+  unset BRIDGE_SECRET_PRE_ZBER
+  vystup=$(cd "$DIR/app" && env ${env_kontrola[@]+"${env_kontrola[@]}"} \
+    "$PY" -u zbierac_akcii.py --prefetch 2>&1)
+  rc=$?
+  unset env_kontrola
+  [ -n "$vystup" ] && printf '%s\n' "$vystup"
+  if [ "$rc" -ne 0 ]; then
+    log "predčítanie letákov zlyhalo (kód $rc) — skúsim o hodinu."
+    return 0
+  fi
+  printf '%s\n' "$NOW_EPOCH" > "$PREDCITANIE_STATE"
+  precitane=$(printf '%s\n' "$vystup" | sed -n 's/^PRECITANE_LETAKY=//p' | tail -1)
+  nepripravene=$(printf '%s\n' "$vystup" | sed -n 's/^NEPRIPRAVENE_ZAJTRA=//p' | tail -1)
+  [ -n "$precitane" ] && log "predčítanie: nový leták je prečítaný vopred — $precitane"
+  [ -n "$nepripravene" ] || return 0
+  log "POZOR: zajtrajší leták nie je pripravený — $nepripravene"
+  hodina=$(TZ=Europe/Bratislava "$DATE" +%H 2>/dev/null) || return 0
+  case "$hodina" in ''|*[!0-9]*) return 0 ;; esac
+  [ "$((10#$hodina))" -ge "$PREDCITANIE_ALERT_OD" ] || return 0
+  [ -f "$PREDCITANIE_ALERT_STATE" ] && { read -r posledny < "$PREDCITANIE_ALERT_STATE" || posledny=""; }
+  [ "$posledny" = "$TODAY" ] && return 0
+  for polozka in $nepripravene; do
+    obchod=${polozka%%:*}
+    dovod=${polozka#*:}
+    case "$dovod" in
+      neohlaseny) sprava="$sprava ${obchod}: obchod ešte nezverejnil leták na zajtra." ;;
+      *) sprava="$sprava ${obchod}: leták od zajtra sa nepodarilo prečítať vopred." ;;
+    esac
+  done
+  notify "Uvar.si: zajtrajší leták nie je pripravený" \
+    "Zajtra môžu chýbať akcie.${sprava} Dozorca to skúsi znova, pri pretrvávaní treba zásah." && \
+    printf '%s\n' "$TODAY" > "$PREDCITANIE_ALERT_STATE"
+  return 0
+}
+
 zahrej_plany() {
   # Predpočet iba zaradí idempotentné low-priority úlohy do trvalej fronty;
   # Anthropic volá až samostatný worker. Beží preto pri každom hodinovom
@@ -1059,6 +1117,10 @@ if landing_data_is_current; then
   if [ "${POCET:-0}" -ge "$MIN_TOTAL_OFFERS" ] && [ "${CHYBA_ZBER:-3}" -eq 0 ] && \
      denna_kontrola_na_rade; then
     denna_kontrola_zdrojov
+  fi
+  if [ "${POCET:-0}" -ge "$MIN_TOTAL_OFFERS" ] && [ "${CHYBA_ZBER:-3}" -eq 0 ] && \
+     predcitanie_na_rade; then
+    predcitaj_letaky
   fi
   # Samotný JSON môže byť aktuálny, aj keď predchádzajúci pokus zlyhal až pri
   # zápise statického HTML (plný disk, práva). Bez tohto druhého pokusu by
