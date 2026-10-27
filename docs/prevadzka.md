@@ -721,6 +721,7 @@ volanie `https://uvar.si/api/health` zvonka) a príjemca upozornení naň:
 | Dozorca (cron `0 5-21 * * *` cez `uvarsi-deploy-state.sh run-supervisor`) | Kontroluje, či bloček sedí na aktuálny týždeň; opakuje zber, max. 6 pokusov za deň, upozorní po 2 neúspechoch | `hetzner/dozorca.sh:2-12`, `:28-29`, `:63-64`; `hetzner/uvarsi-deploy-state.sh:896-898` |
 | Dozorca číta `plan_queue` a `recipe_engine` z `/api/health` (`127.0.0.1:8090`) | Upozornenia na zaseknutú frontu plánov a receptový engine | `hetzner/dozorca.sh:48`, `:227-267`, `:298-340` |
 | Upozornenia cez ntfy.sh | Chyba zálohy, zálohy bez overenia, výpadky zberu | `hetzner/zaloha.sh:41-44`, `hetzner/dozorca.sh:71`; téma sa dá prepísať v `/opt/uvarsi/dozorca.env` (`hetzner/dozorca.sh:58-61`) |
+| Predčítanie letákov (dozorca, každé 4 h v ustálenom stave) | Nájde ohlásené budúce letáky Lidla a Tesca, zapíše ich dátumy do kalendára `letaky_kalendar` a prečíta ich vopred; v deň platnosti ich zberač zverejní bez ďalšieho čítania. Od 18:00 upozorní, ak zajtrajší leták nie je pripravený | `hetzner/dozorca.sh` (`predcitaj_letaky`), `app/zbierac_akcii.py` (`prefetch_upcoming_leaflets`) |
 | Samopull (cron každých 10 min) | Po novom vydaní overí health, pri nezhode vráti predošlú verziu a upozorní | `hetzner/samopull.sh:2-9`, `:271-276`, `:355-368` |
 | Rekonciliácia platieb (cron `5 * * * *`) | Hodinová kontrola platieb, log `/var/log/uvarsi-platby.log` | `hetzner/uvarsi-deploy-state.sh:904-906` |
 | `check-readiness` | Brána pripravenosti po nasadení (platby OFF, appka, worker, cron, čerstvé dáta) | `hetzner/uvarsi-deploy-state.sh:2218`; opis v časti „Povinný smoke a rollback“ vyššie |
@@ -824,3 +825,30 @@ vydaní v `/opt/uvarsi/releases`; staršie maže.
 **Disk a zablokovaný týždeň.** Dozorca upozorní raz denne, keď je disk
 zaplnený na 90 % a viac, a každé 4 hodiny pripomína týždeň zablokovaný
 štrukturálnou chybou, kým trvá.
+
+## Kalendár letákov a predčítanie
+
+Obchody zverejňujú nový leták pár dní pred začiatkom jeho platnosti: Lidl
+v piatok na pondelok, sviatky a Vianoce dátumy posúvajú. Dozorca preto každé
+4 hodiny (v ustálenom stave) spustí `zbierac_akcii.py --prefetch`:
+
+1. pre Lidl a Tesco nájde letáky ohlásené na najbližších 7 dní,
+2. ich identitu a dátumy platnosti zapíše do tabuľky `letaky_kalendar`,
+3. každý nový leták prečíta vopred (to isté platené čítanie, ktoré by inak
+   bežalo v deň platnosti, iba skôr; najviac 2 pokusy na leták),
+4. v deň platnosti zberač overí, že leták sa odvtedy nezmenil (odtlačok
+   strán), a zverejní ho bez ďalšieho čítania. Ak sa zmenil, prečíta ho znova.
+
+Ak večer (od 18:00) zajtrajší leták chýba alebo nie je prečítaný, príde jedno
+upozornenie za deň „Uvar.si: zajtrajší leták nie je pripravený“.
+
+Kalendár si pozrieš na serveri:
+
+```
+cd /opt/uvarsi/app && set -a && . /opt/uvarsi/uvarsi.env && set +a && /opt/uvarsi/venv/bin/python zbierac_akcii.py --kalendar
+```
+
+Vypnutie (iba pri incidente): `UVARSI_PREDCITANIE=0` v prostredí dozorcu.
+Kaufland sa nepredčítava — jeho oficiálny prehľad je zadarmo a zber ho v deň
+zmeny načíta za pár sekúnd.
+

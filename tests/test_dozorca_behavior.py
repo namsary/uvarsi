@@ -137,6 +137,8 @@ def supervisor_environment(tmp_path):
         "UVARSI_TEST_BRIDGE_PREFLIGHT": "/usr/bin/true",
         # Dennú kontrolu letákov testujú vlastné testy nižšie.
         "UVARSI_DENNA_KONTROLA": "0",
+        # Predčítanie budúcich letákov testuje test_dozorca_predcitanie.py.
+        "UVARSI_PREDCITANIE": "0",
         "PATH": f"{bash_path(tmp_path)}:/usr/bin",
     }
     return {

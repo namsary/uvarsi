@@ -336,6 +336,30 @@ CREATE TABLE IF NOT EXISTS zber_claim (
   expires_at TEXT NOT NULL,
   PRIMARY KEY (tyzden, obchod)
 );
+
+-- Kalendár letákov: každý leták, ktorý obchod zverejnil, s dátumami platnosti.
+-- Lidl dáva leták na web už v piatok, platí od pondelka. Keď ho prečítame
+-- vopred, v deň platnosti ho zverejníme hneď a bez ďalšieho plateného čítania
+-- (incident 26. 10.: pondelok bez Lidla). Sviatky posúvajú dátumy — preto
+-- sa riadime dátumami z letáku, nie pevným dňom v týždni.
+CREATE TABLE IF NOT EXISTS letaky_kalendar (
+  obchod TEXT NOT NULL,
+  identita TEXT NOT NULL,
+  valid_from TEXT NOT NULL,
+  valid_to TEXT NOT NULL,
+  source_url TEXT,
+  prvy_raz_videny TEXT NOT NULL,
+  naposledy_videny TEXT NOT NULL,
+  stav TEXT NOT NULL DEFAULT 'ohlaseny',  -- ohlaseny | precitany | chyba
+  source_fingerprint TEXT,
+  collector_kind TEXT,
+  pocet INTEGER,
+  offers_json TEXT,
+  chyba TEXT,
+  pokusy INTEGER NOT NULL DEFAULT 0,
+  updated TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (obchod, identita, valid_from, valid_to)
+);
 """
 
 
@@ -2764,9 +2788,13 @@ def _attach_exact_content_identity(store, manifest, page_manifest):
     return enriched, rows, page_bytes
 
 
-def prepare_store_collection(store):
+def prepare_store_collection(store, today=None):
     """Resolve and validate the free source manifest before any paid AI call."""
-    pages, manifest = store_pages(store)
+    if today is None:
+        pages, manifest = store_pages(store)
+    else:
+        # Predčítanie: leták, ktorý platí až od `today` v budúcnosti.
+        pages, manifest = store_pages(store, today=today)
     if not pages:
         raise ManifestPreparationError(
             f"{store}: leták s konečnou platnosťou nebol nájdený",
@@ -3599,6 +3627,7 @@ def main(stores=None):
             log(f"[ERROR] {store}: vstupný manifest zlyhal ({exc})")
             continue
         prepared_by_store[store] = prepared
+        zapis_do_kalendara(con, display_store, prepared.manifest, today)
         provenance = prepared.provenance
         failure_identity = structural_failure_identity(display_store, provenance)
 
@@ -3651,6 +3680,13 @@ def main(stores=None):
             if problem is None:
                 clear_stale_stage_failure(con, tyz, display_store)
                 reusable_stores.append(store)
+                continue
+            if stage_prefetched_leaflet(con, tyz, display_store, provenance):
+                free_collected.append(store)
+                free_total += con.execute(
+                    "SELECT pocet FROM zber_staging_stav WHERE tyzden=? AND obchod=?",
+                    (tyz, display_store),
+                ).fetchone()[0]
                 continue
             if unchanged_structural_failure(
                 con,
@@ -4014,6 +4050,7 @@ def check_source_changes(today=None):
                 _pages, manifest = store_pages(store, today=today)
                 if not manifest:
                     raise ValueError("oficiálny leták nie je dostupný")
+                zapis_do_kalendara(con, store.capitalize(), manifest, today)
                 current = (
                     manifest["source_url"], manifest["valid_from"], manifest["valid_to"]
                 )
@@ -4031,6 +4068,276 @@ def check_source_changes(today=None):
     finally:
         con.close()
     return result
+
+
+# ------------------------------------------------- kalendár a predčítanie letákov
+# Lidl a Tesco čítame platene (Vision). Nový leták zverejňujú pár dní pred
+# začiatkom platnosti, takže ho prečítame vopred a v deň platnosti ho len
+# zverejníme. Kaufland je zadarmo z oficiálneho prehľadu, predčítanie netreba.
+PREDCITANIE_OBCHODY = ("lidl", "tesco")
+PREDCITANIE_DNI = 7          # ako ďaleko dopredu hľadáme ohlásený leták
+PREDCITANIE_MAX_POKUSOV = 2  # platené pokusy o jeden leták
+
+
+def _identita_letaku(manifest):
+    return manifest.get("source_identity") or manifest.get("source_url")
+
+
+def zapis_do_kalendara(con, store, manifest, today):
+    """Zapíš, že obchod zverejnil leták s danou platnosťou. Nikdy nezhodí zber."""
+    try:
+        identita = _identita_letaku(manifest or {})
+        valid_from = manifest.get("valid_from") if manifest else None
+        valid_to = manifest.get("valid_to") if manifest else None
+        if not identita or not valid_from or not valid_to:
+            return
+        day = today.isoformat()
+        with con:
+            con.execute(
+                """INSERT INTO letaky_kalendar
+                     (obchod, identita, valid_from, valid_to, source_url,
+                      prvy_raz_videny, naposledy_videny, updated)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                   ON CONFLICT(obchod, identita, valid_from, valid_to) DO UPDATE SET
+                     naposledy_videny=excluded.naposledy_videny,
+                     source_url=COALESCE(excluded.source_url, source_url)""",
+                (store, identita, valid_from, valid_to,
+                 manifest.get("source_url"), day, day),
+            )
+    except Exception as exc:
+        log(f"[WARN] {store.lower()}: kalendár letákov sa nepodarilo zapísať ({type(exc).__name__})")
+
+
+def stage_prefetched_leaflet(con, week, store, provenance):
+    """Zverejni vopred prečítaný leták bez plateného čítania. True = hotovo."""
+    try:
+        row = con.execute(
+            """SELECT offers_json FROM letaky_kalendar
+               WHERE obchod=? AND stav='precitany' AND source_fingerprint=?
+                 AND collector_kind=? AND valid_from=? AND valid_to=?
+               ORDER BY updated DESC LIMIT 1""",
+            (store, provenance.source_fingerprint, provenance.collector_kind,
+             provenance.valid_from, provenance.valid_to),
+        ).fetchone()
+    except sqlite3.Error:
+        return False
+    if row is None or not row[0]:
+        return False
+    try:
+        offers = json.loads(row[0])
+        stage_store_collection(con, week, store, offers, provenance=provenance)
+    except Exception as exc:
+        if con.in_transaction:
+            con.rollback()
+        log(f"[WARN] {store.lower()}: vopred prečítaný leták sa nedal použiť ({exc})")
+        return False
+    log(f"[OK] {store}: leták bol prečítaný vopred — pripravený bez ďalšieho čítania")
+    return True
+
+
+def _ohlasene_letaky(store, today, days):
+    """Letáky obchodu, ktoré už sú zverejnené, ale začnú platiť až neskôr."""
+    found = {}
+    for offset in range(1, days + 1):
+        day = today + datetime.timedelta(days=offset)
+        try:
+            pages, manifest = store_pages(store, today=day)
+        except Exception as exc:
+            log(f"[INFO] {store}: leták platný {day} zatiaľ nie je dostupný ({type(exc).__name__})")
+            continue
+        if not pages or not manifest:
+            continue
+        valid_from = str(manifest.get("valid_from") or "")
+        if not valid_from or valid_from <= today.isoformat():
+            continue  # už platí — rieši ho bežný zber
+        key = (_identita_letaku(manifest), valid_from, manifest.get("valid_to"))
+        if key[0] and key not in found:
+            found[key] = (day, manifest)
+    return found
+
+
+def _kalendar_riadok(con, store, key):
+    return con.execute(
+        """SELECT stav, pokusy FROM letaky_kalendar
+           WHERE obchod=? AND identita=? AND valid_from=? AND valid_to=?""",
+        (store, *key),
+    ).fetchone()
+
+
+def _uloz_vysledok_predcitania(con, store, key, **fields):
+    assignments = ", ".join(f"{name}=?" for name in fields)
+    with con:
+        con.execute(
+            f"""UPDATE letaky_kalendar SET {assignments}, updated=CURRENT_TIMESTAMP
+                WHERE obchod=? AND identita=? AND valid_from=? AND valid_to=?""",
+            (*fields.values(), store, *key),
+        )
+
+
+def nepripravene_zajtra(con, today):
+    """Obchody, ktorým by zajtra mohol chýbať leták: [(obchod, dôvod)]."""
+    tomorrow = (today + datetime.timedelta(days=1)).isoformat()
+    week = (today - datetime.timedelta(days=today.weekday())).isoformat()
+    problems = []
+    for store in PREDCITANIE_OBCHODY:
+        display = store.capitalize()
+        rows = con.execute(
+            """SELECT stav FROM letaky_kalendar
+               WHERE obchod=? AND valid_from > ? AND valid_from <= ?""",
+            (display, today.isoformat(), tomorrow),
+        ).fetchall()
+        if rows:
+            if not any(row[0] == "precitany" for row in rows):
+                problems.append((store, "neprecitany"))
+            continue
+        active = con.execute(
+            "SELECT valid_to FROM zber_stav WHERE tyzden=? AND obchod=? AND stav='ok'",
+            (week, display),
+        ).fetchone()
+        if active is not None and active[0] == today.isoformat():
+            # Zverejnený leták dnes končí a nový obchod ešte neohlásil.
+            problems.append((store, "neohlaseny"))
+    return problems
+
+
+def prefetch_upcoming_leaflets(today=None, days=PREDCITANIE_DNI):
+    """Nájdi ohlásené budúce letáky, zapíš ich do kalendára a prečítaj vopred."""
+    today = today or business_day()
+    result = {"precitane": [], "pripravene": [], "zlyhane": [], "nepripravene_zajtra": []}
+    con = db()
+    try:
+        pending = []
+        for store in PREDCITANIE_OBCHODY:
+            display = store.capitalize()
+            for key, (day, manifest) in _ohlasene_letaky(store, today, days).items():
+                zapis_do_kalendara(con, display, manifest, today)
+                log(f"[KALENDAR] {store}: leták {key[1]} – {key[2]} je ohlásený")
+                row = _kalendar_riadok(con, display, key)
+                if row is not None and row[0] == "precitany":
+                    result["pripravene"].append(store)
+                elif row is not None and int(row[1] or 0) >= PREDCITANIE_MAX_POKUSOV:
+                    result["zlyhane"].append(store)
+                else:
+                    pending.append((store, day, key))
+        if pending:
+            _predcitaj(con, pending, result)
+        result["nepripravene_zajtra"] = [
+            f"{store}:{reason}" for store, reason in nepripravene_zajtra(con, today)
+        ]
+    finally:
+        con.close()
+    return result
+
+
+def _predcitaj(con, pending, result):
+    purpose = "zber_letakov"
+    try:
+        guard_known_credit_before_source_download(con)
+        naklady.skontroluj(
+            con, purpose, odhad_eur=0.0,
+            rezervovane_eur=MIN_START_BUDGET_PER_STORE_EUR * len(pending),
+            kontroluj_kredit=False,
+        )
+    except (SystemExit, naklady.RozpocetVycerpany, naklady.KreditVycerpany) as refusal:
+        log(f"[WARN] predčítanie odkladám — {refusal}")
+        result["zlyhane"].extend(store for store, _, _ in pending)
+        return
+    import anthropic
+
+    client = guarded_client(
+        con,
+        anthropic.Anthropic(api_key=load_key(), timeout=180.0, max_retries=1),
+        purpose,
+    )
+    cost_marker = con.execute("SELECT COALESCE(MAX(id), 0) FROM naklady").fetchone()[0]
+    try:
+        naklady.rezervuj_beh(con, purpose)
+    except naklady.RozpocetVycerpany as refusal:
+        log(f"[WARN] predčítanie odkladám — {refusal}")
+        result["zlyhane"].extend(store for store, _, _ in pending)
+        return
+    try:
+        for store, day, key in pending:
+            display = store.capitalize()
+            try:
+                prepared = prepare_store_collection(store, today=day)
+            except Exception as exc:
+                log(f"[WARN] {store}: ohlásený leták sa nedal pripraviť ({exc})")
+                result["zlyhane"].append(store)
+                continue
+            provenance = prepared.provenance
+            if (_identita_letaku(prepared.manifest), provenance.valid_from,
+                    provenance.valid_to) != key:
+                cleanup = getattr(prepared.page_bytes, "cleanup", None)
+                if cleanup is not None:
+                    cleanup()
+                log(f"[WARN] {store}: ohlásený leták sa medzitým zmenil — skúsim neskôr")
+                result["zlyhane"].append(store)
+                continue
+            _uloz_vysledok_predcitania(
+                con, display, key,
+                pokusy=(int((_kalendar_riadok(con, display, key) or (None, 0))[1] or 0) + 1),
+            )
+            try:
+                offers = zbieraj(client, store, prepared)
+                target_week = (
+                    datetime.date.fromisoformat(key[1])
+                    - datetime.timedelta(days=datetime.date.fromisoformat(key[1]).weekday())
+                ).isoformat()
+                count = _unique_offer_count(target_week, offers)
+                if count < MIN_VERIFIED_OFFERS_PER_STORE:
+                    raise ValueError(
+                        f"iba {count} overených akcií; minimum je {MIN_VERIFIED_OFFERS_PER_STORE}"
+                    )
+            except naklady.KreditVycerpany as refusal:
+                log(f"[ERROR] {store}: predčítanie zastavené — {refusal}")
+                result["zlyhane"].append(store)
+                break
+            except Exception as exc:
+                _uloz_vysledok_predcitania(con, display, key, stav="chyba", chyba=str(exc)[:300])
+                log(f"[ERROR] {store}: predčítanie letáku {key[1]} – {key[2]} zlyhalo ({exc})")
+                result["zlyhane"].append(store)
+                continue
+            _uloz_vysledok_predcitania(
+                con, display, key,
+                stav="precitany",
+                source_fingerprint=provenance.source_fingerprint,
+                collector_kind=provenance.collector_kind,
+                pocet=count,
+                offers_json=json.dumps(offers, ensure_ascii=False, default=str),
+                chyba=None,
+            )
+            log(f"[OK] {store}: leták {key[1]} – {key[2]} prečítaný vopred ({count} akcií)")
+            result["precitane"].append(store)
+    finally:
+        if not _run_spent(con, cost_marker, purpose):
+            naklady.uvolni_beh(con, purpose)
+
+
+def prefetch_main():
+    result = prefetch_upcoming_leaflets()
+    log("[PREDCITANIE] " + json.dumps(result, ensure_ascii=False, sort_keys=True))
+    print("PRECITANE_LETAKY=" + " ".join(result["precitane"]), flush=True)
+    print("NEPRIPRAVENE_ZAJTRA=" + " ".join(result["nepripravene_zajtra"]), flush=True)
+
+
+def kalendar_main():
+    con = db()
+    try:
+        rows = con.execute(
+            """SELECT obchod, valid_from, valid_to, stav, pocet, prvy_raz_videny,
+                      naposledy_videny, chyba
+               FROM letaky_kalendar ORDER BY valid_from DESC, obchod LIMIT 40"""
+        ).fetchall()
+    finally:
+        con.close()
+    for row in rows:
+        obchod, od, do, stav, pocet, prvy, posledny, chyba = tuple(row)
+        print(
+            f"{obchod:9} {od} – {do}  {stav:10} akcií {pocet or '-':>4}  "
+            f"videný {prvy} … {posledny}" + (f"  chyba: {chyba}" if chyba else ""),
+            flush=True,
+        )
 
 
 def check_sources_main():
@@ -4061,7 +4368,24 @@ def cli(argv=None):
         action="store_true",
         help="bezplatná denná kontrola, či obchod nezmenil leták",
     )
+    parser.add_argument(
+        "--prefetch",
+        action="store_true",
+        help="nájdi ohlásené budúce letáky, zapíš ich do kalendára a prečítaj vopred",
+    )
+    parser.add_argument(
+        "--kalendar",
+        action="store_true",
+        help="vypíš kalendár letákov (dátumy platnosti a stav predčítania)",
+    )
     args = parser.parse_args(argv)
+    if args.prefetch or args.kalendar:
+        if args.stores or args.official_kaufland_only or args.check_sources or (
+            args.prefetch and args.kalendar
+        ):
+            parser.error("--prefetch a --kalendar sa nekombinujú s inými režimami")
+        prefetch_main() if args.prefetch else kalendar_main()
+        return 0
     if args.check_sources:
         if args.stores or args.official_kaufland_only:
             parser.error("--check-sources sa nekombinuje s inými režimami")
