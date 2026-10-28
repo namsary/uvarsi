@@ -110,12 +110,37 @@ TESCO_MANIFEST = {
 
 
 def _tesco_item(valid_from="2026-10-07T06:00:00.000Z", pages=2):
-    page = {"positions": [{"products": [
+    page = {"page": 1, "positions": [{"products": [
         {"product": {"productName": "Pomaranče voľné ", "measure": "KG"}},
         {"product": {"productName": "Tesco citróny 500 g", "measure": "KG"}},
     ]}]}
     return {"id": 728, "validFrom": valid_from, "validTo": "2026-10-13T21:59:59.000Z",
-            "pages": [page] + [{"positions": []}] * (pages - 1)}
+            "pages": [page] + [{"page": n, "positions": []} for n in range(2, pages + 1)]}
+
+
+def test_tesco_hints_follow_the_page_number_not_the_list_order(monkeypatch):
+    """28. 10.: Tesco vrátil strany v pomiešanom poradí (8, 4, 17, …)."""
+    item = _tesco_item()
+    item["pages"] = [
+        {"page": 2, "positions": [{"products": [{"product": {"productName": "Mrkva 1 kg"}}]}]},
+        {"page": 1, "positions": [{"products": [{"product": {"productName": "Krmivo Felix"}}]}]},
+    ]
+    payload = {"data": {"leaflets": {"items": [item]}}}
+    monkeypatch.setattr(podklady.requests, "post", lambda *_a, **_k: _json(payload))
+
+    hints = podklady.tesco_page_hints(TESCO_MANIFEST, log=lambda *_: None)
+
+    assert "Mrkva" in hints[2] and "Felix" in hints[1]
+
+
+def test_tesco_hints_without_page_numbers_are_not_used(monkeypatch):
+    item = _tesco_item()
+    for page in item["pages"]:
+        page.pop("page")
+    payload = {"data": {"leaflets": {"items": [item]}}}
+    monkeypatch.setattr(podklady.requests, "post", lambda *_a, **_k: _json(payload))
+
+    assert podklady.tesco_page_hints(TESCO_MANIFEST, log=lambda *_: None) == {}
 
 
 def test_tesco_hints_list_products_of_the_matching_leaflet(monkeypatch):
