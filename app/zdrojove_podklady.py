@@ -179,7 +179,7 @@ _TESCO_QUERY = """query UvarsiLeafletProducts {
   } }) {
     items {
       id validFrom validTo
-      pages { positions { products { product { productName measure } } } }
+      pages { page positions { products { product { productName measure } } } }
     }
   }
 }"""
@@ -215,8 +215,20 @@ def tesco_page_hints(manifest, log=print):
             match = item
     if match is None:
         return {}
+    # Tesco vracia strany v pomiešanom poradí; číslo strany je v poli `page`
+    # (28. 10.: zoznam poradia pripísal zeleninu strane s krmivom a sken
+    # zahodil skutočné potravinové strany). Bez jednoznačných čísel 1..N
+    # radšej žiadne podklady, než podklady k cudzej strane.
+    pages = match.get("pages") or []
+    numbers = [page.get("page") if isinstance(page, dict) else None for page in pages]
+    if (
+        not all(isinstance(number, int) and not isinstance(number, bool) for number in numbers)
+        or sorted(numbers) != list(range(1, len(pages) + 1))
+    ):
+        log("[WARN] tesco: zoznam produktov nemá jednoznačné čísla strán — podklady nepoužijem")
+        return {}
     hints = {}
-    for index, page in enumerate(match.get("pages") or [], start=1):
+    for index, page in sorted(zip(numbers, pages), key=lambda row: row[0]):
         names = []
         for position in page.get("positions") or []:
             for entry in position.get("products") or []:
