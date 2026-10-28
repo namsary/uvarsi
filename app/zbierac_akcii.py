@@ -2278,7 +2278,21 @@ def _offers_from_extraction(items, *, store, manifest, batch_pages):
             if offer["cena_s_kartou"] is None and any(
                 value not in (None, "") for value in conditional_metadata
             ):
-                raise ValueError("neúplná vernostná cena")
+                # Lidl tlačí cenu s Lidl Plus ako „x.xx“ (ukáže ju iba appka).
+                # Bez kartovej ceny je akcia stále platná za cenu pre každého;
+                # zahodíme len neúplné kartové údaje, nie celú akciu. Ak však
+                # kartové percento sedí na `cena`, model tam možno dal kartovú
+                # cenu — takú položku radšej vynecháme.
+                card_match = _PERCENT_RE.search(str(offer["zlava_s_kartou"] or ""))
+                if card_match and offer["povodna"]:
+                    card_percent = float(card_match.group(1).replace(",", "."))
+                    implied = (1.0 - offer["cena"] / offer["povodna"]) * 100.0
+                    if abs(implied - card_percent) <= _DISCOUNT_TOLERANCE_PERCENTAGE_POINTS:
+                        raise ValueError("neúplná vernostná cena")
+                offer.update(
+                    zlava_s_kartou=None, vernostny_program=None,
+                    minimalny_nakup=None, podmienka_s_kartou=None,
+                )
             if offer["cena_s_kartou"] is not None:
                 # Obchod poznáme z aktuálne spracúvaného letáku. Názov jeho
                 # vernostného programu preto nie je údaj, ktorý má model hádať.
@@ -2520,7 +2534,13 @@ def _verify_prices_against_source(store, offers, verified_texts):
         if page not in prices_by_page:
             prices_by_page[page] = source_prices(text)
         checked += 1
-        if f"{float(offer['cena']):.2f}" in prices_by_page[page]:
+        price = float(offer["cena"])
+        candidates = {f"{price:.2f}"}
+        if offer.get("jednotka") == "kg":
+            # Mäso a ryby Lidl tlačí „cena za 100 g“ (pstruh 1.39); model ich
+            # zapíše za kilogram (13.90). Obe hodnoty sú tá istá cena.
+            candidates.add(f"{price / 10:.2f}")
+        if candidates & prices_by_page[page]:
             kept.append(offer)
         else:
             rejected.append(offer)

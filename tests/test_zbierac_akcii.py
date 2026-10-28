@@ -2100,6 +2100,48 @@ def test_collection_skips_ambiguous_loyalty_item_without_losing_verified_prices(
     assert "Neúplná Clubcard cena" in capsys.readouterr().out
 
 
+def test_lidl_plus_price_hidden_as_xxx_keeps_the_public_offer(monkeypatch):
+    """28. 10.: Lidl tlačí cenu s Lidl Plus ako „x.xx“; akcia za bežnú cenu ostáva."""
+    pages, manifest = flyer_fixture(1)
+    monkeypatch.setattr(collector, "store_pages", lambda store: (pages, manifest))
+    monkeypatch.setattr(collector, "get_b64", lambda url, max_px: url)
+
+    def fake_claude_json(client, model, content, max_tokens, effort=None, task="read", thinking=None, schema=None):
+        if task == "scan":
+            return [1]
+        return [{
+            "source_page": 1, "nazov": "Biele lupienky", "kategoria": "trvanlive",
+            "cena": 1.09, "povodna": 1.39, "zlava": "-21 %", "jednotka": "ks",
+            "cena_s_kartou": None, "zlava_s_kartou": "-30 %",
+            "vernostny_program": "Lidl Plus", "minimalny_nakup": None,
+            "podmienka_s_kartou": None,
+        }]
+
+    monkeypatch.setattr(collector, "claude_json", fake_claude_json)
+
+    offers = collector.zbieraj(object(), "lidl")
+
+    assert [(o["nazov"], o["cena"], o["vernostny_program"]) for o in offers] == [
+        ("Biele lupienky", 1.09, None)
+    ]
+
+
+def test_price_per_100_g_in_pdf_confirms_per_kg_offer(monkeypatch):
+    """28. 10.: pstruh 1.39 za 100 g v PDF, model zapísal 13.90 za kg."""
+    monkeypatch.setattr(
+        collector, "_zdrojove_podklady",
+        lambda: types.SimpleNamespace(source_prices=lambda text: {"1.39"}),
+    )
+    offer = {"source_page": 1, "cena": 13.90, "jednotka": "kg", "nazov": "Pstruh"}
+    other = {"source_page": 1, "cena": 13.90, "jednotka": "ks", "nazov": "Iné"}
+
+    kept = collector._verify_prices_against_source(
+        "lidl", [offer] * 9 + [other], {1: "cena za 100 g 1.39"}
+    )
+
+    assert kept == [offer] * 9
+
+
 def test_collection_budget_purpose_is_migration_until_every_selected_store_is_current():
     con = sqlite3.connect(":memory:")
     con.row_factory = sqlite3.Row
