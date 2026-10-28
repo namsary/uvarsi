@@ -551,11 +551,36 @@ def test_tesco_page_permanently_denied_by_cdn_is_skipped_not_fatal(monkeypatch):
     assert prepared.manifest["denied_pages"] == [3]
 
 
-def test_tesco_too_many_denied_pages_still_fail_the_store(monkeypatch):
+def test_tesco_too_many_denied_pages_are_a_temporary_outage(monkeypatch):
+    """Odmietnuté strany sa líšia beh od behu — nejde o chybný leták, ale o
+    výpadok zdroja; zber ho skúsi o hodinu, nezablokuje Tesco na celý deň."""
+    monkeypatch.setenv("UVARSI_DENIED_RETRY_DELAYS", "0,0")
     _tesco_with_denied_pages(monkeypatch, {3, 5})
 
-    with pytest.raises(collector.ManifestPreparationError, match="odmietol 2 strán"):
+    with pytest.raises(collector.TransientCollectionError, match="odmietol 2 strán"):
         collector.prepare_store_collection("tesco")
+
+
+def test_tesco_pages_denied_only_for_a_while_are_downloaded_on_retry(monkeypatch):
+    """28. 10.: CDN odmietol 8 strán, o chvíľu iné 4 — po pauze ich vydá."""
+    monkeypatch.setenv("UVARSI_DENIED_RETRY_DELAYS", "0")
+    _tesco_with_denied_pages(monkeypatch, set())
+    attempts = {}
+    original_get = collector.requests.get
+
+    def flaky(url, **kwargs):
+        page = int(url.rsplit("-", 1)[-1])
+        attempts[page] = attempts.get(page, 0) + 1
+        if page in (2, 4, 6) and attempts[page] == 1:
+            return types.SimpleNamespace(status_code=200, content=_ACCESS_DENIED)
+        return original_get(url, **kwargs)
+
+    monkeypatch.setattr(collector.requests, "get", flaky)
+
+    prepared = collector.prepare_store_collection("tesco")
+
+    assert len(prepared.page_manifest) == 8
+    assert "denied_pages" not in prepared.manifest
 
 
 def test_tesco_page_unavailable_after_retries_is_skipped_not_fatal(monkeypatch):
