@@ -116,6 +116,11 @@ DENIED_PAGES_PER_ALLOWED = 20
 # Jednotlivú stranu skúsime pri overovaní obsahu stiahnuť viackrát. Testy
 # pauzy vypínajú cez UVARSI_PAGE_RETRY_DELAYS="0,0".
 PAGE_RETRY_DELAYS = (2.0, 5.0)
+# Tesco CDN občas odmietne („Access Denied“) zakaždým iné strany (28. 10.: ráno
+# 8, o hodinu 4 iné). Odmietnuté strany preto po pauze skúsime znova; ak ich je
+# aj potom priveľa, je to dočasný výpadok zdroja, nie chybný leták — dozorca
+# to skúsi o hodinu. Testy pauzy vypínajú cez UVARSI_DENIED_RETRY_DELAYS="0".
+DENIED_RETRY_DELAYS = (20.0, 60.0, 120.0)
 # Tesco bridge (Cloudflare worker aj kontrola nasadenia) pripúšťa 8..120 strán.
 TESCO_MAX_MANIFEST_PAGES = 120
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -2702,6 +2707,16 @@ def _download_identity_page(store, url):
             time.sleep(delays[attempt])
 
 
+def _denied_retry_delays():
+    raw = os.environ.get("UVARSI_DENIED_RETRY_DELAYS")
+    if raw is None:
+        return DENIED_RETRY_DELAYS
+    try:
+        return tuple(max(0.0, float(part)) for part in raw.split(",") if part.strip())
+    except ValueError:
+        return DENIED_RETRY_DELAYS
+
+
 def _attach_exact_content_identity(store, manifest, page_manifest):
     """Hash every official source page before AI, regardless of its opaque ID."""
     if manifest.get("collector_kind") != OFFICIAL_COLLECTOR_BY_STORE.get(store.capitalize()):
@@ -2753,22 +2768,36 @@ def _attach_exact_content_identity(store, manifest, page_manifest):
         rows[source_page]["content_hash"] = digest
         content_hashes.append([source_page, digest])
         page_bytes.put(source_page, content)
+    for delay in _denied_retry_delays():
+        if len(denied) + len(unavailable) <= allowed:
+            break
+        log(f"[INFO] {store}: zdroj odmietol strany {denied[:10]} — o {delay:.0f} s skúsim znova")
+        time.sleep(delay)
+        for source_page in list(denied):
+            try:
+                content = _download_identity_page(
+                    store, page_manifest[source_page]["image_url"]
+                )
+            except (SourcePageDenied, TransientCollectionError):
+                continue
+            except Exception:
+                content = None
+            if not content:
+                continue
+            digest = hashlib.sha256(content).hexdigest()
+            rows[source_page]["content_hash"] = digest
+            content_hashes[content_hashes.index([source_page, "access-denied"])] = [
+                source_page, digest,
+            ]
+            page_bytes.put(source_page, content)
+            denied.remove(source_page)
     skipped = sorted(denied + unavailable)
     if skipped:
         if len(skipped) > allowed:
-            attempted = _safe_attempted_provenance(
-                enriched,
-                attempt_state={
-                    "content_hashes": content_hashes,
-                    "failed_page": denied[0],
-                    "result": "unavailable",
-                },
-            )
             page_bytes.cleanup()
-            raise ManifestPreparationError(
+            raise TransientCollectionError(
                 f"{store}: zdroj odmietol {len(skipped)} strán {skipped[:10]} "
-                f"(povolených najviac {allowed})",
-                attempted,
+                f"(povolených najviac {allowed}) — skúsim neskôr"
             )
         # Jedna strana, ktorú zdroj trvalo odmieta alebo nevydá, nesmie
         # zastaviť celý obchod. Vynecháme ju viditeľne: v manifeste aj v logu.
