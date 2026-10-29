@@ -170,3 +170,25 @@ def test_page_hints_never_raise_and_respect_the_switch(monkeypatch):
     monkeypatch.setenv("UVARSI_SOURCE_HINTS", "0")
     monkeypatch.setattr(podklady, "lidl_page_hints", lambda *_a, **_k: pytest.fail("vypnuté"))
     assert podklady.page_hints("lidl", LIDL_MANIFEST) == {}
+
+
+def test_lidl_plus_placeholder_in_pdf_hint_points_model_to_the_image(monkeypatch):
+    """28. 10.: PDF Lidla má namiesto ceny s Lidl Plus „x.xx“."""
+    flyer = {"id": "f1", "pdfUrl": "https://object.storage.eu01.onstackit.cloud/a/b.pdf",
+             "pages": [{"number": 1, "keyWords": "Kačica celá drobami", "altText": ""}]}
+    monkeypatch.setattr(podklady.requests, "get", lambda *_a, **_k: _json({"flyer": flyer}))
+    monkeypatch.setattr(podklady, "_safe_pdf_url", lambda url: url)
+    monkeypatch.setattr(podklady, "_download_pdf", lambda url, directory: "letak.pdf")
+    monkeypatch.setattr(
+        podklady, "pdf_page_texts",
+        lambda path: ["Kačica celá s drobami S Lidl Plus -44﹪ x.xx 2.79 4.99"],
+    )
+    monkeypatch.setattr(podklady, "keyword_overlap", lambda keywords, text: 99)
+    verified = {}
+    manifest = {"source_url": "https://www.lidl.sk/l/sk/letak/online-letak-platny-od-26-10-2026/view/flyer/page/1",
+                "source_identity": "lidl-flyer:f1"}
+
+    hints = podklady.lidl_page_hints(manifest, log=lambda *_: None, verified_texts=verified)
+
+    assert "x.xx" not in hints[1] and "prečítaj z obrázka" in hints[1]
+    assert "x.xx" in verified[1]  # overený text na kontrolu cien ostáva nezmenený

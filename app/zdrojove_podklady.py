@@ -161,7 +161,11 @@ def lidl_page_hints(manifest, log=print, verified_texts=None):
         if 0 < number <= len(pdf_texts):
             text = pdf_texts[number - 1]
             if text and keyword_overlap(page.get("keyWords"), text) >= MIN_KEYWORD_OVERLAP:
-                parts.append("Text z oficiálneho PDF tejto strany:\n" + text)
+                # PDF nahrádza cenu s Lidl Plus textom „x.xx“; na obrázku je
+                # vytlačená v žltom poli „S Lidl Plus“. Bez vysvetlenia by
+                # model kartovú cenu považoval za neznámu a vynechal ju.
+                hint_text = text.replace("x.xx", "[cena s Lidl Plus – prečítaj z obrázka]")
+                parts.append("Text z oficiálneho PDF tejto strany:\n" + hint_text)
                 verified += 1
                 if verified_texts is not None:
                     verified_texts[number] = text

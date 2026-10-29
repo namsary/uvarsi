@@ -2176,6 +2176,7 @@ Pravidlá:
 - minimalny_nakup = minimálna celková hodnota nákupu pre cenu s kartou (napr. 20.0) alebo null
 - zlava_s_kartou = percento patriace k cene s kartou alebo null
 - podmienka_s_kartou = iba ďalšia podmienka, ktorú ostatné polia nevystihujú, napr. "aktivuj kupón v aplikácii" alebo "kúp aspoň 2 kusy"; inak null
+- Lidl: cena s Lidl Plus je vytlačená v žltom poli „S Lidl Plus“ (často s percentom). Tú zapíš do cena_s_kartou a percento do zlava_s_kartou; do cena daj vyššiu cenu, ktorú zaplatí každý bez aplikácie.
 - jednotka: kg|ks|l|balenie
 - nazov krátky (max 30 znakov), slovenčina s diakritikou
 
