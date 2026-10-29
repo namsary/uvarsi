@@ -1,9 +1,10 @@
 name: Testy
 
+# Iba pri PR: kód zlúčený do main je ten istý, ktorý už prešiel testami
+# v PR (squash merge). Druhý beh po zlúčení by len míňal minúty Actions.
 on:
-  push:
-    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   testy:
