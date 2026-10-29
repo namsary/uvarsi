@@ -903,7 +903,7 @@ uvarsi_require_tesco_bridge() {
 }
 
 _uvarsi_supervisor_cron_line() {
-  printf '%s' '0 5-21 * * * /opt/uvarsi/uvarsi-deploy-state.sh run-supervisor >> /var/log/uvarsi.log 2>&1'
+  printf '%s' '0 0-1,5-21 * * * /opt/uvarsi/uvarsi-deploy-state.sh run-supervisor >> /var/log/uvarsi.log 2>&1'
 }
 
 _uvarsi_backup_cron_line() {

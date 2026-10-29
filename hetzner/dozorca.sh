@@ -26,7 +26,7 @@
 # zámerne NEZDVOJUJE.
 #
 # Inštalácia (cron):
-#   0 5-21 * * * /opt/uvarsi/dozorca.sh >> /var/log/uvarsi.log 2>&1
+#   0 0-1,5-21 * * * /opt/uvarsi/dozorca.sh >> /var/log/uvarsi.log 2>&1
 
 set -u
 DIR="${UVARSI_DIR:-/opt/uvarsi}"
