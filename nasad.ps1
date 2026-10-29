@@ -468,7 +468,7 @@ $cron = @'
 set -eu
 . /opt/uvarsi/uvarsi-deploy-state.sh
 # Priamy riadok ostáva iba ako zhoda s dokumentáciou starších inštalácií:
-# 0 5-21 * * * /opt/uvarsi/dozorca.sh >> /var/log/uvarsi.log 2>&1
+# 0 0-1,5-21 * * * /opt/uvarsi/dozorca.sh >> /var/log/uvarsi.log 2>&1
 touch /var/log/uvarsi.log /var/log/uvarsi-zaloha.log /var/log/uvarsi-platby.log
 mkdir -p /var/backups/uvarsi
 uvarsi_install_production_schedule

@@ -587,7 +587,7 @@ spravovaných riadkov Uvar.si. Preto zachová aj cudzí riadok pridaný počas
 deployu a nevráti cudzí riadok, ktorý medzitým oprávnene zmizol:
 
 ```text
-0 5-21 * * * /opt/uvarsi/uvarsi-deploy-state.sh run-supervisor >> /var/log/uvarsi.log 2>&1
+0 0-1,5-21 * * * /opt/uvarsi/uvarsi-deploy-state.sh run-supervisor >> /var/log/uvarsi.log 2>&1
 ```
 
 Rovnaký vstup používa samopull ešte pred označením release za úspešný. Pred
@@ -718,7 +718,7 @@ volanie `https://uvar.si/api/health` zvonka) a príjemca upozornení naň:
 
 | Mechanizmus | Čo robí | Zdroj |
 |---|---|---|
-| Dozorca (cron `0 5-21 * * *` cez `uvarsi-deploy-state.sh run-supervisor`) | Kontroluje, či bloček sedí na aktuálny týždeň; opakuje zber, max. 6 pokusov za deň, upozorní po 2 neúspechoch | `hetzner/dozorca.sh:2-12`, `:28-29`, `:63-64`; `hetzner/uvarsi-deploy-state.sh:896-898` |
+| Dozorca (cron `0 0-1,5-21 * * *` cez `uvarsi-deploy-state.sh run-supervisor`) | Kontroluje, či bloček sedí na aktuálny týždeň; opakuje zber, max. 6 pokusov za deň, upozorní po 2 neúspechoch | `hetzner/dozorca.sh:2-12`, `:28-29`, `:63-64`; `hetzner/uvarsi-deploy-state.sh:896-898` |
 | Dozorca číta `plan_queue` a `recipe_engine` z `/api/health` (`127.0.0.1:8090`) | Upozornenia na zaseknutú frontu plánov a receptový engine | `hetzner/dozorca.sh:48`, `:227-267`, `:298-340` |
 | Upozornenia cez ntfy.sh | Chyba zálohy, zálohy bez overenia, výpadky zberu | `hetzner/zaloha.sh:41-44`, `hetzner/dozorca.sh:71`; téma sa dá prepísať v `/opt/uvarsi/dozorca.env` (`hetzner/dozorca.sh:58-61`) |
 | Predčítanie letákov (dozorca, každé 4 h v ustálenom stave) | Nájde ohlásené budúce letáky Lidla a Tesca, zapíše ich dátumy do kalendára `letaky_kalendar` a prečíta ich vopred; v deň platnosti ich zberač zverejní bez ďalšieho čítania. Od 18:00 upozorní, ak zajtrajší leták nie je pripravený | `hetzner/dozorca.sh` (`predcitaj_letaky`), `app/zbierac_akcii.py` (`prefetch_upcoming_leaflets`) |

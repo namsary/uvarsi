@@ -466,7 +466,7 @@ def _documented_cron_line() -> str:
 
 
 def test_dozorca_schedule_is_documented_in_the_watcher():
-    assert _documented_cron_line().startswith("0 5-21 * * *")
+    assert _documented_cron_line().startswith("0 0-1,5-21 * * *")
 
 
 def test_deploy_installs_the_documented_cron_line(script):

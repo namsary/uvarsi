@@ -26,7 +26,7 @@ REPAIR_RELEASE = "f320e6b58243b9f06ef5f368907ffd12750533df"
 BRIDGE_VERSION_ID = "11aa22bb-33cc-44dd-88ee-99ff00112233"
 BRIDGE_SECRET = f"{BRIDGE_RELEASE}.unit-bridge-secret-0123456789abcdef"
 SUPERVISOR_CRON = (
-    "0 5-21 * * * /opt/uvarsi/uvarsi-deploy-state.sh run-supervisor "
+    "0 0-1,5-21 * * * /opt/uvarsi/uvarsi-deploy-state.sh run-supervisor "
     ">> /var/log/uvarsi.log 2>&1"
 )
 BACKUP_CRON = "30 3 * * * /opt/uvarsi/zaloha.sh >> /var/log/uvarsi-zaloha.log 2>&1"
