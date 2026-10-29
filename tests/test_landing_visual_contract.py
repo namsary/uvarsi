@@ -15,7 +15,7 @@ def legal_terms():
 
 def pricing_cards(page):
     section = page.split('<section class="plans-band"', 1)[1].split("</section>", 1)[0]
-    starts = list(re.finditer(r'<div class="plan(?: plan--hot)?">', section))
+    starts = list(re.finditer(r'<div class="plan(?: plan--now)?">', section))
     return [
         section[match.start():starts[index + 1].start() if index + 1 < len(starts) else None]
         for index, match in enumerate(starts)
@@ -136,12 +136,16 @@ def test_free_and_premium_store_promises_match_the_product_entitlements():
         assert "Všetky podporované obchody" in paid
 
 
-def test_founding_is_the_only_highlighted_pricing_card():
+def test_free_is_the_only_highlighted_pricing_card():
+    # Redizajn 10/2026: zvýraznený je plán, ktorý funguje hneď (Free);
+    # zakladajúca ponuka má vlastný štítok „Prvých 50".
     cards = pricing_cards(html())
 
-    assert sum('class="plan plan--hot"' in card for card in cards) == 1
-    assert 'class="plan plan--hot"' in cards[1]
-    assert '<div class="plan-name">Zakladajúci</div>' in cards[1]
+    assert sum('class="plan plan--now"' in card for card in cards) == 1
+    assert 'class="plan plan--now"' in cards[0]
+    assert '<div class="plan-name">Free</div>' in cards[0]
+    assert "Funguje teraz" in cards[0]
+    assert "Prvých 50" in cards[1]
 
 
 def test_pricing_grid_is_three_desktop_two_tablet_and_one_mobile_column():

@@ -30,6 +30,20 @@ needs_node = pytest.mark.skipif(NODE is None, reason="node runtime is not availa
 
 PAGES = (APP, LANDING)
 
+# Redizajn landingu (10/2026) zahodil kondenzovaný Anton: logo aj nadpisy sú
+# v Manrope, bloček v IBM Plex Mono. Appka Anton zatiaľ používa. Landing ho
+# preto nesmie ani deklarovať — bol by to zbytočne stiahnutý súbor.
+FAMILIES = {
+    APP: ("Anton", "IBM Plex Mono", "Manrope"),
+    LANDING: ("IBM Plex Mono", "Manrope"),
+}
+# Písma viditeľné hneď po načítaní: appka nadpis (Anton) a text, landing text
+# a bloček v hero.
+ABOVE_THE_FOLD = {
+    APP: ("anton", "manrope"),
+    LANDING: ("manrope", "ibmplexmono"),
+}
+
 # Slovenská diakritika z dizajnu — malé aj VEĽKÉ. Veľké písmená nie sú
 # teoretické: .display má text-transform:uppercase, takže „ľahké" sa vykreslí
 # ako „ĽAHKÉ" a chýbajúce Ľ by bolo vidieť na nadpise.
@@ -105,8 +119,11 @@ def test_every_font_is_declared_and_served_from_our_own_origin(page):
     faces = font_faces(html)
     families = {family for family, _, _, _ in faces}
 
-    for needed in ("Anton", "IBM Plex Mono", "Manrope"):
+    for needed in FAMILIES[page]:
         assert needed in families, f"{page} používa {needed}, musí ho aj sama servírovať"
+    assert families <= set(FAMILIES[page]), (
+        f"{page} deklaruje písmo, ktoré nepoužíva: {sorted(families - set(FAMILIES[page]))}"
+    )
 
     assert faces, "žiadne @font-face — dizajn by spadol na systémové písmo"
     for family, _, sources, block in faces:
@@ -138,18 +155,23 @@ def test_declared_weights_cover_every_weight_the_design_uses(page):
 
     assert {400, 600, 800} <= covered.get("Manrope", set())
     assert {400, 600} <= covered.get("IBM Plex Mono", set())
-    assert 400 in covered.get("Anton", set())
+    if "Anton" in FAMILIES[page]:
+        assert 400 in covered.get("Anton", set())
 
 
 @pytest.mark.parametrize("page", PAGES, ids=lambda p: p.name)
 def test_the_two_fonts_visible_above_the_fold_are_preloaded(page):
-    """Anton (nadpisy, logo) a Manrope (text) sa načítajú hneď, nie až po layoute."""
+    """Písma z prvej obrazovky sa načítajú hneď, nie až po layoute.
+
+    Appka: Anton (nadpisy, logo) a Manrope (text). Landing: Manrope (text,
+    logo, nadpis) a IBM Plex Mono (bloček v hero).
+    """
     head = head_of(read(page))
     preloads = re.findall(r"<link[^>]+rel=[\"']preload[\"'][^>]*>", head)
     hrefs = " ".join(preloads)
 
-    assert "anton" in hrefs, "Anton drží značku aj nadpis — patrí do preloadu"
-    assert "manrope" in hrefs, "Manrope je bežný text — patrí do preloadu"
+    for font in ABOVE_THE_FOLD[page]:
+        assert font in hrefs, f"{font} je viditeľný hneď po načítaní — patrí do preloadu"
     for tag in preloads:
         assert 'as="font"' in tag and "crossorigin" in tag, (
             "preload fontu bez as=font a crossorigin sťahuje súbor dvakrát: " + tag
@@ -856,7 +878,7 @@ def test_every_local_render_blocking_stylesheet_is_shipped(page):
         assert path.is_file(), f"{page} odkazuje na chýbajúci render-critical {url}"
 
 
-LANDING_GZIP_CAP = 12_500
+LANDING_GZIP_CAP = 14_500
 
 
 def test_landing_stays_within_its_transfer_budget_at_deployed_gzip_level():
@@ -867,6 +889,13 @@ def test_landing_stays_within_its_transfer_budget_at_deployed_gzip_level():
     cenách. Landing mal predtým presne 12 100 B, teda nulovú rezervu, a tak
     sa strop vedome a s číslom dvíha o 50 B na 12 450 B. Deep link
     /app?registracia pre nové návštevy pridal ďalších 9 B: strop 12 500 B.
+
+    29. 10. 2026: redizajn landingu (svetlý dizajn z Claude Design). Pribudli
+    tri inline SVG ilustrácie surovín v hero (~1 kB gzip), SVG sprite ikoniek
+    krokov a výhod, realistický bloček (perforácia, čiarový kód, tlač zo
+    slotu) a skeleton stavu „ceny obnovujeme" — všetko bez obrázkov a bez
+    novej požiadavky; Anton sa z landingu úplne vypustil. Landing má 14 110 B.
+    Strop sa vedome dvíha na 14 500 B; praktická rezerva 300 B platí ďalej.
     """
     compressed = len(gzip.compress(LANDING.read_bytes(), 5))
     assert compressed <= LANDING_GZIP_CAP, (
