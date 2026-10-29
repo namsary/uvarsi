@@ -23,8 +23,15 @@ def _tokens(html):
     )
 
 
-def test_app_uses_the_landing_brand_tokens_and_type_hierarchy():
-    """The authenticated product must still look unmistakably like Uvar.si."""
+def test_app_and_landing_share_the_brand_token_vocabulary_and_type_hierarchy():
+    """The authenticated product must still look unmistakably like Uvar.si.
+
+    Október 2026: landing dostal nový svetlý dizajn z Claude Design (teplá
+    off-white, zelená #167A46, žltá ako zvýrazňovač) skôr než appka, ktorej
+    redizajn je ďalšie kolo. Hodnoty farebných tokenov sa preto dočasne
+    líšia; obe stránky však musia ďalej pomenúvať tie isté tokeny, aby appka
+    pri svojom redizajne prevzala landing výmenou hodnôt, nie prepisom CSS.
+    """
     landing = _html(LANDING)
     app = _html(APP)
     canonical = _tokens(landing)
@@ -46,9 +53,9 @@ def test_app_uses_the_landing_brand_tokens_and_type_hierarchy():
         "--shadow-soft",
         "--shadow-card",
     )
-    assert {name: product.get(name) for name in shared_tokens} == {
-        name: canonical[name] for name in shared_tokens
-    }
+    for name in shared_tokens:
+        assert name in canonical, f"landing nedefinuje {name}"
+        assert name in product, f"appka nedefinuje {name}"
     assert product["--border"] == "var(--line)"
     assert product["--radius-card"] == "var(--radius-sm)"
 
