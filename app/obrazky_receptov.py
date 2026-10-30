@@ -201,8 +201,9 @@ def main(argv=None):
             obrazok = generuj(a.model, prompt_pre(r, nazvy), kluc, a.kvalita)
         except urllib.error.HTTPError as e:
             chyby += 1
-            print(f"[{i}/{len(vybrane)}] {r['id']}: CHYBA {e.code} {e.read()[:300]!r}")
-            if e.code in (401, 403, 404):
+            telo = e.read()[:300]
+            print(f"[{i}/{len(vybrane)}] {r['id']}: CHYBA {e.code} {telo!r}")
+            if e.code in (401, 403, 404) or b"insufficient_quota" in telo:
                 break  # zlý kľúč alebo model, ďalšie pokusy by len míňali čas
             continue
         with open(ciel, "wb") as f:
