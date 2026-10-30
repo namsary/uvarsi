@@ -750,8 +750,8 @@ async def _run_plan_flight(key, operation):
             if _PLAN_FLIGHTS.get(key) is future:
                 _PLAN_FLIGHTS.pop(key, None)
 SPRAVA_PLAN_ZANEPRAZDNENY = (
-    "Momentálne skladáme veľa jedálničkov naraz. Skús to prosím o minútu — "
-    "dnešný prepočet ti zostáva."
+    "Momentálne skladáme veľa jedálničkov naraz. Skús to prosím o minútu. "
+    "Dnešný prepočet ti zostáva."
 )
 KOD_PLAN_ZANEPRAZDNENY = "plan_zaneprazdneny"
 
@@ -972,7 +972,7 @@ ALLOWED_STORES = ("Kaufland", "Tesco", "Lidl")
 
 SPRAVA_SPAJZA_PREMIUM = (
     "Špajza je súčasťou Premium. V bezplatnej verzii skladáme jedálniček "
-    "z akcií v tvojich obchodoch — bez toho, čo máš doma."
+    "z akcií v tvojich obchodoch, bez toho, čo máš doma."
 )
 # Veta je pre človeka, kód pre appku. Bez kódu by sa obrazovka rozhodovala podľa
 # reťazca, ktorý raz preformulujeme — a zámok by prestal fungovať potichu.
@@ -1183,8 +1183,8 @@ def sprava_o_uspanej_spajze(pocet: int):
     else:
         polozky = f"{pocet} položiek"
     return (
-        f"V špajzi máš uložených {polozky} z minulosti. Nemažeme ich — len do "
-        "jedálnička teraz nevstupujú. S Premium sa zapoja späť presne tak, ako si ich napísal."
+        f"V špajzi máš uložených {polozky} z minulosti. Nemažeme ich, len teraz "
+        "nevstupujú do jedálnička. S Premium sa zapoja späť presne tak, ako si ich napísal."
     )
 
 
@@ -1283,8 +1283,8 @@ def sprava_o_limite(limit: int, premium: bool, dnes=None) -> str:
     kolko = "raz za deň" if limit == 1 else f"{limit}× za deň"
     text = (
         f"Nový jedálniček si môžeš dať poskladať {kolko} a dnešok už máš vyčerpaný."
-        f" Ďalší si vyžiadaj zajtra {zajtra.day}. {zajtra.month}. po polnoci —"
-        " jedálniček, ktorý máš teraz, ti zostáva."
+        f" Ďalší si vyžiadaj zajtra {zajtra.day}. {zajtra.month}. po polnoci."
+        " Jedálniček, ktorý máš teraz, ti zostáva."
     )
     if not premium:
         text += f" S Premium je to {LIMIT_PREPOCTOV_PREMIUM}× denne."
@@ -1678,7 +1678,7 @@ async def auth_request(req: Request):
         link = f"{BASE_URL}/prihlasenie#token={tok}"
         text = (f"Ahoj!\n\nKlikni sem a pokračuj v nastavení hesla (odkaz platí 60 minút):\n{link}\n\n"
                 f"Ak si o nastavenie hesla nežiadal, tento e-mail pokojne ignoruj.\n\n"
-                f"Uvar.si — z letáka rovno na tanier\nhttps://uvar.si")
+                f"Uvar.si: z letáka rovno na tanier\nhttps://uvar.si")
         html = f"""<!DOCTYPE html><html lang="sk"><body style="margin:0;padding:28px;
 background:#FFFCF5;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#14231C">
 <div style="max-width:460px;margin:0 auto;background:#fff;border:2px solid #14231C;padding:30px">
@@ -1691,9 +1691,9 @@ background:#FFFCF5;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#1
      border:2px solid #14231C;padding:14px 24px;text-decoration:none;font-weight:700;
      letter-spacing:.04em;text-transform:uppercase;font-size:14px">Pokračovať →</a>
   <p style="color:#5C6B62;font-size:13px;line-height:1.6;margin:26px 0 0">
-     Ak si o nastavenie hesla nežiadal, tento e-mail pokojne ignoruj — nič sa nestane.</p>
+     Ak si o nastavenie hesla nežiadal, tento e-mail pokojne ignoruj, nič sa nestane.</p>
   <hr style="border:0;border-top:1px dashed #C9C2B4;margin:24px 0">
-  <p style="color:#5C6B62;font-size:12px;margin:0">Uvar.si — jedálniček a recepty z toho,
+  <p style="color:#5C6B62;font-size:12px;margin:0">Uvar.si: jedálniček a recepty z toho,
      čo je práve v akcii. <a href="https://uvar.si" style="color:#14231C">uvar.si</a></p>
 </div></body></html>"""
         return posli_mail(email, "Nastavenie hesla Uvar.si", text, html)
@@ -7184,14 +7184,14 @@ def _napis_zakaznikovi(con, user_id, predmet: str, text: str) -> None:
         return
     if not komu:
         return
-    telo = f"Ahoj!\n\n{text}\n\nUvar.si — z letáka rovno na tanier\nhttps://uvar.si"
+    telo = f"Ahoj!\n\n{text}\n\nUvar.si: z letáka rovno na tanier\nhttps://uvar.si"
     html = (
         '<!DOCTYPE html><html lang="sk"><body style="margin:0;padding:28px;'
         'background:#FFFCF5;font-family:-apple-system,Segoe UI,Roboto,sans-serif;'
         'color:#14231C"><div style="max-width:460px;margin:0 auto;background:#fff;'
         'border:2px solid #14231C;padding:30px"><p>Ahoj!</p><p>'
         + text.replace("\n", "<br>")
-        + '</p><p style="margin-top:24px">Uvar.si — z letáka rovno na tanier</p>'
+        + '</p><p style="margin-top:24px">Uvar.si: z letáka rovno na tanier</p>'
         "</div></body></html>"
     )
     try:

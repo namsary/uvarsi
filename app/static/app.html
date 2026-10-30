@@ -1331,7 +1331,7 @@ function regenerationBlockedNote(me, today) {
     : 'Vo Free dostaneš ' + (!known || limit === 1 ? 'jeden nový jedálniček' : limit + ' nové jedálničky') +
       ' denne, s Premium až 5.';
   return text + ' Ďalší si vyžiadaš ' + nextDayLabel(today) +
-    ' po polnoci — ten, ktorý máš teraz, ti zostáva.';
+    ' po polnoci. Ten, ktorý máš teraz, ti zostáva.';
 }
 
 function regenerationNote(me) {
@@ -1613,7 +1613,7 @@ function vPlan() {
     } else if (row.typ === 'zvysok') {
       h += `<div class="rest">${esc(row.den)} · zvyšok z ${esc(dayGenitive(row.zdroj))}</div>`;
     } else {
-      h += `<div class="rest rest--volno">${esc(row.den)} · voľno — nič naplánované</div>`;
+      h += `<div class="rest rest--volno">${esc(row.den)} · voľno, nič naplánované</div>`;
     }
   });
   h += `<div class="save"><span class="mono" style="font-size:.8rem;font-weight:600">NA AKCIOVÝCH POLOŽKÁCH UŠETRÍŠ</span><b>${esc(totals.usetris)} €</b></div><p class="muted center mono" style="font-size:.74rem">Akciové položky ${esc(totals.nakup)} € · bez akcie ${esc(totals.bezna)} €${bezCeny ? ` · ${bezCeny === 1 ? '1 bežná položka nie je v sume' : bezCeny + ' bežných položiek nie je v sume'}` : ''}</p><div style="height:14px"></div>`;
@@ -1879,12 +1879,12 @@ function vSpajzaZamknuta() {
   const poznamka = platbyIdu ? '' : (ME && ME.platby_zapnute
     ? `<p class="muted" style="margin-top:10px">Platba sa práve pripravuje. Tlačidlo sprístupníme až po poslednej bezpečnostnej kontrole.</p>`
     : `<p class="muted" style="margin-top:10px">Platby ešte nie sú spustené. Keď ich zapneme, nájdeš Premium presne tu.</p>`);
-  M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Špajza · Premium</span><h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo už máš doma</h1> ${PANTRY_ACCESS_CHANGED ? '<div class="hint"><b>Prístup k Špajze sa zmenil.</b> Úpravy sú teraz zamknuté.</div>' : ''} <p class="muted" style="margin:8px 0 16px">Zapíšeš, čo máš doma, a nákupný zoznam to hneď zohľadní. V Premium si môžeš jedným kliknutím poskladať aj jedlá okolo svojej špajze.</p></div><div class="card"><label>Pridať surovinu · zamknuté</label><input placeholder="napr. ${esc(SPAJZA_UKAZKA.join(', '))}" disabled><p class="muted" style="margin-top:10px">V bezplatnej verzii je zápis zamknutý — hneď, nie až pri ukladaní.</p></div> ${uspana && ulozenych > 0 ? `<div class="hint">
+  M.innerHTML = `<div style="margin:18px 0 6px"><span class="eyebrow">Špajza · Premium</span><h1 class="display" style="font-size:1.5rem;margin-top:4px">Čo už máš doma</h1> ${PANTRY_ACCESS_CHANGED ? '<div class="hint"><b>Prístup k Špajze sa zmenil.</b> Úpravy sú teraz zamknuté.</div>' : ''} <p class="muted" style="margin:8px 0 16px">Zapíšeš, čo máš doma, a nákupný zoznam to hneď zohľadní. V Premium si môžeš jedným kliknutím poskladať aj jedlá okolo svojej špajze.</p></div><div class="card"><label>Pridať surovinu · zamknuté</label><input placeholder="napr. ${esc(SPAJZA_UKAZKA.join(', '))}" disabled><p class="muted" style="margin-top:10px">V bezplatnej verzii sa do špajze zapisovať nedá.</p></div> ${uspana && ulozenych > 0 ? `<div class="hint">
       <span class="eyebrow">Tvoja špajza zostáva uložená</span>
       <p style="margin:6px 0 0">${esc(uspanaSprava)}</p>
     </div>` : `<div class="hint">
-      <span class="eyebrow">Ukážka — nie tvoje údaje</span>
-      <p style="margin:6px 0 12px">Povedzme, že doma máš toto —
+      <span class="eyebrow">Ukážka, nie tvoje údaje</span>
+      <p style="margin:6px 0 12px">Povedzme, že doma máš toto:
         <b>${esc(SPAJZA_UKAZKA.join(', '))}</b>. Potom sa stanú dve veci:</p>
       <p class="mono" style="font-size:.72rem;font-weight:600;margin-bottom:6px">1 · Vypadnú z nákupného zoznamu</p>
       ${SPAJZA_UKAZKA.map(item => `<div class="item done"><span class="box">✓</span><span class="nm">${esc(item)}</span><span class="pr">${esc(SPAJZA_UKAZKA_CENY[item])} € · máš doma</span></div>`).join('')}
@@ -1897,8 +1897,8 @@ function vSpajzaZamknuta() {
         <div class="meal-b" style="display:block">
           ${SPAJZA_UKAZKA.map(item => ingredientRow({spajza: item})).join('')}
         </div></div>
-      <p class="muted" style="margin-top:12px">Dokupuješ už len to, čo k tomu chýba — a to
-        z akcií. Nekúpiš druhýkrát to, čo doma máš, a menej jedla skončí v koši.</p>
+      <p class="muted" style="margin-top:12px">Dokupuješ už len to, čo k tomu chýba,
+        a to z akcií. Nekúpiš druhýkrát to, čo doma máš, a menej jedla skončí v koši.</p>
     </div>`} <p style="margin:16px 0 12px"><b>Premium</b> skladá jedálniček z toho, čo máš doma, a nákupný zoznam bez toho, čo už máš.</p><button class="btn" id="sp-premium"${tlacidlo.zamknute}>${esc(tlacidlo.popis)}</button> ${poznamka} <p id="sp-err" class="muted" style="color:var(--accent);margin-top:10px"></p>`;
   if (!platbyIdu) return;
   $('#sp-premium').onclick = vCheckout;

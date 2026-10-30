@@ -236,7 +236,7 @@ loadLanding().then(function () {
 def test_landing_keeps_its_current_title_and_description():
     html = index_html()
 
-    assert "<title>Uvar.si — z letáka rovno na tanier</title>" in html
+    assert "<title>Uvar.si: z letáka rovno na tanier</title>" in html
     assert (
         '<meta name="description" content="Uvar.si spojí aktuálne akcie z Lidla, Kauflandu a Tesca '
         's tým, čo máš doma. Dostaneš jedálniček, recepty a nákupný zoznam na celý týždeň.">'

@@ -1099,7 +1099,7 @@ def _bez_protihodnoty(con, druh, vysledok, *, now, notifikuj=None, mailuj=None) 
 def _posli_mail(komu, predmet, text) -> None:
     import auth_data
 
-    telo = f"Ahoj!\n\n{text}\n\nUvar.si — z letáka rovno na tanier\nhttps://uvar.si"
+    telo = f"Ahoj!\n\n{text}\n\nUvar.si: z letáka rovno na tanier\nhttps://uvar.si"
     auth_data.send_resend_message(
         api_key=env("RESEND_API_KEY"),
         sender=env("MAIL_FROM", "Uvar.si <info@uvar.si>"),
