@@ -112,11 +112,22 @@ def prompt_pre(recept, nazvy):
             slovo in nazov_jedla for slovo in ("špagety", "cestovin", "penne", "rezanc")):
         # Cestoviny sa z hrnca naberačkou nedvíhajú, podávajú sa na tanieri.
         nadoba, nacinie = PODANIE["pan"]
+    if recept["method"] == "oven" and "kaš" in nazov_jedla:
+        # Kaša sa robí zvlášť v hrnci, do pekáča nepatrí: porcia na tanieri.
+        nadoba = ("served on an everyday plate: sliced pieces from the baking dish next to a "
+                  "scoop of the separately made side; no baking dish or pot in the picture")
+        nacinie = PODANIE["pan"][1]
     if any(slovo in nazov_jedla for slovo in ("prívarok", "halušk")):
         # Prívarky a halušky sa nejedia z hrnca, ale z hlbokého taniera.
         nadoba = ("served in a deep plate, the pot is not in the picture; "
                   + VAJCE_V_PRIVARKU.get(recept["id"], "any egg is on the plate, never floating in the pot"))
         nacinie = "a single ordinary tablespoon resting in the food"
+    if nacinie == PODANIE["pot"][1]:
+        # Príbor zapichnutý do omáčky vyzerá na fotke čudne; leží vedľa taniera.
+        nacinie = _vyber(["an ordinary fork and table knife lying side by side on the table "
+                          "next to the plate, not touching the food",
+                          "one ordinary fork lying flat on the table next to the plate"],
+                         recept["id"], "pribor")
     if nacinie == PODANIE["pan"][1]:
         # Pri tanieri sa príbor strieda, aby fotky neboli všetky rovnaké.
         nacinie = _vyber([nacinie, "an ordinary fork and table knife lying side by side "
