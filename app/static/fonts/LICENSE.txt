@@ -5,7 +5,7 @@ Tieto súbory sú PODMNOŽINY (subsety) originálnych písiem: ponechané sú zn
 U+0020–007E, U+00A0–00FF, celé Latin Extended-A (U+0100–017F, teda slovenská,
 česká, poľská aj maďarská diakritika) a interpunkcia/symboly, ktoré dizajn
 používa (– — „ " … · × − € → ↗ ↻ ▾ ★ ✓ ✕).
-Manrope je variabilné písmo s osou wght zúženou na 400–800 — jeden súbor
+Manrope a Plus Jakarta Sans sú variabilné písma s osou wght zúženou na 400–800 — jeden súbor
 pokrýva všetky tri váhy, presne ako to dnes robí Google Fonts.
 
 Hinting je zachovaný, aby bolo vykreslenie zhodné s tým, čo doteraz posielal
@@ -16,6 +16,7 @@ Zdroje (originály): https://github.com/google/fonts
   ofl/ibmplexmono/IBMPlexMono-Regular.ttf
   ofl/ibmplexmono/IBMPlexMono-SemiBold.ttf
   ofl/manrope/Manrope[wght].ttf
+  ofl/plusjakartasans/PlusJakartaSans[wght].ttf
 
 Copyright a licencia
 --------------------
@@ -114,3 +115,6 @@ INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
 DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
+
+Plus Jakarta Sans: Copyright 2020 The Plus Jakarta Sans Project Authors
+(https://github.com/tokotype/PlusJakartaSans), SIL Open Font License, Version 1.1.

@@ -33,15 +33,18 @@ PAGES = (APP, LANDING)
 # Redizajn landingu (10/2026) zahodil kondenzovaný Anton: logo aj nadpisy sú
 # v Manrope, bloček v IBM Plex Mono. Appka Anton zatiaľ používa. Landing ho
 # preto nesmie ani deklarovať — bol by to zbytočne stiahnutý súbor.
+# 30. 10. 2026: landing dostal priateľskejšie písmo Plus Jakarta Sans; appka
+# ostáva na Manrope až do svojho redizajnu.
 FAMILIES = {
     APP: ("Anton", "IBM Plex Mono", "Manrope"),
-    LANDING: ("IBM Plex Mono", "Manrope"),
+    LANDING: ("IBM Plex Mono", "Plus Jakarta Sans"),
 }
+TEXT_FAMILY = {APP: "Manrope", LANDING: "Plus Jakarta Sans"}
 # Písma viditeľné hneď po načítaní: appka nadpis (Anton) a text, landing text
 # a bloček v hero.
 ABOVE_THE_FOLD = {
     APP: ("anton", "manrope"),
-    LANDING: ("manrope", "ibmplexmono"),
+    LANDING: ("plusjakartasans", "ibmplexmono"),
 }
 
 # Slovenská diakritika z dizajnu — malé aj VEĽKÉ. Veľké písmená nie sú
@@ -143,7 +146,7 @@ def test_every_font_is_declared_and_served_from_our_own_origin(page):
 
 @pytest.mark.parametrize("page", PAGES, ids=lambda p: p.name)
 def test_declared_weights_cover_every_weight_the_design_uses(page):
-    """Manrope 400/600/800 a IBM Plex Mono 400/600 — inak prehliadač písmo falšuje."""
+    """Textové písmo 400/600/800 a IBM Plex Mono 400/600 — inak prehliadač písmo falšuje."""
     html = read(page)
     covered = {}
     for family, weight, _, _ in font_faces(html):
@@ -153,7 +156,7 @@ def test_declared_weights_cover_every_weight_the_design_uses(page):
             w for w in (400, 500, 600, 700, 800, 900) if low <= w <= high
         )
 
-    assert {400, 600, 800} <= covered.get("Manrope", set())
+    assert {400, 600, 800} <= covered.get(TEXT_FAMILY[page], set())
     assert {400, 600} <= covered.get("IBM Plex Mono", set())
     if "Anton" in FAMILIES[page]:
         assert 400 in covered.get("Anton", set())
@@ -189,7 +192,17 @@ def test_shipped_font_files_are_real_woff2_and_stay_small():
         total += len(data)
 
     # Google dnes posiela 8 unikátnych súborov = 147 928 B (latin + latin-ext).
-    assert total <= 90_000, f"fonty narástli na {total} B; strop je 90 000 B"
+    # Strop platí pre to, čo si stiahne jedna stránka: landing (Plus Jakarta
+    # Sans) a appka (Manrope, Anton) zdieľajú iba IBM Plex Mono.
+    for page in PAGES:
+        urls = {src for _, _, sources, _ in font_faces(read(page)) for src in sources}
+        page_total = sum(
+            (FONT_DIR / url.strip("\x27\"").rsplit("/", 1)[-1]).stat().st_size for url in urls
+        )
+        assert page_total <= 90_000, (
+            f"{page.name} sťahuje {page_total} B písiem; strop je 90 000 B"
+        )
+    assert total <= 110_000, f"fonty v repozitári narástli na {total} B"
     assert len(files) <= 5, f"{len(files)} súborov = {len(files)} spojení navyše"
 
 
@@ -211,7 +224,7 @@ def test_the_font_licence_ships_with_the_fonts():
     licence = FONT_DIR / "LICENSE.txt"
     assert licence.is_file(), "OFL fonty sa nesmú šíriť bez licencie"
     text = read(licence)
-    for family in ("Anton", "IBM Plex", "Manrope"):
+    for family in ("Anton", "IBM Plex", "Manrope", "Plus Jakarta Sans"):
         assert family in text
     assert "SIL Open Font License" in text
 
