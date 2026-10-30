@@ -4,33 +4,39 @@
       "id": "classic_meatloaf_potatoes",
       "version": 2,
       "active": true,
-      "name_template": "Sekaná so zemiakmi",
+      "name_template": "Sekaná so zemiakovou kašou",
       "family": "classic_meatloaf_potatoes",
       "method": "oven",
-      "minutes": 65,
+      "minutes": 70,
       "modes": ["standard", "high_protein"],
-      "equipment": ["misa", "pekáč", "rúra", "nôž", "doska na krájanie"],
+      "equipment": ["misa", "pekáč", "rúra", "hrniec", "pučidlo na zemiaky", "nôž", "doska na krájanie"],
       "slots": [
         {"key": "meat", "role": "protein", "candidates": ["beef_mince"], "amount_per_adult": "190", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
-        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na rovnako veľké kúsky"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na rovnaké kúsky"},
         {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "35", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": null, "water_ml_per_adult": "40"},
         {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.5", "unit": "piece", "child_factor": "0.65", "required": true, "use": "addition", "cut": null},
         {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
         {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
         {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
-        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "milk", "role": "dairy", "candidates": ["milk"], "amount_per_adult": "50", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
       ],
       "pantry_basics": ["water", "salt", "black_pepper"],
       "instructions": [
         {"text": "Predhrej rúru na 190 °C.", "requires": ["rura:free"], "produces": ["rura:hot"]},
         {"text": "Namoč {bread.amount} {bread.name} do {bread.water} vody na 5 minút, kým zmäkne.", "requires": ["bread:raw"], "produces": ["bread:soaked"]},
-        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut} a {potato.amount} {potato.name} {potato.cut}.", "requires": ["onion:raw", "potato:raw"], "produces": ["onion:cut", "potato:cut"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}.", "requires": ["onion:raw"], "produces": ["onion:cut"]},
         {"text": "Premiešaj v mise {meat.amount} {meat.name}, vytlačený chlieb, {egg.amount} {egg.name}, cibuľu, {garlic.amount} {garlic.name}, {paprika.amount} {paprika.name}, soľ a čierne korenie. Zmes mies rukami 2 minúty, kým bude držať pokope.", "requires": ["meat:raw", "bread:soaked", "egg:raw", "onion:cut", "garlic:raw", "paprika:raw", "misa:free"], "produces": ["meat:mixed", "bread:mixed", "egg:mixed", "onion:mixed", "garlic:mixed", "paprika:mixed", "misa:occupied"]},
-        {"text": "Nalej {oil.amount} {oil.name} do pekáča. Pri dávke nad 8 porcií rozdeľ zmes na dva rovnaké bochníky, zemiaky rozdeľ medzi ne a použi dva pekáče. Pri menšej dávke vytvaruj zmes do jedného pevného bochníka a zemiaky rozlož okolo neho do jedného pekáča. Olej rovnomerne rozotri po dne použitého pekáča alebo oboch pekáčov.", "requires": ["meat:mixed", "bread:mixed", "egg:mixed", "onion:mixed", "garlic:mixed", "paprika:mixed", "potato:cut", "oil:raw", "misa:occupied", "pekac:free"], "produces": ["meat:formed", "bread:formed", "egg:formed", "onion:formed", "garlic:formed", "paprika:formed", "potato:arranged", "oil:used", "misa:free", "pekac:occupied"]},
-        {"text": "Peč sekanú z mletého hovädzieho mäsa so zemiakmi v pripravenom pekáči alebo pekáčoch pri 190 °C 45 minút, kým bude povrch zlatistý, stred každého bochníka bez ružovej farby a zemiaky mäkké.", "requires": ["meat:formed", "bread:formed", "egg:formed", "onion:formed", "garlic:formed", "paprika:formed", "potato:arranged", "oil:used", "pekac:occupied", "rura:hot"], "produces": ["meat:cooked", "bread:cooked", "egg:cooked", "onion:cooked", "garlic:cooked", "paprika:cooked", "potato:cooked", "oil:cooked", "pekac:free"]},
-        {"text": "Nechaj sekanú 8 minút odpočívať, potom ju nakrájaj a rozdeľ so zemiakmi na {portions} porcií.", "requires": ["meat:cooked", "bread:cooked", "egg:cooked", "onion:cooked", "garlic:cooked", "paprika:cooked", "potato:cooked", "oil:cooked"], "produces": ["meat:served", "bread:served", "egg:served", "onion:served", "garlic:served", "paprika:served", "potato:served", "oil:served"]}
+        {"text": "Nalej {oil.amount} {oil.name} do pekáča. Olej rovnomerne rozotri po dne. Pri dávke nad 8 porcií rozdeľ zmes na dva rovnaké bochníky, použi dva pekáče a olej rozdeľ medzi ne. Pri menšej dávke vytvaruj zmes do jedného pevného bochníka a polož ho do pekáča.", "requires": ["meat:mixed", "bread:mixed", "egg:mixed", "onion:mixed", "garlic:mixed", "paprika:mixed", "oil:raw", "misa:occupied", "pekac:free"], "produces": ["meat:formed", "bread:formed", "egg:formed", "onion:formed", "garlic:formed", "paprika:formed", "oil:used", "misa:free", "pekac:occupied"]},
+        {"text": "Peč sekanú z mletého hovädzieho mäsa v pripravenom pekáči alebo pekáčoch pri 190 °C 45 minút, kým bude povrch zlatistý a stred každého bochníka bez ružovej farby.", "requires": ["meat:formed", "bread:formed", "egg:formed", "onion:formed", "garlic:formed", "paprika:formed", "oil:used", "pekac:occupied", "rura:hot"], "produces": ["meat:cooked", "bread:cooked", "egg:cooked", "onion:cooked", "garlic:cooked", "paprika:cooked", "oil:cooked", "pekac:free"]},
+        {"text": "Ošúp {potato.amount} {potato.name} počas pečenia sekanej a nakrájaj zemiaky na rovnaké kúsky.", "requires": ["potato:raw"], "produces": ["potato:cut"]},
+        {"text": "Vlož zemiaky do hrnca. Dolej studenú vodu tak, aby boli ponorené, a vodu osoľ. Var zemiaky v hrnci na miernom ohni 18 minút, kým zmäknú, potom ich sceď.", "requires": ["potato:cut", "hrniec:free"], "produces": ["potato:cooked", "hrniec:occupied"]},
+        {"text": "Prilej {milk.amount} {milk.name} do hrnca. Pridaj {butter.amount} {butter.name}. Zohrievaj zemiaky s mliekom a maslom v hrnci na miernom ohni 2 minúty, kým sa maslo roztopí a mlieko začne pariť. Potom všetko roztlač pučidlom na hladkú kašu.", "requires": ["milk:raw", "butter:raw", "potato:cooked", "hrniec:occupied"], "produces": ["milk:combined", "butter:combined", "potato:mashed", "hrniec:free"]},
+        {"text": "Dochuť zemiakovú kašu soľou.", "requires": ["potato:mashed", "milk:combined"], "produces": []},
+        {"text": "Nechaj sekanú 8 minút odpočívať, potom ju nakrájaj a podávaj so zemiakovou kašou. Rozdeľ jedlo na {portions} porcií.", "requires": ["meat:cooked", "bread:cooked", "egg:cooked", "onion:cooked", "garlic:cooked", "paprika:cooked", "oil:cooked", "potato:mashed", "milk:combined", "butter:combined"], "produces": ["meat:served", "bread:served", "egg:served", "onion:served", "garlic:served", "paprika:served", "oil:served", "potato:served", "milk:served", "butter:served"]}
       ],
-      "storage": {"refrigerated_days": 3, "instruction": "Sekanú a zemiaky rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní."}
+      "storage": {"refrigerated_days": 3, "instruction": "Sekanú a zemiakovú kašu rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní."}
     }
   ],
   "source_record": {

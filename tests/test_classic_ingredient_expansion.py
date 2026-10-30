@@ -79,6 +79,12 @@ CLASSIC_RENDER_FORMS = {
         "údenou slaninou",
     ),
     "bryndza": ("bryndze", "bryndzu", "bryndze", "bryndzou"),
+    "bread_dumpling": (
+        "kysnutej knedle",
+        "kysnutú knedľu",
+        "kysnutej knedle",
+        "kysnutou knedľou",
+    ),
     "chives": ("pažítky", "pažítku", "pažítky", "pažítkou"),
     "butter": ("masla", "maslo", "masla", "maslom"),
     "cauliflower": ("karfiolu", "karfiol", "karfiolu", "karfiolom"),
@@ -176,6 +182,10 @@ def test_characteristic_slovak_ingredients_resolve_exactly():
     assert catalog.resolve("údená slanina").id == "bacon"
     assert catalog.resolve("anglická slanina").id == "bacon"
     assert catalog.resolve("pažítka").id == "chives"
+    assert catalog.resolve("kysnutá knedľa").id == "bread_dumpling"
+    assert catalog.resolve("knedľa kysnutá").id == "bread_dumpling"
+    assert catalog.resolve("parená knedľa").id == "bread_dumpling"
+    assert catalog.resolve("žemľová knedľa").id == "bread_dumpling"
 
 
 def test_product_states_and_cuts_remain_distinct():
@@ -249,6 +259,21 @@ def test_bacon_and_chives_nutrition_match_sr_legacy_records():
     ) == (Decimal("30"), Decimal("3.27"), Decimal("0.73"), Decimal("4.35"))
     assert bacon.diet_tags == frozenset()
     assert {tag.value for tag in chives.diet_tags} == {"vegetarian", "vegan"}
+
+
+def test_bread_dumpling_uses_the_published_producer_label():
+    dumpling = load_ingredient_catalog().by_id("bread_dumpling")
+
+    assert (
+        dumpling.nutrition.kcal,
+        dumpling.nutrition.protein_g,
+        dumpling.nutrition.fat_g,
+        dumpling.nutrition.carbs_g,
+    ) == (Decimal("219"), Decimal("7.2"), Decimal("0.7"), Decimal("45"))
+    assert "Lef spol. s r.o., Knedlík kynutý přílohový" in dumpling.nutrition.source
+    assert dumpling.nutrition.verified_on == date(2026, 10, 30)
+    assert set(dumpling.allergens) == {"gluten", "egg"}
+    assert {tag.value for tag in dumpling.diet_tags} == {"vegetarian"}
 
 
 def test_ground_pork_uses_the_usda_foundation_food_record():

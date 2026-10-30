@@ -292,6 +292,23 @@
       }
     },
     {
+      "id": "bread_dumpling",
+      "name": "kysnutá knedľa",
+      "synonyms": ["knedľa kysnutá", "parená knedľa", "knedľa parená", "kysnutá parená knedľa", "parená kysnutá knedľa", "žemľová knedľa", "knedľa žemľová", "kysnutá žemľová knedľa", "knedľa kysnutá žemľová", "knedľa prílohová", "prílohová knedľa"],
+      "category": "pečivo",
+      "roles": ["starch"],
+      "diet_tags": ["vegetarian"],
+      "allergens": ["gluten", "egg"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "219", "protein_g": "7.2", "fat_g": "0.7", "carbs_g": "45",
+        "source": "Lef spol. s r.o., Knedlík kynutý přílohový 600 g, výživové údaje na 100 g; https://www.rohlik.cz/1439096-lef-yeasted-dumpling-as-a-side-dish",
+        "verified_on": "2026-10-30"
+      }
+    },
+    {
       "id": "zucchini",
       "name": "cuketa",
       "synonyms": ["cukina"],

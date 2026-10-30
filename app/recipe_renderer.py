@@ -117,6 +117,7 @@ _QUANTITY_NAMES: Mapping[str, str] = {
     "pasta": "cestovín",
     "potato": "zemiakov",
     "bread": "bieleho chleba",
+    "bread_dumpling": "kysnutej knedle",
     "zucchini": "cukety",
     "tomato": "paradajok",
     "onion": "cibule",
@@ -205,6 +206,7 @@ _REFERENCE_NAMES: Mapping[str, str] = {
     "pasta": "cestoviny",
     "potato": "zemiaky",
     "bread": "biely chlieb",
+    "bread_dumpling": "kysnutú knedľu",
     "zucchini": "cuketu",
     "tomato": "paradajky",
     "onion": "cibuľu",
@@ -298,6 +300,7 @@ _EXTRA_INGREDIENT_FORMS: Mapping[str, tuple[str, ...]] = {
     "egg": ("vajce", "vajcia", "vajec", "vajca"),
     "milk": ("plnotučné mlieko", "plnotučného mlieka", "mlieko", "mlieka"),
     "bacon": ("slanina", "slaniny", "slaninu"),
+    "bread_dumpling": ("knedľa", "knedle", "knedľu", "knedľou"),
 }
 
 _EXTRA_PANTRY_FORMS: Mapping[str, tuple[str, ...]] = {

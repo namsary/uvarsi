@@ -168,6 +168,14 @@ def test_reversed_specific_offer_labels_do_not_fall_back_to_generic_ingredients(
         ("Žervé pažítka 80 g", "80 g"),
         ("Nátierka pažítka 120 g", "120 g"),
         ("Sušená pažítka 5 g", "5 g"),
+        ("Knedľa 500 g", "500 g"),
+        ("Ovocné knedle 400 g", "400 g"),
+        ("Knedľa kysnutá slivková 400 g", "400 g"),
+        ("Kysnutá knedľa s jahodami 400 g", "400 g"),
+        ("Tvarohová parená knedľa 400 g", "400 g"),
+        ("Parená knedľa zemiaková 400 g", "400 g"),
+        ("Zmes na knedľu kysnutá 500 g", "500 g"),
+        ("Mrazená kysnutá knedľa 500 g", "500 g"),
     ),
 )
 def test_unsafe_offer_state_cut_composition_and_piece_assumptions_fail_closed(
@@ -190,6 +198,10 @@ def test_unsafe_offer_state_cut_composition_and_piece_assumptions_fail_closed(
         ("Slanina údená 300 g", "300 g", "bacon"),
         ("Anglická slanina 150 g", "150 g", "bacon"),
         ("Pažítka 20 g", "20 g", "chives"),
+        ("Kysnutá knedľa 600 g", "600 g", "bread_dumpling"),
+        ("Knedľa kysnutá 500 g", "500 g", "bread_dumpling"),
+        ("Parená knedľa 450 g", "450 g", "bread_dumpling"),
+        ("Žemľová knedľa 500 g", "500 g", "bread_dumpling"),
     ),
 )
 def test_specific_safe_offer_labels_remain_matchable(

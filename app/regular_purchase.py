@@ -23,6 +23,7 @@ _PACKAGES: dict[str, Quantity] = {
     "beans": Quantity(Decimal("500"), "g"),
     "beans_canned": Quantity(Decimal("400"), "g"),
     "bread": Quantity(Decimal("500"), "g"),
+    "bread_dumpling": Quantity(Decimal("600"), "g"),
     "bryndza": Quantity(Decimal("125"), "g"),
     "bulgur": Quantity(Decimal("500"), "g"),
     "butter": Quantity(Decimal("250"), "g"),

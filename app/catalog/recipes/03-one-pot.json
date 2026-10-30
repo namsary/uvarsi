@@ -878,7 +878,7 @@
       "id": "classic_beef_goulash",
       "version": 2,
       "active": true,
-      "name_template": "Hovädzí guláš s chlebom",
+      "name_template": "Hovädzí guláš s knedľou",
       "family": "classic_beef_goulash",
       "method": "pot",
       "minutes": 135,
@@ -888,6 +888,8 @@
       ],
       "equipment": [
         "veľký hrniec",
+        "hrniec s pokrievkou",
+        "sitko",
         "nôž",
         "doska na krájanie"
       ],
@@ -959,17 +961,17 @@
           "cut": null
         },
         {
-          "key": "bread",
+          "key": "dumpling",
           "role": "starch",
           "candidates": [
-            "bread"
+            "bread_dumpling"
           ],
-          "amount_per_adult": "80",
+          "amount_per_adult": "120",
           "unit": "g",
           "child_factor": "0.55",
           "required": true,
           "use": "main",
-          "cut": "na krajce"
+          "cut": "na plátky"
         }
       ],
       "pantry_basics": [
@@ -1054,12 +1056,12 @@
           ]
         },
         {
-          "text": "Nakrájaj {bread.amount} {bread.name} na krajce.",
+          "text": "Nakrájaj {dumpling.amount} {dumpling.name} na plátky hrubé asi 1,5 cm.",
           "requires": [
-            "bread:raw"
+            "dumpling:raw"
           ],
           "produces": [
-            "bread:prepared"
+            "dumpling:cut"
           ]
         },
         {
@@ -1079,14 +1081,27 @@
           ]
         },
         {
-          "text": "Podávaj hovädzí guláš s chlebom a rozdeľ ho na {portions} porcií.",
+          "text": "Priveď asi 3 cm vody v hrnci na silnom ohni do varu. Polož plátky knedle do sitka nad vriacu vodu, prikry pokrievkou a zohrievaj knedľu na pare na strednom ohni 3 minúty, kým bude mäkká a horúca.",
+          "requires": [
+            "dumpling:cut",
+            "hrniec_s_pokrievkou:free",
+            "sitko:free"
+          ],
+          "produces": [
+            "dumpling:prepared",
+            "hrniec_s_pokrievkou:free",
+            "sitko:free"
+          ]
+        },
+        {
+          "text": "Podávaj hovädzí guláš s plátkami knedle a rozdeľ ho na {portions} porcií.",
           "requires": [
             "beef:cooked",
             "onion:cooked",
             "garlic:cooked",
             "oil:cooked",
             "paprika:cooked",
-            "bread:prepared"
+            "dumpling:prepared"
           ],
           "produces": [
             "beef:served",
@@ -1094,7 +1109,7 @@
             "garlic:served",
             "oil:served",
             "paprika:served",
-            "bread:served"
+            "dumpling:served"
           ]
         }
       ],
@@ -2603,7 +2618,7 @@
       "id": "classic_segedin_goulash",
       "version": 2,
       "active": true,
-      "name_template": "Segedínsky guláš s chlebom",
+      "name_template": "Segedínsky guláš s knedľou",
       "family": "classic_segedin_goulash",
       "method": "pot",
       "minutes": 80,
@@ -2613,6 +2628,8 @@
       ],
       "equipment": [
         "veľký hrniec",
+        "hrniec s pokrievkou",
+        "sitko",
         "miska",
         "nôž",
         "doska na krájanie"
@@ -2698,17 +2715,17 @@
           "cut": null
         },
         {
-          "key": "bread",
+          "key": "dumpling",
           "role": "starch",
           "candidates": [
-            "bread"
+            "bread_dumpling"
           ],
-          "amount_per_adult": "80",
+          "amount_per_adult": "120",
           "unit": "g",
           "child_factor": "0.55",
           "required": true,
           "use": "main",
-          "cut": "na krajce"
+          "cut": "na plátky"
         }
       ],
       "pantry_basics": [
@@ -2823,12 +2840,12 @@
           ]
         },
         {
-          "text": "Nakrájaj {bread.amount} {bread.name} na krajce.",
+          "text": "Nakrájaj {dumpling.amount} {dumpling.name} na plátky hrubé asi 1,5 cm.",
           "requires": [
-            "bread:raw"
+            "dumpling:raw"
           ],
           "produces": [
-            "bread:prepared"
+            "dumpling:cut"
           ]
         },
         {
@@ -2844,7 +2861,20 @@
           "produces": []
         },
         {
-          "text": "Podávaj segedínsky guláš s chlebom a rozdeľ ho na {portions} porcií.",
+          "text": "Priveď asi 3 cm vody v hrnci na silnom ohni do varu. Polož plátky knedle do sitka nad vriacu vodu, prikry pokrievkou a zohrievaj knedľu na pare na strednom ohni 3 minúty, kým bude mäkká a horúca.",
+          "requires": [
+            "dumpling:cut",
+            "hrniec_s_pokrievkou:free",
+            "sitko:free"
+          ],
+          "produces": [
+            "dumpling:prepared",
+            "hrniec_s_pokrievkou:free",
+            "sitko:free"
+          ]
+        },
+        {
+          "text": "Podávaj segedínsky guláš s plátkami knedle a rozdeľ ho na {portions} porcií.",
           "requires": [
             "pork:cooked",
             "cabbage:cooked",
@@ -2852,7 +2882,7 @@
             "paprika:cooked",
             "cream:cooked",
             "oil:cooked",
-            "bread:prepared"
+            "dumpling:prepared"
           ],
           "produces": [
             "pork:served",
@@ -2861,7 +2891,7 @@
             "paprika:served",
             "cream:served",
             "oil:served",
-            "bread:served"
+            "dumpling:served"
           ]
         }
       ],

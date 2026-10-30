@@ -127,6 +127,38 @@ INGREDIENT_FORBIDDEN_OFFER_QUALIFIERS = MappingProxyType(
                 ("chipsy",),
             )
         ),
+        # Only the plain yeast side dumpling; filled, fruit, potato and
+        # dry-mix products are different foods.
+        "bread_dumpling": frozenset(
+            (
+                ("s",),
+                ("so",),
+                ("plnená",),
+                ("plnena",),
+                ("ovocná",),
+                ("ovocna",),
+                ("slivková",),
+                ("slivkova",),
+                ("jahodová",),
+                ("jahodova",),
+                ("marhuľová",),
+                ("marhulova",),
+                ("čučoriedková",),
+                ("cucoriedkova",),
+                ("tvarohová",),
+                ("tvarohova",),
+                ("zemiaková",),
+                ("zemiakova",),
+                ("bramborová",),
+                ("bramborova",),
+                ("sladká",),
+                ("sladka",),
+                ("mrazená",),
+                ("mrazena",),
+                ("zmes",),
+                ("na",),
+            )
+        ),
         "cauliflower": frozenset((("ružičky",), ("ruzicky",))),
         "chives": frozenset(
             (

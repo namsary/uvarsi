@@ -241,7 +241,7 @@ CHARACTERISTIC_INGREDIENTS = {
         frozenset({"sauerkraut"}),
         frozenset({"paprika_powder"}),
         frozenset({"cream", "plain_yogurt"}),
-        frozenset({"bread"}),
+        frozenset({"bread_dumpling"}),
     ),
     "classic_french_potatoes": (
         frozenset({"potato"}),
@@ -257,7 +257,13 @@ CHARACTERISTIC_INGREDIENTS = {
         frozenset({"beef_chuck"}),
         frozenset({"onion"}),
         frozenset({"paprika_powder"}),
-        frozenset({"bread"}),
+        frozenset({"bread_dumpling"}),
+    ),
+    "classic_meatloaf_potatoes": (
+        frozenset({"beef_mince"}),
+        frozenset({"potato"}),
+        frozenset({"milk"}),
+        frozenset({"butter"}),
     ),
     "classic_potato_stew_egg": (
         frozenset({"potato"}),
@@ -1171,6 +1177,41 @@ def test_meatballs_mash_uses_butter_in_the_mash(
     assert "butter:combined" in serve_step.requires
 
 
+# Classic sekaná: the loaf bakes alone in the pekáč and is served with
+# zemiaková kaša boiled and mashed separately in a pot, like the fašírky.
+def test_meatloaf_bakes_alone_and_is_served_with_mashed_potatoes(
+    ingredient_catalog, tmp_path
+):
+    recipe = _load_candidate_recipe(
+        "classic_meatloaf_potatoes", ingredient_catalog, tmp_path
+    )
+    slots = {slot.key: slot for slot in recipe.slots}
+    bake_step = next(
+        step for step in recipe.instructions if "meat:cooked" in step.produces
+    )
+    mash_step = next(
+        step for step in recipe.instructions if "potato:mashed" in step.produces
+    )
+    boil_step = next(
+        step for step in recipe.instructions if "potato:cooked" in step.produces
+    )
+    serve_step = recipe.instructions[-1]
+
+    assert recipe.name_template == "Sekaná so zemiakovou kašou"
+    assert slots["milk"].candidates == ("milk",)
+    assert slots["butter"].candidates == ("butter",)
+    assert {"hrniec", "pučidlo na zemiaky", "pekáč"} <= set(recipe.equipment)
+    assert not any(token.startswith("potato:") for token in bake_step.requires)
+    assert "hrniec:free" in boil_step.requires
+    assert "{milk.amount}" in mash_step.text
+    assert "{butter.amount}" in mash_step.text
+    assert "pučidlom" in mash_step.text
+    assert "zemiakovou kašou" in serve_step.text
+    assert {"potato:mashed", "milk:combined", "butter:combined"} <= set(
+        serve_step.requires
+    )
+
+
 def test_apple_bread_pudding_uses_declared_cinnamon(
     ingredient_catalog, tmp_path
 ):
@@ -1275,17 +1316,20 @@ def test_chicken_perkelt_prepares_vegetables_before_paprika_touches_the_heat(
     assert "odstav" in texts[ground_paprika]
 
 
-# Goulash is always served with a side; like the chicken perkelt both goulashes
-# come with sliced bread named in the title and in the serving step.
-GOULASH_BREAD_IDS = ("classic_beef_goulash", "classic_segedin_goulash")
+# Goulash is always served with a side; both goulashes come with store-bought
+# kysnutá knedľa, sliced and warmed on steam, named in the title and in the
+# serving step.
+GOULASH_DUMPLING_IDS = ("classic_beef_goulash", "classic_segedin_goulash")
 
 
-@pytest.mark.parametrize("recipe_id", GOULASH_BREAD_IDS, ids=GOULASH_BREAD_IDS)
-def test_goulash_is_served_with_sliced_bread(
+@pytest.mark.parametrize("recipe_id", GOULASH_DUMPLING_IDS, ids=GOULASH_DUMPLING_IDS)
+def test_goulash_is_served_with_steamed_bread_dumpling(
     recipe_id, ingredient_catalog, tmp_path
 ):
     recipe = _load_candidate_recipe(recipe_id, ingredient_catalog, tmp_path)
-    bread = next(slot for slot in recipe.slots if "bread" in slot.candidates)
+    dumpling = next(
+        slot for slot in recipe.slots if "bread_dumpling" in slot.candidates
+    )
     meal = render_meal(
         _render_candidate(recipe, ingredient_catalog),
         adults=1,
@@ -1293,12 +1337,19 @@ def test_goulash_is_served_with_sliced_bread(
         covered_days=1,
     )
 
-    assert bread.role == "starch"
-    assert bread.required is True
-    assert bread.cut == "na krajce"
-    assert recipe.name_template.endswith(" s chlebom")
-    assert "s chlebom" in meal.instructions[-1]
-    assert any("na krajce" in step for step in meal.instructions[:-1])
+    assert dumpling.role == "starch"
+    assert dumpling.required is True
+    assert dumpling.cut == "na plátky"
+    assert all("bread" not in slot.candidates for slot in recipe.slots)
+    assert recipe.name_template.endswith(" s knedľou")
+    assert {"hrniec s pokrievkou", "sitko"} <= set(recipe.equipment)
+    assert "knedle" in meal.instructions[-1]
+    assert any(
+        "kysnutú knedľu na plátky" in step for step in meal.instructions[:-1]
+    )
+    steam = next(step for step in meal.instructions if "na pare" in step)
+    assert "sitka nad vriacu vodu" in steam
+    assert "3 minúty" in steam
 
 
 @pytest.mark.parametrize(
