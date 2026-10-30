@@ -51,6 +51,18 @@ PODANIE = {
             "a single ordinary fork resting on the rim of the plate, as if someone just started eating"),
     "salad": ("in a simple serving bowl", "one ordinary fork stuck in the salad"),
 }
+# Vajce pri prívarkoch: každý recept trochu inak, ale vždy tak, ako ho recept pripraví.
+VAJCE_V_PRIVARKU = {
+    "classic_lentil_stew_egg": "a fried egg sunny-side up (volské oko) with a runny yolk "
+                               "lies slightly sunk into the stew on the plate",
+    "classic_pea_stew_egg": "a soft-boiled egg (na hniličku) cut in half, the soft yolk "
+                            "slightly running, the halves pressed a little into the stew",
+    "classic_potato_stew_egg": "a hard-boiled egg cut in half on top, one half lying "
+                               "upside down with the yolk facing the stew",
+    "classic_bean_stew_egg": "a hard-boiled egg roughly sliced and half sunk into the stew",
+    "classic_pumpkin_stew_egg": "two hard-boiled egg halves casually dropped on the stew, "
+                                "one of them turned yolk-side down",
+}
 UHLY = ["camera about 45 degrees, slightly off-center",
         "overhead shot from directly above",
         "low side angle close to the table, close-up of the food"]
@@ -102,8 +114,7 @@ def prompt_pre(recept, nazvy):
     if any(slovo in nazov_jedla for slovo in ("prívarok", "halušk")):
         # Prívarky a halušky sa nejedia z hrnca, ale z hlbokého taniera.
         nadoba = ("served in a deep plate, the pot with the rest partly visible behind it; "
-                  "any boiled egg lies halved or sliced on top of the food on the plate, "
-                  "never floating in the pot")
+                  + VAJCE_V_PRIVARKU.get(recept["id"], "any egg is on the plate, never floating in the pot"))
         nacinie = "a single ordinary tablespoon resting in the food"
     if nacinie == PODANIE["pan"][1]:
         # Pri tanieri sa príbor strieda, aby fotky neboli všetky rovnaké.
@@ -128,7 +139,12 @@ def prompt_pre(recept, nazvy):
         zakazane.append("no herbs or green garnish")
     return (
         f'A real home-cooked photo of the Slovak dish "{recept["name_template"]}", '
-        "taken by a home cook with a good phone in their own kitchen, not a food stylist.\n"
+        "snapped quickly by a home cook on an ordinary smartphone right before eating, not a food stylist. "
+        "It must look like a casual phone photo, not a retouched professional shot: "
+        "phone-camera look with slight noise, a bit of softness or focus falloff, "
+        "slightly uneven white balance from mixed kitchen light, imperfect framing "
+        "with part of the dish or table cut off, a slightly messy table, "
+        "no studio lighting, no HDR, no retouching, no perfect garnish placement.\n"
         f"The food is {nadoba}; {nacinie}. Honest home portion.\n"
         f"Visible ingredients (Slovak names): {', '.join(viditelne)}. "
         "Only these may appear in the food, plus salt and black pepper. "

@@ -1892,7 +1892,7 @@
         "nôž",
         "doska",
         "hrniec",
-        "malý hrniec",
+        "panvica",
         "sitko",
         "vareška"
       ],
@@ -1985,6 +1985,19 @@
           "amount_per_adult": "8",
           "unit": "ml",
           "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": "5",
+          "unit": "g",
+          "child_factor": "0.75",
           "required": true,
           "use": "addition",
           "cut": null
@@ -2090,18 +2103,20 @@
           ]
         },
         {
-          "text": "Uvar {egg.amount} {egg.name} natvrdo v malom hrnci na strednom ohni. Od začiatku varu počítaj 9 minút, kým bielok aj žĺtok stuhnú. Potom {egg.reference_name} schlaď v studenej vode a ošúp.",
+          "text": "Rozohrej {butter.amount} {butter.name} v panvici na strednom ohni. Rozklep do nej {egg.amount} {egg.name} a opekaj na volské oko 3 minúty, kým bielok stuhne a žĺtok ostane tekutý. Jemne osoľ a pri väčšom počte vajec pracuj po častiach.",
           "requires": [
+            "butter:raw",
             "egg:raw",
-            "maly_hrniec:free"
+            "panvica:free"
           ],
           "produces": [
-            "egg:cooked",
-            "maly_hrniec:free"
+            "butter:cooked",
+            "egg:fried",
+            "panvica:used"
           ]
         },
         {
-          "text": "Podávaj šošovicový prívarok s vajcom a rozdeľ ho na {portions} porcií.",
+          "text": "Rozdeľ šošovicový prívarok na {portions} porcií a navrch polož volské oko. Podávaj hneď, kým je žĺtok tekutý.",
           "requires": [
             "lentils:finished",
             "cream:cooked",
@@ -2109,8 +2124,10 @@
             "onion:finished",
             "oil:finished",
             "vinegar:combined",
-            "egg:cooked",
-            "hrniec:occupied"
+            "egg:fried",
+            "butter:cooked",
+            "hrniec:occupied",
+            "panvica:used"
           ],
           "produces": [
             "lentils:served",
@@ -2120,13 +2137,15 @@
             "oil:served",
             "vinegar:served",
             "egg:served",
-            "hrniec:free"
+            "butter:served",
+            "hrniec:free",
+            "panvica:free"
           ]
         }
       ],
       "storage": {
         "refrigerated_days": 3,
-        "instruction": "Prívarok rozdeľ do plytkých nádob a do jednej hodiny ho odlož do chladničky. Vajcia uchovaj oddelene a všetko spotrebuj do 3 dní."
+        "instruction": "Prívarok rozdeľ do plytkých nádob a do jednej hodiny ho odlož do chladničky. Spotrebuj ho do 3 dní a volské oko opekaj vždy čerstvé tesne pred podávaním."
       }
     },
     {
@@ -2331,7 +2350,7 @@
           ]
         },
         {
-          "text": "Uvar {egg.amount} {egg.name} natvrdo v malom hrnci na strednom ohni. Od začiatku varu počítaj 9 minút, kým bielok aj žĺtok stuhnú. Potom {egg.reference_name} schlaď v studenej vode a ošúp.",
+          "text": "Uvar {egg.amount} {egg.name} na hniličku v malom hrnci na strednom ohni. Od začiatku varu počítaj 6 minút, kým bielok stuhne a žĺtok ostane mäkký. Potom {egg.reference_name} krátko schlaď v studenej vode a ošúp.",
           "requires": [
             "egg:raw",
             "maly_hrniec:free"
@@ -2342,7 +2361,7 @@
           ]
         },
         {
-          "text": "Dochuť hrachový prívarok soľou a čiernym korením, podávaj ho s vajcom a rozdeľ na {portions} porcií.",
+          "text": "Dochuť hrachový prívarok soľou a čiernym korením a rozdeľ ho na {portions} porcií. Každé vajce rozkroj na polovice a na tanieri ho jemne vtlač do prívarku.",
           "requires": [
             "peas:finished",
             "cream:cooked",
@@ -2367,7 +2386,7 @@
       ],
       "storage": {
         "refrigerated_days": 3,
-        "instruction": "Prívarok rozdeľ do plytkých nádob a do jednej hodiny ho odlož do chladničky. Vajcia uchovaj oddelene a všetko spotrebuj do 3 dní."
+        "instruction": "Prívarok rozdeľ do plytkých nádob a do jednej hodiny ho odlož do chladničky. Spotrebuj ho do 3 dní a vajce na hniličku var vždy čerstvé tesne pred podávaním."
       }
     },
     {

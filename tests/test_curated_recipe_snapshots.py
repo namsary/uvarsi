@@ -1088,14 +1088,33 @@ def test_child_only_spice_amount_never_displays_as_zero(
     assert marjoram.display_amount != "0 g"
 
 
+# Lentil prívarok gets a fried egg „volské oko“, pea prívarok a soft-boiled
+# egg „na hniličku“; the remaining prívarky keep the hard-boiled egg.
+PRIVAROK_EGG_STYLES = {
+    "classic_potato_stew_egg": ("v malom hrnci", "natvrdo", "9 minut"),
+    "classic_lentil_stew_egg": ("v panvici", "volske oko", "3 minuty", "tekuty"),
+    "classic_bean_stew_egg": ("v malom hrnci", "natvrdo", "9 minut"),
+    "classic_pumpkin_stew_egg": ("v malom hrnci", "natvrdo", "9 minut"),
+    "classic_pea_stew_egg": ("v malom hrnci", "na hnilicku", "6 minut", "makky"),
+}
+BOILED_EGG_PRIVAROK_IDS = tuple(
+    recipe_id
+    for recipe_id in PRIVAROK_IDS
+    if "v malom hrnci" in PRIVAROK_EGG_STYLES[recipe_id]
+)
+
+
 @pytest.mark.parametrize("recipe_id", PRIVAROK_IDS, ids=PRIVAROK_IDS)
-def test_privarok_egg_step_uses_the_declared_small_pot(
+def test_privarok_egg_step_uses_the_declared_vessel_and_doneness(
     recipe_id, ingredient_catalog, tmp_path
 ):
     recipe = _load_candidate_recipe(recipe_id, ingredient_catalog, tmp_path)
-    egg_step = next(step.text for step in recipe.instructions if "egg:raw" in step.requires)
+    egg_step = _fold(
+        next(step.text for step in recipe.instructions if "egg:raw" in step.requires)
+    )
 
-    assert "v malom hrnci" in egg_step
+    for term in PRIVAROK_EGG_STYLES[recipe_id]:
+        assert term in egg_step, f"{recipe_id}: egg step must mention {term!r}"
 
 
 def test_pumpkin_stew_removes_skin_and_seeds_before_grating(
@@ -1368,7 +1387,9 @@ def test_single_egg_copy_stays_singular(
     assert re.search(r"\b(?:vajcia|zltky|bielky)\b", instructions) is None
 
 
-@pytest.mark.parametrize("recipe_id", PRIVAROK_IDS, ids=PRIVAROK_IDS)
+@pytest.mark.parametrize(
+    "recipe_id", BOILED_EGG_PRIVAROK_IDS, ids=BOILED_EGG_PRIVAROK_IDS
+)
 def test_privarok_boiled_egg_has_water_timing_and_correct_number(
     recipe_id, ingredient_catalog, tmp_path
 ):
@@ -1381,12 +1402,37 @@ def test_privarok_boiled_egg_has_water_timing_and_correct_number(
     )
     egg_steps = " ".join(step for step in meal.instructions if "vaj" in _fold(step))
     folded = _fold(egg_steps)
+    minutes = next(
+        term for term in PRIVAROK_EGG_STYLES[recipe_id] if term.endswith("minut")
+    )
 
     assert "vod" in folded
     assert "varu" in folded
-    assert "9 minut" in folded
+    assert minutes in folded
     assert "vajce" in egg_steps
     assert "Schlaď ho" not in egg_steps
+
+
+def test_lentil_privarok_fries_the_egg_in_butter_and_serves_it_on_top(
+    ingredient_catalog, tmp_path
+):
+    recipe = _load_candidate_recipe(
+        "classic_lentil_stew_egg", ingredient_catalog, tmp_path
+    )
+    meal = render_meal(
+        _render_candidate(recipe, ingredient_catalog),
+        adults=1,
+        children=0,
+        covered_days=1,
+    )
+    egg_step = next(step for step in meal.instructions if "volské oko" in step)
+    folded = _fold(egg_step)
+
+    assert "malý hrniec" not in recipe.equipment
+    assert "panvica" in recipe.equipment
+    assert "vajce" in egg_step
+    assert "masl" in folded
+    assert "navrch poloz volske oko" in _fold(meal.instructions[-1])
 
 
 def test_dry_red_bean_stew_starts_with_a_safe_brisk_boil(
