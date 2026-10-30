@@ -1,11 +1,11 @@
-chatgpt-image-latest
-gpt-image-1
-gpt-image-1-mini
-gpt-image-1.5
-gpt-image-2
-gpt-image-2-2026-04-21
-gpt-image-2.5-flare
-gpt-image-2.5-flare-2026-09-08
-gpt-image-2.5-sunburst
-gpt-image-2.5-sunburst-2026-09-08
-kod: 0
+[1/9] classic_cabbage_dumplings: CHYBA 429 b'{\n  "error": {\n    "message": "You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.",\n    "type": "insufficient_quota",\n    "param": null,\n    "code": "credit_balance_exhausted"\n  }\n}'
+[2/9] classic_chicken_sote_rice: CHYBA 429 b'{\n  "error": {\n    "message": "You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.",\n    "type": "insufficient_quota",\n    "param": null,\n    "code": "credit_balance_exhausted"\n  }\n}'
+[3/9] classic_baked_pasta_ham: CHYBA 429 b'{\n  "error": {\n    "message": "You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.",\n    "type": "insufficient_quota",\n    "param": null,\n    "code": "credit_balance_exhausted"\n  }\n}'
+[4/9] classic_french_potatoes: CHYBA 429 b'{\n  "error": {\n    "message": "You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.",\n    "type": "insufficient_quota",\n    "param": null,\n    "code": "credit_balance_exhausted"\n  }\n}'
+[5/9] classic_beef_goulash: CHYBA 429 b'{\n  "error": {\n    "message": "You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.",\n    "type": "insufficient_quota",\n    "param": null,\n    "code": "credit_balance_exhausted"\n  }\n}'
+[6/9] classic_bolognese_spaghetti: CHYBA 429 b'{\n  "error": {\n    "message": "You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.",\n    "type": "insufficient_quota",\n    "param": null,\n    "code": "credit_balance_exhausted"\n  }\n}'
+[7/9] classic_slovak_chicken_risotto: CHYBA 429 b'{\n  "error": {\n    "message": "You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.",\n    "type": "insufficient_quota",\n    "param": null,\n    "code": "credit_balance_exhausted"\n  }\n}'
+[8/9] classic_bean_soup: CHYBA 429 b'{\n  "error": {\n    "message": "You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.",\n    "type": "insufficient_quota",\n    "param": null,\n    "code": "credit_balance_exhausted"\n  }\n}'
+[9/9] modern_chicken_caesar_salad: CHYBA 429 b'{\n  "error": {\n    "message": "You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.",\n    "type": "insufficient_quota",\n    "param": null,\n    "code": "credit_balance_exhausted"\n  }\n}'
+HOTOVO, chýb: 9. Prehľad: /home/runner/work/_temp/obrazky/index.html
+kod: 1
