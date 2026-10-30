@@ -21,6 +21,7 @@ import hashlib
 import html
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -38,17 +39,17 @@ NEVIDITELNE = {"oil", "water", "salt", "black_pepper", "sugar", "flour",
 PODANIE = {
     "oven": ("straight from the oven in a well-used rectangular glass or enamel "
              "baking dish, one portion already taken out so the inside is visible",
-             "a flat metal spatula / cake server rests in the gap"),
+             "a slotted metal kitchen turner (flat spatula with long narrow slots, not a cake server) rests in the gap"),
     "pot": ("in the cooking pot it was made in, lid set aside",
             "a ladle rests in the pot"),
     "one_pot": ("in the wide pot or deep pan it was cooked in",
                 "a wooden spoon rests on the rim"),
     "soup": ("served in a deep soup plate, the pot partly visible behind it",
-             "a soup spoon lies next to the plate"),
+             "one ordinary soup spoon dipped in the soup"),
     "pan": ("served on an everyday plate, the frying pan with the rest of the "
             "food partly visible at the edge of the frame",
-            "a fork and knife next to the plate"),
-    "salad": ("in a simple serving bowl", "salad servers or a fork in the bowl"),
+            "a single ordinary fork resting on the rim of the plate, as if someone just started eating"),
+    "salad": ("in a simple serving bowl", "one ordinary fork stuck in the salad"),
 }
 UHLY = ["camera about 45 degrees, slightly off-center",
         "overhead shot from directly above",
@@ -93,6 +94,26 @@ def prompt_pre(recept, nazvy):
         rez = f" ({slot['cut']})" if slot.get("cut") else ""
         viditelne.append(surovina + rez)
     nadoba, nacinie = PODANIE.get(recept["method"], PODANIE["pan"])
+    nazov_jedla = recept["name_template"].lower()
+    if recept["method"] in ("pot", "one_pot") and any(
+            slovo in nazov_jedla for slovo in ("špagety", "cestovin", "penne", "rezanc")):
+        # Cestoviny sa z hrnca naberačkou nedvíhajú, podávajú sa na tanieri.
+        nadoba, nacinie = PODANIE["pan"][0].replace("frying pan", "pot"), PODANIE["pan"][1]
+    if nacinie == PODANIE["pan"][1]:
+        # Pri tanieri sa príbor strieda, aby fotky neboli všetky rovnaké.
+        nacinie = _vyber([nacinie, "an ordinary fork and table knife lying side by side "
+                          "on the table next to the plate"], recept["id"], "pribor")
+    if any(slovo in nazov_jedla for slovo in ("halušk", "strapačk")):
+        # Halušky a strapačky sa na Slovensku jedia lyžicou.
+        nacinie = "a single ordinary tablespoon resting in the food on the plate"
+    postup = " ".join(krok["text"] for krok in recept.get("instructions", []))
+    for slot in recept["slots"]:
+        nazov = nazvy.get(slot["candidates"][0], slot["candidates"][0])
+        postup = (postup.replace("{%s.amount} " % slot["key"], "")
+                  .replace("{%s.cut}" % slot["key"], slot.get("cut") or "")
+                  .replace("{%s.name}" % slot["key"], nazov)
+                  .replace("{%s.reference_name}" % slot["key"], nazov))
+    postup = re.sub(r"\s*\{[^}]*\}", "", postup)
     zakazane = []
     vsetko = " ".join(json.dumps(recept["slots"]).split())
     if "cheese" not in vsetko and "mozzarella" not in vsetko and "feta" not in vsetko:
@@ -105,11 +126,15 @@ def prompt_pre(recept, nazvy):
         f"The food is {nadoba}; {nacinie}. Honest home portion.\n"
         f"Visible ingredients (Slovak names): {', '.join(viditelne)}. "
         "Only these may appear in the food, plus salt and black pepper. "
+        f"How it was assembled and finished (Slovak recipe steps, follow them so "
+        f"the layers and toppings look right): {postup}\n"
         f"{', '.join(zakazane + ['no other vegetables or toppings'])}.\n"
         f"Scene: {_vyber(PODKLADY, recept['id'], 'podklad')}, "
         f"{_vyber(UTIERKY, recept['id'], 'utierka')}, "
         f"{_vyber(UHLY, recept['id'], 'uhol')}. Natural daylight from a side window, "
         f"soft shadows, {_vyber(DETAILY, recept['id'], 'detail')}.\n"
+        "Cutlery and utensils must look like ordinary, slightly used everyday kitchen items, "
+        "correctly shaped and naturally placed; fewer is better. "
         "Realistic natural colors. No props that are not part of the meal, no text, "
         "no logo, no people. Not glossy, not advertising, not a stock photo."
     )
