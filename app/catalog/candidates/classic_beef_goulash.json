@@ -4,7 +4,7 @@
       "id": "classic_beef_goulash",
       "version": 2,
       "active": true,
-      "name_template": "Hovädzí guláš",
+      "name_template": "Hovädzí guláš s chlebom",
       "family": "classic_beef_goulash",
       "method": "pot",
       "minutes": 135,
@@ -15,7 +15,8 @@
         {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": "nadrobno"},
         {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
         {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
-        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": "na krajce"}
       ],
       "pantry_basics": ["water", "salt", "black_pepper"],
       "instructions": [
@@ -25,8 +26,9 @@
         {"text": "Pridaj {beef.name} do hrnca. Pri väčšej dávke opekaj mäso po častiach, aby sa namiesto dusenia opieklo. Každú časť opekaj na strednom ohni asi 10 minút, kým bude mäso na povrchu zlatisté a uvoľnená šťava sa odparí.", "requires": ["beef:cut", "onion:cooked", "oil:used", "velky_hrniec:occupied"], "produces": ["beef:browned", "oil:cooked"]},
         {"text": "Odstav hrniec z ohňa. Prisyp {paprika.amount} {paprika.name} do hrnca a premiešaj.", "requires": ["paprika:raw", "beef:browned", "velky_hrniec:occupied"], "produces": ["paprika:combined"]},
         {"text": "Pridaj {garlic.amount} {garlic.name} do hrnca. Prilej {beef.water} vody do hrnca. Priveď {beef.name} s cibuľou vo veľkom hrnci na silnom ohni do varu za 5 minút, kým šťava začne bublať. Stíš oheň a dus {beef.name} vo veľkom hrnci na miernom ohni 95 minút, kým mäso zmäkne.", "requires": ["garlic:raw", "beef:browned", "onion:cooked", "paprika:combined", "velky_hrniec:occupied"], "produces": ["garlic:cooked", "beef:tender", "onion:sauce", "paprika:cooked"]},
+        {"text": "Nakrájaj {bread.amount} {bread.name} na krajce.", "requires": ["bread:raw"], "produces": ["bread:prepared"]},
         {"text": "Dochuť mäso aj omáčku soľou a čiernym korením. Var {beef.name} s cibuľou vo veľkom hrnci na miernom ohni ešte 5 minút, kým omáčka zhustne a začne bublať.", "requires": ["beef:tender", "onion:sauce", "oil:cooked", "paprika:cooked", "velky_hrniec:occupied"], "produces": ["beef:cooked", "onion:cooked", "oil:cooked", "velky_hrniec:free"]},
-        {"text": "Podávaj hovädzí guláš a rozdeľ ho na {portions} porcií.", "requires": ["beef:cooked", "onion:cooked", "garlic:cooked", "oil:cooked", "paprika:cooked"], "produces": ["beef:served", "onion:served", "garlic:served", "oil:served", "paprika:served"]}
+        {"text": "Podávaj hovädzí guláš s chlebom a rozdeľ ho na {portions} porcií.", "requires": ["beef:cooked", "onion:cooked", "garlic:cooked", "oil:cooked", "paprika:cooked", "bread:prepared"], "produces": ["beef:served", "onion:served", "garlic:served", "oil:served", "paprika:served", "bread:served"]}
       ],
       "storage": {"refrigerated_days": 3, "instruction": "Hovädzí guláš rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní."}
     }

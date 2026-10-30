@@ -241,6 +241,7 @@ CHARACTERISTIC_INGREDIENTS = {
         frozenset({"sauerkraut"}),
         frozenset({"paprika_powder"}),
         frozenset({"cream", "plain_yogurt"}),
+        frozenset({"bread"}),
     ),
     "classic_french_potatoes": (
         frozenset({"potato"}),
@@ -256,6 +257,7 @@ CHARACTERISTIC_INGREDIENTS = {
         frozenset({"beef_chuck"}),
         frozenset({"onion"}),
         frozenset({"paprika_powder"}),
+        frozenset({"bread"}),
     ),
     "classic_potato_stew_egg": (
         frozenset({"potato"}),
@@ -1271,6 +1273,32 @@ def test_chicken_perkelt_prepares_vegetables_before_paprika_touches_the_heat(
 
     assert vegetable_prep < ground_paprika
     assert "odstav" in texts[ground_paprika]
+
+
+# Goulash is always served with a side; like the chicken perkelt both goulashes
+# come with sliced bread named in the title and in the serving step.
+GOULASH_BREAD_IDS = ("classic_beef_goulash", "classic_segedin_goulash")
+
+
+@pytest.mark.parametrize("recipe_id", GOULASH_BREAD_IDS, ids=GOULASH_BREAD_IDS)
+def test_goulash_is_served_with_sliced_bread(
+    recipe_id, ingredient_catalog, tmp_path
+):
+    recipe = _load_candidate_recipe(recipe_id, ingredient_catalog, tmp_path)
+    bread = next(slot for slot in recipe.slots if "bread" in slot.candidates)
+    meal = render_meal(
+        _render_candidate(recipe, ingredient_catalog),
+        adults=1,
+        children=0,
+        covered_days=1,
+    )
+
+    assert bread.role == "starch"
+    assert bread.required is True
+    assert bread.cut == "na krajce"
+    assert recipe.name_template.endswith(" s chlebom")
+    assert "s chlebom" in meal.instructions[-1]
+    assert any("na krajce" in step for step in meal.instructions[:-1])
 
 
 @pytest.mark.parametrize(

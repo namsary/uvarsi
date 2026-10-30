@@ -40,14 +40,15 @@ PODANIE = {
     "oven": ("straight from the oven in a well-used rectangular glass or enamel "
              "baking dish, one portion already taken out so the inside is visible",
              "a slotted metal kitchen turner (flat spatula with long narrow slots, not a cake server) rests in the gap"),
-    "pot": ("in the cooking pot it was made in, lid set aside",
-            "a ladle rests in the pot"),
+    "pot": ("served on a plate or in a deep plate, together with its side dish if the "
+            "ingredient list has one (on the same plate); the pot is not in the picture",
+            "a single ordinary fork or spoon resting on the plate"),
     "one_pot": ("in the wide pot or deep pan it was cooked in",
                 "a wooden spoon rests on the rim"),
-    "soup": ("served in a deep soup plate, the pot partly visible behind it",
+    "soup": ("served in a deep soup plate",
              "one ordinary soup spoon dipped in the soup"),
-    "pan": ("served on an everyday plate, the frying pan with the rest of the "
-            "food partly visible at the edge of the frame",
+    "pan": ("served on an everyday plate; no pan or second dish with the same food "
+            "in the picture",
             "a single ordinary fork resting on the rim of the plate, as if someone just started eating"),
     "salad": ("in a simple serving bowl", "one ordinary fork stuck in the salad"),
 }
@@ -110,10 +111,10 @@ def prompt_pre(recept, nazvy):
     if recept["method"] in ("pot", "one_pot") and any(
             slovo in nazov_jedla for slovo in ("špagety", "cestovin", "penne", "rezanc")):
         # Cestoviny sa z hrnca naberačkou nedvíhajú, podávajú sa na tanieri.
-        nadoba, nacinie = PODANIE["pan"][0].replace("frying pan", "pot"), PODANIE["pan"][1]
+        nadoba, nacinie = PODANIE["pan"]
     if any(slovo in nazov_jedla for slovo in ("prívarok", "halušk")):
         # Prívarky a halušky sa nejedia z hrnca, ale z hlbokého taniera.
-        nadoba = ("served in a deep plate, the pot with the rest partly visible behind it; "
+        nadoba = ("served in a deep plate, the pot is not in the picture; "
                   + VAJCE_V_PRIVARKU.get(recept["id"], "any egg is on the plate, never floating in the pot"))
         nacinie = "a single ordinary tablespoon resting in the food"
     if nacinie == PODANIE["pan"][1]:
@@ -157,6 +158,9 @@ def prompt_pre(recept, nazvy):
         f"soft shadows, {_vyber(DETAILY, recept['id'], 'detail')}.\n"
         "Cutlery and utensils must look like ordinary, slightly used everyday kitchen items, "
         "correctly shaped and naturally placed; fewer is better. "
+        "Only the one served dish is in the picture: no second plate or pot with the same food, "
+        "no loose raw ingredients, cut vegetables, lemons, sauces or bowls around it "
+        "unless they are part of this portion. "
         "Realistic natural colors. No props that are not part of the meal, no text, "
         "no logo, no people. Not glossy, not advertising, not a stock photo."
     )

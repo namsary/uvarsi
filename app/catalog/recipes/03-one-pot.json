@@ -878,7 +878,7 @@
       "id": "classic_beef_goulash",
       "version": 2,
       "active": true,
-      "name_template": "Hovädzí guláš",
+      "name_template": "Hovädzí guláš s chlebom",
       "family": "classic_beef_goulash",
       "method": "pot",
       "minutes": 135,
@@ -957,6 +957,19 @@
           "required": true,
           "use": "addition",
           "cut": null
+        },
+        {
+          "key": "bread",
+          "role": "starch",
+          "candidates": [
+            "bread"
+          ],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": "na krajce"
         }
       ],
       "pantry_basics": [
@@ -1041,6 +1054,15 @@
           ]
         },
         {
+          "text": "Nakrájaj {bread.amount} {bread.name} na krajce.",
+          "requires": [
+            "bread:raw"
+          ],
+          "produces": [
+            "bread:prepared"
+          ]
+        },
+        {
           "text": "Dochuť mäso aj omáčku soľou a čiernym korením. Var {beef.name} s cibuľou vo veľkom hrnci na miernom ohni ešte 5 minút, kým omáčka zhustne a začne bublať.",
           "requires": [
             "beef:tender",
@@ -1057,20 +1079,22 @@
           ]
         },
         {
-          "text": "Podávaj hovädzí guláš a rozdeľ ho na {portions} porcií.",
+          "text": "Podávaj hovädzí guláš s chlebom a rozdeľ ho na {portions} porcií.",
           "requires": [
             "beef:cooked",
             "onion:cooked",
             "garlic:cooked",
             "oil:cooked",
-            "paprika:cooked"
+            "paprika:cooked",
+            "bread:prepared"
           ],
           "produces": [
             "beef:served",
             "onion:served",
             "garlic:served",
             "oil:served",
-            "paprika:served"
+            "paprika:served",
+            "bread:served"
           ]
         }
       ],
@@ -2579,7 +2603,7 @@
       "id": "classic_segedin_goulash",
       "version": 2,
       "active": true,
-      "name_template": "Segedínsky guláš",
+      "name_template": "Segedínsky guláš s chlebom",
       "family": "classic_segedin_goulash",
       "method": "pot",
       "minutes": 80,
@@ -2672,6 +2696,19 @@
           "required": true,
           "use": "addition",
           "cut": null
+        },
+        {
+          "key": "bread",
+          "role": "starch",
+          "candidates": [
+            "bread"
+          ],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": "na krajce"
         }
       ],
       "pantry_basics": [
@@ -2786,6 +2823,15 @@
           ]
         },
         {
+          "text": "Nakrájaj {bread.amount} {bread.name} na krajce.",
+          "requires": [
+            "bread:raw"
+          ],
+          "produces": [
+            "bread:prepared"
+          ]
+        },
+        {
           "text": "Dochuť segedínsky guláš soľou a čiernym korením.",
           "requires": [
             "pork:cooked",
@@ -2798,14 +2844,15 @@
           "produces": []
         },
         {
-          "text": "Podávaj segedínsky guláš a rozdeľ ho na {portions} porcií.",
+          "text": "Podávaj segedínsky guláš s chlebom a rozdeľ ho na {portions} porcií.",
           "requires": [
             "pork:cooked",
             "cabbage:cooked",
             "onion:cooked",
             "paprika:cooked",
             "cream:cooked",
-            "oil:cooked"
+            "oil:cooked",
+            "bread:prepared"
           ],
           "produces": [
             "pork:served",
@@ -2813,7 +2860,8 @@
             "onion:served",
             "paprika:served",
             "cream:served",
-            "oil:served"
+            "oil:served",
+            "bread:served"
           ]
         }
       ],

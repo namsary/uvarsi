@@ -4,7 +4,7 @@
       "id": "classic_segedin_goulash",
       "version": 2,
       "active": true,
-      "name_template": "Segedínsky guláš",
+      "name_template": "Segedínsky guláš s chlebom",
       "family": "classic_segedin_goulash",
       "method": "pot",
       "minutes": 80,
@@ -16,7 +16,8 @@
         {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nadrobno"},
         {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
         {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "40", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
-        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": "na krajce"}
       ],
       "pantry_basics": ["water", "salt", "black_pepper"],
       "instructions": [
@@ -28,8 +29,9 @@
         {"text": "Pridaj kyslú kapustu do hrnca a prilej {pork.water} vody. Hrniec prikry a dus bravčové pliecko s kapustou na miernom ohni 45 minút, kým oboje zmäkne a šťava začne bublať.", "requires": ["pork:browned", "cabbage:cut", "onion:cooked", "paprika:combined", "oil:used", "velky_hrniec:occupied"], "produces": ["pork:tender", "cabbage:cooked", "paprika:cooked", "oil:cooked"]},
         {"text": "Premiešaj {cream.amount} {cream.name} v miske s naberačkou horúcej šťavy.", "requires": ["cream:raw", "miska:free", "pork:tender", "cabbage:cooked"], "produces": ["cream:tempered", "miska:free"]},
         {"text": "Vlej {cream.name} do hrnca. Zohrievaj {cream.name} s mäsom a kapustou vo veľkom hrnci na miernom ohni 3 minúty, kým omáčka zhustne a začne bublať.", "requires": ["cream:tempered", "pork:tender", "cabbage:cooked", "paprika:cooked", "velky_hrniec:occupied"], "produces": ["cream:cooked", "pork:cooked", "velky_hrniec:free"]},
+        {"text": "Nakrájaj {bread.amount} {bread.name} na krajce.", "requires": ["bread:raw"], "produces": ["bread:prepared"]},
         {"text": "Dochuť segedínsky guláš soľou a čiernym korením.", "requires": ["pork:cooked", "cabbage:cooked", "onion:cooked", "paprika:cooked", "cream:cooked", "oil:cooked"], "produces": []},
-        {"text": "Podávaj segedínsky guláš a rozdeľ ho na {portions} porcií.", "requires": ["pork:cooked", "cabbage:cooked", "onion:cooked", "paprika:cooked", "cream:cooked", "oil:cooked"], "produces": ["pork:served", "cabbage:served", "onion:served", "paprika:served", "cream:served", "oil:served"]}
+        {"text": "Podávaj segedínsky guláš s chlebom a rozdeľ ho na {portions} porcií.", "requires": ["pork:cooked", "cabbage:cooked", "onion:cooked", "paprika:cooked", "cream:cooked", "oil:cooked", "bread:prepared"], "produces": ["pork:served", "cabbage:served", "onion:served", "paprika:served", "cream:served", "oil:served", "bread:served"]}
       ],
       "storage": {"refrigerated_days": 3, "instruction": "Segedínsky guláš rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní."}
     }
