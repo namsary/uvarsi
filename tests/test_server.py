@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from app.landing_data import write_landing_data_atomic
 from app.offer_data import migrate_akcie_schema, offer_key_for
 from app.plan_data import PORTION_STANDARD_VERSION, build_personal_plan
+from app.plan_calendar import bratislava_day
 from app.weekly_data import current_monday
 
 
@@ -2881,7 +2882,8 @@ def test_public_health_hides_internal_numbers_but_local_supervisor_sees_all(monk
 
 
 def test_health_reports_a_store_without_current_offers(monkeypatch, tmp_path):
-    today = date.today()
+    # Server počíta deň v Bratislave; po 23:00 UTC je tam už zajtra.
+    today = bratislava_day()
     week = current_monday(today)
     row = (week, "Ryža", "Lidl", 1.29, None, None, "kg", "trvanlive",
            "https://www.lidl.sk/l/sk/letak/x/view/flyer/page/1", 1,
