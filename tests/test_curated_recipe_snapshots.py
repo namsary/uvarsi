@@ -341,6 +341,8 @@ CHARACTERISTIC_INGREDIENTS = {
         frozenset({"potato"}),
         frozenset({"wheat_flour"}),
         frozenset({"bryndza"}),
+        frozenset({"bacon"}),
+        frozenset({"chives"}),
     ),
     "classic_cabbage_dumplings": (
         frozenset({"potato"}),
@@ -438,7 +440,8 @@ NAMED_PASTA_TERMS = {
 
 MAIN_MEAL_LIMITS = {
     "classic_pork_cabbage_bake": (Decimal("550"), Decimal("850")),
-    "classic_bryndza_dumplings": (Decimal("430"), Decimal("800")),
+    # Classic version with smoked bacon and chives poured over the dumplings.
+    "classic_bryndza_dumplings": (Decimal("460"), Decimal("900")),
     "classic_baked_pasta_ham": (Decimal("320"), Decimal("800")),
     "classic_apple_bread_pudding": (Decimal("550"), Decimal("700")),
 }

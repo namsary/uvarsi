@@ -162,6 +162,8 @@ _QUANTITY_NAMES: Mapping[str, str] = {
     "pumpkin": "tekvice",
     "sauerkraut": "kyslej kapusty",
     "smoked_sausage": "údenej klobásy",
+    "bacon": "údenej slaniny",
+    "chives": "pažítky",
     "sugar": "kryštálového cukru",
     "wheat_flour": "hladkej pšeničnej múky",
     "white_cabbage": "bielej hlávkovej kapusty",
@@ -248,6 +250,8 @@ _REFERENCE_NAMES: Mapping[str, str] = {
     "pumpkin": "tekvicu",
     "sauerkraut": "kyslú kapustu",
     "smoked_sausage": "údenú klobásu",
+    "bacon": "údenú slaninu",
+    "chives": "pažítku",
     "sugar": "kryštálový cukor",
     "wheat_flour": "hladkú pšeničnú múku",
     "white_cabbage": "bielu hlávkovú kapustu",
@@ -293,6 +297,7 @@ _EXTRA_INGREDIENT_FORMS: Mapping[str, tuple[str, ...]] = {
     "carrot": ("mrkva", "mrkvy", "mrkvu"),
     "egg": ("vajce", "vajcia", "vajec", "vajca"),
     "milk": ("plnotučné mlieko", "plnotučného mlieka", "mlieko", "mlieka"),
+    "bacon": ("slanina", "slaniny", "slaninu"),
 }
 
 _EXTRA_PANTRY_FORMS: Mapping[str, tuple[str, ...]] = {

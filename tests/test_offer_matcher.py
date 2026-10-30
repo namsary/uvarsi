@@ -161,6 +161,13 @@ def test_reversed_specific_offer_labels_do_not_fall_back_to_generic_ingredients(
         ("Chilli údená klobása 500 g", "500 g"),
         ("Údená klobása chilli 500 g", "500 g"),
         ("Jablká Gala 6 ks", "6 piece"),
+        ("Slanina 300 g", "300 g"),
+        ("Bravčová slanina 300 g", "300 g"),
+        ("Morčacia slanina 150 g", "150 g"),
+        ("Údená slanina s paprikou 300 g", "300 g"),
+        ("Žervé pažítka 80 g", "80 g"),
+        ("Nátierka pažítka 120 g", "120 g"),
+        ("Sušená pažítka 5 g", "5 g"),
     ),
 )
 def test_unsafe_offer_state_cut_composition_and_piece_assumptions_fail_closed(
@@ -179,6 +186,10 @@ def test_unsafe_offer_state_cut_composition_and_piece_assumptions_fail_closed(
         ("Hovädzie predné bez kosti 500 g", "500 g", "beef_chuck"),
         ("Údená klobása 500 g", "500 g", "smoked_sausage"),
         ("Jablká Gala 1 kg", "1 kg", "apple"),
+        ("Údená slanina 300 g", "300 g", "bacon"),
+        ("Slanina údená 300 g", "300 g", "bacon"),
+        ("Anglická slanina 150 g", "150 g", "bacon"),
+        ("Pažítka 20 g", "20 g", "chives"),
     ),
 )
 def test_specific_safe_offer_labels_remain_matchable(

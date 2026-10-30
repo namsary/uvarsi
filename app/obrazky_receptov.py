@@ -99,6 +99,12 @@ def prompt_pre(recept, nazvy):
             slovo in nazov_jedla for slovo in ("špagety", "cestovin", "penne", "rezanc")):
         # Cestoviny sa z hrnca naberačkou nedvíhajú, podávajú sa na tanieri.
         nadoba, nacinie = PODANIE["pan"][0].replace("frying pan", "pot"), PODANIE["pan"][1]
+    if any(slovo in nazov_jedla for slovo in ("prívarok", "halušk")):
+        # Prívarky a halušky sa nejedia z hrnca, ale z hlbokého taniera.
+        nadoba = ("served in a deep plate, the pot with the rest partly visible behind it; "
+                  "any boiled egg lies halved or sliced on top of the food on the plate, "
+                  "never floating in the pot")
+        nacinie = "a single ordinary tablespoon resting in the food"
     if nacinie == PODANIE["pan"][1]:
         # Pri tanieri sa príbor strieda, aby fotky neboli všetky rovnaké.
         nacinie = _vyber([nacinie, "an ordinary fork and table knife lying side by side "
@@ -118,7 +124,7 @@ def prompt_pre(recept, nazvy):
     vsetko = " ".join(json.dumps(recept["slots"]).split())
     if "cheese" not in vsetko and "mozzarella" not in vsetko and "feta" not in vsetko:
         zakazane.append("no cheese")
-    if "parsley" not in vsetko and "herb" not in vsetko and "basil" not in vsetko:
+    if not any(b in vsetko for b in ("parsley", "herb", "basil", "chives", "dill")):
         zakazane.append("no herbs or green garnish")
     return (
         f'A real home-cooked photo of the Slovak dish "{recept["name_template"]}", '

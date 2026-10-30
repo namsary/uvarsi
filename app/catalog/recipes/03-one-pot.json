@@ -1340,7 +1340,7 @@
       "name_template": "Bryndzové halušky",
       "family": "slovak_bryndza_dumplings",
       "method": "pot",
-      "minutes": 40,
+      "minutes": 45,
       "modes": [
         "standard"
       ],
@@ -1352,6 +1352,8 @@
         "cedidlo",
         "panvica",
         "škrabka",
+        "nôž",
+        "doska na krájanie",
         "varecha"
       ],
       "slots": [
@@ -1395,6 +1397,19 @@
           "cut": null
         },
         {
+          "key": "bacon",
+          "role": "protein",
+          "candidates": [
+            "bacon"
+          ],
+          "amount_per_adult": 30,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": "na drobné kocky"
+        },
+        {
           "key": "butter",
           "role": "fat",
           "candidates": [
@@ -1419,6 +1434,19 @@
           "required": true,
           "use": "addition",
           "cut": null
+        },
+        {
+          "key": "chives",
+          "role": "seasoning",
+          "candidates": [
+            "chives"
+          ],
+          "amount_per_adult": 3,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
         }
       ],
       "pantry_basics": [
@@ -1454,6 +1482,32 @@
             "flour:dough",
             "salt:dough",
             "varecha:used"
+          ]
+        },
+        {
+          "text": "Nakrájaj {bacon.amount} {bacon.name} na drobné kocky a {chives.amount} {chives.name} najemno.",
+          "requires": [
+            "bacon:raw",
+            "chives:raw",
+            "noz:free",
+            "doska_na_krajanie:free"
+          ],
+          "produces": [
+            "bacon:diced",
+            "chives:chopped",
+            "noz:used",
+            "doska_na_krajanie:used"
+          ]
+        },
+        {
+          "text": "Opekaj slaninu v suchej panvici na strednom ohni 8 minút, kým pustí masť a bude chrumkavá. Odstav panvicu z ohňa, slanina v nej zostane teplá.",
+          "requires": [
+            "bacon:diced",
+            "panvica:free"
+          ],
+          "produces": [
+            "bacon:crisp",
+            "panvica:used"
           ]
         },
         {
@@ -1504,25 +1558,35 @@
           ]
         },
         {
-          "text": "Rozohrej {butter.amount} {butter.name} v panvici na miernom ohni 2 minúty, kým sa maslo roztopí a začne jemne bublať.",
-          "requires": [
-            "butter:raw",
-            "panvica:free"
-          ],
-          "produces": [
-            "butter:melted",
-            "panvica:used"
-          ]
-        },
-        {
-          "text": "Vráť halušky do hrnca a premiešaj ich s bryndzovým krémom a maslom. Podávaj ich horúce.",
+          "text": "Vráť halušky do hrnca, pridaj {butter.amount} {butter.name} a premiešaj, kým sa neroztopí. Potom k nim primiešaj bryndzový krém.",
           "requires": [
             "potato:drained",
             "flour:drained",
             "salt:drained",
             "bryndza:creamy",
-            "butter:melted",
+            "butter:raw",
             "velky_hrniec:free"
+          ],
+          "produces": [
+            "potato:mixed",
+            "flour:mixed",
+            "salt:mixed",
+            "bryndza:mixed",
+            "butter:melted",
+            "velky_hrniec:used"
+          ]
+        },
+        {
+          "text": "Rozdeľ halušky na taniere, prelej ich slaninou aj s vypečenou masťou a navrch rozsyp pažítku. Podávaj ich hneď, kým sú horúce.",
+          "requires": [
+            "potato:mixed",
+            "flour:mixed",
+            "salt:mixed",
+            "bryndza:mixed",
+            "butter:melted",
+            "bacon:crisp",
+            "chives:chopped",
+            "panvica:used"
           ],
           "produces": [
             "potato:served",
@@ -1530,7 +1594,9 @@
             "salt:served",
             "bryndza:served",
             "butter:served",
-            "velky_hrniec:used",
+            "bacon:served",
+            "chives:served",
+            "velky_hrniec:free",
             "panvica:free"
           ]
         }

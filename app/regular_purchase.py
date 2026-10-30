@@ -27,6 +27,7 @@ _PACKAGES: dict[str, Quantity] = {
     "bulgur": Quantity(Decimal("500"), "g"),
     "butter": Quantity(Decimal("250"), "g"),
     "chickpeas_canned": Quantity(Decimal("400"), "g"),
+    "chives": Quantity(Decimal("20"), "g"),
     "cinnamon": Quantity(Decimal("20"), "g"),
     "coconut_milk": Quantity(Decimal("400"), "ml"),
     "cottage_cheese": Quantity(Decimal("180"), "g"),
