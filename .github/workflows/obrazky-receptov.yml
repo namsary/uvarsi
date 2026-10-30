@@ -1,0 +1,56 @@
+# Fotky receptov: spustí sa zmenou obrazky/poziadavka.json na vývojovej vetve.
+# Kľúč OPENAI_API_KEY je v GitHub Secrets, výsledky sa uložia späť do vetvy
+# (app/static/recepty/*.webp a obrazky/vystup.txt), aby sa dali skontrolovať.
+name: obrazky-receptov
+
+on:
+  push:
+    branches: [claude/keen-bardeen-s6mahs]
+    paths: [obrazky/poziadavka.json]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: obrazky-receptov
+  cancel-in-progress: false
+
+jobs:
+  generuj:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pillow==10.4.0
+      - name: Generovanie
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          UVARSI_OBRAZKY_DIR: ${{ runner.temp }}/obrazky
+        run: |
+          mapfile -t ARGUMENTY < <(python -c 'import json; print("\n".join(json.load(open("obrazky/poziadavka.json"))["argumenty"]))')
+          set +e
+          python app/obrazky_receptov.py "${ARGUMENTY[@]}" 2>&1 | tee obrazky/vystup.txt
+          echo "kod: ${PIPESTATUS[0]}" >> obrazky/vystup.txt
+      - name: Prevod do WebP
+        env:
+          ZDROJ: ${{ runner.temp }}/obrazky
+        run: |
+          mkdir -p app/static/recepty
+          python - <<'PY'
+          import glob, os
+          from PIL import Image
+          for png in glob.glob(os.path.join(os.environ["ZDROJ"], "*.png")):
+              ciel = os.path.join("app/static/recepty", os.path.basename(png)[:-4] + ".webp")
+              Image.open(png).convert("RGB").resize((1200, 800)).save(ciel, "WEBP", quality=82)
+              print(ciel)
+          PY
+      - name: Uloženie do vetvy
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/static/recepty obrazky/vystup.txt
+          git commit -m "Fotky receptov: $(head -c 80 obrazky/poziadavka.json | tr '\n' ' ')" || exit 0
+          git push
