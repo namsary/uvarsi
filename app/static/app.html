@@ -47,7 +47,7 @@ label{font-size:.78rem;font-weight:800;color:var(--muted);display:block;margin-b
 .meal.open .meal-chevron{transform:rotate(180deg)}
 .meal{border:1px solid var(--border);border-radius:var(--radius-card);background:var(--surface);margin-bottom:12px;overflow:hidden;box-shadow:0 4px 16px rgba(24,50,41,.045)}
 .meal-h{display:flex;align-items:center;gap:12px;padding:14px 15px;cursor:pointer;width:100%;border:0;background:transparent;color:inherit;text-align:left;font:inherit;min-height:66px}.meal-h:hover{background:var(--paper-2)}
-.meal-d{font-family:"Anton",sans-serif;font-size:1.05rem;min-width:42px;height:42px;border-radius:10px;background:var(--green-deep);color:#fff;display:grid;place-items:center}.meal-n{font-weight:800;font-size:1rem;line-height:1.3;flex:1}.meal-b{border-top:1px solid var(--line);padding:16px;display:none;background:#F8FBF8}.meal.open .meal-b{display:block}
+.meal-d{font-family:"Anton",sans-serif;font-size:1.05rem;min-width:42px;height:42px;border-radius:10px;background:var(--green-deep);color:#fff;display:grid;place-items:center}.meal-n{font-weight:800;font-size:1rem;line-height:1.3;flex:1}.meal-thumb{width:44px;height:44px;border-radius:10px;object-fit:cover;flex:none;background:var(--line)}.meal-photo{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:cover;border-radius:12px;background:var(--line);margin-bottom:6px}.meal-b{border-top:1px solid var(--line);padding:16px;display:none;background:#F8FBF8}.meal.open .meal-b{display:block}
 .ing{display:flex;justify-content:space-between;gap:12px;font-size:.85rem;padding:9px 0;border-bottom:1px solid var(--border)}.ing .r{white-space:nowrap;font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:.8rem}.ing .off{color:var(--accent);margin-left:7px}.ing-b{border-bottom:1px solid var(--border)}.ing-b .ing{border-bottom:0;padding-bottom:3px}.prov{font:600 .75rem/1.45 "IBM Plex Mono",monospace;color:var(--muted);padding-bottom:9px}.prov .vld--dnes,.prov .vld--zajtra,.prov .vld--neplatna{color:var(--accent)}.ing--neplatna .r{color:var(--muted);text-decoration:line-through}
 .steps{list-style:none;counter-reset:s;margin-top:12px}.steps li{counter-increment:s;position:relative;padding-left:34px;margin-bottom:13px;font-size:.94rem}.steps li::before{content:counter(s);position:absolute;left:0;top:0;width:23px;height:23px;border-radius:50%;display:grid;place-items:center;background:var(--ink);color:#fff;font:600 .7rem "IBM Plex Mono",monospace}.rest{color:var(--muted);font-size:.86rem;padding:10px 14px;border:1px dashed var(--border);border-radius:10px;margin-bottom:12px;background:rgba(255,255,255,.45)}.rest--volno{border-style:dotted}.hint{background:var(--surface-soft);border:1px solid var(--border);border-radius:var(--radius-card);padding:16px;margin-bottom:14px}
 .save{position:relative;display:flex;justify-content:space-between;align-items:center;background:var(--yellow);padding:16px 20px 16px 16px;margin:18px 0;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%)}.save::after{content:"";position:absolute;right:5px;top:5px;width:8px;height:8px;border-radius:50%;background:var(--paper)}.save{gap:12px}.save b{font-family:"Anton",sans-serif;font-weight:400;font-size:1.9rem;white-space:nowrap}.shop-h{font-size:.82rem;font-weight:800;background:var(--green-deep);color:#fff;padding:11px 14px;margin-top:16px;border-radius:12px 12px 0 0;letter-spacing:.04em}
@@ -1378,6 +1378,12 @@ async function navrhniZoSpajze() {
   render();
 }
 
+// Fotka receptu podľa šablóny; staré plány bez šablóny fotku nemajú.
+function recipePhotoId(recept) {
+  const id = recept && recept.template_id;
+  return typeof id === 'string' && /^[a-z0-9_]+$/.test(id) ? id : '';
+}
+
 function portionLine(recept) {
   if (!recept) return '';
   var parts = [];
@@ -1609,7 +1615,8 @@ function vPlan() {
       const j = row.jedlo;
       const panelId = `meal-${String(row.den).toLowerCase()}`;
       const doma = j.recept?.skontroluj_doma || [];
-      h += `<div class="meal" data-d="${esc(row.den)}"><button type="button" class="meal-h" aria-expanded="false" aria-controls="${esc(panelId)}"><span class="meal-d">${esc(row.den)}</span><span class="meal-n">${esc(j.nazov)}</span><span class="mono" style="font-size:.72rem;color:var(--muted)">${j.recept?.min||''} min</span><svg class="meal-chevron" aria-hidden="true"><use href="#i-chevron"></use></svg></button><div class="meal-b" id="${esc(panelId)}"> ${portionLine(j.recept)?`<p class="mono" style="font-size:.72rem;color:var(--muted);margin-top:10px">${esc(portionLine(j.recept))}</p>`:''} ${recipeFactsHtml(j.recept)} ${(j.recept?.davky||[]).length?`<div class="recipe-label">Na recept použiješ</div><div class="davky">${(j.recept?.davky||[]).map(d=>`<div class="d"><span>${esc(d)}</span></div>`).join('')}</div>`:''} ${doma.length?`<div class="recipe-label">Skontroluj doma</div><div class="home-basics">${doma.map(d=>`<span>${esc(d)}</span>`).join('')}</div>`:''} <div class="recipe-label">Suroviny a ceny</div> ${(j.suroviny||[]).map(s=>ingredientRow(s, dnes)).join('')} <div class="recipe-label">Postup</div><ol class="steps">${(j.recept?.kroky||[]).map(k=>`<li>${esc(k)}</li>`).join('')}</ol> ${j.recept?.uchovanie?`<div class="storage-note"><b>Uchovanie:</b> ${esc(j.recept.uchovanie)}</div>`:''} </div></div>`;
+      const foto = recipePhotoId(j.recept);
+      h += `<div class="meal" data-d="${esc(row.den)}"><button type="button" class="meal-h" aria-expanded="false" aria-controls="${esc(panelId)}"><span class="meal-d">${esc(row.den)}</span>${foto?`<img class="meal-thumb" src="/static/recepty/${foto}-n.webp" alt="" width="44" height="44" loading="lazy" decoding="async">`:''}<span class="meal-n">${esc(j.nazov)}</span><span class="mono" style="font-size:.72rem;color:var(--muted)">${j.recept?.min||''} min</span><svg class="meal-chevron" aria-hidden="true"><use href="#i-chevron"></use></svg></button><div class="meal-b" id="${esc(panelId)}">${foto?`<img class="meal-photo" src="/static/recepty/${foto}.webp" alt="${esc(j.nazov)}" width="960" height="640" loading="lazy" decoding="async">`:''} ${portionLine(j.recept)?`<p class="mono" style="font-size:.72rem;color:var(--muted);margin-top:10px">${esc(portionLine(j.recept))}</p>`:''} ${recipeFactsHtml(j.recept)} ${(j.recept?.davky||[]).length?`<div class="recipe-label">Na recept použiješ</div><div class="davky">${(j.recept?.davky||[]).map(d=>`<div class="d"><span>${esc(d)}</span></div>`).join('')}</div>`:''} ${doma.length?`<div class="recipe-label">Skontroluj doma</div><div class="home-basics">${doma.map(d=>`<span>${esc(d)}</span>`).join('')}</div>`:''} <div class="recipe-label">Suroviny a ceny</div> ${(j.suroviny||[]).map(s=>ingredientRow(s, dnes)).join('')} <div class="recipe-label">Postup</div><ol class="steps">${(j.recept?.kroky||[]).map(k=>`<li>${esc(k)}</li>`).join('')}</ol> ${j.recept?.uchovanie?`<div class="storage-note"><b>Uchovanie:</b> ${esc(j.recept.uchovanie)}</div>`:''} </div></div>`;
     } else if (row.typ === 'zvysok') {
       h += `<div class="rest">${esc(row.den)} · zvyšok z ${esc(dayGenitive(row.zdroj))}</div>`;
     } else {
@@ -1625,6 +1632,8 @@ function vPlan() {
     h += `<button class="btn btn--ghost" onclick="novyPlan()">Chcem iný plán ↻</button>${zostava === 0 ? '' : `<p class="muted center mono" style="font-size:.7rem;margin-top:8px">${esc(regenerationNote(ME))}</p>`}`;
   }
   M.innerHTML = h;
+  M.querySelectorAll('.meal-thumb, .meal-photo').forEach(img =>
+    img.addEventListener('error', () => img.remove(), {once: true}));
   if ($('#rg-premium')) $('#rg-premium').onclick = vCheckout;
   if (spajzaSaZmenila) {
     $('#sp-hint-go').onclick = () => navrhniZoSpajze();

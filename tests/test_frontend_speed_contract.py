@@ -780,6 +780,7 @@ APP_GZIP_CAP_NOTES = {
     "profil: predplatné a nastavenia navrchu, zabezpečenie zbalené": 110,
     "prístupnosť: frekvencia ako rádiová skupina so šípkami, kontrast": 250,
     "kontakt na podporu z jednej konštanty SUPPORT_EMAIL": 120,
+    "fotka receptu v jedálničku: náhľad v riadku a fotka pri recepte": 400,
 }
 
 
