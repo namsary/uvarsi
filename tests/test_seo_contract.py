@@ -4,7 +4,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 
-TITLE = "Uvar.si — z letáka rovno na tanier"
+TITLE = "Uvar.si: z letáka rovno na tanier"
 DESCRIPTION = (
     "Uvar.si spojí aktuálne akcie z Lidla, Kauflandu a Tesca s tým, čo máš doma. "
     "Dostaneš jedálniček, recepty a nákupný zoznam na celý týždeň."
@@ -121,7 +121,7 @@ def test_homepage_keeps_one_canonical_one_h1_and_the_current_copy():
     assert meta_values(parser, "description") == [DESCRIPTION]
     assert parser.canonicals == ["https://uvar.si/"]
     assert parser.h1_texts == [
-        "Varenie na celý týždeň. Podľa akcií, ktoré práve platia."
+        "Jedálniček na celý týždeň z toho, čo je práve v akcii."
     ]
 
 

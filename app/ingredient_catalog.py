@@ -86,6 +86,7 @@ PRODUCT_FAMILY_AMBIGUOUS_OFFER_FORMS = MappingProxyType(
 INGREDIENT_AMBIGUOUS_OFFER_FORMS = MappingProxyType(
     {
         "apple_cider_vinegar": frozenset(("ocot",)),
+        "bacon": frozenset(("slanina",)),
         "beef_chuck": frozenset(
             ("hovädzie na guláš", "hovädzie mäso na guláš", "hovädzie kocky")
         ),
@@ -110,7 +111,73 @@ INGREDIENT_FORBIDDEN_OFFER_QUALIFIERS = MappingProxyType(
         "apple_cider_vinegar": frozenset(
             (("vínny",), ("vinny",), ("liehový",), ("liehovy",))
         ),
+        "bacon": frozenset(
+            (
+                ("s",),
+                ("so",),
+                ("varená",),
+                ("varena",),
+                ("kuracia",),
+                ("kurací",),
+                ("kuraci",),
+                ("morčacia",),
+                ("morčací",),
+                ("morcacia",),
+                ("morcaci",),
+                ("chipsy",),
+            )
+        ),
+        # Only the plain yeast side dumpling; filled, fruit, potato and
+        # dry-mix products are different foods.
+        "bread_dumpling": frozenset(
+            (
+                ("s",),
+                ("so",),
+                ("plnená",),
+                ("plnena",),
+                ("ovocná",),
+                ("ovocna",),
+                ("slivková",),
+                ("slivkova",),
+                ("jahodová",),
+                ("jahodova",),
+                ("marhuľová",),
+                ("marhulova",),
+                ("čučoriedková",),
+                ("cucoriedkova",),
+                ("tvarohová",),
+                ("tvarohova",),
+                ("zemiaková",),
+                ("zemiakova",),
+                ("bramborová",),
+                ("bramborova",),
+                ("sladká",),
+                ("sladka",),
+                ("mrazená",),
+                ("mrazena",),
+                ("zmes",),
+                ("na",),
+            )
+        ),
         "cauliflower": frozenset((("ružičky",), ("ruzicky",))),
+        "chives": frozenset(
+            (
+                ("s",),
+                ("so",),
+                ("sušená",),
+                ("susena",),
+                ("syr",),
+                ("syrová",),
+                ("syrova",),
+                ("nátierka",),
+                ("natierka",),
+                ("maslo",),
+                ("tvaroh",),
+                ("žervé",),
+                ("zerve",),
+                ("dresing",),
+            )
+        ),
         "ham": frozenset(
             (
                 ("kuracia",),

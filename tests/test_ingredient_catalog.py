@@ -281,6 +281,9 @@ def test_default_catalog_contains_verified_foundation_slice():
         if item.id == "bryndza":
             assert "AGROFARMA" in item.nutrition.source
             assert "agrofarma.sk" in item.nutrition.source
+        elif item.id == "bread_dumpling":
+            assert "Lef spol. s r.o." in item.nutrition.source
+            assert "https://www.rohlik.cz/1439096-" in item.nutrition.source
         else:
             assert "USDA FoodData Central" in item.nutrition.source
             assert "FDC ID" in item.nutrition.source

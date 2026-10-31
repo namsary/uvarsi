@@ -38,9 +38,11 @@ CLASSIC_REQUIRED_IDS = frozenset(
 CLASSIC_USDA_FDC_IDS = {
     "apple": "171688",
     "apple_cider_vinegar": "173469",
+    "bacon": "168277",
     "beef_chuck": "168660",
     "butter": "173410",
     "cauliflower": "169986",
+    "chives": "169994",
     "dill": "172233",
     "dry_peas": "172428",
     "ham": "173864",
@@ -70,7 +72,20 @@ CLASSIC_RENDER_FORMS = {
         "hovädzieho predného bez kosti",
         "hovädzím mäsom z predného bez kosti",
     ),
+    "bacon": (
+        "údenej slaniny",
+        "údenú slaninu",
+        "údenej slaniny",
+        "údenou slaninou",
+    ),
     "bryndza": ("bryndze", "bryndzu", "bryndze", "bryndzou"),
+    "bread_dumpling": (
+        "kysnutej knedle",
+        "kysnutú knedľu",
+        "kysnutej knedle",
+        "kysnutou knedľou",
+    ),
+    "chives": ("pažítky", "pažítku", "pažítky", "pažítkou"),
     "butter": ("masla", "maslo", "masla", "maslom"),
     "cauliflower": ("karfiolu", "karfiol", "karfiolu", "karfiolom"),
     "dill": ("kôpru", "kôpor", "kôpru", "kôprom"),
@@ -164,6 +179,13 @@ def test_characteristic_slovak_ingredients_resolve_exactly():
     assert catalog.resolve("suchý hrach").id == "dry_peas"
     assert catalog.resolve("šošovica červená").id == "red_lentils"
     assert catalog.resolve("kôpor").id == "dill"
+    assert catalog.resolve("údená slanina").id == "bacon"
+    assert catalog.resolve("anglická slanina").id == "bacon"
+    assert catalog.resolve("pažítka").id == "chives"
+    assert catalog.resolve("kysnutá knedľa").id == "bread_dumpling"
+    assert catalog.resolve("knedľa kysnutá").id == "bread_dumpling"
+    assert catalog.resolve("parená knedľa").id == "bread_dumpling"
+    assert catalog.resolve("žemľová knedľa").id == "bread_dumpling"
 
 
 def test_product_states_and_cuts_remain_distinct():
@@ -216,6 +238,42 @@ def test_dill_nutrition_matches_sr_legacy_fdc_172233():
     assert dill.nutrition.protein_g == Decimal("3.46")
     assert dill.nutrition.fat_g == Decimal("1.12")
     assert dill.nutrition.carbs_g == Decimal("7.02")
+
+
+def test_bacon_and_chives_nutrition_match_sr_legacy_records():
+    catalog = load_ingredient_catalog()
+    bacon = catalog.by_id("bacon")
+    chives = catalog.by_id("chives")
+
+    assert (
+        bacon.nutrition.kcal,
+        bacon.nutrition.protein_g,
+        bacon.nutrition.fat_g,
+        bacon.nutrition.carbs_g,
+    ) == (Decimal("393"), Decimal("13.66"), Decimal("37.13"), Decimal("0"))
+    assert (
+        chives.nutrition.kcal,
+        chives.nutrition.protein_g,
+        chives.nutrition.fat_g,
+        chives.nutrition.carbs_g,
+    ) == (Decimal("30"), Decimal("3.27"), Decimal("0.73"), Decimal("4.35"))
+    assert bacon.diet_tags == frozenset()
+    assert {tag.value for tag in chives.diet_tags} == {"vegetarian", "vegan"}
+
+
+def test_bread_dumpling_uses_the_published_producer_label():
+    dumpling = load_ingredient_catalog().by_id("bread_dumpling")
+
+    assert (
+        dumpling.nutrition.kcal,
+        dumpling.nutrition.protein_g,
+        dumpling.nutrition.fat_g,
+        dumpling.nutrition.carbs_g,
+    ) == (Decimal("219"), Decimal("7.2"), Decimal("0.7"), Decimal("45"))
+    assert "Lef spol. s r.o., Knedlík kynutý přílohový" in dumpling.nutrition.source
+    assert dumpling.nutrition.verified_on == date(2026, 10, 30)
+    assert set(dumpling.allergens) == {"gluten", "egg"}
+    assert {tag.value for tag in dumpling.diet_tags} == {"vegetarian"}
 
 
 def test_ground_pork_uses_the_usda_foundation_food_record():

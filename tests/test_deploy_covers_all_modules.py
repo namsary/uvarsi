@@ -19,7 +19,7 @@ DEPLOY = Path("nasad.ps1")
 SAMOPULL = Path("hetzner/samopull.sh")
 
 # moduly, ktoré sa zámerne nenasadzujú (nie sú súčasťou runtime)
-NEDEPLOYOVANE: set[str] = {"recipe_candidates.py"}
+NEDEPLOYOVANE: set[str] = {"recipe_candidates.py", "obrazky_receptov.py"}
 
 
 def _runtime_modules() -> list[str]:

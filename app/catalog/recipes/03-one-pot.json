@@ -878,7 +878,7 @@
       "id": "classic_beef_goulash",
       "version": 2,
       "active": true,
-      "name_template": "Hovädzí guláš",
+      "name_template": "Hovädzí guláš s knedľou",
       "family": "classic_beef_goulash",
       "method": "pot",
       "minutes": 135,
@@ -888,6 +888,8 @@
       ],
       "equipment": [
         "veľký hrniec",
+        "hrniec s pokrievkou",
+        "sitko",
         "nôž",
         "doska na krájanie"
       ],
@@ -957,6 +959,19 @@
           "required": true,
           "use": "addition",
           "cut": null
+        },
+        {
+          "key": "dumpling",
+          "role": "starch",
+          "candidates": [
+            "bread_dumpling"
+          ],
+          "amount_per_adult": "120",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": "na plátky"
         }
       ],
       "pantry_basics": [
@@ -1041,6 +1056,15 @@
           ]
         },
         {
+          "text": "Nakrájaj {dumpling.amount} {dumpling.name} na plátky hrubé asi 1,5 cm.",
+          "requires": [
+            "dumpling:raw"
+          ],
+          "produces": [
+            "dumpling:cut"
+          ]
+        },
+        {
           "text": "Dochuť mäso aj omáčku soľou a čiernym korením. Var {beef.name} s cibuľou vo veľkom hrnci na miernom ohni ešte 5 minút, kým omáčka zhustne a začne bublať.",
           "requires": [
             "beef:tender",
@@ -1057,20 +1081,35 @@
           ]
         },
         {
-          "text": "Podávaj hovädzí guláš a rozdeľ ho na {portions} porcií.",
+          "text": "Priveď asi 3 cm vody v hrnci na silnom ohni do varu. Polož plátky knedle do sitka nad vriacu vodu, prikry pokrievkou a zohrievaj knedľu na pare na strednom ohni 3 minúty, kým bude mäkká a horúca.",
+          "requires": [
+            "dumpling:cut",
+            "hrniec_s_pokrievkou:free",
+            "sitko:free"
+          ],
+          "produces": [
+            "dumpling:prepared",
+            "hrniec_s_pokrievkou:free",
+            "sitko:free"
+          ]
+        },
+        {
+          "text": "Podávaj hovädzí guláš s plátkami knedle a rozdeľ ho na {portions} porcií.",
           "requires": [
             "beef:cooked",
             "onion:cooked",
             "garlic:cooked",
             "oil:cooked",
-            "paprika:cooked"
+            "paprika:cooked",
+            "dumpling:prepared"
           ],
           "produces": [
             "beef:served",
             "onion:served",
             "garlic:served",
             "oil:served",
-            "paprika:served"
+            "paprika:served",
+            "dumpling:served"
           ]
         }
       ],
@@ -1340,7 +1379,7 @@
       "name_template": "Bryndzové halušky",
       "family": "slovak_bryndza_dumplings",
       "method": "pot",
-      "minutes": 40,
+      "minutes": 45,
       "modes": [
         "standard"
       ],
@@ -1352,6 +1391,8 @@
         "cedidlo",
         "panvica",
         "škrabka",
+        "nôž",
+        "doska na krájanie",
         "varecha"
       ],
       "slots": [
@@ -1395,6 +1436,19 @@
           "cut": null
         },
         {
+          "key": "bacon",
+          "role": "protein",
+          "candidates": [
+            "bacon"
+          ],
+          "amount_per_adult": 30,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": "na drobné kocky"
+        },
+        {
           "key": "butter",
           "role": "fat",
           "candidates": [
@@ -1419,6 +1473,19 @@
           "required": true,
           "use": "addition",
           "cut": null
+        },
+        {
+          "key": "chives",
+          "role": "seasoning",
+          "candidates": [
+            "chives"
+          ],
+          "amount_per_adult": 3,
+          "unit": "g",
+          "child_factor": 0.5,
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
         }
       ],
       "pantry_basics": [
@@ -1454,6 +1521,32 @@
             "flour:dough",
             "salt:dough",
             "varecha:used"
+          ]
+        },
+        {
+          "text": "Nakrájaj {bacon.amount} {bacon.name} na drobné kocky a {chives.amount} {chives.name} najemno.",
+          "requires": [
+            "bacon:raw",
+            "chives:raw",
+            "noz:free",
+            "doska_na_krajanie:free"
+          ],
+          "produces": [
+            "bacon:diced",
+            "chives:chopped",
+            "noz:used",
+            "doska_na_krajanie:used"
+          ]
+        },
+        {
+          "text": "Opekaj slaninu v suchej panvici na strednom ohni 8 minút, kým pustí masť a bude chrumkavá. Odstav panvicu z ohňa, slanina v nej zostane teplá.",
+          "requires": [
+            "bacon:diced",
+            "panvica:free"
+          ],
+          "produces": [
+            "bacon:crisp",
+            "panvica:used"
           ]
         },
         {
@@ -1504,25 +1597,35 @@
           ]
         },
         {
-          "text": "Rozohrej {butter.amount} {butter.name} v panvici na miernom ohni 2 minúty, kým sa maslo roztopí a začne jemne bublať.",
-          "requires": [
-            "butter:raw",
-            "panvica:free"
-          ],
-          "produces": [
-            "butter:melted",
-            "panvica:used"
-          ]
-        },
-        {
-          "text": "Vráť halušky do hrnca a premiešaj ich s bryndzovým krémom a maslom. Podávaj ich horúce.",
+          "text": "Vráť halušky do hrnca, pridaj {butter.amount} {butter.name} a premiešaj, kým sa neroztopí. Potom k nim primiešaj bryndzový krém.",
           "requires": [
             "potato:drained",
             "flour:drained",
             "salt:drained",
             "bryndza:creamy",
-            "butter:melted",
+            "butter:raw",
             "velky_hrniec:free"
+          ],
+          "produces": [
+            "potato:mixed",
+            "flour:mixed",
+            "salt:mixed",
+            "bryndza:mixed",
+            "butter:melted",
+            "velky_hrniec:used"
+          ]
+        },
+        {
+          "text": "Rozdeľ halušky na taniere, prelej ich slaninou aj s vypečenou masťou a navrch rozsyp pažítku. Podávaj ich hneď, kým sú horúce.",
+          "requires": [
+            "potato:mixed",
+            "flour:mixed",
+            "salt:mixed",
+            "bryndza:mixed",
+            "butter:melted",
+            "bacon:crisp",
+            "chives:chopped",
+            "panvica:used"
           ],
           "produces": [
             "potato:served",
@@ -1530,7 +1633,9 @@
             "salt:served",
             "bryndza:served",
             "butter:served",
-            "velky_hrniec:used",
+            "bacon:served",
+            "chives:served",
+            "velky_hrniec:free",
             "panvica:free"
           ]
         }
@@ -2513,7 +2618,7 @@
       "id": "classic_segedin_goulash",
       "version": 2,
       "active": true,
-      "name_template": "Segedínsky guláš",
+      "name_template": "Segedínsky guláš s knedľou",
       "family": "classic_segedin_goulash",
       "method": "pot",
       "minutes": 80,
@@ -2523,6 +2628,8 @@
       ],
       "equipment": [
         "veľký hrniec",
+        "hrniec s pokrievkou",
+        "sitko",
         "miska",
         "nôž",
         "doska na krájanie"
@@ -2606,6 +2713,19 @@
           "required": true,
           "use": "addition",
           "cut": null
+        },
+        {
+          "key": "dumpling",
+          "role": "starch",
+          "candidates": [
+            "bread_dumpling"
+          ],
+          "amount_per_adult": "120",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": "na plátky"
         }
       ],
       "pantry_basics": [
@@ -2720,6 +2840,15 @@
           ]
         },
         {
+          "text": "Nakrájaj {dumpling.amount} {dumpling.name} na plátky hrubé asi 1,5 cm.",
+          "requires": [
+            "dumpling:raw"
+          ],
+          "produces": [
+            "dumpling:cut"
+          ]
+        },
+        {
           "text": "Dochuť segedínsky guláš soľou a čiernym korením.",
           "requires": [
             "pork:cooked",
@@ -2732,14 +2861,28 @@
           "produces": []
         },
         {
-          "text": "Podávaj segedínsky guláš a rozdeľ ho na {portions} porcií.",
+          "text": "Priveď asi 3 cm vody v hrnci na silnom ohni do varu. Polož plátky knedle do sitka nad vriacu vodu, prikry pokrievkou a zohrievaj knedľu na pare na strednom ohni 3 minúty, kým bude mäkká a horúca.",
+          "requires": [
+            "dumpling:cut",
+            "hrniec_s_pokrievkou:free",
+            "sitko:free"
+          ],
+          "produces": [
+            "dumpling:prepared",
+            "hrniec_s_pokrievkou:free",
+            "sitko:free"
+          ]
+        },
+        {
+          "text": "Podávaj segedínsky guláš s plátkami knedle a rozdeľ ho na {portions} porcií.",
           "requires": [
             "pork:cooked",
             "cabbage:cooked",
             "onion:cooked",
             "paprika:cooked",
             "cream:cooked",
-            "oil:cooked"
+            "oil:cooked",
+            "dumpling:prepared"
           ],
           "produces": [
             "pork:served",
@@ -2747,7 +2890,8 @@
             "onion:served",
             "paprika:served",
             "cream:served",
-            "oil:served"
+            "oil:served",
+            "dumpling:served"
           ]
         }
       ],

@@ -292,6 +292,23 @@
       }
     },
     {
+      "id": "bread_dumpling",
+      "name": "kysnutá knedľa",
+      "synonyms": ["knedľa kysnutá", "parená knedľa", "knedľa parená", "kysnutá parená knedľa", "parená kysnutá knedľa", "žemľová knedľa", "knedľa žemľová", "kysnutá žemľová knedľa", "knedľa kysnutá žemľová", "knedľa prílohová", "prílohová knedľa"],
+      "category": "pečivo",
+      "roles": ["starch"],
+      "diet_tags": ["vegetarian"],
+      "allergens": ["gluten", "egg"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "219", "protein_g": "7.2", "fat_g": "0.7", "carbs_g": "45",
+        "source": "Lef spol. s r.o., Knedlík kynutý přílohový 600 g, výživové údaje na 100 g; https://www.rohlik.cz/1439096-lef-yeasted-dumpling-as-a-side-dish",
+        "verified_on": "2026-10-30"
+      }
+    },
+    {
       "id": "zucchini",
       "name": "cuketa",
       "synonyms": ["cukina"],
@@ -1023,6 +1040,23 @@
       }
     },
     {
+      "id": "bacon",
+      "name": "údená slanina",
+      "synonyms": ["slanina", "slanina údená", "anglická slanina", "slanina anglická"],
+      "category": "mäso",
+      "roles": ["protein", "fat"],
+      "diet_tags": [],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "393", "protein_g": "13.66", "fat_g": "37.13", "carbs_g": "0",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 168277, Pork, cured, bacon, unprepared; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-10-30"
+      }
+    },
+    {
       "id": "sugar",
       "name": "kryštálový cukor",
       "synonyms": ["cukor", "biely cukor"],
@@ -1122,6 +1156,23 @@
         "kcal": "43", "protein_g": "3.46", "fat_g": "1.12", "carbs_g": "7.02",
         "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 172233, Dill weed, fresh; https://fdc.nal.usda.gov/download-datasets/",
         "verified_on": "2026-09-05"
+      }
+    },
+    {
+      "id": "chives",
+      "name": "pažítka",
+      "synonyms": ["čerstvá pažítka", "pažítka čerstvá"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "30", "protein_g": "3.27", "fat_g": "0.73", "carbs_g": "4.35",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 169994, Chives, raw; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-10-30"
       }
     },
     {

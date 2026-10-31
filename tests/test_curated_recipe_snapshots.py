@@ -241,6 +241,7 @@ CHARACTERISTIC_INGREDIENTS = {
         frozenset({"sauerkraut"}),
         frozenset({"paprika_powder"}),
         frozenset({"cream", "plain_yogurt"}),
+        frozenset({"bread_dumpling"}),
     ),
     "classic_french_potatoes": (
         frozenset({"potato"}),
@@ -256,6 +257,13 @@ CHARACTERISTIC_INGREDIENTS = {
         frozenset({"beef_chuck"}),
         frozenset({"onion"}),
         frozenset({"paprika_powder"}),
+        frozenset({"bread_dumpling"}),
+    ),
+    "classic_meatloaf_potatoes": (
+        frozenset({"beef_mince"}),
+        frozenset({"potato"}),
+        frozenset({"milk"}),
+        frozenset({"butter"}),
     ),
     "classic_potato_stew_egg": (
         frozenset({"potato"}),
@@ -341,6 +349,8 @@ CHARACTERISTIC_INGREDIENTS = {
         frozenset({"potato"}),
         frozenset({"wheat_flour"}),
         frozenset({"bryndza"}),
+        frozenset({"bacon"}),
+        frozenset({"chives"}),
     ),
     "classic_cabbage_dumplings": (
         frozenset({"potato"}),
@@ -438,7 +448,8 @@ NAMED_PASTA_TERMS = {
 
 MAIN_MEAL_LIMITS = {
     "classic_pork_cabbage_bake": (Decimal("550"), Decimal("850")),
-    "classic_bryndza_dumplings": (Decimal("430"), Decimal("800")),
+    # Classic version with smoked bacon and chives poured over the dumplings.
+    "classic_bryndza_dumplings": (Decimal("460"), Decimal("900")),
     "classic_baked_pasta_ham": (Decimal("320"), Decimal("800")),
     "classic_apple_bread_pudding": (Decimal("550"), Decimal("700")),
 }
@@ -1085,14 +1096,33 @@ def test_child_only_spice_amount_never_displays_as_zero(
     assert marjoram.display_amount != "0 g"
 
 
+# Lentil prívarok gets a fried egg „volské oko“, pea prívarok a soft-boiled
+# egg „na hniličku“; the remaining prívarky keep the hard-boiled egg.
+PRIVAROK_EGG_STYLES = {
+    "classic_potato_stew_egg": ("v malom hrnci", "natvrdo", "9 minut"),
+    "classic_lentil_stew_egg": ("v panvici", "volske oko", "3 minuty", "tekuty"),
+    "classic_bean_stew_egg": ("v malom hrnci", "natvrdo", "9 minut"),
+    "classic_pumpkin_stew_egg": ("v malom hrnci", "natvrdo", "9 minut"),
+    "classic_pea_stew_egg": ("v malom hrnci", "na hnilicku", "6 minut", "makky"),
+}
+BOILED_EGG_PRIVAROK_IDS = tuple(
+    recipe_id
+    for recipe_id in PRIVAROK_IDS
+    if "v malom hrnci" in PRIVAROK_EGG_STYLES[recipe_id]
+)
+
+
 @pytest.mark.parametrize("recipe_id", PRIVAROK_IDS, ids=PRIVAROK_IDS)
-def test_privarok_egg_step_uses_the_declared_small_pot(
+def test_privarok_egg_step_uses_the_declared_vessel_and_doneness(
     recipe_id, ingredient_catalog, tmp_path
 ):
     recipe = _load_candidate_recipe(recipe_id, ingredient_catalog, tmp_path)
-    egg_step = next(step.text for step in recipe.instructions if "egg:raw" in step.requires)
+    egg_step = _fold(
+        next(step.text for step in recipe.instructions if "egg:raw" in step.requires)
+    )
 
-    assert "v malom hrnci" in egg_step
+    for term in PRIVAROK_EGG_STYLES[recipe_id]:
+        assert term in egg_step, f"{recipe_id}: egg step must mention {term!r}"
 
 
 def test_pumpkin_stew_removes_skin_and_seeds_before_grating(
@@ -1145,6 +1175,41 @@ def test_meatballs_mash_uses_butter_in_the_mash(
     assert "butter:raw" in mash_step.requires
     assert "butter:combined" in mash_step.produces
     assert "butter:combined" in serve_step.requires
+
+
+# Classic sekaná: the loaf bakes alone in the pekáč and is served with
+# zemiaková kaša boiled and mashed separately in a pot, like the fašírky.
+def test_meatloaf_bakes_alone_and_is_served_with_mashed_potatoes(
+    ingredient_catalog, tmp_path
+):
+    recipe = _load_candidate_recipe(
+        "classic_meatloaf_potatoes", ingredient_catalog, tmp_path
+    )
+    slots = {slot.key: slot for slot in recipe.slots}
+    bake_step = next(
+        step for step in recipe.instructions if "meat:cooked" in step.produces
+    )
+    mash_step = next(
+        step for step in recipe.instructions if "potato:mashed" in step.produces
+    )
+    boil_step = next(
+        step for step in recipe.instructions if "potato:cooked" in step.produces
+    )
+    serve_step = recipe.instructions[-1]
+
+    assert recipe.name_template == "Sekaná so zemiakovou kašou"
+    assert slots["milk"].candidates == ("milk",)
+    assert slots["butter"].candidates == ("butter",)
+    assert {"hrniec", "pučidlo na zemiaky", "pekáč"} <= set(recipe.equipment)
+    assert not any(token.startswith("potato:") for token in bake_step.requires)
+    assert "hrniec:free" in boil_step.requires
+    assert "{milk.amount}" in mash_step.text
+    assert "{butter.amount}" in mash_step.text
+    assert "pučidlom" in mash_step.text
+    assert "zemiakovou kašou" in serve_step.text
+    assert {"potato:mashed", "milk:combined", "butter:combined"} <= set(
+        serve_step.requires
+    )
 
 
 def test_apple_bread_pudding_uses_declared_cinnamon(
@@ -1249,6 +1314,42 @@ def test_chicken_perkelt_prepares_vegetables_before_paprika_touches_the_heat(
 
     assert vegetable_prep < ground_paprika
     assert "odstav" in texts[ground_paprika]
+
+
+# Goulash is always served with a side; both goulashes come with store-bought
+# kysnutá knedľa, sliced and warmed on steam, named in the title and in the
+# serving step.
+GOULASH_DUMPLING_IDS = ("classic_beef_goulash", "classic_segedin_goulash")
+
+
+@pytest.mark.parametrize("recipe_id", GOULASH_DUMPLING_IDS, ids=GOULASH_DUMPLING_IDS)
+def test_goulash_is_served_with_steamed_bread_dumpling(
+    recipe_id, ingredient_catalog, tmp_path
+):
+    recipe = _load_candidate_recipe(recipe_id, ingredient_catalog, tmp_path)
+    dumpling = next(
+        slot for slot in recipe.slots if "bread_dumpling" in slot.candidates
+    )
+    meal = render_meal(
+        _render_candidate(recipe, ingredient_catalog),
+        adults=1,
+        children=0,
+        covered_days=1,
+    )
+
+    assert dumpling.role == "starch"
+    assert dumpling.required is True
+    assert dumpling.cut == "na plátky"
+    assert all("bread" not in slot.candidates for slot in recipe.slots)
+    assert recipe.name_template.endswith(" s knedľou")
+    assert {"hrniec s pokrievkou", "sitko"} <= set(recipe.equipment)
+    assert "knedle" in meal.instructions[-1]
+    assert any(
+        "kysnutú knedľu na plátky" in step for step in meal.instructions[:-1]
+    )
+    steam = next(step for step in meal.instructions if "na pare" in step)
+    assert "sitka nad vriacu vodu" in steam
+    assert "3 minúty" in steam
 
 
 @pytest.mark.parametrize(
@@ -1365,7 +1466,9 @@ def test_single_egg_copy_stays_singular(
     assert re.search(r"\b(?:vajcia|zltky|bielky)\b", instructions) is None
 
 
-@pytest.mark.parametrize("recipe_id", PRIVAROK_IDS, ids=PRIVAROK_IDS)
+@pytest.mark.parametrize(
+    "recipe_id", BOILED_EGG_PRIVAROK_IDS, ids=BOILED_EGG_PRIVAROK_IDS
+)
 def test_privarok_boiled_egg_has_water_timing_and_correct_number(
     recipe_id, ingredient_catalog, tmp_path
 ):
@@ -1378,12 +1481,37 @@ def test_privarok_boiled_egg_has_water_timing_and_correct_number(
     )
     egg_steps = " ".join(step for step in meal.instructions if "vaj" in _fold(step))
     folded = _fold(egg_steps)
+    minutes = next(
+        term for term in PRIVAROK_EGG_STYLES[recipe_id] if term.endswith("minut")
+    )
 
     assert "vod" in folded
     assert "varu" in folded
-    assert "9 minut" in folded
+    assert minutes in folded
     assert "vajce" in egg_steps
     assert "Schlaď ho" not in egg_steps
+
+
+def test_lentil_privarok_fries_the_egg_in_butter_and_serves_it_on_top(
+    ingredient_catalog, tmp_path
+):
+    recipe = _load_candidate_recipe(
+        "classic_lentil_stew_egg", ingredient_catalog, tmp_path
+    )
+    meal = render_meal(
+        _render_candidate(recipe, ingredient_catalog),
+        adults=1,
+        children=0,
+        covered_days=1,
+    )
+    egg_step = next(step for step in meal.instructions if "volské oko" in step)
+    folded = _fold(egg_step)
+
+    assert "malý hrniec" not in recipe.equipment
+    assert "panvica" in recipe.equipment
+    assert "vajce" in egg_step
+    assert "masl" in folded
+    assert "navrch poloz volske oko" in _fold(meal.instructions[-1])
 
 
 def test_dry_red_bean_stew_starts_with_a_safe_brisk_boil(
