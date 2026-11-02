@@ -3365,13 +3365,32 @@ def staged_store_problem(
 def bootstrap_active_store_stage(
     con, week, store, *, today, expected_provenance=None,
 ):
-    """Reuse a current verified active store without another paid read."""
+    """Reuse a current verified active store without another paid read.
+
+    Tesco's leaflet runs Wednesday to Tuesday, so on Monday the still-valid
+    leaflet sits in last week's active layer. With the exact same official
+    provenance it is carried into the new week instead of being read again.
+    """
+    active_week = week
     status = con.execute(
         """SELECT stav,pocet,data_version,collector_kind,source_fingerprint,
                   valid_from,valid_to
            FROM zber_stav WHERE tyzden=? AND obchod=?""",
         (week, store),
     ).fetchone()
+    if status is None and expected_provenance is not None:
+        try:
+            active_week = (
+                datetime.date.fromisoformat(week) - datetime.timedelta(days=7)
+            ).isoformat()
+        except (TypeError, ValueError):
+            return False
+        status = con.execute(
+            """SELECT stav,pocet,data_version,collector_kind,source_fingerprint,
+                      valid_from,valid_to
+               FROM zber_stav WHERE tyzden=? AND obchod=?""",
+            (active_week, store),
+        ).fetchone()
     if (
         status is None or status[0] != "ok"
         or int(status[2] or 0) != COLLECTION_DATA_VERSION
@@ -3394,20 +3413,30 @@ def bootstrap_active_store_stage(
         return False
 
     cursor = con.execute(
-        "SELECT * FROM akcie WHERE tyzden=? AND obchod=?", (week, store)
+        "SELECT * FROM akcie WHERE tyzden=? AND obchod=?", (active_week, store)
     )
     columns = [column[0] for column in cursor.description]
     offers = [dict(zip(columns, row)) for row in cursor.fetchall()]
     try:
-        unique_count = _unique_offer_count(week, offers)
+        unique_count = _unique_offer_count(active_week, offers)
     except (TypeError, ValueError):
         return False
     if (
         unique_count < MIN_VERIFIED_OFFERS_PER_STORE
         or int(status[1] or 0) != unique_count
-        or any(not offer_key_matches(row.get("offer_key"), week, row) for row in offers)
+        or any(
+            not offer_key_matches(row.get("offer_key"), active_week, row)
+            for row in offers
+        )
     ):
         return False
+    if active_week != week:
+        # Kľúče a týždeň sa prepočítajú pre nový týždeň pri stagingu.
+        offers = [
+            {key: value for key, value in row.items()
+             if key not in ("tyzden", "offer_key", "id")}
+            for row in offers
+        ]
     source_urls = {row.get("source_url") for row in offers}
     if len(source_urls) != 1:
         return False

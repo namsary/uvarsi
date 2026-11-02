@@ -4038,6 +4038,77 @@ def test_bootstrapped_active_store_is_reused_by_main_without_anthropic(
     con.close()
 
 
+def test_still_valid_leaflet_from_last_week_is_carried_into_new_week(
+    monkeypatch, tmp_path,
+):
+    """Tesco beží streda–utorok: v pondelok sa platný leták neprečíta znova."""
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setattr(collector, "DB", str(database))
+    monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    monkeypatch.setattr(collector, "business_day", lambda: date(2026, 8, 19))
+    monkeypatch.setattr(collector, "STORES", ["tesco"])
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    monkeypatch.setattr(collector, "prepare_store_collection", prepared_collection)
+    offers = [valid_offer("tesco", index) for index in range(1, 21)]
+    con = collector.db()
+    replace_store_week(con, "2026-08-10", "Tesco", offers)
+    collector.record_store_outcome(
+        con,
+        "2026-08-10",
+        "Tesco",
+        "ok",
+        20,
+        offers=offers,
+        provenance=prepared_collection("tesco").provenance,
+    )
+    con.commit()
+    con.close()
+    monkeypatch.setattr(
+        collector,
+        "load_key",
+        lambda: pytest.fail("platný leták z minulého týždňa sa nemá čítať znova"),
+    )
+
+    collector.main(["tesco"])
+
+    con = collector.db()
+    try:
+        assert con.execute(
+            "SELECT COUNT(*) FROM akcie_staging WHERE tyzden='2026-08-17'"
+        ).fetchone()[0] == 20
+        assert collector.staged_store_problem(
+            con, "2026-08-17", "Tesco", today=date(2026, 8, 19)
+        ) is None
+    finally:
+        con.close()
+
+
+def test_last_week_leaflet_with_other_provenance_is_not_carried(
+    monkeypatch, tmp_path,
+):
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setattr(collector, "DB", str(database))
+    offers = [valid_offer("tesco", index) for index in range(1, 21)]
+    con = collector.db()
+    replace_store_week(con, "2026-08-10", "Tesco", offers)
+    collector.record_store_outcome(
+        con, "2026-08-10", "Tesco", "ok", 20, offers=offers,
+        provenance=prepared_collection("tesco").provenance,
+    )
+    con.commit()
+    other = collector.CollectionProvenance(
+        prepared_collection("tesco").provenance.collector_kind,
+        "d" * 64, "2026-08-17", "2026-08-23",
+    )
+
+    assert collector.bootstrap_active_store_stage(
+        con, "2026-08-17", "Tesco", today=date(2026, 8, 19),
+        expected_provenance=other,
+    ) is False
+    assert con.execute("SELECT COUNT(*) FROM akcie_staging").fetchone()[0] == 0
+    con.close()
+
+
 class _FakeAPIStatusError(Exception):
     def __init__(self, status_code):
         super().__init__(f"HTTP {status_code}")
