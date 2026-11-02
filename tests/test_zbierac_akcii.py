@@ -4038,28 +4038,31 @@ def test_bootstrapped_active_store_is_reused_by_main_without_anthropic(
     con.close()
 
 
+@pytest.mark.parametrize("store", ["tesco", "lidl"])
 def test_still_valid_leaflet_from_last_week_is_carried_into_new_week(
-    monkeypatch, tmp_path,
+    monkeypatch, tmp_path, store,
 ):
-    """Tesco beží streda–utorok: v pondelok sa platný leták neprečíta znova."""
+    """Leták cez prelom týždňa (Tesco streda–utorok, Lidl pri sviatkoch) sa
+    v pondelok neprečíta znova. Kaufland sa číta z oficiálnych dát zadarmo."""
+    display = store.capitalize()
     database = tmp_path / "uvarsi.db"
     monkeypatch.setattr(collector, "DB", str(database))
     monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
     monkeypatch.setattr(collector, "business_day", lambda: date(2026, 8, 19))
-    monkeypatch.setattr(collector, "STORES", ["tesco"])
+    monkeypatch.setattr(collector, "STORES", [store])
     monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
     monkeypatch.setattr(collector, "prepare_store_collection", prepared_collection)
-    offers = [valid_offer("tesco", index) for index in range(1, 21)]
+    offers = [valid_offer(store, index) for index in range(1, 21)]
     con = collector.db()
-    replace_store_week(con, "2026-08-10", "Tesco", offers)
+    replace_store_week(con, "2026-08-10", display, offers)
     collector.record_store_outcome(
         con,
         "2026-08-10",
-        "Tesco",
+        display,
         "ok",
         20,
         offers=offers,
-        provenance=prepared_collection("tesco").provenance,
+        provenance=prepared_collection(store).provenance,
     )
     con.commit()
     con.close()
@@ -4069,7 +4072,7 @@ def test_still_valid_leaflet_from_last_week_is_carried_into_new_week(
         lambda: pytest.fail("platný leták z minulého týždňa sa nemá čítať znova"),
     )
 
-    collector.main(["tesco"])
+    collector.main([store])
 
     con = collector.db()
     try:
@@ -4077,7 +4080,7 @@ def test_still_valid_leaflet_from_last_week_is_carried_into_new_week(
             "SELECT COUNT(*) FROM akcie_staging WHERE tyzden='2026-08-17'"
         ).fetchone()[0] == 20
         assert collector.staged_store_problem(
-            con, "2026-08-17", "Tesco", today=date(2026, 8, 19)
+            con, "2026-08-17", display, today=date(2026, 8, 19)
         ) is None
     finally:
         con.close()
