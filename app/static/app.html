@@ -1415,7 +1415,7 @@ function recipeFactsHtml(recept) {
   if (recept.high_protein_claim === true)
     facts.push('<span class="protein-claim">Vysoký obsah bielkovín</span>');
   var map = {milk:'mlieko',egg:'vajcia',fish:'ryby',soy:'sója',gluten:'lepok',wheat:'lepok',
-    peanuts:'arašidy',nuts:'škrupinové plody',celery:'zeler',mustard:'horčica',sesame:'sezam'};
+    peanuts:'arašidy',nuts:'škrupinové plody',tree_nuts:'škrupinové plody',celery:'zeler',mustard:'horčica',sesame:'sezam'};
   var seen = {}, names = [];
   (Array.isArray(recept.allergens) ? recept.allergens : []).forEach(function(value) {
     var key = String(value == null ? '' : value).trim().toLowerCase();

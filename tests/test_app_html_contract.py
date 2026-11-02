@@ -1841,3 +1841,14 @@ def test_a_spent_daily_limit_never_reaches_the_paid_endpoint():
     assert work != -1 and guard < work, "the guard belongs before the paid call"
     assert "REGEN_LIMIT_ASKED = true;" in novy[guard:work], "the refusal explains itself in Slovak"
     assert "PLAN = null" not in novy, "the plan on screen survives a refused recompute"
+
+
+def test_every_catalog_allergen_has_a_slovak_label():
+    import json
+    import re
+    html = open("app/static/app.html", encoding="utf-8").read()
+    labels = re.search(r"var map = \{(milk:[^}]*)\}", html).group(1)
+    keys = set(re.findall(r"([a-z_]+):'", labels))
+    catalog = json.load(open("app/catalog/ingredients.json", encoding="utf-8"))
+    used = {a for item in catalog["ingredients"] for a in item["allergens"]}
+    assert used <= keys, sorted(used - keys)

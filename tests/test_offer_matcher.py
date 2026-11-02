@@ -318,3 +318,19 @@ def test_plain_package_without_weight_or_piece_metadata_still_fails_closed(catal
     assert match_offers(
         [offer(nazov="Kyslá smotana 16 %", jednotka="balenie")], catalog
     ) == ()
+
+
+@pytest.mark.parametrize("name", [
+    "Brokolica mrazená 450 g",
+    "Mrazená brokolica 450 g",
+    "Brokolica ružičky mrazené 400 g",
+])
+def test_frozen_broccoli_counts_as_broccoli(catalog, name):
+    matched = match_offers([offer(nazov=name, jednotka="450 g")], catalog)
+    assert [item.ingredient.id for item in matched] == ["broccoli"]
+
+
+def test_vegetable_mix_with_broccoli_is_not_broccoli(catalog):
+    assert match_offers(
+        [offer(nazov="Zeleninová zmes s brokolicou 450 g", jednotka="450 g")], catalog
+    ) == ()
