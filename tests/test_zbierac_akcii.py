@@ -4086,6 +4086,73 @@ def test_still_valid_leaflet_from_last_week_is_carried_into_new_week(
         con.close()
 
 
+def test_denied_pages_keep_last_weeks_leaflet_with_the_same_validity(
+    monkeypatch, tmp_path,
+):
+    """Incident 2. 11.: Tesco odmietal strany 27 a 29 a zablokoval celý týždeň."""
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setattr(collector, "DB", str(database))
+    monkeypatch.setattr(collector, "monday", lambda: "2026-08-17")
+    monkeypatch.setattr(collector, "business_day", lambda: date(2026, 8, 19))
+    monkeypatch.setattr(collector, "STORES", ["tesco"])
+    monkeypatch.setattr(collector.source_policy, "approved_source", lambda *_args: True)
+    prepared = prepared_collection("tesco")
+
+    def denied(_store, today=None):
+        raise collector.TransientCollectionError("zdroj odmietol 2 strán [27, 29]")
+
+    monkeypatch.setattr(collector, "prepare_store_collection", denied)
+    monkeypatch.setattr(
+        collector, "store_pages", lambda store, today=None: (prepared.pages, prepared.manifest)
+    )
+    offers = [valid_offer("tesco", index) for index in range(1, 21)]
+    con = collector.db()
+    replace_store_week(con, "2026-08-10", "Tesco", offers)
+    collector.record_store_outcome(
+        con, "2026-08-10", "Tesco", "ok", 20, offers=offers,
+        provenance=prepared.provenance,
+    )
+    con.commit()
+    con.close()
+    monkeypatch.setattr(
+        collector, "load_key", lambda: pytest.fail("nič sa nemá čítať cez API"),
+    )
+
+    collector.main(["tesco"])
+
+    con = collector.db()
+    try:
+        assert collector.staged_store_problem(
+            con, "2026-08-17", "Tesco", today=date(2026, 8, 19)
+        ) is None
+    finally:
+        con.close()
+
+
+def test_denied_pages_do_not_keep_a_leaflet_with_other_dates(monkeypatch, tmp_path):
+    database = tmp_path / "uvarsi.db"
+    monkeypatch.setattr(collector, "DB", str(database))
+    prepared = prepared_collection("tesco")
+    other = dict(prepared.manifest, valid_to="2026-08-30")
+    monkeypatch.setattr(
+        collector, "store_pages", lambda store, today=None: (prepared.pages, other)
+    )
+    offers = [valid_offer("tesco", index) for index in range(1, 21)]
+    con = collector.db()
+    replace_store_week(con, "2026-08-10", "Tesco", offers)
+    collector.record_store_outcome(
+        con, "2026-08-10", "Tesco", "ok", 20, offers=offers,
+        provenance=prepared.provenance,
+    )
+    con.commit()
+
+    assert collector.carry_over_unavailable_leaflet(
+        con, "2026-08-17", "Tesco", today=date(2026, 8, 19)
+    ) is False
+    assert con.execute("SELECT COUNT(*) FROM akcie_staging").fetchone()[0] == 0
+    con.close()
+
+
 def test_last_week_leaflet_with_other_provenance_is_not_carried(
     monkeypatch, tmp_path,
 ):

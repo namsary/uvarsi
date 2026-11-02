@@ -3469,6 +3469,35 @@ def bootstrap_active_store_stage(
         return True
 
 
+def carry_over_unavailable_leaflet(con, week, store, *, today):
+    """Keď zdroj odmieta strany, ponechaj minulotýždňový leták s rovnakou platnosťou.
+
+    Presný odtlačok obsahu sa bez všetkých strán spočítať nedá. Oficiálny
+    manifest (zadarmo, bez strán) však stále hlási ten istý zberač a presne
+    tie isté dátumy platnosti ako overený leták z minulého týždňa.
+    """
+    try:
+        _pages, manifest = store_pages(store.lower())
+        kind = manifest["collector_kind"]
+        valid = (manifest["valid_from"], manifest["valid_to"])
+        previous = (
+            datetime.date.fromisoformat(week) - datetime.timedelta(days=7)
+        ).isoformat()
+    except Exception:
+        return False
+    row = con.execute(
+        """SELECT collector_kind,source_fingerprint,valid_from,valid_to
+           FROM zber_stav WHERE tyzden=? AND obchod=? AND stav='ok'""",
+        (previous, store),
+    ).fetchone()
+    if row is None or row[0] != kind or (row[2], row[3]) != valid:
+        return False
+    return bootstrap_active_store_stage(
+        con, week, store, today=today,
+        expected_provenance=CollectionProvenance(*row),
+    )
+
+
 def staged_week_readiness(con, week, *, today=None, require_approved=False):
     """Return whether one current, complete three-store stage exists."""
     today = today or business_day()
@@ -3666,7 +3695,14 @@ def main(stores=None):
             prepared = prepare_store_collection(store)
         except TransientCollectionError as exc:
             # Zdroj je dočasne nedostupný: nič sa nezaplatilo a leták nie je
-            # chybný. Zapíšeme dočasné zlyhanie, aby ďalší beh skúsil znova.
+            # chybný. Ak ešte platí ten istý leták ako minulý týždeň, ostane.
+            if tyz == expected_week and carry_over_unavailable_leaflet(
+                con, tyz, display_store, today=today
+            ):
+                log(f"[OK] {display_store}: zdroj je dočasne nedostupný, "
+                    "platný leták z minulého týždňa ostáva")
+                reusable_stores.append(store)
+                continue
             failures.append(store)
             record_stage_failure(
                 con,
