@@ -1316,6 +1316,43 @@ def test_chicken_perkelt_prepares_vegetables_before_paprika_touches_the_heat(
     assert "odstav" in texts[ground_paprika]
 
 
+# Pesto pasta as the owner cooks it: pesto is stirred into the hot drained
+# pasta and broccoli in the pot off the heat (never cooked), the chicken is
+# fried separately in the pan and joined only when serving.
+def test_pesto_pasta_stirs_pesto_off_heat_and_fries_chicken_separately(
+    ingredient_catalog, tmp_path
+):
+    recipe = _load_candidate_recipe(
+        "quick_pesto_chicken_pasta", ingredient_catalog, tmp_path
+    )
+    pesto_step = next(
+        step for step in recipe.instructions if "pesto:raw" in step.requires
+    )
+    chicken_step = next(
+        step for step in recipe.instructions if "chicken:cooked" in step.produces
+    )
+    broccoli_step = next(
+        step for step in recipe.instructions if "broccoli:cooked" in step.produces
+    )
+    serve_step = recipe.instructions[-1]
+
+    assert "hrniec:free" in pesto_step.requires
+    assert not any(token.startswith("panvica:") for token in pesto_step.requires)
+    assert "pesto:cooked" not in pesto_step.produces
+    assert "mimo ohňa" in pesto_step.text
+    assert "nevar" in pesto_step.text
+    assert "odloženej vody" in pesto_step.text
+    assert "panvica:occupied" in chicken_step.requires
+    assert "8 minút" in chicken_step.text
+    assert "bez ružového stredu" in chicken_step.text
+    assert "po častiach" in chicken_step.text
+    assert "rovno z mrazničky" in broccoli_step.text
+    assert "navrch každej porcie" in serve_step.text
+    assert {"hrniec:occupied", "panvica:occupied"} <= set(serve_step.requires)
+    assert "oddelene od cestovín" in recipe.storage.instruction
+    assert recipe.storage.refrigerated_days == 3
+
+
 # Goulash is always served with a side; both goulashes come with store-bought
 # kysnutá knedľa, sliced and warmed on steam, named in the title and in the
 # serving step.

@@ -5247,7 +5247,7 @@
           ]
         },
         {
-          "text": "Pridaj brokolicu do hrnca. Var cestoviny s brokolicou v hrnci na strednom ohni ďalšie 4 minúty, kým budú cestoviny mäkké, ale stále pevné na zahryznutie a brokolica zmäkne.",
+          "text": "Pridaj brokolicu do hrnca. Var cestoviny s brokolicou v hrnci na strednom ohni ďalšie 4 minúty, kým budú cestoviny mäkké, ale stále pevné na zahryznutie a brokolica zmäkne. Mrazenú brokolicu nerozmrazuj, do hrnca ide rovno z mrazničky a stačia jej 3 až 4 minúty.",
           "requires": [
             "pasta:partly_cooked",
             "broccoli:cut",
@@ -5274,6 +5274,21 @@
           ]
         },
         {
+          "text": "Vráť cestoviny s brokolicou do hrnca mimo ohňa a hneď vmiešaj {pesto.amount} {pesto.name}. Pesto nevar, zohreje ho teplo cestovín; ak je príliš husté, použi časť odloženej vody.",
+          "requires": [
+            "pesto:raw",
+            "pasta:drained",
+            "broccoli:drained",
+            "hrniec:free"
+          ],
+          "produces": [
+            "pesto:combined",
+            "pasta:combined",
+            "broccoli:combined",
+            "hrniec:occupied"
+          ]
+        },
+        {
           "text": "Rozohrej {oil.amount} {oil.name} v panvici na stredne silnom ohni 2 minúty, kým sa začne lesknúť.",
           "requires": [
             "oil:raw",
@@ -5297,31 +5312,14 @@
           ]
         },
         {
-          "text": "Vmiešaj {pesto.amount} {pesto.name}, cestoviny a brokolicu do panvice. Prehrievaj cestoviny s kuracím mäsom na miernom ohni 2 minúty, kým omáčka začne jemne bublať; ak je príliš hustá, použi časť odloženej vody.",
+          "text": "Vmiešaj kuracie prsia do cestovín, prípadne ich polož navrch každej porcie. Dochuť cestoviny soľou a čiernym korením. Podávaj ich teplé a rozdeľ na {portions} porcií.",
           "requires": [
-            "pesto:raw",
-            "pasta:drained",
-            "broccoli:drained",
+            "pesto:combined",
+            "pasta:combined",
+            "broccoli:combined",
             "chicken:cooked",
             "oil:used",
-            "panvica:occupied"
-          ],
-          "produces": [
-            "pesto:cooked",
-            "pasta:combined",
-            "broccoli:combined",
-            "chicken:combined",
-            "oil:cooked"
-          ]
-        },
-        {
-          "text": "Dochuť cestoviny soľou a čiernym korením. Podávaj ich teplé a rozdeľ na {portions} porcií.",
-          "requires": [
-            "pesto:cooked",
-            "pasta:combined",
-            "broccoli:combined",
-            "chicken:combined",
-            "oil:cooked",
+            "hrniec:occupied",
             "panvica:occupied"
           ],
           "produces": [
@@ -5330,13 +5328,14 @@
             "broccoli:served",
             "chicken:served",
             "oil:served",
+            "hrniec:free",
             "panvica:free"
           ]
         }
       ],
       "storage": {
         "refrigerated_days": 3,
-        "instruction": "Cestoviny rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a ohrievaj iba porciu, ktorú práve podávaš."
+        "instruction": "Cestoviny rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Kuracie mäso môžeš uložiť oddelene od cestovín, aby pri ohrievaní nevyschlo. Zjedz ich do 3 dní a ohrievaj iba porciu, ktorú práve podávaš."
       }
     },
     {
