@@ -98,6 +98,23 @@ INGREDIENT_AMBIGUOUS_OFFER_FORMS = MappingProxyType(
 )
 INGREDIENT_FORBIDDEN_OFFER_QUALIFIERS = MappingProxyType(
     {
+        # Eidam and Gouda are grated hard cheese only as a plain block or
+        # counter piece; breaded, processed, sliced or flavoured products
+        # are different foods in a recipe.
+        "hard_cheese": frozenset(
+            (
+                ("obaľovaný",),
+                ("obalovany",),
+                ("tavený",),
+                ("taveny",),
+                ("plátky",),
+                ("platky",),
+                ("údený",),
+                ("udeny",),
+                ("s",),
+                ("so",),
+            )
+        ),
         "pasta": frozenset(
             (
                 ("instantné",),
