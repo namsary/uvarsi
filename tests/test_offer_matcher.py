@@ -334,3 +334,32 @@ def test_vegetable_mix_with_broccoli_is_not_broccoli(catalog):
     assert match_offers(
         [offer(nazov="Zeleninová zmes s brokolicou 450 g", jednotka="450 g")], catalog
     ) == ()
+
+
+@pytest.mark.parametrize("name", [
+    "Eidam 45 % blok 500 g",
+    "K-Classic Eidam blok 250 g",
+    "Gouda blok 500 g",
+    "Eidam Polotvrdý zrejúci syr 100 g",
+])
+def test_plain_eidam_and_gouda_count_as_hard_cheese(catalog, name):
+    matched = match_offers([offer(nazov=name, jednotka="500 g")], catalog)
+    assert [item.ingredient.id for item in matched] == ["hard_cheese"]
+
+
+@pytest.mark.parametrize("name", [
+    "Obaľovaný syr Eidam 460 g",
+    "Eidam plátky 100 g",
+    "K-Classic Gouda plátky 300 g",
+    "Údený eidam 100 g",
+])
+def test_breaded_sliced_or_smoked_cheese_is_not_hard_cheese(catalog, name):
+    assert match_offers([offer(nazov=name, jednotka="300 g")], catalog) == ()
+
+
+def test_sweet_cream_16_percent_counts_as_cooking_cream(catalog):
+    matched = match_offers(
+        [offer(nazov="Milsy Bánovecká smotana 16 % 250 ml", jednotka="250 ml")],
+        catalog,
+    )
+    assert [item.ingredient.id for item in matched] == ["cream"]

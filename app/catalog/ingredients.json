@@ -736,7 +736,7 @@
     {
       "id": "cream",
       "name": "smotana na varenie",
-      "synonyms": ["sladká smotana", "smotana 10 %", "smotana 12 %"],
+      "synonyms": ["sladká smotana", "smotana 10 %", "smotana 12 %", "smotana 16 %"],
       "category": "mliečne výrobky",
       "roles": ["dairy", "fat"],
       "diet_tags": ["vegetarian"],
@@ -753,7 +753,7 @@
     {
       "id": "hard_cheese",
       "name": "tvrdý syr",
-      "synonyms": ["čedar", "čedarový syr"],
+      "synonyms": ["čedar", "čedarový syr", "eidam", "gouda"],
       "category": "mliečne výrobky",
       "roles": ["protein", "dairy"],
       "diet_tags": ["vegetarian"],
