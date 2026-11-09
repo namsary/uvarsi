@@ -11,7 +11,7 @@
       "modes": ["standard", "vegetarian", "vegan"],
       "equipment": ["hlboká panvica s pokrievkou", "hrniec", "sitko", "nôž", "doska na krájanie", "varecha"],
       "slots": [
-        {"key": "lentils", "role": "protein", "candidates": ["red_lentils"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "180"},
+        {"key": "lentils", "role": "protein", "candidates": ["red_lentils"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "250"},
         {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
         {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "nahrubo"},
         {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "najemno"},

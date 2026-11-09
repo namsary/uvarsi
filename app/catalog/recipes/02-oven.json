@@ -966,7 +966,7 @@
           "candidates": [
             "cream"
           ],
-          "amount_per_adult": "50",
+          "amount_per_adult": "90",
           "unit": "ml",
           "child_factor": "0.6",
           "required": true,
@@ -1210,7 +1210,7 @@
           "candidates": [
             "cream"
           ],
-          "amount_per_adult": "60",
+          "amount_per_adult": "110",
           "unit": "ml",
           "child_factor": "0.6",
           "required": true,
@@ -1765,7 +1765,7 @@
           "required": true,
           "use": "main",
           "cut": "na kratšie vlákna",
-          "water_ml_per_adult": "40"
+          "water_ml_per_adult": "80"
         },
         {
           "key": "rice",
@@ -1786,7 +1786,7 @@
           "candidates": [
             "cream"
           ],
-          "amount_per_adult": "30",
+          "amount_per_adult": "70",
           "unit": "ml",
           "child_factor": "0.6",
           "required": true,
@@ -2674,7 +2674,7 @@
           ]
         },
         {
-          "text": "Peč zemiaky s cuketou na plechu pri 200 °C 15 minút, kým zemiaky začnú mäknúť a okraje zeleniny budú miestami zlatisté.",
+          "text": "Peč zemiaky s cuketou na plechu pri 200 °C 22 minút, kým zemiaky začnú mäknúť a okraje zeleniny budú miestami zlatisté.",
           "requires": [
             "potato:arranged",
             "zucchini:arranged",
@@ -2713,7 +2713,7 @@
           ]
         },
         {
-          "text": "Peč kuracie prsia so zeleninou na plechu pri 200 °C 25 minút, kým budú zemiaky mäkké, mäso zlatisté a po narezaní v strede už nebude ružové.",
+          "text": "Peč kuracie prsia so zeleninou na plechu pri 200 °C 18 minút, kým budú zemiaky mäkké, mäso zlatisté a po narezaní v strede už nebude ružové.",
           "requires": [
             "chicken:arranged",
             "potato:part_cooked",
@@ -2889,7 +2889,7 @@
           "required": true,
           "use": "addition",
           "cut": null,
-          "water_ml_per_adult": "50"
+          "water_ml_per_adult": "110"
         },
         {
           "key": "milk",
@@ -2897,7 +2897,7 @@
           "candidates": [
             "milk"
           ],
-          "amount_per_adult": "50",
+          "amount_per_adult": "70",
           "unit": "ml",
           "child_factor": "0.6",
           "required": true,
@@ -3216,7 +3216,7 @@
           "required": true,
           "use": "main",
           "cut": null,
-          "water_ml_per_adult": "25"
+          "water_ml_per_adult": "90"
         },
         {
           "key": "tomato",
@@ -3224,7 +3224,7 @@
           "candidates": [
             "tomato"
           ],
-          "amount_per_adult": "180",
+          "amount_per_adult": "260",
           "unit": "g",
           "child_factor": "0.65",
           "required": true,
@@ -3276,7 +3276,7 @@
           "candidates": [
             "cream"
           ],
-          "amount_per_adult": "40",
+          "amount_per_adult": "60",
           "unit": "ml",
           "child_factor": "0.6",
           "required": true,
@@ -3407,7 +3407,7 @@
           ]
         },
         {
-          "text": "Pridaj {tomato.amount} {tomato.name} a {oregano.amount} {oregano.name} do hrnca. Var paradajky s mletým hovädzím mäsom vo veľkom hrnci bez pokrievky na miernom ohni 25 minút, kým omáčka jemne bublá a zhustne.",
+          "text": "Pridaj {tomato.amount} {tomato.name} a {oregano.amount} {oregano.name} do hrnca. Var paradajky s mletým hovädzím mäsom vo veľkom hrnci bez pokrievky na miernom ohni 15 minút, kým omáčka jemne bublá a paradajky sa rozpadnú. Omáčka má zostať riedka, cestoviny ju v rúre vsiaknu.",
           "requires": [
             "tomato:raw",
             "oregano:raw",

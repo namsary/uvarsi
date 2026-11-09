@@ -16,7 +16,7 @@
         {"key": "cucumber", "role": "vegetable", "candidates": ["cucumber"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kocky"},
         {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na menšie kúsky"},
         {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.45", "required": true, "use": "addition", "cut": "na tenké pásiky"},
-        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "15", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
       ],
       "pantry_basics": ["salt", "black_pepper"],
       "instructions": [

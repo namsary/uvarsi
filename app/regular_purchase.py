@@ -52,6 +52,8 @@ _PACKAGES: dict[str, Quantity] = {
     "mozzarella": Quantity(Decimal("125"), "g"),
     "oil": Quantity(Decimal("1000"), "ml"),
     "oregano": Quantity(Decimal("10"), "g"),
+    "parsley": Quantity(Decimal("20"), "g"),
+    "thyme": Quantity(Decimal("10"), "g"),
     "paprika_powder": Quantity(Decimal("20"), "g"),
     "pasta": Quantity(Decimal("500"), "g"),
     "peas": Quantity(Decimal("450"), "g"),

@@ -17,8 +17,8 @@
         {"key": "peas", "role": "vegetable", "candidates": ["peas"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": null},
         {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nadrobno"},
         {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
-        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null, "water_ml_per_adult": "50"},
-        {"key": "milk", "role": "dairy", "candidates": ["milk"], "amount_per_adult": "50", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null, "water_ml_per_adult": "110"},
+        {"key": "milk", "role": "dairy", "candidates": ["milk"], "amount_per_adult": "70", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
         {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
         {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno nastrúhaný"},
         {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}

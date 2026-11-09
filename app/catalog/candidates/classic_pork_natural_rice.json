@@ -11,7 +11,7 @@
       "modes": ["standard", "high_protein"],
       "equipment": ["panvica", "hrniec", "nôž", "doska na krájanie"],
       "slots": [
-        {"key": "pork", "role": "protein", "candidates": ["pork_loin"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na 1,5 cm plátky", "water_ml_per_adult": "50"},
+        {"key": "pork", "role": "protein", "candidates": ["pork_loin"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na 1,5 cm plátky", "water_ml_per_adult": "100"},
         {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
         {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nadrobno"},
         {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
@@ -24,7 +24,7 @@
         {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw", "panvica:free"], "produces": ["oil:heated", "panvica:hot"]},
         {"text": "Opeč bravčové karé v panvici na strednom ohni 2 minúty z každej strany, kým budú plátky zlatisté, potom ich vyber.", "requires": ["pork:cut", "oil:heated", "panvica:hot"], "produces": ["pork:browned", "oil:used", "panvica:hot"]},
         {"text": "Opekaj cibuľu v panvici na strednom ohni 5 minút, kým zmäkne a zozlatne.", "requires": ["onion:cut", "pork:browned", "oil:used", "panvica:hot"], "produces": ["onion:cooked", "panvica:occupied"]},
-        {"text": "Vráť bravčové karé do panvice a prilej {pork.water} vody. Dus bravčové karé s cibuľou na miernom ohni 12 minút, kým mäso zmäkne a šťava začne bublať.", "requires": ["pork:browned", "onion:cooked", "oil:used", "panvica:occupied"], "produces": ["pork:cooked", "onion:sauce", "oil:cooked", "panvica:free"]},
+        {"text": "Vráť bravčové karé do panvice a prilej {pork.water} vody. Prikry panvicu a dus bravčové karé s cibuľou na miernom ohni 12 minút, kým mäso zmäkne a šťava začne bublať.", "requires": ["pork:browned", "onion:cooked", "oil:used", "panvica:occupied"], "produces": ["pork:cooked", "onion:sauce", "oil:cooked", "panvica:free"]},
         {"text": "Dochuť mäso so šťavou soľou a čiernym korením.", "requires": ["pork:cooked", "onion:sauce"], "produces": []},
         {"text": "Podávaj bravčové karé na prírodno s ryžou a rozdeľ jedlo na {portions} porcií.", "requires": ["pork:cooked", "rice:cooked", "onion:sauce", "oil:cooked"], "produces": ["pork:served", "rice:served", "onion:served", "oil:served"]}
       ],

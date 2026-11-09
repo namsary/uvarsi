@@ -1896,7 +1896,7 @@
           "required": true,
           "use": "main",
           "cut": null,
-          "water_ml_per_adult": "180"
+          "water_ml_per_adult": "250"
         },
         {
           "key": "pasta",
@@ -3058,7 +3058,7 @@
           "candidates": [
             "coconut_milk"
           ],
-          "amount_per_adult": "70",
+          "amount_per_adult": "95",
           "unit": "ml",
           "child_factor": "0.5",
           "required": true,
@@ -3586,7 +3586,8 @@
           "child_factor": "0.5",
           "required": true,
           "use": "addition",
-          "cut": null
+          "cut": null,
+          "water_ml_per_adult": "40"
         },
         {
           "key": "garlic",
@@ -3752,7 +3753,7 @@
           ]
         },
         {
-          "text": "Vlej sójovú omáčku do panvice. Prehrievaj tofu a zeleninu v panvici na miernom ohni 2 minúty, kým zelenina zmäkne a omáčka ju obalí.",
+          "text": "Vlej sójovú omáčku a {soy.water} vody do panvice. Prehrievaj tofu a zeleninu v panvici na miernom ohni 2 minúty, kým zelenina zmäkne a omáčka ju obalí.",
           "requires": [
             "soy:mixed",
             "garlic:mixed",

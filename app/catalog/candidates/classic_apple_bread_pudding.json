@@ -54,7 +54,7 @@
           "candidates": [
             "milk"
           ],
-          "amount_per_adult": 130,
+          "amount_per_adult": "200",
           "unit": "ml",
           "child_factor": 0.65,
           "required": true,

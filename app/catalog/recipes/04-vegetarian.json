@@ -959,7 +959,7 @@
           "candidates": [
             "milk"
           ],
-          "amount_per_adult": 130,
+          "amount_per_adult": "200",
           "unit": "ml",
           "child_factor": 0.65,
           "required": true,
@@ -4090,7 +4090,7 @@
           "required": true,
           "use": "main",
           "cut": null,
-          "water_ml_per_adult": "150"
+          "water_ml_per_adult": "250"
         },
         {
           "key": "pasta",
@@ -4289,7 +4289,7 @@
           ]
         },
         {
-          "text": "Dus paradajky so šošovicou v panvici na miernom ohni 18 minút, kým šošovica zmäkne a omáčka zhustne.",
+          "text": "Dus paradajky so šošovicou v panvici na miernom ohni 18 minút, kým šošovica zmäkne. Omáčka má zostať riedka, aby cestoviny v rúre zmäkli.",
           "requires": [
             "lentils:covered",
             "tomato:in_pan",
@@ -5261,7 +5261,7 @@
           "required": true,
           "use": "main",
           "cut": null,
-          "water_ml_per_adult": "80"
+          "water_ml_per_adult": "110"
         },
         {
           "key": "cheese",
@@ -5321,7 +5321,7 @@
           "candidates": [
             "oil"
           ],
-          "amount_per_adult": "5",
+          "amount_per_adult": "12",
           "unit": "ml",
           "child_factor": "0.5",
           "required": true,
@@ -5384,7 +5384,7 @@
           ]
         },
         {
-          "text": "Rozohrej {oil.amount} {oil.name} v panvici na stredne silnom ohni 2 minúty, kým sa začne lesknúť. Pridaj cuketu do panvice a opekaj ju 6 minút, kým zmäkne a na okrajoch zozlatne. Odober ju do misky.",
+          "text": "Rozohrej polovicu z {oil.amount} {oil.name} v panvici na stredne silnom ohni 2 minúty, kým sa začne lesknúť. Pridaj cuketu do panvice a opekaj ju 6 minút, kým zmäkne a na okrajoch zozlatne. Odober ju do misky.",
           "requires": [
             "oil:raw",
             "zucchini:cut",
@@ -5411,7 +5411,7 @@
           ]
         },
         {
-          "text": "Premiešaj v miske kuskus s paradajkami, cuketou, {oregano.amount} {oregano.name} a šťavou z citróna. Dochuť ho soľou a čiernym korením.",
+          "text": "Premiešaj v miske kuskus s paradajkami, cuketou, {oregano.amount} {oregano.name} , šťavou z citróna a zvyšným olejom. Dochuť ho soľou a čiernym korením.",
           "requires": [
             "couscous:cooked",
             "tomato:cut",
@@ -5979,7 +5979,7 @@
           "candidates": [
             "cream"
           ],
-          "amount_per_adult": "60",
+          "amount_per_adult": "90",
           "unit": "ml",
           "child_factor": "0.5",
           "required": true,
@@ -6406,7 +6406,8 @@
           "child_factor": "0.55",
           "required": true,
           "use": "main",
-          "cut": null
+          "cut": null,
+          "water_ml_per_adult": "40"
         },
         {
           "key": "tomato",
@@ -6524,7 +6525,7 @@
           ]
         },
         {
-          "text": "Sceď cestoviny cez sitko. Vlož cestoviny do veľkej misky. Premiešaj ich s paradajkovou zmesou, kým ich šťava s pestom rovnomerne obalí a mozzarella začne mäknúť.",
+          "text": "Odober z hrnca {pasta.water} vody a potom cestoviny sceď cez sitko. Ak je zmes suchá, prilievaj po troškách odloženú vodu z cestovín. Vlož cestoviny do veľkej misky. Premiešaj ich s paradajkovou zmesou, kým ich šťava s pestom rovnomerne obalí a mozzarella začne mäknúť.",
           "requires": [
             "pasta:cooked",
             "tomato:marinated",

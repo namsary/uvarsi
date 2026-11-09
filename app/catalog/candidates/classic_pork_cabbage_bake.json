@@ -12,9 +12,9 @@
       "equipment": ["nôž", "doska", "hrniec", "sitko", "panvica", "vareška", "pekáč", "rúra"],
       "slots": [
         {"key": "meat", "role": "protein", "candidates": ["pork_mince"], "amount_per_adult": "140", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
-        {"key": "cabbage", "role": "vegetable", "candidates": ["sauerkraut"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na kratšie vlákna", "water_ml_per_adult": "40"},
+        {"key": "cabbage", "role": "vegetable", "candidates": ["sauerkraut"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na kratšie vlákna", "water_ml_per_adult": "80"},
         {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": null},
-        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "30", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "70", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
         {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
         {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
         {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}

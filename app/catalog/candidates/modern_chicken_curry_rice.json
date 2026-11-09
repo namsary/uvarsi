@@ -17,7 +17,7 @@
         {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "nadrobno"},
         {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
         {"key": "curry", "role": "seasoning", "candidates": ["curry_powder"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
-        {"key": "coconut", "role": "dairy", "candidates": ["coconut_milk"], "amount_per_adult": "80", "unit": "ml", "child_factor": "0.55", "required": true, "use": "addition", "cut": null},
+        {"key": "coconut", "role": "dairy", "candidates": ["coconut_milk"], "amount_per_adult": "120", "unit": "ml", "child_factor": "0.55", "required": true, "use": "addition", "cut": null},
         {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
       ],
       "pantry_basics": ["water", "salt", "black_pepper"],
