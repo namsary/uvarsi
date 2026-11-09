@@ -13,7 +13,7 @@
       "slots": [
         {"key": "tofu", "role": "protein", "candidates": ["tofu"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na kocky"},
         {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "120"},
-        {"key": "coconut", "role": "dairy", "candidates": ["coconut_milk"], "amount_per_adult": "70", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "coconut", "role": "dairy", "candidates": ["coconut_milk"], "amount_per_adult": "95", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
         {"key": "broccoli", "role": "vegetable", "candidates": ["broccoli"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé ružičky"},
         {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na tenké kolieska"},
         {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},

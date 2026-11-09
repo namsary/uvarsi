@@ -13,7 +13,7 @@
       "slots": [
         {"key": "gnocchi", "role": "starch", "candidates": ["gnocchi"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
         {"key": "spinach", "role": "vegetable", "candidates": ["spinach"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": null},
-        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "60", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "90", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
         {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "najemno nastrúhaný"},
         {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
         {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}

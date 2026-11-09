@@ -33,7 +33,7 @@
           "required": true,
           "use": "main",
           "cut": "na štvrtiny",
-          "water_ml_per_adult": "250"
+          "water_ml_per_adult": "400"
         },
         {
           "key": "carrot",

@@ -649,6 +649,40 @@
       }
     },
     {
+      "id": "thyme",
+      "name": "sušený tymián",
+      "synonyms": ["tymián", "tymiánom", "sušeným tymiánom"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "276", "protein_g": "9.11", "fat_g": "7.43", "carbs_g": "63.94",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170938, Spices, thyme, dried; https://fdc.nal.usda.gov/fdc-app.html#/food-details/170938/nutrients",
+        "verified_on": "2026-11-09"
+      }
+    },
+    {
+      "id": "parsley",
+      "name": "petržlenová vňať",
+      "synonyms": ["čerstvá petržlenová vňať", "vňať petržlenu"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "36", "protein_g": "2.97", "fat_g": "0.79", "carbs_g": "6.33",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170416, Parsley, fresh; https://fdc.nal.usda.gov/fdc-app.html#/food-details/170416/nutrients",
+        "verified_on": "2026-11-09"
+      }
+    },
+    {
       "id": "egg_noodles",
       "name": "vaječné rezance",
       "synonyms": ["polievkové rezance", "rezance do polievky", "vaječných rezancov"],

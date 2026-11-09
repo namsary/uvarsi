@@ -14,7 +14,7 @@
         {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "85", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
         {"key": "ham", "role": "protein", "candidates": ["ham"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na malé kúsky"},
         {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.65", "required": true, "use": "addition", "cut": null},
-        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "50", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "90", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
         {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": null},
         {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
       ],

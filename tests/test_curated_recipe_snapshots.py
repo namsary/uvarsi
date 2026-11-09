@@ -1632,7 +1632,7 @@ def test_kolozvarska_uses_ground_meat_and_scales_its_added_water(
     assert "pork_mince" in declared
     assert "pork_shoulder" not in declared
     assert "na kazdu porciu" not in text
-    assert "160 ml vody" in text
+    assert "320 ml vody" in text
     assert "polej povrch smotanu" not in text
     assert "rovnomerne nou polej" in text
 

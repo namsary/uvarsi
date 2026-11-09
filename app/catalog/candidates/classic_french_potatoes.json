@@ -14,7 +14,7 @@
         {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "300", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na 5 mm plátky"},
         {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky"},
         {"key": "smoked_meat", "role": "protein", "candidates": ["smoked_sausage", "ham"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na tenké kúsky"},
-        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "60", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "110", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
         {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
       ],
       "pantry_basics": ["water", "salt", "black_pepper"],

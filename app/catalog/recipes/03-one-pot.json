@@ -906,7 +906,7 @@
           "required": true,
           "use": "main",
           "cut": "na 3 cm kocky",
-          "water_ml_per_adult": "220"
+          "water_ml_per_adult": "320"
         },
         {
           "key": "onion",
@@ -1040,7 +1040,7 @@
           ]
         },
         {
-          "text": "Pridaj {garlic.amount} {garlic.name} do hrnca. Prilej {beef.water} vody do hrnca. Priveď {beef.name} s cibuľou vo veľkom hrnci na silnom ohni do varu za 5 minút, kým šťava začne bublať. Stíš oheň a dus {beef.name} vo veľkom hrnci na miernom ohni 95 minút, kým mäso zmäkne.",
+          "text": "Pridaj {garlic.amount} {garlic.name} do hrnca. Prilej {beef.water} vody do hrnca. Priveď {beef.name} s cibuľou vo veľkom hrnci na silnom ohni do varu za 5 minút, kým šťava začne bublať. Stíš oheň, hrniec prikry a dus {beef.name} vo veľkom hrnci na miernom ohni 95 minút, kým mäso zmäkne.",
           "requires": [
             "garlic:raw",
             "beef:browned",
@@ -1176,7 +1176,8 @@
           "child_factor": "0.65",
           "required": true,
           "use": "main",
-          "cut": "nahrubo"
+          "cut": "nahrubo",
+          "water_ml_per_adult": "80"
         },
         {
           "key": "onion",
@@ -1294,7 +1295,7 @@
           ]
         },
         {
-          "text": "Pridaj paradajky a {garlic.amount} {garlic.name} do hrnca. Dus paradajky s mletým hovädzím mäsom na miernom ohni 25 minút, kým omáčka jemne bublá a je hustá.",
+          "text": "Pridaj paradajky a {garlic.amount} {garlic.name} do hrnca a prilej {tomato.water} vody. Dus paradajky s mletým hovädzím mäsom na miernom ohni 25 minút, kým omáčka jemne bublá a je hustá.",
           "requires": [
             "tomato:prepared",
             "garlic:raw",

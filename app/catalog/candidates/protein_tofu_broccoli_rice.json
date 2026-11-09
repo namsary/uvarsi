@@ -15,7 +15,7 @@
         {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "120"},
         {"key": "broccoli", "role": "vegetable", "candidates": ["broccoli"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.7", "required": true, "use": "addition", "cut": "na malé ružičky"},
         {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na tenké prúžky"},
-        {"key": "soy", "role": "seasoning", "candidates": ["soy_sauce"], "amount_per_adult": "20", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "soy", "role": "seasoning", "candidates": ["soy_sauce"], "amount_per_adult": "20", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null, "water_ml_per_adult": "40"},
         {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
         {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
       ],
@@ -32,7 +32,7 @@
         {"text": "Vyber tofu na tanier.", "requires": ["tofu:browned", "panvica:occupied", "tanier:free"], "produces": ["tofu:resting", "tanier:occupied"]},
         {"text": "Opekaj brokolicu a mrkvu v panvici na strednom ohni 6 minút, kým trochu zmäknú, ale zostanú pevné.", "requires": ["broccoli:cut", "carrot:cut", "oil:used", "panvica:occupied"], "produces": ["broccoli:cooked", "carrot:cooked"]},
         {"text": "Vráť tofu do panvice.", "requires": ["tofu:resting", "broccoli:cooked", "carrot:cooked", "panvica:occupied", "tanier:occupied"], "produces": ["tofu:in_pan", "tanier:free"]},
-        {"text": "Vlej sójovú omáčku do panvice. Prehrievaj tofu a zeleninu v panvici na miernom ohni 2 minúty, kým zelenina zmäkne a omáčka ju obalí.", "requires": ["soy:mixed", "garlic:mixed", "tofu:in_pan", "broccoli:cooked", "carrot:cooked", "miska:occupied", "panvica:occupied"], "produces": ["soy:cooked", "garlic:cooked", "tofu:cooked", "broccoli:finished", "carrot:finished", "miska:free"]},
+        {"text": "Vlej sójovú omáčku a {soy.water} vody do panvice. Prehrievaj tofu a zeleninu v panvici na miernom ohni 2 minúty, kým zelenina zmäkne a omáčka ju obalí.", "requires": ["soy:mixed", "garlic:mixed", "tofu:in_pan", "broccoli:cooked", "carrot:cooked", "miska:occupied", "panvica:occupied"], "produces": ["soy:cooked", "garlic:cooked", "tofu:cooked", "broccoli:finished", "carrot:finished", "miska:free"]},
         {"text": "Podávaj tofu so zeleninou a ryžou. Jedlo rozdeľ na {portions} porcií.", "requires": ["tofu:cooked", "broccoli:finished", "carrot:finished", "soy:cooked", "garlic:cooked", "oil:used", "rice:cooked", "panvica:occupied"], "produces": ["tofu:served", "broccoli:served", "carrot:served", "soy:served", "garlic:served", "oil:served", "rice:served", "panvica:free"]}
       ],
       "storage": {"refrigerated_days": 1, "instruction": "Tofu s ryžou rozdeľ do plytkých nádob a do jednej hodiny ho schlaď. V chladničke ho zjedz do 24 hodín; porcie na neskôr hneď zamraz. Ohrievaj iba raz, kým bude celé horúce."}

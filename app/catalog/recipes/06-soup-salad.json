@@ -3263,7 +3263,7 @@
           "required": true,
           "use": "main",
           "cut": "na štvrtiny",
-          "water_ml_per_adult": "250"
+          "water_ml_per_adult": "400"
         },
         {
           "key": "carrot",
@@ -4009,7 +4009,7 @@
           "required": true,
           "use": "main",
           "cut": null,
-          "water_ml_per_adult": "85"
+          "water_ml_per_adult": "100"
         },
         {
           "key": "chickpeas",
@@ -4082,7 +4082,7 @@
           "candidates": [
             "oil"
           ],
-          "amount_per_adult": "7",
+          "amount_per_adult": "15",
           "unit": "ml",
           "child_factor": "0.5",
           "required": true,
@@ -4416,7 +4416,7 @@
           "required": true,
           "use": "main",
           "cut": null,
-          "water_ml_per_adult": "85"
+          "water_ml_per_adult": "105"
         },
         {
           "key": "tomato",
@@ -4463,7 +4463,7 @@
           "candidates": [
             "oil"
           ],
-          "amount_per_adult": "8",
+          "amount_per_adult": "14",
           "unit": "ml",
           "child_factor": "0.5",
           "required": true,
@@ -4525,7 +4525,7 @@
           ]
         },
         {
-          "text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.",
+          "text": "Rozohrej polovicu z {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť.",
           "requires": [
             "oil:raw",
             "panvica:free"
@@ -4549,7 +4549,7 @@
           ]
         },
         {
-          "text": "Premiešaj kuskus s paradajkami, uhorkou a citrónovou šťavou v miske. Dochuť šalát soľou a čiernym korením.",
+          "text": "Premiešaj kuskus s paradajkami, uhorkou, citrónovou šťavou a zvyšným olejom v miske. Dochuť šalát soľou a čiernym korením.",
           "requires": [
             "couscous:cooked",
             "tomato:cut",
@@ -4682,7 +4682,7 @@
           "candidates": [
             "oil"
           ],
-          "amount_per_adult": "8",
+          "amount_per_adult": "15",
           "unit": "ml",
           "child_factor": "0.5",
           "required": true,
