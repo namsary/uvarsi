@@ -438,6 +438,49 @@ def test_weekday_variety_does_not_take_the_only_sunday_roast():
     ]
 
 
+def test_week_does_not_open_with_last_weeks_opening_staple():
+    ingredients = load_ingredient_catalog()
+    catalog = load_recipe_catalog(ingredients)
+    rows = tuple(
+        _offer(
+            ingredients.by_id(ingredient_id).name,
+            offer_key=f"fixture-{ingredient_id}", package=package,
+            sale=sale, original=ordinary, store=store,
+        )
+        for ingredient_id, store, package, sale, ordinary in VERIFIED_WEEKLY_OFFERS
+    )
+    stores = tuple(sorted({row["obchod"] for row in rows}))
+
+    def opening_starch(plan):
+        template_id = plan["jedla"][0]["recept"]["template_id"]
+        template = next(item for item in catalog.all() if item.id == template_id)
+        return {
+            candidate
+            for slot in template.slots
+            if slot.required and slot.role == "starch" and slot.use == "main"
+            for candidate in slot.candidates
+        }
+
+    last_week = _build(rows=rows, stores=stores, recipe_catalog=catalog)
+    opening = last_week["jedla"][0]["recept"]["template_id"]
+    assert opening_starch(last_week)
+
+    this_week = _build(
+        rows=rows,
+        stores=stores,
+        recipe_catalog=catalog,
+        previous_opening_template_id=opening,
+    )
+
+    assert opening_starch(this_week).isdisjoint(opening_starch(last_week)), (
+        opening, this_week["jedla"][0]["recept"]["template_id"],
+    )
+
+
+def test_unknown_previous_opening_template_changes_nothing():
+    assert _build(previous_opening_template_id="no-such-recipe") == _build()
+
+
 def test_weekday_variety_prefers_a_different_staple_before_repeated_pasta_or_sunday_roast():
     def ranked(starch, method, minutes):
         selection = SimpleNamespace(

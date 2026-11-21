@@ -3357,6 +3357,33 @@ def _recent_plan_template_ids(user_id, week):
     )
 
 
+def _opening_template_id_from_plan_json(raw):
+    try:
+        plan = json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        return None
+    meals = plan.get("jedla") if isinstance(plan, dict) else None
+    if not isinstance(meals, list) or not meals:
+        return None
+    first = meals[0]
+    recipe = first.get("recept") if isinstance(first, dict) else None
+    template_id = recipe.get("template_id") if isinstance(recipe, dict) else None
+    return template_id if isinstance(template_id, str) else None
+
+
+def _previous_week_opening_template_id(user_id, week):
+    previous_week = (
+        datetime.date.fromisoformat(week) - datetime.timedelta(weeks=1)
+    ).isoformat()
+    with closing(db()) as con:
+        row = con.execute(
+            "SELECT json FROM plany WHERE user_id=? AND tyzden=? "
+            "ORDER BY id DESC LIMIT 1",
+            (user_id, previous_week),
+        ).fetchone()
+    return _opening_template_id_from_plan_json(row["json"]) if row else None
+
+
 def _serve_deterministic_plan(
     u, tyz, obchody, rows, spajza, podpis, variant, premium, diet_mode, *,
     zo_spajze=False, force=False, system_upgrade=False,
@@ -3430,6 +3457,9 @@ def _serve_deterministic_plan_with_slot(
             recent_template_ids=tuple(sorted(recent_templates)),
             ingredient_catalog=catalog,
             recipe_catalog=recipe_catalog,
+            previous_opening_template_id=_previous_week_opening_template_id(
+                u["id"], tyz
+            ),
         )
         plan["meta"]["variant"] = selected_variant
         stored = osobny_plan_na_ulozenie(
