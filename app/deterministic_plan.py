@@ -614,6 +614,28 @@ def _primary_starch_id(candidate: RecipeCandidate) -> str | None:
     return (main_rows or starch_rows)[0].ingredient.id
 
 
+def _template_main_starches(
+    recipes: RecipeCatalog, template_id: str | None
+) -> frozenset[str]:
+    """Return the staple a template is built around, by its catalog slots."""
+    if template_id is None:
+        return frozenset()
+    template = next(
+        (item for item in recipes.all() if item.id == template_id), None
+    )
+    if template is None:
+        return frozenset()
+    starch_slots = tuple(
+        slot for slot in template.slots
+        if slot.required and slot.role == "starch"
+    )
+    main_slots = tuple(slot for slot in starch_slots if slot.use == "main")
+    chosen = (main_slots or starch_slots)[:1]
+    return frozenset(
+        candidate for slot in chosen for candidate in slot.candidates
+    )
+
+
 def _prefer_an_unused_starch(
     ranked_candidates: Sequence[_RankedRenderableMeal],
     used_starches: frozenset[str],
@@ -691,6 +713,7 @@ def _select_week(
     children: int,
     ingredient_catalog: IngredientCatalog,
     recent_template_ids: frozenset[str] = frozenset(),
+    opening_avoid_starches: frozenset[str] = frozenset(),
 ) -> tuple[_SelectedMeal, ...] | None:
     initial_balances = (
         _pantry_balances(pantry, ingredient_catalog) if pantry_driven else {}
@@ -823,6 +846,10 @@ def _select_week(
             starch for item in selected
             if (starch := _primary_starch_id(item.candidate)) is not None
         )
+        if index == 0:
+            # Last week's opening staple goes to the back of the queue, so
+            # the first day of the week does not repeat it every week.
+            used_starches = used_starches | opening_avoid_starches
         protein_order = _prefer_a_different_primary_protein(
             ranked_candidates, previous_protein
         )
@@ -1110,6 +1137,7 @@ def build_deterministic_plan(
     recent_template_ids: Sequence[str] = (),
     ingredient_catalog: IngredientCatalog | None = None,
     recipe_catalog: RecipeCatalog | None = None,
+    previous_opening_template_id: str | None = None,
 ) -> dict:
     """Build one complete deterministic week without network or model calls."""
     if frequency not in (1, 2, 3) or isinstance(frequency, bool):
@@ -1158,6 +1186,9 @@ def build_deterministic_plan(
         children=children,
         ingredient_catalog=ingredients,
         recent_template_ids=frozenset(recent_template_ids),
+        opening_avoid_starches=_template_main_starches(
+            recipes, previous_opening_template_id
+        ),
     )
     if selected is None:
         _raise_no_plan(
