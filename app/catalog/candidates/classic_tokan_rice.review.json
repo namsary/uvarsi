@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "04e5544f2a97ad3d21c66438341dd64a8691c2ae635ab06e2febf7d2b8499611",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_tokan_rice"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

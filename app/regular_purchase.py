@@ -70,6 +70,16 @@ _PACKAGES: dict[str, Quantity] = {
     "tortilla": Quantity(Decimal("6"), "piece"),
     "tuna": Quantity(Decimal("160"), "g"),
     "wheat_flour": Quantity(Decimal("1000"), "g"),
+    "allspice": Quantity(Decimal("60"), "piece"),
+    "bay_leaf": Quantity(Decimal("25"), "piece"),
+    "breadcrumbs": Quantity(Decimal("500"), "g"),
+    "caraway": Quantity(Decimal("20"), "g"),
+    "mayonnaise": Quantity(Decimal("250"), "g"),
+    "mustard": Quantity(Decimal("350"), "g"),
+    "pickled_cucumber": Quantity(Decimal("12"), "piece"),
+    "poppy_seed": Quantity(Decimal("200"), "g"),
+    "tartar_sauce": Quantity(Decimal("250"), "g"),
+    "tomato_paste": Quantity(Decimal("140"), "g"),
 }
 
 _FRESH_WEIGHT_CATEGORIES = frozenset({"mäso", "ryby", "zelenina", "ovocie"})

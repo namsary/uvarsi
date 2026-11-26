@@ -363,3 +363,63 @@ def test_sweet_cream_16_percent_counts_as_cooking_cream(catalog):
         catalog,
     )
     assert [item.ingredient.id for item in matched] == ["cream"]
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit", "expected_id"),
+    (
+        ("Strúhanka 500 g", "500 g", "breadcrumbs"),
+        ("Pšeničná strúhanka 400 g", "400 g", "breadcrumbs"),
+        ("Paradajkový pretlak 140 g", "140 g", "tomato_paste"),
+        ("Kyslé uhorky 670 g", "670 g", "pickled_cucumber"),
+        ("Uhorky sterilizované 680 g", "680 g", "pickled_cucumber"),
+        ("Plnotučná horčica 350 g", "350 g", "mustard"),
+        ("Majonéza 250 g", "250 g", "mayonnaise"),
+        ("Tatárska omáčka 250 g", "250 g", "tartar_sauce"),
+        ("Mletý mak 200 g", "200 g", "poppy_seed"),
+        ("Mak modrý mletý 200 g", "200 g", "poppy_seed"),
+        ("Rasca celá 30 g", "30 g", "caraway"),
+        ("Bobkový list 5 g", "5 g", "bay_leaf"),
+        ("Nové korenie celé 15 g", "15 g", "allspice"),
+        ("Zeler 1 kg", "1 kg", "celeriac"),
+        ("Hovädzie zadné bez kosti 1 kg", "1 kg", "beef_round"),
+        ("Hovädzie stehno 1 kg", "1 kg", "beef_round"),
+        ("Kurča celé chladené 1,4 kg", "1,4 kg", "chicken_whole"),
+        ("Celé kurča 1,3 kg", "1,3 kg", "chicken_whole"),
+    ),
+)
+def test_wave2_classic_pantry_and_meat_labels_match(
+    catalog, product_name, unit, expected_id
+):
+    matched = match_offers([offer(nazov=product_name, jednotka=unit)], catalog)
+
+    assert [item.ingredient.id for item in matched] == [expected_id]
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit"),
+    (
+        ("Bezlepková strúhanka 250 g", "250 g"),
+        ("Strúhanka s bylinkami 200 g", "200 g"),
+        ("Paradajkový pretlak s bazalkou 140 g", "140 g"),
+        ("Uhorky šalátové 1 kg", "1 kg"),
+        ("Horčica s chrenom 200 g", "200 g"),
+        ("Majonéza light 250 g", "250 g"),
+        ("Mletý mak s cukrom 200 g", "200 g"),
+        ("Zeler stopkový 500 g", "500 g"),
+        ("Hovädzie stehno mleté 500 g", "500 g"),
+        ("Hovädzie kocky zo stehna 500 g", "500 g"),
+        ("Kurča grilované celé 1 kg", "1 kg"),
+    ),
+)
+def test_wave2_flavoured_or_different_products_fail_closed(
+    catalog, product_name, unit
+):
+    assert match_offers([offer(nazov=product_name, jednotka=unit)], catalog) == ()
+
+
+def test_salad_cucumber_is_not_a_pickled_cucumber(catalog):
+    matched = match_offers(
+        [offer(nazov="Šalátové uhorky 1 kg", jednotka="1 kg")], catalog
+    )
+    assert [item.ingredient.id for item in matched] == ["cucumber"]

@@ -1,0 +1,48 @@
+{
+  "recipes": [
+    {
+      "id": "classic_chicken_schnitzel_mash",
+      "version": 2,
+      "active": true,
+      "name_template": "Vyprážaný kurací rezeň so zemiakovou kašou",
+      "family": "classic_chicken_schnitzel_mash",
+      "method": "pan",
+      "minutes": 55,
+      "modes": ["standard"],
+      "equipment": ["hrniec", "tri taniere", "veľká panvica", "pučidlo na zemiaky", "nôž", "doska na krájanie", "palička na mäso", "potravinová fólia", "papierová utierka"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky hrubé 1 cm"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.5", "unit": "piece", "child_factor": "0.75", "required": true, "use": "addition", "cut": null},
+        {"key": "crumbs", "role": "starch", "candidates": ["breadcrumbs"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "25", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na rovnaké kúsky"},
+        {"key": "milk", "role": "dairy", "candidates": ["milk"], "amount_per_adult": "60", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}.", "requires": ["potato:raw"], "produces": ["potato:cut"]},
+        {"text": "Vlož zemiaky do hrnca. Dolej studenú vodu tak, aby boli ponorené, a vodu osoľ. Var zemiaky v hrnci na miernom ohni 20 minút, kým zmäknú.", "requires": ["potato:cut"], "produces": ["potato:cooked"]},
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} {chicken.cut}. Plátky prikry potravinovou fóliou, paličkou ich jemne naklep na rovnakú hrúbku a z oboch strán ich osoľ.", "requires": ["chicken:raw"], "produces": ["chicken:pounded"]},
+        {"text": "Priprav si tri taniere. Do prvého vsyp {flour.amount} {flour.name}, v druhom rozšľahaj {egg.amount} {egg.name} so štipkou soli a do tretieho vsyp {crumbs.amount} {crumbs.name}. Každý plátok obaľ najprv v múke, potom vo vajci a nakoniec v strúhanke, ktorú jemne pritlač.", "requires": ["flour:raw", "egg:raw", "crumbs:raw", "chicken:pounded"], "produces": ["flour:coating", "egg:coating", "crumbs:coating", "chicken:breaded"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 3 minúty, kým okolo kúska strúhanky hodeného do oleja začne hneď bublať. Olej má pokryť dno panvice aspoň do výšky pol centimetra, ak ho je menej, dolej ho z fľaše.", "requires": ["oil:raw"], "produces": ["oil:hot"]},
+        {"text": "Opekaj rezne z kuracích pŕs vo veľkej panvici po dávkach na strednom ohni 3 minúty z každej strany, kým budú zlatisté a mäso v strede nebude ružové. Panvicu neprepĺňaj, rezne sa nesmú prekrývať. Hotové rezne vyber na tanier s papierovou utierkou, aby odkvapkali.", "requires": ["chicken:breaded", "flour:coating", "egg:coating", "crumbs:coating", "oil:hot"], "produces": ["chicken:fried", "flour:fried", "egg:fried", "crumbs:fried", "oil:used"]},
+        {"text": "Sceď zemiaky a vráť ich do hrnca. Prilej {milk.amount} {milk.name} a pridaj {butter.amount} {butter.name}. Zohrievaj zemiaky s mliekom v hrnci na miernom ohni 2 minúty, kým sa maslo roztopí a mlieko začne pariť. Potom ich roztlač pučidlom na hladkú kašu.", "requires": ["potato:cooked", "milk:raw", "butter:raw"], "produces": ["potato:mashed", "milk:mashed", "butter:mashed"]},
+        {"text": "Dochuť zemiakovú kašu soľou.", "requires": ["potato:mashed", "milk:mashed", "butter:mashed"], "produces": ["potato:seasoned"]},
+        {"text": "Podávaj kuracie rezne so zemiakovou kašou a rozdeľ jedlo na {portions} porcií.", "requires": ["chicken:fried", "flour:fried", "egg:fried", "crumbs:fried", "oil:used", "potato:seasoned", "milk:mashed", "butter:mashed"], "produces": ["chicken:served", "flour:served", "egg:served", "crumbs:served", "oil:served", "potato:served", "milk:served", "butter:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Rezne a zemiakovú kašu rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní. Rezne prehrej v rúre pri 180 °C asi 10 minút, aby zostali chrumkavé, kašu zohrej s lyžicou mlieka."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_chicken_schnitzel_mash",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/40043/klasicke-vyprazane-kuracie-prsia/", "title": "Klasické vyprážané kuracie prsia | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/nedelne-kuracie-rezne/86175-recept.html", "title": "Nedeľné kuracie rezne - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/25358/vyprazany-rezen-so-zemiakovou-kasou/", "title": "Vyprážaný rezeň so zemiakovou kašou | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

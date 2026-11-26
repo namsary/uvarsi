@@ -185,6 +185,19 @@ _QUANTITY_NAMES: Mapping[str, str] = {
     "sweet_potato": "batatu",
     "turkey_mince": "mletého morčacieho mäsa",
     "cucumber": "šalátovej uhorky",
+    "breadcrumbs": "pšeničnej strúhanky",
+    "tomato_paste": "paradajkového pretlaku",
+    "pickled_cucumber": "sterilizovaných uhoriek",
+    "mustard": "plnotučnej horčice",
+    "mayonnaise": "majonézy",
+    "tartar_sauce": "tatárskej omáčky",
+    "poppy_seed": "mletého maku",
+    "caraway": "celej rasce",
+    "bay_leaf": "bobkového listu",
+    "allspice": "celého nového korenia",
+    "celeriac": "zeleru",
+    "beef_round": "hovädzieho zadného bez kosti",
+    "chicken_whole": "celého kurčaťa",
 }
 
 # Natural direct-object forms used after the ingredient was measured once.
@@ -276,6 +289,19 @@ _REFERENCE_NAMES: Mapping[str, str] = {
     "sweet_potato": "batat",
     "turkey_mince": "mleté morčacie mäso",
     "cucumber": "šalátovú uhorku",
+    "breadcrumbs": "pšeničnú strúhanku",
+    "tomato_paste": "paradajkový pretlak",
+    "pickled_cucumber": "sterilizované uhorky",
+    "mustard": "plnotučnú horčicu",
+    "mayonnaise": "majonézu",
+    "tartar_sauce": "tatársku omáčku",
+    "poppy_seed": "mletý mak",
+    "caraway": "celú rascu",
+    "bay_leaf": "bobkový list",
+    "allspice": "celé nové korenie",
+    "celeriac": "zeler",
+    "beef_round": "hovädzie zadné bez kosti",
+    "chicken_whole": "celé kurča",
 }
 
 # Absorption/one-pot ratios in millilitres of water per gram of dry starch.

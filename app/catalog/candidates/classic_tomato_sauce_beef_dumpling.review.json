@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "7df4fe971d960945f391e15a1967477b57684f763861ecf89da6440bc493c652",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_tomato_sauce_beef_dumpling"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

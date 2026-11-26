@@ -1,0 +1,51 @@
+{
+  "recipes": [
+    {
+      "id": "classic_znojmo_beef_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Znojemská hovädzia pečienka s ryžou",
+      "family": "classic_znojmo_beef_rice",
+      "method": "pot",
+      "minutes": 140,
+      "modes": ["standard"],
+      "equipment": ["hrniec s hrubým dnom", "hrniec", "sitko", "miska", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "beef", "role": "protein", "candidates": ["beef_round"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "220"},
+        {"key": "mustard", "role": "seasoning", "candidates": ["mustard"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bacon", "role": "protein", "candidates": ["bacon"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na kolieska"},
+        {"key": "allspice", "role": "seasoning", "candidates": ["allspice"], "amount_per_adult": "0.5", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "pickles", "role": "vegetable", "candidates": ["pickled_cucumber"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {carrot.amount} {carrot.name} a nakrájaj ju {carrot.cut}. Nakrájaj {onion.amount} {onion.name} {onion.cut}, {bacon.amount} {bacon.name} {bacon.cut} a {pickles.amount} {pickles.name} {pickles.cut}.", "requires": ["carrot:raw", "onion:raw", "bacon:raw", "pickles:raw"], "produces": ["carrot:cut", "onion:cut", "bacon:cut", "pickles:cut"]},
+        {"text": "Osuš {beef.amount} {beef.name} papierovou utierkou, osoľ ho, okoreň a tenko naň natri {mustard.amount} {mustard.name}. Väčšie množstvo mäsa rozdeľ na kusy s hmotnosťou asi 800 gramov.", "requires": ["beef:raw", "mustard:raw"], "produces": ["beef:seasoned", "mustard:used"]},
+        {"text": "Opekaj slaninu v hrnci s hrubým dnom na strednom ohni 4 minúty, kým pustí tuk. Pridaj {oil.amount} {oil.name}. Vlož hovädzie zadné bez kosti do hrnca. Opekaj hovädzie zadné bez kosti na silnom ohni 8 minút a obracaj ho, kým bude zo všetkých strán zlatisté. Mäso vyber na tanier.", "requires": ["bacon:cut", "oil:raw", "beef:seasoned"], "produces": ["bacon:cooked", "oil:used", "beef:browned"]},
+        {"text": "Pridaj cibuľu a mrkvu do hrnca. Opekaj cibuľu s mrkvou vo výpeku na strednom ohni 6 minút, kým bude cibuľa zlatistá.", "requires": ["onion:cut", "carrot:cut", "bacon:cooked"], "produces": ["onion:cooked", "carrot:cooked"]},
+        {"text": "Vráť hovädzie zadné bez kosti do hrnca. Pridaj {allspice.amount} {allspice.name} a prilej {beef.water} vody. Prikry hrniec a dus hovädzie zadné bez kosti v hrnci na miernom ohni 100 minút, kým mäso zmäkne. V polovici ho obráť a podľa potreby dolej trochu vody.", "requires": ["beef:browned", "allspice:raw", "onion:cooked", "carrot:cooked"], "produces": ["beef:tender", "allspice:cooked", "onion:braised", "carrot:braised"]},
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne. Potom ju nechaj 5 minút prikrytú postáť.", "requires": ["rice:rinsed"], "produces": ["rice:cooked"]},
+        {"text": "Vyber hovädzie zadné bez kosti na dosku a prikry ho. Z hrnca vylov nové korenie. Premiešaj {flour.amount} {flour.name} v miske s trochou studenej vody na hladkú kašu, premiešaj ju so šťavou v hrnci a var omáčku na miernom ohni 5 minút, kým zhustne a začne bublať.", "requires": ["beef:tender", "allspice:cooked", "flour:raw", "onion:braised", "carrot:braised"], "produces": ["beef:rested", "allspice:removed", "flour:cooked", "onion:sauce", "carrot:sauce"]},
+        {"text": "Pridaj sterilizované uhorky do hrnca. Dolej trochu nálevu z uhoriek. Omáčku zohrievaj v hrnci na miernom ohni 2 minúty, kým opäť začne bublať, a dochuť ju soľou a čiernym korením, aby bola jemne kyslá.", "requires": ["pickles:cut", "onion:sauce"], "produces": ["pickles:cooked", "onion:finished"]},
+        {"text": "Nakrájaj hovädzie zadné bez kosti naprieč vláknami na plátky hrubé asi 1 cm. Vráť plátky do omáčky a zohrievaj ich v hrnci na miernom ohni 3 minúty, kým omáčka jemne bublá.", "requires": ["beef:rested", "onion:finished"], "produces": ["beef:cooked"]},
+        {"text": "Podávaj znojemskú pečienku s omáčkou a ryžou a rozdeľ jedlo na {portions} porcií.", "requires": ["beef:cooked", "mustard:used", "bacon:cooked", "oil:used", "onion:finished", "carrot:sauce", "allspice:removed", "flour:cooked", "pickles:cooked", "rice:cooked"], "produces": ["beef:served", "mustard:served", "bacon:served", "oil:served", "onion:served", "carrot:served", "allspice:served", "flour:served", "pickles:served", "rice:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Pečienku s omáčkou a ryžu rozdeľ do plytkých nádob, do jednej hodiny ich schlaď a odlož do chladničky. Zjedz ich do 2 dní a ryžu ohrievaj iba raz, kým bude celá horúca."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_znojmo_beef_rice",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/26456/znojemska-pecienka/", "title": "Znojemská pečienka | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/hovadzie-na-znojemsky-sposob-fotorecept/55730-recept.html", "title": "Hovädzie na znojemský spôsob (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

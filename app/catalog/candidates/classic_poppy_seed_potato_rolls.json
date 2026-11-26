@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "classic_poppy_seed_potato_rolls",
+      "version": 2,
+      "active": true,
+      "name_template": "Zemiakové šúľance s makom",
+      "family": "classic_poppy_seed_potato_rolls",
+      "method": "pot",
+      "minutes": 80,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["hrniec", "veľký hrniec", "misa", "miska", "pučidlo na zemiaky", "panvica", "dierovaná naberačka", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "230", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "v šupke"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "85", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.5", "unit": "piece", "child_factor": "0.75", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "poppy", "role": "seasoning", "candidates": ["poppy_seed"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Vlož {potato.amount} {potato.name} {potato.cut} do hrnca. Dolej studenú vodu tak, aby boli ponorené. Var zemiaky v hrnci na miernom ohni 25 minút, kým zmäknú.", "requires": ["potato:raw"], "produces": ["potato:cooked"]},
+        {"text": "Sceď zemiaky, ošúp ich ešte teplé a nechaj ich úplne vychladnúť, aspoň 30 minút.", "requires": ["potato:cooked"], "produces": ["potato:cold"]},
+        {"text": "Rozdrv vychladnuté zemiaky pučidlom do misy dohladka, bez hrudiek.", "requires": ["potato:cold"], "produces": ["potato:mashed"]},
+        {"text": "Pridaj {flour.amount} {flour.name}, {egg.amount} {egg.name} a štipku soli do misy. Rýchlo vypracuj hladké cesto, ktoré sa nelepí. Dlho ho nemies, inak zmäkne a bude sa lepiť.", "requires": ["flour:raw", "egg:raw", "potato:mashed"], "produces": ["flour:dough", "egg:dough", "potato:dough"]},
+        {"text": "Priprav šúľance: z cesta na pomúčenej doske vyvaľkaj valčeky hrubé ako prst, nakrájaj ich na kúsky dlhé asi 5 cm a dlaňami ich vyšúľaj do špičky.", "requires": ["flour:dough", "egg:dough", "potato:dough"], "produces": ["flour:shaped", "egg:shaped", "potato:shaped"]},
+        {"text": "Priveď vo veľkom hrnci osolenú vodu do varu na silnom ohni asi 10 minút, kým začne bublať. Vkladaj šúľance po dávkach a var ich vo veľkom hrnci na miernom ohni 4 minúty od vyplávania, kým budú mäkké.", "requires": ["flour:shaped", "egg:shaped", "potato:shaped"], "produces": ["flour:cooked", "egg:cooked", "potato:boiled"]},
+        {"text": "Premiešaj v miske {poppy.amount} {poppy.name} a {sugar.amount} {sugar.name}.", "requires": ["poppy:raw", "sugar:raw"], "produces": ["poppy:mixed", "sugar:mixed"]},
+        {"text": "Rozohrej {butter.amount} {butter.name} v panvici na miernom ohni 1 minútu, kým sa roztopí a začne sa lesknúť. Vyber šúľance dierovanou naberačkou priamo do panvice a premiešaj ich s maslom.", "requires": ["butter:raw", "flour:cooked", "egg:cooked", "potato:boiled"], "produces": ["butter:used", "flour:buttered", "egg:buttered", "potato:buttered"]},
+        {"text": "Rozdeľ šúľance na {portions} porcií a navrch hojne rozsyp mak s cukrom. Podávaj ich teplé.", "requires": ["flour:buttered", "egg:buttered", "potato:buttered", "butter:used", "poppy:mixed", "sugar:mixed"], "produces": ["flour:served", "egg:served", "potato:served", "butter:served", "poppy:served", "sugar:served"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Šúľance sú najlepšie čerstvé. Zvyšok ulož do uzavretej nádoby, najneskôr do 2 hodín ho odlož do chladničky a zjedz do 24 hodín. Prehrej ich na panvici s kúskom masla a mak s cukrom pridaj až na tanier."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_poppy_seed_potato_rolls",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/31015/zemiakove-sulance-s-makom/", "title": "Zemiakové šúľance s makom | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/bezlepkove-makove-sulance-videorecept/89370-recept.html", "title": "Bezlepkové makové šúľance (videorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/14586/zemiakove-sulance-s-makom/", "title": "Zemiakové šúľance s makom | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

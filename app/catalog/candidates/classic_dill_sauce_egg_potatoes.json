@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "classic_dill_sauce_egg_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Koprová omáčka s vajcom a zemiakmi",
+      "family": "classic_dill_sauce_egg_potatoes",
+      "method": "pot",
+      "minutes": 45,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["veľký hrniec", "hrniec", "malý hrniec", "metlička", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "300", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na rovnaké kúsky"},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "2", "unit": "piece", "child_factor": "0.75", "required": true, "use": "main", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "milk", "role": "dairy", "candidates": ["milk"], "amount_per_adult": "220", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "50", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "dill", "role": "seasoning", "candidates": ["dill"], "amount_per_adult": "6", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "vinegar", "role": "seasoning", "candidates": ["apple_cider_vinegar"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}.", "requires": ["potato:raw"], "produces": ["potato:cut"]},
+        {"text": "Vlož zemiaky do veľkého hrnca. Dolej studenú vodu tak, aby boli ponorené, a vodu osoľ. Var zemiaky v hrnci na miernom ohni 20 minút, kým zmäknú.", "requires": ["potato:cut"], "produces": ["potato:cooked"]},
+        {"text": "Vlož {egg.amount} {egg.name} do malého hrnca. Dolej studenú vodu tak, aby siahala asi 2 cm nad vajcia.", "requires": ["egg:raw"], "produces": ["egg:pot"]},
+        {"text": "Priveď vodu v malom hrnci na strednom ohni do varu a od začiatku varu var vajcia 9 minút, kým bielok aj žĺtok stuhnú. Potom ich schlaď v studenej vode a ošúp.", "requires": ["egg:pot"], "produces": ["egg:cooked"]},
+        {"text": "Nakrájaj {dill.amount} {dill.name} {dill.cut}. Mrazený kôpor nerozmrazuj, použiješ ho rovno z mrazničky.", "requires": ["dill:raw"], "produces": ["dill:cut"]},
+        {"text": "Rozohrej {butter.amount} {butter.name} v hrnci na miernom ohni 1 minútu, kým sa roztopí a začne sa lesknúť. Prisyp {flour.amount} {flour.name}. Za stáleho miešania opekaj zápražku v hrnci na miernom ohni 2 minúty, kým bude hladká a svetlá.", "requires": ["butter:raw", "flour:raw"], "produces": ["butter:roux", "flour:roux"]},
+        {"text": "Prilej {milk.amount} {milk.name}. Mlieko prilievaj po troškách a stále miešaj metličkou, aby nevznikli hrudky. Omáčku var v hrnci na miernom ohni 10 minút za častého miešania, kým zhustne a začne bublať.", "requires": ["milk:raw", "butter:roux", "flour:roux"], "produces": ["milk:sauce", "butter:sauce", "flour:sauce"]},
+        {"text": "Vmiešaj {cream.amount} {cream.name}, {sugar.amount} {sugar.name} a kôpor. Omáčku zohrievaj v hrnci na miernom ohni ešte 2 minúty, kým začne jemne bublať. Odstav hrniec z ohňa a vmiešaj {vinegar.amount} {vinegar.name}. Dochuť omáčku soľou.", "requires": ["cream:raw", "sugar:raw", "dill:cut", "vinegar:raw", "milk:sauce"], "produces": ["cream:cooked", "sugar:cooked", "dill:cooked", "vinegar:cooked", "milk:cooked"]},
+        {"text": "Sceď zemiaky a nechaj ich chvíľu odkvapkať.", "requires": ["potato:cooked"], "produces": ["potato:drained"]},
+        {"text": "Rozdeľ zemiaky a koprovú omáčku na {portions} porcií. Na každý tanier polož rozpolené vajcia natvrdo a podávaj.", "requires": ["potato:drained", "egg:cooked", "butter:sauce", "flour:sauce", "milk:cooked", "cream:cooked", "dill:cooked", "sugar:cooked", "vinegar:cooked"], "produces": ["potato:served", "egg:served", "butter:served", "flour:served", "milk:served", "cream:served", "dill:served", "sugar:served", "vinegar:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Koprovú omáčku a zemiaky rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní. Omáčku zohrievaj pomaly s lyžicou mlieka a vajcia uvar vždy čerstvé."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_dill_sauce_egg_potatoes",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/26589/klasicka-koprova-omacka/", "title": "Klasická kôprová omáčka | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/koprova-omacka-fotorecept/32125-recept.html", "title": "Kôprová omáčka (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

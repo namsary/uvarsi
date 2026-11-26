@@ -1,0 +1,55 @@
+{
+  "recipes": [
+    {
+      "id": "classic_spanish_bird_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Španielsky vtáčik s ryžou",
+      "family": "classic_spanish_bird_rice",
+      "method": "pot",
+      "minutes": 115,
+      "modes": ["standard"],
+      "equipment": ["široký hrniec", "hrniec", "malý hrniec", "sitko", "nôž", "doska na krájanie", "palička na mäso", "potravinová fólia", "špáradlá"],
+      "slots": [
+        {"key": "beef", "role": "protein", "candidates": ["beef_round"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenké plátky", "water_ml_per_adult": "200"},
+        {"key": "mustard", "role": "seasoning", "candidates": ["mustard"], "amount_per_adult": "6", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bacon", "role": "protein", "candidates": ["bacon"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na pásiky"},
+        {"key": "sausage", "role": "protein", "candidates": ["smoked_sausage"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na pásiky"},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.5", "unit": "piece", "child_factor": "0.75", "required": true, "use": "addition", "cut": null},
+        {"key": "pickles", "role": "vegetable", "candidates": ["pickled_cucumber"], "amount_per_adult": "0.5", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na pásiky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Vlož {egg.amount} {egg.name} do malého hrnca. Dolej studenú vodu tak, aby siahala asi 2 cm nad vajcia.", "requires": ["egg:raw"], "produces": ["egg:pot"]},
+        {"text": "Priveď vodu v malom hrnci na strednom ohni do varu a od začiatku varu var vajcia 10 minút, kým bielok aj žĺtok stuhnú. Potom ich schlaď v studenej vode, ošúp a nakrájaj na štvrtiny.", "requires": ["egg:pot"], "produces": ["egg:cooked"]},
+        {"text": "Nakrájaj {beef.amount} {beef.name} {beef.cut}, {bacon.amount} {bacon.name} {bacon.cut}, {sausage.amount} {sausage.name} {sausage.cut}, {pickles.amount} {pickles.name} {pickles.cut} a {onion.amount} {onion.name} {onion.cut}.", "requires": ["beef:raw", "bacon:raw", "sausage:raw", "pickles:raw", "onion:raw"], "produces": ["beef:cut", "bacon:cut", "sausage:cut", "pickles:cut", "onion:cut"]},
+        {"text": "Prikry plátky hovädzieho zadného bez kosti potravinovou fóliou, paličkou ich naklep na hrúbku asi pol centimetra a z oboch strán ich osoľ a okoreň.", "requires": ["beef:cut"], "produces": ["beef:pounded"]},
+        {"text": "Rozlož plátky hovädzieho zadného bez kosti na dosku a na každý tenko natri {mustard.amount} {mustard.name}.", "requires": ["beef:pounded", "mustard:raw"], "produces": ["beef:spread", "mustard:used"]},
+        {"text": "Priprav vtáčiky: na užší koniec každého plátku polož pásik slaniny, klobásy, uhorky a štvrtinu vajca. Plátok pevne zroluj, boky zahni dovnútra a závitok spevni špáradlom.", "requires": ["beef:spread", "bacon:cut", "sausage:cut", "pickles:cut", "egg:cooked"], "produces": ["beef:rolled", "bacon:rolled", "sausage:rolled", "pickles:rolled", "egg:rolled"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v širokom hrnci na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj závitky z hovädzieho zadného bez kosti v hrnci zo všetkých strán 8 minút, kým budú zlatisté. Pri väčšej dávke ich opekaj po častiach. Závitky vyber na tanier.", "requires": ["oil:raw", "beef:rolled"], "produces": ["oil:used", "beef:browned"]},
+        {"text": "Opekaj cibuľu vo výpeku v hrnci na strednom ohni 5 minút, kým bude zlatistá. Pridaj {paste.amount} {paste.name} a premiešaj.", "requires": ["onion:cut", "paste:raw", "oil:used"], "produces": ["onion:cooked", "paste:cooked"]},
+        {"text": "Vráť závitky do hrnca a prilej {beef.water} vody. Prikry hrniec a dus závitky z hovädzieho zadného bez kosti v hrnci na miernom ohni 75 minút, kým budú mäkké. Podľa potreby dolej trochu vody, aby šťava nevyvrela.", "requires": ["beef:browned", "bacon:rolled", "sausage:rolled", "pickles:rolled", "egg:rolled", "onion:cooked", "paste:cooked"], "produces": ["beef:tender", "bacon:cooked", "sausage:cooked", "pickles:cooked", "egg:braised", "onion:braised", "paste:braised"]},
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne. Potom ju nechaj 5 minút prikrytú postáť.", "requires": ["rice:rinsed"], "produces": ["rice:cooked"]},
+        {"text": "Vyber závitky z hrnca a odstráň z nich špáradlá. Premiešaj {flour.amount} {flour.name} v miske s trochou studenej vody na hladkú kašu, premiešaj ju so šťavou v hrnci a var omáčku na miernom ohni 5 minút, kým zhustne a začne bublať. Dochuť ju soľou a čiernym korením a závitky do nej vráť.", "requires": ["beef:tender", "flour:raw", "onion:braised", "paste:braised"], "produces": ["beef:cooked", "flour:cooked", "onion:sauce", "paste:sauce"]},
+        {"text": "Podávaj španielske vtáčiky s ryžou a omáčkou a rozdeľ jedlo na {portions} porcií.", "requires": ["beef:cooked", "mustard:used", "bacon:cooked", "sausage:cooked", "egg:braised", "pickles:cooked", "onion:sauce", "oil:used", "paste:sauce", "flour:cooked", "rice:cooked"], "produces": ["beef:served", "mustard:served", "bacon:served", "sausage:served", "egg:served", "pickles:served", "onion:served", "oil:served", "paste:served", "flour:served", "rice:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Vtáčiky s omáčkou a ryžu rozdeľ do plytkých nádob, do jednej hodiny ich schlaď a odlož do chladničky. Zjedz ich do 2 dní a ryžu ohrievaj iba raz, kým bude celá horúca."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_spanish_bird_rice",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/20099/spanielsky-vtacik/", "title": "Španielsky vtáčik | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/jednoduche-spanielske-vtaciky/26026-recept.html", "title": "Jednoduché španielské vtáčiky - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/30401/fotorecept-spanielsky-vtacik/", "title": "FOTORECEPT: Španielsky vtáčik | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

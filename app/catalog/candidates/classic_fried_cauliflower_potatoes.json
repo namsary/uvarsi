@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "classic_fried_cauliflower_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Vyprážaný karfiol so zemiakmi",
+      "family": "classic_fried_cauliflower_potatoes",
+      "method": "pan",
+      "minutes": 55,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["veľký hrniec", "hrniec", "sitko", "tri taniere", "veľká panvica", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "cauli", "role": "vegetable", "candidates": ["cauliflower"], "amount_per_adult": "450", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na ružičky"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.75", "unit": "piece", "child_factor": "0.75", "required": true, "use": "addition", "cut": null},
+        {"key": "crumbs", "role": "starch", "candidates": ["breadcrumbs"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "25", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na rovnaké kúsky"},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "tartar", "role": "fat", "candidates": ["tartar_sauce"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {cauli.amount} {cauli.name} {cauli.cut} a ružičky prepláchni studenou vodou.", "requires": ["cauli:raw"], "produces": ["cauli:cut"]},
+        {"text": "Priveď vo veľkom hrnci osolenú vodu do varu na silnom ohni asi 8 minút, kým začne bublať. Vlož karfiol do veľkého hrnca a var ho na strednom ohni 5 minút, kým bude na povrchu mäkký, ale v strede ešte pevný.", "requires": ["cauli:cut"], "produces": ["cauli:blanched"]},
+        {"text": "Sceď karfiol cez sitko a nechaj ho 10 minút vychladnúť a oschnúť, aby na ňom držal obal.", "requires": ["cauli:blanched"], "produces": ["cauli:dry"]},
+        {"text": "Ošúp {potato.amount} {potato.name}, nakrájaj ich {potato.cut} a {parsley.amount} {parsley.name} nasekaj {parsley.cut}.", "requires": ["potato:raw", "parsley:raw"], "produces": ["potato:cut", "parsley:cut"]},
+        {"text": "Vlož zemiaky do hrnca. Dolej studenú vodu tak, aby boli ponorené, a vodu osoľ. Var zemiaky v hrnci na miernom ohni 20 minút, kým zmäknú.", "requires": ["potato:cut"], "produces": ["potato:cooked"]},
+        {"text": "Priprav si tri taniere. Do prvého vsyp {flour.amount} {flour.name}, v druhom rozšľahaj {egg.amount} {egg.name} so štipkou soli a do tretieho vsyp {crumbs.amount} {crumbs.name}. Ružičky karfiolu obaľ najprv v múke, potom vo vajci a nakoniec v strúhanke.", "requires": ["flour:raw", "egg:raw", "crumbs:raw", "cauli:dry"], "produces": ["flour:coating", "egg:coating", "crumbs:coating", "cauli:breaded"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 3 minúty, kým okolo kúska strúhanky hodeného do oleja začne hneď bublať. Olej má pokryť dno panvice aspoň do výšky pol centimetra, ak ho je menej, dolej ho z fľaše.", "requires": ["oil:raw"], "produces": ["oil:hot"]},
+        {"text": "Opekaj obalený karfiol vo veľkej panvici po dávkach na strednom ohni 4 minúty, kým bude zo všetkých strán zlatistý a chrumkavý. Ružičky počas vyprážania obracaj. Hotový karfiol vyber na papierovú utierku.", "requires": ["cauli:breaded", "flour:coating", "egg:coating", "crumbs:coating", "oil:hot"], "produces": ["cauli:fried", "flour:fried", "egg:fried", "crumbs:fried", "oil:used"]},
+        {"text": "Sceď zemiaky a vráť ich do hrnca. Pridaj {butter.amount} {butter.name} a petržlenovú vňať. Zemiaky premiešaj, kým sa maslo roztopí.", "requires": ["potato:cooked", "butter:raw", "parsley:cut"], "produces": ["potato:finished", "butter:finished", "parsley:finished"]},
+        {"text": "Rozdeľ vyprážaný karfiol, zemiaky a {tartar.amount} {tartar.name} na {portions} porcií. Podávaj karfiol hneď, kým je chrumkavý.", "requires": ["cauli:fried", "flour:fried", "egg:fried", "crumbs:fried", "oil:used", "potato:finished", "butter:finished", "parsley:finished", "tartar:raw"], "produces": ["cauli:served", "flour:served", "egg:served", "crumbs:served", "oil:served", "potato:served", "butter:served", "parsley:served", "tartar:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Vyprážaný karfiol a zemiaky ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní. Karfiol prehrej v rúre pri 180 °C asi 10 minút, aby zostal chrumkavý."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_fried_cauliflower_potatoes",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/25021/vyprazany-karfiol-so-zemiakmi/", "title": "Vyprážaný karfiol so zemiakmi | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/bleskovo-vyprazeny-karfiol-fotorecept/64470-recept.html", "title": "Bleskovo vypražený karfiol (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/16031/vyprazany-karfiol/", "title": "Vyprážaný karfiol | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "437b3d03c87d6e0c46f7c75dc38c502874aedbb6d78e1798583cb2fca1d9e6f7",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "classic_dill_sauce_egg_potatoes"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}
