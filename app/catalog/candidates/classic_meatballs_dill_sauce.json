@@ -1,0 +1,55 @@
+{
+  "recipes": [
+    {
+      "id": "classic_meatballs_dill_sauce",
+      "version": 2,
+      "active": true,
+      "name_template": "Fašírky v kôprovej omáčke so zemiakmi",
+      "family": "classic_meatballs_dill_sauce",
+      "method": "pan",
+      "minutes": 55,
+      "modes": ["standard"],
+      "equipment": ["veľký hrniec", "hrniec", "veľká panvica", "misa", "metlička", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "230", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "meat", "role": "protein", "candidates": ["pork_mince"], "amount_per_adult": "130", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.4", "unit": "piece", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "crumbs", "role": "starch", "candidates": ["breadcrumbs"], "amount_per_adult": "12", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "14", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "milk", "role": "dairy", "candidates": ["milk"], "amount_per_adult": "150", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null, "water_ml_per_adult": "60"},
+        {"key": "vinegar", "role": "seasoning", "candidates": ["apple_cider_vinegar"], "amount_per_adult": "4", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "dill", "role": "seasoning", "candidates": ["dill"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {potato.amount} {potato.name} a väčšie prekroj na polovice. Vlož zemiaky do veľkého hrnca. Dolej studenú vodu tak, aby boli ponorené, a vodu osoľ.", "requires": ["potato:raw"], "produces": ["potato:pot"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} {garlic.cut}. Nasekaj {dill.amount} {dill.name} {dill.cut}.", "requires": ["onion:raw", "garlic:raw", "dill:raw"], "produces": ["onion:cut", "garlic:cut", "dill:cut"]},
+        {"text": "Premiešaj v mise {meat.amount} {meat.name}, cibuľu, cesnak, {egg.amount} {egg.name}, {crumbs.amount} {crumbs.name} a {marjoram.amount} {marjoram.name}. Zmes osoľ a okoreň. Mokrými rukami z nej vytvaruj guľky veľké ako vlašský orech.", "requires": ["meat:raw", "onion:cut", "garlic:cut", "egg:raw", "crumbs:raw", "marjoram:raw"], "produces": ["meat:shaped", "onion:mixed", "garlic:mixed", "egg:mixed", "crumbs:mixed", "marjoram:mixed"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw"], "produces": ["oil:hot"]},
+        {"text": "Opekaj guľky z mletého bravčového mäsa vo veľkej panvici po dávkach na strednom ohni 6 minút a obracaj ich, kým budú zo všetkých strán zlatisté. Vnútri ešte nemusia byť prepečené, dovaria sa v omáčke. Opečené guľky vyber na tanier.", "requires": ["meat:shaped", "oil:hot"], "produces": ["meat:browned", "oil:used"]},
+        {"text": "Var zemiaky vo veľkom hrnci na miernom ohni 20 minút, kým zmäknú. Potom ich nechaj v horúcej vode pod pokrievkou.", "requires": ["potato:pot"], "produces": ["potato:cooked"]},
+        {"text": "Vlož {butter.amount} {butter.name} do hrnca. Vsyp {flour.amount} {flour.name} do hrnca. Zohrievaj zápražku z masla a múky v hrnci na miernom ohni 2 minúty za stáleho miešania, kým začne bublať a jemne zozlatne.", "requires": ["butter:raw", "flour:raw"], "produces": ["butter:roux", "flour:roux"]},
+        {"text": "Prilej {milk.amount} {milk.name} a {milk.water} vody do hrnca. Hneď všetko rozšľahaj metličkou dohladka. Var mlieko so zápražkou v hrnci na miernom ohni 5 minút za stáleho miešania, kým omáčka zhustne a začne bublať.", "requires": ["milk:raw", "butter:roux", "flour:roux"], "produces": ["milk:sauce", "butter:sauce", "flour:sauce"]},
+        {"text": "Vmiešaj {vinegar.amount} {vinegar.name} a {sugar.amount} {sugar.name}. Vráť opečené guľky do hrnca. Var guľky z mletého bravčového mäsa v omáčke v hrnci na miernom ohni 10 minút pod pokrievkou, kým budú vnútri prepečené a omáčka jemne bublá.", "requires": ["vinegar:raw", "sugar:raw", "meat:browned", "milk:sauce"], "produces": ["vinegar:cooked", "sugar:cooked", "meat:cooked"]},
+        {"text": "Vmiešaj kôpor do hrnca. Dochuť omáčku soľou, čiernym korením a podľa chuti ešte kvapkou octu, aby bola jemne sladkokyslá. Príliš hustú omáčku zrieď lyžicou horúcej vody zo zemiakov.", "requires": ["dill:cut", "meat:cooked", "milk:sauce"], "produces": ["dill:cooked"]},
+        {"text": "Sceď zemiaky a podávaj ich s fašírkami v kôprovej omáčke. Rozdeľ jedlo na {portions} porcií.", "requires": ["potato:cooked", "meat:cooked", "onion:mixed", "garlic:mixed", "egg:mixed", "crumbs:mixed", "marjoram:mixed", "oil:used", "butter:sauce", "flour:sauce", "milk:sauce", "vinegar:cooked", "sugar:cooked", "dill:cooked"], "produces": ["potato:served", "meat:served", "onion:served", "garlic:served", "egg:served", "crumbs:served", "marjoram:served", "oil:served", "butter:served", "flour:served", "milk:served", "vinegar:served", "sugar:served", "dill:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Fašírky v omáčke a zemiaky rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní. Omáčku pri ohrievaní zrieď lyžicou vody a priveď ju do varu."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_meatballs_dill_sauce",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/masove-gulky-s-koprovou-omackou-fotorecept/19261-recept.html", "title": "Mäsové guľky s kôprovou omáčkou (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/48528/masove-gule-v-koprovej-omacke/", "title": "Mäsové gule v kôprovej omáčke | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

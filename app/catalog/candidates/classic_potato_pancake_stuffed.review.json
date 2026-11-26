@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "0dc7f1784928b0ab47c77dfe7ba7f84bd068569ccb4eda8701c9144d6605976a",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "classic_potato_pancake_stuffed"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

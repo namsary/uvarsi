@@ -1,0 +1,42 @@
+{
+  "recipes": [
+    {
+      "id": "classic_noodles_cottage_bacon",
+      "version": 2,
+      "active": true,
+      "name_template": "Rezance s tvarohom a slaninou",
+      "family": "classic_noodles_cottage_bacon",
+      "method": "pot",
+      "minutes": 30,
+      "modes": ["standard"],
+      "equipment": ["veľký hrniec", "sitko", "panvica", "miska", "vidlička", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "bacon", "role": "protein", "candidates": ["bacon"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na drobné kocky"},
+        {"key": "noodles", "role": "starch", "candidates": ["egg_noodles"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "50"},
+        {"key": "quark", "role": "protein", "candidates": ["quark"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "sour_cream", "role": "dairy", "candidates": ["sour_cream"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "chives", "role": "seasoning", "candidates": ["chives"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {bacon.amount} {bacon.name} {bacon.cut}.", "requires": ["bacon:raw"], "produces": ["bacon:cut"]},
+        {"text": "Opekaj slaninu v suchej panvici na strednom ohni 7 minút, kým pustí tuk a bude chrumkavá. Odstav panvicu, slanina s tukom v nej ostane teplá.", "requires": ["bacon:cut"], "produces": ["bacon:cooked"]},
+        {"text": "Priveď vo veľkom hrnci vodu do varu na silnom ohni a mierne ju osoľ. Uvar {noodles.amount} {noodles.name} vo veľkom hrnci na strednom ohni 8 minút, kým budú mäkké. Odober z hrnca {noodles.water} vody a potom rezance sceď cez sitko.", "requires": ["noodles:raw"], "produces": ["noodles:cooked"]},
+        {"text": "Priprav {quark.amount} {quark.name} a vidličkou ho rozdrob na hrudky. Nakrájaj {chives.amount} {chives.name} {chives.cut}.", "requires": ["quark:raw", "chives:raw"], "produces": ["quark:crumbled", "chives:cut"]},
+        {"text": "Vráť rezance do hrnca a primiešaj k nim slaninu aj s tukom. Ak sú rezance suché, prilievaj po troškách odloženú vodu z rezancov, kým budú vláčne.", "requires": ["noodles:cooked", "bacon:cooked"], "produces": ["noodles:mixed", "bacon:mixed"]},
+        {"text": "Vmiešaj {sour_cream.amount} {sour_cream.name} do hrnca. Rezance ochutnaj a osoľ ich až potom, slanina je slaná.", "requires": ["sour_cream:raw"], "produces": ["sour_cream:mixed"]},
+        {"text": "Rozdeľ rezance na {portions} porcií, navrch rozsyp tvaroh a pažítku a podávaj ich teplé.", "requires": ["bacon:mixed", "noodles:mixed", "quark:crumbled", "sour_cream:mixed", "chives:cut"], "produces": ["bacon:served", "noodles:served", "quark:served", "sour_cream:served", "chives:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Rezance so slaninou ulož do uzavretej nádoby a tvaroh zvlášť. Najneskôr do 2 hodín ich odlož do chladničky a zjedz do 2 dní. Rezance prehrej na panvici s lyžicou vody a tvaroh pridaj až na tanier."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_noodles_cottage_bacon",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/domace-rezance-s-tvarohom-a-slaninkou/19056-recept.html", "title": "Domáce rezance s tvarohom a slaninkou - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/48525/rezance-s-tvarohom-a-slaninou/", "title": "Rezance s tvarohom a slaninou | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

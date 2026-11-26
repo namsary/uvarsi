@@ -1,0 +1,47 @@
+{
+  "recipes": [
+    {
+      "id": "classic_pork_mushroom_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Bravčové so šampiňónmi a ryžou",
+      "family": "classic_pork_mushroom_rice",
+      "method": "pan",
+      "minutes": 45,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "sitko", "veľká panvica s pokrievkou", "palička na mäso", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "150"},
+        {"key": "pork", "role": "protein", "candidates": ["pork_loin"], "amount_per_adult": "170", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky hrubé 1 cm", "water_ml_per_adult": "150"},
+        {"key": "mushrooms", "role": "vegetable", "candidates": ["mushrooms"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na plátky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou, kým voda nebude číra.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu v hrnci na miernom ohni 15 minút, kým vsiakne vodu a zmäkne. Potom ju nechaj 5 minút prikrytú postáť.", "requires": ["rice:rinsed"], "produces": ["rice:cooked"]},
+        {"text": "Nakrájaj {pork.amount} {pork.name} {pork.cut}, plátky jemne naklep a z oboch strán ich osoľ a okoreň. Nakrájaj {mushrooms.amount} {mushrooms.name} {mushrooms.cut}, {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} {garlic.cut}.", "requires": ["pork:raw", "mushrooms:raw", "onion:raw", "garlic:raw"], "produces": ["pork:seasoned", "mushrooms:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na silnom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw"], "produces": ["oil:hot"]},
+        {"text": "Opekaj bravčové karé bez kosti vo veľkej panvici po dávkach na silnom ohni 2 minúty z každej strany, kým bude zlatisté. Mäso vnútri ešte nemusí byť hotové, dovarí sa v omáčke. Vyber ho na tanier.", "requires": ["pork:seasoned", "oil:hot"], "produces": ["pork:browned", "oil:used"]},
+        {"text": "Opekaj cibuľu vo veľkej panvici na strednom ohni 4 minúty, kým zmäkne. Pridaj biele šampiňóny a cesnak do panvice. Opekaj šampiňóny s cibuľou na strednom ohni 6 minút, kým zmäknú a odparí sa z nich voda. Mrazené šampiňóny nerozmrazuj, daj ich do panvice rovno z mrazničky a opekaj ich o 4 minúty dlhšie.", "requires": ["onion:cut", "mushrooms:cut", "garlic:cut"], "produces": ["onion:cooked", "mushrooms:cooked", "garlic:cooked"]},
+        {"text": "Prisyp {flour.amount} {flour.name} do panvice a premiešaj. Prilej {pork.water} vody do panvice. Za stáleho miešania rozmiešaj múku dohladka. Vráť mäso aj so šťavou do panvice. Prikry panvicu pokrievkou. Dus bravčové karé bez kosti so šampiňónmi na miernom ohni 12 minút, kým bude mäso mäkké a omáčka zhustne a jemne bublá.", "requires": ["flour:raw", "pork:browned"], "produces": ["flour:cooked", "pork:cooked"]},
+        {"text": "Dochuť omáčku soľou a čiernym korením. Príliš hustú omáčku zrieď lyžicou vody. Nakrájaj {parsley.amount} {parsley.name} {parsley.cut}.", "requires": ["parsley:raw"], "produces": ["parsley:cut"]},
+        {"text": "Podávaj bravčové so šampiňónovou omáčkou a ryžou a navrch nasyp petržlenovú vňať. Rozdeľ jedlo na {portions} porcií.", "requires": ["rice:cooked", "pork:cooked", "mushrooms:cooked", "onion:cooked", "garlic:cooked", "oil:used", "flour:cooked", "parsley:cut"], "produces": ["rice:served", "pork:served", "mushrooms:served", "onion:served", "garlic:served", "oil:served", "flour:served", "parsley:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Mäso s omáčkou a ryžu ulož oddelene do plytkých nádob a najneskôr do 1 hodiny ich odlož do chladničky. Zjedz ich do 3 dní. Omáčku zohrej s lyžicou vody a ryžu dôkladne prehrej iba raz."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_pork_mushroom_rice",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/49358/bravcove-so-sampinonmi/", "title": "Bravčové so šampiňónmi | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/bravcove-na-prirodno-so-sampinonmi-fotorecept/14414-recept.html", "title": "Bravčové na prírodno so šampiňónmi (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

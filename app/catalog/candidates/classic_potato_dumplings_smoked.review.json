@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "dcec44007dd5b18de236d62cdde7d547cad64c74580b2b03ca98e2bb886cc3a3",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_potato_dumplings_smoked"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

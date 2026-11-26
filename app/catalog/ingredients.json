@@ -1922,6 +1922,74 @@
         "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 175204, Beans, white, mature seeds, canned; https://fdc.nal.usda.gov/download-datasets/; nutrition per drained edible portion, 60% package yield modeled for a typical 400 g can",
         "verified_on": "2026-11-26"
       }
+    },
+    {
+      "id": "pork_ribs",
+      "name": "bravčové rebierka",
+      "synonyms": ["bravčové rebrá", "bravčové rebierko", "rebierka bravčové", "bravčové rebierka s kosťou"],
+      "category": "mäso",
+      "roles": ["protein"],
+      "diet_tags": [],
+      "allergens": [],
+      "edible_ratio": "0.7",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "277", "protein_g": "15.47", "fat_g": "23.4", "carbs_g": "0",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 167853, Pork, fresh, spareribs, separable lean and fat, raw; https://fdc.nal.usda.gov/download-datasets/; 70% edible yield modeled for bone-in ribs (30% bone)",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "chicken_drumstick",
+      "name": "kuracie paličky",
+      "synonyms": ["kuracia palička", "kuracie spodné stehná", "kuracie spodné stehno", "paličky kuracie"],
+      "category": "mäso",
+      "roles": ["protein"],
+      "diet_tags": [],
+      "allergens": [],
+      "edible_ratio": "0.7",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "161", "protein_g": "18.08", "fat_g": "9.2", "carbs_g": "0.11",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 172373, Chicken, broilers or fryers, drumstick, meat and skin, raw; https://fdc.nal.usda.gov/download-datasets/; 70% edible yield modeled for bone-in drumsticks (30% bone and cartilage)",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "duck_leg",
+      "name": "kačacie stehná",
+      "synonyms": ["kačacie stehno", "kačacie stehná s kosťou", "stehná kačacie"],
+      "category": "mäso",
+      "roles": ["protein"],
+      "diet_tags": [],
+      "allergens": [],
+      "edible_ratio": "0.55",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "404", "protein_g": "11.49", "fat_g": "39.34", "carbs_g": "0",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 172408, Duck, domesticated, meat and skin, raw; https://fdc.nal.usda.gov/download-datasets/; 55% eaten share modeled for a roasted bone-in leg (bone and fat rendered into the roasting pan are not eaten)",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "quark",
+      "name": "tvaroh",
+      "synonyms": ["polotučný tvaroh", "tvaroh polotučný", "hrudkovitý tvaroh", "tvaroh hrudkovitý", "jemný tvaroh", "tvaroh jemný"],
+      "category": "mliečne výrobky",
+      "roles": ["protein", "dairy"],
+      "diet_tags": ["vegetarian"],
+      "allergens": ["milk"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "98", "protein_g": "11.12", "fat_g": "4.3", "carbs_g": "3.38",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 172179, Cheese, cottage, creamed, large or small curd; https://fdc.nal.usda.gov/download-datasets/; closest SR Legacy record for Slovak half-fat quark",
+        "verified_on": "2026-11-26"
+      }
     }
   ]
 }

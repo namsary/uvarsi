@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "91ec44a2a53508a365f0f13ee4bc827561c78d0575d5b40ee620c70bd5a5bbb1",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "classic_meatballs_dill_sauce"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

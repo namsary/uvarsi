@@ -111,6 +111,10 @@
     "smoked_pork": {"genitive": "údeného bravčového mäsa", "instrumental": "údeným bravčovým mäsom"},
     "savoy_cabbage": {"genitive": "kelu", "instrumental": "kelom"},
     "green_beans": {"genitive": "zelenej fazuľky", "instrumental": "zelenou fazuľkou"},
-    "white_beans_canned": {"genitive": "bielej fazule", "instrumental": "bielou fazuľou"}
+    "white_beans_canned": {"genitive": "bielej fazule", "instrumental": "bielou fazuľou"},
+    "pork_ribs": {"genitive": "bravčových rebierok", "instrumental": "bravčovými rebierkami"},
+    "chicken_drumstick": {"genitive": "kuracích paličiek", "instrumental": "kuracími paličkami"},
+    "duck_leg": {"genitive": "kačacích stehien", "instrumental": "kačacími stehnami"},
+    "quark": {"genitive": "tvarohu", "instrumental": "tvarohom"}
   }
 }

@@ -1,0 +1,47 @@
+{
+  "recipes": [
+    {
+      "id": "classic_egg_dumplings_cucumber",
+      "version": 2,
+      "active": true,
+      "name_template": "Halušky s vajcom a uhorkovým šalátom",
+      "family": "classic_egg_dumplings_cucumber",
+      "method": "pot",
+      "minutes": 35,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["miska", "misa", "vareška", "veľký hrniec", "haluškár", "cedidlo", "veľká panvica", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "cucumber", "role": "vegetable", "candidates": ["cucumber"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na tenké plátky"},
+        {"key": "vinegar", "role": "seasoning", "candidates": ["apple_cider_vinegar"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null, "water_ml_per_adult": "30"},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "110", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "70"},
+        {"key": "dough_egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "eggs", "role": "protein", "candidates": ["egg"], "amount_per_adult": "2", "unit": "piece", "child_factor": "0.5", "required": true, "use": "main", "cut": null},
+        {"key": "chives", "role": "seasoning", "candidates": ["chives"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {cucumber.amount} {cucumber.name} {cucumber.cut}, jemne ju osoľ a nechaj 10 minút postáť. Premiešaj v miske {vinegar.amount} {vinegar.name}, {vinegar.water} vody, {sugar.amount} {sugar.name} a štipku čierneho korenia. Uhorku zľahka vytlač, zlej z nej šťavu a prelej ju nálevom. Šalát nechaj v chladničke odležať.", "requires": ["cucumber:raw", "vinegar:raw", "sugar:raw"], "produces": ["cucumber:salad", "vinegar:salad", "sugar:salad"]},
+        {"text": "Premiešaj v mise {flour.amount} {flour.name}, {dough_egg.amount} {dough_egg.name}, štipku soli a {flour.water} vody. Varechou vymiešaj hladké, polotuhé cesto, ktoré pomaly steká z varechy.", "requires": ["flour:raw", "dough_egg:raw"], "produces": ["flour:dough", "dough_egg:dough"]},
+        {"text": "Priveď vo veľkom hrnci osolenú vodu do varu na silnom ohni. Cesto pretlač cez haluškár do vriacej vody. Halušky var vo veľkom hrnci na strednom ohni 3 minúty od vyplávania, kým budú mäkké. Halušky sceď cez cedidlo a nechaj ich odkvapkať.", "requires": ["flour:dough", "dough_egg:dough"], "produces": ["flour:cooked", "dough_egg:cooked"]},
+        {"text": "Rozšľahaj {eggs.amount} {eggs.name} v miske so štipkou soli. Nakrájaj {onion.amount} {onion.name} {onion.cut} a {chives.amount} {chives.name} {chives.cut}.", "requires": ["eggs:raw", "onion:raw", "chives:raw"], "produces": ["eggs:beaten", "onion:cut", "chives:cut"]},
+        {"text": "Rozohrej {butter.amount} {butter.name} vo veľkej panvici na strednom ohni 1 minútu, kým začne bublať. Opekaj cibuľu vo veľkej panvici na strednom ohni 3 minúty, kým bude dosklovita.", "requires": ["butter:raw", "onion:cut"], "produces": ["butter:used", "onion:cooked"]},
+        {"text": "Vlej vajcia do panvice. Opekaj vajcia s cibuľou vo veľkej panvici na miernom ohni 2 minúty a stále ich miešaj, kým zľahka stuhnú, ale ostanú krémové. Vráť halušky do panvice. Zohrievaj vajcia s haluškami vo veľkej panvici na miernom ohni 2 minúty a premiešaj ich, kým sa z nich začne pariť.", "requires": ["eggs:beaten", "flour:cooked"], "produces": ["eggs:cooked", "flour:mixed"]},
+        {"text": "Rozdeľ halušky s vajcom na {portions} porcií, navrch nasyp pažítku a podávaj ich hneď s uhorkovým šalátom.", "requires": ["cucumber:salad", "vinegar:salad", "sugar:salad", "flour:mixed", "dough_egg:cooked", "onion:cooked", "butter:used", "eggs:cooked", "chives:cut"], "produces": ["cucumber:served", "vinegar:served", "sugar:served", "flour:served", "dough_egg:served", "onion:served", "butter:served", "eggs:served", "chives:served"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Halušky s vajcom a uhorkový šalát ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do nasledujúceho dňa a halušky prehrej na panvici s lyžicou vody."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_egg_dumplings_cucumber",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/halusky-s-vajcom/83734-recept.html", "title": "Halušky s vajcom - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/13271/halusky-s-vajcom/", "title": "Halušky s vajcom | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/11582/uhorkovy-salat/", "title": "Uhorkový šalát | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

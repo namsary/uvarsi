@@ -1,0 +1,48 @@
+{
+  "recipes": [
+    {
+      "id": "classic_cevapcici_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Čevapčiči s cibuľou a zemiakmi",
+      "family": "classic_cevapcici_potatoes",
+      "method": "pan",
+      "minutes": 50,
+      "modes": ["standard"],
+      "equipment": ["misa", "hrniec", "veľká panvica", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "beef", "role": "protein", "candidates": ["beef_mince"], "amount_per_adult": "90", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "pork", "role": "protein", "candidates": ["pork_mince"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "mustard", "role": "seasoning", "candidates": ["mustard"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {onion.amount} {onion.name}. Tretinu cibule nasekaj najemno, zvyšok nakrájaj na tenké krúžky na podávanie.", "requires": ["onion:raw"], "produces": ["onion:cut"]},
+        {"text": "Premiešaj v mise {beef.amount} {beef.name}, {pork.amount} {pork.name}, nasekanú cibuľu, {garlic.amount} prelisovaný {garlic.name} a {paprika.amount} {paprika.name}. Zmes osoľ, okoreň a podlej ju 2 lyžicami studenej vody. Mäso dobre vypracuj, kým bude súdržné.", "requires": ["beef:raw", "pork:raw", "garlic:raw", "paprika:raw", "onion:cut"], "produces": ["beef:mixed", "pork:mixed", "garlic:mixed", "paprika:mixed", "onion:split"]},
+        {"text": "Rozdeľ mäso a mokrými rukami z neho vytvaruj valčeky dlhé asi 8 cm a hrubé ako prst. Nechaj ich 15 minút odpočinúť v chladničke, aby sa pri opekaní nerozpadli.", "requires": ["beef:mixed", "pork:mixed"], "produces": ["beef:shaped", "pork:shaped"]},
+        {"text": "Ošúp {potato.amount} {potato.name}, väčšie prekroj na polovice a vlož zemiaky do hrnca. Dolej studenú vodu tak, aby boli ponorené, a vodu osoľ. Var zemiaky v hrnci na miernom ohni 20 minút, kým zmäknú.", "requires": ["potato:raw"], "produces": ["potato:cooked"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw"], "produces": ["oil:hot"]},
+        {"text": "Opekaj čevapčiči z mletého hovädzieho mäsa vo veľkej panvici po dávkach na strednom ohni 10 minút a obracaj ich, kým budú zo všetkých strán zlatisté a vnútri prepečené. Hotové vyber na tanier s papierovou utierkou.", "requires": ["beef:shaped", "pork:shaped", "oil:hot"], "produces": ["beef:cooked", "pork:cooked", "oil:used"]},
+        {"text": "Nakrájaj {parsley.amount} {parsley.name} {parsley.cut}. Sceď zemiaky a vráť ich do hrnca. Pridaj {butter.amount} {butter.name} a petržlenovú vňať do hrnca. Zemiaky jemne premiešaj, kým sa maslo roztopí.", "requires": ["potato:cooked", "butter:raw", "parsley:raw"], "produces": ["potato:buttered", "butter:melted", "parsley:mixed"]},
+        {"text": "Podávaj čevapčiči so zemiakmi a krúžkami surovej cibule. Na okraj taniera daj {mustard.amount} {mustard.name} a rozdeľ jedlo na {portions} porcií.", "requires": ["beef:cooked", "pork:cooked", "onion:split", "garlic:mixed", "paprika:mixed", "oil:used", "potato:buttered", "butter:melted", "parsley:mixed", "mustard:raw"], "produces": ["beef:served", "pork:served", "onion:served", "garlic:served", "paprika:served", "oil:served", "potato:served", "butter:served", "parsley:served", "mustard:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Čevapčiči a zemiaky ulož do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní. Cibuľu nakrájaj čerstvú až pri podávaní."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_cevapcici_potatoes",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/cevapcici-so-zemiakmi-a-rukolovym-salatom/63979-recept.html", "title": "Čevapčiči so zemiakmi a rukolovým šalátom - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/12210/cevapcici/", "title": "Čevapčiči | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

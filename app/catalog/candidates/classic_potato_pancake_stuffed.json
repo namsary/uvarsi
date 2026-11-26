@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "classic_potato_pancake_stuffed",
+      "version": 2,
+      "active": true,
+      "name_template": "Plnená zemiaková placka s mäsovou zmesou",
+      "family": "classic_potato_pancake_stuffed",
+      "method": "pan",
+      "minutes": 60,
+      "modes": ["standard"],
+      "equipment": ["panvica", "veľká panvica", "misa", "jemné strúhadlo", "naberačka", "obracačka", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "pork", "role": "protein", "candidates": ["pork_loin"], "amount_per_adult": "110", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenké rezance", "water_ml_per_adult": "60"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na polmesiačiky"},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na rezance"},
+        {"key": "mushrooms", "role": "vegetable", "candidates": ["mushrooms"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na plátky"},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "230", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "najemno"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "35", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.4", "unit": "piece", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "20", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil2", "role": "fat", "candidates": ["oil"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "sour_cream", "role": "dairy", "candidates": ["sour_cream"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {pork.amount} {pork.name} {pork.cut}, osoľ a okoreň. Nakrájaj {onion.amount} {onion.name} {onion.cut}, {pepper.amount} {pepper.name} {pepper.cut} a {mushrooms.amount} {mushrooms.name} {mushrooms.cut}.", "requires": ["pork:raw", "onion:raw", "pepper:raw", "mushrooms:raw"], "produces": ["pork:seasoned", "onion:cut", "pepper:cut", "mushrooms:cut"]},
+        {"text": "Rozohrej {oil2.amount} {oil2.name} v panvici na silnom ohni 1 minútu, kým sa zaleskne. Opekaj bravčové karé bez kosti v panvici po dávkach na silnom ohni 3 minúty, kým bude zlatisté. Mäso vyber na tanier.", "requires": ["pork:seasoned", "oil2:raw"], "produces": ["pork:browned", "oil2:used"]},
+        {"text": "Opekaj cibuľu s paprikou a šampiňónmi v panvici na strednom ohni 6 minút, kým zmäknú a odparí sa z nich voda. Vmiešaj {paste.amount} {paste.name} a prilej {pork.water} vody. Vráť mäso do panvice. Dus bravčové karé bez kosti so zeleninou na miernom ohni 5 minút, kým mäso zmäkne a omáčka zhustne. Zmes dochuť soľou a čiernym korením a odlož ju v teple.", "requires": ["onion:cut", "pepper:cut", "mushrooms:cut", "paste:raw", "pork:browned"], "produces": ["onion:cooked", "pepper:cooked", "mushrooms:cooked", "paste:cooked", "pork:cooked"]},
+        {"text": "Ošúp {potato.amount} {potato.name} a nastrúhaj ich {potato.cut} do misy. Zlej šťavu, ktorá sa z nich uvoľní. Pridaj {flour.amount} {flour.name}, {egg.amount} {egg.name}, {garlic.amount} prelisovaný {garlic.name}, {marjoram.amount} {marjoram.name} a štipku soli. Vymiešaj husté cesto.", "requires": ["potato:raw", "flour:raw", "egg:raw", "garlic:raw", "marjoram:raw"], "produces": ["potato:dough", "flour:dough", "egg:dough", "garlic:dough", "marjoram:dough"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 2 minúty, kým sa začne lesknúť. Olej má pokryť dno panvice v tenkej vrstve, podľa potreby ho dolievaj z fľaše.", "requires": ["oil:raw"], "produces": ["oil:hot"]},
+        {"text": "Rozlož naberačku cesta zo zemiakov do panvice a roztlač ho na placku veľkú ako tanier, hrubú asi 5 mm. Opekaj placky zo zemiakov po jednej vo veľkej panvici na strednom ohni 4 minúty z každej strany, kým budú zlatisté a chrumkavé. Hotové placky polož na papierovú utierku.", "requires": ["potato:dough", "flour:dough", "egg:dough", "garlic:dough", "marjoram:dough", "oil:hot"], "produces": ["potato:fried", "flour:fried", "egg:fried", "garlic:fried", "marjoram:fried", "oil:used"]},
+        {"text": "Podávaj placky hneď: na polovicu každej daj horúcu mäsovú zmes a druhou polovicou ju prikry. Navrch daj {sour_cream.amount} {sour_cream.name} a rozdeľ jedlo na {portions} porcií.", "requires": ["pork:cooked", "onion:cooked", "pepper:cooked", "mushrooms:cooked", "paste:cooked", "potato:fried", "flour:fried", "egg:fried", "garlic:fried", "marjoram:fried", "oil:used", "oil2:used", "sour_cream:raw"], "produces": ["pork:served", "onion:served", "pepper:served", "mushrooms:served", "paste:served", "potato:served", "flour:served", "egg:served", "garlic:served", "marjoram:served", "oil:served", "oil2:served", "sour_cream:served"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Mäsovú zmes a placky ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do nasledujúceho dňa. Placky prehrej nasucho na panvici, aby znova schrumkaveli."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_potato_pancake_stuffed",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/plnena-zemiakova-placka-fotorecept/50778-recept.html", "title": "Plnená zemiaková placka (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/32885/fotorecept-plnena-zemiakova-placka/", "title": "FOTORECEPT: Plnená zemiaková placka | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

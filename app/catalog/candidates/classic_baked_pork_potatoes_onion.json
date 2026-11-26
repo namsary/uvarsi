@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "classic_baked_pork_potatoes_onion",
+      "version": 2,
+      "active": true,
+      "name_template": "Bravčové pliecko pečené na zemiakoch",
+      "family": "classic_baked_pork_potatoes_onion",
+      "method": "oven",
+      "minutes": 105,
+      "modes": ["standard"],
+      "equipment": ["pekáč", "alobal", "veľká panvica", "palička na mäso", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "pork", "role": "protein", "candidates": ["pork_shoulder"], "amount_per_adult": "170", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky hrubé 1,5 cm"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "6", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "300", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky hrubé 5 mm", "water_ml_per_adult": "100"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na mesiačiky"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "6", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na plátky"},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 180 °C.", "requires": [], "produces": []},
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}. Nakrájaj {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} {garlic.cut}.", "requires": ["potato:raw", "onion:raw", "garlic:raw"], "produces": ["potato:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Nakrájaj {pork.amount} {pork.name} {pork.cut}. Plátky jemne naklep. Premiešaj v miske {marjoram.amount} {marjoram.name}, soľ a čierne korenie a plátky z oboch strán natri touto zmesou. Vsyp {flour.amount} {flour.name} do misky. Plátky v nej obaľ a prebytočnú múku otras.", "requires": ["pork:raw", "marjoram:raw", "flour:raw"], "produces": ["pork:floured", "marjoram:used", "flour:used"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na silnom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw"], "produces": ["oil:hot"]},
+        {"text": "Opekaj bravčové pliecko bez kosti vo veľkej panvici po dávkach na silnom ohni 2 minúty z každej strany, kým bude zlatisté. Opečené plátky odlož na tanier a výpek nechaj v panvici.", "requires": ["pork:floured", "oil:hot"], "produces": ["pork:browned", "oil:used"]},
+        {"text": "Rozlož zemiaky s cibuľou v pekáči. Prisyp {caraway.amount} {caraway.name} do pekáča. Zemiaky osoľ a premiešaj. Prilej {potato.water} vody do pekáča. Na zemiaky polož opečené plátky mäsa, polej ich výpekom z panvice a medzi plátky rozlož cesnak. Pekáč prikry alobalom. Peč bravčové pliecko na zemiakoch v pekáči v rúre pri 180 °C 50 minút, kým zemiaky zmäknú a mäso bude mäkké.", "requires": ["potato:cut", "onion:cut", "caraway:raw", "pork:browned", "garlic:cut"], "produces": ["potato:braised", "onion:pan", "caraway:pan", "pork:braised", "garlic:pan"]},
+        {"text": "Odokry pekáč. Peč bravčové pliecko so zemiakmi v rúre pri 200 °C ešte 20 minút, kým mäso aj zemiaky navrchu zozlatnú a budú chrumkavé na okrajoch.", "requires": ["pork:braised", "potato:braised", "onion:pan", "garlic:pan", "caraway:pan"], "produces": ["pork:roasted", "potato:roasted", "onion:roasted", "garlic:roasted", "caraway:roasted"]},
+        {"text": "Podávaj bravčové pliecko so zemiakmi a cibuľou zo šťavy z pekáča. Rozdeľ jedlo na {portions} porcií.", "requires": ["pork:roasted", "flour:used", "oil:used", "potato:roasted", "onion:roasted", "garlic:roasted", "caraway:roasted", "marjoram:used"], "produces": ["pork:served", "flour:served", "oil:served", "potato:served", "onion:served", "garlic:served", "caraway:served", "marjoram:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Mäso so zemiakmi rozdeľ do plytkých nádob, prelej ich šťavou z pekáča a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a prehrej ich prikryté v rúre pri 180 °C asi 15 minút."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_baked_pork_potatoes_onion",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/bravcove-pliecko-so-zemiakmi-z-jedneho-pekaca-fotorecept/89812-recept.html", "title": "Bravčové pliecko so zemiakmi z jedného pekáča (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/36323/pecene-bravcove-pliecko/", "title": "Pečené bravčové pliecko | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

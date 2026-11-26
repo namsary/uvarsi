@@ -472,6 +472,96 @@ INGREDIENT_FORBIDDEN_OFFER_QUALIFIERS = MappingProxyType(
                 ("varena",),
             )
         ),
+        # Wave 2, batch 5: Slovak classics.
+        # Raw chicken liver only, not a mixed offal tray or a pâté.
+        "chicken_liver": frozenset(
+            (
+                ("srdiečka",),
+                ("srdiecka",),
+                ("žalúdky",),
+                ("zaludky",),
+                ("paštéta",),
+                ("pasteta",),
+            )
+        ),
+        # Smoked pork meat for cooking, not poultry or ready sliced ham.
+        "smoked_pork": frozenset(
+            (
+                ("kuracie",),
+                ("morčacie",),
+                ("morcacie",),
+                ("s", "kosťou"),
+                ("s", "kostou"),
+                ("koleno",),
+                ("rebierka",),
+            )
+        ),
+        # Raw fresh ribs; smoked, marinated or ready-roasted ribs are
+        # different products.
+        "pork_ribs": frozenset(
+            (
+                ("údené",),
+                ("udene",),
+                ("marinované",),
+                ("marinovane",),
+                ("pečené",),
+                ("pecene",),
+                ("grilované",),
+                ("grilovane",),
+                ("v",),
+                ("s",),
+                ("so",),
+            )
+        ),
+        # Raw drumsticks; breaded, marinated or cooked products differ.
+        "chicken_drumstick": frozenset(
+            (
+                ("obaľované",),
+                ("obalovane",),
+                ("marinované",),
+                ("marinovane",),
+                ("pečené",),
+                ("pecene",),
+                ("grilované",),
+                ("grilovane",),
+                ("údené",),
+                ("udene",),
+                ("v",),
+                ("s",),
+                ("so",),
+            )
+        ),
+        # Raw duck legs for roasting; confit or ready-roasted legs are
+        # already cooked.
+        "duck_leg": frozenset(
+            (
+                ("konfitované",),
+                ("konfitovane",),
+                ("pečené",),
+                ("pecene",),
+                ("údené",),
+                ("udene",),
+                ("v",),
+                ("s",),
+                ("so",),
+            )
+        ),
+        # Plain quark only, not a sweet dessert, spread or flavoured cream.
+        "quark": frozenset(
+            (
+                ("dezert",),
+                ("krém",),
+                ("krem",),
+                ("nátierka",),
+                ("natierka",),
+                ("ochutený",),
+                ("ochuteny",),
+                ("vanilkový",),
+                ("vanilkovy",),
+                ("s",),
+                ("so",),
+            )
+        ),
     }
 )
 

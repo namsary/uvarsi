@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "b2f5b90baf9d250c0d1b24246c3c76773e3fb19edb2d2b6e76709ef519cc60db",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_sausage_lentils"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

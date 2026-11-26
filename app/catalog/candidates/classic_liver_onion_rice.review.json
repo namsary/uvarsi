@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "c6b1afa5b4efe935e2dfdd4dcb41bcceeba868bc12464b682c0d6c31521e1180",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "classic_liver_onion_rice"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

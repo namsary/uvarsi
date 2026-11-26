@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "classic_chicken_drumsticks_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené kuracie paličky s ryžou a hráškom",
+      "family": "classic_chicken_drumsticks_rice",
+      "method": "oven",
+      "minutes": 60,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["pekáč", "miska", "hrniec", "sitko", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_drumstick"], "amount_per_adult": "260", "unit": "g", "child_factor": "0.5", "required": true, "use": "main", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "150"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "peas", "role": "vegetable", "candidates": ["peas"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 200 °C.", "requires": [], "produces": []},
+        {"text": "Premiešaj v miske {oil.amount} {oil.name}, {garlic.amount} prelisovaný {garlic.name}, {paprika.amount} {paprika.name}, soľ a čierne korenie.", "requires": ["oil:raw", "garlic:raw", "paprika:raw"], "produces": ["oil:rub", "garlic:rub", "paprika:rub"]},
+        {"text": "Osuš {chicken.amount} {chicken.name} papierovou utierkou a natri ich zmesou z oleja a korenia.", "requires": ["chicken:raw", "oil:rub", "garlic:rub", "paprika:rub"], "produces": ["chicken:seasoned", "oil:used", "garlic:used", "paprika:used"]},
+        {"text": "Rozlož paličky v pekáči vedľa seba. Peč kuracie paličky v pekáči v rúre pri 200 °C 45 minút, kým budú zlatisté a chrumkavé a pri kosti už nebudú ružové. V polovici času ich obráť a polej výpekom.", "requires": ["chicken:seasoned"], "produces": ["chicken:roasted"]},
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou, kým voda nebude číra. Nakrájaj {onion.amount} {onion.name} {onion.cut}.", "requires": ["rice:raw", "onion:raw"], "produces": ["rice:rinsed", "onion:cut"]},
+        {"text": "Rozohrej {butter.amount} {butter.name} v hrnci na miernom ohni 1 minútu, kým začne bublať. Opekaj cibuľu v hrnci na miernom ohni 4 minúty, kým bude dosklovita.", "requires": ["butter:raw", "onion:cut"], "produces": ["butter:melted", "onion:cooked"]},
+        {"text": "Vsyp ryžu do hrnca. Premiešaj ju s cibuľou, aby sa zrnká obalili maslom. Prilej {rice.water} vody a pridaj štipku soli. Hrniec prikry. Var ryžu v hrnci na miernom ohni 12 minút, kým vsiakne väčšinu vody.", "requires": ["rice:rinsed", "butter:melted"], "produces": ["rice:simmered", "butter:cooked"]},
+        {"text": "Vsyp {peas.amount} {peas.name} do hrnca. Mrazený hrášok nerozmrazuj, prehreje sa priamo na ryži. Var hrášok s ryžou v hrnci pod pokrievkou na miernom ohni ešte 5 minút, kým ryža vsiakne všetku vodu a zmäkne. Odstav hrniec a nechaj ryžu 5 minút prikrytú postáť.", "requires": ["peas:raw", "rice:simmered"], "produces": ["peas:cooked", "rice:cooked"]},
+        {"text": "Nakrájaj {parsley.amount} {parsley.name} {parsley.cut}. Vmiešaj petržlenovú vňať do ryže.", "requires": ["parsley:raw"], "produces": ["parsley:cut"]},
+        {"text": "Podávaj kuracie paličky s hráškovou ryžou a polej ich výpekom z pekáča. Rozdeľ jedlo na {portions} porcií.", "requires": ["chicken:roasted", "oil:used", "garlic:used", "paprika:used", "rice:cooked", "onion:cooked", "butter:cooked", "peas:cooked", "parsley:cut"], "produces": ["chicken:served", "oil:served", "garlic:served", "paprika:served", "rice:served", "onion:served", "butter:served", "peas:served", "parsley:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Paličky a ryžu ulož do plytkých nádob a najneskôr do 1 hodiny ich odlož do chladničky. Zjedz ich do 3 dní. Ryžu pri ohrievaní pokvapkaj lyžicou vody a dôkladne ju prehrej iba raz."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_chicken_drumsticks_rice",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/18890/fotorecept-pecene-stehienka-s-hraskovou-ryzou/", "title": "FOTORECEPT: Pečené stehienka s hráškovou ryžou | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/kuracie-stehienka-pecene-so-zeleninou/86592-recept.html", "title": "Kuracie stehienka pečené so zeleninou - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

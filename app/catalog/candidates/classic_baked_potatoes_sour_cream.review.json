@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "8a5fabc2bec072b7b61bff0a96d5f08e643b7b852521705f8d02fa203cf72826",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "classic_baked_potatoes_sour_cream"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

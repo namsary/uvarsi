@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "5994016805a9c7c18bab2f151504c7b8585c5ecdb64ef10dc60a7edfe66d8ca6",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_noodles_cottage_bacon"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

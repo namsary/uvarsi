@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "4eafcc2fe724c264dc688a43bbd7a47147eb308f4ad79354f14ac5ff03c9b333",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "classic_baked_pork_potatoes_onion"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}
