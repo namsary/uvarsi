@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "8a6febb48a9a2c072356144d9bda3b1559f511a9625465996c8b727c018cf612",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "soup_kulajda"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

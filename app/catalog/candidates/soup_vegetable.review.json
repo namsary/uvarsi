@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "c61b0a7414a4bb7babb59258fdb5d2ed31cfc49059aff273b2eba2d696176f65",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "soup_vegetable"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

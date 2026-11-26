@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "1ff35a2995eb986ef92c92273138b9b7aa1d040d2e00ae5b29c1fef1acdb6fe3",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "soup_chicken_white_bean"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

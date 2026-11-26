@@ -43,6 +43,7 @@ MATCHABLE_PRODUCT_NAMES = {
     "beans_canned": "červená fazuľa v konzerve",
     "chickpeas_canned": "cícer v konzerve",
     "lentils": "hnedá šošovica",
+    "white_beans_canned": "biela fazuľa v konzerve",
 }
 MODE_AMOUNT = {
     "standard": Decimal("75"),

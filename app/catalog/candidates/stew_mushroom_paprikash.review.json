@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "f8398bc7508fd4958279a1d2d09733a73841a81a720060555dae0cf7961f50a7",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "stew_mushroom_paprikash"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

@@ -1,0 +1,48 @@
+{
+  "recipes": [
+    {
+      "id": "soup_minestrone",
+      "version": 2,
+      "active": true,
+      "name_template": "Minestrone s cestovinami",
+      "family": "soup_minestrone",
+      "method": "soup",
+      "minutes": 45,
+      "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["veľký hrniec", "sitko", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "beans", "role": "protein", "candidates": ["white_beans_canned"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "400"},
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "zucchini", "role": "vegetable", "candidates": ["zucchini"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na kocky"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "celeriac", "role": "vegetable", "candidates": ["celeriac"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "nahrubo"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oregano", "role": "seasoning", "candidates": ["oregano"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Sceď {beans.amount} {beans.name} v sitku a prepláchni ju studenou vodou.", "requires": ["beans:raw"], "produces": ["beans:drained"]},
+        {"text": "Ošúp {carrot.amount} {carrot.name} a {celeriac.amount} {celeriac.name} a nakrájaj ich na malé kocky. Nakrájaj {zucchini.amount} {zucchini.name} {zucchini.cut}, {tomato.amount} {tomato.name} {tomato.cut}, {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} najemno.", "requires": ["carrot:raw", "celeriac:raw", "zucchini:raw", "tomato:raw", "onion:raw", "garlic:raw"], "produces": ["carrot:cut", "celeriac:cut", "zucchini:cut", "tomato:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu, mrkvu a zeler 6 minút, kým cibuľa zmäkne. Pridaj cesnak a {paste.amount} {paste.name} a opekaj ich 1 minútu, kým zavoňajú.", "requires": ["oil:raw", "onion:cut", "carrot:cut", "celeriac:cut", "garlic:cut", "paste:raw", "velky_hrniec:free"], "produces": ["oil:used", "onion:cooked", "carrot:softened", "celeriac:softened", "garlic:cooked", "paste:cooked", "velky_hrniec:occupied"]},
+        {"text": "Pridaj paradajky a {oregano.amount} {oregano.name} do hrnca. Nalej {beans.water} vody do hrnca. Priveď paradajky so zeleninou vo veľkom hrnci na silnom ohni do varu asi za 8 minút, kým začne bublať.", "requires": ["tomato:cut", "oregano:raw"], "produces": ["tomato:cooked", "oregano:cooked"]},
+        {"text": "Vsyp {pasta.amount} {pasta.name} do hrnca a pridaj cuketu. Var cestoviny so zeleninou vo veľkom hrnci na miernom ohni 10 minút, kým budú cestoviny mäkké. Občas premiešaj, aby sa neprichytili ku dnu.", "requires": ["pasta:raw", "zucchini:cut", "carrot:softened", "celeriac:softened", "onion:cooked", "garlic:cooked", "paste:cooked", "oil:used"], "produces": ["pasta:cooked", "zucchini:cooked", "carrot:cooked", "celeriac:cooked", "onion:soup", "garlic:soup", "paste:soup", "oil:soup"]},
+        {"text": "Pridaj bielu fazuľu do hrnca. Zohrievaj bielu fazuľu v polievke vo veľkom hrnci na miernom ohni 3 minúty, kým polievka opäť začne bublať.", "requires": ["beans:drained"], "produces": ["beans:cooked"]},
+        {"text": "Dochuť minestrone soľou a čiernym korením. Rozdeľ ju na {portions} porcií a podávaj horúcu.", "requires": ["beans:cooked", "pasta:cooked", "zucchini:cooked", "carrot:cooked", "celeriac:cooked", "tomato:cooked", "onion:soup", "garlic:soup", "paste:soup", "oil:soup", "oregano:cooked", "velky_hrniec:occupied"], "produces": ["beans:served", "pasta:served", "zucchini:served", "carrot:served", "celeriac:served", "tomato:served", "onion:served", "garlic:served", "paste:served", "oil:served", "oregano:served", "velky_hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Minestrone rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 2 dní; cestoviny v chlade napučia, preto pri ohrievaní prilej trochu vody a polievku prehrej, kým začne bublať."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "soup_minestrone",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/rychla-minestrone-husta-zeleninova-polievka-s-fazulou-a-cestovinami/86171-recept.html", "title": "Rýchla minestrone - hustá zeleninová polievka s fazuľou a cestovinami - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/36964/minestrone/", "title": "Minestrone | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "recipes": [
+    {
+      "id": "stew_pork_goulash",
+      "version": 2,
+      "active": true,
+      "name_template": "Bravčový guláš s chlebom",
+      "family": "stew_pork_goulash",
+      "method": "pot",
+      "minutes": 100,
+      "modes": ["standard"],
+      "equipment": ["hrniec s hrubým dnom", "miska", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "pork", "role": "protein", "candidates": ["pork_shoulder"], "amount_per_adult": "170", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "250"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "110", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na hrubšie krajce"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {pork.amount} {pork.name} na kocky veľké asi 3 cm a osuš ich papierovou utierkou.", "requires": ["pork:raw"], "produces": ["pork:cut"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} najemno.", "requires": ["onion:raw", "garlic:raw"], "produces": ["onion:cut", "garlic:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v hrnci s hrubým dnom na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu 10 minút za občasného miešania, kým bude zlatistá.", "requires": ["oil:raw", "onion:cut", "hrniec_s_hrubym_dnom:free"], "produces": ["oil:used", "onion:cooked", "hrniec_s_hrubym_dnom:occupied"]},
+        {"text": "Pridaj bravčové pliecko bez kosti do hrnca. Opekaj bravčové pliecko bez kosti s cibuľou na silnom ohni 8 minút, kým bude mäso zo všetkých strán zlatisté. Pri väčšej dávke opekaj mäso po častiach, aby sa nedusilo vo vlastnej šťave.", "requires": ["pork:cut"], "produces": ["pork:browned"]},
+        {"text": "Pridaj {paste.amount} {paste.name} a cesnak do hrnca a opekaj ich 1 minútu na strednom ohni, kým sa pretlak začne lesknúť.", "requires": ["paste:raw", "garlic:cut"], "produces": ["paste:cooked", "garlic:cooked"]},
+        {"text": "Odstav hrniec z ohňa. Prisyp {paprika.amount} {paprika.name} a {caraway.amount} {caraway.name}. Hneď premiešaj, aby korenie nezhorklo.", "requires": ["paprika:raw", "caraway:raw"], "produces": ["paprika:bloomed", "caraway:bloomed"]},
+        {"text": "Nalej {pork.water} vody do hrnca. Priveď bravčové pliecko bez kosti v hrnci na strednom ohni do varu asi za 5 minút, kým začne bublať. Prikry hrniec a dus mäso na miernom ohni 60 minút, kým zmäkne. Občas premiešaj a podľa potreby podlej trochou vody, aby mäso bolo stále ponorené.", "requires": ["pork:browned", "paprika:bloomed", "caraway:bloomed", "paste:cooked", "garlic:cooked", "onion:cooked", "oil:used"], "produces": ["pork:tender", "paprika:cooked", "caraway:cooked", "paste:stew", "garlic:stew", "onion:stew", "oil:stew"]},
+        {"text": "Rozšľahaj {flour.amount} {flour.name} v miske s trochou studenej vody na hladkú kašu bez hrudiek.", "requires": ["flour:raw", "miska:free"], "produces": ["flour:slurry", "miska:used"]},
+        {"text": "Premiešaj kašu z múky s gulášom v hrnci a prisyp {marjoram.amount} {marjoram.name}. Var bravčové pliecko bez kosti v hrnci na miernom ohni 5 minút, kým šťava zhustne a začne bublať.", "requires": ["flour:slurry", "marjoram:raw", "pork:tender"], "produces": ["flour:cooked", "marjoram:cooked", "pork:cooked"]},
+        {"text": "Nakrájaj {bread.amount} {bread.name} {bread.cut}.", "requires": ["bread:raw"], "produces": ["bread:cut"]},
+        {"text": "Dochuť guláš soľou a čiernym korením. Rozdeľ ho na {portions} porcií a podávaj s krajcami chleba.", "requires": ["pork:cooked", "onion:stew", "garlic:stew", "oil:stew", "paste:stew", "paprika:cooked", "caraway:cooked", "flour:cooked", "marjoram:cooked", "bread:cut", "hrniec_s_hrubym_dnom:occupied", "miska:used"], "produces": ["pork:served", "onion:served", "garlic:served", "oil:served", "paste:served", "paprika:served", "caraway:served", "flour:served", "marjoram:served", "bread:served", "hrniec_s_hrubym_dnom:free", "miska:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Guláš rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní a pred podávaním ho prehrej, kým začne bublať. Chlieb skladuj oddelene."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "stew_pork_goulash",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/bravcovy-gulas-videorecept/94743-recept.html", "title": "Bravčový guláš (videorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/29825/gulas-z-bravcoveho-pliecka/", "title": "Guláš z bravčového pliecka | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

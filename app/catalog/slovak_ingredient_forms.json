@@ -97,6 +97,13 @@
     "allspice": {"genitive": "celého nového korenia", "instrumental": "celým novým korením"},
     "celeriac": {"genitive": "zeleru", "instrumental": "zelerom"},
     "beef_round": {"genitive": "hovädzieho zadného bez kosti", "instrumental": "hovädzím zadným bez kosti"},
-    "chicken_whole": {"genitive": "celého kurčaťa", "instrumental": "celým kurčaťom"}
+    "chicken_whole": {"genitive": "celého kurčaťa", "instrumental": "celým kurčaťom"},
+    "chicken_liver": {"genitive": "kuracej pečene", "instrumental": "kuracou pečeňou"},
+    "leek": {"genitive": "póru", "instrumental": "pórom"},
+    "frankfurters": {"genitive": "párkov", "instrumental": "párkami"},
+    "smoked_pork": {"genitive": "údeného bravčového mäsa", "instrumental": "údeným bravčovým mäsom"},
+    "savoy_cabbage": {"genitive": "kelu", "instrumental": "kelom"},
+    "green_beans": {"genitive": "zelenej fazuľky", "instrumental": "zelenou fazuľkou"},
+    "white_beans_canned": {"genitive": "bielej fazule", "instrumental": "bielou fazuľou"}
   }
 }

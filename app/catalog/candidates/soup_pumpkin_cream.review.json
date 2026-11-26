@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "e1f0b3f61822e7bf288913cc1a536c6a7cb964434c12f514c8b8bc6ab3423e7b",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "soup_pumpkin_cream"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

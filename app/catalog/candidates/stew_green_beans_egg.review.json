@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "281ae5361c1be731288c4ca8033526a5b9f73ae0fe6051e51fb11c7113bc2db2",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "stew_green_beans_egg"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

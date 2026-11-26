@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "stew_cabbage",
+      "version": 2,
+      "active": true,
+      "name_template": "Kapustový prívarok so zemiakmi",
+      "family": "stew_cabbage",
+      "method": "pot",
+      "minutes": 50,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["veľký hrniec", "malý hrniec", "miska", "nôž", "doska na krájanie", "metlička"],
+      "slots": [
+        {"key": "cabbage", "role": "vegetable", "candidates": ["white_cabbage"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "200"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "12", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "60", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "12", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "vinegar", "role": "seasoning", "candidates": ["apple_cider_vinegar"], "amount_per_adult": "6", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.75", "required": true, "use": "main", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {cabbage.amount} {cabbage.name} na štvrtiny, vykroj z nich hlúbik a listy nakrájaj na tenké rezance.", "requires": ["cabbage:raw"], "produces": ["cabbage:cut"]},
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na kocky veľké asi 1,5 cm. Nakrájaj {onion.amount} {onion.name} {onion.cut}.", "requires": ["potato:raw", "onion:raw"], "produces": ["potato:cut", "onion:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu 5 minút, kým bude dosklovita.", "requires": ["oil:raw", "onion:cut", "velky_hrniec:free"], "produces": ["oil:used", "onion:cooked", "velky_hrniec:occupied"]},
+        {"text": "Pridaj bielu hlávkovú kapustu do hrnca. Prisyp {caraway.amount} {caraway.name}. Opekaj bielu hlávkovú kapustu s cibuľou na strednom ohni 5 minút za občasného miešania, kým trochu zmäkne.", "requires": ["cabbage:cut", "caraway:raw"], "produces": ["cabbage:wilted", "caraway:cooked"]},
+        {"text": "Pridaj zemiaky do hrnca. Nalej {cabbage.water} vody do hrnca. Dus bielu hlávkovú kapustu so zemiakmi pod pokrievkou vo veľkom hrnci na miernom ohni 20 minút, kým kapusta aj zemiaky zmäknú.", "requires": ["cabbage:wilted", "potato:cut"], "produces": ["cabbage:cooked", "potato:cooked"]},
+        {"text": "Rozšľahaj {cream.amount} {cream.name} a {flour.amount} {flour.name} v miske metličkou dohladka, bez hrudiek. Odober z hrnca 1 naberačku horúcej šťavy a postupne ňou rozrieď smotanovú zmes, aby sa nezrazila.", "requires": ["cream:raw", "flour:raw", "miska:free"], "produces": ["cream:slurry", "flour:slurry", "miska:used"]},
+        {"text": "Premiešaj smotanovú zmes s kapustou vo veľkom hrnci. Var bielu hlávkovú kapustu so smotanou vo veľkom hrnci na miernom ohni 5 minút za stáleho miešania, kým prívarok zhustne a začne bublať.", "requires": ["cream:slurry", "flour:slurry", "cabbage:cooked", "onion:cooked", "oil:used"], "produces": ["cream:cooked", "flour:cooked", "cabbage:thickened", "onion:stew", "oil:stew"]},
+        {"text": "Odstav veľký hrniec z ohňa. Vmiešaj {vinegar.amount} {vinegar.name} a {sugar.amount} {sugar.name}, aby bol prívarok jemne sladkokyslý.", "requires": ["vinegar:raw", "sugar:raw"], "produces": ["vinegar:mixed", "sugar:mixed"]},
+        {"text": "Uvar {egg.amount} {egg.name} na hniličku v malom hrnci na strednom ohni. Od začiatku varu počítaj 6 minút, kým bielok stuhne a žĺtok ostane mäkký. Potom {egg.reference_name} krátko schlaď v studenej vode a ošúp.", "requires": ["egg:raw", "maly_hrniec:free"], "produces": ["egg:cooked", "maly_hrniec:used"]},
+        {"text": "Dochuť prívarok soľou a čiernym korením. Rozdeľ ho na {portions} porcií. Každé vajce rozkroj na polovice a na tanieri ho jemne vtlač do prívarku.", "requires": ["cabbage:thickened", "potato:cooked", "onion:stew", "oil:stew", "caraway:cooked", "cream:cooked", "flour:cooked", "vinegar:mixed", "sugar:mixed", "egg:cooked", "velky_hrniec:occupied", "maly_hrniec:used", "miska:used"], "produces": ["cabbage:served", "potato:served", "onion:served", "oil:served", "caraway:served", "cream:served", "flour:served", "vinegar:served", "sugar:served", "egg:served", "velky_hrniec:free", "maly_hrniec:free", "miska:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Prívarok rozdeľ do plytkých nádob a do jednej hodiny ho odlož do chladničky. Zjedz ho do 3 dní, prehrievaj ho na miernom ohni a vajce na hniličku var vždy čerstvé tesne pred podávaním."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "stew_cabbage",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/kapustovy-privarok-s-paradajkami/1862-recept.html", "title": "Kapustový prívarok s paradajkami - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/67748/kapustovy-privarok-so-smotanou/", "title": "Kapustový prívarok so smotanou | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

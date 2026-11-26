@@ -440,3 +440,88 @@ def test_wave2_ingredient_states_stay_distinct():
     assert catalog.by_id("celeriac").edible_ratio == Decimal("0.86")
     assert catalog.by_id("bay_leaf").grams_per_piece == Decimal("0.2")
     assert catalog.by_id("pickled_cucumber").grams_per_piece == Decimal("35")
+
+
+WAVE2_SOUP_USDA_FDC_IDS = {
+    "chicken_liver": "171060",
+    "frankfurters": "172964",
+    "green_beans": "169961",
+    "leek": "169246",
+    "savoy_cabbage": "170388",
+    "smoked_pork": "168288",
+    "white_beans_canned": "175204",
+}
+
+WAVE2_SOUP_RENDER_FORMS = {
+    "chicken_liver": (
+        "kuracej pečene",
+        "kuraciu pečeň",
+        "kuracej pečene",
+        "kuracou pečeňou",
+    ),
+    "frankfurters": ("párkov", "párky", "párkov", "párkami"),
+    "green_beans": (
+        "zelenej fazuľky",
+        "zelenú fazuľku",
+        "zelenej fazuľky",
+        "zelenou fazuľkou",
+    ),
+    "leek": ("póru", "pór", "póru", "pórom"),
+    "savoy_cabbage": ("kelu", "kel", "kelu", "kelom"),
+    "smoked_pork": (
+        "údeného bravčového mäsa",
+        "údené bravčové mäso",
+        "údeného bravčového mäsa",
+        "údeným bravčovým mäsom",
+    ),
+    "white_beans_canned": (
+        "bielej fazule",
+        "bielu fazuľu",
+        "bielej fazule",
+        "bielou fazuľou",
+    ),
+}
+
+
+def test_wave2_soup_ingredients_use_exact_sr_legacy_records():
+    catalog = load_ingredient_catalog()
+
+    for ingredient_id, fdc_id in WAVE2_SOUP_USDA_FDC_IDS.items():
+        ingredient = catalog.by_id(ingredient_id)
+        source = ingredient.nutrition.source
+        assert "USDA FoodData Central SR Legacy (April 2018)" in source
+        assert f"FDC ID {fdc_id}," in source
+        assert "https://fdc.nal.usda.gov/download-datasets/" in source
+        assert ingredient.nutrition.verified_on == date(2026, 11, 26)
+
+
+def test_wave2_soup_ingredients_render_slovak_forms():
+    title_forms = _slovak_title_forms()
+
+    for ingredient_id, expected in WAVE2_SOUP_RENDER_FORMS.items():
+        quantity, reference, genitive, instrumental = expected
+        assert _QUANTITY_NAMES[ingredient_id] == quantity
+        assert _REFERENCE_NAMES[ingredient_id] == reference
+        assert title_forms[ingredient_id] == {
+            "genitive": genitive,
+            "instrumental": instrumental,
+        }
+
+
+def test_wave2_soup_ingredient_states_stay_distinct():
+    catalog = load_ingredient_catalog()
+
+    assert catalog.resolve("kel").id == "savoy_cabbage"
+    assert catalog.resolve("kapusta").id == "white_cabbage"
+    assert catalog.resolve("zelená fazuľka").id == "green_beans"
+    assert catalog.resolve("biela fazuľa").id == "white_beans_canned"
+    assert catalog.resolve("červená fazuľa").id == "beans_canned"
+    assert catalog.resolve("údené mäso").id == "smoked_pork"
+    assert catalog.resolve("údená klobása").id == "smoked_sausage"
+    assert catalog.resolve("párky").id == "frankfurters"
+    assert catalog.by_id("leek").edible_ratio == Decimal("0.6")
+    assert catalog.by_id("white_beans_canned").edible_ratio == Decimal("0.6")
+    assert {"vegetarian", "vegan"} <= {
+        tag.value for tag in catalog.by_id("white_beans_canned").diet_tags
+    }
+    assert not catalog.by_id("chicken_liver").diet_tags

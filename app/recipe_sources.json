@@ -2168,6 +2168,361 @@
           "accessed_on": "2026-11-26"
         }
       ]
+    },
+    {
+      "recipe_id": "soup_beef_broth_liver_dumplings",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/33495/hovadzia-polievka-s-pecenovymi-haluskami/",
+          "title": "Hovädzia polievka s pečeňovými haluškami | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/ako-uvarit-hovadzi-vyvar-videorecept/91196-recept.html",
+          "title": "Ako uvariť hovädzí vývar (videorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/mrkvova-polievocka-s-pecenovymi-haluskami/24951-recept.html",
+          "title": "Mrkvová polievočka s pečeňovými haluškami - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "soup_leek_potato",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/porova-polievka-chutna-a-rychla/39054-recept.html",
+          "title": "Pórová polievka chutná a rýchla - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/26154/porova-polievka/",
+          "title": "Pórová polievka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/jednoducha-porova-polievka-s-oblacikmi/73293-recept.html",
+          "title": "Jednoduchá pórová polievka s obláčikmi - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "soup_chicken_broth_noodles",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/domaca-slepacia-polievka/13912-recept.html",
+          "title": "Domáca slepačia polievka - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/13854/slepacia-polievka-s-rezancami/",
+          "title": "Slepačia polievka s rezancami | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "soup_pea_smoked",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/hrachova-polievka-s-udenym-masom/25401-recept.html",
+          "title": "Hrachová polievka s údeným mäsom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/2335/hrachova-polievka-so-zemiakmi/",
+          "title": "Hrachová polievka so zemiakmi | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "soup_kulajda",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/ceska-kulajda/83268-recept.html",
+          "title": "Česká kulajda - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/10492/kulajda/",
+          "title": "Kulajda | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "soup_frankfurt",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/frankfurtska-polievka/15893-recept.html",
+          "title": "Frankfurtská polievka - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/11504/frankfurtska-polievka/",
+          "title": "Frankfurtská polievka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "soup_vegetable",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/16873/zeleninova-polievka-s-ryzou/",
+          "title": "Zeleninová polievka s ryžou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/rychla-zeleninova-polievka-mojej-babicky-videorecept/93798-recept.html",
+          "title": "Rýchla zeleninová polievka mojej babičky (videorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "soup_broccoli_cream",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/brokolicova-kremova-polievka/54534-recept.html",
+          "title": "Brokolicová krémová polievka - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/33873/kremova-brokolicova-polievka/",
+          "title": "Krémová brokolicová polievka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "soup_pumpkin_cream",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kremova-polievka-z-maslovej-tekvice/55254-recept.html",
+          "title": "Krémová polievka z maslovej tekvice - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/33869/kremova-tekvicova-polievka/",
+          "title": "Krémová tekvicová polievka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/hokkaido-polievka-s-cervenou-sosovicou/81121-recept.html",
+          "title": "Hokkaido polievka s červenou šošovicou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "soup_mushroom",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/hubova-polievka-fotorecept/63308-recept.html",
+          "title": "Hubová polievka (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/10494/hubova-polievka/",
+          "title": "Hubová polievka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "soup_red_lentil",
+      "editorial_lane": "plant_based",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kremova-polievka-z-cervenej-sosovice-mercimek-orbas-fotorecept/79690-recept.html",
+          "title": "Krémová polievka z červenej šošovice (Mercimek çorbası) (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/44380/husta-polievka-z-cervenej-sosovice/",
+          "title": "Hustá polievka z červenej šošovice | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "soup_minestrone",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/rychla-minestrone-husta-zeleninova-polievka-s-fazulou-a-cestovinami/86171-recept.html",
+          "title": "Rýchla minestrone - hustá zeleninová polievka s fazuľou a cestovinami - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/36964/minestrone/",
+          "title": "Minestrone | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "soup_chicken_white_bean",
+      "editorial_lane": "high_protein",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/fazulova-husta-stareho-zalesaka-fotorecept/61250-recept.html",
+          "title": "Fazuľová hustá starého zálesáka (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/10486/zeleninova-polievka-s-fazulou/",
+          "title": "Zeleninová polievka s fazuľou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "stew_kale",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kelovy-privarok-fotorecept/18794-recept.html",
+          "title": "Kelový prívarok (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/11617/fotorecept-kelovy-privarok/",
+          "title": "FOTORECEPT: Kelový prívarok | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "stew_green_beans_egg",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/fazulkovy-privarok-fotorecept/26931-recept.html",
+          "title": "Fazuľkový prívarok (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/68377/fazulkovy-privarok-s-volskym-okom/",
+          "title": "Fazuľkový prívarok s volským okom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "stew_carrot_peas",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/hraskovo-mrkvovy-privarok/33218-recept.html",
+          "title": "Hráškovo-mrkvový prívarok - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/17565/dusena-mrkva-s-hraskom/",
+          "title": "Dusená mrkva s hráškom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "stew_cabbage",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kapustovy-privarok-s-paradajkami/1862-recept.html",
+          "title": "Kapustový prívarok s paradajkami - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/67748/kapustovy-privarok-so-smotanou/",
+          "title": "Kapustový prívarok so smotanou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "stew_bean_goulash",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/fazula-na-sposob-gulasu/22257-recept.html",
+          "title": "Fazuľa na spôsob gulašu - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/45692/gulas-s-fazulou/",
+          "title": "Guláš s fazuľou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "stew_pork_goulash",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcovy-gulas-videorecept/94743-recept.html",
+          "title": "Bravčový guláš (videorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/29825/gulas-z-bravcoveho-pliecka/",
+          "title": "Guláš z bravčového pliecka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "stew_mushroom_paprikash",
+      "editorial_lane": "plant_based",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/27168/hubovy-paprikas/",
+          "title": "Hubový paprikáš | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/hubovy-paprikas-ii-/6604-recept.html",
+          "title": "Hubový paprikáš II. - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
     }
   ]
 }

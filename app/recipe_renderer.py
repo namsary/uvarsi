@@ -198,6 +198,13 @@ _QUANTITY_NAMES: Mapping[str, str] = {
     "celeriac": "zeleru",
     "beef_round": "hovädzieho zadného bez kosti",
     "chicken_whole": "celého kurčaťa",
+    "chicken_liver": "kuracej pečene",
+    "leek": "póru",
+    "frankfurters": "párkov",
+    "smoked_pork": "údeného bravčového mäsa",
+    "savoy_cabbage": "kelu",
+    "green_beans": "zelenej fazuľky",
+    "white_beans_canned": "bielej fazule",
 }
 
 # Natural direct-object forms used after the ingredient was measured once.
@@ -302,6 +309,13 @@ _REFERENCE_NAMES: Mapping[str, str] = {
     "celeriac": "zeler",
     "beef_round": "hovädzie zadné bez kosti",
     "chicken_whole": "celé kurča",
+    "chicken_liver": "kuraciu pečeň",
+    "leek": "pór",
+    "frankfurters": "párky",
+    "smoked_pork": "údené bravčové mäso",
+    "savoy_cabbage": "kel",
+    "green_beans": "zelenú fazuľku",
+    "white_beans_canned": "bielu fazuľu",
 }
 
 # Absorption/one-pot ratios in millilitres of water per gram of dry starch.
@@ -331,6 +345,13 @@ _EXTRA_INGREDIENT_FORMS: Mapping[str, tuple[str, ...]] = {
     "milk": ("plnotučné mlieko", "plnotučného mlieka", "mlieko", "mlieka"),
     "bacon": ("slanina", "slaniny", "slaninu"),
     "bread_dumpling": ("knedľa", "knedle", "knedľu", "knedľou"),
+    "chicken_liver": ("pečeň", "pečeňou"),
+    "leek": ("póru", "pórom"),
+    "frankfurters": ("párkov", "párkami"),
+    "smoked_pork": ("údené mäso", "údeného mäsa", "údeným mäsom"),
+    "savoy_cabbage": ("kelu", "kelom"),
+    "green_beans": ("fazuľka", "fazuľky", "fazuľku", "fazuľkou"),
+    "white_beans_canned": ("bielej fazule", "bielu fazuľu", "bielou fazuľou"),
 }
 
 _EXTRA_PANTRY_FORMS: Mapping[str, tuple[str, ...]] = {

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "11066ff7e6d1c032baee1eabe48ce454fe4e452c290ece7602b4333c01bca30a",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "soup_frankfurt"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}
