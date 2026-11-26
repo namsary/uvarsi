@@ -1,0 +1,201 @@
+# batch|id|display_name|lane|modes
+1|classic_pork_schnitzel_potato_salad|Vyprážaný bravčový rezeň so zemiakovým šalátom|slovak_classic|standard
+1|classic_chicken_schnitzel_mash|Vyprážaný kurací rezeň so zemiakovou kašou|slovak_classic|standard
+1|classic_fried_cheese_potatoes|Vyprážaný syr s varenými zemiakmi a tatárskou omáčkou|slovak_classic|standard,vegetarian
+1|classic_fried_cauliflower_potatoes|Vyprážaný karfiol so zemiakmi|slovak_classic|standard,vegetarian
+1|classic_stuffed_cabbage_rolls|Holúbky v paradajkovej omáčke|slovak_classic|standard
+1|classic_svieckova_dumpling|Sviečková na smotane s knedľou|slovak_classic|standard
+1|classic_tomato_sauce_beef_dumpling|Rajská omáčka s hovädzím mäsom a knedľou|slovak_classic|standard
+1|classic_dill_sauce_egg_potatoes|Koprová omáčka s vajcom a zemiakmi|slovak_classic|standard,vegetarian
+1|classic_mushroom_sauce_dumpling|Hubová omáčka s knedľou|slovak_classic|standard,vegetarian
+1|classic_spanish_bird_rice|Španielsky vtáčik s ryžou|slovak_classic|standard
+1|classic_znojmo_beef_rice|Znojemská hovädzia pečienka s ryžou|slovak_classic|standard
+1|classic_pork_cabbage_dumpling|Pečené bravčové s dusenou kapustou a knedľou|slovak_classic|standard
+1|classic_roast_chicken_potatoes|Pečené kura so zemiakmi|slovak_classic|standard,high_protein
+1|classic_chicken_cream_mushrooms_rice|Kuracie prsia na smotane so šampiňónmi a ryžou|slovak_classic|standard,high_protein
+1|classic_garlic_pork_chops_potatoes|Bravčové kotlety na cesnaku so zemiakmi|slovak_classic|standard,high_protein
+1|classic_bryndza_pirohy|Bryndzové pirohy so slaninou|slovak_classic|standard
+1|classic_poppy_seed_potato_rolls|Zemiakové šúľance s makom|slovak_classic|standard,vegetarian
+1|classic_tokan_rice|Bravčový tokáň s ryžou|slovak_classic|standard
+1|classic_potato_goulash_sausage|Zemiakový guláš s klobásou|slovak_classic|standard
+1|classic_sauerkraut_sausage_potatoes|Kyslá kapusta s klobásou a zemiakmi|slovak_classic|standard
+2|quick_chicken_broccoli_stir_fry|Kuracie rezančeky s brokolicou a ryžou|modern_family|standard,high_protein
+2|quick_spaghetti_carbonara|Špagety carbonara so slaninou|modern_family|standard
+2|quick_sausage_tomato_pasta|Cestoviny s klobásou a paradajkami|modern_family|standard
+2|quick_garlic_chicken_spaghetti|Cesnakové špagety s kuracím mäsom|modern_family|standard,high_protein
+2|quick_ham_cheese_omelette|Omeleta so šunkou a syrom|modern_family|standard,high_protein
+2|quick_vegetable_omelette_potatoes|Zeleninová omeleta s opekanými zemiakmi|modern_family|standard,vegetarian
+2|quick_chicken_quesadilla|Kuracie quesadilly so syrom|modern_family|standard,high_protein
+2|quick_bean_cheese_quesadilla|Fazuľové quesadilly so syrom|modern_family|standard,vegetarian
+2|quick_beef_stroganoff_noodles|Hovädzí stroganov s rezancami|modern_family|standard,high_protein
+2|quick_homemade_burgers|Domáce hovädzie burgery so zeleninou|modern_family|standard,high_protein
+2|quick_oven_chicken_nuggets|Kuracie nugetky z rúry so zemiakmi|modern_family|standard,high_protein
+2|quick_pita_pizzas|Rýchle pita pizze so šunkou|modern_family|standard
+2|quick_chicken_gyros_pita|Kurací gyros v pite s tzatziki|modern_family|standard,high_protein
+2|quick_ham_peas_pasta|Cestoviny so šunkou a hráškom na smotane|modern_family|standard
+2|quick_eggs_spinach_potatoes|Dusený špenát so zemiakmi a volským okom|slovak_classic|standard,vegetarian
+2|quick_tuna_rice_salad|Ryžový šalát s tuniakom a kukuricou|modern_family|standard,high_protein
+2|quick_chicken_couscous_vegetables|Kurací kuskus so zeleninou z panvice|modern_family|standard,high_protein
+2|quick_pork_strips_peppers_rice|Bravčové rezančeky s paprikou a ryžou|modern_family|standard,high_protein
+2|quick_chicken_lemon_rice|Citrónové kura s ryžou a hráškom|modern_family|standard,high_protein
+2|quick_halloumi_vegetable_traybake|Zeleninový plech s grilovacím syrom|modern_family|standard,vegetarian
+3|fish_fried_cod_potato_salad|Vyprážaná treska so zemiakovým šalátom|slovak_classic|standard
+3|fish_baked_salmon_potatoes_dill|Pečený losos s kôprovými zemiakmi|high_protein|standard,high_protein
+3|fish_cod_butter_mash|Treska na masle so zemiakovou kašou|high_protein|standard,high_protein
+3|fish_baked_trout_potatoes|Pečený pstruh so zemiakmi|slovak_classic|standard,high_protein
+3|fish_fish_cakes_potatoes|Rybie karbonátky so zemiakmi|modern_family|standard,high_protein
+3|fish_homemade_fish_fingers|Domáce rybie prsty so zemiakovou kašou|modern_family|standard
+3|fish_white_fish_vegetables_oven|Rybie filé so zeleninou z rúry|high_protein|standard,high_protein
+3|fish_salmon_teriyaki_rice|Losos teriyaki s ryžou|modern_family|standard,high_protein
+3|fish_salmon_spinach_pasta|Cestoviny s lososom a špenátom|modern_family|standard,high_protein
+3|fish_tuna_pasta_bake|Zapekané cestoviny s tuniakom|high_protein|standard,high_protein
+3|fish_mackerel_baked_potatoes|Pečená makrela so zemiakmi|slovak_classic|standard,high_protein
+3|fish_fish_goulash|Rybí guláš s chlebom|modern_family|standard,high_protein
+3|turkey_breast_natural_rice|Morčacie prsia na prírodno s ryžou|high_protein|standard,high_protein
+3|turkey_schnitzel_potatoes|Morčací rezeň v cestíčku so zemiakmi|slovak_classic|standard,high_protein
+3|turkey_cream_mushrooms_rice|Morčacie na smotane so šampiňónmi|high_protein|standard,high_protein
+3|turkey_broccoli_stir_fry|Morčacie s brokolicou z woku|high_protein|standard,high_protein
+3|turkey_perkelt_pasta|Morčací perkelt s cestovinami|slovak_classic|standard,high_protein
+3|turkey_burgers|Morčacie burgery so zeleninou|high_protein|standard,high_protein
+3|turkey_stuffed_zucchini|Cukety plnené morčacím mäsom|high_protein|standard,high_protein
+3|turkey_curry_rice|Morčacie kari s ryžou|high_protein|standard,high_protein
+4|soup_beef_broth_liver_dumplings|Hovädzí vývar s pečeňovými haluškami|slovak_classic|standard
+4|soup_leek_potato|Pórová polievka so zemiakmi|slovak_classic|standard,vegetarian
+4|soup_chicken_broth_noodles|Slepačí vývar s rezancami a zeleninou|slovak_classic|standard,high_protein
+4|soup_pea_smoked|Hrachová polievka s údeným mäsom|slovak_classic|standard
+4|soup_kulajda|Kulajda|slovak_classic|standard,vegetarian
+4|soup_frankfurt|Frankfurtská polievka|slovak_classic|standard
+4|soup_vegetable|Zeleninová polievka s ryžou|slovak_classic|standard,vegetarian,vegan
+4|soup_broccoli_cream|Brokolicový krém|modern_family|standard,vegetarian
+4|soup_pumpkin_cream|Tekvicová krémová polievka|modern_family|standard,vegetarian
+4|soup_mushroom|Hubová polievka|slovak_classic|standard,vegetarian
+4|soup_red_lentil|Polievka z červenej šošovice|plant_based|standard,vegetarian,vegan
+4|soup_minestrone|Minestrone s cestovinami|modern_family|standard,vegetarian,vegan
+4|soup_chicken_white_bean|Kuracia polievka s bielou fazuľou|high_protein|standard,high_protein
+4|stew_kale|Kelový prívarok s vajcom|slovak_classic|standard,vegetarian
+4|stew_green_beans_egg|Prívarok zo zelenej fazuľky s vajcom|slovak_classic|standard,vegetarian
+4|stew_carrot_peas|Mrkvový prívarok s hráškom a fašírkou|slovak_classic|standard
+4|stew_cabbage|Kapustový prívarok so zemiakmi|slovak_classic|standard,vegetarian
+4|stew_bean_goulash|Fazuľový guláš s klobásou|slovak_classic|standard
+4|stew_pork_goulash|Bravčový guláš s chlebom|slovak_classic|standard
+4|stew_mushroom_paprikash|Hubový paprikáš s cestovinami|plant_based|standard,vegetarian
+5|classic_meatballs_dill_sauce|Fašírky v kôprovej omáčke so zemiakmi|slovak_classic|standard
+5|classic_pork_ribs_potatoes|Pečené bravčové rebierka so zemiakmi|slovak_classic|standard
+5|classic_chicken_drumsticks_rice|Pečené kuracie paličky s ryžou a hráškom|slovak_classic|standard,high_protein
+5|classic_liver_onion_rice|Kuracia pečeň na cibuľke s ryžou|slovak_classic|standard,high_protein
+5|classic_pork_mushroom_rice|Bravčové so šampiňónmi a ryžou|slovak_classic|standard,high_protein
+5|classic_beef_onion_potatoes|Hovädzie na cibuľke so zemiakmi|slovak_classic|standard,high_protein
+5|classic_cevapcici_potatoes|Čevapčiči s cibuľou a zemiakmi|slovak_classic|standard
+5|classic_baked_pork_potatoes_onion|Bravčové pliecko pečené na zemiakoch|slovak_classic|standard
+5|classic_chicken_ragout_rice|Kurací ragú s ryžou|slovak_classic|standard,high_protein
+5|classic_potato_dumplings_smoked|Zemiakové knedle s údeným mäsom a kapustou|slovak_classic|standard
+5|classic_lokse_duck_cabbage|Pečené kačacie stehno s kapustou a lokšami|slovak_classic|standard
+5|classic_egg_dumplings_cucumber|Halušky s vajcom a uhorkovým šalátom|slovak_classic|standard,vegetarian
+5|classic_cabbage_dumplings|Kapustové halušky|slovak_classic|standard,vegetarian
+5|classic_potato_pancake_stuffed|Plnená zemiaková placka s mäsovou zmesou|slovak_classic|standard
+5|classic_bacon_potatoes_eggs|Pražené zemiaky so slaninou a vajcom|slovak_classic|standard
+5|classic_baked_potatoes_sour_cream|Pečené zemiaky s kyslou smotanou a cesnakom|slovak_classic|standard,vegetarian
+5|classic_noodles_cottage_bacon|Rezance s tvarohom a slaninou|slovak_classic|standard
+5|classic_rice_mushrooms_peas|Ryža so šampiňónmi a hráškom|slovak_classic|standard,vegetarian
+5|classic_chicken_liver_risotto|Rizoto s kuracími pečienkami|slovak_classic|standard,high_protein
+5|classic_sausage_lentils|Šošovica na kyslo s klobásou|slovak_classic|standard
+6|quick_chicken_wraps_vegetables|Kuracie wrapy so zeleninou a jogurtom|modern_family|standard,high_protein
+6|quick_chicken_pasta_salad|Cestovinový šalát s kuracím mäsom|modern_family|standard,high_protein
+6|quick_egg_fried_noodles|Opekané rezance so zeleninou a vajcom|modern_family|standard,vegetarian
+6|quick_gnocchi_tomato_mozzarella|Gnocchi s paradajkami a mozzarellou|modern_family|standard,vegetarian
+6|quick_bean_chili_rice|Fazuľové chilli s ryžou a kukuricou|plant_based|standard,vegetarian,vegan
+6|quick_chickpea_spinach_pan|Cícer so špenátom a paradajkami|plant_based|standard,vegetarian,vegan
+6|quick_tofu_vegetable_stir_fry|Tofu so zeleninou a ryžou|plant_based|standard,vegetarian,vegan
+6|quick_lentil_curry_rice|Šošovicové kari s ryžou|plant_based|standard,vegetarian,vegan
+6|quick_zucchini_pasta_feta|Cestoviny s cuketou a fetou|modern_family|standard,vegetarian
+6|quick_mushroom_pasta_cream|Hubové cestoviny so smotanou|modern_family|standard,vegetarian
+6|quick_pepper_egg_scramble|Praženica s paprikou a chlebom|modern_family|standard,vegetarian
+6|quick_croque_toast|Zapekané toasty so šunkou a syrom|modern_family|standard
+6|quick_chicken_pasta_tomato|Kuracie penne v paradajkovej omáčke|modern_family|standard,high_protein
+6|quick_beef_rice_pepper|Mleté mäso s ryžou a paprikou|modern_family|standard,high_protein
+6|quick_pork_chop_rice_vegetables|Bravčový plátok s ryžou a zeleninou|modern_family|standard,high_protein
+6|quick_couscous_sausage|Kuskus s klobásou a paprikou|modern_family|standard
+6|quick_potato_wedges_eggs|Pečené zemiakové mesiačiky s vajcom a jogurtom|modern_family|standard,vegetarian
+6|quick_rice_noodle_chicken|Kuracie s ryžovými rezancami a zeleninou|modern_family|standard,high_protein
+6|quick_pasta_broccoli_bacon|Cestoviny s brokolicou a slaninou|modern_family|standard
+6|quick_tortilla_bake_beef|Zapekané tortilly s mletým mäsom|modern_family|standard,high_protein
+7|fish_cod_tomato_olives|Treska v paradajkovej omáčke s ryžou|high_protein|standard,high_protein
+7|fish_salmon_rice_bowl|Lososová miska s ryžou a uhorkou|modern_family|standard,high_protein
+7|fish_baked_fish_lemon_potatoes|Pečená ryba s citrónom a zemiakmi|high_protein|standard,high_protein
+7|fish_tuna_patties|Tuniakové placky so zemiakovým šalátom|modern_family|standard,high_protein
+7|fish_fish_soup|Rybacia polievka so zeleninou|slovak_classic|standard,high_protein
+7|fish_salmon_cream_pasta|Cestoviny s lososom na smotane|modern_family|standard,high_protein
+7|fish_fish_rice_peas|Rybie filé s ryžou a hráškom|high_protein|standard,high_protein
+7|fish_cod_curry|Rybie kari s ryžou|high_protein|standard,high_protein
+7|fish_tuna_rice_bake|Zapekaná ryža s tuniakom|high_protein|standard,high_protein
+7|fish_mackerel_salad|Šalát s údenou makrelou a zemiakmi|slovak_classic|standard,high_protein
+7|turkey_ragout_noodles|Morčací ragú s rezancami|high_protein|standard,high_protein
+7|turkey_meatballs_rice|Morčacie fašírky s ryžou a uhorkovým šalátom|high_protein|standard,high_protein
+7|turkey_skewers_potatoes|Morčacie ražniči s pečenými zemiakmi|high_protein|standard,high_protein
+7|turkey_bolognese_pasta|Morčacie bolonské cestoviny|high_protein|standard,high_protein
+7|turkey_lasagne|Morčacie lasagne|high_protein|standard,high_protein
+7|turkey_fajitas|Morčacie fajitas v tortille|high_protein|standard,high_protein
+7|turkey_drumstick_roast|Pečené morčacie stehno so zemiakmi|slovak_classic|standard,high_protein
+7|turkey_stuffed_peppers|Papriky plnené morčacím mäsom a ryžou|high_protein|standard,high_protein
+7|turkey_lentil_stew|Morčacie so šošovicou|high_protein|standard,high_protein
+7|turkey_paprika_potatoes|Morčacie na paprike so zemiakmi|slovak_classic|standard,high_protein
+8|veg_stuffed_peppers_rice|Papriky plnené ryžou a syrom|plant_based|standard,vegetarian
+8|veg_spinach_ricotta_bake|Cestovinový nákyp so špenátom a cottage syrom|modern_family|standard,vegetarian
+8|veg_bean_burger|Fazuľový burger so zeleninou|plant_based|standard,vegetarian,vegan
+8|veg_vegetable_paella|Zeleninová paella|plant_based|standard,vegetarian,vegan
+8|veg_ratatouille_rice|Ratatouille s ryžou|plant_based|standard,vegetarian,vegan
+8|veg_chickpea_tagine_couscous|Cícerový tajine s kuskusom|plant_based|standard,vegetarian,vegan
+8|veg_mushroom_goulash|Hubový guláš s chlebom|plant_based|standard,vegetarian,vegan
+8|veg_lentil_shepherd_pie|Šošovicový pastiersky nákyp|plant_based|standard,vegetarian,vegan
+8|veg_potato_cauliflower_curry|Zemiakové kari s karfiolom|plant_based|standard,vegetarian,vegan
+8|veg_sweet_potato_bean_bake|Pečené bataty s bielou fazuľou|plant_based|standard,vegetarian,vegan
+8|veg_spicy_rice_beans|Pikantná ryža s červenou fazuľou|plant_based|standard,vegetarian,vegan
+8|veg_tofu_paprikash|Tofu paprikáš s cestovinami|plant_based|standard,vegetarian,vegan
+8|veg_vegetable_lasagne|Zeleninové lasagne|modern_family|standard,vegetarian
+8|veg_egg_curry_rice|Vajíčkové kari s ryžou|modern_family|standard,vegetarian
+8|veg_cheese_potato_bake|Zapekané zemiaky so syrom a brokolicou|modern_family|standard,vegetarian
+8|veg_cottage_pancakes|Tvarohové placky so zeleninovým šalátom|modern_family|standard,vegetarian
+8|veg_bean_tortilla_bake|Zapekané fazuľové tortilly|plant_based|standard,vegetarian
+8|veg_falafel_pita|Domáci falafel v pite|plant_based|standard,vegetarian,vegan
+8|veg_pea_mint_pasta|Cestoviny s hráškom a syrom|modern_family|standard,vegetarian
+8|veg_buckwheat_mushrooms|Pohánka so šampiňónmi a vajcom|slovak_classic|standard,vegetarian
+9|modern_beef_burrito_bowl|Hovädzia burrito miska s ryžou|modern_family|standard,high_protein
+9|modern_chicken_souvlaki_couscous|Kurací souvlaki s kuskusom|modern_family|standard,high_protein
+9|modern_chicken_enchiladas|Kuracie enchiladas s fazuľou|modern_family|standard,high_protein
+9|modern_sausage_bean_traybake|Klobása s fazuľou z jedného plechu|modern_family|standard
+9|modern_chicken_tikka_rice|Kuracie tikka masala s ryžou|modern_family|standard,high_protein
+9|modern_pork_sweet_sour_rice|Sladkokyslé bravčové s ryžou|modern_family|standard
+9|modern_beef_broccoli_noodles|Hovädzie s brokolicou a rezancami|modern_family|standard,high_protein
+9|modern_chicken_satay_rice|Kurací satay s ryžou|modern_family|standard,high_protein
+9|modern_moussaka_potatoes|Musaka so zemiakmi a mletým mäsom|modern_family|standard
+9|modern_shepherd_pie_turkey|Pastiersky nákyp s morčacím mäsom|high_protein|standard,high_protein
+9|modern_chicken_pilaf|Kurací pilaf s mrkvou|modern_family|standard,high_protein
+9|modern_cheesy_chicken_bake|Zapekané kura so syrom a zemiakmi|modern_family|standard,high_protein
+9|modern_meatball_soup|Polievka s mäsovými guľkami|modern_family|standard
+9|modern_bbq_chicken_wedges|Kura na BBQ spôsob so zemiakovými mesiačikmi|modern_family|standard,high_protein
+9|modern_kofta_couscous|Kofta z mletého mäsa s kuskusom|modern_family|standard,high_protein
+9|modern_pasta_bake_beef|Zapekané cestoviny s mletým mäsom|modern_family|standard
+9|modern_chicken_noodle_soup_asian|Kuracia polievka s rezancami a zázvorom|modern_family|standard,high_protein
+9|modern_stuffed_potatoes_ham|Plnené zemiaky so šunkou a syrom|modern_family|standard
+9|modern_chicken_corn_rice|Kuracie s kukuricou a ryžou z jedného hrnca|modern_family|standard,high_protein
+9|modern_pork_goulash_noodles|Bravčový guláš s rezancami|slovak_classic|standard
+10|protein_chicken_cottage_bake|Zapekané kuracie prsia s cottage syrom|high_protein|standard,high_protein
+10|protein_beef_lentil_chili|Hovädzie chilli so šošovicou|high_protein|standard,high_protein
+10|protein_egg_cottage_frittata|Frittata s cottage syrom a špenátom|high_protein|standard,high_protein,vegetarian
+10|protein_chicken_bean_soup_thick|Hustá kuracia polievka s fazuľou|high_protein|standard,high_protein
+10|protein_tuna_bean_pasta|Cestoviny s tuniakom a fazuľou|high_protein|standard,high_protein
+10|protein_pork_tenderloin_beans|Bravčová panenka s fazuľovým pyré|high_protein|standard,high_protein
+10|protein_chicken_bulgur_salad|Kurací šalát s bulgurom|high_protein|standard,high_protein
+10|protein_turkey_cottage_wrap|Morčací wrap s cottage syrom|high_protein|standard,high_protein
+10|protein_greek_yogurt_chicken_rice|Jogurtové kura s ryžou a uhorkou|high_protein|standard,high_protein
+10|protein_beef_potato_pan|Hovädzie s pečenými zemiakmi a zeleninou|high_protein|standard,high_protein
+10|protein_salmon_lentils|Losos so šošovicou|high_protein|standard,high_protein
+10|protein_chicken_chickpea_curry|Kuracie kari s cícerom|high_protein|standard,high_protein
+10|protein_egg_white_omelette_ham|Bielkova omeleta so šunkou a zeleninou|high_protein|standard,high_protein
+10|protein_cottage_pasta_ham|Cestoviny s cottage syrom a šunkou|high_protein|standard,high_protein
+10|protein_tofu_bean_chili|Tofu chilli s fazuľou|plant_based|standard,vegetarian,vegan,high_protein
+10|protein_chicken_broccoli_bake|Zapekané kura s brokolicou a ryžou|high_protein|standard,high_protein
+10|protein_turkey_rice_bowl|Morčacia ryžová miska so zeleninou|high_protein|standard,high_protein
+10|protein_beef_bean_stew|Hovädzí guláš s fazuľou|high_protein|standard,high_protein
+10|protein_tuna_egg_salad_potatoes|Tuniakový šalát so zemiakmi a vajcom|high_protein|standard,high_protein
+10|protein_lentil_egg_bowl|Šošovicová miska s vajcom a zeleninou|high_protein|standard,high_protein,vegetarian

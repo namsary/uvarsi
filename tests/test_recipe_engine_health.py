@@ -230,6 +230,20 @@ def test_on_health_exposes_complete_generation_one_release_evidence(
     assert len(provenance_calls[0]) == 104
 
 
+def test_on_health_accepts_a_library_that_grew_beyond_the_first_wave(
+    monkeypatch, tmp_path
+):
+    server, state = _load(monkeypatch, tmp_path)
+    _write(state, _passing_smoke(server))
+    _install_curated_release_evidence(monkeypatch, server, active_recipes=305)
+
+    engine = TestClient(server.app).get("/api/health").json()["recipe_engine"]
+
+    assert engine["ready"] is True
+    assert "active_recipe_count_mismatch" not in engine["blockers"]
+    assert engine["release_gate"]["active_recipes"] == 305
+
+
 def test_on_health_accepts_the_observed_sub_two_second_curated_runtime(
     monkeypatch, tmp_path
 ):

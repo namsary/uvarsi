@@ -319,6 +319,8 @@ RECIPE_SMOKE_MAX_AGE_SECONDS = 2 * 60 * 60
 # requesty. Rýchlosť jedného plánu samostatne stráži shadow p95 pod 2,5 s.
 RECIPE_SMOKE_MAX_LATENCY_MS = 5_000.0
 RECIPE_ENGINE_STORES = ("Kaufland", "Tesco", "Lidl")
+# Najmenší počet overených receptov: knižnica smie rásť (ďalšie vlny), ale
+# nikdy nesmie potichu klesnúť pod spustenú prvú vlnu.
 CURATED_RECIPE_COUNT = 104
 RECIPE_PLAN_P95_LIMIT_MS = predpocet.SHADOW_P95_LIMIT_MS
 COOKIE = "uvarsi_session"
@@ -4970,7 +4972,7 @@ def recipe_engine_health(con, *, today=None):
             ),
             provenance_complete=snapshot["provenance_complete"],
         )
-        if active_templates != CURATED_RECIPE_COUNT:
+        if active_templates < CURATED_RECIPE_COUNT:
             blockers.append("active_recipe_count_mismatch")
         if snapshot["curation_generation"] != 1:
             blockers.append("curation_generation_mismatch")
@@ -5299,7 +5301,8 @@ def _recipe_gate_ready(status: dict) -> bool:
     ):
         return False
     if not (
-        release_gate.get("active_recipes") == CURATED_RECIPE_COUNT
+        isinstance(release_gate.get("active_recipes"), int)
+        and release_gate.get("active_recipes") >= CURATED_RECIPE_COUNT
         and release_gate.get("curation_generation") == 1
         and release_gate.get("provenance_complete") is True
         and release_gate.get("library_errors") == 0
