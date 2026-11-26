@@ -11,7 +11,7 @@ import pytest
 from app import recipe_catalog
 from app.ingredient_catalog import load_ingredient_catalog
 from app.recipe_catalog import load_recipe_catalog
-from tests.recipe_waves import curated_count
+from tests.recipe_waves import curated_count, wave2_ids
 
 
 DEFAULT_RECIPE_ROOT = (
@@ -175,10 +175,14 @@ def test_generation_one_activates_curated_v2_library_and_retires_legacy(
         "vegan": ("vegan_",),
         "soup_salad": ("soup_", "salad_"),
     }
+    # Wave-2 ids such as soup_* or veg_* reuse launch prefixes; they are
+    # curated v2 recipes, not part of the retired launch library.
+    curated_wave2 = frozenset(wave2_ids())
     legacy = tuple(
         recipe
         for recipe in all_recipes
-        if any(
+        if recipe.id not in curated_wave2
+        and any(
             recipe.id.startswith(prefixes)
             for prefixes in launch_groups.values()
         )

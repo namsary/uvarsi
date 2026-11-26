@@ -104,6 +104,13 @@
     "burger_bun": {"genitive": "hamburgerových žemlí", "instrumental": "hamburgerovými žemľami"},
     "sweet_corn": {"genitive": "sterilizovanej kukurice", "instrumental": "sterilizovanou kukuricou"},
     "trout": {"genitive": "pstruha", "instrumental": "pstruhom"},
-    "mackerel": {"genitive": "makrely", "instrumental": "makrelou"}
+    "mackerel": {"genitive": "makrely", "instrumental": "makrelou"},
+    "chicken_liver": {"genitive": "kuracej pečene", "instrumental": "kuracou pečeňou"},
+    "leek": {"genitive": "póru", "instrumental": "pórom"},
+    "frankfurters": {"genitive": "párkov", "instrumental": "párkami"},
+    "smoked_pork": {"genitive": "údeného bravčového mäsa", "instrumental": "údeným bravčovým mäsom"},
+    "savoy_cabbage": {"genitive": "kelu", "instrumental": "kelom"},
+    "green_beans": {"genitive": "zelenej fazuľky", "instrumental": "zelenou fazuľkou"},
+    "white_beans_canned": {"genitive": "bielej fazule", "instrumental": "bielou fazuľou"}
   }
 }

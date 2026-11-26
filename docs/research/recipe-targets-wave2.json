@@ -1438,6 +1438,478 @@
         }
       ],
       "selection_reason": "Jemné morčacie kari s jogurtom, hráškom a ryžou je obľúbené moderné rodinné jedlo s vysokým obsahom bielkovín, ktoré sa dobre uchová na tri dni."
+    },
+    {
+      "id": "soup_beef_broth_liver_dumplings",
+      "display_name": "Hovädzí vývar s pečeňovými haluškami",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/33495/hovadzia-polievka-s-pecenovymi-haluskami/",
+          "title": "Hovädzia polievka s pečeňovými haluškami | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/ako-uvarit-hovadzi-vyvar-videorecept/91196-recept.html",
+          "title": "Ako uvariť hovädzí vývar (videorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/mrkvova-polievocka-s-pecenovymi-haluskami/24951-recept.html",
+          "title": "Mrkvová polievočka s pečeňovými haluškami - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Hovädzí vývar s pečeňovými haluškami je nedeľná slovenská polievka, ktorá s kúskami mäsa a haluškami zasýti ako hlavné jedlo."
+    },
+    {
+      "id": "soup_leek_potato",
+      "display_name": "Pórová polievka so zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/porova-polievka-chutna-a-rychla/39054-recept.html",
+          "title": "Pórová polievka chutná a rýchla - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/26154/porova-polievka/",
+          "title": "Pórová polievka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/jednoducha-porova-polievka-s-oblacikmi/73293-recept.html",
+          "title": "Jednoduchá pórová polievka s obláčikmi - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Pórová polievka so zemiakmi a vajcovými obláčikmi je lacná domáca klasika, ktorá s chlebom poslúži ako celý obed."
+    },
+    {
+      "id": "soup_chicken_broth_noodles",
+      "display_name": "Slepačí vývar s rezancami a zeleninou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/domaca-slepacia-polievka/13912-recept.html",
+          "title": "Domáca slepačia polievka - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/13854/slepacia-polievka-s-rezancami/",
+          "title": "Slepačia polievka s rezancami | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Slepačí vývar s rezancami, mäsom a koreňovou zeleninou je najčastejšia slovenská nedeľná polievka a s celým kurčaťom zasýti aj ako hlavné jedlo."
+    },
+    {
+      "id": "soup_pea_smoked",
+      "display_name": "Hrachová polievka s údeným mäsom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/hrachova-polievka-s-udenym-masom/25401-recept.html",
+          "title": "Hrachová polievka s údeným mäsom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/2335/hrachova-polievka-so-zemiakmi/",
+          "title": "Hrachová polievka so zemiakmi | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Hustá hrachová polievka s údeným mäsom a zemiakmi je zimná slovenská klasika, ktorá s chlebom nahradí celý obed."
+    },
+    {
+      "id": "soup_kulajda",
+      "display_name": "Kulajda",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/ceska-kulajda/83268-recept.html",
+          "title": "Česká kulajda - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/10492/kulajda/",
+          "title": "Kulajda | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Kulajda so zemiakmi, hubami, kôprom a vajcom je obľúbená smotanová polievka zo slovensko-českej kuchyne, ktorá s chlebom zasýti ako obed."
+    },
+    {
+      "id": "soup_frankfurt",
+      "display_name": "Frankfurtská polievka",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/frankfurtska-polievka/15893-recept.html",
+          "title": "Frankfurtská polievka - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/11504/frankfurtska-polievka/",
+          "title": "Frankfurtská polievka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Frankfurtská polievka s párkami a zemiakmi je rýchla jedálenská aj domáca klasika, ktorú deti aj dospelí jedia s chlebom ako celý obed."
+    },
+    {
+      "id": "soup_vegetable",
+      "display_name": "Zeleninová polievka s ryžou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/16873/zeleninova-polievka-s-ryzou/",
+          "title": "Zeleninová polievka s ryžou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/rychla-zeleninova-polievka-mojej-babicky-videorecept/93798-recept.html",
+          "title": "Rýchla zeleninová polievka mojej babičky (videorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Zeleninová polievka s ryžou, hráškom a karfiolom je lacná rastlinná klasika z bežnej zeleniny, ktorá s chlebom poslúži ako ľahký obed."
+    },
+    {
+      "id": "soup_broccoli_cream",
+      "display_name": "Brokolicový krém",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/brokolicova-kremova-polievka/54534-recept.html",
+          "title": "Brokolicová krémová polievka - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/33873/kremova-brokolicova-polievka/",
+          "title": "Krémová brokolicová polievka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Brokolicový krém so zemiakom, syrom a krutónmi je moderná rodinná polievka, ktorú deti jedia aj vtedy, keď brokolicu inak odmietajú."
+    },
+    {
+      "id": "soup_pumpkin_cream",
+      "display_name": "Tekvicová krémová polievka",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kremova-polievka-z-maslovej-tekvice/55254-recept.html",
+          "title": "Krémová polievka z maslovej tekvice - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/33869/kremova-tekvicova-polievka/",
+          "title": "Krémová tekvicová polievka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/hokkaido-polievka-s-cervenou-sosovicou/81121-recept.html",
+          "title": "Hokkaido polievka s červenou šošovicou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Tekvicová krémová polievka je jesenná rodinná obľúbenkyňa a hrsť červenej šošovice jej dodá hustotu aj bielkoviny, aby s krutónmi zasýtila."
+    },
+    {
+      "id": "soup_mushroom",
+      "display_name": "Hubová polievka",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/hubova-polievka-fotorecept/63308-recept.html",
+          "title": "Hubová polievka (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/10494/hubova-polievka/",
+          "title": "Hubová polievka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Hubová polievka so zápražkou, zemiakmi, rascou a majoránom je tradičná slovenská polievka, ktorá s chlebom poslúži ako bezmäsitý obed."
+    },
+    {
+      "id": "soup_red_lentil",
+      "display_name": "Polievka z červenej šošovice",
+      "editorial_lane": "plant_based",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kremova-polievka-z-cervenej-sosovice-mercimek-orbas-fotorecept/79690-recept.html",
+          "title": "Krémová polievka z červenej šošovice (Mercimek çorbası) (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/44380/husta-polievka-z-cervenej-sosovice/",
+          "title": "Hustá polievka z červenej šošovice | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Hustá polievka z červenej šošovice s mrkvou a citrónom je rýchla rastlinná polievka s dostatkom bielkovín, ktorá s chlebom nahradí obed."
+    },
+    {
+      "id": "soup_minestrone",
+      "display_name": "Minestrone s cestovinami",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/rychla-minestrone-husta-zeleninova-polievka-s-fazulou-a-cestovinami/86171-recept.html",
+          "title": "Rýchla minestrone - hustá zeleninová polievka s fazuľou a cestovinami - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/36964/minestrone/",
+          "title": "Minestrone | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Minestrone s bielou fazuľou a cestovinami je hustá talianska zeleninová polievka, ktorá bez mäsa zasýti celú rodinu ako hlavné jedlo."
+    },
+    {
+      "id": "soup_chicken_white_bean",
+      "display_name": "Kuracia polievka s bielou fazuľou",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/fazulova-husta-stareho-zalesaka-fotorecept/61250-recept.html",
+          "title": "Fazuľová hustá starého zálesáka (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/10486/zeleninova-polievka-s-fazulou/",
+          "title": "Zeleninová polievka s fazuľou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Kuracia polievka s bielou fazuľou a koreňovou zeleninou je rýchla hustá polievka s vysokým obsahom bielkovín, ktorá s chlebom poslúži ako hlavné jedlo."
+    },
+    {
+      "id": "stew_kale",
+      "display_name": "Kelový prívarok s vajcom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kelovy-privarok-fotorecept/18794-recept.html",
+          "title": "Kelový prívarok (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/11617/fotorecept-kelovy-privarok/",
+          "title": "FOTORECEPT: Kelový prívarok | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Kelový prívarok so zemiakmi, cesnakovou zápražkou a volským okom je lacné jesenné a zimné jedlo, ktoré Slováci poznajú z domu aj zo školských jedální."
+    },
+    {
+      "id": "stew_green_beans_egg",
+      "display_name": "Prívarok zo zelenej fazuľky s vajcom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/fazulkovy-privarok-fotorecept/26931-recept.html",
+          "title": "Fazuľkový prívarok (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/68377/fazulkovy-privarok-s-volskym-okom/",
+          "title": "Fazuľkový prívarok s volským okom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Prívarok zo zelenej fazuľky so smotanou, kôprom a vajcom je letná klasika slovenských domácností, ktorú sa dá celý rok uvariť aj z mrazenej fazuľky."
+    },
+    {
+      "id": "stew_carrot_peas",
+      "display_name": "Mrkvový prívarok s hráškom a fašírkou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/hraskovo-mrkvovy-privarok/33218-recept.html",
+          "title": "Hráškovo-mrkvový prívarok - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/17565/dusena-mrkva-s-hraskom/",
+          "title": "Dusená mrkva s hráškom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Sladkastý mrkvový prívarok s hráškom a domácou fašírkou je detská obľúbenkyňa zo slovenských jedální aj domácností."
+    },
+    {
+      "id": "stew_cabbage",
+      "display_name": "Kapustový prívarok so zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kapustovy-privarok-s-paradajkami/1862-recept.html",
+          "title": "Kapustový prívarok s paradajkami - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/67748/kapustovy-privarok-so-smotanou/",
+          "title": "Kapustový prívarok so smotanou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Kapustový prívarok so zemiakmi, rascou a smotanou je lacné a sýte domáce jedlo z jesennej hlávkovej kapusty, ktoré k obedu dopĺňa vajce."
+    },
+    {
+      "id": "stew_bean_goulash",
+      "display_name": "Fazuľový guláš s klobásou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/fazula-na-sposob-gulasu/22257-recept.html",
+          "title": "Fazuľa na spôsob gulašu - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/45692/gulas-s-fazulou/",
+          "title": "Guláš s fazuľou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Fazuľový guláš s údenou klobásou a zemiakmi je sýte jedlo z jedného hrnca, ktoré sa na Slovensku varí doma aj na chate a podáva s chlebom."
+    },
+    {
+      "id": "stew_pork_goulash",
+      "display_name": "Bravčový guláš s chlebom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcovy-gulas-videorecept/94743-recept.html",
+          "title": "Bravčový guláš (videorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/29825/gulas-z-bravcoveho-pliecka/",
+          "title": "Guláš z bravčového pliecka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Bravčový guláš z pliecka s cibuľou a sladkou paprikou je najčastejší domáci guláš na Slovensku a k chlebu patrí rovnako ako ku knedli."
+    },
+    {
+      "id": "stew_mushroom_paprikash",
+      "display_name": "Hubový paprikáš s cestovinami",
+      "editorial_lane": "plant_based",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/27168/hubovy-paprikas/",
+          "title": "Hubový paprikáš | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/hubovy-paprikas-ii-/6604-recept.html",
+          "title": "Hubový paprikáš II. - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Hubový paprikáš so šampiňónmi, paprikou a smotanou je bezmäsitá obdoba kuracieho paprikáša, ktorú s cestovinami zje celá rodina."
     }
   ]
 }

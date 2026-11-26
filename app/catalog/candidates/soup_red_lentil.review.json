@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "e0bc4567c6bf89dc7c484e35a4c3268443a2c3b842d6cf40abe7ee33361332ef",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "soup_red_lentil"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

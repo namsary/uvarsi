@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "5c478125d36e846687393e696ffb9b8b197c09ee21ffc2541d26e27dfc213a24",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "stew_pork_goulash"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

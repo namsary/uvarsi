@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "bfdcd1808e0748dfe63a665e0c086004db261b068aad80f01bf8b4a3126d5b37",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "soup_pea_smoked"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

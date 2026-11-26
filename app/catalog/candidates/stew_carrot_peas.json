@@ -1,0 +1,56 @@
+{
+  "recipes": [
+    {
+      "id": "stew_carrot_peas",
+      "version": 2,
+      "active": true,
+      "name_template": "Mrkvový prívarok s hráškom a fašírkou",
+      "family": "stew_carrot_peas",
+      "method": "pot",
+      "minutes": 55,
+      "modes": ["standard"],
+      "equipment": ["veľký hrniec", "panvica", "misa", "miska", "nôž", "doska na krájanie", "metlička"],
+      "slots": [
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenké kolieska", "water_ml_per_adult": "120"},
+        {"key": "peas", "role": "vegetable", "candidates": ["peas"], "amount_per_adult": "90", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "milk", "role": "dairy", "candidates": ["milk"], "amount_per_adult": "100", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "meat", "role": "protein", "candidates": ["pork_mince"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "crumbs", "role": "starch", "candidates": ["breadcrumbs"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na krajce"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {carrot.amount} {carrot.name} a nakrájaj ju {carrot.cut}. Nakrájaj {onion.amount} {onion.name} {onion.cut}, {garlic.amount} {garlic.name} najemno a {parsley.amount} {parsley.name} nasekaj nadrobno.", "requires": ["carrot:raw", "onion:raw", "garlic:raw", "parsley:raw"], "produces": ["carrot:cut", "onion:cut", "garlic:cut", "parsley:cut"]},
+        {"text": "Premiešaj v mise {meat.amount} {meat.name}, cibuľu, cesnak, {egg.amount} {egg.name}, {crumbs.amount} {crumbs.name} a {marjoram.amount} {marjoram.name} so štipkou soli a čierneho korenia. Zmes mies rukou 2 minúty, kým bude držať pokope. Ak je príliš mäkká, primiešaj lyžicu strúhanky.", "requires": ["meat:raw", "onion:cut", "garlic:cut", "egg:raw", "crumbs:raw", "marjoram:raw", "misa:free"], "produces": ["meat:mixed", "onion:mixed", "garlic:mixed", "egg:mixed", "crumbs:mixed", "marjoram:mixed", "misa:used"]},
+        {"text": "Priprav z mäsovej zmesi mokrými rukami placky hrubé asi 1,5 cm, na každú porciu dve, a polož ich na tanier.", "requires": ["meat:mixed", "onion:mixed", "garlic:mixed", "egg:mixed", "crumbs:mixed", "marjoram:mixed"], "produces": ["meat:shaped", "onion:shaped", "garlic:shaped", "egg:shaped", "crumbs:shaped", "marjoram:shaped"]},
+        {"text": "Rozohrej {butter.amount} {butter.name} vo veľkom hrnci na miernom ohni 1 minútu, kým začne bublať. Prisyp {sugar.amount} {sugar.name} a opekaj ho 1 minútu, kým jemne zozlatne. Pridaj mrkvu do hrnca. Opekaj mrkvu 2 minúty za stáleho miešania, kým sa obalí karamelom.", "requires": ["butter:raw", "sugar:raw", "carrot:cut", "velky_hrniec:free"], "produces": ["butter:used", "sugar:caramel", "carrot:glazed", "velky_hrniec:occupied"]},
+        {"text": "Nalej {carrot.water} vody do hrnca. Dus mrkvu pod pokrievkou vo veľkom hrnci na miernom ohni 12 minút, kým takmer zmäkne.", "requires": ["carrot:glazed"], "produces": ["carrot:half"]},
+        {"text": "Pridaj {peas.amount} {peas.name} do hrnca. Dus hrášok s mrkvou vo veľkom hrnci na miernom ohni 5 minút, kým hrášok aj mrkva zmäknú. Mrazený hrášok netreba rozmrazovať, daj ho do hrnca rovno z mrazničky.", "requires": ["peas:raw", "carrot:half"], "produces": ["peas:cooked", "carrot:cooked"]},
+        {"text": "Rozšľahaj {milk.amount} {milk.name} a {flour.amount} {flour.name} v miske metličkou dohladka, bez hrudiek.", "requires": ["milk:raw", "flour:raw", "miska:free"], "produces": ["milk:slurry", "flour:slurry", "miska:used"]},
+        {"text": "Premiešaj mliečnu zmes s mrkvou a hráškom vo veľkom hrnci. Var mrkvu s hráškom vo veľkom hrnci na miernom ohni 5 minút za stáleho miešania, kým prívarok zhustne a začne bublať. Vmiešaj petržlenovú vňať.", "requires": ["milk:slurry", "flour:slurry", "carrot:cooked", "peas:cooked", "sugar:caramel", "parsley:cut"], "produces": ["milk:cooked", "flour:cooked", "carrot:finished", "peas:finished", "sugar:cooked", "parsley:mixed"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 2 minúty, kým sa začne lesknúť. Olej má pokryť dno panvice asi do výšky 3 mm, podľa potreby ho dolej z fľaše. Opekaj placky z mletého bravčového mäsa 4 minúty z každej strany, kým budú zlatisté a v strede prepečené. Pri väčšej dávke ich opekaj po častiach.", "requires": ["oil:raw", "meat:shaped", "onion:shaped", "garlic:shaped", "egg:shaped", "crumbs:shaped", "marjoram:shaped", "panvica:free"], "produces": ["oil:used", "meat:cooked", "onion:cooked", "garlic:cooked", "egg:cooked", "crumbs:cooked", "marjoram:cooked", "panvica:used"]},
+        {"text": "Nakrájaj {bread.amount} {bread.name} {bread.cut}.", "requires": ["bread:raw"], "produces": ["bread:cut"]},
+        {"text": "Dochuť prívarok soľou. Rozdeľ ho na {portions} porcií, na každú porciu polož fašírky a podávaj s chlebom.", "requires": ["carrot:finished", "peas:finished", "butter:used", "sugar:cooked", "milk:cooked", "flour:cooked", "parsley:mixed", "meat:cooked", "onion:cooked", "garlic:cooked", "egg:cooked", "crumbs:cooked", "marjoram:cooked", "oil:used", "bread:cut", "velky_hrniec:occupied", "panvica:used", "misa:used", "miska:used"], "produces": ["carrot:served", "peas:served", "butter:served", "sugar:served", "milk:served", "flour:served", "parsley:served", "meat:served", "onion:served", "garlic:served", "egg:served", "crumbs:served", "marjoram:served", "oil:served", "bread:served", "velky_hrniec:free", "panvica:free", "misa:free", "miska:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Prívarok a fašírky rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní; prívarok pri ohrievaní zrieď lyžicou mlieka a fašírky prehrej v ňom pod pokrievkou, kým budú horúce aj v strede."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "stew_carrot_peas",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/hraskovo-mrkvovy-privarok/33218-recept.html", "title": "Hráškovo-mrkvový prívarok - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/17565/dusena-mrkva-s-hraskom/", "title": "Dusená mrkva s hráškom | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

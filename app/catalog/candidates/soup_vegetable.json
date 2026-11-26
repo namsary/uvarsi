@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "soup_vegetable",
+      "version": 2,
+      "active": true,
+      "name_template": "Zeleninová polievka s ryžou",
+      "family": "soup_vegetable",
+      "method": "soup",
+      "minutes": 45,
+      "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["veľký hrniec", "sitko", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "35", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "400"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kolieska"},
+        {"key": "celeriac", "role": "vegetable", "candidates": ["celeriac"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "cauliflower", "role": "vegetable", "candidates": ["cauliflower"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "peas", "role": "vegetable", "candidates": ["peas"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na krajce"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou, kým voda nebude číra.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Ošúp {carrot.amount} {carrot.name}, {celeriac.amount} {celeriac.name} a {potato.amount} {potato.name}. Mrkvu nakrájaj na kolieska, zeler a zemiaky na kocky veľké asi 1 cm.", "requires": ["carrot:raw", "celeriac:raw", "potato:raw"], "produces": ["carrot:cut", "celeriac:cut", "potato:cut"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} najemno. Nakrájaj {cauliflower.amount} {cauliflower.name} na malé ružičky a {parsley.amount} {parsley.name} nasekaj nadrobno.", "requires": ["onion:raw", "garlic:raw", "cauliflower:raw", "parsley:raw"], "produces": ["onion:cut", "garlic:cut", "cauliflower:cut", "parsley:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu, mrkvu a zeler 6 minút, kým cibuľa zmäkne a mrkva zafarbí olej dooranžova. Pridaj cesnak a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["oil:raw", "onion:cut", "carrot:cut", "celeriac:cut", "garlic:cut", "velky_hrniec:free"], "produces": ["oil:used", "onion:cooked", "carrot:softened", "celeriac:softened", "garlic:cooked", "velky_hrniec:occupied"]},
+        {"text": "Pridaj ryžu a zemiaky do hrnca. Nalej {rice.water} vody do hrnca. Priveď ryžu so zeleninou vo veľkom hrnci na silnom ohni do varu asi za 10 minút, kým začne bublať.", "requires": ["rice:rinsed", "potato:cut"], "produces": ["rice:heating", "potato:heating"]},
+        {"text": "Stíš oheň. Var ryžu so zeleninou vo veľkom hrnci na miernom ohni 12 minút, kým ryža aj zemiaky takmer zmäknú.", "requires": ["rice:heating", "potato:heating", "carrot:softened", "celeriac:softened"], "produces": ["rice:half", "potato:half", "carrot:half", "celeriac:half"]},
+        {"text": "Pridaj karfiol a {peas.amount} {peas.name} do hrnca. Var karfiol s hráškom vo veľkom hrnci na miernom ohni 6 minút, kým karfiol zmäkne a ryža bude celkom mäkká. Mrazený hrášok aj karfiol netreba rozmrazovať, daj ich do hrnca rovno z mrazničky.", "requires": ["cauliflower:cut", "peas:raw", "rice:half", "potato:half", "carrot:half", "celeriac:half"], "produces": ["cauliflower:cooked", "peas:cooked", "rice:cooked", "potato:cooked", "carrot:cooked", "celeriac:cooked"]},
+        {"text": "Nakrájaj {bread.amount} {bread.name} {bread.cut}.", "requires": ["bread:raw"], "produces": ["bread:cut"]},
+        {"text": "Dochuť polievku soľou a čiernym korením. Rozdeľ ju na {portions} porcií, na každú porciu nasyp petržlenovú vňať a podávaj s chlebom.", "requires": ["rice:cooked", "carrot:cooked", "celeriac:cooked", "potato:cooked", "cauliflower:cooked", "peas:cooked", "onion:cooked", "garlic:cooked", "oil:used", "parsley:cut", "bread:cut", "velky_hrniec:occupied"], "produces": ["rice:served", "carrot:served", "celeriac:served", "potato:served", "cauliflower:served", "peas:served", "onion:served", "garlic:served", "oil:served", "parsley:served", "bread:served", "velky_hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Polievku rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 2 dní; ryža v chlade napučí, preto pri ohrievaní prilej trochu vody a polievku prehrej, kým začne bublať."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "soup_vegetable",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/16873/zeleninova-polievka-s-ryzou/", "title": "Zeleninová polievka s ryžou | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/rychla-zeleninova-polievka-mojej-babicky-videorecept/93798-recept.html", "title": "Rýchla zeleninová polievka mojej babičky (videorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

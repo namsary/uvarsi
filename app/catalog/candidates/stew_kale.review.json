@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "4023d2bdc2ef63dfc175ebf47cb60bbfdd94780985d6415b847ba8a24d9b87b2",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "stew_kale"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

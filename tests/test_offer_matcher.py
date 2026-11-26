@@ -428,6 +428,65 @@ def test_salad_cucumber_is_not_a_pickled_cucumber(catalog):
 @pytest.mark.parametrize(
     ("product_name", "unit", "expected_id"),
     (
+        ("Kuracia pečeň chladená 500 g", "500 g", "chicken_liver"),
+        ("Kuracie pečienky 500 g", "500 g", "chicken_liver"),
+        ("Pór 1 kg", "1 kg", "leek"),
+        ("Párky jemné 250 g", "250 g", "frankfurters"),
+        ("Viedenské párky 400 g", "400 g", "frankfurters"),
+        ("Bravčové párky 300 g", "300 g", "frankfurters"),
+        ("Údené bravčové karé 1 kg", "1 kg", "smoked_pork"),
+        ("Údená krkovička 500 g", "500 g", "smoked_pork"),
+        ("Kel hlávkový 1 kg", "1 kg", "savoy_cabbage"),
+        ("Kel 1 kg", "1 kg", "savoy_cabbage"),
+        ("Mrazená zelená fazuľka 450 g", "450 g", "green_beans"),
+        ("Fazuľka zelená 400 g", "400 g", "green_beans"),
+        ("Biela fazuľa v konzerve 400 g", "400 g", "white_beans_canned"),
+        ("Fazuľa biela sterilizovaná 400 g", "400 g", "white_beans_canned"),
+    ),
+)
+def test_wave2_soup_and_privarok_labels_match(
+    catalog, product_name, unit, expected_id
+):
+    matched = match_offers([offer(nazov=product_name, jednotka=unit)], catalog)
+
+    assert [item.ingredient.id for item in matched] == [expected_id]
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit"),
+    (
+        ("Kuracie pečienky a srdiečka 500 g", "500 g"),
+        ("Kuracie párky 250 g", "250 g"),
+        ("Párky so syrom 250 g", "250 g"),
+        ("Spišské párky 300 g", "300 g"),
+        ("Údené koleno 1 kg", "1 kg"),
+        ("Kel ružičkový 500 g", "500 g"),
+        ("Zeleninová zmes s fazuľkou 400 g", "400 g"),
+        ("Biela fazuľa 500 g", "500 g"),
+        ("Fazuľa biela 500 g", "500 g"),
+        ("Biela sterilizovaná fazuľa 400 g", "400 g"),
+    ),
+)
+def test_wave2_soup_and_privarok_lookalikes_fail_closed(catalog, product_name, unit):
+    assert match_offers([offer(nazov=product_name, jednotka=unit)], catalog) == ()
+
+
+def test_red_bean_offers_never_absorb_white_beans(catalog):
+    matched = match_offers(
+        [offer(nazov="Červená fazuľa v konzerve 400 g", jednotka="400 g")], catalog
+    )
+    assert [item.ingredient.id for item in matched] == ["beans_canned"]
+    assert (
+        match_offers(
+            [offer(nazov="Sušená fazuľa biela 500 g", jednotka="500 g")], catalog
+        )
+        == ()
+    )
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit", "expected_id"),
+    (
         ("Kyslá smotana 15 % 180 g", "180 g", "sour_cream"),
         ("Smotana kyslá 200 g", "200 g", "sour_cream"),
         ("Parmezán 100 g", "100 g", "parmesan"),

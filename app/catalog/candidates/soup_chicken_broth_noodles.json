@@ -1,0 +1,47 @@
+{
+  "recipes": [
+    {
+      "id": "soup_chicken_broth_noodles",
+      "version": 2,
+      "active": true,
+      "name_template": "Slepačí vývar s rezancami a zeleninou",
+      "family": "soup_chicken_broth_noodles",
+      "method": "soup",
+      "minutes": 130,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľký hrniec", "malý hrniec", "sitko", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_whole"], "amount_per_adult": "320", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "550"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na kolieska"},
+        {"key": "celeriac", "role": "vegetable", "candidates": ["celeriac"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "leek", "role": "aromatic", "candidates": ["leek"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na kolieska"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "allspice", "role": "seasoning", "candidates": ["allspice"], "amount_per_adult": "0.75", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "noodles", "role": "starch", "candidates": ["egg_noodles"], "amount_per_adult": "45", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Osuš {chicken.amount} {chicken.name} papierovou utierkou. Väčšie kurča rozdeľ na 4 časti, aby sa zmestilo do hrnca a varilo rovnomerne.", "requires": ["chicken:raw"], "produces": ["chicken:prepared"]},
+        {"text": "Vlož celé kurča do veľkého hrnca. Nalej {chicken.water} vody do hrnca. Priveď celé kurča vo veľkom hrnci na strednom ohni do varu asi za 15 minút, kým voda začne bublať. Sivú penu z povrchu zober lyžicou.", "requires": ["chicken:prepared", "velky_hrniec:free"], "produces": ["chicken:heating", "velky_hrniec:occupied"]},
+        {"text": "Stíš oheň a pridaj {allspice.amount} {allspice.name}. Var celé kurča vo veľkom hrnci na miernom ohni 50 minút pod privretou pokrievkou, kým vývar iba jemne bublá a mäso začne mäknúť.", "requires": ["chicken:heating", "allspice:raw"], "produces": ["chicken:simmered", "allspice:cooked"]},
+        {"text": "Ošúp {carrot.amount} {carrot.name}, {celeriac.amount} {celeriac.name} a {onion.amount} {onion.name}. Mrkvu nakrájaj na kolieska, zeler na malé kocky a cibuľu prekroj na polovice. Nakrájaj {leek.amount} {leek.name} {leek.cut} a prepláchni ho v sitku. Nasekaj {parsley.amount} {parsley.name} nadrobno.", "requires": ["carrot:raw", "celeriac:raw", "onion:raw", "leek:raw", "parsley:raw"], "produces": ["carrot:cut", "celeriac:cut", "onion:cut", "leek:cut", "parsley:cut"]},
+        {"text": "Pridaj mrkvu, zeler, pór a cibuľu do hrnca. Var mrkvu so zelerom a pórom vo veľkom hrnci na miernom ohni 30 minút, kým kurča aj mrkva zmäknú.", "requires": ["carrot:cut", "celeriac:cut", "leek:cut", "onion:cut", "chicken:simmered"], "produces": ["carrot:cooked", "celeriac:cooked", "leek:cooked", "onion:cooked", "chicken:tender"]},
+        {"text": "Vyber celé kurča na dosku a nechaj ho 10 minút vychladnúť. Mäso ober z kostí, kožu a kosti odlož a mäso natrhaj na menšie kúsky. Z vývaru vyber lyžicou polovice cibule a nové korenie.", "requires": ["chicken:tender", "onion:cooked", "allspice:cooked"], "produces": ["chicken:deboned", "onion:removed", "allspice:removed"]},
+        {"text": "Uvar {noodles.amount} {noodles.name} v malom hrnci v osolenej vode na strednom ohni 6 minút, kým zmäknú. Potom ich sceď cez sitko.", "requires": ["noodles:raw", "maly_hrniec:free", "sitko:free"], "produces": ["noodles:cooked", "maly_hrniec:used", "sitko:used"]},
+        {"text": "Vráť mäso z celého kurčaťa do veľkého hrnca. Zohrievaj mäso z celého kurčaťa vo vývare vo veľkom hrnci na miernom ohni 3 minúty, kým polievka začne bublať.", "requires": ["chicken:deboned"], "produces": ["chicken:cooked"]},
+        {"text": "Dochuť vývar soľou a čiernym korením. Rozdeľ rezance, mäso a vývar so zeleninou na {portions} porcií a na každú porciu nasyp petržlenovú vňať.", "requires": ["chicken:cooked", "carrot:cooked", "celeriac:cooked", "leek:cooked", "onion:removed", "allspice:removed", "noodles:cooked", "parsley:cut", "velky_hrniec:occupied", "maly_hrniec:used", "sitko:used"], "produces": ["chicken:served", "carrot:served", "celeriac:served", "leek:served", "onion:served", "allspice:served", "noodles:served", "parsley:served", "velky_hrniec:free", "maly_hrniec:free", "sitko:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Vývar s mäsom a rezance rozdeľ oddelene do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní; rezance vlož do taniera až pri podávaní, aby nenapučali."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "soup_chicken_broth_noodles",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/domaca-slepacia-polievka/13912-recept.html", "title": "Domáca slepačia polievka - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/13854/slepacia-polievka-s-rezancami/", "title": "Slepačia polievka s rezancami | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

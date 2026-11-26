@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "fb85a47dd8ca9c8065676912978aaa58b2e10e2e214e86243bcef35f31af973e",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "soup_chicken_broth_noodles"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

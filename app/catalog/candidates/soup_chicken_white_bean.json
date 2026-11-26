@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "soup_chicken_white_bean",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuracia polievka s bielou fazuľou",
+      "family": "soup_chicken_white_bean",
+      "method": "soup",
+      "minutes": 45,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľký hrniec", "sitko", "vareška", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "350"},
+        {"key": "beans", "role": "protein", "candidates": ["white_beans_canned"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "celeriac", "role": "vegetable", "candidates": ["celeriac"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "leek", "role": "aromatic", "candidates": ["leek"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na tenké kolieska"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "thyme", "role": "seasoning", "candidates": ["thyme"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na krajce"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} na kocky veľké asi 2 cm.", "requires": ["chicken:raw"], "produces": ["chicken:cut"]},
+        {"text": "Sceď {beans.amount} {beans.name} v sitku a prepláchni ju studenou vodou.", "requires": ["beans:raw"], "produces": ["beans:drained"]},
+        {"text": "Ošúp {carrot.amount} {carrot.name} a {celeriac.amount} {celeriac.name} a nakrájaj ich na malé kocky. Nakrájaj {leek.amount} {leek.name} {leek.cut} a prepláchni ho v sitku. Nakrájaj {garlic.amount} {garlic.name} najemno a {parsley.amount} {parsley.name} nasekaj nadrobno.", "requires": ["carrot:raw", "celeriac:raw", "leek:raw", "garlic:raw", "parsley:raw"], "produces": ["carrot:cut", "celeriac:cut", "leek:cut", "garlic:cut", "parsley:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj mrkvu, zeler a pór 6 minút, kým pór zmäkne. Pridaj cesnak a {thyme.amount} {thyme.name} a opekaj ich 30 sekúnd, kým zavoňajú.", "requires": ["oil:raw", "carrot:cut", "celeriac:cut", "leek:cut", "garlic:cut", "thyme:raw", "velky_hrniec:free"], "produces": ["oil:used", "carrot:softened", "celeriac:softened", "leek:softened", "garlic:cooked", "thyme:cooked", "velky_hrniec:occupied"]},
+        {"text": "Nalej {chicken.water} vody do hrnca. Var mrkvu so zelerom a pórom vo veľkom hrnci na miernom ohni 15 minút, kým mrkva takmer zmäkne.", "requires": ["carrot:softened", "celeriac:softened", "leek:softened"], "produces": ["carrot:half", "celeriac:half", "leek:cooked"]},
+        {"text": "Pridaj kuracie prsia do hrnca. Var kuracie prsia vo veľkom hrnci na miernom ohni 8 minút, kým budú v strede biele a mäkké a mrkva celkom zmäkne. Pri dávke nad 6 porcií ich var o 2 minúty dlhšie.", "requires": ["chicken:cut", "carrot:half", "celeriac:half"], "produces": ["chicken:cooked", "carrot:cooked", "celeriac:cooked"]},
+        {"text": "Pridaj bielu fazuľu do hrnca. Zohrievaj bielu fazuľu s kuracími prsiami vo veľkom hrnci na miernom ohni 3 minúty, kým polievka opäť začne bublať. Vareškou rozdrv časť fazule o stenu hrnca, aby polievka zhustla.", "requires": ["beans:drained"], "produces": ["beans:cooked"]},
+        {"text": "Nakrájaj {bread.amount} {bread.name} {bread.cut}.", "requires": ["bread:raw"], "produces": ["bread:cut"]},
+        {"text": "Dochuť polievku soľou a čiernym korením. Rozdeľ ju na {portions} porcií, na každú porciu nasyp petržlenovú vňať a podávaj s chlebom.", "requires": ["chicken:cooked", "beans:cooked", "carrot:cooked", "celeriac:cooked", "leek:cooked", "garlic:cooked", "oil:used", "thyme:cooked", "parsley:cut", "bread:cut", "velky_hrniec:occupied"], "produces": ["chicken:served", "beans:served", "carrot:served", "celeriac:served", "leek:served", "garlic:served", "oil:served", "thyme:served", "parsley:served", "bread:served", "velky_hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Polievku rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 3 dní a prehrej ju na miernom ohni, kým začne bublať, aby kuracie mäso nevyschlo. Chlieb skladuj oddelene."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "soup_chicken_white_bean",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/fazulova-husta-stareho-zalesaka-fotorecept/61250-recept.html", "title": "Fazuľová hustá starého zálesáka (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/10486/zeleninova-polievka-s-fazulou/", "title": "Zeleninová polievka s fazuľou | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

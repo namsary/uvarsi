@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "soup_pea_smoked",
+      "version": 2,
+      "active": true,
+      "name_template": "Hrachová polievka s údeným mäsom",
+      "family": "soup_pea_smoked",
+      "method": "soup",
+      "minutes": 85,
+      "modes": ["standard"],
+      "equipment": ["veľký hrniec", "sitko", "vareška", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "peas", "role": "protein", "candidates": ["dry_peas"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "400"},
+        {"key": "pork", "role": "protein", "candidates": ["smoked_pork"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "vcelku"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "6", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bay", "role": "seasoning", "candidates": ["bay_leaf"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na krajce"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {peas.amount} {peas.name} v sitku pod studenou vodou, kým voda nebude číra.", "requires": ["peas:raw"], "produces": ["peas:rinsed"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno. Ošúp {carrot.amount} {carrot.name} a {potato.amount} {potato.name}. Mrkvu nakrájaj na kolieska a zemiaky na kocky veľké asi 1,5 cm.", "requires": ["onion:raw", "garlic:raw", "carrot:raw", "potato:raw"], "produces": ["onion:cut", "garlic:cut", "carrot:cut", "potato:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu s mrkvou 5 minút, kým cibuľa zmäkne.", "requires": ["oil:raw", "onion:cut", "carrot:cut", "velky_hrniec:free"], "produces": ["oil:used", "onion:cooked", "carrot:softened", "velky_hrniec:occupied"]},
+        {"text": "Vsyp suchý polený hrach do hrnca. Vlož {pork.amount} {pork.name} {pork.cut} do hrnca. Nalej {peas.water} vody do hrnca. Priveď polený hrach s údeným mäsom vo veľkom hrnci na silnom ohni do varu asi za 10 minút, kým začne bublať. Penu z povrchu zober lyžicou.", "requires": ["peas:rinsed", "pork:raw"], "produces": ["peas:heating", "pork:heating"]},
+        {"text": "Stíš oheň a pridaj {bay.amount} {bay.name}. Var polený hrach s údeným mäsom vo veľkom hrnci na miernom ohni 45 minút, kým hrach zmäkne a začne sa rozpadať. Občas premiešaj, aby sa hrach neprichytil ku dnu.", "requires": ["peas:heating", "pork:heating", "bay:raw", "onion:cooked", "carrot:softened", "oil:used"], "produces": ["peas:soft", "pork:cooked", "bay:cooked", "onion:soup", "carrot:soup", "oil:soup"]},
+        {"text": "Vyber údené mäso z hrnca na dosku. Pridaj zemiaky a cesnak do hrnca. Var zemiaky s hrachom vo veľkom hrnci na miernom ohni 15 minút, kým zemiaky zmäknú.", "requires": ["pork:cooked", "potato:cut", "garlic:cut", "peas:soft"], "produces": ["pork:rested", "potato:cooked", "garlic:cooked", "peas:cooked"]},
+        {"text": "Nakrájaj údené mäso na malé kocky a vráť ho do hrnca. Vyber z polievky bobkový list. Rozdrv vareškou časť hrachu o stenu hrnca, aby polievka zhustla.", "requires": ["pork:rested", "bay:cooked", "peas:cooked"], "produces": ["pork:diced", "bay:removed", "peas:thickened"]},
+        {"text": "Prisyp {marjoram.amount} {marjoram.name}. Zohrievaj údené mäso v polievke vo veľkom hrnci na miernom ohni 3 minúty, kým polievka začne bublať.", "requires": ["marjoram:raw", "pork:diced"], "produces": ["marjoram:cooked", "pork:hot"]},
+        {"text": "Nakrájaj {bread.amount} {bread.name} {bread.cut}.", "requires": ["bread:raw"], "produces": ["bread:cut"]},
+        {"text": "Dochuť polievku čiernym korením a soľou až po ochutnaní, lebo údené mäso je slané. Rozdeľ hrachovú polievku na {portions} porcií a podávaj ju s chlebom.", "requires": ["peas:thickened", "pork:hot", "potato:cooked", "carrot:soup", "onion:soup", "garlic:cooked", "oil:soup", "bay:removed", "marjoram:cooked", "bread:cut", "velky_hrniec:occupied"], "produces": ["peas:served", "pork:served", "potato:served", "carrot:served", "onion:served", "garlic:served", "oil:served", "bay:served", "marjoram:served", "bread:served", "velky_hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Polievku rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 3 dní; v chlade zhustne, pri ohrievaní do nej prilej trochu vody a prehrej ju, kým začne bublať. Chlieb skladuj oddelene."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "soup_pea_smoked",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/hrachova-polievka-s-udenym-masom/25401-recept.html", "title": "Hrachová polievka s údeným mäsom - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/2335/hrachova-polievka-so-zemiakmi/", "title": "Hrachová polievka so zemiakmi | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

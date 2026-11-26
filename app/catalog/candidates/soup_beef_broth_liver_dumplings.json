@@ -1,0 +1,55 @@
+{
+  "recipes": [
+    {
+      "id": "soup_beef_broth_liver_dumplings",
+      "version": 2,
+      "active": true,
+      "name_template": "Hovädzí vývar s pečeňovými haluškami",
+      "family": "soup_beef_broth_liver_dumplings",
+      "method": "soup",
+      "minutes": 160,
+      "modes": ["standard"],
+      "equipment": ["veľký hrniec", "miska", "ponorný mixér", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "beef", "role": "protein", "candidates": ["beef_chuck"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "500"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na kolieska"},
+        {"key": "celeriac", "role": "vegetable", "candidates": ["celeriac"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bay", "role": "seasoning", "candidates": ["bay_leaf"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "allspice", "role": "seasoning", "candidates": ["allspice"], "amount_per_adult": "0.75", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "liver", "role": "protein", "candidates": ["chicken_liver"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "crumbs", "role": "starch", "candidates": ["breadcrumbs"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Osuš {beef.amount} {beef.name} papierovou utierkou. Väčší kus mäsa rozkroj na 3 až 4 časti, aby sa varil rovnomerne.", "requires": ["beef:raw"], "produces": ["beef:prepared"]},
+        {"text": "Vlož hovädzie predné bez kosti do veľkého hrnca. Nalej {beef.water} vody do hrnca. Priveď hovädzie predné bez kosti vo veľkom hrnci na strednom ohni do varu asi za 15 minút, kým voda začne bublať. Sivú penu z povrchu zober lyžicou, aby vývar ostal číry.", "requires": ["beef:prepared", "velky_hrniec:free"], "produces": ["beef:heating", "velky_hrniec:occupied"]},
+        {"text": "Stíš oheň a pridaj {bay.amount} {bay.name} a {allspice.amount} {allspice.name}. Var hovädzie predné bez kosti vo veľkom hrnci na miernom ohni 90 minút pod privretou pokrievkou, kým mäso takmer zmäkne a vývar iba jemne bublá.", "requires": ["beef:heating", "bay:raw", "allspice:raw"], "produces": ["beef:simmered", "bay:cooked", "allspice:cooked"]},
+        {"text": "Ošúp {carrot.amount} {carrot.name}, {celeriac.amount} {celeriac.name} a {onion.amount} {onion.name}. Mrkvu nakrájaj na kolieska, zeler na tenké hranolčeky a cibuľu prekroj na polovice. Nasekaj {parsley.amount} {parsley.name} nadrobno.", "requires": ["carrot:raw", "celeriac:raw", "onion:raw", "parsley:raw"], "produces": ["carrot:cut", "celeriac:cut", "onion:cut", "parsley:cut"]},
+        {"text": "Pridaj mrkvu, zeler a cibuľu do hrnca. Var mrkvu so zelerom a hovädzím mäsom vo veľkom hrnci na miernom ohni 30 minút, kým mäso aj mrkva zmäknú.", "requires": ["carrot:cut", "celeriac:cut", "onion:cut", "beef:simmered"], "produces": ["carrot:cooked", "celeriac:cooked", "onion:cooked", "beef:tender"]},
+        {"text": "Prepláchni {liver.amount} {liver.name} pod studenou vodou, odstráň z nej blany a žilky a nakrájaj ju na menšie kúsky.", "requires": ["liver:raw"], "produces": ["liver:cleaned"]},
+        {"text": "Vlož kuraciu pečeň, {garlic.amount} {garlic.name}, {egg.amount} {egg.name} a {marjoram.amount} {marjoram.name} do misky. Pridaj štipku soli a čierneho korenia. Rozmixuj zmes ponorným mixérom dohladka.", "requires": ["liver:cleaned", "garlic:raw", "egg:raw", "marjoram:raw", "miska:free", "ponorny_mixer:free"], "produces": ["liver:blended", "garlic:blended", "egg:blended", "marjoram:blended", "miska:used", "ponorny_mixer:used"]},
+        {"text": "Vmiešaj {crumbs.amount} {crumbs.name} do misky. Nechaj cesto 10 minút odpočívať, kým strúhanka napučí a cesto bude husté ako kaša. Ak je riedke, primiešaj ešte lyžicu strúhanky.", "requires": ["crumbs:raw", "liver:blended"], "produces": ["crumbs:mixed", "liver:dough"]},
+        {"text": "Vyber hovädzie predné bez kosti na dosku a nechaj ho 5 minút vychladnúť. Hovädzie mäso potom nakrájaj na kocky veľké asi 1,5 cm.", "requires": ["beef:tender"], "produces": ["beef:diced"]},
+        {"text": "Var mrkvu so zelerom vo veľkom hrnci na strednom ohni 2 minúty, kým vývar začne výrazne bublať. Lyžičkou namočenou vo vývare odoberaj z cesta malé halušky a spúšťaj ich do vývaru. Var halušky z kuracej pečene vo veľkom hrnci na miernom ohni 5 minút, kým vyplávajú na povrch a stuhnú.", "requires": ["liver:dough", "crumbs:mixed", "egg:blended", "garlic:blended", "marjoram:blended", "carrot:cooked", "celeriac:cooked"], "produces": ["liver:cooked", "crumbs:cooked", "egg:cooked", "garlic:cooked", "marjoram:cooked", "carrot:done", "celeriac:done"]},
+        {"text": "Vyber z vývaru lyžicou bobkový list, nové korenie a polovice cibule. Vráť hovädzie mäso do hrnca a zohrievaj ho s haluškami vo veľkom hrnci na miernom ohni 2 minúty, kým vývar opäť začne bublať.", "requires": ["bay:cooked", "allspice:cooked", "onion:cooked", "beef:diced"], "produces": ["bay:removed", "allspice:removed", "onion:removed", "beef:cooked"]},
+        {"text": "Dochuť vývar soľou a čiernym korením. Rozdeľ hovädzí vývar s mäsom, zeleninou a haluškami na {portions} porcií a na každú porciu nasyp petržlenovú vňať.", "requires": ["beef:cooked", "carrot:done", "celeriac:done", "onion:removed", "bay:removed", "allspice:removed", "liver:cooked", "egg:cooked", "crumbs:cooked", "garlic:cooked", "marjoram:cooked", "parsley:cut", "velky_hrniec:occupied", "miska:used", "ponorny_mixer:used"], "produces": ["beef:served", "carrot:served", "celeriac:served", "onion:served", "bay:served", "allspice:served", "liver:served", "egg:served", "crumbs:served", "garlic:served", "marjoram:served", "parsley:served", "velky_hrniec:free", "miska:free", "ponorny_mixer:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Vývar s mäsom a haluškami rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní a pred podávaním ho prehrej, kým začne bublať."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "soup_beef_broth_liver_dumplings",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/33495/hovadzia-polievka-s-pecenovymi-haluskami/", "title": "Hovädzia polievka s pečeňovými haluškami | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/ako-uvarit-hovadzi-vyvar-videorecept/91196-recept.html", "title": "Ako uvariť hovädzí vývar (videorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/mrkvova-polievocka-s-pecenovymi-haluskami/24951-recept.html", "title": "Mrkvová polievočka s pečeňovými haluškami - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

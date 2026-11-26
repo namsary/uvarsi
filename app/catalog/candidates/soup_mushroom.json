@@ -1,0 +1,52 @@
+{
+  "recipes": [
+    {
+      "id": "soup_mushroom",
+      "version": 2,
+      "active": true,
+      "name_template": "Hubová polievka",
+      "family": "soup_mushroom",
+      "method": "soup",
+      "minutes": 45,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["veľký hrniec", "panvica", "nôž", "doska na krájanie", "metlička"],
+      "slots": [
+        {"key": "mushrooms", "role": "vegetable", "candidates": ["mushrooms"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "400"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "12", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "50", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na krajce"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na kocky veľké asi 1,5 cm. Nakrájaj {mushrooms.amount} {mushrooms.name} {mushrooms.cut}.", "requires": ["potato:raw", "mushrooms:raw"], "produces": ["potato:cut", "mushrooms:cut"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}, {garlic.amount} {garlic.name} najemno a {parsley.amount} {parsley.name} nasekaj nadrobno.", "requires": ["onion:raw", "garlic:raw", "parsley:raw"], "produces": ["onion:cut", "garlic:cut", "parsley:cut"]},
+        {"text": "Rozohrej {butter.amount} {butter.name} v panvici na strednom ohni 1 minútu, kým začne bublať. Opekaj biele šampiňóny 6 minút, kým zmäknú a voda z nich sa takmer odparí. Mrazené šampiňóny daj do panvice rovno z mrazničky a opekaj ich o 4 minúty dlhšie.", "requires": ["butter:raw", "mushrooms:cut", "panvica:free"], "produces": ["butter:used", "mushrooms:sauteed", "panvica:used"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu 5 minút, kým bude dosklovita. Pridaj cesnak a {caraway.amount} {caraway.name} a opekaj ich 30 sekúnd, kým zavoňajú.", "requires": ["oil:raw", "onion:cut", "garlic:cut", "caraway:raw", "velky_hrniec:free"], "produces": ["oil:used", "onion:cooked", "garlic:cooked", "caraway:cooked", "velky_hrniec:occupied"]},
+        {"text": "Prisyp {flour.amount} {flour.name} do hrnca. Opekaj hladkú pšeničnú múku s cibuľou na miernom ohni 1 minútu za stáleho miešania, kým bude zlatistá.", "requires": ["flour:raw", "onion:cooked"], "produces": ["flour:roux", "onion:roux"]},
+        {"text": "Prilej {potato.water} vody. Hneď zápražku s vodou vymiešaj metličkou dohladka, bez hrudiek. Pridaj zemiaky a {marjoram.amount} {marjoram.name} do hrnca. Var zemiaky vo veľkom hrnci na miernom ohni 15 minút, kým budú takmer mäkké.", "requires": ["potato:cut", "marjoram:raw", "flour:roux", "onion:roux"], "produces": ["potato:half", "marjoram:cooked", "flour:cooked", "onion:soup"]},
+        {"text": "Pridaj biele šampiňóny do hrnca. Var šampiňóny so zemiakmi vo veľkom hrnci na miernom ohni 5 minút, kým zemiaky celkom zmäknú.", "requires": ["mushrooms:sauteed", "potato:half"], "produces": ["mushrooms:cooked", "potato:cooked"]},
+        {"text": "Vlej {cream.amount} {cream.name} do hrnca. Zohrievaj smotanu na varenie s polievkou vo veľkom hrnci na miernom ohni 2 minúty, kým polievka začne jemne bublať.", "requires": ["cream:raw"], "produces": ["cream:cooked"]},
+        {"text": "Nakrájaj {bread.amount} {bread.name} {bread.cut}.", "requires": ["bread:raw"], "produces": ["bread:cut"]},
+        {"text": "Dochuť polievku soľou a čiernym korením. Rozdeľ ju na {portions} porcií, na každú porciu nasyp petržlenovú vňať a podávaj s chlebom.", "requires": ["mushrooms:cooked", "potato:cooked", "onion:soup", "garlic:cooked", "butter:used", "oil:used", "flour:cooked", "caraway:cooked", "marjoram:cooked", "cream:cooked", "parsley:cut", "bread:cut", "velky_hrniec:occupied", "panvica:used"], "produces": ["mushrooms:served", "potato:served", "onion:served", "garlic:served", "butter:served", "oil:served", "flour:served", "caraway:served", "marjoram:served", "cream:served", "parsley:served", "bread:served", "velky_hrniec:free", "panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Polievku rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 2 dní a prehrej ju na miernom ohni, kým začne bublať. Chlieb skladuj oddelene."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "soup_mushroom",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/hubova-polievka-fotorecept/63308-recept.html", "title": "Hubová polievka (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/10494/hubova-polievka/", "title": "Hubová polievka | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

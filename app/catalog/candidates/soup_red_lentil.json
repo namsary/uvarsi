@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "soup_red_lentil",
+      "version": 2,
+      "active": true,
+      "name_template": "Polievka z červenej šošovice",
+      "family": "soup_red_lentil",
+      "method": "soup",
+      "minutes": 40,
+      "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["veľký hrniec", "sitko", "ponorný mixér", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "lentils", "role": "protein", "candidates": ["red_lentils"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "350"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cumin", "role": "seasoning", "candidates": ["cumin"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "0.15", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na krajce"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {lentils.amount} {lentils.name} v sitku pod studenou vodou, kým voda nebude číra.", "requires": ["lentils:raw"], "produces": ["lentils:rinsed"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}, {garlic.amount} {garlic.name} najemno a {parsley.amount} {parsley.name} nasekaj nadrobno. Ošúp {carrot.amount} {carrot.name} a nakrájaj ju na malé kocky.", "requires": ["onion:raw", "garlic:raw", "parsley:raw", "carrot:raw"], "produces": ["onion:cut", "garlic:cut", "parsley:cut", "carrot:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu s mrkvou 6 minút, kým cibuľa zmäkne. Pridaj cesnak a {paste.amount} {paste.name} a opekaj ich 1 minútu, kým zavoňajú.", "requires": ["oil:raw", "onion:cut", "carrot:cut", "garlic:cut", "paste:raw", "velky_hrniec:free"], "produces": ["oil:used", "onion:cooked", "carrot:softened", "garlic:cooked", "paste:cooked", "velky_hrniec:occupied"]},
+        {"text": "Odstav veľký hrniec z ohňa. Prisyp {cumin.amount} {cumin.name} a {paprika.amount} {paprika.name}. Hneď premiešaj, aby korenie nezhorklo.", "requires": ["cumin:raw", "paprika:raw"], "produces": ["cumin:bloomed", "paprika:bloomed"]},
+        {"text": "Vsyp červenú šošovicu do hrnca. Nalej {lentils.water} vody do hrnca. Priveď červenú šošovicu vo veľkom hrnci na silnom ohni do varu asi za 8 minút, kým začne bublať.", "requires": ["lentils:rinsed"], "produces": ["lentils:heating"]},
+        {"text": "Stíš oheň. Var červenú šošovicu so zeleninou vo veľkom hrnci na miernom ohni 18 minút, kým sa rozvarí a mrkva zmäkne. Občas premiešaj, aby sa šošovica neprichytila ku dnu.", "requires": ["lentils:heating", "carrot:softened", "onion:cooked", "garlic:cooked", "paste:cooked", "cumin:bloomed", "paprika:bloomed", "oil:used"], "produces": ["lentils:cooked", "carrot:cooked", "onion:soup", "garlic:soup", "paste:soup", "cumin:cooked", "paprika:cooked", "oil:soup"]},
+        {"text": "Odstav veľký hrniec z ohňa. Rozmixuj polovicu polievky ponorným mixérom, aby zhustla a ostali v nej kúsky zeleniny.", "requires": ["lentils:cooked"], "produces": ["lentils:blended"]},
+        {"text": "Nakrájaj {lemon.amount} {lemon.name} na mesiačiky a {bread.amount} {bread.name} {bread.cut}.", "requires": ["lemon:raw", "bread:raw"], "produces": ["lemon:cut", "bread:cut"]},
+        {"text": "Dochuť polievku soľou a čiernym korením. Rozdeľ ju na {portions} porcií, na každú porciu nasyp petržlenovú vňať a podávaj s mesiačikom citróna a chlebom. Citrón si každý vytlačí do polievky podľa chuti.", "requires": ["lentils:blended", "carrot:cooked", "onion:soup", "garlic:soup", "paste:soup", "oil:soup", "cumin:cooked", "paprika:cooked", "lemon:cut", "parsley:cut", "bread:cut", "velky_hrniec:occupied"], "produces": ["lentils:served", "carrot:served", "onion:served", "garlic:served", "paste:served", "oil:served", "cumin:served", "paprika:served", "lemon:served", "parsley:served", "bread:served", "velky_hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Polievku rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 3 dní; v chlade zhustne, preto pri ohrievaní prilej trochu vody a prehrej ju, kým začne bublať."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "soup_red_lentil",
+    "editorial_lane": "plant_based",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/kremova-polievka-z-cervenej-sosovice-mercimek-orbas-fotorecept/79690-recept.html", "title": "Krémová polievka z červenej šošovice (Mercimek çorbası) (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/44380/husta-polievka-z-cervenej-sosovice/", "title": "Hustá polievka z červenej šošovice | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

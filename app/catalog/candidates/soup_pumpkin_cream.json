@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "soup_pumpkin_cream",
+      "version": 2,
+      "active": true,
+      "name_template": "Tekvicová krémová polievka",
+      "family": "soup_pumpkin_cream",
+      "method": "soup",
+      "minutes": 45,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["veľký hrniec", "panvica", "sitko", "ponorný mixér", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "pumpkin", "role": "vegetable", "candidates": ["pumpkin"], "amount_per_adult": "300", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "250"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "lentils", "role": "protein", "candidates": ["red_lentils"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "thyme", "role": "seasoning", "candidates": ["thyme"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "70", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {pumpkin.amount} {pumpkin.name}, vyber z nej jadierka a nakrájaj ju na kocky veľké asi 2 cm. Tekvicu hokkaido stačí umyť, šupka sa rozvarí.", "requires": ["pumpkin:raw"], "produces": ["pumpkin:cut"]},
+        {"text": "Ošúp {potato.amount} {potato.name} a {carrot.amount} {carrot.name} a nakrájaj ich na malé kocky. Nakrájaj {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} najemno.", "requires": ["potato:raw", "carrot:raw", "onion:raw", "garlic:raw"], "produces": ["potato:cut", "carrot:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Prepláchni {lentils.amount} {lentils.name} v sitku pod studenou vodou.", "requires": ["lentils:raw"], "produces": ["lentils:rinsed"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu 5 minút, kým bude dosklovita. Pridaj cesnak a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["oil:raw", "onion:cut", "garlic:cut", "velky_hrniec:free"], "produces": ["oil:used", "onion:cooked", "garlic:cooked", "velky_hrniec:occupied"]},
+        {"text": "Pridaj tekvicu, zemiaky, mrkvu a červenú šošovicu do hrnca. Prisyp {thyme.amount} {thyme.name}. Nalej {pumpkin.water} vody do hrnca. Var tekvicu so zeleninou vo veľkom hrnci na miernom ohni 20 minút, kým tekvica aj šošovica celkom zmäknú.", "requires": ["pumpkin:cut", "potato:cut", "carrot:cut", "lentils:rinsed", "thyme:raw"], "produces": ["pumpkin:cooked", "potato:cooked", "carrot:cooked", "lentils:cooked", "thyme:cooked"]},
+        {"text": "Odstav veľký hrniec z ohňa. Rozmixuj tekvicu so zeleninou ponorným mixérom dohladka.", "requires": ["pumpkin:cooked", "potato:cooked", "carrot:cooked", "lentils:cooked", "onion:cooked", "garlic:cooked", "oil:used"], "produces": ["pumpkin:pureed", "potato:pureed", "carrot:pureed", "lentils:pureed", "onion:pureed", "garlic:pureed", "oil:pureed"]},
+        {"text": "Vlej {cream.amount} {cream.name} do hrnca. Zohrievaj tekvicu so smotanou vo veľkom hrnci na miernom ohni 3 minúty, kým krém začne jemne bublať. Ak je príliš hustý, zrieď ho trochou horúcej vody.", "requires": ["cream:raw", "pumpkin:pureed"], "produces": ["cream:cooked", "pumpkin:finished"]},
+        {"text": "Nakrájaj {bread.amount} {bread.name} na kocky veľké asi 1,5 cm. Opekaj biely chlieb na suchej panvici na strednom ohni 5 minút za občasného miešania, kým bude chrumkavý a zlatistý.", "requires": ["bread:raw", "panvica:free"], "produces": ["bread:toasted", "panvica:used"]},
+        {"text": "Dochuť krém soľou a čiernym korením. Rozdeľ ho na {portions} porcií, na každú porciu nasyp krutóny a podávaj.", "requires": ["pumpkin:finished", "potato:pureed", "carrot:pureed", "lentils:pureed", "onion:pureed", "garlic:pureed", "oil:pureed", "thyme:cooked", "cream:cooked", "bread:toasted", "velky_hrniec:occupied", "panvica:used"], "produces": ["pumpkin:served", "potato:served", "carrot:served", "lentils:served", "onion:served", "garlic:served", "oil:served", "thyme:served", "cream:served", "bread:served", "velky_hrniec:free", "panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Krém rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní a prehrievaj ho na miernom ohni. Krutóny skladuj oddelene v suchej nádobe."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "soup_pumpkin_cream",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/kremova-polievka-z-maslovej-tekvice/55254-recept.html", "title": "Krémová polievka z maslovej tekvice - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/33869/kremova-tekvicova-polievka/", "title": "Krémová tekvicová polievka | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/hokkaido-polievka-s-cervenou-sosovicou/81121-recept.html", "title": "Hokkaido polievka s červenou šošovicou - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

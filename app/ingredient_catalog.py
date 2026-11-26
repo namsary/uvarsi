@@ -94,6 +94,9 @@ INGREDIENT_AMBIGUOUS_OFFER_FORMS = MappingProxyType(
         "pork_loin": frozenset(("bravčové karé",)),
         "smoked_sausage": frozenset(("klobása",)),
         "wheat_flour": frozenset(("pšeničná múka", "múka")),
+        # Plain „biela fazuľa“ in a flyer is usually the dry pulse; only a
+        # label that says canned, sterilized or in brine is the drained can.
+        "white_beans_canned": frozenset(("biela fazuľa",)),
     }
 )
 INGREDIENT_FORBIDDEN_OFFER_QUALIFIERS = MappingProxyType(
@@ -338,6 +341,72 @@ INGREDIENT_FORBIDDEN_OFFER_QUALIFIERS = MappingProxyType(
         "tartar_sauce": frozenset((("light",), ("s",), ("so",))),
         "tomato_paste": frozenset(
             (("s",), ("so",), ("ochutený",), ("ochuteny",))
+        ),
+        # Red kidney beans only; white beans are a separate ingredient.
+        "beans": frozenset((("biela",), ("biele",), ("bielej",))),
+        "beans_canned": frozenset((("biela",), ("biele",), ("bielej",))),
+        # Raw chicken liver only, not a mixed offal tray or a pâté.
+        "chicken_liver": frozenset(
+            (
+                ("srdiečka",),
+                ("srdiecka",),
+                ("žalúdky",),
+                ("zaludky",),
+                ("paštéta",),
+                ("pasteta",),
+            )
+        ),
+        # Plain pork frankfurters; poultry, cheese-filled, spicy or meatless
+        # sausages cook and taste differently in a frankfurter soup.
+        "frankfurters": frozenset(
+            (
+                ("kuracie",),
+                ("morčacie",),
+                ("morcacie",),
+                ("hydinové",),
+                ("hydinove",),
+                ("syrové",),
+                ("syrove",),
+                ("spišské",),
+                ("spisske",),
+                ("pikantné",),
+                ("pikantne",),
+                ("vegetariánske",),
+                ("vegetarianske",),
+                ("rastlinné",),
+                ("rastlinne",),
+                ("s",),
+                ("so",),
+            )
+        ),
+        # Green pods only; mixed vegetables or seasoned side dishes are
+        # different products.
+        "green_beans": frozenset(
+            (("s",), ("so",), ("zmes",), ("žltá",), ("zlta",))
+        ),
+        # Savoy cabbage only; Brussels sprouts and curly kale are different
+        # vegetables that share the word „kel“.
+        "savoy_cabbage": frozenset(
+            (
+                ("ružičkový",),
+                ("ruzickovy",),
+                ("kučeravý",),
+                ("kuceravy",),
+                ("kaderavý",),
+                ("kaderavy",),
+            )
+        ),
+        # Smoked pork meat for cooking, not poultry or ready sliced ham.
+        "smoked_pork": frozenset(
+            (
+                ("kuracie",),
+                ("morčacie",),
+                ("morcacie",),
+                ("s", "kosťou"),
+                ("s", "kostou"),
+                ("koleno",),
+                ("rebierka",),
+            )
         ),
         # A whole raw fish for baking; smoked, marinated, canned or filleted
         # products have a different edible share or are already cooked.
