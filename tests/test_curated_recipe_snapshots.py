@@ -13,6 +13,7 @@ from app.recipe_candidates import validate_candidate
 from app.recipe_catalog import load_recipe_catalog
 from app.recipe_matcher import RecipeCandidate, SlotSelection
 from app.recipe_renderer import render_meal
+from tests.recipe_waves import curated_count
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -1021,7 +1022,7 @@ def test_curated_candidates_meet_diet_floors(ingredient_catalog, tmp_path):
             )
         )
 
-    assert len(recipes) == 104
+    assert len(recipes) == curated_count()
     assert sum("vegetarian" in item.modes for item in recipes) >= 24
     assert sum("vegan" in item.modes for item in recipes) >= 16
 

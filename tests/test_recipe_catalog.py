@@ -11,6 +11,7 @@ import pytest
 from app import recipe_catalog
 from app.ingredient_catalog import load_ingredient_catalog
 from app.recipe_catalog import load_recipe_catalog
+from tests.recipe_waves import curated_count
 
 
 DEFAULT_RECIPE_ROOT = (
@@ -184,7 +185,7 @@ def test_generation_one_activates_curated_v2_library_and_retires_legacy(
     )
 
     assert catalog.curation_generation == 1
-    assert len(active) == 104
+    assert len(active) == curated_count()
     assert all(recipe.active and recipe.version == 2 for recipe in active)
     assert len(legacy) == 60
     assert {
@@ -469,7 +470,7 @@ def test_active_catalog_measures_every_slot_exactly_once(ingredients):
         recipe for recipe in load_recipe_catalog(ingredients).all() if recipe.active
     )
 
-    assert len(recipes) == 104
+    assert len(recipes) == curated_count()
     assert all(recipe.version == 2 for recipe in recipes)
     for recipe in recipes:
         for slot in recipe.slots:
