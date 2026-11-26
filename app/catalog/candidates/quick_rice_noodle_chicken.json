@@ -1,0 +1,45 @@
+{
+  "recipes": [
+    {
+      "id": "quick_rice_noodle_chicken",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuracie s ryžovými rezancami a zeleninou",
+      "family": "quick_rice_noodle_chicken",
+      "method": "pan",
+      "minutes": 30,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "sitko", "veľká panvica", "tanier", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "noodles", "role": "starch", "candidates": ["rice_noodles"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenké rezančeky"},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenké pásiky"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na tenké prúžky"},
+        {"key": "broccoli", "role": "vegetable", "candidates": ["broccoli"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na malé ružičky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na tenké pásiky"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "soy", "role": "seasoning", "candidates": ["soy_sauce"], "amount_per_adult": "20", "unit": "ml", "child_factor": "0.45", "required": true, "use": "addition", "cut": null, "water_ml_per_adult": "40"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "12", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} na tenké rezančeky a mäso okoreň. Nakrájaj {carrot.amount} {carrot.name} na tenké prúžky, {pepper.amount} {pepper.name} a {onion.amount} {onion.name} na tenké pásiky a {garlic.amount} {garlic.name} najemno. Rozdeľ {broccoli.amount} {broccoli.name} na malé ružičky.", "requires": ["chicken:raw", "carrot:raw", "pepper:raw", "onion:raw", "garlic:raw", "broccoli:raw"], "produces": ["chicken:cut", "carrot:cut", "pepper:cut", "onion:cut", "garlic:cut", "broccoli:cut"]},
+        {"text": "Uvar {noodles.amount} {noodles.name} v hrnci vo vriacej vode na strednom ohni 3 minúty, kým zmäknú. Potom ich sceď cez sitko a prepláchni studenou vodou, aby sa nezlepili.", "requires": ["noodles:raw", "hrniec:free", "sitko:free"], "produces": ["noodles:cooked", "hrniec:free", "sitko:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na silnom ohni 2 minúty, kým sa začne lesknúť. Opekaj kuracie prsia v panvici na silnom ohni 4 minúty, kým budú zlatisté. Pri väčšej dávke ich opekaj po častiach a vyber ich na tanier.", "requires": ["oil:raw", "chicken:cut", "velka_panvica:free", "tanier:free"], "produces": ["oil:used", "chicken:browned", "velka_panvica:occupied", "tanier:occupied"]},
+        {"text": "Opekaj mrkvu, brokolicu a cibuľu v panvici na silnom ohni 4 minúty, kým začnú mäknúť. Pridaj papriku a cesnak do panvice a opekaj ich 2 minúty, kým paprika zmäkne, ale ostane chrumkavá.", "requires": ["carrot:cut", "broccoli:cut", "onion:cut", "pepper:cut", "garlic:cut", "oil:used", "velka_panvica:occupied"], "produces": ["carrot:cooked", "broccoli:cooked", "onion:cooked", "pepper:cooked", "garlic:cooked"]},
+        {"text": "Vráť kuracie prsia do panvice a pridaj ryžové rezance. Vlej {soy.amount} {soy.name} a {soy.water} vody do panvice. Opekaj ryžové rezance s mäsom a zeleninou za stáleho miešania na silnom ohni 3 minúty, kým vsiaknu omáčku a mäso v strede nebude ružové.", "requires": ["chicken:browned", "noodles:cooked", "soy:raw", "pepper:cooked", "velka_panvica:occupied", "tanier:occupied"], "produces": ["chicken:cooked", "noodles:fried", "soy:cooked", "tanier:free"]},
+        {"text": "Dochuť jedlo čiernym korením a podávaj ho hneď. Rozdeľ ho na {portions} porcií.", "requires": ["noodles:fried", "chicken:cooked", "soy:cooked", "pepper:cooked", "carrot:cooked", "broccoli:cooked", "onion:cooked", "garlic:cooked", "oil:used", "velka_panvica:occupied"], "produces": ["noodles:served", "chicken:served", "soy:served", "pepper:served", "carrot:served", "broccoli:served", "onion:served", "garlic:served", "oil:served", "velka_panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Rezance rozdeľ do plytkých nádob, do 2 hodín ich odlož do chladničky a zjedz do 2 dní. Prehrej ich v panvici s lyžicou vody, kým budú celé horúce."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_rice_noodle_chicken",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/ryzove-rezance-s-kuracim-masom-a-so-zeleninou/73448-recept.html", "title": "Ryžové rezance s kuracím mäsom a so zeleninou - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://www.toprecepty.cz/recept/77717-ryzove-nudle-se-zeleninou-a-kurecim-masem/", "title": "Rýžové nudle se zeleninou a kuřecím masem - Toprecepty.cz", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

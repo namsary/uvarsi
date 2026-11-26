@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "e8305521210d9113ea9efb2607811df01af9e6329250fda0b20a4e7385feb540",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "quick_potato_wedges_eggs"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

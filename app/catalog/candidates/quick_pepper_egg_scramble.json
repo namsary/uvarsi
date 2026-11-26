@@ -1,0 +1,42 @@
+{
+  "recipes": [
+    {
+      "id": "quick_pepper_egg_scramble",
+      "version": 2,
+      "active": true,
+      "name_template": "Praženica s paprikou a chlebom",
+      "family": "quick_pepper_egg_scramble",
+      "method": "pan",
+      "minutes": 20,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["miska", "veľká panvica", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "3", "unit": "piece", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na pásiky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na plátky"},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na krajce"},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "chives", "role": "seasoning", "candidates": ["chives"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {pepper.amount} {pepper.name} na pásiky, {onion.amount} {onion.name} nadrobno, {tomato.amount} {tomato.name} na plátky, {chives.amount} {chives.name} nadrobno a {bread.amount} {bread.name} na krajce.", "requires": ["pepper:raw", "onion:raw", "tomato:raw", "chives:raw", "bread:raw"], "produces": ["pepper:cut", "onion:cut", "tomato:cut", "chives:cut", "bread:cut"]},
+        {"text": "Rozšľahaj {egg.amount} {egg.name} so štipkou soli a čiernym korením v miske.", "requires": ["egg:raw", "miska:free"], "produces": ["egg:beaten", "miska:occupied"]},
+        {"text": "Rozohrej {butter.amount} {butter.name} vo veľkej panvici na strednom ohni 1 minútu, kým sa roztopí a začne jemne bublať. Opekaj cibuľu 3 minúty, kým zmäkne. Pridaj papriku do panvice a opekaj ju 6 minút, kým zmäkne, ale ostane šťavnatá.", "requires": ["butter:raw", "onion:cut", "pepper:cut", "velka_panvica:free"], "produces": ["butter:used", "onion:cooked", "pepper:cooked", "velka_panvica:occupied"]},
+        {"text": "Vlej vajcia do panvice. Zohrievaj vajcia s paprikou na miernom ohni 3 minúty a stierkou ich pomaly posúvaj od okraja, kým stuhnú, ale ostanú vláčne a lesklé.", "requires": ["egg:beaten", "pepper:cooked", "velka_panvica:occupied", "miska:occupied"], "produces": ["egg:cooked", "miska:free"]},
+        {"text": "Rozdeľ praženicu na {portions} porcií. Navrch nasyp pažítku a podávaj ju hneď s chlebom a paradajkami.", "requires": ["egg:cooked", "pepper:cooked", "onion:cooked", "butter:used", "chives:cut", "bread:cut", "tomato:cut", "velka_panvica:occupied"], "produces": ["egg:served", "pepper:served", "onion:served", "butter:served", "chives:served", "bread:served", "tomato:served", "velka_panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Praženicu jedz hneď, kým je vláčna. Zvyšok ulož do uzavretej nádoby, do 2 hodín ho odlož do chladničky a zjedz do druhého dňa; chlieb skladuj oddelene."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_pepper_egg_scramble",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/kochlikova-prazenica/8675-recept.html", "title": "Kochlíková praženica - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://www.toprecepty.cz/recept/65489-papriky-s-vajickem/", "title": "Papriky s vajíčkem - Toprecepty.cz", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "7f7535b01299da6d1e39ece104eb1e98b3561f63d9d026b82b0de320ffd14e7a",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "quick_pasta_broccoli_bacon"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

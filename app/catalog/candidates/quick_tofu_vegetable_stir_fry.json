@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "quick_tofu_vegetable_stir_fry",
+      "version": 2,
+      "active": true,
+      "name_template": "Tofu so zeleninou a ryžou",
+      "family": "quick_tofu_vegetable_stir_fry",
+      "method": "pan",
+      "minutes": 35,
+      "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["sitko", "hrniec", "veľká panvica", "tanier", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "tofu", "role": "protein", "candidates": ["tofu"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kocky"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "140"},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na pásiky"},
+        {"key": "zucchini", "role": "vegetable", "candidates": ["zucchini"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na polkolieska"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na tenké prúžky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na tenké pásiky"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "soy", "role": "seasoning", "candidates": ["soy_sauce"], "amount_per_adult": "20", "unit": "ml", "child_factor": "0.45", "required": true, "use": "addition", "cut": null, "water_ml_per_adult": "40"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "12", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw", "sitko:free"], "produces": ["rice:rinsed", "sitko:free"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Priveď vodu v hrnci na silnom ohni do varu, kým začne bublať. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne.", "requires": ["rice:rinsed", "hrniec:free"], "produces": ["rice:cooked", "hrniec:occupied"]},
+        {"text": "Osuš {tofu.amount} {tofu.name} papierovou utierkou a nakrájaj ho na kocky. Nakrájaj {pepper.amount} {pepper.name} na pásiky, {zucchini.amount} {zucchini.name} na polkolieska, {carrot.amount} {carrot.name} na tenké prúžky, {onion.amount} {onion.name} na tenké pásiky a {garlic.amount} {garlic.name} najemno.", "requires": ["tofu:raw", "pepper:raw", "zucchini:raw", "carrot:raw", "onion:raw", "garlic:raw"], "produces": ["tofu:cut", "pepper:cut", "zucchini:cut", "carrot:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj tofu v panvici na strednom ohni 8 minút a priebežne ho obracaj, kým bude zo všetkých strán zlatisté. Vyber tofu na tanier.", "requires": ["oil:raw", "tofu:cut", "velka_panvica:free", "tanier:free"], "produces": ["oil:used", "tofu:browned", "velka_panvica:occupied", "tanier:occupied"]},
+        {"text": "Opekaj mrkvu a cibuľu v panvici na silnom ohni 3 minúty, kým začnú mäknúť a budú zlatisté. Pridaj papriku, cuketu a cesnak do panvice a opekaj ich 3 minúty, kým zmäknú, ale ostanú chrumkavé.", "requires": ["carrot:cut", "onion:cut", "pepper:cut", "zucchini:cut", "garlic:cut", "oil:used", "velka_panvica:occupied"], "produces": ["carrot:cooked", "onion:cooked", "pepper:cooked", "zucchini:cooked", "garlic:cooked"]},
+        {"text": "Vráť tofu do panvice. Vlej {soy.amount} {soy.name} a {soy.water} vody do panvice. Prehrievaj tofu so zeleninou na miernom ohni 2 minúty, kým omáčka začne bublať a obalí zeleninu.", "requires": ["tofu:browned", "soy:raw", "pepper:cooked", "velka_panvica:occupied", "tanier:occupied"], "produces": ["tofu:cooked", "soy:cooked", "tanier:free"]},
+        {"text": "Podávaj tofu so zeleninou na ryži a rozdeľ jedlo na {portions} porcií.", "requires": ["tofu:cooked", "rice:cooked", "soy:cooked", "pepper:cooked", "zucchini:cooked", "carrot:cooked", "onion:cooked", "garlic:cooked", "oil:used", "hrniec:occupied", "velka_panvica:occupied"], "produces": ["tofu:served", "rice:served", "soy:served", "pepper:served", "zucchini:served", "carrot:served", "onion:served", "garlic:served", "oil:served", "hrniec:free", "velka_panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Tofu so zeleninou a ryžu rozdeľ do plytkých nádob, do hodiny ich schlaď a odlož do chladničky. Zjedz ich do 2 dní a prehrievaj iba raz, kým budú celé horúce."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_tofu_vegetable_stir_fry",
+    "editorial_lane": "plant_based",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/tofu-na-cinsky-sposob-s-ryzou/63710-recept.html", "title": "Tofu na čínsky spôsob s ryžou - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://www.toprecepty.cz/recept/32450-zelenina-s-tofu-a-ryzi/", "title": "Zelenina s tofu a rýží - Toprecepty.cz", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

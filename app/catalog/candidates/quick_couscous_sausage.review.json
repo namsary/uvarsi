@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "08b090d045b352f0047ba7269f171cd16d5ee908467a4185111e364d3d719198",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "quick_couscous_sausage"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

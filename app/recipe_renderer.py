@@ -206,6 +206,7 @@ _QUANTITY_NAMES: Mapping[str, str] = {
     "pita": "pita placiek",
     "burger_bun": "hamburgerových žemlí",
     "sweet_corn": "sterilizovanej kukurice",
+    "rice_noodles": "ryžových rezancov",
 }
 
 # Natural direct-object forms used after the ingredient was measured once.
@@ -318,6 +319,7 @@ _REFERENCE_NAMES: Mapping[str, str] = {
     "pita": "pita placky",
     "burger_bun": "hamburgerové žemle",
     "sweet_corn": "sterilizovanú kukuricu",
+    "rice_noodles": "ryžové rezance",
 }
 
 # Absorption/one-pot ratios in millilitres of water per gram of dry starch.
@@ -353,6 +355,7 @@ _EXTRA_INGREDIENT_FORMS: Mapping[str, tuple[str, ...]] = {
     "burger_bun": ("žemle", "žemlí", "žemľa", "žemľu"),
     "sweet_corn": ("kukurica", "kukurice", "kukuricu", "kukuricou"),
     "sour_cream": ("kyslá smotana", "kyslej smotany", "kyslou smotanou"),
+    "rice_noodles": ("ryžové rezance", "ryžových rezancov", "ryžovými rezancami"),
 }
 
 _EXTRA_PANTRY_FORMS: Mapping[str, tuple[str, ...]] = {

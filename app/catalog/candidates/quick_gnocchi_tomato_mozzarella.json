@@ -1,0 +1,45 @@
+{
+  "recipes": [
+    {
+      "id": "quick_gnocchi_tomato_mozzarella",
+      "version": 2,
+      "active": true,
+      "name_template": "Gnocchi s paradajkami a mozzarellou",
+      "family": "quick_gnocchi_tomato_mozzarella",
+      "method": "pan",
+      "minutes": 30,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["hlboká panvica s pokrievkou", "hrniec", "sitko", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "gnocchi", "role": "starch", "candidates": ["gnocchi"], "amount_per_adult": "230", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "nahrubo", "water_ml_per_adult": "50"},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "mozzarella", "role": "dairy", "candidates": ["mozzarella"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oregano", "role": "seasoning", "candidates": ["oregano"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {tomato.amount} {tomato.name} nahrubo, {onion.amount} {onion.name} nadrobno, {garlic.amount} {garlic.name} najemno a {mozzarella.amount} {mozzarella.name} na kocky.", "requires": ["tomato:raw", "onion:raw", "garlic:raw", "mozzarella:raw"], "produces": ["tomato:cut", "onion:cut", "garlic:cut", "mozzarella:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v hlbokej panvici na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu 4 minúty, kým zmäkne a bude dosklovita. Pridaj cesnak do panvice a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["oil:raw", "onion:cut", "garlic:cut", "hlboka_panvica_s_pokrievkou:free"], "produces": ["oil:used", "onion:cooked", "garlic:cooked", "hlboka_panvica_s_pokrievkou:occupied"]},
+        {"text": "Vmiešaj {paste.amount} {paste.name} a paradajky do panvice. Prilej {tomato.water} vody a prisyp {oregano.amount} {oregano.name}. Var paradajky v panvici na miernom ohni 10 minút, kým zmäknú, rozpadnú sa a omáčka zhustne.", "requires": ["paste:raw", "tomato:cut", "oregano:raw", "onion:cooked", "garlic:cooked", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["paste:cooked", "tomato:sauce", "oregano:cooked"]},
+        {"text": "Uvar {gnocchi.amount} {gnocchi.name} v hrnci vo vriacej osolenej vode na strednom ohni 2 minúty, kým vyplávajú na hladinu a zmäknú. Sceď gnocchi cez sitko.", "requires": ["gnocchi:raw", "hrniec:free", "sitko:free"], "produces": ["gnocchi:cooked", "hrniec:free", "sitko:free"]},
+        {"text": "Pridaj gnocchi do panvice. Prehrievaj gnocchi v omáčke na miernom ohni 2 minúty, kým ich omáčka obalí a začne jemne bublať. Dochuť omáčku soľou a čiernym korením.", "requires": ["gnocchi:cooked", "tomato:sauce", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["gnocchi:sauced", "tomato:cooked"]},
+        {"text": "Rozlož mozzarellu na gnocchi, prikry panvicu pokrievkou a zohrievaj ju na miernom ohni 3 minúty, kým mozzarella zmäkne a začne sa rozpúšťať.", "requires": ["mozzarella:cut", "gnocchi:sauced", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["mozzarella:melted"]},
+        {"text": "Podávaj gnocchi hneď z panvice a rozdeľ ich na {portions} porcií.", "requires": ["gnocchi:sauced", "mozzarella:melted", "tomato:cooked", "paste:cooked", "oregano:cooked", "onion:cooked", "garlic:cooked", "oil:used", "hlboka_panvica_s_pokrievkou:occupied"], "produces": ["gnocchi:served", "mozzarella:served", "tomato:served", "paste:served", "oregano:served", "onion:served", "garlic:served", "oil:served", "hlboka_panvica_s_pokrievkou:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Gnocchi rozdeľ do plytkých nádob, do 2 hodín ich odlož do chladničky a zjedz do 2 dní. Prehrej ich v panvici s lyžicou vody, kým omáčka začne bublať."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_gnocchi_tomato_mozzarella",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/gnocchi-s-jednoduchou-paradajkovou-omackou-fotorecept/76095-recept.html", "title": "Gnocchi s jednoduchou paradajkovou omáčkou (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://www.toprecepty.cz/recept/84797-rychle-kremove-gnocchi-s-rajcaty-z-jedne-panve/", "title": "Rychlé krémové gnocchi s rajčaty z jedné pánve - Toprecepty.cz", "accessed_on": "2026-11-26"}
+    ]
+  }
+}
