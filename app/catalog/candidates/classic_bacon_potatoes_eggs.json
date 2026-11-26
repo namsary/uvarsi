@@ -1,0 +1,45 @@
+{
+  "recipes": [
+    {
+      "id": "classic_bacon_potatoes_eggs",
+      "version": 2,
+      "active": true,
+      "name_template": "Pražené zemiaky so slaninou a vajcom",
+      "family": "classic_bacon_potatoes_eggs",
+      "method": "pan",
+      "minutes": 40,
+      "modes": ["standard"],
+      "equipment": ["veľká panvica s pokrievkou", "obracačka", "nôž", "doska na krájanie", "utierka"],
+      "slots": [
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "300", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kocky 1,5 cm"},
+        {"key": "bacon", "role": "protein", "candidates": ["bacon"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na polmesiačiky"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "2", "unit": "piece", "child_factor": "0.5", "required": true, "use": "main", "cut": null},
+        {"key": "chives", "role": "seasoning", "candidates": ["chives"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "pickles", "role": "vegetable", "candidates": ["pickled_cucumber"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}. Opláchni zemiaky studenou vodou a osuš ich utierkou. Nakrájaj {bacon.amount} {bacon.name} {bacon.cut} a {onion.amount} {onion.name} {onion.cut}.", "requires": ["potato:raw", "bacon:raw", "onion:raw"], "produces": ["potato:cut", "bacon:cut", "onion:cut"]},
+        {"text": "Opekaj slaninu vo veľkej panvici na strednom ohni 5 minút, kým pustí tuk a bude chrumkavá. Slaninu vyber na tanier, tuk nechaj v panvici.", "requires": ["bacon:cut"], "produces": ["bacon:cooked"]},
+        {"text": "Pridaj {oil.amount} {oil.name} a zemiaky do panvice. Pri väčšej dávke použi dve panvice, zemiaky majú ležať v jednej vrstve. Prikry panvicu pokrievkou. Opekaj zemiaky vo veľkej panvici na strednom ohni 10 minút, kým takmer zmäknú.", "requires": ["oil:raw", "potato:cut"], "produces": ["oil:used", "potato:steamed"]},
+        {"text": "Odokry panvicu. Pridaj cibuľu a {caraway.amount} {caraway.name} do panvice. Opekaj zemiaky s cibuľou vo veľkej panvici na strednom ohni 12 minút za občasného obracania, kým budú mäkké a zlatisté. Vmiešaj slaninu do panvice. Zemiaky ochutnaj a osoľ ich až potom, slanina je slaná.", "requires": ["potato:steamed", "onion:cut", "caraway:raw", "bacon:cooked"], "produces": ["potato:fried", "onion:cooked", "caraway:cooked", "bacon:mixed"]},
+        {"text": "Nakrájaj {chives.amount} {chives.name} {chives.cut} a {pickles.amount} {pickles.name} na plátky. Priprav si {egg.amount} {egg.name}.", "requires": ["chives:raw", "pickles:raw", "egg:raw"], "produces": ["chives:cut", "pickles:cut", "egg:ready"]},
+        {"text": "Priprav v zemiakoch obracačkou jamky a do každej rozklep jedno vajce. Prikry panvicu. Opekaj vajcia na zemiakoch vo veľkej panvici na miernom ohni 4 minúty, kým bielok stuhne a žĺtok ostane mäkký. Vajcia zľahka osoľ a okoreň.", "requires": ["egg:ready"], "produces": ["egg:fried"]},
+        {"text": "Rozdeľ zemiaky s vajcom na {portions} porcií, navrch nasyp pažítku a podávaj ich so sterilizovanými uhorkami.", "requires": ["potato:fried", "bacon:mixed", "onion:cooked", "oil:used", "caraway:cooked", "egg:fried", "chives:cut", "pickles:cut"], "produces": ["potato:served", "bacon:served", "onion:served", "oil:served", "caraway:served", "egg:served", "chives:served", "pickles:served"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Zemiaky so slaninou ulož do uzavretej nádoby a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do nasledujúceho dňa a prehrej ich na panvici. Vajcia vždy opeč čerstvé tesne pred podávaním."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_bacon_potatoes_eggs",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/79744/rychle-zemiaky-so-slaninou-a-volskym-okom-vecera-pre-celu-rodinu/", "title": "Rýchle zemiaky so slaninou a volským okom: Večera pre celú rodinu | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/obratene-sedliacke-zemiaky-rychle/4443-recept.html", "title": "Obrátené sedliacke zemiaky - rýchle - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "classic_lokse_duck_cabbage",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené kačacie stehno s kapustou a lokšami",
+      "family": "classic_lokse_duck_cabbage",
+      "method": "oven",
+      "minutes": 150,
+      "modes": ["standard"],
+      "equipment": ["pekáč", "alobal", "hrniec", "misa", "jemné strúhadlo", "valček", "panvica", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "duck", "role": "protein", "candidates": ["duck_leg"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.5", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "80"},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "140", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "v šupke"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "cabbage", "role": "vegetable", "candidates": ["white_cabbage"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na tenké rezance", "water_ml_per_adult": "60"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "6", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "vinegar", "role": "seasoning", "candidates": ["apple_cider_vinegar"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 170 °C.", "requires": [], "produces": []},
+        {"text": "Osuš {duck.amount} {duck.name} papierovou utierkou. Premiešaj v miske {caraway.amount} {caraway.name} so soľou a natri ňou stehná zo všetkých strán. Rozlož kačacie stehná v pekáči kožou nahor. Prilej {duck.water} vody do pekáča. Pekáč prikry alobalom.", "requires": ["duck:raw", "caraway:raw"], "produces": ["duck:seasoned", "caraway:used"]},
+        {"text": "Peč kačacie stehná v prikrytom pekáči v rúre pri 170 °C 90 minút, kým mäso zmäkne.", "requires": ["duck:seasoned"], "produces": ["duck:braised"]},
+        {"text": "Vlož {potato.amount} {potato.name} {potato.cut} do hrnca. Dolej studenú vodu tak, aby boli ponorené. Var zemiaky v hrnci na miernom ohni 25 minút, kým zmäknú. Sceď zemiaky a nechaj ich 20 minút vychladnúť.", "requires": ["potato:raw"], "produces": ["potato:cooked"]},
+        {"text": "Odokry pekáč a zvýš teplotu rúry na 200 °C. Peč kačacie stehná v rúre ešte 30 minút a raz ich polej výpekom, kým bude koža zlatistá a chrumkavá. Z pekáča odober 2 lyžice kačacieho tuku na kapustu.", "requires": ["duck:braised"], "produces": ["duck:roasted"]},
+        {"text": "Nakrájaj {cabbage.amount} {cabbage.name} {cabbage.cut} a {onion.amount} {onion.name} {onion.cut}. Opekaj cibuľu na kačacom tuku v hrnci na strednom ohni 4 minúty, kým bude dosklovita. Prisyp {sugar.amount} {sugar.name} do hrnca. Zohrievaj cukor s cibuľou v hrnci na strednom ohni 1 minútu, kým sa rozpustí a jemne zozlatne.", "requires": ["cabbage:raw", "onion:raw", "sugar:raw"], "produces": ["cabbage:cut", "onion:cooked", "sugar:caramel"]},
+        {"text": "Pridaj bielu hlávkovú kapustu a štipku soli do hrnca. Prilej {cabbage.water} vody do hrnca. Hrniec prikry. Dus bielu hlávkovú kapustu v hrnci na miernom ohni 25 minút, kým zmäkne. Vmiešaj {vinegar.amount} {vinegar.name}. Kapustu dochuť soľou, aby bola sladkokyslá.", "requires": ["cabbage:cut", "onion:cooked", "sugar:caramel", "vinegar:raw"], "produces": ["cabbage:cooked", "onion:braised", "sugar:cooked", "vinegar:cooked"]},
+        {"text": "Ošúp vychladnuté zemiaky a najemno ich nastrúhaj do misy. Pridaj {flour.amount} {flour.name} a štipku soli. Rukami vypracuj mäkké cesto a rozdeľ ho na guľky veľké ako mandarínka. Každú guľku na pomúčenej doske rozvaľkaj na tenký kruh hrubý 2 až 3 mm.", "requires": ["potato:cooked", "flour:raw"], "produces": ["potato:rolled", "flour:dough"]},
+        {"text": "Rozohrej suchú panvicu na strednom ohni 2 minúty. Opeč lokše zo zemiakov po jednej v suchej panvici na strednom ohni 2 minúty z každej strany, kým na nich naskočia hnedé bodky a budú mäkké. Teplé lokše natri tukom z pekáča a prelož ich na polovicu.", "requires": ["potato:rolled", "flour:dough"], "produces": ["potato:baked", "flour:baked"]},
+        {"text": "Podávaj kačacie stehná s dusenou kapustou a lokšami a polej mäso výpekom. Rozdeľ jedlo na {portions} porcií.", "requires": ["duck:roasted", "caraway:used", "potato:baked", "flour:baked", "cabbage:cooked", "onion:braised", "sugar:cooked", "vinegar:cooked"], "produces": ["duck:served", "caraway:served", "potato:served", "flour:served", "cabbage:served", "onion:served", "sugar:served", "vinegar:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Kačacie stehná, kapustu a lokše ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní. Stehná prehrej v rúre pri 200 °C asi 15 minút, aby koža znova schrumkavela, a lokše krátko zohrej na suchej panvici."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_lokse_duck_cabbage",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/kacacie-stehna-na-kapuste-fotorecept/16625-recept.html", "title": "Kačacie stehná na kapuste (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/72803/pecene-kacacie-stehna/", "title": "Pečené kačacie stehná so sladkou kapustou | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/domace-lokse-fotorecept/73955-recept.html", "title": "Domáce lokše (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

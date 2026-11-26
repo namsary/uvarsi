@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "classic_chicken_ragout_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Kurací ragú s ryžou",
+      "family": "classic_chicken_ragout_rice",
+      "method": "pot",
+      "minutes": 45,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "sitko", "široký hrniec s pokrievkou", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "150"},
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kocky 2 cm", "water_ml_per_adult": "150"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na tenké kolieska"},
+        {"key": "mushrooms", "role": "vegetable", "candidates": ["mushrooms"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na plátky"},
+        {"key": "peas", "role": "vegetable", "candidates": ["peas"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "60", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou, kým voda nebude číra.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu v hrnci na miernom ohni 15 minút, kým vsiakne vodu a zmäkne. Potom ju nechaj 5 minút prikrytú postáť.", "requires": ["rice:rinsed"], "produces": ["rice:cooked"]},
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} {chicken.cut}, osoľ a okoreň. Nakrájaj {onion.amount} {onion.name} {onion.cut}, {carrot.amount} {carrot.name} {carrot.cut} a {mushrooms.amount} {mushrooms.name} {mushrooms.cut}.", "requires": ["chicken:raw", "onion:raw", "carrot:raw", "mushrooms:raw"], "produces": ["chicken:seasoned", "onion:cut", "carrot:cut", "mushrooms:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v širokom hrnci na silnom ohni 2 minúty, kým sa začne lesknúť. Opekaj kuracie prsia v širokom hrnci po dávkach na silnom ohni 4 minúty, kým budú zo všetkých strán zlatisté. Vnútri ešte nemusia byť hotové. Mäso vyber na tanier.", "requires": ["oil:raw", "chicken:seasoned"], "produces": ["oil:used", "chicken:browned"]},
+        {"text": "Opekaj cibuľu s mrkvou v širokom hrnci na strednom ohni 4 minúty, kým cibuľa zmäkne. Pridaj biele šampiňóny do hrnca. Opekaj šampiňóny so zeleninou v hrnci na strednom ohni 4 minúty, kým zmäknú.", "requires": ["onion:cut", "carrot:cut", "mushrooms:cut"], "produces": ["onion:cooked", "carrot:cooked", "mushrooms:cooked"]},
+        {"text": "Prilej {chicken.water} vody do hrnca. Prikry hrniec. Dus mrkvu so šampiňónmi v hrnci na miernom ohni 8 minút, kým mrkva zmäkne.", "requires": ["carrot:cooked", "mushrooms:cooked"], "produces": ["carrot:tender", "mushrooms:braised"]},
+        {"text": "Premiešaj {cream.amount} {cream.name} a {flour.amount} {flour.name} v miske dohladka. Vlej smotanu na varenie do hrnca. Vráť kuracie prsia aj so šťavou do hrnca. Vsyp {peas.amount} {peas.name} do hrnca. Mrazený hrášok nerozmrazuj, daj ho do hrnca rovno z mrazničky.", "requires": ["cream:raw", "flour:raw", "chicken:browned", "peas:raw"], "produces": ["cream:added", "flour:added", "chicken:sauce", "peas:added"]},
+        {"text": "Var kuracie prsia v omáčke so zeleninou v hrnci na miernom ohni 6 minút za občasného miešania, kým omáčka zhustne, jemne bublá a mäso už nie je v strede ružové.", "requires": ["chicken:sauce", "cream:added", "flour:added", "peas:added"], "produces": ["chicken:cooked", "cream:cooked", "flour:cooked", "peas:cooked"]},
+        {"text": "Dochuť ragú soľou a čiernym korením. Nakrájaj {parsley.amount} {parsley.name} {parsley.cut}. Vmiešaj petržlenovú vňať do hrnca.", "requires": ["parsley:raw"], "produces": ["parsley:mixed"]},
+        {"text": "Podávaj kurací ragú s ryžou. Rozdeľ jedlo na {portions} porcií.", "requires": ["rice:cooked", "chicken:cooked", "oil:used", "onion:cooked", "carrot:tender", "mushrooms:braised", "peas:cooked", "cream:cooked", "flour:cooked", "parsley:mixed"], "produces": ["rice:served", "chicken:served", "oil:served", "onion:served", "carrot:served", "mushrooms:served", "peas:served", "cream:served", "flour:served", "parsley:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Ragú a ryžu ulož oddelene do plytkých nádob a najneskôr do 1 hodiny ich odlož do chladničky. Zjedz ich do 3 dní. Ragú zohrej s lyžicou vody, kým začne bublať, a ryžu dôkladne prehrej iba raz."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_chicken_ragout_rice",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/kuracie-ragu-fotorecept/13928-recept.html", "title": "Kuracie ragú (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/80562/dusene-kuracie-maso-na-hrasku-babickin-recept/", "title": "Dusené kuracie mäso na hrášku: Babičkin recept | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

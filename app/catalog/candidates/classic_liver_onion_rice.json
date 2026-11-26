@@ -1,0 +1,47 @@
+{
+  "recipes": [
+    {
+      "id": "classic_liver_onion_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuracia pečeň na cibuľke s ryžou",
+      "family": "classic_liver_onion_rice",
+      "method": "pan",
+      "minutes": 40,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "sitko", "veľká panvica", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "140"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na tenké polmesiačiky"},
+        {"key": "liver", "role": "protein", "candidates": ["chicken_liver"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.5", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "80"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "12", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou, kým voda nebude číra.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu v hrnci na miernom ohni 15 minút, kým vsiakne vodu a zmäkne. Potom ju nechaj 5 minút prikrytú postáť.", "requires": ["rice:rinsed"], "produces": ["rice:cooked"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}. Osuš {liver.amount} {liver.name} papierovou utierkou, odstráň z nej blany a väčšie kusy prekroj na polovice.", "requires": ["onion:raw", "liver:raw"], "produces": ["onion:cut", "liver:trimmed"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj cibuľu vo veľkej panvici na strednom ohni 12 minút za občasného miešania, kým zmäkne a zozlatne.", "requires": ["oil:raw", "onion:cut"], "produces": ["oil:used", "onion:cooked"]},
+        {"text": "Pridaj kuraciu pečeň do panvice. Opekaj kuraciu pečeň s cibuľou vo veľkej panvici na silnom ohni 5 minút a obracaj ju, kým bude zvonka zlatistá a v strede už nebude ružová. Pri väčšej dávke opekaj pečeň po častiach, aby sa nedusila.", "requires": ["liver:trimmed"], "produces": ["liver:browned"]},
+        {"text": "Odstav panvicu z ohňa. Vmiešaj {flour.amount} {flour.name}, {paprika.amount} {paprika.name} a {marjoram.amount} {marjoram.name}. Hneď prilej {liver.water} vody. Panvicu vráť na oheň. Var pečeň v šťave vo veľkej panvici na miernom ohni 3 minúty, kým šťava zhustne a začne bublať.", "requires": ["flour:raw", "paprika:raw", "marjoram:raw", "liver:browned"], "produces": ["flour:cooked", "paprika:cooked", "marjoram:cooked", "liver:cooked"]},
+        {"text": "Dochuť pečeň soľou a čiernym korením až na konci, aby zostala mäkká. Nakrájaj {parsley.amount} {parsley.name} {parsley.cut}.", "requires": ["liver:cooked", "parsley:raw"], "produces": ["liver:seasoned", "parsley:cut"]},
+        {"text": "Podávaj kuraciu pečeň na cibuľke so šťavou a ryžou a navrch nasyp petržlenovú vňať. Rozdeľ jedlo na {portions} porcií.", "requires": ["rice:cooked", "onion:cooked", "liver:seasoned", "oil:used", "flour:cooked", "paprika:cooked", "marjoram:cooked", "parsley:cut"], "produces": ["rice:served", "onion:served", "liver:served", "oil:served", "flour:served", "paprika:served", "marjoram:served", "parsley:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Pečeň so šťavou a ryžu ulož oddelene do plytkých nádob a najneskôr do 1 hodiny ich odlož do chladničky. Zjedz ich do 2 dní. Pečeň zohrievaj krátko so lyžicou vody, aby nestvrdla, a ryžu dôkladne prehrej iba raz."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_liver_onion_rice",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/kuracia-pecen-na-cibulke-fotorecept/80545-recept.html", "title": "Kuracia pečeň na cibuľke (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/40747/kuracia-pecen-na-cibulke/", "title": "Kuracia pečeň na cibuľke | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/kuracia-pecen-s-ryzou/93538-recept.html", "title": "Kuracia pečeň s ryžou - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

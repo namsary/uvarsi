@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "bc87eec2f8fd84b8135746ca38dd5d9fedd9288010ebaec625b13625aadfb5f4",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "classic_cevapcici_potatoes"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

@@ -1,0 +1,45 @@
+{
+  "recipes": [
+    {
+      "id": "classic_white_cabbage_dumplings",
+      "version": 2,
+      "active": true,
+      "name_template": "Kapustové halušky",
+      "family": "classic_white_cabbage_dumplings",
+      "method": "pot",
+      "minutes": 50,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["široký hrniec s pokrievkou", "veľký hrniec", "misa", "jemné strúhadlo", "haluškár", "cedidlo", "škrabka", "nôž", "doska na krájanie", "varecha"],
+      "slots": [
+        {"key": "cabbage", "role": "vegetable", "candidates": ["white_cabbage"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenké rezance", "water_ml_per_adult": "50"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "15", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "najemno"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "sour_cream", "role": "dairy", "candidates": ["sour_cream"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {cabbage.amount} {cabbage.name} {cabbage.cut} a {onion.amount} {onion.name} {onion.cut}.", "requires": ["cabbage:raw", "onion:raw"], "produces": ["cabbage:cut", "onion:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v širokom hrnci na strednom ohni 1 minútu. Opekaj cibuľu v širokom hrnci na strednom ohni 4 minúty, kým bude dosklovita. Prisyp {sugar.amount} {sugar.name} do hrnca. Zohrievaj cukor s cibuľou na strednom ohni 1 minútu, kým sa rozpustí a jemne zozlatne.", "requires": ["oil:raw", "onion:cut", "sugar:raw"], "produces": ["oil:used", "onion:cooked", "sugar:caramel"]},
+        {"text": "Pridaj bielu hlávkovú kapustu, {caraway.amount} {caraway.name} a štipku soli do hrnca. Prilej {cabbage.water} vody do hrnca. Hrniec prikry. Dus bielu hlávkovú kapustu v hrnci na miernom ohni 25 minút za občasného miešania, kým zmäkne a jemne zozlatne. Ak sa začne prichytávať, dolej lyžicu vody.", "requires": ["cabbage:cut", "caraway:raw", "sugar:caramel", "onion:cooked"], "produces": ["cabbage:cooked", "caraway:cooked", "sugar:cooked", "onion:braised"]},
+        {"text": "Ošúp {potato.amount} {potato.name} a nastrúhaj ich {potato.cut} do misy. Pridaj {flour.amount} {flour.name} a štipku soli. Varechou vymiešaj husté, stále mäkké cesto.", "requires": ["potato:raw", "flour:raw"], "produces": ["potato:dough", "flour:dough"]},
+        {"text": "Priveď vo veľkom hrnci osolenú vodu do varu na silnom ohni. Cesto pretlač cez haluškár do vriacej vody. Halušky var vo veľkom hrnci na strednom ohni 3 minúty od vyplávania, kým budú mäkké. Halušky sceď cez cedidlo a nechaj ich krátko odkvapkať.", "requires": ["potato:dough", "flour:dough"], "produces": ["potato:cooked", "flour:cooked"]},
+        {"text": "Vráť halušky do hrnca s kapustou. Zohrievaj bielu hlávkovú kapustu s haluškami v hrnci na miernom ohni 2 minúty a premiešaj ich, kým sa z nich začne pariť. Dochuť ich soľou a čiernym korením.", "requires": ["potato:cooked", "cabbage:cooked"], "produces": ["potato:mixed", "cabbage:mixed"]},
+        {"text": "Rozdeľ kapustové halušky na {portions} porcií a podávaj ich horúce. Navrch daj {sour_cream.amount} {sour_cream.name}.", "requires": ["cabbage:mixed", "onion:braised", "oil:used", "sugar:cooked", "caraway:cooked", "potato:mixed", "flour:cooked", "sour_cream:raw"], "produces": ["cabbage:served", "onion:served", "oil:served", "sugar:served", "caraway:served", "potato:served", "flour:served", "sour_cream:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Kapustové halušky ulož bez kyslej smotany do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní a prehrej ich na panvici s lyžicou vody."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_white_cabbage_dumplings",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/halusky-s-kapustou-fotorecept/15930-recept.html", "title": "Halušky s kapustou (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/31024/kapustove-halusky/", "title": "Kapustové halušky | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

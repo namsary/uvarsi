@@ -2873,6 +2873,361 @@
           "accessed_on": "2026-11-26"
         }
       ]
+    },
+    {
+      "recipe_id": "classic_meatballs_dill_sauce",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/masove-gulky-s-koprovou-omackou-fotorecept/19261-recept.html",
+          "title": "Mäsové guľky s kôprovou omáčkou (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/48528/masove-gule-v-koprovej-omacke/",
+          "title": "Mäsové gule v kôprovej omáčke | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_pork_ribs_potatoes",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/domace-bravcove-rebierka-na-cesnaku/56550-recept.html",
+          "title": "Domáce bravčové rebierka na cesnaku - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/3617/pecene-rebierka/",
+          "title": "Pečené rebierka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_chicken_drumsticks_rice",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/18890/fotorecept-pecene-stehienka-s-hraskovou-ryzou/",
+          "title": "FOTORECEPT: Pečené stehienka s hráškovou ryžou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuracie-stehienka-pecene-so-zeleninou/86592-recept.html",
+          "title": "Kuracie stehienka pečené so zeleninou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_liver_onion_rice",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuracia-pecen-na-cibulke-fotorecept/80545-recept.html",
+          "title": "Kuracia pečeň na cibuľke (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/40747/kuracia-pecen-na-cibulke/",
+          "title": "Kuracia pečeň na cibuľke | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuracia-pecen-s-ryzou/93538-recept.html",
+          "title": "Kuracia pečeň s ryžou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_pork_mushroom_rice",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/49358/bravcove-so-sampinonmi/",
+          "title": "Bravčové so šampiňónmi | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcove-na-prirodno-so-sampinonmi-fotorecept/14414-recept.html",
+          "title": "Bravčové na prírodno so šampiňónmi (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_beef_onion_potatoes",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/hovadzia-rostenka-na-cibuli-fotorecept/59840-recept.html",
+          "title": "Hovädzia roštenka na cibuli (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/82040/hovadzia-rostenka-na-cibulke-chutny-obed-nielen-na-nedelu/",
+          "title": "Hovädzia roštenka na cibuľke: Chutný obed (nielen) na nedeľu  | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_cevapcici_potatoes",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/cevapcici-so-zemiakmi-a-rukolovym-salatom/63979-recept.html",
+          "title": "Čevapčiči so zemiakmi a rukolovým šalátom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/12210/cevapcici/",
+          "title": "Čevapčiči | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_baked_pork_potatoes_onion",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcove-pliecko-so-zemiakmi-z-jedneho-pekaca-fotorecept/89812-recept.html",
+          "title": "Bravčové pliecko so zemiakmi z jedného pekáča (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/36323/pecene-bravcove-pliecko/",
+          "title": "Pečené bravčové pliecko | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_chicken_ragout_rice",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuracie-ragu-fotorecept/13928-recept.html",
+          "title": "Kuracie ragú (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/80562/dusene-kuracie-maso-na-hrasku-babickin-recept/",
+          "title": "Dusené kuracie mäso na hrášku: Babičkin recept | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_potato_dumplings_smoked",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/2668/zemiakove-knedle-plnene-udenym-masom/",
+          "title": "Zemiakové knedle plnené údeným mäsom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/knedlicky-s-udenym-masom/16732-recept.html",
+          "title": "Knedličky s údeným mäsom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_lokse_duck_cabbage",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kacacie-stehna-na-kapuste-fotorecept/16625-recept.html",
+          "title": "Kačacie stehná na kapuste (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/72803/pecene-kacacie-stehna/",
+          "title": "Pečené kačacie stehná so sladkou kapustou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/domace-lokse-fotorecept/73955-recept.html",
+          "title": "Domáce lokše (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_egg_dumplings_cucumber",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/halusky-s-vajcom/83734-recept.html",
+          "title": "Halušky s vajcom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/13271/halusky-s-vajcom/",
+          "title": "Halušky s vajcom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/11582/uhorkovy-salat/",
+          "title": "Uhorkový šalát | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_white_cabbage_dumplings",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/halusky-s-kapustou-fotorecept/15930-recept.html",
+          "title": "Halušky s kapustou (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/31024/kapustove-halusky/",
+          "title": "Kapustové halušky | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_potato_pancake_stuffed",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/plnena-zemiakova-placka-fotorecept/50778-recept.html",
+          "title": "Plnená zemiaková placka (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/32885/fotorecept-plnena-zemiakova-placka/",
+          "title": "FOTORECEPT: Plnená zemiaková placka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_bacon_potatoes_eggs",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/79744/rychle-zemiaky-so-slaninou-a-volskym-okom-vecera-pre-celu-rodinu/",
+          "title": "Rýchle zemiaky so slaninou a volským okom: Večera pre celú rodinu | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/obratene-sedliacke-zemiaky-rychle/4443-recept.html",
+          "title": "Obrátené sedliacke zemiaky - rýchle - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_baked_potatoes_sour_cream",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/42898/fotorecept-pecene-zemiaky-s-cesnakovym-dresingom/",
+          "title": "Fotorecept: Pečené zemiaky s cesnakovým dresingom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/pecene-zemiaky-v-supke-alebo-jacket-potato/79576-recept.html",
+          "title": "Pečené zemiaky v šupke alebo „Jacket potato“ - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_noodles_cottage_bacon",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/domace-rezance-s-tvarohom-a-slaninkou/19056-recept.html",
+          "title": "Domáce rezance s tvarohom a slaninkou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/48525/rezance-s-tvarohom-a-slaninou/",
+          "title": "Rezance s tvarohom a slaninou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_rice_mushrooms_peas",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/47285/sampinonova-ryza/",
+          "title": "Šampiňónová ryža | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/risi-e-bisi-ryza-s-hraskom/86961-recept.html",
+          "title": "Risi e bisi - ryža s hráškom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_chicken_liver_risotto",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/4051/rizoto-s-hydinovou-pecienkou/",
+          "title": "Rizoto s hydinovou pečienkou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuracia-pecen-s-ryzou/93538-recept.html",
+          "title": "Kuracia pečeň s ryžou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "classic_sausage_lentils",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kysla-sosovicova-omacka-s-udenou-klobasou-fotorecept/49950-recept.html",
+          "title": "Kyslá šošovicová omáčka s údenou klobásou (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/2980/sosovica-na-kyslo-s-klobaskou/",
+          "title": "Šošovica na kyslo s klobáskou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
     }
   ]
 }

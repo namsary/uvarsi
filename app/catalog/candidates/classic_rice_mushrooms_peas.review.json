@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "f474808ae96a0ccfa297e448198b7370c441ecac012df1c88987a66ee021567c",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "classic_rice_mushrooms_peas"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

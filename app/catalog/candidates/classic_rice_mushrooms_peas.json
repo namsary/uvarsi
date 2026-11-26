@@ -1,0 +1,44 @@
+{
+  "recipes": [
+    {
+      "id": "classic_rice_mushrooms_peas",
+      "version": 2,
+      "active": true,
+      "name_template": "Ryža so šampiňónmi a hráškom",
+      "family": "classic_rice_mushrooms_peas",
+      "method": "pot",
+      "minutes": 40,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["sitko", "široký hrniec s pokrievkou", "strúhadlo", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "85", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "170"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "mushrooms", "role": "vegetable", "candidates": ["mushrooms"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky"},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "peas", "role": "vegetable", "candidates": ["peas"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "cheese", "role": "protein", "candidates": ["hard_cheese"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nastrúhaný"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou, kým voda nebude číra. Nakrájaj {onion.amount} {onion.name} {onion.cut} a {mushrooms.amount} {mushrooms.name} {mushrooms.cut}.", "requires": ["rice:raw", "onion:raw", "mushrooms:raw"], "produces": ["rice:rinsed", "onion:cut", "mushrooms:cut"]},
+        {"text": "Rozohrej {butter.amount} {butter.name} v širokom hrnci na strednom ohni 1 minútu, kým začne bublať. Opekaj cibuľu v hrnci na strednom ohni 4 minúty, kým bude dosklovita.", "requires": ["butter:raw", "onion:cut"], "produces": ["butter:used", "onion:cooked"]},
+        {"text": "Pridaj biele šampiňóny do hrnca. Opekaj šampiňóny s cibuľou v hrnci na strednom ohni 6 minút, kým zmäknú a odparí sa z nich voda. Mrazené šampiňóny nerozmrazuj, daj ich do hrnca rovno z mrazničky a opekaj ich o 4 minúty dlhšie.", "requires": ["mushrooms:cut"], "produces": ["mushrooms:cooked"]},
+        {"text": "Vsyp ryžu do hrnca. Premiešaj ju so šampiňónmi a opekaj ju 1 minútu, aby sa zrnká obalili maslom. Prilej {rice.water} vody a pridaj štipku soli. Hrniec prikry. Var ryžu so šampiňónmi v hrnci na miernom ohni 12 minút, kým vsiakne väčšinu vody.", "requires": ["rice:rinsed"], "produces": ["rice:simmered"]},
+        {"text": "Vsyp {peas.amount} {peas.name} do hrnca. Mrazený hrášok nerozmrazuj, prehreje sa priamo na ryži. Var hrášok s ryžou v hrnci pod pokrievkou na miernom ohni ešte 5 minút, kým ryža vsiakne všetku vodu a zmäkne. Odstav hrniec a nechaj ryžu 5 minút prikrytú postáť.", "requires": ["peas:raw", "rice:simmered"], "produces": ["peas:cooked", "rice:cooked"]},
+        {"text": "Nakrájaj {parsley.amount} {parsley.name} {parsley.cut}. Vmiešaj petržlenovú vňať do ryže. Ryžu dochuť soľou a čiernym korením. Priprav {cheese.amount} {cheese.name} a nastrúhaj ho.", "requires": ["parsley:raw", "cheese:raw"], "produces": ["parsley:mixed", "cheese:grated"]},
+        {"text": "Rozdeľ ryžu so šampiňónmi a hráškom na {portions} porcií a navrch nasyp syr. Podávaj ju horúcu.", "requires": ["rice:cooked", "onion:cooked", "mushrooms:cooked", "butter:used", "peas:cooked", "parsley:mixed", "cheese:grated"], "produces": ["rice:served", "onion:served", "mushrooms:served", "butter:served", "peas:served", "parsley:served", "cheese:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Ryžu bez syra rozdeľ do plytkých nádob a najneskôr do 1 hodiny ju odlož do chladničky. Zjedz ju do 3 dní. Pri ohrievaní ju pokvapkaj lyžicou vody, dôkladne ju prehrej iba raz a syr nasyp až na tanier."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_rice_mushrooms_peas",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/47285/sampinonova-ryza/", "title": "Šampiňónová ryža | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/risi-e-bisi-ryza-s-hraskom/86961-recept.html", "title": "Risi e bisi - ryža s hráškom - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

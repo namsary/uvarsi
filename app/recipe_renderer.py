@@ -206,6 +206,13 @@ _QUANTITY_NAMES: Mapping[str, str] = {
     "pita": "pita placiek",
     "burger_bun": "hamburgerových žemlí",
     "sweet_corn": "sterilizovanej kukurice",
+    # Wave 2, batch 5: Slovak classics.
+    "chicken_liver": "kuracej pečene",
+    "smoked_pork": "údeného bravčového mäsa",
+    "pork_ribs": "bravčových rebierok",
+    "chicken_drumstick": "kuracích paličiek",
+    "duck_leg": "kačacích stehien",
+    "quark": "tvarohu",
 }
 
 # Natural direct-object forms used after the ingredient was measured once.
@@ -318,6 +325,13 @@ _REFERENCE_NAMES: Mapping[str, str] = {
     "pita": "pita placky",
     "burger_bun": "hamburgerové žemle",
     "sweet_corn": "sterilizovanú kukuricu",
+    # Wave 2, batch 5: Slovak classics.
+    "chicken_liver": "kuraciu pečeň",
+    "smoked_pork": "údené bravčové mäso",
+    "pork_ribs": "bravčové rebierka",
+    "chicken_drumstick": "kuracie paličky",
+    "duck_leg": "kačacie stehná",
+    "quark": "tvaroh",
 }
 
 # Absorption/one-pot ratios in millilitres of water per gram of dry starch.
@@ -353,6 +367,13 @@ _EXTRA_INGREDIENT_FORMS: Mapping[str, tuple[str, ...]] = {
     "burger_bun": ("žemle", "žemlí", "žemľa", "žemľu"),
     "sweet_corn": ("kukurica", "kukurice", "kukuricu", "kukuricou"),
     "sour_cream": ("kyslá smotana", "kyslej smotany", "kyslou smotanou"),
+    # Wave 2, batch 5: Slovak classics.
+    "chicken_liver": ("pečeň", "pečeňou"),
+    "smoked_pork": ("údené mäso", "údeného mäsa", "údeným mäsom"),
+    "pork_ribs": ("rebierka", "rebierok", "rebierkami"),
+    "chicken_drumstick": ("paličky", "paličiek", "paličkami"),
+    "duck_leg": ("kačacie stehno", "kačacími stehnami"),
+    "quark": ("tvarohom",),
 }
 
 _EXTRA_PANTRY_FORMS: Mapping[str, tuple[str, ...]] = {

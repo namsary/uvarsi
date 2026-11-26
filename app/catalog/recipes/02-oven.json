@@ -7684,6 +7684,1044 @@
         "refrigerated_days": 3,
         "instruction": "Vychladnuté cukety s omáčkou ulož do plytkých uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a prehrej ich prikryté v rúre, kým bude plnka celá horúca. Chlieb skladuj oddelene."
       }
+    },
+    {
+      "id": "classic_pork_ribs_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené bravčové rebierka so zemiakmi",
+      "family": "classic_pork_ribs_potatoes",
+      "method": "oven",
+      "minutes": 125,
+      "modes": [
+        "standard"
+      ],
+      "equipment": [
+        "pekáč",
+        "alobal",
+        "miska",
+        "nôž",
+        "doska na krájanie",
+        "papierová utierka"
+      ],
+      "slots": [
+        {
+          "key": "ribs",
+          "role": "protein",
+          "candidates": [
+            "pork_ribs"
+          ],
+          "amount_per_adult": "300",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "main",
+          "cut": "na kúsky s 2 až 3 kosťami",
+          "water_ml_per_adult": "60"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": [
+            "paprika_powder"
+          ],
+          "amount_per_adult": "2",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "6",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "60",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na mesiačiky"
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "260",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na štvrtky"
+        },
+        {
+          "key": "caraway",
+          "role": "seasoning",
+          "candidates": [
+            "caraway"
+          ],
+          "amount_per_adult": "1",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "pickles",
+          "role": "vegetable",
+          "candidates": [
+            "pickled_cucumber"
+          ],
+          "amount_per_adult": "1",
+          "unit": "piece",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na plátky"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 180 °C.",
+          "requires": [],
+          "produces": []
+        },
+        {
+          "text": "Nakrájaj {ribs.amount} {ribs.name} {ribs.cut}. Osuš rebierka papierovou utierkou a zo všetkých strán ich osoľ a okoreň.",
+          "requires": [
+            "ribs:raw"
+          ],
+          "produces": [
+            "ribs:seasoned"
+          ]
+        },
+        {
+          "text": "Premiešaj v miske {garlic.amount} prelisovaný {garlic.name}, {paprika.amount} {paprika.name} a {oil.amount} {oil.name}. Rebierka touto zmesou natri zo všetkých strán.",
+          "requires": [
+            "garlic:raw",
+            "paprika:raw",
+            "oil:raw",
+            "ribs:seasoned"
+          ],
+          "produces": [
+            "garlic:rub",
+            "paprika:rub",
+            "oil:rub",
+            "ribs:rubbed"
+          ]
+        },
+        {
+          "text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}.",
+          "requires": [
+            "onion:raw"
+          ],
+          "produces": [
+            "onion:cut"
+          ]
+        },
+        {
+          "text": "Rozlož cibuľu na dno pekáča a na ňu polož rebierka kosťami nahor. Prilej {ribs.water} vody do pekáča. Pekáč prikry alobalom. Peč rebierka v prikrytom pekáči v rúre pri 180 °C 60 minút, kým mäso zmäkne.",
+          "requires": [
+            "onion:cut",
+            "ribs:rubbed",
+            "garlic:rub",
+            "paprika:rub",
+            "oil:rub"
+          ],
+          "produces": [
+            "onion:baked",
+            "ribs:braised",
+            "garlic:baked",
+            "paprika:baked",
+            "oil:baked"
+          ]
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}.",
+          "requires": [
+            "potato:raw"
+          ],
+          "produces": [
+            "potato:cut"
+          ]
+        },
+        {
+          "text": "Odokry pekáč a zvýš teplotu rúry na 200 °C. Rozlož zemiaky okolo rebierok do výpeku a obráť ich v ňom. Prisyp {caraway.amount} {caraway.name} do pekáča. Zemiaky osoľ.",
+          "requires": [
+            "potato:cut",
+            "caraway:raw"
+          ],
+          "produces": [
+            "potato:pan",
+            "caraway:pan"
+          ]
+        },
+        {
+          "text": "Peč rebierka so zemiakmi v rúre pri 200 °C 45 minút, kým rebierka zozlatnú a zemiaky budú mäkké. V polovici času zemiaky obráť vo výpeku a rebierka ním polej.",
+          "requires": [
+            "ribs:braised",
+            "potato:pan",
+            "caraway:pan",
+            "onion:baked"
+          ],
+          "produces": [
+            "ribs:roasted",
+            "potato:roasted",
+            "caraway:roasted",
+            "onion:roasted"
+          ]
+        },
+        {
+          "text": "Nakrájaj {pickles.amount} {pickles.name} {pickles.cut}.",
+          "requires": [
+            "pickles:raw"
+          ],
+          "produces": [
+            "pickles:cut"
+          ]
+        },
+        {
+          "text": "Podávaj rebierka so zemiakmi, cibuľou z výpeku a sterilizovanými uhorkami. Rozdeľ jedlo na {portions} porcií.",
+          "requires": [
+            "ribs:roasted",
+            "garlic:baked",
+            "paprika:baked",
+            "oil:baked",
+            "onion:roasted",
+            "potato:roasted",
+            "caraway:roasted",
+            "pickles:cut"
+          ],
+          "produces": [
+            "ribs:served",
+            "garlic:served",
+            "paprika:served",
+            "oil:served",
+            "onion:served",
+            "potato:served",
+            "caraway:served",
+            "pickles:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Rebierka so zemiakmi rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a prehrej ich v rúre pri 180 °C asi 15 minút."
+      }
+    },
+    {
+      "id": "classic_chicken_drumsticks_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené kuracie paličky s ryžou a hráškom",
+      "family": "classic_chicken_drumsticks_rice",
+      "method": "oven",
+      "minutes": 60,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "pekáč",
+        "miska",
+        "hrniec",
+        "sitko",
+        "nôž",
+        "doska na krájanie",
+        "papierová utierka"
+      ],
+      "slots": [
+        {
+          "key": "chicken",
+          "role": "protein",
+          "candidates": [
+            "chicken_drumstick"
+          ],
+          "amount_per_adult": "260",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "8",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": [
+            "paprika_powder"
+          ],
+          "amount_per_adult": "2",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "rice",
+          "role": "starch",
+          "candidates": [
+            "rice"
+          ],
+          "amount_per_adult": "75",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null,
+          "water_ml_per_adult": "150"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "30",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": "8",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "peas",
+          "role": "vegetable",
+          "candidates": [
+            "peas"
+          ],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "parsley",
+          "role": "seasoning",
+          "candidates": [
+            "parsley"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C.",
+          "requires": [],
+          "produces": []
+        },
+        {
+          "text": "Premiešaj v miske {oil.amount} {oil.name}, {garlic.amount} prelisovaný {garlic.name}, {paprika.amount} {paprika.name}, soľ a čierne korenie.",
+          "requires": [
+            "oil:raw",
+            "garlic:raw",
+            "paprika:raw"
+          ],
+          "produces": [
+            "oil:rub",
+            "garlic:rub",
+            "paprika:rub"
+          ]
+        },
+        {
+          "text": "Osuš {chicken.amount} {chicken.name} papierovou utierkou a natri ich zmesou z oleja a korenia.",
+          "requires": [
+            "chicken:raw",
+            "oil:rub",
+            "garlic:rub",
+            "paprika:rub"
+          ],
+          "produces": [
+            "chicken:seasoned",
+            "oil:used",
+            "garlic:used",
+            "paprika:used"
+          ]
+        },
+        {
+          "text": "Rozlož paličky v pekáči vedľa seba. Peč kuracie paličky v pekáči v rúre pri 200 °C 45 minút, kým budú zlatisté a chrumkavé a pri kosti už nebudú ružové. V polovici času ich obráť a polej výpekom.",
+          "requires": [
+            "chicken:seasoned"
+          ],
+          "produces": [
+            "chicken:roasted"
+          ]
+        },
+        {
+          "text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou, kým voda nebude číra. Nakrájaj {onion.amount} {onion.name} {onion.cut}.",
+          "requires": [
+            "rice:raw",
+            "onion:raw"
+          ],
+          "produces": [
+            "rice:rinsed",
+            "onion:cut"
+          ]
+        },
+        {
+          "text": "Rozohrej {butter.amount} {butter.name} v hrnci na miernom ohni 1 minútu, kým začne bublať. Opekaj cibuľu v hrnci na miernom ohni 4 minúty, kým bude dosklovita.",
+          "requires": [
+            "butter:raw",
+            "onion:cut"
+          ],
+          "produces": [
+            "butter:melted",
+            "onion:cooked"
+          ]
+        },
+        {
+          "text": "Vsyp ryžu do hrnca. Premiešaj ju s cibuľou, aby sa zrnká obalili maslom. Prilej {rice.water} vody a pridaj štipku soli. Hrniec prikry. Var ryžu v hrnci na miernom ohni 12 minút, kým vsiakne väčšinu vody.",
+          "requires": [
+            "rice:rinsed",
+            "butter:melted"
+          ],
+          "produces": [
+            "rice:simmered",
+            "butter:cooked"
+          ]
+        },
+        {
+          "text": "Vsyp {peas.amount} {peas.name} do hrnca. Mrazený hrášok nerozmrazuj, prehreje sa priamo na ryži. Var hrášok s ryžou v hrnci pod pokrievkou na miernom ohni ešte 5 minút, kým ryža vsiakne všetku vodu a zmäkne. Odstav hrniec a nechaj ryžu 5 minút prikrytú postáť.",
+          "requires": [
+            "peas:raw",
+            "rice:simmered"
+          ],
+          "produces": [
+            "peas:cooked",
+            "rice:cooked"
+          ]
+        },
+        {
+          "text": "Nakrájaj {parsley.amount} {parsley.name} {parsley.cut}. Vmiešaj petržlenovú vňať do ryže.",
+          "requires": [
+            "parsley:raw"
+          ],
+          "produces": [
+            "parsley:cut"
+          ]
+        },
+        {
+          "text": "Podávaj kuracie paličky s hráškovou ryžou a polej ich výpekom z pekáča. Rozdeľ jedlo na {portions} porcií.",
+          "requires": [
+            "chicken:roasted",
+            "oil:used",
+            "garlic:used",
+            "paprika:used",
+            "rice:cooked",
+            "onion:cooked",
+            "butter:cooked",
+            "peas:cooked",
+            "parsley:cut"
+          ],
+          "produces": [
+            "chicken:served",
+            "oil:served",
+            "garlic:served",
+            "paprika:served",
+            "rice:served",
+            "onion:served",
+            "butter:served",
+            "peas:served",
+            "parsley:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Paličky a ryžu ulož do plytkých nádob a najneskôr do 1 hodiny ich odlož do chladničky. Zjedz ich do 3 dní. Ryžu pri ohrievaní pokvapkaj lyžicou vody a dôkladne ju prehrej iba raz."
+      }
+    },
+    {
+      "id": "classic_baked_pork_potatoes_onion",
+      "version": 2,
+      "active": true,
+      "name_template": "Bravčové pliecko pečené na zemiakoch",
+      "family": "classic_baked_pork_potatoes_onion",
+      "method": "oven",
+      "minutes": 105,
+      "modes": [
+        "standard"
+      ],
+      "equipment": [
+        "pekáč",
+        "alobal",
+        "veľká panvica",
+        "palička na mäso",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "pork",
+          "role": "protein",
+          "candidates": [
+            "pork_shoulder"
+          ],
+          "amount_per_adult": "170",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na plátky hrubé 1,5 cm"
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "6",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "10",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "300",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na plátky hrubé 5 mm",
+          "water_ml_per_adult": "100"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na mesiačiky"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "6",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na plátky"
+        },
+        {
+          "key": "caraway",
+          "role": "seasoning",
+          "candidates": [
+            "caraway"
+          ],
+          "amount_per_adult": "1",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "marjoram",
+          "role": "seasoning",
+          "candidates": [
+            "marjoram"
+          ],
+          "amount_per_adult": "0.5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 180 °C.",
+          "requires": [],
+          "produces": []
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}. Nakrájaj {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} {garlic.cut}.",
+          "requires": [
+            "potato:raw",
+            "onion:raw",
+            "garlic:raw"
+          ],
+          "produces": [
+            "potato:cut",
+            "onion:cut",
+            "garlic:cut"
+          ]
+        },
+        {
+          "text": "Nakrájaj {pork.amount} {pork.name} {pork.cut}. Plátky jemne naklep. Premiešaj v miske {marjoram.amount} {marjoram.name}, soľ a čierne korenie a plátky z oboch strán natri touto zmesou. Vsyp {flour.amount} {flour.name} do misky. Plátky v nej obaľ a prebytočnú múku otras.",
+          "requires": [
+            "pork:raw",
+            "marjoram:raw",
+            "flour:raw"
+          ],
+          "produces": [
+            "pork:floured",
+            "marjoram:used",
+            "flour:used"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na silnom ohni 2 minúty, kým sa začne lesknúť.",
+          "requires": [
+            "oil:raw"
+          ],
+          "produces": [
+            "oil:hot"
+          ]
+        },
+        {
+          "text": "Opekaj bravčové pliecko bez kosti vo veľkej panvici po dávkach na silnom ohni 2 minúty z každej strany, kým bude zlatisté. Opečené plátky odlož na tanier a výpek nechaj v panvici.",
+          "requires": [
+            "pork:floured",
+            "oil:hot"
+          ],
+          "produces": [
+            "pork:browned",
+            "oil:used"
+          ]
+        },
+        {
+          "text": "Rozlož zemiaky s cibuľou v pekáči. Prisyp {caraway.amount} {caraway.name} do pekáča. Zemiaky osoľ a premiešaj. Prilej {potato.water} vody do pekáča. Na zemiaky polož opečené plátky mäsa, polej ich výpekom z panvice a medzi plátky rozlož cesnak. Pekáč prikry alobalom. Peč bravčové pliecko na zemiakoch v pekáči v rúre pri 180 °C 50 minút, kým zemiaky zmäknú a mäso bude mäkké.",
+          "requires": [
+            "potato:cut",
+            "onion:cut",
+            "caraway:raw",
+            "pork:browned",
+            "garlic:cut"
+          ],
+          "produces": [
+            "potato:braised",
+            "onion:pan",
+            "caraway:pan",
+            "pork:braised",
+            "garlic:pan"
+          ]
+        },
+        {
+          "text": "Odokry pekáč. Peč bravčové pliecko so zemiakmi v rúre pri 200 °C ešte 20 minút, kým mäso aj zemiaky navrchu zozlatnú a budú chrumkavé na okrajoch.",
+          "requires": [
+            "pork:braised",
+            "potato:braised",
+            "onion:pan",
+            "garlic:pan",
+            "caraway:pan"
+          ],
+          "produces": [
+            "pork:roasted",
+            "potato:roasted",
+            "onion:roasted",
+            "garlic:roasted",
+            "caraway:roasted"
+          ]
+        },
+        {
+          "text": "Podávaj bravčové pliecko so zemiakmi a cibuľou zo šťavy z pekáča. Rozdeľ jedlo na {portions} porcií.",
+          "requires": [
+            "pork:roasted",
+            "flour:used",
+            "oil:used",
+            "potato:roasted",
+            "onion:roasted",
+            "garlic:roasted",
+            "caraway:roasted",
+            "marjoram:used"
+          ],
+          "produces": [
+            "pork:served",
+            "flour:served",
+            "oil:served",
+            "potato:served",
+            "onion:served",
+            "garlic:served",
+            "caraway:served",
+            "marjoram:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Mäso so zemiakmi rozdeľ do plytkých nádob, prelej ich šťavou z pekáča a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a prehrej ich prikryté v rúre pri 180 °C asi 15 minút."
+      }
+    },
+    {
+      "id": "classic_lokse_duck_cabbage",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené kačacie stehno s kapustou a lokšami",
+      "family": "classic_lokse_duck_cabbage",
+      "method": "oven",
+      "minutes": 150,
+      "modes": [
+        "standard"
+      ],
+      "equipment": [
+        "pekáč",
+        "alobal",
+        "hrniec",
+        "misa",
+        "jemné strúhadlo",
+        "valček",
+        "panvica",
+        "nôž",
+        "doska na krájanie",
+        "papierová utierka"
+      ],
+      "slots": [
+        {
+          "key": "duck",
+          "role": "protein",
+          "candidates": [
+            "duck_leg"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "main",
+          "cut": null,
+          "water_ml_per_adult": "80"
+        },
+        {
+          "key": "caraway",
+          "role": "seasoning",
+          "candidates": [
+            "caraway"
+          ],
+          "amount_per_adult": "0.5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "140",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "v šupke"
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "40",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cabbage",
+          "role": "vegetable",
+          "candidates": [
+            "white_cabbage"
+          ],
+          "amount_per_adult": "200",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na tenké rezance",
+          "water_ml_per_adult": "60"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "40",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "sugar",
+          "role": "seasoning",
+          "candidates": [
+            "sugar"
+          ],
+          "amount_per_adult": "6",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "vinegar",
+          "role": "seasoning",
+          "candidates": [
+            "apple_cider_vinegar"
+          ],
+          "amount_per_adult": "8",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 170 °C.",
+          "requires": [],
+          "produces": []
+        },
+        {
+          "text": "Osuš {duck.amount} {duck.name} papierovou utierkou. Premiešaj v miske {caraway.amount} {caraway.name} so soľou a natri ňou stehná zo všetkých strán. Rozlož kačacie stehná v pekáči kožou nahor. Prilej {duck.water} vody do pekáča. Pekáč prikry alobalom.",
+          "requires": [
+            "duck:raw",
+            "caraway:raw"
+          ],
+          "produces": [
+            "duck:seasoned",
+            "caraway:used"
+          ]
+        },
+        {
+          "text": "Peč kačacie stehná v prikrytom pekáči v rúre pri 170 °C 90 minút, kým mäso zmäkne.",
+          "requires": [
+            "duck:seasoned"
+          ],
+          "produces": [
+            "duck:braised"
+          ]
+        },
+        {
+          "text": "Vlož {potato.amount} {potato.name} {potato.cut} do hrnca. Dolej studenú vodu tak, aby boli ponorené. Var zemiaky v hrnci na miernom ohni 25 minút, kým zmäknú. Sceď zemiaky a nechaj ich 20 minút vychladnúť.",
+          "requires": [
+            "potato:raw"
+          ],
+          "produces": [
+            "potato:cooked"
+          ]
+        },
+        {
+          "text": "Odokry pekáč a zvýš teplotu rúry na 200 °C. Peč kačacie stehná v rúre ešte 30 minút a raz ich polej výpekom, kým bude koža zlatistá a chrumkavá. Z pekáča odober 2 lyžice kačacieho tuku na kapustu.",
+          "requires": [
+            "duck:braised"
+          ],
+          "produces": [
+            "duck:roasted"
+          ]
+        },
+        {
+          "text": "Nakrájaj {cabbage.amount} {cabbage.name} {cabbage.cut} a {onion.amount} {onion.name} {onion.cut}. Opekaj cibuľu na kačacom tuku v hrnci na strednom ohni 4 minúty, kým bude dosklovita. Prisyp {sugar.amount} {sugar.name} do hrnca. Zohrievaj cukor s cibuľou v hrnci na strednom ohni 1 minútu, kým sa rozpustí a jemne zozlatne.",
+          "requires": [
+            "cabbage:raw",
+            "onion:raw",
+            "sugar:raw"
+          ],
+          "produces": [
+            "cabbage:cut",
+            "onion:cooked",
+            "sugar:caramel"
+          ]
+        },
+        {
+          "text": "Pridaj bielu hlávkovú kapustu a štipku soli do hrnca. Prilej {cabbage.water} vody do hrnca. Hrniec prikry. Dus bielu hlávkovú kapustu v hrnci na miernom ohni 25 minút, kým zmäkne. Vmiešaj {vinegar.amount} {vinegar.name}. Kapustu dochuť soľou, aby bola sladkokyslá.",
+          "requires": [
+            "cabbage:cut",
+            "onion:cooked",
+            "sugar:caramel",
+            "vinegar:raw"
+          ],
+          "produces": [
+            "cabbage:cooked",
+            "onion:braised",
+            "sugar:cooked",
+            "vinegar:cooked"
+          ]
+        },
+        {
+          "text": "Ošúp vychladnuté zemiaky a najemno ich nastrúhaj do misy. Pridaj {flour.amount} {flour.name} a štipku soli. Rukami vypracuj mäkké cesto a rozdeľ ho na guľky veľké ako mandarínka. Každú guľku na pomúčenej doske rozvaľkaj na tenký kruh hrubý 2 až 3 mm.",
+          "requires": [
+            "potato:cooked",
+            "flour:raw"
+          ],
+          "produces": [
+            "potato:rolled",
+            "flour:dough"
+          ]
+        },
+        {
+          "text": "Rozohrej suchú panvicu na strednom ohni 2 minúty. Opeč lokše zo zemiakov po jednej v suchej panvici na strednom ohni 2 minúty z každej strany, kým na nich naskočia hnedé bodky a budú mäkké. Teplé lokše natri tukom z pekáča a prelož ich na polovicu.",
+          "requires": [
+            "potato:rolled",
+            "flour:dough"
+          ],
+          "produces": [
+            "potato:baked",
+            "flour:baked"
+          ]
+        },
+        {
+          "text": "Podávaj kačacie stehná s dusenou kapustou a lokšami a polej mäso výpekom. Rozdeľ jedlo na {portions} porcií.",
+          "requires": [
+            "duck:roasted",
+            "caraway:used",
+            "potato:baked",
+            "flour:baked",
+            "cabbage:cooked",
+            "onion:braised",
+            "sugar:cooked",
+            "vinegar:cooked"
+          ],
+          "produces": [
+            "duck:served",
+            "caraway:served",
+            "potato:served",
+            "flour:served",
+            "cabbage:served",
+            "onion:served",
+            "sugar:served",
+            "vinegar:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Kačacie stehná, kapustu a lokše ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní. Stehná prehrej v rúre pri 200 °C asi 15 minút, aby koža znova schrumkavela, a lokše krátko zohrej na suchej panvici."
+      }
     }
   ]
 }

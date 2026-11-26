@@ -86,6 +86,13 @@ _PACKAGES: dict[str, Quantity] = {
     "pita": Quantity(Decimal("4"), "piece"),
     "sour_cream": Quantity(Decimal("200"), "g"),
     "sweet_corn": Quantity(Decimal("340"), "g"),
+    # Wave 2, batch 5: Slovak classics.
+    "chicken_liver": Quantity(Decimal("500"), "g"),
+    "smoked_pork": Quantity(Decimal("300"), "g"),
+    "pork_ribs": Quantity(Decimal("1000"), "g"),
+    "chicken_drumstick": Quantity(Decimal("1000"), "g"),
+    "duck_leg": Quantity(Decimal("600"), "g"),
+    "quark": Quantity(Decimal("250"), "g"),
 }
 
 _FRESH_WEIGHT_CATEGORIES = frozenset({"mäso", "ryby", "zelenina", "ovocie"})
