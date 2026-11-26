@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "74a1d481895d1894340295f9fdffd58aa609325bdbcbac783a128a5506b5e333",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "fish_fish_cakes_potatoes"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

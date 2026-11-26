@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "de185ebd2e95cde702df6d75cbcfa4267afcdd85823784ee56866c7108d775c4",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "fish_white_fish_vegetables_oven"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "856042bd2208df70ace3e024d8ffb3722fad0d0a856ccaa7f0e88edc8f9bfb19",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "fish_salmon_spinach_pasta"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

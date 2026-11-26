@@ -423,3 +423,39 @@ def test_salad_cucumber_is_not_a_pickled_cucumber(catalog):
         [offer(nazov="Šalátové uhorky 1 kg", jednotka="1 kg")], catalog
     )
     assert [item.ingredient.id for item in matched] == ["cucumber"]
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit", "expected_id"),
+    (
+        ("Pstruh dúhový chladený 1 kg", "1 kg", "trout"),
+        ("Pstruh dúhový 300 g", "300 g", "trout"),
+        ("Makrela chladená 1 kg", "1 kg", "mackerel"),
+        ("Makrela atlantická 400 g", "400 g", "mackerel"),
+        ("Žemle na hamburger 300 g", "300 g", "burger_bun"),
+        ("Hamburgerové žemle 4 ks 300 g", "300 g", "burger_bun"),
+    ),
+)
+def test_wave2_whole_fish_and_burger_bun_labels_match(
+    catalog, product_name, unit, expected_id
+):
+    matched = match_offers([offer(nazov=product_name, jednotka=unit)], catalog)
+
+    assert [item.ingredient.id for item in matched] == [expected_id]
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit"),
+    (
+        ("Pstruh údený 200 g", "200 g"),
+        ("Pstruh filety 250 g", "250 g"),
+        ("Makrela údená 1 kg", "1 kg"),
+        ("Makrela v oleji 125 g", "125 g"),
+        ("Makrela filety v paradajkovej omáčke 170 g", "170 g"),
+        ("Bezlepkové hamburgerové žemle 300 g", "300 g"),
+    ),
+)
+def test_wave2_smoked_canned_or_filleted_fish_fail_closed(
+    catalog, product_name, unit
+):
+    assert match_offers([offer(nazov=product_name, jednotka=unit)], catalog) == ()

@@ -1,0 +1,51 @@
+{
+  "recipes": [
+    {
+      "id": "fish_tuna_pasta_bake",
+      "version": 2,
+      "active": true,
+      "name_template": "Zapekané cestoviny s tuniakom",
+      "family": "fish_tuna_pasta_bake",
+      "method": "oven",
+      "minutes": 50,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["rúra", "pekáč", "hrniec", "sitko", "metlička", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "40"},
+        {"key": "tuna", "role": "protein", "candidates": ["tuna"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "broccoli", "role": "vegetable", "candidates": ["broccoli"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na ružičky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "milk", "role": "dairy", "candidates": ["milk"], "amount_per_adult": "160", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 200 °C.", "requires": [], "produces": []},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} {garlic.cut}. Rozdeľ {broccoli.amount} {broccoli.name} {broccoli.cut} a nastrúhaj {cheese.amount} {cheese.name}.", "requires": ["onion:raw", "garlic:raw", "broccoli:raw", "cheese:raw"], "produces": ["onion:cut", "garlic:cut", "broccoli:cut", "cheese:grated"]},
+        {"text": "Sceď {tuna.amount} {tuna.name} a vidličkou ho rozober na väčšie kúsky.", "requires": ["tuna:raw"], "produces": ["tuna:drained"]},
+        {"text": "Uvar {pasta.amount} {pasta.name} v hrnci s osolenou vodou na strednom ohni 7 minút, kým budú takmer mäkké, ale ešte pevné. Posledné 3 minúty var v hrnci aj brokolicu. Mrazenú brokolicu nerozmrazuj, daj ju do hrnca rovno z mrazničky. Odober z hrnca {pasta.water} vody a potom cestoviny s brokolicou sceď cez sitko.", "requires": ["pasta:raw", "broccoli:cut"], "produces": ["pasta:cooked", "broccoli:cooked"]},
+        {"text": "Rozohrej {butter.amount} {butter.name} v hrnci na miernom ohni 1 minútu, kým sa roztopí a začne bublať. Opekaj cibuľu v masle 4 minúty, kým bude dosklovita. Pridaj cesnak a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["butter:raw", "onion:cut", "garlic:cut"], "produces": ["butter:used", "onion:cooked", "garlic:cooked"]},
+        {"text": "Vsyp {flour.amount} {flour.name} do hrnca. Opekaj hladkú pšeničnú múku s cibuľou na miernom ohni 1 minútu za stáleho miešania, kým začne bublať.", "requires": ["flour:raw"], "produces": ["flour:roux"]},
+        {"text": "Prilej {milk.amount} {milk.name}. Prilievaj ho po troškách a stále miešaj metličkou, aby nevznikli hrudky. Var mlieko s múkou v hrnci na miernom ohni 4 minúty za stáleho miešania, kým omáčka zhustne a začne bublať.", "requires": ["milk:raw", "flour:roux"], "produces": ["milk:sauce", "flour:sauce"]},
+        {"text": "Odstav hrniec z ohňa. Do omáčky zamiešaj polovicu syra a dochuť ju soľou a čiernym korením až po ochutnaní, syr je slaný.", "requires": ["cheese:grated"], "produces": ["cheese:half_used"]},
+        {"text": "Premiešaj cestoviny, brokolicu a tuniaka s omáčkou priamo v hrnci. Ak je zmes hustá, dolej po troškách odloženú vodu z cestovín, kým bude krémová a cestoviny budú omáčkou dobre obalené.", "requires": ["pasta:cooked", "broccoli:cooked", "tuna:drained", "milk:sauce", "flour:sauce", "butter:used", "onion:cooked", "garlic:cooked"], "produces": ["pasta:mixed", "broccoli:mixed", "tuna:mixed", "milk:mixed", "flour:mixed", "butter:mixed", "onion:mixed", "garlic:mixed"]},
+        {"text": "Rozlož cestoviny do pekáča a zarovnaj ich. Zvyšný syr rozsyp navrch.", "requires": ["pasta:mixed", "cheese:half_used"], "produces": ["pasta:pan", "cheese:topping"]},
+        {"text": "Peč cestoviny v pekáči pri 200 °C 15 minút, kým syr zozlatne a omáčka na okrajoch bublá.", "requires": ["pasta:pan", "broccoli:mixed", "tuna:mixed", "milk:mixed", "flour:mixed", "butter:mixed", "onion:mixed", "garlic:mixed", "cheese:topping"], "produces": ["pasta:baked", "broccoli:baked", "tuna:baked", "milk:baked", "flour:baked", "butter:baked", "onion:baked", "garlic:baked", "cheese:baked"]},
+        {"text": "Nechaj cestoviny 5 minút postáť. Podávaj ich teplé a rozdeľ jedlo na {portions} porcií.", "requires": ["pasta:baked", "tuna:baked", "broccoli:baked", "onion:baked", "garlic:baked", "butter:baked", "flour:baked", "milk:baked", "cheese:baked"], "produces": ["pasta:served", "tuna:served", "broccoli:served", "onion:served", "garlic:served", "butter:served", "flour:served", "milk:served", "cheese:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Vychladnuté cestoviny rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a porciu prehrej v rúre alebo v mikrovlnke s lyžicou vody, kým bude celá horúca."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "fish_tuna_pasta_bake",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/44685/zapekane-brokolicove-cestoviny-s-tuniakom/", "title": "Zapekané brokolicové cestoviny s tuniakom | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/tuna-mornay-tuniak-zapeceny-v-bielej-omacke-fotorecept/28494-recept.html", "title": "Tuna Mornay - Tuniak zapečený v bielej omáčke (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

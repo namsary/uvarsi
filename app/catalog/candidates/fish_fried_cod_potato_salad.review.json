@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "e1197d5d2abb8f150d974fe7c924097ef037b2e635be73ec721d17af9cb4832a",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "fish_fried_cod_potato_salad"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

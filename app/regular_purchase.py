@@ -80,6 +80,7 @@ _PACKAGES: dict[str, Quantity] = {
     "poppy_seed": Quantity(Decimal("200"), "g"),
     "tartar_sauce": Quantity(Decimal("250"), "g"),
     "tomato_paste": Quantity(Decimal("140"), "g"),
+    "burger_bun": Quantity(Decimal("4"), "piece"),
 }
 
 _FRESH_WEIGHT_CATEGORIES = frozenset({"mäso", "ryby", "zelenina", "ovocie"})

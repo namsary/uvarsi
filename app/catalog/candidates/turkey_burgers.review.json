@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "7a526fe150c3d37804031ccd98e8f766bae55c01ed7685fd51254b08b81b5b82",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "turkey_burgers"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

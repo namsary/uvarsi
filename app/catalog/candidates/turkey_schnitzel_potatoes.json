@@ -1,0 +1,47 @@
+{
+  "recipes": [
+    {
+      "id": "turkey_schnitzel_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Morčací rezeň v cestíčku so zemiakmi",
+      "family": "turkey_schnitzel_potatoes",
+      "method": "pan",
+      "minutes": 50,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "veľká panvica", "miska", "metlička", "nôž", "doska na krájanie", "palička na mäso", "potravinová fólia", "papierová utierka"],
+      "slots": [
+        {"key": "turkey", "role": "protein", "candidates": ["turkey_breast"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky hrubé 1 centimeter"},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.5", "unit": "piece", "child_factor": "0.75", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "milk", "role": "dairy", "candidates": ["milk"], "amount_per_adult": "15", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "20", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na štvrtiny"},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}. Vlož zemiaky do hrnca, dolej studenú vodu tak, aby boli ponorené, a vodu osoľ.", "requires": ["potato:raw"], "produces": ["potato:pot"]},
+        {"text": "Var zemiaky v hrnci na miernom ohni 20 minút, kým zmäknú.", "requires": ["potato:pot"], "produces": ["potato:cooked"]},
+        {"text": "Nakrájaj {turkey.amount} {turkey.name} {turkey.cut}. Plátky prikry potravinovou fóliou, paličkou ich naklep na hrúbku asi pol centimetra a z oboch strán ich osoľ a okoreň.", "requires": ["turkey:raw"], "produces": ["turkey:pounded"]},
+        {"text": "Rozšľahaj v miske {egg.amount} {egg.name}, {milk.amount} {milk.name}, {flour.amount} {flour.name} a štipku soli na hladké, hustejšie cestíčko bez hrudiek, ktoré pomaly steká z lyžice.", "requires": ["egg:raw", "milk:raw", "flour:raw"], "produces": ["egg:batter", "milk:batter", "flour:batter"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 3 minúty, kým kvapka cestíčka v oleji hneď začne bublať. Olej má pokryť dno panvice aspoň do výšky pol centimetra, ak ho je menej, dolej ho z fľaše.", "requires": ["oil:raw"], "produces": ["oil:hot"]},
+        {"text": "Opeč morčacie prsia v cestíčku vo veľkej panvici po dávkach na strednom ohni 3 minúty z každej strany, kým bude cestíčko zlatisté a mäso v strede nebude ružové. Každý plátok pred vložením do panvice ponor do cestíčka a nechaj prebytok odkvapkať. Hotové rezne vyber na tanier s papierovou utierkou.", "requires": ["turkey:pounded", "egg:batter", "milk:batter", "flour:batter", "oil:hot"], "produces": ["turkey:fried", "egg:fried", "milk:fried", "flour:fried", "oil:used"]},
+        {"text": "Nakrájaj {parsley.amount} {parsley.name} {parsley.cut}.", "requires": ["parsley:raw"], "produces": ["parsley:cut"]},
+        {"text": "Sceď zemiaky a vráť ich do hrnca. Pridaj {butter.amount} {butter.name} a petržlenovú vňať do hrnca. Zemiaky premiešaj, kým sa maslo roztopí.", "requires": ["potato:cooked", "butter:raw", "parsley:cut"], "produces": ["potato:buttered", "butter:used", "parsley:used"]},
+        {"text": "Podávaj morčacie rezne v cestíčku s petržlenovými zemiakmi. Jedlo rozdeľ na {portions} porcií.", "requires": ["turkey:fried", "egg:fried", "flour:fried", "milk:fried", "oil:used", "potato:buttered", "butter:used", "parsley:used"], "produces": ["turkey:served", "egg:served", "flour:served", "milk:served", "oil:served", "potato:served", "butter:served", "parsley:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Rezne a zemiaky ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní a rezne prehrej v rúre pri 180 °C asi 10 minút, aby ostali chrumkavé."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "turkey_schnitzel_potatoes",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/13285/morcacie-rezne-v-cesticku/", "title": "Morčacie rezne v cestíčku | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/francuzske-morcacie-rezne-fotorecept/64743-recept.html", "title": "Francúzske morčacie rezne (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

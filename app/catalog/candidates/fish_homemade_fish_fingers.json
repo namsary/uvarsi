@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "fish_homemade_fish_fingers",
+      "version": 2,
+      "active": true,
+      "name_template": "Domáce rybie prsty so zemiakovou kašou",
+      "family": "fish_homemade_fish_fingers",
+      "method": "pan",
+      "minutes": 50,
+      "modes": ["standard"],
+      "equipment": ["hrniec", "malý hrniec", "tri taniere", "veľká panvica", "nôž", "doska na krájanie", "papierová utierka", "tĺčik na zemiaky"],
+      "slots": [
+        {"key": "fish", "role": "protein", "candidates": ["white_fish"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na prsty široké 2 centimetre"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "12", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.5", "unit": "piece", "child_factor": "0.75", "required": true, "use": "addition", "cut": null},
+        {"key": "crumbs", "role": "starch", "candidates": ["breadcrumbs"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "20", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kocky"},
+        {"key": "milk", "role": "dairy", "candidates": ["milk"], "amount_per_adult": "70", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "12", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na mesiačiky"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}. Vlož zemiaky do hrnca, dolej studenú vodu tak, aby boli ponorené, a vodu osoľ.", "requires": ["potato:raw"], "produces": ["potato:pot"]},
+        {"text": "Var zemiaky v hrnci na miernom ohni 20 minút, kým zmäknú.", "requires": ["potato:pot"], "produces": ["potato:cooked"]},
+        {"text": "Osuš {fish.amount} {fish.name} papierovou utierkou a nakrájaj ju {fish.cut}. Prsty z oboch strán osoľ a okoreň.", "requires": ["fish:raw"], "produces": ["fish:cut"]},
+        {"text": "Priprav si tri taniere. Do prvého vsyp {flour.amount} {flour.name}, v druhom rozšľahaj {egg.amount} {egg.name} so štipkou soli a do tretieho vsyp {crumbs.amount} {crumbs.name}. Každý rybí prst obaľ najprv v múke, potom vo vajci a nakoniec v strúhanke, ktorú jemne pritlač.", "requires": ["flour:raw", "egg:raw", "crumbs:raw", "fish:cut"], "produces": ["flour:coating", "egg:coating", "crumbs:coating", "fish:breaded"]},
+        {"text": "Zohrej {milk.amount} {milk.name} v malom hrnci na miernom ohni 2 minúty, kým začne pariť.", "requires": ["milk:raw"], "produces": ["milk:hot"]},
+        {"text": "Sceď zemiaky, vráť ich do hrnca a roztlač ich na hladkú kašu. Vmiešaj mlieko a {butter.amount} {butter.name}. Kašu dochuť soľou a hrniec prikry, aby nevychladla.", "requires": ["potato:cooked", "milk:hot", "butter:raw"], "produces": ["potato:mashed", "milk:mashed", "butter:mashed"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 3 minúty, kým okolo kúska strúhanky hodeného do oleja začne hneď bublať. Olej má pokryť dno panvice aspoň do výšky pol centimetra, ak ho je menej, dolej ho z fľaše.", "requires": ["oil:raw"], "produces": ["oil:hot"]},
+        {"text": "Opekaj rybu vo veľkej panvici po dávkach na strednom ohni 3 minúty z každej strany, kým budú prsty zlatisté a chrumkavé. Panvicu neprepĺňaj. Hotové prsty vyber na tanier s papierovou utierkou, aby odkvapkali.", "requires": ["fish:breaded", "flour:coating", "egg:coating", "crumbs:coating", "oil:hot"], "produces": ["fish:fried", "flour:fried", "egg:fried", "crumbs:fried", "oil:used"]},
+        {"text": "Nakrájaj {lemon.amount} {lemon.name} {lemon.cut}.", "requires": ["lemon:raw"], "produces": ["lemon:cut"]},
+        {"text": "Podávaj rybie prsty so zemiakovou kašou a mesiačikmi citróna. Jedlo rozdeľ na {portions} porcií.", "requires": ["fish:fried", "flour:fried", "egg:fried", "crumbs:fried", "oil:used", "potato:mashed", "milk:mashed", "butter:mashed", "lemon:cut"], "produces": ["fish:served", "flour:served", "egg:served", "crumbs:served", "oil:served", "potato:served", "milk:served", "butter:served", "lemon:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Rybie prsty a kašu ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní. Prsty prehrej v rúre pri 180 °C asi 8 minút, kašu s lyžicou mlieka."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "fish_homemade_fish_fingers",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/domace-rybie-prsty-fotorecept/39715-recept.html", "title": "Domáce rybie prsty (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/84312/domace-rybie-prsty-take-dobre-nekupite/", "title": "Domáce rybie prsty: Také dobré nekúpite! | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

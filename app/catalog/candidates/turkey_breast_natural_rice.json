@@ -1,0 +1,47 @@
+{
+  "recipes": [
+    {
+      "id": "turkey_breast_natural_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Morčacie prsia na prírodno s ryžou",
+      "family": "turkey_breast_natural_rice",
+      "method": "pan",
+      "minutes": 40,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "sitko", "veľká panvica", "pokrievka", "miska", "metlička", "nôž", "doska na krájanie", "palička na mäso", "potravinová fólia"],
+      "slots": [
+        {"key": "turkey", "role": "protein", "candidates": ["turkey_breast"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky hrubé 1 centimeter", "water_ml_per_adult": "90"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "12", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne. Potom ju nechaj 5 minút prikrytú postáť.", "requires": ["rice:rinsed"], "produces": ["rice:cooked"]},
+        {"text": "Nakrájaj {turkey.amount} {turkey.name} {turkey.cut}. Plátky prikry potravinovou fóliou, paličkou ich naklep na hrúbku asi pol centimetra a z oboch strán ich osoľ a okoreň.", "requires": ["turkey:raw"], "produces": ["turkey:pounded"]},
+        {"text": "Vsyp {flour.amount} {flour.name} do misky. Každý plátok z jednej strany zľahka obaľ v múke a prebytočnú múku otras späť do misky.", "requires": ["flour:raw", "turkey:pounded"], "produces": ["flour:coating", "turkey:floured"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} a {butter.amount} {butter.name} vo veľkej panvici na strednom ohni 2 minúty, kým sa maslo roztopí a začne bublať.", "requires": ["oil:raw", "butter:raw"], "produces": ["oil:hot", "butter:hot"]},
+        {"text": "Opeč morčacie prsia vo veľkej panvici na strednom ohni najprv múkou nadol 2 minúty, potom z druhej strany 1 minútu, kým budú zlatisté. Pri väčšej dávke ich opekaj po častiach. Opečené plátky vyber na tanier.", "requires": ["turkey:floured", "oil:hot", "butter:hot"], "produces": ["turkey:browned", "oil:used", "butter:used"]},
+        {"text": "Stíš oheň. Zvyšnú múku z misky rozmiešaj v tuku v panvici a opekaj ju na miernom ohni 1 minútu, kým začne bublať.", "requires": ["flour:coating"], "produces": ["flour:roux"]},
+        {"text": "Prilej {turkey.water} vody do panvice. Stále miešaj metličkou a vareškou uvoľni výpek zo dna. Var vodu s výpekom na miernom ohni 2 minúty, kým šťava zhustne a začne bublať.", "requires": ["flour:roux"], "produces": ["flour:sauce"]},
+        {"text": "Vráť morčacie prsia do panvice a prikry ju pokrievkou. Zohrievaj morčacie prsia v šťave na miernom ohni 4 minúty, kým v strede nebude ružové a šťava bude jemne bublať.", "requires": ["turkey:browned", "flour:sauce"], "produces": ["turkey:cooked", "flour:cooked"]},
+        {"text": "Nakrájaj {parsley.amount} {parsley.name} {parsley.cut}. Dochuť šťavu soľou a čiernym korením.", "requires": ["parsley:raw"], "produces": ["parsley:cut"]},
+        {"text": "Podávaj morčacie prsia na prírodno s ryžou, polej ich šťavou z panvice a ozdob petržlenovou vňaťou. Jedlo rozdeľ na {portions} porcií.", "requires": ["turkey:cooked", "rice:cooked", "flour:cooked", "oil:used", "butter:used", "parsley:cut"], "produces": ["turkey:served", "rice:served", "flour:served", "oil:served", "butter:served", "parsley:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Mäso so šťavou a ryžu rozdeľ do plytkých nádob, do jednej hodiny ich schlaď a odlož do chladničky. Zjedz ich do 2 dní; mäso prehrievaj prikryté v šťave a ryžu ohrievaj iba raz, kým bude celá horúca."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "turkey_breast_natural_rice",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/15592/telacie-rezne-na-prirodno/", "title": "Teľacie rezne na prírodno | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/bravcove-rezne-na-prirodno-s-cibulkovymi-zemiakmi/45545-recept.html", "title": "Bravčové rezne na prírodno s cibuľkovými zemiakmi - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

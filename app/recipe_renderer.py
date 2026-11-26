@@ -198,6 +198,9 @@ _QUANTITY_NAMES: Mapping[str, str] = {
     "celeriac": "zeleru",
     "beef_round": "hovädzieho zadného bez kosti",
     "chicken_whole": "celého kurčaťa",
+    "trout": "celých pstruhov",
+    "mackerel": "celých makrel",
+    "burger_bun": "hamburgerových žemlí",
 }
 
 # Natural direct-object forms used after the ingredient was measured once.
@@ -302,6 +305,9 @@ _REFERENCE_NAMES: Mapping[str, str] = {
     "celeriac": "zeler",
     "beef_round": "hovädzie zadné bez kosti",
     "chicken_whole": "celé kurča",
+    "trout": "pstruhy",
+    "mackerel": "makrely",
+    "burger_bun": "hamburgerové žemle",
 }
 
 # Absorption/one-pot ratios in millilitres of water per gram of dry starch.
@@ -331,6 +337,7 @@ _EXTRA_INGREDIENT_FORMS: Mapping[str, tuple[str, ...]] = {
     "milk": ("plnotučné mlieko", "plnotučného mlieka", "mlieko", "mlieka"),
     "bacon": ("slanina", "slaniny", "slaninu"),
     "bread_dumpling": ("knedľa", "knedle", "knedľu", "knedľou"),
+    "burger_bun": ("žemle", "žemlí", "žemľa", "žemľu"),
 }
 
 _EXTRA_PANTRY_FORMS: Mapping[str, tuple[str, ...]] = {

@@ -1684,6 +1684,57 @@
         "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171447, Chicken, broilers or fryers, meat and skin, raw; https://fdc.nal.usda.gov/download-datasets/",
         "verified_on": "2026-11-26"
       }
+    },
+    {
+      "id": "trout",
+      "name": "pstruh",
+      "synonyms": ["pstruh dúhový", "dúhový pstruh", "pstruh celý", "celý pstruh", "pstruhy"],
+      "category": "ryby",
+      "roles": ["protein"],
+      "diet_tags": [],
+      "allergens": ["fish"],
+      "edible_ratio": "0.55",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "141", "protein_g": "19.94", "fat_g": "6.18", "carbs_g": "0",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 173717, Fish, trout, rainbow, farmed, raw; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "mackerel",
+      "name": "makrela",
+      "synonyms": ["makrela celá", "celá makrela", "makrela atlantická", "makrely"],
+      "category": "ryby",
+      "roles": ["protein"],
+      "diet_tags": [],
+      "allergens": ["fish"],
+      "edible_ratio": "0.55",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "205", "protein_g": "18.6", "fat_g": "13.89", "carbs_g": "0",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 175119, Fish, mackerel, Atlantic, raw; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "burger_bun",
+      "name": "hamburgerová žemľa",
+      "synonyms": ["hamburgerové žemle", "žemľa na hamburger", "žemle na hamburger", "burgerová žemľa", "burgerové žemle"],
+      "category": "pečivo",
+      "roles": ["starch"],
+      "diet_tags": ["vegetarian"],
+      "allergens": ["gluten"],
+      "edible_ratio": "1",
+      "grams_per_piece": "75",
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "279", "protein_g": "9.77", "fat_g": "3.91", "carbs_g": "50.12",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 172796, Rolls, hamburger or hotdog, plain; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
     }
   ]
 }

@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "fish_baked_salmon_potatoes_dill",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečený losos s kôprovými zemiakmi",
+      "family": "fish_baked_salmon_potatoes_dill",
+      "method": "oven",
+      "minutes": 40,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["rúra", "pekáč", "hrniec", "miska", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "salmon", "role": "protein", "candidates": ["salmon"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na porcie"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na štvrtiny"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na mesiačiky"},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "12", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "dill", "role": "seasoning", "candidates": ["dill"], "amount_per_adult": "6", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 200 °C.", "requires": [], "produces": []},
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}. Vlož zemiaky do hrnca, dolej studenú vodu tak, aby boli ponorené, a vodu osoľ.", "requires": ["potato:raw"], "produces": ["potato:pot"]},
+        {"text": "Var zemiaky v hrnci na miernom ohni 20 minút, kým zmäknú.", "requires": ["potato:pot"], "produces": ["potato:cooked"]},
+        {"text": "Osuš {salmon.amount} {salmon.name} papierovou utierkou a rozdeľ ho {salmon.cut}. Nakrájaj {lemon.amount} {lemon.name} {lemon.cut}.", "requires": ["salmon:raw", "lemon:raw"], "produces": ["salmon:portioned", "lemon:cut"]},
+        {"text": "Rozlož lososa do pekáča kožou nadol. Premiešaj v miske {oil.amount} {oil.name}, soľ a čierne korenie a touto zmesou porcie lososa natri. Na každú porciu vytlač jeden mesiačik citróna.", "requires": ["salmon:portioned", "oil:raw", "lemon:cut"], "produces": ["salmon:pan", "oil:used", "lemon:used"]},
+        {"text": "Peč lososa v pekáči pri 200 °C 12 minút, kým mäso na povrchu stuhne a v najhrubšom mieste sa dá ľahko oddeliť vidličkou.", "requires": ["salmon:pan"], "produces": ["salmon:baked"]},
+        {"text": "Nakrájaj {dill.amount} {dill.name} {dill.cut}. Premiešaj v miske {yogurt.amount} {yogurt.name}, tretinu kôpru, štipku soli a čierne korenie.", "requires": ["dill:raw", "yogurt:raw"], "produces": ["dill:cut", "yogurt:sauce"]},
+        {"text": "Sceď zemiaky a vráť ich do hrnca. Pridaj {butter.amount} {butter.name} a kôpor do hrnca. Zemiaky jemne premiešaj, kým sa maslo roztopí a obalí ich.", "requires": ["potato:cooked", "butter:raw", "dill:cut"], "produces": ["potato:dill", "butter:used", "dill:used"]},
+        {"text": "Podávaj lososa s kôprovými zemiakmi, jogurtovou omáčkou a zvyšnými mesiačikmi citróna. Jedlo rozdeľ na {portions} porcií.", "requires": ["salmon:baked", "potato:dill", "oil:used", "lemon:used", "butter:used", "dill:used", "yogurt:sauce"], "produces": ["salmon:served", "potato:served", "oil:served", "lemon:served", "butter:served", "dill:served", "yogurt:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Lososa, zemiaky a jogurtovú omáčku ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní, lososa ohrievaj iba raz a krátko, aby nevysušil."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "fish_baked_salmon_potatoes_dill",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/losos-s-koprovou-omackou-a-zemiakmi/8572-recept.html", "title": "Losos s kôprovou omáčkou a zemiakmi - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/41904/peceny-losos/", "title": "Pečený losos | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}
