@@ -1,0 +1,51 @@
+{
+  "recipes": [
+    {
+      "id": "fish_cod_curry",
+      "version": 2,
+      "active": true,
+      "name_template": "Rybie kari s ryžou",
+      "family": "fish_cod_curry",
+      "method": "pot",
+      "minutes": 40,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "veľký hrniec s pokrievkou", "sitko", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "fish", "role": "protein", "candidates": ["white_fish"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kocky veľké 3 centimetre", "water_ml_per_adult": "80"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "120"},
+        {"key": "coconut", "role": "dairy", "candidates": ["coconut_milk"], "amount_per_adult": "80", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "90", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na kúsky"},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "curry", "role": "seasoning", "candidates": ["curry_powder"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na mesiačiky"},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne. Potom ju nechaj 5 minút prikrytú postáť.", "requires": ["rice:rinsed"], "produces": ["rice:cooked"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}, {garlic.amount} {garlic.name} {garlic.cut}, {pepper.amount} {pepper.name} {pepper.cut}, {parsley.amount} {parsley.name} {parsley.cut} a {lemon.amount} {lemon.name} {lemon.cut}.", "requires": ["onion:raw", "garlic:raw", "pepper:raw", "parsley:raw", "lemon:raw"], "produces": ["onion:cut", "garlic:cut", "pepper:cut", "parsley:cut", "lemon:cut"]},
+        {"text": "Osuš {fish.amount} {fish.name} papierovou utierkou, nakrájaj ju {fish.cut} a zľahka osoľ.", "requires": ["fish:raw"], "produces": ["fish:cut"]},
+        {"text": "Nalej {oil.amount} {oil.name} do veľkého hrnca. Opekaj cibuľu vo veľkom hrnci na strednom ohni 5 minút, kým bude dosklovita a mäkká. Pridaj cesnak a papriku a opekaj ich 3 minúty, kým paprika trochu zmäkne.", "requires": ["oil:raw", "onion:cut", "garlic:cut", "pepper:cut"], "produces": ["oil:used", "onion:cooked", "garlic:cooked", "pepper:softened"]},
+        {"text": "Vsyp {curry.amount} {curry.name} do hrnca a vmiešaj {paste.amount} {paste.name}. Opekaj karí korenie so zeleninou na miernom ohni 30 sekúnd za stáleho miešania, kým zavonia a začne sa lesknúť.", "requires": ["curry:raw", "paste:raw", "onion:cooked", "pepper:softened"], "produces": ["curry:bloomed", "paste:bloomed"]},
+        {"text": "Prilej {coconut.amount} {coconut.name} a {fish.water} vody do hrnca. Priveď kokosovú smotanu s korením na strednom ohni do varu za 3 minúty, kým omáčka začne jemne bublať.", "requires": ["coconut:raw", "curry:bloomed", "paste:bloomed"], "produces": ["coconut:sauce", "curry:sauce", "paste:sauce"]},
+        {"text": "Vlož rybu do hrnca. Jemne ju ponor do omáčky. Prikry hrniec a dus rybu v omáčke na miernom ohni 7 minút, kým kocky stuhnú a v strede budú biele. Nemiešaj prudko, aby sa ryba nerozpadla.", "requires": ["fish:cut", "coconut:sauce"], "produces": ["fish:cooked", "pepper:cooked"]},
+        {"text": "Dochuť kari soľou a čiernym korením. Podávaj ho s ryžou a mesiačikom citróna na vytlačenie, ozdob petržlenovou vňaťou a rozdeľ jedlo na {portions} porcií.", "requires": ["fish:cooked", "rice:cooked", "coconut:sauce", "curry:sauce", "paste:sauce", "pepper:cooked", "onion:cooked", "garlic:cooked", "oil:used", "parsley:cut", "lemon:cut"], "produces": ["fish:served", "rice:served", "coconut:served", "curry:served", "paste:served", "pepper:served", "onion:served", "garlic:served", "oil:served", "parsley:served", "lemon:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Kari a ryžu rozdeľ do plytkých nádob, do jednej hodiny ich schlaď a odlož do chladničky. Zjedz ich do 2 dní; kari prehrievaj na miernom ohni iba raz a bez prudkého miešania, ryžu ohrievaj iba raz."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "fish_cod_curry",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/rychle-rybacie-kari/88203-recept.html", "title": "Rýchle rybacie karí - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/rybie-file-v-kari-omacke/31010-recept.html", "title": "Rybie filé v karí omáčke - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/13784/rybie-file-na-kari/", "title": "Rybie filé na karí | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

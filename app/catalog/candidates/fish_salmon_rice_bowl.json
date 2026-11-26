@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "fish_salmon_rice_bowl",
+      "version": 2,
+      "active": true,
+      "name_template": "Lososová miska s ryžou a uhorkou",
+      "family": "fish_salmon_rice_bowl",
+      "method": "pan",
+      "minutes": 35,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "veľká panvica", "sitko", "miska", "strúhadlo", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "salmon", "role": "protein", "candidates": ["salmon"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na porcie"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "120"},
+        {"key": "cucumber", "role": "vegetable", "candidates": ["cucumber"], "amount_per_adult": "130", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenké plátky"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "nahrubo"},
+        {"key": "soy", "role": "seasoning", "candidates": ["soy_sauce"], "amount_per_adult": "15", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "chives", "role": "seasoning", "candidates": ["chives"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne. Potom ju nechaj 5 minút prikrytú postáť.", "requires": ["rice:rinsed"], "produces": ["rice:cooked"]},
+        {"text": "Nakrájaj {cucumber.amount} {cucumber.name} {cucumber.cut}, {chives.amount} {chives.name} {chives.cut} a {lemon.amount} {lemon.name} na polovice. Ošúp {carrot.amount} {carrot.name} a nastrúhaj ju {carrot.cut}.", "requires": ["cucumber:raw", "chives:raw", "carrot:raw", "lemon:raw"], "produces": ["cucumber:cut", "chives:cut", "carrot:grated", "lemon:cut"]},
+        {"text": "Premiešaj v miske {soy.amount} {soy.name} so šťavou vytlačenou z citróna. Polovicou zálievky polej uhorku a mrkvu.", "requires": ["lemon:cut", "soy:raw", "cucumber:cut", "carrot:grated"], "produces": ["lemon:dressing", "soy:dressing", "cucumber:dressed", "carrot:dressed"]},
+        {"text": "Osuš {salmon.amount} {salmon.name} papierovou utierkou a nakrájaj ho {salmon.cut}. Porcie z oboch strán zľahka osoľ a okoreň.", "requires": ["salmon:raw"], "produces": ["salmon:seasoned"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj lososa 4 minúty, kým bude spodná strana zlatistá. Obráť ho a opekaj ešte 3 minúty, kým v strede stuhne a ľahko sa rozdelí na lupienky. Pri väčšej dávke opekaj lososa po častiach.", "requires": ["oil:raw", "salmon:seasoned"], "produces": ["oil:used", "salmon:cooked"]},
+        {"text": "Podávaj ryžu v miskách s lososom, uhorkou a mrkvou. Polej všetko zvyšnou zálievkou, ozdob pažítkou a jedlo rozdeľ na {portions} porcií.", "requires": ["rice:cooked", "salmon:cooked", "oil:used", "cucumber:dressed", "carrot:dressed", "lemon:dressing", "soy:dressing", "chives:cut"], "produces": ["rice:served", "salmon:served", "oil:served", "cucumber:served", "carrot:served", "lemon:served", "soy:served", "chives:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Ryžu a lososa rozdeľ do plytkých nádob, do jednej hodiny ich schlaď a odlož do chladničky; zeleninu so zálievkou ulož zvlášť. Zjedz ich do 2 dní a ryžu ohrievaj iba raz, kým je celá horúca."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "fish_salmon_rice_bowl",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/lososova-miska/86983-recept.html", "title": "Lososová miska - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/poke-miska-s-ryzou-a-lososom/94267-recept.html", "title": "Poke miska s ryžou a lososom - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/2161/marinovany-losos-s-natural-ryzou/", "title": "Marinovaný losos s natural ryžou | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

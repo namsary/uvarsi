@@ -1,0 +1,51 @@
+{
+  "recipes": [
+    {
+      "id": "fish_tuna_rice_bake",
+      "version": 2,
+      "active": true,
+      "name_template": "Zapekaná ryža s tuniakom",
+      "family": "fish_tuna_rice_bake",
+      "method": "oven",
+      "minutes": 50,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["rúra", "pekáč", "hrniec", "veľká panvica", "sitko", "miska", "metlička", "strúhadlo", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "110"},
+        {"key": "tuna", "role": "protein", "candidates": ["tuna"], "amount_per_adult": "140", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "peas", "role": "vegetable", "candidates": ["peas"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "milk", "role": "dairy", "candidates": ["milk"], "amount_per_adult": "100", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nahrubo nastrúhaný"},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 200 °C.", "requires": [], "produces": []},
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne.", "requires": ["rice:rinsed"], "produces": ["rice:cooked"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}, {pepper.amount} {pepper.name} {pepper.cut} a {parsley.amount} {parsley.name} {parsley.cut}. Nastrúhaj {cheese.amount} {cheese.name} nahrubo.", "requires": ["onion:raw", "pepper:raw", "parsley:raw", "cheese:raw"], "produces": ["onion:cut", "pepper:cut", "parsley:cut", "cheese:grated"]},
+        {"text": "Sceď {tuna.amount} {tuna.name} cez sitko a vidličkou ho rozober na väčšie kúsky.", "requires": ["tuna:raw"], "produces": ["tuna:drained"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu s paprikou 5 minút, kým zmäknú. Pri väčšej dávke opekaj zeleninu po častiach. Pridaj {peas.amount} {peas.name} do panvice. Opekaj hrášok so zeleninou ešte 2 minúty, kým zmäkne. Mrazený hrášok nerozmrazuj, daj ho do panvice rovno z mrazničky.", "requires": ["oil:raw", "onion:cut", "pepper:cut", "peas:raw"], "produces": ["oil:used", "onion:cooked", "pepper:cooked", "peas:cooked"]},
+        {"text": "Rozšľahaj v miske {egg.amount} {egg.name}, {milk.amount} {milk.name}, soľ a čierne korenie.", "requires": ["egg:raw", "milk:raw"], "produces": ["egg:custard", "milk:custard"]},
+        {"text": "Premiešaj v pekáči ryžu, tuniaka, opečenú zeleninu, petržlenovú vňať a polovicu syra a zmes zarovnaj. Rovnomerne ju polej vajcovou zmesou a navrch rozsyp zvyšný syr.", "requires": ["rice:cooked", "tuna:drained", "onion:cooked", "pepper:cooked", "peas:cooked", "oil:used", "parsley:cut", "cheese:grated", "egg:custard", "milk:custard"], "produces": ["rice:pan", "tuna:pan", "onion:pan", "pepper:pan", "peas:pan", "oil:pan", "parsley:pan", "cheese:pan", "egg:pan", "milk:pan"]},
+        {"text": "Peč ryžu v pekáči pri 200 °C 20 minút, kým vajcová zmes stuhne a syr bude zlatistý.", "requires": ["rice:pan", "tuna:pan", "onion:pan", "pepper:pan", "peas:pan", "oil:pan", "parsley:pan", "cheese:pan", "egg:pan", "milk:pan"], "produces": ["rice:baked", "tuna:baked", "onion:baked", "pepper:baked", "peas:baked", "oil:baked", "parsley:baked", "cheese:baked", "egg:baked", "milk:baked"]},
+        {"text": "Nechaj zapekanú ryžu 5 minút postáť. Podávaj ju teplú a rozdeľ na {portions} porcií.", "requires": ["rice:baked", "tuna:baked", "onion:baked", "pepper:baked", "peas:baked", "oil:baked", "parsley:baked", "cheese:baked", "egg:baked", "milk:baked"], "produces": ["rice:served", "tuna:served", "onion:served", "pepper:served", "peas:served", "oil:served", "parsley:served", "cheese:served", "egg:served", "milk:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Vychladnutú zapekanú ryžu rozdeľ do plytkých nádob a do jednej hodiny ju odlož do chladničky. Zjedz ju do 2 dní a porciu prehrej iba raz s lyžicou vody, kým bude celá horúca."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "fish_tuna_rice_bake",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/jednoducha-ryza-s-tuniakom/91391-recept.html", "title": "Jednoduchá ryža s tuniakom - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/chutna-a-rychla-zapekana-ryza/92016-recept.html", "title": "Chutná a rýchla zapekaná ryža - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/20428/zapekana-ryza-so-zeleninou/", "title": "Zapekaná ryža so zeleninou | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "dd9dbe486adcfe2638ee3ef75a12c37d6b16e943b197f8418259e3998977b56a",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "fish_salmon_rice_bowl"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

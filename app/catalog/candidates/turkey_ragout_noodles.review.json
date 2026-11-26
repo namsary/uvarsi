@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "ff0c5377805956f39aa7fde3533576f6a3c570466a51d92bdd0d047336f8eadb",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "turkey_ragout_noodles"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

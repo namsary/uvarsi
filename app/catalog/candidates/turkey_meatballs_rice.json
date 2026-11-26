@@ -1,0 +1,51 @@
+{
+  "recipes": [
+    {
+      "id": "turkey_meatballs_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Morčacie fašírky s ryžou a uhorkovým šalátom",
+      "family": "turkey_meatballs_rice",
+      "method": "pan",
+      "minutes": 45,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "veľká panvica", "sitko", "veľká miska", "dve misky", "vareška", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "turkey", "role": "protein", "candidates": ["turkey_mince"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "50"},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.5", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "crumbs", "role": "starch", "candidates": ["breadcrumbs"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "120"},
+        {"key": "cucumber", "role": "vegetable", "candidates": ["cucumber"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenké plátky", "water_ml_per_adult": "30"},
+        {"key": "vinegar", "role": "seasoning", "candidates": ["apple_cider_vinegar"], "amount_per_adult": "12", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne. Potom ju nechaj 5 minút prikrytú postáť.", "requires": ["rice:rinsed"], "produces": ["rice:cooked"]},
+        {"text": "Nakrájaj {cucumber.amount} {cucumber.name} {cucumber.cut}, v miske ju zľahka osoľ a nechaj 10 minút postáť. Potom z uhorky vytlač pustenú šťavu.", "requires": ["cucumber:raw"], "produces": ["cucumber:salted"]},
+        {"text": "Premiešaj v druhej miske {vinegar.amount} {vinegar.name}, {sugar.amount} {sugar.name} a {cucumber.water} vody, kým sa cukor rozpustí. Polej uhorku nálevom, zľahka ju okoreň a odlož do chladničky.", "requires": ["vinegar:raw", "sugar:raw", "cucumber:salted"], "produces": ["vinegar:salad", "sugar:salad", "cucumber:salad"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} {garlic.cut}.", "requires": ["onion:raw", "garlic:raw"], "produces": ["onion:cut", "garlic:cut"]},
+        {"text": "Premiešaj vo veľkej miske {turkey.amount} {turkey.name}, {egg.amount} {egg.name}, {crumbs.amount} {crumbs.name}, cibuľu, cesnak, {marjoram.amount} {marjoram.name}, soľ a čierne korenie. Mokrými rukami z mäsovej zmesi vytvaruj fašírky hrubé asi 1,5 centimetra, tri na každú porciu.", "requires": ["turkey:raw", "egg:raw", "crumbs:raw", "onion:cut", "garlic:cut", "marjoram:raw"], "produces": ["turkey:shaped", "egg:shaped", "crumbs:shaped", "onion:shaped", "garlic:shaped", "marjoram:shaped"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 2 minúty, kým sa začne lesknúť. Fašírky opekaj po častiach 4 minúty z každej strany, kým budú zlatisté a v strede prepečené. Hotové fašírky prekladaj na teplý tanier.", "requires": ["oil:raw", "turkey:shaped", "egg:shaped", "crumbs:shaped", "onion:shaped", "garlic:shaped", "marjoram:shaped"], "produces": ["oil:used", "turkey:fried", "egg:fried", "crumbs:fried", "onion:fried", "garlic:fried", "marjoram:fried"]},
+        {"text": "Prilej {turkey.water} vody do panvice. Vareškou uvoľni výpek zo dna. Priveď vodu s výpekom na strednom ohni do varu za 2 minúty, kým začne bublať a vznikne krátka šťava.", "requires": ["oil:used", "turkey:fried"], "produces": ["oil:juice", "turkey:juice"]},
+        {"text": "Podávaj fašírky s ryžou a uhorkovým šalátom, ryžu polej šťavou z panvice a rozdeľ jedlo na {portions} porcií.", "requires": ["turkey:juice", "egg:fried", "crumbs:fried", "onion:fried", "garlic:fried", "marjoram:fried", "oil:juice", "rice:cooked", "cucumber:salad", "vinegar:salad", "sugar:salad"], "produces": ["turkey:served", "egg:served", "crumbs:served", "onion:served", "garlic:served", "marjoram:served", "oil:served", "rice:served", "cucumber:served", "vinegar:served", "sugar:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Fašírky so šťavou, ryžu a uhorkový šalát ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní; fašírky a ryžu prehrej iba raz, kým sú celé horúce."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "turkey_meatballs_rice",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/morcacie-fasirky-pecene-v-rure/84133-recept.html", "title": "Morčacie fašírky pečené v rúre - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/16085/morcacie-fasirky/", "title": "Morčacie fašírky | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/11582/uhorkovy-salat/", "title": "Uhorkový šalát | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

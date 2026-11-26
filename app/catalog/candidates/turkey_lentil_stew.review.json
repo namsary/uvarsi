@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "89e938a73e8ec7b5bdfab1910c03345dd212fb935424e5d589fdc0e2b6bec0d5",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "turkey_lentil_stew"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

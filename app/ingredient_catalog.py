@@ -53,6 +53,7 @@ PRODUCT_FAMILIES = (
     frozenset(("chicken_thigh", "chicken_thigh_meat")),
     frozenset(("lentils", "red_lentils")),
     frozenset(("sauerkraut", "white_cabbage")),
+    frozenset(("mackerel", "smoked_mackerel")),
 )
 PRODUCT_FAMILY_SHARED_FORMS = MappingProxyType(
     {
@@ -73,6 +74,9 @@ PRODUCT_FAMILY_SHARED_FORMS = MappingProxyType(
             ("šošovica", "šošovice", "šošovicu", "šošovicou")
         ),
         PRODUCT_FAMILIES[4]: frozenset(("kapusta", "kapusty", "kapustu")),
+        PRODUCT_FAMILIES[5]: frozenset(
+            ("makrela", "makrely", "makrelu", "makrelou")
+        ),
     }
 )
 PRODUCT_FAMILY_AMBIGUOUS_OFFER_FORMS = MappingProxyType(
@@ -401,6 +405,66 @@ INGREDIENT_FORBIDDEN_OFFER_QUALIFIERS = MappingProxyType(
                 ("mrazena",),
                 ("varená",),
                 ("varena",),
+            )
+        ),
+        # Plain pitted olives in brine; stuffed, flavoured or oil-packed
+        # olives and olive pastes are different products.
+        "olives": frozenset(
+            (
+                ("plnené",),
+                ("plnene",),
+                ("s",),
+                ("so",),
+                ("oleji",),
+                ("pasta",),
+                ("tapenáda",),
+                ("tapenada",),
+            )
+        ),
+        # A whole hot-smoked mackerel; fillets have no bones to discount and
+        # canned, marinated or spread products are different foods.
+        "smoked_mackerel": frozenset(
+            (
+                ("filety",),
+                ("filet",),
+                ("filé",),
+                ("file",),
+                ("v",),
+                ("s",),
+                ("so",),
+                ("natierka",),
+                ("pomazánka",),
+                ("pomazanka",),
+                ("šalát",),
+                ("salat",),
+                ("marinovaná",),
+                ("marinovana",),
+            )
+        ),
+        # A raw bone-in turkey thigh for roasting; boneless, smoked, cooked
+        # or cut products have a different yield or are already prepared.
+        "turkey_thigh": frozenset(
+            (
+                ("bez", "kosti"),
+                ("vykostené",),
+                ("vykostene",),
+                ("údené",),
+                ("udene",),
+                ("pečené",),
+                ("pecene",),
+                ("grilované",),
+                ("grilovane",),
+                ("marinované",),
+                ("marinovane",),
+                ("mleté",),
+                ("mlete",),
+                ("plátky",),
+                ("platky",),
+                ("kocky",),
+                ("spodné",),
+                ("spodne",),
+                ("dolné",),
+                ("dolne",),
             )
         ),
     }

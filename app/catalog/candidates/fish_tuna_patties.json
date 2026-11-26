@@ -1,0 +1,51 @@
+{
+  "recipes": [
+    {
+      "id": "fish_tuna_patties",
+      "version": 2,
+      "active": true,
+      "name_template": "Tuniakové placky so zemiakovým šalátom",
+      "family": "fish_tuna_patties",
+      "method": "pan",
+      "minutes": 55,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "veľká panvica", "sitko", "misa", "miska", "vidlička", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "tuna", "role": "protein", "candidates": ["tuna"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "crumbs", "role": "starch", "candidates": ["breadcrumbs"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "15", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "pickle", "role": "vegetable", "candidates": ["pickled_cucumber"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na tenké kolieska"},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "mayo", "role": "fat", "candidates": ["mayonnaise"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "mustard", "role": "seasoning", "candidates": ["mustard"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Vlož {potato.amount} {potato.name} do hrnca. Nechaj ich v šupke, dolej studenú vodu tak, aby boli ponorené, a vodu osoľ.", "requires": ["potato:raw"], "produces": ["potato:pot"]},
+        {"text": "Var zemiaky v hrnci na miernom ohni 25 minút, kým zmäknú. Potom ich sceď a nechaj 15 minút vychladnúť.", "requires": ["potato:pot"], "produces": ["potato:cooked"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}, {pickle.amount} {pickle.name} {pickle.cut} a {parsley.amount} {parsley.name} {parsley.cut}. Cibuľu rozdeľ na dve rovnaké časti.", "requires": ["onion:raw", "pickle:raw", "parsley:raw"], "produces": ["onion:divided", "pickle:cut", "parsley:cut"]},
+        {"text": "Premiešaj v miske {yogurt.amount} {yogurt.name}, {mayo.amount} {mayo.name}, {mustard.amount} {mustard.name}, lyžicu nálevu z uhoriek, soľ a čierne korenie.", "requires": ["yogurt:raw", "mayo:raw", "mustard:raw", "pickle:cut"], "produces": ["yogurt:dressing", "mayo:dressing", "mustard:dressing"]},
+        {"text": "Ošúp vychladnuté zemiaky a nakrájaj ich na tenké plátky. Premiešaj ich v mise s uhorkami, polovicou cibule a zálievkou. Šalát nechaj odležať, kým pripravíš placky.", "requires": ["potato:cooked", "pickle:cut", "onion:divided", "yogurt:dressing", "mayo:dressing", "mustard:dressing"], "produces": ["potato:salad", "pickle:salad", "onion:half_used", "yogurt:salad", "mayo:salad", "mustard:salad"]},
+        {"text": "Sceď {tuna.amount} {tuna.name} cez sitko a vidličkou ho v druhej miske rozdrv na drobné kúsky.", "requires": ["tuna:raw"], "produces": ["tuna:drained"]},
+        {"text": "Pridaj {egg.amount} {egg.name}, {crumbs.amount} {crumbs.name}, zvyšnú cibuľu a petržlenovú vňať do misky. Osoľ, okoreň a premiešaj na súdržnú zmes. Mokrými rukami z nej vytvaruj placky hrubé asi 1,5 centimetra, dve na každú porciu.", "requires": ["tuna:drained", "egg:raw", "crumbs:raw", "onion:half_used", "parsley:cut"], "produces": ["tuna:patties", "egg:patties", "crumbs:patties", "onion:used", "parsley:patties"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 2 minúty, kým sa začne lesknúť. Placky opekaj po častiach 3 minúty z každej strany, kým budú zlatisté a v strede stuhnú. Panvicu neprepĺňaj a podľa potreby dolej trochu oleja z fľaše.", "requires": ["oil:raw", "tuna:patties", "egg:patties", "crumbs:patties", "parsley:patties"], "produces": ["oil:used", "tuna:fried", "egg:fried", "crumbs:fried", "parsley:fried"]},
+        {"text": "Podávaj tuniakové placky so zemiakovým šalátom a rozdeľ jedlo na {portions} porcií.", "requires": ["tuna:fried", "egg:fried", "crumbs:fried", "parsley:fried", "oil:used", "onion:used", "potato:salad", "pickle:salad", "yogurt:salad", "mayo:salad", "mustard:salad"], "produces": ["tuna:served", "egg:served", "crumbs:served", "parsley:served", "oil:served", "onion:served", "potato:served", "pickle:served", "yogurt:served", "mayo:served", "mustard:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Placky a zemiakový šalát ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní; placky prehrej v panvici alebo ich jedz studené, šalát podávaj studený."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "fish_tuna_patties",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/tuniakove-placky-rychle-a-chutne/10602-recept.html", "title": "Tuniakové placky - rýchle a chutné - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/19227/tuniakove-placky/", "title": "Tuniakové placky | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/64453/tuniakove-karbonatky/", "title": "Tuniakové karbonátky | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

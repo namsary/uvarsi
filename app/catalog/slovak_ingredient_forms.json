@@ -104,6 +104,9 @@
     "burger_bun": {"genitive": "hamburgerových žemlí", "instrumental": "hamburgerovými žemľami"},
     "sweet_corn": {"genitive": "sterilizovanej kukurice", "instrumental": "sterilizovanou kukuricou"},
     "trout": {"genitive": "pstruha", "instrumental": "pstruhom"},
-    "mackerel": {"genitive": "makrely", "instrumental": "makrelou"}
+    "mackerel": {"genitive": "makrely", "instrumental": "makrelou"},
+    "olives": {"genitive": "olív", "instrumental": "olivami"},
+    "smoked_mackerel": {"genitive": "údenej makrely", "instrumental": "údenou makrelou"},
+    "turkey_thigh": {"genitive": "morčacieho stehna", "instrumental": "morčacím stehnom"}
   }
 }

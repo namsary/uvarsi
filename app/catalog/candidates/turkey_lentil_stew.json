@@ -1,0 +1,52 @@
+{
+  "recipes": [
+    {
+      "id": "turkey_lentil_stew",
+      "version": 2,
+      "active": true,
+      "name_template": "Morčacie so šošovicou",
+      "family": "turkey_lentil_stew",
+      "method": "pot",
+      "minutes": 55,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľký hrniec s pokrievkou", "veľká panvica", "sitko", "vareška", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "turkey", "role": "protein", "candidates": ["turkey_breast"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kocky veľké 2 centimetre"},
+        {"key": "lentils", "role": "protein", "candidates": ["lentils"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "280"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "bay", "role": "seasoning", "candidates": ["bay_leaf"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "vinegar", "role": "seasoning", "candidates": ["apple_cider_vinegar"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "12", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na krajce"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {lentils.amount} {lentils.name} v sitku pod studenou vodou.", "requires": ["lentils:raw"], "produces": ["lentils:rinsed"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}, {garlic.amount} {garlic.name} {garlic.cut}, {carrot.amount} {carrot.name} {carrot.cut} a {parsley.amount} {parsley.name} {parsley.cut}.", "requires": ["onion:raw", "garlic:raw", "carrot:raw", "parsley:raw"], "produces": ["onion:cut", "garlic:cut", "carrot:cut", "parsley:cut"]},
+        {"text": "Rozdeľ {oil.amount} {oil.name} na dve časti. Opekaj cibuľu s mrkvou v jednej časti oleja vo veľkom hrnci na strednom ohni 5 minút, kým cibuľa bude dosklovita. Pridaj cesnak a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["oil:raw", "onion:cut", "carrot:cut", "garlic:cut"], "produces": ["oil:half_used", "onion:cooked", "carrot:cooked", "garlic:cooked"]},
+        {"text": "Vmiešaj {paste.amount} {paste.name}, pridaj šošovicu a {bay.amount} {bay.name} a prilej {lentils.water} vody. Prikry hrniec a var šošovicu v hrnci na miernom ohni 30 minút, kým zmäkne a začne sa rozvárať. Ak by bola príliš hustá, dolej trochu vody.", "requires": ["paste:raw", "lentils:rinsed", "bay:raw", "onion:cooked", "carrot:cooked", "garlic:cooked"], "produces": ["paste:cooked", "lentils:cooked", "bay:cooked"]},
+        {"text": "Osuš {turkey.amount} {turkey.name} papierovou utierkou, nakrájaj ich {turkey.cut} a zľahka osoľ.", "requires": ["turkey:raw"], "produces": ["turkey:cut"]},
+        {"text": "Rozohrej druhú časť oleja vo veľkej panvici na silnom ohni 1 minútu, kým sa začne lesknúť. Opekaj morčacie prsia 3 minúty za stáleho miešania, kým budú na povrchu zlatisté. Pri väčšej dávke opekaj mäso po častiach.", "requires": ["oil:half_used", "turkey:cut"], "produces": ["oil:used", "turkey:seared"]},
+        {"text": "Pridaj morčacie prsia do veľkého hrnca. Vmiešaj {marjoram.amount} {marjoram.name}. Var morčacie prsia so šošovicou v hrnci na miernom ohni 8 minút, kým jedlo jemne bublá a mäso v strede nebude ružové. Vyber bobkový list.", "requires": ["turkey:seared", "lentils:cooked", "marjoram:raw", "bay:cooked"], "produces": ["turkey:cooked", "lentils:finished", "marjoram:cooked", "bay:removed"]},
+        {"text": "Odstav hrniec z ohňa a vmiešaj {vinegar.amount} {vinegar.name}. Dochuť jedlo soľou a čiernym korením a vmiešaj petržlenovú vňať. Nakrájaj {bread.amount} {bread.name} {bread.cut}.", "requires": ["vinegar:raw", "turkey:cooked", "lentils:finished", "parsley:cut", "bread:raw"], "produces": ["vinegar:cooked", "parsley:used", "bread:cut"]},
+        {"text": "Podávaj morčacie so šošovicou horúce s chlebom a rozdeľ jedlo na {portions} porcií.", "requires": ["turkey:cooked", "lentils:finished", "carrot:cooked", "onion:cooked", "garlic:cooked", "paste:cooked", "bay:removed", "marjoram:cooked", "vinegar:cooked", "parsley:used", "oil:used", "bread:cut"], "produces": ["turkey:served", "lentils:served", "carrot:served", "onion:served", "garlic:served", "paste:served", "bay:served", "marjoram:served", "vinegar:served", "parsley:served", "oil:served", "bread:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Vychladnuté jedlo rozdeľ do plytkých nádob a do jednej hodiny ho odlož do chladničky. Zjedz ho do 3 dní; pri ohrievaní prilej lyžicu vody, lebo šošovica zhustne, a chlieb skladuj oddelene."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "turkey_lentil_stew",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/50328/morcacie-stehna-so-sosovicou/", "title": "Morčacie stehná so šošovicou | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/33299/fotorecept-morcacie-maso-so-sosovicovym-pyre/", "title": "FOTORECEPT: Morčacie mäso so šošovicovým pyré | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/sosovica-trikrat-na-kyslo-fotorecept/45612-recept.html", "title": "Šošovica trikrát na kyslo (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}
