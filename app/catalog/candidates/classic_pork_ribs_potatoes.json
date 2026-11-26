@@ -1,0 +1,48 @@
+{
+  "recipes": [
+    {
+      "id": "classic_pork_ribs_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené bravčové rebierka so zemiakmi",
+      "family": "classic_pork_ribs_potatoes",
+      "method": "oven",
+      "minutes": 125,
+      "modes": ["standard"],
+      "equipment": ["pekáč", "alobal", "miska", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "ribs", "role": "protein", "candidates": ["pork_ribs"], "amount_per_adult": "300", "unit": "g", "child_factor": "0.5", "required": true, "use": "main", "cut": "na kúsky s 2 až 3 kosťami", "water_ml_per_adult": "60"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "6", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na mesiačiky"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "260", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na štvrtky"},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "pickles", "role": "vegetable", "candidates": ["pickled_cucumber"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na plátky"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 180 °C.", "requires": [], "produces": []},
+        {"text": "Nakrájaj {ribs.amount} {ribs.name} {ribs.cut}. Osuš rebierka papierovou utierkou a zo všetkých strán ich osoľ a okoreň.", "requires": ["ribs:raw"], "produces": ["ribs:seasoned"]},
+        {"text": "Premiešaj v miske {garlic.amount} prelisovaný {garlic.name}, {paprika.amount} {paprika.name} a {oil.amount} {oil.name}. Rebierka touto zmesou natri zo všetkých strán.", "requires": ["garlic:raw", "paprika:raw", "oil:raw", "ribs:seasoned"], "produces": ["garlic:rub", "paprika:rub", "oil:rub", "ribs:rubbed"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}.", "requires": ["onion:raw"], "produces": ["onion:cut"]},
+        {"text": "Rozlož cibuľu na dno pekáča a na ňu polož rebierka kosťami nahor. Prilej {ribs.water} vody do pekáča. Pekáč prikry alobalom. Peč rebierka v prikrytom pekáči v rúre pri 180 °C 60 minút, kým mäso zmäkne.", "requires": ["onion:cut", "ribs:rubbed", "garlic:rub", "paprika:rub", "oil:rub"], "produces": ["onion:baked", "ribs:braised", "garlic:baked", "paprika:baked", "oil:baked"]},
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}.", "requires": ["potato:raw"], "produces": ["potato:cut"]},
+        {"text": "Odokry pekáč a zvýš teplotu rúry na 200 °C. Rozlož zemiaky okolo rebierok do výpeku a obráť ich v ňom. Prisyp {caraway.amount} {caraway.name} do pekáča. Zemiaky osoľ.", "requires": ["potato:cut", "caraway:raw"], "produces": ["potato:pan", "caraway:pan"]},
+        {"text": "Peč rebierka so zemiakmi v rúre pri 200 °C 45 minút, kým rebierka zozlatnú a zemiaky budú mäkké. V polovici času zemiaky obráť vo výpeku a rebierka ním polej.", "requires": ["ribs:braised", "potato:pan", "caraway:pan", "onion:baked"], "produces": ["ribs:roasted", "potato:roasted", "caraway:roasted", "onion:roasted"]},
+        {"text": "Nakrájaj {pickles.amount} {pickles.name} {pickles.cut}.", "requires": ["pickles:raw"], "produces": ["pickles:cut"]},
+        {"text": "Podávaj rebierka so zemiakmi, cibuľou z výpeku a sterilizovanými uhorkami. Rozdeľ jedlo na {portions} porcií.", "requires": ["ribs:roasted", "garlic:baked", "paprika:baked", "oil:baked", "onion:roasted", "potato:roasted", "caraway:roasted", "pickles:cut"], "produces": ["ribs:served", "garlic:served", "paprika:served", "oil:served", "onion:served", "potato:served", "caraway:served", "pickles:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Rebierka so zemiakmi rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a prehrej ich v rúre pri 180 °C asi 15 minút."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_pork_ribs_potatoes",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/domace-bravcove-rebierka-na-cesnaku/56550-recept.html", "title": "Domáce bravčové rebierka na cesnaku - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/3617/pecene-rebierka/", "title": "Pečené rebierka | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

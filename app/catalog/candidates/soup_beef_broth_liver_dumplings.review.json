@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "17fcf1b88d6dec81deba956d6549639fcb11705ae4d6cb2ae4bc1d545bc86b10",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "soup_beef_broth_liver_dumplings"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

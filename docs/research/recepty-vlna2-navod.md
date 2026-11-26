@@ -80,3 +80,10 @@ python3 -m pytest -q -p no:cacheprovider tests/test_curated_recipe_wave2.py test
 
 Pred povýšením musí `validate_candidate` hlásiť `()`. Po povýšení hlási iba `duplicate_id:<id>`.
 Celú dávku povýš jedným volaním `promote_candidates([...])`. Samo zvýši `library_version` o 1 a `catalog_revision` o 2, manifest ručne nemeň.
+
+## Fotky a skúsenosti z 1. dávky
+
+- Fotky sa robia zvlášť. Každé nové id pridaj na koniec `docs/research/fotky-caka.txt`, inak neprejde `tests/test_recipe_photos.py`.
+- **Vyprážanie:** v slote oleja uveď iba množstvo, ktoré jedlo nasaje (15–25 ml na dospelého), lebo výživa ho počíta ako zjedené. V postupe povedz, že olej má byť v panvici aspoň pol centimetra a podľa potreby sa dolieva z fľaše.
+- **Suroviny z 1. dávky** už existujú, nepridávaj ich znova: breadcrumbs, tomato_paste, pickled_cucumber, mustard, mayonnaise, tartar_sauce, poppy_seed, caraway, bay_leaf, allspice, celeriac, beef_round, chicken_whole.
+- Testy, ktoré počítali recepty, už čítajú počet z `tests/recipe_waves.py`. Ďalší pevný počet nepridávaj.

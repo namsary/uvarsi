@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "turkey_cream_mushrooms_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Morčacie na smotane so šampiňónmi",
+      "family": "turkey_cream_mushrooms_rice",
+      "method": "pan",
+      "minutes": 40,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "sitko", "veľká panvica", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "turkey", "role": "protein", "candidates": ["turkey_breast"], "amount_per_adult": "170", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na rezančeky", "water_ml_per_adult": "40"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "6", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "mushrooms", "role": "vegetable", "candidates": ["mushrooms"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na plátky"},
+        {"key": "thyme", "role": "seasoning", "candidates": ["thyme"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "80", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne. Potom ju nechaj 5 minút prikrytú postáť.", "requires": ["rice:rinsed"], "produces": ["rice:cooked"]},
+        {"text": "Nakrájaj {turkey.amount} {turkey.name} {turkey.cut}, {onion.amount} {onion.name} {onion.cut}, {garlic.amount} {garlic.name} {garlic.cut}, {mushrooms.amount} {mushrooms.name} {mushrooms.cut} a {parsley.amount} {parsley.name} {parsley.cut}. Odmeraj si {cream.amount} {cream.name}.", "requires": ["turkey:raw", "onion:raw", "garlic:raw", "mushrooms:raw", "parsley:raw", "cream:raw"], "produces": ["turkey:cut", "onion:cut", "garlic:cut", "mushrooms:cut", "parsley:cut", "cream:measured"]},
+        {"text": "Vsyp {flour.amount} {flour.name} do misky. Pridaj morčacie prsia do misky, osoľ ich, okoreň a premiešaj, aby sa múka rovnomerne prichytila.", "requires": ["flour:raw", "turkey:cut"], "produces": ["flour:coating", "turkey:floured"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na silnom ohni 2 minúty, kým sa začne lesknúť. Opekaj morčacie prsia 3 minúty za občasného miešania, kým budú zo všetkých strán zlatisté, a vyber ich na tanier. Pri väčšej dávke ich opekaj po častiach.", "requires": ["oil:raw", "turkey:floured", "flour:coating"], "produces": ["oil:used", "turkey:browned", "flour:browned"]},
+        {"text": "Pridaj {butter.amount} {butter.name} do panvice. Opekaj cibuľu v panvici na strednom ohni 4 minúty, kým bude dosklovita. Pridaj šampiňóny a {thyme.amount} {thyme.name} do panvice a opekaj ich 6 minút, kým zmäknú a šťava sa odparí. Mrazené šampiňóny nerozmrazuj, daj ich do panvice rovno z mrazničky a opekaj ich o 4 minúty dlhšie. Pridaj cesnak a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["butter:raw", "onion:cut", "mushrooms:cut", "thyme:raw", "garlic:cut"], "produces": ["butter:used", "onion:cooked", "mushrooms:cooked", "thyme:cooked", "garlic:cooked"]},
+        {"text": "Prilej {turkey.water} vody a smotanu na varenie. Vráť morčacie prsia do panvice. Var morčacie prsia v omáčke na miernom ohni 5 minút, kým omáčka zhustne, jemne bublá a mäso v strede nebude ružové.", "requires": ["cream:measured", "turkey:browned", "flour:browned"], "produces": ["cream:cooked", "turkey:cooked", "flour:cooked"]},
+        {"text": "Dochuť omáčku soľou a čiernym korením a vmiešaj petržlenovú vňať.", "requires": ["parsley:cut"], "produces": ["parsley:used"]},
+        {"text": "Podávaj morčacie na smotane s ryžou a rozdeľ jedlo na {portions} porcií.", "requires": ["turkey:cooked", "rice:cooked", "flour:cooked", "oil:used", "butter:used", "onion:cooked", "garlic:cooked", "mushrooms:cooked", "thyme:cooked", "cream:cooked", "parsley:used"], "produces": ["turkey:served", "rice:served", "flour:served", "oil:served", "butter:served", "onion:served", "garlic:served", "mushrooms:served", "thyme:served", "cream:served", "parsley:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Mäso s omáčkou a ryžu rozdeľ do plytkých nádob, do jednej hodiny ich schlaď a odlož do chladničky. Zjedz ich do 3 dní; omáčku prehrievaj na miernom ohni s lyžicou vody a ryžu ohrievaj iba raz."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "turkey_cream_mushrooms_rice",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/17922/morcacie-rezne-na-smotane/", "title": "Morčacie rezne na smotane | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/morcacie-kusky-v-marinade-so-sampinonmi/57590-recept.html", "title": "Morčacie kúsky v marináde so šampiňónmi - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

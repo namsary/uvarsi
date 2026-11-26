@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "quick_oven_chicken_nuggets",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuracie nugetky z rúry so zemiakmi",
+      "family": "quick_oven_chicken_nuggets",
+      "method": "oven",
+      "minutes": 50,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["rúra", "plech", "papier na pečenie", "miska", "tri taniere", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kúsky veľké ako sústo"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na mesiačiky"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.5", "unit": "piece", "child_factor": "0.75", "required": true, "use": "addition", "cut": null},
+        {"key": "crumbs", "role": "starch", "candidates": ["breadcrumbs"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oilpotato", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oilchicken", "role": "fat", "candidates": ["oil"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "chives", "role": "seasoning", "candidates": ["chives"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 200 °C.", "requires": ["rura:free"], "produces": ["rura:hot"]},
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na mesiačiky. Nalej {oilpotato.amount} {oilpotato.name} do misky. Vsyp zemiaky do misky, osoľ ich a premiešaj, aby boli celé obalené olejom. Rozlož zemiaky na plech vystlaný papierom na pečenie v jednej vrstve.", "requires": ["potato:raw", "oilpotato:raw", "plech:free"], "produces": ["potato:pan", "oilpotato:mixed", "plech:occupied"]},
+        {"text": "Peč zemiaky na plechu v rúre pri 200 °C 15 minút, kým začnú na spodnej strane zlatistieť.", "requires": ["potato:pan", "oilpotato:mixed", "rura:hot", "plech:occupied"], "produces": ["potato:parbaked", "oilpotato:roasted"]},
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} na kúsky veľké ako sústo. Mäso osoľ a okoreň.", "requires": ["chicken:raw"], "produces": ["chicken:cut"]},
+        {"text": "Priprav si tri taniere. Do prvého vsyp {flour.amount} {flour.name}, v druhom rozšľahaj {egg.amount} {egg.name} so štipkou soli a do tretieho vsyp {crumbs.amount} {crumbs.name} a {paprika.amount} {paprika.name}. Strúhanku s paprikou premiešaj. Každý kúsok mäsa obaľ najprv v múke, potom vo vajci a nakoniec v strúhanke, ktorú jemne pritlač.", "requires": ["flour:raw", "egg:raw", "crumbs:raw", "paprika:raw", "chicken:cut"], "produces": ["flour:coating", "egg:coating", "crumbs:coating", "paprika:coating", "chicken:breaded"]},
+        {"text": "Vlej {oilchicken.amount} {oilchicken.name} do misky. Rozlož obalené kuracie prsia na druhý plech vystlaný papierom na pečenie a pokvapkaj ich olejom z misky.", "requires": ["oilchicken:raw", "chicken:breaded"], "produces": ["oilchicken:used", "chicken:tray"]},
+        {"text": "Peč kuracie prsia aj zemiaky v rúre pri 200 °C 18 minút, kým bude obal zlatistý a chrumkavý a zemiaky zmäknú. V polovici pečenia kúsky mäsa aj zemiaky obráť.", "requires": ["chicken:tray", "potato:parbaked", "rura:hot"], "produces": ["chicken:baked", "potato:baked", "flour:baked", "egg:baked", "crumbs:baked", "paprika:baked", "oilchicken:baked"]},
+        {"text": "Nakrájaj {garlic.amount} {garlic.name} najemno a {chives.amount} {chives.name} nadrobno. Premiešaj v miske {yogurt.amount} {yogurt.name}, cesnak, pažítku a štipku soli.", "requires": ["garlic:raw", "chives:raw", "yogurt:raw"], "produces": ["garlic:dip", "chives:dip", "yogurt:dip"]},
+        {"text": "Podávaj nugetky so zemiakmi a jogurtovým dipom a rozdeľ jedlo na {portions} porcií.", "requires": ["chicken:baked", "potato:baked", "flour:baked", "egg:baked", "crumbs:baked", "paprika:baked", "oilpotato:roasted", "oilchicken:baked", "yogurt:dip", "garlic:dip", "chives:dip", "plech:occupied"], "produces": ["chicken:served", "potato:served", "flour:served", "egg:served", "crumbs:served", "paprika:served", "oilpotato:served", "oilchicken:served", "yogurt:served", "garlic:served", "chives:served", "plech:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Nugetky a zemiaky ulož do uzavretej nádoby a dip zvlášť a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní a prehrej v rúre pri 200 °C asi 8 minút, aby zostali chrumkavé."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_oven_chicken_nuggets",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/79858/kuracie-nugetky-pecene-v-rure-fantasticke/", "title": "Kuracie nugetky pečené v rúre: Fantastické | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/pecene-kuracie-nugetky/68486-recept.html", "title": "Pečené kuracie nugetky - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

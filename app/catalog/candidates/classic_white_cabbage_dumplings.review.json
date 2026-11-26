@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "808f9b304e9836562b2141de83864caa91c704db646706a126fc23d3b8776abf",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "classic_white_cabbage_dumplings"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

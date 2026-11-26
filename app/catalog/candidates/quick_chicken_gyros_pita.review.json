@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "5f59a814ac4b97fd737d20144233e81df048fe44cc5a536a24c91b6f17459c93",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "quick_chicken_gyros_pita"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

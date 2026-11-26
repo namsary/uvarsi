@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "classic_sausage_lentils",
+      "version": 2,
+      "active": true,
+      "name_template": "Šošovica na kyslo s klobásou",
+      "family": "classic_sausage_lentils",
+      "method": "pot",
+      "minutes": 60,
+      "modes": ["standard"],
+      "equipment": ["sitko", "hrniec s pokrievkou", "panvica", "naberačka", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "lentils", "role": "protein", "candidates": ["lentils"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "400"},
+        {"key": "bay", "role": "seasoning", "candidates": ["bay_leaf"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "12", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "vinegar", "role": "seasoning", "candidates": ["apple_cider_vinegar"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "mustard", "role": "seasoning", "candidates": ["mustard"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "sausage", "role": "protein", "candidates": ["smoked_sausage"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.5", "required": true, "use": "main", "cut": null},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na krajce"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {lentils.amount} {lentils.name} v sitku pod studenou vodou a vyber z nej prípadné kamienky.", "requires": ["lentils:raw"], "produces": ["lentils:rinsed"]},
+        {"text": "Vsyp šošovicu do hrnca. Prilej {lentils.water} vody a pridaj {bay.amount} {bay.name}. Var šošovicu v hrnci na miernom ohni 35 minút pod pokrievkou, kým zmäkne. Soľ do nej daj až na konci, inak dlho tvrdne.", "requires": ["lentils:rinsed", "bay:raw"], "produces": ["lentils:cooked", "bay:cooked"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}. Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 1 minútu. Opekaj cibuľu v panvici na strednom ohni 4 minúty, kým bude dosklovita.", "requires": ["onion:raw", "oil:raw"], "produces": ["onion:cooked", "oil:used"]},
+        {"text": "Prisyp {flour.amount} {flour.name} do panvice. Zohrievaj zápražku z cibule a múky v panvici na miernom ohni 2 minúty za stáleho miešania, kým jemne zozlatne a začne bublať.", "requires": ["flour:raw", "onion:cooked"], "produces": ["flour:roux", "onion:roux"]},
+        {"text": "Odober naberačku vody zo šošovice a rozmiešaj ňou zápražku v panvici dohladka. Rozmiešanú zápražku vráť do hrnca so šošovicou. Var šošovicu so zápražkou v hrnci na miernom ohni 8 minút za občasného miešania, kým zhustne a začne bublať.", "requires": ["flour:roux", "onion:roux", "lentils:cooked"], "produces": ["flour:cooked", "onion:stewed", "lentils:thickened"]},
+        {"text": "Vmiešaj {vinegar.amount} {vinegar.name}, {sugar.amount} {sugar.name} a {mustard.amount} {mustard.name}. Vylov bobkový list. Dochuť šošovicu soľou a čiernym korením, aby bola príjemne kyslá. Príliš hustú zrieď lyžicou vody.", "requires": ["vinegar:raw", "sugar:raw", "mustard:raw", "bay:cooked", "lentils:thickened"], "produces": ["vinegar:cooked", "sugar:cooked", "mustard:cooked", "bay:removed", "lentils:seasoned"]},
+        {"text": "Nakrájaj {sausage.amount} {sausage.name} na šikmé plátky.", "requires": ["sausage:raw"], "produces": ["sausage:cut"]},
+        {"text": "Opekaj údenú klobásu v suchej panvici na strednom ohni 4 minúty a obracaj ju, kým bude chrumkavá a zlatistá. Pri väčšej dávke ju opekaj po častiach.", "requires": ["sausage:cut"], "produces": ["sausage:fried"]},
+        {"text": "Nakrájaj {bread.amount} {bread.name} {bread.cut}.", "requires": ["bread:raw"], "produces": ["bread:cut"]},
+        {"text": "Rozdeľ šošovicu na kyslo na {portions} porcií, navrch polož opečenú klobásu a podávaj ju s chlebom.", "requires": ["lentils:seasoned", "bay:removed", "onion:stewed", "oil:used", "flour:cooked", "vinegar:cooked", "sugar:cooked", "mustard:cooked", "sausage:fried", "bread:cut"], "produces": ["lentils:served", "bay:served", "onion:served", "oil:served", "flour:served", "vinegar:served", "sugar:served", "mustard:served", "sausage:served", "bread:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Šošovicu a klobásu ulož do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní. Šošovica postátím zhustne, pri ohrievaní ju zrieď vodou a priveď do varu."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_sausage_lentils",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/kysla-sosovicova-omacka-s-udenou-klobasou-fotorecept/49950-recept.html", "title": "Kyslá šošovicová omáčka s údenou klobásou (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/2980/sosovica-na-kyslo-s-klobaskou/", "title": "Šošovica na kyslo s klobáskou | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

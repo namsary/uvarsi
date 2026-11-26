@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "6f974487c48961bb78a9e09112cc1f5f30a5dbe21624f48729d2170bc3970c9e",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_chicken_liver_risotto"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

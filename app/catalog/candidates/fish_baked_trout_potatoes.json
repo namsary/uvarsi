@@ -1,0 +1,47 @@
+{
+  "recipes": [
+    {
+      "id": "fish_baked_trout_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečený pstruh so zemiakmi",
+      "family": "fish_baked_trout_potatoes",
+      "method": "oven",
+      "minutes": 60,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["rúra", "pekáč", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "trout", "role": "protein", "candidates": ["trout"], "amount_per_adult": "330", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na mesiačiky"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "12", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na tenké plátky"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na plátky"},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na tenké plátky"},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 200 °C.", "requires": [], "produces": []},
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}. Nalej {oil.amount} {oil.name} do pekáča. Pridaj zemiaky a {caraway.amount} {caraway.name} do pekáča, osoľ ich a premiešaj, aby sa obalili v oleji.", "requires": ["potato:raw", "oil:raw", "caraway:raw"], "produces": ["potato:pan", "oil:pan", "caraway:pan"]},
+        {"text": "Peč zemiaky v pekáči pri 200 °C 20 minút, kým začnú na okrajoch zlatistieť.", "requires": ["potato:pan"], "produces": ["potato:half_baked"]},
+        {"text": "Opláchni {trout.amount} {trout.name} zvonka aj zvnútra studenou vodou a osuš ich papierovou utierkou. Osoľ ich zvonka aj v brušnej dutine a okoreň.", "requires": ["trout:raw"], "produces": ["trout:seasoned"]},
+        {"text": "Nakrájaj {butter.amount} {butter.name} {butter.cut}, {garlic.amount} {garlic.name} {garlic.cut}, {lemon.amount} {lemon.name} {lemon.cut} a {parsley.amount} {parsley.name} {parsley.cut}.", "requires": ["butter:raw", "garlic:raw", "lemon:raw", "parsley:raw"], "produces": ["butter:cut", "garlic:cut", "lemon:cut", "parsley:cut"]},
+        {"text": "Rozdeľ do brušných dutín pstruhov plátky citróna, cesnak, polovicu petržlenovej vňate a polovicu masla.", "requires": ["trout:seasoned", "lemon:cut", "garlic:cut"], "produces": ["trout:stuffed", "lemon:used", "garlic:used"]},
+        {"text": "Vyber pekáč z rúry, zemiaky premiešaj a polož na ne pstruhy. Na pstruhy rozlož zvyšné plátky masla.", "requires": ["trout:stuffed", "butter:cut"], "produces": ["trout:pan", "butter:used"]},
+        {"text": "Peč pstruhy so zemiakmi v pekáči pri 200 °C 20 minút, kým koža zozlatne, mäso pri chrbtovej kosti bude biele a zemiaky budú mäkké.", "requires": ["trout:pan", "potato:half_baked", "oil:pan", "caraway:pan"], "produces": ["trout:baked", "potato:baked", "oil:baked", "caraway:baked"]},
+        {"text": "Podávaj pstruhy so zemiakmi, polej ich výpekom z pekáča a ozdob ich zvyšnou petržlenovou vňaťou. Jedlo rozdeľ na {portions} porcií.", "requires": ["trout:baked", "potato:baked", "oil:baked", "caraway:baked", "butter:used", "garlic:used", "lemon:used", "parsley:cut"], "produces": ["trout:served", "potato:served", "oil:served", "caraway:served", "butter:served", "garlic:served", "lemon:served", "parsley:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Mäso z vychladnutých pstruhov oddeľ od kostí, ulož ho so zemiakmi do uzavretej nádoby a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 2 dní a ohrievaj iba raz, prikryté v rúre."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "fish_baked_trout_potatoes",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/pecene-pstruhy-fotorecept/15361-recept.html", "title": "Pečené pstruhy (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/26829/pstruh-peceny-na-masle/", "title": "Pstruh pečený na masle | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

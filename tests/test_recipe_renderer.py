@@ -16,6 +16,7 @@ from app.recipe_catalog import (
 )
 from app.recipe_matcher import RecipeCandidate, SlotSelection
 from app.recipe_renderer import _QUANTITY_NAMES, _quantity_name, render_meal
+from tests.recipe_waves import wave2_ids
 
 
 @pytest.fixture(scope="module")
@@ -74,6 +75,25 @@ def _candidate(
         score=Decimal("0"),
         key=f"candidate-{ingredient.id}",
     )
+
+
+# Wave 1 renders 105 candidate variants; every promoted wave-2 recipe adds
+# the product of its slot alternatives.
+WAVE1_VARIANT_COUNT = 105
+
+
+def _expected_variant_count(recipes):
+    wave2 = frozenset(wave2_ids())
+    count = WAVE1_VARIANT_COUNT
+    for recipe in recipes:
+        if recipe.id not in wave2:
+            continue
+        variants = 1
+        for slot in recipe.slots:
+            variants *= len(slot.candidates)
+        count += variants
+    assert {recipe.id for recipe in recipes} >= wave2
+    return count
 
 
 def _catalog_candidate(ingredients, recipe_id, candidate_ids):
@@ -372,7 +392,7 @@ def test_all_catalog_variants_are_capacity_safe_through_refrigerated_limit(
                 assert re.search(r"\d+(?:[,.]\d+)?\s*minút", output) is None
                 assert "kým" in output
 
-    assert rendered_count == 105
+    assert rendered_count == _expected_variant_count(recipes)
     assert audited_capacity_steps > 0
 
 
@@ -399,7 +419,7 @@ def test_all_catalog_variants_keep_weights_in_ingredient_list_not_steps(
                     measured_phrase not in step for step in meal.instructions
                 ), (recipe.id, item.slot.key, measured_phrase, meal.instructions)
 
-    assert rendered_count == 105
+    assert rendered_count == _expected_variant_count(recipes)
 
 
 @pytest.mark.parametrize(

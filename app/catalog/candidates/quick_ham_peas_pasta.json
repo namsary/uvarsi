@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "quick_ham_peas_pasta",
+      "version": 2,
+      "active": true,
+      "name_template": "Cestoviny so šunkou a hráškom na smotane",
+      "family": "quick_ham_peas_pasta",
+      "method": "pan",
+      "minutes": 25,
+      "modes": ["standard"],
+      "equipment": ["veľká panvica", "hrniec", "sitko", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "90", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "50"},
+        {"key": "ham", "role": "protein", "candidates": ["ham"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kocky"},
+        {"key": "peas", "role": "vegetable", "candidates": ["peas"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "90", "unit": "ml", "child_factor": "0.55", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nastrúhaný"},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {ham.amount} {ham.name} na kocky, {onion.amount} {onion.name} nadrobno, {garlic.amount} {garlic.name} najemno a {parsley.amount} {parsley.name} nadrobno. Nastrúhaj {cheese.amount} {cheese.name}.", "requires": ["ham:raw", "onion:raw", "garlic:raw", "parsley:raw", "cheese:raw"], "produces": ["ham:cut", "onion:cut", "garlic:cut", "parsley:cut", "cheese:grated"]},
+        {"text": "Uvar {pasta.amount} {pasta.name} v hrnci s osolenou vodou na strednom ohni asi 9 minút, kým budú mäkké, ale stále pevné. Odober z hrnca {pasta.water} vody a potom cestoviny sceď cez sitko.", "requires": ["pasta:raw", "hrniec:free", "sitko:free"], "produces": ["pasta:cooked", "hrniec:free", "sitko:free"]},
+        {"text": "Rozohrej {butter.amount} {butter.name} vo veľkej panvici na strednom ohni 1 minútu, kým sa spení. Opekaj cibuľu v panvici na strednom ohni 4 minúty, kým bude dosklovita. Pridaj cesnak a varenú šunku do panvice a opekaj ich 2 minúty, kým šunka začne na okrajoch zlatistieť.", "requires": ["butter:raw", "onion:cut", "garlic:cut", "ham:cut", "velka_panvica:free"], "produces": ["butter:used", "onion:cooked", "garlic:cooked", "ham:cooked", "velka_panvica:occupied"]},
+        {"text": "Pridaj {peas.amount} {peas.name} do panvice. Mrazený hrášok nerozmrazuj, daj ho do panvice rovno z mrazničky. Prilej {cream.amount} {cream.name}.", "requires": ["peas:raw", "cream:raw", "ham:cooked", "velka_panvica:occupied"], "produces": ["peas:sauce", "cream:sauce"]},
+        {"text": "Var zelený hrášok v smotane v panvici na miernom ohni 4 minúty, kým hrášok zmäkne a omáčka jemne bublá.", "requires": ["peas:sauce", "cream:sauce", "velka_panvica:occupied"], "produces": ["peas:cooked", "cream:cooked"]},
+        {"text": "Pridaj cestoviny do panvice. Zohrievaj cestoviny v omáčke na miernom ohni 2 minúty, kým sa omáčkou rovnomerne obalia a jemne bublá. Ak je omáčka hustá, prilievaj po troškách odloženú vodu z cestovín, kým bude krémová. Vmiešaj petržlenovú vňať.", "requires": ["pasta:cooked", "cream:cooked", "parsley:cut", "velka_panvica:occupied"], "produces": ["pasta:combined", "parsley:combined"]},
+        {"text": "Dochuť cestoviny soľou a čiernym korením až po ochutnaní, šunka aj syr sú slané. Rozdeľ ich na {portions} porcií, navrch nasyp tvrdý syr a podávaj.", "requires": ["pasta:combined", "ham:cooked", "peas:cooked", "cream:cooked", "onion:cooked", "garlic:cooked", "butter:used", "cheese:grated", "parsley:combined", "velka_panvica:occupied"], "produces": ["pasta:served", "ham:served", "peas:served", "cream:served", "onion:served", "garlic:served", "butter:served", "cheese:served", "parsley:served", "velka_panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Cestoviny rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní, prehrievaj s lyžicou vody alebo mlieka a syr nasyp až na tanier."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_ham_peas_pasta",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/20453/cestoviny-so-sunkou-s-hraskom-a-so-smotanou/", "title": "Cestoviny so šunkou, s hráškom a so smotanou | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/spagety-s-hraskom-a-so-sunkou-fotorecept/88624-recept.html", "title": "Špagety s hráškom a so šunkou (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

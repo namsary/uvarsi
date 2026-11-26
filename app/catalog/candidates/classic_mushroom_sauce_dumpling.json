@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "classic_mushroom_sauce_dumpling",
+      "version": 2,
+      "active": true,
+      "name_template": "Hubová omáčka s knedľou",
+      "family": "classic_mushroom_sauce_dumpling",
+      "method": "pot",
+      "minutes": 40,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["hrniec", "malý hrniec", "sitko", "metlička", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "mushrooms", "role": "vegetable", "candidates": ["mushrooms"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "milk", "role": "dairy", "candidates": ["milk"], "amount_per_adult": "150", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "80", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "dumpling", "role": "starch", "candidates": ["bread_dumpling"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": "na plátky"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {mushrooms.amount} {mushrooms.name} {mushrooms.cut}, {onion.amount} {onion.name} {onion.cut} a {parsley.amount} {parsley.name} {parsley.cut}.", "requires": ["mushrooms:raw", "onion:raw", "parsley:raw"], "produces": ["mushrooms:cut", "onion:cut", "parsley:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} a {butter.amount} {butter.name} v hrnci na strednom ohni 1 minútu, kým sa maslo roztopí a začne sa lesknúť. Opekaj cibuľu v hrnci 5 minút, kým bude dosklovita.", "requires": ["oil:raw", "butter:raw", "onion:cut"], "produces": ["oil:used", "butter:used", "onion:cooked"]},
+        {"text": "Pridaj šampiňóny a {caraway.amount} {caraway.name} do hrnca. Opekaj biele šampiňóny na strednom ohni 8 minút, kým pustia vodu, tá sa odparí a huby zmäknú. Mrazené šampiňóny nerozmrazuj, daj ich do hrnca rovno z mrazničky a opekaj ich o 4 minúty dlhšie.", "requires": ["mushrooms:cut", "caraway:raw", "onion:cooked"], "produces": ["mushrooms:cooked", "caraway:cooked"]},
+        {"text": "Prisyp {flour.amount} {flour.name} do hrnca. Za stáleho miešania opekaj múku s hubami v hrnci na miernom ohni 2 minúty, kým huby obalí a začne sa lesknúť.", "requires": ["flour:raw", "mushrooms:cooked"], "produces": ["flour:roux"]},
+        {"text": "Prilej {milk.amount} {milk.name}. Mlieko prilievaj po troškách a stále miešaj metličkou, aby nevznikli hrudky. Omáčku var v hrnci na miernom ohni 8 minút za častého miešania, kým zhustne a začne bublať.", "requires": ["milk:raw", "flour:roux"], "produces": ["milk:sauce", "flour:sauce"]},
+        {"text": "Vmiešaj {cream.amount} {cream.name}. Omáčku zohrievaj v hrnci na miernom ohni 2 minúty, kým začne jemne bublať. Dochuť ju soľou a čiernym korením a vmiešaj petržlenovú vňať.", "requires": ["cream:raw", "milk:sauce", "parsley:cut"], "produces": ["cream:cooked", "milk:cooked", "parsley:cooked"]},
+        {"text": "Nakrájaj {dumpling.amount} {dumpling.name} na plátky hrubé asi 1,5 cm.", "requires": ["dumpling:raw"], "produces": ["dumpling:cut"]},
+        {"text": "Priveď asi 3 cm vody v malom hrnci na silnom ohni do varu. Polož plátky knedle do sitka nad vriacu vodu, prikry pokrievkou a zohrievaj knedľu na pare na strednom ohni 3 minúty, kým bude mäkká a horúca.", "requires": ["dumpling:cut"], "produces": ["dumpling:prepared"]},
+        {"text": "Podávaj hubovú omáčku s plátkami knedle a rozdeľ jedlo na {portions} porcií.", "requires": ["mushrooms:cooked", "onion:cooked", "oil:used", "butter:used", "caraway:cooked", "flour:sauce", "milk:cooked", "cream:cooked", "parsley:cooked", "dumpling:prepared"], "produces": ["mushrooms:served", "onion:served", "oil:served", "butter:served", "caraway:served", "flour:served", "milk:served", "cream:served", "parsley:served", "dumpling:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Hubovú omáčku rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 2 dní a zohrievaj pomaly s lyžicou mlieka. Knedľu skladuj oddelene a pred podávaním ju zohrej na pare."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_mushroom_sauce_dumpling",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/hubova-omacka-fotorecept/84481-recept.html", "title": "Hubová omáčka (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/34294/kremova-sampinonova-omacka/", "title": "Krémová šampiňónová omáčka | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/hubova-omacka/4715-recept.html", "title": "Hubová omáčka - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

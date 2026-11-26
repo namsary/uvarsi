@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "stew_mushroom_paprikash",
+      "version": 2,
+      "active": true,
+      "name_template": "Hubový paprikáš s cestovinami",
+      "family": "stew_mushroom_paprikash",
+      "method": "pot",
+      "minutes": 40,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["široký hrniec", "hrniec", "sitko", "miska", "nôž", "doska na krájanie", "metlička"],
+      "slots": [
+        {"key": "mushrooms", "role": "vegetable", "candidates": ["mushrooms"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na tenké rezance"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "12", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "90", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "50"},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {mushrooms.amount} {mushrooms.name} {mushrooms.cut}, {onion.amount} {onion.name} {onion.cut} a {pepper.amount} {pepper.name} {pepper.cut}. Nasekaj {parsley.amount} {parsley.name} nadrobno.", "requires": ["mushrooms:raw", "onion:raw", "pepper:raw", "parsley:raw"], "produces": ["mushrooms:cut", "onion:cut", "pepper:cut", "parsley:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v širokom hrnci na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu 5 minút, kým bude dosklovita.", "requires": ["oil:raw", "onion:cut", "siroky_hrniec:free"], "produces": ["oil:used", "onion:cooked", "siroky_hrniec:occupied"]},
+        {"text": "Pridaj biele šampiňóny a papriku do hrnca. Opekaj šampiňóny s paprikou v širokom hrnci na strednom ohni 8 minút, kým huby zmäknú a voda z nich sa takmer odparí. Mrazené šampiňóny netreba rozmrazovať, daj ich do hrnca rovno z mrazničky a opekaj ich o 4 minúty dlhšie.", "requires": ["mushrooms:cut", "pepper:cut"], "produces": ["mushrooms:cooked", "pepper:cooked"]},
+        {"text": "Odstav široký hrniec z ohňa. Prisyp {paprika.amount} {paprika.name} a {caraway.amount} {caraway.name}. Hneď premiešaj, aby korenie nezhorklo.", "requires": ["paprika:raw", "caraway:raw"], "produces": ["paprika:bloomed", "caraway:bloomed"]},
+        {"text": "Rozšľahaj {cream.amount} {cream.name} a {flour.amount} {flour.name} v miske metličkou dohladka, bez hrudiek.", "requires": ["cream:raw", "flour:raw", "miska:free"], "produces": ["cream:slurry", "flour:slurry", "miska:used"]},
+        {"text": "Premiešaj smotanovú zmes so šampiňónmi v širokom hrnci. Var šampiňóny v omáčke na miernom ohni 4 minúty za stáleho miešania, kým omáčka zhustne a začne bublať.", "requires": ["cream:slurry", "flour:slurry", "paprika:bloomed", "caraway:bloomed", "mushrooms:cooked", "onion:cooked", "pepper:cooked"], "produces": ["cream:cooked", "flour:cooked", "paprika:cooked", "caraway:cooked", "mushrooms:sauce", "onion:sauce", "pepper:sauce"]},
+        {"text": "Uvar {pasta.amount} {pasta.name} v hrnci s osolenou vodou na strednom ohni asi 9 minút, kým budú mäkké, ale stále pevné. Odober z hrnca {pasta.water} vody a potom cestoviny sceď cez sitko.", "requires": ["pasta:raw", "hrniec:free", "sitko:free"], "produces": ["pasta:cooked", "hrniec:used", "sitko:used"]},
+        {"text": "Vyber cestoviny zo sitka do širokého hrnca k omáčke. Zohrievaj cestoviny v omáčke na miernom ohni 2 minúty, kým sa omáčkou rovnomerne obalia a omáčka jemne bublá. Ak je omáčka hustá, prilievaj po troškách odloženú vodu z cestovín, kým bude krémová.", "requires": ["pasta:cooked", "mushrooms:sauce"], "produces": ["pasta:combined", "mushrooms:finished"]},
+        {"text": "Dochuť paprikáš soľou a čiernym korením. Rozdeľ ho na {portions} porcií, na každú porciu nasyp petržlenovú vňať a podávaj.", "requires": ["mushrooms:finished", "onion:sauce", "pepper:sauce", "oil:used", "paprika:cooked", "caraway:cooked", "cream:cooked", "flour:cooked", "pasta:combined", "parsley:cut", "siroky_hrniec:occupied", "hrniec:used", "sitko:used", "miska:used"], "produces": ["mushrooms:served", "onion:served", "pepper:served", "oil:served", "paprika:served", "caraway:served", "cream:served", "flour:served", "pasta:served", "parsley:served", "siroky_hrniec:free", "hrniec:free", "sitko:free", "miska:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Paprikáš s cestovinami rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 2 dní a pri ohrievaní prilej lyžicu vody, aby omáčka ostala krémová."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "stew_mushroom_paprikash",
+    "editorial_lane": "plant_based",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/27168/hubovy-paprikas/", "title": "Hubový paprikáš | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/hubovy-paprikas-ii-/6604-recept.html", "title": "Hubový paprikáš II. - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

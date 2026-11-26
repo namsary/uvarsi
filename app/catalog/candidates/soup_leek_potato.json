@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "soup_leek_potato",
+      "version": 2,
+      "active": true,
+      "name_template": "Pórová polievka so zemiakmi",
+      "family": "soup_leek_potato",
+      "method": "soup",
+      "minutes": 45,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["veľký hrniec", "sitko", "miska", "nôž", "doska na krájanie", "metlička"],
+      "slots": [
+        {"key": "leek", "role": "vegetable", "candidates": ["leek"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenké kolieska"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "400"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "12", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "50", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.75", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na krajce"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {leek.amount} {leek.name} {leek.cut}, použi bielu a svetlozelenú časť. Kolieska prepláchni v sitku pod studenou vodou, aby v nich neostal piesok.", "requires": ["leek:raw"], "produces": ["leek:cut"]},
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na kocky veľké asi 1,5 cm. Nakrájaj {garlic.amount} {garlic.name} najemno a {parsley.amount} {parsley.name} nasekaj nadrobno.", "requires": ["potato:raw", "garlic:raw", "parsley:raw"], "produces": ["potato:cut", "garlic:cut", "parsley:cut"]},
+        {"text": "Rozohrej {butter.amount} {butter.name} vo veľkom hrnci na miernom ohni 1 minútu, kým začne bublať. Pridaj pór do hrnca. Opekaj pór na miernom ohni 6 minút, kým zmäkne. Pridaj cesnak a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["butter:raw", "leek:cut", "garlic:cut", "velky_hrniec:free"], "produces": ["butter:melted", "leek:softened", "garlic:cooked", "velky_hrniec:occupied"]},
+        {"text": "Prisyp {flour.amount} {flour.name} do hrnca. Opekaj hladkú pšeničnú múku s pórom na miernom ohni 1 minútu za stáleho miešania, kým bude zlatistá.", "requires": ["flour:raw", "leek:softened"], "produces": ["flour:roux", "leek:roux"]},
+        {"text": "Prilej {potato.water} vody. Hneď zápražku s vodou vymiešaj metličkou dohladka, bez hrudiek. Pridaj zemiaky do hrnca. Var zemiaky s pórom vo veľkom hrnci na miernom ohni 18 minút, kým zemiaky zmäknú.", "requires": ["potato:cut", "leek:roux", "flour:roux"], "produces": ["potato:cooked", "leek:cooked", "flour:cooked"]},
+        {"text": "Rozšľahaj {egg.amount} {egg.name} v miske vidličkou so štipkou soli.", "requires": ["egg:raw", "miska:free"], "produces": ["egg:beaten", "miska:used"]},
+        {"text": "Vlej {cream.amount} {cream.name} do hrnca. Za stáleho miešania vlievaj do vriacej polievky tenkým prúdom rozšľahané {egg.name}. Var {egg.name} v polievke vo veľkom hrnci na miernom ohni 2 minúty, kým stuhne na jemné obláčiky.", "requires": ["cream:raw", "egg:beaten"], "produces": ["cream:cooked", "egg:cooked"]},
+        {"text": "Nakrájaj {bread.amount} {bread.name} {bread.cut}.", "requires": ["bread:raw"], "produces": ["bread:cut"]},
+        {"text": "Dochuť polievku soľou a čiernym korením. Rozdeľ ju na {portions} porcií, na každú porciu nasyp petržlenovú vňať a podávaj s chlebom.", "requires": ["leek:cooked", "potato:cooked", "garlic:cooked", "butter:melted", "flour:cooked", "cream:cooked", "egg:cooked", "parsley:cut", "bread:cut", "velky_hrniec:occupied", "miska:used"], "produces": ["leek:served", "potato:served", "garlic:served", "butter:served", "flour:served", "cream:served", "egg:served", "parsley:served", "bread:served", "velky_hrniec:free", "miska:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Polievku rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 2 dní a prehrievaj ju na miernom ohni, aby sa smotana nezrazila. Chlieb skladuj oddelene."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "soup_leek_potato",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/porova-polievka-chutna-a-rychla/39054-recept.html", "title": "Pórová polievka chutná a rýchla - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/26154/porova-polievka/", "title": "Pórová polievka | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/jednoducha-porova-polievka-s-oblacikmi/73293-recept.html", "title": "Jednoduchá pórová polievka s obláčikmi - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

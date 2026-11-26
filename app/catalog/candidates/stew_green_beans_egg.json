@@ -1,0 +1,47 @@
+{
+  "recipes": [
+    {
+      "id": "stew_green_beans_egg",
+      "version": 2,
+      "active": true,
+      "name_template": "Prívarok zo zelenej fazuľky s vajcom",
+      "family": "stew_green_beans_egg",
+      "method": "pot",
+      "minutes": 40,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["veľký hrniec", "malý hrniec", "miska", "nôž", "doska na krájanie", "metlička"],
+      "slots": [
+        {"key": "beans", "role": "vegetable", "candidates": ["green_beans"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "200"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "bay", "role": "seasoning", "candidates": ["bay_leaf"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "80", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "vinegar", "role": "seasoning", "candidates": ["apple_cider_vinegar"], "amount_per_adult": "6", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "dill", "role": "seasoning", "candidates": ["dill"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.75", "required": true, "use": "main", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {beans.amount} {beans.name} na kúsky dlhé asi 3 cm a tvrdé konce odrež.", "requires": ["beans:raw"], "produces": ["beans:cut"]},
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na kocky veľké asi 1,5 cm. Nakrájaj {dill.amount} {dill.name} {dill.cut}.", "requires": ["potato:raw", "dill:raw"], "produces": ["potato:cut", "dill:cut"]},
+        {"text": "Vlož zemiaky do veľkého hrnca. Nalej {beans.water} vody do hrnca a pridaj {bay.amount} {bay.name}. Prisyp štipku soli. Var zemiaky vo veľkom hrnci na strednom ohni 8 minút, kým budú napoly mäkké.", "requires": ["potato:cut", "bay:raw", "velky_hrniec:free"], "produces": ["potato:half", "bay:cooked", "velky_hrniec:occupied"]},
+        {"text": "Pridaj zelenú fazuľku do hrnca. Var zelenú fazuľku so zemiakmi vo veľkom hrnci na miernom ohni 10 minút, kým zmäkne, ale ostane sviežo zelená. Mrazenú fazuľku netreba rozmrazovať, daj ju do hrnca rovno z mrazničky a var ju o 2 minúty dlhšie.", "requires": ["beans:cut", "potato:half"], "produces": ["beans:cooked", "potato:cooked"]},
+        {"text": "Rozšľahaj {cream.amount} {cream.name} a {flour.amount} {flour.name} v miske metličkou dohladka, bez hrudiek. Odober z hrnca 1 naberačku horúcej tekutiny a postupne ňou rozrieď smotanovú zmes, aby sa nezrazila.", "requires": ["cream:raw", "flour:raw", "miska:free"], "produces": ["cream:slurry", "flour:slurry", "miska:used"]},
+        {"text": "Premiešaj smotanovú zmes s fazuľkou vo veľkom hrnci. Var zelenú fazuľku so smotanou vo veľkom hrnci na miernom ohni 5 minút za stáleho miešania, kým prívarok zhustne a začne bublať. Vyber z neho bobkový list.", "requires": ["cream:slurry", "flour:slurry", "beans:cooked", "bay:cooked"], "produces": ["cream:cooked", "flour:cooked", "beans:thickened", "bay:removed"]},
+        {"text": "Odstav veľký hrniec z ohňa. Vmiešaj {vinegar.amount} {vinegar.name} a kôpor, aby bol prívarok jemne kyslý.", "requires": ["vinegar:raw", "dill:cut"], "produces": ["vinegar:mixed", "dill:mixed"]},
+        {"text": "Uvar {egg.amount} {egg.name} na hniličku v malom hrnci na strednom ohni. Od začiatku varu počítaj 6 minút, kým bielok stuhne a žĺtok ostane mäkký. Potom {egg.reference_name} krátko schlaď v studenej vode a ošúp.", "requires": ["egg:raw", "maly_hrniec:free"], "produces": ["egg:cooked", "maly_hrniec:used"]},
+        {"text": "Dochuť prívarok soľou a čiernym korením. Rozdeľ ho na {portions} porcií. Každé vajce rozkroj na polovice a na tanieri ho jemne vtlač do prívarku.", "requires": ["beans:thickened", "potato:cooked", "bay:removed", "cream:cooked", "flour:cooked", "vinegar:mixed", "dill:mixed", "egg:cooked", "velky_hrniec:occupied", "maly_hrniec:used", "miska:used"], "produces": ["beans:served", "potato:served", "bay:served", "cream:served", "flour:served", "vinegar:served", "dill:served", "egg:served", "velky_hrniec:free", "maly_hrniec:free", "miska:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Prívarok rozdeľ do plytkých nádob a do jednej hodiny ho odlož do chladničky. Zjedz ho do 3 dní, prehrievaj ho na miernom ohni a vajce na hniličku var vždy čerstvé tesne pred podávaním."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "stew_green_beans_egg",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/fazulkovy-privarok-fotorecept/26931-recept.html", "title": "Fazuľkový prívarok (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/68377/fazulkovy-privarok-s-volskym-okom/", "title": "Fazuľkový prívarok s volským okom | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

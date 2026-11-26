@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "quick_chicken_couscous_vegetables",
+      "version": 2,
+      "active": true,
+      "name_template": "Kurací kuskus so zeleninou z panvice",
+      "family": "quick_chicken_couscous_vegetables",
+      "method": "pan",
+      "minutes": 30,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľká panvica", "hrniec", "pokrievka", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kocky"},
+        {"key": "couscous", "role": "starch", "candidates": ["couscous"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "105"},
+        {"key": "zucchini", "role": "vegetable", "candidates": ["zucchini"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kocky"},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "12", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "1.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cumin", "role": "seasoning", "candidates": ["cumin"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} na kocky, {zucchini.amount} {zucchini.name} na kocky, {pepper.amount} {pepper.name} na kocky, {onion.amount} {onion.name} nadrobno, {garlic.amount} {garlic.name} najemno a {parsley.amount} {parsley.name} nadrobno. Mäso osoľ a okoreň.", "requires": ["chicken:raw", "zucchini:raw", "pepper:raw", "onion:raw", "garlic:raw", "parsley:raw"], "produces": ["chicken:cut", "zucchini:cut", "pepper:cut", "onion:cut", "garlic:cut", "parsley:cut"]},
+        {"text": "Priveď {couscous.water} vody so štipkou soli v hrnci na strednom ohni do varu, kým začne bublať. Odstav hrniec z ohňa a vsyp {couscous.amount} {couscous.name}. Prikry hrniec pokrievkou a nechaj kuskus 5 minút postáť, kým vsiakne všetku vodu. Potom ho prehrab vidličkou.", "requires": ["couscous:raw", "hrniec:free", "pokrievka:free"], "produces": ["couscous:cooked", "hrniec:free", "pokrievka:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na silnom ohni 2 minúty, kým sa začne lesknúť. Opekaj kuracie prsia v panvici na silnom ohni 5 minút, kým budú zlatisté a v strede nebudú ružové, a vyber ich na tanier. Pri väčšej dávke ich opekaj po častiach.", "requires": ["oil:raw", "chicken:cut", "velka_panvica:free"], "produces": ["oil:used", "chicken:cooked", "velka_panvica:occupied"]},
+        {"text": "Pridaj cibuľu, papriku a cuketu do panvice. Opekaj cibuľu s paprikou a cuketou na strednom ohni 6 minút, kým zelenina zmäkne a na okrajoch bude zlatistá. Pridaj cesnak do panvice a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["onion:cut", "pepper:cut", "zucchini:cut", "garlic:cut", "oil:used", "velka_panvica:occupied"], "produces": ["onion:cooked", "pepper:cooked", "zucchini:cooked", "garlic:cooked"]},
+        {"text": "Odstav panvicu z ohňa, prisyp {paprika.amount} {paprika.name} a {cumin.amount} {cumin.name} a premiešaj.", "requires": ["paprika:raw", "cumin:raw", "zucchini:cooked", "velka_panvica:occupied"], "produces": ["paprika:combined", "cumin:combined"]},
+        {"text": "Vráť kuracie prsia do panvice. Pridaj kuskus do panvice. Nakrájaj {lemon.amount} {lemon.name} na polovice a vytlač nad panvicu šťavu, na každú porciu asi 1 lyžicu. Zohrievaj kuskus s mäsom a zeleninou na miernom ohni 2 minúty a miešaj, kým sa šťava z panvice vsiakne do kuskusu. Vmiešaj petržlenovú vňať.", "requires": ["chicken:cooked", "couscous:cooked", "lemon:raw", "parsley:cut", "velka_panvica:occupied"], "produces": ["chicken:combined", "couscous:combined", "lemon:combined", "parsley:combined"]},
+        {"text": "Premiešaj {yogurt.amount} {yogurt.name} so štipkou soli.", "requires": ["yogurt:raw"], "produces": ["yogurt:mixed"]},
+        {"text": "Dochuť kuskus soľou a čiernym korením, rozdeľ ho na {portions} porcií a podávaj s jogurtom.", "requires": ["chicken:combined", "couscous:combined", "zucchini:cooked", "pepper:cooked", "onion:cooked", "garlic:cooked", "oil:used", "paprika:combined", "cumin:combined", "lemon:combined", "parsley:combined", "yogurt:mixed", "velka_panvica:occupied"], "produces": ["chicken:served", "couscous:served", "zucchini:served", "pepper:served", "onion:served", "garlic:served", "oil:served", "paprika:served", "cumin:served", "lemon:served", "parsley:served", "yogurt:served", "velka_panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Kuskus s mäsom rozdeľ do plytkých nádob a jogurt ulož zvlášť. Najneskôr do 2 hodín ich odlož do chladničky, zjedz do 3 dní a kuskus prehrievaj s lyžicou vody, kým bude celý horúci."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_chicken_couscous_vegetables",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/83741/kuskus-s-cuketou-a-kuracim-masom-vynikajuci-lahky-obed-hotovy-za-par-minut/", "title": "Kuskus s cuketou a kuracím mäsom: Vynikajúci ľahký obed hotový za pár minút | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/kuskus-so-zeleninou-a-kuracinou/57466-recept.html", "title": "Kuskus so zeleninou a kuracinou - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

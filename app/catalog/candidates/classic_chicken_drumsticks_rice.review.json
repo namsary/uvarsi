@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "5412b1bfb637ed7bf1a40e154182b882985cfe732b34782fc937a16f12774b32",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "classic_chicken_drumsticks_rice"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "522fadd249f76adc6e60a8c070a56308f12b7698c27f02aee1c0100da248b774",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "soup_mushroom"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

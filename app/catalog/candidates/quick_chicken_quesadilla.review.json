@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "2d1c71d1a387b5d6197e7c5481be239d3c4775bd2e187a85e364e0c9ada7d00c",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "quick_chicken_quesadilla"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

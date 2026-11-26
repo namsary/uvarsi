@@ -1,0 +1,41 @@
+{
+  "recipes": [
+    {
+      "id": "quick_spaghetti_carbonara",
+      "version": 2,
+      "active": true,
+      "name_template": "Špagety carbonara so slaninou",
+      "family": "quick_spaghetti_carbonara",
+      "method": "pan",
+      "minutes": 25,
+      "modes": ["standard"],
+      "equipment": ["veľká panvica", "hrniec", "sitko", "miska", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "60"},
+        {"key": "bacon", "role": "protein", "candidates": ["bacon"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.55", "required": true, "use": "addition", "cut": "na pásiky"},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "1.5", "unit": "piece", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "parmesan", "role": "dairy", "candidates": ["parmesan"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno nastrúhaný"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {bacon.amount} {bacon.name} na pásiky a {parmesan.amount} {parmesan.name} najemno nastrúhaj.", "requires": ["bacon:raw", "parmesan:raw"], "produces": ["bacon:cut", "parmesan:grated"]},
+        {"text": "Rozšľahaj v miske {egg.amount} {egg.name}. Primiešaj do nich dve tretiny parmezánu a poriadnu štipku čierneho korenia.", "requires": ["egg:raw", "parmesan:grated", "miska:free"], "produces": ["egg:mixed", "parmesan:mixed", "miska:occupied"]},
+        {"text": "Uvar {pasta.amount} {pasta.name}, najlepšie špagety, v hrnci s osolenou vodou na strednom ohni asi 9 minút, kým budú mäkké, ale stále pevné. Odober z hrnca {pasta.water} vody a potom cestoviny sceď cez sitko.", "requires": ["pasta:raw", "hrniec:free", "sitko:free"], "produces": ["pasta:cooked", "hrniec:free", "sitko:free"]},
+        {"text": "Opekaj údenú slaninu v suchej veľkej panvici na strednom ohni 5 minút, kým bude zlatistá a pustí tuk.", "requires": ["bacon:cut", "velka_panvica:free"], "produces": ["bacon:cooked", "velka_panvica:occupied"]},
+        {"text": "Odstav panvicu z ohňa a nechaj ju 1 minútu postáť, aby sa vajcia nezrazili. Pridaj cestoviny do panvice. Vlej vajcia do panvice. Cestoviny so slaninou a vajcami rýchlo premiešaj a podlej ich polovicou odloženej vody.", "requires": ["pasta:cooked", "bacon:cooked", "egg:mixed", "parmesan:mixed", "velka_panvica:occupied"], "produces": ["pasta:combined", "egg:combined", "parmesan:combined", "miska:free"]},
+        {"text": "Zohrievaj cestoviny s vajcami v panvici na miernom ohni 2 minúty a stále ich miešaj, kým omáčka zhustne do krémova a cestoviny sa ňou lesknú, ale vajcia sa nezrazia. Ak je omáčka hustá, prilievaj po troškách odloženú vodu z cestovín, kým bude krémová.", "requires": ["pasta:combined", "egg:combined", "velka_panvica:occupied"], "produces": ["pasta:finished", "egg:cooked"]},
+        {"text": "Dochuť cestoviny čiernym korením a soľou až po ochutnaní, slanina aj parmezán sú slané. Rozdeľ ich na {portions} porcií, navrch nasyp zvyšný parmezán a ihneď podávaj.", "requires": ["pasta:finished", "bacon:cooked", "egg:cooked", "parmesan:combined", "velka_panvica:occupied"], "produces": ["pasta:served", "bacon:served", "egg:served", "parmesan:served", "velka_panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Carbonaru podávaj hneď, omáčka z vajec po vychladnutí zhustne. Zvyšok ulož do uzavretej nádoby, do 2 hodín ho odlož do chladničky a zjedz do druhého dňa. Prehrievaj ho na miernom ohni s lyžicou vody."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_spaghetti_carbonara",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/79643/nase-spagety-carbonara/", "title": "Naše špagety carbonara | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/spagety-carbonara-fotorecept/86484-recept.html", "title": "Špagety Carbonara (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

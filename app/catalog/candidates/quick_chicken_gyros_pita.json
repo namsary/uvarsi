@@ -1,0 +1,51 @@
+{
+  "recipes": [
+    {
+      "id": "quick_chicken_gyros_pita",
+      "version": 2,
+      "active": true,
+      "name_template": "Kurací gyros v pite s tzatziki",
+      "family": "quick_chicken_gyros_pita",
+      "method": "pan",
+      "minutes": 35,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľká panvica", "miska", "strúhadlo", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_thigh_meat"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenké pásiky"},
+        {"key": "pita", "role": "starch", "candidates": ["pita"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "cucumber", "role": "vegetable", "candidates": ["cucumber"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na tenké pásiky"},
+        {"key": "lettuce", "role": "vegetable", "candidates": ["lettuce"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na pásiky"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "dill", "role": "seasoning", "candidates": ["dill"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oregano", "role": "seasoning", "candidates": ["oregano"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cumin", "role": "seasoning", "candidates": ["cumin"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {cucumber.amount} {cucumber.name} na polovice. Jednu polovicu nastrúhaj nahrubo, osoľ ju a nechaj 5 minút odstáť, potom ju v dlaniach vytlač. Druhú polovicu nakrájaj na tenké plátky.", "requires": ["cucumber:raw"], "produces": ["cucumber:prepared"]},
+        {"text": "Nakrájaj {garlic.amount} {garlic.name} najemno a {dill.amount} {dill.name} nadrobno. Premiešaj v miske {yogurt.amount} {yogurt.name}, vytlačenú uhorku, polovicu cesnaku, kôpor a štipku soli. Tzatziki nechaj v chladničke.", "requires": ["garlic:raw", "dill:raw", "yogurt:raw", "cucumber:prepared"], "produces": ["garlic:split", "dill:sauce", "yogurt:sauce", "cucumber:sauce"]},
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} na tenké pásiky, {tomato.amount} {tomato.name} na plátky, {onion.amount} {onion.name} na tenké pásiky a {lettuce.amount} {lettuce.name} na pásiky. Mäso daj do misky so zvyšným cesnakom.", "requires": ["chicken:raw", "tomato:raw", "onion:raw", "lettuce:raw", "garlic:split"], "produces": ["chicken:cut", "tomato:cut", "onion:cut", "lettuce:cut", "garlic:marinade"]},
+        {"text": "Prisyp {oregano.amount} {oregano.name} a {cumin.amount} {cumin.name}. Prilej {oil.amount} {oil.name}, mäso osoľ, okoreň a premiešaj.", "requires": ["oregano:raw", "cumin:raw", "oil:raw", "chicken:cut"], "produces": ["oregano:marinade", "cumin:marinade", "oil:marinade", "chicken:marinated"]},
+        {"text": "Opekaj vykostené kuracie stehenné mäso vo veľkej panvici na silnom ohni 8 minút, kým bude zlatisté, na okrajoch chrumkavé a v strede nebude ružové. Pri väčšej dávke ho opekaj po častiach.", "requires": ["chicken:marinated", "velka_panvica:free"], "produces": ["chicken:cooked", "garlic:cooked", "oregano:cooked", "cumin:cooked", "oil:cooked", "velka_panvica:occupied"]},
+        {"text": "Odstav panvicu z ohňa, prisyp {paprika.amount} {paprika.name} a premiešaj.", "requires": ["paprika:raw", "chicken:cooked", "velka_panvica:occupied"], "produces": ["paprika:combined", "velka_panvica:free"]},
+        {"text": "Zohrej {pita.amount} {pita.name} v suchej panvici na strednom ohni 1 minútu z každej strany, kým budú mäkké a teplé.", "requires": ["pita:raw", "velka_panvica:free"], "produces": ["pita:warm", "velka_panvica:occupied"]},
+        {"text": "Rozlož pita placky na taniere a natri ich tzatziki. Do každej daj šalát, gyros, paradajky, cibuľu a plátky uhorky a preklop ju. Rozdeľ jedlo na {portions} porcií, zvyšné tzatziki podávaj zvlášť.", "requires": ["chicken:cooked", "pita:warm", "yogurt:sauce", "cucumber:sauce", "tomato:cut", "onion:cut", "lettuce:cut", "garlic:cooked", "dill:sauce", "oregano:cooked", "cumin:cooked", "paprika:combined", "oil:cooked", "velka_panvica:occupied"], "produces": ["chicken:served", "pita:served", "yogurt:served", "cucumber:served", "tomato:served", "onion:served", "lettuce:served", "garlic:served", "dill:served", "oregano:served", "cumin:served", "paprika:served", "oil:served", "velka_panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Mäso, tzatziki a zeleninu ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní, mäso prehrej na panvici, kým bude celé horúce, a pitu zohrej až pred jedlom."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_chicken_gyros_pita",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/2106/gyros-s-tzatziki/", "title": "Gyros s tzatziki | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/domaci-kuraci-gyros-pozrite-si-tu-vychytavku-ako-ho-upiect-v-rure-vi/90260-recept.html", "title": "Domáci kurací gyros. Pozrite si tú vychytávku, ako ho upiecť v rúre! (videorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

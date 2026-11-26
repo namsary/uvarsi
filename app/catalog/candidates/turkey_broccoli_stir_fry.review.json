@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "3b4ea9f33998727be8d7409a0935b3ba70c0c8222be585d9bebc82f1d5b54f41",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "turkey_broccoli_stir_fry"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "fish_cod_butter_mash",
+      "version": 2,
+      "active": true,
+      "name_template": "Treska na masle so zemiakovou kašou",
+      "family": "fish_cod_butter_mash",
+      "method": "pan",
+      "minutes": 40,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "malý hrniec", "veľká panvica", "miska", "nôž", "doska na krájanie", "papierová utierka", "tĺčik na zemiaky"],
+      "slots": [
+        {"key": "fish", "role": "protein", "candidates": ["white_fish"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na porcie"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "24", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na mesiačiky"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kocky"},
+        {"key": "milk", "role": "dairy", "candidates": ["milk"], "amount_per_adult": "70", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}. Vlož zemiaky do hrnca, dolej studenú vodu tak, aby boli ponorené, a vodu osoľ.", "requires": ["potato:raw"], "produces": ["potato:pot"]},
+        {"text": "Var zemiaky v hrnci na miernom ohni 20 minút, kým zmäknú.", "requires": ["potato:pot"], "produces": ["potato:cooked"]},
+        {"text": "Rozdeľ {butter.amount} {butter.name} na dve rovnaké časti. Nakrájaj {parsley.amount} {parsley.name} {parsley.cut} a {lemon.amount} {lemon.name} {lemon.cut}.", "requires": ["butter:raw", "parsley:raw", "lemon:raw"], "produces": ["butter:divided", "parsley:cut", "lemon:cut"]},
+        {"text": "Osuš {fish.amount} {fish.name} papierovou utierkou a nakrájaj ju {fish.cut}. Porcie z oboch strán osoľ a okoreň.", "requires": ["fish:raw"], "produces": ["fish:seasoned"]},
+        {"text": "Vsyp {flour.amount} {flour.name} do misky. Porcie ryby v nej z oboch strán zľahka obaľ a prebytočnú múku otras.", "requires": ["flour:raw", "fish:seasoned"], "produces": ["flour:coating", "fish:floured"]},
+        {"text": "Zohrej {milk.amount} {milk.name} v malom hrnci na miernom ohni 2 minúty, kým začne pariť.", "requires": ["milk:raw"], "produces": ["milk:hot"]},
+        {"text": "Sceď zemiaky, vráť ich do hrnca a roztlač ich na hladkú kašu. Vmiešaj mlieko. Nakoniec v kaši rozmiešaj jednu časť masla a kašu dochuť soľou. Hrniec prikry, aby kaša nevychladla.", "requires": ["potato:cooked", "milk:hot", "butter:divided"], "produces": ["potato:mashed", "milk:mashed", "butter:half_used"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 1 minútu, kým sa začne lesknúť, a roztop v ňom druhú časť masla.", "requires": ["oil:raw", "butter:half_used"], "produces": ["oil:hot", "butter:melted"]},
+        {"text": "Opekaj rybu vo veľkej panvici na strednom ohni 3 minúty, kým bude spodná strana zlatistá. Opatrne ju obráť a opekaj ešte 3 minúty, kým bude v strede biela a ľahko sa oddelí. Počas opekania ju polievaj speneným maslom z panvice. Pri väčšej dávke opekaj rybu po častiach.", "requires": ["fish:floured", "flour:coating", "oil:hot"], "produces": ["fish:fried", "flour:fried", "oil:used"]},
+        {"text": "Odstav panvicu z ohňa. Vmiešaj petržlenovú vňať do panvice. Na každú porciu ryby vytlač jeden mesiačik citróna.", "requires": ["parsley:cut", "lemon:cut", "butter:melted"], "produces": ["parsley:used", "lemon:used", "butter:sauce"]},
+        {"text": "Podávaj rybu so zemiakovou kašou a polej ju bylinkovým maslom z panvice. Jedlo rozdeľ na {portions} porcií.", "requires": ["fish:fried", "flour:fried", "oil:used", "butter:sauce", "parsley:used", "lemon:used", "potato:mashed", "milk:mashed"], "produces": ["fish:served", "flour:served", "oil:served", "butter:served", "parsley:served", "lemon:served", "potato:served", "milk:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Rybu a zemiakovú kašu ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní. Kašu prehrej s lyžicou mlieka a rybu ohrievaj iba raz a krátko."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "fish_cod_butter_mash",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/30164/treska-na-masle/", "title": "Treska na masle | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/aljasska-treska-s-koprovou-omackou-a-zemiakmi/55201-recept.html", "title": "Aljašská treska s kôprovou omáčkou a zemiakmi - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/jednoduche-chutne-file/48001-recept.html", "title": "Jednoduché chutné filé - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "b9d7078cb129986b388ca3c763862b53bcd7cd68991e77d533a61c776f2b972b",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "quick_tuna_rice_salad"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

@@ -1,0 +1,52 @@
+{
+  "recipes": [
+    {
+      "id": "stew_kale",
+      "version": 2,
+      "active": true,
+      "name_template": "Kelový prívarok s vajcom",
+      "family": "stew_kale",
+      "method": "pot",
+      "minutes": 50,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["veľký hrniec", "panvica", "sitko", "nôž", "doska na krájanie", "metlička"],
+      "slots": [
+        {"key": "kel", "role": "vegetable", "candidates": ["savoy_cabbage"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "200"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "12", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "40", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.75", "required": true, "use": "main", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {kel.amount} {kel.name} na štvrtiny, vykroj z nich hlúbik a listy nakrájaj na rezance široké asi 1 cm. Rezance prepláchni v sitku pod studenou vodou.", "requires": ["kel:raw"], "produces": ["kel:cut"]},
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na kocky veľké asi 1,5 cm. Nakrájaj {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} najemno.", "requires": ["potato:raw", "onion:raw", "garlic:raw"], "produces": ["potato:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Vlož kel a zemiaky do veľkého hrnca. Nalej {kel.water} vody do hrnca. Prisyp {caraway.amount} {caraway.name} a štipku soli. Var kel so zemiakmi vo veľkom hrnci na strednom ohni 20 minút pod pokrievkou, kým kel aj zemiaky zmäknú.", "requires": ["kel:cut", "potato:cut", "caraway:raw", "velky_hrniec:free"], "produces": ["kel:cooked", "potato:cooked", "caraway:cooked", "velky_hrniec:occupied"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu 5 minút, kým bude dosklovita. Pridaj cesnak a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["oil:raw", "onion:cut", "garlic:cut", "panvica:free"], "produces": ["oil:used", "onion:cooked", "garlic:cooked", "panvica:occupied"]},
+        {"text": "Prisyp {flour.amount} {flour.name} do panvice. Opekaj hladkú pšeničnú múku s cibuľou na miernom ohni 2 minúty za stáleho miešania, kým bude zlatistá.", "requires": ["flour:raw", "onion:cooked", "garlic:cooked"], "produces": ["flour:roux", "onion:roux", "garlic:roux"]},
+        {"text": "Odstav panvicu z ohňa. Prisyp {paprika.amount} {paprika.name}. Hneď premiešaj, aby korenie nezhorklo. Odober z hrnca s kelom trochu horúcej vody a postupne ňou rozmiešaj zápražku metličkou na hladkú hustú kašu, bez hrudiek.", "requires": ["paprika:raw", "flour:roux"], "produces": ["paprika:roux", "flour:slurry"]},
+        {"text": "Vyber zápražku stierkou z panvice do veľkého hrnca a premiešaj ju s kelom a zemiakmi. Var kel so zápražkou vo veľkom hrnci na miernom ohni 8 minút za občasného miešania, kým prívarok zhustne a začne bublať.", "requires": ["flour:slurry", "paprika:roux", "onion:roux", "garlic:roux", "oil:used", "kel:cooked", "panvica:occupied"], "produces": ["flour:cooked", "paprika:cooked", "onion:stew", "garlic:stew", "oil:stew", "kel:thickened", "panvica:free"]},
+        {"text": "Vmiešaj {cream.amount} {cream.name} a {marjoram.amount} {marjoram.name} do hrnca. Zohrievaj kel so smotanou vo veľkom hrnci na miernom ohni 2 minúty, kým prívarok opäť začne jemne bublať.", "requires": ["cream:raw", "marjoram:raw", "kel:thickened"], "produces": ["cream:cooked", "marjoram:cooked", "kel:finished"]},
+        {"text": "Rozohrej {butter.amount} {butter.name} v panvici na strednom ohni 1 minútu, kým začne bublať. Rozklep do nej {egg.amount} {egg.name} a opekaj volské oká 3 minúty, kým bielok stuhne a žĺtok ostane tekutý. Jemne ich osoľ a pri väčšom počte vajec pracuj po častiach.", "requires": ["butter:raw", "egg:raw", "panvica:free"], "produces": ["butter:cooked", "egg:fried", "panvica:used"]},
+        {"text": "Dochuť prívarok soľou a čiernym korením. Rozdeľ ho na {portions} porcií a na každú porciu polož volské oko. Podávaj hneď, kým je žĺtok tekutý.", "requires": ["kel:finished", "potato:cooked", "onion:stew", "garlic:stew", "oil:stew", "flour:cooked", "paprika:cooked", "caraway:cooked", "marjoram:cooked", "cream:cooked", "butter:cooked", "egg:fried", "velky_hrniec:occupied", "panvica:used"], "produces": ["kel:served", "potato:served", "onion:served", "garlic:served", "oil:served", "flour:served", "paprika:served", "caraway:served", "marjoram:served", "cream:served", "butter:served", "egg:served", "velky_hrniec:free", "panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Prívarok rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní, pri ohrievaní prilej lyžicu vody a volské oko opekaj vždy čerstvé tesne pred podávaním."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "stew_kale",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/kelovy-privarok-fotorecept/18794-recept.html", "title": "Kelový prívarok (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/11617/fotorecept-kelovy-privarok/", "title": "FOTORECEPT: Kelový prívarok | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

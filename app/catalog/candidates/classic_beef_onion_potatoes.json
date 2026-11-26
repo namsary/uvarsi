@@ -1,0 +1,48 @@
+{
+  "recipes": [
+    {
+      "id": "classic_beef_onion_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Hovädzie na cibuľke so zemiakmi",
+      "family": "classic_beef_onion_potatoes",
+      "method": "pot",
+      "minutes": 120,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["široký hrniec s pokrievkou", "hrniec", "palička na mäso", "potravinová fólia", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "beef", "role": "protein", "candidates": ["beef_round"], "amount_per_adult": "170", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky hrubé 1 cm", "water_ml_per_adult": "250"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "140", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na tenké polmesiačiky"},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "mustard", "role": "seasoning", "candidates": ["mustard"], "amount_per_adult": "6", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {beef.amount} {beef.name} {beef.cut}. Plátky prikry fóliou, paličkou ich naklep a nožom narež okraje, aby sa nekrútili. Z oboch strán ich osoľ a okoreň. Vsyp {flour.amount} {flour.name} do misky. Plátky v nej obaľ zo všetkých strán a prebytočnú múku otras.", "requires": ["beef:raw", "flour:raw"], "produces": ["beef:floured", "flour:used"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v širokom hrnci na silnom ohni 2 minúty, kým sa začne lesknúť.", "requires": ["oil:raw"], "produces": ["oil:hot"]},
+        {"text": "Opekaj hovädzie zadné bez kosti v širokom hrnci po dávkach na silnom ohni 2 minúty z každej strany, kým bude zlatisté. Opečené plátky vyber na tanier.", "requires": ["beef:floured", "oil:hot"], "produces": ["beef:browned", "oil:used"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}. Opekaj cibuľu vo výpeku v hrnci na strednom ohni 10 minút za občasného miešania, kým zmäkne a zozlatne.", "requires": ["onion:raw"], "produces": ["onion:cooked"]},
+        {"text": "Odstav hrniec z ohňa a vmiešaj {paprika.amount} {paprika.name}. Hneď prilej {beef.water} vody. Pridaj {caraway.amount} {caraway.name} a {mustard.amount} {mustard.name}. Vráť mäso do hrnca.", "requires": ["paprika:raw", "caraway:raw", "mustard:raw", "beef:browned"], "produces": ["paprika:cooked", "caraway:cooked", "mustard:cooked", "beef:sauce"]},
+        {"text": "Prikry hrniec pokrievkou. Dus hovädzie zadné bez kosti na cibuľke v hrnci na miernom ohni 90 minút, kým bude mäso mäkké. Každých 30 minút ho obráť a podľa potreby dolej trochu vody, aby bola šťava stále nad polovicou mäsa.", "requires": ["beef:sauce", "onion:cooked"], "produces": ["beef:tender", "onion:sauce"]},
+        {"text": "Ošúp {potato.amount} {potato.name}, väčšie prekroj na polovice a vlož zemiaky do hrnca. Dolej studenú vodu tak, aby boli ponorené, a vodu osoľ. Var zemiaky v hrnci na miernom ohni 20 minút, kým zmäknú.", "requires": ["potato:raw"], "produces": ["potato:cooked"]},
+        {"text": "Dochuť šťavu soľou a čiernym korením. Ak je riedka, povar ju bez pokrievky ešte 5 minút, kým zhustne. Nakrájaj {parsley.amount} {parsley.name} {parsley.cut}. Sceď zemiaky a premiešaj ich s petržlenovou vňaťou.", "requires": ["parsley:raw", "potato:cooked"], "produces": ["parsley:mixed", "potato:dressed"]},
+        {"text": "Podávaj hovädzie na cibuľke so šťavou a zemiakmi. Rozdeľ jedlo na {portions} porcií.", "requires": ["beef:tender", "flour:used", "oil:used", "onion:sauce", "paprika:cooked", "caraway:cooked", "mustard:cooked", "potato:dressed", "parsley:mixed"], "produces": ["beef:served", "flour:served", "oil:served", "onion:served", "paprika:served", "caraway:served", "mustard:served", "potato:served", "parsley:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Mäso so šťavou a zemiaky rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní. Mäso zohrievaj v šťave pod pokrievkou, kým začne bublať."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_beef_onion_potatoes",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/hovadzia-rostenka-na-cibuli-fotorecept/59840-recept.html", "title": "Hovädzia roštenka na cibuli (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/82040/hovadzia-rostenka-na-cibulke-chutny-obed-nielen-na-nedelu/", "title": "Hovädzia roštenka na cibuľke: Chutný obed (nielen) na nedeľu  | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

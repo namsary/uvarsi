@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "quick_beef_stroganoff_noodles",
+      "version": 2,
+      "active": true,
+      "name_template": "Hovädzí stroganov s rezancami",
+      "family": "quick_beef_stroganoff_noodles",
+      "method": "pan",
+      "minutes": 55,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľká panvica", "pokrievka", "hrniec", "sitko", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "beef", "role": "protein", "candidates": ["beef_round"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenké rezančeky", "water_ml_per_adult": "150"},
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "40"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "mushrooms", "role": "vegetable", "candidates": ["mushrooms"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky"},
+        {"key": "pickles", "role": "vegetable", "candidates": ["pickled_cucumber"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na tenké pásiky"},
+        {"key": "mustard", "role": "seasoning", "candidates": ["mustard"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "sourcream", "role": "dairy", "candidates": ["sour_cream"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "6", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {beef.amount} {beef.name} naprieč vláknami na tenké rezančeky, {onion.amount} {onion.name} nadrobno, {mushrooms.amount} {mushrooms.name} na plátky, {pickles.amount} {pickles.name} na tenké pásiky a {parsley.amount} {parsley.name} nadrobno. Mäso osoľ a okoreň.", "requires": ["beef:raw", "onion:raw", "mushrooms:raw", "pickles:raw", "parsley:raw"], "produces": ["beef:cut", "onion:cut", "mushrooms:cut", "pickles:cut", "parsley:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na silnom ohni 2 minúty, kým sa začne lesknúť. Opekaj hovädzie zadné bez kosti v panvici na silnom ohni 3 minúty, kým bude zo všetkých strán zatiahnuté a zlatisté, a vyber ho na tanier. Pri väčšej dávke ho opekaj po častiach.", "requires": ["oil:raw", "beef:cut", "velka_panvica:free"], "produces": ["oil:used", "beef:browned", "velka_panvica:occupied"]},
+        {"text": "Pridaj cibuľu do panvice. Opekaj cibuľu na strednom ohni 4 minúty, kým bude dosklovita. Pridaj šampiňóny do panvice a opekaj ich 5 minút, kým zmäknú a šťava sa odparí. Mrazené šampiňóny nerozmrazuj, daj ich do panvice rovno z mrazničky a opekaj ich o 4 minúty dlhšie.", "requires": ["onion:cut", "mushrooms:cut", "oil:used", "velka_panvica:occupied"], "produces": ["onion:cooked", "mushrooms:cooked"]},
+        {"text": "Odstav panvicu z ohňa, prisyp {paprika.amount} {paprika.name} a premiešaj. Vráť mäso do panvice. Prilej {beef.water} vody a vmiešaj {mustard.amount} {mustard.name}.", "requires": ["paprika:raw", "mustard:raw", "beef:browned", "mushrooms:cooked", "velka_panvica:occupied"], "produces": ["paprika:combined", "mustard:combined", "beef:sauce"]},
+        {"text": "Prikry panvicu pokrievkou. Dus hovädzie zadné bez kosti na miernom ohni 30 minút, kým mäso zmäkne. Ak sa šťava príliš odparí, dolej trochu vody. Pri veľkej dávke použi široký hrniec.", "requires": ["beef:sauce", "velka_panvica:occupied", "pokrievka:free"], "produces": ["beef:braised", "pokrievka:free"]},
+        {"text": "Uvar {pasta.amount} {pasta.name} v hrnci s osolenou vodou na strednom ohni asi 9 minút, kým budú mäkké, ale stále pevné. Odober z hrnca {pasta.water} vody a potom cestoviny sceď cez sitko.", "requires": ["pasta:raw", "hrniec:free", "sitko:free"], "produces": ["pasta:cooked", "hrniec:free", "sitko:free"]},
+        {"text": "Premiešaj v miske {sourcream.amount} {sourcream.name} a {flour.amount} {flour.name} do hladka. Primiešaj k zmesi 3 lyžice horúcej šťavy z panvice, aby sa smotana nezrazila.", "requires": ["sourcream:raw", "flour:raw", "beef:braised", "miska:free"], "produces": ["sourcream:tempered", "flour:tempered", "miska:occupied"]},
+        {"text": "Vmiešaj kyslú smotanu do panvice. Pridaj sterilizované uhorky do panvice. Zohrievaj hovädzie zadné bez kosti v omáčke na miernom ohni 3 minúty, kým omáčka zhustne a jemne bublá. Ak je hustá, prilievaj po troškách odloženú vodu z cestovín.", "requires": ["sourcream:tempered", "flour:tempered", "pickles:cut", "beef:braised", "velka_panvica:occupied"], "produces": ["sourcream:cooked", "flour:cooked", "pickles:cooked", "beef:cooked", "miska:free"]},
+        {"text": "Dochuť stroganov soľou a čiernym korením až po ochutnaní. Rozdeľ cestoviny na {portions} porcií, navrch rozlož stroganov s omáčkou, ozdob ho petržlenovou vňaťou a podávaj.", "requires": ["beef:cooked", "pasta:cooked", "onion:cooked", "mushrooms:cooked", "pickles:cooked", "mustard:combined", "sourcream:cooked", "flour:cooked", "paprika:combined", "oil:used", "parsley:cut", "velka_panvica:occupied"], "produces": ["beef:served", "pasta:served", "onion:served", "mushrooms:served", "pickles:served", "mustard:served", "sourcream:served", "flour:served", "paprika:served", "oil:served", "parsley:served", "velka_panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Stroganov a cestoviny ulož oddelene do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a omáčku prehrievaj na miernom ohni, aby sa smotana nezrazila."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_beef_stroganoff_noodles",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/hovadzi-stroganov/89740-recept.html", "title": "Hovädzí stroganov - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/34284/hovadzi-stroganov/", "title": "Hovädzí Stroganov | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

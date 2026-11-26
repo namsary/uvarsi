@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "d5e306b69854937fc7ede4534644baa146ff859dcf9fe0d52c97a7f1c7f55c10",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "classic_pork_cabbage_dumpling"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

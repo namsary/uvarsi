@@ -1,5 +1,2380 @@
 {
   "schema_version": 1,
   "wave": 2,
-  "targets": []
+  "targets": [
+    {
+      "id": "classic_pork_schnitzel_potato_salad",
+      "display_name": "Vyprážaný bravčový rezeň so zemiakovým šalátom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/35993/rezen-so-zemiakovym-salatom/",
+          "title": "Rezeň so zemiakovým šalátom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcove-rezne-nedelna-klasika-podla-babky/89873-recept.html",
+          "title": "Bravčové rezne, nedeľná klasika podľa babky - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/31190/zemiakovy-salat/",
+          "title": "Zemiakový šalát | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Vyprážaný bravčový rezeň so zemiakovým šalátom je nedeľná a sviatočná klasika, ktorú pozná každá slovenská rodina."
+    },
+    {
+      "id": "classic_chicken_schnitzel_mash",
+      "display_name": "Vyprážaný kurací rezeň so zemiakovou kašou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/40043/klasicke-vyprazane-kuracie-prsia/",
+          "title": "Klasické vyprážané kuracie prsia | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/nedelne-kuracie-rezne/86175-recept.html",
+          "title": "Nedeľné kuracie rezne - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/25358/vyprazany-rezen-so-zemiakovou-kasou/",
+          "title": "Vyprážaný rezeň so zemiakovou kašou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Kurací rezeň so zemiakovou kašou je najčastejší rodinný obed, ktorý zjedia aj deti."
+    },
+    {
+      "id": "classic_fried_cheese_potatoes",
+      "display_name": "Vyprážaný syr s varenými zemiakmi a tatárskou omáčkou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/4173/fotorecept-vyprazany-syr/",
+          "title": "FOTORECEPT: Vyprážaný syr | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/vyprazany-syr-obaleny-v-2-x-trojobale/21745-recept.html",
+          "title": "Vyprážaný syr obalený v 2 x trojobale - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Vyprážaný syr s tatárskou omáčkou je najobľúbenejšie bezmäsité jedlo slovenských jedální aj domácností."
+    },
+    {
+      "id": "classic_fried_cauliflower_potatoes",
+      "display_name": "Vyprážaný karfiol so zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/25021/vyprazany-karfiol-so-zemiakmi/",
+          "title": "Vyprážaný karfiol so zemiakmi | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/bleskovo-vyprazeny-karfiol-fotorecept/64470-recept.html",
+          "title": "Bleskovo vypražený karfiol (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/16031/vyprazany-karfiol/",
+          "title": "Vyprážaný karfiol | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Vyprážaný karfiol so zemiakmi a tatárskou omáčkou je tradičné bezmäsité jedlo, ktoré varí väčšina slovenských domácností."
+    },
+    {
+      "id": "classic_stuffed_cabbage_rolls",
+      "display_name": "Holúbky v paradajkovej omáčke",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/holubky-fotorecept/16735-recept.html",
+          "title": "Holúbky (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/1251/holubky/",
+          "title": "Holúbky | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Holúbky v paradajkovej omáčke sú tradičné sviatočné aj nedeľné jedlo, ktoré sa dá uvariť dopredu na viac dní."
+    },
+    {
+      "id": "classic_svieckova_dumpling",
+      "display_name": "Sviečková na smotane s knedľou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/najlepsia-svieckova-na-smotane-s-mnozstvom-zeleniny-videorecept/77351-recept.html",
+          "title": "Najlepšia sviečková na smotane s množstvom zeleniny (videorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/26098/svieckova-na-smotane/",
+          "title": "Sviečková na smotane | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Sviečková na smotane s knedľou je vrchol slovenskej a českej nedeľnej kuchyne a v knižnici nesmie chýbať."
+    },
+    {
+      "id": "classic_tomato_sauce_beef_dumpling",
+      "display_name": "Rajská omáčka s hovädzím mäsom a knedľou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/hovadzie-maso-s-paradajkovou-omackou/32853-recept.html",
+          "title": "Hovädzie mäso s paradajkovou omáčkou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/20090/varene-hovadzie-maso-s-paradajkovou-omackou/",
+          "title": "Varené hovädzie mäso s paradajkovou omáčkou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/37523/paradajkova-omacka-s-hovadzim-masom/",
+          "title": "Paradajková omáčka s hovädzím mäsom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Rajská omáčka s vareným hovädzím mäsom a knedľou je obľúbená klasika školských jedální aj rodinných obedov."
+    },
+    {
+      "id": "classic_dill_sauce_egg_potatoes",
+      "display_name": "Koprová omáčka s vajcom a zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/26589/klasicka-koprova-omacka/",
+          "title": "Klasická kôprová omáčka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/koprova-omacka-fotorecept/32125-recept.html",
+          "title": "Kôprová omáčka (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Kôprová omáčka s vajcom a zemiakmi je lacné a výživné bezmäsité jedlo, ktoré slovenské rodiny varia generácie."
+    },
+    {
+      "id": "classic_mushroom_sauce_dumpling",
+      "display_name": "Hubová omáčka s knedľou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/hubova-omacka-fotorecept/84481-recept.html",
+          "title": "Hubová omáčka (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/34294/kremova-sampinonova-omacka/",
+          "title": "Krémová šampiňónová omáčka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/hubova-omacka/4715-recept.html",
+          "title": "Hubová omáčka - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Hubová omáčka s knedľou je tradičné bezmäsité jedlo zo šampiňónov, ktoré sú v letákoch často v akcii."
+    },
+    {
+      "id": "classic_spanish_bird_rice",
+      "display_name": "Španielsky vtáčik s ryžou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/20099/spanielsky-vtacik/",
+          "title": "Španielsky vtáčik | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/jednoduche-spanielske-vtaciky/26026-recept.html",
+          "title": "Jednoduché španielské vtáčiky - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/30401/fotorecept-spanielsky-vtacik/",
+          "title": "FOTORECEPT: Španielsky vtáčik | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Španielsky vtáčik s ryžou je známe sviatočné jedlo z hovädzieho mäsa, ktoré má v slovenskej kuchyni pevné miesto."
+    },
+    {
+      "id": "classic_znojmo_beef_rice",
+      "display_name": "Znojemská hovädzia pečienka s ryžou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/26456/znojemska-pecienka/",
+          "title": "Znojemská pečienka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/hovadzie-na-znojemsky-sposob-fotorecept/55730-recept.html",
+          "title": "Hovädzie na znojemský spôsob (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Znojemská pečienka s kyslými uhorkami a ryžou je tradičné jedlo z hovädzieho zadného, ktoré poznajú najmä starší členovia rodiny."
+    },
+    {
+      "id": "classic_pork_cabbage_dumpling",
+      "display_name": "Pečené bravčové s dusenou kapustou a knedľou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcove-pecene-s-kyslou-kapustou-a-knedlou-fotorecept/30414-recept.html",
+          "title": "Bravčové pečené s kyslou kapustou a knedľou  (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/49294/pecene-bravcove-maso-s-kyslou-kapustou/",
+          "title": "Pečené bravčové mäso s kyslou kapustou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Pečené bravčové s dusenou kapustou a knedľou je najtypickejší nedeľný obed v slovenských a českých rodinách."
+    },
+    {
+      "id": "classic_roast_chicken_potatoes",
+      "display_name": "Pečené kura so zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/15067/pecene-kurca/",
+          "title": "Pečené kurča | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/jednoduche-pecene-kuracie-stehna-na-zemiakoch/84607-recept.html",
+          "title": "Jednoduché pečené kuracie stehná na zemiakoch - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Pečené kura so zemiakmi je nedeľný obed, pri ktorom stačí jeden pekáč a výsledok poteší celú rodinu."
+    },
+    {
+      "id": "classic_chicken_cream_mushrooms_rice",
+      "display_name": "Kuracie prsia na smotane so šampiňónmi a ryžou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuracie-na-smotane-a-sampinonoch/83037-recept.html",
+          "title": "Kuracie na smotane a šampiňónoch - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/73465/kuracie-prsia-na-smotane-s-ryzou/",
+          "title": "Kuracie prsia na smotane s ryžou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Kuracie prsia na smotane so šampiňónmi a ryžou sú rýchle, bielkovinové a deťmi obľúbené jedlo do týždňa."
+    },
+    {
+      "id": "classic_garlic_pork_chops_potatoes",
+      "display_name": "Bravčové kotlety na cesnaku so zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/30389/bravcove-kotlety-na-cesnaku/",
+          "title": "Bravčové kotlety na cesnaku | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/cesnakove-bravcove-rezne-fotorecept/11150-recept.html",
+          "title": "Cesnakové bravčové rezne (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Bravčové kotlety na cesnaku so zemiakmi sú jednoduché a rýchle mäsové jedlo s výraznou cesnakovou šťavou."
+    },
+    {
+      "id": "classic_bryndza_pirohy",
+      "display_name": "Bryndzové pirohy so slaninou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/bryndzove-pirohy-so-slaninkou-fotorecept/75552-recept.html",
+          "title": "Bryndzové pirohy so slaninkou (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/32629/bryndzove-pirohy-s-udenou-slaninou/",
+          "title": "Bryndzové pirohy s údenou slaninou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/34975/bryndzove-pirohy-so-zemiakovou-plnkou/",
+          "title": "Bryndzové pirohy so zemiakovou plnkou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Bryndzové pirohy so slaninou sú vedľa halušiek najznámejším jedlom z bryndze a patria k slovenskej identite."
+    },
+    {
+      "id": "classic_poppy_seed_potato_rolls",
+      "display_name": "Zemiakové šúľance s makom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/31015/zemiakove-sulance-s-makom/",
+          "title": "Zemiakové šúľance s makom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/bezlepkove-makove-sulance-videorecept/89370-recept.html",
+          "title": "Bezlepkové makové šúľance (videorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/14586/zemiakove-sulance-s-makom/",
+          "title": "Zemiakové šúľance s makom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Zemiakové šúľance s makom sú tradičné sladké hlavné jedlo, ktoré deti aj dospelí poznajú zo slovenských kuchýň."
+    },
+    {
+      "id": "classic_tokan_rice",
+      "display_name": "Bravčový tokáň s ryžou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcovy-tokan-fotorecept/66664-recept.html",
+          "title": "Bravčový tokáň (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/32596/bravcovy-tokan/",
+          "title": "Bravčový tokáň | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcovy-tokan/82523-recept.html",
+          "title": "Bravčový tokáň - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Bravčový tokáň s ryžou je rýchlejšia omáčková klasika z bravčového mäsa, pretlaku a kyslých uhoriek."
+    },
+    {
+      "id": "classic_potato_goulash_sausage",
+      "display_name": "Zemiakový guláš s klobásou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/falosny-gulas/19281-recept.html",
+          "title": "Falošný guláš - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/25477/fotorecept-falosny-gulas/",
+          "title": "FOTORECEPT: Falošný guláš | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Zemiakový guláš s klobásou je lacné a sýte jedlo z jedného hrnca, ktoré sa dá uvariť na viac dní."
+    },
+    {
+      "id": "classic_sauerkraut_sausage_potatoes",
+      "display_name": "Kyslá kapusta s klobásou a zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/47182/klobasky-s-kyslou-kapustou/",
+          "title": "Klobásky s kyslou kapustou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/dusena-cervena-kapusta-a-karamelova-kysla-kapusta-fotorecept/78303-recept.html",
+          "title": "Dusená červená kapusta a karamelová kyslá kapusta (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/25237/kysla-kapusta-s-klobasou-a-bocikom/",
+          "title": "Kyslá kapusta s klobásou a bôčikom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Dusená kyslá kapusta s klobásou a zemiakmi je jednoduché zimné jedlo z lacných surovín, ktoré má každá slovenská rodina rada."
+    },
+    {
+      "id": "quick_chicken_broccoli_stir_fry",
+      "display_name": "Kuracie rezančeky s brokolicou a ryžou",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/4484/kuracie-rezance-na-brokolici-a-sezame/",
+          "title": "Kuracie rezance na brokolici a sezame | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuracie-prsicka-na-orientalny-sposob/61446-recept.html",
+          "title": "Kuracie prsičká na orientálny spôsob - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Rýchle kuracie rezančeky s brokolicou v sójovej omáčke sú obľúbená večera z jednej panvice a ryža k nim nasiakne šťavu."
+    },
+    {
+      "id": "quick_spaghetti_carbonara",
+      "display_name": "Špagety carbonara so slaninou",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/79643/nase-spagety-carbonara/",
+          "title": "Naše špagety carbonara | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/spagety-carbonara-fotorecept/86484-recept.html",
+          "title": "Špagety Carbonara (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Carbonara zo slaniny, vajec a parmezánu je rýchla večera, ktorú deti aj dospelí poznajú, a odložená voda z cestovín ju udrží krémovú."
+    },
+    {
+      "id": "quick_sausage_tomato_pasta",
+      "display_name": "Cestoviny s klobásou a paradajkami",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/cestoviny-s-klobaskou/51103-recept.html",
+          "title": "Cestoviny s klobáskou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/18564/cestovina-s-klobaskou/",
+          "title": "Cestovina s klobáskou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Cestoviny s údenou klobásou v paradajkovej omáčke sú lacná a sýta večera z bežných surovín, ktorú zvládne každý za pol hodiny."
+    },
+    {
+      "id": "quick_garlic_chicken_spaghetti",
+      "display_name": "Cesnakové špagety s kuracím mäsom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/14766/spagety-s-cesnakom/",
+          "title": "Špagety s cesnakom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/spagety-s-cesnakom-a-parmezanom-fotorecept/14243-recept.html",
+          "title": "Špagety s cesnakom a parmezánom (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/spagety-s-kuracim-masom-fotorecept/58732-recept.html",
+          "title": "Špagety s kuracím mäsom (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Cesnakové špagety s kuracím mäsom a parmezánom sú jednoduché, bielkovinové a omáčku z masla a vody z cestovín zvládne aj začiatočník."
+    },
+    {
+      "id": "quick_ham_cheese_omelette",
+      "display_name": "Omeleta so šunkou a syrom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/omeleta-so-sunkou-a-syrom-na-chrumkavom-chlebe/90702-recept.html",
+          "title": "Omeleta so šunkou a syrom na chrumkavom chlebe - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/18827/omeleta-so-sunkou-a-paprikou/",
+          "title": "Omeleta so šunkou a paprikou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Omeleta so šunkou a syrom je desaťminútová bielkovinová večera, ktorú doma uvaria aj deti, a s chlebom a paradajkami nasýti dospelého."
+    },
+    {
+      "id": "quick_vegetable_omelette_potatoes",
+      "display_name": "Zeleninová omeleta s opekanými zemiakmi",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/28430/zeleninova-omeleta/",
+          "title": "Zeleninová omeleta | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/zeleninova-omeleta/34047-recept.html",
+          "title": "Zeleninová omeleta - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Zeleninová omeleta so zemiakmi z jednej panvice je lacná bezmäsitá večera, v ktorej sa zužitkuje zelenina z chladničky."
+    },
+    {
+      "id": "quick_chicken_quesadilla",
+      "display_name": "Kuracie quesadilly so syrom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/65863/quesadillas-s-kuracim-masom-zeleninou-a-cili-paprickou/",
+          "title": "Quesadillas s kuracím mäsom, zeleninou a čili papričkou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuracia-fajita-quesadilla/70874-recept.html",
+          "title": "Kuracia fajita quesadilla - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Kuracie quesadilly s paprikou, kukuricou a syrom sú rýchla večera z panvice, ktorú deti jedia rukami a dospelí ocenia pre veľa bielkovín."
+    },
+    {
+      "id": "quick_bean_cheese_quesadilla",
+      "display_name": "Fazuľové quesadilly so syrom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/77736/quesadillas-s-ciernou-fazulou-videorecept/",
+          "title": "Quesadillas s čiernou fazuľou, VIDEORECEPT | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/zapecene-quesadilly-s-fazulou-a-so-zeleninou/78106-recept.html",
+          "title": "Zapečené „quesadilly“ s fazuľou a so zeleninou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Fazuľové quesadilly so syrom sú sýta bezmäsitá večera z konzervy a tortíl, hotová za pol hodiny."
+    },
+    {
+      "id": "quick_beef_stroganoff_noodles",
+      "display_name": "Hovädzí stroganov s rezancami",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/hovadzi-stroganov/89740-recept.html",
+          "title": "Hovädzí stroganov - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/34284/hovadzi-stroganov/",
+          "title": "Hovädzí Stroganov | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Hovädzí stroganov s kyslou smotanou, horčicou a šampiňónmi je klasika domácej kuchyne a s rezancami z neho je bielkovinová večera do hodiny."
+    },
+    {
+      "id": "quick_homemade_burgers",
+      "display_name": "Domáce hovädzie burgery so zeleninou",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/72050/domaci-hamburger/",
+          "title": "FOTORECEPT: Domáci hamburger | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/hovadzi-hamburger-s-domacou-zemlou/80862-recept.html",
+          "title": "Hovädzí hamburger s domácou žemľou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Domáce hovädzie burgery so syrom a čerstvou zeleninou sú víkendovo obľúbené jedlo, ktoré sa dá pripraviť aj vo všedný deň za necelú hodinu."
+    },
+    {
+      "id": "quick_oven_chicken_nuggets",
+      "display_name": "Kuracie nugetky z rúry so zemiakmi",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/79858/kuracie-nugetky-pecene-v-rure-fantasticke/",
+          "title": "Kuracie nugetky pečené v rúre: Fantastické | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/pecene-kuracie-nugetky/68486-recept.html",
+          "title": "Pečené kuracie nugetky - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Kuracie nugetky pečené v rúre so zemiakmi majú radi najmä deti a obaľovanie v múke, vajci a strúhanke bez vyprážania je ľahšie aj na upratovanie."
+    },
+    {
+      "id": "quick_pita_pizzas",
+      "display_name": "Rýchle pita pizze so šunkou",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/13127/pizze-z-chleba-pita/",
+          "title": "Pizze z chleba pita | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/pitapizza-fotorecept/77091-recept.html",
+          "title": "Pitapizza (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Pita pizze so šunkou a mozzarellou sú hotové za 25 minút bez kysnutia cesta a deti si ich radi pomáhajú obkladať."
+    },
+    {
+      "id": "quick_chicken_gyros_pita",
+      "display_name": "Kurací gyros v pite s tzatziki",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/2106/gyros-s-tzatziki/",
+          "title": "Gyros s tzatziki | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/domaci-kuraci-gyros-pozrite-si-tu-vychytavku-ako-ho-upiect-v-rure-vi/90260-recept.html",
+          "title": "Domáci kurací gyros. Pozrite si tú vychytávku, ako ho upiecť v rúre! (videorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Kurací gyros v pite s domácim tzatziki je obľúbené pouličné jedlo, ktoré sa doma pripraví z kuracích stehien na jednej panvici."
+    },
+    {
+      "id": "quick_ham_peas_pasta",
+      "display_name": "Cestoviny so šunkou a hráškom na smotane",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/20453/cestoviny-so-sunkou-s-hraskom-a-so-smotanou/",
+          "title": "Cestoviny so šunkou, s hráškom a so smotanou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/spagety-s-hraskom-a-so-sunkou-fotorecept/88624-recept.html",
+          "title": "Špagety s hráškom a so šunkou (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Cestoviny so šunkou a hráškom na smotane sú rýchla rodinná klasika z lacných surovín, ktorú deti takmer vždy zjedia."
+    },
+    {
+      "id": "quick_eggs_spinach_potatoes",
+      "display_name": "Dusený špenát so zemiakmi a volským okom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/51490/duseny-mrazeny-spenat/",
+          "title": "Dusený mrazený špenát | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/mamickin-spenat/69152-recept.html",
+          "title": "Mamičkin špenát - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Dusený špenát so zemiakmi a volským okom je slovenská klasika z detstva, lacná a hotová za 40 minút aj z mrazeného špenátu."
+    },
+    {
+      "id": "quick_tuna_rice_salad",
+      "display_name": "Ryžový šalát s tuniakom a kukuricou",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/10007/ryzovy-salat-s-tuniakom/",
+          "title": "Ryžový šalát s tuniakom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/ryzovo-tuniakovy-salat/87900-recept.html",
+          "title": "Ryžovo-tuniakový šalát - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/17191/ryzovy-salat-so-zeleninou/",
+          "title": "Ryžový šalát so zeleninou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Ryžový šalát s tuniakom, kukuricou a vajcom je sýta studená večera alebo obed do krabičky z lacných trvanlivých surovín."
+    },
+    {
+      "id": "quick_chicken_couscous_vegetables",
+      "display_name": "Kurací kuskus so zeleninou z panvice",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/83741/kuskus-s-cuketou-a-kuracim-masom-vynikajuci-lahky-obed-hotovy-za-par-minut/",
+          "title": "Kuskus s cuketou a kuracím mäsom: Vynikajúci ľahký obed hotový za pár minút | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuskus-so-zeleninou-a-kuracinou/57466-recept.html",
+          "title": "Kuskus so zeleninou a kuracinou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Kurací kuskus so zeleninou z panvice je hotový za pol hodiny, kuskus netreba variť a jogurt k nemu dodá šťavu."
+    },
+    {
+      "id": "quick_pork_strips_peppers_rice",
+      "display_name": "Bravčové rezančeky s paprikou a ryžou",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/12330/bravcove-maso-s-paprikou/",
+          "title": "Bravčové mäso s paprikou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcove-na-paprike/24661-recept.html",
+          "title": "Bravčové na paprike - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Bravčové rezančeky na paprike s ryžou sú domáca slovenská večera z panvice, pri ktorej sa chudé karé len krátko opečie a dovarí v omáčke."
+    },
+    {
+      "id": "quick_chicken_lemon_rice",
+      "display_name": "Citrónové kura s ryžou a hráškom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/citronove-kuracie-maso-fotorecept/44129-recept.html",
+          "title": "Citrónové kuracie mäso (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/39110/kurca-s-citronovou-omackou/",
+          "title": "Kurča s citrónovou omáčkou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Citrónové kura s maslovou omáčkou, ryžou a hráškom je ľahká a svieža večera, pri ktorej sa kuracie prsia opečú krátko a ostanú šťavnaté."
+    },
+    {
+      "id": "quick_halloumi_vegetable_traybake",
+      "display_name": "Zeleninový plech s grilovacím syrom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/77016/halloumi-na-zelenine/",
+          "title": "Halloumi na zelenine | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/grilovana-zelenina-so-syrom-halloumi/64173-recept.html",
+          "title": "Grilovaná zelenina so syrom halloumi - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Zeleninový plech so zemiakmi a grilovacím syrom je bezmäsitá večera, pri ktorej rúra urobí väčšinu práce a syr dodá bielkoviny."
+    },
+    {
+      "id": "fish_fried_cod_potato_salad",
+      "display_name": "Vyprážaná treska so zemiakovým šalátom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/12314/vyprazana-treska/",
+          "title": "Vyprážaná treska | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/file-fotorecept/35651-recept.html",
+          "title": "Filé (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/31190/zemiakovy-salat/",
+          "title": "Zemiakový šalát | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Vyprážaná ryba so zemiakovým šalátom je obľúbený slovenský obed, najmä v piatok a cez sviatky, a dopĺňa knižnicu o rybu v klasickom trojobale."
+    },
+    {
+      "id": "fish_baked_salmon_potatoes_dill",
+      "display_name": "Pečený losos s kôprovými zemiakmi",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/losos-s-koprovou-omackou-a-zemiakmi/8572-recept.html",
+          "title": "Losos s kôprovou omáčkou a zemiakmi - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/41904/peceny-losos/",
+          "title": "Pečený losos | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Losos z rúry s maslovými kôprovými zemiakmi je rýchle bielkovinové jedlo, ktoré slovenské rodiny poznajú z nedeľných obedov aj z akcií v letákoch."
+    },
+    {
+      "id": "fish_cod_butter_mash",
+      "display_name": "Treska na masle so zemiakovou kašou",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/30164/treska-na-masle/",
+          "title": "Treska na masle | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/aljasska-treska-s-koprovou-omackou-a-zemiakmi/55201-recept.html",
+          "title": "Aljašská treska s kôprovou omáčkou a zemiakmi - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/jednoduche-chutne-file/48001-recept.html",
+          "title": "Jednoduché chutné filé - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Treska opečená na masle so zemiakovou kašou je jednoduchá a lacná rybacia klasika, ktorá má veľa bielkovín a chutí aj deťom."
+    },
+    {
+      "id": "fish_baked_trout_potatoes",
+      "display_name": "Pečený pstruh so zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/pecene-pstruhy-fotorecept/15361-recept.html",
+          "title": "Pečené pstruhy (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/26829/pstruh-peceny-na-masle/",
+          "title": "Pstruh pečený na masle | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Pstruh pečený na masle s cesnakom a citrónom je tradičná slovenská sladkovodná ryba, ktorú rodiny kupujú celú a pečú spolu so zemiakmi."
+    },
+    {
+      "id": "fish_fish_cakes_potatoes",
+      "display_name": "Rybie karbonátky so zemiakmi",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/karbonatky-z-ryb/4465-recept.html",
+          "title": "Karbonátky z rýb - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/43301/rybaci-karbonatok-z-file/",
+          "title": "Rybací karbonátok z filé | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Rybie karbonátky z bieleho filé, namočeného pečiva a vajca sú šťavnatý spôsob, ako dostať rybu na tanier aj deťom, ktoré celé filé nejedia."
+    },
+    {
+      "id": "fish_homemade_fish_fingers",
+      "display_name": "Domáce rybie prsty so zemiakovou kašou",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/domace-rybie-prsty-fotorecept/39715-recept.html",
+          "title": "Domáce rybie prsty (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/84312/domace-rybie-prsty-take-dobre-nekupite/",
+          "title": "Domáce rybie prsty: Také dobré nekúpite! | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Domáce rybie prsty z tresky v trojobale so zemiakovou kašou sú detská obľúbenosť, ktorá nahradí mrazené polotovary čerstvou rybou z letáku."
+    },
+    {
+      "id": "fish_white_fish_vegetables_oven",
+      "display_name": "Rybie filé so zeleninou z rúry",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/aljasska-treska-so-zeleninou-fotorecept/62445-recept.html",
+          "title": "Aljašská treska so zeleninou (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/15788/rybie-file-so-zeleninou/",
+          "title": "Rybie filé so zeleninou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Biele rybie filé upečené na zelenine a zemiakoch v jednom pekáči je ľahké bielkovinové jedlo s minimom riadu, vhodné na bežný pracovný deň."
+    },
+    {
+      "id": "fish_salmon_teriyaki_rice",
+      "display_name": "Losos teriyaki s ryžou",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/losos-na-teriyaki-omacke/69456-recept.html",
+          "title": "Losos na teriyaki omáčke - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/69685/losos-na-sposob-teriyaki/",
+          "title": "Losos na spôsob Teriyaki | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Losos glazovaný v sladkoslanej sójovej omáčke s ryžou a brokolicou je moderné rodinné jedlo z bežných surovín a rýchlo sa pripraví."
+    },
+    {
+      "id": "fish_salmon_spinach_pasta",
+      "display_name": "Cestoviny s lososom a špenátom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/cestoviny-s-omackou-z-lososa-a-spenatu-fotorecept/47044-recept.html",
+          "title": "Cestoviny s omáčkou z lososa a špenátu (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/26879/fotorecept-losos-s-cestovinami-a-spenatom/",
+          "title": "Losos s cestovinami a špenátom, FOTORECEPT | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Krémové cestoviny s kúskami lososa a špenátom sú rýchla večera za pol hodiny, v ktorej deti zjedia aj zeleninu."
+    },
+    {
+      "id": "fish_tuna_pasta_bake",
+      "display_name": "Zapekané cestoviny s tuniakom",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/44685/zapekane-brokolicove-cestoviny-s-tuniakom/",
+          "title": "Zapekané brokolicové cestoviny s tuniakom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/tuna-mornay-tuniak-zapeceny-v-bielej-omacke-fotorecept/28494-recept.html",
+          "title": "Tuna Mornay - Tuniak zapečený v bielej omáčke (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Zapekané cestoviny s tuniakom a brokolicou v bielej omáčke využijú lacného tuniaka z konzervy a dajú sa uvariť dopredu na tri dni."
+    },
+    {
+      "id": "fish_mackerel_baked_potatoes",
+      "display_name": "Pečená makrela so zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/grilovana-makrela-s-extra-chrumkavymi-zemiakmi/7775-recept.html",
+          "title": "Grilovaná makrela s extra chrumkavými zemiakmi - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/17928/pecena-makrela-na-bylinkach/",
+          "title": "Pečená makrela na bylinkách | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Celá makrela pečená s cesnakom a bylinkami na rascových zemiakoch je lacná a výživná ryba, ktorú slovenské obchody pravidelne ponúkajú v akcii."
+    },
+    {
+      "id": "fish_fish_goulash",
+      "display_name": "Rybí guláš s chlebom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/28422/gulas-z-rybieho-file/",
+          "title": "Guláš z rybieho filé | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/gulas-z-kapra/122-recept.html",
+          "title": "Guláš z kapra - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/13462/rybaci-gulas/",
+          "title": "Rybací guláš | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Rybí guláš na paprike so zemiakmi a chlebom je sýte jedlo z jedného hrnca, ktoré prenáša chuť slovenského gulášu na lacné biele rybie filé."
+    },
+    {
+      "id": "turkey_breast_natural_rice",
+      "display_name": "Morčacie prsia na prírodno s ryžou",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/15592/telacie-rezne-na-prirodno/",
+          "title": "Teľacie rezne na prírodno | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcove-rezne-na-prirodno-s-cibulkovymi-zemiakmi/45545-recept.html",
+          "title": "Bravčové rezne na prírodno s cibuľkovými zemiakmi - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Prírodné rezne s vlastnou šťavou a ryžou sú základ slovenskej domácej kuchyne a s morčacími prsiami vznikne chudé, ale šťavnaté bielkovinové jedlo."
+    },
+    {
+      "id": "turkey_schnitzel_potatoes",
+      "display_name": "Morčací rezeň v cestíčku so zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/13285/morcacie-rezne-v-cesticku/",
+          "title": "Morčacie rezne v cestíčku | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/francuzske-morcacie-rezne-fotorecept/64743-recept.html",
+          "title": "Francúzske morčacie rezne (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Morčací rezeň vyprážaný v jemnom vaječnom cestíčku je ľahšia a šťavnatejšia obdoba klasického rezňa, ktorú slovenské mamy robia s petržlenovými zemiakmi."
+    },
+    {
+      "id": "turkey_cream_mushrooms_rice",
+      "display_name": "Morčacie na smotane so šampiňónmi",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/17922/morcacie-rezne-na-smotane/",
+          "title": "Morčacie rezne na smotane | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/morcacie-kusky-v-marinade-so-sampinonmi/57590-recept.html",
+          "title": "Morčacie kúsky v marináde so šampiňónmi - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Morčacie rezančeky v smotanovej omáčke so šampiňónmi a ryžou sú obľúbené rýchle jedlo, ktoré drží veľa bielkovín a dá sa uvariť na tri dni."
+    },
+    {
+      "id": "turkey_broccoli_stir_fry",
+      "display_name": "Morčacie s brokolicou z woku",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/81704/morcacie-kusky-s-brokolicou-jemne-a-stavnate/",
+          "title": "Morčacie kúsky s brokolicou: Jemné a šťavnaté | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/hovadzie-s-brokolicou-a-zelerom/43795-recept.html",
+          "title": "Hovädzie s brokolicou a zelerom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Morčacie rezančeky s brokolicou zo sójovej omáčky z woku sú rýchle chudé jedlo s ryžou, ktoré sa uvarí za pol hodiny z bežných surovín."
+    },
+    {
+      "id": "turkey_perkelt_pasta",
+      "display_name": "Morčací perkelt s cestovinami",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/morcaci-perkelt-paprikas/10283-recept.html",
+          "title": "Morčací perkelt (paprikáš) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/12787/morcaci-perkelt/",
+          "title": "Morčací perkelt | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Perkelt na cibuľke a sladkej paprike patrí k slovenskej klasike a s morčacím mäsom a cestovinami je to chudšia verzia, ktorá sa uvarí za necelú hodinu."
+    },
+    {
+      "id": "turkey_burgers",
+      "display_name": "Morčacie burgery so zeleninou",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/domaci-morcaci-hamburger/622-recept.html",
+          "title": "Domáci morčací hamburger - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/35901/morcacie-burgery/",
+          "title": "Morčacie burgery | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Domáce morčacie burgery s jogurtovou omáčkou a čerstvou zeleninou sú chudšia a bielkovinová alternatíva k hovädzím burgerom, ktorú majú radi aj tínedžeri."
+    },
+    {
+      "id": "turkey_stuffed_zucchini",
+      "display_name": "Cukety plnené morčacím mäsom",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/cuketa-plnena-mletym-masom-fotorecept/59937-recept.html",
+          "title": "Cuketa plnená mletým mäsom (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/1533/cuketa-plnena-mletym-masom/",
+          "title": "Cuketa plnená mletým mäsom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Cukety plnené mletým morčacím mäsom a zapečené so syrom v paradajkovej omáčke sú letná slovenská klasika s množstvom bielkovín a zeleniny."
+    },
+    {
+      "id": "turkey_curry_rice",
+      "display_name": "Morčacie kari s ryžou",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/morcacie-kari/60391-recept.html",
+          "title": "Morčacie kari - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/41020/fotorecept-morcacie-kari-so-zeleninkou/",
+          "title": "FOTORECEPT: Morčacie karí so zeleninkou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Jemné morčacie kari s jogurtom, hráškom a ryžou je obľúbené moderné rodinné jedlo s vysokým obsahom bielkovín, ktoré sa dobre uchová na tri dni."
+    },
+    {
+      "id": "soup_beef_broth_liver_dumplings",
+      "display_name": "Hovädzí vývar s pečeňovými haluškami",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/33495/hovadzia-polievka-s-pecenovymi-haluskami/",
+          "title": "Hovädzia polievka s pečeňovými haluškami | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/ako-uvarit-hovadzi-vyvar-videorecept/91196-recept.html",
+          "title": "Ako uvariť hovädzí vývar (videorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/mrkvova-polievocka-s-pecenovymi-haluskami/24951-recept.html",
+          "title": "Mrkvová polievočka s pečeňovými haluškami - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Hovädzí vývar s pečeňovými haluškami je nedeľná slovenská polievka, ktorá s kúskami mäsa a haluškami zasýti ako hlavné jedlo."
+    },
+    {
+      "id": "soup_leek_potato",
+      "display_name": "Pórová polievka so zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/porova-polievka-chutna-a-rychla/39054-recept.html",
+          "title": "Pórová polievka chutná a rýchla - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/26154/porova-polievka/",
+          "title": "Pórová polievka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/jednoducha-porova-polievka-s-oblacikmi/73293-recept.html",
+          "title": "Jednoduchá pórová polievka s obláčikmi - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Pórová polievka so zemiakmi a vajcovými obláčikmi je lacná domáca klasika, ktorá s chlebom poslúži ako celý obed."
+    },
+    {
+      "id": "soup_chicken_broth_noodles",
+      "display_name": "Slepačí vývar s rezancami a zeleninou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/domaca-slepacia-polievka/13912-recept.html",
+          "title": "Domáca slepačia polievka - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/13854/slepacia-polievka-s-rezancami/",
+          "title": "Slepačia polievka s rezancami | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Slepačí vývar s rezancami, mäsom a koreňovou zeleninou je najčastejšia slovenská nedeľná polievka a s celým kurčaťom zasýti aj ako hlavné jedlo."
+    },
+    {
+      "id": "soup_pea_smoked",
+      "display_name": "Hrachová polievka s údeným mäsom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/hrachova-polievka-s-udenym-masom/25401-recept.html",
+          "title": "Hrachová polievka s údeným mäsom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/2335/hrachova-polievka-so-zemiakmi/",
+          "title": "Hrachová polievka so zemiakmi | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Hustá hrachová polievka s údeným mäsom a zemiakmi je zimná slovenská klasika, ktorá s chlebom nahradí celý obed."
+    },
+    {
+      "id": "soup_kulajda",
+      "display_name": "Kulajda",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/ceska-kulajda/83268-recept.html",
+          "title": "Česká kulajda - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/10492/kulajda/",
+          "title": "Kulajda | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Kulajda so zemiakmi, hubami, kôprom a vajcom je obľúbená smotanová polievka zo slovensko-českej kuchyne, ktorá s chlebom zasýti ako obed."
+    },
+    {
+      "id": "soup_frankfurt",
+      "display_name": "Frankfurtská polievka",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/frankfurtska-polievka/15893-recept.html",
+          "title": "Frankfurtská polievka - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/11504/frankfurtska-polievka/",
+          "title": "Frankfurtská polievka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Frankfurtská polievka s párkami a zemiakmi je rýchla jedálenská aj domáca klasika, ktorú deti aj dospelí jedia s chlebom ako celý obed."
+    },
+    {
+      "id": "soup_vegetable",
+      "display_name": "Zeleninová polievka s ryžou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/16873/zeleninova-polievka-s-ryzou/",
+          "title": "Zeleninová polievka s ryžou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/rychla-zeleninova-polievka-mojej-babicky-videorecept/93798-recept.html",
+          "title": "Rýchla zeleninová polievka mojej babičky (videorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Zeleninová polievka s ryžou, hráškom a karfiolom je lacná rastlinná klasika z bežnej zeleniny, ktorá s chlebom poslúži ako ľahký obed."
+    },
+    {
+      "id": "soup_broccoli_cream",
+      "display_name": "Brokolicový krém",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/brokolicova-kremova-polievka/54534-recept.html",
+          "title": "Brokolicová krémová polievka - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/33873/kremova-brokolicova-polievka/",
+          "title": "Krémová brokolicová polievka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Brokolicový krém so zemiakom, syrom a krutónmi je moderná rodinná polievka, ktorú deti jedia aj vtedy, keď brokolicu inak odmietajú."
+    },
+    {
+      "id": "soup_pumpkin_cream",
+      "display_name": "Tekvicová krémová polievka",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kremova-polievka-z-maslovej-tekvice/55254-recept.html",
+          "title": "Krémová polievka z maslovej tekvice - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/33869/kremova-tekvicova-polievka/",
+          "title": "Krémová tekvicová polievka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/hokkaido-polievka-s-cervenou-sosovicou/81121-recept.html",
+          "title": "Hokkaido polievka s červenou šošovicou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Tekvicová krémová polievka je jesenná rodinná obľúbenkyňa a hrsť červenej šošovice jej dodá hustotu aj bielkoviny, aby s krutónmi zasýtila."
+    },
+    {
+      "id": "soup_mushroom",
+      "display_name": "Hubová polievka",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/hubova-polievka-fotorecept/63308-recept.html",
+          "title": "Hubová polievka (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/10494/hubova-polievka/",
+          "title": "Hubová polievka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Hubová polievka so zápražkou, zemiakmi, rascou a majoránom je tradičná slovenská polievka, ktorá s chlebom poslúži ako bezmäsitý obed."
+    },
+    {
+      "id": "soup_red_lentil",
+      "display_name": "Polievka z červenej šošovice",
+      "editorial_lane": "plant_based",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kremova-polievka-z-cervenej-sosovice-mercimek-orbas-fotorecept/79690-recept.html",
+          "title": "Krémová polievka z červenej šošovice (Mercimek çorbası) (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/44380/husta-polievka-z-cervenej-sosovice/",
+          "title": "Hustá polievka z červenej šošovice | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Hustá polievka z červenej šošovice s mrkvou a citrónom je rýchla rastlinná polievka s dostatkom bielkovín, ktorá s chlebom nahradí obed."
+    },
+    {
+      "id": "soup_minestrone",
+      "display_name": "Minestrone s cestovinami",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "vegetarian",
+        "vegan"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/rychla-minestrone-husta-zeleninova-polievka-s-fazulou-a-cestovinami/86171-recept.html",
+          "title": "Rýchla minestrone - hustá zeleninová polievka s fazuľou a cestovinami - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/36964/minestrone/",
+          "title": "Minestrone | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Minestrone s bielou fazuľou a cestovinami je hustá talianska zeleninová polievka, ktorá bez mäsa zasýti celú rodinu ako hlavné jedlo."
+    },
+    {
+      "id": "soup_chicken_white_bean",
+      "display_name": "Kuracia polievka s bielou fazuľou",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/fazulova-husta-stareho-zalesaka-fotorecept/61250-recept.html",
+          "title": "Fazuľová hustá starého zálesáka (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/10486/zeleninova-polievka-s-fazulou/",
+          "title": "Zeleninová polievka s fazuľou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Kuracia polievka s bielou fazuľou a koreňovou zeleninou je rýchla hustá polievka s vysokým obsahom bielkovín, ktorá s chlebom poslúži ako hlavné jedlo."
+    },
+    {
+      "id": "stew_kale",
+      "display_name": "Kelový prívarok s vajcom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kelovy-privarok-fotorecept/18794-recept.html",
+          "title": "Kelový prívarok (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/11617/fotorecept-kelovy-privarok/",
+          "title": "FOTORECEPT: Kelový prívarok | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Kelový prívarok so zemiakmi, cesnakovou zápražkou a volským okom je lacné jesenné a zimné jedlo, ktoré Slováci poznajú z domu aj zo školských jedální."
+    },
+    {
+      "id": "stew_green_beans_egg",
+      "display_name": "Prívarok zo zelenej fazuľky s vajcom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/fazulkovy-privarok-fotorecept/26931-recept.html",
+          "title": "Fazuľkový prívarok (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/68377/fazulkovy-privarok-s-volskym-okom/",
+          "title": "Fazuľkový prívarok s volským okom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Prívarok zo zelenej fazuľky so smotanou, kôprom a vajcom je letná klasika slovenských domácností, ktorú sa dá celý rok uvariť aj z mrazenej fazuľky."
+    },
+    {
+      "id": "stew_carrot_peas",
+      "display_name": "Mrkvový prívarok s hráškom a fašírkou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/hraskovo-mrkvovy-privarok/33218-recept.html",
+          "title": "Hráškovo-mrkvový prívarok - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/17565/dusena-mrkva-s-hraskom/",
+          "title": "Dusená mrkva s hráškom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Sladkastý mrkvový prívarok s hráškom a domácou fašírkou je detská obľúbenkyňa zo slovenských jedální aj domácností."
+    },
+    {
+      "id": "stew_cabbage",
+      "display_name": "Kapustový prívarok so zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kapustovy-privarok-s-paradajkami/1862-recept.html",
+          "title": "Kapustový prívarok s paradajkami - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/67748/kapustovy-privarok-so-smotanou/",
+          "title": "Kapustový prívarok so smotanou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Kapustový prívarok so zemiakmi, rascou a smotanou je lacné a sýte domáce jedlo z jesennej hlávkovej kapusty, ktoré k obedu dopĺňa vajce."
+    },
+    {
+      "id": "stew_bean_goulash",
+      "display_name": "Fazuľový guláš s klobásou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/fazula-na-sposob-gulasu/22257-recept.html",
+          "title": "Fazuľa na spôsob gulašu - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/45692/gulas-s-fazulou/",
+          "title": "Guláš s fazuľou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Fazuľový guláš s údenou klobásou a zemiakmi je sýte jedlo z jedného hrnca, ktoré sa na Slovensku varí doma aj na chate a podáva s chlebom."
+    },
+    {
+      "id": "stew_pork_goulash",
+      "display_name": "Bravčový guláš s chlebom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcovy-gulas-videorecept/94743-recept.html",
+          "title": "Bravčový guláš (videorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/29825/gulas-z-bravcoveho-pliecka/",
+          "title": "Guláš z bravčového pliecka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Bravčový guláš z pliecka s cibuľou a sladkou paprikou je najčastejší domáci guláš na Slovensku a k chlebu patrí rovnako ako ku knedli."
+    },
+    {
+      "id": "stew_mushroom_paprikash",
+      "display_name": "Hubový paprikáš s cestovinami",
+      "editorial_lane": "plant_based",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/27168/hubovy-paprikas/",
+          "title": "Hubový paprikáš | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/hubovy-paprikas-ii-/6604-recept.html",
+          "title": "Hubový paprikáš II. - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Hubový paprikáš so šampiňónmi, paprikou a smotanou je bezmäsitá obdoba kuracieho paprikáša, ktorú s cestovinami zje celá rodina."
+    },
+    {
+      "id": "classic_meatballs_dill_sauce",
+      "display_name": "Fašírky v kôprovej omáčke so zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/masove-gulky-s-koprovou-omackou-fotorecept/19261-recept.html",
+          "title": "Mäsové guľky s kôprovou omáčkou (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/48528/masove-gule-v-koprovej-omacke/",
+          "title": "Mäsové gule v kôprovej omáčke | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Fašírky v kôprovej omáčke s varenými zemiakmi sú tradičný slovenský obed z mletého mäsa so šťavnatou, jemne sladkokyslou omáčkou."
+    },
+    {
+      "id": "classic_pork_ribs_potatoes",
+      "display_name": "Pečené bravčové rebierka so zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/domace-bravcove-rebierka-na-cesnaku/56550-recept.html",
+          "title": "Domáce bravčové rebierka na cesnaku - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/3617/pecene-rebierka/",
+          "title": "Pečené rebierka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Pečené bravčové rebierka s rascovými zemiakmi pečenými vo výpeku sú obľúbené domáce víkendové jedlo z jedného pekáča."
+    },
+    {
+      "id": "classic_chicken_drumsticks_rice",
+      "display_name": "Pečené kuracie paličky s ryžou a hráškom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/18890/fotorecept-pecene-stehienka-s-hraskovou-ryzou/",
+          "title": "FOTORECEPT: Pečené stehienka s hráškovou ryžou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuracie-stehienka-pecene-so-zeleninou/86592-recept.html",
+          "title": "Kuracie stehienka pečené so zeleninou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Pečené kuracie paličky s hráškovou ryžou sú lacné a deťmi obľúbené rodinné jedlo s dostatkom bielkovín."
+    },
+    {
+      "id": "classic_liver_onion_rice",
+      "display_name": "Kuracia pečeň na cibuľke s ryžou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuracia-pecen-na-cibulke-fotorecept/80545-recept.html",
+          "title": "Kuracia pečeň na cibuľke (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/40747/kuracia-pecen-na-cibulke/",
+          "title": "Kuracia pečeň na cibuľke | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuracia-pecen-s-ryzou/93538-recept.html",
+          "title": "Kuracia pečeň s ryžou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Kuracia pečeň na cibuľke so šťavou a ryžou je rýchly a lacný slovenský obed bohatý na bielkoviny a železo."
+    },
+    {
+      "id": "classic_pork_mushroom_rice",
+      "display_name": "Bravčové so šampiňónmi a ryžou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/49358/bravcove-so-sampinonmi/",
+          "title": "Bravčové so šampiňónmi | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcove-na-prirodno-so-sampinonmi-fotorecept/14414-recept.html",
+          "title": "Bravčové na prírodno so šampiňónmi (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Bravčové so šampiňónovou omáčkou a ryžou je klasika jedální aj domácich kuchýň, s chudým karé a výdatnou porciou bielkovín."
+    },
+    {
+      "id": "classic_beef_onion_potatoes",
+      "display_name": "Hovädzie na cibuľke so zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/hovadzia-rostenka-na-cibuli-fotorecept/59840-recept.html",
+          "title": "Hovädzia roštenka na cibuli (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/82040/hovadzia-rostenka-na-cibulke-chutny-obed-nielen-na-nedelu/",
+          "title": "Hovädzia roštenka na cibuľke: Chutný obed (nielen) na nedeľu  | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Hovädzie dusené na cibuľke so zemiakmi je tradičné nedeľné jedlo, ktoré vďaka chudému zadnému mäsu ponúka veľa bielkovín."
+    },
+    {
+      "id": "classic_cevapcici_potatoes",
+      "display_name": "Čevapčiči s cibuľou a zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/cevapcici-so-zemiakmi-a-rukolovym-salatom/63979-recept.html",
+          "title": "Čevapčiči so zemiakmi a rukolovým šalátom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/12210/cevapcici/",
+          "title": "Čevapčiči | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Čevapčiči so zemiakmi, surovou cibuľou a horčicou sú balkánske jedlo, ktoré na Slovensku zdomácnelo ako rýchly obed z mletého mäsa."
+    },
+    {
+      "id": "classic_baked_pork_potatoes_onion",
+      "display_name": "Bravčové pliecko pečené na zemiakoch",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcove-pliecko-so-zemiakmi-z-jedneho-pekaca-fotorecept/89812-recept.html",
+          "title": "Bravčové pliecko so zemiakmi z jedného pekáča (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/36323/pecene-bravcove-pliecko/",
+          "title": "Pečené bravčové pliecko | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Bravčové pliecko pečené na zemiakoch s cibuľou a rascou je jednoduché domáce pekáčové jedlo, pri ktorom zemiaky nasajú šťavu z mäsa."
+    },
+    {
+      "id": "classic_chicken_ragout_rice",
+      "display_name": "Kurací ragú s ryžou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuracie-ragu-fotorecept/13928-recept.html",
+          "title": "Kuracie ragú (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/80562/dusene-kuracie-maso-na-hrasku-babickin-recept/",
+          "title": "Dusené kuracie mäso na hrášku: Babičkin recept | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Kurací ragú so zeleninou v smotanovej omáčke s ryžou je jemné rodinné jedlo s vysokým obsahom bielkovín, ktoré chutí aj deťom."
+    },
+    {
+      "id": "classic_potato_dumplings_smoked",
+      "display_name": "Zemiakové knedle s údeným mäsom a kapustou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/2668/zemiakove-knedle-plnene-udenym-masom/",
+          "title": "Zemiakové knedle plnené údeným mäsom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/knedlicky-s-udenym-masom/16732-recept.html",
+          "title": "Knedličky s údeným mäsom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Zemiakové knedličky plnené údeným mäsom na dusenej kyslej kapuste sú poctivé slovenské vidiecke jedlo na chladné dni."
+    },
+    {
+      "id": "classic_lokse_duck_cabbage",
+      "display_name": "Pečené kačacie stehno s kapustou a lokšami",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kacacie-stehna-na-kapuste-fotorecept/16625-recept.html",
+          "title": "Kačacie stehná na kapuste (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/72803/pecene-kacacie-stehna/",
+          "title": "Pečené kačacie stehná so sladkou kapustou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/domace-lokse-fotorecept/73955-recept.html",
+          "title": "Domáce lokše (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Pečené kačacie stehno s dusenou kapustou a lokšami je sviatočná slovenská klasika, ktorú rodiny pripravujú najmä na jeseň a v zime."
+    },
+    {
+      "id": "classic_egg_dumplings_cucumber",
+      "display_name": "Halušky s vajcom a uhorkovým šalátom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/halusky-s-vajcom/83734-recept.html",
+          "title": "Halušky s vajcom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/13271/halusky-s-vajcom/",
+          "title": "Halušky s vajcom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/11582/uhorkovy-salat/",
+          "title": "Uhorkový šalát | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Halušky s praženicou a sladkokyslým uhorkovým šalátom sú lacné a rýchle bezmäsité jedlo, ktoré varili ešte naše staré mamy."
+    },
+    {
+      "id": "classic_white_cabbage_dumplings",
+      "display_name": "Kapustové halušky",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/halusky-s-kapustou-fotorecept/15930-recept.html",
+          "title": "Halušky s kapustou (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/31024/kapustove-halusky/",
+          "title": "Kapustové halušky | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Zemiakové halušky s dusenou sladkastou bielou kapustou a kyslou smotanou sú tradičné bezmäsité slovenské jedlo z lacných surovín."
+    },
+    {
+      "id": "classic_potato_pancake_stuffed",
+      "display_name": "Plnená zemiaková placka s mäsovou zmesou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/plnena-zemiakova-placka-fotorecept/50778-recept.html",
+          "title": "Plnená zemiaková placka (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/32885/fotorecept-plnena-zemiakova-placka/",
+          "title": "FOTORECEPT: Plnená zemiaková placka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Chrumkavá zemiaková placka plnená bravčovou zmesou so zeleninou je obľúbené jedlo slovenských reštaurácií, ktoré sa dá urobiť aj doma."
+    },
+    {
+      "id": "classic_bacon_potatoes_eggs",
+      "display_name": "Pražené zemiaky so slaninou a vajcom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/79744/rychle-zemiaky-so-slaninou-a-volskym-okom-vecera-pre-celu-rodinu/",
+          "title": "Rýchle zemiaky so slaninou a volským okom: Večera pre celú rodinu | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/obratene-sedliacke-zemiaky-rychle/4443-recept.html",
+          "title": "Obrátené sedliacke zemiaky - rýchle - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Pražené zemiaky so slaninou a volským okom s kyslou uhorkou sú rýchla a sýta domáca večera z bežných surovín."
+    },
+    {
+      "id": "classic_baked_potatoes_sour_cream",
+      "display_name": "Pečené zemiaky s kyslou smotanou a cesnakom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/42898/fotorecept-pecene-zemiaky-s-cesnakovym-dresingom/",
+          "title": "Fotorecept: Pečené zemiaky s cesnakovým dresingom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/pecene-zemiaky-v-supke-alebo-jacket-potato/79576-recept.html",
+          "title": "Pečené zemiaky v šupke alebo „Jacket potato“ - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Pečené zemiaky so syrom a cesnakovou kyslou smotanou sú jednoduché bezmäsité jedlo, ktoré má rada celá rodina."
+    },
+    {
+      "id": "classic_noodles_cottage_bacon",
+      "display_name": "Rezance s tvarohom a slaninou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/domace-rezance-s-tvarohom-a-slaninkou/19056-recept.html",
+          "title": "Domáce rezance s tvarohom a slaninkou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/48525/rezance-s-tvarohom-a-slaninou/",
+          "title": "Rezance s tvarohom a slaninou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Rezance s tvarohom, opečenou slaninou a kyslou smotanou sú tradičné slovenské jedlo z regiónov, kde sa varilo z toho, čo dal dvor."
+    },
+    {
+      "id": "classic_rice_mushrooms_peas",
+      "display_name": "Ryža so šampiňónmi a hráškom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/47285/sampinonova-ryza/",
+          "title": "Šampiňónová ryža | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/risi-e-bisi-ryza-s-hraskom/86961-recept.html",
+          "title": "Risi e bisi - ryža s hráškom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Ryža so šampiňónmi, hráškom a syrom je lacné bezmäsité jedlo z jedného hrnca, ktoré sa dobre uchová na tri dni."
+    },
+    {
+      "id": "classic_chicken_liver_risotto",
+      "display_name": "Rizoto s kuracími pečienkami",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/4051/rizoto-s-hydinovou-pecienkou/",
+          "title": "Rizoto s hydinovou pečienkou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuracia-pecen-s-ryzou/93538-recept.html",
+          "title": "Kuracia pečeň s ryžou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Rizoto s kuracími pečienkami, mrkvou a hráškom je klasické slovenské rizoto, ktoré je lacné a bohaté na bielkoviny."
+    },
+    {
+      "id": "classic_sausage_lentils",
+      "display_name": "Šošovica na kyslo s klobásou",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kysla-sosovicova-omacka-s-udenou-klobasou-fotorecept/49950-recept.html",
+          "title": "Kyslá šošovicová omáčka s údenou klobásou (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/2980/sosovica-na-kyslo-s-klobaskou/",
+          "title": "Šošovica na kyslo s klobáskou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Šošovica na kyslo s opečenou klobásou a chlebom je výdatné tradičné jedlo, ktoré patrí do slovenskej kuchyne najmä v zime a na Nový rok."
+    }
+  ]
 }

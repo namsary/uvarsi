@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "8bd2613e4d7a9e81667dc8ef485eabb07ffdf16432b064d92bfad536b7faaec0",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "quick_oven_chicken_nuggets"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

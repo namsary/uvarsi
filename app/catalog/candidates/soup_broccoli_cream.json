@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "soup_broccoli_cream",
+      "version": 2,
+      "active": true,
+      "name_template": "Brokolicový krém",
+      "family": "soup_broccoli_cream",
+      "method": "soup",
+      "minutes": 40,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["veľký hrniec", "panvica", "ponorný mixér", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "broccoli", "role": "vegetable", "candidates": ["broccoli"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "250"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "80", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "najemno nastrúhaný"},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {broccoli.amount} {broccoli.name} na ružičky a ošúpaný hlúbik na tenké kolieska. Ošúp {potato.amount} {potato.name} a nakrájaj ich na malé kocky.", "requires": ["broccoli:raw", "potato:raw"], "produces": ["broccoli:cut", "potato:cut"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} najemno. Nastrúhaj {cheese.amount} {cheese.name} najemno.", "requires": ["onion:raw", "garlic:raw", "cheese:raw"], "produces": ["onion:cut", "garlic:cut", "cheese:grated"]},
+        {"text": "Rozohrej {butter.amount} {butter.name} vo veľkom hrnci na miernom ohni 1 minútu, kým začne bublať. Opekaj cibuľu 5 minút, kým bude dosklovita. Pridaj cesnak a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["butter:raw", "onion:cut", "garlic:cut", "velky_hrniec:free"], "produces": ["butter:used", "onion:cooked", "garlic:cooked", "velky_hrniec:occupied"]},
+        {"text": "Pridaj brokolicu a zemiaky do hrnca. Nalej {broccoli.water} vody do hrnca. Var brokolicu so zemiakmi vo veľkom hrnci na strednom ohni 15 minút, kým zemiaky zmäknú. Mrazenú brokolicu netreba rozmrazovať, daj ju do hrnca rovno z mrazničky.", "requires": ["broccoli:cut", "potato:cut"], "produces": ["broccoli:cooked", "potato:cooked"]},
+        {"text": "Odstav veľký hrniec z ohňa. Rozmixuj brokolicu so zemiakmi ponorným mixérom dohladka.", "requires": ["broccoli:cooked", "potato:cooked", "onion:cooked", "garlic:cooked", "butter:used"], "produces": ["broccoli:pureed", "potato:pureed", "onion:pureed", "garlic:pureed", "butter:pureed"]},
+        {"text": "Vlej {cream.amount} {cream.name} do hrnca. Zohrievaj brokolicu so smotanou vo veľkom hrnci na miernom ohni 3 minúty, kým krém začne jemne bublať. Ak je príliš hustý, zrieď ho trochou horúcej vody.", "requires": ["cream:raw", "broccoli:pureed"], "produces": ["cream:cooked", "broccoli:finished"]},
+        {"text": "Nakrájaj {bread.amount} {bread.name} na kocky veľké asi 1,5 cm. Opekaj biely chlieb na suchej panvici na strednom ohni 5 minút za občasného miešania, kým bude chrumkavý a zlatistý.", "requires": ["bread:raw", "panvica:free"], "produces": ["bread:toasted", "panvica:used"]},
+        {"text": "Dochuť krém soľou a čiernym korením až po ochutnaní, syr je slaný. Rozdeľ ho na {portions} porcií, na každú porciu nasyp tvrdý syr a krutóny a podávaj.", "requires": ["broccoli:finished", "potato:pureed", "onion:pureed", "garlic:pureed", "butter:pureed", "cream:cooked", "cheese:grated", "bread:toasted", "velky_hrniec:occupied", "panvica:used"], "produces": ["broccoli:served", "potato:served", "onion:served", "garlic:served", "butter:served", "cream:served", "cheese:served", "bread:served", "velky_hrniec:free", "panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Krém rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní a prehrievaj ho na miernom ohni. Krutóny a syr skladuj oddelene a nasyp ich na krém až na tanieri."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "soup_broccoli_cream",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/brokolicova-kremova-polievka/54534-recept.html", "title": "Brokolicová krémová polievka - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/33873/kremova-brokolicova-polievka/", "title": "Krémová brokolicová polievka | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

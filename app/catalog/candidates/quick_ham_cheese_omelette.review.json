@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "486e49c991175fb1865375408459839e1ef7fd153ad816d6b3795bc7a08eeca5",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "quick_ham_cheese_omelette"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

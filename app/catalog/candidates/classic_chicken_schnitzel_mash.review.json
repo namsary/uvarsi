@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "13a410d0d30a4b0c5bee67d3cd2fc8d33976f25ec313f496ba857e8cf8910744",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "classic_chicken_schnitzel_mash"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

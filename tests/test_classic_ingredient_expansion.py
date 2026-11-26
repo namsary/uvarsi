@@ -332,3 +332,319 @@ def test_new_ingredients_render_literal_slovak_quantity_reference_and_title_form
             "genitive": genitive,
             "instrumental": instrumental,
         }
+
+
+WAVE2_USDA_FDC_IDS = {
+    "allspice": "171315",
+    "bay_leaf": "170917",
+    "beef_round": "173982",
+    "breadcrumbs": "174928",
+    "caraway": "170918",
+    "celeriac": "170400",
+    "chicken_whole": "171447",
+    "mayonnaise": "171009",
+    "mustard": "172234",
+    "pickled_cucumber": "168558",
+    "poppy_seed": "171330",
+    "tartar_sauce": "171826",
+    "tomato_paste": "170459",
+}
+
+WAVE2_RENDER_FORMS = {
+    "allspice": (
+        "celého nového korenia",
+        "celé nové korenie",
+        "celého nového korenia",
+        "celým novým korením",
+    ),
+    "bay_leaf": ("bobkového listu", "bobkový list", "bobkového listu", "bobkovým listom"),
+    "beef_round": (
+        "hovädzieho zadného bez kosti",
+        "hovädzie zadné bez kosti",
+        "hovädzieho zadného bez kosti",
+        "hovädzím zadným bez kosti",
+    ),
+    "breadcrumbs": (
+        "pšeničnej strúhanky",
+        "pšeničnú strúhanku",
+        "pšeničnej strúhanky",
+        "pšeničnou strúhankou",
+    ),
+    "caraway": ("celej rasce", "celú rascu", "celej rasce", "celou rascou"),
+    "celeriac": ("zeleru", "zeler", "zeleru", "zelerom"),
+    "chicken_whole": ("celého kurčaťa", "celé kurča", "celého kurčaťa", "celým kurčaťom"),
+    "mayonnaise": ("majonézy", "majonézu", "majonézy", "majonézou"),
+    "mustard": (
+        "plnotučnej horčice",
+        "plnotučnú horčicu",
+        "plnotučnej horčice",
+        "plnotučnou horčicou",
+    ),
+    "pickled_cucumber": (
+        "sterilizovaných uhoriek",
+        "sterilizované uhorky",
+        "sterilizovaných uhoriek",
+        "sterilizovanými uhorkami",
+    ),
+    "poppy_seed": ("mletého maku", "mletý mak", "mletého maku", "mletým makom"),
+    "tartar_sauce": (
+        "tatárskej omáčky",
+        "tatársku omáčku",
+        "tatárskej omáčky",
+        "tatárskou omáčkou",
+    ),
+    "tomato_paste": (
+        "paradajkového pretlaku",
+        "paradajkový pretlak",
+        "paradajkového pretlaku",
+        "paradajkovým pretlakom",
+    ),
+}
+
+
+def test_wave2_ingredients_use_exact_sr_legacy_records():
+    catalog = load_ingredient_catalog()
+
+    for ingredient_id, fdc_id in WAVE2_USDA_FDC_IDS.items():
+        ingredient = catalog.by_id(ingredient_id)
+        source = ingredient.nutrition.source
+        assert "USDA FoodData Central SR Legacy (April 2018)" in source
+        assert f"FDC ID {fdc_id}," in source
+        assert "https://fdc.nal.usda.gov/download-datasets/" in source
+        assert ingredient.nutrition.verified_on == date(2026, 11, 26)
+
+
+def test_wave2_ingredients_render_slovak_forms():
+    title_forms = _slovak_title_forms()
+
+    for ingredient_id, expected in WAVE2_RENDER_FORMS.items():
+        quantity, reference, genitive, instrumental = expected
+        assert _QUANTITY_NAMES[ingredient_id] == quantity
+        assert _REFERENCE_NAMES[ingredient_id] == reference
+        assert title_forms[ingredient_id] == {
+            "genitive": genitive,
+            "instrumental": instrumental,
+        }
+
+
+def test_wave2_ingredient_states_stay_distinct():
+    catalog = load_ingredient_catalog()
+
+    assert catalog.resolve("kyslé uhorky").id == "pickled_cucumber"
+    assert catalog.resolve("uhorka").id == "cucumber"
+    assert catalog.resolve("hovädzie zadné").id == "beef_round"
+    assert catalog.resolve("hovädzie na guláš").id == "beef_chuck"
+    assert catalog.resolve("celé kurča").id == "chicken_whole"
+    assert catalog.resolve("kuracie stehná").id == "chicken_thigh"
+    assert catalog.by_id("chicken_whole").edible_ratio == Decimal("0.68")
+    assert catalog.by_id("celeriac").edible_ratio == Decimal("0.86")
+    assert catalog.by_id("bay_leaf").grams_per_piece == Decimal("0.2")
+    assert catalog.by_id("pickled_cucumber").grams_per_piece == Decimal("35")
+
+
+WAVE2_SOUP_USDA_FDC_IDS = {
+    "chicken_liver": "171060",
+    "frankfurters": "172964",
+    "green_beans": "169961",
+    "leek": "169246",
+    "savoy_cabbage": "170388",
+    "smoked_pork": "168288",
+    "white_beans_canned": "175204",
+}
+
+WAVE2_SOUP_RENDER_FORMS = {
+    "chicken_liver": (
+        "kuracej pečene",
+        "kuraciu pečeň",
+        "kuracej pečene",
+        "kuracou pečeňou",
+    ),
+    "frankfurters": ("párkov", "párky", "párkov", "párkami"),
+    "green_beans": (
+        "zelenej fazuľky",
+        "zelenú fazuľku",
+        "zelenej fazuľky",
+        "zelenou fazuľkou",
+    ),
+    "leek": ("póru", "pór", "póru", "pórom"),
+    "savoy_cabbage": ("kelu", "kel", "kelu", "kelom"),
+    "smoked_pork": (
+        "údeného bravčového mäsa",
+        "údené bravčové mäso",
+        "údeného bravčového mäsa",
+        "údeným bravčovým mäsom",
+    ),
+    "white_beans_canned": (
+        "bielej fazule",
+        "bielu fazuľu",
+        "bielej fazule",
+        "bielou fazuľou",
+    ),
+}
+
+
+def test_wave2_soup_ingredients_use_exact_sr_legacy_records():
+    catalog = load_ingredient_catalog()
+
+    for ingredient_id, fdc_id in WAVE2_SOUP_USDA_FDC_IDS.items():
+        ingredient = catalog.by_id(ingredient_id)
+        source = ingredient.nutrition.source
+        assert "USDA FoodData Central SR Legacy (April 2018)" in source
+        assert f"FDC ID {fdc_id}," in source
+        assert "https://fdc.nal.usda.gov/download-datasets/" in source
+        assert ingredient.nutrition.verified_on == date(2026, 11, 26)
+
+
+def test_wave2_soup_ingredients_render_slovak_forms():
+    title_forms = _slovak_title_forms()
+
+    for ingredient_id, expected in WAVE2_SOUP_RENDER_FORMS.items():
+        quantity, reference, genitive, instrumental = expected
+        assert _QUANTITY_NAMES[ingredient_id] == quantity
+        assert _REFERENCE_NAMES[ingredient_id] == reference
+        assert title_forms[ingredient_id] == {
+            "genitive": genitive,
+            "instrumental": instrumental,
+        }
+
+
+def test_wave2_soup_ingredient_states_stay_distinct():
+    catalog = load_ingredient_catalog()
+
+    assert catalog.resolve("kel").id == "savoy_cabbage"
+    assert catalog.resolve("kapusta").id == "white_cabbage"
+    assert catalog.resolve("zelená fazuľka").id == "green_beans"
+    assert catalog.resolve("biela fazuľa").id == "white_beans_canned"
+    assert catalog.resolve("červená fazuľa").id == "beans_canned"
+    assert catalog.resolve("údené mäso").id == "smoked_pork"
+    assert catalog.resolve("údená klobása").id == "smoked_sausage"
+    assert catalog.resolve("párky").id == "frankfurters"
+    assert catalog.by_id("leek").edible_ratio == Decimal("0.6")
+    assert catalog.by_id("white_beans_canned").edible_ratio == Decimal("0.6")
+    assert {"vegetarian", "vegan"} <= {
+        tag.value for tag in catalog.by_id("white_beans_canned").diet_tags
+    }
+    assert not catalog.by_id("chicken_liver").diet_tags
+
+
+WAVE2_BATCH2_USDA_FDC_IDS = {
+    "burger_bun": "172796",
+    "parmesan": "170848",
+    "pita": "174915",
+    "sour_cream": "171257",
+    "sweet_corn": "169214",
+}
+
+WAVE2_BATCH2_RENDER_FORMS = {
+    "burger_bun": (
+        "hamburgerových žemlí",
+        "hamburgerové žemle",
+        "hamburgerových žemlí",
+        "hamburgerovými žemľami",
+    ),
+    "parmesan": ("parmezánu", "parmezán", "parmezánu", "parmezánom"),
+    "pita": ("pita placiek", "pita placky", "pita placiek", "pita plackami"),
+    "sour_cream": ("kyslej smotany", "kyslú smotanu", "kyslej smotany", "kyslou smotanou"),
+    "sweet_corn": (
+        "sterilizovanej kukurice",
+        "sterilizovanú kukuricu",
+        "sterilizovanej kukurice",
+        "sterilizovanou kukuricou",
+    ),
+}
+
+
+def test_wave2_batch2_ingredients_use_exact_sr_legacy_records():
+    catalog = load_ingredient_catalog()
+
+    for ingredient_id, fdc_id in WAVE2_BATCH2_USDA_FDC_IDS.items():
+        ingredient = catalog.by_id(ingredient_id)
+        source = ingredient.nutrition.source
+        assert "USDA FoodData Central SR Legacy (April 2018)" in source
+        assert f"FDC ID {fdc_id}," in source
+        assert "https://fdc.nal.usda.gov/download-datasets/" in source
+        assert ingredient.nutrition.verified_on == date(2026, 11, 26)
+
+
+def test_wave2_batch2_ingredients_render_slovak_forms():
+    title_forms = _slovak_title_forms()
+
+    for ingredient_id, expected in WAVE2_BATCH2_RENDER_FORMS.items():
+        quantity, reference, genitive, instrumental = expected
+        assert _QUANTITY_NAMES[ingredient_id] == quantity
+        assert _REFERENCE_NAMES[ingredient_id] == reference
+        assert title_forms[ingredient_id] == {
+            "genitive": genitive,
+            "instrumental": instrumental,
+        }
+
+
+def test_wave2_batch2_ingredient_states_stay_distinct():
+    catalog = load_ingredient_catalog()
+
+    assert catalog.resolve("kyslá smotana").id == "sour_cream"
+    assert catalog.resolve("sladká smotana").id == "cream"
+    assert catalog.resolve("parmezán").id == "parmesan"
+    assert catalog.resolve("eidam").id == "hard_cheese"
+    assert catalog.resolve("pita").id == "pita"
+    assert catalog.resolve("chlieb").id == "bread"
+    assert catalog.by_id("sweet_corn").edible_ratio == Decimal("0.65")
+    assert catalog.by_id("pita").grams_per_piece == Decimal("80")
+    assert catalog.by_id("burger_bun").grams_per_piece == Decimal("75")
+    assert "vegetarian" not in {tag.value for tag in catalog.by_id("parmesan").diet_tags}
+
+
+# Wave 2, batch 3: whole fish for baking and plain burger buns.
+WAVE2_FISH_TURKEY_FDC_IDS = {
+    "burger_bun": "172796",
+    "mackerel": "175119",
+    "trout": "173717",
+}
+
+WAVE2_FISH_TURKEY_RENDER_FORMS = {
+    "burger_bun": (
+        "hamburgerových žemlí",
+        "hamburgerové žemle",
+        "hamburgerových žemlí",
+        "hamburgerovými žemľami",
+    ),
+    "mackerel": ("celých makrel", "makrely", "makrely", "makrelou"),
+    "trout": ("celých pstruhov", "pstruhy", "pstruha", "pstruhom"),
+}
+
+
+def test_wave2_fish_and_bun_ingredients_use_exact_sr_legacy_records():
+    catalog = load_ingredient_catalog()
+
+    for ingredient_id, fdc_id in WAVE2_FISH_TURKEY_FDC_IDS.items():
+        ingredient = catalog.by_id(ingredient_id)
+        source = ingredient.nutrition.source
+        assert "USDA FoodData Central SR Legacy (April 2018)" in source
+        assert f"FDC ID {fdc_id}," in source
+        assert "https://fdc.nal.usda.gov/download-datasets/" in source
+        assert ingredient.nutrition.verified_on == date(2026, 11, 26)
+
+
+def test_wave2_fish_and_bun_ingredients_render_slovak_forms():
+    title_forms = _slovak_title_forms()
+
+    for ingredient_id, expected in WAVE2_FISH_TURKEY_RENDER_FORMS.items():
+        quantity, reference, genitive, instrumental = expected
+        assert _QUANTITY_NAMES[ingredient_id] == quantity
+        assert _REFERENCE_NAMES[ingredient_id] == reference
+        assert title_forms[ingredient_id] == {
+            "genitive": genitive,
+            "instrumental": instrumental,
+        }
+
+
+def test_whole_fish_are_distinct_from_fillets():
+    catalog = load_ingredient_catalog()
+
+    assert catalog.resolve("pstruh dúhový").id == "trout"
+    assert catalog.resolve("makrela").id == "mackerel"
+    assert catalog.resolve("treska").id == "white_fish"
+    assert catalog.resolve("filet z lososa").id == "salmon"
+    assert catalog.by_id("trout").edible_ratio == Decimal("0.55")
+    assert catalog.by_id("mackerel").edible_ratio == Decimal("0.55")
+    assert catalog.by_id("burger_bun").grams_per_piece == Decimal("75")

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "5ce1f4d280d3e71d91a475dcb19333b1006fbed59839808a3411a36350575397",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "soup_broccoli_cream"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

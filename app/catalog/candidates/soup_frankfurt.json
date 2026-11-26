@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "soup_frankfurt",
+      "version": 2,
+      "active": true,
+      "name_template": "Frankfurtská polievka",
+      "family": "soup_frankfurt",
+      "method": "soup",
+      "minutes": 40,
+      "modes": ["standard"],
+      "equipment": ["veľký hrniec", "nôž", "doska na krájanie", "metlička"],
+      "slots": [
+        {"key": "frank", "role": "protein", "candidates": ["frankfurters"], "amount_per_adult": "90", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kolieska"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "400"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "12", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "milk", "role": "dairy", "candidates": ["milk"], "amount_per_adult": "80", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na krajce"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na kocky veľké asi 1,5 cm. Nakrájaj {onion.amount} {onion.name} {onion.cut} a {frank.amount} {frank.name} {frank.cut} hrubé asi 0,5 cm.", "requires": ["potato:raw", "onion:raw", "frank:raw"], "produces": ["potato:cut", "onion:cut", "frank:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj párky 3 minúty, kým budú na okrajoch zlatisté. Vyber ich lyžicou na tanier.", "requires": ["oil:raw", "frank:cut", "velky_hrniec:free"], "produces": ["oil:used", "frank:browned", "velky_hrniec:occupied"]},
+        {"text": "Pridaj cibuľu do hrnca. Opekaj cibuľu na strednom ohni 5 minút, kým bude dosklovita.", "requires": ["onion:cut"], "produces": ["onion:cooked"]},
+        {"text": "Prisyp {flour.amount} {flour.name} do hrnca. Opekaj hladkú pšeničnú múku s cibuľou na miernom ohni 1 minútu za stáleho miešania, kým bude zlatistá.", "requires": ["flour:raw", "onion:cooked"], "produces": ["flour:roux", "onion:roux"]},
+        {"text": "Odstav veľký hrniec z ohňa. Prisyp {paprika.amount} {paprika.name} a {caraway.amount} {caraway.name}. Hneď premiešaj, aby korenie nezhorklo.", "requires": ["paprika:raw", "caraway:raw"], "produces": ["paprika:bloomed", "caraway:bloomed"]},
+        {"text": "Prilej {potato.water} vody. Hneď zápražku s vodou vymiešaj metličkou dohladka, bez hrudiek. Pridaj zemiaky do hrnca. Var zemiaky vo veľkom hrnci na miernom ohni 18 minút, kým zmäknú a polievka zhustne.", "requires": ["potato:cut", "flour:roux", "onion:roux", "paprika:bloomed", "caraway:bloomed", "oil:used"], "produces": ["potato:cooked", "flour:cooked", "onion:soup", "paprika:cooked", "caraway:cooked", "oil:soup"]},
+        {"text": "Vráť párky do hrnca a prilej {milk.amount} {milk.name}. Zohrievaj párky v polievke vo veľkom hrnci na miernom ohni 3 minúty, kým polievka začne bublať. Odstav hrniec z ohňa a prisyp {marjoram.amount} {marjoram.name}.", "requires": ["frank:browned", "milk:raw", "marjoram:raw"], "produces": ["frank:cooked", "milk:cooked", "marjoram:cooked"]},
+        {"text": "Nakrájaj {bread.amount} {bread.name} {bread.cut}.", "requires": ["bread:raw"], "produces": ["bread:cut"]},
+        {"text": "Dochuť polievku čiernym korením a soľou až po ochutnaní, lebo párky sú slané. Rozdeľ ju na {portions} porcií a podávaj s chlebom.", "requires": ["frank:cooked", "potato:cooked", "onion:soup", "oil:soup", "flour:cooked", "paprika:cooked", "caraway:cooked", "milk:cooked", "marjoram:cooked", "bread:cut", "velky_hrniec:occupied"], "produces": ["frank:served", "potato:served", "onion:served", "oil:served", "flour:served", "paprika:served", "caraway:served", "milk:served", "marjoram:served", "bread:served", "velky_hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Polievku rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 2 dní a prehrej ju, kým začne bublať. Chlieb skladuj oddelene."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "soup_frankfurt",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/frankfurtska-polievka/15893-recept.html", "title": "Frankfurtská polievka - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/11504/frankfurtska-polievka/", "title": "Frankfurtská polievka | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

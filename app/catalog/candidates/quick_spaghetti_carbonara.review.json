@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "8d3d3dcf525fe4fb3b1c21a224f164810b3d70f8c63e28a81ab5ba96877aee7b",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "quick_spaghetti_carbonara"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

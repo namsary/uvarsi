@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "e4f953366f876d5485576e5f706fe6a360b563bc3e145d5d014b36e1fa8d9c75",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_beef_onion_potatoes"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

@@ -7064,6 +7064,4670 @@
         "refrigerated_days": 2,
         "instruction": "Placky a jogurtový dip odlož do samostatných plytkých nádob najneskôr do 2 hodín a uchovaj ich v chladničke. Zjedz ich do 2 dní; placky zohrej na suchej panvici, kým budú horúce, dip podávaj studený."
       }
+    },
+    {
+      "id": "classic_fried_cheese_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Vyprážaný syr s varenými zemiakmi a tatárskou omáčkou",
+      "family": "classic_fried_cheese_potatoes",
+      "method": "pan",
+      "minutes": 45,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "hrniec",
+        "tri taniere",
+        "panvica",
+        "nôž",
+        "doska na krájanie",
+        "papierová utierka"
+      ],
+      "slots": [
+        {
+          "key": "cheese",
+          "role": "protein",
+          "candidates": [
+            "hard_cheese"
+          ],
+          "amount_per_adult": "100",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na plátky hrubé 1 cm"
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "10",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": "0.75",
+          "unit": "piece",
+          "child_factor": "0.75",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "crumbs",
+          "role": "starch",
+          "candidates": [
+            "breadcrumbs"
+          ],
+          "amount_per_adult": "25",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "15",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "200",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na rovnaké kúsky"
+        },
+        {
+          "key": "parsley",
+          "role": "seasoning",
+          "candidates": [
+            "parsley"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "tartar",
+          "role": "fat",
+          "candidates": [
+            "tartar_sauce"
+          ],
+          "amount_per_adult": "25",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}.",
+          "requires": [
+            "potato:raw"
+          ],
+          "produces": [
+            "potato:cut"
+          ]
+        },
+        {
+          "text": "Vlož zemiaky do hrnca. Dolej studenú vodu tak, aby boli ponorené, a vodu osoľ. Var zemiaky v hrnci na miernom ohni 20 minút, kým zmäknú.",
+          "requires": [
+            "potato:cut"
+          ],
+          "produces": [
+            "potato:cooked"
+          ]
+        },
+        {
+          "text": "Nakrájaj {cheese.amount} {cheese.name} {cheese.cut} a {parsley.amount} {parsley.name} {parsley.cut}.",
+          "requires": [
+            "cheese:raw",
+            "parsley:raw"
+          ],
+          "produces": [
+            "cheese:cut",
+            "parsley:cut"
+          ]
+        },
+        {
+          "text": "Priprav si tri taniere. Do prvého vsyp {flour.amount} {flour.name}, v druhom rozšľahaj {egg.amount} {egg.name} so štipkou soli a do tretieho vsyp {crumbs.amount} {crumbs.name}. Každý plátok syra obaľ v múke, vo vajci a v strúhanke. Potom ho ešte raz obaľ vo vajci a v strúhanke a okraje dobre pritlač, aby syr pri vyprážaní nevytiekol.",
+          "requires": [
+            "flour:raw",
+            "egg:raw",
+            "crumbs:raw",
+            "cheese:cut"
+          ],
+          "produces": [
+            "flour:coating",
+            "egg:coating",
+            "crumbs:coating",
+            "cheese:breaded"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 3 minúty, kým okolo kúska strúhanky hodeného do oleja začne hneď bublať. Olej má pokryť dno panvice aspoň do výšky pol centimetra, ak ho je menej, dolej ho z fľaše.",
+          "requires": [
+            "oil:raw"
+          ],
+          "produces": [
+            "oil:hot"
+          ]
+        },
+        {
+          "text": "Opekaj obalený tvrdý syr v panvici po dávkach na strednom ohni 2 minúty z každej strany, kým bude obal zlatistý a syr vo vnútri začne mäknúť. Dlhšie ho nevyprážaj, inak vytečie. Hotový syr vyber na papierovú utierku.",
+          "requires": [
+            "cheese:breaded",
+            "flour:coating",
+            "egg:coating",
+            "crumbs:coating",
+            "oil:hot"
+          ],
+          "produces": [
+            "cheese:fried",
+            "flour:fried",
+            "egg:fried",
+            "crumbs:fried",
+            "oil:used"
+          ]
+        },
+        {
+          "text": "Sceď zemiaky, vráť ich do hrnca a premiešaj ich s nasekanou petržlenovou vňaťou.",
+          "requires": [
+            "potato:cooked",
+            "parsley:cut"
+          ],
+          "produces": [
+            "potato:finished",
+            "parsley:finished"
+          ]
+        },
+        {
+          "text": "Rozdeľ vyprážaný syr, zemiaky a {tartar.amount} {tartar.name} na {portions} porcií. Podávaj syr hneď, kým je horúci.",
+          "requires": [
+            "cheese:fried",
+            "flour:fried",
+            "egg:fried",
+            "crumbs:fried",
+            "oil:used",
+            "potato:finished",
+            "parsley:finished",
+            "tartar:raw"
+          ],
+          "produces": [
+            "cheese:served",
+            "flour:served",
+            "egg:served",
+            "crumbs:served",
+            "oil:served",
+            "potato:served",
+            "parsley:served",
+            "tartar:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 1,
+        "instruction": "Vyprážaný syr je najlepší hneď po vyprážaní. Zvyšok ulož do uzavretej nádoby, najneskôr do 2 hodín ho odlož do chladničky a zjedz ho do 24 hodín. Prehrej ho v rúre pri 180 °C asi 8 minút."
+      }
+    },
+    {
+      "id": "classic_fried_cauliflower_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Vyprážaný karfiol so zemiakmi",
+      "family": "classic_fried_cauliflower_potatoes",
+      "method": "pan",
+      "minutes": 55,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "veľký hrniec",
+        "hrniec",
+        "sitko",
+        "tri taniere",
+        "veľká panvica",
+        "nôž",
+        "doska na krájanie",
+        "papierová utierka"
+      ],
+      "slots": [
+        {
+          "key": "cauli",
+          "role": "vegetable",
+          "candidates": [
+            "cauliflower"
+          ],
+          "amount_per_adult": "450",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na ružičky"
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "15",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": "0.75",
+          "unit": "piece",
+          "child_factor": "0.75",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "crumbs",
+          "role": "starch",
+          "candidates": [
+            "breadcrumbs"
+          ],
+          "amount_per_adult": "30",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "25",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na rovnaké kúsky"
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": "8",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "parsley",
+          "role": "seasoning",
+          "candidates": [
+            "parsley"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "tartar",
+          "role": "fat",
+          "candidates": [
+            "tartar_sauce"
+          ],
+          "amount_per_adult": "30",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Nakrájaj {cauli.amount} {cauli.name} {cauli.cut} a ružičky prepláchni studenou vodou.",
+          "requires": [
+            "cauli:raw"
+          ],
+          "produces": [
+            "cauli:cut"
+          ]
+        },
+        {
+          "text": "Priveď vo veľkom hrnci osolenú vodu do varu na silnom ohni asi 8 minút, kým začne bublať. Vlož karfiol do veľkého hrnca a var ho na strednom ohni 5 minút, kým bude na povrchu mäkký, ale v strede ešte pevný.",
+          "requires": [
+            "cauli:cut"
+          ],
+          "produces": [
+            "cauli:blanched"
+          ]
+        },
+        {
+          "text": "Sceď karfiol cez sitko a nechaj ho 10 minút vychladnúť a oschnúť, aby na ňom držal obal.",
+          "requires": [
+            "cauli:blanched"
+          ],
+          "produces": [
+            "cauli:dry"
+          ]
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name}, nakrájaj ich {potato.cut} a {parsley.amount} {parsley.name} nasekaj {parsley.cut}.",
+          "requires": [
+            "potato:raw",
+            "parsley:raw"
+          ],
+          "produces": [
+            "potato:cut",
+            "parsley:cut"
+          ]
+        },
+        {
+          "text": "Vlož zemiaky do hrnca. Dolej studenú vodu tak, aby boli ponorené, a vodu osoľ. Var zemiaky v hrnci na miernom ohni 20 minút, kým zmäknú.",
+          "requires": [
+            "potato:cut"
+          ],
+          "produces": [
+            "potato:cooked"
+          ]
+        },
+        {
+          "text": "Priprav si tri taniere. Do prvého vsyp {flour.amount} {flour.name}, v druhom rozšľahaj {egg.amount} {egg.name} so štipkou soli a do tretieho vsyp {crumbs.amount} {crumbs.name}. Ružičky karfiolu obaľ najprv v múke, potom vo vajci a nakoniec v strúhanke.",
+          "requires": [
+            "flour:raw",
+            "egg:raw",
+            "crumbs:raw",
+            "cauli:dry"
+          ],
+          "produces": [
+            "flour:coating",
+            "egg:coating",
+            "crumbs:coating",
+            "cauli:breaded"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 3 minúty, kým okolo kúska strúhanky hodeného do oleja začne hneď bublať. Olej má pokryť dno panvice aspoň do výšky pol centimetra, ak ho je menej, dolej ho z fľaše.",
+          "requires": [
+            "oil:raw"
+          ],
+          "produces": [
+            "oil:hot"
+          ]
+        },
+        {
+          "text": "Opekaj obalený karfiol vo veľkej panvici po dávkach na strednom ohni 4 minúty, kým bude zo všetkých strán zlatistý a chrumkavý. Ružičky počas vyprážania obracaj. Hotový karfiol vyber na papierovú utierku.",
+          "requires": [
+            "cauli:breaded",
+            "flour:coating",
+            "egg:coating",
+            "crumbs:coating",
+            "oil:hot"
+          ],
+          "produces": [
+            "cauli:fried",
+            "flour:fried",
+            "egg:fried",
+            "crumbs:fried",
+            "oil:used"
+          ]
+        },
+        {
+          "text": "Sceď zemiaky a vráť ich do hrnca. Pridaj {butter.amount} {butter.name} a petržlenovú vňať. Zemiaky premiešaj, kým sa maslo roztopí.",
+          "requires": [
+            "potato:cooked",
+            "butter:raw",
+            "parsley:cut"
+          ],
+          "produces": [
+            "potato:finished",
+            "butter:finished",
+            "parsley:finished"
+          ]
+        },
+        {
+          "text": "Rozdeľ vyprážaný karfiol, zemiaky a {tartar.amount} {tartar.name} na {portions} porcií. Podávaj karfiol hneď, kým je chrumkavý.",
+          "requires": [
+            "cauli:fried",
+            "flour:fried",
+            "egg:fried",
+            "crumbs:fried",
+            "oil:used",
+            "potato:finished",
+            "butter:finished",
+            "parsley:finished",
+            "tartar:raw"
+          ],
+          "produces": [
+            "cauli:served",
+            "flour:served",
+            "egg:served",
+            "crumbs:served",
+            "oil:served",
+            "potato:served",
+            "butter:served",
+            "parsley:served",
+            "tartar:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Vyprážaný karfiol a zemiaky ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní. Karfiol prehrej v rúre pri 180 °C asi 10 minút, aby zostal chrumkavý."
+      }
+    },
+    {
+      "id": "classic_dill_sauce_egg_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Koprová omáčka s vajcom a zemiakmi",
+      "family": "classic_dill_sauce_egg_potatoes",
+      "method": "pot",
+      "minutes": 45,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "veľký hrniec",
+        "hrniec",
+        "malý hrniec",
+        "metlička",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "300",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na rovnaké kúsky"
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": "2",
+          "unit": "piece",
+          "child_factor": "0.75",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": "15",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "20",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "milk",
+          "role": "dairy",
+          "candidates": [
+            "milk"
+          ],
+          "amount_per_adult": "220",
+          "unit": "ml",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cream",
+          "role": "dairy",
+          "candidates": [
+            "cream"
+          ],
+          "amount_per_adult": "50",
+          "unit": "ml",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "dill",
+          "role": "seasoning",
+          "candidates": [
+            "dill"
+          ],
+          "amount_per_adult": "6",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "sugar",
+          "role": "seasoning",
+          "candidates": [
+            "sugar"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "vinegar",
+          "role": "seasoning",
+          "candidates": [
+            "apple_cider_vinegar"
+          ],
+          "amount_per_adult": "5",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}.",
+          "requires": [
+            "potato:raw"
+          ],
+          "produces": [
+            "potato:cut"
+          ]
+        },
+        {
+          "text": "Vlož zemiaky do veľkého hrnca. Dolej studenú vodu tak, aby boli ponorené, a vodu osoľ. Var zemiaky v hrnci na miernom ohni 20 minút, kým zmäknú.",
+          "requires": [
+            "potato:cut"
+          ],
+          "produces": [
+            "potato:cooked"
+          ]
+        },
+        {
+          "text": "Vlož {egg.amount} {egg.name} do malého hrnca. Dolej studenú vodu tak, aby siahala asi 2 cm nad vajcia.",
+          "requires": [
+            "egg:raw"
+          ],
+          "produces": [
+            "egg:pot"
+          ]
+        },
+        {
+          "text": "Priveď vodu v malom hrnci na strednom ohni do varu a od začiatku varu var vajcia 9 minút, kým bielok aj žĺtok stuhnú. Potom ich schlaď v studenej vode a ošúp.",
+          "requires": [
+            "egg:pot"
+          ],
+          "produces": [
+            "egg:cooked"
+          ]
+        },
+        {
+          "text": "Nakrájaj {dill.amount} {dill.name} {dill.cut}. Mrazený kôpor nerozmrazuj, použiješ ho rovno z mrazničky.",
+          "requires": [
+            "dill:raw"
+          ],
+          "produces": [
+            "dill:cut"
+          ]
+        },
+        {
+          "text": "Rozohrej {butter.amount} {butter.name} v hrnci na miernom ohni 1 minútu, kým sa roztopí a začne sa lesknúť. Prisyp {flour.amount} {flour.name}. Za stáleho miešania opekaj zápražku v hrnci na miernom ohni 2 minúty, kým bude hladká a svetlá.",
+          "requires": [
+            "butter:raw",
+            "flour:raw"
+          ],
+          "produces": [
+            "butter:roux",
+            "flour:roux"
+          ]
+        },
+        {
+          "text": "Prilej {milk.amount} {milk.name}. Mlieko prilievaj po troškách a stále miešaj metličkou, aby nevznikli hrudky. Omáčku var v hrnci na miernom ohni 10 minút za častého miešania, kým zhustne a začne bublať.",
+          "requires": [
+            "milk:raw",
+            "butter:roux",
+            "flour:roux"
+          ],
+          "produces": [
+            "milk:sauce",
+            "butter:sauce",
+            "flour:sauce"
+          ]
+        },
+        {
+          "text": "Vmiešaj {cream.amount} {cream.name}, {sugar.amount} {sugar.name} a kôpor. Omáčku zohrievaj v hrnci na miernom ohni ešte 2 minúty, kým začne jemne bublať. Odstav hrniec z ohňa a vmiešaj {vinegar.amount} {vinegar.name}. Dochuť omáčku soľou.",
+          "requires": [
+            "cream:raw",
+            "sugar:raw",
+            "dill:cut",
+            "vinegar:raw",
+            "milk:sauce"
+          ],
+          "produces": [
+            "cream:cooked",
+            "sugar:cooked",
+            "dill:cooked",
+            "vinegar:cooked",
+            "milk:cooked"
+          ]
+        },
+        {
+          "text": "Sceď zemiaky a nechaj ich chvíľu odkvapkať.",
+          "requires": [
+            "potato:cooked"
+          ],
+          "produces": [
+            "potato:drained"
+          ]
+        },
+        {
+          "text": "Rozdeľ zemiaky a koprovú omáčku na {portions} porcií. Na každý tanier polož rozpolené vajcia natvrdo a podávaj.",
+          "requires": [
+            "potato:drained",
+            "egg:cooked",
+            "butter:sauce",
+            "flour:sauce",
+            "milk:cooked",
+            "cream:cooked",
+            "dill:cooked",
+            "sugar:cooked",
+            "vinegar:cooked"
+          ],
+          "produces": [
+            "potato:served",
+            "egg:served",
+            "butter:served",
+            "flour:served",
+            "milk:served",
+            "cream:served",
+            "dill:served",
+            "sugar:served",
+            "vinegar:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Koprovú omáčku a zemiaky rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní. Omáčku zohrievaj pomaly s lyžicou mlieka a vajcia uvar vždy čerstvé."
+      }
+    },
+    {
+      "id": "classic_mushroom_sauce_dumpling",
+      "version": 2,
+      "active": true,
+      "name_template": "Hubová omáčka s knedľou",
+      "family": "classic_mushroom_sauce_dumpling",
+      "method": "pot",
+      "minutes": 40,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "hrniec",
+        "malý hrniec",
+        "sitko",
+        "metlička",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "mushrooms",
+          "role": "vegetable",
+          "candidates": [
+            "mushrooms"
+          ],
+          "amount_per_adult": "200",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na plátky"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "5",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": "15",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "caraway",
+          "role": "seasoning",
+          "candidates": [
+            "caraway"
+          ],
+          "amount_per_adult": "0.5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "15",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "milk",
+          "role": "dairy",
+          "candidates": [
+            "milk"
+          ],
+          "amount_per_adult": "150",
+          "unit": "ml",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cream",
+          "role": "dairy",
+          "candidates": [
+            "cream"
+          ],
+          "amount_per_adult": "80",
+          "unit": "ml",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "parsley",
+          "role": "seasoning",
+          "candidates": [
+            "parsley"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "dumpling",
+          "role": "starch",
+          "candidates": [
+            "bread_dumpling"
+          ],
+          "amount_per_adult": "150",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": "na plátky"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Nakrájaj {mushrooms.amount} {mushrooms.name} {mushrooms.cut}, {onion.amount} {onion.name} {onion.cut} a {parsley.amount} {parsley.name} {parsley.cut}.",
+          "requires": [
+            "mushrooms:raw",
+            "onion:raw",
+            "parsley:raw"
+          ],
+          "produces": [
+            "mushrooms:cut",
+            "onion:cut",
+            "parsley:cut"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} a {butter.amount} {butter.name} v hrnci na strednom ohni 1 minútu, kým sa maslo roztopí a začne sa lesknúť. Opekaj cibuľu v hrnci 5 minút, kým bude dosklovita.",
+          "requires": [
+            "oil:raw",
+            "butter:raw",
+            "onion:cut"
+          ],
+          "produces": [
+            "oil:used",
+            "butter:used",
+            "onion:cooked"
+          ]
+        },
+        {
+          "text": "Pridaj šampiňóny a {caraway.amount} {caraway.name} do hrnca. Opekaj biele šampiňóny na strednom ohni 8 minút, kým pustia vodu, tá sa odparí a huby zmäknú. Mrazené šampiňóny nerozmrazuj, daj ich do hrnca rovno z mrazničky a opekaj ich o 4 minúty dlhšie.",
+          "requires": [
+            "mushrooms:cut",
+            "caraway:raw",
+            "onion:cooked"
+          ],
+          "produces": [
+            "mushrooms:cooked",
+            "caraway:cooked"
+          ]
+        },
+        {
+          "text": "Prisyp {flour.amount} {flour.name} do hrnca. Za stáleho miešania opekaj múku s hubami v hrnci na miernom ohni 2 minúty, kým huby obalí a začne sa lesknúť.",
+          "requires": [
+            "flour:raw",
+            "mushrooms:cooked"
+          ],
+          "produces": [
+            "flour:roux"
+          ]
+        },
+        {
+          "text": "Prilej {milk.amount} {milk.name}. Mlieko prilievaj po troškách a stále miešaj metličkou, aby nevznikli hrudky. Omáčku var v hrnci na miernom ohni 8 minút za častého miešania, kým zhustne a začne bublať.",
+          "requires": [
+            "milk:raw",
+            "flour:roux"
+          ],
+          "produces": [
+            "milk:sauce",
+            "flour:sauce"
+          ]
+        },
+        {
+          "text": "Vmiešaj {cream.amount} {cream.name}. Omáčku zohrievaj v hrnci na miernom ohni 2 minúty, kým začne jemne bublať. Dochuť ju soľou a čiernym korením a vmiešaj petržlenovú vňať.",
+          "requires": [
+            "cream:raw",
+            "milk:sauce",
+            "parsley:cut"
+          ],
+          "produces": [
+            "cream:cooked",
+            "milk:cooked",
+            "parsley:cooked"
+          ]
+        },
+        {
+          "text": "Nakrájaj {dumpling.amount} {dumpling.name} na plátky hrubé asi 1,5 cm.",
+          "requires": [
+            "dumpling:raw"
+          ],
+          "produces": [
+            "dumpling:cut"
+          ]
+        },
+        {
+          "text": "Priveď asi 3 cm vody v malom hrnci na silnom ohni do varu. Polož plátky knedle do sitka nad vriacu vodu, prikry pokrievkou a zohrievaj knedľu na pare na strednom ohni 3 minúty, kým bude mäkká a horúca.",
+          "requires": [
+            "dumpling:cut"
+          ],
+          "produces": [
+            "dumpling:prepared"
+          ]
+        },
+        {
+          "text": "Podávaj hubovú omáčku s plátkami knedle a rozdeľ jedlo na {portions} porcií.",
+          "requires": [
+            "mushrooms:cooked",
+            "onion:cooked",
+            "oil:used",
+            "butter:used",
+            "caraway:cooked",
+            "flour:sauce",
+            "milk:cooked",
+            "cream:cooked",
+            "parsley:cooked",
+            "dumpling:prepared"
+          ],
+          "produces": [
+            "mushrooms:served",
+            "onion:served",
+            "oil:served",
+            "butter:served",
+            "caraway:served",
+            "flour:served",
+            "milk:served",
+            "cream:served",
+            "parsley:served",
+            "dumpling:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Hubovú omáčku rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 2 dní a zohrievaj pomaly s lyžicou mlieka. Knedľu skladuj oddelene a pred podávaním ju zohrej na pare."
+      }
+    },
+    {
+      "id": "classic_poppy_seed_potato_rolls",
+      "version": 2,
+      "active": true,
+      "name_template": "Zemiakové šúľance s makom",
+      "family": "classic_poppy_seed_potato_rolls",
+      "method": "pot",
+      "minutes": 80,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "hrniec",
+        "veľký hrniec",
+        "misa",
+        "miska",
+        "pučidlo na zemiaky",
+        "panvica",
+        "dierovaná naberačka",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "230",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "v šupke"
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "85",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": "0.5",
+          "unit": "piece",
+          "child_factor": "0.75",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": "20",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "poppy",
+          "role": "seasoning",
+          "candidates": [
+            "poppy_seed"
+          ],
+          "amount_per_adult": "25",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "sugar",
+          "role": "seasoning",
+          "candidates": [
+            "sugar"
+          ],
+          "amount_per_adult": "15",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Vlož {potato.amount} {potato.name} {potato.cut} do hrnca. Dolej studenú vodu tak, aby boli ponorené. Var zemiaky v hrnci na miernom ohni 25 minút, kým zmäknú.",
+          "requires": [
+            "potato:raw"
+          ],
+          "produces": [
+            "potato:cooked"
+          ]
+        },
+        {
+          "text": "Sceď zemiaky, ošúp ich ešte teplé a nechaj ich úplne vychladnúť, aspoň 30 minút.",
+          "requires": [
+            "potato:cooked"
+          ],
+          "produces": [
+            "potato:cold"
+          ]
+        },
+        {
+          "text": "Rozdrv vychladnuté zemiaky pučidlom do misy dohladka, bez hrudiek.",
+          "requires": [
+            "potato:cold"
+          ],
+          "produces": [
+            "potato:mashed"
+          ]
+        },
+        {
+          "text": "Pridaj {flour.amount} {flour.name}, {egg.amount} {egg.name} a štipku soli do misy. Rýchlo vypracuj hladké cesto, ktoré sa nelepí. Dlho ho nemies, inak zmäkne a bude sa lepiť.",
+          "requires": [
+            "flour:raw",
+            "egg:raw",
+            "potato:mashed"
+          ],
+          "produces": [
+            "flour:dough",
+            "egg:dough",
+            "potato:dough"
+          ]
+        },
+        {
+          "text": "Priprav šúľance: z cesta na pomúčenej doske vyvaľkaj valčeky hrubé ako prst, nakrájaj ich na kúsky dlhé asi 5 cm a dlaňami ich vyšúľaj do špičky.",
+          "requires": [
+            "flour:dough",
+            "egg:dough",
+            "potato:dough"
+          ],
+          "produces": [
+            "flour:shaped",
+            "egg:shaped",
+            "potato:shaped"
+          ]
+        },
+        {
+          "text": "Priveď vo veľkom hrnci osolenú vodu do varu na silnom ohni asi 10 minút, kým začne bublať. Vkladaj šúľance po dávkach a var ich vo veľkom hrnci na miernom ohni 4 minúty od vyplávania, kým budú mäkké.",
+          "requires": [
+            "flour:shaped",
+            "egg:shaped",
+            "potato:shaped"
+          ],
+          "produces": [
+            "flour:cooked",
+            "egg:cooked",
+            "potato:boiled"
+          ]
+        },
+        {
+          "text": "Premiešaj v miske {poppy.amount} {poppy.name} a {sugar.amount} {sugar.name}.",
+          "requires": [
+            "poppy:raw",
+            "sugar:raw"
+          ],
+          "produces": [
+            "poppy:mixed",
+            "sugar:mixed"
+          ]
+        },
+        {
+          "text": "Rozohrej {butter.amount} {butter.name} v panvici na miernom ohni 1 minútu, kým sa roztopí a začne sa lesknúť. Vyber šúľance dierovanou naberačkou priamo do panvice a premiešaj ich s maslom.",
+          "requires": [
+            "butter:raw",
+            "flour:cooked",
+            "egg:cooked",
+            "potato:boiled"
+          ],
+          "produces": [
+            "butter:used",
+            "flour:buttered",
+            "egg:buttered",
+            "potato:buttered"
+          ]
+        },
+        {
+          "text": "Rozdeľ šúľance na {portions} porcií a navrch hojne rozsyp mak s cukrom. Podávaj ich teplé.",
+          "requires": [
+            "flour:buttered",
+            "egg:buttered",
+            "potato:buttered",
+            "butter:used",
+            "poppy:mixed",
+            "sugar:mixed"
+          ],
+          "produces": [
+            "flour:served",
+            "egg:served",
+            "potato:served",
+            "butter:served",
+            "poppy:served",
+            "sugar:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 1,
+        "instruction": "Šúľance sú najlepšie čerstvé. Zvyšok ulož do uzavretej nádoby, najneskôr do 2 hodín ho odlož do chladničky a zjedz do 24 hodín. Prehrej ich na panvici s kúskom masla a mak s cukrom pridaj až na tanier."
+      }
+    },
+    {
+      "id": "quick_vegetable_omelette_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Zeleninová omeleta s opekanými zemiakmi",
+      "family": "quick_vegetable_omelette_potatoes",
+      "method": "pan",
+      "minutes": 40,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "veľká panvica",
+        "pokrievka",
+        "hrniec",
+        "sitko",
+        "miska",
+        "nôž",
+        "doska na krájanie",
+        "strúhadlo"
+      ],
+      "slots": [
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "220",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na kocky"
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": "3",
+          "unit": "piece",
+          "child_factor": "0.65",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "pepper",
+          "role": "vegetable",
+          "candidates": [
+            "bell_pepper"
+          ],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na kocky"
+        },
+        {
+          "key": "zucchini",
+          "role": "vegetable",
+          "candidates": [
+            "zucchini"
+          ],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na kocky"
+        },
+        {
+          "key": "tomato",
+          "role": "vegetable",
+          "candidates": [
+            "tomato"
+          ],
+          "amount_per_adult": "60",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na kocky"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "40",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "cheese",
+          "role": "dairy",
+          "candidates": [
+            "hard_cheese"
+          ],
+          "amount_per_adult": "20",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nastrúhaný"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "15",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "chives",
+          "role": "seasoning",
+          "candidates": [
+            "chives"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na kocky veľké asi 1,5 cm.",
+          "requires": [
+            "potato:raw"
+          ],
+          "produces": [
+            "potato:cut"
+          ]
+        },
+        {
+          "text": "Vlož zemiaky do hrnca. Dolej studenú vodu tak, aby boli ponorené, a osoľ ju. Var zemiaky v hrnci na strednom ohni 7 minút od začiatku varu, kým budú takmer mäkké, ale nerozpadnú sa. Sceď zemiaky cez sitko.",
+          "requires": [
+            "potato:cut",
+            "hrniec:free",
+            "sitko:free"
+          ],
+          "produces": [
+            "potato:parboiled",
+            "hrniec:free",
+            "sitko:free"
+          ]
+        },
+        {
+          "text": "Nakrájaj {pepper.amount} {pepper.name} na kocky, {zucchini.amount} {zucchini.name} na kocky, {onion.amount} {onion.name} nadrobno, {tomato.amount} {tomato.name} na kocky a {chives.amount} {chives.name} nadrobno. Nastrúhaj {cheese.amount} {cheese.name}.",
+          "requires": [
+            "pepper:raw",
+            "zucchini:raw",
+            "onion:raw",
+            "tomato:raw",
+            "chives:raw",
+            "cheese:raw"
+          ],
+          "produces": [
+            "pepper:cut",
+            "zucchini:cut",
+            "onion:cut",
+            "tomato:cut",
+            "chives:cut",
+            "cheese:grated"
+          ]
+        },
+        {
+          "text": "Rozšľahaj v miske {egg.amount} {egg.name} so štipkou soli a čierneho korenia. Vmiešaj tvrdý syr a pažítku.",
+          "requires": [
+            "egg:raw",
+            "cheese:grated",
+            "chives:cut",
+            "miska:free"
+          ],
+          "produces": [
+            "egg:mixed",
+            "cheese:mixed",
+            "chives:mixed",
+            "miska:occupied"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj zemiaky v panvici na strednom ohni 10 minút a občas ich obráť, kým budú zlatisté a chrumkavé.",
+          "requires": [
+            "oil:raw",
+            "potato:parboiled",
+            "velka_panvica:free"
+          ],
+          "produces": [
+            "oil:used",
+            "potato:fried",
+            "velka_panvica:occupied"
+          ]
+        },
+        {
+          "text": "Pridaj cibuľu, papriku a cuketu do panvice. Opekaj cibuľu s paprikou, cuketou a zemiakmi na strednom ohni 5 minút, kým paprika zmäkne. Pridaj paradajky do panvice.",
+          "requires": [
+            "onion:cut",
+            "pepper:cut",
+            "zucchini:cut",
+            "tomato:cut",
+            "potato:fried",
+            "velka_panvica:occupied"
+          ],
+          "produces": [
+            "onion:cooked",
+            "pepper:cooked",
+            "zucchini:cooked",
+            "tomato:cooked"
+          ]
+        },
+        {
+          "text": "Stíš oheň na mierny. Nalej vajcia do panvice, aby rovnomerne zaliali zeleninu so zemiakmi. Prikry panvicu pokrievkou. Opekaj vajcia so zeleninou na miernom ohni 8 minút, kým vajcia stuhnú aj navrchu.",
+          "requires": [
+            "egg:mixed",
+            "potato:fried",
+            "velka_panvica:occupied",
+            "pokrievka:free"
+          ],
+          "produces": [
+            "egg:cooked",
+            "cheese:cooked",
+            "chives:cooked",
+            "potato:cooked",
+            "pokrievka:free",
+            "miska:free"
+          ]
+        },
+        {
+          "text": "Rozdeľ omeletu so zemiakmi na {portions} porcií a podávaj ju teplú.",
+          "requires": [
+            "potato:cooked",
+            "egg:cooked",
+            "pepper:cooked",
+            "zucchini:cooked",
+            "tomato:cooked",
+            "onion:cooked",
+            "cheese:cooked",
+            "oil:used",
+            "chives:cooked",
+            "velka_panvica:occupied"
+          ],
+          "produces": [
+            "potato:served",
+            "egg:served",
+            "pepper:served",
+            "zucchini:served",
+            "tomato:served",
+            "onion:served",
+            "cheese:served",
+            "oil:served",
+            "chives:served",
+            "velka_panvica:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 1,
+        "instruction": "Omeletu jedz hneď po príprave. Zvyšok ulož do uzavretej nádoby, do 2 hodín ho odlož do chladničky a zjedz do druhého dňa, prehriaty na panvici pod pokrievkou."
+      }
+    },
+    {
+      "id": "quick_bean_cheese_quesadilla",
+      "version": 2,
+      "active": true,
+      "name_template": "Fazuľové quesadilly so syrom",
+      "family": "quick_bean_cheese_quesadilla",
+      "method": "pan",
+      "minutes": 30,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "veľká panvica",
+        "sitko",
+        "miska",
+        "nôž",
+        "doska na krájanie",
+        "strúhadlo",
+        "vareška"
+      ],
+      "slots": [
+        {
+          "key": "tortilla",
+          "role": "starch",
+          "candidates": [
+            "tortilla"
+          ],
+          "amount_per_adult": "2",
+          "unit": "piece",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "beans",
+          "role": "protein",
+          "candidates": [
+            "beans_canned"
+          ],
+          "amount_per_adult": "130",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null,
+          "water_ml_per_adult": "30"
+        },
+        {
+          "key": "cheese",
+          "role": "dairy",
+          "candidates": [
+            "hard_cheese"
+          ],
+          "amount_per_adult": "45",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nastrúhaný"
+        },
+        {
+          "key": "corn",
+          "role": "vegetable",
+          "candidates": [
+            "sweet_corn"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "pepper",
+          "role": "vegetable",
+          "candidates": [
+            "bell_pepper"
+          ],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na malé kocky"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "40",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "paste",
+          "role": "vegetable",
+          "candidates": [
+            "tomato_paste"
+          ],
+          "amount_per_adult": "15",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cumin",
+          "role": "seasoning",
+          "candidates": [
+            "cumin"
+          ],
+          "amount_per_adult": "1",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": [
+            "paprika_powder"
+          ],
+          "amount_per_adult": "2",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "8",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "sourcream",
+          "role": "dairy",
+          "candidates": [
+            "sour_cream"
+          ],
+          "amount_per_adult": "30",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Sceď {beans.amount} {beans.name} a {corn.amount} {corn.name} cez sitko a fazuľu prepláchni studenou vodou.",
+          "requires": [
+            "beans:raw",
+            "corn:raw",
+            "sitko:free"
+          ],
+          "produces": [
+            "beans:drained",
+            "corn:drained",
+            "sitko:free"
+          ]
+        },
+        {
+          "text": "Nakrájaj {pepper.amount} {pepper.name} na malé kocky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno. Nastrúhaj {cheese.amount} {cheese.name}.",
+          "requires": [
+            "pepper:raw",
+            "onion:raw",
+            "garlic:raw",
+            "cheese:raw"
+          ],
+          "produces": [
+            "pepper:cut",
+            "onion:cut",
+            "garlic:cut",
+            "cheese:grated"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu s paprikou v panvici na strednom ohni 5 minút, kým zmäknú. Pridaj cesnak do panvice a opekaj ho 30 sekúnd, kým zavonia.",
+          "requires": [
+            "oil:raw",
+            "onion:cut",
+            "pepper:cut",
+            "garlic:cut",
+            "velka_panvica:free"
+          ],
+          "produces": [
+            "oil:used",
+            "onion:cooked",
+            "pepper:cooked",
+            "garlic:cooked",
+            "velka_panvica:occupied"
+          ]
+        },
+        {
+          "text": "Pridaj červenú fazuľu, kukuricu a {paste.amount} {paste.name} do panvice. Prilej {beans.water} vody. Var červenú fazuľu so zeleninou na miernom ohni 4 minúty, kým zmes zhustne a jemne bublá. Vareškou rozdrv asi tretinu fazule, aby plnka držala pokope.",
+          "requires": [
+            "beans:drained",
+            "corn:drained",
+            "paste:raw",
+            "onion:cooked",
+            "velka_panvica:occupied"
+          ],
+          "produces": [
+            "beans:cooked",
+            "corn:cooked",
+            "paste:cooked"
+          ]
+        },
+        {
+          "text": "Odstav panvicu z ohňa, prisyp {cumin.amount} {cumin.name} a {paprika.amount} {paprika.name} a premiešaj. Plnku dochuť soľou a čiernym korením, preber ju do misky a panvicu vytri papierovou utierkou.",
+          "requires": [
+            "cumin:raw",
+            "paprika:raw",
+            "beans:cooked",
+            "velka_panvica:occupied"
+          ],
+          "produces": [
+            "cumin:combined",
+            "paprika:combined",
+            "velka_panvica:free"
+          ]
+        },
+        {
+          "text": "Rozlož tortilly na dosku. Na každú {tortilla.amount} {tortilla.name} nasyp do jednej polovice trochu syra, navrch rozotri fazuľovú plnku a prikry ju zvyšným syrom. Druhú polovicu tortilly preklop a jemne pritlač.",
+          "requires": [
+            "tortilla:raw",
+            "cheese:grated",
+            "beans:cooked"
+          ],
+          "produces": [
+            "tortilla:filled",
+            "cheese:filled"
+          ]
+        },
+        {
+          "text": "Opekaj tortilly v suchej panvici na strednom ohni 2 minúty z každej strany, kým budú chrumkavé a syr sa roztopí. Pri väčšom počte ich priprav postupne v tej istej panvici.",
+          "requires": [
+            "tortilla:filled",
+            "velka_panvica:free"
+          ],
+          "produces": [
+            "tortilla:cooked",
+            "cheese:cooked",
+            "velka_panvica:occupied"
+          ]
+        },
+        {
+          "text": "Premiešaj {sourcream.amount} {sourcream.name} so štipkou soli.",
+          "requires": [
+            "sourcream:raw"
+          ],
+          "produces": [
+            "sourcream:mixed"
+          ]
+        },
+        {
+          "text": "Nakrájaj tortilly na trojuholníky, rozdeľ ich na {portions} porcií a podávaj s kyslou smotanou.",
+          "requires": [
+            "tortilla:cooked",
+            "beans:cooked",
+            "cheese:cooked",
+            "corn:cooked",
+            "pepper:cooked",
+            "onion:cooked",
+            "garlic:cooked",
+            "paste:cooked",
+            "cumin:combined",
+            "paprika:combined",
+            "oil:used",
+            "sourcream:mixed",
+            "velka_panvica:occupied"
+          ],
+          "produces": [
+            "tortilla:served",
+            "beans:served",
+            "cheese:served",
+            "corn:served",
+            "pepper:served",
+            "onion:served",
+            "garlic:served",
+            "paste:served",
+            "cumin:served",
+            "paprika:served",
+            "oil:served",
+            "sourcream:served",
+            "velka_panvica:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 1,
+        "instruction": "Quesadilly jedz hneď, kým sú chrumkavé. Zvyšok ulož do uzavretej nádoby, do 2 hodín ho odlož do chladničky, zjedz do druhého dňa a prehrej ho v suchej panvici."
+      }
+    },
+    {
+      "id": "quick_eggs_spinach_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Dusený špenát so zemiakmi a volským okom",
+      "family": "quick_eggs_spinach_potatoes",
+      "method": "pot",
+      "minutes": 40,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "hrniec",
+        "sitko",
+        "široký hrniec",
+        "panvica",
+        "metlička",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "spinach",
+          "role": "vegetable",
+          "candidates": [
+            "spinach"
+          ],
+          "amount_per_adult": "200",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "280",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": "2",
+          "unit": "piece",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "milk",
+          "role": "dairy",
+          "candidates": [
+            "milk"
+          ],
+          "amount_per_adult": "80",
+          "unit": "ml",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "12",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": "10",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "buttereggs",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": "5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "30",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "parsley",
+          "role": "seasoning",
+          "candidates": [
+            "parsley"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a väčšie prekroj na polovice.",
+          "requires": [
+            "potato:raw"
+          ],
+          "produces": [
+            "potato:peeled"
+          ]
+        },
+        {
+          "text": "Vlož zemiaky do hrnca. Dolej studenú vodu tak, aby boli ponorené, a osoľ ju. Var zemiaky v hrnci na strednom ohni 20 minút od začiatku varu, kým zmäknú. Sceď zemiaky cez sitko a prikry ich, aby nevychladli.",
+          "requires": [
+            "potato:peeled",
+            "hrniec:free",
+            "sitko:free"
+          ],
+          "produces": [
+            "potato:cooked",
+            "hrniec:free",
+            "sitko:free"
+          ]
+        },
+        {
+          "text": "Nakrájaj {onion.amount} {onion.name} nadrobno, {garlic.amount} {garlic.name} najemno a {parsley.amount} {parsley.name} nadrobno.",
+          "requires": [
+            "onion:raw",
+            "garlic:raw",
+            "parsley:raw"
+          ],
+          "produces": [
+            "onion:cut",
+            "garlic:cut",
+            "parsley:cut"
+          ]
+        },
+        {
+          "text": "Rozohrej {butter.amount} {butter.name} v širokom hrnci na miernom ohni 1 minútu, kým začne jemne bublať. Opekaj cibuľu v hrnci na miernom ohni 4 minúty, kým bude dosklovita. Pridaj cesnak do hrnca a opekaj ho 30 sekúnd, kým zavonia.",
+          "requires": [
+            "butter:raw",
+            "onion:cut",
+            "garlic:cut",
+            "siroky_hrniec:free"
+          ],
+          "produces": [
+            "butter:used",
+            "onion:cooked",
+            "garlic:cooked",
+            "siroky_hrniec:occupied"
+          ]
+        },
+        {
+          "text": "Prisyp {flour.amount} {flour.name} do hrnca. Opekaj hladkú pšeničnú múku s cibuľou za stáleho miešania na miernom ohni 1 minútu, kým začne jemne bublať a voňať.",
+          "requires": [
+            "flour:raw",
+            "onion:cooked",
+            "siroky_hrniec:occupied"
+          ],
+          "produces": [
+            "flour:roux"
+          ]
+        },
+        {
+          "text": "Prilej {milk.amount} {milk.name}. Hneď ho rozmiešaj metličkou, aby nevznikli hrudky. Pridaj {spinach.amount} {spinach.name} do hrnca. Mrazený špenát nerozmrazuj, daj ho do hrnca rovno z mrazničky. Dus špenát pod pokrievkou na miernom ohni 10 minút a občas ho premiešaj, kým zmäkne a omáčka hladko zhustne a jemne bublá.",
+          "requires": [
+            "milk:raw",
+            "spinach:raw",
+            "flour:roux",
+            "siroky_hrniec:occupied"
+          ],
+          "produces": [
+            "milk:cooked",
+            "spinach:cooked",
+            "flour:cooked"
+          ]
+        },
+        {
+          "text": "Dochuť špenát soľou a čiernym korením. Ak je príliš hustý, dolej trochu vody alebo mlieka.",
+          "requires": [
+            "spinach:cooked"
+          ],
+          "produces": [
+            "spinach:seasoned"
+          ]
+        },
+        {
+          "text": "Rozohrej {buttereggs.amount} {buttereggs.name} v panvici na strednom ohni 1 minútu, kým sa spení a začne jemne bublať. Opatrne rozbi do panvice {egg.amount} {egg.name} vedľa seba. Opekaj vajcia v panvici na miernom ohni 4 minúty, kým bielok stuhne a žĺtok ostane mäkký. Pri väčšom počte ich priprav po dávkach v tej istej panvici.",
+          "requires": [
+            "buttereggs:raw",
+            "egg:raw",
+            "panvica:free"
+          ],
+          "produces": [
+            "buttereggs:used",
+            "egg:fried",
+            "panvica:occupied"
+          ]
+        },
+        {
+          "text": "Rozdeľ zemiaky a špenát na {portions} porcií, zemiaky ozdob petržlenovou vňaťou a na každú porciu polož volské oko. Podávaj ihneď.",
+          "requires": [
+            "spinach:seasoned",
+            "potato:cooked",
+            "egg:fried",
+            "milk:cooked",
+            "flour:cooked",
+            "butter:used",
+            "buttereggs:used",
+            "onion:cooked",
+            "garlic:cooked",
+            "parsley:cut",
+            "panvica:occupied",
+            "siroky_hrniec:occupied"
+          ],
+          "produces": [
+            "spinach:served",
+            "potato:served",
+            "egg:served",
+            "milk:served",
+            "flour:served",
+            "butter:served",
+            "buttereggs:served",
+            "onion:served",
+            "garlic:served",
+            "parsley:served",
+            "panvica:free",
+            "siroky_hrniec:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Špenát a zemiaky ulož oddelene do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní, špenát prehrievaj s trochou mlieka a volské oko vždy priprav čerstvé."
+      }
+    },
+    {
+      "id": "quick_halloumi_vegetable_traybake",
+      "version": 2,
+      "active": true,
+      "name_template": "Zeleninový plech s grilovacím syrom",
+      "family": "quick_halloumi_vegetable_traybake",
+      "method": "oven",
+      "minutes": 55,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "rúra",
+        "plech",
+        "papier na pečenie",
+        "veľká miska",
+        "miska",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "cheese",
+          "role": "protein",
+          "candidates": [
+            "grilling_cheese"
+          ],
+          "amount_per_adult": "90",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na plátky hrubé 1 cm"
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "220",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na kocky"
+        },
+        {
+          "key": "zucchini",
+          "role": "vegetable",
+          "candidates": [
+            "zucchini"
+          ],
+          "amount_per_adult": "120",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na polkolieska"
+        },
+        {
+          "key": "pepper",
+          "role": "vegetable",
+          "candidates": [
+            "bell_pepper"
+          ],
+          "amount_per_adult": "100",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na pásiky"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na mesiačiky"
+        },
+        {
+          "key": "tomato",
+          "role": "vegetable",
+          "candidates": [
+            "tomato"
+          ],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na štvrtiny"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "15",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oregano",
+          "role": "seasoning",
+          "candidates": [
+            "oregano"
+          ],
+          "amount_per_adult": "0.5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "parsley",
+          "role": "seasoning",
+          "candidates": [
+            "parsley"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "yogurt",
+          "role": "dairy",
+          "candidates": [
+            "plain_yogurt"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C.",
+          "requires": [
+            "rura:free"
+          ],
+          "produces": [
+            "rura:hot"
+          ]
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na kocky veľké asi 2 cm. Nakrájaj {zucchini.amount} {zucchini.name} na polkolieska, {pepper.amount} {pepper.name} na pásiky, {onion.amount} {onion.name} na mesiačiky, {tomato.amount} {tomato.name} na štvrtiny, {garlic.amount} {garlic.name} najemno, {parsley.amount} {parsley.name} nadrobno a {cheese.amount} {cheese.name} na plátky hrubé 1 cm.",
+          "requires": [
+            "potato:raw",
+            "zucchini:raw",
+            "pepper:raw",
+            "onion:raw",
+            "tomato:raw",
+            "garlic:raw",
+            "parsley:raw",
+            "cheese:raw"
+          ],
+          "produces": [
+            "potato:cut",
+            "zucchini:cut",
+            "pepper:cut",
+            "onion:cut",
+            "tomato:cut",
+            "garlic:cut",
+            "parsley:cut",
+            "cheese:cut"
+          ]
+        },
+        {
+          "text": "Nalej {oil.amount} {oil.name} do veľkej misky. Pridaj cesnak, {oregano.amount} {oregano.name}, soľ a čierne korenie. Vsyp zemiaky do misky, premiešaj ich s polovicou koreninového oleja a rozlož ich na plech vystlaný papierom na pečenie.",
+          "requires": [
+            "oil:raw",
+            "garlic:cut",
+            "oregano:raw",
+            "potato:cut",
+            "velka_miska:free",
+            "plech:free"
+          ],
+          "produces": [
+            "oil:mixed",
+            "garlic:mixed",
+            "oregano:mixed",
+            "potato:tray",
+            "velka_miska:occupied",
+            "plech:occupied"
+          ]
+        },
+        {
+          "text": "Peč zemiaky na plechu v rúre pri 200 °C 20 minút, kým začnú na okrajoch zlatistieť.",
+          "requires": [
+            "potato:tray",
+            "rura:hot",
+            "plech:occupied"
+          ],
+          "produces": [
+            "potato:parbaked"
+          ]
+        },
+        {
+          "text": "Vsyp cuketu, papriku a cibuľu do misky, premiešaj ich so zvyškom koreninového oleja a rozlož ich na plech k zemiakom.",
+          "requires": [
+            "zucchini:cut",
+            "pepper:cut",
+            "onion:cut",
+            "oil:mixed",
+            "potato:parbaked"
+          ],
+          "produces": [
+            "zucchini:tray",
+            "pepper:tray",
+            "onion:tray",
+            "oil:tray",
+            "velka_miska:free"
+          ]
+        },
+        {
+          "text": "Peč zemiaky so zeleninou na plechu v rúre pri 200 °C 15 minút, kým paprika a cuketa zmäknú.",
+          "requires": [
+            "potato:parbaked",
+            "zucchini:tray",
+            "rura:hot"
+          ],
+          "produces": [
+            "potato:baked",
+            "zucchini:baked",
+            "pepper:baked",
+            "onion:baked",
+            "oil:baked",
+            "garlic:baked",
+            "oregano:baked"
+          ]
+        },
+        {
+          "text": "Rozlož syr na grilovanie a paradajky na plech medzi zeleninu. Peč syr na grilovanie so zeleninou v rúre pri 200 °C 12 minút, kým bude syr na okrajoch zlatistý a paradajky zmäknú.",
+          "requires": [
+            "cheese:cut",
+            "tomato:cut",
+            "zucchini:baked",
+            "rura:hot"
+          ],
+          "produces": [
+            "cheese:baked",
+            "tomato:baked"
+          ]
+        },
+        {
+          "text": "Premiešaj v miske {yogurt.amount} {yogurt.name} so štipkou soli.",
+          "requires": [
+            "yogurt:raw"
+          ],
+          "produces": [
+            "yogurt:mixed"
+          ]
+        },
+        {
+          "text": "Rozdeľ zeleninu so syrom na {portions} porcií, ozdob ju petržlenovou vňaťou a podávaj s jogurtom.",
+          "requires": [
+            "cheese:baked",
+            "potato:baked",
+            "zucchini:baked",
+            "pepper:baked",
+            "onion:baked",
+            "tomato:baked",
+            "garlic:baked",
+            "oil:baked",
+            "oregano:baked",
+            "parsley:cut",
+            "yogurt:mixed",
+            "plech:occupied"
+          ],
+          "produces": [
+            "cheese:served",
+            "potato:served",
+            "zucchini:served",
+            "pepper:served",
+            "onion:served",
+            "tomato:served",
+            "garlic:served",
+            "oil:served",
+            "oregano:served",
+            "parsley:served",
+            "yogurt:served",
+            "plech:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Zeleninu so syrom ulož do uzavretej nádoby a jogurt zvlášť. Najneskôr do 2 hodín ich odlož do chladničky, zjedz do 2 dní a prehrej v rúre pri 200 °C asi 10 minút."
+      }
+    },
+    {
+      "id": "stew_kale",
+      "version": 2,
+      "active": true,
+      "name_template": "Kelový prívarok s vajcom",
+      "family": "stew_kale",
+      "method": "pot",
+      "minutes": 50,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "veľký hrniec",
+        "panvica",
+        "sitko",
+        "nôž",
+        "doska na krájanie",
+        "metlička"
+      ],
+      "slots": [
+        {
+          "key": "kel",
+          "role": "vegetable",
+          "candidates": [
+            "savoy_cabbage"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null,
+          "water_ml_per_adult": "200"
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "150",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "40",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "12",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "15",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": [
+            "paprika_powder"
+          ],
+          "amount_per_adult": "2",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "caraway",
+          "role": "seasoning",
+          "candidates": [
+            "caraway"
+          ],
+          "amount_per_adult": "0.5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "marjoram",
+          "role": "seasoning",
+          "candidates": [
+            "marjoram"
+          ],
+          "amount_per_adult": "0.5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cream",
+          "role": "dairy",
+          "candidates": [
+            "cream"
+          ],
+          "amount_per_adult": "40",
+          "unit": "ml",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": "5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": "1",
+          "unit": "piece",
+          "child_factor": "0.75",
+          "required": true,
+          "use": "main",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Nakrájaj {kel.amount} {kel.name} na štvrtiny, vykroj z nich hlúbik a listy nakrájaj na rezance široké asi 1 cm. Rezance prepláchni v sitku pod studenou vodou.",
+          "requires": [
+            "kel:raw"
+          ],
+          "produces": [
+            "kel:cut"
+          ]
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na kocky veľké asi 1,5 cm. Nakrájaj {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} najemno.",
+          "requires": [
+            "potato:raw",
+            "onion:raw",
+            "garlic:raw"
+          ],
+          "produces": [
+            "potato:cut",
+            "onion:cut",
+            "garlic:cut"
+          ]
+        },
+        {
+          "text": "Vlož kel a zemiaky do veľkého hrnca. Nalej {kel.water} vody do hrnca. Prisyp {caraway.amount} {caraway.name} a štipku soli. Var kel so zemiakmi vo veľkom hrnci na strednom ohni 20 minút pod pokrievkou, kým kel aj zemiaky zmäknú.",
+          "requires": [
+            "kel:cut",
+            "potato:cut",
+            "caraway:raw",
+            "velky_hrniec:free"
+          ],
+          "produces": [
+            "kel:cooked",
+            "potato:cooked",
+            "caraway:cooked",
+            "velky_hrniec:occupied"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu 5 minút, kým bude dosklovita. Pridaj cesnak a opekaj ho 30 sekúnd, kým zavonia.",
+          "requires": [
+            "oil:raw",
+            "onion:cut",
+            "garlic:cut",
+            "panvica:free"
+          ],
+          "produces": [
+            "oil:used",
+            "onion:cooked",
+            "garlic:cooked",
+            "panvica:occupied"
+          ]
+        },
+        {
+          "text": "Prisyp {flour.amount} {flour.name} do panvice. Opekaj hladkú pšeničnú múku s cibuľou na miernom ohni 2 minúty za stáleho miešania, kým bude zlatistá.",
+          "requires": [
+            "flour:raw",
+            "onion:cooked",
+            "garlic:cooked"
+          ],
+          "produces": [
+            "flour:roux",
+            "onion:roux",
+            "garlic:roux"
+          ]
+        },
+        {
+          "text": "Odstav panvicu z ohňa. Prisyp {paprika.amount} {paprika.name}. Hneď premiešaj, aby korenie nezhorklo. Odober z hrnca s kelom trochu horúcej vody a postupne ňou rozmiešaj zápražku metličkou na hladkú hustú kašu, bez hrudiek.",
+          "requires": [
+            "paprika:raw",
+            "flour:roux"
+          ],
+          "produces": [
+            "paprika:roux",
+            "flour:slurry"
+          ]
+        },
+        {
+          "text": "Vyber zápražku stierkou z panvice do veľkého hrnca a premiešaj ju s kelom a zemiakmi. Var kel so zápražkou vo veľkom hrnci na miernom ohni 8 minút za občasného miešania, kým prívarok zhustne a začne bublať.",
+          "requires": [
+            "flour:slurry",
+            "paprika:roux",
+            "onion:roux",
+            "garlic:roux",
+            "oil:used",
+            "kel:cooked",
+            "panvica:occupied"
+          ],
+          "produces": [
+            "flour:cooked",
+            "paprika:cooked",
+            "onion:stew",
+            "garlic:stew",
+            "oil:stew",
+            "kel:thickened",
+            "panvica:free"
+          ]
+        },
+        {
+          "text": "Vmiešaj {cream.amount} {cream.name} a {marjoram.amount} {marjoram.name} do hrnca. Zohrievaj kel so smotanou vo veľkom hrnci na miernom ohni 2 minúty, kým prívarok opäť začne jemne bublať.",
+          "requires": [
+            "cream:raw",
+            "marjoram:raw",
+            "kel:thickened"
+          ],
+          "produces": [
+            "cream:cooked",
+            "marjoram:cooked",
+            "kel:finished"
+          ]
+        },
+        {
+          "text": "Rozohrej {butter.amount} {butter.name} v panvici na strednom ohni 1 minútu, kým začne bublať. Rozklep do nej {egg.amount} {egg.name} a opekaj volské oká 3 minúty, kým bielok stuhne a žĺtok ostane tekutý. Jemne ich osoľ a pri väčšom počte vajec pracuj po častiach.",
+          "requires": [
+            "butter:raw",
+            "egg:raw",
+            "panvica:free"
+          ],
+          "produces": [
+            "butter:cooked",
+            "egg:fried",
+            "panvica:used"
+          ]
+        },
+        {
+          "text": "Dochuť prívarok soľou a čiernym korením. Rozdeľ ho na {portions} porcií a na každú porciu polož volské oko. Podávaj hneď, kým je žĺtok tekutý.",
+          "requires": [
+            "kel:finished",
+            "potato:cooked",
+            "onion:stew",
+            "garlic:stew",
+            "oil:stew",
+            "flour:cooked",
+            "paprika:cooked",
+            "caraway:cooked",
+            "marjoram:cooked",
+            "cream:cooked",
+            "butter:cooked",
+            "egg:fried",
+            "velky_hrniec:occupied",
+            "panvica:used"
+          ],
+          "produces": [
+            "kel:served",
+            "potato:served",
+            "onion:served",
+            "garlic:served",
+            "oil:served",
+            "flour:served",
+            "paprika:served",
+            "caraway:served",
+            "marjoram:served",
+            "cream:served",
+            "butter:served",
+            "egg:served",
+            "velky_hrniec:free",
+            "panvica:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Prívarok rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní, pri ohrievaní prilej lyžicu vody a volské oko opekaj vždy čerstvé tesne pred podávaním."
+      }
+    },
+    {
+      "id": "stew_green_beans_egg",
+      "version": 2,
+      "active": true,
+      "name_template": "Prívarok zo zelenej fazuľky s vajcom",
+      "family": "stew_green_beans_egg",
+      "method": "pot",
+      "minutes": 40,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "veľký hrniec",
+        "malý hrniec",
+        "miska",
+        "nôž",
+        "doska na krájanie",
+        "metlička"
+      ],
+      "slots": [
+        {
+          "key": "beans",
+          "role": "vegetable",
+          "candidates": [
+            "green_beans"
+          ],
+          "amount_per_adult": "220",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null,
+          "water_ml_per_adult": "200"
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "150",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "bay",
+          "role": "seasoning",
+          "candidates": [
+            "bay_leaf"
+          ],
+          "amount_per_adult": "0.25",
+          "unit": "piece",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cream",
+          "role": "dairy",
+          "candidates": [
+            "cream"
+          ],
+          "amount_per_adult": "80",
+          "unit": "ml",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "15",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "vinegar",
+          "role": "seasoning",
+          "candidates": [
+            "apple_cider_vinegar"
+          ],
+          "amount_per_adult": "6",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "dill",
+          "role": "seasoning",
+          "candidates": [
+            "dill"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": "1",
+          "unit": "piece",
+          "child_factor": "0.75",
+          "required": true,
+          "use": "main",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Nakrájaj {beans.amount} {beans.name} na kúsky dlhé asi 3 cm a tvrdé konce odrež.",
+          "requires": [
+            "beans:raw"
+          ],
+          "produces": [
+            "beans:cut"
+          ]
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na kocky veľké asi 1,5 cm. Nakrájaj {dill.amount} {dill.name} {dill.cut}.",
+          "requires": [
+            "potato:raw",
+            "dill:raw"
+          ],
+          "produces": [
+            "potato:cut",
+            "dill:cut"
+          ]
+        },
+        {
+          "text": "Vlož zemiaky do veľkého hrnca. Nalej {beans.water} vody do hrnca a pridaj {bay.amount} {bay.name}. Prisyp štipku soli. Var zemiaky vo veľkom hrnci na strednom ohni 8 minút, kým budú napoly mäkké.",
+          "requires": [
+            "potato:cut",
+            "bay:raw",
+            "velky_hrniec:free"
+          ],
+          "produces": [
+            "potato:half",
+            "bay:cooked",
+            "velky_hrniec:occupied"
+          ]
+        },
+        {
+          "text": "Pridaj zelenú fazuľku do hrnca. Var zelenú fazuľku so zemiakmi vo veľkom hrnci na miernom ohni 10 minút, kým zmäkne, ale ostane sviežo zelená. Mrazenú fazuľku netreba rozmrazovať, daj ju do hrnca rovno z mrazničky a var ju o 2 minúty dlhšie.",
+          "requires": [
+            "beans:cut",
+            "potato:half"
+          ],
+          "produces": [
+            "beans:cooked",
+            "potato:cooked"
+          ]
+        },
+        {
+          "text": "Rozšľahaj {cream.amount} {cream.name} a {flour.amount} {flour.name} v miske metličkou dohladka, bez hrudiek. Odober z hrnca 1 naberačku horúcej tekutiny a postupne ňou rozrieď smotanovú zmes, aby sa nezrazila.",
+          "requires": [
+            "cream:raw",
+            "flour:raw",
+            "miska:free"
+          ],
+          "produces": [
+            "cream:slurry",
+            "flour:slurry",
+            "miska:used"
+          ]
+        },
+        {
+          "text": "Premiešaj smotanovú zmes s fazuľkou vo veľkom hrnci. Var zelenú fazuľku so smotanou vo veľkom hrnci na miernom ohni 5 minút za stáleho miešania, kým prívarok zhustne a začne bublať. Vyber z neho bobkový list.",
+          "requires": [
+            "cream:slurry",
+            "flour:slurry",
+            "beans:cooked",
+            "bay:cooked"
+          ],
+          "produces": [
+            "cream:cooked",
+            "flour:cooked",
+            "beans:thickened",
+            "bay:removed"
+          ]
+        },
+        {
+          "text": "Odstav veľký hrniec z ohňa. Vmiešaj {vinegar.amount} {vinegar.name} a kôpor, aby bol prívarok jemne kyslý.",
+          "requires": [
+            "vinegar:raw",
+            "dill:cut"
+          ],
+          "produces": [
+            "vinegar:mixed",
+            "dill:mixed"
+          ]
+        },
+        {
+          "text": "Uvar {egg.amount} {egg.name} na hniličku v malom hrnci na strednom ohni. Od začiatku varu počítaj 6 minút, kým bielok stuhne a žĺtok ostane mäkký. Potom {egg.reference_name} krátko schlaď v studenej vode a ošúp.",
+          "requires": [
+            "egg:raw",
+            "maly_hrniec:free"
+          ],
+          "produces": [
+            "egg:cooked",
+            "maly_hrniec:used"
+          ]
+        },
+        {
+          "text": "Dochuť prívarok soľou a čiernym korením. Rozdeľ ho na {portions} porcií. Každé vajce rozkroj na polovice a na tanieri ho jemne vtlač do prívarku.",
+          "requires": [
+            "beans:thickened",
+            "potato:cooked",
+            "bay:removed",
+            "cream:cooked",
+            "flour:cooked",
+            "vinegar:mixed",
+            "dill:mixed",
+            "egg:cooked",
+            "velky_hrniec:occupied",
+            "maly_hrniec:used",
+            "miska:used"
+          ],
+          "produces": [
+            "beans:served",
+            "potato:served",
+            "bay:served",
+            "cream:served",
+            "flour:served",
+            "vinegar:served",
+            "dill:served",
+            "egg:served",
+            "velky_hrniec:free",
+            "maly_hrniec:free",
+            "miska:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Prívarok rozdeľ do plytkých nádob a do jednej hodiny ho odlož do chladničky. Zjedz ho do 3 dní, prehrievaj ho na miernom ohni a vajce na hniličku var vždy čerstvé tesne pred podávaním."
+      }
+    },
+    {
+      "id": "stew_cabbage",
+      "version": 2,
+      "active": true,
+      "name_template": "Kapustový prívarok so zemiakmi",
+      "family": "stew_cabbage",
+      "method": "pot",
+      "minutes": 50,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "veľký hrniec",
+        "malý hrniec",
+        "miska",
+        "nôž",
+        "doska na krájanie",
+        "metlička"
+      ],
+      "slots": [
+        {
+          "key": "cabbage",
+          "role": "vegetable",
+          "candidates": [
+            "white_cabbage"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null,
+          "water_ml_per_adult": "200"
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "150",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "40",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "12",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "caraway",
+          "role": "seasoning",
+          "candidates": [
+            "caraway"
+          ],
+          "amount_per_adult": "0.5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cream",
+          "role": "dairy",
+          "candidates": [
+            "cream"
+          ],
+          "amount_per_adult": "60",
+          "unit": "ml",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "12",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "vinegar",
+          "role": "seasoning",
+          "candidates": [
+            "apple_cider_vinegar"
+          ],
+          "amount_per_adult": "6",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "sugar",
+          "role": "seasoning",
+          "candidates": [
+            "sugar"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": "1",
+          "unit": "piece",
+          "child_factor": "0.75",
+          "required": true,
+          "use": "main",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Nakrájaj {cabbage.amount} {cabbage.name} na štvrtiny, vykroj z nich hlúbik a listy nakrájaj na tenké rezance.",
+          "requires": [
+            "cabbage:raw"
+          ],
+          "produces": [
+            "cabbage:cut"
+          ]
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na kocky veľké asi 1,5 cm. Nakrájaj {onion.amount} {onion.name} {onion.cut}.",
+          "requires": [
+            "potato:raw",
+            "onion:raw"
+          ],
+          "produces": [
+            "potato:cut",
+            "onion:cut"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu 5 minút, kým bude dosklovita.",
+          "requires": [
+            "oil:raw",
+            "onion:cut",
+            "velky_hrniec:free"
+          ],
+          "produces": [
+            "oil:used",
+            "onion:cooked",
+            "velky_hrniec:occupied"
+          ]
+        },
+        {
+          "text": "Pridaj bielu hlávkovú kapustu do hrnca. Prisyp {caraway.amount} {caraway.name}. Opekaj bielu hlávkovú kapustu s cibuľou na strednom ohni 5 minút za občasného miešania, kým trochu zmäkne.",
+          "requires": [
+            "cabbage:cut",
+            "caraway:raw"
+          ],
+          "produces": [
+            "cabbage:wilted",
+            "caraway:cooked"
+          ]
+        },
+        {
+          "text": "Pridaj zemiaky do hrnca. Nalej {cabbage.water} vody do hrnca. Dus bielu hlávkovú kapustu so zemiakmi pod pokrievkou vo veľkom hrnci na miernom ohni 20 minút, kým kapusta aj zemiaky zmäknú.",
+          "requires": [
+            "cabbage:wilted",
+            "potato:cut"
+          ],
+          "produces": [
+            "cabbage:cooked",
+            "potato:cooked"
+          ]
+        },
+        {
+          "text": "Rozšľahaj {cream.amount} {cream.name} a {flour.amount} {flour.name} v miske metličkou dohladka, bez hrudiek. Odober z hrnca 1 naberačku horúcej šťavy a postupne ňou rozrieď smotanovú zmes, aby sa nezrazila.",
+          "requires": [
+            "cream:raw",
+            "flour:raw",
+            "miska:free"
+          ],
+          "produces": [
+            "cream:slurry",
+            "flour:slurry",
+            "miska:used"
+          ]
+        },
+        {
+          "text": "Premiešaj smotanovú zmes s kapustou vo veľkom hrnci. Var bielu hlávkovú kapustu so smotanou vo veľkom hrnci na miernom ohni 5 minút za stáleho miešania, kým prívarok zhustne a začne bublať.",
+          "requires": [
+            "cream:slurry",
+            "flour:slurry",
+            "cabbage:cooked",
+            "onion:cooked",
+            "oil:used"
+          ],
+          "produces": [
+            "cream:cooked",
+            "flour:cooked",
+            "cabbage:thickened",
+            "onion:stew",
+            "oil:stew"
+          ]
+        },
+        {
+          "text": "Odstav veľký hrniec z ohňa. Vmiešaj {vinegar.amount} {vinegar.name} a {sugar.amount} {sugar.name}, aby bol prívarok jemne sladkokyslý.",
+          "requires": [
+            "vinegar:raw",
+            "sugar:raw"
+          ],
+          "produces": [
+            "vinegar:mixed",
+            "sugar:mixed"
+          ]
+        },
+        {
+          "text": "Uvar {egg.amount} {egg.name} na hniličku v malom hrnci na strednom ohni. Od začiatku varu počítaj 6 minút, kým bielok stuhne a žĺtok ostane mäkký. Potom {egg.reference_name} krátko schlaď v studenej vode a ošúp.",
+          "requires": [
+            "egg:raw",
+            "maly_hrniec:free"
+          ],
+          "produces": [
+            "egg:cooked",
+            "maly_hrniec:used"
+          ]
+        },
+        {
+          "text": "Dochuť prívarok soľou a čiernym korením. Rozdeľ ho na {portions} porcií. Každé vajce rozkroj na polovice a na tanieri ho jemne vtlač do prívarku.",
+          "requires": [
+            "cabbage:thickened",
+            "potato:cooked",
+            "onion:stew",
+            "oil:stew",
+            "caraway:cooked",
+            "cream:cooked",
+            "flour:cooked",
+            "vinegar:mixed",
+            "sugar:mixed",
+            "egg:cooked",
+            "velky_hrniec:occupied",
+            "maly_hrniec:used",
+            "miska:used"
+          ],
+          "produces": [
+            "cabbage:served",
+            "potato:served",
+            "onion:served",
+            "oil:served",
+            "caraway:served",
+            "cream:served",
+            "flour:served",
+            "vinegar:served",
+            "sugar:served",
+            "egg:served",
+            "velky_hrniec:free",
+            "maly_hrniec:free",
+            "miska:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Prívarok rozdeľ do plytkých nádob a do jednej hodiny ho odlož do chladničky. Zjedz ho do 3 dní, prehrievaj ho na miernom ohni a vajce na hniličku var vždy čerstvé tesne pred podávaním."
+      }
+    },
+    {
+      "id": "stew_mushroom_paprikash",
+      "version": 2,
+      "active": true,
+      "name_template": "Hubový paprikáš s cestovinami",
+      "family": "stew_mushroom_paprikash",
+      "method": "pot",
+      "minutes": 40,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "široký hrniec",
+        "hrniec",
+        "sitko",
+        "miska",
+        "nôž",
+        "doska na krájanie",
+        "metlička"
+      ],
+      "slots": [
+        {
+          "key": "mushrooms",
+          "role": "vegetable",
+          "candidates": [
+            "mushrooms"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na plátky"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "60",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "pepper",
+          "role": "vegetable",
+          "candidates": [
+            "bell_pepper"
+          ],
+          "amount_per_adult": "60",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na tenké rezance"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "12",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": [
+            "paprika_powder"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "caraway",
+          "role": "seasoning",
+          "candidates": [
+            "caraway"
+          ],
+          "amount_per_adult": "0.5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cream",
+          "role": "dairy",
+          "candidates": [
+            "cream"
+          ],
+          "amount_per_adult": "90",
+          "unit": "ml",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "10",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "pasta",
+          "role": "starch",
+          "candidates": [
+            "pasta"
+          ],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null,
+          "water_ml_per_adult": "50"
+        },
+        {
+          "key": "parsley",
+          "role": "seasoning",
+          "candidates": [
+            "parsley"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Nakrájaj {mushrooms.amount} {mushrooms.name} {mushrooms.cut}, {onion.amount} {onion.name} {onion.cut} a {pepper.amount} {pepper.name} {pepper.cut}. Nasekaj {parsley.amount} {parsley.name} nadrobno.",
+          "requires": [
+            "mushrooms:raw",
+            "onion:raw",
+            "pepper:raw",
+            "parsley:raw"
+          ],
+          "produces": [
+            "mushrooms:cut",
+            "onion:cut",
+            "pepper:cut",
+            "parsley:cut"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} v širokom hrnci na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu 5 minút, kým bude dosklovita.",
+          "requires": [
+            "oil:raw",
+            "onion:cut",
+            "siroky_hrniec:free"
+          ],
+          "produces": [
+            "oil:used",
+            "onion:cooked",
+            "siroky_hrniec:occupied"
+          ]
+        },
+        {
+          "text": "Pridaj biele šampiňóny a papriku do hrnca. Opekaj šampiňóny s paprikou v širokom hrnci na strednom ohni 8 minút, kým huby zmäknú a voda z nich sa takmer odparí. Mrazené šampiňóny netreba rozmrazovať, daj ich do hrnca rovno z mrazničky a opekaj ich o 4 minúty dlhšie.",
+          "requires": [
+            "mushrooms:cut",
+            "pepper:cut"
+          ],
+          "produces": [
+            "mushrooms:cooked",
+            "pepper:cooked"
+          ]
+        },
+        {
+          "text": "Odstav široký hrniec z ohňa. Prisyp {paprika.amount} {paprika.name} a {caraway.amount} {caraway.name}. Hneď premiešaj, aby korenie nezhorklo.",
+          "requires": [
+            "paprika:raw",
+            "caraway:raw"
+          ],
+          "produces": [
+            "paprika:bloomed",
+            "caraway:bloomed"
+          ]
+        },
+        {
+          "text": "Rozšľahaj {cream.amount} {cream.name} a {flour.amount} {flour.name} v miske metličkou dohladka, bez hrudiek.",
+          "requires": [
+            "cream:raw",
+            "flour:raw",
+            "miska:free"
+          ],
+          "produces": [
+            "cream:slurry",
+            "flour:slurry",
+            "miska:used"
+          ]
+        },
+        {
+          "text": "Premiešaj smotanovú zmes so šampiňónmi v širokom hrnci. Var šampiňóny v omáčke na miernom ohni 4 minúty za stáleho miešania, kým omáčka zhustne a začne bublať.",
+          "requires": [
+            "cream:slurry",
+            "flour:slurry",
+            "paprika:bloomed",
+            "caraway:bloomed",
+            "mushrooms:cooked",
+            "onion:cooked",
+            "pepper:cooked"
+          ],
+          "produces": [
+            "cream:cooked",
+            "flour:cooked",
+            "paprika:cooked",
+            "caraway:cooked",
+            "mushrooms:sauce",
+            "onion:sauce",
+            "pepper:sauce"
+          ]
+        },
+        {
+          "text": "Uvar {pasta.amount} {pasta.name} v hrnci s osolenou vodou na strednom ohni asi 9 minút, kým budú mäkké, ale stále pevné. Odober z hrnca {pasta.water} vody a potom cestoviny sceď cez sitko.",
+          "requires": [
+            "pasta:raw",
+            "hrniec:free",
+            "sitko:free"
+          ],
+          "produces": [
+            "pasta:cooked",
+            "hrniec:used",
+            "sitko:used"
+          ]
+        },
+        {
+          "text": "Vyber cestoviny zo sitka do širokého hrnca k omáčke. Zohrievaj cestoviny v omáčke na miernom ohni 2 minúty, kým sa omáčkou rovnomerne obalia a omáčka jemne bublá. Ak je omáčka hustá, prilievaj po troškách odloženú vodu z cestovín, kým bude krémová.",
+          "requires": [
+            "pasta:cooked",
+            "mushrooms:sauce"
+          ],
+          "produces": [
+            "pasta:combined",
+            "mushrooms:finished"
+          ]
+        },
+        {
+          "text": "Dochuť paprikáš soľou a čiernym korením. Rozdeľ ho na {portions} porcií, na každú porciu nasyp petržlenovú vňať a podávaj.",
+          "requires": [
+            "mushrooms:finished",
+            "onion:sauce",
+            "pepper:sauce",
+            "oil:used",
+            "paprika:cooked",
+            "caraway:cooked",
+            "cream:cooked",
+            "flour:cooked",
+            "pasta:combined",
+            "parsley:cut",
+            "siroky_hrniec:occupied",
+            "hrniec:used",
+            "sitko:used",
+            "miska:used"
+          ],
+          "produces": [
+            "mushrooms:served",
+            "onion:served",
+            "pepper:served",
+            "oil:served",
+            "paprika:served",
+            "caraway:served",
+            "cream:served",
+            "flour:served",
+            "pasta:served",
+            "parsley:served",
+            "siroky_hrniec:free",
+            "hrniec:free",
+            "sitko:free",
+            "miska:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Paprikáš s cestovinami rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 2 dní a pri ohrievaní prilej lyžicu vody, aby omáčka ostala krémová."
+      }
+    },
+    {
+      "id": "classic_egg_dumplings_cucumber",
+      "version": 2,
+      "active": true,
+      "name_template": "Halušky s vajcom a uhorkovým šalátom",
+      "family": "classic_egg_dumplings_cucumber",
+      "method": "pot",
+      "minutes": 35,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "miska",
+        "misa",
+        "vareška",
+        "veľký hrniec",
+        "haluškár",
+        "cedidlo",
+        "veľká panvica",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "cucumber",
+          "role": "vegetable",
+          "candidates": [
+            "cucumber"
+          ],
+          "amount_per_adult": "150",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na tenké plátky"
+        },
+        {
+          "key": "vinegar",
+          "role": "seasoning",
+          "candidates": [
+            "apple_cider_vinegar"
+          ],
+          "amount_per_adult": "10",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null,
+          "water_ml_per_adult": "30"
+        },
+        {
+          "key": "sugar",
+          "role": "seasoning",
+          "candidates": [
+            "sugar"
+          ],
+          "amount_per_adult": "5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "110",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null,
+          "water_ml_per_adult": "70"
+        },
+        {
+          "key": "dough_egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": "0.25",
+          "unit": "piece",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "30",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": "10",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "eggs",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": "2",
+          "unit": "piece",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "chives",
+          "role": "seasoning",
+          "candidates": [
+            "chives"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Nakrájaj {cucumber.amount} {cucumber.name} {cucumber.cut}, jemne ju osoľ a nechaj 10 minút postáť. Premiešaj v miske {vinegar.amount} {vinegar.name}, {vinegar.water} vody, {sugar.amount} {sugar.name} a štipku čierneho korenia. Uhorku zľahka vytlač, zlej z nej šťavu a prelej ju nálevom. Šalát nechaj v chladničke odležať.",
+          "requires": [
+            "cucumber:raw",
+            "vinegar:raw",
+            "sugar:raw"
+          ],
+          "produces": [
+            "cucumber:salad",
+            "vinegar:salad",
+            "sugar:salad"
+          ]
+        },
+        {
+          "text": "Premiešaj v mise {flour.amount} {flour.name}, {dough_egg.amount} {dough_egg.name}, štipku soli a {flour.water} vody. Varechou vymiešaj hladké, polotuhé cesto, ktoré pomaly steká z varechy.",
+          "requires": [
+            "flour:raw",
+            "dough_egg:raw"
+          ],
+          "produces": [
+            "flour:dough",
+            "dough_egg:dough"
+          ]
+        },
+        {
+          "text": "Priveď vo veľkom hrnci osolenú vodu do varu na silnom ohni. Cesto pretlač cez haluškár do vriacej vody. Halušky var vo veľkom hrnci na strednom ohni 3 minúty od vyplávania, kým budú mäkké. Halušky sceď cez cedidlo a nechaj ich odkvapkať.",
+          "requires": [
+            "flour:dough",
+            "dough_egg:dough"
+          ],
+          "produces": [
+            "flour:cooked",
+            "dough_egg:cooked"
+          ]
+        },
+        {
+          "text": "Rozšľahaj {eggs.amount} {eggs.name} v miske so štipkou soli. Nakrájaj {onion.amount} {onion.name} {onion.cut} a {chives.amount} {chives.name} {chives.cut}.",
+          "requires": [
+            "eggs:raw",
+            "onion:raw",
+            "chives:raw"
+          ],
+          "produces": [
+            "eggs:beaten",
+            "onion:cut",
+            "chives:cut"
+          ]
+        },
+        {
+          "text": "Rozohrej {butter.amount} {butter.name} vo veľkej panvici na strednom ohni 1 minútu, kým začne bublať. Opekaj cibuľu vo veľkej panvici na strednom ohni 3 minúty, kým bude dosklovita.",
+          "requires": [
+            "butter:raw",
+            "onion:cut"
+          ],
+          "produces": [
+            "butter:used",
+            "onion:cooked"
+          ]
+        },
+        {
+          "text": "Vlej vajcia do panvice. Opekaj vajcia s cibuľou vo veľkej panvici na miernom ohni 2 minúty a stále ich miešaj, kým zľahka stuhnú, ale ostanú krémové. Vráť halušky do panvice. Zohrievaj vajcia s haluškami vo veľkej panvici na miernom ohni 2 minúty a premiešaj ich, kým sa z nich začne pariť.",
+          "requires": [
+            "eggs:beaten",
+            "flour:cooked"
+          ],
+          "produces": [
+            "eggs:cooked",
+            "flour:mixed"
+          ]
+        },
+        {
+          "text": "Rozdeľ halušky s vajcom na {portions} porcií, navrch nasyp pažítku a podávaj ich hneď s uhorkovým šalátom.",
+          "requires": [
+            "cucumber:salad",
+            "vinegar:salad",
+            "sugar:salad",
+            "flour:mixed",
+            "dough_egg:cooked",
+            "onion:cooked",
+            "butter:used",
+            "eggs:cooked",
+            "chives:cut"
+          ],
+          "produces": [
+            "cucumber:served",
+            "vinegar:served",
+            "sugar:served",
+            "flour:served",
+            "dough_egg:served",
+            "onion:served",
+            "butter:served",
+            "eggs:served",
+            "chives:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 1,
+        "instruction": "Halušky s vajcom a uhorkový šalát ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do nasledujúceho dňa a halušky prehrej na panvici s lyžicou vody."
+      }
+    },
+    {
+      "id": "classic_white_cabbage_dumplings",
+      "version": 2,
+      "active": true,
+      "name_template": "Kapustové halušky",
+      "family": "classic_white_cabbage_dumplings",
+      "method": "pot",
+      "minutes": 50,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "široký hrniec s pokrievkou",
+        "veľký hrniec",
+        "misa",
+        "jemné strúhadlo",
+        "haluškár",
+        "cedidlo",
+        "škrabka",
+        "nôž",
+        "doska na krájanie",
+        "varecha"
+      ],
+      "slots": [
+        {
+          "key": "cabbage",
+          "role": "vegetable",
+          "candidates": [
+            "white_cabbage"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na tenké rezance",
+          "water_ml_per_adult": "50"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "15",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "sugar",
+          "role": "seasoning",
+          "candidates": [
+            "sugar"
+          ],
+          "amount_per_adult": "5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "caraway",
+          "role": "seasoning",
+          "candidates": [
+            "caraway"
+          ],
+          "amount_per_adult": "1",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "200",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "najemno"
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "75",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "sour_cream",
+          "role": "dairy",
+          "candidates": [
+            "sour_cream"
+          ],
+          "amount_per_adult": "60",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Nakrájaj {cabbage.amount} {cabbage.name} {cabbage.cut} a {onion.amount} {onion.name} {onion.cut}.",
+          "requires": [
+            "cabbage:raw",
+            "onion:raw"
+          ],
+          "produces": [
+            "cabbage:cut",
+            "onion:cut"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} v širokom hrnci na strednom ohni 1 minútu. Opekaj cibuľu v širokom hrnci na strednom ohni 4 minúty, kým bude dosklovita. Prisyp {sugar.amount} {sugar.name} do hrnca. Zohrievaj cukor s cibuľou na strednom ohni 1 minútu, kým sa rozpustí a jemne zozlatne.",
+          "requires": [
+            "oil:raw",
+            "onion:cut",
+            "sugar:raw"
+          ],
+          "produces": [
+            "oil:used",
+            "onion:cooked",
+            "sugar:caramel"
+          ]
+        },
+        {
+          "text": "Pridaj bielu hlávkovú kapustu, {caraway.amount} {caraway.name} a štipku soli do hrnca. Prilej {cabbage.water} vody do hrnca. Hrniec prikry. Dus bielu hlávkovú kapustu v hrnci na miernom ohni 25 minút za občasného miešania, kým zmäkne a jemne zozlatne. Ak sa začne prichytávať, dolej lyžicu vody.",
+          "requires": [
+            "cabbage:cut",
+            "caraway:raw",
+            "sugar:caramel",
+            "onion:cooked"
+          ],
+          "produces": [
+            "cabbage:cooked",
+            "caraway:cooked",
+            "sugar:cooked",
+            "onion:braised"
+          ]
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nastrúhaj ich {potato.cut} do misy. Pridaj {flour.amount} {flour.name} a štipku soli. Varechou vymiešaj husté, stále mäkké cesto.",
+          "requires": [
+            "potato:raw",
+            "flour:raw"
+          ],
+          "produces": [
+            "potato:dough",
+            "flour:dough"
+          ]
+        },
+        {
+          "text": "Priveď vo veľkom hrnci osolenú vodu do varu na silnom ohni. Cesto pretlač cez haluškár do vriacej vody. Halušky var vo veľkom hrnci na strednom ohni 3 minúty od vyplávania, kým budú mäkké. Halušky sceď cez cedidlo a nechaj ich krátko odkvapkať.",
+          "requires": [
+            "potato:dough",
+            "flour:dough"
+          ],
+          "produces": [
+            "potato:cooked",
+            "flour:cooked"
+          ]
+        },
+        {
+          "text": "Vráť halušky do hrnca s kapustou. Zohrievaj bielu hlávkovú kapustu s haluškami v hrnci na miernom ohni 2 minúty a premiešaj ich, kým sa z nich začne pariť. Dochuť ich soľou a čiernym korením.",
+          "requires": [
+            "potato:cooked",
+            "cabbage:cooked"
+          ],
+          "produces": [
+            "potato:mixed",
+            "cabbage:mixed"
+          ]
+        },
+        {
+          "text": "Rozdeľ kapustové halušky na {portions} porcií a podávaj ich horúce. Navrch daj {sour_cream.amount} {sour_cream.name}.",
+          "requires": [
+            "cabbage:mixed",
+            "onion:braised",
+            "oil:used",
+            "sugar:cooked",
+            "caraway:cooked",
+            "potato:mixed",
+            "flour:cooked",
+            "sour_cream:raw"
+          ],
+          "produces": [
+            "cabbage:served",
+            "onion:served",
+            "oil:served",
+            "sugar:served",
+            "caraway:served",
+            "potato:served",
+            "flour:served",
+            "sour_cream:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Kapustové halušky ulož bez kyslej smotany do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní a prehrej ich na panvici s lyžicou vody."
+      }
+    },
+    {
+      "id": "classic_baked_potatoes_sour_cream",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené zemiaky s kyslou smotanou a cesnakom",
+      "family": "classic_baked_potatoes_sour_cream",
+      "method": "oven",
+      "minutes": 55,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "pekáč",
+        "miska",
+        "kefka",
+        "strúhadlo",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "350",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na polovice"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "12",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "caraway",
+          "role": "seasoning",
+          "candidates": [
+            "caraway"
+          ],
+          "amount_per_adult": "1",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cheese",
+          "role": "protein",
+          "candidates": [
+            "hard_cheese"
+          ],
+          "amount_per_adult": "40",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nastrúhaný"
+        },
+        {
+          "key": "sour_cream",
+          "role": "dairy",
+          "candidates": [
+            "sour_cream"
+          ],
+          "amount_per_adult": "100",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "chives",
+          "role": "seasoning",
+          "candidates": [
+            "chives"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C.",
+          "requires": [],
+          "produces": []
+        },
+        {
+          "text": "Opláchni {potato.amount} {potato.name} a kefkou ich umy. V šupke ich prekroj {potato.cut}. Väčšie zemiaky prekroj na štvrtky.",
+          "requires": [
+            "potato:raw"
+          ],
+          "produces": [
+            "potato:cut"
+          ]
+        },
+        {
+          "text": "Nalej {oil.amount} {oil.name} do pekáča. Prisyp {caraway.amount} {caraway.name} do pekáča. Rozlož zemiaky v pekáči, osoľ ich a premiešaj s olejom. Polovice nakoniec obráť reznou stranou nadol.",
+          "requires": [
+            "potato:cut",
+            "oil:raw",
+            "caraway:raw"
+          ],
+          "produces": [
+            "potato:pan",
+            "oil:used",
+            "caraway:used"
+          ]
+        },
+        {
+          "text": "Peč zemiaky v pekáči v rúre pri 200 °C 40 minút, kým budú zlatisté a mäkké. V polovici času ich obráť.",
+          "requires": [
+            "potato:pan"
+          ],
+          "produces": [
+            "potato:roasted"
+          ]
+        },
+        {
+          "text": "Nakrájaj {chives.amount} {chives.name} {chives.cut}. Premiešaj v miske {sour_cream.amount} {sour_cream.name}, {garlic.amount} prelisovaný {garlic.name}, pažítku a štipku soli. Cesnakovú smotanu nechaj v chladničke odležať.",
+          "requires": [
+            "sour_cream:raw",
+            "garlic:raw",
+            "chives:raw"
+          ],
+          "produces": [
+            "sour_cream:dip",
+            "garlic:dip",
+            "chives:dip"
+          ]
+        },
+        {
+          "text": "Priprav {cheese.amount} {cheese.name}, nastrúhaj ho a rozsyp na zemiaky v pekáči. Peč zemiaky so syrom v rúre pri 200 °C ešte 5 minút, kým sa syr roztopí a začne bublať.",
+          "requires": [
+            "cheese:raw",
+            "potato:roasted"
+          ],
+          "produces": [
+            "cheese:melted",
+            "potato:baked"
+          ]
+        },
+        {
+          "text": "Podávaj horúce zemiaky so syrom a cesnakovou kyslou smotanou. Rozdeľ jedlo na {portions} porcií.",
+          "requires": [
+            "potato:baked",
+            "oil:used",
+            "caraway:used",
+            "cheese:melted",
+            "sour_cream:dip",
+            "garlic:dip",
+            "chives:dip"
+          ],
+          "produces": [
+            "potato:served",
+            "oil:served",
+            "caraway:served",
+            "cheese:served",
+            "sour_cream:served",
+            "garlic:served",
+            "chives:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Zemiaky a cesnakovú smotanu ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní. Zemiaky prehrej v rúre pri 200 °C asi 10 minút, smotanu podávaj studenú."
+      }
+    },
+    {
+      "id": "classic_rice_mushrooms_peas",
+      "version": 2,
+      "active": true,
+      "name_template": "Ryža so šampiňónmi a hráškom",
+      "family": "classic_rice_mushrooms_peas",
+      "method": "pot",
+      "minutes": 40,
+      "modes": [
+        "standard",
+        "vegetarian"
+      ],
+      "equipment": [
+        "sitko",
+        "široký hrniec s pokrievkou",
+        "strúhadlo",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "rice",
+          "role": "starch",
+          "candidates": [
+            "rice"
+          ],
+          "amount_per_adult": "85",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null,
+          "water_ml_per_adult": "170"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "mushrooms",
+          "role": "vegetable",
+          "candidates": [
+            "mushrooms"
+          ],
+          "amount_per_adult": "150",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na plátky"
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": "15",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "peas",
+          "role": "vegetable",
+          "candidates": [
+            "peas"
+          ],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "parsley",
+          "role": "seasoning",
+          "candidates": [
+            "parsley"
+          ],
+          "amount_per_adult": "5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "cheese",
+          "role": "protein",
+          "candidates": [
+            "hard_cheese"
+          ],
+          "amount_per_adult": "25",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nastrúhaný"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou, kým voda nebude číra. Nakrájaj {onion.amount} {onion.name} {onion.cut} a {mushrooms.amount} {mushrooms.name} {mushrooms.cut}.",
+          "requires": [
+            "rice:raw",
+            "onion:raw",
+            "mushrooms:raw"
+          ],
+          "produces": [
+            "rice:rinsed",
+            "onion:cut",
+            "mushrooms:cut"
+          ]
+        },
+        {
+          "text": "Rozohrej {butter.amount} {butter.name} v širokom hrnci na strednom ohni 1 minútu, kým začne bublať. Opekaj cibuľu v hrnci na strednom ohni 4 minúty, kým bude dosklovita.",
+          "requires": [
+            "butter:raw",
+            "onion:cut"
+          ],
+          "produces": [
+            "butter:used",
+            "onion:cooked"
+          ]
+        },
+        {
+          "text": "Pridaj biele šampiňóny do hrnca. Opekaj šampiňóny s cibuľou v hrnci na strednom ohni 6 minút, kým zmäknú a odparí sa z nich voda. Mrazené šampiňóny nerozmrazuj, daj ich do hrnca rovno z mrazničky a opekaj ich o 4 minúty dlhšie.",
+          "requires": [
+            "mushrooms:cut"
+          ],
+          "produces": [
+            "mushrooms:cooked"
+          ]
+        },
+        {
+          "text": "Vsyp ryžu do hrnca. Premiešaj ju so šampiňónmi a opekaj ju 1 minútu, aby sa zrnká obalili maslom. Prilej {rice.water} vody a pridaj štipku soli. Hrniec prikry. Var ryžu so šampiňónmi v hrnci na miernom ohni 12 minút, kým vsiakne väčšinu vody.",
+          "requires": [
+            "rice:rinsed"
+          ],
+          "produces": [
+            "rice:simmered"
+          ]
+        },
+        {
+          "text": "Vsyp {peas.amount} {peas.name} do hrnca. Mrazený hrášok nerozmrazuj, prehreje sa priamo na ryži. Var hrášok s ryžou v hrnci pod pokrievkou na miernom ohni ešte 5 minút, kým ryža vsiakne všetku vodu a zmäkne. Odstav hrniec a nechaj ryžu 5 minút prikrytú postáť.",
+          "requires": [
+            "peas:raw",
+            "rice:simmered"
+          ],
+          "produces": [
+            "peas:cooked",
+            "rice:cooked"
+          ]
+        },
+        {
+          "text": "Nakrájaj {parsley.amount} {parsley.name} {parsley.cut}. Vmiešaj petržlenovú vňať do ryže. Ryžu dochuť soľou a čiernym korením. Priprav {cheese.amount} {cheese.name} a nastrúhaj ho.",
+          "requires": [
+            "parsley:raw",
+            "cheese:raw"
+          ],
+          "produces": [
+            "parsley:mixed",
+            "cheese:grated"
+          ]
+        },
+        {
+          "text": "Rozdeľ ryžu so šampiňónmi a hráškom na {portions} porcií a navrch nasyp syr. Podávaj ju horúcu.",
+          "requires": [
+            "rice:cooked",
+            "onion:cooked",
+            "mushrooms:cooked",
+            "butter:used",
+            "peas:cooked",
+            "parsley:mixed",
+            "cheese:grated"
+          ],
+          "produces": [
+            "rice:served",
+            "onion:served",
+            "mushrooms:served",
+            "butter:served",
+            "peas:served",
+            "parsley:served",
+            "cheese:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Ryžu bez syra rozdeľ do plytkých nádob a najneskôr do 1 hodiny ju odlož do chladničky. Zjedz ju do 3 dní. Pri ohrievaní ju pokvapkaj lyžicou vody, dôkladne ju prehrej iba raz a syr nasyp až na tanier."
+      }
     }
   ]
 }

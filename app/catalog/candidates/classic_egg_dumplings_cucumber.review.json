@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "0c966e7af00d20e9cb85ec7bf4a5f1713644d9adc17647cd32f50d3e3ed50e5c",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "classic_egg_dumplings_cucumber"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

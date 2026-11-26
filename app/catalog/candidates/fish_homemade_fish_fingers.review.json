@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "4874bfc84c7cada1f22bd6ae7c7d45e789099e479d0a26802922ed1c29cf65ae",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "fish_homemade_fish_fingers"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

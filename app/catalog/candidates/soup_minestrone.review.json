@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "bf0967a7dd4e1208eaa10a526d14a164e12bbc35968f415c6e5c49f53f628a6e",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "soup_minestrone"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

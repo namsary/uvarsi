@@ -1,0 +1,45 @@
+{
+  "recipes": [
+    {
+      "id": "quick_garlic_chicken_spaghetti",
+      "version": 2,
+      "active": true,
+      "name_template": "Cesnakové špagety s kuracím mäsom",
+      "family": "quick_garlic_chicken_spaghetti",
+      "method": "pan",
+      "minutes": 30,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľká panvica", "hrniec", "sitko", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "90", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "60"},
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenké rezančeky"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na tenké plátky"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "15", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "parmesan", "role": "dairy", "candidates": ["parmesan"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno nastrúhaný"},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "6", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "chili", "role": "seasoning", "candidates": ["chili_powder"], "amount_per_adult": "0.3", "unit": "g", "child_factor": "0.3", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} na tenké rezančeky, {garlic.amount} {garlic.name} na tenké plátky a {parsley.amount} {parsley.name} nadrobno. Najemno nastrúhaj {parmesan.amount} {parmesan.name}. Mäso osoľ a okoreň.", "requires": ["chicken:raw", "garlic:raw", "parsley:raw", "parmesan:raw"], "produces": ["chicken:cut", "garlic:cut", "parsley:cut", "parmesan:grated"]},
+        {"text": "Uvar {pasta.amount} {pasta.name}, najlepšie špagety, v hrnci s osolenou vodou na strednom ohni asi 9 minút, kým budú mäkké, ale stále pevné. Odober z hrnca {pasta.water} vody a potom cestoviny sceď cez sitko.", "requires": ["pasta:raw", "hrniec:free", "sitko:free"], "produces": ["pasta:cooked", "hrniec:free", "sitko:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj kuracie prsia v panvici na strednom ohni 5 minút, kým budú zlatisté a v strede nebudú ružové, a vyber ich na tanier. Pri väčšej dávke ich opekaj po častiach.", "requires": ["oil:raw", "chicken:cut", "velka_panvica:free"], "produces": ["oil:used", "chicken:cooked", "velka_panvica:occupied"]},
+        {"text": "Stíš oheň na mierny. Pridaj {butter.amount} {butter.name} a cesnak do panvice. Opekaj cesnak na miernom ohni 2 minúty, kým bude zlatistý, nesmie zhnednúť. Odstav panvicu z ohňa a prisyp {chili.amount} {chili.name}.", "requires": ["butter:raw", "garlic:cut", "chili:raw", "oil:used", "velka_panvica:occupied"], "produces": ["butter:cooked", "garlic:cooked", "chili:cooked"]},
+        {"text": "Vráť panvicu na sporák. Pridaj cestoviny a kuracie prsia do panvice. Zohrievaj cestoviny s mäsom na miernom ohni 2 minúty, prilievaj po troškách odloženú vodu z cestovín a miešaj, kým sa olej s maslom a vodou spojí do omáčky, ktorá cestoviny obalí a začne sa lesknúť. Vmiešaj parmezán a petržlenovú vňať.", "requires": ["pasta:cooked", "chicken:cooked", "garlic:cooked", "parmesan:grated", "parsley:cut", "velka_panvica:occupied"], "produces": ["pasta:combined", "parmesan:combined", "parsley:combined"]},
+        {"text": "Dochuť cestoviny soľou až po ochutnaní, parmezán je slaný. Rozdeľ ich na {portions} porcií a ihneď podávaj.", "requires": ["pasta:combined", "chicken:cooked", "garlic:cooked", "oil:used", "butter:cooked", "parmesan:combined", "parsley:combined", "chili:cooked", "velka_panvica:occupied"], "produces": ["pasta:served", "chicken:served", "garlic:served", "oil:served", "butter:served", "parmesan:served", "parsley:served", "chili:served", "velka_panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Cestoviny rozdeľ do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní a prehrievaj ich na panvici s lyžicou vody, kým budú celé horúce."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_garlic_chicken_spaghetti",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/14766/spagety-s-cesnakom/", "title": "Špagety s cesnakom | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/spagety-s-cesnakom-a-parmezanom-fotorecept/14243-recept.html", "title": "Špagety s cesnakom a parmezánom (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/spagety-s-kuracim-masom-fotorecept/58732-recept.html", "title": "Špagety s kuracím mäsom (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

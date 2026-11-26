@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "514b02d12f2fc0864a50b05d6161e226dfecf7984aa6726770f49da1a0d3a45c",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "fish_fish_goulash"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

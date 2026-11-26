@@ -1,0 +1,51 @@
+{
+  "recipes": [
+    {
+      "id": "soup_kulajda",
+      "version": 2,
+      "active": true,
+      "name_template": "Kulajda",
+      "family": "soup_kulajda",
+      "method": "soup",
+      "minutes": 50,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["veľký hrniec", "malý hrniec", "nôž", "doska na krájanie", "metlička"],
+      "slots": [
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "350"},
+        {"key": "mushrooms", "role": "vegetable", "candidates": ["mushrooms"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky"},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "12", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "12", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "80", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "bay", "role": "seasoning", "candidates": ["bay_leaf"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "vinegar", "role": "seasoning", "candidates": ["apple_cider_vinegar"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "dill", "role": "seasoning", "candidates": ["dill"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.75", "required": true, "use": "main", "cut": null},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na krajce"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na kocky veľké asi 1,5 cm. Nakrájaj {mushrooms.amount} {mushrooms.name} {mushrooms.cut} a {dill.amount} {dill.name} nasekaj nadrobno.", "requires": ["potato:raw", "mushrooms:raw", "dill:raw"], "produces": ["potato:cut", "mushrooms:cut", "dill:cut"]},
+        {"text": "Rozohrej {butter.amount} {butter.name} vo veľkom hrnci na miernom ohni 1 minútu, kým začne bublať. Prisyp {flour.amount} {flour.name} do hrnca. Opekaj hladkú pšeničnú múku na masle 2 minúty za stáleho miešania, kým bude svetlá a zlatistá.", "requires": ["butter:raw", "flour:raw", "velky_hrniec:free"], "produces": ["butter:roux", "flour:roux", "velky_hrniec:occupied"]},
+        {"text": "Prilej {potato.water} vody. Hneď zápražku s vodou vymiešaj metličkou dohladka, bez hrudiek. Pridaj zemiaky, {bay.amount} {bay.name} a {caraway.amount} {caraway.name} do hrnca. Var zemiaky vo veľkom hrnci na miernom ohni 12 minút, kým budú napoly mäkké.", "requires": ["potato:cut", "bay:raw", "caraway:raw", "butter:roux", "flour:roux"], "produces": ["potato:half", "bay:cooked", "caraway:cooked", "butter:cooked", "flour:cooked"]},
+        {"text": "Pridaj biele šampiňóny do hrnca. Var šampiňóny so zemiakmi vo veľkom hrnci na miernom ohni 8 minút, kým zemiaky aj huby zmäknú. Mrazené šampiňóny netreba rozmrazovať, daj ich do hrnca rovno z mrazničky.", "requires": ["mushrooms:cut", "potato:half"], "produces": ["mushrooms:cooked", "potato:cooked"]},
+        {"text": "Vlej {cream.amount} {cream.name} do hrnca. Zohrievaj smotanu na varenie so zemiakmi vo veľkom hrnci na miernom ohni 3 minúty, kým polievka začne jemne bublať. Vyber z nej bobkový list.", "requires": ["cream:raw", "bay:cooked"], "produces": ["cream:cooked", "bay:removed"]},
+        {"text": "Odstav veľký hrniec z ohňa. Vmiešaj {vinegar.amount} {vinegar.name}, {sugar.amount} {sugar.name} a kôpor. Kulajda má byť jemne kyslá a voňať kôprom.", "requires": ["vinegar:raw", "sugar:raw", "dill:cut"], "produces": ["vinegar:mixed", "sugar:mixed", "dill:mixed"]},
+        {"text": "Uvar {egg.amount} {egg.name} na hniličku v malom hrnci na strednom ohni. Od začiatku varu počítaj 6 minút, kým bielok stuhne a žĺtok ostane mäkký. Potom {egg.reference_name} krátko schlaď v studenej vode a ošúp.", "requires": ["egg:raw", "maly_hrniec:free"], "produces": ["egg:cooked", "maly_hrniec:used"]},
+        {"text": "Nakrájaj {bread.amount} {bread.name} {bread.cut}.", "requires": ["bread:raw"], "produces": ["bread:cut"]},
+        {"text": "Dochuť kulajdu soľou a čiernym korením. Rozdeľ ju na {portions} porcií, na každú porciu polož vajce rozkrojené na polovice a podávaj s chlebom.", "requires": ["potato:cooked", "mushrooms:cooked", "butter:cooked", "flour:cooked", "cream:cooked", "bay:removed", "caraway:cooked", "vinegar:mixed", "sugar:mixed", "dill:mixed", "egg:cooked", "bread:cut", "velky_hrniec:occupied", "maly_hrniec:used"], "produces": ["potato:served", "mushrooms:served", "butter:served", "flour:served", "cream:served", "bay:served", "caraway:served", "vinegar:served", "sugar:served", "dill:served", "egg:served", "bread:served", "velky_hrniec:free", "maly_hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Kulajdu rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 2 dní a prehrievaj ju iba na miernom ohni, aby sa smotana nezrazila. Vajce na hniličku var vždy čerstvé tesne pred podávaním."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "soup_kulajda",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/ceska-kulajda/83268-recept.html", "title": "Česká kulajda - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/10492/kulajda/", "title": "Kulajda | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

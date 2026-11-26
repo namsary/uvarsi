@@ -363,3 +363,203 @@ def test_sweet_cream_16_percent_counts_as_cooking_cream(catalog):
         catalog,
     )
     assert [item.ingredient.id for item in matched] == ["cream"]
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit", "expected_id"),
+    (
+        ("Strúhanka 500 g", "500 g", "breadcrumbs"),
+        ("Pšeničná strúhanka 400 g", "400 g", "breadcrumbs"),
+        ("Paradajkový pretlak 140 g", "140 g", "tomato_paste"),
+        ("Kyslé uhorky 670 g", "670 g", "pickled_cucumber"),
+        ("Uhorky sterilizované 680 g", "680 g", "pickled_cucumber"),
+        ("Plnotučná horčica 350 g", "350 g", "mustard"),
+        ("Majonéza 250 g", "250 g", "mayonnaise"),
+        ("Tatárska omáčka 250 g", "250 g", "tartar_sauce"),
+        ("Mletý mak 200 g", "200 g", "poppy_seed"),
+        ("Mak modrý mletý 200 g", "200 g", "poppy_seed"),
+        ("Rasca celá 30 g", "30 g", "caraway"),
+        ("Bobkový list 5 g", "5 g", "bay_leaf"),
+        ("Nové korenie celé 15 g", "15 g", "allspice"),
+        ("Zeler 1 kg", "1 kg", "celeriac"),
+        ("Hovädzie zadné bez kosti 1 kg", "1 kg", "beef_round"),
+        ("Hovädzie stehno 1 kg", "1 kg", "beef_round"),
+        ("Kurča celé chladené 1,4 kg", "1,4 kg", "chicken_whole"),
+        ("Celé kurča 1,3 kg", "1,3 kg", "chicken_whole"),
+    ),
+)
+def test_wave2_classic_pantry_and_meat_labels_match(
+    catalog, product_name, unit, expected_id
+):
+    matched = match_offers([offer(nazov=product_name, jednotka=unit)], catalog)
+
+    assert [item.ingredient.id for item in matched] == [expected_id]
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit"),
+    (
+        ("Bezlepková strúhanka 250 g", "250 g"),
+        ("Strúhanka s bylinkami 200 g", "200 g"),
+        ("Paradajkový pretlak s bazalkou 140 g", "140 g"),
+        ("Uhorky šalátové 1 kg", "1 kg"),
+        ("Horčica s chrenom 200 g", "200 g"),
+        ("Majonéza light 250 g", "250 g"),
+        ("Mletý mak s cukrom 200 g", "200 g"),
+        ("Zeler stopkový 500 g", "500 g"),
+        ("Hovädzie stehno mleté 500 g", "500 g"),
+        ("Hovädzie kocky zo stehna 500 g", "500 g"),
+        ("Kurča grilované celé 1 kg", "1 kg"),
+    ),
+)
+def test_wave2_flavoured_or_different_products_fail_closed(
+    catalog, product_name, unit
+):
+    assert match_offers([offer(nazov=product_name, jednotka=unit)], catalog) == ()
+
+
+def test_salad_cucumber_is_not_a_pickled_cucumber(catalog):
+    matched = match_offers(
+        [offer(nazov="Šalátové uhorky 1 kg", jednotka="1 kg")], catalog
+    )
+    assert [item.ingredient.id for item in matched] == ["cucumber"]
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit", "expected_id"),
+    (
+        ("Kuracia pečeň chladená 500 g", "500 g", "chicken_liver"),
+        ("Kuracie pečienky 500 g", "500 g", "chicken_liver"),
+        ("Pór 1 kg", "1 kg", "leek"),
+        ("Párky jemné 250 g", "250 g", "frankfurters"),
+        ("Viedenské párky 400 g", "400 g", "frankfurters"),
+        ("Bravčové párky 300 g", "300 g", "frankfurters"),
+        ("Údené bravčové karé 1 kg", "1 kg", "smoked_pork"),
+        ("Údená krkovička 500 g", "500 g", "smoked_pork"),
+        ("Kel hlávkový 1 kg", "1 kg", "savoy_cabbage"),
+        ("Kel 1 kg", "1 kg", "savoy_cabbage"),
+        ("Mrazená zelená fazuľka 450 g", "450 g", "green_beans"),
+        ("Fazuľka zelená 400 g", "400 g", "green_beans"),
+        ("Biela fazuľa v konzerve 400 g", "400 g", "white_beans_canned"),
+        ("Fazuľa biela sterilizovaná 400 g", "400 g", "white_beans_canned"),
+    ),
+)
+def test_wave2_soup_and_privarok_labels_match(
+    catalog, product_name, unit, expected_id
+):
+    matched = match_offers([offer(nazov=product_name, jednotka=unit)], catalog)
+
+    assert [item.ingredient.id for item in matched] == [expected_id]
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit"),
+    (
+        ("Kuracie pečienky a srdiečka 500 g", "500 g"),
+        ("Kuracie párky 250 g", "250 g"),
+        ("Párky so syrom 250 g", "250 g"),
+        ("Spišské párky 300 g", "300 g"),
+        ("Údené koleno 1 kg", "1 kg"),
+        ("Kel ružičkový 500 g", "500 g"),
+        ("Zeleninová zmes s fazuľkou 400 g", "400 g"),
+        ("Biela fazuľa 500 g", "500 g"),
+        ("Fazuľa biela 500 g", "500 g"),
+        ("Biela sterilizovaná fazuľa 400 g", "400 g"),
+    ),
+)
+def test_wave2_soup_and_privarok_lookalikes_fail_closed(catalog, product_name, unit):
+    assert match_offers([offer(nazov=product_name, jednotka=unit)], catalog) == ()
+
+
+def test_red_bean_offers_never_absorb_white_beans(catalog):
+    matched = match_offers(
+        [offer(nazov="Červená fazuľa v konzerve 400 g", jednotka="400 g")], catalog
+    )
+    assert [item.ingredient.id for item in matched] == ["beans_canned"]
+    assert (
+        match_offers(
+            [offer(nazov="Sušená fazuľa biela 500 g", jednotka="500 g")], catalog
+        )
+        == ()
+    )
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit", "expected_id"),
+    (
+        ("Kyslá smotana 15 % 180 g", "180 g", "sour_cream"),
+        ("Smotana kyslá 200 g", "200 g", "sour_cream"),
+        ("Parmezán 100 g", "100 g", "parmesan"),
+        ("Grana Padano 200 g", "200 g", "parmesan"),
+        ("Parmigiano Reggiano strúhaný 100 g", "100 g", "parmesan"),
+        ("Pita chlieb 4 ks 320 g", "320 g", "pita"),
+        ("Chlieb pita 400 g", "400 g", "pita"),
+        ("Hamburgerové žemle 4 ks 300 g", "300 g", "burger_bun"),
+        ("Žemle na hamburger 300 g", "300 g", "burger_bun"),
+        ("Kukurica sterilizovaná 340 g", "340 g", "sweet_corn"),
+        ("Sladká kukurica 340 g", "340 g", "sweet_corn"),
+    ),
+)
+def test_wave2_quick_dinner_labels_match(catalog, product_name, unit, expected_id):
+    matched = match_offers([offer(nazov=product_name, jednotka=unit)], catalog)
+
+    assert [item.ingredient.id for item in matched] == [expected_id]
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit"),
+    (
+        ("Kyslá smotana s cesnakom 150 g", "150 g"),
+        ("Parmezán s hľuzovkou 100 g", "100 g"),
+        ("Pita chips 100 g", "100 g"),
+        ("Bezlepkové hamburgerové žemle 300 g", "300 g"),
+        ("Kukurica na pukance 500 g", "500 g"),
+        ("Kukurica varená klas 2 ks", "2 ks"),
+        ("Kukurica mrazená 400 g", "400 g"),
+    ),
+)
+def test_wave2_quick_dinner_lookalikes_fail_closed(catalog, product_name, unit):
+    assert match_offers([offer(nazov=product_name, jednotka=unit)], catalog) == ()
+
+
+def test_sour_cream_is_not_cooking_cream(catalog):
+    matched = match_offers(
+        [offer(nazov="Smotana na varenie 12 % 200 ml", jednotka="200 ml")], catalog
+    )
+    assert [item.ingredient.id for item in matched] == ["cream"]
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit", "expected_id"),
+    (
+        ("Pstruh dúhový chladený 1 kg", "1 kg", "trout"),
+        ("Pstruh dúhový 300 g", "300 g", "trout"),
+        ("Makrela chladená 1 kg", "1 kg", "mackerel"),
+        ("Makrela atlantická 400 g", "400 g", "mackerel"),
+        ("Žemle na hamburger 300 g", "300 g", "burger_bun"),
+        ("Hamburgerové žemle 4 ks 300 g", "300 g", "burger_bun"),
+    ),
+)
+def test_wave2_whole_fish_and_burger_bun_labels_match(
+    catalog, product_name, unit, expected_id
+):
+    matched = match_offers([offer(nazov=product_name, jednotka=unit)], catalog)
+
+    assert [item.ingredient.id for item in matched] == [expected_id]
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit"),
+    (
+        ("Pstruh údený 200 g", "200 g"),
+        ("Pstruh filety 250 g", "250 g"),
+        ("Makrela údená 1 kg", "1 kg"),
+        ("Makrela v oleji 125 g", "125 g"),
+        ("Makrela filety v paradajkovej omáčke 170 g", "170 g"),
+        ("Bezlepkové hamburgerové žemle 300 g", "300 g"),
+    ),
+)
+def test_wave2_smoked_canned_or_filleted_fish_fail_closed(
+    catalog, product_name, unit
+):
+    assert match_offers([offer(nazov=product_name, jednotka=unit)], catalog) == ()

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "4b379f36dc24f0bb089ce17d5cbdd73ddb2d1491582c1a5522afb7e167b196b4",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "stew_bean_goulash"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

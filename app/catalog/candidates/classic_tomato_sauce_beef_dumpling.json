@@ -1,0 +1,56 @@
+{
+  "recipes": [
+    {
+      "id": "classic_tomato_sauce_beef_dumpling",
+      "version": 2,
+      "active": true,
+      "name_template": "Rajská omáčka s hovädzím mäsom a knedľou",
+      "family": "classic_tomato_sauce_beef_dumpling",
+      "method": "pot",
+      "minutes": 140,
+      "modes": ["standard"],
+      "equipment": ["veľký hrniec", "hrniec", "malý hrniec", "sitko", "metlička", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "beef", "role": "protein", "candidates": ["beef_chuck"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na väčšie kusy", "water_ml_per_adult": "450"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "12", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "bay", "role": "seasoning", "candidates": ["bay_leaf"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "allspice", "role": "seasoning", "candidates": ["allspice"], "amount_per_adult": "0.75", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "vinegar", "role": "seasoning", "candidates": ["apple_cider_vinegar"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "dumpling", "role": "starch", "candidates": ["bread_dumpling"], "amount_per_adult": "130", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": "na plátky"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {carrot.amount} {carrot.name} a prekroj ju na polovice. Nakrájaj {beef.amount} {beef.name} {beef.cut}.", "requires": ["carrot:raw"], "produces": ["carrot:cut"]},
+        {"text": "Vlož hovädzie predné bez kosti a mrkvu do veľkého hrnca. Prilej {beef.water} vody. Vodu osoľ.", "requires": ["beef:raw", "carrot:cut"], "produces": ["beef:pot", "carrot:pot"]},
+        {"text": "Priveď vodu vo veľkom hrnci na silnom ohni do varu, asi 15 minút, kým začne bublať, a lyžicou zober penu. Stíš oheň, prikry hrniec a var hovädzie predné bez kosti na miernom ohni 100 minút, kým mäso zmäkne.", "requires": ["beef:pot", "carrot:pot"], "produces": ["beef:tender", "carrot:cooked"]},
+        {"text": "Vyber hovädzie predné bez kosti z vývaru na tanier a prikry ho. Vývar preceď cez sitko do misky. Mrkvu nakrájaj na kolieska, pridáš ju do omáčky spolu s mäsom.", "requires": ["beef:tender", "carrot:cooked"], "produces": ["beef:rested", "carrot:broth"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}.", "requires": ["onion:raw"], "produces": ["onion:cut"]},
+        {"text": "Rozohrej {butter.amount} {butter.name} v hrnci na strednom ohni 1 minútu, kým sa roztopí a začne sa lesknúť. Opekaj cibuľu na masle 5 minút, kým bude dosklovita.", "requires": ["butter:raw", "onion:cut"], "produces": ["butter:used", "onion:cooked"]},
+        {"text": "Prisyp {flour.amount} {flour.name} do hrnca. Za stáleho miešania opekaj zápražku v hrnci na miernom ohni 3 minúty, kým bude svetlo zlatistá.", "requires": ["flour:raw", "onion:cooked", "butter:used"], "produces": ["flour:roux"]},
+        {"text": "Pridaj {paste.amount} {paste.name} do hrnca. Premiešaj ho so zápražkou a opekaj na miernom ohni 1 minútu, kým sa zmes začne lesknúť. Za stáleho miešania metličkou postupne prilievaj teplý vývar, kým nebude omáčka hustá ako smotana a bez hrudiek.", "requires": ["paste:raw", "flour:roux", "carrot:broth"], "produces": ["paste:sauce", "flour:sauce", "carrot:sauce"]},
+        {"text": "Pridaj {bay.amount} {bay.name}, {allspice.amount} {allspice.name} a {sugar.amount} {sugar.name}. Omáčku var v hrnci na miernom ohni 15 minút a občas ju premiešaj, kým zhustne a začne bublať. Ak je príliš hustá, dolej ešte trochu vývaru.", "requires": ["bay:raw", "allspice:raw", "sugar:raw", "paste:sauce"], "produces": ["bay:cooked", "allspice:cooked", "sugar:cooked", "paste:cooked"]},
+        {"text": "Vyber z omáčky bobkový list a nové korenie. Vmiešaj {vinegar.amount} {vinegar.name}. Omáčku dochuť soľou a podľa chuti ešte cukrom, aby bola príjemne sladkokyslá.", "requires": ["bay:cooked", "allspice:cooked", "vinegar:raw", "paste:cooked"], "produces": ["bay:removed", "allspice:removed", "vinegar:cooked"]},
+        {"text": "Nakrájaj hovädzie predné bez kosti na plátky a vráť ich do omáčky spolu s mrkvou. Zohrievaj hovädzie predné bez kosti v omáčke v hrnci na miernom ohni 5 minút, kým bude horúce a omáčka jemne bublá.", "requires": ["beef:rested", "paste:cooked"], "produces": ["beef:cooked"]},
+        {"text": "Nakrájaj {dumpling.amount} {dumpling.name} na plátky hrubé asi 1,5 cm.", "requires": ["dumpling:raw"], "produces": ["dumpling:cut"]},
+        {"text": "Priveď asi 3 cm vody v malom hrnci na silnom ohni do varu. Polož plátky knedle do sitka nad vriacu vodu, prikry pokrievkou a zohrievaj knedľu na pare na strednom ohni 3 minúty, kým bude mäkká a horúca.", "requires": ["dumpling:cut"], "produces": ["dumpling:prepared"]},
+        {"text": "Podávaj rajskú omáčku s hovädzím mäsom a knedľou a rozdeľ jedlo na {portions} porcií.", "requires": ["beef:cooked", "carrot:sauce", "onion:cooked", "butter:used", "flour:sauce", "paste:cooked", "bay:removed", "allspice:removed", "sugar:cooked", "vinegar:cooked", "dumpling:prepared"], "produces": ["beef:served", "carrot:served", "onion:served", "butter:served", "flour:served", "paste:served", "bay:served", "allspice:served", "sugar:served", "vinegar:served", "dumpling:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Rajskú omáčku s mäsom rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 3 dní. Knedľu skladuj oddelene a pred podávaním ju zohrej na pare."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_tomato_sauce_beef_dumpling",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/hovadzie-maso-s-paradajkovou-omackou/32853-recept.html", "title": "Hovädzie mäso s paradajkovou omáčkou - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/20090/varene-hovadzie-maso-s-paradajkovou-omackou/", "title": "Varené hovädzie mäso s paradajkovou omáčkou | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/37523/paradajkova-omacka-s-hovadzim-masom/", "title": "Paradajková omáčka s hovädzím mäsom | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

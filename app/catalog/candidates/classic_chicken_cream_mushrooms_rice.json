@@ -1,0 +1,48 @@
+{
+  "recipes": [
+    {
+      "id": "classic_chicken_cream_mushrooms_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuracie prsia na smotane so šampiňónmi a ryžou",
+      "family": "classic_chicken_cream_mushrooms_rice",
+      "method": "pan",
+      "minutes": 45,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľká panvica", "hrniec", "sitko", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "170", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenšie plátky", "water_ml_per_adult": "50"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "mushrooms", "role": "vegetable", "candidates": ["mushrooms"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na plátky"},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "90", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne. Potom ju nechaj 5 minút prikrytú postáť.", "requires": ["rice:rinsed"], "produces": ["rice:cooked"]},
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} {chicken.cut}, {onion.amount} {onion.name} {onion.cut}, {mushrooms.amount} {mushrooms.name} {mushrooms.cut} a {parsley.amount} {parsley.name} {parsley.cut}.", "requires": ["chicken:raw", "onion:raw", "mushrooms:raw", "parsley:raw"], "produces": ["chicken:cut", "onion:cut", "mushrooms:cut", "parsley:cut"]},
+        {"text": "Prisyp {flour.amount} {flour.name} do misky. Kuracie plátky osoľ, okoreň a z oboch strán ich zľahka obaľ v múke.", "requires": ["flour:raw", "chicken:cut"], "produces": ["flour:coating", "chicken:floured"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 2 minúty, kým sa začne lesknúť. Opeč kuracie prsia v panvici na strednom ohni 2 minúty z každej strany, kým budú zlatisté, a vyber ich na tanier. Pri väčšej dávke ich opekaj po častiach.", "requires": ["oil:raw", "chicken:floured", "flour:coating"], "produces": ["oil:used", "chicken:browned", "flour:browned"]},
+        {"text": "Pridaj {butter.amount} {butter.name} do panvice. Opekaj cibuľu v panvici na strednom ohni 4 minúty, kým bude dosklovita. Pridaj šampiňóny a opekaj ich 6 minút, kým zmäknú a šťava sa odparí. Mrazené šampiňóny nerozmrazuj, daj ich do panvice rovno z mrazničky a opekaj ich o 4 minúty dlhšie.", "requires": ["butter:raw", "onion:cut", "mushrooms:cut", "oil:used"], "produces": ["butter:used", "onion:cooked", "mushrooms:cooked"]},
+        {"text": "Prilej {chicken.water} vody a {cream.amount} {cream.name}. Vráť kuracie prsia do panvice. Zohrievaj kuracie prsia v omáčke na miernom ohni 6 minút, kým omáčka zhustne, jemne bublá a mäso v strede nebude ružové.", "requires": ["cream:raw", "chicken:browned", "mushrooms:cooked", "flour:browned"], "produces": ["cream:cooked", "chicken:cooked", "flour:cooked"]},
+        {"text": "Dochuť omáčku soľou a čiernym korením a vmiešaj petržlenovú vňať.", "requires": ["cream:cooked", "parsley:cut"], "produces": ["parsley:used"]},
+        {"text": "Podávaj kuracie prsia na smotane s ryžou a rozdeľ jedlo na {portions} porcií.", "requires": ["chicken:cooked", "flour:cooked", "oil:used", "butter:used", "onion:cooked", "mushrooms:cooked", "cream:cooked", "parsley:used", "rice:cooked"], "produces": ["chicken:served", "flour:served", "oil:served", "butter:served", "onion:served", "mushrooms:served", "cream:served", "parsley:served", "rice:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Kuracie prsia s omáčkou a ryžu rozdeľ do plytkých nádob, do jednej hodiny ich schlaď a odlož do chladničky. Zjedz ich do 2 dní a ryžu ohrievaj iba raz, kým bude celá horúca."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_chicken_cream_mushrooms_rice",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/kuracie-na-smotane-a-sampinonoch/83037-recept.html", "title": "Kuracie na smotane a šampiňónoch - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/73465/kuracie-prsia-na-smotane-s-ryzou/", "title": "Kuracie prsia na smotane s ryžou | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

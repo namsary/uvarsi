@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "quick_chicken_broccoli_stir_fry",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuracie rezančeky s brokolicou a ryžou",
+      "family": "quick_chicken_broccoli_stir_fry",
+      "method": "pan",
+      "minutes": 35,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľká panvica", "hrniec", "sitko", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "170", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na rezančeky", "water_ml_per_adult": "80"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "150"},
+        {"key": "broccoli", "role": "vegetable", "candidates": ["broccoli"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na malé ružičky"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na tenké plátky"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "soy", "role": "seasoning", "candidates": ["soy_sauce"], "amount_per_adult": "20", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw", "sitko:free"], "produces": ["rice:rinsed", "sitko:free"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne. Potom ju nechaj 5 minút prikrytú postáť.", "requires": ["rice:rinsed", "hrniec:free"], "produces": ["rice:cooked", "hrniec:free"]},
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} na rezančeky, {broccoli.amount} {broccoli.name} na malé ružičky, {carrot.amount} {carrot.name} na tenké plátky a {garlic.amount} {garlic.name} najemno. Mäso zľahka osoľ.", "requires": ["chicken:raw", "broccoli:raw", "carrot:raw", "garlic:raw"], "produces": ["chicken:cut", "broccoli:cut", "carrot:cut", "garlic:cut"]},
+        {"text": "Premiešaj v miske {soy.amount} {soy.name}, {flour.amount} {flour.name} a {chicken.water} vody, kým v omáčke nebudú hrudky.", "requires": ["soy:raw", "flour:raw", "miska:free"], "produces": ["soy:mixed", "flour:mixed", "miska:occupied"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na silnom ohni 2 minúty, kým sa začne lesknúť. Opekaj kuracie prsia v panvici na silnom ohni 4 minúty, kým budú zlatisté, a vyber ich na tanier. Pri väčšej dávke ich opekaj po častiach.", "requires": ["oil:raw", "chicken:cut", "velka_panvica:free"], "produces": ["oil:used", "chicken:browned", "velka_panvica:occupied"]},
+        {"text": "Pridaj brokolicu a mrkvu do panvice. Opekaj brokolicu s mrkvou na strednom ohni 4 minúty, kým brokolica jasne zozelenie a zmäkne len na povrchu. Pri väčšej dávke zeleninu opekaj po častiach. Mrazenú brokolicu nerozmrazuj, daj ju do panvice rovno z mrazničky a opekaj ju o 3 minúty dlhšie. Pridaj cesnak do panvice a opekaj ho na strednom ohni 30 sekúnd, kým zavonia.", "requires": ["broccoli:cut", "carrot:cut", "garlic:cut", "oil:used", "velka_panvica:occupied"], "produces": ["broccoli:cooked", "carrot:cooked", "garlic:cooked"]},
+        {"text": "Vráť kuracie prsia do panvice. Omáčku v miske ešte raz premiešaj a vylej ju k mäsu. Var kuracie prsia so zeleninou na miernom ohni 3 minúty, kým omáčka zhustne, jemne bublá a mäso v strede nebude ružové.", "requires": ["chicken:browned", "soy:mixed", "flour:mixed", "broccoli:cooked", "velka_panvica:occupied"], "produces": ["chicken:cooked", "soy:cooked", "flour:cooked", "miska:free"]},
+        {"text": "Dochuť jedlo soľou až po ochutnaní, sójová omáčka je slaná. Rozdeľ ryžu na {portions} porcií, navrch rozlož kuracie rezančeky so zeleninou a omáčkou a podávaj.", "requires": ["chicken:cooked", "rice:cooked", "broccoli:cooked", "carrot:cooked", "garlic:cooked", "soy:cooked", "flour:cooked", "oil:used", "velka_panvica:occupied"], "produces": ["chicken:served", "rice:served", "broccoli:served", "carrot:served", "garlic:served", "soy:served", "flour:served", "oil:served", "velka_panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Ryžu a mäso so zeleninou rozdeľ do plytkých nádob a najneskôr do hodiny ich odlož do chladničky. Zjedz ich do 3 dní a prehrievaj, kým budú celé horúce."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_chicken_broccoli_stir_fry",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/4484/kuracie-rezance-na-brokolici-a-sezame/", "title": "Kuracie rezance na brokolici a sezame | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/kuracie-prsicka-na-orientalny-sposob/61446-recept.html", "title": "Kuracie prsičká na orientálny spôsob - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

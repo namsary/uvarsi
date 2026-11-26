@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "6c511b4bbc343f7694f134590e2ab3067f4d14869dd52bf8bd5dbcb86eefe92a",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "quick_vegetable_omelette_potatoes"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

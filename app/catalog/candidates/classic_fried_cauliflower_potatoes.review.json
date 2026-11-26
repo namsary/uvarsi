@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "4d449fa6b568671e0d51edf491c7427da6ecf9688930339f523b2c3f35888dd1",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "classic_fried_cauliflower_potatoes"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

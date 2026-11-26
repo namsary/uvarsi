@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "183fc3276688378fa14da46c03a6be6abd7f7d9582fcc808c36cc53563c2cc72",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "classic_bacon_potatoes_eggs"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

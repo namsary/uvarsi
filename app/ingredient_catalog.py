@@ -94,6 +94,9 @@ INGREDIENT_AMBIGUOUS_OFFER_FORMS = MappingProxyType(
         "pork_loin": frozenset(("bravčové karé",)),
         "smoked_sausage": frozenset(("klobása",)),
         "wheat_flour": frozenset(("pšeničná múka", "múka")),
+        # Plain „biela fazuľa“ in a flyer is usually the dry pulse; only a
+        # label that says canned, sterilized or in brine is the drained can.
+        "white_beans_canned": frozenset(("biela fazuľa",)),
     }
 )
 INGREDIENT_FORBIDDEN_OFFER_QUALIFIERS = MappingProxyType(
@@ -240,6 +243,323 @@ INGREDIENT_FORBIDDEN_OFFER_QUALIFIERS = MappingProxyType(
                 ("kvasena",),
                 ("kyslá",),
                 ("kysla",),
+            )
+        ),
+        # Plain dry breadcrumbs only; gluten-free, corn or seasoned crumbs
+        # behave and taste differently in a classic breading.
+        "breadcrumbs": frozenset(
+            (
+                ("bezlepková",),
+                ("bezlepkova",),
+                ("kukuričná",),
+                ("kukuricna",),
+                ("ochutená",),
+                ("ochutena",),
+                ("korenená",),
+                ("korenena",),
+                ("s",),
+                ("so",),
+            )
+        ),
+        # A plain roasting chicken, not a ready-cooked or marinated one.
+        "chicken_whole": frozenset(
+            (
+                ("grilované",),
+                ("grilovane",),
+                ("pečené",),
+                ("pecene",),
+                ("údené",),
+                ("udene",),
+                ("marinované",),
+                ("marinovane",),
+                ("bbq",),
+            )
+        ),
+        "beef_round": frozenset(
+            (
+                ("s", "kosťou"),
+                ("s", "kostou"),
+                ("mleté",),
+                ("mlete",),
+                ("údené",),
+                ("udene",),
+                ("sušené",),
+                ("susene",),
+            )
+        ),
+        # Root celery only; stalk celery and leaves are a different vegetable.
+        "celeriac": frozenset(
+            (
+                ("stopkový",),
+                ("stopkovy",),
+                ("vňať",),
+                ("vnat",),
+                ("listový",),
+                ("listovy",),
+            )
+        ),
+        "mayonnaise": frozenset(
+            (
+                ("light",),
+                ("ľahká",),
+                ("lahka",),
+                ("vegánska",),
+                ("veganska",),
+                ("s",),
+                ("so",),
+            )
+        ),
+        "mustard": frozenset(
+            (
+                ("s",),
+                ("so",),
+                ("sladká",),
+                ("sladka",),
+                ("medová",),
+                ("medova",),
+            )
+        ),
+        "pickled_cucumber": frozenset(
+            (
+                ("s",),
+                ("so",),
+                ("pálivé",),
+                ("palive",),
+            )
+        ),
+        # Ground blue poppy for a filling or topping; sugared or ready
+        # fillings are a different product.
+        "poppy_seed": frozenset(
+            (
+                ("s",),
+                ("so",),
+                ("náplň",),
+                ("naplň",),
+                ("napln",),
+            )
+        ),
+        "tartar_sauce": frozenset((("light",), ("s",), ("so",))),
+        "tomato_paste": frozenset(
+            (("s",), ("so",), ("ochutený",), ("ochuteny",))
+        ),
+        # Red kidney beans only; white beans are a separate ingredient.
+        "beans": frozenset((("biela",), ("biele",), ("bielej",))),
+        "beans_canned": frozenset((("biela",), ("biele",), ("bielej",))),
+        # Raw chicken liver only, not a mixed offal tray or a pâté.
+        "chicken_liver": frozenset(
+            (
+                ("srdiečka",),
+                ("srdiecka",),
+                ("žalúdky",),
+                ("zaludky",),
+                ("paštéta",),
+                ("pasteta",),
+            )
+        ),
+        # Plain pork frankfurters; poultry, cheese-filled, spicy or meatless
+        # sausages cook and taste differently in a frankfurter soup.
+        "frankfurters": frozenset(
+            (
+                ("kuracie",),
+                ("morčacie",),
+                ("morcacie",),
+                ("hydinové",),
+                ("hydinove",),
+                ("syrové",),
+                ("syrove",),
+                ("spišské",),
+                ("spisske",),
+                ("pikantné",),
+                ("pikantne",),
+                ("vegetariánske",),
+                ("vegetarianske",),
+                ("rastlinné",),
+                ("rastlinne",),
+                ("s",),
+                ("so",),
+            )
+        ),
+        # Green pods only; mixed vegetables or seasoned side dishes are
+        # different products.
+        "green_beans": frozenset(
+            (("s",), ("so",), ("zmes",), ("žltá",), ("zlta",))
+        ),
+        # Savoy cabbage only; Brussels sprouts and curly kale are different
+        # vegetables that share the word „kel“.
+        "savoy_cabbage": frozenset(
+            (
+                ("ružičkový",),
+                ("ruzickovy",),
+                ("kučeravý",),
+                ("kuceravy",),
+                ("kaderavý",),
+                ("kaderavy",),
+            )
+        ),
+        # Smoked pork meat for cooking, not poultry or ready sliced ham.
+        "smoked_pork": frozenset(
+            (
+                ("kuracie",),
+                ("morčacie",),
+                ("morcacie",),
+                ("s", "kosťou"),
+                ("s", "kostou"),
+                ("koleno",),
+                ("rebierka",),
+            )
+        ),
+        # A whole raw fish for baking; smoked, marinated, canned or filleted
+        # products have a different edible share or are already cooked.
+        "trout": frozenset(
+            (
+                ("údený",),
+                ("udeny",),
+                ("údené",),
+                ("udene",),
+                ("filety",),
+                ("filet",),
+                ("filé",),
+                ("file",),
+                ("marinovaný",),
+                ("marinovany",),
+                ("pečený",),
+                ("peceny",),
+                ("v",),
+            )
+        ),
+        "mackerel": frozenset(
+            (
+                ("údená",),
+                ("udena",),
+                ("údené",),
+                ("udene",),
+                ("filety",),
+                ("filet",),
+                ("filé",),
+                ("file",),
+                ("marinovaná",),
+                ("marinovana",),
+                ("pečená",),
+                ("pecena",),
+                ("v",),
+            )
+        ),
+        "burger_bun": frozenset(
+            (("bezlepkové",), ("bezlepkove",), ("bezlepková",), ("bezlepkova",))
+        ),
+        # A plain block or grated parmesan; flavoured or mixed products differ.
+        "parmesan": frozenset((("s",), ("so",))),
+        # Plain sour cream only, not a flavoured dip.
+        "sour_cream": frozenset(
+            (("s",), ("so",), ("dip",), ("ochutená",), ("ochutena",))
+        ),
+        # Soft flatbread for filling or a quick pizza, not baked crisps.
+        "pita": frozenset((("chips",), ("chipsy",), ("lupienky",))),
+        "burger_bun": frozenset(
+            (("bezlepkové",), ("bezlepkove",), ("bezlepková",), ("bezlepkova",))
+        ),
+        # Canned whole kernels; popcorn kernels and cooked cobs are
+        # different products.
+        "sweet_corn": frozenset(
+            (
+                ("pukance",),
+                ("klas",),
+                ("klasy",),
+                ("klasoch",),
+                ("mrazená",),
+                ("mrazena",),
+                ("varená",),
+                ("varena",),
+            )
+        ),
+        # Wave 2, batch 5: Slovak classics.
+        # Raw chicken liver only, not a mixed offal tray or a pâté.
+        "chicken_liver": frozenset(
+            (
+                ("srdiečka",),
+                ("srdiecka",),
+                ("žalúdky",),
+                ("zaludky",),
+                ("paštéta",),
+                ("pasteta",),
+            )
+        ),
+        # Smoked pork meat for cooking, not poultry or ready sliced ham.
+        "smoked_pork": frozenset(
+            (
+                ("kuracie",),
+                ("morčacie",),
+                ("morcacie",),
+                ("s", "kosťou"),
+                ("s", "kostou"),
+                ("koleno",),
+                ("rebierka",),
+            )
+        ),
+        # Raw fresh ribs; smoked, marinated or ready-roasted ribs are
+        # different products.
+        "pork_ribs": frozenset(
+            (
+                ("údené",),
+                ("udene",),
+                ("marinované",),
+                ("marinovane",),
+                ("pečené",),
+                ("pecene",),
+                ("grilované",),
+                ("grilovane",),
+                ("v",),
+                ("s",),
+                ("so",),
+            )
+        ),
+        # Raw drumsticks; breaded, marinated or cooked products differ.
+        "chicken_drumstick": frozenset(
+            (
+                ("obaľované",),
+                ("obalovane",),
+                ("marinované",),
+                ("marinovane",),
+                ("pečené",),
+                ("pecene",),
+                ("grilované",),
+                ("grilovane",),
+                ("údené",),
+                ("udene",),
+                ("v",),
+                ("s",),
+                ("so",),
+            )
+        ),
+        # Raw duck legs for roasting; confit or ready-roasted legs are
+        # already cooked.
+        "duck_leg": frozenset(
+            (
+                ("konfitované",),
+                ("konfitovane",),
+                ("pečené",),
+                ("pecene",),
+                ("údené",),
+                ("udene",),
+                ("v",),
+                ("s",),
+                ("so",),
+            )
+        ),
+        # Plain quark only, not a sweet dessert, spread or flavoured cream.
+        "quark": frozenset(
+            (
+                ("dezert",),
+                ("krém",),
+                ("krem",),
+                ("nátierka",),
+                ("natierka",),
+                ("ochutený",),
+                ("ochuteny",),
+                ("vanilkový",),
+                ("vanilkovy",),
+                ("s",),
+                ("so",),
             )
         ),
     }

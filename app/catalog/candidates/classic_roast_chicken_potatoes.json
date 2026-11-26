@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "classic_roast_chicken_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené kura so zemiakmi",
+      "family": "classic_roast_chicken_potatoes",
+      "method": "oven",
+      "minutes": 105,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["rúra", "pekáč", "miska", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_whole"], "amount_per_adult": "350", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "60"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na mesiačiky"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 190 °C.", "requires": ["rura:free"], "produces": ["rura:hot"]},
+        {"text": "Osuš {chicken.amount} {chicken.name} papierovou utierkou zvonka aj zvnútra.", "requires": ["chicken:raw"], "produces": ["chicken:dry"]},
+        {"text": "Nakrájaj {garlic.amount} {garlic.name} {garlic.cut}. Premiešaj v miske {oil.amount} {oil.name}, cesnak, {paprika.amount} {paprika.name}, {caraway.amount} {caraway.name}, soľ a čierne korenie. Dve tretiny zmesi natri na kurča zvonka aj zvnútra.", "requires": ["garlic:raw", "oil:raw", "paprika:raw", "caraway:raw", "chicken:dry"], "produces": ["garlic:mixed", "oil:mixed", "paprika:mixed", "caraway:mixed", "chicken:seasoned"]},
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}. Rozlož zemiaky do pekáča, osoľ ich a premiešaj so zvyškom koreninovej zmesi.", "requires": ["potato:raw"], "produces": ["potato:pan"]},
+        {"text": "Prilej {chicken.water} vody do pekáča. Celé kurča polož prsiami nahor na zemiaky.", "requires": ["chicken:seasoned", "potato:pan"], "produces": ["chicken:pan"]},
+        {"text": "Peč celé kurča so zemiakmi v rúre pri 190 °C 80 minút, kým koža zozlatne, zemiaky zmäknú a po prepichnutí stehna pri kosti vyteká číra šťava. Počas pečenia kurča dvakrát polej výpekom. Ak koža tmavne príliš rýchlo, prikry ho alobalom.", "requires": ["chicken:pan", "potato:pan", "garlic:mixed", "oil:mixed", "paprika:mixed", "caraway:mixed", "rura:hot"], "produces": ["chicken:roasted", "potato:roasted", "garlic:roasted", "oil:roasted", "paprika:roasted", "caraway:roasted"]},
+        {"text": "Nakrájaj {parsley.amount} {parsley.name} {parsley.cut}.", "requires": ["parsley:raw"], "produces": ["parsley:cut"]},
+        {"text": "Nechaj kurča 10 minút odpočívať, potom ho nakrájaj na porcie a zemiaky ozdob nasekanou petržlenovou vňaťou.", "requires": ["chicken:roasted", "parsley:cut"], "produces": ["chicken:carved", "parsley:used"]},
+        {"text": "Podávaj pečené kurča so zemiakmi, polej ich výpekom z pekáča a rozdeľ jedlo na {portions} porcií.", "requires": ["chicken:carved", "potato:roasted", "garlic:roasted", "oil:roasted", "paprika:roasted", "caraway:roasted", "parsley:used"], "produces": ["chicken:served", "potato:served", "garlic:served", "oil:served", "paprika:served", "caraway:served", "parsley:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Zvyšné kurča obral z kostí, ulož ho so zemiakmi do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní a prehrej v rúre, kým budú celé horúce."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_roast_chicken_potatoes",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/15067/pecene-kurca/", "title": "Pečené kurča | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/jednoduche-pecene-kuracie-stehna-na-zemiakoch/84607-recept.html", "title": "Jednoduché pečené kuracie stehná na zemiakoch - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

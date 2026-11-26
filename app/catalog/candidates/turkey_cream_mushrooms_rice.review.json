@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "b3d4365fd1f30b821d7530a83d1dad74f3069347c2eac54b1f0faeee8fe8c15c",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "turkey_cream_mushrooms_rice"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

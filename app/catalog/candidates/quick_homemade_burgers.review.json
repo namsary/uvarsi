@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "0d7f9c686958a06149ad572b968df26dd4a208aa87b969c8db96f96136fb1c10",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "quick_homemade_burgers"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

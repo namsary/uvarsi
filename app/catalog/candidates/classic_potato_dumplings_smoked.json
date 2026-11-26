@@ -1,0 +1,47 @@
+{
+  "recipes": [
+    {
+      "id": "classic_potato_dumplings_smoked",
+      "version": 2,
+      "active": true,
+      "name_template": "Zemiakové knedle s údeným mäsom a kapustou",
+      "family": "classic_potato_dumplings_smoked",
+      "method": "pot",
+      "minutes": 95,
+      "modes": ["standard"],
+      "equipment": ["hrniec", "veľký hrniec", "misa", "jemné strúhadlo", "doska na krájanie", "nôž", "dierovaná lyžica"],
+      "slots": [
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "v šupke"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cabbage", "role": "vegetable", "candidates": ["sauerkraut"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null, "water_ml_per_adult": "100"},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "smoked", "role": "protein", "candidates": ["smoked_pork"], "amount_per_adult": "90", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "nadrobno"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.3", "unit": "piece", "child_factor": "0.6", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Vlož {potato.amount} {potato.name} {potato.cut} do hrnca. Dolej studenú vodu tak, aby boli ponorené. Var zemiaky v hrnci na miernom ohni 25 minút, kým zmäknú. Sceď zemiaky a nechaj ich aspoň 30 minút vychladnúť, najlepšie ich uvar deň vopred.", "requires": ["potato:raw"], "produces": ["potato:cooked"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}. Rozohrej {oil.amount} {oil.name} v hrnci na strednom ohni 1 minútu. Opekaj cibuľu v hrnci na strednom ohni 4 minúty, kým bude dosklovita.", "requires": ["onion:raw", "oil:raw"], "produces": ["onion:cooked", "oil:used"]},
+        {"text": "Pridaj {cabbage.amount} {cabbage.name}, {caraway.amount} {caraway.name} a {sugar.amount} {sugar.name} do hrnca. Veľmi kyslú kapustu najprv prepláchni studenou vodou. Prilej {cabbage.water} vody do hrnca a prikry ho. Dus kyslú kapustu v hrnci na miernom ohni 30 minút, kým zmäkne. Podľa potreby dolej trochu vody, aby sa neprichytila.", "requires": ["cabbage:raw", "caraway:raw", "sugar:raw"], "produces": ["cabbage:cooked", "caraway:cooked", "sugar:cooked"]},
+        {"text": "Nakrájaj {smoked.amount} {smoked.name} {smoked.cut} a okoreň ho.", "requires": ["smoked:raw"], "produces": ["smoked:cut"]},
+        {"text": "Ošúp vychladnuté zemiaky a najemno ich nastrúhaj do misy. Pridaj {flour.amount} {flour.name}, {egg.amount} {egg.name} a štipku soli. Rukami rýchlo vypracuj hladké, mäkké cesto, ktoré sa nelepí. Lepkavé cesto podsyp trochou múky.", "requires": ["potato:cooked", "flour:raw", "egg:raw"], "produces": ["potato:dough", "flour:dough", "egg:dough"]},
+        {"text": "Rozdeľ cesto na pomúčenej doske na kúsky veľké ako mandarínka. Každý kúsok roztlač v dlani na placku, doprostred daj lyžičku údeného mäsa a cesto okolo neho uzavri do guľky. Okraje dobre stlač, aby sa knedličky pri varení neotvorili.", "requires": ["potato:dough", "smoked:cut"], "produces": ["potato:shaped", "smoked:filled"]},
+        {"text": "Priveď vo veľkom hrnci osolenú vodu do varu na silnom ohni. Vkladaj knedličky po dávkach, aby sa neprekrývali. Var knedličky s údeným mäsom vo veľkom hrnci na miernom ohni 12 minút od vyplávania, kým budú mäkké aj vnútri. Hotové knedličky vyber dierovanou lyžicou.", "requires": ["potato:shaped", "flour:dough", "egg:dough", "smoked:filled"], "produces": ["potato:cooked2", "flour:cooked", "egg:cooked", "smoked:cooked"]},
+        {"text": "Podávaj knedličky na dusenej kapuste a pokvapkaj ich šťavou z kapusty. Rozdeľ jedlo na {portions} porcií.", "requires": ["potato:cooked2", "onion:cooked", "oil:used", "cabbage:cooked", "caraway:cooked", "sugar:cooked", "smoked:cooked", "flour:cooked", "egg:cooked"], "produces": ["potato:served", "onion:served", "oil:served", "cabbage:served", "caraway:served", "sugar:served", "smoked:served", "flour:served", "egg:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Knedličky a kapustu ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní. Knedličky prehrej na pare alebo opeč na panvici s kvapkou oleja."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_potato_dumplings_smoked",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/2668/zemiakove-knedle-plnene-udenym-masom/", "title": "Zemiakové knedle plnené údeným mäsom | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/knedlicky-s-udenym-masom/16732-recept.html", "title": "Knedličky s údeným mäsom - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

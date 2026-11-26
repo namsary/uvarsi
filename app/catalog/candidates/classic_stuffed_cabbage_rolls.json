@@ -1,0 +1,59 @@
+{
+  "recipes": [
+    {
+      "id": "classic_stuffed_cabbage_rolls",
+      "version": 2,
+      "active": true,
+      "name_template": "Holúbky v paradajkovej omáčke",
+      "family": "classic_stuffed_cabbage_rolls",
+      "method": "pot",
+      "minutes": 120,
+      "modes": ["standard"],
+      "equipment": ["veľký hrniec", "široký hrniec", "malý hrniec", "sitko", "misa", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "cabbage", "role": "vegetable", "candidates": ["white_cabbage"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "meat", "role": "protein", "candidates": ["pork_mince"], "amount_per_adult": "130", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "35", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.75", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "35", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null, "water_ml_per_adult": "250"},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "6", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na krajce"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {cabbage.amount} {cabbage.name} a ostrým nožom z nej vykroj hlúbik.", "requires": ["cabbage:raw"], "produces": ["cabbage:cored"]},
+        {"text": "Priveď vo veľkom hrnci osolenú vodu do varu na silnom ohni asi 10 minút, kým začne bublať. Vlož bielu hlávkovú kapustu do veľkého hrnca.", "requires": ["cabbage:cored"], "produces": ["cabbage:pot"]},
+        {"text": "Var bielu hlávkovú kapustu vo veľkom hrnci na strednom ohni 3 minúty, kým vonkajšie listy zmäknú. Mäkké listy postupne odober vidličkou, nechaj ich odkvapkať na tanieri a hlávku var ďalej, kým nemáš 3 veľké listy na osobu.", "requires": ["cabbage:pot"], "produces": ["cabbage:leaves"]},
+        {"text": "Nakrájaj zvyšok bielej hlávkovej kapusty nahrubo a z listov odkroj hrubé rebrá, aby sa dali ľahko zrolovať.", "requires": ["cabbage:leaves"], "produces": ["cabbage:ready"]},
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou a nechaj ju odkvapkať.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nalej {rice.water} vody do malého hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 8 minút, kým vsiakne vodu a bude napoly mäkká. Potom ju nechaj vychladnúť.", "requires": ["rice:rinsed"], "produces": ["rice:parboiled"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} {garlic.cut}.", "requires": ["onion:raw", "garlic:raw"], "produces": ["onion:cut", "garlic:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v širokom hrnci na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj cibuľu 5 minút, kým bude dosklovita. Pridaj cesnak a opekaj ho 30 sekúnd. Polovicu cibule s cesnakom vyber do misy, zvyšok nechaj v hrnci.", "requires": ["oil:raw", "onion:cut", "garlic:cut"], "produces": ["oil:used", "onion:cooked", "garlic:cooked"]},
+        {"text": "Premiešaj v mise {meat.amount} {meat.name}, napoly uvarenú ryžu, {egg.amount} {egg.name}, {paprika.amount} {paprika.name}, soľ a čierne korenie. Plnku mies rukami 2 minúty, kým bude držať pokope.", "requires": ["meat:raw", "rice:parboiled", "egg:raw", "paprika:raw", "onion:cooked"], "produces": ["meat:mixed", "rice:mixed", "egg:mixed", "paprika:mixed"]},
+        {"text": "Priprav holúbky: na každý kapustný list polož lyžicu plnky, prehni naň spodný okraj a boky a list pevne zroluj.", "requires": ["cabbage:ready", "meat:mixed", "rice:mixed", "egg:mixed", "paprika:mixed"], "produces": ["cabbage:rolled", "meat:rolled", "rice:rolled", "egg:rolled", "paprika:rolled"]},
+        {"text": "Rozlož nakrájanú bielu hlávkovú kapustu na dno širokého hrnca k zvyšnej cibuli a naukladaj na ňu holúbky tesne vedľa seba, spojom nadol. Pri dávke nad 8 porcií použi dva hrnce.", "requires": ["cabbage:rolled", "meat:rolled", "oil:used"], "produces": ["cabbage:layered", "meat:layered"]},
+        {"text": "Premiešaj {paste.amount} {paste.name} a {sugar.amount} {sugar.name} v miske s {paste.water} vody a prelej tým holúbky v hrnci. Tekutina má siahať tesne po ich vrch, ak treba, dolej vodu.", "requires": ["paste:raw", "sugar:raw", "cabbage:layered", "meat:layered"], "produces": ["paste:poured", "sugar:poured"]},
+        {"text": "Prikry hrniec pokrievkou a dus holúbky z mletého bravčového mäsa v hrnci na miernom ohni 60 minút, kým ryža v plnke zmäkne a kapustné listy budú mäkké.", "requires": ["cabbage:layered", "meat:layered", "rice:rolled", "egg:rolled", "paprika:rolled", "paste:poured", "sugar:poured", "onion:cooked", "garlic:cooked"], "produces": ["cabbage:cooked", "meat:cooked", "rice:cooked", "egg:cooked", "paprika:cooked", "paste:cooked", "sugar:cooked", "onion:sauce", "garlic:sauce"]},
+        {"text": "Premiešaj {flour.amount} {flour.name} v miske s trochou studenej vody na hladkú kašu bez hrudiek.", "requires": ["flour:raw"], "produces": ["flour:slurry"]},
+        {"text": "Vyber holúbky opatrne na tanier. Kašu z múky premiešaj s omáčkou v hrnci a var ju na miernom ohni 5 minút, kým omáčka zhustne a začne bublať. Dochuť ju soľou a čiernym korením a holúbky do nej vráť.", "requires": ["flour:slurry", "paste:cooked", "cabbage:cooked", "meat:cooked"], "produces": ["flour:cooked", "paste:thickened"]},
+        {"text": "Nakrájaj {bread.amount} {bread.name} {bread.cut}.", "requires": ["bread:raw"], "produces": ["bread:cut"]},
+        {"text": "Podávaj holúbky s paradajkovou omáčkou a chlebom a rozdeľ jedlo na {portions} porcií.", "requires": ["cabbage:cooked", "meat:cooked", "rice:cooked", "egg:cooked", "paprika:cooked", "paste:thickened", "sugar:cooked", "flour:cooked", "onion:sauce", "garlic:sauce", "oil:used", "bread:cut"], "produces": ["cabbage:served", "meat:served", "rice:served", "egg:served", "paprika:served", "paste:served", "sugar:served", "flour:served", "onion:served", "garlic:served", "oil:served", "bread:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Holúbky s omáčkou rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a pri ohrievaní prilej k omáčke lyžicu vody. Chlieb skladuj oddelene."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_stuffed_cabbage_rolls",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/holubky-fotorecept/16735-recept.html", "title": "Holúbky (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/1251/holubky/", "title": "Holúbky | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "recipes": [
+    {
+      "id": "fish_white_fish_vegetables_oven",
+      "version": 2,
+      "active": true,
+      "name_template": "Rybie filé so zeleninou z rúry",
+      "family": "fish_white_fish_vegetables_oven",
+      "method": "oven",
+      "minutes": 60,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["rúra", "pekáč", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "fish", "role": "protein", "candidates": ["white_fish"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na porcie", "water_ml_per_adult": "30"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenké mesiačiky"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "15", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "zucchini", "role": "vegetable", "candidates": ["zucchini"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na polkolieska"},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na pásiky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na mesiačiky"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na plátky"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na mesiačiky"},
+        {"key": "thyme", "role": "seasoning", "candidates": ["thyme"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na tenké plátky"},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 200 °C.", "requires": [], "produces": []},
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}. Nalej {oil.amount} {oil.name} do pekáča. Pridaj zemiaky do pekáča, osoľ ich a premiešaj, aby sa obalili v oleji.", "requires": ["potato:raw", "oil:raw"], "produces": ["potato:pan", "oil:pan"]},
+        {"text": "Peč zemiaky v pekáči pri 200 °C 15 minút, kým na okrajoch trochu zmäknú.", "requires": ["potato:pan"], "produces": ["potato:half_baked"]},
+        {"text": "Nakrájaj {zucchini.amount} {zucchini.name} {zucchini.cut}, {pepper.amount} {pepper.name} {pepper.cut}, {onion.amount} {onion.name} {onion.cut}, {garlic.amount} {garlic.name} {garlic.cut} a {tomato.amount} {tomato.name} {tomato.cut}.", "requires": ["zucchini:raw", "pepper:raw", "onion:raw", "garlic:raw", "tomato:raw"], "produces": ["zucchini:cut", "pepper:cut", "onion:cut", "garlic:cut", "tomato:cut"]},
+        {"text": "Pridaj cuketu, papriku, cibuľu a cesnak do pekáča. Prisyp {thyme.amount} {thyme.name}, osoľ, okoreň a zeleninu premiešaj so zemiakmi.", "requires": ["zucchini:cut", "pepper:cut", "onion:cut", "garlic:cut", "thyme:raw"], "produces": ["zucchini:pan", "pepper:pan", "onion:pan", "garlic:pan", "thyme:pan"]},
+        {"text": "Peč zemiaky so zeleninou v pekáči pri 200 °C 10 minút, kým cuketa na okrajoch zmäkne.", "requires": ["potato:half_baked", "zucchini:pan", "pepper:pan", "onion:pan", "garlic:pan", "thyme:pan", "oil:pan"], "produces": ["potato:roasting", "zucchini:roasting", "pepper:roasting", "onion:roasting", "garlic:roasting", "thyme:roasting", "oil:roasting"]},
+        {"text": "Osuš {fish.amount} {fish.name} papierovou utierkou a nakrájaj ju {fish.cut}. Porcie z oboch strán osoľ a okoreň. Nakrájaj {lemon.amount} {lemon.name} {lemon.cut}.", "requires": ["fish:raw", "lemon:raw"], "produces": ["fish:seasoned", "lemon:cut"]},
+        {"text": "Pridaj paradajky do pekáča a prilej {fish.water} vody. Rozlož rybu navrch zeleniny a na každú porciu polož plátok citróna.", "requires": ["tomato:cut", "fish:seasoned", "lemon:cut"], "produces": ["tomato:pan", "fish:pan", "lemon:pan"]},
+        {"text": "Peč rybu so zeleninou v pekáči pri 200 °C 15 minút, kým ryba stuhne a v strede sa ľahko oddelí a zemiaky budú mäkké.", "requires": ["fish:pan", "potato:roasting", "zucchini:roasting", "pepper:roasting", "onion:roasting", "garlic:roasting", "thyme:roasting", "oil:roasting", "tomato:pan", "lemon:pan"], "produces": ["fish:baked", "potato:baked", "zucchini:baked", "pepper:baked", "onion:baked", "garlic:baked", "thyme:baked", "oil:baked", "tomato:baked", "lemon:baked"]},
+        {"text": "Nakrájaj {parsley.amount} {parsley.name} {parsley.cut}.", "requires": ["parsley:raw"], "produces": ["parsley:cut"]},
+        {"text": "Podávaj rybu so zeleninou a zemiakmi, polej ju šťavou z pekáča a ozdob petržlenovou vňaťou. Jedlo rozdeľ na {portions} porcií.", "requires": ["fish:baked", "potato:baked", "oil:baked", "zucchini:baked", "pepper:baked", "onion:baked", "garlic:baked", "tomato:baked", "thyme:baked", "lemon:baked", "parsley:cut"], "produces": ["fish:served", "potato:served", "oil:served", "zucchini:served", "pepper:served", "onion:served", "garlic:served", "tomato:served", "thyme:served", "lemon:served", "parsley:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Rybu so zeleninou a zemiakmi ulož do plytkých uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní a ohrievaj iba raz, prikryté, aby ryba nevyschla."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "fish_white_fish_vegetables_oven",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/aljasska-treska-so-zeleninou-fotorecept/62445-recept.html", "title": "Aljašská treska so zeleninou (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/15788/rybie-file-so-zeleninou/", "title": "Rybie filé so zeleninou | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "63cba6eec3814f4af41448df506c48fad016dd562b99abd890136d6487c7e977",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "turkey_curry_rice"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

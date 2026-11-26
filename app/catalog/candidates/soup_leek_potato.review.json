@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "2167cc1f99d3cc76f0f1aa2e77fc61b1f0c506e14f975aa3e4cc59270003aec8",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "soup_leek_potato"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

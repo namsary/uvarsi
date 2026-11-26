@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "df985c01592d8084498c4dd72984b94cf999c8bf30b879ab05b1082f9ea65f00",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "classic_roast_chicken_potatoes"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}
