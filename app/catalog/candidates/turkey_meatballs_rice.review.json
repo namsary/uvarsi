@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "be976639f02b0c55f74a145f8407f80e6a8bb3a788dea0624667ad6f7f91db13",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "turkey_meatballs_rice"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

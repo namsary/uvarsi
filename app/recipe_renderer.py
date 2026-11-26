@@ -213,6 +213,9 @@ _QUANTITY_NAMES: Mapping[str, str] = {
     "pita": "pita placiek",
     "burger_bun": "hamburgerových žemlí",
     "sweet_corn": "sterilizovanej kukurice",
+    "olives": "olív bez kôstky",
+    "smoked_mackerel": "údenej makrely",
+    "turkey_thigh": "morčacieho stehna",
     # Wave 2, batch 5: Slovak classics.
     "chicken_liver": "kuracej pečene",
     "smoked_pork": "údeného bravčového mäsa",
@@ -339,6 +342,9 @@ _REFERENCE_NAMES: Mapping[str, str] = {
     "pita": "pita placky",
     "burger_bun": "hamburgerové žemle",
     "sweet_corn": "sterilizovanú kukuricu",
+    "olives": "olivy",
+    "smoked_mackerel": "údenú makrelu",
+    "turkey_thigh": "morčacie stehno",
     # Wave 2, batch 5: Slovak classics.
     "chicken_liver": "kuraciu pečeň",
     "smoked_pork": "údené bravčové mäso",
@@ -388,6 +394,9 @@ _EXTRA_INGREDIENT_FORMS: Mapping[str, tuple[str, ...]] = {
     "burger_bun": ("žemle", "žemlí", "žemľa", "žemľu"),
     "sweet_corn": ("kukurica", "kukurice", "kukuricu", "kukuricou"),
     "sour_cream": ("kyslá smotana", "kyslej smotany", "kyslou smotanou"),
+    "olives": ("olivy", "olív", "olivami"),
+    "smoked_mackerel": ("údená makrela", "údenej makrely", "údenú makrelu", "údenou makrelou", "makrelu", "makrelou"),
+    "turkey_thigh": ("morčacie stehno", "morčacieho stehna", "morčacím stehnom", "morčacie stehná"),
     # Wave 2, batch 5: Slovak classics.
     "chicken_liver": ("pečeň", "pečeňou"),
     "smoked_pork": ("údené mäso", "údeného mäsa", "údeným mäsom"),

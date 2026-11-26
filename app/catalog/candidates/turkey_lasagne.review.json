@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "cd1213a22b567d6d99b1c2f4f8be20c03e009e9706861518a1a756e0739e356c",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "turkey_lasagne"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

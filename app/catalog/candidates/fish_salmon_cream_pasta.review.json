@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "daba82bd0d38851108065950cc9bd99678ccea9d94c786b993ac9c3794c4c9f9",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "fish_salmon_cream_pasta"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

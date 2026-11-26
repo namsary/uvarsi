@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "3fb880158273bc8deda2a0cb2330daccfe13c80cbcf544b61b9e095e8fba15b4",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "fish_mackerel_salad"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

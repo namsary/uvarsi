@@ -1,0 +1,48 @@
+{
+  "recipes": [
+    {
+      "id": "turkey_bolognese_pasta",
+      "version": 2,
+      "active": true,
+      "name_template": "Morčacie bolonské cestoviny",
+      "family": "turkey_bolognese_pasta",
+      "method": "pot",
+      "minutes": 50,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec na omáčku", "hrniec na cestoviny", "sitko", "vareška", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "turkey", "role": "protein", "candidates": ["turkey_mince"], "amount_per_adult": "170", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "85", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "50"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.65", "required": true, "use": "main", "cut": "na malé kocky", "water_ml_per_adult": "80"},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.65", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oregano", "role": "seasoning", "candidates": ["oregano"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno nastrúhaný"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}, {carrot.amount} {carrot.name} {carrot.cut}, {garlic.amount} {garlic.name} {garlic.cut} a {tomato.amount} {tomato.name} {tomato.cut}. Nastrúhaj {cheese.amount} {cheese.name} najemno.", "requires": ["onion:raw", "carrot:raw", "garlic:raw", "tomato:raw", "cheese:raw"], "produces": ["onion:cut", "carrot:cut", "garlic:cut", "tomato:cut", "cheese:grated"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v hrnci na omáčku na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj cibuľu s mrkvou 5 minút, kým cibuľa zmäkne a bude dosklovita.", "requires": ["oil:raw", "onion:cut", "carrot:cut"], "produces": ["oil:used", "onion:cooked", "carrot:cooked"]},
+        {"text": "Pridaj {turkey.amount} {turkey.name} do hrnca. Opekaj mleté morčacie mäso na strednom ohni 7 minút, vareškou ho rozdeľ na drobné kúsky, kým stratí ružovú farbu a bude miestami zlatisté. Pri väčšej dávke opekaj mäso po častiach. Pridaj cesnak a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["turkey:raw", "onion:cooked", "carrot:cooked", "garlic:cut"], "produces": ["turkey:browned", "garlic:cooked"]},
+        {"text": "Vmiešaj {paste.amount} {paste.name} a {oregano.amount} {oregano.name}, pridaj paradajky a prilej {tomato.water} vody. Dus paradajky s mletým morčacím mäsom v hrnci na miernom ohni 20 minút, kým sa paradajky rozpadnú a omáčka bude hustá a jemne bublá.", "requires": ["paste:raw", "oregano:raw", "tomato:cut", "turkey:browned"], "produces": ["paste:cooked", "oregano:cooked", "tomato:cooked", "turkey:cooked"]},
+        {"text": "Uvar {pasta.amount} {pasta.name} v hrnci na cestoviny s osolenou vodou na strednom ohni asi 9 minút, kým budú mäkké, ale stále pevné. Odober z hrnca {pasta.water} vody a potom cestoviny sceď cez sitko.", "requires": ["pasta:raw"], "produces": ["pasta:cooked"]},
+        {"text": "Premiešaj cestoviny s omáčkou v hrnci na omáčku. Ak je omáčka hustá, prilievaj po troškách odloženú vodu z cestovín, kým bude šťavnatá a cestoviny sa ňou obalia. Dochuť jedlo soľou a čiernym korením až po ochutnaní.", "requires": ["pasta:cooked", "tomato:cooked", "turkey:cooked"], "produces": ["pasta:combined"]},
+        {"text": "Rozdeľ cestoviny na {portions} porcií a podávaj ich so syrom nasypaným navrch.", "requires": ["pasta:combined", "turkey:cooked", "tomato:cooked", "paste:cooked", "oregano:cooked", "onion:cooked", "carrot:cooked", "garlic:cooked", "oil:used", "cheese:grated"], "produces": ["pasta:served", "turkey:served", "tomato:served", "paste:served", "oregano:served", "onion:served", "carrot:served", "garlic:served", "oil:served", "cheese:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Cestoviny s omáčkou rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní; syr sypaj až na tanier a pri ohrievaní prilej lyžicu vody, aby omáčka ostala šťavnatá."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "turkey_bolognese_pasta",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/4334/bolonska-omacka/", "title": "Bolonská omáčka | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/31864/spagety-s-bolonskou-omackou/", "title": "Špagety s boloňskou omáčkou | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/fit-tekvicove-spagety-s-mletym-morcacim-masom-v-paradajkovej-oma/69212-recept.html", "title": "Fit tekvicové „špagety“ s mletým morčacím mäsom v paradajkovej omáčke (videorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

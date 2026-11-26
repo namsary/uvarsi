@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "903caefa509238460a98f33805ea7696eb39aee13ef46d667bdb7473010bb96b",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "fish_cod_curry"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

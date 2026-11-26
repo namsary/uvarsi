@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "fish_cod_tomato_olives",
+      "version": 2,
+      "active": true,
+      "name_template": "Treska v paradajkovej omáčke s ryžou",
+      "family": "fish_cod_tomato_olives",
+      "method": "pan",
+      "minutes": 40,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "veľká panvica s pokrievkou", "sitko", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "fish", "role": "protein", "candidates": ["white_fish"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kúsky veľké 4 centimetre"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "120"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na malé kocky", "water_ml_per_adult": "60"},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "olives", "role": "vegetable", "candidates": ["olives"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oregano", "role": "seasoning", "candidates": ["oregano"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne. Potom ju nechaj 5 minút prikrytú postáť.", "requires": ["rice:rinsed"], "produces": ["rice:cooked"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}, {garlic.amount} {garlic.name} {garlic.cut}, {tomato.amount} {tomato.name} {tomato.cut} a {parsley.amount} {parsley.name} {parsley.cut}.", "requires": ["onion:raw", "garlic:raw", "tomato:raw", "parsley:raw"], "produces": ["onion:cut", "garlic:cut", "tomato:cut", "parsley:cut"]},
+        {"text": "Sceď {olives.amount} {olives.name} a nakrájaj ich na kolieska.", "requires": ["olives:raw"], "produces": ["olives:sliced"]},
+        {"text": "Osuš {fish.amount} {fish.name} papierovou utierkou a nakrájaj ju {fish.cut}. Kúsky z oboch strán osoľ a okoreň.", "requires": ["fish:raw"], "produces": ["fish:seasoned"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu 5 minút, kým bude dosklovita. Pridaj cesnak a opekaj ho 30 sekúnd, kým zavonia. Pri väčšej dávke vari omáčku aj rybu radšej v širokom hrnci.", "requires": ["oil:raw", "onion:cut", "garlic:cut"], "produces": ["oil:used", "onion:cooked", "garlic:cooked"]},
+        {"text": "Pridaj paradajky, {paste.amount} {paste.name} a {oregano.amount} {oregano.name} do panvice a prilej {tomato.water} vody. Var paradajky v panvici na miernom ohni 10 minút, kým sa rozpadnú a omáčka začne jemne bublať.", "requires": ["tomato:cut", "paste:raw", "oregano:raw", "onion:cooked", "garlic:cooked"], "produces": ["tomato:sauce", "paste:sauce", "oregano:sauce"]},
+        {"text": "Vmiešaj olivy do panvice. Vlož rybu do panvice. Lyžicou ju zľahka prelej omáčkou. Prikry panvicu a dus rybu v omáčke na miernom ohni 8 minút, kým stuhne, v strede bude biela a ľahko sa rozdelí na lupienky.", "requires": ["olives:sliced", "fish:seasoned", "tomato:sauce"], "produces": ["olives:cooked", "fish:cooked", "tomato:cooked"]},
+        {"text": "Dochuť omáčku soľou a čiernym korením až po ochutnaní, olivy sú slané. Podávaj rybu s omáčkou a ryžou, ozdob ju petržlenovou vňaťou a rozdeľ jedlo na {portions} porcií.", "requires": ["fish:cooked", "rice:cooked", "tomato:cooked", "paste:sauce", "olives:cooked", "onion:cooked", "garlic:cooked", "oregano:sauce", "parsley:cut", "oil:used"], "produces": ["fish:served", "rice:served", "tomato:served", "paste:served", "olives:served", "onion:served", "garlic:served", "oregano:served", "parsley:served", "oil:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Rybu s omáčkou a ryžu ulož oddelene do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní; rybu prehrievaj v omáčke na miernom ohni iba raz, kým je horúca."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "fish_cod_tomato_olives",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/pecena-ryba-s-paradajkami-olivami-a-kaparami/69419-recept.html", "title": "Pečená ryba s paradajkami, olivami a kaparami - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/treska-v-paradajkovej-omacke-s-estragonom/39793-recept.html", "title": "Treska v paradajkovej omáčke s estragónom - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/27733/treska-na-paradajkach/", "title": "Treska na paradajkách | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}
