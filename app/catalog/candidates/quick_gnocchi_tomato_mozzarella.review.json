@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "6059c38969d0abb09feef8c77af9ed946e669dfdd4168bc5d04d496efcd469ad",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "quick_gnocchi_tomato_mozzarella"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

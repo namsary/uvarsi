@@ -118,6 +118,7 @@
     "quark": {"genitive": "tvarohu", "instrumental": "tvarohom"},
     "olives": {"genitive": "olív", "instrumental": "olivami"},
     "smoked_mackerel": {"genitive": "údenej makrely", "instrumental": "údenou makrelou"},
-    "turkey_thigh": {"genitive": "morčacieho stehna", "instrumental": "morčacím stehnom"}
+    "turkey_thigh": {"genitive": "morčacieho stehna", "instrumental": "morčacím stehnom"},
+    "rice_noodles": {"genitive": "ryžových rezancov", "instrumental": "ryžovými rezancami"}
   }
 }

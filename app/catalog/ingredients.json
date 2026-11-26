@@ -2041,6 +2041,23 @@
         "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171533, Turkey, retail parts, thigh, meat and skin, raw; 80% edible yield after bone; https://fdc.nal.usda.gov/download-datasets/",
         "verified_on": "2026-11-26"
       }
+    },
+    {
+      "id": "rice_noodles",
+      "name": "ryžové rezance",
+      "synonyms": ["rezance ryžové", "ryžové nudle", "široké ryžové rezance"],
+      "category": "obilniny",
+      "roles": ["starch"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "364", "protein_g": "5.95", "fat_g": "0.56", "carbs_g": "80.18",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 169742, Rice noodles, dry; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
     }
   ]
 }

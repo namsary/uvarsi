@@ -1,0 +1,47 @@
+{
+  "recipes": [
+    {
+      "id": "quick_chickpea_spinach_pan",
+      "version": 2,
+      "active": true,
+      "name_template": "Cícer so špenátom a paradajkami",
+      "family": "quick_chickpea_spinach_pan",
+      "method": "pan",
+      "minutes": 30,
+      "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["veľká panvica", "sitko", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "chickpeas", "role": "protein", "candidates": ["chickpeas_canned"], "amount_per_adult": "240", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "spinach", "role": "vegetable", "candidates": ["spinach"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na menšie kúsky"},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na krajce"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na tenké plátky"},
+        {"key": "cumin", "role": "seasoning", "candidates": ["cumin"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "12", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {onion.amount} {onion.name} nadrobno, {garlic.amount} {garlic.name} na tenké plátky a {tomato.amount} {tomato.name} na menšie kúsky.", "requires": ["onion:raw", "garlic:raw", "tomato:raw"], "produces": ["onion:cut", "garlic:cut", "tomato:cut"]},
+        {"text": "Sceď {chickpeas.amount} {chickpeas.name} cez sitko a prepláchni ho studenou vodou.", "requires": ["chickpeas:raw", "sitko:free"], "produces": ["chickpeas:drained", "sitko:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu 5 minút, kým zmäkne a bude dosklovita. Pridaj cesnak do panvice a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["oil:raw", "onion:cut", "garlic:cut", "velka_panvica:free"], "produces": ["oil:used", "onion:cooked", "garlic:cooked", "velka_panvica:occupied"]},
+        {"text": "Odstav panvicu z ohňa a vmiešaj {cumin.amount} {cumin.name} a {paprika.amount} {paprika.name}. Pridaj paradajky a cícer do panvice.", "requires": ["cumin:raw", "paprika:raw", "tomato:cut", "chickpeas:drained", "onion:cooked", "velka_panvica:occupied"], "produces": ["cumin:mixed", "paprika:mixed", "tomato:mixed", "chickpeas:mixed"]},
+        {"text": "Vráť panvicu na sporák. Var cícer s paradajkami vo veľkej panvici na miernom ohni 8 minút, kým paradajky zmäknú a omáčka jemne bublá.", "requires": ["tomato:mixed", "chickpeas:mixed", "cumin:mixed", "paprika:mixed", "velka_panvica:occupied"], "produces": ["tomato:cooked", "chickpeas:cooked", "cumin:cooked", "paprika:cooked"]},
+        {"text": "Pridaj {spinach.amount} {spinach.name} do panvice. Dus špenát s cícerom na miernom ohni 4 minúty, kým zvädne a zmäkne. Mrazený špenát nerozmrazuj, daj ho do panvice rovno z mrazničky a dus ho o 4 minúty dlhšie, kým sa voda odparí.", "requires": ["spinach:raw", "chickpeas:cooked", "velka_panvica:occupied"], "produces": ["spinach:cooked"]},
+        {"text": "Nakrájaj {bread.amount} {bread.name} na krajce.", "requires": ["bread:raw"], "produces": ["bread:cut"]},
+        {"text": "Dochuť cícer soľou a čiernym korením. Podávaj ho s chlebom a rozdeľ jedlo na {portions} porcií.", "requires": ["chickpeas:cooked", "spinach:cooked", "tomato:cooked", "cumin:cooked", "paprika:cooked", "onion:cooked", "garlic:cooked", "oil:used", "bread:cut", "velka_panvica:occupied"], "produces": ["chickpeas:served", "spinach:served", "tomato:served", "cumin:served", "paprika:served", "onion:served", "garlic:served", "oil:served", "bread:served", "velka_panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Cícer so špenátom rozdeľ do plytkých nádob, do hodiny ho schlaď a odlož do chladničky. Zjedz ho do 2 dní, prehrej iba raz a chlieb skladuj oddelene."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_chickpea_spinach_pan",
+    "editorial_lane": "plant_based",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/cicer-so-spenatom-a-rajcinami/32108-recept.html", "title": "Cícer so špenátom a rajčinami - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://www.toprecepty.cz/recept/67393-podzimni-cizrnove-curry-s-rajcaty-a-spenatem-podle-the-1-1-diet/", "title": "Podzimní cizrnové curry s rajčaty a špenátem podle The 1:1 Diet - Toprecepty.cz", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

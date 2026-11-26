@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "d602ec3c2a736172d8c9b355be5857869acfa0f1e5c05cc9022cd26ce0a5cd82",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "quick_rice_noodle_chicken"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

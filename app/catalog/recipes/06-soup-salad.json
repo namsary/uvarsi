@@ -9671,6 +9671,299 @@
         "refrigerated_days": 2,
         "instruction": "Šalát ulož do uzavretej nádoby a hneď ho odlož do chladničky. Zjedz ho do 2 dní a podávaj ho studený; vajcia pridávaj až na tanier."
       }
+    },
+    {
+      "id": "quick_chicken_pasta_salad",
+      "version": 2,
+      "active": true,
+      "name_template": "Cestovinový šalát s kuracím mäsom",
+      "family": "quick_chicken_pasta_salad",
+      "method": "salad",
+      "minutes": 35,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "hrniec",
+        "sitko",
+        "panvica",
+        "tanier",
+        "misa",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "pasta",
+          "role": "starch",
+          "candidates": [
+            "pasta"
+          ],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "chicken",
+          "role": "protein",
+          "candidates": [
+            "chicken_breast"
+          ],
+          "amount_per_adult": "150",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na kocky"
+        },
+        {
+          "key": "pepper",
+          "role": "vegetable",
+          "candidates": [
+            "bell_pepper"
+          ],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na malé kocky"
+        },
+        {
+          "key": "cucumber",
+          "role": "vegetable",
+          "candidates": [
+            "cucumber"
+          ],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na malé kocky"
+        },
+        {
+          "key": "corn",
+          "role": "vegetable",
+          "candidates": [
+            "sweet_corn"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "yogurt",
+          "role": "dairy",
+          "candidates": [
+            "plain_yogurt"
+          ],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "mayo",
+          "role": "fat",
+          "candidates": [
+            "mayonnaise"
+          ],
+          "amount_per_adult": "15",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "vinegar",
+          "role": "seasoning",
+          "candidates": [
+            "apple_cider_vinegar"
+          ],
+          "amount_per_adult": "5",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "dill",
+          "role": "seasoning",
+          "candidates": [
+            "dill"
+          ],
+          "amount_per_adult": "2",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "8",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Nakrájaj {chicken.amount} {chicken.name} na kocky. Mäso osoľ a okoreň.",
+          "requires": [
+            "chicken:raw"
+          ],
+          "produces": [
+            "chicken:cut"
+          ]
+        },
+        {
+          "text": "Uvar {pasta.amount} {pasta.name} v hrnci vo vriacej osolenej vode na strednom ohni 9 minút, kým budú mäkké, ale stále pevné. Sceď cestoviny cez sitko, prepláchni ich studenou vodou a nechaj ich dobre odkvapkať.",
+          "requires": [
+            "pasta:raw",
+            "hrniec:free",
+            "sitko:free"
+          ],
+          "produces": [
+            "pasta:cooled",
+            "hrniec:free",
+            "sitko:free"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj kuracie prsia v panvici na strednom ohni 6 minút, kým budú zo všetkých strán zlatisté a v strede nebudú ružové. Pri väčšej dávke ich opekaj po častiach, potom ich vyber na tanier a nechaj vychladnúť.",
+          "requires": [
+            "oil:raw",
+            "chicken:cut",
+            "panvica:free",
+            "tanier:free"
+          ],
+          "produces": [
+            "oil:used",
+            "chicken:cooled",
+            "panvica:free",
+            "tanier:occupied"
+          ]
+        },
+        {
+          "text": "Nakrájaj {pepper.amount} {pepper.name} a {cucumber.amount} {cucumber.name} na malé kocky a {dill.amount} {dill.name} nadrobno. Sceď {corn.amount} {corn.name} cez sitko.",
+          "requires": [
+            "pepper:raw",
+            "cucumber:raw",
+            "dill:raw",
+            "corn:raw",
+            "sitko:free"
+          ],
+          "produces": [
+            "pepper:cut",
+            "cucumber:cut",
+            "dill:cut",
+            "corn:drained",
+            "sitko:free"
+          ]
+        },
+        {
+          "text": "Premiešaj {yogurt.amount} {yogurt.name}, {mayo.amount} {mayo.name}, {vinegar.amount} {vinegar.name} a kôpor so soľou a čiernym korením v mise, aby vznikol riedky dresing.",
+          "requires": [
+            "yogurt:raw",
+            "mayo:raw",
+            "vinegar:raw",
+            "dill:cut",
+            "misa:free"
+          ],
+          "produces": [
+            "yogurt:dressing",
+            "mayo:dressing",
+            "vinegar:dressing",
+            "dill:dressing",
+            "misa:occupied"
+          ]
+        },
+        {
+          "text": "Vmiešaj cestoviny, kuracie prsia, papriku, uhorku a kukuricu do dresingu. Nechaj šalát 10 minút postáť v chlade, aby sa chute spojili.",
+          "requires": [
+            "pasta:cooled",
+            "chicken:cooled",
+            "pepper:cut",
+            "cucumber:cut",
+            "corn:drained",
+            "yogurt:dressing",
+            "mayo:dressing",
+            "vinegar:dressing",
+            "dill:dressing",
+            "misa:occupied",
+            "tanier:occupied"
+          ],
+          "produces": [
+            "pasta:mixed",
+            "chicken:mixed",
+            "pepper:mixed",
+            "cucumber:mixed",
+            "corn:mixed",
+            "yogurt:mixed",
+            "mayo:mixed",
+            "vinegar:mixed",
+            "dill:mixed",
+            "tanier:free"
+          ]
+        },
+        {
+          "text": "Podávaj šalát vychladený a rozdeľ ho na {portions} porcií.",
+          "requires": [
+            "pasta:mixed",
+            "chicken:mixed",
+            "pepper:mixed",
+            "cucumber:mixed",
+            "corn:mixed",
+            "yogurt:mixed",
+            "mayo:mixed",
+            "vinegar:mixed",
+            "dill:mixed",
+            "oil:used",
+            "misa:occupied"
+          ],
+          "produces": [
+            "pasta:served",
+            "chicken:served",
+            "pepper:served",
+            "cucumber:served",
+            "corn:served",
+            "yogurt:served",
+            "mayo:served",
+            "vinegar:served",
+            "dill:served",
+            "oil:served",
+            "misa:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Šalát rozdeľ do uzatvárateľných nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní; ak cestoviny dresing vpijú, vmiešaj pred podávaním lyžicu jogurtu."
+      }
     }
   ]
 }

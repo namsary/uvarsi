@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "quick_bean_chili_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Fazuľové chilli s ryžou a kukuricou",
+      "family": "quick_bean_chili_rice",
+      "method": "pot",
+      "minutes": 40,
+      "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["sitko", "hrniec", "veľký hrniec", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "beans", "role": "protein", "candidates": ["beans_canned"], "amount_per_adult": "240", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "140"},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kocky"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "nahrubo", "water_ml_per_adult": "60"},
+        {"key": "corn", "role": "vegetable", "candidates": ["sweet_corn"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "cumin", "role": "seasoning", "candidates": ["cumin"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "chili", "role": "seasoning", "candidates": ["chili_powder"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.3", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw", "sitko:free"], "produces": ["rice:rinsed", "sitko:free"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Priveď vodu v hrnci na silnom ohni do varu, kým začne bublať. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne. Potom ju nechaj 5 minút prikrytú postáť.", "requires": ["rice:rinsed", "hrniec:free"], "produces": ["rice:cooked", "hrniec:occupied"]},
+        {"text": "Nakrájaj {pepper.amount} {pepper.name} na kocky, {tomato.amount} {tomato.name} nahrubo, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno.", "requires": ["pepper:raw", "tomato:raw", "onion:raw", "garlic:raw"], "produces": ["pepper:cut", "tomato:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Sceď {beans.amount} {beans.name} a {corn.amount} {corn.name} cez sitko a prepláchni ich studenou vodou.", "requires": ["beans:raw", "corn:raw", "sitko:free"], "produces": ["beans:drained", "corn:drained", "sitko:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu a papriku 5 minút, kým zmäknú. Pridaj cesnak do hrnca a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["oil:raw", "onion:cut", "pepper:cut", "garlic:cut", "velky_hrniec:free"], "produces": ["oil:used", "onion:cooked", "pepper:cooked", "garlic:cooked", "velky_hrniec:occupied"]},
+        {"text": "Odstav hrniec z ohňa a vmiešaj {cumin.amount} {cumin.name}, {chili.amount} {chili.name}, {paprika.amount} {paprika.name} a {paste.amount} {paste.name}.", "requires": ["cumin:raw", "chili:raw", "paprika:raw", "paste:raw", "pepper:cooked", "velky_hrniec:occupied"], "produces": ["cumin:mixed", "chili:mixed", "paprika:mixed", "paste:mixed"]},
+        {"text": "Pridaj paradajky, fazuľu a kukuricu do hrnca. Prilej {tomato.water} vody. Var červenú fazuľu s paradajkami vo veľkom hrnci na miernom ohni 12 minút, kým paradajky zmäknú a omáčka zhustne.", "requires": ["tomato:cut", "beans:drained", "corn:drained", "paste:mixed", "velky_hrniec:occupied"], "produces": ["tomato:cooked", "beans:cooked", "corn:cooked", "paste:cooked", "cumin:cooked", "chili:cooked", "paprika:cooked"]},
+        {"text": "Dochuť chilli soľou a čiernym korením. Podávaj ho s ryžou a rozdeľ jedlo na {portions} porcií.", "requires": ["beans:cooked", "rice:cooked", "tomato:cooked", "corn:cooked", "paste:cooked", "cumin:cooked", "chili:cooked", "paprika:cooked", "pepper:cooked", "onion:cooked", "garlic:cooked", "oil:used", "hrniec:occupied", "velky_hrniec:occupied"], "produces": ["beans:served", "rice:served", "tomato:served", "corn:served", "paste:served", "cumin:served", "chili:served", "paprika:served", "pepper:served", "onion:served", "garlic:served", "oil:served", "hrniec:free", "velky_hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Ryžu a chilli rozdeľ do plytkých nádob, do hodiny ich schlaď a odlož do chladničky. Zjedz ich do 3 dní a prehrievaj s lyžicou vody, kým budú celé horúce."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_bean_chili_rice",
+    "editorial_lane": "plant_based",
+    "core": true,
+    "references": [
+      {"url": "https://www.toprecepty.cz/recept/79886-fazolove-chilli-s-ryzi/", "title": "Fazolové chilli s rýží - Toprecepty.cz", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/rychla-vecera-vegan-chilli-sin-carne-fotorecept/81750-recept.html", "title": "Rýchla večera vegan chilli sin carne (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "a53d609fdb6613e539423e9fb28ff6afe880e81115dcdeca382b5245968a9d5f",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "quick_tortilla_bake_beef"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

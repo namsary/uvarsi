@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "31224a1ba24776cad0a80dbb4a689cc0bbdc900f83bdb56008f377260dc6a1d0",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "quick_egg_fried_noodles"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

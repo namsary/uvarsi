@@ -1,0 +1,44 @@
+{
+  "recipes": [
+    {
+      "id": "quick_pasta_broccoli_bacon",
+      "version": 2,
+      "active": true,
+      "name_template": "Cestoviny s brokolicou a slaninou",
+      "family": "quick_pasta_broccoli_bacon",
+      "method": "pot",
+      "minutes": 30,
+      "modes": ["standard"],
+      "equipment": ["hrniec", "sitko", "hrnček", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "pasta", "role": "starch", "candidates": ["pasta"], "amount_per_adult": "85", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "50"},
+        {"key": "broccoli", "role": "vegetable", "candidates": ["broccoli"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na malé ružičky"},
+        {"key": "bacon", "role": "protein", "candidates": ["bacon"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "main", "cut": "na kocky"},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "80", "unit": "ml", "child_factor": "0.55", "required": true, "use": "addition", "cut": null},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nastrúhaný"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {bacon.amount} {bacon.name} na kocky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno. Rozdeľ {broccoli.amount} {broccoli.name} na malé ružičky a nastrúhaj {cheese.amount} {cheese.name}.", "requires": ["bacon:raw", "onion:raw", "garlic:raw", "broccoli:raw", "cheese:raw"], "produces": ["bacon:cut", "onion:cut", "garlic:cut", "broccoli:cut", "cheese:grated"]},
+        {"text": "Uvar {pasta.amount} {pasta.name} v hrnci vo vriacej osolenej vode na strednom ohni 5 minút. Pridaj brokolicu do hrnca a var ju 4 minúty, kým cestoviny budú mäkké, ale pevné a brokolica zmäkne. Mrazenú brokolicu nerozmrazuj a daj ju do hrnca rovno z mrazničky. Odober z hrnca {pasta.water} vody do hrnčeka a potom cestoviny s brokolicou sceď cez sitko.", "requires": ["pasta:raw", "broccoli:cut", "hrniec:free", "sitko:free", "hrncek:free"], "produces": ["pasta:cooked", "broccoli:cooked", "hrniec:free", "sitko:occupied", "hrncek:occupied"]},
+        {"text": "Opekaj slaninu v prázdnom hrnci na strednom ohni 5 minút, kým pustí tuk a bude chrumkavá.", "requires": ["bacon:cut", "hrniec:free"], "produces": ["bacon:cooked", "hrniec:occupied"]},
+        {"text": "Pridaj cibuľu do hrnca. Opekaj cibuľu so slaninou na strednom ohni 3 minúty, kým zmäkne. Pridaj cesnak do hrnca a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["onion:cut", "garlic:cut", "bacon:cooked", "hrniec:occupied"], "produces": ["onion:cooked", "garlic:cooked"]},
+        {"text": "Prilej {cream.amount} {cream.name} do hrnca. Var smotanu na varenie so slaninou na miernom ohni 2 minúty, kým začne jemne bublať.", "requires": ["cream:raw", "bacon:cooked", "onion:cooked", "hrniec:occupied"], "produces": ["cream:cooked"]},
+        {"text": "Pridaj cestoviny a brokolicu do hrnca. Zohrievaj cestoviny v omáčke na miernom ohni 2 minúty, kým ich omáčka obalí a jemne bublá. Ak je omáčka hustá, prilievaj po troškách odloženú vodu z cestovín, kým bude krémová.", "requires": ["pasta:cooked", "broccoli:cooked", "cream:cooked", "hrniec:occupied", "sitko:occupied", "hrncek:occupied"], "produces": ["pasta:combined", "broccoli:combined", "sitko:free", "hrncek:free"]},
+        {"text": "Dochuť cestoviny čiernym korením a soľou až po ochutnaní, slanina a syr sú slané. Rozdeľ ich na {portions} porcií, navrch nasyp tvrdý syr a podávaj.", "requires": ["pasta:combined", "broccoli:combined", "bacon:cooked", "cream:cooked", "onion:cooked", "garlic:cooked", "cheese:grated", "hrniec:occupied"], "produces": ["pasta:served", "broccoli:served", "bacon:served", "cream:served", "onion:served", "garlic:served", "cheese:served", "hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Cestoviny rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní, syr pridaj až na tanier a pri ohrievaní vmiešaj lyžicu vody."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_pasta_broccoli_bacon",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/brokolicove-kolienka-so-slaninkou-fotorecept/10840-recept.html", "title": "Brokolicové kolienka so slaninkou (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://www.toprecepty.cz/recept/86797-snadne-spagety-s-brokolici-a-slaninou/", "title": "Snadné špagety s brokolicí a slaninou - Toprecepty.cz", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

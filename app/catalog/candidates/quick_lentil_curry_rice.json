@@ -1,0 +1,48 @@
+{
+  "recipes": [
+    {
+      "id": "quick_lentil_curry_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Šošovicové kari s ryžou",
+      "family": "quick_lentil_curry_rice",
+      "method": "pot",
+      "minutes": 40,
+      "modes": ["standard", "vegetarian", "vegan"],
+      "equipment": ["sitko", "hrniec", "veľký hrniec", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "lentils", "role": "protein", "candidates": ["red_lentils"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "200"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "120"},
+        {"key": "coconut", "role": "dairy", "candidates": ["coconut_milk"], "amount_per_adult": "70", "unit": "ml", "child_factor": "0.55", "required": true, "use": "addition", "cut": null},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na malé kocky"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "nahrubo"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "curry", "role": "seasoning", "candidates": ["curry_powder"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "cumin", "role": "seasoning", "candidates": ["cumin"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.4", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {lentils.amount} {lentils.name} a {rice.amount} {rice.name} oddelene v sitku pod studenou vodou, kým voda nebude číra.", "requires": ["lentils:raw", "rice:raw", "sitko:free"], "produces": ["lentils:rinsed", "rice:rinsed", "sitko:free"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Priveď vodu v hrnci na silnom ohni do varu, kým začne bublať. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne.", "requires": ["rice:rinsed", "hrniec:free"], "produces": ["rice:cooked", "hrniec:occupied"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} nadrobno, {garlic.amount} {garlic.name} najemno, {carrot.amount} {carrot.name} na malé kocky a {tomato.amount} {tomato.name} nahrubo.", "requires": ["onion:raw", "garlic:raw", "carrot:raw", "tomato:raw"], "produces": ["onion:cut", "garlic:cut", "carrot:cut", "tomato:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu a mrkvu 5 minút, kým cibuľa zmäkne. Pridaj cesnak do hrnca a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["oil:raw", "onion:cut", "carrot:cut", "garlic:cut", "velky_hrniec:free"], "produces": ["oil:used", "onion:cooked", "carrot:softened", "garlic:cooked", "velky_hrniec:occupied"]},
+        {"text": "Prisyp {curry.amount} {curry.name} a {cumin.amount} {cumin.name} do hrnca. Miešaj korenie s cibuľou 30 sekúnd, kým sa rozvonia.", "requires": ["curry:raw", "cumin:raw", "onion:cooked", "velky_hrniec:occupied"], "produces": ["curry:toasted", "cumin:toasted"]},
+        {"text": "Pridaj červenú šošovicu a paradajky do hrnca. Prilej {lentils.water} vody, premiešaj a prikry. Var červenú šošovicu vo veľkom hrnci na miernom ohni 15 minút, kým zmäkne a začne sa rozpadať. Občas premiešaj, aby sa neprichytila.", "requires": ["lentils:rinsed", "tomato:cut", "curry:toasted", "cumin:toasted", "velky_hrniec:occupied"], "produces": ["lentils:cooked", "tomato:cooked", "carrot:cooked", "curry:cooked", "cumin:cooked"]},
+        {"text": "Vmiešaj {coconut.amount} {coconut.name} do hrnca. Var kari na miernom ohni 3 minúty, kým začne jemne bublať a zhustne.", "requires": ["coconut:raw", "lentils:cooked", "velky_hrniec:occupied"], "produces": ["coconut:cooked", "lentils:finished"]},
+        {"text": "Dochuť kari soľou a čiernym korením. Podávaj ho s ryžou a rozdeľ jedlo na {portions} porcií.", "requires": ["lentils:finished", "rice:cooked", "coconut:cooked", "carrot:cooked", "tomato:cooked", "onion:cooked", "garlic:cooked", "curry:cooked", "cumin:cooked", "oil:used", "hrniec:occupied", "velky_hrniec:occupied"], "produces": ["lentils:served", "rice:served", "coconut:served", "carrot:served", "tomato:served", "onion:served", "garlic:served", "curry:served", "cumin:served", "oil:served", "hrniec:free", "velky_hrniec:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Kari a ryžu rozdeľ do plytkých nádob, do hodiny ich schlaď a odlož do chladničky. Zjedz ich do 3 dní; kari pri ohrievaní zrieď lyžicou vody, lebo šošovica zhustne."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_lentil_curry_rice",
+    "editorial_lane": "plant_based",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/kari-cervena-sosovica-s-kokosovym-mliekom/82156-recept.html", "title": "Karí červená šošovica s kokosovým mliekom - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://www.toprecepty.cz/recept/55030-kari-z-cervene-cocky/", "title": "Kari z červené čočky - Toprecepty.cz", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

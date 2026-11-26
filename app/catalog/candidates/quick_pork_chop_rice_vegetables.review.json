@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "0d1c0cdafc93b847e64756a10b147cf4d4b431ba3f7984480a51f817ca9e338c",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "quick_pork_chop_rice_vegetables"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

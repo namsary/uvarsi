@@ -476,6 +476,21 @@ INGREDIENT_FORBIDDEN_OFFER_QUALIFIERS = MappingProxyType(
                 ("varena",),
             )
         ),
+        # Plain dry rice noodles; instant cups and seasoned soup packs are
+        # different products.
+        "rice_noodles": frozenset(
+            (
+                ("instantné",),
+                ("instantne",),
+                ("instantná",),
+                ("instantna",),
+                ("polievka",),
+                ("príchuťou",),
+                ("prichutou",),
+                ("s",),
+                ("so",),
+            )
+        ),
         # Plain pitted olives in brine; stuffed, flavoured or oil-packed
         # olives and olive pastes are different products.
         "olives": frozenset(

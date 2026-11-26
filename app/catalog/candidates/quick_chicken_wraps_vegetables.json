@@ -1,0 +1,48 @@
+{
+  "recipes": [
+    {
+      "id": "quick_chicken_wraps_vegetables",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuracie wrapy so zeleninou a jogurtom",
+      "family": "quick_chicken_wraps_vegetables",
+      "method": "pan",
+      "minutes": 30,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľká panvica", "miska", "tanier", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "tortilla", "role": "starch", "candidates": ["tortilla"], "amount_per_adult": "2", "unit": "piece", "child_factor": "0.5", "required": true, "use": "main", "cut": null},
+        {"key": "chicken", "role": "protein", "candidates": ["chicken_breast"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenké rezančeky"},
+        {"key": "lettuce", "role": "vegetable", "candidates": ["lettuce"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na pásiky"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "cucumber", "role": "vegetable", "candidates": ["cucumber"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenké plátky"},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "dill", "role": "seasoning", "candidates": ["dill"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {chicken.amount} {chicken.name} na tenké rezančeky. Mäso osoľ a okoreň.", "requires": ["chicken:raw"], "produces": ["chicken:cut"]},
+        {"text": "Nakrájaj {lettuce.amount} {lettuce.name} na pásiky, {tomato.amount} {tomato.name} na malé kocky a {cucumber.amount} {cucumber.name} na tenké plátky.", "requires": ["lettuce:raw", "tomato:raw", "cucumber:raw"], "produces": ["lettuce:cut", "tomato:cut", "cucumber:cut"]},
+        {"text": "Nakrájaj {garlic.amount} {garlic.name} najemno a {dill.amount} {dill.name} nadrobno. Premiešaj {yogurt.amount} {yogurt.name} s cesnakom, kôprom a štipkou soli v miske, aby vznikol hustý dresing.", "requires": ["garlic:raw", "dill:raw", "yogurt:raw", "miska:free"], "produces": ["garlic:mixed", "dill:mixed", "yogurt:mixed", "miska:occupied"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na silnom ohni 1 minútu, kým sa začne lesknúť. Opekaj kuracie prsia v panvici na silnom ohni 5 minút, kým budú zlatisté a v strede nebudú ružové. Pri väčšej dávke ich opekaj po častiach.", "requires": ["oil:raw", "chicken:cut", "velka_panvica:free"], "produces": ["oil:used", "chicken:cooked", "velka_panvica:occupied"]},
+        {"text": "Odstav panvicu z ohňa a prisyp {paprika.amount} {paprika.name}. Premiešaj kuracie prsia, aby sa korenie rovnomerne obalilo, a vyber ich na tanier.", "requires": ["paprika:raw", "chicken:cooked", "velka_panvica:occupied", "tanier:free"], "produces": ["paprika:combined", "chicken:seasoned", "velka_panvica:free", "tanier:occupied"]},
+        {"text": "Zohrej tortilly po jednej v suchej panvici na strednom ohni 30 sekúnd z každej strany, kým zmäknú a budú vláčne.", "requires": ["velka_panvica:free"], "produces": ["velka_panvica:free"]},
+        {"text": "Rozlož tortilly na dosku a na každú {tortilla.amount} {tortilla.name} natri lyžicu jogurtového dresingu. Navrch daj šalát, uhorku, paradajky a kuracie mäso, spodný okraj preklop a tortillu pevne zroluj.", "requires": ["tortilla:raw", "yogurt:mixed", "garlic:mixed", "dill:mixed", "lettuce:cut", "tomato:cut", "cucumber:cut", "chicken:seasoned", "paprika:combined", "miska:occupied", "tanier:occupied"], "produces": ["tortilla:filled", "yogurt:filled", "garlic:filled", "dill:filled", "lettuce:filled", "tomato:filled", "cucumber:filled", "chicken:filled", "paprika:filled", "miska:free", "tanier:free"]},
+        {"text": "Podávaj wrapy hneď, kým je mäso teplé, a rozdeľ ich na {portions} porcií.", "requires": ["tortilla:filled", "yogurt:filled", "garlic:filled", "dill:filled", "lettuce:filled", "tomato:filled", "cucumber:filled", "chicken:filled", "paprika:filled", "oil:used"], "produces": ["tortilla:served", "yogurt:served", "garlic:served", "dill:served", "lettuce:served", "tomato:served", "cucumber:served", "chicken:served", "paprika:served", "oil:served"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Wrapy jedz hneď. Zvyšné mäso, zeleninu a dresing ulož oddelene v uzavretých nádobách, do 2 hodín ich odlož do chladničky a wrap zroluj až pred jedlom, najneskôr na druhý deň."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_chicken_wraps_vegetables",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/kuracie-wrapy-so-zeleninou/57633-recept.html", "title": "Kuracie wrapy so zeleninou - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://www.toprecepty.cz/recept/79237-kureci-tortilla/", "title": "Kuřecí tortilla - Toprecepty.cz", "accessed_on": "2026-11-26"}
+    ]
+  }
+}
