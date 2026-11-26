@@ -1,0 +1,52 @@
+{
+  "recipes": [
+    {
+      "id": "turkey_skewers_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Morčacie ražniči s pečenými zemiakmi",
+      "family": "turkey_skewers_potatoes",
+      "method": "oven",
+      "minutes": 60,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["rúra", "dva plechy", "papier na pečenie", "drevené špajle", "dve misky", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "turkey", "role": "protein", "candidates": ["turkey_breast"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kocky veľké 3 centimetre"},
+        {"key": "bacon", "role": "protein", "candidates": ["bacon"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na štvorčeky"},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na štvorce veľké 3 centimetre"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na osminky"},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "280", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na mesiačiky"},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "14", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "dill", "role": "seasoning", "candidates": ["dill"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 200 °C.", "requires": [], "produces": []},
+        {"text": "Rozdeľ {oil.amount} {oil.name} na dve rovnaké časti. Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}.", "requires": ["oil:raw", "potato:raw"], "produces": ["oil:divided", "potato:cut"]},
+        {"text": "Rozlož zemiaky na plech vystlaný papierom na pečenie, polej ich jednou časťou oleja, prisyp {caraway.amount} {caraway.name} a soľ a premiešaj ich.", "requires": ["potato:cut", "oil:divided", "caraway:raw"], "produces": ["potato:tray", "oil:half_used", "caraway:tray"]},
+        {"text": "Peč zemiaky na plechu pri 200 °C 20 minút, kým budú zospodu zlatisté.", "requires": ["potato:tray", "caraway:tray"], "produces": ["potato:parbaked", "caraway:baked"]},
+        {"text": "Nakrájaj {turkey.amount} {turkey.name} {turkey.cut}, {bacon.amount} {bacon.name} {bacon.cut}, {pepper.amount} {pepper.name} {pepper.cut} a {onion.amount} {onion.name} {onion.cut}.", "requires": ["turkey:raw", "bacon:raw", "pepper:raw", "onion:raw"], "produces": ["turkey:cut", "bacon:cut", "pepper:cut", "onion:cut"]},
+        {"text": "Vlož morčacie prsia do misky, polej ich druhou časťou oleja, prisyp {paprika.amount} {paprika.name}, čierne korenie a štipku soli a premiešaj.", "requires": ["turkey:cut", "oil:half_used", "paprika:raw"], "produces": ["turkey:seasoned", "oil:marinade", "paprika:marinade"]},
+        {"text": "Priprav ražniči: na špajle napichuj striedavo mäso, slaninu, papriku a cibuľu. Hotové ražniči ulož na ďalší plech vystlaný papierom na pečenie.", "requires": ["turkey:seasoned", "bacon:cut", "pepper:cut", "onion:cut", "oil:marinade", "paprika:marinade"], "produces": ["turkey:skewered", "bacon:skewered", "pepper:skewered", "onion:skewered", "oil:skewered", "paprika:skewered"]},
+        {"text": "Peč morčacie prsia na špajliach spolu so zemiakmi v rúre pri 200 °C 15 minút. V polovici času ražniči aj zemiaky obráť. Pečenie ukonči, keď bude mäso v strede prepečené, slanina chrumkavá a zemiaky mäkké a zlatisté.", "requires": ["turkey:skewered", "bacon:skewered", "pepper:skewered", "onion:skewered", "oil:skewered", "paprika:skewered", "potato:parbaked", "caraway:baked"], "produces": ["turkey:baked", "bacon:baked", "pepper:baked", "onion:baked", "oil:baked", "paprika:baked", "potato:baked", "caraway:served_ready"]},
+        {"text": "Nakrájaj {garlic.amount} {garlic.name} {garlic.cut} a {dill.amount} {dill.name} {dill.cut}. Premiešaj v druhej miske {yogurt.amount} {yogurt.name}, cesnak, kôpor a štipku soli na hladký dip.", "requires": ["garlic:raw", "dill:raw", "yogurt:raw"], "produces": ["garlic:dip", "dill:dip", "yogurt:dip"]},
+        {"text": "Podávaj ražniči s pečenými zemiakmi a jogurtovým dipom a rozdeľ jedlo na {portions} porcií.", "requires": ["turkey:baked", "bacon:baked", "pepper:baked", "onion:baked", "oil:baked", "paprika:baked", "potato:baked", "caraway:served_ready", "garlic:dip", "dill:dip", "yogurt:dip"], "produces": ["turkey:served", "bacon:served", "pepper:served", "onion:served", "oil:served", "paprika:served", "potato:served", "caraway:served", "garlic:served", "dill:served", "yogurt:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Mäso stiahnuté zo špajlí, zemiaky a dip ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní; mäso so zemiakmi prehrej iba raz, dip podávaj studený."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "turkey_skewers_potatoes",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/morcacia-ihla-s-pecenymi-zemiakmi-a-uhorkovym-dipom-fotorecept/73507-recept.html", "title": "Morčacia ihla s pečenými zemiakmi a uhorkovým dipom (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/40028/morcacie-spizy-s-paradajkami/", "title": "Morčacie špízy s paradajkami | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/2453/morcaci-spiz-s-farebnymi-paprikami/", "title": "Morčací špíz s farebnými paprikami | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

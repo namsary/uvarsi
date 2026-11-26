@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "cf9489d5f9108586db6a83bff234f7373b8431eb6827e44b7096447eec149a27",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "quick_chicken_pasta_tomato"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

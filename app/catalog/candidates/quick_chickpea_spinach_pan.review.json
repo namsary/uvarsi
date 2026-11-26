@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "376b67c8a2ace78261bd84ab3857dfc29dd7319846c3f87a7e7564f39fc43d76",
+  "promoted_to": "05-vegan.json",
+  "recipe_ids": [
+    "quick_chickpea_spinach_pan"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

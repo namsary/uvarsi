@@ -1,0 +1,53 @@
+{
+  "recipes": [
+    {
+      "id": "turkey_ragout_noodles",
+      "version": 2,
+      "active": true,
+      "name_template": "Morčací ragú s rezancami",
+      "family": "turkey_ragout_noodles",
+      "method": "pot",
+      "minutes": 45,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľký hrniec", "hrniec", "sitko", "miska", "vareška", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "turkey", "role": "protein", "candidates": ["turkey_breast"], "amount_per_adult": "170", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na rezančeky hrubé 1 centimeter", "water_ml_per_adult": "100"},
+        {"key": "noodles", "role": "starch", "candidates": ["egg_noodles"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na pásiky"},
+        {"key": "zucchini", "role": "vegetable", "candidates": ["zucchini"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na polkolieska"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na tenké kolieska"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "thyme", "role": "seasoning", "candidates": ["thyme"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {turkey.amount} {turkey.name} {turkey.cut}, {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} {garlic.cut}.", "requires": ["turkey:raw", "onion:raw", "garlic:raw"], "produces": ["turkey:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Nakrájaj {pepper.amount} {pepper.name} {pepper.cut}, {zucchini.amount} {zucchini.name} {zucchini.cut}, {carrot.amount} {carrot.name} {carrot.cut}, {tomato.amount} {tomato.name} {tomato.cut} a {parsley.amount} {parsley.name} {parsley.cut}.", "requires": ["pepper:raw", "zucchini:raw", "carrot:raw", "tomato:raw", "parsley:raw"], "produces": ["pepper:cut", "zucchini:cut", "carrot:cut", "tomato:cut", "parsley:cut"]},
+        {"text": "Vlož morčacie prsia do misky. Prisyp {flour.amount} {flour.name}, soľ a čierne korenie a premiešaj, aby sa múka rovnomerne rozložila.", "requires": ["turkey:cut", "flour:raw"], "produces": ["turkey:dusted", "flour:dusted"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkom hrnci na silnom ohni 2 minúty, kým sa začne lesknúť. Opekaj morčacie prsia 3 minúty za stáleho miešania, kým na povrchu stuhnú a miestami zozlatnú. Pri väčšej dávke opekaj mäso po častiach. Vyber ho na tanier.", "requires": ["oil:raw", "turkey:dusted", "flour:dusted"], "produces": ["oil:used", "turkey:seared", "flour:seared"]},
+        {"text": "Opekaj cibuľu s mrkvou vo veľkom hrnci na strednom ohni 4 minúty, kým cibuľa zmäkne. Pridaj cesnak, papriku a cuketu a opekaj ich 3 minúty, kým trochu zmäknú.", "requires": ["onion:cut", "carrot:cut", "garlic:cut", "pepper:cut", "zucchini:cut", "oil:used"], "produces": ["onion:cooked", "carrot:cooked", "garlic:cooked", "pepper:cooked", "zucchini:cooked"]},
+        {"text": "Vmiešaj {paste.amount} {paste.name} a {thyme.amount} {thyme.name}, pridaj paradajky a prilej {turkey.water} vody. Dus paradajky so zeleninou vo veľkom hrnci na miernom ohni 8 minút, kým sa rozpadnú a omáčka začne bublať.", "requires": ["paste:raw", "thyme:raw", "tomato:cut", "onion:cooked", "carrot:cooked", "pepper:cooked", "zucchini:cooked"], "produces": ["paste:sauce", "thyme:sauce", "tomato:sauce"]},
+        {"text": "Vráť morčacie prsia do hrnca. Dus morčacie prsia v omáčke na miernom ohni 6 minút, kým omáčka zhustne, jemne bublá a mäso v strede nebude ružové.", "requires": ["turkey:seared", "flour:seared", "tomato:sauce"], "produces": ["turkey:cooked", "flour:cooked", "tomato:cooked"]},
+        {"text": "Uvar {noodles.amount} {noodles.name} v hrnci s osolenou vodou na strednom ohni 8 minút, kým zmäknú. Potom ich sceď cez sitko.", "requires": ["noodles:raw"], "produces": ["noodles:cooked"]},
+        {"text": "Dochuť ragú soľou a čiernym korením a vmiešaj petržlenovú vňať. Podávaj ho s rezancami a rozdeľ jedlo na {portions} porcií.", "requires": ["turkey:cooked", "flour:cooked", "tomato:cooked", "paste:sauce", "thyme:sauce", "onion:cooked", "carrot:cooked", "garlic:cooked", "pepper:cooked", "zucchini:cooked", "oil:used", "parsley:cut", "noodles:cooked"], "produces": ["turkey:served", "flour:served", "tomato:served", "paste:served", "thyme:served", "onion:served", "carrot:served", "garlic:served", "pepper:served", "zucchini:served", "oil:served", "parsley:served", "noodles:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Ragú a rezance rozdeľ oddelene do plytkých nádob, do jednej hodiny ich schlaď a odlož do chladničky. Zjedz ich do 3 dní; ragú prehrievaj na miernom ohni s lyžicou vody iba raz, kým je horúce."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "turkey_ragout_noodles",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/morcacie-ragu/41227-recept.html", "title": "Morčacie ragú - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/morcacie-ragu/43942-recept.html", "title": "Morčacie ragú - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/80748/morcacie-ragu-s-olivami-a-paprikou-vyborny-obed-i-vecera/", "title": "Morčacie ragú s olivami a paprikou: Výborný obed i večera  | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

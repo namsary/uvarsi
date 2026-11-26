@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "55baac369873f49df4db9c44425064d4e94055505204594292448ffecda6d635",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "turkey_fajitas"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

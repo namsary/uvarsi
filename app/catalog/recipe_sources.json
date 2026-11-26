@@ -3583,6 +3583,781 @@
           "accessed_on": "2026-11-26"
         }
       ]
+    },
+    {
+      "recipe_id": "fish_cod_tomato_olives",
+      "editorial_lane": "high_protein",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/pecena-ryba-s-paradajkami-olivami-a-kaparami/69419-recept.html",
+          "title": "Pečená ryba s paradajkami, olivami a kaparami - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/treska-v-paradajkovej-omacke-s-estragonom/39793-recept.html",
+          "title": "Treska v paradajkovej omáčke s estragónom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/27733/treska-na-paradajkach/",
+          "title": "Treska na paradajkách | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "fish_salmon_rice_bowl",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/lososova-miska/86983-recept.html",
+          "title": "Lososová miska - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/poke-miska-s-ryzou-a-lososom/94267-recept.html",
+          "title": "Poke miska s ryžou a lososom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/2161/marinovany-losos-s-natural-ryzou/",
+          "title": "Marinovaný losos s natural ryžou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "fish_baked_fish_lemon_potatoes",
+      "editorial_lane": "high_protein",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/84362/stavnate-rybie-file-pecene-v-citrusovo-bylinkovej-marinade-lahky-piatkovy-obed-bez-vyprazania/",
+          "title": "Šťavnaté rybie filé pečené v citrusovo-bylinkovej marináde: Ľahký piatkový obed bez vyprážania | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/pecene-rybie-filety-so-zemiakmi/69-recept.html",
+          "title": "Pečené rybie filety so zemiakmi - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/26938/fotorecept-pecena-ryba-so-zemiakmi/",
+          "title": "FOTORECEPT: Pečená ryba so zemiakmi | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "fish_tuna_patties",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/tuniakove-placky-rychle-a-chutne/10602-recept.html",
+          "title": "Tuniakové placky - rýchle a chutné - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/19227/tuniakove-placky/",
+          "title": "Tuniakové placky | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/64453/tuniakove-karbonatky/",
+          "title": "Tuniakové karbonátky | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "fish_fish_soup",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/26655/rybacia-polievka-so-zeleninou/",
+          "title": "Rybacia polievka so zeleninou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/1677/rybacia-polievka-z-file/",
+          "title": "Rybacia polievka z filé | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/pikantna-rybacia-polievka-so-zeleninou/77931-recept.html",
+          "title": "Pikantná rybacia polievka so zeleninou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "fish_salmon_cream_pasta",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/1208/cestoviny-s-lososom-a-smotanovou-omackou/",
+          "title": "Cestoviny s lososom a smotanovou omáčkou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/cestoviny-s-omackou-z-cerstveho-lososa/33616-recept.html",
+          "title": "Cestoviny s omáčkou z čerstvého lososa - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/37732/cestoviny-s-lososom-a-koprom/",
+          "title": "Cestoviny s lososom a kôprom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "fish_fish_rice_peas",
+      "editorial_lane": "high_protein",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/treska-s-korenenou-ryzou-a-hraskom/50335-recept.html",
+          "title": "Treska s korenenou ryžou a hráškom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/treska-na-hrasku/39384-recept.html",
+          "title": "Treska na hrášku - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/12159/ryza-s-rybou/",
+          "title": "Ryža s rybou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "fish_cod_curry",
+      "editorial_lane": "high_protein",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/rychle-rybacie-kari/88203-recept.html",
+          "title": "Rýchle rybacie karí - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/rybie-file-v-kari-omacke/31010-recept.html",
+          "title": "Rybie filé v karí omáčke - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/13784/rybie-file-na-kari/",
+          "title": "Rybie filé na karí | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "fish_tuna_rice_bake",
+      "editorial_lane": "high_protein",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/jednoducha-ryza-s-tuniakom/91391-recept.html",
+          "title": "Jednoduchá ryža s tuniakom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/chutna-a-rychla-zapekana-ryza/92016-recept.html",
+          "title": "Chutná a rýchla zapekaná ryža - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/20428/zapekana-ryza-so-zeleninou/",
+          "title": "Zapekaná ryža so zeleninou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "fish_mackerel_salad",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/927/salat-z-udenych-ryb-s-majonezou/",
+          "title": "Šalát z údených rýb s majonézou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/salat-z-novych-zemiakov-s-uhorkou-a-udenym-lososom/91569-recept.html",
+          "title": "Šalát z nových zemiakov s uhorkou a údeným lososom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/avokadovo-makrelovy-salat-fotorecept/17040-recept.html",
+          "title": "Avokádovo-makrelový šalát (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "turkey_ragout_noodles",
+      "editorial_lane": "high_protein",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/morcacie-ragu/41227-recept.html",
+          "title": "Morčacie ragú - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/morcacie-ragu/43942-recept.html",
+          "title": "Morčacie ragú - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/80748/morcacie-ragu-s-olivami-a-paprikou-vyborny-obed-i-vecera/",
+          "title": "Morčacie ragú s olivami a paprikou: Výborný obed i večera  | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "turkey_meatballs_rice",
+      "editorial_lane": "high_protein",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/morcacie-fasirky-pecene-v-rure/84133-recept.html",
+          "title": "Morčacie fašírky pečené v rúre - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/16085/morcacie-fasirky/",
+          "title": "Morčacie fašírky | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/11582/uhorkovy-salat/",
+          "title": "Uhorkový šalát | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "turkey_skewers_potatoes",
+      "editorial_lane": "high_protein",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/morcacia-ihla-s-pecenymi-zemiakmi-a-uhorkovym-dipom-fotorecept/73507-recept.html",
+          "title": "Morčacia ihla s pečenými zemiakmi a uhorkovým dipom (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/40028/morcacie-spizy-s-paradajkami/",
+          "title": "Morčacie špízy s paradajkami | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/2453/morcaci-spiz-s-farebnymi-paprikami/",
+          "title": "Morčací špíz s farebnými paprikami | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "turkey_bolognese_pasta",
+      "editorial_lane": "high_protein",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/4334/bolonska-omacka/",
+          "title": "Bolonská omáčka | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/31864/spagety-s-bolonskou-omackou/",
+          "title": "Špagety s boloňskou omáčkou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/fit-tekvicove-spagety-s-mletym-morcacim-masom-v-paradajkovej-oma/69212-recept.html",
+          "title": "Fit tekvicové „špagety“ s mletým morčacím mäsom v paradajkovej omáčke (videorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "turkey_lasagne",
+      "editorial_lane": "high_protein",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/lasagne-s-mletym-morcacim-masom-fotorecept/84947-recept.html",
+          "title": "Lasagne s mletým morčacím mäsom (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/37731/lasagne-s-cottage-cheese-a-morcacim-masom/",
+          "title": "Lasagne s cottage cheese a morčacím mäsom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "turkey_fajitas",
+      "editorial_lane": "high_protein",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuracie-fajitas/72691-recept.html",
+          "title": "Kuracie fajitas - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/5778/fotorecept-fajitas-plnene-tortilly/",
+          "title": "FOTORECEPT: Fajitas - plnené tortilly | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/24983/fotorecept-fajita-s-kuracim-masom/",
+          "title": "FOTORECEPT: Fajita s kuracím mäsom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "turkey_drumstick_roast",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/75955/morcacie-stehno-na-zemiakoch-s-cibulkou-a-cervenym-vinom/",
+          "title": "FOTORECEPT: Morčacie stehno na zemiakoch s cibuľkou a červeným vínom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/71927/pecene-morcacie-stehno/",
+          "title": "FOTORECEPT: Pečené morčacie stehno | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/morcacie-stehna-so-slaninkou-a-s-restovanymi-zemiakmi/76845-recept.html",
+          "title": "Morčacie stehná so slaninkou a s restovanými zemiakmi - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "turkey_stuffed_peppers",
+      "editorial_lane": "high_protein",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/75981/paprika-plnena-morcacim-a-krupmi/",
+          "title": "FOTORECEPT: Paprika plnená morčacím a krúpami | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/81960/plnena-paprika-v-paradajkovej-omacke-fotorecept/",
+          "title": "Plnená paprika v paradajkovej omáčke, FOTORECEPT | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/zapekane-papriky-s-mletym-morcacim-masom-ryzou-a-medvedim-cesnakom/90897-recept.html",
+          "title": "Zapekané papriky s mletým morčacím mäsom, ryžou a medvedím cesnakom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "turkey_lentil_stew",
+      "editorial_lane": "high_protein",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/50328/morcacie-stehna-so-sosovicou/",
+          "title": "Morčacie stehná so šošovicou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/33299/fotorecept-morcacie-maso-so-sosovicovym-pyre/",
+          "title": "FOTORECEPT: Morčacie mäso so šošovicovým pyré | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/sosovica-trikrat-na-kyslo-fotorecept/45612-recept.html",
+          "title": "Šošovica trikrát na kyslo (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "turkey_paprika_potatoes",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/14177/morcacie-maso-na-paprike/",
+          "title": "Morčacie mäso na paprike | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/morcaci-paprikas-fotorecept/13143-recept.html",
+          "title": "Morčací paprikáš (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/hydinovy-paprikas/20202-recept.html",
+          "title": "Hydinový paprikáš - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_chicken_wraps_vegetables",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuracie-wrapy-so-zeleninou/57633-recept.html",
+          "title": "Kuracie wrapy so zeleninou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://www.toprecepty.cz/recept/79237-kureci-tortilla/",
+          "title": "Kuřecí tortilla - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_chicken_pasta_salad",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/letny-cestovinovy-salat-s-kuracim-masom-/89005-recept.html",
+          "title": "Letný cestovinový šalát s kuracím mäsom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://www.toprecepty.cz/recept/3575-testovinovy-salat-s-kurecim-masem/",
+          "title": "Těstovinový salát s kuřecím masem - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_egg_fried_noodles",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/rezance-s-vajcom-15-min-/64862-recept.html",
+          "title": "Rezance s Vajcom (15 min.) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://www.toprecepty.cz/recept/77070-nudle-se-zeleninou-a-vejci/",
+          "title": "Nudle se zeleninou a vejci - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_gnocchi_tomato_mozzarella",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/gnocchi-s-jednoduchou-paradajkovou-omackou-fotorecept/76095-recept.html",
+          "title": "Gnocchi s jednoduchou paradajkovou omáčkou (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://www.toprecepty.cz/recept/84797-rychle-kremove-gnocchi-s-rajcaty-z-jedne-panve/",
+          "title": "Rychlé krémové gnocchi s rajčaty z jedné pánve - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_bean_chili_rice",
+      "editorial_lane": "plant_based",
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.toprecepty.cz/recept/79886-fazolove-chilli-s-ryzi/",
+          "title": "Fazolové chilli s rýží - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/rychla-vecera-vegan-chilli-sin-carne-fotorecept/81750-recept.html",
+          "title": "Rýchla večera vegan chilli sin carne (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_chickpea_spinach_pan",
+      "editorial_lane": "plant_based",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/cicer-so-spenatom-a-rajcinami/32108-recept.html",
+          "title": "Cícer so špenátom a rajčinami - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://www.toprecepty.cz/recept/67393-podzimni-cizrnove-curry-s-rajcaty-a-spenatem-podle-the-1-1-diet/",
+          "title": "Podzimní cizrnové curry s rajčaty a špenátem podle The 1:1 Diet - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_tofu_vegetable_stir_fry",
+      "editorial_lane": "plant_based",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/tofu-na-cinsky-sposob-s-ryzou/63710-recept.html",
+          "title": "Tofu na čínsky spôsob s ryžou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://www.toprecepty.cz/recept/32450-zelenina-s-tofu-a-ryzi/",
+          "title": "Zelenina s tofu a rýží - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_lentil_curry_rice",
+      "editorial_lane": "plant_based",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kari-cervena-sosovica-s-kokosovym-mliekom/82156-recept.html",
+          "title": "Karí červená šošovica s kokosovým mliekom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://www.toprecepty.cz/recept/55030-kari-z-cervene-cocky/",
+          "title": "Kari z červené čočky - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_zucchini_pasta_feta",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/cuketovo-sunkove-cestoviny/60620-recept.html",
+          "title": "Cuketovo-šunkové cestoviny - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://www.toprecepty.cz/recept/2607-testoviny-s-lehkou-cuketovou-omackou/",
+          "title": "Těstoviny s lehkou cuketovou omáčkou - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_mushroom_pasta_cream",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/cestoviny-s-hubovou-omackou/45166-recept.html",
+          "title": "Cestoviny s hubovou omáčkou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://www.toprecepty.cz/recept/79150-testoviny-se-zampiony/",
+          "title": "Těstoviny se žampiony - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_pepper_egg_scramble",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/kochlikova-prazenica/8675-recept.html",
+          "title": "Kochlíková praženica - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://www.toprecepty.cz/recept/65489-papriky-s-vajickem/",
+          "title": "Papriky s vajíčkem - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_croque_toast",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/syrove-toasty-s-paradajkami-a-sunkou/435-recept.html",
+          "title": "Syrové toasty s paradajkami a šunkou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://www.toprecepty.cz/recept/13498-zapecene-syrove-toasty/",
+          "title": "Zapečené sýrové toasty - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_chicken_pasta_tomato",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.toprecepty.cz/recept/14740-penne-s-rajcatovou-omackou-a-kurecim-masem/",
+          "title": "Penne s rajčatovou omáčkou a kuřecím masem - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/tagliatelle-s-kuracim-masom-a-paradajkovou-omackou/83677-recept.html",
+          "title": "Tagliatelle s kuracím mäsom a paradajkovou omáčkou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_beef_rice_pepper",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/spanielska-ryza-s-mletym-masom/77825-recept.html",
+          "title": "Španielska ryža s mletým mäsom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://www.toprecepty.cz/recept/80704-jednoduche-rizoto-s-mletym-masem/",
+          "title": "Jednoduché rizoto s mletým masem - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_pork_chop_rice_vegetables",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcove-kare-s-dusenou-zeleninou-fotorecept/53208-recept.html",
+          "title": "Bravčové karé s dusenou zeleninou (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://www.toprecepty.cz/recept/86624-bratislavska-kotleta/",
+          "title": "Bratislavská kotleta - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_couscous_sausage",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://www.toprecepty.cz/recept/50614-cizrna-s-kuskusem-a-klobaskou/",
+          "title": "Cizrna s kuskusem a klobáskou - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuskus-fotorecept/42606-recept.html",
+          "title": "Kuskus (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_potato_wedges_eggs",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/pecene-pucene-zemiaky-s-koprovo-jogurtovym-dipom-videorecept/86174-recept.html",
+          "title": "Pečené pučené zemiaky s kôprovo-jogurtovým dipom (videorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://www.toprecepty.cz/recept/10876-pecene-brambory-v-troube/",
+          "title": "Pečené brambory v troubě - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_rice_noodle_chicken",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/ryzove-rezance-s-kuracim-masom-a-so-zeleninou/73448-recept.html",
+          "title": "Ryžové rezance s kuracím mäsom a so zeleninou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://www.toprecepty.cz/recept/77717-ryzove-nudle-se-zeleninou-a-kurecim-masem/",
+          "title": "Rýžové nudle se zeleninou a kuřecím masem - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_pasta_broccoli_bacon",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/brokolicove-kolienka-so-slaninkou-fotorecept/10840-recept.html",
+          "title": "Brokolicové kolienka so slaninkou (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://www.toprecepty.cz/recept/86797-snadne-spagety-s-brokolici-a-slaninou/",
+          "title": "Snadné špagety s brokolicí a slaninou - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_tortilla_bake_beef",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/mexicke-tortily-fotorecept/88316-recept.html",
+          "title": "Mexické tortily (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://www.toprecepty.cz/recept/22884-zapecene-tortilly-s-pikantnim-hovezim-a-cervenymi-fazolemi/",
+          "title": "Zapečené tortilly s pikantním hovězím a červenými fazolemi - Toprecepty.cz",
+          "accessed_on": "2026-11-26"
+        }
+      ]
     }
   ]
 }

@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "fish_fish_rice_peas",
+      "version": 2,
+      "active": true,
+      "name_template": "Rybie filé s ryžou a hráškom",
+      "family": "fish_fish_rice_peas",
+      "method": "pan",
+      "minutes": 40,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec s pokrievkou", "veľká panvica", "sitko", "miska", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "fish", "role": "protein", "candidates": ["white_fish"], "amount_per_adult": "180", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na porcie"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "120"},
+        {"key": "peas", "role": "vegetable", "candidates": ["peas"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na polovice"},
+        {"key": "dill", "role": "seasoning", "candidates": ["dill"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}, {dill.amount} {dill.name} {dill.cut} a {lemon.amount} {lemon.name} {lemon.cut}. Rozdeľ {butter.amount} {butter.name} na dve rovnaké časti.", "requires": ["onion:raw", "dill:raw", "lemon:raw", "butter:raw"], "produces": ["onion:cut", "dill:cut", "lemon:cut", "butter:divided"]},
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Zohrej jednu časť masla v hrnci na miernom ohni 1 minútu, kým sa roztopí a začne bublať. Opekaj cibuľu 4 minúty, kým bude dosklovita. Vsyp ryžu do hrnca. Opekaj ryžu 1 minútu za stáleho miešania, kým sa začne lesknúť.", "requires": ["butter:divided", "onion:cut", "rice:rinsed"], "produces": ["butter:half_used", "onion:cooked", "rice:toasted"]},
+        {"text": "Prilej {rice.water} vody do hrnca a pridaj štipku soli. Prikry hrniec a var ryžu na miernom ohni 10 minút. Pridaj {peas.amount} {peas.name} do hrnca, znova ho prikry a var ryžu s hráškom ešte 5 minút, kým voda vsiakne a ryža aj hrášok zmäknú. Mrazený hrášok nerozmrazuj, daj ho do hrnca rovno z mrazničky.", "requires": ["rice:toasted", "peas:raw"], "produces": ["rice:cooked", "peas:cooked"]},
+        {"text": "Osuš {fish.amount} {fish.name} papierovou utierkou a nakrájaj ju {fish.cut}. Porcie z oboch strán osoľ a okoreň.", "requires": ["fish:raw"], "produces": ["fish:seasoned"]},
+        {"text": "Vsyp {flour.amount} {flour.name} do misky. Porcie ryby v nej z oboch strán zľahka obaľ a prebytočnú múku otras.", "requires": ["flour:raw", "fish:seasoned"], "produces": ["flour:coating", "fish:floured"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj rybu 3 minúty, kým bude spodná strana zlatistá. Opatrne ju obráť a opekaj ešte 3 minúty, kým stuhne a v strede bude biela. Pri väčšej dávke opekaj rybu po častiach a hotovú prekladaj na teplý tanier.", "requires": ["oil:raw", "fish:floured", "flour:coating"], "produces": ["oil:used", "fish:fried", "flour:fried"]},
+        {"text": "Stíš oheň na mierny. Pridaj maslo do panvice. Vytlač doň šťavu z citróna. Zohrievaj maslo na miernom ohni 1 minútu za stáleho miešania, kým sa spení a začne bublať. Vmiešaj kôpor.", "requires": ["butter:half_used", "lemon:cut", "dill:cut", "oil:used"], "produces": ["butter:sauce", "lemon:sauce", "dill:sauce"]},
+        {"text": "Dochuť ryžu s hráškom soľou. Podávaj rybu s ryžou a hráškom, polej ju maslovou šťavou z panvice a rozdeľ jedlo na {portions} porcií.", "requires": ["fish:fried", "flour:fried", "oil:used", "rice:cooked", "peas:cooked", "onion:cooked", "butter:sauce", "lemon:sauce", "dill:sauce"], "produces": ["fish:served", "flour:served", "oil:served", "rice:served", "peas:served", "onion:served", "butter:served", "lemon:served", "dill:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Rybu a ryžu s hráškom ulož oddelene do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní; ryžu prehrej s lyžicou vody a rybu ohrievaj iba raz a krátko."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "fish_fish_rice_peas",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/treska-s-korenenou-ryzou-a-hraskom/50335-recept.html", "title": "Treska s korenenou ryžou a hráškom - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/treska-na-hrasku/39384-recept.html", "title": "Treska na hrášku - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/12159/ryza-s-rybou/", "title": "Ryža s rybou | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

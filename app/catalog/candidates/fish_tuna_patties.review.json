@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "f2a10c95ca113e11924671c4b5ae0e38bcf4f2d21986c257573a5e5a2f9ecbf3",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "fish_tuna_patties"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

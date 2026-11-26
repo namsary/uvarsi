@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "5136bfc787e98a60ea038bd100ca8cc6032407aa9172a9a116b25383271a6bf5",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "fish_fish_rice_peas"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

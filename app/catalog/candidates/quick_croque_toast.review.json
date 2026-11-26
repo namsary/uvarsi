@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "b63b640ab46992493d05aca19434ad04a94a895e97db61f0a3f5b26117d1e50d",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "quick_croque_toast"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

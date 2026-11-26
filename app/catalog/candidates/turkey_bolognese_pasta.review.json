@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "15b846bb9a35d03cad7f9adc78330df077cbb383609cd8397691038d278b54c9",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "turkey_bolognese_pasta"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

@@ -1,0 +1,47 @@
+{
+  "recipes": [
+    {
+      "id": "quick_potato_wedges_eggs",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené zemiakové mesiačiky s vajcom a jogurtom",
+      "family": "quick_potato_wedges_eggs",
+      "method": "oven",
+      "minutes": 45,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["rúra", "plech", "veľká miska", "miska", "strúhadlo", "panvica", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "300", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": "na mesiačiky"},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "2", "unit": "piece", "child_factor": "0.5", "required": true, "use": "main", "cut": null},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "cucumber", "role": "vegetable", "candidates": ["cucumber"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "nahrubo"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "dill", "role": "seasoning", "candidates": ["dill"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "15", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 220 °C. Umy {potato.amount} {potato.name} a nakrájaj ich so šupkou na mesiačiky.", "requires": ["potato:raw", "rura:free"], "produces": ["potato:cut", "rura:hot"]},
+        {"text": "Nalej {oil.amount} {oil.name} do veľkej misky, pridaj zemiaky, soľ a čierne korenie a premiešaj. Rozlož zemiaky na plech vystlaný papierom na pečenie v jednej vrstve.", "requires": ["oil:raw", "potato:cut", "velka_miska:free", "plech:free"], "produces": ["oil:used", "potato:oiled", "velka_miska:free", "plech:occupied"]},
+        {"text": "Peč zemiaky na plechu v rúre pri 220 °C 30 minút a v polovici ich obráť, kým budú mäkké a dozlatista.", "requires": ["potato:oiled", "plech:occupied", "rura:hot"], "produces": ["potato:baked", "rura:free"]},
+        {"text": "Nakrájaj {garlic.amount} {garlic.name} najemno a {dill.amount} {dill.name} nadrobno. Nastrúhaj {cucumber.amount} {cucumber.name} nahrubo a vytlač z nej šťavu.", "requires": ["garlic:raw", "dill:raw", "cucumber:raw"], "produces": ["garlic:cut", "dill:cut", "cucumber:grated"]},
+        {"text": "Premiešaj {yogurt.amount} {yogurt.name} s uhorkou, cesnakom, kôprom a štipkou soli v miske, aby vznikol hustý dip.", "requires": ["yogurt:raw", "cucumber:grated", "garlic:cut", "dill:cut", "miska:free"], "produces": ["yogurt:dip", "cucumber:dip", "garlic:dip", "dill:dip", "miska:occupied"]},
+        {"text": "Vyber plech z rúry a horúce zemiaky prelož do veľkej misky. Prisyp {paprika.amount} {paprika.name} do veľkej misky. Zemiaky premiešaj, kým sa korenie rovnomerne obalí.", "requires": ["potato:baked", "paprika:raw", "plech:occupied", "velka_miska:free"], "produces": ["potato:seasoned", "paprika:mixed", "plech:free", "velka_miska:occupied"]},
+        {"text": "Rozohrej {butter.amount} {butter.name} v panvici na strednom ohni 1 minútu, kým začne jemne bublať. Rozbi {egg.amount} {egg.name} vedľa seba do panvice. Opekaj vajcia na miernom ohni 4 minúty, kým bielok stuhne a žĺtok ostane mäkký. Pri väčšom počte ich opekaj postupne.", "requires": ["butter:raw", "egg:raw", "panvica:free"], "produces": ["butter:cooked", "egg:cooked", "panvica:occupied"]},
+        {"text": "Rozdeľ zemiaky na {portions} porcií, na každú porciu polož volské oká a podávaj s jogurtovým dipom.", "requires": ["potato:seasoned", "paprika:mixed", "oil:used", "egg:cooked", "butter:cooked", "yogurt:dip", "cucumber:dip", "garlic:dip", "dill:dip", "velka_miska:occupied", "panvica:occupied", "miska:occupied"], "produces": ["potato:served", "paprika:served", "oil:served", "egg:served", "butter:served", "yogurt:served", "cucumber:served", "garlic:served", "dill:served", "velka_miska:free", "panvica:free", "miska:free"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Zemiaky a volské oko jedz hneď. Zvyšné zemiaky a dip ulož oddelene v uzavretých nádobách, do 2 hodín ich odlož do chladničky a zjedz do druhého dňa; vajce pripravuj vždy čerstvé."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_potato_wedges_eggs",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/pecene-pucene-zemiaky-s-koprovo-jogurtovym-dipom-videorecept/86174-recept.html", "title": "Pečené pučené zemiaky s kôprovo-jogurtovým dipom (videorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://www.toprecepty.cz/recept/10876-pecene-brambory-v-troube/", "title": "Pečené brambory v troubě - Toprecepty.cz", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

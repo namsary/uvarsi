@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "3ef35721670bf281f479bb69eb5556109ac977a2bc47bf2b4aa1a13f433e71d7",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "fish_baked_fish_lemon_potatoes"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

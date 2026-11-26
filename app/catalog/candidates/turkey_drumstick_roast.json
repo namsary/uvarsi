@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "turkey_drumstick_roast",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené morčacie stehno so zemiakmi",
+      "family": "turkey_drumstick_roast",
+      "method": "oven",
+      "minutes": 130,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["rúra", "pekáč", "alobal", "miska", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "turkey", "role": "protein", "candidates": ["turkey_thigh"], "amount_per_adult": "300", "unit": "g", "child_factor": "0.5", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "100"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "280", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na štvrtiny"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na mesiačiky"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 180 °C.", "requires": ["rura:free"], "produces": ["rura:hot"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} {garlic.cut}.", "requires": ["onion:raw", "garlic:raw"], "produces": ["onion:cut", "garlic:cut"]},
+        {"text": "Premiešaj v miske {oil.amount} {oil.name}, cesnak, {paprika.amount} {paprika.name}, {caraway.amount} {caraway.name}, {marjoram.amount} {marjoram.name}, soľ a čierne korenie.", "requires": ["oil:raw", "garlic:cut", "paprika:raw", "caraway:raw", "marjoram:raw"], "produces": ["oil:rub", "garlic:rub", "paprika:rub", "caraway:rub", "marjoram:rub"]},
+        {"text": "Osuš {turkey.amount} {turkey.name} papierovou utierkou. Touto zmesou natri morčacie stehno zo všetkých strán.", "requires": ["turkey:raw", "oil:rub", "garlic:rub", "paprika:rub", "caraway:rub", "marjoram:rub"], "produces": ["turkey:seasoned", "oil:on_meat", "garlic:on_meat", "paprika:on_meat", "caraway:on_meat", "marjoram:on_meat"]},
+        {"text": "Rozlož cibuľu na dno pekáča a polož naň stehno kožou nahor. Prilej {turkey.water} vody do pekáča. Pekáč prikry alobalom. Pri väčšej dávke rozdeľ stehná do dvoch pekáčov, aby ležali vedľa seba.", "requires": ["onion:cut", "turkey:seasoned"], "produces": ["onion:pan", "turkey:pan"]},
+        {"text": "Peč morčacie stehno v pekáči pri 180 °C 60 minút, kým šťava v pekáči začne bublať a mäso pri kosti povolí.", "requires": ["turkey:pan", "onion:pan", "oil:on_meat", "garlic:on_meat", "paprika:on_meat", "caraway:on_meat", "marjoram:on_meat", "rura:hot"], "produces": ["turkey:braised", "onion:braised", "oil:braised", "garlic:braised", "paprika:braised", "caraway:braised", "marjoram:braised"]},
+        {"text": "Ošúp {potato.amount} {potato.name}, nakrájaj ich {potato.cut} a zľahka osoľ.", "requires": ["potato:raw"], "produces": ["potato:cut"]},
+        {"text": "Vyber pekáč z rúry, odober alobal a rúru prepni na 200 °C. Rozlož zemiaky okolo stehna a obráť ich vo výpeku. Ak je v pekáči sucho, dolej trochu vody.", "requires": ["potato:cut", "turkey:braised"], "produces": ["potato:pan"]},
+        {"text": "Peč morčacie stehno so zemiakmi v pekáči bez alobalu pri 200 °C 45 minút, kým bude koža zlatistá a chrumkavá, mäso mäkké a zemiaky zlatisté. V polovici času zemiaky obráť a stehno polej výpekom.", "requires": ["potato:pan", "turkey:braised", "onion:braised", "oil:braised", "garlic:braised", "paprika:braised", "caraway:braised", "marjoram:braised"], "produces": ["potato:roasted", "turkey:roasted", "onion:roasted", "oil:roasted", "garlic:roasted", "paprika:roasted", "caraway:roasted", "marjoram:roasted"]},
+        {"text": "Nechaj stehno 10 minút odpočívať. Potom mäso odober od kosti a nakrájaj ho na plátky.", "requires": ["turkey:roasted"], "produces": ["turkey:sliced"]},
+        {"text": "Podávaj mäso so zemiakmi, polej ho výpekom s cibuľou a rozdeľ jedlo na {portions} porcií.", "requires": ["turkey:sliced", "potato:roasted", "onion:roasted", "oil:roasted", "garlic:roasted", "paprika:roasted", "caraway:roasted", "marjoram:roasted"], "produces": ["turkey:served", "potato:served", "onion:served", "oil:served", "garlic:served", "paprika:served", "caraway:served", "marjoram:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Mäso odobraté od kosti, zemiaky a výpek rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a porciu prehrej iba raz, prikrytú a s lyžicou výpeku, kým bude celá horúca."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "turkey_drumstick_roast",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/75955/morcacie-stehno-na-zemiakoch-s-cibulkou-a-cervenym-vinom/", "title": "FOTORECEPT: Morčacie stehno na zemiakoch s cibuľkou a červeným vínom | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/71927/pecene-morcacie-stehno/", "title": "FOTORECEPT: Pečené morčacie stehno | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/morcacie-stehna-so-slaninkou-a-s-restovanymi-zemiakmi/76845-recept.html", "title": "Morčacie stehná so slaninkou a s restovanými zemiakmi - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

@@ -9049,6 +9049,921 @@
         "refrigerated_days": 3,
         "instruction": "Polievku rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 3 dní a prehrej ju na miernom ohni, kým začne bublať, aby kuracie mäso nevyschlo. Chlieb skladuj oddelene."
       }
+    },
+    {
+      "id": "fish_fish_soup",
+      "version": 2,
+      "active": true,
+      "name_template": "Rybacia polievka so zeleninou",
+      "family": "fish_fish_soup",
+      "method": "soup",
+      "minutes": 50,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "veľký hrniec",
+        "miska",
+        "metlička",
+        "nôž",
+        "doska na krájanie",
+        "papierová utierka"
+      ],
+      "slots": [
+        {
+          "key": "fish",
+          "role": "protein",
+          "candidates": [
+            "white_fish"
+          ],
+          "amount_per_adult": "170",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na kocky veľké 3 centimetre"
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "150",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na kocky",
+          "water_ml_per_adult": "400"
+        },
+        {
+          "key": "carrot",
+          "role": "vegetable",
+          "candidates": [
+            "carrot"
+          ],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na kolieska"
+        },
+        {
+          "key": "celeriac",
+          "role": "vegetable",
+          "candidates": [
+            "celeriac"
+          ],
+          "amount_per_adult": "40",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na malé kocky"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": "10",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "bay",
+          "role": "seasoning",
+          "candidates": [
+            "bay_leaf"
+          ],
+          "amount_per_adult": "0.25",
+          "unit": "piece",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "allspice",
+          "role": "seasoning",
+          "candidates": [
+            "allspice"
+          ],
+          "amount_per_adult": "1",
+          "unit": "piece",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "8",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "sour_cream",
+          "role": "dairy",
+          "candidates": [
+            "sour_cream"
+          ],
+          "amount_per_adult": "40",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "lemon",
+          "role": "seasoning",
+          "candidates": [
+            "lemon"
+          ],
+          "amount_per_adult": "0.25",
+          "unit": "piece",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na mesiačiky"
+        },
+        {
+          "key": "dill",
+          "role": "seasoning",
+          "candidates": [
+            "dill"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "bread",
+          "role": "starch",
+          "candidates": [
+            "bread"
+          ],
+          "amount_per_adult": "60",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na krajce"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Nakrájaj {onion.amount} {onion.name} {onion.cut} a {dill.amount} {dill.name} {dill.cut}. Ošúp {carrot.amount} {carrot.name}, {celeriac.amount} {celeriac.name} a {potato.amount} {potato.name}. Mrkvu nakrájaj {carrot.cut}, zeler {celeriac.cut} a zemiaky {potato.cut}.",
+          "requires": [
+            "onion:raw",
+            "dill:raw",
+            "carrot:raw",
+            "celeriac:raw",
+            "potato:raw"
+          ],
+          "produces": [
+            "onion:cut",
+            "dill:cut",
+            "carrot:cut",
+            "celeriac:cut",
+            "potato:cut"
+          ]
+        },
+        {
+          "text": "Rozohrej {butter.amount} {butter.name} vo veľkom hrnci na strednom ohni 1 minútu, kým sa roztopí a začne bublať. Opekaj cibuľu 4 minúty, kým bude dosklovita. Pridaj mrkvu a zeler a opekaj ich 3 minúty, kým začnú voňať.",
+          "requires": [
+            "butter:raw",
+            "onion:cut",
+            "carrot:cut",
+            "celeriac:cut"
+          ],
+          "produces": [
+            "butter:used",
+            "onion:cooked",
+            "carrot:sweated",
+            "celeriac:sweated"
+          ]
+        },
+        {
+          "text": "Prilej {potato.water} vody do hrnca. Pridaj zemiaky, {bay.amount} {bay.name}, {allspice.amount} {allspice.name} a štipku soli. Priveď zemiaky so zeleninou na silnom ohni do varu a var ich na miernom ohni 15 minút, kým zemiaky a mrkva zmäknú.",
+          "requires": [
+            "potato:cut",
+            "bay:raw",
+            "allspice:raw",
+            "carrot:sweated",
+            "celeriac:sweated",
+            "onion:cooked"
+          ],
+          "produces": [
+            "potato:cooked",
+            "bay:cooked",
+            "allspice:cooked",
+            "carrot:cooked",
+            "celeriac:cooked"
+          ]
+        },
+        {
+          "text": "Osuš {fish.amount} {fish.name} papierovou utierkou a nakrájaj ju {fish.cut}.",
+          "requires": [
+            "fish:raw"
+          ],
+          "produces": [
+            "fish:cut"
+          ]
+        },
+        {
+          "text": "Rozšľahaj v miske {sour_cream.amount} {sour_cream.name}, {flour.amount} {flour.name} a dve naberačky horúcej polievky dohladka. Zmes vlievaj do hrnca za stáleho miešania. Var zemiaky so zeleninou v zahustenej polievke na miernom ohni 4 minúty, kým polievka zhustne a začne jemne bublať.",
+          "requires": [
+            "sour_cream:raw",
+            "flour:raw",
+            "potato:cooked"
+          ],
+          "produces": [
+            "sour_cream:cooked",
+            "flour:cooked"
+          ]
+        },
+        {
+          "text": "Vlož rybu do hrnca. Var rybu v polievke na miernom ohni 6 minút, kým kocky stuhnú a v strede budú biele. Nemiešaj prudko, aby sa ryba nerozpadla. Vyber bobkový list a nové korenie.",
+          "requires": [
+            "fish:cut",
+            "sour_cream:cooked"
+          ],
+          "produces": [
+            "fish:cooked"
+          ]
+        },
+        {
+          "text": "Odstav hrniec z ohňa a jemne vmiešaj kôpor. Dochuť polievku soľou a čiernym korením. Nakrájaj {lemon.amount} {lemon.name} {lemon.cut} a {bread.amount} {bread.name} {bread.cut}.",
+          "requires": [
+            "dill:cut",
+            "lemon:raw",
+            "bread:raw",
+            "fish:cooked"
+          ],
+          "produces": [
+            "dill:used",
+            "lemon:cut",
+            "bread:cut"
+          ]
+        },
+        {
+          "text": "Podávaj polievku horúcu s chlebom a mesiačikom citróna, ktorý si každý vytlačí do taniera. Polievku rozdeľ na {portions} porcií.",
+          "requires": [
+            "fish:cooked",
+            "potato:cooked",
+            "carrot:cooked",
+            "celeriac:cooked",
+            "onion:cooked",
+            "butter:used",
+            "bay:cooked",
+            "allspice:cooked",
+            "sour_cream:cooked",
+            "flour:cooked",
+            "dill:used",
+            "lemon:cut",
+            "bread:cut"
+          ],
+          "produces": [
+            "fish:served",
+            "potato:served",
+            "carrot:served",
+            "celeriac:served",
+            "onion:served",
+            "butter:served",
+            "bay:served",
+            "allspice:served",
+            "sour_cream:served",
+            "flour:served",
+            "dill:served",
+            "lemon:served",
+            "bread:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Vychladnutú polievku ulož do uzavretej nádoby a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 2 dní a prehrievaj ju len raz, pomaly a bez varu, aby sa ryba nerozpadla a smotana nezrazila. Chlieb skladuj oddelene."
+      }
+    },
+    {
+      "id": "fish_mackerel_salad",
+      "version": 2,
+      "active": true,
+      "name_template": "Šalát s údenou makrelou a zemiakmi",
+      "family": "fish_mackerel_salad",
+      "method": "salad",
+      "minutes": 50,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "hrniec",
+        "malý hrniec",
+        "veľká miska",
+        "miska",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "fish",
+          "role": "protein",
+          "candidates": [
+            "smoked_mackerel"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "220",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": "1",
+          "unit": "piece",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "pickle",
+          "role": "vegetable",
+          "candidates": [
+            "pickled_cucumber"
+          ],
+          "amount_per_adult": "1",
+          "unit": "piece",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na malé kocky"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "30",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "sour_cream",
+          "role": "dairy",
+          "candidates": [
+            "sour_cream"
+          ],
+          "amount_per_adult": "40",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "mustard",
+          "role": "seasoning",
+          "candidates": [
+            "mustard"
+          ],
+          "amount_per_adult": "6",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "5",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "lemon",
+          "role": "seasoning",
+          "candidates": [
+            "lemon"
+          ],
+          "amount_per_adult": "0.25",
+          "unit": "piece",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na polovice"
+        },
+        {
+          "key": "dill",
+          "role": "seasoning",
+          "candidates": [
+            "dill"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Vlož {potato.amount} {potato.name} do hrnca. Nechaj ich v šupke, dolej studenú vodu tak, aby boli ponorené, a vodu osoľ.",
+          "requires": [
+            "potato:raw"
+          ],
+          "produces": [
+            "potato:pot"
+          ]
+        },
+        {
+          "text": "Var zemiaky v hrnci na miernom ohni 25 minút, kým zmäknú. Potom ich sceď a nechaj 15 minút vychladnúť.",
+          "requires": [
+            "potato:pot"
+          ],
+          "produces": [
+            "potato:cooked"
+          ]
+        },
+        {
+          "text": "Vlož {egg.amount} {egg.name} do malého hrnca. Dolej studenú vodu do výšky asi 2 cm nad vajcia. Var vajcia v malom hrnci na strednom ohni 10 minút od začiatku varu, kým žĺtok úplne stuhne. Uvarené vajcia schlaď v studenej vode a ošúp.",
+          "requires": [
+            "egg:raw"
+          ],
+          "produces": [
+            "egg:cooked"
+          ]
+        },
+        {
+          "text": "Priprav {fish.amount} {fish.name}: stiahni z nej kožu, odstráň hlavu a všetky kosti a mäso natrhaj na väčšie kúsky.",
+          "requires": [
+            "fish:raw"
+          ],
+          "produces": [
+            "fish:flaked"
+          ]
+        },
+        {
+          "text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}, {pickle.amount} {pickle.name} {pickle.cut}, {dill.amount} {dill.name} {dill.cut} a {lemon.amount} {lemon.name} {lemon.cut}.",
+          "requires": [
+            "onion:raw",
+            "pickle:raw",
+            "dill:raw",
+            "lemon:raw"
+          ],
+          "produces": [
+            "onion:cut",
+            "pickle:cut",
+            "dill:cut",
+            "lemon:cut"
+          ]
+        },
+        {
+          "text": "Premiešaj v miske {sour_cream.amount} {sour_cream.name}, {mustard.amount} {mustard.name}, {oil.amount} {oil.name}, šťavu vytlačenú z citróna a čierne korenie na hladkú zálievku.",
+          "requires": [
+            "sour_cream:raw",
+            "mustard:raw",
+            "oil:raw",
+            "lemon:cut"
+          ],
+          "produces": [
+            "sour_cream:dressing",
+            "mustard:dressing",
+            "oil:dressing",
+            "lemon:dressing"
+          ]
+        },
+        {
+          "text": "Ošúp vychladnuté zemiaky a nakrájaj ich na kocky. Premiešaj ich vo veľkej miske s cibuľou, uhorkami, kôprom a zálievkou.",
+          "requires": [
+            "potato:cooked",
+            "onion:cut",
+            "pickle:cut",
+            "dill:cut",
+            "sour_cream:dressing",
+            "mustard:dressing",
+            "oil:dressing",
+            "lemon:dressing"
+          ],
+          "produces": [
+            "potato:salad",
+            "onion:salad",
+            "pickle:salad",
+            "dill:salad",
+            "sour_cream:salad",
+            "mustard:salad",
+            "oil:salad",
+            "lemon:salad"
+          ]
+        },
+        {
+          "text": "Pridaj makrelu do veľkej misky. Šalát jemne premiešaj, aby sa ryba nerozpadla na drobné kúsky, a nechaj ho 15 minút v chladničke odležať. Ochutnaj ho a až potom ho dosoľ, údená ryba je slaná.",
+          "requires": [
+            "fish:flaked",
+            "potato:salad"
+          ],
+          "produces": [
+            "fish:salad"
+          ]
+        },
+        {
+          "text": "Rozdeľ šalát na {portions} porcií, na každú porciu polož vajcia nakrájané na štvrtiny a podávaj.",
+          "requires": [
+            "fish:salad",
+            "potato:salad",
+            "onion:salad",
+            "pickle:salad",
+            "dill:salad",
+            "sour_cream:salad",
+            "mustard:salad",
+            "oil:salad",
+            "lemon:salad",
+            "egg:cooked"
+          ],
+          "produces": [
+            "fish:served",
+            "potato:served",
+            "onion:served",
+            "pickle:served",
+            "dill:served",
+            "sour_cream:served",
+            "mustard:served",
+            "oil:served",
+            "lemon:served",
+            "egg:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Šalát ulož do uzavretej nádoby a hneď ho odlož do chladničky. Zjedz ho do 2 dní a podávaj ho studený; vajcia pridávaj až na tanier."
+      }
+    },
+    {
+      "id": "quick_chicken_pasta_salad",
+      "version": 2,
+      "active": true,
+      "name_template": "Cestovinový šalát s kuracím mäsom",
+      "family": "quick_chicken_pasta_salad",
+      "method": "salad",
+      "minutes": 35,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "hrniec",
+        "sitko",
+        "panvica",
+        "tanier",
+        "misa",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "pasta",
+          "role": "starch",
+          "candidates": [
+            "pasta"
+          ],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "chicken",
+          "role": "protein",
+          "candidates": [
+            "chicken_breast"
+          ],
+          "amount_per_adult": "150",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na kocky"
+        },
+        {
+          "key": "pepper",
+          "role": "vegetable",
+          "candidates": [
+            "bell_pepper"
+          ],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na malé kocky"
+        },
+        {
+          "key": "cucumber",
+          "role": "vegetable",
+          "candidates": [
+            "cucumber"
+          ],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na malé kocky"
+        },
+        {
+          "key": "corn",
+          "role": "vegetable",
+          "candidates": [
+            "sweet_corn"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "yogurt",
+          "role": "dairy",
+          "candidates": [
+            "plain_yogurt"
+          ],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "mayo",
+          "role": "fat",
+          "candidates": [
+            "mayonnaise"
+          ],
+          "amount_per_adult": "15",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "vinegar",
+          "role": "seasoning",
+          "candidates": [
+            "apple_cider_vinegar"
+          ],
+          "amount_per_adult": "5",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "dill",
+          "role": "seasoning",
+          "candidates": [
+            "dill"
+          ],
+          "amount_per_adult": "2",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "8",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Nakrájaj {chicken.amount} {chicken.name} na kocky. Mäso osoľ a okoreň.",
+          "requires": [
+            "chicken:raw"
+          ],
+          "produces": [
+            "chicken:cut"
+          ]
+        },
+        {
+          "text": "Uvar {pasta.amount} {pasta.name} v hrnci vo vriacej osolenej vode na strednom ohni 9 minút, kým budú mäkké, ale stále pevné. Sceď cestoviny cez sitko, prepláchni ich studenou vodou a nechaj ich dobre odkvapkať.",
+          "requires": [
+            "pasta:raw",
+            "hrniec:free",
+            "sitko:free"
+          ],
+          "produces": [
+            "pasta:cooled",
+            "hrniec:free",
+            "sitko:free"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj kuracie prsia v panvici na strednom ohni 6 minút, kým budú zo všetkých strán zlatisté a v strede nebudú ružové. Pri väčšej dávke ich opekaj po častiach, potom ich vyber na tanier a nechaj vychladnúť.",
+          "requires": [
+            "oil:raw",
+            "chicken:cut",
+            "panvica:free",
+            "tanier:free"
+          ],
+          "produces": [
+            "oil:used",
+            "chicken:cooled",
+            "panvica:free",
+            "tanier:occupied"
+          ]
+        },
+        {
+          "text": "Nakrájaj {pepper.amount} {pepper.name} a {cucumber.amount} {cucumber.name} na malé kocky a {dill.amount} {dill.name} nadrobno. Sceď {corn.amount} {corn.name} cez sitko.",
+          "requires": [
+            "pepper:raw",
+            "cucumber:raw",
+            "dill:raw",
+            "corn:raw",
+            "sitko:free"
+          ],
+          "produces": [
+            "pepper:cut",
+            "cucumber:cut",
+            "dill:cut",
+            "corn:drained",
+            "sitko:free"
+          ]
+        },
+        {
+          "text": "Premiešaj {yogurt.amount} {yogurt.name}, {mayo.amount} {mayo.name}, {vinegar.amount} {vinegar.name} a kôpor so soľou a čiernym korením v mise, aby vznikol riedky dresing.",
+          "requires": [
+            "yogurt:raw",
+            "mayo:raw",
+            "vinegar:raw",
+            "dill:cut",
+            "misa:free"
+          ],
+          "produces": [
+            "yogurt:dressing",
+            "mayo:dressing",
+            "vinegar:dressing",
+            "dill:dressing",
+            "misa:occupied"
+          ]
+        },
+        {
+          "text": "Vmiešaj cestoviny, kuracie prsia, papriku, uhorku a kukuricu do dresingu. Nechaj šalát 10 minút postáť v chlade, aby sa chute spojili.",
+          "requires": [
+            "pasta:cooled",
+            "chicken:cooled",
+            "pepper:cut",
+            "cucumber:cut",
+            "corn:drained",
+            "yogurt:dressing",
+            "mayo:dressing",
+            "vinegar:dressing",
+            "dill:dressing",
+            "misa:occupied",
+            "tanier:occupied"
+          ],
+          "produces": [
+            "pasta:mixed",
+            "chicken:mixed",
+            "pepper:mixed",
+            "cucumber:mixed",
+            "corn:mixed",
+            "yogurt:mixed",
+            "mayo:mixed",
+            "vinegar:mixed",
+            "dill:mixed",
+            "tanier:free"
+          ]
+        },
+        {
+          "text": "Podávaj šalát vychladený a rozdeľ ho na {portions} porcií.",
+          "requires": [
+            "pasta:mixed",
+            "chicken:mixed",
+            "pepper:mixed",
+            "cucumber:mixed",
+            "corn:mixed",
+            "yogurt:mixed",
+            "mayo:mixed",
+            "vinegar:mixed",
+            "dill:mixed",
+            "oil:used",
+            "misa:occupied"
+          ],
+          "produces": [
+            "pasta:served",
+            "chicken:served",
+            "pepper:served",
+            "cucumber:served",
+            "corn:served",
+            "yogurt:served",
+            "mayo:served",
+            "vinegar:served",
+            "dill:served",
+            "oil:served",
+            "misa:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Šalát rozdeľ do uzatvárateľných nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní; ak cestoviny dresing vpijú, vmiešaj pred podávaním lyžicu jogurtu."
+      }
     }
   ]
 }

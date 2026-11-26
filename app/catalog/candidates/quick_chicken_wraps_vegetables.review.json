@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "1c4fe556a30dd396ac2763a6e34329ad42a55f9f7e8c8023276806cbfd50b871",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "quick_chicken_wraps_vegetables"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

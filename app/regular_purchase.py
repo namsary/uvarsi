@@ -91,6 +91,8 @@ _PACKAGES: dict[str, Quantity] = {
     "pita": Quantity(Decimal("4"), "piece"),
     "sour_cream": Quantity(Decimal("200"), "g"),
     "sweet_corn": Quantity(Decimal("340"), "g"),
+    "rice_noodles": Quantity(Decimal("200"), "g"),
+    "olives": Quantity(Decimal("340"), "g"),
     # Wave 2, batch 5: Slovak classics.
     "chicken_liver": Quantity(Decimal("500"), "g"),
     "smoked_pork": Quantity(Decimal("300"), "g"),

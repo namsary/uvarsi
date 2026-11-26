@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "24a36bc7f52fee637cb92f1de7084d156784bc5774ad85da339bb3e34faeabf9",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "fish_cod_tomato_olives"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

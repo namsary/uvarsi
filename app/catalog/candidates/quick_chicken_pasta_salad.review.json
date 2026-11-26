@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "8a969110c50b643aad29de97c6fcdc566cdd1b84c047d6f3b7c94acef97b99e3",
+  "promoted_to": "06-soup-salad.json",
+  "recipe_ids": [
+    "quick_chicken_pasta_salad"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

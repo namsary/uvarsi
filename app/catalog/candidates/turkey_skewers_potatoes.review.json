@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "6a5f229258e1e586524a13a8cd0b57d9f81314f2f4931218e7cd6f50a1c1355d",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "turkey_skewers_potatoes"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

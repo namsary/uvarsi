@@ -1990,6 +1990,74 @@
         "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 172179, Cheese, cottage, creamed, large or small curd; https://fdc.nal.usda.gov/download-datasets/; closest SR Legacy record for Slovak half-fat quark",
         "verified_on": "2026-11-26"
       }
+    },
+    {
+      "id": "olives",
+      "name": "olivy bez kôstky",
+      "synonyms": ["olivy bez kôstok", "čierne olivy", "čierne olivy bez kôstky", "olivy čierne", "olivy čierne bez kôstky", "zelené olivy", "zelené olivy bez kôstky", "olivy zelené", "olivy zelené bez kôstky"],
+      "category": "zelenina",
+      "roles": ["vegetable"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "0.45",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "116", "protein_g": "0.84", "fat_g": "10.9", "carbs_g": "6.04",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 169094, Olives, ripe, canned (small-extra large); nutrition per drained edible portion, 45% package yield modeled for a typical 340 g jar in brine; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "smoked_mackerel",
+      "name": "údená makrela",
+      "synonyms": ["údená makrela celá", "celá údená makrela", "teplo údená makrela", "údené makrely"],
+      "category": "ryby",
+      "roles": ["protein"],
+      "diet_tags": [],
+      "allergens": ["fish"],
+      "edible_ratio": "0.6",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "262", "protein_g": "23.85", "fat_g": "17.81", "carbs_g": "0",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 175120, Fish, mackerel, Atlantic, cooked, dry heat; hot-smoked mackerel is already cooked, 60% edible yield after head, skin and bones; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "turkey_thigh",
+      "name": "morčacie stehno",
+      "synonyms": ["morčacie stehná", "morčacie horné stehno", "horné morčacie stehno", "morčacie stehno s kosťou", "morčacie horné stehno s kosťou"],
+      "category": "mäso",
+      "roles": ["protein"],
+      "diet_tags": [],
+      "allergens": [],
+      "edible_ratio": "0.8",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "161", "protein_g": "19.54", "fat_g": "9.16", "carbs_g": "0",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171533, Turkey, retail parts, thigh, meat and skin, raw; 80% edible yield after bone; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "rice_noodles",
+      "name": "ryžové rezance",
+      "synonyms": ["rezance ryžové", "ryžové nudle", "široké ryžové rezance"],
+      "category": "obilniny",
+      "roles": ["starch"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "364", "protein_g": "5.95", "fat_g": "0.56", "carbs_g": "80.18",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 169742, Rice noodles, dry; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
     }
   ]
 }
