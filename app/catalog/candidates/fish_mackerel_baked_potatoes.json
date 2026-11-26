@@ -1,0 +1,48 @@
+{
+  "recipes": [
+    {
+      "id": "fish_mackerel_baked_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečená makrela so zemiakmi",
+      "family": "fish_mackerel_baked_potatoes",
+      "method": "oven",
+      "minutes": 60,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["rúra", "pekáč", "miska", "šálka", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "mackerel", "role": "protein", "candidates": ["mackerel"], "amount_per_adult": "320", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na štvrtiny"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "15", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "thyme", "role": "seasoning", "candidates": ["thyme"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na plátky"},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 200 °C.", "requires": [], "produces": []},
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}. Nakrájaj {garlic.amount} {garlic.name} {garlic.cut}.", "requires": ["potato:raw", "garlic:raw"], "produces": ["potato:cut", "garlic:cut"]},
+        {"text": "Nalej {oil.amount} {oil.name} do misky. Tretinu oleja odlej do šálky a zamiešaj do nej cesnak, {thyme.amount} {thyme.name} a štipku soli.", "requires": ["oil:raw", "garlic:cut", "thyme:raw"], "produces": ["oil:divided", "garlic:marinade", "thyme:marinade"]},
+        {"text": "Pridaj zemiaky a {caraway.amount} {caraway.name} do misky. Osoľ ich a premiešaj, aby sa obalili v oleji. Rozlož zemiaky do pekáča v jednej vrstve.", "requires": ["potato:cut", "caraway:raw"], "produces": ["potato:pan", "caraway:pan"]},
+        {"text": "Peč zemiaky v pekáči pri 200 °C 20 minút, kým začnú na okrajoch zlatistieť.", "requires": ["potato:pan"], "produces": ["potato:half_baked"]},
+        {"text": "Opláchni {mackerel.amount} {mackerel.name} zvonka aj zvnútra studenou vodou a osuš ich papierovou utierkou. Na oboch bokoch každej makrely urob ostrým nožom tri šikmé zárezy.", "requires": ["mackerel:raw"], "produces": ["mackerel:scored"]},
+        {"text": "Nakrájaj {lemon.amount} {lemon.name} {lemon.cut} a {parsley.amount} {parsley.name} {parsley.cut}. Makrely natri zvonka aj zvnútra cesnakovým olejom zo šálky. Do brušnej dutiny každej makrely daj plátok citróna a trochu petržlenovej vňate.", "requires": ["lemon:raw", "parsley:raw", "mackerel:scored", "oil:divided", "garlic:marinade", "thyme:marinade"], "produces": ["lemon:cut", "parsley:cut", "mackerel:seasoned", "oil:brushed", "garlic:brushed", "thyme:brushed"]},
+        {"text": "Vyber pekáč z rúry, zemiaky premiešaj a polož na ne makrely.", "requires": ["mackerel:seasoned"], "produces": ["mackerel:pan"]},
+        {"text": "Peč makrely so zemiakmi v pekáči pri 200 °C 20 minút, kým bude koža chrumkavá a mäso pri kosti stuhne.", "requires": ["mackerel:pan", "potato:half_baked", "oil:brushed", "caraway:pan", "garlic:brushed", "thyme:brushed"], "produces": ["mackerel:baked", "potato:baked", "oil:baked", "caraway:baked", "garlic:baked", "thyme:baked"]},
+        {"text": "Podávaj makrely so zemiakmi a zvyšnými plátkami citróna a ozdob ich zvyšnou petržlenovou vňaťou. Jedlo rozdeľ na {portions} porcií.", "requires": ["mackerel:baked", "potato:baked", "oil:baked", "caraway:baked", "garlic:baked", "thyme:baked", "lemon:cut", "parsley:cut"], "produces": ["mackerel:served", "potato:served", "oil:served", "caraway:served", "garlic:served", "thyme:served", "lemon:served", "parsley:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Mäso z vychladnutých makrel oddeľ od kostí, ulož ho so zemiakmi do uzavretej nádoby a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 2 dní a ohrievaj iba raz, prikryté v rúre."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "fish_mackerel_baked_potatoes",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/grilovana-makrela-s-extra-chrumkavymi-zemiakmi/7775-recept.html", "title": "Grilovaná makrela s extra chrumkavými zemiakmi - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/17928/pecena-makrela-na-bylinkach/", "title": "Pečená makrela na bylinkách | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

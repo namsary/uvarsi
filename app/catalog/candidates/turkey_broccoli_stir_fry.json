@@ -1,0 +1,48 @@
+{
+  "recipes": [
+    {
+      "id": "turkey_broccoli_stir_fry",
+      "version": 2,
+      "active": true,
+      "name_template": "Morčacie s brokolicou z woku",
+      "family": "turkey_broccoli_stir_fry",
+      "method": "pan",
+      "minutes": 35,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["hrniec", "sitko", "wok", "dve misky", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "turkey", "role": "protein", "candidates": ["turkey_breast"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenké rezančeky", "water_ml_per_adult": "30"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "broccoli", "role": "vegetable", "candidates": ["broccoli"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na malé ružičky"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na tenké plátky"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "soy", "role": "seasoning", "candidates": ["soy_sauce"], "amount_per_adult": "20", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "12", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne. Potom ju nechaj 5 minút prikrytú postáť.", "requires": ["rice:rinsed"], "produces": ["rice:cooked"]},
+        {"text": "Nakrájaj {turkey.amount} {turkey.name} {turkey.cut}, {carrot.amount} {carrot.name} {carrot.cut} a {garlic.amount} {garlic.name} {garlic.cut}. Rozdeľ {broccoli.amount} {broccoli.name} {broccoli.cut}.", "requires": ["turkey:raw", "carrot:raw", "garlic:raw", "broccoli:raw"], "produces": ["turkey:cut", "carrot:cut", "garlic:cut", "broccoli:cut"]},
+        {"text": "Premiešaj v miske {soy.amount} {soy.name}, {sugar.amount} {sugar.name} a {turkey.water} vody, kým sa cukor rozpustí.", "requires": ["soy:raw", "sugar:raw"], "produces": ["soy:sauce", "sugar:sauce"]},
+        {"text": "Vsyp {flour.amount} {flour.name} do misky. Pridaj morčacie prsia do misky, okoreň ich a premiešaj, aby sa múka rovnomerne prichytila. Soľ nepridávaj, sójová omáčka je slaná.", "requires": ["flour:raw", "turkey:cut"], "produces": ["flour:coating", "turkey:floured"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo woku na silnom ohni 2 minúty, kým sa začne lesknúť. Opekaj morčacie prsia vo woku 3 minúty za stáleho miešania, kým budú zo všetkých strán zlatisté, a vyber ich na tanier. Pri väčšej dávke ich opekaj po častiach.", "requires": ["oil:raw", "turkey:floured", "flour:coating"], "produces": ["oil:used", "turkey:browned", "flour:browned"]},
+        {"text": "Pridaj mrkvu a brokolicu do woku. Opekaj brokolicu s mrkvou na silnom ohni 4 minúty za stáleho miešania, kým na okrajoch zmäknú, ale ostanú chrumkavé. Ak sa zelenina prichytáva, podlej ju lyžicou vody. Mrazenú brokolicu nerozmrazuj, daj ju do woku rovno z mrazničky a opekaj ju o 2 minúty dlhšie. Pridaj cesnak a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["carrot:cut", "broccoli:cut", "garlic:cut"], "produces": ["carrot:cooked", "broccoli:cooked", "garlic:cooked"]},
+        {"text": "Vráť morčacie prsia do woku. Omáčku z misky premiešaj a vylej ju do woku. Prehrievaj morčacie prsia so zeleninou na strednom ohni 2 minúty za stáleho miešania, kým omáčka zhustne, začne bublať a obalí mäso.", "requires": ["turkey:browned", "flour:browned", "soy:sauce", "sugar:sauce"], "produces": ["turkey:cooked", "flour:cooked", "soy:cooked", "sugar:cooked"]},
+        {"text": "Podávaj morčacie s brokolicou na ryži a rozdeľ jedlo na {portions} porcií.", "requires": ["turkey:cooked", "rice:cooked", "broccoli:cooked", "carrot:cooked", "garlic:cooked", "soy:cooked", "sugar:cooked", "flour:cooked", "oil:used"], "produces": ["turkey:served", "rice:served", "broccoli:served", "carrot:served", "garlic:served", "soy:served", "sugar:served", "flour:served", "oil:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Mäso so zeleninou a ryžu rozdeľ do plytkých nádob, do jednej hodiny ich schlaď a odlož do chladničky. Zjedz ich do 2 dní a ryžu ohrievaj iba raz, kým bude celá horúca."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "turkey_broccoli_stir_fry",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/81704/morcacie-kusky-s-brokolicou-jemne-a-stavnate/", "title": "Morčacie kúsky s brokolicou: Jemné a šťavnaté | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/hovadzie-s-brokolicou-a-zelerom/43795-recept.html", "title": "Hovädzie s brokolicou a zelerom - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

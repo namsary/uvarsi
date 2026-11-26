@@ -5982,6 +5982,1708 @@
         "refrigerated_days": 1,
         "instruction": "Pita pizze jedz hneď po upečení. Zvyšok ulož do uzavretej nádoby, do 2 hodín ho odlož do chladničky a zjedz do druhého dňa, prehriaty v rúre pri 200 °C asi 5 minút."
       }
+    },
+    {
+      "id": "fish_baked_salmon_potatoes_dill",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečený losos s kôprovými zemiakmi",
+      "family": "fish_baked_salmon_potatoes_dill",
+      "method": "oven",
+      "minutes": 40,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "rúra",
+        "pekáč",
+        "hrniec",
+        "miska",
+        "nôž",
+        "doska na krájanie",
+        "papierová utierka"
+      ],
+      "slots": [
+        {
+          "key": "salmon",
+          "role": "protein",
+          "candidates": [
+            "salmon"
+          ],
+          "amount_per_adult": "160",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na porcie"
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na štvrtiny"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "5",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "lemon",
+          "role": "seasoning",
+          "candidates": [
+            "lemon"
+          ],
+          "amount_per_adult": "0.25",
+          "unit": "piece",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na mesiačiky"
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": "12",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "dill",
+          "role": "seasoning",
+          "candidates": [
+            "dill"
+          ],
+          "amount_per_adult": "6",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "yogurt",
+          "role": "dairy",
+          "candidates": [
+            "plain_yogurt"
+          ],
+          "amount_per_adult": "60",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C.",
+          "requires": [],
+          "produces": []
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}. Vlož zemiaky do hrnca, dolej studenú vodu tak, aby boli ponorené, a vodu osoľ.",
+          "requires": [
+            "potato:raw"
+          ],
+          "produces": [
+            "potato:pot"
+          ]
+        },
+        {
+          "text": "Var zemiaky v hrnci na miernom ohni 20 minút, kým zmäknú.",
+          "requires": [
+            "potato:pot"
+          ],
+          "produces": [
+            "potato:cooked"
+          ]
+        },
+        {
+          "text": "Osuš {salmon.amount} {salmon.name} papierovou utierkou a rozdeľ ho {salmon.cut}. Nakrájaj {lemon.amount} {lemon.name} {lemon.cut}.",
+          "requires": [
+            "salmon:raw",
+            "lemon:raw"
+          ],
+          "produces": [
+            "salmon:portioned",
+            "lemon:cut"
+          ]
+        },
+        {
+          "text": "Rozlož lososa do pekáča kožou nadol. Premiešaj v miske {oil.amount} {oil.name}, soľ a čierne korenie a touto zmesou porcie lososa natri. Na každú porciu vytlač jeden mesiačik citróna.",
+          "requires": [
+            "salmon:portioned",
+            "oil:raw",
+            "lemon:cut"
+          ],
+          "produces": [
+            "salmon:pan",
+            "oil:used",
+            "lemon:used"
+          ]
+        },
+        {
+          "text": "Peč lososa v pekáči pri 200 °C 12 minút, kým mäso na povrchu stuhne a v najhrubšom mieste sa dá ľahko oddeliť vidličkou.",
+          "requires": [
+            "salmon:pan"
+          ],
+          "produces": [
+            "salmon:baked"
+          ]
+        },
+        {
+          "text": "Nakrájaj {dill.amount} {dill.name} {dill.cut}. Premiešaj v miske {yogurt.amount} {yogurt.name}, tretinu kôpru, štipku soli a čierne korenie.",
+          "requires": [
+            "dill:raw",
+            "yogurt:raw"
+          ],
+          "produces": [
+            "dill:cut",
+            "yogurt:sauce"
+          ]
+        },
+        {
+          "text": "Sceď zemiaky a vráť ich do hrnca. Pridaj {butter.amount} {butter.name} a kôpor do hrnca. Zemiaky jemne premiešaj, kým sa maslo roztopí a obalí ich.",
+          "requires": [
+            "potato:cooked",
+            "butter:raw",
+            "dill:cut"
+          ],
+          "produces": [
+            "potato:dill",
+            "butter:used",
+            "dill:used"
+          ]
+        },
+        {
+          "text": "Podávaj lososa s kôprovými zemiakmi, jogurtovou omáčkou a zvyšnými mesiačikmi citróna. Jedlo rozdeľ na {portions} porcií.",
+          "requires": [
+            "salmon:baked",
+            "potato:dill",
+            "oil:used",
+            "lemon:used",
+            "butter:used",
+            "dill:used",
+            "yogurt:sauce"
+          ],
+          "produces": [
+            "salmon:served",
+            "potato:served",
+            "oil:served",
+            "lemon:served",
+            "butter:served",
+            "dill:served",
+            "yogurt:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Lososa, zemiaky a jogurtovú omáčku ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní, lososa ohrievaj iba raz a krátko, aby nevysušil."
+      }
+    },
+    {
+      "id": "fish_baked_trout_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečený pstruh so zemiakmi",
+      "family": "fish_baked_trout_potatoes",
+      "method": "oven",
+      "minutes": 60,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "rúra",
+        "pekáč",
+        "nôž",
+        "doska na krájanie",
+        "papierová utierka"
+      ],
+      "slots": [
+        {
+          "key": "trout",
+          "role": "protein",
+          "candidates": [
+            "trout"
+          ],
+          "amount_per_adult": "330",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na mesiačiky"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "12",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "caraway",
+          "role": "seasoning",
+          "candidates": [
+            "caraway"
+          ],
+          "amount_per_adult": "1",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": "15",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na tenké plátky"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na plátky"
+        },
+        {
+          "key": "lemon",
+          "role": "seasoning",
+          "candidates": [
+            "lemon"
+          ],
+          "amount_per_adult": "0.25",
+          "unit": "piece",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na tenké plátky"
+        },
+        {
+          "key": "parsley",
+          "role": "seasoning",
+          "candidates": [
+            "parsley"
+          ],
+          "amount_per_adult": "5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C.",
+          "requires": [],
+          "produces": []
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}. Nalej {oil.amount} {oil.name} do pekáča. Pridaj zemiaky a {caraway.amount} {caraway.name} do pekáča, osoľ ich a premiešaj, aby sa obalili v oleji.",
+          "requires": [
+            "potato:raw",
+            "oil:raw",
+            "caraway:raw"
+          ],
+          "produces": [
+            "potato:pan",
+            "oil:pan",
+            "caraway:pan"
+          ]
+        },
+        {
+          "text": "Peč zemiaky v pekáči pri 200 °C 20 minút, kým začnú na okrajoch zlatistieť.",
+          "requires": [
+            "potato:pan"
+          ],
+          "produces": [
+            "potato:half_baked"
+          ]
+        },
+        {
+          "text": "Opláchni {trout.amount} {trout.name} zvonka aj zvnútra studenou vodou a osuš ich papierovou utierkou. Osoľ ich zvonka aj v brušnej dutine a okoreň.",
+          "requires": [
+            "trout:raw"
+          ],
+          "produces": [
+            "trout:seasoned"
+          ]
+        },
+        {
+          "text": "Nakrájaj {butter.amount} {butter.name} {butter.cut}, {garlic.amount} {garlic.name} {garlic.cut}, {lemon.amount} {lemon.name} {lemon.cut} a {parsley.amount} {parsley.name} {parsley.cut}.",
+          "requires": [
+            "butter:raw",
+            "garlic:raw",
+            "lemon:raw",
+            "parsley:raw"
+          ],
+          "produces": [
+            "butter:cut",
+            "garlic:cut",
+            "lemon:cut",
+            "parsley:cut"
+          ]
+        },
+        {
+          "text": "Rozdeľ do brušných dutín pstruhov plátky citróna, cesnak, polovicu petržlenovej vňate a polovicu masla.",
+          "requires": [
+            "trout:seasoned",
+            "lemon:cut",
+            "garlic:cut"
+          ],
+          "produces": [
+            "trout:stuffed",
+            "lemon:used",
+            "garlic:used"
+          ]
+        },
+        {
+          "text": "Vyber pekáč z rúry, zemiaky premiešaj a polož na ne pstruhy. Na pstruhy rozlož zvyšné plátky masla.",
+          "requires": [
+            "trout:stuffed",
+            "butter:cut"
+          ],
+          "produces": [
+            "trout:pan",
+            "butter:used"
+          ]
+        },
+        {
+          "text": "Peč pstruhy so zemiakmi v pekáči pri 200 °C 20 minút, kým koža zozlatne, mäso pri chrbtovej kosti bude biele a zemiaky budú mäkké.",
+          "requires": [
+            "trout:pan",
+            "potato:half_baked",
+            "oil:pan",
+            "caraway:pan"
+          ],
+          "produces": [
+            "trout:baked",
+            "potato:baked",
+            "oil:baked",
+            "caraway:baked"
+          ]
+        },
+        {
+          "text": "Podávaj pstruhy so zemiakmi, polej ich výpekom z pekáča a ozdob ich zvyšnou petržlenovou vňaťou. Jedlo rozdeľ na {portions} porcií.",
+          "requires": [
+            "trout:baked",
+            "potato:baked",
+            "oil:baked",
+            "caraway:baked",
+            "butter:used",
+            "garlic:used",
+            "lemon:used",
+            "parsley:cut"
+          ],
+          "produces": [
+            "trout:served",
+            "potato:served",
+            "oil:served",
+            "caraway:served",
+            "butter:served",
+            "garlic:served",
+            "lemon:served",
+            "parsley:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Mäso z vychladnutých pstruhov oddeľ od kostí, ulož ho so zemiakmi do uzavretej nádoby a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 2 dní a ohrievaj iba raz, prikryté v rúre."
+      }
+    },
+    {
+      "id": "fish_white_fish_vegetables_oven",
+      "version": 2,
+      "active": true,
+      "name_template": "Rybie filé so zeleninou z rúry",
+      "family": "fish_white_fish_vegetables_oven",
+      "method": "oven",
+      "minutes": 60,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "rúra",
+        "pekáč",
+        "nôž",
+        "doska na krájanie",
+        "papierová utierka"
+      ],
+      "slots": [
+        {
+          "key": "fish",
+          "role": "protein",
+          "candidates": [
+            "white_fish"
+          ],
+          "amount_per_adult": "200",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na porcie",
+          "water_ml_per_adult": "30"
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "200",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na tenké mesiačiky"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "15",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "zucchini",
+          "role": "vegetable",
+          "candidates": [
+            "zucchini"
+          ],
+          "amount_per_adult": "120",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na polkolieska"
+        },
+        {
+          "key": "pepper",
+          "role": "vegetable",
+          "candidates": [
+            "bell_pepper"
+          ],
+          "amount_per_adult": "100",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na pásiky"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na mesiačiky"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na plátky"
+        },
+        {
+          "key": "tomato",
+          "role": "vegetable",
+          "candidates": [
+            "tomato"
+          ],
+          "amount_per_adult": "120",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na mesiačiky"
+        },
+        {
+          "key": "thyme",
+          "role": "seasoning",
+          "candidates": [
+            "thyme"
+          ],
+          "amount_per_adult": "0.5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "lemon",
+          "role": "seasoning",
+          "candidates": [
+            "lemon"
+          ],
+          "amount_per_adult": "0.25",
+          "unit": "piece",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na tenké plátky"
+        },
+        {
+          "key": "parsley",
+          "role": "seasoning",
+          "candidates": [
+            "parsley"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C.",
+          "requires": [],
+          "produces": []
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}. Nalej {oil.amount} {oil.name} do pekáča. Pridaj zemiaky do pekáča, osoľ ich a premiešaj, aby sa obalili v oleji.",
+          "requires": [
+            "potato:raw",
+            "oil:raw"
+          ],
+          "produces": [
+            "potato:pan",
+            "oil:pan"
+          ]
+        },
+        {
+          "text": "Peč zemiaky v pekáči pri 200 °C 15 minút, kým na okrajoch trochu zmäknú.",
+          "requires": [
+            "potato:pan"
+          ],
+          "produces": [
+            "potato:half_baked"
+          ]
+        },
+        {
+          "text": "Nakrájaj {zucchini.amount} {zucchini.name} {zucchini.cut}, {pepper.amount} {pepper.name} {pepper.cut}, {onion.amount} {onion.name} {onion.cut}, {garlic.amount} {garlic.name} {garlic.cut} a {tomato.amount} {tomato.name} {tomato.cut}.",
+          "requires": [
+            "zucchini:raw",
+            "pepper:raw",
+            "onion:raw",
+            "garlic:raw",
+            "tomato:raw"
+          ],
+          "produces": [
+            "zucchini:cut",
+            "pepper:cut",
+            "onion:cut",
+            "garlic:cut",
+            "tomato:cut"
+          ]
+        },
+        {
+          "text": "Pridaj cuketu, papriku, cibuľu a cesnak do pekáča. Prisyp {thyme.amount} {thyme.name}, osoľ, okoreň a zeleninu premiešaj so zemiakmi.",
+          "requires": [
+            "zucchini:cut",
+            "pepper:cut",
+            "onion:cut",
+            "garlic:cut",
+            "thyme:raw"
+          ],
+          "produces": [
+            "zucchini:pan",
+            "pepper:pan",
+            "onion:pan",
+            "garlic:pan",
+            "thyme:pan"
+          ]
+        },
+        {
+          "text": "Peč zemiaky so zeleninou v pekáči pri 200 °C 10 minút, kým cuketa na okrajoch zmäkne.",
+          "requires": [
+            "potato:half_baked",
+            "zucchini:pan",
+            "pepper:pan",
+            "onion:pan",
+            "garlic:pan",
+            "thyme:pan",
+            "oil:pan"
+          ],
+          "produces": [
+            "potato:roasting",
+            "zucchini:roasting",
+            "pepper:roasting",
+            "onion:roasting",
+            "garlic:roasting",
+            "thyme:roasting",
+            "oil:roasting"
+          ]
+        },
+        {
+          "text": "Osuš {fish.amount} {fish.name} papierovou utierkou a nakrájaj ju {fish.cut}. Porcie z oboch strán osoľ a okoreň. Nakrájaj {lemon.amount} {lemon.name} {lemon.cut}.",
+          "requires": [
+            "fish:raw",
+            "lemon:raw"
+          ],
+          "produces": [
+            "fish:seasoned",
+            "lemon:cut"
+          ]
+        },
+        {
+          "text": "Pridaj paradajky do pekáča a prilej {fish.water} vody. Rozlož rybu navrch zeleniny a na každú porciu polož plátok citróna.",
+          "requires": [
+            "tomato:cut",
+            "fish:seasoned",
+            "lemon:cut"
+          ],
+          "produces": [
+            "tomato:pan",
+            "fish:pan",
+            "lemon:pan"
+          ]
+        },
+        {
+          "text": "Peč rybu so zeleninou v pekáči pri 200 °C 15 minút, kým ryba stuhne a v strede sa ľahko oddelí a zemiaky budú mäkké.",
+          "requires": [
+            "fish:pan",
+            "potato:roasting",
+            "zucchini:roasting",
+            "pepper:roasting",
+            "onion:roasting",
+            "garlic:roasting",
+            "thyme:roasting",
+            "oil:roasting",
+            "tomato:pan",
+            "lemon:pan"
+          ],
+          "produces": [
+            "fish:baked",
+            "potato:baked",
+            "zucchini:baked",
+            "pepper:baked",
+            "onion:baked",
+            "garlic:baked",
+            "thyme:baked",
+            "oil:baked",
+            "tomato:baked",
+            "lemon:baked"
+          ]
+        },
+        {
+          "text": "Nakrájaj {parsley.amount} {parsley.name} {parsley.cut}.",
+          "requires": [
+            "parsley:raw"
+          ],
+          "produces": [
+            "parsley:cut"
+          ]
+        },
+        {
+          "text": "Podávaj rybu so zeleninou a zemiakmi, polej ju šťavou z pekáča a ozdob petržlenovou vňaťou. Jedlo rozdeľ na {portions} porcií.",
+          "requires": [
+            "fish:baked",
+            "potato:baked",
+            "oil:baked",
+            "zucchini:baked",
+            "pepper:baked",
+            "onion:baked",
+            "garlic:baked",
+            "tomato:baked",
+            "thyme:baked",
+            "lemon:baked",
+            "parsley:cut"
+          ],
+          "produces": [
+            "fish:served",
+            "potato:served",
+            "oil:served",
+            "zucchini:served",
+            "pepper:served",
+            "onion:served",
+            "garlic:served",
+            "tomato:served",
+            "thyme:served",
+            "lemon:served",
+            "parsley:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Rybu so zeleninou a zemiakmi ulož do plytkých uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní a ohrievaj iba raz, prikryté, aby ryba nevyschla."
+      }
+    },
+    {
+      "id": "fish_tuna_pasta_bake",
+      "version": 2,
+      "active": true,
+      "name_template": "Zapekané cestoviny s tuniakom",
+      "family": "fish_tuna_pasta_bake",
+      "method": "oven",
+      "minutes": 50,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "rúra",
+        "pekáč",
+        "hrniec",
+        "sitko",
+        "metlička",
+        "nôž",
+        "doska na krájanie",
+        "strúhadlo"
+      ],
+      "slots": [
+        {
+          "key": "pasta",
+          "role": "starch",
+          "candidates": [
+            "pasta"
+          ],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null,
+          "water_ml_per_adult": "40"
+        },
+        {
+          "key": "tuna",
+          "role": "protein",
+          "candidates": [
+            "tuna"
+          ],
+          "amount_per_adult": "120",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "broccoli",
+          "role": "vegetable",
+          "candidates": [
+            "broccoli"
+          ],
+          "amount_per_adult": "120",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na ružičky"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "40",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "butter",
+          "role": "fat",
+          "candidates": [
+            "butter"
+          ],
+          "amount_per_adult": "10",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "10",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "milk",
+          "role": "dairy",
+          "candidates": [
+            "milk"
+          ],
+          "amount_per_adult": "160",
+          "unit": "ml",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cheese",
+          "role": "dairy",
+          "candidates": [
+            "hard_cheese"
+          ],
+          "amount_per_adult": "30",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C.",
+          "requires": [],
+          "produces": []
+        },
+        {
+          "text": "Nakrájaj {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} {garlic.cut}. Rozdeľ {broccoli.amount} {broccoli.name} {broccoli.cut} a nastrúhaj {cheese.amount} {cheese.name}.",
+          "requires": [
+            "onion:raw",
+            "garlic:raw",
+            "broccoli:raw",
+            "cheese:raw"
+          ],
+          "produces": [
+            "onion:cut",
+            "garlic:cut",
+            "broccoli:cut",
+            "cheese:grated"
+          ]
+        },
+        {
+          "text": "Sceď {tuna.amount} {tuna.name} a vidličkou ho rozober na väčšie kúsky.",
+          "requires": [
+            "tuna:raw"
+          ],
+          "produces": [
+            "tuna:drained"
+          ]
+        },
+        {
+          "text": "Uvar {pasta.amount} {pasta.name} v hrnci s osolenou vodou na strednom ohni 7 minút, kým budú takmer mäkké, ale ešte pevné. Posledné 3 minúty var v hrnci aj brokolicu. Mrazenú brokolicu nerozmrazuj, daj ju do hrnca rovno z mrazničky. Odober z hrnca {pasta.water} vody a potom cestoviny s brokolicou sceď cez sitko.",
+          "requires": [
+            "pasta:raw",
+            "broccoli:cut"
+          ],
+          "produces": [
+            "pasta:cooked",
+            "broccoli:cooked"
+          ]
+        },
+        {
+          "text": "Rozohrej {butter.amount} {butter.name} v hrnci na miernom ohni 1 minútu, kým sa roztopí a začne bublať. Opekaj cibuľu v masle 4 minúty, kým bude dosklovita. Pridaj cesnak a opekaj ho 30 sekúnd, kým zavonia.",
+          "requires": [
+            "butter:raw",
+            "onion:cut",
+            "garlic:cut"
+          ],
+          "produces": [
+            "butter:used",
+            "onion:cooked",
+            "garlic:cooked"
+          ]
+        },
+        {
+          "text": "Vsyp {flour.amount} {flour.name} do hrnca. Opekaj hladkú pšeničnú múku s cibuľou na miernom ohni 1 minútu za stáleho miešania, kým začne bublať.",
+          "requires": [
+            "flour:raw"
+          ],
+          "produces": [
+            "flour:roux"
+          ]
+        },
+        {
+          "text": "Prilej {milk.amount} {milk.name}. Prilievaj ho po troškách a stále miešaj metličkou, aby nevznikli hrudky. Var mlieko s múkou v hrnci na miernom ohni 4 minúty za stáleho miešania, kým omáčka zhustne a začne bublať.",
+          "requires": [
+            "milk:raw",
+            "flour:roux"
+          ],
+          "produces": [
+            "milk:sauce",
+            "flour:sauce"
+          ]
+        },
+        {
+          "text": "Odstav hrniec z ohňa. Do omáčky zamiešaj polovicu syra a dochuť ju soľou a čiernym korením až po ochutnaní, syr je slaný.",
+          "requires": [
+            "cheese:grated"
+          ],
+          "produces": [
+            "cheese:half_used"
+          ]
+        },
+        {
+          "text": "Premiešaj cestoviny, brokolicu a tuniaka s omáčkou priamo v hrnci. Ak je zmes hustá, dolej po troškách odloženú vodu z cestovín, kým bude krémová a cestoviny budú omáčkou dobre obalené.",
+          "requires": [
+            "pasta:cooked",
+            "broccoli:cooked",
+            "tuna:drained",
+            "milk:sauce",
+            "flour:sauce",
+            "butter:used",
+            "onion:cooked",
+            "garlic:cooked"
+          ],
+          "produces": [
+            "pasta:mixed",
+            "broccoli:mixed",
+            "tuna:mixed",
+            "milk:mixed",
+            "flour:mixed",
+            "butter:mixed",
+            "onion:mixed",
+            "garlic:mixed"
+          ]
+        },
+        {
+          "text": "Rozlož cestoviny do pekáča a zarovnaj ich. Zvyšný syr rozsyp navrch.",
+          "requires": [
+            "pasta:mixed",
+            "cheese:half_used"
+          ],
+          "produces": [
+            "pasta:pan",
+            "cheese:topping"
+          ]
+        },
+        {
+          "text": "Peč cestoviny v pekáči pri 200 °C 15 minút, kým syr zozlatne a omáčka na okrajoch bublá.",
+          "requires": [
+            "pasta:pan",
+            "broccoli:mixed",
+            "tuna:mixed",
+            "milk:mixed",
+            "flour:mixed",
+            "butter:mixed",
+            "onion:mixed",
+            "garlic:mixed",
+            "cheese:topping"
+          ],
+          "produces": [
+            "pasta:baked",
+            "broccoli:baked",
+            "tuna:baked",
+            "milk:baked",
+            "flour:baked",
+            "butter:baked",
+            "onion:baked",
+            "garlic:baked",
+            "cheese:baked"
+          ]
+        },
+        {
+          "text": "Nechaj cestoviny 5 minút postáť. Podávaj ich teplé a rozdeľ jedlo na {portions} porcií.",
+          "requires": [
+            "pasta:baked",
+            "tuna:baked",
+            "broccoli:baked",
+            "onion:baked",
+            "garlic:baked",
+            "butter:baked",
+            "flour:baked",
+            "milk:baked",
+            "cheese:baked"
+          ],
+          "produces": [
+            "pasta:served",
+            "tuna:served",
+            "broccoli:served",
+            "onion:served",
+            "garlic:served",
+            "butter:served",
+            "flour:served",
+            "milk:served",
+            "cheese:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Vychladnuté cestoviny rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a porciu prehrej v rúre alebo v mikrovlnke s lyžicou vody, kým bude celá horúca."
+      }
+    },
+    {
+      "id": "fish_mackerel_baked_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečená makrela so zemiakmi",
+      "family": "fish_mackerel_baked_potatoes",
+      "method": "oven",
+      "minutes": 60,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "rúra",
+        "pekáč",
+        "miska",
+        "šálka",
+        "nôž",
+        "doska na krájanie",
+        "papierová utierka"
+      ],
+      "slots": [
+        {
+          "key": "mackerel",
+          "role": "protein",
+          "candidates": [
+            "mackerel"
+          ],
+          "amount_per_adult": "320",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na štvrtiny"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "15",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "caraway",
+          "role": "seasoning",
+          "candidates": [
+            "caraway"
+          ],
+          "amount_per_adult": "1",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "thyme",
+          "role": "seasoning",
+          "candidates": [
+            "thyme"
+          ],
+          "amount_per_adult": "0.5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "lemon",
+          "role": "seasoning",
+          "candidates": [
+            "lemon"
+          ],
+          "amount_per_adult": "0.25",
+          "unit": "piece",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na plátky"
+        },
+        {
+          "key": "parsley",
+          "role": "seasoning",
+          "candidates": [
+            "parsley"
+          ],
+          "amount_per_adult": "5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C.",
+          "requires": [],
+          "produces": []
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}. Nakrájaj {garlic.amount} {garlic.name} {garlic.cut}.",
+          "requires": [
+            "potato:raw",
+            "garlic:raw"
+          ],
+          "produces": [
+            "potato:cut",
+            "garlic:cut"
+          ]
+        },
+        {
+          "text": "Nalej {oil.amount} {oil.name} do misky. Tretinu oleja odlej do šálky a zamiešaj do nej cesnak, {thyme.amount} {thyme.name} a štipku soli.",
+          "requires": [
+            "oil:raw",
+            "garlic:cut",
+            "thyme:raw"
+          ],
+          "produces": [
+            "oil:divided",
+            "garlic:marinade",
+            "thyme:marinade"
+          ]
+        },
+        {
+          "text": "Pridaj zemiaky a {caraway.amount} {caraway.name} do misky. Osoľ ich a premiešaj, aby sa obalili v oleji. Rozlož zemiaky do pekáča v jednej vrstve.",
+          "requires": [
+            "potato:cut",
+            "caraway:raw"
+          ],
+          "produces": [
+            "potato:pan",
+            "caraway:pan"
+          ]
+        },
+        {
+          "text": "Peč zemiaky v pekáči pri 200 °C 20 minút, kým začnú na okrajoch zlatistieť.",
+          "requires": [
+            "potato:pan"
+          ],
+          "produces": [
+            "potato:half_baked"
+          ]
+        },
+        {
+          "text": "Opláchni {mackerel.amount} {mackerel.name} zvonka aj zvnútra studenou vodou a osuš ich papierovou utierkou. Na oboch bokoch každej makrely urob ostrým nožom tri šikmé zárezy.",
+          "requires": [
+            "mackerel:raw"
+          ],
+          "produces": [
+            "mackerel:scored"
+          ]
+        },
+        {
+          "text": "Nakrájaj {lemon.amount} {lemon.name} {lemon.cut} a {parsley.amount} {parsley.name} {parsley.cut}. Makrely natri zvonka aj zvnútra cesnakovým olejom zo šálky. Do brušnej dutiny každej makrely daj plátok citróna a trochu petržlenovej vňate.",
+          "requires": [
+            "lemon:raw",
+            "parsley:raw",
+            "mackerel:scored",
+            "oil:divided",
+            "garlic:marinade",
+            "thyme:marinade"
+          ],
+          "produces": [
+            "lemon:cut",
+            "parsley:cut",
+            "mackerel:seasoned",
+            "oil:brushed",
+            "garlic:brushed",
+            "thyme:brushed"
+          ]
+        },
+        {
+          "text": "Vyber pekáč z rúry, zemiaky premiešaj a polož na ne makrely.",
+          "requires": [
+            "mackerel:seasoned"
+          ],
+          "produces": [
+            "mackerel:pan"
+          ]
+        },
+        {
+          "text": "Peč makrely so zemiakmi v pekáči pri 200 °C 20 minút, kým bude koža chrumkavá a mäso pri kosti stuhne.",
+          "requires": [
+            "mackerel:pan",
+            "potato:half_baked",
+            "oil:brushed",
+            "caraway:pan",
+            "garlic:brushed",
+            "thyme:brushed"
+          ],
+          "produces": [
+            "mackerel:baked",
+            "potato:baked",
+            "oil:baked",
+            "caraway:baked",
+            "garlic:baked",
+            "thyme:baked"
+          ]
+        },
+        {
+          "text": "Podávaj makrely so zemiakmi a zvyšnými plátkami citróna a ozdob ich zvyšnou petržlenovou vňaťou. Jedlo rozdeľ na {portions} porcií.",
+          "requires": [
+            "mackerel:baked",
+            "potato:baked",
+            "oil:baked",
+            "caraway:baked",
+            "garlic:baked",
+            "thyme:baked",
+            "lemon:cut",
+            "parsley:cut"
+          ],
+          "produces": [
+            "mackerel:served",
+            "potato:served",
+            "oil:served",
+            "caraway:served",
+            "garlic:served",
+            "thyme:served",
+            "lemon:served",
+            "parsley:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Mäso z vychladnutých makrel oddeľ od kostí, ulož ho so zemiakmi do uzavretej nádoby a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 2 dní a ohrievaj iba raz, prikryté v rúre."
+      }
+    },
+    {
+      "id": "turkey_stuffed_zucchini",
+      "version": 2,
+      "active": true,
+      "name_template": "Cukety plnené morčacím mäsom",
+      "family": "turkey_stuffed_zucchini",
+      "method": "oven",
+      "minutes": 60,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "rúra",
+        "pekáč",
+        "alobal",
+        "miska",
+        "lyžička",
+        "nôž",
+        "doska na krájanie",
+        "strúhadlo"
+      ],
+      "slots": [
+        {
+          "key": "turkey",
+          "role": "protein",
+          "candidates": [
+            "turkey_mince"
+          ],
+          "amount_per_adult": "160",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "zucchini",
+          "role": "vegetable",
+          "candidates": [
+            "zucchini"
+          ],
+          "amount_per_adult": "300",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "pozdĺžne na polovice",
+          "water_ml_per_adult": "50"
+        },
+        {
+          "key": "bread",
+          "role": "starch",
+          "candidates": [
+            "bread"
+          ],
+          "amount_per_adult": "60",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "40",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "tomato",
+          "role": "vegetable",
+          "candidates": [
+            "tomato"
+          ],
+          "amount_per_adult": "150",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na malé kocky"
+        },
+        {
+          "key": "paste",
+          "role": "vegetable",
+          "candidates": [
+            "tomato_paste"
+          ],
+          "amount_per_adult": "15",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oregano",
+          "role": "seasoning",
+          "candidates": [
+            "oregano"
+          ],
+          "amount_per_adult": "1",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "cheese",
+          "role": "dairy",
+          "candidates": [
+            "hard_cheese"
+          ],
+          "amount_per_adult": "25",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C.",
+          "requires": [],
+          "produces": []
+        },
+        {
+          "text": "Nakrájaj {zucchini.amount} {zucchini.name} {zucchini.cut}. Lyžičkou z polovíc vydlab dužinu so semienkami tak, aby ostali steny hrubé asi 1 centimeter. Dužinu nasekaj nadrobno.",
+          "requires": [
+            "zucchini:raw"
+          ],
+          "produces": [
+            "zucchini:hollowed"
+          ]
+        },
+        {
+          "text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}, {garlic.amount} {garlic.name} {garlic.cut} a {tomato.amount} {tomato.name} {tomato.cut}. Nastrúhaj {cheese.amount} {cheese.name}.",
+          "requires": [
+            "onion:raw",
+            "garlic:raw",
+            "tomato:raw",
+            "cheese:raw"
+          ],
+          "produces": [
+            "onion:cut",
+            "garlic:cut",
+            "tomato:cut",
+            "cheese:grated"
+          ]
+        },
+        {
+          "text": "Premiešaj v miske {turkey.amount} {turkey.name}, nasekanú dužinu z cukiet, cibuľu, cesnak, {oregano.amount} {oregano.name}, soľ a čierne korenie.",
+          "requires": [
+            "turkey:raw",
+            "onion:cut",
+            "garlic:cut",
+            "oregano:raw"
+          ],
+          "produces": [
+            "turkey:filling",
+            "onion:filling",
+            "garlic:filling",
+            "oregano:filling"
+          ]
+        },
+        {
+          "text": "Premiešaj v pekáči paradajky, {paste.amount} {paste.name}, {zucchini.water} vody a štipku soli.",
+          "requires": [
+            "tomato:cut",
+            "paste:raw"
+          ],
+          "produces": [
+            "tomato:sauce",
+            "paste:sauce"
+          ]
+        },
+        {
+          "text": "Rozlož polovice cukety do pekáča reznou stranou nahor a naplň ich mäsovou zmesou. Zmes jemne pritlač.",
+          "requires": [
+            "zucchini:hollowed",
+            "turkey:filling",
+            "onion:filling",
+            "garlic:filling",
+            "oregano:filling"
+          ],
+          "produces": [
+            "zucchini:stuffed",
+            "turkey:stuffed",
+            "onion:stuffed",
+            "garlic:stuffed",
+            "oregano:stuffed"
+          ]
+        },
+        {
+          "text": "Prikry pekáč alobalom. Peč cukety v pekáči pri 200 °C 25 minút, kým cuketa zmäkne.",
+          "requires": [
+            "zucchini:stuffed",
+            "turkey:stuffed",
+            "tomato:sauce",
+            "paste:sauce",
+            "onion:stuffed",
+            "garlic:stuffed",
+            "oregano:stuffed"
+          ],
+          "produces": [
+            "zucchini:baked",
+            "turkey:baked",
+            "tomato:baked",
+            "paste:baked",
+            "onion:baked",
+            "garlic:baked",
+            "oregano:baked"
+          ]
+        },
+        {
+          "text": "Odokry pekáč a syr rozsyp na plnku. Peč cukety pri 200 °C ešte 12 minút, kým syr zozlatne, mäso bude prepečené a omáčka bude bublať.",
+          "requires": [
+            "cheese:grated",
+            "zucchini:baked"
+          ],
+          "produces": [
+            "cheese:baked",
+            "zucchini:gratinated"
+          ]
+        },
+        {
+          "text": "Nakrájaj {bread.amount} {bread.name} na krajce.",
+          "requires": [
+            "bread:raw"
+          ],
+          "produces": [
+            "bread:sliced"
+          ]
+        },
+        {
+          "text": "Podávaj plnené cukety s paradajkovou omáčkou z pekáča a chlebom. Jedlo rozdeľ na {portions} porcií.",
+          "requires": [
+            "turkey:baked",
+            "zucchini:gratinated",
+            "bread:sliced",
+            "onion:baked",
+            "garlic:baked",
+            "tomato:baked",
+            "paste:baked",
+            "oregano:baked",
+            "cheese:baked"
+          ],
+          "produces": [
+            "turkey:served",
+            "zucchini:served",
+            "bread:served",
+            "onion:served",
+            "garlic:served",
+            "tomato:served",
+            "paste:served",
+            "oregano:served",
+            "cheese:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Vychladnuté cukety s omáčkou ulož do plytkých uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a prehrej ich prikryté v rúre, kým bude plnka celá horúca. Chlieb skladuj oddelene."
+      }
     }
   ]
 }

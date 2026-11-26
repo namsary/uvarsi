@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "8cba23f695c1b15ba1664c7af44c484a89b4e553f10110764f3064a3a0fa653e",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "turkey_schnitzel_potatoes"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

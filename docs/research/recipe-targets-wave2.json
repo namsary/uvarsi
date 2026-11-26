@@ -965,6 +965,479 @@
         }
       ],
       "selection_reason": "Zeleninový plech so zemiakmi a grilovacím syrom je bezmäsitá večera, pri ktorej rúra urobí väčšinu práce a syr dodá bielkoviny."
+    },
+    {
+      "id": "fish_fried_cod_potato_salad",
+      "display_name": "Vyprážaná treska so zemiakovým šalátom",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/12314/vyprazana-treska/",
+          "title": "Vyprážaná treska | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/file-fotorecept/35651-recept.html",
+          "title": "Filé (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/31190/zemiakovy-salat/",
+          "title": "Zemiakový šalát | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Vyprážaná ryba so zemiakovým šalátom je obľúbený slovenský obed, najmä v piatok a cez sviatky, a dopĺňa knižnicu o rybu v klasickom trojobale."
+    },
+    {
+      "id": "fish_baked_salmon_potatoes_dill",
+      "display_name": "Pečený losos s kôprovými zemiakmi",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/losos-s-koprovou-omackou-a-zemiakmi/8572-recept.html",
+          "title": "Losos s kôprovou omáčkou a zemiakmi - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/41904/peceny-losos/",
+          "title": "Pečený losos | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Losos z rúry s maslovými kôprovými zemiakmi je rýchle bielkovinové jedlo, ktoré slovenské rodiny poznajú z nedeľných obedov aj z akcií v letákoch."
+    },
+    {
+      "id": "fish_cod_butter_mash",
+      "display_name": "Treska na masle so zemiakovou kašou",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/30164/treska-na-masle/",
+          "title": "Treska na masle | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/aljasska-treska-s-koprovou-omackou-a-zemiakmi/55201-recept.html",
+          "title": "Aljašská treska s kôprovou omáčkou a zemiakmi - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/jednoduche-chutne-file/48001-recept.html",
+          "title": "Jednoduché chutné filé - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Treska opečená na masle so zemiakovou kašou je jednoduchá a lacná rybacia klasika, ktorá má veľa bielkovín a chutí aj deťom."
+    },
+    {
+      "id": "fish_baked_trout_potatoes",
+      "display_name": "Pečený pstruh so zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/pecene-pstruhy-fotorecept/15361-recept.html",
+          "title": "Pečené pstruhy (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/26829/pstruh-peceny-na-masle/",
+          "title": "Pstruh pečený na masle | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Pstruh pečený na masle s cesnakom a citrónom je tradičná slovenská sladkovodná ryba, ktorú rodiny kupujú celú a pečú spolu so zemiakmi."
+    },
+    {
+      "id": "fish_fish_cakes_potatoes",
+      "display_name": "Rybie karbonátky so zemiakmi",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/karbonatky-z-ryb/4465-recept.html",
+          "title": "Karbonátky z rýb - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/43301/rybaci-karbonatok-z-file/",
+          "title": "Rybací karbonátok z filé | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Rybie karbonátky z bieleho filé, namočeného pečiva a vajca sú šťavnatý spôsob, ako dostať rybu na tanier aj deťom, ktoré celé filé nejedia."
+    },
+    {
+      "id": "fish_homemade_fish_fingers",
+      "display_name": "Domáce rybie prsty so zemiakovou kašou",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/domace-rybie-prsty-fotorecept/39715-recept.html",
+          "title": "Domáce rybie prsty (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/84312/domace-rybie-prsty-take-dobre-nekupite/",
+          "title": "Domáce rybie prsty: Také dobré nekúpite! | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Domáce rybie prsty z tresky v trojobale so zemiakovou kašou sú detská obľúbenosť, ktorá nahradí mrazené polotovary čerstvou rybou z letáku."
+    },
+    {
+      "id": "fish_white_fish_vegetables_oven",
+      "display_name": "Rybie filé so zeleninou z rúry",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/aljasska-treska-so-zeleninou-fotorecept/62445-recept.html",
+          "title": "Aljašská treska so zeleninou (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/15788/rybie-file-so-zeleninou/",
+          "title": "Rybie filé so zeleninou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Biele rybie filé upečené na zelenine a zemiakoch v jednom pekáči je ľahké bielkovinové jedlo s minimom riadu, vhodné na bežný pracovný deň."
+    },
+    {
+      "id": "fish_salmon_teriyaki_rice",
+      "display_name": "Losos teriyaki s ryžou",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/losos-na-teriyaki-omacke/69456-recept.html",
+          "title": "Losos na teriyaki omáčke - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/69685/losos-na-sposob-teriyaki/",
+          "title": "Losos na spôsob Teriyaki | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Losos glazovaný v sladkoslanej sójovej omáčke s ryžou a brokolicou je moderné rodinné jedlo z bežných surovín a rýchlo sa pripraví."
+    },
+    {
+      "id": "fish_salmon_spinach_pasta",
+      "display_name": "Cestoviny s lososom a špenátom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/cestoviny-s-omackou-z-lososa-a-spenatu-fotorecept/47044-recept.html",
+          "title": "Cestoviny s omáčkou z lososa a špenátu (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/26879/fotorecept-losos-s-cestovinami-a-spenatom/",
+          "title": "Losos s cestovinami a špenátom, FOTORECEPT | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Krémové cestoviny s kúskami lososa a špenátom sú rýchla večera za pol hodiny, v ktorej deti zjedia aj zeleninu."
+    },
+    {
+      "id": "fish_tuna_pasta_bake",
+      "display_name": "Zapekané cestoviny s tuniakom",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/44685/zapekane-brokolicove-cestoviny-s-tuniakom/",
+          "title": "Zapekané brokolicové cestoviny s tuniakom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/tuna-mornay-tuniak-zapeceny-v-bielej-omacke-fotorecept/28494-recept.html",
+          "title": "Tuna Mornay - Tuniak zapečený v bielej omáčke (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Zapekané cestoviny s tuniakom a brokolicou v bielej omáčke využijú lacného tuniaka z konzervy a dajú sa uvariť dopredu na tri dni."
+    },
+    {
+      "id": "fish_mackerel_baked_potatoes",
+      "display_name": "Pečená makrela so zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/grilovana-makrela-s-extra-chrumkavymi-zemiakmi/7775-recept.html",
+          "title": "Grilovaná makrela s extra chrumkavými zemiakmi - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/17928/pecena-makrela-na-bylinkach/",
+          "title": "Pečená makrela na bylinkách | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Celá makrela pečená s cesnakom a bylinkami na rascových zemiakoch je lacná a výživná ryba, ktorú slovenské obchody pravidelne ponúkajú v akcii."
+    },
+    {
+      "id": "fish_fish_goulash",
+      "display_name": "Rybí guláš s chlebom",
+      "editorial_lane": "modern_family",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/28422/gulas-z-rybieho-file/",
+          "title": "Guláš z rybieho filé | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/gulas-z-kapra/122-recept.html",
+          "title": "Guláš z kapra - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/13462/rybaci-gulas/",
+          "title": "Rybací guláš | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Rybí guláš na paprike so zemiakmi a chlebom je sýte jedlo z jedného hrnca, ktoré prenáša chuť slovenského gulášu na lacné biele rybie filé."
+    },
+    {
+      "id": "turkey_breast_natural_rice",
+      "display_name": "Morčacie prsia na prírodno s ryžou",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/15592/telacie-rezne-na-prirodno/",
+          "title": "Teľacie rezne na prírodno | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcove-rezne-na-prirodno-s-cibulkovymi-zemiakmi/45545-recept.html",
+          "title": "Bravčové rezne na prírodno s cibuľkovými zemiakmi - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Prírodné rezne s vlastnou šťavou a ryžou sú základ slovenskej domácej kuchyne a s morčacími prsiami vznikne chudé, ale šťavnaté bielkovinové jedlo."
+    },
+    {
+      "id": "turkey_schnitzel_potatoes",
+      "display_name": "Morčací rezeň v cestíčku so zemiakmi",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/13285/morcacie-rezne-v-cesticku/",
+          "title": "Morčacie rezne v cestíčku | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/francuzske-morcacie-rezne-fotorecept/64743-recept.html",
+          "title": "Francúzske morčacie rezne (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Morčací rezeň vyprážaný v jemnom vaječnom cestíčku je ľahšia a šťavnatejšia obdoba klasického rezňa, ktorú slovenské mamy robia s petržlenovými zemiakmi."
+    },
+    {
+      "id": "turkey_cream_mushrooms_rice",
+      "display_name": "Morčacie na smotane so šampiňónmi",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/17922/morcacie-rezne-na-smotane/",
+          "title": "Morčacie rezne na smotane | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/morcacie-kusky-v-marinade-so-sampinonmi/57590-recept.html",
+          "title": "Morčacie kúsky v marináde so šampiňónmi - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Morčacie rezančeky v smotanovej omáčke so šampiňónmi a ryžou sú obľúbené rýchle jedlo, ktoré drží veľa bielkovín a dá sa uvariť na tri dni."
+    },
+    {
+      "id": "turkey_broccoli_stir_fry",
+      "display_name": "Morčacie s brokolicou z woku",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/81704/morcacie-kusky-s-brokolicou-jemne-a-stavnate/",
+          "title": "Morčacie kúsky s brokolicou: Jemné a šťavnaté | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/hovadzie-s-brokolicou-a-zelerom/43795-recept.html",
+          "title": "Hovädzie s brokolicou a zelerom - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Morčacie rezančeky s brokolicou zo sójovej omáčky z woku sú rýchle chudé jedlo s ryžou, ktoré sa uvarí za pol hodiny z bežných surovín."
+    },
+    {
+      "id": "turkey_perkelt_pasta",
+      "display_name": "Morčací perkelt s cestovinami",
+      "editorial_lane": "slovak_classic",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/morcaci-perkelt-paprikas/10283-recept.html",
+          "title": "Morčací perkelt (paprikáš) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/12787/morcaci-perkelt/",
+          "title": "Morčací perkelt | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Perkelt na cibuľke a sladkej paprike patrí k slovenskej klasike a s morčacím mäsom a cestovinami je to chudšia verzia, ktorá sa uvarí za necelú hodinu."
+    },
+    {
+      "id": "turkey_burgers",
+      "display_name": "Morčacie burgery so zeleninou",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/domaci-morcaci-hamburger/622-recept.html",
+          "title": "Domáci morčací hamburger - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/35901/morcacie-burgery/",
+          "title": "Morčacie burgery | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Domáce morčacie burgery s jogurtovou omáčkou a čerstvou zeleninou sú chudšia a bielkovinová alternatíva k hovädzím burgerom, ktorú majú radi aj tínedžeri."
+    },
+    {
+      "id": "turkey_stuffed_zucchini",
+      "display_name": "Cukety plnené morčacím mäsom",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/cuketa-plnena-mletym-masom-fotorecept/59937-recept.html",
+          "title": "Cuketa plnená mletým mäsom (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/1533/cuketa-plnena-mletym-masom/",
+          "title": "Cuketa plnená mletým mäsom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Cukety plnené mletým morčacím mäsom a zapečené so syrom v paradajkovej omáčke sú letná slovenská klasika s množstvom bielkovín a zeleniny."
+    },
+    {
+      "id": "turkey_curry_rice",
+      "display_name": "Morčacie kari s ryžou",
+      "editorial_lane": "high_protein",
+      "expected_modes": [
+        "standard",
+        "high_protein"
+      ],
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/morcacie-kari/60391-recept.html",
+          "title": "Morčacie kari - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/41020/fotorecept-morcacie-kari-so-zeleninkou/",
+          "title": "FOTORECEPT: Morčacie karí so zeleninkou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ],
+      "selection_reason": "Jemné morčacie kari s jogurtom, hráškom a ryžou je obľúbené moderné rodinné jedlo s vysokým obsahom bielkovín, ktoré sa dobre uchová na tri dni."
     }
   ]
 }

@@ -1,0 +1,51 @@
+{
+  "recipes": [
+    {
+      "id": "turkey_burgers",
+      "version": 2,
+      "active": true,
+      "name_template": "Morčacie burgery so zeleninou",
+      "family": "turkey_burgers",
+      "method": "pan",
+      "minutes": 40,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľká panvica", "dve misky", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "turkey", "role": "protein", "candidates": ["turkey_mince"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "bun", "role": "starch", "candidates": ["burger_bun"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.8", "required": true, "use": "main", "cut": null},
+        {"key": "crumbs", "role": "starch", "candidates": ["breadcrumbs"], "amount_per_adult": "12", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "lettuce", "role": "vegetable", "candidates": ["lettuce"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na široké pásiky"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na plátky"},
+        {"key": "cucumber", "role": "vegetable", "candidates": ["cucumber"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na tenké plátky"},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "35", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "mustard", "role": "seasoning", "candidates": ["mustard"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}, {garlic.amount} {garlic.name} {garlic.cut} a {parsley.amount} {parsley.name} {parsley.cut}.", "requires": ["onion:raw", "garlic:raw", "parsley:raw"], "produces": ["onion:cut", "garlic:cut", "parsley:cut"]},
+        {"text": "Premiešaj v miske {turkey.amount} {turkey.name}, {crumbs.amount} {crumbs.name}, cibuľu, cesnak, petržlenovú vňať, dve lyžice studenej vody, soľ a čierne korenie. Hmotu dobre prepracuj rukou, kým bude súdržná, a nechaj ju 10 minút odpočívať, aby strúhanka nasiakla.", "requires": ["turkey:raw", "crumbs:raw", "onion:cut", "garlic:cut", "parsley:cut"], "produces": ["turkey:mixed", "crumbs:mixed", "onion:mixed", "garlic:mixed", "parsley:mixed"]},
+        {"text": "Rozdeľ mäsovú hmotu na toľko dielov, koľko je porcií. Mokrými rukami z každého dielu vytvaruj plochý burger hrubý asi 1,5 centimetra a v strede ho palcom jemne vtlač, aby sa pri opekaní nevydul.", "requires": ["turkey:mixed"], "produces": ["turkey:shaped"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 2 minúty, kým sa začne lesknúť. Burgery opekaj 5 minút z každej strany, kým budú zlatisté, v strede prepečené a šťava z nich bude číra. Pri väčšej dávke ich opekaj po častiach a hotové drž prikryté na tanieri.", "requires": ["oil:raw", "turkey:shaped", "crumbs:mixed", "onion:mixed", "garlic:mixed", "parsley:mixed"], "produces": ["oil:used", "turkey:fried", "crumbs:fried", "onion:fried", "garlic:fried", "parsley:fried"]},
+        {"text": "Opeč {bun.amount} {bun.name} prekrojené na polovice reznou stranou nadol v suchej panvici na strednom ohni 1 minútu, kým budú zlatisté.", "requires": ["bun:raw"], "produces": ["bun:toasted"]},
+        {"text": "Nakrájaj {lettuce.amount} {lettuce.name} {lettuce.cut}, {tomato.amount} {tomato.name} {tomato.cut} a {cucumber.amount} {cucumber.name} {cucumber.cut}.", "requires": ["lettuce:raw", "tomato:raw", "cucumber:raw"], "produces": ["lettuce:cut", "tomato:cut", "cucumber:cut"]},
+        {"text": "Premiešaj v miske {yogurt.amount} {yogurt.name}, {mustard.amount} {mustard.name}, štipku soli a čierne korenie.", "requires": ["yogurt:raw", "mustard:raw"], "produces": ["yogurt:sauce", "mustard:sauce"]},
+        {"text": "Priprav burgery: na spodnú polovicu každej žemle natri jogurtovú omáčku, polož rímsky šalát, burger, plátky paradajky a uhorky a prikry ich vrchnou polovicou žemle.", "requires": ["bun:toasted", "turkey:fried", "yogurt:sauce", "mustard:sauce", "lettuce:cut", "tomato:cut", "cucumber:cut"], "produces": ["bun:assembled", "turkey:assembled", "yogurt:assembled", "mustard:assembled", "lettuce:assembled", "tomato:assembled", "cucumber:assembled"]},
+        {"text": "Podávaj morčacie burgery so zvyšnou zeleninou a rozdeľ ich na {portions} porcií.", "requires": ["turkey:assembled", "bun:assembled", "crumbs:fried", "onion:fried", "garlic:fried", "parsley:fried", "oil:used", "lettuce:assembled", "tomato:assembled", "cucumber:assembled", "yogurt:assembled", "mustard:assembled"], "produces": ["turkey:served", "bun:served", "crumbs:served", "onion:served", "garlic:served", "parsley:served", "oil:served", "lettuce:served", "tomato:served", "cucumber:served", "yogurt:served", "mustard:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Opečené burgery, žemle, zeleninu a omáčku skladuj oddelene v uzavretých nádobách a burgery do 2 hodín odlož do chladničky. Zjedz ich do 2 dní; burger prehrej v panvici pod pokrievkou, kým bude celý horúci, a skladaj ho až tesne pred jedlom."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "turkey_burgers",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/domaci-morcaci-hamburger/622-recept.html", "title": "Domáci morčací hamburger - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/35901/morcacie-burgery/", "title": "Morčacie burgery | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

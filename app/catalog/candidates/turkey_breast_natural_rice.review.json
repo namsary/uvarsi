@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "24700f9d2f281a0ba94ddd4716f94fc9f5643ad33f5fe384c10607b7be003c26",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "turkey_breast_natural_rice"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

@@ -81,6 +81,7 @@ _PACKAGES: dict[str, Quantity] = {
     "tartar_sauce": Quantity(Decimal("250"), "g"),
     "tomato_paste": Quantity(Decimal("140"), "g"),
     "burger_bun": Quantity(Decimal("4"), "piece"),
+    "burger_bun": Quantity(Decimal("4"), "piece"),
     "parmesan": Quantity(Decimal("100"), "g"),
     "pita": Quantity(Decimal("4"), "piece"),
     "sour_cream": Quantity(Decimal("200"), "g"),

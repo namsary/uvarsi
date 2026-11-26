@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "8f57daa22020c505fa3f1e8ad1fe5d25bb84c8a7c03457a23bb75b84db87d506",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "fish_baked_salmon_potatoes_dill"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "5b03590813eba45b21c0e68e98476be5ba7943b2116f2b3ab84ab8e1359328e2",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "fish_baked_trout_potatoes"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

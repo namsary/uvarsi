@@ -102,6 +102,8 @@
     "sour_cream": {"genitive": "kyslej smotany", "instrumental": "kyslou smotanou"},
     "pita": {"genitive": "pita placiek", "instrumental": "pita plackami"},
     "burger_bun": {"genitive": "hamburgerových žemlí", "instrumental": "hamburgerovými žemľami"},
-    "sweet_corn": {"genitive": "sterilizovanej kukurice", "instrumental": "sterilizovanou kukuricou"}
+    "sweet_corn": {"genitive": "sterilizovanej kukurice", "instrumental": "sterilizovanou kukuricou"},
+    "trout": {"genitive": "pstruha", "instrumental": "pstruhom"},
+    "mackerel": {"genitive": "makrely", "instrumental": "makrelou"}
   }
 }

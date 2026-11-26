@@ -339,6 +339,45 @@ INGREDIENT_FORBIDDEN_OFFER_QUALIFIERS = MappingProxyType(
         "tomato_paste": frozenset(
             (("s",), ("so",), ("ochutený",), ("ochuteny",))
         ),
+        # A whole raw fish for baking; smoked, marinated, canned or filleted
+        # products have a different edible share or are already cooked.
+        "trout": frozenset(
+            (
+                ("údený",),
+                ("udeny",),
+                ("údené",),
+                ("udene",),
+                ("filety",),
+                ("filet",),
+                ("filé",),
+                ("file",),
+                ("marinovaný",),
+                ("marinovany",),
+                ("pečený",),
+                ("peceny",),
+                ("v",),
+            )
+        ),
+        "mackerel": frozenset(
+            (
+                ("údená",),
+                ("udena",),
+                ("údené",),
+                ("udene",),
+                ("filety",),
+                ("filet",),
+                ("filé",),
+                ("file",),
+                ("marinovaná",),
+                ("marinovana",),
+                ("pečená",),
+                ("pecena",),
+                ("v",),
+            )
+        ),
+        "burger_bun": frozenset(
+            (("bezlepkové",), ("bezlepkove",), ("bezlepková",), ("bezlepkova",))
+        ),
         # A plain block or grated parmesan; flavoured or mixed products differ.
         "parmesan": frozenset((("s",), ("so",))),
         # Plain sour cream only, not a flavoured dip.

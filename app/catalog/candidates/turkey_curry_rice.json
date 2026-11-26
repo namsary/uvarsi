@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "turkey_curry_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Morčacie kari s ryžou",
+      "family": "turkey_curry_rice",
+      "method": "pot",
+      "minutes": 45,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľký hrniec", "hrniec", "sitko", "pokrievka", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "turkey", "role": "protein", "candidates": ["turkey_breast"], "amount_per_adult": "170", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kocky veľké 2 centimetre", "water_ml_per_adult": "120"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "curry", "role": "seasoning", "candidates": ["curry_powder"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "peas", "role": "vegetable", "candidates": ["peas"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne. Potom ju nechaj 5 minút prikrytú postáť.", "requires": ["rice:rinsed"], "produces": ["rice:cooked"]},
+        {"text": "Nakrájaj {turkey.amount} {turkey.name} {turkey.cut}, {onion.amount} {onion.name} {onion.cut}, {garlic.amount} {garlic.name} {garlic.cut} a {parsley.amount} {parsley.name} {parsley.cut}. Mäso zľahka osoľ.", "requires": ["turkey:raw", "onion:raw", "garlic:raw", "parsley:raw"], "produces": ["turkey:cut", "onion:cut", "garlic:cut", "parsley:cut"]},
+        {"text": "Nalej {oil.amount} {oil.name} do veľkého hrnca. Opekaj cibuľu vo veľkom hrnci na strednom ohni 6 minút, kým bude dosklovita a mäkká. Pridaj cesnak a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["oil:raw", "onion:cut", "garlic:cut"], "produces": ["oil:used", "onion:cooked", "garlic:cooked"]},
+        {"text": "Vsyp {curry.amount} {curry.name} do hrnca. Opekaj karí korenie s cibuľou na miernom ohni 30 sekúnd za stáleho miešania, kým zavonia a cibuľa sa zlatisto zafarbí.", "requires": ["curry:raw"], "produces": ["curry:bloomed"]},
+        {"text": "Pridaj morčacie prsia do hrnca. Opekaj morčacie prsia na strednom ohni 3 minúty za stáleho miešania, kým kocky na povrchu stuhnú.", "requires": ["turkey:cut"], "produces": ["turkey:browned"]},
+        {"text": "Vmiešaj {paste.amount} {paste.name} a prilej {turkey.water} vody. Prikry hrniec a dus morčacie prsia v hrnci na miernom ohni 8 minút, kým omáčka začne jemne bublať a mäso v strede nebude ružové.", "requires": ["paste:raw", "turkey:browned", "curry:bloomed"], "produces": ["paste:cooked", "turkey:simmered", "curry:cooked"]},
+        {"text": "Pridaj {peas.amount} {peas.name} do hrnca. Var hrášok v omáčke na miernom ohni 4 minúty, kým zmäkne. Mrazený hrášok nerozmrazuj, daj ho do hrnca rovno z mrazničky.", "requires": ["peas:raw", "turkey:simmered"], "produces": ["peas:cooked", "turkey:cooked"]},
+        {"text": "Odstav hrniec z ohňa a nechaj ho 2 minúty postáť. V miske rozmiešaj {yogurt.amount} {yogurt.name} s dvoma lyžicami horúcej omáčky a potom ho zamiešaj do hrnca. Kari už nevar, aby sa jogurt nezrazil.", "requires": ["yogurt:raw"], "produces": ["yogurt:stirred"]},
+        {"text": "Dochuť kari soľou a čiernym korením. Podávaj ho s ryžou, ozdob ho petržlenovou vňaťou a rozdeľ jedlo na {portions} porcií.", "requires": ["turkey:cooked", "rice:cooked", "onion:cooked", "garlic:cooked", "oil:used", "curry:cooked", "paste:cooked", "peas:cooked", "yogurt:stirred", "parsley:cut"], "produces": ["turkey:served", "rice:served", "onion:served", "garlic:served", "oil:served", "curry:served", "paste:served", "peas:served", "yogurt:served", "parsley:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Kari a ryžu rozdeľ do plytkých nádob, do jednej hodiny ich schlaď a odlož do chladničky. Zjedz ich do 3 dní; kari prehrievaj na miernom ohni len kým je horúce, nevar ho, a ryžu ohrievaj iba raz."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "turkey_curry_rice",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/morcacie-kari/60391-recept.html", "title": "Morčacie kari - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/41020/fotorecept-morcacie-kari-so-zeleninkou/", "title": "FOTORECEPT: Morčacie karí so zeleninkou | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

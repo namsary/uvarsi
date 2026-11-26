@@ -507,3 +507,59 @@ def test_wave2_batch2_ingredient_states_stay_distinct():
     assert catalog.by_id("pita").grams_per_piece == Decimal("80")
     assert catalog.by_id("burger_bun").grams_per_piece == Decimal("75")
     assert "vegetarian" not in {tag.value for tag in catalog.by_id("parmesan").diet_tags}
+
+
+# Wave 2, batch 3: whole fish for baking and plain burger buns.
+WAVE2_FISH_TURKEY_FDC_IDS = {
+    "burger_bun": "172796",
+    "mackerel": "175119",
+    "trout": "173717",
+}
+
+WAVE2_FISH_TURKEY_RENDER_FORMS = {
+    "burger_bun": (
+        "hamburgerových žemlí",
+        "hamburgerové žemle",
+        "hamburgerových žemlí",
+        "hamburgerovými žemľami",
+    ),
+    "mackerel": ("celých makrel", "makrely", "makrely", "makrelou"),
+    "trout": ("celých pstruhov", "pstruhy", "pstruha", "pstruhom"),
+}
+
+
+def test_wave2_fish_and_bun_ingredients_use_exact_sr_legacy_records():
+    catalog = load_ingredient_catalog()
+
+    for ingredient_id, fdc_id in WAVE2_FISH_TURKEY_FDC_IDS.items():
+        ingredient = catalog.by_id(ingredient_id)
+        source = ingredient.nutrition.source
+        assert "USDA FoodData Central SR Legacy (April 2018)" in source
+        assert f"FDC ID {fdc_id}," in source
+        assert "https://fdc.nal.usda.gov/download-datasets/" in source
+        assert ingredient.nutrition.verified_on == date(2026, 11, 26)
+
+
+def test_wave2_fish_and_bun_ingredients_render_slovak_forms():
+    title_forms = _slovak_title_forms()
+
+    for ingredient_id, expected in WAVE2_FISH_TURKEY_RENDER_FORMS.items():
+        quantity, reference, genitive, instrumental = expected
+        assert _QUANTITY_NAMES[ingredient_id] == quantity
+        assert _REFERENCE_NAMES[ingredient_id] == reference
+        assert title_forms[ingredient_id] == {
+            "genitive": genitive,
+            "instrumental": instrumental,
+        }
+
+
+def test_whole_fish_are_distinct_from_fillets():
+    catalog = load_ingredient_catalog()
+
+    assert catalog.resolve("pstruh dúhový").id == "trout"
+    assert catalog.resolve("makrela").id == "mackerel"
+    assert catalog.resolve("treska").id == "white_fish"
+    assert catalog.resolve("filet z lososa").id == "salmon"
+    assert catalog.by_id("trout").edible_ratio == Decimal("0.55")
+    assert catalog.by_id("mackerel").edible_ratio == Decimal("0.55")
+    assert catalog.by_id("burger_bun").grams_per_piece == Decimal("75")

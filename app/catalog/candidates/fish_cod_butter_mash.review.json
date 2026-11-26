@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "d8c2c5bf300de1489f043605e474e5f91d29bac6a0d53184823b2752f8a9c889",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "fish_cod_butter_mash"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

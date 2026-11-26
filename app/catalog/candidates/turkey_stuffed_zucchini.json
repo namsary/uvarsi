@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "turkey_stuffed_zucchini",
+      "version": 2,
+      "active": true,
+      "name_template": "Cukety plnené morčacím mäsom",
+      "family": "turkey_stuffed_zucchini",
+      "method": "oven",
+      "minutes": 60,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["rúra", "pekáč", "alobal", "miska", "lyžička", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "turkey", "role": "protein", "candidates": ["turkey_mince"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "zucchini", "role": "vegetable", "candidates": ["zucchini"], "amount_per_adult": "300", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "pozdĺžne na polovice", "water_ml_per_adult": "50"},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oregano", "role": "seasoning", "candidates": ["oregano"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 200 °C.", "requires": [], "produces": []},
+        {"text": "Nakrájaj {zucchini.amount} {zucchini.name} {zucchini.cut}. Lyžičkou z polovíc vydlab dužinu so semienkami tak, aby ostali steny hrubé asi 1 centimeter. Dužinu nasekaj nadrobno.", "requires": ["zucchini:raw"], "produces": ["zucchini:hollowed"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut}, {garlic.amount} {garlic.name} {garlic.cut} a {tomato.amount} {tomato.name} {tomato.cut}. Nastrúhaj {cheese.amount} {cheese.name}.", "requires": ["onion:raw", "garlic:raw", "tomato:raw", "cheese:raw"], "produces": ["onion:cut", "garlic:cut", "tomato:cut", "cheese:grated"]},
+        {"text": "Premiešaj v miske {turkey.amount} {turkey.name}, nasekanú dužinu z cukiet, cibuľu, cesnak, {oregano.amount} {oregano.name}, soľ a čierne korenie.", "requires": ["turkey:raw", "onion:cut", "garlic:cut", "oregano:raw"], "produces": ["turkey:filling", "onion:filling", "garlic:filling", "oregano:filling"]},
+        {"text": "Premiešaj v pekáči paradajky, {paste.amount} {paste.name}, {zucchini.water} vody a štipku soli.", "requires": ["tomato:cut", "paste:raw"], "produces": ["tomato:sauce", "paste:sauce"]},
+        {"text": "Rozlož polovice cukety do pekáča reznou stranou nahor a naplň ich mäsovou zmesou. Zmes jemne pritlač.", "requires": ["zucchini:hollowed", "turkey:filling", "onion:filling", "garlic:filling", "oregano:filling"], "produces": ["zucchini:stuffed", "turkey:stuffed", "onion:stuffed", "garlic:stuffed", "oregano:stuffed"]},
+        {"text": "Prikry pekáč alobalom. Peč cukety v pekáči pri 200 °C 25 minút, kým cuketa zmäkne.", "requires": ["zucchini:stuffed", "turkey:stuffed", "tomato:sauce", "paste:sauce", "onion:stuffed", "garlic:stuffed", "oregano:stuffed"], "produces": ["zucchini:baked", "turkey:baked", "tomato:baked", "paste:baked", "onion:baked", "garlic:baked", "oregano:baked"]},
+        {"text": "Odokry pekáč a syr rozsyp na plnku. Peč cukety pri 200 °C ešte 12 minút, kým syr zozlatne, mäso bude prepečené a omáčka bude bublať.", "requires": ["cheese:grated", "zucchini:baked"], "produces": ["cheese:baked", "zucchini:gratinated"]},
+        {"text": "Nakrájaj {bread.amount} {bread.name} na krajce.", "requires": ["bread:raw"], "produces": ["bread:sliced"]},
+        {"text": "Podávaj plnené cukety s paradajkovou omáčkou z pekáča a chlebom. Jedlo rozdeľ na {portions} porcií.", "requires": ["turkey:baked", "zucchini:gratinated", "bread:sliced", "onion:baked", "garlic:baked", "tomato:baked", "paste:baked", "oregano:baked", "cheese:baked"], "produces": ["turkey:served", "zucchini:served", "bread:served", "onion:served", "garlic:served", "tomato:served", "paste:served", "oregano:served", "cheese:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Vychladnuté cukety s omáčkou ulož do plytkých uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní a prehrej ich prikryté v rúre, kým bude plnka celá horúca. Chlieb skladuj oddelene."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "turkey_stuffed_zucchini",
+    "editorial_lane": "high_protein",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/cuketa-plnena-mletym-masom-fotorecept/59937-recept.html", "title": "Cuketa plnená mletým mäsom (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/1533/cuketa-plnena-mletym-masom/", "title": "Cuketa plnená mletým mäsom | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "f0ceca06b4fbfd38fc9c7c30345c5c3b9a85b261a93eb66d55d57b55c669ba59",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "fish_salmon_teriyaki_rice"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

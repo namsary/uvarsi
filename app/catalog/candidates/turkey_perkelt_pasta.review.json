@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "223a68718b70824932acfdc15691831d74a43582e2934dc0344fdd1105fb4c2e",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "turkey_perkelt_pasta"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}
