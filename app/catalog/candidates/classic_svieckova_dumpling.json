@@ -1,0 +1,55 @@
+{
+  "recipes": [
+    {
+      "id": "classic_svieckova_dumpling",
+      "version": 2,
+      "active": true,
+      "name_template": "Sviečková na smotane s knedľou",
+      "family": "classic_svieckova_dumpling",
+      "method": "pot",
+      "minutes": 150,
+      "modes": ["standard"],
+      "equipment": ["hrniec s hrubým dnom", "malý hrniec", "sitko", "miska", "ponorný mixér", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "beef", "role": "protein", "candidates": ["beef_round"], "amount_per_adult": "160", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "220"},
+        {"key": "bacon", "role": "protein", "candidates": ["bacon"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "celeriac", "role": "vegetable", "candidates": ["celeriac"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bay", "role": "seasoning", "candidates": ["bay_leaf"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "allspice", "role": "seasoning", "candidates": ["allspice"], "amount_per_adult": "0.75", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "cream", "role": "dairy", "candidates": ["cream"], "amount_per_adult": "80", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "lemon", "role": "seasoning", "candidates": ["lemon"], "amount_per_adult": "0.15", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "dumpling", "role": "starch", "candidates": ["bread_dumpling"], "amount_per_adult": "130", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": "na plátky"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {carrot.amount} {carrot.name} a {celeriac.amount} {celeriac.name} a nakrájaj ich na menšie kúsky. Nakrájaj {onion.amount} {onion.name} {onion.cut} a {bacon.amount} {bacon.name} {bacon.cut}.", "requires": ["carrot:raw", "celeriac:raw", "onion:raw", "bacon:raw"], "produces": ["carrot:cut", "celeriac:cut", "onion:cut", "bacon:cut"]},
+        {"text": "Osuš {beef.amount} {beef.name} papierovou utierkou a zo všetkých strán ho osoľ a okoreň. Väčšie množstvo mäsa rozdeľ na kusy s hmotnosťou asi 800 gramov.", "requires": ["beef:raw"], "produces": ["beef:seasoned"]},
+        {"text": "Opekaj slaninu v hrnci s hrubým dnom na strednom ohni 4 minúty, kým pustí tuk. Pridaj {oil.amount} {oil.name}. Vlož hovädzie zadné bez kosti do hrnca. Opekaj hovädzie zadné bez kosti na silnom ohni 8 minút a obracaj ho, kým bude zo všetkých strán zlatisté. Mäso vyber na tanier.", "requires": ["bacon:cut", "oil:raw", "beef:seasoned"], "produces": ["bacon:cooked", "oil:used", "beef:browned"]},
+        {"text": "Pridaj mrkvu, zeler a cibuľu do hrnca. Opekaj mrkvu so zelerom a cibuľou na strednom ohni 8 minút, kým zmäknú a jemne zozlatnú.", "requires": ["carrot:cut", "celeriac:cut", "onion:cut", "bacon:cooked", "oil:used"], "produces": ["carrot:cooked", "celeriac:cooked", "onion:cooked"]},
+        {"text": "Vráť hovädzie zadné bez kosti do hrnca. Pridaj {bay.amount} {bay.name} a {allspice.amount} {allspice.name} a prilej {beef.water} vody. Prikry hrniec a dus hovädzie zadné bez kosti na miernom ohni 100 minút, kým mäso zmäkne. V polovici ho obráť a podľa potreby dolej trochu vody.", "requires": ["beef:browned", "bay:raw", "allspice:raw", "carrot:cooked", "celeriac:cooked", "onion:cooked"], "produces": ["beef:tender", "bay:cooked", "allspice:cooked", "carrot:braised", "celeriac:braised", "onion:braised"]},
+        {"text": "Vyber hovädzie zadné bez kosti na dosku a prikry ho, aby neoschlo. Z omáčky vylov bobkový list a nové korenie. Zeleninu so šťavou rozmixuj v hrnci ponorným mixérom dohladka.", "requires": ["beef:tender", "bay:cooked", "allspice:cooked", "carrot:braised", "celeriac:braised", "onion:braised"], "produces": ["beef:rested", "bay:removed", "allspice:removed", "carrot:pureed", "celeriac:pureed", "onion:pureed"]},
+        {"text": "Premiešaj {cream.amount} {cream.name} a {flour.amount} {flour.name} v miske dohladka, bez hrudiek. Vlej smotanu na varenie do hrnca. Omáčku za stáleho miešania var v hrnci na miernom ohni 6 minút, kým zhustne a začne bublať.", "requires": ["flour:raw", "cream:raw", "carrot:pureed", "celeriac:pureed", "onion:pureed"], "produces": ["flour:cooked", "cream:cooked", "carrot:sauce", "celeriac:sauce", "onion:sauce"]},
+        {"text": "Prisyp {sugar.amount} {sugar.name} do hrnca. Rozkroj {lemon.amount} {lemon.name} a do omáčky vytlač šťavu podľa chuti, aby bola jemne sladkokyslá. Dochuť ju soľou a čiernym korením.", "requires": ["sugar:raw", "lemon:raw", "carrot:sauce", "cream:cooked"], "produces": ["sugar:cooked", "lemon:cooked"]},
+        {"text": "Nakrájaj hovädzie zadné bez kosti naprieč vláknami na plátky hrubé asi 1 cm. Vráť plátky do omáčky a zohrievaj ich v hrnci na miernom ohni 3 minúty, kým omáčka opäť začne bublať.", "requires": ["beef:rested", "carrot:sauce"], "produces": ["beef:cooked"]},
+        {"text": "Nakrájaj {dumpling.amount} {dumpling.name} na plátky hrubé asi 1,5 cm.", "requires": ["dumpling:raw"], "produces": ["dumpling:cut"]},
+        {"text": "Priveď asi 3 cm vody v malom hrnci na silnom ohni do varu. Polož plátky knedle do sitka nad vriacu vodu, prikry pokrievkou a zohrievaj knedľu na pare na strednom ohni 3 minúty, kým bude mäkká a horúca.", "requires": ["dumpling:cut"], "produces": ["dumpling:prepared"]},
+        {"text": "Podávaj sviečkovú s plátkami mäsa a knedľou a rozdeľ jedlo na {portions} porcií.", "requires": ["beef:cooked", "bacon:cooked", "carrot:sauce", "celeriac:sauce", "onion:sauce", "oil:used", "bay:removed", "allspice:removed", "flour:cooked", "cream:cooked", "sugar:cooked", "lemon:cooked", "dumpling:prepared"], "produces": ["beef:served", "bacon:served", "carrot:served", "celeriac:served", "onion:served", "oil:served", "bay:served", "allspice:served", "flour:served", "cream:served", "sugar:served", "lemon:served", "dumpling:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Sviečkovú s mäsom rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 3 dní. Knedľu skladuj oddelene a pred podávaním ju zohrej na pare."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_svieckova_dumpling",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/najlepsia-svieckova-na-smotane-s-mnozstvom-zeleniny-videorecept/77351-recept.html", "title": "Najlepšia sviečková na smotane s množstvom zeleniny (videorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/26098/svieckova-na-smotane/", "title": "Sviečková na smotane | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

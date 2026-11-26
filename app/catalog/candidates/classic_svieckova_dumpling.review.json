@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "07343d146faeaafc1bf66d3732982c017573e15b68d29ee1a46f385c26a358fe",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_svieckova_dumpling"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

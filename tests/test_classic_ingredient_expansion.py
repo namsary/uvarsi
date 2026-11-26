@@ -332,3 +332,111 @@ def test_new_ingredients_render_literal_slovak_quantity_reference_and_title_form
             "genitive": genitive,
             "instrumental": instrumental,
         }
+
+
+WAVE2_USDA_FDC_IDS = {
+    "allspice": "171315",
+    "bay_leaf": "170917",
+    "beef_round": "173982",
+    "breadcrumbs": "174928",
+    "caraway": "170918",
+    "celeriac": "170400",
+    "chicken_whole": "171447",
+    "mayonnaise": "171009",
+    "mustard": "172234",
+    "pickled_cucumber": "168558",
+    "poppy_seed": "171330",
+    "tartar_sauce": "171826",
+    "tomato_paste": "170459",
+}
+
+WAVE2_RENDER_FORMS = {
+    "allspice": (
+        "celého nového korenia",
+        "celé nové korenie",
+        "celého nového korenia",
+        "celým novým korením",
+    ),
+    "bay_leaf": ("bobkového listu", "bobkový list", "bobkového listu", "bobkovým listom"),
+    "beef_round": (
+        "hovädzieho zadného bez kosti",
+        "hovädzie zadné bez kosti",
+        "hovädzieho zadného bez kosti",
+        "hovädzím zadným bez kosti",
+    ),
+    "breadcrumbs": (
+        "pšeničnej strúhanky",
+        "pšeničnú strúhanku",
+        "pšeničnej strúhanky",
+        "pšeničnou strúhankou",
+    ),
+    "caraway": ("celej rasce", "celú rascu", "celej rasce", "celou rascou"),
+    "celeriac": ("zeleru", "zeler", "zeleru", "zelerom"),
+    "chicken_whole": ("celého kurčaťa", "celé kurča", "celého kurčaťa", "celým kurčaťom"),
+    "mayonnaise": ("majonézy", "majonézu", "majonézy", "majonézou"),
+    "mustard": (
+        "plnotučnej horčice",
+        "plnotučnú horčicu",
+        "plnotučnej horčice",
+        "plnotučnou horčicou",
+    ),
+    "pickled_cucumber": (
+        "sterilizovaných uhoriek",
+        "sterilizované uhorky",
+        "sterilizovaných uhoriek",
+        "sterilizovanými uhorkami",
+    ),
+    "poppy_seed": ("mletého maku", "mletý mak", "mletého maku", "mletým makom"),
+    "tartar_sauce": (
+        "tatárskej omáčky",
+        "tatársku omáčku",
+        "tatárskej omáčky",
+        "tatárskou omáčkou",
+    ),
+    "tomato_paste": (
+        "paradajkového pretlaku",
+        "paradajkový pretlak",
+        "paradajkového pretlaku",
+        "paradajkovým pretlakom",
+    ),
+}
+
+
+def test_wave2_ingredients_use_exact_sr_legacy_records():
+    catalog = load_ingredient_catalog()
+
+    for ingredient_id, fdc_id in WAVE2_USDA_FDC_IDS.items():
+        ingredient = catalog.by_id(ingredient_id)
+        source = ingredient.nutrition.source
+        assert "USDA FoodData Central SR Legacy (April 2018)" in source
+        assert f"FDC ID {fdc_id}," in source
+        assert "https://fdc.nal.usda.gov/download-datasets/" in source
+        assert ingredient.nutrition.verified_on == date(2026, 11, 26)
+
+
+def test_wave2_ingredients_render_slovak_forms():
+    title_forms = _slovak_title_forms()
+
+    for ingredient_id, expected in WAVE2_RENDER_FORMS.items():
+        quantity, reference, genitive, instrumental = expected
+        assert _QUANTITY_NAMES[ingredient_id] == quantity
+        assert _REFERENCE_NAMES[ingredient_id] == reference
+        assert title_forms[ingredient_id] == {
+            "genitive": genitive,
+            "instrumental": instrumental,
+        }
+
+
+def test_wave2_ingredient_states_stay_distinct():
+    catalog = load_ingredient_catalog()
+
+    assert catalog.resolve("kyslé uhorky").id == "pickled_cucumber"
+    assert catalog.resolve("uhorka").id == "cucumber"
+    assert catalog.resolve("hovädzie zadné").id == "beef_round"
+    assert catalog.resolve("hovädzie na guláš").id == "beef_chuck"
+    assert catalog.resolve("celé kurča").id == "chicken_whole"
+    assert catalog.resolve("kuracie stehná").id == "chicken_thigh"
+    assert catalog.by_id("chicken_whole").edible_ratio == Decimal("0.68")
+    assert catalog.by_id("celeriac").edible_ratio == Decimal("0.86")
+    assert catalog.by_id("bay_leaf").grams_per_piece == Decimal("0.2")
+    assert catalog.by_id("pickled_cucumber").grams_per_piece == Decimal("35")

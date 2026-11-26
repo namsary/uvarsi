@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "1b64d3e7f0890132eff5c71fc16ac4646a72d2a325c1c8d212403e4cb1b33d84",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "classic_poppy_seed_potato_rolls"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

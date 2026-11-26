@@ -242,6 +242,103 @@ INGREDIENT_FORBIDDEN_OFFER_QUALIFIERS = MappingProxyType(
                 ("kysla",),
             )
         ),
+        # Plain dry breadcrumbs only; gluten-free, corn or seasoned crumbs
+        # behave and taste differently in a classic breading.
+        "breadcrumbs": frozenset(
+            (
+                ("bezlepková",),
+                ("bezlepkova",),
+                ("kukuričná",),
+                ("kukuricna",),
+                ("ochutená",),
+                ("ochutena",),
+                ("korenená",),
+                ("korenena",),
+                ("s",),
+                ("so",),
+            )
+        ),
+        # A plain roasting chicken, not a ready-cooked or marinated one.
+        "chicken_whole": frozenset(
+            (
+                ("grilované",),
+                ("grilovane",),
+                ("pečené",),
+                ("pecene",),
+                ("údené",),
+                ("udene",),
+                ("marinované",),
+                ("marinovane",),
+                ("bbq",),
+            )
+        ),
+        "beef_round": frozenset(
+            (
+                ("s", "kosťou"),
+                ("s", "kostou"),
+                ("mleté",),
+                ("mlete",),
+                ("údené",),
+                ("udene",),
+                ("sušené",),
+                ("susene",),
+            )
+        ),
+        # Root celery only; stalk celery and leaves are a different vegetable.
+        "celeriac": frozenset(
+            (
+                ("stopkový",),
+                ("stopkovy",),
+                ("vňať",),
+                ("vnat",),
+                ("listový",),
+                ("listovy",),
+            )
+        ),
+        "mayonnaise": frozenset(
+            (
+                ("light",),
+                ("ľahká",),
+                ("lahka",),
+                ("vegánska",),
+                ("veganska",),
+                ("s",),
+                ("so",),
+            )
+        ),
+        "mustard": frozenset(
+            (
+                ("s",),
+                ("so",),
+                ("sladká",),
+                ("sladka",),
+                ("medová",),
+                ("medova",),
+            )
+        ),
+        "pickled_cucumber": frozenset(
+            (
+                ("s",),
+                ("so",),
+                ("pálivé",),
+                ("palive",),
+            )
+        ),
+        # Ground blue poppy for a filling or topping; sugared or ready
+        # fillings are a different product.
+        "poppy_seed": frozenset(
+            (
+                ("s",),
+                ("so",),
+                ("náplň",),
+                ("naplň",),
+                ("napln",),
+            )
+        ),
+        "tartar_sauce": frozenset((("light",), ("s",), ("so",))),
+        "tomato_paste": frozenset(
+            (("s",), ("so",), ("ochutený",), ("ochuteny",))
+        ),
     }
 )
 

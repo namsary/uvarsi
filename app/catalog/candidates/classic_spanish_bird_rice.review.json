@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "ae33141a0fb212747691117fe23ae8d40a3ee5f07d02a6ce1996326c98d60e42",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_spanish_bird_rice"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

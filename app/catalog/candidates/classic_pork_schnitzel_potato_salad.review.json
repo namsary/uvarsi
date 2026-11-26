@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "a35bfae5eb387488ed88e21214a9f7239c351d6cdf1e4bfdd2703dec7eb608b7",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "classic_pork_schnitzel_potato_salad"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

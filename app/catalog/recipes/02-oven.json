@@ -4870,6 +4870,548 @@
         "refrigerated_days": 3,
         "instruction": "Jedlo rozdeľ do plytkých uzatvárateľných nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní a pri ohrievaní ho dôkladne prehrej."
       }
+    },
+    {
+      "id": "classic_pork_cabbage_dumpling",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené bravčové s dusenou kapustou a knedľou",
+      "family": "classic_pork_cabbage_dumpling",
+      "method": "oven",
+      "minutes": 135,
+      "modes": [
+        "standard"
+      ],
+      "equipment": [
+        "rúra",
+        "pekáč s pokrievkou",
+        "hrniec",
+        "malý hrniec",
+        "sitko",
+        "miska",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "pork",
+          "role": "protein",
+          "candidates": [
+            "pork_shoulder"
+          ],
+          "amount_per_adult": "180",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na kusy veľké ako päsť",
+          "water_ml_per_adult": "80"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "caraway",
+          "role": "seasoning",
+          "candidates": [
+            "caraway"
+          ],
+          "amount_per_adult": "1.5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na mesiačiky"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "10",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "kraut",
+          "role": "vegetable",
+          "candidates": [
+            "sauerkraut"
+          ],
+          "amount_per_adult": "160",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null,
+          "water_ml_per_adult": "100"
+        },
+        {
+          "key": "sugar",
+          "role": "seasoning",
+          "candidates": [
+            "sugar"
+          ],
+          "amount_per_adult": "8",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "8",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "dumpling",
+          "role": "starch",
+          "candidates": [
+            "bread_dumpling"
+          ],
+          "amount_per_adult": "130",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": "na plátky"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 180 °C.",
+          "requires": [
+            "rura:free"
+          ],
+          "produces": [
+            "rura:hot"
+          ]
+        },
+        {
+          "text": "Nakrájaj {pork.amount} {pork.name} {pork.cut}, {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} {garlic.cut}.",
+          "requires": [
+            "pork:raw",
+            "onion:raw",
+            "garlic:raw"
+          ],
+          "produces": [
+            "pork:cut",
+            "onion:cut",
+            "garlic:cut"
+          ]
+        },
+        {
+          "text": "Priprav si {caraway.amount} {caraway.name} a polovicu odlož na kapustu. Premiešaj v miske cesnak, zvyšnú rascu, soľ a čierne korenie a touto zmesou mäso zo všetkých strán pošúchaj.",
+          "requires": [
+            "caraway:raw",
+            "pork:cut",
+            "garlic:cut"
+          ],
+          "produces": [
+            "caraway:split",
+            "pork:seasoned",
+            "garlic:used"
+          ]
+        },
+        {
+          "text": "Rozlož polovicu cibule do pekáča a polož na ňu bravčové pliecko bez kosti. Prilej {pork.water} vody.",
+          "requires": [
+            "pork:seasoned",
+            "onion:cut"
+          ],
+          "produces": [
+            "pork:pan",
+            "onion:split"
+          ]
+        },
+        {
+          "text": "Prikry pekáč a peč bravčové pliecko bez kosti v rúre pri 180 °C 75 minút, kým zmäkne. Potom pekáč odokry, mäso polej výpekom a peč ho ešte 25 minút, kým bude povrch zlatistý. Ak výpek vyschne, dolej trochu vody.",
+          "requires": [
+            "pork:pan",
+            "garlic:used",
+            "rura:hot"
+          ],
+          "produces": [
+            "pork:roasted",
+            "garlic:roasted"
+          ]
+        },
+        {
+          "text": "Prepláchni {kraut.amount} {kraut.name} krátko studenou vodou, ak je veľmi kyslá, a nechaj ju odkvapkať.",
+          "requires": [
+            "kraut:raw"
+          ],
+          "produces": [
+            "kraut:rinsed"
+          ]
+        },
+        {
+          "text": "Rozohrej {oil.amount} {oil.name} v hrnci na strednom ohni 2 minúty, kým sa začne lesknúť. Prisyp {sugar.amount} {sugar.name}. Cukor nechaj 2 minúty karamelizovať, kým zozlatne. Pridaj cibuľu a opekaj ju 4 minúty.",
+          "requires": [
+            "oil:raw",
+            "sugar:raw",
+            "onion:split"
+          ],
+          "produces": [
+            "oil:used",
+            "sugar:caramel",
+            "onion:cooked"
+          ]
+        },
+        {
+          "text": "Pridaj kyslú kapustu do hrnca. Zamiešaj do nej odloženú rascu a prilej {kraut.water} vody. Prikry hrniec a dus kyslú kapustu v hrnci na miernom ohni 40 minút, kým zmäkne.",
+          "requires": [
+            "kraut:rinsed",
+            "caraway:split",
+            "sugar:caramel",
+            "onion:cooked"
+          ],
+          "produces": [
+            "kraut:stewed",
+            "caraway:cooked"
+          ]
+        },
+        {
+          "text": "Premiešaj {flour.amount} {flour.name} v miske s trochou studenej vody na hladkú kašu. Kašu premiešaj s kapustou v hrnci a var ju na miernom ohni 5 minút, kým šťava zhustne a začne bublať. Dochuť kapustu soľou a podľa chuti cukrom, aby bola sladkokyslá.",
+          "requires": [
+            "flour:raw",
+            "kraut:stewed"
+          ],
+          "produces": [
+            "flour:cooked",
+            "kraut:cooked"
+          ]
+        },
+        {
+          "text": "Nakrájaj {dumpling.amount} {dumpling.name} na plátky hrubé asi 1,5 cm.",
+          "requires": [
+            "dumpling:raw"
+          ],
+          "produces": [
+            "dumpling:cut"
+          ]
+        },
+        {
+          "text": "Priveď asi 3 cm vody v malom hrnci na silnom ohni do varu. Polož plátky knedle do sitka nad vriacu vodu, prikry pokrievkou a zohrievaj knedľu na pare na strednom ohni 3 minúty, kým bude mäkká a horúca.",
+          "requires": [
+            "dumpling:cut"
+          ],
+          "produces": [
+            "dumpling:prepared"
+          ]
+        },
+        {
+          "text": "Nakrájaj upečené bravčové pliecko bez kosti na plátky. Podávaj ho s dusenou kapustou a knedľou, polej výpekom a rozdeľ jedlo na {portions} porcií.",
+          "requires": [
+            "pork:roasted",
+            "garlic:roasted",
+            "caraway:cooked",
+            "onion:cooked",
+            "oil:used",
+            "kraut:cooked",
+            "sugar:caramel",
+            "flour:cooked",
+            "dumpling:prepared"
+          ],
+          "produces": [
+            "pork:served",
+            "garlic:served",
+            "caraway:served",
+            "onion:served",
+            "oil:served",
+            "kraut:served",
+            "sugar:served",
+            "flour:served",
+            "dumpling:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 3,
+        "instruction": "Mäso s výpekom a kapustu rozdeľ do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 3 dní. Knedľu skladuj oddelene a pred podávaním ju zohrej na pare."
+      }
+    },
+    {
+      "id": "classic_roast_chicken_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Pečené kura so zemiakmi",
+      "family": "classic_roast_chicken_potatoes",
+      "method": "oven",
+      "minutes": 105,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "rúra",
+        "pekáč",
+        "miska",
+        "nôž",
+        "doska na krájanie",
+        "papierová utierka"
+      ],
+      "slots": [
+        {
+          "key": "chicken",
+          "role": "protein",
+          "candidates": [
+            "chicken_whole"
+          ],
+          "amount_per_adult": "350",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null,
+          "water_ml_per_adult": "60"
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na mesiačiky"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "10",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": [
+            "paprika_powder"
+          ],
+          "amount_per_adult": "2",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "caraway",
+          "role": "seasoning",
+          "candidates": [
+            "caraway"
+          ],
+          "amount_per_adult": "1",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "parsley",
+          "role": "seasoning",
+          "candidates": [
+            "parsley"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 190 °C.",
+          "requires": [
+            "rura:free"
+          ],
+          "produces": [
+            "rura:hot"
+          ]
+        },
+        {
+          "text": "Osuš {chicken.amount} {chicken.name} papierovou utierkou zvonka aj zvnútra.",
+          "requires": [
+            "chicken:raw"
+          ],
+          "produces": [
+            "chicken:dry"
+          ]
+        },
+        {
+          "text": "Nakrájaj {garlic.amount} {garlic.name} {garlic.cut}. Premiešaj v miske {oil.amount} {oil.name}, cesnak, {paprika.amount} {paprika.name}, {caraway.amount} {caraway.name}, soľ a čierne korenie. Dve tretiny zmesi natri na kurča zvonka aj zvnútra.",
+          "requires": [
+            "garlic:raw",
+            "oil:raw",
+            "paprika:raw",
+            "caraway:raw",
+            "chicken:dry"
+          ],
+          "produces": [
+            "garlic:mixed",
+            "oil:mixed",
+            "paprika:mixed",
+            "caraway:mixed",
+            "chicken:seasoned"
+          ]
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}. Rozlož zemiaky do pekáča, osoľ ich a premiešaj so zvyškom koreninovej zmesi.",
+          "requires": [
+            "potato:raw"
+          ],
+          "produces": [
+            "potato:pan"
+          ]
+        },
+        {
+          "text": "Prilej {chicken.water} vody do pekáča. Celé kurča polož prsiami nahor na zemiaky.",
+          "requires": [
+            "chicken:seasoned",
+            "potato:pan"
+          ],
+          "produces": [
+            "chicken:pan"
+          ]
+        },
+        {
+          "text": "Peč celé kurča so zemiakmi v rúre pri 190 °C 80 minút, kým koža zozlatne, zemiaky zmäknú a po prepichnutí stehna pri kosti vyteká číra šťava. Počas pečenia kurča dvakrát polej výpekom. Ak koža tmavne príliš rýchlo, prikry ho alobalom.",
+          "requires": [
+            "chicken:pan",
+            "potato:pan",
+            "garlic:mixed",
+            "oil:mixed",
+            "paprika:mixed",
+            "caraway:mixed",
+            "rura:hot"
+          ],
+          "produces": [
+            "chicken:roasted",
+            "potato:roasted",
+            "garlic:roasted",
+            "oil:roasted",
+            "paprika:roasted",
+            "caraway:roasted"
+          ]
+        },
+        {
+          "text": "Nakrájaj {parsley.amount} {parsley.name} {parsley.cut}.",
+          "requires": [
+            "parsley:raw"
+          ],
+          "produces": [
+            "parsley:cut"
+          ]
+        },
+        {
+          "text": "Nechaj kurča 10 minút odpočívať, potom ho nakrájaj na porcie a zemiaky ozdob nasekanou petržlenovou vňaťou.",
+          "requires": [
+            "chicken:roasted",
+            "parsley:cut"
+          ],
+          "produces": [
+            "chicken:carved",
+            "parsley:used"
+          ]
+        },
+        {
+          "text": "Podávaj pečené kurča so zemiakmi, polej ich výpekom z pekáča a rozdeľ jedlo na {portions} porcií.",
+          "requires": [
+            "chicken:carved",
+            "potato:roasted",
+            "garlic:roasted",
+            "oil:roasted",
+            "paprika:roasted",
+            "caraway:roasted",
+            "parsley:used"
+          ],
+          "produces": [
+            "chicken:served",
+            "potato:served",
+            "garlic:served",
+            "oil:served",
+            "paprika:served",
+            "caraway:served",
+            "parsley:served"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Zvyšné kurča obral z kostí, ulož ho so zemiakmi do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní a prehrej v rúre, kým budú celé horúce."
+      }
     }
   ]
 }

@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "cf5fcd68b7de3a9703316a46781eaffa1601bfd5491ac74180bb13d661581d70",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_stuffed_cabbage_rolls"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

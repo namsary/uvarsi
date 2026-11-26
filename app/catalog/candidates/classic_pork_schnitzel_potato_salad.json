@@ -1,0 +1,55 @@
+{
+  "recipes": [
+    {
+      "id": "classic_pork_schnitzel_potato_salad",
+      "version": 2,
+      "active": true,
+      "name_template": "Vyprážaný bravčový rezeň so zemiakovým šalátom",
+      "family": "classic_pork_schnitzel_potato_salad",
+      "method": "pan",
+      "minutes": 85,
+      "modes": ["standard"],
+      "equipment": ["veľký hrniec", "misa", "tri taniere", "veľká panvica", "nôž", "doska na krájanie", "palička na mäso", "potravinová fólia", "papierová utierka"],
+      "slots": [
+        {"key": "pork", "role": "protein", "candidates": ["pork_loin"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky hrubé 1 cm"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.5", "unit": "piece", "child_factor": "0.75", "required": true, "use": "addition", "cut": null},
+        {"key": "crumbs", "role": "starch", "candidates": ["breadcrumbs"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "25", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "v šupke"},
+        {"key": "carrot", "role": "vegetable", "candidates": ["carrot"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "celeriac", "role": "vegetable", "candidates": ["celeriac"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "pickles", "role": "vegetable", "candidates": ["pickled_cucumber"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na malé kocky"},
+        {"key": "mayo", "role": "fat", "candidates": ["mayonnaise"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "mustard", "role": "seasoning", "candidates": ["mustard"], "amount_per_adult": "5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {carrot.amount} {carrot.name} a {celeriac.amount} {celeriac.name}. Zeler prekroj na dve časti.", "requires": ["carrot:raw", "celeriac:raw"], "produces": ["carrot:peeled", "celeriac:peeled"]},
+        {"text": "Vlož {potato.amount} {potato.name} {potato.cut} do veľkého hrnca. Pridaj mrkvu a zeler do hrnca. Dolej studenú vodu tak, aby bola zelenina ponorená, a vodu osoľ.", "requires": ["potato:raw", "carrot:peeled", "celeriac:peeled"], "produces": ["potato:pot", "carrot:pot", "celeriac:pot"]},
+        {"text": "Var zemiaky so zeleninou vo veľkom hrnci na miernom ohni 25 minút, kým zemiaky zmäknú. Sceď zemiaky aj zeleninu a nechaj ich 20 minút vychladnúť.", "requires": ["potato:pot", "carrot:pot", "celeriac:pot"], "produces": ["potato:cooked", "carrot:cooked", "celeriac:cooked"]},
+        {"text": "Nakrájaj {onion.amount} {onion.name} {onion.cut} a {pickles.amount} {pickles.name} {pickles.cut}.", "requires": ["onion:raw", "pickles:raw"], "produces": ["onion:cut", "pickles:cut"]},
+        {"text": "Ošúp vychladnuté zemiaky a nakrájaj ich aj s mrkvou a zelerom na malé kocky.", "requires": ["potato:cooked", "carrot:cooked", "celeriac:cooked"], "produces": ["potato:diced", "carrot:diced", "celeriac:diced"]},
+        {"text": "Premiešaj v mise {mayo.amount} {mayo.name}, {yogurt.amount} {yogurt.name}, {mustard.amount} {mustard.name}, trochu nálevu z uhoriek, soľ a čierne korenie. Vmiešaj zemiaky, mrkvu, zeler, cibuľu a sterilizované uhorky. Šalát prikry a nechaj ho v chladničke aspoň 30 minút odležať.", "requires": ["mayo:raw", "yogurt:raw", "mustard:raw", "potato:diced", "carrot:diced", "celeriac:diced", "onion:cut", "pickles:cut"], "produces": ["mayo:salad", "yogurt:salad", "mustard:salad", "potato:salad", "carrot:salad", "celeriac:salad", "onion:salad", "pickles:salad"]},
+        {"text": "Nakrájaj {pork.amount} {pork.name} {pork.cut}. Plátky prikry potravinovou fóliou, paličkou ich naklep na hrúbku asi pol centimetra a z oboch strán ich osoľ.", "requires": ["pork:raw"], "produces": ["pork:pounded"]},
+        {"text": "Priprav si tri taniere. Do prvého vsyp {flour.amount} {flour.name}, v druhom rozšľahaj {egg.amount} {egg.name} so štipkou soli a do tretieho vsyp {crumbs.amount} {crumbs.name}. Každý plátok obaľ najprv v múke, potom vo vajci a nakoniec v strúhanke, ktorú jemne pritlač.", "requires": ["flour:raw", "egg:raw", "crumbs:raw", "pork:pounded"], "produces": ["flour:coating", "egg:coating", "crumbs:coating", "pork:breaded"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 3 minúty, kým okolo kúska strúhanky hodeného do oleja začne hneď bublať. Olej má pokryť dno panvice aspoň do výšky pol centimetra, ak ho je menej, dolej ho z fľaše.", "requires": ["oil:raw"], "produces": ["oil:hot"]},
+        {"text": "Opekaj rezne z bravčového karé bez kosti vo veľkej panvici po dávkach na strednom ohni 3 minúty z každej strany, kým budú zlatisté a chrumkavé. Panvicu neprepĺňaj, rezne sa nesmú prekrývať. Hotové rezne vyber na tanier s papierovou utierkou, aby odkvapkali.", "requires": ["pork:breaded", "flour:coating", "egg:coating", "crumbs:coating", "oil:hot"], "produces": ["pork:fried", "flour:fried", "egg:fried", "crumbs:fried", "oil:used"]},
+        {"text": "Podávaj rezne so zemiakovým šalátom a rozdeľ jedlo na {portions} porcií.", "requires": ["pork:fried", "flour:fried", "egg:fried", "crumbs:fried", "oil:used", "potato:salad", "carrot:salad", "celeriac:salad", "onion:salad", "pickles:salad", "mayo:salad", "yogurt:salad", "mustard:salad"], "produces": ["pork:served", "flour:served", "egg:served", "crumbs:served", "oil:served", "potato:served", "carrot:served", "celeriac:served", "onion:served", "pickles:served", "mayo:served", "yogurt:served", "mustard:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Rezne a zemiakový šalát ulož oddelene do uzavretých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní. Rezne prehrej v rúre pri 180 °C asi 10 minút, aby zostali chrumkavé, šalát podávaj studený."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_pork_schnitzel_potato_salad",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/35993/rezen-so-zemiakovym-salatom/", "title": "Rezeň so zemiakovým šalátom | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/bravcove-rezne-nedelna-klasika-podla-babky/89873-recept.html", "title": "Bravčové rezne, nedeľná klasika podľa babky - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/31190/zemiakovy-salat/", "title": "Zemiakový šalát | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

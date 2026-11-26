@@ -17,18 +17,34 @@ from app.recipe_catalog import (
 )
 from app.recipe_provenance import load_recipe_provenance
 from app.recipe_workflow import workflow_errors
+from tests.recipe_waves import WAVE1_COUNT, curated_count, wave2_targets
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TARGETS_PATH = PROJECT_ROOT / "docs" / "research" / "recipe-targets.json"
 PROVENANCE_PATH = PROJECT_ROOT / "app" / "catalog" / "recipe_sources.json"
-EXPECTED_ACTIVE_RECIPES = 104
-EXPECTED_EDITORIAL_LANES = {
+# The release floor stays at the frozen wave-1 size; the exact inventory
+# grows with every promoted wave-2 batch.
+CURATED_TOTAL_FLOOR = WAVE1_COUNT
+EXPECTED_ACTIVE_RECIPES = curated_count()
+WAVE1_EDITORIAL_LANES = {
     "slovak_classic": 42,
     "modern_family": 36,
     "high_protein": 16,
     "plant_based": 10,
 }
+WAVE1_MODE_COUNTS = {
+    "standard": 104,
+    "high_protein": 58,
+    "vegetarian": 46,
+    "vegan": 16,
+}
+EXPECTED_EDITORIAL_LANES = Counter(WAVE1_EDITORIAL_LANES) + Counter(
+    row["editorial_lane"] for row in wave2_targets()
+)
+EXPECTED_MODE_COUNTS = Counter(WAVE1_MODE_COUNTS) + Counter(
+    mode for row in wave2_targets() for mode in row["expected_modes"]
+)
 MODE_FLOORS = {
     "standard": 104,
     "high_protein": 24,
@@ -42,7 +58,8 @@ MINIMUM_MODE_METHODS = 3
 def _target_rows():
     payload = json.loads(TARGETS_PATH.read_text(encoding="utf-8"))
     assert payload["schema_version"] == 1
-    return tuple(payload["targets"])
+    assert len(payload["targets"]) == WAVE1_COUNT
+    return (*payload["targets"], *wave2_targets())
 
 
 def _target_map():
@@ -187,7 +204,7 @@ def test_curated_generation_one_meets_editorial_diet_family_and_method_floors():
     assert set(recipes_by_id) == set(targets)
     assert Counter(
         target["editorial_lane"] for target in targets.values()
-    ) == Counter(EXPECTED_EDITORIAL_LANES)
+    ) == EXPECTED_EDITORIAL_LANES
 
     for mode, floor in MODE_FLOORS.items():
         eligible = tuple(recipe for recipe in recipes if mode in recipe.modes)
@@ -256,7 +273,7 @@ def test_audit_reports_stable_coverage_for_the_same_library():
     second = audit_library(ingredients, tuple(reversed(recipes)))
 
     assert first.coverage_lines() == second.coverage_lines()
-    assert first.coverage_lines()[0] == "recipes.active=104"
+    assert first.coverage_lines()[0] == f"recipes.active={EXPECTED_ACTIVE_RECIPES}"
     assert first.coverage_lines()[-1] == "errors=0"
 
 
@@ -265,11 +282,9 @@ def test_cli_prints_stable_coverage_and_returns_success(capsys):
 
     assert exit_code == 0
     output = capsys.readouterr().out.splitlines()
-    assert output[0] == "recipes.active=104"
-    assert "modes.standard=104" in output
-    assert "modes.high_protein=58" in output
-    assert "modes.vegetarian=46" in output
-    assert "modes.vegan=16" in output
+    assert output[0] == f"recipes.active={EXPECTED_ACTIVE_RECIPES}"
+    for mode, count in EXPECTED_MODE_COUNTS.items():
+        assert f"modes.{mode}={count}" in output
     assert output[-1] == "errors=0"
 
 
@@ -312,10 +327,10 @@ def test_audit_enforces_hard_total_recipe_floor():
 
     audit = audit_library(
         ingredients,
-        _curated_catalog(_active_library()[: EXPECTED_ACTIVE_RECIPES - 1]),
+        _curated_catalog(_active_library()[: CURATED_TOTAL_FLOOR - 1]),
     )
 
-    assert "total_below_104" in audit.errors
+    assert f"total_below_{CURATED_TOTAL_FLOOR}" in audit.errors
 
 
 @pytest.mark.parametrize("mode", MODE_FLOORS)

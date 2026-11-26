@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "classic_tokan_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Bravčový tokáň s ryžou",
+      "family": "classic_tokan_rice",
+      "method": "pot",
+      "minutes": 75,
+      "modes": ["standard"],
+      "equipment": ["široký hrniec", "hrniec", "sitko", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "pork", "role": "protein", "candidates": ["pork_shoulder"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na rezance", "water_ml_per_adult": "180"},
+        {"key": "bacon", "role": "protein", "candidates": ["bacon"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na drobné kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "pickles", "role": "vegetable", "candidates": ["pickled_cucumber"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na tenké pásiky"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "75", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {pork.amount} {pork.name} {pork.cut} hrubé asi 1 cm, {bacon.amount} {bacon.name} {bacon.cut}, {onion.amount} {onion.name} {onion.cut}, {garlic.amount} {garlic.name} {garlic.cut} a {pickles.amount} {pickles.name} {pickles.cut}.", "requires": ["pork:raw", "bacon:raw", "onion:raw", "garlic:raw", "pickles:raw"], "produces": ["pork:cut", "bacon:cut", "onion:cut", "garlic:cut", "pickles:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v širokom hrnci na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj slaninu s cibuľou v hrnci 6 minút, kým bude cibuľa zlatistá. Pridaj cesnak a opekaj ho 30 sekúnd.", "requires": ["oil:raw", "bacon:cut", "onion:cut", "garlic:cut"], "produces": ["oil:used", "bacon:cooked", "onion:cooked", "garlic:cooked"]},
+        {"text": "Pridaj bravčové pliecko bez kosti do hrnca. Opekaj bravčové pliecko na strednom ohni 6 minút, kým bude mäso na povrchu zlatisté a uvoľnená šťava sa odparí. Pri väčšej dávke mäso opekaj po častiach.", "requires": ["pork:cut", "onion:cooked"], "produces": ["pork:browned"]},
+        {"text": "Pridaj {paste.amount} {paste.name} do hrnca a premiešaj. Prilej {pork.water} vody. Prikry hrniec a dus bravčové pliecko v hrnci na miernom ohni 45 minút, kým mäso zmäkne. Podľa potreby dolej trochu vody.", "requires": ["paste:raw", "pork:browned"], "produces": ["paste:cooked", "pork:tender"]},
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw"], "produces": ["rice:rinsed"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne. Potom ju nechaj 5 minút prikrytú postáť.", "requires": ["rice:rinsed"], "produces": ["rice:cooked"]},
+        {"text": "Premiešaj {flour.amount} {flour.name} v miske s trochou studenej vody na hladkú kašu. Kašu premiešaj so šťavou v hrnci a var tokáň na miernom ohni 5 minút, kým šťava zhustne a začne bublať.", "requires": ["flour:raw", "pork:tender", "paste:cooked"], "produces": ["flour:cooked", "pork:sauced", "paste:sauced"]},
+        {"text": "Pridaj sterilizované uhorky do hrnca. Tokáň zohrievaj v hrnci na miernom ohni ešte 2 minúty, kým opäť začne bublať. Dochuť ho soľou a čiernym korením až po ochutnaní, slanina je slaná.", "requires": ["pickles:cut", "pork:sauced"], "produces": ["pickles:cooked", "pork:cooked"]},
+        {"text": "Podávaj bravčový tokáň s ryžou a rozdeľ jedlo na {portions} porcií.", "requires": ["pork:cooked", "bacon:cooked", "onion:cooked", "garlic:cooked", "oil:used", "paste:sauced", "flour:cooked", "pickles:cooked", "rice:cooked"], "produces": ["pork:served", "bacon:served", "onion:served", "garlic:served", "oil:served", "paste:served", "flour:served", "pickles:served", "rice:served"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Tokáň a ryžu rozdeľ do plytkých nádob, do jednej hodiny ich schlaď a odlož do chladničky. Zjedz ich do 2 dní a ryžu ohrievaj iba raz, kým bude celá horúca."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_tokan_rice",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/bravcovy-tokan-fotorecept/66664-recept.html", "title": "Bravčový tokáň (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/32596/bravcovy-tokan/", "title": "Bravčový tokáň | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/bravcovy-tokan/82523-recept.html", "title": "Bravčový tokáň - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

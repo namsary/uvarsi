@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "classic_bryndza_pirohy",
+      "version": 2,
+      "active": true,
+      "name_template": "Bryndzové pirohy so slaninou",
+      "family": "classic_bryndza_pirohy",
+      "method": "pot",
+      "minutes": 95,
+      "modes": ["standard"],
+      "equipment": ["hrniec", "veľký hrniec", "misa", "pučidlo na zemiaky", "valček", "pohár na vykrajovanie", "panvica", "dierovaná naberačka", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na rovnaké kúsky"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "55"},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.75", "required": true, "use": "addition", "cut": null},
+        {"key": "bryndza", "role": "dairy", "candidates": ["bryndza"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null},
+        {"key": "bacon", "role": "protein", "candidates": ["bacon"], "amount_per_adult": "35", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na drobné kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "chives", "role": "seasoning", "candidates": ["chives"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}.", "requires": ["potato:raw"], "produces": ["potato:cut"]},
+        {"text": "Vlož zemiaky do hrnca. Dolej studenú vodu tak, aby boli ponorené, a vodu osoľ. Var zemiaky v hrnci na miernom ohni 18 minút, kým zmäknú. Sceď zemiaky, roztlač ich pučidlom dohladka a nechaj vychladnúť.", "requires": ["potato:cut"], "produces": ["potato:mashed"]},
+        {"text": "Premiešaj v mise {flour.amount} {flour.name}, {egg.amount} {egg.name}, štipku soli a {flour.water} vody. Cesto mies rukami 5 minút, kým bude hladké a prestane sa lepiť. Prikry ho miskou a nechaj 20 minút odpočívať.", "requires": ["flour:raw", "egg:raw"], "produces": ["flour:dough", "egg:dough"]},
+        {"text": "Premiešaj v mise {bryndza.amount} {bryndza.name}, vychladnuté zemiaky a čierne korenie na hustú plnku. Plnku nesol, bryndza je slaná.", "requires": ["bryndza:raw", "potato:mashed"], "produces": ["bryndza:filling", "potato:filling"]},
+        {"text": "Rozdeľ cesto na dve časti a každú na pomúčenej doske tenko rozvaľkaj na hrúbku asi 2 mm. Pohárom vykrajuj kolieska s priemerom asi 8 cm.", "requires": ["flour:dough", "egg:dough"], "produces": ["flour:rolled", "egg:rolled"]},
+        {"text": "Priprav pirohy: do stredu každého kolieska polož lyžičku plnky, cesto prelož na polmesiac a okraje pevne stlač vidličkou, aby sa pri varení neotvorili.", "requires": ["flour:rolled", "egg:rolled", "bryndza:filling", "potato:filling"], "produces": ["flour:shaped", "egg:shaped", "bryndza:shaped", "potato:shaped"]},
+        {"text": "Nakrájaj {bacon.amount} {bacon.name} {bacon.cut}, {onion.amount} {onion.name} {onion.cut} a {chives.amount} {chives.name} {chives.cut}.", "requires": ["bacon:raw", "onion:raw", "chives:raw"], "produces": ["bacon:cut", "onion:cut", "chives:cut"]},
+        {"text": "Opekaj slaninu v suchej panvici na strednom ohni 6 minút, kým pustí tuk a bude chrumkavá. Pridaj cibuľu a opekaj ju 4 minúty, kým bude zlatistá. Panvicu odstav, slanina v nej zostane teplá.", "requires": ["bacon:cut", "onion:cut"], "produces": ["bacon:cooked", "onion:cooked"]},
+        {"text": "Priveď vo veľkom hrnci osolenú vodu do varu na silnom ohni asi 10 minút, kým začne bublať. Vkladaj pirohy po dávkach a var ich vo veľkom hrnci na miernom ohni 4 minúty od vyplávania, kým bude cesto mäkké.", "requires": ["flour:shaped", "egg:shaped", "bryndza:shaped", "potato:shaped"], "produces": ["flour:cooked", "egg:cooked", "bryndza:cooked", "potato:cooked"]},
+        {"text": "Vyber pirohy dierovanou naberačkou a nechaj ich krátko odkvapkať.", "requires": ["flour:cooked"], "produces": ["flour:drained"]},
+        {"text": "Rozdeľ pirohy na {portions} porcií, polej ich slaninou s cibuľou aj s vypečeným tukom a navrch rozsyp pažítku. Podávaj ich hneď, kým sú horúce.", "requires": ["flour:drained", "egg:cooked", "bryndza:cooked", "potato:cooked", "bacon:cooked", "onion:cooked", "chives:cut"], "produces": ["flour:served", "egg:served", "bryndza:served", "potato:served", "bacon:served", "onion:served", "chives:served"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Bryndzové pirohy sú najlepšie hneď po uvarení. Zvyšok ulož do uzavretej nádoby, najneskôr do 2 hodín ho odlož do chladničky a zjedz do 24 hodín. Prehrej ich na panvici s lyžicou vody."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_bryndza_pirohy",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/bryndzove-pirohy-so-slaninkou-fotorecept/75552-recept.html", "title": "Bryndzové pirohy so slaninkou (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/32629/bryndzove-pirohy-s-udenou-slaninou/", "title": "Bryndzové pirohy s údenou slaninou | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/34975/bryndzove-pirohy-so-zemiakovou-plnkou/", "title": "Bryndzové pirohy so zemiakovou plnkou | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

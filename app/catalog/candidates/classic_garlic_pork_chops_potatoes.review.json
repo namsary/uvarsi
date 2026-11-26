@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "d9281d1fb7beae283b14e972d5872255adb0d71d4bdcbbc4540d89601dda2809",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "classic_garlic_pork_chops_potatoes"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

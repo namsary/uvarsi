@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "classic_sauerkraut_sausage_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Kyslá kapusta s klobásou a zemiakmi",
+      "family": "classic_sauerkraut_sausage_potatoes",
+      "method": "pot",
+      "minutes": 65,
+      "modes": ["standard"],
+      "equipment": ["hrniec", "veľký hrniec", "sitko", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "kraut", "role": "vegetable", "candidates": ["sauerkraut"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "150"},
+        {"key": "sausage", "role": "protein", "candidates": ["smoked_sausage"], "amount_per_adult": "90", "unit": "g", "child_factor": "0.5", "required": true, "use": "main", "cut": "na hrubšie kolieska"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "250", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na rovnaké kúsky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "bay", "role": "seasoning", "candidates": ["bay_leaf"], "amount_per_adult": "0.25", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "sugar", "role": "seasoning", "candidates": ["sugar"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {kraut.amount} {kraut.name} krátko studenou vodou, ak je veľmi kyslá, a nechaj ju odkvapkať. Nakrájaj {onion.amount} {onion.name} {onion.cut} a {sausage.amount} {sausage.name} {sausage.cut}.", "requires": ["kraut:raw", "onion:raw", "sausage:raw"], "produces": ["kraut:rinsed", "onion:cut", "sausage:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v hrnci na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj cibuľu v hrnci 6 minút, kým bude dosklovita.", "requires": ["oil:raw", "onion:cut"], "produces": ["oil:used", "onion:cooked"]},
+        {"text": "Pridaj kyslú kapustu, {caraway.amount} {caraway.name} a {bay.amount} {bay.name} do hrnca a prilej {kraut.water} vody. Prikry hrniec a dus kyslú kapustu v hrnci na miernom ohni 30 minút, kým zmäkne.", "requires": ["kraut:rinsed", "caraway:raw", "bay:raw", "onion:cooked"], "produces": ["kraut:stewed", "caraway:cooked", "bay:cooked"]},
+        {"text": "Pridaj údenú klobásu do hrnca. Prikry hrniec a dus kyslú kapustu s klobásou v hrnci na miernom ohni 15 minút, kým sa klobása prehreje a šťava začne bublať.", "requires": ["sausage:cut", "kraut:stewed"], "produces": ["sausage:cooked", "kraut:with_sausage"]},
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}. Vlož zemiaky do veľkého hrnca. Dolej studenú vodu tak, aby boli ponorené, a vodu osoľ. Var zemiaky vo veľkom hrnci na miernom ohni 20 minút, kým zmäknú, potom ich sceď.", "requires": ["potato:raw"], "produces": ["potato:cooked"]},
+        {"text": "Premiešaj {flour.amount} {flour.name} v miske s trochou studenej vody na hladkú kašu. Kašu premiešaj s kapustou v hrnci a var ju na miernom ohni 5 minút, kým šťava zhustne a začne bublať. Vyber bobkový list.", "requires": ["flour:raw", "kraut:with_sausage", "bay:cooked"], "produces": ["flour:cooked", "kraut:thickened", "bay:removed"]},
+        {"text": "Odstav hrniec z ohňa a vmiešaj {paprika.amount} {paprika.name} a {sugar.amount} {sugar.name}. Dochuť kapustu soľou a čiernym korením až po ochutnaní, klobása je slaná.", "requires": ["paprika:raw", "sugar:raw", "kraut:thickened"], "produces": ["paprika:cooked", "sugar:cooked", "kraut:cooked"]},
+        {"text": "Podávaj kyslú kapustu s klobásou a varenými zemiakmi a rozdeľ jedlo na {portions} porcií.", "requires": ["kraut:cooked", "sausage:cooked", "potato:cooked", "onion:cooked", "oil:used", "caraway:cooked", "bay:removed", "flour:cooked", "paprika:cooked", "sugar:cooked"], "produces": ["kraut:served", "sausage:served", "potato:served", "onion:served", "oil:served", "caraway:served", "bay:served", "flour:served", "paprika:served", "sugar:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Kapustu s klobásou rozdeľ do plytkých nádob a najneskôr do 2 hodín ju odlož do chladničky. Zjedz ju do 3 dní. Zemiaky skladuj oddelene a pri podávaní ich prehrej."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_sauerkraut_sausage_potatoes",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/47182/klobasky-s-kyslou-kapustou/", "title": "Klobásky s kyslou kapustou | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/dusena-cervena-kapusta-a-karamelova-kysla-kapusta-fotorecept/78303-recept.html", "title": "Dusená červená kapusta a karamelová kyslá kapusta (fotorecept) - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/25237/kysla-kapusta-s-klobasou-a-bocikom/", "title": "Kyslá kapusta s klobásou a bôčikom | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

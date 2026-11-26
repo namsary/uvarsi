@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "393dcf707610feab7d6ca5a8d1078097dce7318a584446b9be35419404d99da7",
+  "promoted_to": "03-one-pot.json",
+  "recipe_ids": [
+    "classic_potato_goulash_sausage"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

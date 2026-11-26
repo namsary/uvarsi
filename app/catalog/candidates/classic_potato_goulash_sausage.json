@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "classic_potato_goulash_sausage",
+      "version": 2,
+      "active": true,
+      "name_template": "Zemiakový guláš s klobásou",
+      "family": "classic_potato_goulash_sausage",
+      "method": "pot",
+      "minutes": 50,
+      "modes": ["standard"],
+      "equipment": ["hrniec", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "300", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kocky", "water_ml_per_adult": "350"},
+        {"key": "sausage", "role": "protein", "candidates": ["smoked_sausage"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.5", "required": true, "use": "main", "cut": "na kolieska"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "10", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "caraway", "role": "seasoning", "candidates": ["caraway"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "marjoram", "role": "seasoning", "candidates": ["marjoram"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na krajce"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}. Nakrájaj {sausage.amount} {sausage.name} {sausage.cut}, {onion.amount} {onion.name} {onion.cut} a {garlic.amount} {garlic.name} {garlic.cut}.", "requires": ["potato:raw", "sausage:raw", "onion:raw", "garlic:raw"], "produces": ["potato:cut", "sausage:cut", "onion:cut", "garlic:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v hrnci na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj cibuľu v hrnci 6 minút, kým bude zlatistá.", "requires": ["oil:raw", "onion:cut"], "produces": ["oil:used", "onion:cooked"]},
+        {"text": "Pridaj údenú klobásu do hrnca. Opekaj údenú klobásu s cibuľou na strednom ohni 3 minúty, kým pustí tuk a okraje budú zlatisté. Pridaj cesnak a opekaj ho 30 sekúnd.", "requires": ["sausage:cut", "garlic:cut", "onion:cooked"], "produces": ["sausage:browned", "garlic:cooked"]},
+        {"text": "Odstav hrniec z ohňa. Prisyp {paprika.amount} {paprika.name} do hrnca a premiešaj.", "requires": ["paprika:raw", "sausage:browned"], "produces": ["paprika:combined"]},
+        {"text": "Pridaj zemiaky a {caraway.amount} {caraway.name} do hrnca a prilej {potato.water} vody. Prikry hrniec a var zemiaky v hrnci na miernom ohni 25 minút, kým zmäknú a na okrajoch sa začnú rozpadať.", "requires": ["potato:cut", "caraway:raw", "paprika:combined"], "produces": ["potato:cooked", "caraway:cooked", "paprika:cooked"]},
+        {"text": "Premiešaj {flour.amount} {flour.name} v miske s trochou studenej vody na hladkú kašu. Časť zemiakov roztlač vareškou o stenu hrnca a kašu z múky premiešaj s gulášom. Pridaj {marjoram.amount} {marjoram.name}. Guláš var v hrnci na miernom ohni 5 minút, kým zhustne a začne bublať.", "requires": ["flour:raw", "marjoram:raw", "potato:cooked"], "produces": ["flour:cooked", "marjoram:cooked", "potato:thickened"]},
+        {"text": "Dochuť guláš soľou a čiernym korením až po ochutnaní, klobása je slaná.", "requires": ["potato:thickened", "sausage:browned"], "produces": ["potato:finished"]},
+        {"text": "Nakrájaj {bread.amount} {bread.name} {bread.cut}.", "requires": ["bread:raw"], "produces": ["bread:cut"]},
+        {"text": "Podávaj zemiakový guláš s chlebom a rozdeľ ho na {portions} porcií.", "requires": ["potato:finished", "sausage:browned", "onion:cooked", "garlic:cooked", "oil:used", "paprika:cooked", "caraway:cooked", "marjoram:cooked", "flour:cooked", "bread:cut"], "produces": ["potato:served", "sausage:served", "onion:served", "garlic:served", "oil:served", "paprika:served", "caraway:served", "marjoram:served", "flour:served", "bread:served"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Zemiakový guláš rozdeľ do plytkých nádob a najneskôr do 2 hodín ho odlož do chladničky. Zjedz ho do 3 dní a pri ohrievaní prilej trochu vody, lebo zhustne. Chlieb skladuj oddelene."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_potato_goulash_sausage",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/falosny-gulas/19281-recept.html", "title": "Falošný guláš - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/25477/fotorecept-falosny-gulas/", "title": "FOTORECEPT: Falošný guláš | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

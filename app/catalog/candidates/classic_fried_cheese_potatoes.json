@@ -1,0 +1,46 @@
+{
+  "recipes": [
+    {
+      "id": "classic_fried_cheese_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Vyprážaný syr s varenými zemiakmi a tatárskou omáčkou",
+      "family": "classic_fried_cheese_potatoes",
+      "method": "pan",
+      "minutes": 45,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["hrniec", "tri taniere", "panvica", "nôž", "doska na krájanie", "papierová utierka"],
+      "slots": [
+        {"key": "cheese", "role": "protein", "candidates": ["hard_cheese"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky hrubé 1 cm"},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "0.75", "unit": "piece", "child_factor": "0.75", "required": true, "use": "addition", "cut": null},
+        {"key": "crumbs", "role": "starch", "candidates": ["breadcrumbs"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "15", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "200", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na rovnaké kúsky"},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "tartar", "role": "fat", "candidates": ["tartar_sauce"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich {potato.cut}.", "requires": ["potato:raw"], "produces": ["potato:cut"]},
+        {"text": "Vlož zemiaky do hrnca. Dolej studenú vodu tak, aby boli ponorené, a vodu osoľ. Var zemiaky v hrnci na miernom ohni 20 minút, kým zmäknú.", "requires": ["potato:cut"], "produces": ["potato:cooked"]},
+        {"text": "Nakrájaj {cheese.amount} {cheese.name} {cheese.cut} a {parsley.amount} {parsley.name} {parsley.cut}.", "requires": ["cheese:raw", "parsley:raw"], "produces": ["cheese:cut", "parsley:cut"]},
+        {"text": "Priprav si tri taniere. Do prvého vsyp {flour.amount} {flour.name}, v druhom rozšľahaj {egg.amount} {egg.name} so štipkou soli a do tretieho vsyp {crumbs.amount} {crumbs.name}. Každý plátok syra obaľ v múke, vo vajci a v strúhanke. Potom ho ešte raz obaľ vo vajci a v strúhanke a okraje dobre pritlač, aby syr pri vyprážaní nevytiekol.", "requires": ["flour:raw", "egg:raw", "crumbs:raw", "cheese:cut"], "produces": ["flour:coating", "egg:coating", "crumbs:coating", "cheese:breaded"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v panvici na strednom ohni 3 minúty, kým okolo kúska strúhanky hodeného do oleja začne hneď bublať. Olej má pokryť dno panvice aspoň do výšky pol centimetra, ak ho je menej, dolej ho z fľaše.", "requires": ["oil:raw"], "produces": ["oil:hot"]},
+        {"text": "Opekaj obalený tvrdý syr v panvici po dávkach na strednom ohni 2 minúty z každej strany, kým bude obal zlatistý a syr vo vnútri začne mäknúť. Dlhšie ho nevyprážaj, inak vytečie. Hotový syr vyber na papierovú utierku.", "requires": ["cheese:breaded", "flour:coating", "egg:coating", "crumbs:coating", "oil:hot"], "produces": ["cheese:fried", "flour:fried", "egg:fried", "crumbs:fried", "oil:used"]},
+        {"text": "Sceď zemiaky, vráť ich do hrnca a premiešaj ich s nasekanou petržlenovou vňaťou.", "requires": ["potato:cooked", "parsley:cut"], "produces": ["potato:finished", "parsley:finished"]},
+        {"text": "Rozdeľ vyprážaný syr, zemiaky a {tartar.amount} {tartar.name} na {portions} porcií. Podávaj syr hneď, kým je horúci.", "requires": ["cheese:fried", "flour:fried", "egg:fried", "crumbs:fried", "oil:used", "potato:finished", "parsley:finished", "tartar:raw"], "produces": ["cheese:served", "flour:served", "egg:served", "crumbs:served", "oil:served", "potato:served", "parsley:served", "tartar:served"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Vyprážaný syr je najlepší hneď po vyprážaní. Zvyšok ulož do uzavretej nádoby, najneskôr do 2 hodín ho odlož do chladničky a zjedz ho do 24 hodín. Prehrej ho v rúre pri 180 °C asi 8 minút."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "classic_fried_cheese_potatoes",
+    "editorial_lane": "slovak_classic",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/4173/fotorecept-vyprazany-syr/", "title": "FOTORECEPT: Vyprážaný syr | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/vyprazany-syr-obaleny-v-2-x-trojobale/21745-recept.html", "title": "Vyprážaný syr obalený v 2 x trojobale - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

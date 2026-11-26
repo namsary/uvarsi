@@ -1463,6 +1463,227 @@
         "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 168409, Cucumber, with peel, raw; https://fdc.nal.usda.gov/download-datasets/",
         "verified_on": "2026-09-06"
       }
+    },
+    {
+      "id": "breadcrumbs",
+      "name": "pšeničná strúhanka",
+      "synonyms": ["strúhanka", "strúhanka pšeničná", "chlebová strúhanka"],
+      "category": "pečivo",
+      "roles": ["starch"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": ["gluten"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "395", "protein_g": "13.35", "fat_g": "5.3", "carbs_g": "71.98",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 174928, Bread, crumbs, dry, grated, plain; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "tomato_paste",
+      "name": "paradajkový pretlak",
+      "synonyms": ["rajčinový pretlak", "pretlak paradajkový", "dvojnásobný paradajkový pretlak"],
+      "category": "zelenina",
+      "roles": ["vegetable"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "82", "protein_g": "4.32", "fat_g": "0.47", "carbs_g": "18.91",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170459, Tomato products, canned, paste, without salt added; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "pickled_cucumber",
+      "name": "sterilizované uhorky",
+      "synonyms": ["kyslé uhorky", "uhorky sterilizované", "uhorky kyslé", "sterilizované uhorky sladkokyslé"],
+      "category": "zelenina",
+      "roles": ["vegetable"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": "35",
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "12", "protein_g": "0.5", "fat_g": "0.3", "carbs_g": "2.41",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 168558, Pickles, cucumber, dill or kosher dill; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "mustard",
+      "name": "plnotučná horčica",
+      "synonyms": ["horčica plnotučná", "horčica"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": ["mustard"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "60", "protein_g": "3.74", "fat_g": "3.34", "carbs_g": "5.83",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 172234, Mustard, prepared, yellow; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "mayonnaise",
+      "name": "majonéza",
+      "synonyms": ["klasická majonéza", "majonéza klasická"],
+      "category": "tuky",
+      "roles": ["fat"],
+      "diet_tags": ["vegetarian"],
+      "allergens": ["egg", "mustard"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "680", "protein_g": "0.96", "fat_g": "74.85", "carbs_g": "0.57",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171009, Salad dressing, mayonnaise, regular; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "tartar_sauce",
+      "name": "tatárska omáčka",
+      "synonyms": ["omáčka tatárska", "tatárka"],
+      "category": "dochucovadlá",
+      "roles": ["fat"],
+      "diet_tags": ["vegetarian"],
+      "allergens": ["egg", "mustard"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "211", "protein_g": "1", "fat_g": "16.7", "carbs_g": "13.3",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171826, Sauce, tartar, ready-to-serve; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "poppy_seed",
+      "name": "mletý mak",
+      "synonyms": ["mak modrý mletý", "mletý modrý mak", "modrý mak mletý"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "525", "protein_g": "17.99", "fat_g": "41.56", "carbs_g": "28.13",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171330, Spices, poppy seed; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "caraway",
+      "name": "celá rasca",
+      "synonyms": ["rasca celá", "rasca"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "333", "protein_g": "19.77", "fat_g": "14.59", "carbs_g": "49.9",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170918, Spices, caraway seed; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "bay_leaf",
+      "name": "bobkový list",
+      "synonyms": ["bobkové listy", "sušený bobkový list", "bobkový list sušený"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": "0.2",
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "313", "protein_g": "7.61", "fat_g": "8.36", "carbs_g": "74.97",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170917, Spices, bay leaf; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "allspice",
+      "name": "celé nové korenie",
+      "synonyms": ["nové korenie", "nové korenie celé"],
+      "category": "dochucovadlá",
+      "roles": ["seasoning"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": "0.2",
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "263", "protein_g": "6.09", "fat_g": "8.69", "carbs_g": "72.12",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171315, Spices, allspice, ground; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "celeriac",
+      "name": "zeler",
+      "synonyms": ["buľvový zeler", "zeler buľvový", "koreňový zeler"],
+      "category": "zelenina",
+      "roles": ["vegetable"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": ["celery"],
+      "edible_ratio": "0.86",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "42", "protein_g": "1.5", "fat_g": "0.3", "carbs_g": "9.2",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170400, Celeriac, raw; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "beef_round",
+      "name": "hovädzie zadné bez kosti",
+      "synonyms": ["hovädzie zadné", "hovädzie stehno", "hovädzie stehno bez kosti"],
+      "category": "mäso",
+      "roles": ["protein"],
+      "diet_tags": [],
+      "allergens": [],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "125", "protein_g": "23.45", "fat_g": "3.5", "carbs_g": "0",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 173982, Beef, round, top round roast, boneless, separable lean and fat, trimmed to 0\" fat, all grades, raw; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "chicken_whole",
+      "name": "celé kurča",
+      "synonyms": ["kurča celé", "celé kura", "kura celé"],
+      "category": "mäso",
+      "roles": ["protein"],
+      "diet_tags": [],
+      "allergens": [],
+      "edible_ratio": "0.68",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "215", "protein_g": "18.6", "fat_g": "15.06", "carbs_g": "0",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171447, Chicken, broilers or fryers, meat and skin, raw; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
     }
   ]
 }
