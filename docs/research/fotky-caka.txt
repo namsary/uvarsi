@@ -1,0 +1,21 @@
+# Recepty druhej vlny, ktoré ešte čakajú na fotku (app/static/recepty/<id>.webp a -n.webp).
+classic_pork_schnitzel_potato_salad
+classic_chicken_schnitzel_mash
+classic_fried_cheese_potatoes
+classic_fried_cauliflower_potatoes
+classic_stuffed_cabbage_rolls
+classic_svieckova_dumpling
+classic_tomato_sauce_beef_dumpling
+classic_dill_sauce_egg_potatoes
+classic_mushroom_sauce_dumpling
+classic_spanish_bird_rice
+classic_znojmo_beef_rice
+classic_pork_cabbage_dumpling
+classic_roast_chicken_potatoes
+classic_chicken_cream_mushrooms_rice
+classic_garlic_pork_chops_potatoes
+classic_bryndza_pirohy
+classic_poppy_seed_potato_rolls
+classic_tokan_rice
+classic_potato_goulash_sausage
+classic_sauerkraut_sausage_potatoes
