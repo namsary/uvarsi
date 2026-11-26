@@ -1,0 +1,47 @@
+{
+  "recipes": [
+    {
+      "id": "quick_homemade_burgers",
+      "version": 2,
+      "active": true,
+      "name_template": "Domáce hovädzie burgery so zeleninou",
+      "family": "quick_homemade_burgers",
+      "method": "pan",
+      "minutes": 35,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľká panvica", "pokrievka", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "beef", "role": "protein", "candidates": ["beef_mince"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "bun", "role": "starch", "candidates": ["burger_bun"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na plátky"},
+        {"key": "lettuce", "role": "vegetable", "candidates": ["lettuce"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na kolieska"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "25", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na tenké kolieska"},
+        {"key": "pickles", "role": "vegetable", "candidates": ["pickled_cucumber"], "amount_per_adult": "1", "unit": "piece", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na plátky"},
+        {"key": "mustard", "role": "seasoning", "candidates": ["mustard"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "mayo", "role": "fat", "candidates": ["mayonnaise"], "amount_per_adult": "10", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "5", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Premiešaj v miske {beef.amount} {beef.name} so soľou a čiernym korením len krátko, aby mäso nebolo tuhé. Rozdeľ ho na diely podľa počtu žemlí, z každého vytvaruj placku hrubú asi 1,5 cm a do stredu urob palcom plytkú jamku.", "requires": ["beef:raw"], "produces": ["beef:shaped"]},
+        {"text": "Nakrájaj {tomato.amount} {tomato.name} na kolieska, {onion.amount} {onion.name} na tenké kolieska, {pickles.amount} {pickles.name} na plátky a {cheese.amount} {cheese.name} na plátky. Umy {lettuce.amount} {lettuce.name} a natrhaj ho na menšie listy.", "requires": ["tomato:raw", "onion:raw", "pickles:raw", "cheese:raw", "lettuce:raw"], "produces": ["tomato:cut", "onion:cut", "pickles:cut", "cheese:cut", "lettuce:cut"]},
+        {"text": "Premiešaj v miske {mayo.amount} {mayo.name} a {mustard.amount} {mustard.name}.", "requires": ["mayo:raw", "mustard:raw"], "produces": ["mayo:mixed", "mustard:mixed"]},
+        {"text": "Nakrájaj {bun.amount} {bun.name} vodorovne na polovice. Opeč žemle reznou stranou v suchej panvici na strednom ohni 1 minútu, kým budú zlatisté, a vyber ich.", "requires": ["bun:raw", "velka_panvica:free"], "produces": ["bun:toasted", "velka_panvica:free"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} v tej istej panvici na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj mleté hovädzie mäso v panvici na strednom ohni 4 minúty z každej strany, kým bude zvonka zlatisté a v strede nebude ružové. Po otočení polož na každú placku plátok syra a panvicu prikry pokrievkou, aby sa syr roztopil. Pri väčšom počte opekaj placky po dávkach.", "requires": ["oil:raw", "beef:shaped", "cheese:cut", "velka_panvica:free", "pokrievka:free"], "produces": ["oil:used", "beef:cooked", "cheese:melted", "velka_panvica:occupied", "pokrievka:free"]},
+        {"text": "Rozlož spodné polovice žemlí na taniere a natri ich majonézou s horčicou. Navrch daj šalát, placku so syrom, paradajku, cibuľu a uhorky a prikry vrchnou polovicou žemle.", "requires": ["bun:toasted", "mayo:mixed", "mustard:mixed", "lettuce:cut", "beef:cooked", "cheese:melted", "tomato:cut", "onion:cut", "pickles:cut"], "produces": ["bun:assembled", "mayo:assembled", "mustard:assembled", "lettuce:assembled", "beef:assembled", "cheese:assembled", "tomato:assembled", "onion:assembled", "pickles:assembled"]},
+        {"text": "Podávaj burgery ihneď a rozdeľ jedlo na {portions} porcií.", "requires": ["beef:assembled", "bun:assembled", "cheese:assembled", "lettuce:assembled", "tomato:assembled", "onion:assembled", "pickles:assembled", "mustard:assembled", "mayo:assembled", "oil:used", "velka_panvica:occupied"], "produces": ["beef:served", "bun:served", "cheese:served", "lettuce:served", "tomato:served", "onion:served", "pickles:served", "mustard:served", "mayo:served", "oil:served", "velka_panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Burgery skladaj až tesne pred jedlom. Zvyšné mäsové placky ulož oddelene od žemlí a zeleniny do uzavretej nádoby, do 2 hodín ich odlož do chladničky a zjedz do druhého dňa, prehriate na panvici."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_homemade_burgers",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/72050/domaci-hamburger/", "title": "FOTORECEPT: Domáci hamburger | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/hovadzi-hamburger-s-domacou-zemlou/80862-recept.html", "title": "Hovädzí hamburger s domácou žemľou - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

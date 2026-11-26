@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "quick_pork_strips_peppers_rice",
+      "version": 2,
+      "active": true,
+      "name_template": "Bravčové rezančeky s paprikou a ryžou",
+      "family": "quick_pork_strips_peppers_rice",
+      "method": "pan",
+      "minutes": 40,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["veľká panvica", "hrniec", "sitko", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "pork", "role": "protein", "candidates": ["pork_loin"], "amount_per_adult": "170", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na tenké rezančeky", "water_ml_per_adult": "100"},
+        {"key": "rice", "role": "starch", "candidates": ["rice"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.55", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "140"},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "150", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na pásiky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na tenké pásiky"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "flour", "role": "starch", "candidates": ["wheat_flour"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.", "requires": ["rice:raw", "sitko:free"], "produces": ["rice:rinsed", "sitko:free"]},
+        {"text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne. Potom ju nechaj 5 minút prikrytú postáť.", "requires": ["rice:rinsed", "hrniec:free"], "produces": ["rice:cooked", "hrniec:free"]},
+        {"text": "Nakrájaj {pork.amount} {pork.name} na tenké rezančeky, {pepper.amount} {pepper.name} na pásiky, {onion.amount} {onion.name} na tenké pásiky, {garlic.amount} {garlic.name} najemno a {parsley.amount} {parsley.name} nadrobno. Mäso osoľ a okoreň.", "requires": ["pork:raw", "pepper:raw", "onion:raw", "garlic:raw", "parsley:raw"], "produces": ["pork:cut", "pepper:cut", "onion:cut", "garlic:cut", "parsley:cut"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na silnom ohni 2 minúty, kým sa začne lesknúť. Opekaj bravčové karé bez kosti v panvici na silnom ohni 3 minúty, kým bude zlatisté, a vyber ho na tanier. Pri väčšej dávke ho opekaj po častiach.", "requires": ["oil:raw", "pork:cut", "velka_panvica:free"], "produces": ["oil:used", "pork:browned", "velka_panvica:occupied"]},
+        {"text": "Pridaj cibuľu do panvice. Opekaj cibuľu na strednom ohni 3 minúty, kým zmäkne. Pridaj papriku do panvice a opekaj ju 5 minút, kým zmäkne, ale ostane šťavnatá. Pridaj cesnak do panvice a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["onion:cut", "pepper:cut", "garlic:cut", "oil:used", "velka_panvica:occupied"], "produces": ["onion:cooked", "pepper:cooked", "garlic:cooked"]},
+        {"text": "Odstav panvicu z ohňa. Vmiešaj {paprika.amount} {paprika.name} a {paste.amount} {paste.name}. Prisyp {flour.amount} {flour.name} a premiešaj.", "requires": ["paprika:raw", "paste:raw", "flour:raw", "pepper:cooked", "velka_panvica:occupied"], "produces": ["paprika:combined", "paste:combined", "flour:combined"]},
+        {"text": "Vráť panvicu na sporák. Prilej {pork.water} vody. Var papriku s cibuľou na miernom ohni 3 minúty, kým šťava zhustne a jemne bublá.", "requires": ["paste:combined", "flour:combined", "velka_panvica:occupied"], "produces": ["paste:sauce", "flour:sauce", "pepper:sauce"]},
+        {"text": "Vráť bravčové karé bez kosti do panvice. Zohrievaj bravčové karé bez kosti v omáčke na miernom ohni 3 minúty, kým bude v strede bez ružovej farby a omáčka jemne bublá.", "requires": ["pork:browned", "pepper:sauce", "velka_panvica:occupied"], "produces": ["pork:cooked", "pepper:cooked"]},
+        {"text": "Dochuť omáčku soľou a čiernym korením a vmiešaj petržlenovú vňať. Podávaj bravčové rezančeky s ryžou a rozdeľ jedlo na {portions} porcií.", "requires": ["pork:cooked", "rice:cooked", "pepper:cooked", "onion:cooked", "garlic:cooked", "paste:sauce", "paprika:combined", "flour:sauce", "oil:used", "parsley:cut", "velka_panvica:occupied"], "produces": ["pork:served", "rice:served", "pepper:served", "onion:served", "garlic:served", "paste:served", "paprika:served", "flour:served", "oil:served", "parsley:served", "velka_panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 3, "instruction": "Ryžu a mäso s omáčkou rozdeľ do plytkých nádob a najneskôr do hodiny ich odlož do chladničky. Zjedz ich do 3 dní a prehrievaj s lyžicou vody, kým budú celé horúce."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_pork_strips_peppers_rice",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/12330/bravcove-maso-s-paprikou/", "title": "Bravčové mäso s paprikou | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/bravcove-na-paprike/24661-recept.html", "title": "Bravčové na paprike - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

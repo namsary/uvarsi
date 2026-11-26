@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "9d3cb89d74d5fa0a8d2269ba63770beb6c75de36c5d2bc2d1c4626c9ac24ae4c",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "quick_eggs_spinach_potatoes"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

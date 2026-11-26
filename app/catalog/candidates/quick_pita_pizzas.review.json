@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "983063736cd4592db3725bd10fcb4ad8fa31dbce0796389b6989284d05559bd7",
+  "promoted_to": "02-oven.json",
+  "recipe_ids": [
+    "quick_pita_pizzas"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

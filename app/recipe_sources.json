@@ -2168,6 +2168,356 @@
           "accessed_on": "2026-11-26"
         }
       ]
+    },
+    {
+      "recipe_id": "quick_chicken_broccoli_stir_fry",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/4484/kuracie-rezance-na-brokolici-a-sezame/",
+          "title": "Kuracie rezance na brokolici a sezame | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuracie-prsicka-na-orientalny-sposob/61446-recept.html",
+          "title": "Kuracie prsičká na orientálny spôsob - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_spaghetti_carbonara",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/79643/nase-spagety-carbonara/",
+          "title": "Naše špagety carbonara | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/spagety-carbonara-fotorecept/86484-recept.html",
+          "title": "Špagety Carbonara (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_sausage_tomato_pasta",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/cestoviny-s-klobaskou/51103-recept.html",
+          "title": "Cestoviny s klobáskou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/18564/cestovina-s-klobaskou/",
+          "title": "Cestovina s klobáskou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_garlic_chicken_spaghetti",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/14766/spagety-s-cesnakom/",
+          "title": "Špagety s cesnakom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/spagety-s-cesnakom-a-parmezanom-fotorecept/14243-recept.html",
+          "title": "Špagety s cesnakom a parmezánom (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/spagety-s-kuracim-masom-fotorecept/58732-recept.html",
+          "title": "Špagety s kuracím mäsom (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_ham_cheese_omelette",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/omeleta-so-sunkou-a-syrom-na-chrumkavom-chlebe/90702-recept.html",
+          "title": "Omeleta so šunkou a syrom na chrumkavom chlebe - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/18827/omeleta-so-sunkou-a-paprikou/",
+          "title": "Omeleta so šunkou a paprikou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_vegetable_omelette_potatoes",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/28430/zeleninova-omeleta/",
+          "title": "Zeleninová omeleta | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/zeleninova-omeleta/34047-recept.html",
+          "title": "Zeleninová omeleta - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_chicken_quesadilla",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/65863/quesadillas-s-kuracim-masom-zeleninou-a-cili-paprickou/",
+          "title": "Quesadillas s kuracím mäsom, zeleninou a čili papričkou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuracia-fajita-quesadilla/70874-recept.html",
+          "title": "Kuracia fajita quesadilla - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_bean_cheese_quesadilla",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/77736/quesadillas-s-ciernou-fazulou-videorecept/",
+          "title": "Quesadillas s čiernou fazuľou, VIDEORECEPT | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/zapecene-quesadilly-s-fazulou-a-so-zeleninou/78106-recept.html",
+          "title": "Zapečené „quesadilly“ s fazuľou a so zeleninou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_beef_stroganoff_noodles",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/hovadzi-stroganov/89740-recept.html",
+          "title": "Hovädzí stroganov - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/34284/hovadzi-stroganov/",
+          "title": "Hovädzí Stroganov | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_homemade_burgers",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/72050/domaci-hamburger/",
+          "title": "FOTORECEPT: Domáci hamburger | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/hovadzi-hamburger-s-domacou-zemlou/80862-recept.html",
+          "title": "Hovädzí hamburger s domácou žemľou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_oven_chicken_nuggets",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/79858/kuracie-nugetky-pecene-v-rure-fantasticke/",
+          "title": "Kuracie nugetky pečené v rúre: Fantastické | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/pecene-kuracie-nugetky/68486-recept.html",
+          "title": "Pečené kuracie nugetky - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_pita_pizzas",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/13127/pizze-z-chleba-pita/",
+          "title": "Pizze z chleba pita | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/pitapizza-fotorecept/77091-recept.html",
+          "title": "Pitapizza (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_chicken_gyros_pita",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/2106/gyros-s-tzatziki/",
+          "title": "Gyros s tzatziki | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/domaci-kuraci-gyros-pozrite-si-tu-vychytavku-ako-ho-upiect-v-rure-vi/90260-recept.html",
+          "title": "Domáci kurací gyros. Pozrite si tú vychytávku, ako ho upiecť v rúre! (videorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_ham_peas_pasta",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/20453/cestoviny-so-sunkou-s-hraskom-a-so-smotanou/",
+          "title": "Cestoviny so šunkou, s hráškom a so smotanou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/spagety-s-hraskom-a-so-sunkou-fotorecept/88624-recept.html",
+          "title": "Špagety s hráškom a so šunkou (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_eggs_spinach_potatoes",
+      "editorial_lane": "slovak_classic",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/51490/duseny-mrazeny-spenat/",
+          "title": "Dusený mrazený špenát | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/mamickin-spenat/69152-recept.html",
+          "title": "Mamičkin špenát - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_tuna_rice_salad",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/10007/ryzovy-salat-s-tuniakom/",
+          "title": "Ryžový šalát s tuniakom | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/ryzovo-tuniakovy-salat/87900-recept.html",
+          "title": "Ryžovo-tuniakový šalát - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/17191/ryzovy-salat-so-zeleninou/",
+          "title": "Ryžový šalát so zeleninou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_chicken_couscous_vegetables",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/83741/kuskus-s-cuketou-a-kuracim-masom-vynikajuci-lahky-obed-hotovy-za-par-minut/",
+          "title": "Kuskus s cuketou a kuracím mäsom: Vynikajúci ľahký obed hotový za pár minút | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/kuskus-so-zeleninou-a-kuracinou/57466-recept.html",
+          "title": "Kuskus so zeleninou a kuracinou - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_pork_strips_peppers_rice",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/12330/bravcove-maso-s-paprikou/",
+          "title": "Bravčové mäso s paprikou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/bravcove-na-paprike/24661-recept.html",
+          "title": "Bravčové na paprike - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_chicken_lemon_rice",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://varecha.pravda.sk/recepty/citronove-kuracie-maso-fotorecept/44129-recept.html",
+          "title": "Citrónové kuracie mäso (fotorecept) - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/39110/kurca-s-citronovou-omackou/",
+          "title": "Kurča s citrónovou omáčkou | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
+    },
+    {
+      "recipe_id": "quick_halloumi_vegetable_traybake",
+      "editorial_lane": "modern_family",
+      "core": true,
+      "references": [
+        {
+          "url": "https://dobruchut.aktuality.sk/recept/77016/halloumi-na-zelenine/",
+          "title": "Halloumi na zelenine | Dobruchut.sk",
+          "accessed_on": "2026-11-26"
+        },
+        {
+          "url": "https://varecha.pravda.sk/recepty/grilovana-zelenina-so-syrom-halloumi/64173-recept.html",
+          "title": "Grilovaná zelenina so syrom halloumi - recept | Varecha.sk",
+          "accessed_on": "2026-11-26"
+        }
+      ]
     }
   ]
 }

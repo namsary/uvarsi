@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "1f24753b038012259990330a38e4db05c7c4d78914b68690350b4bc2d14d195a",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "quick_chicken_broccoli_stir_fry"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

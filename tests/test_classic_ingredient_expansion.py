@@ -440,3 +440,70 @@ def test_wave2_ingredient_states_stay_distinct():
     assert catalog.by_id("celeriac").edible_ratio == Decimal("0.86")
     assert catalog.by_id("bay_leaf").grams_per_piece == Decimal("0.2")
     assert catalog.by_id("pickled_cucumber").grams_per_piece == Decimal("35")
+
+
+WAVE2_BATCH2_USDA_FDC_IDS = {
+    "burger_bun": "172796",
+    "parmesan": "170848",
+    "pita": "174915",
+    "sour_cream": "171257",
+    "sweet_corn": "169214",
+}
+
+WAVE2_BATCH2_RENDER_FORMS = {
+    "burger_bun": (
+        "hamburgerových žemlí",
+        "hamburgerové žemle",
+        "hamburgerových žemlí",
+        "hamburgerovými žemľami",
+    ),
+    "parmesan": ("parmezánu", "parmezán", "parmezánu", "parmezánom"),
+    "pita": ("pita placiek", "pita placky", "pita placiek", "pita plackami"),
+    "sour_cream": ("kyslej smotany", "kyslú smotanu", "kyslej smotany", "kyslou smotanou"),
+    "sweet_corn": (
+        "sterilizovanej kukurice",
+        "sterilizovanú kukuricu",
+        "sterilizovanej kukurice",
+        "sterilizovanou kukuricou",
+    ),
+}
+
+
+def test_wave2_batch2_ingredients_use_exact_sr_legacy_records():
+    catalog = load_ingredient_catalog()
+
+    for ingredient_id, fdc_id in WAVE2_BATCH2_USDA_FDC_IDS.items():
+        ingredient = catalog.by_id(ingredient_id)
+        source = ingredient.nutrition.source
+        assert "USDA FoodData Central SR Legacy (April 2018)" in source
+        assert f"FDC ID {fdc_id}," in source
+        assert "https://fdc.nal.usda.gov/download-datasets/" in source
+        assert ingredient.nutrition.verified_on == date(2026, 11, 26)
+
+
+def test_wave2_batch2_ingredients_render_slovak_forms():
+    title_forms = _slovak_title_forms()
+
+    for ingredient_id, expected in WAVE2_BATCH2_RENDER_FORMS.items():
+        quantity, reference, genitive, instrumental = expected
+        assert _QUANTITY_NAMES[ingredient_id] == quantity
+        assert _REFERENCE_NAMES[ingredient_id] == reference
+        assert title_forms[ingredient_id] == {
+            "genitive": genitive,
+            "instrumental": instrumental,
+        }
+
+
+def test_wave2_batch2_ingredient_states_stay_distinct():
+    catalog = load_ingredient_catalog()
+
+    assert catalog.resolve("kyslá smotana").id == "sour_cream"
+    assert catalog.resolve("sladká smotana").id == "cream"
+    assert catalog.resolve("parmezán").id == "parmesan"
+    assert catalog.resolve("eidam").id == "hard_cheese"
+    assert catalog.resolve("pita").id == "pita"
+    assert catalog.resolve("chlieb").id == "bread"
+    assert catalog.by_id("sweet_corn").edible_ratio == Decimal("0.65")
+    assert catalog.by_id("pita").grams_per_piece == Decimal("80")
+    assert catalog.by_id("burger_bun").grams_per_piece == Decimal("75")
+    assert "vegetarian" not in {tag.value for tag in catalog.by_id("parmesan").diet_tags}

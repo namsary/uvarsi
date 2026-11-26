@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "4d9d80f0b8d4baf37a8243d655710126d45fe30ed6c3a51e65c9c899e42dda8a",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "quick_beef_stroganoff_noodles"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

@@ -97,6 +97,11 @@
     "allspice": {"genitive": "celého nového korenia", "instrumental": "celým novým korením"},
     "celeriac": {"genitive": "zeleru", "instrumental": "zelerom"},
     "beef_round": {"genitive": "hovädzieho zadného bez kosti", "instrumental": "hovädzím zadným bez kosti"},
-    "chicken_whole": {"genitive": "celého kurčaťa", "instrumental": "celým kurčaťom"}
+    "chicken_whole": {"genitive": "celého kurčaťa", "instrumental": "celým kurčaťom"},
+    "parmesan": {"genitive": "parmezánu", "instrumental": "parmezánom"},
+    "sour_cream": {"genitive": "kyslej smotany", "instrumental": "kyslou smotanou"},
+    "pita": {"genitive": "pita placiek", "instrumental": "pita plackami"},
+    "burger_bun": {"genitive": "hamburgerových žemlí", "instrumental": "hamburgerovými žemľami"},
+    "sweet_corn": {"genitive": "sterilizovanej kukurice", "instrumental": "sterilizovanou kukuricou"}
   }
 }

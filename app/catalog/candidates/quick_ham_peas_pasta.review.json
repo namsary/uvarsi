@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "0a5f1936d1a55dfe06b018f9c7ceb1cb60337816d571111210abd9f777ac812a",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "quick_ham_peas_pasta"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

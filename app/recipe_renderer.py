@@ -198,6 +198,11 @@ _QUANTITY_NAMES: Mapping[str, str] = {
     "celeriac": "zeleru",
     "beef_round": "hovädzieho zadného bez kosti",
     "chicken_whole": "celého kurčaťa",
+    "parmesan": "parmezánu",
+    "sour_cream": "kyslej smotany",
+    "pita": "pita placiek",
+    "burger_bun": "hamburgerových žemlí",
+    "sweet_corn": "sterilizovanej kukurice",
 }
 
 # Natural direct-object forms used after the ingredient was measured once.
@@ -302,6 +307,11 @@ _REFERENCE_NAMES: Mapping[str, str] = {
     "celeriac": "zeler",
     "beef_round": "hovädzie zadné bez kosti",
     "chicken_whole": "celé kurča",
+    "parmesan": "parmezán",
+    "sour_cream": "kyslú smotanu",
+    "pita": "pita placky",
+    "burger_bun": "hamburgerové žemle",
+    "sweet_corn": "sterilizovanú kukuricu",
 }
 
 # Absorption/one-pot ratios in millilitres of water per gram of dry starch.
@@ -331,6 +341,11 @@ _EXTRA_INGREDIENT_FORMS: Mapping[str, tuple[str, ...]] = {
     "milk": ("plnotučné mlieko", "plnotučného mlieka", "mlieko", "mlieka"),
     "bacon": ("slanina", "slaniny", "slaninu"),
     "bread_dumpling": ("knedľa", "knedle", "knedľu", "knedľou"),
+    "tortilla": ("tortilla", "tortilly", "tortillu", "tortíl", "tortillami"),
+    "pita": ("pita", "pity", "pitu", "pite", "pitou", "pita placka", "pita placku"),
+    "burger_bun": ("žemle", "žemlí", "žemľa", "žemľu"),
+    "sweet_corn": ("kukurica", "kukurice", "kukuricu", "kukuricou"),
+    "sour_cream": ("kyslá smotana", "kyslej smotany", "kyslou smotanou"),
 }
 
 _EXTRA_PANTRY_FORMS: Mapping[str, tuple[str, ...]] = {

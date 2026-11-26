@@ -1684,6 +1684,91 @@
         "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171447, Chicken, broilers or fryers, meat and skin, raw; https://fdc.nal.usda.gov/download-datasets/",
         "verified_on": "2026-11-26"
       }
+    },
+    {
+      "id": "parmesan",
+      "name": "parmezán",
+      "synonyms": ["syr parmezán", "parmigiano reggiano", "grana padano"],
+      "category": "mliečne výrobky",
+      "roles": ["protein", "dairy"],
+      "diet_tags": [],
+      "allergens": ["milk"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "392", "protein_g": "35.75", "fat_g": "25", "carbs_g": "3.22",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 170848, Cheese, parmesan, hard; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "sour_cream",
+      "name": "kyslá smotana",
+      "synonyms": ["smotana kyslá", "kyslá smotana 14 %", "kyslá smotana 15 %", "kyslá smotana 18 %"],
+      "category": "mliečne výrobky",
+      "roles": ["dairy", "fat"],
+      "diet_tags": ["vegetarian"],
+      "allergens": ["milk"],
+      "edible_ratio": "1",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "198", "protein_g": "2.44", "fat_g": "19.35", "carbs_g": "4.63",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 171257, Cream, sour, cultured; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "pita",
+      "name": "pita placka",
+      "synonyms": ["pita", "pita chlieb", "chlieb pita", "pita placky"],
+      "category": "pečivo",
+      "roles": ["starch"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": ["gluten"],
+      "edible_ratio": "1",
+      "grams_per_piece": "80",
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "275", "protein_g": "9.1", "fat_g": "1.2", "carbs_g": "55.7",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 174915, Bread, pita, white, enriched; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "burger_bun",
+      "name": "hamburgerová žemľa",
+      "synonyms": ["hamburgerové žemle", "žemľa na hamburger", "žemle na hamburger", "burgerová žemľa", "burgerové žemle"],
+      "category": "pečivo",
+      "roles": ["starch"],
+      "diet_tags": ["vegetarian"],
+      "allergens": ["gluten"],
+      "edible_ratio": "1",
+      "grams_per_piece": "75",
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "279", "protein_g": "9.77", "fat_g": "3.91", "carbs_g": "50.12",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 172796, Rolls, hamburger or hotdog, plain; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
+    },
+    {
+      "id": "sweet_corn",
+      "name": "sterilizovaná kukurica",
+      "synonyms": ["kukurica sterilizovaná", "sladká kukurica", "kukurica v konzerve", "kukurica"],
+      "category": "zelenina",
+      "roles": ["vegetable"],
+      "diet_tags": ["vegetarian", "vegan"],
+      "allergens": [],
+      "edible_ratio": "0.65",
+      "grams_per_piece": null,
+      "density_g_per_ml": null,
+      "nutrition": {
+        "kcal": "67", "protein_g": "2.29", "fat_g": "1.22", "carbs_g": "14.34",
+        "source": "USDA FoodData Central SR Legacy (April 2018), FDC ID 169214, Corn, sweet, yellow, canned, whole kernel, drained solids; https://fdc.nal.usda.gov/download-datasets/",
+        "verified_on": "2026-11-26"
+      }
     }
   ]
 }

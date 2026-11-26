@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "ba7763b50d3c344c1f0493e46eebe42089085b9cdf683c2245a06b2e6d96c51b",
+  "promoted_to": "04-vegetarian.json",
+  "recipe_ids": [
+    "quick_bean_cheese_quesadilla"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

@@ -1,0 +1,44 @@
+{
+  "recipes": [
+    {
+      "id": "quick_ham_cheese_omelette",
+      "version": 2,
+      "active": true,
+      "name_template": "Omeleta so šunkou a syrom",
+      "family": "quick_ham_cheese_omelette",
+      "method": "pan",
+      "minutes": 20,
+      "modes": ["standard", "high_protein"],
+      "equipment": ["panvica", "miska", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "3", "unit": "piece", "child_factor": "0.65", "required": true, "use": "main", "cut": null},
+        {"key": "ham", "role": "protein", "candidates": ["ham"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na kocky"},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nastrúhaný"},
+        {"key": "milk", "role": "dairy", "candidates": ["milk"], "amount_per_adult": "20", "unit": "ml", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "butter", "role": "fat", "candidates": ["butter"], "amount_per_adult": "8", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "chives", "role": "seasoning", "candidates": ["chives"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "bread", "role": "starch", "candidates": ["bread"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na krajce"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Nakrájaj {ham.amount} {ham.name} na kocky, {chives.amount} {chives.name} nadrobno, {tomato.amount} {tomato.name} na plátky a {bread.amount} {bread.name} na krajce. Nastrúhaj {cheese.amount} {cheese.name}.", "requires": ["ham:raw", "chives:raw", "tomato:raw", "bread:raw", "cheese:raw"], "produces": ["ham:cut", "chives:cut", "tomato:cut", "bread:cut", "cheese:grated"]},
+        {"text": "Rozšľahaj v miske {egg.amount} {egg.name}. Prilej {milk.amount} {milk.name}. Pridaj štipku soli a čierneho korenia. Vajcia vidličkou dobre premiešaj.", "requires": ["egg:raw", "milk:raw", "miska:free"], "produces": ["egg:mixed", "milk:mixed", "miska:occupied"]},
+        {"text": "Rozdeľ {butter.amount} {butter.name} na toľko dielov, koľko pripravuješ omeliet, na každú dospelú porciu použi asi tri vajcia.", "requires": ["butter:raw"], "produces": ["butter:portioned"]},
+        {"text": "Rozohrej diel masla v panvici na strednom ohni 1 minútu, kým sa spení a začne jemne bublať. Nalej vajcia do panvice, len dávku na jednu omeletu. Opekaj vajcia v panvici na miernom ohni 3 minúty, kým spodok stuhne a vrch je ešte vláčny.", "requires": ["butter:portioned", "egg:mixed", "milk:mixed", "panvica:free"], "produces": ["butter:used", "egg:set", "milk:set", "panvica:occupied"]},
+        {"text": "Rozlož varenú šunku, tvrdý syr a pažítku na polovicu omelety. Druhú polovicu preklop a opekaj vajcia v panvici na miernom ohni ešte 1 minútu, kým sa syr roztopí a spodok omelety bude zlatistý. Ďalšie omelety priprav postupne v tej istej panvici a hotové drž v teple.", "requires": ["ham:cut", "cheese:grated", "chives:cut", "egg:set", "panvica:occupied"], "produces": ["ham:filled", "cheese:filled", "chives:filled", "egg:cooked", "milk:cooked", "miska:free"]},
+        {"text": "Dochuť paradajky soľou a čiernym korením. Podávaj omelety s chlebom a paradajkami a rozdeľ jedlo na {portions} porcií.", "requires": ["egg:cooked", "ham:filled", "cheese:filled", "milk:cooked", "butter:used", "chives:filled", "bread:cut", "tomato:cut", "panvica:occupied"], "produces": ["egg:served", "ham:served", "cheese:served", "milk:served", "butter:served", "chives:served", "bread:served", "tomato:served", "panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Omeletu jedz hneď po príprave. Zvyšok ulož do uzavretej nádoby, do 2 hodín ho odlož do chladničky a zjedz do druhého dňa, prehriaty na panvici na miernom ohni."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_ham_cheese_omelette",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://varecha.pravda.sk/recepty/omeleta-so-sunkou-a-syrom-na-chrumkavom-chlebe/90702-recept.html", "title": "Omeleta so šunkou a syrom na chrumkavom chlebe - recept | Varecha.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://dobruchut.aktuality.sk/recept/18827/omeleta-so-sunkou-a-paprikou/", "title": "Omeleta so šunkou a paprikou | Dobruchut.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

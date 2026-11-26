@@ -1,0 +1,47 @@
+{
+  "recipes": [
+    {
+      "id": "quick_vegetable_omelette_potatoes",
+      "version": 2,
+      "active": true,
+      "name_template": "Zeleninová omeleta s opekanými zemiakmi",
+      "family": "quick_vegetable_omelette_potatoes",
+      "method": "pan",
+      "minutes": 40,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["veľká panvica", "pokrievka", "hrniec", "sitko", "miska", "nôž", "doska na krájanie", "strúhadlo"],
+      "slots": [
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kocky"},
+        {"key": "egg", "role": "protein", "candidates": ["egg"], "amount_per_adult": "3", "unit": "piece", "child_factor": "0.65", "required": true, "use": "main", "cut": null},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kocky"},
+        {"key": "zucchini", "role": "vegetable", "candidates": ["zucchini"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na kocky"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "60", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "20", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nastrúhaný"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "15", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "chives", "role": "seasoning", "candidates": ["chives"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na kocky veľké asi 1,5 cm.", "requires": ["potato:raw"], "produces": ["potato:cut"]},
+        {"text": "Vlož zemiaky do hrnca. Dolej studenú vodu tak, aby boli ponorené, a osoľ ju. Var zemiaky v hrnci na strednom ohni 7 minút od začiatku varu, kým budú takmer mäkké, ale nerozpadnú sa. Sceď zemiaky cez sitko.", "requires": ["potato:cut", "hrniec:free", "sitko:free"], "produces": ["potato:parboiled", "hrniec:free", "sitko:free"]},
+        {"text": "Nakrájaj {pepper.amount} {pepper.name} na kocky, {zucchini.amount} {zucchini.name} na kocky, {onion.amount} {onion.name} nadrobno, {tomato.amount} {tomato.name} na kocky a {chives.amount} {chives.name} nadrobno. Nastrúhaj {cheese.amount} {cheese.name}.", "requires": ["pepper:raw", "zucchini:raw", "onion:raw", "tomato:raw", "chives:raw", "cheese:raw"], "produces": ["pepper:cut", "zucchini:cut", "onion:cut", "tomato:cut", "chives:cut", "cheese:grated"]},
+        {"text": "Rozšľahaj v miske {egg.amount} {egg.name} so štipkou soli a čierneho korenia. Vmiešaj tvrdý syr a pažítku.", "requires": ["egg:raw", "cheese:grated", "chives:cut", "miska:free"], "produces": ["egg:mixed", "cheese:mixed", "chives:mixed", "miska:occupied"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 2 minúty, kým sa začne lesknúť. Opekaj zemiaky v panvici na strednom ohni 10 minút a občas ich obráť, kým budú zlatisté a chrumkavé.", "requires": ["oil:raw", "potato:parboiled", "velka_panvica:free"], "produces": ["oil:used", "potato:fried", "velka_panvica:occupied"]},
+        {"text": "Pridaj cibuľu, papriku a cuketu do panvice. Opekaj cibuľu s paprikou, cuketou a zemiakmi na strednom ohni 5 minút, kým paprika zmäkne. Pridaj paradajky do panvice.", "requires": ["onion:cut", "pepper:cut", "zucchini:cut", "tomato:cut", "potato:fried", "velka_panvica:occupied"], "produces": ["onion:cooked", "pepper:cooked", "zucchini:cooked", "tomato:cooked"]},
+        {"text": "Stíš oheň na mierny. Nalej vajcia do panvice, aby rovnomerne zaliali zeleninu so zemiakmi. Prikry panvicu pokrievkou. Opekaj vajcia so zeleninou na miernom ohni 8 minút, kým vajcia stuhnú aj navrchu.", "requires": ["egg:mixed", "potato:fried", "velka_panvica:occupied", "pokrievka:free"], "produces": ["egg:cooked", "cheese:cooked", "chives:cooked", "potato:cooked", "pokrievka:free", "miska:free"]},
+        {"text": "Rozdeľ omeletu so zemiakmi na {portions} porcií a podávaj ju teplú.", "requires": ["potato:cooked", "egg:cooked", "pepper:cooked", "zucchini:cooked", "tomato:cooked", "onion:cooked", "cheese:cooked", "oil:used", "chives:cooked", "velka_panvica:occupied"], "produces": ["potato:served", "egg:served", "pepper:served", "zucchini:served", "tomato:served", "onion:served", "cheese:served", "oil:served", "chives:served", "velka_panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Omeletu jedz hneď po príprave. Zvyšok ulož do uzavretej nádoby, do 2 hodín ho odlož do chladničky a zjedz do druhého dňa, prehriaty na panvici pod pokrievkou."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_vegetable_omelette_potatoes",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/28430/zeleninova-omeleta/", "title": "Zeleninová omeleta | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/zeleninova-omeleta/34047-recept.html", "title": "Zeleninová omeleta - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

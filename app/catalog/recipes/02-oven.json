@@ -5412,6 +5412,576 @@
         "refrigerated_days": 2,
         "instruction": "Zvyšné kurča obral z kostí, ulož ho so zemiakmi do plytkých nádob a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní a prehrej v rúre, kým budú celé horúce."
       }
+    },
+    {
+      "id": "quick_oven_chicken_nuggets",
+      "version": 2,
+      "active": true,
+      "name_template": "Kuracie nugetky z rúry so zemiakmi",
+      "family": "quick_oven_chicken_nuggets",
+      "method": "oven",
+      "minutes": 50,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "rúra",
+        "plech",
+        "papier na pečenie",
+        "miska",
+        "tri taniere",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "chicken",
+          "role": "protein",
+          "candidates": [
+            "chicken_breast"
+          ],
+          "amount_per_adult": "160",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na kúsky veľké ako sústo"
+        },
+        {
+          "key": "potato",
+          "role": "starch",
+          "candidates": [
+            "potato"
+          ],
+          "amount_per_adult": "250",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na mesiačiky"
+        },
+        {
+          "key": "flour",
+          "role": "starch",
+          "candidates": [
+            "wheat_flour"
+          ],
+          "amount_per_adult": "10",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": "0.5",
+          "unit": "piece",
+          "child_factor": "0.75",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "crumbs",
+          "role": "starch",
+          "candidates": [
+            "breadcrumbs"
+          ],
+          "amount_per_adult": "25",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "paprika",
+          "role": "seasoning",
+          "candidates": [
+            "paprika_powder"
+          ],
+          "amount_per_adult": "1",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oilpotato",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "10",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oilchicken",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "5",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "yogurt",
+          "role": "dairy",
+          "candidates": [
+            "plain_yogurt"
+          ],
+          "amount_per_adult": "60",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "2",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "chives",
+          "role": "seasoning",
+          "candidates": [
+            "chives"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C.",
+          "requires": [
+            "rura:free"
+          ],
+          "produces": [
+            "rura:hot"
+          ]
+        },
+        {
+          "text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na mesiačiky. Nalej {oilpotato.amount} {oilpotato.name} do misky. Vsyp zemiaky do misky, osoľ ich a premiešaj, aby boli celé obalené olejom. Rozlož zemiaky na plech vystlaný papierom na pečenie v jednej vrstve.",
+          "requires": [
+            "potato:raw",
+            "oilpotato:raw",
+            "plech:free"
+          ],
+          "produces": [
+            "potato:pan",
+            "oilpotato:mixed",
+            "plech:occupied"
+          ]
+        },
+        {
+          "text": "Peč zemiaky na plechu v rúre pri 200 °C 15 minút, kým začnú na spodnej strane zlatistieť.",
+          "requires": [
+            "potato:pan",
+            "oilpotato:mixed",
+            "rura:hot",
+            "plech:occupied"
+          ],
+          "produces": [
+            "potato:parbaked",
+            "oilpotato:roasted"
+          ]
+        },
+        {
+          "text": "Nakrájaj {chicken.amount} {chicken.name} na kúsky veľké ako sústo. Mäso osoľ a okoreň.",
+          "requires": [
+            "chicken:raw"
+          ],
+          "produces": [
+            "chicken:cut"
+          ]
+        },
+        {
+          "text": "Priprav si tri taniere. Do prvého vsyp {flour.amount} {flour.name}, v druhom rozšľahaj {egg.amount} {egg.name} so štipkou soli a do tretieho vsyp {crumbs.amount} {crumbs.name} a {paprika.amount} {paprika.name}. Strúhanku s paprikou premiešaj. Každý kúsok mäsa obaľ najprv v múke, potom vo vajci a nakoniec v strúhanke, ktorú jemne pritlač.",
+          "requires": [
+            "flour:raw",
+            "egg:raw",
+            "crumbs:raw",
+            "paprika:raw",
+            "chicken:cut"
+          ],
+          "produces": [
+            "flour:coating",
+            "egg:coating",
+            "crumbs:coating",
+            "paprika:coating",
+            "chicken:breaded"
+          ]
+        },
+        {
+          "text": "Vlej {oilchicken.amount} {oilchicken.name} do misky. Rozlož obalené kuracie prsia na druhý plech vystlaný papierom na pečenie a pokvapkaj ich olejom z misky.",
+          "requires": [
+            "oilchicken:raw",
+            "chicken:breaded"
+          ],
+          "produces": [
+            "oilchicken:used",
+            "chicken:tray"
+          ]
+        },
+        {
+          "text": "Peč kuracie prsia aj zemiaky v rúre pri 200 °C 18 minút, kým bude obal zlatistý a chrumkavý a zemiaky zmäknú. V polovici pečenia kúsky mäsa aj zemiaky obráť.",
+          "requires": [
+            "chicken:tray",
+            "potato:parbaked",
+            "rura:hot"
+          ],
+          "produces": [
+            "chicken:baked",
+            "potato:baked",
+            "flour:baked",
+            "egg:baked",
+            "crumbs:baked",
+            "paprika:baked",
+            "oilchicken:baked"
+          ]
+        },
+        {
+          "text": "Nakrájaj {garlic.amount} {garlic.name} najemno a {chives.amount} {chives.name} nadrobno. Premiešaj v miske {yogurt.amount} {yogurt.name}, cesnak, pažítku a štipku soli.",
+          "requires": [
+            "garlic:raw",
+            "chives:raw",
+            "yogurt:raw"
+          ],
+          "produces": [
+            "garlic:dip",
+            "chives:dip",
+            "yogurt:dip"
+          ]
+        },
+        {
+          "text": "Podávaj nugetky so zemiakmi a jogurtovým dipom a rozdeľ jedlo na {portions} porcií.",
+          "requires": [
+            "chicken:baked",
+            "potato:baked",
+            "flour:baked",
+            "egg:baked",
+            "crumbs:baked",
+            "paprika:baked",
+            "oilpotato:roasted",
+            "oilchicken:baked",
+            "yogurt:dip",
+            "garlic:dip",
+            "chives:dip",
+            "plech:occupied"
+          ],
+          "produces": [
+            "chicken:served",
+            "potato:served",
+            "flour:served",
+            "egg:served",
+            "crumbs:served",
+            "paprika:served",
+            "oilpotato:served",
+            "oilchicken:served",
+            "yogurt:served",
+            "garlic:served",
+            "chives:served",
+            "plech:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Nugetky a zemiaky ulož do uzavretej nádoby a dip zvlášť a najneskôr do 2 hodín ich odlož do chladničky. Zjedz ich do 2 dní a prehrej v rúre pri 200 °C asi 8 minút, aby zostali chrumkavé."
+      }
+    },
+    {
+      "id": "quick_pita_pizzas",
+      "version": 2,
+      "active": true,
+      "name_template": "Rýchle pita pizze so šunkou",
+      "family": "quick_pita_pizzas",
+      "method": "oven",
+      "minutes": 25,
+      "modes": [
+        "standard"
+      ],
+      "equipment": [
+        "rúra",
+        "plech",
+        "papier na pečenie",
+        "miska",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "pita",
+          "role": "starch",
+          "candidates": [
+            "pita"
+          ],
+          "amount_per_adult": "2",
+          "unit": "piece",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "ham",
+          "role": "protein",
+          "candidates": [
+            "ham"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": "na pásiky"
+        },
+        {
+          "key": "mozzarella",
+          "role": "dairy",
+          "candidates": [
+            "mozzarella"
+          ],
+          "amount_per_adult": "60",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "na tenké plátky"
+        },
+        {
+          "key": "paste",
+          "role": "vegetable",
+          "candidates": [
+            "tomato_paste"
+          ],
+          "amount_per_adult": "25",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": null,
+          "water_ml_per_adult": "20"
+        },
+        {
+          "key": "mushrooms",
+          "role": "vegetable",
+          "candidates": [
+            "mushrooms"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na tenké plátky"
+        },
+        {
+          "key": "pepper",
+          "role": "vegetable",
+          "candidates": [
+            "bell_pepper"
+          ],
+          "amount_per_adult": "50",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na tenké pásiky"
+        },
+        {
+          "key": "garlic",
+          "role": "aromatic",
+          "candidates": [
+            "garlic"
+          ],
+          "amount_per_adult": "2",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "najemno"
+        },
+        {
+          "key": "oregano",
+          "role": "seasoning",
+          "candidates": [
+            "oregano"
+          ],
+          "amount_per_adult": "0.5",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "5",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Predhrej rúru na 200 °C.",
+          "requires": [
+            "rura:free"
+          ],
+          "produces": [
+            "rura:hot"
+          ]
+        },
+        {
+          "text": "Nakrájaj {ham.amount} {ham.name} na pásiky, {mushrooms.amount} {mushrooms.name} na tenké plátky, {pepper.amount} {pepper.name} na tenké pásiky, {mozzarella.amount} {mozzarella.name} na tenké plátky a {garlic.amount} {garlic.name} najemno.",
+          "requires": [
+            "ham:raw",
+            "mushrooms:raw",
+            "pepper:raw",
+            "mozzarella:raw",
+            "garlic:raw"
+          ],
+          "produces": [
+            "ham:cut",
+            "mushrooms:cut",
+            "pepper:cut",
+            "mozzarella:cut",
+            "garlic:cut"
+          ]
+        },
+        {
+          "text": "Premiešaj v miske {paste.amount} {paste.name}, {paste.water} vody, {oil.amount} {oil.name}, cesnak, {oregano.amount} {oregano.name} a štipku soli.",
+          "requires": [
+            "paste:raw",
+            "oil:raw",
+            "garlic:cut",
+            "oregano:raw"
+          ],
+          "produces": [
+            "paste:sauce",
+            "oil:sauce",
+            "garlic:sauce",
+            "oregano:sauce"
+          ]
+        },
+        {
+          "text": "Rozlož {pita.amount} {pita.name} na plech vystlaný papierom na pečenie. Každú placku natri tenkou vrstvou paradajkovej omáčky, navrch rozlož šunku, šampiňóny a papriku a prikry ich mozzarellou.",
+          "requires": [
+            "pita:raw",
+            "paste:sauce",
+            "ham:cut",
+            "mushrooms:cut",
+            "pepper:cut",
+            "mozzarella:cut",
+            "plech:free"
+          ],
+          "produces": [
+            "pita:topped",
+            "paste:topped",
+            "ham:topped",
+            "mushrooms:topped",
+            "pepper:topped",
+            "mozzarella:topped",
+            "plech:occupied"
+          ]
+        },
+        {
+          "text": "Peč pita placky na plechu v rúre pri 200 °C 10 minút, kým sa mozzarella roztopí, začne bublať a okraje placiek budú chrumkavé.",
+          "requires": [
+            "pita:topped",
+            "rura:hot",
+            "plech:occupied"
+          ],
+          "produces": [
+            "pita:baked",
+            "paste:baked",
+            "ham:baked",
+            "mushrooms:baked",
+            "pepper:baked",
+            "mozzarella:baked",
+            "oil:baked",
+            "garlic:baked",
+            "oregano:baked"
+          ]
+        },
+        {
+          "text": "Podávaj pizze teplé a rozdeľ ich na {portions} porcií.",
+          "requires": [
+            "pita:baked",
+            "ham:baked",
+            "mozzarella:baked",
+            "paste:baked",
+            "mushrooms:baked",
+            "pepper:baked",
+            "garlic:baked",
+            "oregano:baked",
+            "oil:baked",
+            "plech:occupied"
+          ],
+          "produces": [
+            "pita:served",
+            "ham:served",
+            "mozzarella:served",
+            "paste:served",
+            "mushrooms:served",
+            "pepper:served",
+            "garlic:served",
+            "oregano:served",
+            "oil:served",
+            "plech:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 1,
+        "instruction": "Pita pizze jedz hneď po upečení. Zvyšok ulož do uzavretej nádoby, do 2 hodín ho odlož do chladničky a zjedz do druhého dňa, prehriaty v rúre pri 200 °C asi 5 minút."
+      }
     }
   ]
 }

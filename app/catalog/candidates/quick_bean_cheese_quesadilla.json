@@ -1,0 +1,51 @@
+{
+  "recipes": [
+    {
+      "id": "quick_bean_cheese_quesadilla",
+      "version": 2,
+      "active": true,
+      "name_template": "Fazuľové quesadilly so syrom",
+      "family": "quick_bean_cheese_quesadilla",
+      "method": "pan",
+      "minutes": 30,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["veľká panvica", "sitko", "miska", "nôž", "doska na krájanie", "strúhadlo", "vareška"],
+      "slots": [
+        {"key": "tortilla", "role": "starch", "candidates": ["tortilla"], "amount_per_adult": "2", "unit": "piece", "child_factor": "0.5", "required": true, "use": "main", "cut": null},
+        {"key": "beans", "role": "protein", "candidates": ["beans_canned"], "amount_per_adult": "130", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": null, "water_ml_per_adult": "30"},
+        {"key": "cheese", "role": "dairy", "candidates": ["hard_cheese"], "amount_per_adult": "45", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nastrúhaný"},
+        {"key": "corn", "role": "vegetable", "candidates": ["sweet_corn"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "70", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na malé kocky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "40", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "3", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "paste", "role": "vegetable", "candidates": ["tomato_paste"], "amount_per_adult": "15", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null},
+        {"key": "cumin", "role": "seasoning", "candidates": ["cumin"], "amount_per_adult": "1", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "paprika", "role": "seasoning", "candidates": ["paprika_powder"], "amount_per_adult": "2", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "8", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "sourcream", "role": "dairy", "candidates": ["sour_cream"], "amount_per_adult": "30", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Sceď {beans.amount} {beans.name} a {corn.amount} {corn.name} cez sitko a fazuľu prepláchni studenou vodou.", "requires": ["beans:raw", "corn:raw", "sitko:free"], "produces": ["beans:drained", "corn:drained", "sitko:free"]},
+        {"text": "Nakrájaj {pepper.amount} {pepper.name} na malé kocky, {onion.amount} {onion.name} nadrobno a {garlic.amount} {garlic.name} najemno. Nastrúhaj {cheese.amount} {cheese.name}.", "requires": ["pepper:raw", "onion:raw", "garlic:raw", "cheese:raw"], "produces": ["pepper:cut", "onion:cut", "garlic:cut", "cheese:grated"]},
+        {"text": "Rozohrej {oil.amount} {oil.name} vo veľkej panvici na strednom ohni 1 minútu, kým sa začne lesknúť. Opekaj cibuľu s paprikou v panvici na strednom ohni 5 minút, kým zmäknú. Pridaj cesnak do panvice a opekaj ho 30 sekúnd, kým zavonia.", "requires": ["oil:raw", "onion:cut", "pepper:cut", "garlic:cut", "velka_panvica:free"], "produces": ["oil:used", "onion:cooked", "pepper:cooked", "garlic:cooked", "velka_panvica:occupied"]},
+        {"text": "Pridaj červenú fazuľu, kukuricu a {paste.amount} {paste.name} do panvice. Prilej {beans.water} vody. Var červenú fazuľu so zeleninou na miernom ohni 4 minúty, kým zmes zhustne a jemne bublá. Vareškou rozdrv asi tretinu fazule, aby plnka držala pokope.", "requires": ["beans:drained", "corn:drained", "paste:raw", "onion:cooked", "velka_panvica:occupied"], "produces": ["beans:cooked", "corn:cooked", "paste:cooked"]},
+        {"text": "Odstav panvicu z ohňa, prisyp {cumin.amount} {cumin.name} a {paprika.amount} {paprika.name} a premiešaj. Plnku dochuť soľou a čiernym korením, preber ju do misky a panvicu vytri papierovou utierkou.", "requires": ["cumin:raw", "paprika:raw", "beans:cooked", "velka_panvica:occupied"], "produces": ["cumin:combined", "paprika:combined", "velka_panvica:free"]},
+        {"text": "Rozlož tortilly na dosku. Na každú {tortilla.amount} {tortilla.name} nasyp do jednej polovice trochu syra, navrch rozotri fazuľovú plnku a prikry ju zvyšným syrom. Druhú polovicu tortilly preklop a jemne pritlač.", "requires": ["tortilla:raw", "cheese:grated", "beans:cooked"], "produces": ["tortilla:filled", "cheese:filled"]},
+        {"text": "Opekaj tortilly v suchej panvici na strednom ohni 2 minúty z každej strany, kým budú chrumkavé a syr sa roztopí. Pri väčšom počte ich priprav postupne v tej istej panvici.", "requires": ["tortilla:filled", "velka_panvica:free"], "produces": ["tortilla:cooked", "cheese:cooked", "velka_panvica:occupied"]},
+        {"text": "Premiešaj {sourcream.amount} {sourcream.name} so štipkou soli.", "requires": ["sourcream:raw"], "produces": ["sourcream:mixed"]},
+        {"text": "Nakrájaj tortilly na trojuholníky, rozdeľ ich na {portions} porcií a podávaj s kyslou smotanou.", "requires": ["tortilla:cooked", "beans:cooked", "cheese:cooked", "corn:cooked", "pepper:cooked", "onion:cooked", "garlic:cooked", "paste:cooked", "cumin:combined", "paprika:combined", "oil:used", "sourcream:mixed", "velka_panvica:occupied"], "produces": ["tortilla:served", "beans:served", "cheese:served", "corn:served", "pepper:served", "onion:served", "garlic:served", "paste:served", "cumin:served", "paprika:served", "oil:served", "sourcream:served", "velka_panvica:free"]}
+      ],
+      "storage": {"refrigerated_days": 1, "instruction": "Quesadilly jedz hneď, kým sú chrumkavé. Zvyšok ulož do uzavretej nádoby, do 2 hodín ho odlož do chladničky, zjedz do druhého dňa a prehrej ho v suchej panvici."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_bean_cheese_quesadilla",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/77736/quesadillas-s-ciernou-fazulou-videorecept/", "title": "Quesadillas s čiernou fazuľou, VIDEORECEPT | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/zapecene-quesadilly-s-fazulou-a-so-zeleninou/78106-recept.html", "title": "Zapečené „quesadilly“ s fazuľou a so zeleninou - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

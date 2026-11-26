@@ -4778,6 +4778,322 @@
         "refrigerated_days": 3,
         "instruction": "Šalát odlož do uzatvárateľnej nádoby v chladničke hneď po príprave. Zjedz ho do 3 dní a mimo chladničky ho nenechávaj dlhšie než 2 hodiny."
       }
+    },
+    {
+      "id": "quick_tuna_rice_salad",
+      "version": 2,
+      "active": true,
+      "name_template": "Ryžový šalát s tuniakom a kukuricou",
+      "family": "quick_tuna_rice_salad",
+      "method": "salad",
+      "minutes": 35,
+      "modes": [
+        "standard",
+        "high_protein"
+      ],
+      "equipment": [
+        "hrniec",
+        "malý hrniec",
+        "sitko",
+        "veľká misa",
+        "miska",
+        "nôž",
+        "doska na krájanie"
+      ],
+      "slots": [
+        {
+          "key": "rice",
+          "role": "starch",
+          "candidates": [
+            "rice"
+          ],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.55",
+          "required": true,
+          "use": "main",
+          "cut": null,
+          "water_ml_per_adult": "140"
+        },
+        {
+          "key": "tuna",
+          "role": "protein",
+          "candidates": [
+            "tuna"
+          ],
+          "amount_per_adult": "120",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "egg",
+          "role": "protein",
+          "candidates": [
+            "egg"
+          ],
+          "amount_per_adult": "1",
+          "unit": "piece",
+          "child_factor": "0.75",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "corn",
+          "role": "vegetable",
+          "candidates": [
+            "sweet_corn"
+          ],
+          "amount_per_adult": "80",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "main",
+          "cut": null
+        },
+        {
+          "key": "pepper",
+          "role": "vegetable",
+          "candidates": [
+            "bell_pepper"
+          ],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na malé kocky"
+        },
+        {
+          "key": "cucumber",
+          "role": "vegetable",
+          "candidates": [
+            "cucumber"
+          ],
+          "amount_per_adult": "70",
+          "unit": "g",
+          "child_factor": "0.6",
+          "required": true,
+          "use": "addition",
+          "cut": "na malé kocky"
+        },
+        {
+          "key": "onion",
+          "role": "aromatic",
+          "candidates": [
+            "onion"
+          ],
+          "amount_per_adult": "20",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "chives",
+          "role": "seasoning",
+          "candidates": [
+            "chives"
+          ],
+          "amount_per_adult": "3",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": "nadrobno"
+        },
+        {
+          "key": "oil",
+          "role": "fat",
+          "candidates": [
+            "oil"
+          ],
+          "amount_per_adult": "12",
+          "unit": "ml",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "lemon",
+          "role": "seasoning",
+          "candidates": [
+            "lemon"
+          ],
+          "amount_per_adult": "0.25",
+          "unit": "piece",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        },
+        {
+          "key": "mustard",
+          "role": "seasoning",
+          "candidates": [
+            "mustard"
+          ],
+          "amount_per_adult": "4",
+          "unit": "g",
+          "child_factor": "0.5",
+          "required": true,
+          "use": "addition",
+          "cut": null
+        }
+      ],
+      "pantry_basics": [
+        "water",
+        "salt",
+        "black_pepper"
+      ],
+      "instructions": [
+        {
+          "text": "Prepláchni {rice.amount} {rice.name} v sitku pod studenou vodou.",
+          "requires": [
+            "rice:raw",
+            "sitko:free"
+          ],
+          "produces": [
+            "rice:rinsed",
+            "sitko:free"
+          ]
+        },
+        {
+          "text": "Nalej {rice.water} vody do hrnca a pridaj štipku soli. Vsyp ryžu do hrnca a prikry ho. Var ryžu na miernom ohni 15 minút, kým voda vsiakne a ryža zmäkne. Rozlož ryžu na plytký tanier a nechaj ju 20 minút vychladnúť.",
+          "requires": [
+            "rice:rinsed",
+            "hrniec:free"
+          ],
+          "produces": [
+            "rice:cooled",
+            "hrniec:free"
+          ]
+        },
+        {
+          "text": "Vlož {egg.amount} {egg.name} do malého hrnca. Dolej studenú vodu do výšky asi 2 cm nad vajcia. Var vajcia v malom hrnci na strednom ohni 10 minút od začiatku varu, kým žĺtok úplne stuhne. Uvarené vajcia schlaď v studenej vode a ošúp.",
+          "requires": [
+            "egg:raw",
+            "maly_hrniec:free"
+          ],
+          "produces": [
+            "egg:cooked",
+            "maly_hrniec:free"
+          ]
+        },
+        {
+          "text": "Sceď {tuna.amount} {tuna.name} a {corn.amount} {corn.name} cez sitko.",
+          "requires": [
+            "tuna:raw",
+            "corn:raw",
+            "sitko:free"
+          ],
+          "produces": [
+            "tuna:drained",
+            "corn:drained",
+            "sitko:free"
+          ]
+        },
+        {
+          "text": "Nakrájaj {pepper.amount} {pepper.name} na malé kocky, {cucumber.amount} {cucumber.name} na malé kocky, {onion.amount} {onion.name} nadrobno a {chives.amount} {chives.name} nadrobno.",
+          "requires": [
+            "pepper:raw",
+            "cucumber:raw",
+            "onion:raw",
+            "chives:raw"
+          ],
+          "produces": [
+            "pepper:cut",
+            "cucumber:cut",
+            "onion:cut",
+            "chives:cut"
+          ]
+        },
+        {
+          "text": "Nakrájaj {lemon.amount} {lemon.name} na polovice a vytlač z neho do misky šťavu, na každú porciu asi 1 lyžicu. Pridaj {oil.amount} {oil.name}, {mustard.amount} {mustard.name}, soľ a čierne korenie a vidličkou vymiešaj zálievku.",
+          "requires": [
+            "lemon:raw",
+            "oil:raw",
+            "mustard:raw",
+            "miska:free"
+          ],
+          "produces": [
+            "lemon:dressing",
+            "oil:dressing",
+            "mustard:dressing",
+            "miska:occupied"
+          ]
+        },
+        {
+          "text": "Premiešaj vo veľkej mise ryžu, tuniaka, kukuricu, papriku, uhorku, cibuľu a pažítku. Polej šalát zálievkou, jemne ho premiešaj a nechaj 15 minút v chladničke odležať.",
+          "requires": [
+            "rice:cooled",
+            "tuna:drained",
+            "corn:drained",
+            "pepper:cut",
+            "cucumber:cut",
+            "onion:cut",
+            "chives:cut",
+            "lemon:dressing",
+            "oil:dressing",
+            "mustard:dressing",
+            "velka_misa:free"
+          ],
+          "produces": [
+            "rice:salad",
+            "tuna:salad",
+            "corn:salad",
+            "pepper:salad",
+            "cucumber:salad",
+            "onion:salad",
+            "chives:salad",
+            "lemon:salad",
+            "oil:salad",
+            "mustard:salad",
+            "velka_misa:occupied",
+            "miska:free"
+          ]
+        },
+        {
+          "text": "Rozdeľ šalát na {portions} porcií, na každú porciu polož vajcia nakrájané na štvrtiny a podávaj.",
+          "requires": [
+            "rice:salad",
+            "tuna:salad",
+            "egg:cooked",
+            "corn:salad",
+            "pepper:salad",
+            "cucumber:salad",
+            "onion:salad",
+            "chives:salad",
+            "oil:salad",
+            "lemon:salad",
+            "mustard:salad",
+            "velka_misa:occupied"
+          ],
+          "produces": [
+            "rice:served",
+            "tuna:served",
+            "egg:served",
+            "corn:served",
+            "pepper:served",
+            "cucumber:served",
+            "onion:served",
+            "chives:served",
+            "oil:served",
+            "lemon:served",
+            "mustard:served",
+            "velka_misa:free"
+          ]
+        }
+      ],
+      "storage": {
+        "refrigerated_days": 2,
+        "instruction": "Šalát ulož do uzavretej nádoby a najneskôr do hodiny ho odlož do chladničky. Zjedz ho do 2 dní a vajcia krájaj až pred podávaním."
+      }
     }
   ]
 }

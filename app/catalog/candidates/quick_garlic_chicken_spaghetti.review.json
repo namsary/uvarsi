@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "b649546b067aa083131142c13700325f298b937ec5d126de65a082bf658f30b8",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "quick_garlic_chicken_spaghetti"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

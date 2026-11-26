@@ -1,0 +1,50 @@
+{
+  "recipes": [
+    {
+      "id": "quick_halloumi_vegetable_traybake",
+      "version": 2,
+      "active": true,
+      "name_template": "Zeleninový plech s grilovacím syrom",
+      "family": "quick_halloumi_vegetable_traybake",
+      "method": "oven",
+      "minutes": 55,
+      "modes": ["standard", "vegetarian"],
+      "equipment": ["rúra", "plech", "papier na pečenie", "veľká miska", "miska", "nôž", "doska na krájanie"],
+      "slots": [
+        {"key": "cheese", "role": "protein", "candidates": ["grilling_cheese"], "amount_per_adult": "90", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na plátky hrubé 1 cm"},
+        {"key": "potato", "role": "starch", "candidates": ["potato"], "amount_per_adult": "220", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na kocky"},
+        {"key": "zucchini", "role": "vegetable", "candidates": ["zucchini"], "amount_per_adult": "120", "unit": "g", "child_factor": "0.6", "required": true, "use": "main", "cut": "na polkolieska"},
+        {"key": "pepper", "role": "vegetable", "candidates": ["bell_pepper"], "amount_per_adult": "100", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na pásiky"},
+        {"key": "onion", "role": "aromatic", "candidates": ["onion"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "na mesiačiky"},
+        {"key": "tomato", "role": "vegetable", "candidates": ["tomato"], "amount_per_adult": "80", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": "na štvrtiny"},
+        {"key": "garlic", "role": "aromatic", "candidates": ["garlic"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "najemno"},
+        {"key": "oil", "role": "fat", "candidates": ["oil"], "amount_per_adult": "15", "unit": "ml", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "oregano", "role": "seasoning", "candidates": ["oregano"], "amount_per_adult": "0.5", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": null},
+        {"key": "parsley", "role": "seasoning", "candidates": ["parsley"], "amount_per_adult": "4", "unit": "g", "child_factor": "0.5", "required": true, "use": "addition", "cut": "nadrobno"},
+        {"key": "yogurt", "role": "dairy", "candidates": ["plain_yogurt"], "amount_per_adult": "50", "unit": "g", "child_factor": "0.6", "required": true, "use": "addition", "cut": null}
+      ],
+      "pantry_basics": ["water", "salt", "black_pepper"],
+      "instructions": [
+        {"text": "Predhrej rúru na 200 °C.", "requires": ["rura:free"], "produces": ["rura:hot"]},
+        {"text": "Ošúp {potato.amount} {potato.name} a nakrájaj ich na kocky veľké asi 2 cm. Nakrájaj {zucchini.amount} {zucchini.name} na polkolieska, {pepper.amount} {pepper.name} na pásiky, {onion.amount} {onion.name} na mesiačiky, {tomato.amount} {tomato.name} na štvrtiny, {garlic.amount} {garlic.name} najemno, {parsley.amount} {parsley.name} nadrobno a {cheese.amount} {cheese.name} na plátky hrubé 1 cm.", "requires": ["potato:raw", "zucchini:raw", "pepper:raw", "onion:raw", "tomato:raw", "garlic:raw", "parsley:raw", "cheese:raw"], "produces": ["potato:cut", "zucchini:cut", "pepper:cut", "onion:cut", "tomato:cut", "garlic:cut", "parsley:cut", "cheese:cut"]},
+        {"text": "Nalej {oil.amount} {oil.name} do veľkej misky. Pridaj cesnak, {oregano.amount} {oregano.name}, soľ a čierne korenie. Vsyp zemiaky do misky, premiešaj ich s polovicou koreninového oleja a rozlož ich na plech vystlaný papierom na pečenie.", "requires": ["oil:raw", "garlic:cut", "oregano:raw", "potato:cut", "velka_miska:free", "plech:free"], "produces": ["oil:mixed", "garlic:mixed", "oregano:mixed", "potato:tray", "velka_miska:occupied", "plech:occupied"]},
+        {"text": "Peč zemiaky na plechu v rúre pri 200 °C 20 minút, kým začnú na okrajoch zlatistieť.", "requires": ["potato:tray", "rura:hot", "plech:occupied"], "produces": ["potato:parbaked"]},
+        {"text": "Vsyp cuketu, papriku a cibuľu do misky, premiešaj ich so zvyškom koreninového oleja a rozlož ich na plech k zemiakom.", "requires": ["zucchini:cut", "pepper:cut", "onion:cut", "oil:mixed", "potato:parbaked"], "produces": ["zucchini:tray", "pepper:tray", "onion:tray", "oil:tray", "velka_miska:free"]},
+        {"text": "Peč zemiaky so zeleninou na plechu v rúre pri 200 °C 15 minút, kým paprika a cuketa zmäknú.", "requires": ["potato:parbaked", "zucchini:tray", "rura:hot"], "produces": ["potato:baked", "zucchini:baked", "pepper:baked", "onion:baked", "oil:baked", "garlic:baked", "oregano:baked"]},
+        {"text": "Rozlož syr na grilovanie a paradajky na plech medzi zeleninu. Peč syr na grilovanie so zeleninou v rúre pri 200 °C 12 minút, kým bude syr na okrajoch zlatistý a paradajky zmäknú.", "requires": ["cheese:cut", "tomato:cut", "zucchini:baked", "rura:hot"], "produces": ["cheese:baked", "tomato:baked"]},
+        {"text": "Premiešaj v miske {yogurt.amount} {yogurt.name} so štipkou soli.", "requires": ["yogurt:raw"], "produces": ["yogurt:mixed"]},
+        {"text": "Rozdeľ zeleninu so syrom na {portions} porcií, ozdob ju petržlenovou vňaťou a podávaj s jogurtom.", "requires": ["cheese:baked", "potato:baked", "zucchini:baked", "pepper:baked", "onion:baked", "tomato:baked", "garlic:baked", "oil:baked", "oregano:baked", "parsley:cut", "yogurt:mixed", "plech:occupied"], "produces": ["cheese:served", "potato:served", "zucchini:served", "pepper:served", "onion:served", "tomato:served", "garlic:served", "oil:served", "oregano:served", "parsley:served", "yogurt:served", "plech:free"]}
+      ],
+      "storage": {"refrigerated_days": 2, "instruction": "Zeleninu so syrom ulož do uzavretej nádoby a jogurt zvlášť. Najneskôr do 2 hodín ich odlož do chladničky, zjedz do 2 dní a prehrej v rúre pri 200 °C asi 10 minút."}
+    }
+  ],
+  "source_record": {
+    "recipe_id": "quick_halloumi_vegetable_traybake",
+    "editorial_lane": "modern_family",
+    "core": true,
+    "references": [
+      {"url": "https://dobruchut.aktuality.sk/recept/77016/halloumi-na-zelenine/", "title": "Halloumi na zelenine | Dobruchut.sk", "accessed_on": "2026-11-26"},
+      {"url": "https://varecha.pravda.sk/recepty/grilovana-zelenina-so-syrom-halloumi/64173-recept.html", "title": "Grilovaná zelenina so syrom halloumi - recept | Varecha.sk", "accessed_on": "2026-11-26"}
+    ]
+  }
+}

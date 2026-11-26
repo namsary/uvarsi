@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "fa08e542c86dc09537372779a1f7d73d371e85a412e5cf46fc05ca1066ef3374",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "quick_pork_strips_peppers_rice"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

@@ -423,3 +423,48 @@ def test_salad_cucumber_is_not_a_pickled_cucumber(catalog):
         [offer(nazov="Šalátové uhorky 1 kg", jednotka="1 kg")], catalog
     )
     assert [item.ingredient.id for item in matched] == ["cucumber"]
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit", "expected_id"),
+    (
+        ("Kyslá smotana 15 % 180 g", "180 g", "sour_cream"),
+        ("Smotana kyslá 200 g", "200 g", "sour_cream"),
+        ("Parmezán 100 g", "100 g", "parmesan"),
+        ("Grana Padano 200 g", "200 g", "parmesan"),
+        ("Parmigiano Reggiano strúhaný 100 g", "100 g", "parmesan"),
+        ("Pita chlieb 4 ks 320 g", "320 g", "pita"),
+        ("Chlieb pita 400 g", "400 g", "pita"),
+        ("Hamburgerové žemle 4 ks 300 g", "300 g", "burger_bun"),
+        ("Žemle na hamburger 300 g", "300 g", "burger_bun"),
+        ("Kukurica sterilizovaná 340 g", "340 g", "sweet_corn"),
+        ("Sladká kukurica 340 g", "340 g", "sweet_corn"),
+    ),
+)
+def test_wave2_quick_dinner_labels_match(catalog, product_name, unit, expected_id):
+    matched = match_offers([offer(nazov=product_name, jednotka=unit)], catalog)
+
+    assert [item.ingredient.id for item in matched] == [expected_id]
+
+
+@pytest.mark.parametrize(
+    ("product_name", "unit"),
+    (
+        ("Kyslá smotana s cesnakom 150 g", "150 g"),
+        ("Parmezán s hľuzovkou 100 g", "100 g"),
+        ("Pita chips 100 g", "100 g"),
+        ("Bezlepkové hamburgerové žemle 300 g", "300 g"),
+        ("Kukurica na pukance 500 g", "500 g"),
+        ("Kukurica varená klas 2 ks", "2 ks"),
+        ("Kukurica mrazená 400 g", "400 g"),
+    ),
+)
+def test_wave2_quick_dinner_lookalikes_fail_closed(catalog, product_name, unit):
+    assert match_offers([offer(nazov=product_name, jednotka=unit)], catalog) == ()
+
+
+def test_sour_cream_is_not_cooking_cream(catalog):
+    matched = match_offers(
+        [offer(nazov="Smotana na varenie 12 % 200 ml", jednotka="200 ml")], catalog
+    )
+    assert [item.ingredient.id for item in matched] == ["cream"]

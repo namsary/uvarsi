@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "3d39e733a887a61766f135d682fc08a4397edc43e9d23bfbeb95b412b5a28f71",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "quick_chicken_couscous_vegetables"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}

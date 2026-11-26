@@ -339,6 +339,31 @@ INGREDIENT_FORBIDDEN_OFFER_QUALIFIERS = MappingProxyType(
         "tomato_paste": frozenset(
             (("s",), ("so",), ("ochutený",), ("ochuteny",))
         ),
+        # A plain block or grated parmesan; flavoured or mixed products differ.
+        "parmesan": frozenset((("s",), ("so",))),
+        # Plain sour cream only, not a flavoured dip.
+        "sour_cream": frozenset(
+            (("s",), ("so",), ("dip",), ("ochutená",), ("ochutena",))
+        ),
+        # Soft flatbread for filling or a quick pizza, not baked crisps.
+        "pita": frozenset((("chips",), ("chipsy",), ("lupienky",))),
+        "burger_bun": frozenset(
+            (("bezlepkové",), ("bezlepkove",), ("bezlepková",), ("bezlepkova",))
+        ),
+        # Canned whole kernels; popcorn kernels and cooked cobs are
+        # different products.
+        "sweet_corn": frozenset(
+            (
+                ("pukance",),
+                ("klas",),
+                ("klasy",),
+                ("klasoch",),
+                ("mrazená",),
+                ("mrazena",),
+                ("varená",),
+                ("varena",),
+            )
+        ),
     }
 )
 

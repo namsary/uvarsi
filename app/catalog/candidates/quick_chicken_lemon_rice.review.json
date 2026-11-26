@@ -1,0 +1,9 @@
+{
+  "candidate_sha256": "f2cb052314cded8f1e97b9d8f6e7cd4a8fdaf221e7da13e656b0c569c7df3261",
+  "promoted_to": "01-pan.json",
+  "recipe_ids": [
+    "quick_chicken_lemon_rice"
+  ],
+  "reviewed_by": "Claude (Uvar.si QA) podľa preferencií Martina",
+  "reviewed_on": "2026-11-26"
+}
